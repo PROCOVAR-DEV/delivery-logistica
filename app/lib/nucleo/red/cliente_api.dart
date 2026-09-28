@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../identidad/almacen_sesion.dart';
 import '../identidad/renovador.dart';
 import '../registro/registro.dart';
+import 'de_quien_viene.dart';
 import 'fallos.dart';
 import 'interceptor_fallos.dart';
 import 'interceptor_sesion.dart';
@@ -156,30 +157,65 @@ class ClienteApi {
   ) async {
     var vuelta = 0;
     while (true) {
+      // No es `final` porque se le asigna desde las dos ramas del `try`, y ahi
+      // el analizador no sabe que la del `catch` solo corre si la otra no
+      // llego a terminar.
+      FalloApi fallo;
       try {
         final respuesta = await intento();
-        // Llego. Una sola buena basta para dar la red por sana otra vez: dejar
-        // el aviso puesto delante de alguien que ya tiene senal es mentir en la
-        // otra direccion.
-        _alIntentar?.call(llego: true);
-        return respuesta.data as T;
+
+        // UN 200 NO ES PRUEBA DE NADA SI NO LO FIRMA NUESTRO SERVIDOR
+        // — 28/09/2026.
+        //
+        // Algo por el camino —un router, un proxy, un filtro de la red—
+        // contesta 200 con su pagina dentro. Por aqui se contaba `llego: true`
+        // —hay respuesta, luego la red va—, la salud se ponia en verde y la
+        // franja decia «Todo al dia». Y encima el `as T` de abajo
+        // reventaba con un `TypeError` (Dio deja el HTML como `String` porque
+        // no es JSON), o sea que el aviso de red se daba por bueno JUSTO antes
+        // de estrellarse. Ver `de_quien_viene.dart`.
+        //
+        // El aviso va con lo que de verdad se sabe, y despues se decide.
+        final deLaCasa = contestoLoNuestro(respuesta);
+        _alIntentar?.call(llego: deLaCasa);
+        if (deLaCasa) {
+          // Llego. Una sola buena basta para dar la red por sana otra vez:
+          // dejar el aviso puesto delante de alguien que ya tiene senal es
+          // mentir en la otra direccion.
+          return respuesta.data as T;
+        }
+
+        // Y se trata como lo que es: red que no llega. Se reintenta con las
+        // mismas esperas —lo que se cruzo en medio puede quitarse de en medio
+        // y entonces la siguiente vuelta pasa— y los tokens se quedan.
+        fallo = ContestoOtroServidor(
+          codigo: respuesta.statusCode,
+          tipo: tipoDeContenido(respuesta),
+          detalle: 'respuesta que no es de nuestra API en $que',
+        );
       } on DioException catch (e) {
-        final fallo = e.error is FalloApi
+        final traducido = e.error is FalloApi
             ? e.error! as FalloApi
             : InterceptorFallos.traducir(e);
 
         // Un `Rechazo` o una `SesionMuerta` significan que la peticion SI
         // llego: el servidor contesto. Eso no dice nada malo de la red.
-        _alIntentar?.call(llego: fallo is! FalloDeRed);
-
-        if (fallo is! FalloDeRed || vuelta >= _esperas.length) throw fallo;
-
-        Registro.aviso(
-          'reintento ${vuelta + 1} de $que en ${_esperas[vuelta].inSeconds}s',
-        );
-        await _esperar(_esperas[vuelta]);
-        vuelta++;
+        //
+        // La regla es la misma de arriba y no hay que repetirla aqui:
+        // `InterceptorFallos.traducir` ya devuelve `ContestoOtroServidor` —que
+        // ES un `FalloDeRed`— cuando la respuesta con codigo no la firmo
+        // nuestra API, asi que un 403 de un proxy cuenta como caida.
+        _alIntentar?.call(llego: traducido is! FalloDeRed);
+        fallo = traducido;
       }
+
+      if (fallo is! FalloDeRed || vuelta >= _esperas.length) throw fallo;
+
+      Registro.aviso(
+        'reintento ${vuelta + 1} de $que en ${_esperas[vuelta].inSeconds}s',
+      );
+      await _esperar(_esperas[vuelta]);
+      vuelta++;
     }
   }
 }

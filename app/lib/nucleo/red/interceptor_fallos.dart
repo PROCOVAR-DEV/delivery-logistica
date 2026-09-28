@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import 'de_quien_viene.dart';
 import 'fallos.dart';
 
 /// Traduce lo que devuelve Dio a los tres tipos de `fallos.dart`. Es la tabla de
@@ -21,7 +22,8 @@ class InterceptorFallos extends Interceptor {
   }
 
   static FalloApi traducir(DioException error) {
-    final codigo = error.response?.statusCode;
+    final respuesta = error.response;
+    final codigo = respuesta?.statusCode;
 
     // La peticion ni salio, o se agoto el tiempo: red.
     if (codigo == null) {
@@ -29,8 +31,34 @@ class InterceptorFallos extends Interceptor {
     }
 
     // 5xx: el servidor esta mal, no nosotros. Se conserva y se reintenta.
+    //
+    // Va ANTES de mirar quien firma la respuesta, y a proposito: el 502 de
+    // nginx y el 503 de Traefik son paginas HTML, y decirle a alguien «esta red
+    // no llega al servidor» cuando la red va perfecta y lo que esta mal es el
+    // servidor manda a mirar donde no es. Como los dos acaban en `FalloDeRed`,
+    // lo unico que cambia entre una rama y otra es la frase.
     if (codigo >= 500) {
       return FalloDeRed(codigo: codigo, detalle: mensajeDelServidor(error));
+    }
+
+    // HAY CODIGO, PERO ¿QUIEN LO ESCRIBIO? — 28/09/2026.
+    //
+    // Aqui abajo estaba el agujero. Un router, un proxy transparente o un
+    // filtro de la red contestan por su cuenta con un 200, un 403 o un 404, y
+    // todos ellos salian por `Rechazo` — que significa «el servidor entendio la
+    // peticion y dijo que no», o sea, prueba de que la peticion LLEGO. Con eso,
+    // la salud de la red daba la conexion por buena sin que llegara una sola.
+    //
+    // Y la puerta la cierra por los dos lados: el 401 de abajo es lo UNICO que
+    // saca a alguien a la pantalla de acceso, y algo que no sea nuestro
+    // servidor no puede tener ese poder. Antes lo tenia. Ver
+    // `ContestoOtroServidor`.
+    if (!contestoLoNuestro(respuesta)) {
+      return ContestoOtroServidor(
+        codigo: codigo,
+        tipo: tipoDeContenido(respuesta),
+        detalle: error.message ?? error.type.name,
+      );
     }
 
     if (codigo == 401) {

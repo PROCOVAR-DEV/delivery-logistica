@@ -37,6 +37,44 @@ class FalloDeRed extends FalloApi {
   String toString() => 'FalloDeRed(codigo: $codigo, detalle: $detalle)';
 }
 
+/// CONTESTÓ ALGO, PERO NO NUESTRO SERVIDOR.
+///
+/// ## Un código HTTP no dice de quién es — 28/09/2026
+///
+/// Entre el teléfono y nuestra API hay cacharros que contestan por su cuenta:
+/// el propio router, un proxy transparente, un filtro de la red del cliente,
+/// una redirección a cualquier sitio. Como todos devuelven un código HTTP, esto
+/// salía por la rama de `Rechazo` —«el servidor entendió la petición y dijo que
+/// no»— y `Rechazo` es prueba de que la petición LLEGÓ. Con eso, la salud de la
+/// red daba la conexión por buena aunque no llegara una sola petición.
+///
+/// **Es un `FalloDeRed` y hereda de él a propósito**, no un tipo suelto: todo
+/// lo que ya estaba escrito para la red mala vale igual aquí y no hay que
+/// acordarse de nada. Los tokens se quedan (`arranque.dart`, `subida.dart`), la
+/// cola no se toca, se reintenta con sus esperas, y la salud de la red lo cuenta
+/// como caída porque el `is FalloDeRed` de `proveedores.dart` y de
+/// `cliente_api.dart` sigue siendo cierto. Lo único que cambia es lo que se le
+/// dice a la persona.
+///
+/// Y eso es lo que justifica la clase aparte: «Sin conexión con el servidor»
+/// manda a mirar la señal, y aquí la señal puede estar perfecta. Lo que hay
+/// entre medias es otra cosa.
+class ContestoOtroServidor extends FalloDeRed {
+  const ContestoOtroServidor({super.codigo, super.detalle, this.tipo});
+
+  /// El `Content-Type` que vino, cuando vino alguno. Va al registro: saber que
+  /// llegó un `text/html` es media investigación hecha.
+  final String? tipo;
+
+  @override
+  String get mensaje =>
+      'No se llegó al servidor: contestó otra cosa por el camino.';
+
+  @override
+  String toString() =>
+      'ContestoOtroServidor(codigo: $codigo, tipo: $tipo, detalle: $detalle)';
+}
+
 /// El servidor entendio la peticion y dijo que no.
 ///
 /// `mensaje` es LITERAL y viene del servidor, en espanol
@@ -85,6 +123,21 @@ class Rechazo extends FalloApi {
   /// `null` = el servidor no mando ninguna. Entonces **no se puede suponer
   /// cual es**, y quien decide algo destructivo con esto tiene que fallar
   /// cerrado.
+  ///
+  /// ## Y ESE 404 DE TRAEFIK YA NO LLEGA HASTA AQUI — 28/09/2026
+  ///
+  /// Cambio a proposito y conviene saberlo antes de leer el parrafo de arriba
+  /// pensando que sigue igual: `InterceptorFallos.traducir` mira ahora **quien
+  /// firma la respuesta**, y una que no sea JSON de nuestra API sale como
+  /// `ContestoOtroServidor`, que es un `FalloDeRed`. El 404 de Traefik durante
+  /// un redespliegue —el de los 12 aparatos para un solo telefono— ya no es un
+  /// `Rechazo`: es red, **y se reintenta**.
+  ///
+  /// Es lo correcto y no un efecto lateral que haya que arreglar: durante un
+  /// redespliegue el servicio no esta, y eso se espera y se repite, no se le
+  /// enseña a nadie como «el servidor dijo que no». Esta guarda no sobra por
+  /// eso: sigue haciendo falta para los 404 de VERDAD —los nuestros, en JSON—,
+  /// que son los que traen marca y los que hay que distinguir.
   final String? marca;
 
   @override

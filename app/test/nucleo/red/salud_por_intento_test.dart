@@ -229,6 +229,48 @@ void _elInterceptor() {
       );
     });
 
+    // Y «UNA RESPUESTA» NO BASTA: TIENE QUE SER LA NUESTRA — 28/09/2026.
+    //
+    // Renovar es la PRIMERA petición del ciclo y la primera al abrir la
+    // aplicación. Si algo por el camino —un router, un proxy, un filtro de la
+    // red— contesta a ésta en vez de auth, «hay Response» bastaba para anotar
+    // que la red iba: el contador de fallos se ponía a cero solo cada pocos
+    // minutos y nunca llegaba a tres. Las dos mitades van juntas — el detalle
+    // de la regla, en `de_quien_viene.dart`.
+    test('una página que no es de auth NO cuenta como que la red va', () async {
+      final dio = authQue(
+        () async => ResponseBody.fromString(
+          '<html>Acceso a la red restringido</html>',
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['text/html; charset=UTF-8'],
+          },
+        ),
+      );
+      await dio.get<Object?>('https://auth.prueba/refresh');
+      expect(
+        avisos,
+        [false],
+        reason:
+            'contestó algo, pero no auth: dar esto por bueno es lo que dejaba '
+            'el contador de fallos a cero sin que llegara una sola petición',
+      );
+    });
+
+    test('y una respuesta de auth de verdad SÍ cuenta', () async {
+      final dio = authQue(
+        () async => ResponseBody.fromString(
+          '{"access":"x"}',
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json; charset=utf-8'],
+          },
+        ),
+      );
+      await dio.get<Object?>('https://auth.prueba/refresh');
+      expect(avisos, [true]);
+    });
+
     test('sin respuesta, la petición no salió', () async {
       final dio = authQue(
         () => throw DioException.connectionError(

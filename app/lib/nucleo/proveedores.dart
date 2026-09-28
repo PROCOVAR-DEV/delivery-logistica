@@ -18,11 +18,13 @@ import 'identidad/almacen_sesion.dart';
 import 'identidad/renovador.dart';
 import 'plataforma.dart';
 import 'red/cliente_api.dart';
+import 'red/de_quien_viene.dart';
 import 'red/escritura_en_vivo.dart';
 import 'red/entorno.dart';
 import 'red/eventos.dart';
 import 'red/fallos.dart';
 import 'red/salud.dart';
+import 'red/veredicto_del_sistema.dart';
 import 'reloj.dart';
 import 'sincro/bajada.dart';
 import 'sincro/ciclo.dart';
@@ -167,8 +169,20 @@ final dioAuthProvider = Provider<Dio>(
 
 /// Cuenta cada intento de un Dio crudo para la salud de la red.
 ///
-/// Un error de red cuenta como «no llego». Cualquier respuesta del servidor
+/// Un error de red cuenta como «no llego». Una respuesta de NUESTRO servidor
 /// —incluido un 401 o un 404— cuenta como que SI llego: el servidor contesto.
+///
+/// ## Y «una respuesta» no basta: tiene que ser la NUESTRA — 28/09/2026
+///
+/// Este interceptor cuenta la peticion de renovar, que es el primer paso del
+/// ciclo y la primera que se hace al abrir la aplicacion. Si algo por el camino
+/// contesta esa peticion en vez de auth, habia `Response`, asi que aqui se
+/// anotaba `llego: true` **en cada vuelta del ciclo**: el contador de fallos se
+/// ponia a cero solo, cada pocos minutos, antes de llegar a tres, y la franja
+/// no llegaba a decir «sin conexion» jamas.
+///
+/// Ahora se le pregunta a `contestoLoNuestro` en los dos lados. Ver
+/// `red/de_quien_viene.dart`.
 class InterceptorDeSalud extends Interceptor {
   InterceptorDeSalud({required this.alIntentar});
 
@@ -179,15 +193,16 @@ class InterceptorDeSalud extends Interceptor {
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) {
-    alIntentar(llego: true);
+    alIntentar(llego: contestoLoNuestro(response));
     handler.next(response);
   }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    // Con respuesta, el servidor contesto: la red esta bien aunque el codigo
-    // sea malo. Sin respuesta, la peticion no salio.
-    alIntentar(llego: err.response != null);
+    // Con respuesta NUESTRA, el servidor contesto: la red esta bien aunque el
+    // codigo sea malo. Sin respuesta —o con la de otro—, no se llego.
+    // `contestoLoNuestro` ya devuelve `false` cuando no hay ninguna.
+    alIntentar(llego: contestoLoNuestro(err.response));
     handler.next(err);
   }
 }
@@ -414,6 +429,42 @@ final avisosDeRedProvider = Provider<Stream<bool> Function()>(
   (ref) => avisosDeConnectivityPlus,
 );
 
+/// EL VEREDICTO DEL SISTEMA, en tres piezas inyectables.
+///
+/// Las tres son providers por lo mismo que las dos de arriba: el canal nativo no
+/// existe en una prueba, y el temporizador de la ventana de sondeo tiene que
+/// poder dispararlo la prueba a mano — un `Timer` de verdad dentro de una prueba
+/// es una prueba que se cuelga en vez de fallar (`CLAUDE.md` §5).
+final veredictoAhoraProvider = Provider<VeredictoAhora>(
+  (ref) => veredictoDelSistemaAhora,
+);
+final avisosDeVeredictoProvider = Provider<AvisosDeVeredicto>(
+  (ref) => avisosDelVeredictoDelSistema,
+);
+final crearEsperaDelSondeoProvider = Provider<CrearEspera>((ref) => Timer.new);
+
+/// SI EL SISTEMA DICE QUE POR AQUI SE SALE A INTERNET, en vivo y ya filtrado.
+///
+/// Empieza por la pregunta de una vez y sigue con los avisos, igual que
+/// [hayRedProvider] y por el mismo motivo: el caso del repartidor es **abrir la
+/// aplicacion con la red ya muerta**, y ahi no hay ningun cambio que avisar.
+///
+/// Lo que sale de aqui ya pasó por la ventana de sondeo, asi que un «no valida»
+/// de este stream es uno que se mantuvo. Ver `red/veredicto_del_sistema.dart`.
+final veredictoDeLaRedProvider = StreamProvider<Veredicto>((ref) {
+  final ahora = ref.watch(veredictoAhoraProvider);
+  final avisos = ref.watch(avisosDeVeredictoProvider);
+  Stream<Veredicto> crudos() async* {
+    yield await ahora();
+    yield* avisos();
+  }
+
+  return losQueSePuedenCreer(
+    crudos(),
+    crearEspera: ref.watch(crearEsperaDelSondeoProvider),
+  );
+});
+
 /// SI EL APARATO CREE QUE HAY RED, en vivo.
 ///
 /// Sirve **para decidir que ensenar**, no para decidir si se sale a la red. La
@@ -459,15 +510,55 @@ class LaSalud extends Notifier<SaludDeLaRed> {
     // estado se lleva en la mano y se devuelve; después ya es `state`.
     var naciendo = true;
     var alNacer = SaludDeLaRed.bienDeSalida;
+
+    // Las dos pistas del sistema cambian la salud igual, asi que se escribe una
+    // sola vez lo de «mientras se nace, en la mano; despues, en `state`».
+    void cambiar(SaludDeLaRed Function(SaludDeLaRed) como) {
+      if (naciendo) {
+        alNacer = como(alNacer);
+        return;
+      }
+      state = como(state);
+    }
+
     ref.listen<AsyncValue<bool>>(hayRedProvider, (_, ahora) {
       final hay = ahora.value;
       if (hay == null) return;
-      if (naciendo) {
-        alNacer = hay ? alNacer.conInterfaz() : alNacer.sinRed();
-        return;
-      }
-      state = hay ? state.conInterfaz() : state.sinRed();
+      cambiar((salud) => hay ? salud.conInterfaz() : salud.sinRed());
     }, fireImmediately: true);
+
+    // EL «!» DEL ICONO DEL WIFI — 28/09/2026.
+    //
+    // La otra cosa que el sistema sabe y nosotros no: si esta red LLEGA a
+    // internet. Jose, con el telefono enganchado a un wifi sin salida: «me esta
+    // diciendo eso q tengo conexion y no tengo conexion ahora mismo q mierda es
+    // eso por q la wifi no esta dando internet». Sin esto habia que esperar a
+    // que se cayeran tres ciclos: dos minutos y medio de «Todo al dia» con el
+    // telefono sin internet. Ver `red/veredicto_del_sistema.dart`.
+    ref.listen<AsyncValue<Veredicto>>(veredictoDeLaRedProvider, (_, ahora) {
+      switch (ahora.value) {
+        case Veredicto.noValida:
+          cambiar((salud) => salud.sinSalidaAInternet());
+        case Veredicto.valida:
+          // Solo APAGA la bandera. Que Android valide una red no dice que
+          // nuestro servidor conteste; eso lo sigue diciendo una peticion.
+          cambiar((salud) => salud.conSalidaAInternet());
+        case Veredicto.sinRed:
+          // NO TOCA NADA, y es a proposito. «No hay red» ya lo dice `sinInterfaz`
+          // por el otro camino; apagar aqui la bandera de salida dejaria un hueco
+          // —el instante entre que se pierde la red y `connectivity_plus` se
+          // entera— con el aviso quitado sin que nadie tenga salida.
+          break;
+        case Veredicto.noLoSe:
+        case null:
+          // Windows, Linux y la web contestan esto SIEMPRE. No es «va mal», es
+          // «aqui no hay nada que preguntar», y por eso no enciende ni apaga
+          // nada: lo contrario dejaria el escritorio con el aviso puesto para
+          // siempre. `null` es el `AsyncLoading` del arranque, lo mismo.
+          break;
+      }
+    }, fireImmediately: true);
+
     naciendo = false;
     return alNacer;
   }
@@ -478,11 +569,46 @@ class LaSalud extends Notifier<SaludDeLaRed> {
   void anotar(ResumenDelCiclo resumen) {
     // Sin sesion no se intento nada: eso no dice nada de la red.
     if (resumen.sinSesion) return;
-    // Y solo cuenta el fallo DE RED. Una sesion muerta o un rechazo del
-    // servidor significan que la peticion SI llego.
-    state = resumen.fallo is FalloDeRed
-        ? state.conUnaMala()
-        : state.conUnaBuena(ref.read(relojProvider)());
+
+    final fallo = resumen.fallo;
+
+    // El fallo DE RED es el unico que cuenta en contra. `ContestoOtroServidor`
+    // —el wifi que contesta su propia pagina— hereda de `FalloDeRed`, asi que
+    // entra por aqui sin nombrarlo.
+    if (fallo is FalloDeRed) {
+      state = state.conUnaMala();
+      return;
+    }
+
+    // DAR LA RED POR BUENA PIDE UNA PRUEBA, NO LA FALTA DE UNA — 28/09/2026.
+    //
+    // Esto era `fallo is FalloDeRed ? mala : buena`, y ese `else` se tragaba
+    // TODO lo que no fuera red: un parseo que revienta, una excepcion de la
+    // base local, un `TypeError` del `as T` de `cliente_api.dart`… todos
+    // decian «la conexion sirve» y borraban el aviso que ya estaba puesto.
+    // Ninguno de ellos ha visto un paquete llegar.
+    //
+    // Lo que SI es prueba de que la peticion llego son tres cosas y se nombran
+    // una a una: el ciclo entero salio bien, el servidor dijo que no
+    // (`Rechazo`), o el servidor dijo que esta sesion ya no vale
+    // (`SesionMuerta`). **El 401 se queda dentro a proposito**: sigue estando
+    // documentado en `red/fallos.dart` que una sesion muerta no es una red
+    // muerta, y contarla como caida mandaria a mirar el wifi por un problema
+    // de la puerta.
+    if (fallo == null || fallo is Rechazo || fallo is SesionMuerta) {
+      state = state.conUnaBuena(ref.read(relojProvider)());
+      return;
+    }
+
+    // Y lo demas NO MUEVE NADA, ni a bien ni a mal. Contarlo como caida seria
+    // poner «sin conexion» por un fallo de programacion con la red perfecta, y
+    // un aviso que salta en falso deja de leerse (`CLAUDE.md` §3-quinquies).
+    // Quien de verdad sabe si los paquetes llegan es `anotarIntento`, que cuenta
+    // peticion a peticion.
+    Registro.aviso(
+      'el ciclo cayó por algo que no dice nada de la red: '
+      '${fallo.runtimeType}. La salud no se toca.',
+    );
   }
 
   /// UN INTENTO SUELTO, no un ciclo entero.

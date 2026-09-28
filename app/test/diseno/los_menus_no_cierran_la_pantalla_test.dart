@@ -42,7 +42,8 @@ Widget _pantalla({required Widget selector}) => MaterialApp(
       children: [
         const Text(marcaDeLaPantalla),
         selector,
-        for (var i = 0; i < 60; i++) SizedBox(height: 40, child: Text('fila $i')),
+        for (var i = 0; i < 60; i++)
+          SizedBox(height: 40, child: Text('fila $i')),
       ],
     ),
   ),
@@ -114,6 +115,23 @@ void main() {
     testWidgets('elegir avisa, cierra el menú y NO cierra la pantalla', (
       tester,
     ) async {
+      // A 1200 px, Y HAY QUE PONERLO A MANO.
+      //
+      // Un `testWidgets` sin tocar `tester.view` mide **800x600**, que está POR
+      // DEBAJO de `Anchos.escritorio` (1024). Desde el 28/09/2026 el selector
+      // de Clientes abre un cajón por debajo de ese corte, así que esta prueba
+      // —escrita para el MENÚ— pasaba sola a medir un cajón sin que nadie lo
+      // pidiera, y se habría quedado en verde comprobando otra cosa: en el
+      // cajón cerrar SÍ es `Navigator.pop`, que es justo lo contrario de lo que
+      // esto vigila. Un caso que se cambia de sitio solo es peor que uno que
+      // falta, porque parece que sigue ahí.
+      //
+      // El cajón tiene su propia pareja en
+      // `test/pantallas/clientes/el_filtro_es_cajon_en_el_telefono_test.dart`.
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.reset);
+
       String? elegido;
       var avisos = 0;
 
@@ -172,6 +190,14 @@ void main() {
       // sea que el menú SIEMPRE se abre encima de algo desplazable. Sin
       // `primary: false` en el menú quedan dos `ScrollPosition` colgando del
       // mismo `PrimaryScrollController` y Flutter lo corta en seco.
+      //
+      // A 1200 px por lo mismo que la de arriba: los 800x600 de serie caen por
+      // debajo del corte y esto pasaría a probar el cajón, que no tiene este
+      // problema porque no abre ningún desplazable propio.
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.reset);
+
       await tester.pumpWidget(
         _pantalla(
           selector: clientes.SelectorFiltro<String>(

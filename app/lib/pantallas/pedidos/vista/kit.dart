@@ -452,6 +452,31 @@ class OpcionSelector<T> {
 
 /// El desplegable con buscador (§9.6): **caja de busqueda a partir de 4
 /// opciones**, o siempre si se fuerza.
+///
+/// **En el telefono no es un menu: es un cajon.** Ver el comentario largo del
+/// `build`, que cuenta el 28/09/2026.
+///
+/// POR QUÉ ESTO NO ES EL `Selector` DE `lib/diseno/`, QUE SERÍA MEJOR.
+///
+/// Se miró, y sería una pieza en vez de tres. No se puede de golpe, y el motivo
+/// no es de gusto:
+///
+///  1. **El `OpcionSelector` de aquí lleva los argumentos por posición**
+///     (`OpcionSelector('cam', 'Camagüey', nota: 'CAM')`) y el del común por
+///     nombre. Son dos clases distintas con el mismo nombre, y cambiar de una a
+///     otra toca las DIECISÉIS pantallas que importan este fichero —Pedidos,
+///     Rutas, el asistente de cuatro pasos y el Tablero entero—, que ahora
+///     mismo las están escribiendo otros agentes.
+///  2. El común pinta la **marca ✓ de lo elegido** y la **nota corta dentro de
+///     la caja**; éste no hace ninguna de las dos. Traerlas es un cambio de
+///     aspecto en dieciséis pantallas, no un renombre.
+///  3. `Selector.nadaQueCuadre` es público y lo usa
+///     `test/pantallas/pedidos/selector_del_kit_test.dart`.
+///
+/// Unificar es un buen cambio y hay que hacerlo, pero es otro y de un solo
+/// agente con el árbol quieto. Mientras tanto, lo que sí se comparte es **el
+/// comportamiento**: el mismo corte en `Anchos.escritorio` y el mismo cajón,
+/// que es lo que ve Jose.
 class Selector<T> extends StatelessWidget {
   const Selector({
     required this.titulo,
@@ -481,6 +506,45 @@ class Selector<T> extends StatelessWidget {
     // tine de primario y la letra se pone en semibold, para que se vea que el
     // filtro ESTA PUESTO sin leer la etiqueta.
     final filtrando = elegida != null;
+    final conBuscador = buscadorSiempre || opciones.length >= 4;
+
+    // EN EL TELÉFONO ES UN CAJÓN; EN ESCRITORIO, EL MENÚ ANCLADO DE SIEMPRE.
+    //
+    // Jose, 28/09/2026, con Pedidos abierto en el móvil:
+    //
+    //     «recuerda que este modal en el movil debe ser un drawer, el
+    //      calendario, todo lo que salga asi como modal que sobresalga, los
+    //      dropdowns creo que seria mejor ponerlos como drawer, todo eso para
+    //      las opciones y queda mucho mas comodo»
+    //
+    // Dijo «los dropdowns», en plural, y en la aplicación son CUATRO: el común
+    // de `lib/diseno/selector.dart`, el calendario de `rango_de_fechas.dart`,
+    // el de Clientes y éste. Los dos primeros se pasaron a cajón ese mismo día.
+    //
+    // Éste es el que más sitios toca: los filtros de Pedidos, los de Rutas, el
+    // Tablero y los cuatro pasos del asistente. Su panel mide 320x360 como
+    // mucho y se ancla al botón; en un teléfono de 390 px eso ya se pega a los
+    // bordes, y el buscador hace `autofocus`, así que el teclado se come lo que
+    // quedaba. El caso que lo hace insufrible es el selector de vendedor del
+    // asistente, con ciento y pico opciones en un panel de 360 px de alto.
+    //
+    // **En escritorio no se toca nada.** El menú anclado es lo que arregló el
+    // 25/09/2026 —el menú se quedaba flotando al desplazar la página— y
+    // `MenuAnchor` es lo que lo sostiene.
+    //
+    // El corte es `anchoEscritorio` (= `Anchos.escritorio`, 1024) y NO «cajón
+    // siempre», aunque §4 del CLAUDE.md lo permitiría en este proyecto: los
+    // otros tres desplegables ya cortan ahí, y cuatro piezas que hacen lo mismo
+    // tienen que cortar por el mismo sitio o alguien arregla una y deja tres.
+    final enElTelefono = MediaQuery.sizeOf(context).width < anchoEscritorio;
+
+    if (enElTelefono) {
+      return _caja(
+        elegida: elegida,
+        filtrando: filtrando,
+        alPulsar: () => _abrirElCajon(context, conBuscador: conBuscador),
+      );
+    }
 
     return MenuAnchor(
       style: MenuStyle(
@@ -493,59 +557,120 @@ class Selector<T> extends StatelessWidget {
           ),
         ),
       ),
-      builder: (contexto, controlador, _) => Tooltip(
-        message: titulo,
-        child: OutlinedButton(
-          onPressed: () =>
-              controlador.isOpen ? controlador.close() : controlador.open(),
-          style: OutlinedButton.styleFrom(
-            backgroundColor: Colores.blanco,
-            foregroundColor: filtrando ? Colores.tinta : Colores.tintaSuave,
-            side: BorderSide(
-              color: filtrando
-                  ? Colores.primario.withValues(alpha: 0.5)
-                  : Colores.linea,
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: Aire.md,
-              vertical: 9,
-            ),
-            textStyle: Tipos.texto(
-              tamano: 14,
-              peso: filtrando ? FontWeight.w600 : FontWeight.w400,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(Radios.lg),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  elegida?.etiqueta ?? titulo,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: Aire.xs),
-              Icon(
-                Icons.keyboard_arrow_down,
-                size: 16,
-                color: Colores.tintaSuave,
-              ),
-            ],
-          ),
-        ),
+      builder: (contexto, controlador, _) => _caja(
+        elegida: elegida,
+        filtrando: filtrando,
+        alPulsar: () =>
+            controlador.isOpen ? controlador.close() : controlador.open(),
       ),
       menuChildren: [
         _MenuConBuscador<T>(
           opciones: opciones,
-          conBuscador: buscadorSiempre || opciones.length >= 4,
+          conBuscador: conBuscador,
           alElegir: alElegir,
         ),
       ],
     );
   }
+
+  /// El cajón del teléfono. Lo titula el [titulo] del filtro, que en escritorio
+  /// es el `tooltip` del botón — y en un teléfono no hay ratón que lo saque,
+  /// así que aquí es la única vez que se lee.
+  ///
+  /// **Va con el `Cajon` de este mismo fichero y no con el de `lib/diseno/`.**
+  /// Los dos existen y hacen lo mismo; éste es el que ya abren las dieciséis
+  /// pantallas que importan el kit, así que un selector de Pedidos que abriera
+  /// el otro tendría distinto relleno y distinto `SafeArea` que el cajón de
+  /// detalle de al lado, y nadie sabría por qué.
+  Future<void> _abrirElCajon(
+    BuildContext contexto, {
+    required bool conBuscador,
+  }) => abrirCajon<void>(
+    contexto,
+    (_) => Cajon(
+      titulo: titulo,
+      // En movil `Cajon` ignora este ancho y ocupa la pantalla entera; se pone
+      // el mas estrecho para que un escritorio estrecho —una ventana a 900 px,
+      // que tambien entra por aqui— no se coma la pantalla por una lista de
+      // opciones.
+      ancho: AnchoCajon.md,
+      cuerpo: _OpcionesEnCajon<T>(
+        opciones: opciones,
+        conBuscador: conBuscador,
+        alElegir: alElegir,
+      ),
+    ),
+  );
+
+  /// La caja del filtro. Es la MISMA en los dos sitios: lo unico que cambia es
+  /// lo que hace al pulsarla. Estaba escrita dentro del `builder` del
+  /// `MenuAnchor`, y ahi solo la podia usar el escritorio.
+  Widget _caja({
+    required OpcionSelector<T>? elegida,
+    required bool filtrando,
+    required VoidCallback alPulsar,
+  }) => Tooltip(
+    message: titulo,
+    child: OutlinedButton(
+      onPressed: alPulsar,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: Colores.blanco,
+        foregroundColor: filtrando ? Colores.tinta : Colores.tintaSuave,
+        side: BorderSide(
+          color: filtrando
+              ? Colores.primario.withValues(alpha: 0.5)
+              : Colores.linea,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: Aire.md, vertical: 9),
+        textStyle: Tipos.texto(
+          tamano: 14,
+          peso: filtrando ? FontWeight.w600 : FontWeight.w400,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Radios.lg),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              elegida?.etiqueta ?? titulo,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: Aire.xs),
+          Icon(Icons.keyboard_arrow_down, size: 16, color: Colores.tintaSuave),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Las opciones que quedan al escribir en el buscador.
+///
+/// SE BUSCA TAMBIÉN POR LA NOTA, no sólo por la etiqueta. La nota es el código
+/// de la sucursal (`CAM`, `HOL`, `STG`), que es como se las nombra aquí;
+/// buscando sólo por etiqueta, escribir `CAM` en el selector de sucursal del
+/// asistente no encuentra Camagüey.
+///
+/// Está aquí suelta y la usan los DOS caminos —el menú de escritorio y el cajón
+/// del teléfono—, porque son el mismo filtro. Copiada dos veces, el día que
+/// alguien le añada un criterio lo arregla en un sitio y en el otro no, y la
+/// mitad de los usuarios ve otra lista.
+List<OpcionSelector<T>> _visibles<T>(
+  List<OpcionSelector<T>> opciones,
+  String texto,
+) {
+  final busca = texto.trim().toLowerCase();
+  if (busca.isEmpty) return opciones;
+  return opciones
+      .where(
+        (o) =>
+            o.etiqueta.toLowerCase().contains(busca) ||
+            (o.nota ?? '').toLowerCase().contains(busca),
+      )
+      .toList();
 }
 
 class _MenuConBuscador<T> extends StatefulWidget {
@@ -568,21 +693,7 @@ class _MenuConBuscadorState<T> extends State<_MenuConBuscador<T>> {
 
   @override
   Widget build(BuildContext context) {
-    final busca = _texto.trim().toLowerCase();
-    // SE BUSCA TAMBIÉN POR LA NOTA, no sólo por la etiqueta. La nota es el
-    // código de la sucursal (`CAM`, `HOL`, `STG`), que es como se las nombra
-    // aquí; buscando sólo por etiqueta, escribir `CAM` en el selector de
-    // sucursal del asistente no encuentra Camagüey. Es lo que ya hace el
-    // hermano de `lib/diseno/selector.dart` y no se había traído.
-    final visibles = busca.isEmpty
-        ? widget.opciones
-        : widget.opciones
-              .where(
-                (o) =>
-                    o.etiqueta.toLowerCase().contains(busca) ||
-                    (o.nota ?? '').toLowerCase().contains(busca),
-              )
-              .toList();
+    final visibles = _visibles(widget.opciones, _texto);
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxHeight: 360, maxWidth: 320),
@@ -619,32 +730,7 @@ class _MenuConBuscadorState<T> extends State<_MenuConBuscador<T>> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // BUSCAR Y NO ENCONTRAR NADA SE DICE — 24/09/2026.
-                  //
-                  // Visto en el navegador, en el paso 1 del asistente: con
-                  // `me` escrito en el buscador de sucursales, el panel se
-                  // quedaba con la caja de buscar y NADA debajo, encima de un
-                  // desplegable con las tres sucursales dentro. Un panel en
-                  // blanco es indistinguible de «este desplegable está roto» y
-                  // de «aquí no hay nada que elegir», que es justo lo que no
-                  // pasa.
-                  //
-                  // El hermano de `lib/diseno/selector.dart` ya lo decía; este
-                  // —que es el que usan Pedidos y los cuatro pasos del
-                  // asistente— no. Mismo texto, para que sea la misma frase en
-                  // toda la aplicación.
-                  if (visibles.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(Aire.lg),
-                      child: Text(
-                        '${Selector.nadaQueCuadre} «${_texto.trim()}»',
-                        textAlign: TextAlign.center,
-                        style: Tipos.texto(
-                          tamano: 13,
-                          color: Colores.tintaSuave,
-                        ),
-                      ),
-                    ),
+                  if (visibles.isEmpty) _NadaQueCuadre(texto: _texto),
                   for (final opcion in visibles)
                     MenuItemButton(
                       onPressed: () => widget.alElegir(opcion.valor),
@@ -670,6 +756,126 @@ class _MenuConBuscadorState<T> extends State<_MenuConBuscador<T>> {
       ),
     );
   }
+}
+
+/// Las mismas opciones, dentro del cajon del telefono (28/09/2026).
+///
+/// **Aqui no hay ningun desplazamiento propio, y es a proposito.** El cuerpo de
+/// un [Cajon] YA es un `SingleChildScrollView` a alto completo, asi que la
+/// lista entera se desplaza sola y llega hasta el final —el caso que importa es
+/// el vendedor con ciento y pico opciones, que no cabe ni de lejos—. Meter aqui
+/// otro desplazable dentro de uno que crece sin limite es el error de siempre:
+/// o revienta por altura infinita, o queda un panel de 360 px con su barra
+/// dentro de otro, que es peor que el menu de antes.
+///
+/// Y por lo mismo NO hay `BoxConstraints(maxHeight: 360, maxWidth: 320)`: ese
+/// tope es del menu flotante, que no puede taparlo todo. El cajon si puede, y
+/// de eso va.
+class _OpcionesEnCajon<T> extends StatefulWidget {
+  const _OpcionesEnCajon({
+    required this.opciones,
+    required this.conBuscador,
+    required this.alElegir,
+  });
+
+  final List<OpcionSelector<T>> opciones;
+  final bool conBuscador;
+  final void Function(T) alElegir;
+
+  @override
+  State<_OpcionesEnCajon<T>> createState() => _OpcionesEnCajonState<T>();
+}
+
+class _OpcionesEnCajonState<T> extends State<_OpcionesEnCajon<T>> {
+  String _texto = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final visibles = _visibles(widget.opciones, _texto);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (widget.conBuscador) ...[
+          TextField(
+            // SIN `autofocus`, al contrario que el menu de escritorio.
+            //
+            // Alli el panel mide 320 px y el teclado no le quita nada, asi que
+            // abrir escribiendo sale gratis. Aqui el cajon es la pantalla
+            // entera y el teclado del telefono se come la mitad: abrirlo sin
+            // que nadie lo haya pedido tapa justo las opciones que se venian a
+            // mirar. Quien quiera buscar toca la caja; quien venga a tocar
+            // «Todos los vehículos» lo ve sin pelear con el teclado.
+            style: Tipos.texto(tamano: 14),
+            decoration: const InputDecoration(
+              isDense: true,
+              prefixIcon: Icon(Icons.search, size: 18),
+              prefixIconConstraints: BoxConstraints(minWidth: 34),
+              hintText: 'Buscar…',
+            ),
+            onChanged: (t) => setState(() => _texto = t),
+          ),
+          const SizedBox(height: Aire.sm),
+        ],
+        // BUSCAR Y NO ENCONTRAR NADA SE DICE, también aquí — 24/09/2026.
+        //
+        // Un cajón a pantalla completa con la caja de buscar y NADA debajo es
+        // todavía peor que el panel en blanco de aquel día: ocupa los 390 px de
+        // ancho y los 800 de alto para no decir nada.
+        if (visibles.isEmpty) _NadaQueCuadre(texto: _texto),
+        for (final opcion in visibles)
+          ListTile(
+            // SIN `dense`, al contrario que el menú. Aquí se toca con el dedo y
+            // una fila de 38 px se falla; sin `dense` el `ListTile` se va a los
+            // 48 px que pide cualquier guía de toque.
+            title: Text(
+              opcion.etiqueta,
+              style: Tipos.texto(tamano: 14, color: Colores.tinta),
+            ),
+            trailing: opcion.nota == null
+                ? null
+                : Text(
+                    opcion.nota!,
+                    style: Tipos.texto(tamano: 11, color: Colores.tintaSuave),
+                  ),
+            onTap: () {
+              // Primero se avisa y luego se cierra: cerrar antes desmonta este
+              // `State` y el aviso se perderia.
+              widget.alElegir(opcion.valor);
+              // EL CAJON SI ES UNA RUTA —`showGeneralDialog`—, asi que aqui el
+              // `Navigator` es lo correcto. Es justo lo contrario del menu, que
+              // NO es una ruta y se cierra solo con su `MenuController`: alli
+              // un `pop` cerraria la pantalla de debajo (25/09/2026,
+              // `los_menus_no_cierran_la_pantalla_test.dart`).
+              Navigator.of(context).maybePop();
+            },
+          ),
+      ],
+    );
+  }
+}
+
+/// El cartel de cuando el buscador no deja nada. Uno solo para los dos sitios:
+/// mismo texto en el menu y en el cajon, que es lo que pedia el 24/09/2026 —«la
+/// misma frase en toda la aplicacion»— y que separados duraria un mes.
+///
+/// Un panel en blanco es indistinguible de «este desplegable esta roto» y de
+/// «aqui no hay nada que elegir», que es justo lo que no pasa.
+class _NadaQueCuadre extends StatelessWidget {
+  const _NadaQueCuadre({required this.texto});
+
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(Aire.lg),
+    child: Text(
+      '${Selector.nadaQueCuadre} «${texto.trim()}»',
+      textAlign: TextAlign.center,
+      style: Tipos.texto(tamano: 13, color: Colores.tintaSuave),
+    ),
+  );
 }
 
 // -----------------------------------------------------------------------------

@@ -1424,6 +1424,23 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 				"id": l.ID, "linea": l.Linea, "description": l.Description,
 				"quantity": l.Quantity, "packs": l.Packs, "productId": idOpcional(l.ProductID),
 				"updatedAt": hora(l.UpdatedAt),
+				// EL PESO DEL RENGLÓN, QUE AQUÍ SE QUEDABA FUERA — 28/09/2026.
+				//
+				// El 26/09 se añadió a `RenglonSalida`, que es lo que sirve
+				// `/api/orders`… y esta bajada **no usa esa struct**: arma el renglón a
+				// mano, con un mapa suelto. Así que la API mandaba el peso por una puerta
+				// y el aparato se bajaba por la otra, donde no iba.
+				//
+				// Lo que se veía, y lo vio Jose: «no tenemos ni unidades ni peso
+				// individual; el pedido sí, pero cada item anda sin nada». El total del
+				// pedido salía —ése viene en su propia fila— y los renglones, en blanco.
+				//
+				// La lección, que es la que importa: **dos sitios que sirven lo mismo y
+				// no comparten la struct se separan sin que nada falle.** Es el §3-bis
+				// del `CLAUDE.md` con otra cara. Si alguna vez se tocan los campos del
+				// renglón, hay que tocar LOS DOS: aquí y `RenglonSalida` en `pedidos.go`.
+				"pesoKg":      l.PesoUnitarioKg,
+				"pesoLineaKg": l.PesoLineaKg,
 			})
 		}
 	}

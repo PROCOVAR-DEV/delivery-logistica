@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -1564,5 +1566,71 @@ func TestElRecosteoMandaLosPedidosTraducidos(t *testing.T) {
 	// aunque la respuesta siga diciendo cero.
 	if !strings.Contains(w.Body.String(), `"recosteados":1`) {
 		t.Fatalf("llegó bien y la respuesta no lo cuenta: %s", w.Body.String())
+	}
+}
+
+// LA BAJADA Y `/api/orders` SIRVEN EL MISMO RENGLÓN, Y SE ATAN CON UNA PRUEBA.
+//
+// El 26/09/2026 se le añadió el peso a `RenglonSalida`, que es lo que sirve `/api/orders`.
+// Pero `pedidosDeLaBajada` **no usa esa struct**: arma el renglón a mano con un mapa
+// suelto. Así que la API mandaba el peso por una puerta y el aparato se bajaba por la
+// otra, donde no iba — y el 28/09 Jose lo vio: «no tenemos ni unidades ni peso individual;
+// el pedido sí, pero cada item anda sin nada».
+//
+// Dos sitios que sirven lo mismo y no comparten la struct **se separan sin que nada falle**.
+// Es el §3-bis del `CLAUDE.md` con otra cara: no se atan con un comentario, se atan con una
+// prueba que compara las dos formas.
+func TestLaBajadaSirveLosMismosCamposDelRenglonQuePedidos(t *testing.T) {
+	// Los campos de `RenglonSalida`, leídos de sus etiquetas `json` — no de una lista
+	// escrita a mano, que es lo que se desincroniza.
+	deLaAPI := map[string]bool{}
+	tipo := reflect.TypeOf(RenglonSalida{})
+	for i := 0; i < tipo.NumField(); i++ {
+		etiqueta := tipo.Field(i).Tag.Get("json")
+		if etiqueta == "" || etiqueta == "-" {
+			continue
+		}
+		deLaAPI[strings.Split(etiqueta, ",")[0]] = true
+	}
+
+	// Y los que de verdad escribe la bajada, leídos del código fuente: es un mapa
+	// literal, así que no hay tipo que preguntar. Se lee el fichero a propósito — lo que
+	// se quiere cazar es justo que alguien añada un campo en un sitio y no en el otro.
+	crudo, err := os.ReadFile("espejo.go")
+	if err != nil {
+		t.Fatalf("no se pudo leer espejo.go: %v", err)
+	}
+	texto := string(crudo)
+	i := strings.Index(texto, "renglones[l.OrderID] = append(")
+	if i < 0 {
+		t.Fatal("no se encontró dónde arma la bajada sus renglones: si se movió, esta " +
+			"prueba deja de vigilar nada y hay que apuntarla al sitio nuevo")
+	}
+	bloque := texto[i:]
+	if fin := strings.Index(bloque, "})"); fin > 0 {
+		bloque = bloque[:fin]
+	}
+
+	var faltan []string
+	for campo := range deLaAPI {
+		// `id`, `name` y `productId` los sirve la bajada con otro nombre o no le hacen
+		// falta al aparato; lo que se vigila es que no se pierda un campo de DATOS.
+		if campo == "name" {
+			continue
+		}
+		if !strings.Contains(bloque, `"`+campo+`"`) {
+			faltan = append(faltan, campo)
+		}
+	}
+	sort.Strings(faltan)
+
+	if len(faltan) > 0 {
+		t.Fatalf(
+			"la bajada NO sirve estos campos del renglón y `/api/orders` sí: %v.\n"+
+				"El aparato se baja por la bajada, así que lo que falte aquí no llega "+
+				"aunque la API lo mande por la otra puerta. Pasó el 28/09/2026 con el "+
+				"peso: el total del pedido salía y los renglones iban en blanco.",
+			faltan,
+		)
 	}
 }

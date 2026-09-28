@@ -661,6 +661,19 @@ class RepositorioTablero {
       'vehiculoId': ?columna?.vehiculoId,
       // El orden del logistico gana al greedy por defecto (§5.4).
       'optimizar': false,
+      // EL DIA DE LA RUTA, Y VIAJA. Antes se escribia aqui abajo en la base
+      // local (`deliveryDate: Value(_reloj())`) y NO se mandaba, asi que el
+      // servidor la guardaba nula y la siguiente bajada la pisaba con ese nulo:
+      // **la ruta nacia con fecha en el telefono y la perdia al subir**. Se vio
+      // el 28/09/2026 probando la APK sin señal: «Planificada · 1.7 km ·
+      // 28/9/2026» antes de sincronizar y «En curso · 1.7 km · —» despues. Las
+      // nueve rutas que habia en produccion tenian `delivery_date` nulo.
+      //
+      // Va la del APARATO y no la de alla: un apunte hecho sin señal llega
+      // horas despues, y la ruta se armo el dia que la armo el logistico, no el
+      // dia en que el servidor se entero. Misma razon por la que viajan los
+      // `pedidoIds`.
+      'deliveryDate': _reloj().toIso8601String(),
     };
 
     // EN LA WEB LA RUTA LA CREA EL SERVIDOR, Y SU ID ES EL BUENO.

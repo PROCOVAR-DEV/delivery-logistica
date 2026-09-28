@@ -1218,6 +1218,27 @@ type cuerpoArmar struct {
 	// nadie se lo diga.
 	Optimizar httpx.Opcional[bool] `json:"optimizar"`
 
+	// EL DÍA DE LA RUTA, y por qué lo manda el aparato y no lo pone el reloj de aquí.
+	//
+	// Las NUEVE rutas que había en producción el 28/09/2026 tenían `delivery_date` nulo,
+	// las nueve, y por eso la ficha y la lista enseñaban una raya donde va el día. Jose:
+	// «mira todos los — que hay en la ruta y esos datos debemos de tenerlo». Eran dos
+	// agujeros a la vez: el asistente tenía el campo en «(opcional)» y nadie lo rellenaba,
+	// y ESTE camino —el del tablero, que es por donde se arma de verdad— ni siquiera
+	// mandaba nada. El aparato sí escribía el día en su base local, así que la ruta
+	// nacía con fecha en el teléfono y la PERDÍA al subir, cuando la bajada la pisaba con
+	// el nulo del servidor. Lo vio la prueba del móvil sin señal: «Planificada · 1.7 km ·
+	// 28/9/2026» antes de sincronizar y «En curso · 1.7 km · —» después.
+	//
+	// Viene del aparato porque un apunte hecho sin señal llega HORAS después: la ruta se
+	// armó el día que la armó el logístico, no el día en que el servidor se enteró. Es la
+	// misma razón por la que viaja [cuerpoArmar.PedidoIds].
+	//
+	// Y si no viene —las APK ya instaladas no la mandan— se pone la de HOY en vez de
+	// dejarla nula: una ruta siempre tiene día, y un hueco ahí no es «no se sabe», es un
+	// dato que se perdió. Con las viejas se acerca, que es infinitamente mejor que la raya.
+	FechaDeEntrega httpx.Opcional[string] `json:"deliveryDate"`
+
 	// LOS PEDIDOS QUE EL APARATO DECIDIÓ QUE IBAN EN ESA RUTA. Opcional, y así tiene que
 	// seguir: las APK ya instaladas NO lo mandan (`app/lib/pantallas/tablero/datos/
 	// repositorio.dart`, `armarRuta`, encola sólo nombre, vehículo y optimizar), y si
@@ -1297,6 +1318,16 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	var c cuerpoArmar
 	if !httpx.LeerJSON(w, r, &c) {
 		return
+	}
+
+	// El día de la ruta. Ver [cuerpoArmar.FechaDeEntrega]: si el aparato no la manda
+	// —las APK viejas no lo hacen— se pone la de hoy, nunca nulo.
+	entrega, ok := fechaDeEntrega(w, r, c.FechaDeEntrega.Con(""))
+	if !ok {
+		return
+	}
+	if !entrega.Valid {
+		entrega = pgtype.Timestamptz{Time: time.Now(), Valid: true}
 	}
 
 	columna, err := a.ObtenerColumna(r.Context(), id)
@@ -1562,6 +1593,7 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 			OriginLng:     &almacen.Lng,
 			VehicleID:     vehiculo,
 			BranchID:      pgDe(columna.BranchID),
+			DeliveryDate:  entrega,
 		})
 		if err != nil {
 			return err

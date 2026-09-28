@@ -356,7 +356,7 @@ void main() {
     // DEBAJO de `Anchos.escritorio` (1024). Desde el 28/09/2026 el `Selector`
     // del kit —el que hay debajo de este selector de zona— abre un CAJÓN por
     // debajo de ese corte, y allí las opciones son `ListTile` y no
-    // `MenuItemButton`. Estas tres pruebas no van del ancho: van de qué ofrece
+    // `ListTile`. Estas tres pruebas no van del ancho: van de qué ofrece
     // el desplegable y de qué devuelve al elegir, así que se quedan midiendo el
     // menú de escritorio, que es donde se escribieron.
     //
@@ -402,12 +402,12 @@ void main() {
     await abrir(tester);
 
     expect(
-      find.widgetWithText(MenuItemButton, 'Vista · 3 pedidos · 340 kg'),
+      find.widgetWithText(ListTile, 'Vista · 3 pedidos · 340 kg'),
       findsOneWidget,
     );
     expect(find.text('Camión: Vehiculo HAB'), findsOneWidget);
     expect(
-      find.widgetWithText(MenuItemButton, 'Carretera · 2 pedidos · 80 kg'),
+      find.widgetWithText(ListTile, 'Carretera · 2 pedidos · 80 kg'),
       findsOneWidget,
     );
     expect(
@@ -416,7 +416,7 @@ void main() {
       reason: 'un hueco en blanco se lee como «no lo sé»',
     );
     expect(
-      find.widgetWithText(MenuItemButton, SelectorDeZonaDelTablero.todas),
+      find.widgetWithText(ListTile, SelectorDeZonaDelTablero.todas),
       findsOneWidget,
       reason: 'no filtrar por zona tiene que seguir siendo una opción',
     );
@@ -438,7 +438,7 @@ void main() {
 
     await abrir(tester);
     await tester.tap(
-      find.widgetWithText(MenuItemButton, 'Vista · 3 pedidos · 340 kg'),
+      find.widgetWithText(ListTile, 'Vista · 3 pedidos · 340 kg'),
     );
     await tester.pumpAndSettle();
 
@@ -465,7 +465,7 @@ void main() {
 
     await abrir(tester);
     await tester.tap(
-      find.widgetWithText(MenuItemButton, SelectorDeZonaDelTablero.todas),
+      find.widgetWithText(ListTile, SelectorDeZonaDelTablero.todas),
     );
     await tester.pumpAndSettle();
 

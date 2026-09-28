@@ -17,6 +17,21 @@ double? _numero(Object? valor) => switch (valor) {
   _ => null,
 };
 
+/// `vehicles.status` = `'maintenance'`: el camion esta en el taller.
+///
+/// Es el UNICO estado de la flota que se guarda, porque es el unico que no se
+/// puede deducir: un camion en el taller no tiene ruta, exactamente igual que
+/// uno libre. Lo demas —libre, con ruta planificada, en ruta— sale de las rutas
+/// abiertas del camion (ver `VehiculoDeLaApi.andar`).
+///
+/// LO SUYO SERIA QUE ESTUVIERA AL LADO DE `EstadoVehiculo.disponible` y
+/// `.enUso`, en `nucleo/base/tablas/catalogos.dart`, que es el catalogo de los
+/// literales de la base. Se queda aqui y queda dicho: moverlo es un cambio de
+/// otro fichero y no se hace de paso. Lo importa quien lo necesita —el asistente
+/// de Rutas y el «Camion previsto» del tablero leen `Vehiculo.status` de la base
+/// local— para que el literal `'maintenance'` este escrito UNA vez.
+const estadoEnMantenimiento = 'maintenance';
+
 /// En que anda un camion. Se DEDUCE de sus rutas: ver `VehiculoDeLaApi.andar`.
 enum AndarDelCamion { libre, asignado, enRuta, enMantenimiento }
 
@@ -144,18 +159,48 @@ class VehiculoDeLaApi {
   //     cosa». Asi que ni «libre» ni «en ruta»: es la tercera respuesta, y es la
   //     que evita que dos personas armen dos rutas con el mismo camion.
   //   · `libre`     — ninguna ruta abierta.
-  //   · `enMantenimiento` — HOY NO PUEDE LLEGAR: el enum `vehicle_status` de la
-  //     base sólo tiene `available` e `in_use`, y `estadoValido` del servidor
-  //     rechaza cualquier otra cosa con un 400. Se deja reconocido a proposito,
-  //     porque es lo unico de esta lista que NO se puede deducir —un camion en
-  //     el taller no tiene ruta, igual que uno libre— y el dia que se guarde de
-  //     verdad esta pantalla ya sabe pintarlo. Mientras tanto no miente: nunca
-  //     sale.
+  //   · `enMantenimiento` — el camion esta en el taller. Es el UNICO de esta
+  //     lista que sale del campo guardado y no de las rutas, y es a proposito:
+  //     es lo unico que NO se puede deducir, porque un camion en el taller no
+  //     tiene ruta, igual que uno libre. Se guarda desde el 28/09/2026, con la
+  //     migracion 00013; hasta ese dia el enum `vehicle_status` sólo tenia
+  //     `available` e `in_use` y el servidor contestaba 400, asi que esta rama
+  //     estaba escrita y no salia nunca. El motivo del taller va en las NOTAS
+  //     del vehiculo, que ya existian: ninguna columna nueva.
   //
   // `in_route` se sigue reconociendo porque es lo que decia el pliego y lo que
   // el desplegable de la ficha llego a mandar; para quien mira, es `in_use`.
   RutaDelVehiculo? get rutaAbierta => rutaActiva;
 
+  // ## QUIEN MANDA CUANDO EL TALLER Y LA RUTA SE CONTRADICEN — 28/09/2026
+  //
+  // Desde que `maintenance` se puede guardar hay una pareja nueva y real: un
+  // camion marcado en el taller **que ademas lleva una ruta abierta**. Pasa sola
+  // —se manda al taller a mitad de ruta, o se marca y la ruta de ayer se quedo
+  // sin cerrar— y no es un caso raro que se pueda dejar sin contestar.
+  //
+  // **Manda el TALLER para la insignia**, y el porque no es que un dato sea mas
+  // fiable que el otro: es cual de las dos lecturas equivocadas se lee como
+  // normal.
+  //
+  //   · Si ganara la ruta, la tarjeta diria «En ruta» sobre un camion que esta
+  //     en el taller. Eso no llama la atencion de nadie: es exactamente lo que
+  //     se espera ver, asi que el aviso no se busca, y la ruta sigue su camino
+  //     con un camion que no existe.
+  //   · Ganando el taller, la tarjeta dice «Mantenimiento» sobre un camion que
+  //     tiene una ruta abierta, y eso **si** chirria — y justo debajo se dice
+  //     con todas las letras, nombrando la ruta (`enTallerConRutaAbierta`).
+  //
+  // Es la misma decision que ya estaba tomada para `estadoGuardadoMiente`: entre
+  // dos lecturas, se pinta la que hace que alguien mire. Y hay un segundo motivo
+  // que apunta al mismo sitio: `maintenance` es el unico de los cuatro estados
+  // que alguien tuvo que escribir A PROPOSITO. Nadie manda un camion al taller
+  // por descuido; una ruta planificada ayer y nunca cerrada, todos los dias.
+  //
+  // Y el servidor NO cierra la ruta al mandar el camion al taller, tambien a
+  // proposito (`internal/api/vehiculos.go`): cerrarla seria darla por repartida,
+  // y una ruta completada es la que llego. La contradiccion se enseña, no se
+  // resuelve por nuestra cuenta.
   AndarDelCamion get andar {
     if (enMantenimiento) return AndarDelCamion.enMantenimiento;
     final ruta = rutaActiva;
@@ -170,7 +215,18 @@ class VehiculoDeLaApi {
   /// Es el campo GUARDADO, no lo que el camion hace: se usa para saber si hay
   /// que limpiarlo, no para pintar la insignia.
   bool get enUso => estado == 'in_use' || estado == 'in_route';
-  bool get enMantenimiento => estado == 'maintenance';
+  bool get enMantenimiento => estado == estadoEnMantenimiento;
+
+  /// ESTA EN EL TALLER Y ADEMAS LLEVA UNA RUTA ABIERTA.
+  ///
+  /// Una contradiccion de verdad, no una mentira de un campo viejo: las dos
+  /// mitades estan respaldadas —alguien escribio «al taller» a mano y hay una
+  /// ruta sin cerrar con su codigo—. Por eso no se elige una y se tira la otra:
+  /// se dice, con la ruta nombrada, para que quien lo vea decida si el camion
+  /// vuelve a estar disponible o si esa ruta hay que pasarla a otro.
+  ///
+  /// La insignia la gana el taller; el porque esta arriba, en `andar`.
+  bool get enTallerConRutaAbierta => enMantenimiento && rutaActiva != null;
 
   /// EL CAMPO GUARDADO DICE «EN USO» Y NO HAY NINGUNA RUTA ABIERTA.
   ///

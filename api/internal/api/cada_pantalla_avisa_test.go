@@ -149,6 +149,12 @@ type dobleAvisos struct {
 	vehiculoEnUso bool
 	// rutasCerradas es lo que devuelve `CompletarRutasDeVehiculo`.
 	rutasCerradas int64
+	// cierresPedidos cuenta las veces que se LLAMÓ a `CompletarRutasDeVehiculo`.
+	//
+	// Hace falta porque «no se cerró ninguna ruta» y «no se intentó cerrarla» se ven
+	// iguales desde fuera en cuanto el doble devuelve 0, y son dos cosas distintas:
+	// mandar un camión al taller no puede ni intentarlo (`estado_del_camion_test.go`).
+	cierresPedidos int
 }
 
 func (d *dobleAvisos) ResolverSucursal(_ context.Context, id uuid.UUID) (sqlc.ResolverSucursalRow, error) {
@@ -210,6 +216,7 @@ func (d *dobleAvisos) ActualizarVehiculo(_ context.Context, arg sqlc.ActualizarV
 }
 
 func (d *dobleAvisos) CompletarRutasDeVehiculo(context.Context, sqlc.CompletarRutasDeVehiculoParams) (int64, error) {
+	d.cierresPedidos++
 	return d.rutasCerradas, nil
 }
 

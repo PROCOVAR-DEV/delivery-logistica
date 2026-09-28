@@ -213,7 +213,7 @@ void main() {
     expect(find.byKey(AsistenteNuevaRuta.claveDelPaso(3)), findsOneWidget);
     await tester.tap(find.text('Elige el vehículo…'));
     await asentar(tester);
-    await tester.tap(find.widgetWithText(MenuItemButton, 'Camión 1'));
+    await tester.tap(find.widgetWithText(ListTile, 'Camión 1'));
     await asentar(tester);
     await tester.tap(find.widgetWithText(FilledButton, 'Siguiente'));
     await asentar(tester);
@@ -285,7 +285,7 @@ void main() {
       await tester.tap(find.text('Todos los vendedores'));
       await asentar(tester);
       expect(
-        find.widgetWithText(MenuItemButton, 'Chaplin'),
+        find.widgetWithText(ListTile, 'Chaplin'),
         findsOneWidget,
         reason:
             'con un `Future` los desplegables de municipio y vendedor se '

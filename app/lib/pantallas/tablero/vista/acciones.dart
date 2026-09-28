@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../diseno/cargando.dart';
 import '../../../nucleo/registro/registro.dart';
+import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 import '../datos/modelos.dart';
 import '../estado/proveedores.dart';
 import 'kit.dart';
@@ -631,14 +632,47 @@ class _CamionesDeLaZona extends ConsumerWidget {
             ),
           ],
           AsyncData(:final value) => [
+            // EL CAMION DEL TALLER SALE, Y SALE MARCADO — 28/09/2026.
+            //
+            // Se OFRECE igual, y es la misma decisión que el paso 3 del
+            // asistente de Rutas: aviso, no bloqueo. Un camión en el taller
+            // tiene su capacidad y su costo por km, así que el peso de la zona y
+            // el coste de su ruta siguen teniendo contra qué medirse — lo que
+            // falta es el camión, no el dato. Eso lo separa de la zona SIN
+            // camión, que sí se bloquea desde hoy (`tablero/datos/
+            // repositorio.dart`, `armarRuta`): allí las dos cuentas se quedan
+            // sin denominador y la ruta sale con un peso y un importe que no
+            // significan nada.
+            //
+            // Y bloquear con `maintenance` sería bloquear con un campo que pone
+            // una persona y tiene que quitar otra. En producción hay sucursales
+            // con UN camión: uno que alguien se olvidó de sacar del taller
+            // dejaría esa sucursal sin poder armar ni una zona, y el arreglo
+            // está en otra pantalla. Es el caso de los 657 de 686 domicilios sin
+            // costo del `CLAUDE.md` §2, con otro nombre.
+            //
+            // El aviso va en el subtítulo, que es donde ya están la capacidad y
+            // la placa: en mayúsculas porque es lo único de esta lista que hace
+            // que uno elija otro.
             for (final camion in value)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.local_shipping_outlined),
+                leading: Icon(
+                  camion.status == estadoEnMantenimiento
+                      ? Icons.build_outlined
+                      : Icons.local_shipping_outlined,
+                  color: camion.status == estadoEnMantenimiento
+                      ? Colores.ambar
+                      : null,
+                ),
                 title: Text(camion.name),
                 subtitle: Text(
                   '${pesoBonito(camion.capacity)}'
-                  '${camion.plate == null ? '' : ' · ${camion.plate}'}',
+                  '${camion.plate == null ? '' : ' · ${camion.plate}'}'
+                  '${camion.status == estadoEnMantenimiento ? ' · EN EL TALLER' : ''}',
+                  style: camion.status == estadoEnMantenimiento
+                      ? TextStyle(color: Colores.ambar)
+                      : null,
                 ),
                 selected: columna.vehiculoId == camion.id,
                 onTap: () => _poner(context, camion.id),

@@ -541,48 +541,28 @@ class Selector<T> extends StatelessWidget {
     // quedaba. El caso que lo hace insufrible es el selector de vendedor del
     // asistente, con ciento y pico opciones en un panel de 360 px de alto.
     //
-    // **En escritorio no se toca nada.** El menú anclado es lo que arregló el
-    // 25/09/2026 —el menú se quedaba flotando al desplazar la página— y
-    // `MenuAnchor` es lo que lo sostiene.
+    // Y EN ESCRITORIO TAMBIÉN, desde el 28/09/2026 por la tarde.
     //
-    // El corte es `anchoEscritorio` (= `Anchos.escritorio`, 1024) y NO «cajón
-    // siempre», aunque §4 del CLAUDE.md lo permitiría en este proyecto: los
-    // otros tres desplegables ya cortan ahí, y cuatro piezas que hacen lo mismo
-    // tienen que cortar por el mismo sitio o alguien arregla una y deja tres.
-    final enElTelefono = MediaQuery.sizeOf(context).width < anchoEscritorio;
-
-    if (enElTelefono) {
-      return _caja(
-        elegida: elegida,
-        filtrando: filtrando,
-        alPulsar: () => _abrirElCajon(context, conBuscador: conBuscador),
-      );
-    }
-
-    return MenuAnchor(
-      style: MenuStyle(
-        backgroundColor: const WidgetStatePropertyAll(Colores.blanco),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(Radios.lg),
-            side: BorderSide(color: Colores.linea),
-          ),
-        ),
-      ),
-      builder: (contexto, controlador, _) => _caja(
-        elegida: elegida,
-        filtrando: filtrando,
-        alPulsar: () =>
-            controlador.isOpen ? controlador.close() : controlador.open(),
-      ),
-      menuChildren: [
-        _MenuConBuscador<T>(
-          opciones: opciones,
-          conBuscador: conBuscador,
-          alElegir: alElegir,
-        ),
-      ],
+    // Aquí estuvo escrito que el corte era `anchoEscritorio` «y NO cajón
+    // siempre, aunque el §4 del CLAUDE.md lo permitiría», con el argumento de
+    // que las cuatro piezas que hacen lo mismo tienen que cortar por el mismo
+    // sitio. El argumento era bueno y la conclusión al revés: **las cuatro
+    // cortan igual, y ninguna corta**. El §4 no lo permite, lo manda: «**Cajón
+    // siempre**, también en escritorio (excepción aprobada para este proyecto el
+    // 05/09/2026)».
+    //
+    // Jose lo vio el mismo día en su monitor, con un desplegable flotando y
+    // descolocado sobre la página: «q te dije de los dropdowns flotantes q los
+    // pusieras como drawer».
+    //
+    // Con el menú se va su `MenuAnchor` entero: **quitar algo es quitarlo
+    // entero** (§6). Y lo que el menú vino a arreglar el 25/09/2026 —quedarse
+    // flotando al desplazar la página— el cajón no lo tiene: no está anclado a
+    // nada, así que no hay a qué seguir.
+    return _caja(
+      elegida: elegida,
+      filtrando: filtrando,
+      alPulsar: () => _abrirElCajon(context, conBuscador: conBuscador),
     );
   }
 

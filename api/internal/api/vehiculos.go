@@ -417,6 +417,18 @@ func (s *Servidor) actualizarVehiculo(w http.ResponseWriter, r *http.Request) {
 	// DESPUÉS de la transacción, no dentro: liberar el camión cierra su ruta abierta.
 	// Es un efecto del cambio de estado, no parte de él — si fallara, el camión tiene
 	// que quedar liberado igual, que es lo que pidieron.
+	//
+	// MANDAR UN CAMIÓN AL TALLER **NO** CIERRA SU RUTA, y es a propósito (28/09/2026).
+	// Cerrarla sería dar por repartido lo que no se repartió: una ruta `completed` es la
+	// que llegó a su destino, y el cierre es donde se cuadra qué bajó del camión
+	// (`CLAUDE.md` §2). Un camión que se rompe a mitad de ruta deja un reparto a medias
+	// que alguien tiene que repartirse, no un reparto terminado.
+	//
+	// Así que `maintenance` con una ruta abierta es una CONTRADICCIÓN que se queda en pie,
+	// y la aplicación la dice en la tarjeta del camión con la ruta nombrada
+	// (`VehiculoDeLaApi.enTallerConRutaAbierta`) en vez de resolverla por su cuenta. Es la
+	// misma decisión que ya estaba tomada para `estadoGuardadoMiente`: lo que no se puede
+	// saber desde aquí se enseña, no se adivina.
 	if antes.Status == sqlc.VehicleStatusInUse && actualizado.Status == sqlc.VehicleStatusAvailable {
 		if n, err := a.CompletarRutasDeVehiculo(r.Context(), id); err != nil {
 			httpx.Registro(r).Error("el vehículo quedó libre pero su ruta sigue abierta",
@@ -518,12 +530,30 @@ func (s *Servidor) tipoPorNombre(w http.ResponseWriter, r *http.Request, a *alca
 
 // estadoValido comprueba el enum antes de que lo haga Postgres. Dejarlo caer hasta la
 // base daría un 500 con la jerga del motor dentro; esto da un 400 que se puede leer.
+//
+// SON TRES, y `maintenance` entró el 28/09/2026 con la 00013. Hasta ese día el enum de la
+// base sólo tenía dos valores y esta función contestaba 400 a cualquier otra cosa: la
+// ficha del vehículo ofrecía «En mantenimiento» en un desplegable y **no guardaba nada
+// nunca**, con un «no se pudo guardar» que no decía por qué.
+//
+// Y son tres y no más. `maintenance` es el ÚNICO estado que se guarda porque es el único
+// que no se puede deducir —un camión en el taller no tiene ruta, exactamente igual que uno
+// libre—; `libre`, `asignado` y `enRuta` salen de las rutas abiertas del camión y no de
+// esta columna (`db/queries/vehicles.sql`, `RutasAbiertasDeLaFlota`). Un estado inventado
+// sigue siendo un 400 **con su motivo dentro**: «no se pudo guardar» no le dice nada a
+// nadie, y el que llega aquí llega por un cliente que manda lo que no debe.
+//
+// LOS TRES DE AQUÍ Y LOS DEL ENUM SON LA MISMA LISTA, y eso lo ata una prueba y no este
+// comentario (`estado_del_camion_test.go`): un comentario no falla, y el CLAUDE.md §3-bis
+// lo tiene escrito con el caso de «Sin colocar (722)» encima de una lista de 293. Si
+// alguien añade un valor al tipo y se olvida de esta función, la api contesta 400 a algo
+// que la base admite; al revés, contesta 500 con la jerga de Postgres dentro.
 func estadoValido(w http.ResponseWriter, r *http.Request, v string) (sqlc.VehicleStatus, bool) {
 	switch sqlc.VehicleStatus(v) {
-	case sqlc.VehicleStatusAvailable, sqlc.VehicleStatusInUse:
+	case sqlc.VehicleStatusAvailable, sqlc.VehicleStatusInUse, sqlc.VehicleStatusMaintenance:
 		return sqlc.VehicleStatus(v), true
 	}
 	httpx.Error(w, r, http.StatusBadRequest,
-		fmt.Sprintf("Estado de vehículo no válido: '%s'. Sólo 'available' o 'in_use'", v))
+		fmt.Sprintf("Estado de vehículo no válido: '%s'. Sólo 'available', 'in_use' o 'maintenance'", v))
 	return "", false
 }

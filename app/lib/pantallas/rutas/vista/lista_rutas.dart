@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../diseno/pegado_al_borde.dart';
 import '../../../diseno/tema.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -274,7 +275,38 @@ class _TarjetaDeRuta extends ConsumerWidget {
             children: [
               // 1. El codigo y como esta. Los dos extremos del renglon, que es
               //    donde los busca el ojo al recorrer la columna.
+              //
+              //    `spaceBetween` Y NADA DE `Spacer` — 28/09/2026. Es el mismo
+              //    fallo que ya esta contado en `pantalla_rutas.dart` y aqui
+              //    quedo sin arreglar; Jose lo vio en la tarjeta:
+              //
+              //        «mira ahi en curso no esta ni alinieado con eliminar q
+              //         es como deberia estar por q es en la esquina derecha de
+              //         arriba» · «esta corrida hacia la izquierda en ves de
+              //         estar a la esquina»
+              //
+              //    `Flexible` y `Spacer` son los DOS flexibles de este renglon,
+              //    los dos con flex 1, asi que el hueco libre se parte por la
+              //    mitad. El `Flexible` es `loose` y coge solo lo que mide la
+              //    insignia del codigo; la mitad que no gasta **no se la queda
+              //    el `Spacer`**: sobra al final del renglon, y con el
+              //    `mainAxisAlignment` de por defecto (`start`) se queda ahi,
+              //    empujando la insignia del estado hacia dentro.
+              //
+              //    Medido a 390 px con `tester.getRect`: la insignia de «En
+              //    curso» acababa en x=333 con el borde del contenido en 374
+              //    — 41 px corrida. Y **no la misma cantidad en cada tarjeta**:
+              //    depende de lo largo que sea el codigo de SU ruta, asi que
+              //    `RT-001` la dejaba en 333 y `RT-20260921-007` en 374. La
+              //    columna entera salia con dientes de sierra. A 1400 px eran
+              //    600 px de desvio.
+              //
+              //    Con `spaceBetween` y sin `Spacer` hay un solo flexible: el
+              //    codigo coge lo que necesita, todo lo que sobra se va al hueco
+              //    del medio y el estado se queda pegado al borde, mida lo que
+              //    mida el codigo.
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Flexible(
                     child: Insignia(
@@ -282,7 +314,6 @@ class _TarjetaDeRuta extends ConsumerWidget {
                       color: Colores.enCurso,
                     ),
                   ),
-                  const Spacer(),
                   Insignia(
                     switch (ruta.status) {
                       EstadoRuta.planificada => 'Planificada',
@@ -364,6 +395,17 @@ class _TarjetaDeRuta extends ConsumerWidget {
                     ),
                     if (ruta.status != EstadoRuta.completada)
                       TextButton(
+                        // SU TEXTO ACABA DONDE ACABA LA INSIGNIA DE ARRIBA.
+                        //
+                        // Un `TextButton` no tiene caja que se vea: lo unico que
+                        // se lee es la palabra, y Material le mete 12 px de aire
+                        // entre su rectangulo y ella. Con el rectangulo pegado
+                        // al borde, «Eliminar» acababa en x=362 y la insignia de
+                        // estado en 374 — los dos extremos derechos de la misma
+                        // tarjeta, separados por la sangria del boton. El porque
+                        // entero y lo que pasa con el area tactil, en
+                        // `diseno/pegado_al_borde.dart`.
+                        style: PegadoAlBorde.aLaDerecha(),
                         onPressed: () async {
                           final mensajero = ScaffoldMessenger.maybeOf(context);
                           try {

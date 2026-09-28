@@ -216,6 +216,30 @@ class TarjetaVehiculo extends StatelessWidget {
               style: tema.textTheme.bodySmall?.copyWith(color: Colores.ambar),
             ),
           ],
+          // ESTA EN EL TALLER **Y** LLEVA UNA RUTA ABIERTA — 28/09/2026.
+          //
+          // No es lo mismo que el aviso de arriba y por eso es otro. Alli el
+          // campo guardado MIENTE —dice «en uso» sin ruta ninguna— y lo unico
+          // que hay que hacer es limpiarlo. Aqui las dos mitades son verdad y se
+          // contradicen: alguien escribio «al taller» a mano y hay una ruta sin
+          // cerrar con su codigo delante. Eso no lo arregla la pantalla, lo
+          // arregla una persona, y por eso se dice con la ruta NOMBRADA: sin el
+          // codigo hay que ponerse a buscar cual es.
+          //
+          // La insignia dice «Mantenimiento», que es lo que hace que alguien
+          // mire (el porque entero, en `VehiculoDeLaApi.andar`). Esta linea es
+          // la otra mitad: la insignia llama y esto cuenta que pasa.
+          if (vehiculo.enTallerConRutaAbierta) ...[
+            const SizedBox(height: Aire.xs),
+            Text(
+              'Está en el taller y lleva la ruta '
+              '${vehiculo.rutaActiva!.titulo} abierta. O vuelve a estar '
+              'disponible, o esa ruta la tiene que llevar otro camión: '
+              'mandarlo al taller no la cierra, porque una ruta cerrada es una '
+              'ruta repartida.',
+              style: tema.textTheme.bodySmall?.copyWith(color: Colores.ambar),
+            ),
+          ],
           if (vehiculo.notas?.isNotEmpty ?? false) ...[
             const SizedBox(height: Aire.xs),
             Text(

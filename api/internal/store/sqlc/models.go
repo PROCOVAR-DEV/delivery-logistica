@@ -486,8 +486,9 @@ func (ns NullTripLeg) Value() (driver.Value, error) {
 type VehicleStatus string
 
 const (
-	VehicleStatusAvailable VehicleStatus = "available"
-	VehicleStatusInUse     VehicleStatus = "in_use"
+	VehicleStatusAvailable   VehicleStatus = "available"
+	VehicleStatusInUse       VehicleStatus = "in_use"
+	VehicleStatusMaintenance VehicleStatus = "maintenance"
 )
 
 func (e *VehicleStatus) Scan(src interface{}) error {

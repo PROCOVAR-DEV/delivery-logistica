@@ -97,89 +97,51 @@ class _SelectorState<T> extends State<Selector<T>> {
     // hace autofocus— se queda sin sitio donde pintar la lista. El cajón no
     // tiene ninguno de esos problemas: ocupa la pantalla entera, aparta el
     // teclado (ver `cajon.dart`, 17/09/2026) y trae su ✕.
+    // Y EN ESCRITORIO TAMBIÉN, desde el 28/09/2026.
     //
-    // **En escritorio no se toca nada**, y es importante: el menú anclado es lo
-    // que arregló el 25/09/2026 —el menú se quedaba flotando al desplazar la
-    // página, ver `selector_sigue_al_boton_test.dart`— y `MenuAnchor` es lo que
-    // lo sostiene. El corte sale de `Anchos.escritorio`, el mismo que ya usa
-    // `Cajon` para decidir su ancho: dos números distintos para el mismo corte
-    // es un teléfono ancho con media regla aplicada.
-    final enElTelefono = MediaQuery.sizeOf(context).width < Anchos.escritorio;
-
-    if (enElTelefono) {
-      return _conTooltip(
-        _boton(
-          elegida: elegida,
-          filtrando: filtrando,
-          alPulsar: widget.opciones.isEmpty
-              ? null
-              : () => _abrirElCajon(context, conBuscador: conBuscador),
-        ),
-      );
-    }
-
-    // EL MENÚ VA ANCLADO AL BOTÓN, Y LO SIGUE.
+    // Esto tuvo un corte en `Anchos.escritorio` durante unas horas —cajón en el
+    // teléfono, menú anclado en un monitor— y estaba mal por dos motivos:
     //
-    // Antes esto era `showMenu`, que calcula la posición UNA SOLA VEZ al
-    // abrirse —con el `RenderBox` del botón en ese instante— y deja el menú
-    // clavado en la pantalla, dentro del `Overlay`. En cuanto la página se
-    // desplaza, el botón se va y el menú se queda donde estaba, flotando sobre
-    // cualquier cosa. Jose, 25/09/2026:
+    //  1. **La regla de la casa dice lo contrario**, y está en el §4 del
+    //     `CLAUDE.md` de la raíz: «**Cajón siempre**, también en escritorio
+    //     (excepción aprobada para este proyecto el 05/09/2026)».
+    //  2. Y Jose lo vio en su monitor el mismo día, con el selector de sucursal
+    //     de Almacenes flotando y descolocado sobre la página: «q te dije de los
+    //     dropdowns flotantes q los pusieras como drawer».
     //
-    //     «los select tambien son modales no se por q se mueven en la vista si
-    //      me muevo con el scrool en ves de quedarse debajo de su input select»
+    // Con el menú se va TODO lo que hacía falta para sostenerlo —`MenuAnchor`,
+    // su `PrimaryScrollController.none`, su `SizedBox(320×340)` y la clase
+    // `_Menu` entera—, porque **quitar algo es quitarlo entero** (§6): un camino
+    // que ya no se recorre, dejado detrás de un `if` que nunca se cumple, el
+    // siguiente que lo lea lo da por vivo.
     //
-    // Y el comentario que había encima decía «anclado al borde del boton», que
-    // era verdad sólo en el instante de abrirlo. `MenuAnchor` sí lo ancla de
-    // verdad: recoloca el menú en cada pasada de trazado, así que se queda
-    // debajo de su botón pase lo que pase. Es además el patrón que ya usaban
-    // `rango_de_fechas.dart` y el selector de Pedidos, que nunca dieron este
-    // problema.
-    return MenuAnchor(
-      style: MenuStyle(
-        backgroundColor: const WidgetStatePropertyAll(Colores.blanco),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(Radios.lg),
-            side: BorderSide(color: Colores.linea),
-          ),
-        ),
-      ),
-      menuChildren: [
-        _Menu<T>(
-          opciones: widget.opciones,
-          conBuscador: conBuscador,
-          valor: widget.valor,
-          alElegir: (v) => widget.alElegir(v),
-        ),
-      ],
-      builder: (contexto, controlador, _) => _conTooltip(
-        _boton(
-          elegida: elegida,
-          filtrando: filtrando,
-          alPulsar: widget.opciones.isEmpty
-              ? null
-              : () => controlador.isOpen
-                    ? controlador.close()
-                    : controlador.open(),
-        ),
+    // Y lo que el menú vino a arreglar el 25/09/2026 —que se quedaba flotando al
+    // desplazar la página— el cajón **no lo tiene**: no está anclado a nada, así
+    // que no hay nada a lo que seguir.
+    return _conTooltip(
+      _boton(
+        elegida: elegida,
+        filtrando: filtrando,
+        alPulsar: widget.opciones.isEmpty
+            ? null
+            : () => _abrirElCajon(context, conBuscador: conBuscador),
       ),
     );
   }
 
-  /// El cajón del teléfono. El título es el `tooltip` cuando lo hay —es la
-  /// frase larga, `Municipio del cliente`— y si no la etiqueta de «todos», que
-  /// es lo único que se sabe del filtro desde aquí.
+  /// El cajón, que ahora es el único camino. El título es el `tooltip` cuando lo
+  /// hay —es la frase larga, `Municipio del cliente`— y si no la etiqueta de
+  /// «todos», que es lo único que se sabe del filtro desde aquí.
   Future<void> _abrirElCajon(
     BuildContext contexto, {
     required bool conBuscador,
   }) => abrirCajon<void>(
     contexto,
     titulo: widget.tooltip ?? widget.etiquetaVacia,
-    // En móvil `Cajon` ignora este ancho y ocupa la pantalla entera; se pone el
-    // más estrecho para que un escritorio estrecho —una ventana a 900 px, que
-    // también entra por aquí— no se coma la pantalla por una lista de opciones.
+    // En un teléfono `Cajon` ignora este ancho y ocupa la pantalla entera. En un
+    // monitor sí manda, y se pone el más estrecho a propósito: una lista de
+    // opciones no necesita media pantalla, y con el cajón ancho el sitio donde
+    // se pulsa queda lejos del botón que lo abrió.
     ancho: AnchoCajon.md,
     cuerpo: (_) => _OpcionesEnCajon<T>(
       opciones: widget.opciones,
@@ -300,121 +262,6 @@ List<OpcionSelector<T>> _visibles<T>(
   ];
 }
 
-class _Menu<T> extends StatefulWidget {
-  const _Menu({
-    required this.opciones,
-    required this.conBuscador,
-    required this.valor,
-    required this.alElegir,
-  });
-
-  final List<OpcionSelector<T>> opciones;
-  final bool conBuscador;
-  final T? valor;
-
-  /// Se avisa por aqui y NO con `Navigator.pop`. El `pop` era de `showMenu`,
-  /// que abria el menu como una ruta; con `MenuAnchor` el menu no es una ruta,
-  /// asi que un `pop` cerraria la PANTALLA de debajo.
-  final ValueChanged<T> alElegir;
-
-  @override
-  State<_Menu<T>> createState() => _MenuState<T>();
-}
-
-class _MenuState<T> extends State<_Menu<T>> {
-  String _busca = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final tema = Theme.of(context);
-    final visibles = _visibles(widget.opciones, _busca);
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 360),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.conBuscador)
-            Padding(
-              padding: const EdgeInsets.all(Aire.sm),
-              child: TextField(
-                autofocus: true,
-                style: tema.textTheme.bodyMedium,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  prefixIcon: Icon(Icons.search, size: 18),
-                  prefixIconConstraints: BoxConstraints(minWidth: 34),
-                  hintText: 'Buscar…',
-                ),
-                onChanged: (v) => setState(() => _busca = v),
-              ),
-            ),
-          if (widget.conBuscador)
-            Divider(height: 1, thickness: 1, color: Colores.linea),
-          // NO ES UN `ListView`, Y NO PUEDE SERLO.
-          //
-          // `PopupMenuItem` envuelve a su hijo en un `IntrinsicWidth` para que
-          // el menu se ajuste a lo que hay dentro. Un `ListView` es un
-          // `RenderShrinkWrappingViewport`, y una lista perezosa **no sabe decir
-          // cuanto mide sin construir todos sus hijos**, que es precisamente lo
-          // que la pereza evita. Preguntarselo lanza:
-          //
-          //     RenderShrinkWrappingViewport does not support returning
-          //     intrinsic dimensions.
-          //
-          // Y eso pasaba al abrir CUALQUIER desplegable de la aplicacion: el de
-          // sucursal, el de moneda, los filtros de las siete pantallas y los
-          // cuatro pasos del asistente. Jose lo vio en el Tablero — el menu se
-          // pintaba y elegir no hacia nada.
-          //
-          // `SingleChildScrollView` sobre una `Column` si sabe medirse, porque
-          // su hijo es una caja normal. Y la pereza aqui no compra nada: la
-          // lista mas larga es la de vendedores, ciento y pico filas de texto.
-          Flexible(
-            // `primary: false`: el desplazamiento de un menu es SUYO y nunca el
-            // principal de la pantalla. Antes daba igual porque `showMenu`
-            // abria el menu como una RUTA aparte; ahora, con `MenuAnchor`, el
-            // menu vive en la misma pantalla y sin esto quedan dos
-            // desplazamientos colgando del mismo `PrimaryScrollController`
-            // —el del cuerpo y el del menu— y Flutter lo corta en seco: «The
-            // PrimaryScrollController is attached to more than one
-            // ScrollPosition». Lo mismo que ya le pasó al menu de Pedidos
-            // (`pedidos/vista/kit.dart`).
-            child: SingleChildScrollView(
-              primary: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!_hayCoincidencias(widget.opciones, _busca))
-                    _NadaQueCuadre(busca: _busca),
-                  for (final o in visibles)
-                    _Opcion<T>(
-                      opcion: o,
-                      elegida: o.valor == widget.valor,
-                      alElegir: widget.alElegir,
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Las mismas opciones, dentro del cajón del teléfono (28/09/2026).
-///
-/// **Aquí no hay ningún desplazamiento propio, y es a propósito.** El cuerpo de
-/// un `Cajon` YA es un `SingleChildScrollView` a alto completo, así que la lista
-/// entera se desplaza sola y llega hasta el final —el caso que importa es el
-/// vendedor con ciento y pico opciones, que no cabe ni de lejos—. Meter aquí
-/// otro desplazable dentro de uno que crece sin límite es el error de siempre:
-/// o revienta por altura infinita, o queda un panel de 360 px con su barra
-/// dentro de otro, que es peor que el menú de antes.
-///
-/// Y por lo mismo NO hay `ConstrainedBox(maxHeight: 360)`: ese tope es del menú
-/// flotante, que no puede taparlo todo. El cajón sí puede, y de eso va.
 class _OpcionesEnCajon<T> extends StatefulWidget {
   const _OpcionesEnCajon({
     required this.opciones,

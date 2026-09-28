@@ -113,12 +113,12 @@ void main() {
     expect(v.estadoGuardadoMiente, isFalse);
   });
 
-  test('`maintenance` se reconoce, aunque hoy el servidor no lo pueda mandar', () {
-    // El enum `vehicle_status` de la base sólo tiene `available` e `in_use`, y
-    // `estadoValido` del servidor rechaza cualquier otra cosa con un 400. Se
-    // deja reconocido porque es lo ÚNICO que no se puede deducir —un camión en
-    // el taller no tiene ruta, igual que uno libre— y el día que se guarde de
-    // verdad esta pantalla ya sabe pintarlo. Mientras tanto no miente: no sale.
+  test('`maintenance` es el único estado que sale del campo guardado', () {
+    // Y es el único a propósito: es lo ÚNICO que no se puede deducir, porque un
+    // camión en el taller no tiene ruta, exactamente igual que uno libre. Se
+    // guarda desde el 28/09/2026 (migración 00013); hasta ese día el enum
+    // `vehicle_status` sólo tenía `available` e `in_use` y `estadoValido`
+    // contestaba 400, así que esta rama estaba escrita y no salía nunca.
     final v = camion(estadoGuardado: 'maintenance');
 
     expect(v.andar, AndarDelCamion.enMantenimiento);
@@ -128,6 +128,65 @@ void main() {
       isFalse,
       reason: 'un camión en el taller no cuenta como flota disponible',
     );
+    // Y no se confunde con el otro aviso: el campo no MIENTE, dice la verdad.
+    expect(v.estadoGuardadoMiente, isFalse);
+    expect(v.enTallerConRutaAbierta, isFalse);
+  });
+
+  // ---------------------------------------------------------------------------
+  // LA PAREJA NUEVA: en el taller Y con una ruta abierta
+  // ---------------------------------------------------------------------------
+  //
+  // Desde que `maintenance` se puede guardar, esta contradicción es posible y
+  // pasa sola: se manda el camión al taller a mitad de ruta, o se marca y la
+  // ruta de ayer se quedó sin cerrar. El servidor NO cierra la ruta al mandarlo
+  // al taller —cerrarla sería darla por repartida—, así que la contradicción se
+  // queda en pie y hay que decirla.
+  //
+  // Las dos mitades, como siempre: que se diga cuando pasa, y que **no** se diga
+  // cuando no. Un aviso que sale siempre deja de leerse, y entonces tampoco se
+  // lee el día que importa (`CLAUDE.md` §3-quinquies).
+
+  test('en el taller CON ruta abierta: manda el taller, y se dice', () {
+    final v = camion(
+      estadoGuardado: 'maintenance',
+      ruta: {'id': 'r1', 'routeCode': 'RT-20260928-007', 'status': 'in_progress'},
+    );
+
+    expect(
+      v.andar,
+      AndarDelCamion.enMantenimiento,
+      reason:
+          'si ganara la ruta, la tarjeta diría «En ruta» sobre un camión que '
+          'está en el taller, y eso se lee como lo normal: nadie mira, y la '
+          'ruta sigue con un camión que no existe',
+    );
+    expect(v.etiquetaEstado, 'Mantenimiento');
+    expect(
+      v.enTallerConRutaAbierta,
+      isTrue,
+      reason:
+          'las dos mitades son verdad y se contradicen: la pantalla no elige '
+          'una y tira la otra, lo dice con la ruta nombrada',
+    );
+    // La ruta sigue estando a mano, que es lo que hace útil el aviso: sin el
+    // código hay que ponerse a buscar cuál es.
+    expect(v.rutaActiva!.titulo, 'RT-20260928-007');
+  });
+
+  test('en el taller SIN ruta no hay ninguna contradicción que contar', () {
+    final v = camion(estadoGuardado: 'maintenance');
+    expect(v.enTallerConRutaAbierta, isFalse);
+  });
+
+  test('con ruta abierta y SIN taller tampoco', () {
+    // La otra mitad del `&&`: si la guarda mirara sólo la ruta, todo camión
+    // ocupado saldría con el cartel del taller encima.
+    final v = camion(
+      ruta: {'id': 'r1', 'routeCode': 'RT-20260928-001', 'status': 'planned'},
+    );
+    expect(v.enTallerConRutaAbierta, isFalse);
+    expect(v.andar, AndarDelCamion.asignado);
   });
 
   test('sin el campo `routes` —un servidor viejo— no se inventa nada', () {

@@ -69,11 +69,6 @@ class CampoDeFecha extends StatefulWidget {
 }
 
 class _CampoDeFechaState extends State<CampoDeFecha> {
-  /// El menu se cierra con SU controlador, nunca con `Navigator.maybePop()`.
-  /// El menu de un `MenuAnchor` no es una ruta: `maybePop` no lo cerraria, se
-  /// llevaria por delante la PANTALLA que hay debajo.
-  final _menu = MenuController();
-
   @override
   Widget build(BuildContext context) {
     final titulo = widget.titulo;
@@ -109,93 +104,41 @@ class _CampoDeFechaState extends State<CampoDeFecha> {
     // sin ninguna ✕ con la que salir. En cajón ocupa la pantalla entera, con su
     // cabecera y su ✕, y el mes se toca con el dedo en vez de con la uña.
     //
-    // **En escritorio no se cambia nada, y eso es parte del arreglo**: el menú
-    // anclado es lo que se decidió a propósito —ni `showDatePicker`, que es el
-    // modal centrado que el pliego no quiere, ni `showMenu`, que calculaba la
-    // posición una sola vez al abrir y dejaba el panel flotando al desplazar la
-    // página (25/09/2026)—. El corte sale de `Anchos.escritorio`, el mismo que
-    // usan `Cajon` y `Selector`: un número a mano aquí sería un tercer corte.
-    if (MediaQuery.sizeOf(context).width < Anchos.escritorio) {
-      return _boton(
+    // Y EN ESCRITORIO TAMBIÉN, desde el 28/09/2026. Aquí hubo un corte en
+    // `Anchos.escritorio` durante unas horas y estaba mal por lo mismo que en
+    // `Selector`: el §4 del `CLAUDE.md` de la raíz dice «**Cajón siempre**,
+    // también en escritorio», y Jose lo vio flotando en su monitor el mismo día.
+    //
+    // Lo que el menú anclado vino a resolver sigue resuelto y por eso NO se
+    // vuelve a `showDatePicker` —el modal centrado que el pliego no quiere— ni a
+    // `showMenu`: el cajón no está anclado a nada, así que no puede quedarse
+    // flotando al desplazar la página, que era el fallo del 25/09/2026.
+    //
+    // Y con el menú se va su `MenuAnchor` entero: **quitar algo es quitarlo
+    // entero** (§6).
+    return _boton(
+      titulo: titulo,
+      valor: valor,
+      puesta: puesta,
+      alPulsar: () => abrirCajon<void>(
+        context,
         titulo: titulo,
-        valor: valor,
-        puesta: puesta,
-        alPulsar: () => abrirCajon<void>(
-          context,
-          titulo: titulo,
-          ancho: AnchoCajon.md,
-          cuerpo: (contextoCajon) => _calendario(
-            inicial: inicial,
-            primero: primero,
-            ultimo: ultimo,
-            // El cajón SÍ es una ruta, así que se cierra con el `Navigator`. El
-            // menú no lo es y se cierra con su `MenuController` (ver arriba):
-            // cambiarlos de sitio cierra la pantalla de debajo.
-            alCerrar: () => Navigator.of(contextoCajon).maybePop(),
-          ),
-        ),
-      );
-    }
-
-    return MenuAnchor(
-      controller: _menu,
-      style: MenuStyle(
-        backgroundColor: const WidgetStatePropertyAll(Colores.blanco),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(Radios.lg),
-            side: BorderSide(color: Colores.linea),
-          ),
+        ancho: AnchoCajon.md,
+        cuerpo: (contextoCajon) => _calendario(
+          inicial: inicial,
+          primero: primero,
+          ultimo: ultimo,
+          // El cajón es una RUTA, así que se cierra con el `Navigator`.
+          // Cuando aquí convivía con un menú anclado había que tener cuidado
+          // de no cruzarlos —el menú se cerraba con su `MenuController` y
+          // usar el `Navigator` cerraba la pantalla de debajo—; el menú ya no
+          // está, pero el aviso se queda: el que cierra un cajón es su ruta.
+          alCerrar: () => Navigator.of(contextoCajon).maybePop(),
         ),
       ),
-      builder: (contexto, controlador, _) => _boton(
-        titulo: titulo,
-        valor: valor,
-        puesta: puesta,
-        alPulsar: () =>
-            controlador.isOpen ? controlador.close() : controlador.open(),
-      ),
-      menuChildren: [
-        // El panel del menu monta su PROPIO `PrimaryScrollController`, con una
-        // barra de desplazamiento siempre visible. El calendario trae dentro
-        // otro desplazable vertical —la lista de años— que heredaria ese mismo
-        // controlador, y dos posiciones en un controlador con barra visible es
-        // un error que tumba el fotograma entero. Aqui se corta la herencia:
-        // cada uno se desplaza por su cuenta.
-        //
-        // **En el cajon esto no se pone, y no es un olvido.** Medido con una
-        // sonda el 28/09/2026: dentro de un `Cajon` —que se abre con
-        // `showGeneralDialog`, o sea en el `Overlay`, POR ENCIMA del
-        // `Scaffold`— `PrimaryScrollController.maybeOf` devuelve `null`, asi
-        // que no hay ninguna herencia que cortar. Una linea que no se puede
-        // romper no es una guarda: lo que si vigila el caso es la prueba «se
-        // puede abrir la lista de años» del cajon, que mira el resultado.
-        PrimaryScrollController.none(
-          child: SizedBox(
-            width: 320,
-            height: 340,
-            child: _calendario(
-              inicial: inicial,
-              primero: primero,
-              ultimo: ultimo,
-              alCerrar: _menu.close,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
-  /// El calendario, el mismo en el menu y en el cajon. Lo unico que cambia es
-  /// quien lo cierra.
-  ///
-  /// **No lleva alto propio**, y eso es a proposito aunque el menu se lo ponga
-  /// por fuera: `CalendarDatePicker` YA se mide solo —su `build` devuelve un
-  /// `SizedBox(height: cabecera + alto maximo de la rejilla)`—, asi que dentro
-  /// del cuerpo desplazable del cajon sale entero y sin recortes. Meterle aqui
-  /// los 340 px del menu seria peor que no poner nada: en un telefono recorta
-  /// la ultima fila de dias, que es donde caen los finales de mes.
   Widget _calendario({
     required DateTime inicial,
     required DateTime primero,
@@ -209,8 +152,6 @@ class _CampoDeFechaState extends State<CampoDeFecha> {
     alCerrar: alCerrar,
   );
 
-  /// La caja del filtro. Es la MISMA en los dos sitios: lo unico que cambia es
-  /// lo que hace al pulsarla.
   Widget _boton({
     required String titulo,
     required DateTime? valor,

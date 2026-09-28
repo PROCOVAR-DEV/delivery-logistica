@@ -106,64 +106,30 @@ class SelectorFiltro<T> extends StatelessWidget {
     // municipios, que es la larga (La Habana tiene quince). El cajón ocupa la
     // pantalla entera, aparta el teclado y trae su ✕.
     //
-    // **En escritorio no se toca nada**: el menú anclado es lo que arregló el
-    // 25/09/2026 —al desplazar la lista de clientes el menú se quedaba
-    // flotando— y `MenuAnchor` es lo que lo sostiene.
+    // Y EN ESCRITORIO TAMBIÉN, desde el 28/09/2026 por la tarde.
     //
-    // El corte es `Anchos.escritorio` y NO «cajón siempre», aunque §4 del
-    // CLAUDE.md lo permitiría en este proyecto: los otros dos desplegables ya
-    // cortan ahí, y cuatro piezas que hacen lo mismo tienen que cortar por el
-    // mismo sitio o alguien arregla una y deja tres.
-    final enElTelefono = MediaQuery.sizeOf(context).width < Anchos.escritorio;
-
-    if (enElTelefono) {
-      return _caja(
-        elegida: elegida,
-        filtrando: filtrando,
-        alPulsar: () => _abrirElCajon(context, conBuscador: conBuscador),
-      );
-    }
-
-    // EL MENÚ VA ANCLADO AL BOTÓN, Y LO SIGUE.
+    // Aquí estuvo escrito que el corte era `Anchos.escritorio` «y NO cajón
+    // siempre, aunque el §4 del CLAUDE.md lo permitiría», con el argumento de
+    // que las cuatro piezas que hacen lo mismo tienen que cortar por el mismo
+    // sitio. El argumento era bueno y la conclusión al revés: **las cuatro
+    // cortan igual, y ninguna corta**. El §4 no lo permite, lo manda: «**Cajón
+    // siempre**, también en escritorio (excepción aprobada para este proyecto el
+    // 05/09/2026)».
     //
-    // Era `showMenu`, que fija la posición una sola vez al abrirse y deja el
-    // menú clavado en el `Overlay`: al desplazar la lista de clientes el botón
-    // se iba y el menú se quedaba flotando. Jose, 25/09/2026: «los select
-    // también son modales, se mueven en la vista si me muevo con el scroll en
-    // vez de quedarse debajo de su input». El mismo arreglo y el mismo motivo
-    // que en `lib/diseno/selector.dart`, atado allí por
-    // `test/diseno/selector_sigue_al_boton_test.dart`.
-    return MenuAnchor(
-      style: MenuStyle(
-        backgroundColor: const WidgetStatePropertyAll(Colores.blanco),
-        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(Radios.lg),
-            side: BorderSide(color: Colores.linea),
-          ),
-        ),
-      ),
-      menuChildren: [
-        _Menu<T>(
-          textoTodos: textoTodos,
-          opciones: opciones,
-          conBuscador: conBuscador,
-          alElegir: alElegir,
-        ),
-      ],
-      builder: (contexto, controlador, _) => _caja(
-        elegida: elegida,
-        filtrando: filtrando,
-        alPulsar: () =>
-            controlador.isOpen ? controlador.close() : controlador.open(),
-      ),
+    // Jose lo vio el mismo día en su monitor, con un desplegable flotando y
+    // descolocado sobre la página: «q te dije de los dropdowns flotantes q los
+    // pusieras como drawer».
+    //
+    // Con el menú se va su `MenuAnchor` entero: **quitar algo es quitarlo
+    // entero** (§6). Y lo del 25/09/2026 —que al desplazar la lista de clientes
+    // el menú se quedara flotando— el cajón no lo tiene: no está anclado a nada.
+    return _caja(
+      elegida: elegida,
+      filtrando: filtrando,
+      alPulsar: () => _abrirElCajon(context, conBuscador: conBuscador),
     );
   }
 
-  /// El cajón del teléfono. Lo titula el [titulo] del filtro —«Municipio del
-  /// cliente»—, que es justo el rótulo que en escritorio se lee encima del
-  /// botón y que dentro del cajón ya no se ve.
   Future<void> _abrirElCajon(
     BuildContext contexto, {
     required bool conBuscador,

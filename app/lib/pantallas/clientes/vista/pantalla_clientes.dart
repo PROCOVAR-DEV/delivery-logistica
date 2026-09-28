@@ -83,7 +83,6 @@ class _PantallaClientesState extends ConsumerState<PantallaClientes> {
             estado: frescura.value ?? const SinDescargar(),
             sinSubir: sinSubir,
             pagina: pagina.value,
-            alIr: (n) => ref.read(filtrosClientesProvider.notifier).aPagina(n),
           ),
           const SizedBox(height: Aire.lg),
           _Filtros(
@@ -123,26 +122,43 @@ class _Cabecera extends StatelessWidget {
     required this.estado,
     required this.sinSubir,
     required this.pagina,
-    required this.alIr,
   });
 
   final EstadoFrescura estado;
   final int sinSubir;
   final PaginaClientes? pagina;
-  final ValueChanged<int> alIr;
 
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final total = pagina?.total ?? 0;
-    final paginas = pagina?.paginas ?? 1;
+    // EL PAGINADOR VA CON SU TABLA, Y AQUI ARRIBA NO VA NADA — 28/09/2026.
+    //
+    // Jose, en `/customers`: «por q el paginador esta alla arriba tan distante
+    // a su table anormal».
+    //
+    // Tenia razon y no era sólo distancia: entre el «‹ 5 / 55 ›» del subtitulo
+    // y la tabla que paginaba estaba **la barra de filtros entera**, asi que
+    // los dos mandos que mueven la lista quedaban por encima de cinco que la
+    // filtran, y no se leian como suyos. Pedidos y Rutas no hacen eso: su
+    // paginacion es el pie de su tabla y nada mas. Clientes ya tenia ese pie
+    // —`PaginacionLarga`, dentro de la misma `TarjetaDeTabla`—, asi que lo de
+    // arriba era un segundo juego de mandos para lo mismo.
+    //
+    // Se va **entero**: los botones, y tambien el «· página 5 de 55» del
+    // subtitulo, que sin botones al lado sólo dice donde estas sin dejarte ir a
+    // ningun sitio — y el pie ya lo dice, pegado a los botones que lo mueven.
+    // Lo que se queda arriba es lo que NO esta abajo: cuantos hay en total.
+    //
+    // El pliego (`pantallas.md` §4) pedia los dos juegos «para no tener que
+    // subir 50 filas»; esa es la razon por la que se puso y por la que se
+    // queda el de abajo. Nos separamos de ahi a proposito y por lo que se ve en
+    // pantalla: con 50 filas y la barra de filtros en medio, el de arriba no
+    // ahorraba el viaje, lo confundia.
     final subtitulo = StringBuffer(
       'Clientes de PEDIDO (sincronizados, sólo con geo) + los manuales de '
       'delivery. $total en total',
     );
-    if (paginas > 1) {
-      subtitulo.write(' · página ${pagina!.pagina} de $paginas.');
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,22 +180,9 @@ class _Cabecera extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              subtitulo.toString(),
-              style: tema.textTheme.bodySmall?.copyWith(
-                color: Colores.tintaSuave,
-              ),
-            ),
-            if (pagina != null)
-              PaginacionCorta(
-                pagina: pagina!.pagina,
-                paginas: paginas,
-                alIr: alIr,
-              ),
-          ],
+        Text(
+          subtitulo.toString(),
+          style: tema.textTheme.bodySmall?.copyWith(color: Colores.tintaSuave),
         ),
       ],
     );

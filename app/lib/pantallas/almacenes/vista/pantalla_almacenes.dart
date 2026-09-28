@@ -7,6 +7,7 @@ import 'package:reparto/nucleo/red/fallos.dart';
 import '../../../diseno/cajon.dart';
 import '../../../diseno/colores.dart';
 import '../../../diseno/estado_vacio.dart';
+import '../../../diseno/selector.dart';
 import '../../../diseno/tema.dart';
 import '../../rutas/datos/mapa_en_vivo.dart';
 import '../datos/almacen_api.dart';
@@ -251,21 +252,51 @@ class _Contenido extends StatelessWidget {
                 ],
               )
             else
-              DropdownButton<String>(
-                value: actual.codigo,
-                icon: const Icon(Icons.store),
-                items: [
+              // EL `Selector` DE LA CASA Y NO UN `DropdownButton` — 28/09/2026.
+              //
+              // Jose, viendo `/warehouses` en un monitor con el desplegable
+              // abierto: «q te dije de los dropdowns flotantes q los pusieras
+              // como drawer».
+              //
+              // Esto era un `DropdownButton<String>` de Material a pelo, o sea
+              // la unica pieza de elegir-una-opcion de toda la aplicacion que
+              // no pasaba por `diseno/selector.dart`: por eso no se parecia a
+              // ninguna otra, abria su menu flotante por su cuenta y en el
+              // telefono es un cajon en todas las demas pantallas y aqui no.
+              //
+              // Y ademas NO CABIA. Medido a 390 px con `tester.getRect`
+              // (`test/pantallas/almacenes/cuadra_con_el_borde_test.dart`): su
+              // fila interna es un `Row(mainAxisSize: min)` sin nada flexible
+              // dentro, asi que con «Almacén central · 2» se desbordaba **86 px
+              // por la derecha** —la cebra amarilla y negra— y su icono de
+              // tienda se pintaba en x=427,8 con la pantalla acabando en 390:
+              // fuera de la pantalla, invisible y sin forma de llegar a el.
+              //
+              // El `Selector` no tiene ninguno de los dos problemas: encoge su
+              // etiqueta con elipsis, y en el telefono abre cajon.
+              //
+              // Se conserva **lo que decia**: «Granma · 1» cuando tiene
+              // almacenes y «X · sin almacenes» cuando no, que es lo que hace
+              // que se vea de un vistazo cual hay que rellenar. Va en la `nota`
+              // y no pegado al nombre porque el `Selector` ya tiene sitio para
+              // eso, y asi la cuenta sale en gris al lado del nombre en vez de
+              // alargar la etiqueta.
+              Selector<String>(
+                icono: Icons.store,
+                tooltip: 'Sucursal',
+                etiquetaVacia: 'Elige sucursal',
+                valor: actual.codigo,
+                opciones: [
                   for (final s in sucursales)
-                    DropdownMenuItem(
-                      value: s.codigo,
-                      child: Text(
-                        s.almacenes.isEmpty
-                            ? '${s.nombre} · sin almacenes'
-                            : '${s.nombre} · ${s.almacenes.length}',
-                      ),
+                    OpcionSelector<String>(
+                      valor: s.codigo,
+                      etiqueta: s.nombre,
+                      nota: s.almacenes.isEmpty
+                          ? 'sin almacenes'
+                          : '${s.almacenes.length}',
                     ),
                 ],
-                onChanged: (v) => v == null ? null : alElegirSucursal(v),
+                alElegir: alElegirSucursal,
               ),
             FilledButton(
               onPressed: () => alAbrir(actual),
@@ -303,6 +334,20 @@ class _Contenido extends StatelessWidget {
         else
           for (final (indice, a) in actual.almacenes.indexed)
             ListTile(
+              // SIN LA SANGRIA DE `ListTile` — 28/09/2026.
+              //
+              // `ListTile` trae 16 px de relleno propio a cada lado. Con el, en
+              // esta pantalla el ojo bajaba por cuatro verticales distintas:
+              // «Almacenes» y el selector de sucursal empezaban en x=24 —el
+              // relleno de la lista— y el icono de cada almacen en x=40, con su
+              // chevron acabando en 342 cuando el borde del contenido esta en
+              // 366. Medido con `tester.getRect` a 390 px.
+              //
+              // La sangria de `ListTile` esta pensada para una lista que ocupa
+              // la pantalla entera, sin nada al lado con que cuadrar. Aqui hay
+              // un titulo, un parrafo y dos mandos encima, y todos empiezan
+              // donde acaba el relleno de la lista: el que sobraba era este.
+              contentPadding: EdgeInsets.zero,
               leading: Icon(
                 a.principal ? Icons.star : Icons.warehouse,
                 color: a.principal ? Colores.ambar : Colores.tintaSuave,

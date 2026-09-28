@@ -142,25 +142,39 @@ void main() {
     );
   });
 
-  testWidgets('a 1200 px sigue saliendo el MENÚ de siempre', (tester) async {
-    // La otra mitad, y la que de verdad importa: sin esto, «ahora es cajón» se
-    // cumple rompiendo el escritorio y nadie se entera.
+  testWidgets('a 1200 px TAMBIÉN es cajón, que es la regla de la casa', (
+    tester,
+  ) async {
+    // ESTO DECÍA LO CONTRARIO HASTA EL 28/09/2026 POR LA TARDE.
+    //
+    // Por la mañana se puso un corte en `Anchos.escritorio` —cajón en el
+    // teléfono, menú anclado en un monitor— y esta prueba lo fijaba diciendo «en
+    // escritorio NO se abre cajón».
+    //
+    // Estaba mal por dos motivos. El §4 del `CLAUDE.md` de la raíz dice «**Cajón
+    // siempre**, también en escritorio (excepción aprobada para este proyecto el
+    // 05/09/2026)». Y Jose lo vio en su monitor ese mismo día, con un
+    // desplegable flotando y descolocado sobre la página: «q te dije de los
+    // dropdowns flotantes q los pusieras como drawer».
+    //
+    // Se queda como la mitad de la pareja, afirmando lo otro: que a los DOS
+    // anchos sale lo mismo. Si alguien devuelve el corte, esta cae.
     await montar(tester, tamano: escritorio);
 
     await tester.tap(caja);
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Camión 2'),
+      find.byType(Cajon),
       findsOneWidget,
-      reason: 'el menú no llegó a abrirse en escritorio',
+      reason:
+          'a 1200 px volvió a salir el menú flotante: es lo que Jose pidió '
+          'quitar y lo que el §4 prohíbe',
     );
     expect(
-      find.byType(Cajon),
-      findsNothing,
-      reason:
-          'en escritorio NO se abre cajón: el menú anclado es lo que arregló el '
-          '25/09/2026 (que siga al botón al desplazar la página) y no se toca.',
+      find.text('Camión 2'),
+      findsOneWidget,
+      reason: 'el cajón se abrió pero sin las opciones dentro',
     );
   });
 

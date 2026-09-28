@@ -311,7 +311,13 @@ void main() {
     Future<void> elegir(WidgetTester tester, String opcion) async {
       await tester.tap(elFiltro);
       await asentar(tester);
-      await tester.tap(find.widgetWithText(MenuItemButton, opcion).last);
+      // EL CAJÓN PINTA `ListTile`, NO `MenuItemButton` — 28/09/2026.
+      //
+      // Esta prueba nació cuando el desplegable abría un menú anclado en
+      // escritorio. Esa tarde se quitó el corte —cajón siempre, también en
+      // monitor, que es el §4 del `CLAUDE.md`— y con el menú se fue el
+      // `MenuItemButton`. Lo que se comprueba es lo mismo: pulsar la opción.
+      await tester.tap(find.widgetWithText(ListTile, opcion).last);
       await asentar(tester);
     }
 
@@ -378,7 +384,7 @@ void main() {
       // averiguarlo.
       expect(
         find.descendant(
-          of: find.widgetWithText(MenuItemButton, 'PV-STGO'),
+          of: find.widgetWithText(ListTile, 'PV-STGO'),
           matching: find.text('2'),
         ),
         findsOneWidget,
@@ -413,7 +419,7 @@ void main() {
       // Y con el buscador sin tocar, en el menú también sale primera.
       await tester.tap(elFiltro);
       await asentar(tester);
-      final items = find.byType(MenuItemButton);
+      final items = find.byType(ListTile);
       expect(
         find.descendant(
           of: items.first,

@@ -294,9 +294,18 @@ class _ResumenDeLaFlota extends ConsumerWidget {
     int cuantos(AndarDelCamion cual) =>
         flota.where((v) => v.andar == cual).length;
 
-    // El de mantenimiento sólo se enseña SI HAY ALGUNO. Hoy no puede haberlo —el
-    // enum de la base no tiene ese valor— y un contador clavado en cero es una
-    // pregunta que nadie ha hecho ocupando sitio en un móvil de 390.
+    // El de mantenimiento sólo se enseña SI HAY ALGUNO, y ésa es la diferencia
+    // con los otros tres: los otros tres contestan «¿tengo camión para esta
+    // ruta?» y un cero ahí es una respuesta —«no queda ninguno libre»—, mientras
+    // que un «Mantenimiento 0» es una pregunta que nadie ha hecho ocupando sitio
+    // en un móvil de 390. Lo normal es que no haya ninguno en el taller.
+    //
+    // LOS CUATRO PARTEN LA FLOTA UNA SOLA VEZ, y eso hay que mantenerlo: salen
+    // todos de `andar`, que devuelve un único valor por camión. Un camión en el
+    // taller **con una ruta abierta** cuenta aquí y NO en «En ruta» —el taller
+    // manda, el porqué está en `VehiculoDeLaApi.andar`—, así que los cuatro
+    // siguen sumando la flota entera y ninguno cuenta a nadie dos veces. Es el
+    // mismo cuidado con el denominador que costó los días 25 y 26/09.
     final enTaller = cuantos(AndarDelCamion.enMantenimiento);
 
     return Wrap(

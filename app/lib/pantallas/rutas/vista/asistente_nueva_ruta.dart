@@ -34,6 +34,7 @@ import '../../pedidos/estado/proveedores_pedidos.dart';
 import '../../pedidos/vista/kit.dart';
 import '../../pedidos/vista/vista_pre_despacho.dart';
 import '../../almacenes/vista/almacenes_de_la_ultima_bajada.dart';
+import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 import '../datos/acciones_rutas.dart';
 import '../datos/meter_la_zona.dart';
 import '../datos/repositorio_rutas.dart';
@@ -628,15 +629,21 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
           valor: _vehiculoId ?? '',
           opciones: [
             const OpcionSelector('', 'Elige el vehículo…'),
-            // **Se ofrecen todos los vehiculos, tambien los ocupados**: la
-            // pantalla no decide por nadie, sólo avisa de cual esta en ruta.
+            // **Se ofrecen todos los vehiculos, tambien los ocupados y los que
+            // estan en el taller**: la pantalla no decide por nadie, sólo avisa
+            // de como anda cada uno. El porque de NO bloquear el del taller esta
+            // abajo, en el aviso ambar.
             for (final v in vehiculos)
               OpcionSelector(
                 v.id,
                 v.name,
-                nota: v.status == EstadoVehiculo.enUso
-                    ? '${v.capacity.toStringAsFixed(0)} kg · en ruta'
-                    : '${v.capacity.toStringAsFixed(0)} kg',
+                nota: switch (v.status) {
+                  estadoEnMantenimiento =>
+                    '${v.capacity.toStringAsFixed(0)} kg · en el taller',
+                  EstadoVehiculo.enUso =>
+                    '${v.capacity.toStringAsFixed(0)} kg · en ruta',
+                  _ => '${v.capacity.toStringAsFixed(0)} kg',
+                },
               ),
           ],
           alElegir: (id) => setState(() {
@@ -646,6 +653,46 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
             _camionAMano = _vehiculoId != null;
           }),
         ),
+        // EL CAMION DEL TALLER SE AVISA, NO SE BLOQUEA — 28/09/2026.
+        //
+        // La nota de la lista («· en el taller») se ve al elegir y desaparece en
+        // cuanto el desplegable se cierra, asi que sola no basta: esto se queda
+        // delante mientras ese camion siga puesto.
+        //
+        // ## Por que aviso y no bloqueo, que hoy mismo se bloqueo lo de al lado
+        //
+        // Hoy se bloqueo armar una ruta SIN camion, y esto se parece y no es lo
+        // mismo. Sin camion no hay **con que contrastar** el peso ni el importe:
+        // la capacidad se mide contra la del camion y el costo por km sale de su
+        // `costo_km_usd`, asi que la ruta sale con su `516.5 kg` y su `$2.99` y
+        // los dos numeros no significan nada. Con un camion en el taller **las
+        // dos cuentas salen bien**: tiene su capacidad y su costo, y lo unico
+        // que pasa es que esta roto — un hecho del patio, no un hueco del dato.
+        //
+        // Y el que decide bloquear tiene que mirar quien paga el «no». El
+        // CLAUDE.md §2 lo tiene escrito con los 657 de 686 domicilios sin costo:
+        // bloquear con un dato que nadie mantiene deja la aplicacion inservible.
+        // `maintenance` es exactamente uno de esos — lo escribe una persona y
+        // otra tiene que acordarse de quitarlo—, y en produccion hay sucursales
+        // con UN camion («Vehiculos 0 / 1», el telefono de Jose el 28/09/2026):
+        // un `maintenance` que alguien se olvido de quitar dejaria a esa
+        // sucursal sin poder armar NADA, y el arreglo esta en otra pantalla.
+        //
+        // La otra diferencia, la que decidio lo del camion vacio: alli el hueco
+        // se tapa con un gesto **en la propia pantalla donde sale el no**. Aqui
+        // no: hay que ir a Vehiculos, sacarlo del taller, y volver.
+        if (_vehiculo?.status == estadoEnMantenimiento)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              '${_vehiculo!.name} está marcado EN EL TALLER. La ruta se arma '
+              'igual —tiene su capacidad y su costo por km— pero ese camión no '
+              'puede salir hoy. Si ya volvió, sácalo del taller en Vehículos.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colores.ambar,
+              ),
+            ),
+          ),
         const SizedBox(height: 8),
         TextField(
           controller: _nombre,

@@ -132,26 +132,40 @@ void main() {
       );
     });
 
-    testWidgets('a 1200 px sigue saliendo el MENÚ de siempre', (tester) async {
-      // La otra mitad, y la que de verdad importa: sin esto, «ahora es cajón»
-      // se cumple rompiendo el escritorio y nadie se entera.
+    testWidgets('a 1200 px TAMBIÉN es cajón, que es la regla de la casa', (
+      tester,
+    ) async {
+      // ESTO DECÍA LO CONTRARIO HASTA EL 28/09/2026, y por eso está aquí.
+      //
+      // Durante unas horas hubo un corte en `Anchos.escritorio`: cajón en el
+      // teléfono, menú anclado en un monitor. Y esta prueba fijaba ese corte
+      // diciendo «en escritorio NO se abre cajón».
+      //
+      // Estaba mal por dos motivos. El §4 del `CLAUDE.md` de la raíz dice
+      // «**Cajón siempre**, también en escritorio (excepción aprobada para este
+      // proyecto el 05/09/2026)». Y Jose lo vio en su monitor el mismo día, con
+      // el selector de sucursal de Almacenes flotando y descolocado sobre la
+      // página: «q te dije de los dropdowns flotantes q los pusieras como
+      // drawer».
+      //
+      // Se queda como la mitad de la pareja, pero afirmando lo otro: que a los
+      // DOS anchos sale lo mismo. Si alguien devuelve el corte, esta cae.
       await montar(tester, tamano: escritorio);
 
       await tester.tap(find.text('Todos los vendedores'));
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Vendedor 2'),
+        find.byType(Cajon),
         findsOneWidget,
-        reason: 'el menú no llegó a abrirse en escritorio',
+        reason:
+            'a 1200 px volvió a salir el menú flotante: es lo que Jose pidió '
+            'quitar y lo que el §4 prohíbe',
       );
       expect(
-        find.byType(Cajon),
-        findsNothing,
-        reason:
-            'en escritorio NO se abre cajón: el menú anclado es lo que arregló '
-            'el 25/09/2026 (que siga al botón al desplazar la página) y no se '
-            'toca. Ver `selector_sigue_al_boton_test.dart`.',
+        find.text('Vendedor 2'),
+        findsOneWidget,
+        reason: 'el cajón se abrió pero sin las opciones dentro',
       );
     });
 
@@ -403,24 +417,26 @@ void main() {
       );
     });
 
-    testWidgets('a 1200 px sigue saliendo el MENÚ de siempre', (tester) async {
+    testWidgets('a 1200 px el calendario TAMBIÉN es cajón', (tester) async {
+      // La gemela de la del desplegable, y por el mismo motivo: hasta el
+      // 28/09/2026 esto afirmaba que en escritorio el calendario seguía en su
+      // menú anclado. Lo que NO ha cambiado es el descarte de
+      // `showDatePicker` —el modal centrado que el pliego no quiere—: lo que se
+      // abre es el cajón de la casa, con su cabecera y su ✕.
       await montar(tester, tamano: escritorio);
 
       await tester.tap(find.text('Desde (fecha del pedido)'));
       await tester.pumpAndSettle();
 
       expect(
-        find.byType(CalendarDatePicker),
+        find.byType(Cajon),
         findsOneWidget,
-        reason: 'el menú del calendario no llegó a abrirse en escritorio',
+        reason: 'a 1200 px volvió a salir el menú flotante del calendario',
       );
       expect(
-        find.byType(Cajon),
-        findsNothing,
-        reason:
-            'en escritorio el calendario sigue en su menú anclado. Ni cajón ni '
-            '`showDatePicker`: las dos cosas se descartaron a propósito '
-            '(05/09/2026 y 25/09/2026).',
+        find.byType(CalendarDatePicker),
+        findsOneWidget,
+        reason: 'el cajón se abrió pero sin el calendario dentro',
       );
     });
 

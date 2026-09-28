@@ -179,22 +179,33 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
   );
 
 
-  /// El estado, EN PALABRAS y sin elegirlo. Lo que se pinta aquí es el campo
-  /// GUARDADO, que es lo único que esta ficha conoce —no tiene delante las rutas
-  /// del camión—, y por eso dice de dónde sale el de verdad: la insignia de la
-  /// tarjeta y el resumen de la flota salen de las rutas, no de aquí.
+  /// EL CAMION ESTA OCUPADO POR EL DESPACHO, asi que aqui no hay nada que
+  /// elegir: `in_use` no es una opcion del desplegable y no puede serlo.
+  ///
+  /// Lo pone y lo quita el despacho de la ruta. Mientras esta asi, el
+  /// desplegable de abajo se abre SIN nada marcado y con su pista puesta: no se
+  /// pinta `in_use` como si fuera una de las dos opciones, porque no lo es, y
+  /// tampoco se reescribe a la callada. Si nadie toca el desplegable, `_estado`
+  /// viaja tal cual y la edicion no cambia lo que hay guardado.
+  bool get _ocupadoPorElDespacho => _estado == 'in_use' || _estado == 'in_route';
+
+  /// La explicacion que va DEBAJO del desplegable. Dice lo que el desplegable no
+  /// puede decir: de donde sale «en que anda» de verdad, que no es de aqui.
   String get _vistaDelEstado => switch (_estado) {
     'in_use' || 'in_route' =>
-      'Marcado como ocupado. Lo pone y lo quita el despacho de la ruta, no esta '
-          'ficha: si el camión no lleva ninguna ruta abierta, la tarjeta lo '
-          'enseña como disponible y ahí se puede limpiar.',
-    'maintenance' =>
-      'En mantenimiento. Este valor viene de antes y el servidor ya no lo '
-          'acepta: se conserva tal cual y no se toca desde aquí.',
+      'Ahora mismo lo tiene cogido el despacho de una ruta. Eso no se elige '
+          'aquí: se quita cerrando o cambiando esa ruta, y si el camión no '
+          'lleva ninguna abierta, la tarjeta lo enseña como disponible y ahí se '
+          'puede limpiar.',
+    estadoEnMantenimiento =>
+      'En el taller: no se le puede dar ruta hasta que vuelva. Escribe el '
+          'motivo en Notas, aquí abajo — es lo único que le dice al de al lado '
+          'por qué no puede contar con él. Marcarlo NO cierra la ruta que ya '
+          'tuviera abierta: eso se arregla en la tarjeta del camión.',
     _ =>
-      'Disponible. En qué anda de verdad sale de sus rutas —libre, con ruta '
-          'planificada o en ruta— y se ve en la tarjeta y en el resumen de la '
-          'flota.',
+      'Disponible. En qué anda de verdad —libre, con ruta planificada o en '
+          'ruta— sale de sus rutas y se ve en la tarjeta y en el resumen de la '
+          'flota: eso no se escribe a mano en ningún sitio.',
   };
 
   @override
@@ -261,46 +272,92 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
               ),
             ),
             const SizedBox(height: 12),
-            // EL ESTADO SE MIRA, NO SE ELIGE — 28/09/2026.
+            // EL ESTADO: DOS OPCIONES, Y SOLO DOS — 28/09/2026.
             //
-            // ## Lo que había: un desplegable con dos opciones muertas
+            // ## Lo que habia esta mañana: un desplegable con dos opciones muertas
             //
-            // Aquí había un `DropdownButtonFormField` con `Disponible`,
+            // Aqui hubo un `DropdownButtonFormField` con `Disponible`,
             // `En ruta` y `En mantenimiento`. **Dos de las tres fallaban
-            // siempre**: el enum `vehicle_status` de la base sólo tiene
-            // `available` e `in_use`, y `estadoValido` del servidor
-            // (`api/internal/api/vehiculos.go`) contesta 400 a cualquier otra
-            // cosa. Elegir «En ruta» o «En mantenimiento» y darle a Actualizar
-            // no guardaba nada, y el aviso de abajo decía que no se pudo sin que
-            // nadie supiera por qué.
+            // siempre**: el enum `vehicle_status` de la base sólo tenia
+            // `available` e `in_use`, y `estadoValido` del servidor contestaba
+            // 400 a cualquier otra cosa. Elegir «En ruta» o «En mantenimiento» y
+            // darle a Actualizar no guardaba nada, y el aviso decia que no se
+            // pudo sin que nadie supiera por que. Se quito, y en su sitio quedo
+            // una linea de solo lectura.
             //
-            // ## Y por qué no se arregla añadiendo los valores buenos
+            // ## Y lo que hay ahora, que no es volver atras
             //
-            // Porque «en qué anda un camión» **no es una elección, es un hecho**,
-            // y ya se sabe sin preguntárselo a nadie: sale de sus rutas abiertas
+            // Vuelve el desplegable, pero con **DOS opciones y sólo dos**:
+            // «Disponible» y «En mantenimiento».
+            //
+            // «En ruta» NO vuelve, y no es por el 400: es que **no es una
+            // eleccion, es un hecho**. En que anda un camion se sabe sin
+            // preguntarselo a nadie, porque sale de sus rutas abiertas
             // (`VehiculoDeLaApi.andar`, y en el servidor
-            // `RutasAbiertasDeLaFlota`). Un desplegable ahí invita a escribir a
-            // mano un dato que se calcula, y un estado que alguien pone y nadie
-            // quita miente a los dos días — que es justo lo que le pasaba a
+            // `RutasAbiertasDeLaFlota`). Ofrecerlo aqui invita a escribir a mano
+            // un dato que se calcula, y un estado que alguien pone y nadie quita
+            // miente a los dos dias — que es justo lo que le pasaba a
             // `vehicles.status`.
             //
-            // Queda un hueco conocido y está dicho: **un camión en el taller no
-            // se puede guardar**, porque no se deduce de ninguna ruta —uno en el
-            // taller no tiene ruta, igual que uno libre— y el enum no tiene ese
-            // valor. Añadirlo es una migración y va aparte.
+            // «En mantenimiento» si vuelve, y ademas ES LA RAZON de que este
+            // desplegable exista: es lo UNICO que no se puede deducir, porque un
+            // camion en el taller no tiene ruta, exactamente igual que uno
+            // libre. Se guarda desde la migracion 00013. El motivo del taller va
+            // en NOTAS, aqui abajo: ninguna columna nueva.
             //
-            // El campo `_estado` sigue viajando TAL CUAL en `DatosVehiculo`: una
-            // edición no toca lo que hay guardado, ni para arreglarlo. Eso lo
-            // vigila «guardar sin tocar nada deja la ficha igual».
-            InputDecorator(
+            // ## El camion que el despacho tiene cogido
+            //
+            // Un camion en `in_use` abre el desplegable SIN nada marcado y con
+            // su pista puesta (`_ocupadoPorElDespacho`). No se pinta `in_use`
+            // como una tercera opcion —no lo es— y sobre todo **no se reescribe
+            // solo**: si nadie toca el desplegable, `_estado` viaja tal cual y
+            // la edicion deja la ficha igual. Eso lo vigila «guardar sin tocar
+            // nada deja la ficha igual», que es el eje de las pruebas de aqui.
+            DropdownButtonFormField<String>(
+              // Como el de Tipo: sin esto desborda a 390 px. Ver su comentario.
+              isExpanded: true,
+              initialValue: _ocupadoPorElDespacho ? null : _estado,
+              hint: const Text(
+                'Ocupado por el despacho de una ruta',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               decoration: const InputDecoration(
                 labelText: 'Estado del vehículo',
                 border: OutlineInputBorder(),
-                isDense: true,
               ),
-              child: Text(
-                _vistaDelEstado,
-                style: Theme.of(context).textTheme.bodyMedium,
+              items: const [
+                DropdownMenuItem(
+                  value: 'available',
+                  child: Text(
+                    'Disponible',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: estadoEnMantenimiento,
+                  child: Text(
+                    'En mantenimiento',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+              // Un `null` no borra nada: es el desplegable cerrandose sin
+              // elegir, y ahi lo guardado se queda como estaba.
+              onChanged: (valor) {
+                if (valor == null) return;
+                setState(() => _estado = valor);
+              },
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _vistaDelEstado,
+              style: tema.textTheme.bodySmall?.copyWith(
+                color: _estado == estadoEnMantenimiento
+                    ? Colores.ambar
+                    : Colores.tintaSuave,
               ),
             ),
             const SizedBox(height: 12),

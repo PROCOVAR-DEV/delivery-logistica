@@ -67,7 +67,10 @@ class PantallaRutas extends ConsumerWidget {
     final pestana = ref.watch(pestanaRutasProvider);
     final contadores = ref.watch(contadoresDePestanaProvider);
     final elegida = ref.watch(rutaElegidaProvider);
-    final filtros = ref.watch(filtrosRutasProvider);
+    // Los filtros NO se miran aqui: el `Limpiar` que los necesitaba se fue
+    // dentro de `_FiltrosDeLaLista`, y vigilarlos desde aqui repintaria la
+    // pantalla entera —las tres listas del `PageView` incluidas— cada vez que
+    // alguien escribe una letra en el buscador.
 
     // CAMBIAR DE PESTAÑA A MANO SUELTA LA RUTA ABIERTA.
     //
@@ -124,174 +127,253 @@ class PantallaRutas extends ConsumerWidget {
         ref.read(rutaElegidaProvider.notifier).elegir(null);
       },
       child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // LA CABECERA: EL TÍTULO A UN LADO Y EL BOTÓN AL OTRO.
-            //
-            // Antes los tres —título, reloj y botón— colgaban del mismo `Wrap`,
-            // así que el botón salía pegado al título en escritorio y, en un
-            // teléfono, caído en una esquina con el ancho de su texto. Jose,
-            // 25/09/2026: «el botón para crear ruta sale al lado en vez de al
-            // otro lado, y en móvil en una esquina y no todo el tamaño que
-            // lleva, le falta width».
-            //
-            // Ahora: en pantalla ancha el botón se va al extremo derecho, que es
-            // donde se busca la acción; en el teléfono baja a su propia línea y
-            // ocupa TODO el ancho, que es lo que lo hace fácil de acertar con el
-            // pulgar y lo que ya hacen los demás botones de la casa.
-            Padding(
-              padding: const EdgeInsets.all(Aire.lg),
-              child: Builder(
-                builder: (contexto) {
-                  final estrecho =
-                      MediaQuery.sizeOf(contexto).width < Anchos.idioma;
+        // LO QUE MANDA SOBRE LA LISTA VA CON LA LISTA — 28/09/2026.
+        //
+        // Jose, mirando `/routes` en un monitor ancho:
+        //
+        //     «aqui por q el boton se queda a la mitad el de crear una nueva
+        //      ruta y el en curso osea el del estado por q se queda tmabien a
+        //      mitad arregla eso»
+        //
+        // Lo que estaba: el titulo, el reloj, el boton `+ Nueva Ruta`, las tres
+        // pastillas de estado y la barra de filtros colgaban de una columna a
+        // TODO EL ANCHO, y debajo de ellos la pantalla se partia en dos paneles
+        // —la lista a la izquierda, ~530 px, y el detalle a la derecha—. O sea
+        // que los cinco mandos de la lista vivian encima de los dos paneles:
+        //
+        //  * el `+ Nueva Ruta`, empujado al extremo derecho por su `Spacer`,
+        //    acababa flotando a mil pixeles de la lista que crea, en mitad del
+        //    panel del detalle, que no tiene nada que ver con el;
+        //  * y las pastillas y el rotulo se quedaban colgando a media fila, con
+        //    el resto del renglon vacio hasta el otro borde. Eso es el «se queda
+        //    a mitad» de las dos frases.
+        //
+        // Ahora los mandos de la lista son PARTE del panel de la lista: nacen y
+        // mueren dentro de sus ~530 px, y el panel del detalle no lleva encima
+        // nada que no sea del detalle. Es la forma de siempre de un maestro-
+        // detalle: cada panel con su propia cabecera.
+        //
+        // **A ancho de telefono no cambia nada**, y eso es la mitad del valor de
+        // hacerlo asi: por debajo de `anchoEscritorio` no hay dos paneles, asi
+        // que este mismo panel ES la pantalla entera y queda exactamente como
+        // estaba —cabecera, pestañas, filtros y lista, uno debajo de otro—. Un
+        // solo arbol para las dos formas; no hay una colocacion de escritorio y
+        // otra de movil que alguien arregle a medias.
+        //
+        // LO QUE SE PAGA, escrito para que no sorprenda: `PestanasQueCaben`
+        // decide por su ancho, y su umbral (`anchoDeLasPestanas`, 900 px) esta
+        // fijo dentro de `lib/diseno/pestanas.dart`. En una columna de ~530 px
+        // las tres pastillas se cambian por el carrusel —el rotulo de la que se
+        // mira, tres bolitas con el nombre y la cuenta de cada una en su
+        // globito, y las flechas—, que es el mismo control que Jose pidio para
+        // el telefono. Las tres etiquetas de esta pantalla miden ~420 px
+        // juntas, o sea que CABRIAN en la columna: si algun dia ese umbral se
+        // puede pasar por parametro, aqui se le pasa y vuelven las pastillas.
+        child: LayoutBuilder(
+          builder: (contexto, medidas) {
+            // Se mide con `medidas.maxWidth`, que es el ancho que de verdad le
+            // queda a la pantalla dentro del armazon, y no con el de la
+            // ventana: con la barra lateral fija puesta, los dos numeros no son
+            // el mismo y quien decide la forma tiene que ser el mismo que decide
+            // si hay sitio para dos columnas.
+            final enEscritorio = medidas.maxWidth >= anchoEscritorio;
 
-                  const titulo = Text(
-                    'Planificador de Rutas',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  );
-                  // El reloj de datos de las colecciones de esta pantalla. La
-                  // franja del armazon da la frescura global; esta da la de lo
-                  // que se esta mirando.
-                  const reloj = BarraDeDatos(
-                    colecciones: ColeccionesDePantalla.rutas,
-                  );
-                  final boton = FilledButton(
-                    onPressed: () => abrirCajon<void>(
-                      context,
-                      (_) => const AsistenteNuevaRuta(),
-                    ),
-                    child: const Text('+ Nueva Ruta'),
-                  );
-
-                  if (estrecho) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [titulo, reloj],
-                        ),
-                        const SizedBox(height: Aire.md),
-                        // `stretch` de la columna: el botón a todo lo ancho.
-                        boton,
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    children: [
-                      const Flexible(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [titulo, reloj],
-                        ),
-                      ),
-                      const SizedBox(width: Aire.md),
-                      const Spacer(),
-                      boton,
+            // EL PANEL DE LA LISTA: su cabecera, sus pestañas, sus filtros y
+            // ella. En movil es la pantalla entera; en escritorio es la columna
+            // de la izquierda. El mismo arbol en los dos sitios.
+            final panelDeLaLista = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _CabeceraDeLaLista(),
+                // LAS TRES PESTANAS, SEGUN EL SITIO QUE HAYA: carrusel cuando
+                // la columna es estrecha, las tres a la vez cuando cabe (ver
+                // `PestanasQueCaben`).
+                //
+                // Antes eran tres botones sueltos dentro del `Wrap` del titulo,
+                // y en un telefono las tres etiquetas con sus cuentas no caben
+                // en una linea. Ahora sale el rotulo de la que se esta mirando
+                // y, debajo, tres bolitas. Se cambia deslizando la lista, con
+                // las bolitas o con las flechas.
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Aire.sm),
+                  child: PestanasQueCaben(
+                    indice: pestana.index,
+                    etiquetas: [
+                      for (final cual in PestanaRutas.values)
+                        '${cual.etiqueta} (${contadores[cual] ?? 0})',
                     ],
-                  );
-                },
-              ),
-            ),
-            // LAS TRES PESTANAS, SEGUN EL SITIO QUE HAYA: carrusel en un
-            // teléfono, las tres a la vez en un monitor (ver
-            // `PestanasQueCaben`).
-            //
-            // Antes eran tres botones sueltos dentro del `Wrap` del titulo, y
-            // en un telefono las tres etiquetas con sus cuentas no caben en una
-            // linea. Ahora sale el rotulo de la que se esta mirando y, debajo,
-            // tres bolitas. Se cambia deslizando la lista, con las bolitas o
-            // con las flechas.
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Aire.sm),
-              child: PestanasQueCaben(
-                indice: pestana.index,
-                etiquetas: [
-                  for (final cual in PestanaRutas.values)
-                    '${cual.etiqueta} (${contadores[cual] ?? 0})',
-                ],
-                alCambiar: irALaPestana,
-              ),
-            ),
-            const _FiltrosDeLaLista(),
-            if (filtros.hayAlguno)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () =>
-                      ref.read(filtrosRutasProvider.notifier).limpiar(),
-                  icon: const Icon(Icons.close, size: 16),
-                  label: const Text('Limpiar'),
+                    // AQUÍ CABEN CON MENOS DE 900 — 28/09/2026.
+                    //
+                    // Los mandos de esta pantalla viven dentro del panel de la
+                    // lista, que en un monitor mide unos 530 px. Las tres
+                    // —`Planificadas (0) · En curso (1) · Historial (0)`— miden
+                    // unas 420 juntas, así que con el umbral común salían en
+                    // carrusel teniendo sitio de sobra: dos de tres escondidas
+                    // detrás de unas bolitas para nada.
+                    //
+                    // 460 y no 420 clavados: las cuentas crecen —«Historial
+                    // (128)» mide más que «Historial (0)»— y un umbral pegado
+                    // al mínimo de hoy se rompe el día que haya rutas de
+                    // verdad. Por debajo de eso el carrusel es lo correcto y
+                    // sigue estando.
+                    anchoParaTodas: 460,
+                    alCambiar: irALaPestana,
+                  ),
                 ),
-              ),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (contexto, medidas) {
-                  final enEscritorio = medidas.maxWidth >= anchoEscritorio;
+                const _FiltrosDeLaLista(),
+                Expanded(
                   // LA LISTA, QUE SE CAMBIA DESLIZANDO EL DEDO.
                   //
-                  // Las tres pestanas son tres listas del mismo tamano puestas en
-                  // fila; deslizar a lo ancho pasa de una a la siguiente y el
+                  // Las tres pestanas son tres listas del mismo tamano puestas
+                  // en fila; deslizar a lo ancho pasa de una a la siguiente y el
                   // botoncito de arriba se enciende solo. El desplazamiento de
                   // cada lista es vertical, asi que los dos gestos no se pisan.
-                  final lista = CuerpoDeslizable(
+                  child: CuerpoDeslizable(
                     indice: pestana.index,
                     cuantas: PestanaRutas.values.length,
                     alCambiar: alDeslizar,
                     pagina: (contexto, i) =>
                         ListaDeRutas(deLaPestana: PestanaRutas.values[i]),
-                  );
+                  ),
+                ),
+              ],
+            );
 
-                  // EN MÓVIL, EL DETALLE VA EN UN CAJÓN Y NO AQUÍ DENTRO.
-                  //
-                  // Jose, 22/09/2026: «cuando estoy viendo un detalle de una
-                  // ruta me puedo mover por los diferentes tabs eso no lo
-                  // quiero ponlo en un drawer en el movil». El porqué entero
-                  // está en `CajonDelDetalleDeRuta`; lo que hay que saber aquí
-                  // es que **esta columna sigue siendo la lista y nada más**,
-                  // pase lo que pase con la ruta elegida.
-                  //
-                  // Se mide con `medidas.maxWidth`, que es el ancho que de
-                  // verdad le queda a la pantalla dentro del armazón, y no con
-                  // el de la ventana: con la barra lateral fija puesta, los dos
-                  // números no son el mismo y quien decide la forma tiene que
-                  // ser el mismo que decide si hay sitio para dos columnas.
-                  if (!enEscritorio) {
-                    return _LaListaConSuCajon(lista: lista);
-                  }
+            // EN MÓVIL, EL DETALLE VA EN UN CAJÓN Y NO AQUÍ DENTRO.
+            //
+            // Jose, 22/09/2026: «cuando estoy viendo un detalle de una ruta me
+            // puedo mover por los diferentes tabs eso no lo quiero ponlo en un
+            // drawer en el movil». El porqué entero está en
+            // `CajonDelDetalleDeRuta`; lo que hay que saber aquí es que **este
+            // panel sigue siendo la lista y nada más**, pase lo que pase con la
+            // ruta elegida.
+            if (!enEscritorio) {
+              return _LaListaConSuCajon(lista: panelDeLaLista);
+            }
 
-                  // En escritorio: 3 columnas (1 lista + 2 detalle), cada una con
-                  // su propio desplazamiento.
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(child: lista),
-                      const VerticalDivider(width: 1),
-                      Expanded(
-                        flex: 2,
-                        child: elegida == null
-                            ? const EstadoVacio(
-                                'Selecciona una ruta para ver el detalle',
-                              )
-                            : DetalleDeRuta(rutaId: elegida),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
+            // En escritorio: 3 columnas (1 lista + 2 detalle), cada una con su
+            // propio desplazamiento.
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: panelDeLaLista),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  flex: 2,
+                  child: elegida == null
+                      ? const EstadoVacio(
+                          'Selecciona una ruta para ver el detalle',
+                        )
+                      : DetalleDeRuta(rutaId: elegida),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
+}
+
+/// LA CABECERA DEL PANEL DE LA LISTA: el título con su reloj, y el botón de
+/// crear.
+///
+/// Antes los tres —título, reloj y botón— colgaban del mismo `Wrap`, así que el
+/// botón salía pegado al título en escritorio y, en un teléfono, caído en una
+/// esquina con el ancho de su texto. Jose, 25/09/2026: «el botón para crear ruta
+/// sale al lado en vez de al otro lado, y en móvil en una esquina y no todo el
+/// tamaño que lleva, le falta width».
+///
+/// **Mide su propio ancho y no el de la ventana** — 28/09/2026, y es lo que hace
+/// que esto siga valiendo dentro del panel de ~530 px. Con `MediaQuery` esta
+/// cabecera se creía en un monitor de 1600 px estando en una columna de 530, y
+/// entonces montaba la fila «título ··· botón a la derecha» en un sitio donde el
+/// `Spacer` no tiene nada que dar: el botón se pegaba al título otra vez, que es
+/// literalmente la queja del 25/09 de vuelta.
+///
+/// Por debajo de [Anchos.idioma] de columna el botón baja a su propia línea y
+/// ocupa TODO el ancho del panel, que es lo que lo hace fácil de acertar con el
+/// pulgar en un teléfono y lo que lo deja pegado a la lista que crea en un
+/// monitor. Por encima, se va al extremo derecho DEL PANEL, que es donde se
+/// busca la acción y que ahora es un borde de verdad y no el otro lado de la
+/// pantalla.
+class _CabeceraDeLaLista extends StatelessWidget {
+  const _CabeceraDeLaLista();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(Aire.lg),
+    child: LayoutBuilder(
+      builder: (contexto, medidas) {
+        final estrecho = medidas.maxWidth < Anchos.idioma;
+
+        const titulo = Text(
+          'Planificador de Rutas',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        );
+        // El reloj de datos de las colecciones de esta pantalla. La franja del
+        // armazon da la frescura global; esta da la de lo que se esta mirando.
+        const reloj = BarraDeDatos(colecciones: ColeccionesDePantalla.rutas);
+        final boton = FilledButton(
+          onPressed: () =>
+              abrirCajon<void>(context, (_) => const AsistenteNuevaRuta()),
+          child: const Text('+ Nueva Ruta'),
+        );
+
+        if (estrecho) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [titulo, reloj],
+              ),
+              const SizedBox(height: Aire.md),
+              // `stretch` de la columna: el botón a todo lo ancho.
+              boton,
+            ],
+          );
+        }
+
+        // `Expanded` PARA EL TÍTULO Y NADA DE `Spacer` — 28/09/2026.
+        //
+        // Era `Flexible(titulo+reloj)` + `Spacer()` + botón, y los dos flexibles
+        // se repartían el hueco libre **a la mitad cada uno**. Eso aquí es un
+        // desbordamiento de verdad: el reloj de datos es un
+        // `Row(mainAxisSize: min)` sin ningún hijo flexible dentro
+        // (`nucleo/frescura/reloj_de_datos.dart`), así que no encoge — si su
+        // mitad no le llega, se sale por el lado y sale la cebra amarilla y
+        // negra encima del título.
+        //
+        // Medido: a 700 px de cabecera le tocaban 219,4 px y pedía 260,4. **Ya
+        // pasaba antes de mover nada** —a esos anchos no había ninguna prueba
+        // que montara esta pantalla—, y al meter la cabecera dentro del panel
+        // de la lista habría vuelto a pasar en un monitor de 2560, donde la
+        // columna pasa de 640 px y esta rama se vuelve a usar.
+        //
+        // Con `Expanded` y sin `Spacer` el hueco libre es entero para el título
+        // y su reloj —que es quien no sabe encoger—, y el botón se queda
+        // igualmente pegado al borde derecho porque el `Expanded` lo empuja
+        // hasta allí. A 700 px pasa de 219,4 a 439.
+        return Row(
+          children: [
+            const Expanded(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [titulo, reloj],
+              ),
+            ),
+            const SizedBox(width: Aire.md),
+            boton,
+          ],
+        );
+      },
+    ),
+  );
 }
 
 /// LA LISTA DEL MÓVIL, QUE ABRE EL DETALLE EN UN CAJÓN.
@@ -368,6 +450,23 @@ class _LaListaConSuCajonState extends ConsumerState<_LaListaConSuCajon> {
   }
 }
 
+/// LOS RÓTULOS DEL FILTRO DE LA UBICACIÓN, en un sitio y públicos.
+///
+/// Están aquí y no dentro de `_FiltrosDeLaLista` —que es privada— porque las
+/// pruebas tienen que buscar **lo que se lee en pantalla**, y una prueba que
+/// copia el literal no comprueba el literal: el día que alguien cambie el texto,
+/// la prueba seguirá verde buscando el viejo. Es la misma decisión que
+/// `Selector.nadaQueCuadre` y `SinDescargar.textoDeLaPantallaVacia`.
+abstract final class TextosDeLosFiltrosDeRutas {
+  /// La opción «todas», que va **la primera** de la lista.
+  static const cualquierUbicacion = 'Cualquier ubicación';
+
+  /// El título del filtro. Es **también su clave** en `BarraDeFiltros`, que
+  /// reparte la fila del teléfono por lo que mide el rótulo de cada filtro; ver
+  /// la nota de las claves más abajo.
+  static const tituloUbicacion = 'Ubicación de salida';
+}
+
 class _FiltrosDeLaLista extends ConsumerWidget {
   const _FiltrosDeLaLista();
 
@@ -376,6 +475,7 @@ class _FiltrosDeLaLista extends ConsumerWidget {
     final filtros = ref.watch(filtrosRutasProvider);
     final notas = ref.read(filtrosRutasProvider.notifier);
     final vehiculos = ref.watch(vehiculosProvider).value ?? const <Vehiculo>[];
+    final ubicaciones = ref.watch(ubicacionesDeSalidaProvider);
 
     // La colocación la manda `BarraDeFiltros`, igual que Pedidos, Clientes y
     // Vehículos. Antes: `Padding` de 12 literal —el título de esta misma
@@ -383,25 +483,46 @@ class _FiltrosDeLaLista extends ConsumerWidget {
     // donde la caja de buscar se llevaba 260 de los 366 útiles del teléfono y
     // tiraba el selector de vehículo a la línea siguiente.
     // Ver `lib/diseno/barra_de_filtros.dart`.
-    return BarraDeFiltros(
-      // Igual que la de Pedidos: busca sola y **se vacia cuando
-      // `Limpiar` vacia los filtros**, en vez de quedarse un texto
-      // filtrando en silencio.
-      busqueda: CajaDeBusqueda(
-            valor: filtros.q,
-            ancho: 260,
-            pista: 'Buscar por código, nombre, vehículo...',
-            alBuscar: (t) => notas.poner(
-              FiltrosRutas(
-                q: t,
-                vehiculoId: filtros.vehiculoId,
-                desde: filtros.desde,
-                hasta: filtros.hasta,
-              ),
-            ),
-          ),
-      filtros: [
+    //
+    // EL MARGEN SE MIDE CON EL ANCHO DE ESTE PANEL, no con el de la ventana
+    // —28/09/2026, y es la misma razón que en `_CabeceraDeLaLista`—. El que trae
+    // `BarraDeFiltros` por defecto sale de `MediaQuery`, así que dentro de la
+    // columna de ~530 px de un monitor se ponía el de pantalla grande
+    // (`Aire.xl` a cada lado) y se comía 48 px de los 530 que hay. Se le pasa
+    // el mismo cálculo medido donde toca; en un teléfono da exactamente lo de
+    // siempre, porque allí el panel ES la ventana.
+    return LayoutBuilder(
+      builder: (contexto, medidas) => BarraDeFiltros(
+        margen: EdgeInsets.symmetric(
+          horizontal: medidas.maxWidth < Anchos.idioma ? Aire.md : Aire.xl,
+          vertical: Aire.md,
+        ),
+        // Igual que la de Pedidos: busca sola y **se vacia cuando
+        // `Limpiar` vacia los filtros**, en vez de quedarse un texto
+        // filtrando en silencio.
+        busqueda: CajaDeBusqueda(
+          valor: filtros.q,
+          ancho: 260,
+          pista: 'Buscar por código, nombre, vehículo...',
+          alBuscar: (t) => notas.poner(filtros.copiarCon(q: t)),
+        ),
+        // CADA FILTRO LLEVA SU CLAVE, Y ES LO QUE LE DA SU ANCHO.
+        //
+        // `BarraDeFiltros` reparte la fila del teléfono **a lo que mide cada
+        // uno**, y lo único que esa capa sabe de un filtro es su clave: no
+        // conoce `Selector` ni tiene por qué. Sin clave, `_peso` no encuentra
+        // rótulo y devuelve el valor de en medio, o sea el 50/50 de antes.
+        //
+        // El de vehículo **no la llevaba** —se le puso hoy, 28/09/2026, al
+        // añadir el de la ubicación—: con uno de los dos sin clave el reparto
+        // de la fila era mentira en la mitad de los casos y nadie lo veía,
+        // porque dos pesos iguales y dos pesos «por defecto» dan la misma fila.
+        //
+        // El texto es el `titulo` y no la opción elegida a propósito: la opción
+        // cambia al elegir, y una clave que cambia le tira el estado al widget.
+        filtros: [
           Selector<String>(
+            key: const ValueKey('Rutas de un camión'),
             titulo: 'Rutas de un camión',
             valor: filtros.vehiculoId,
             opciones: [
@@ -413,23 +534,65 @@ class _FiltrosDeLaLista extends ConsumerWidget {
                   nota: v.status == EstadoVehiculo.enUso ? 'en ruta' : null,
                 ),
             ],
-            alElegir: (id) => notas.poner(
-              FiltrosRutas(
-                q: filtros.q,
-                vehiculoId: id,
-                desde: filtros.desde,
-                hasta: filtros.hasta,
-              ),
-            ),
+            alElegir: (id) => notas.poner(filtros.copiarCon(vehiculoId: id)),
           ),
-          // Las dos fechas sobre `createdAt`. El filtro ya se aplicaba en
-          // `filtrarRutas`; lo que faltaba era con que ponerlo. Sin `sólo ese
-          // día`: eso es de Pedidos (pliego §2), aqui el pliego (§3) sólo pide
-          // `Desde` y `Hasta`.
-      ],
-      // Fila entera: son dos botones de fecha más la ✕, y en media columna se
-      // parten dejando la ✕ colgando sola.
-      anchoCompleto: [
+          // DE DÓNDE SALIÓ — 28/09/2026.
+          //
+          // Jose: «en las rutas añadir tambien el filtro por la ubicacion q
+          // salio para saber de donde saiioo sin necesidad de estar viendo
+          // todas juntas». El dato ya estaba en la tarjeta —el renglón del
+          // alfiler, `PV-STGO`— y no había forma de acotar por él.
+          //
+          // Las opciones salen de las RUTAS del alcance
+          // (`ubicacionesDeSalidaProvider`), no del catálogo de almacenes. El
+          // porqué entero está en `FiltrosRutas.ubicacionSalida`; lo que hay
+          // que saber aquí es que cada opción tiene al menos una ruta detrás y
+          // que dice cuántas, que es lo que contesta «de dónde salieron» sin
+          // tener que elegir para averiguarlo.
+          //
+          // SE ENSEÑA SIEMPRE, TAMBIÉN CON UN SOLO ALMACÉN, y eso es una
+          // decisión:
+          //
+          //  * un filtro que aparece y desaparece según lo que haya bajado es
+          //    un filtro que nadie encuentra. En la web la base nace vacía en
+          //    cada carga (§3-ter), así que el primer segundo no habría filtro
+          //    y el siguiente sí: el parpadeo se lee como «esta pantalla está
+          //    rota», y quien lo vio una vez vacío no vuelve a buscarlo;
+          //  * y esconderlo cuando la sucursal tiene un solo almacén dice lo
+          //    contrario de lo que pasa: que esta pantalla no sabe filtrar por
+          //    ahí. Jose ya lo pidió al revés con los almacenes — que se vea
+          //    que existen aunque no estén configurados, no que desaparezcan
+          //    en silencio. Con un solo origen el desplegable además NOMBRA
+          //    cuál es, que es un dato y no ruido.
+          //
+          // La opción «cualquiera» va **la primera**, como en todos los
+          // desplegables de la casa, y sale de esta lista y no de dentro del
+          // `Selector`, así que ningún reordenado de las ubicaciones se la
+          // puede llevar por delante.
+          Selector<String>(
+            key: const ValueKey(TextosDeLosFiltrosDeRutas.tituloUbicacion),
+            titulo: TextosDeLosFiltrosDeRutas.tituloUbicacion,
+            valor: filtros.ubicacionSalida,
+            opciones: [
+              const OpcionSelector(
+                '',
+                TextosDeLosFiltrosDeRutas.cualquierUbicacion,
+              ),
+              for (final u in ubicaciones)
+                OpcionSelector(u.clave, u.etiqueta, nota: '${u.rutas}'),
+            ],
+            alElegir: (v) =>
+                notas.poner(filtros.copiarCon(ubicacionSalida: v)),
+          ),
+        ],
+        // Fila entera: son dos botones de fecha más la ✕, y en media columna se
+        // parten dejando la ✕ colgando sola.
+        //
+        // Las dos fechas sobre `createdAt`. El filtro ya se aplicaba en
+        // `filtrarRutas`; lo que faltaba era con que ponerlo. Sin `sólo ese
+        // día`: eso es de Pedidos (pliego §2), aqui el pliego (§3) sólo pide
+        // `Desde` y `Hasta`.
+        anchoCompleto: [
           RangoDeFechas(
             desde: filtros.desde,
             hasta: filtros.hasta,
@@ -437,16 +600,33 @@ class _FiltrosDeLaLista extends ConsumerWidget {
             // El reloj de la aplicacion, no el del sistema: el calendario se
             // abre por el mismo «hoy» que usa todo lo demas.
             hoy: ref.watch(relojProvider)(),
+            // `limpiar…` cuando llega `null`: la ✕ del rango quita las dos
+            // fechas, y sin esos dos avisos `copiarCon` leería el `null` como
+            // «no lo toques» y la ✕ no haría nada.
             alCambiar: (desde, hasta) => notas.poner(
-              FiltrosRutas(
-                q: filtros.q,
-                vehiculoId: filtros.vehiculoId,
+              filtros.copiarCon(
                 desde: desde,
+                limpiarDesde: desde == null,
                 hasta: hasta,
+                limpiarHasta: hasta == null,
               ),
             ),
           ),
-      ],
+        ],
+        // `LIMPIAR` VA DENTRO DE LA BARRA, en el hueco que `BarraDeFiltros`
+        // tiene para eso — 28/09/2026. Estaba suelto debajo, en un `Align` con
+        // margen cero mientras la barra de encima llevaba el suyo, así que no
+        // quedaba alineado con ningún filtro. Es justo lo que esa barra existe
+        // para evitar: cada pantalla colocando lo suyo a su manera.
+        accionFinal: filtros.hayAlguno
+            ? TextButton.icon(
+                onPressed: () =>
+                    ref.read(filtrosRutasProvider.notifier).limpiar(),
+                icon: const Icon(Icons.close, size: 16),
+                label: const Text('Limpiar'),
+              )
+            : null,
+      ),
     );
   }
 }

@@ -144,6 +144,35 @@ final contadoresDePestanaProvider = Provider<Map<PestanaRutas, int>>((ref) {
   };
 });
 
+/// LAS UBICACIONES DE SALIDA QUE HAY, para el filtro de la barra.
+///
+/// Jose, 28/09/2026: «en las rutas añadir tambien el filtro por la ubicacion q
+/// salio para saber de donde saiioo sin necesidad de estar viendo todas juntas».
+///
+/// **Sale de las RUTAS y no del catalogo de almacenes.** El porque entero esta
+/// en `FiltrosRutas.ubicacionSalida`; en una linea: `routes` no guarda de que
+/// almacen salio, solo el texto, y cruzarlo contra `warehouses` dejaria sin
+/// poder pedir las rutas de un almacen renombrado y ofreceria opciones vacias
+/// de los almacenes sin rutas.
+///
+/// **Y de TODAS las rutas del alcance, no de las de la pestaña que se mira.**
+/// Con las de la pestaña, la lista de opciones cambiaria al cambiar de pestaña
+/// —un filtro que se queda puesto sobre una opcion que ya no esta en su propio
+/// desplegable— y ademas el desplegable se vaciaria en `Historial` el primer
+/// dia. Lo que se filtra es la pestaña; lo que se OFRECE es lo que hay.
+///
+/// Es un `Provider` y no un `FutureProvider`, que es lo que pide el §3-ter:
+/// cuelga de [todasLasRutasProvider], que ya es un `Stream`, asi que se rehace
+/// solo cada vez que la bajada mete rutas. Con un `Future` este desplegable se
+/// quedaria **vacio para siempre** en la web, que nace con la base vacia en
+/// cada carga de la pagina — el mismo fallo que ya se pago en los desplegables
+/// de Pedidos (17/09) y en los del paso 4 del asistente (24/09).
+final ubicacionesDeSalidaProvider = Provider<List<UbicacionDeSalida>>(
+  (ref) => ubicacionesDeSalidaDe(
+    ref.watch(todasLasRutasProvider).value ?? const <Ruta>[],
+  ),
+);
+
 /// La lista ya filtrada por la pestana y por los filtros del cliente.
 ///
 /// **Por pestana, no «la de la pestana elegida»**: en el movil las tres listas

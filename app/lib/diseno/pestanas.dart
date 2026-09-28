@@ -366,13 +366,35 @@ class PestanasQueCaben extends StatelessWidget {
     required this.etiquetas,
     required this.alCambiar,
     this.rotulo,
+    this.anchoParaTodas,
     super.key,
   });
 
   /// El ancho a partir del cual caben todas. Es el mismo que usa el Tablero
   /// para partirse en dos mitades: si cabe un tablero de dos columnas, caben
   /// tres etiquetas.
+  ///
+  /// **Es el valor por DEFECTO, no una ley** — ver [anchoParaTodas].
   static const anchoDeLasPestanas = 900.0;
+
+  /// EL UMBRAL DE ESTA PANTALLA, cuando 900 se queda largo — 28/09/2026.
+  ///
+  /// Los 900 de arriba son prudentes a propósito: los comparten Reportes y el
+  /// Tablero, cuyas pestañas llevan rótulos largos. Pero en Rutas los mandos se
+  /// metieron dentro del panel de la lista —de unos 530 px en un monitor— y ahí
+  /// `Planificadas (0) · En curso (1) · Historial (0)` miden unos 420 px
+  /// JUNTAS: caben de sobra, y aun así el umbral fijo las convertía en
+  /// carrusel, que es esconder dos de tres detrás de unas bolitas teniendo
+  /// sitio para verlas.
+  ///
+  /// Y no se arregla repartiendo la pantalla de otra manera: ni al 50/50 en un
+  /// monitor de 1600 sale una columna de 900.
+  ///
+  /// Se pasa por parámetro y NO se baja el valor común: bajarlo a ojo por una
+  /// pantalla puede partir las otras dos, que tienen rótulos más largos y a las
+  /// que nadie está mirando ahora mismo. Quien conoce sus etiquetas es la
+  /// pantalla.
+  final double? anchoParaTodas;
 
   final int indice;
   final List<String> etiquetas;
@@ -385,7 +407,7 @@ class PestanasQueCaben extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, medidas) {
-      if (medidas.maxWidth < anchoDeLasPestanas) {
+      if (medidas.maxWidth < (anchoParaTodas ?? anchoDeLasPestanas)) {
         return CarruselDePestanas(
           indice: indice,
           cuantas: etiquetas.length,

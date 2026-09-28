@@ -677,13 +677,31 @@ List<OpcionSelector<T>> _visibles<T>(
 ) {
   final busca = texto.trim().toLowerCase();
   if (busca.isEmpty) return opciones;
-  return opciones
-      .where(
-        (o) =>
-            o.etiqueta.toLowerCase().contains(busca) ||
-            (o.nota ?? '').toLowerCase().contains(busca),
-      )
-      .toList();
+
+  // LA PRIMERA OPCIÓN NO LA FILTRA EL BUSCADOR — 28/09/2026.
+  //
+  // La primera es siempre la de «todos» —«Cualquier vehículo», «Todos los
+  // municipios», «Cualquier ubicación»—, la pone la pantalla y es la que
+  // DESHACE el filtro. Se la llevaba el buscador como a cualquier otra: con
+  // cuatro opciones o más sale la caja de buscar, y al escribir «PV» la lista
+  // se quedaba en las que casan y **la salida desaparecía**. Entonces, para
+  // quitar el filtro, hay que borrar lo escrito primero y darse cuenta de que
+  // era eso — o cerrar y volver a abrir.
+  //
+  // No se busca por el texto «todos» ni nada parecido: se respeta la POSICIÓN,
+  // que es lo único que esta pieza sabe. Quien arma las opciones decide qué va
+  // primero; aquí sólo se garantiza que esa no se pierde.
+  final salida = opciones.isEmpty ? null : opciones.first;
+  return [
+    ?salida,
+    ...opciones
+        .skip(1)
+        .where(
+          (o) =>
+              o.etiqueta.toLowerCase().contains(busca) ||
+              (o.nota ?? '').toLowerCase().contains(busca),
+        ),
+  ];
 }
 
 class _MenuConBuscador<T> extends StatefulWidget {
@@ -743,7 +761,8 @@ class _MenuConBuscadorState<T> extends State<_MenuConBuscador<T>> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (visibles.isEmpty) _NadaQueCuadre(texto: _texto),
+                  if (!_hayCoincidencias(widget.opciones, _texto))
+                    _NadaQueCuadre(texto: _texto),
                   for (final opcion in visibles)
                     MenuItemButton(
                       onPressed: () => widget.alElegir(opcion.valor),
@@ -836,7 +855,8 @@ class _OpcionesEnCajonState<T> extends State<_OpcionesEnCajon<T>> {
         // Un cajón a pantalla completa con la caja de buscar y NADA debajo es
         // todavía peor que el panel en blanco de aquel día: ocupa los 390 px de
         // ancho y los 800 de alto para no decir nada.
-        if (visibles.isEmpty) _NadaQueCuadre(texto: _texto),
+        if (!_hayCoincidencias(widget.opciones, _texto))
+          _NadaQueCuadre(texto: _texto),
         for (final opcion in visibles)
           ListTile(
             // SIN `dense`, al contrario que el menú. Aquí se toca con el dedo y
@@ -875,6 +895,28 @@ class _OpcionesEnCajonState<T> extends State<_OpcionesEnCajon<T>> {
 ///
 /// Un panel en blanco es indistinguible de «este desplegable esta roto» y de
 /// «aqui no hay nada que elegir», que es justo lo que no pasa.
+/// SI EL BUSCADOR NO ENCONTRÓ NADA, y es distinto de «la lista está vacía».
+///
+/// Desde que la primera opción —la de «todos»— no la filtra el buscador, la
+/// lista NUNCA se queda vacía: siempre queda al menos la salida. Si el aviso de
+/// «nada que cuadre» se decidiera mirando si la lista está vacía, dejaría de
+/// salir para siempre, y quien escribe «pv-stgoo» con una letra de más se
+/// quedaría mirando una sola opción sin entender por qué.
+///
+/// Lo que se pregunta es si cuadró alguna de las BUSCABLES, que son todas menos
+/// la primera.
+bool _hayCoincidencias<T>(List<OpcionSelector<T>> opciones, String busca) {
+  final texto = busca.trim().toLowerCase();
+  if (texto.isEmpty) return true;
+  return opciones
+      .skip(1)
+      .any(
+        (o) =>
+            o.etiqueta.toLowerCase().contains(texto) ||
+            (o.nota ?? '').toLowerCase().contains(texto),
+      );
+}
+
 class _NadaQueCuadre extends StatelessWidget {
   const _NadaQueCuadre({required this.texto});
 

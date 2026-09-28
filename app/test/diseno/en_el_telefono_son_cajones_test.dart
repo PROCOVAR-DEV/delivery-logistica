@@ -313,12 +313,22 @@ void main() {
 
       expect(find.text('Vendedor 17'), findsOneWidget);
       expect(find.text('Vendedor 18'), findsNothing, reason: 'no filtró');
+      // LA SALIDA SE QUEDA, Y ESO CAMBIÓ EL 28/09/2026.
+      //
+      // Antes esta prueba exigía que sólo hubiera UNA —la del botón de fuera—,
+      // porque el buscador se llevaba «Todos los vendedores» como a cualquier
+      // otra opción. Y eso era el fallo: la primera opción es la que DESHACE el
+      // filtro, así que al escribir desaparecía justo la salida, y para volver
+      // atrás había que borrar lo escrito y darse cuenta de que era eso.
+      //
+      // Ahora son DOS: la del botón de fuera y la de dentro del cajón, que se
+      // queda pase lo que pase.
       expect(
         find.text('Todos los vendedores'),
-        findsOneWidget,
+        findsNWidgets(2),
         reason:
-            'quedó la opción del botón de fuera y la de la lista: el filtro no '
-            'quitó «Todos los vendedores» de dentro del cajón',
+            'la opción que DESHACE el filtro no se la puede llevar el buscador: '
+            'es la salida, y desaparece justo cuando hace falta',
       );
 
       await tester.tap(find.text('Vendedor 17'));

@@ -273,13 +273,31 @@ List<OpcionSelector<T>> _visibles<T>(
 ) {
   final texto = busca.trim().toLowerCase();
   if (texto.isEmpty) return opciones;
-  return opciones
-      .where(
-        (o) =>
-            o.etiqueta.toLowerCase().contains(texto) ||
-            (o.nota ?? '').toLowerCase().contains(texto),
-      )
-      .toList();
+
+  // LA PRIMERA OPCIÓN NO LA FILTRA EL BUSCADOR — 28/09/2026.
+  //
+  // La primera es siempre la de «todos» —«Cualquier vehículo», «Todos los
+  // municipios», «Cualquier ubicación»—, la pone la pantalla y es la que
+  // DESHACE el filtro. Se la llevaba el buscador como a cualquier otra: con
+  // cuatro opciones o más sale la caja de buscar, y al escribir «PV» la lista
+  // se quedaba en las que casan y **la salida desaparecía**. Entonces, para
+  // quitar el filtro, hay que borrar lo escrito primero y darse cuenta de que
+  // era eso — o cerrar y volver a abrir.
+  //
+  // No se busca por el texto «todos» ni nada parecido: se respeta la POSICIÓN,
+  // que es lo único que esta pieza sabe. Quien arma las opciones decide qué va
+  // primero; aquí sólo se garantiza que esa no se pierde.
+  final salida = opciones.isEmpty ? null : opciones.first;
+  return [
+    ?salida,
+    ...opciones
+        .skip(1)
+        .where(
+          (o) =>
+              o.etiqueta.toLowerCase().contains(texto) ||
+              (o.nota ?? '').toLowerCase().contains(texto),
+        ),
+  ];
 }
 
 class _Menu<T> extends StatefulWidget {
@@ -367,7 +385,8 @@ class _MenuState<T> extends State<_Menu<T>> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (visibles.isEmpty) _NadaQueCuadre(busca: _busca),
+                  if (!_hayCoincidencias(widget.opciones, _busca))
+                    _NadaQueCuadre(busca: _busca),
                   for (final o in visibles)
                     _Opcion<T>(
                       opcion: o,
@@ -446,7 +465,8 @@ class _OpcionesEnCajonState<T> extends State<_OpcionesEnCajon<T>> {
           ),
           const SizedBox(height: Aire.sm),
         ],
-        if (visibles.isEmpty) _NadaQueCuadre(busca: _busca),
+        if (!_hayCoincidencias(widget.opciones, _busca))
+          _NadaQueCuadre(busca: _busca),
         for (final o in visibles)
           _Opcion<T>(
             opcion: o,
@@ -466,6 +486,28 @@ class _OpcionesEnCajonState<T> extends State<_OpcionesEnCajon<T>> {
 }
 
 /// El cartel de cuando el buscador no deja nada. Uno solo para los dos sitios.
+/// SI EL BUSCADOR NO ENCONTRÓ NADA, y es distinto de «la lista está vacía».
+///
+/// Desde que la primera opción —la de «todos»— no la filtra el buscador, la
+/// lista NUNCA se queda vacía: siempre queda al menos la salida. Si el aviso de
+/// «nada que cuadre» se decidiera mirando si la lista está vacía, dejaría de
+/// salir para siempre, y quien escribe «pv-stgoo» con una letra de más se
+/// quedaría mirando una sola opción sin entender por qué.
+///
+/// Lo que se pregunta es si cuadró alguna de las BUSCABLES, que son todas menos
+/// la primera.
+bool _hayCoincidencias<T>(List<OpcionSelector<T>> opciones, String busca) {
+  final texto = busca.trim().toLowerCase();
+  if (texto.isEmpty) return true;
+  return opciones
+      .skip(1)
+      .any(
+        (o) =>
+            o.etiqueta.toLowerCase().contains(texto) ||
+            (o.nota ?? '').toLowerCase().contains(texto),
+      );
+}
+
 class _NadaQueCuadre extends StatelessWidget {
   const _NadaQueCuadre({required this.busca});
 
@@ -477,9 +519,8 @@ class _NadaQueCuadre extends StatelessWidget {
     child: Text(
       'Nada que cuadre con «$busca»',
       textAlign: TextAlign.center,
-      style: Theme.of(
-        context,
-      ).textTheme.bodySmall?.copyWith(color: Colores.tintaSuave),
+      style: Theme.of(context).textTheme.bodySmall
+          ?.copyWith(color: Colores.tintaSuave),
     ),
   );
 }

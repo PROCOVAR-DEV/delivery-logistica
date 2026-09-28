@@ -94,17 +94,146 @@ class FiltrosRutas {
   const FiltrosRutas({
     this.q = '',
     this.vehiculoId = '',
+    this.ubicacionSalida = '',
     this.desde,
     this.hasta,
   });
 
+  /// LA MARCA DE «LAS QUE NO TIENEN PUNTO DE PARTIDA».
+  ///
+  /// `ubicacionSalida` guarda el texto del origen tal cual, asi que hace falta
+  /// un valor que NINGUNA direccion pueda tener para poder pedir justo las que
+  /// no lo tienen. Una cadena vacia no sirve: esa ya significa «cualquiera».
+  ///
+  /// Y esas rutas tienen que poder pedirse. Sin esta opcion, una ruta sin
+  /// origen solo se ve en «cualquier ubicacion» y desaparece en cuanto alguien
+  /// filtra — eso es descartar trabajo en silencio, que es lo que prohibe el
+  /// §4 del CLAUDE.md. Ademas es justo el caso que hay que arreglar: una ruta
+  /// sin punto de partida no se puede medir.
+  static const sinPuntoDePartida = '\u0000sin-punto-de-partida';
+
   final String q;
   final String vehiculoId;
+
+  /// DE DONDE SALIO, tal cual lo escribe la tarjeta (`routes.origin_address`).
+  ///
+  /// Jose, 28/09/2026: «en las rutas añadir tambien el filtro por la ubicacion
+  /// q salio para saber de donde saiioo sin necesidad de estar viendo todas
+  /// juntas».
+  ///
+  /// **Es el TEXTO del origen y no el id de un almacen, y no es un descuido.**
+  /// `routes` no guarda de que almacen salio: el asistente escribe
+  /// `origenDireccion: _salida?.direccion ?? _salida?.nombre`
+  /// (`vista/asistente_nueva_ruta.dart`), o sea el texto, y lo que baja del
+  /// servidor trae ese mismo campo y nada mas. Cruzarlo contra `warehouses`
+  /// para filtrar por id tendria dos agujeros, los dos de los que dejan datos
+  /// fuera sin decirlo:
+  ///
+  ///  * un almacen renombrado o retirado deja sus rutas viejas con el texto
+  ///    antiguo, y esas rutas se volverian **imposibles de pedir**;
+  ///  * y al reves, un almacen recien dado de alta saldria en la lista sin
+  ///    ninguna ruta detras, o sea una opcion que no filtra nada.
+  ///
+  /// Filtrando por el texto, lo que se elige es exactamente lo que se lee en
+  /// la tarjeta, y cada opcion tiene al menos una ruta detras. El dia que
+  /// `routes` guarde el almacen de salida, esto se cambia — y entonces habra
+  /// que migrar lo viejo, no antes.
+  final String ubicacionSalida;
+
   final DateTime? desde;
   final DateTime? hasta;
 
   bool get hayAlguno =>
-      q.isNotEmpty || vehiculoId.isNotEmpty || desde != null || hasta != null;
+      q.isNotEmpty ||
+      vehiculoId.isNotEmpty ||
+      ubicacionSalida.isNotEmpty ||
+      desde != null ||
+      hasta != null;
+
+  /// Copiar cambiando lo justo.
+  ///
+  /// Estaba escrito a pelo en los cuatro controles de la barra —cada uno
+  /// rehacia el objeto entero repitiendo los otros tres campos—, y con el
+  /// quinto filtro eso deja de ser legible: basta olvidarse de uno para que
+  /// **elegir una fecha borre la ubicacion** sin que salte nada. Es el mismo
+  /// molde que ya usa `FiltrosDisponibles` del paso 4.
+  ///
+  /// Los `limpiar…` hacen falta porque `null` aqui es indistinguible de «no lo
+  /// toques»: sin ellos no habria forma de QUITAR una fecha.
+  FiltrosRutas copiarCon({
+    String? q,
+    String? vehiculoId,
+    String? ubicacionSalida,
+    DateTime? desde,
+    bool limpiarDesde = false,
+    DateTime? hasta,
+    bool limpiarHasta = false,
+  }) => FiltrosRutas(
+    q: q ?? this.q,
+    vehiculoId: vehiculoId ?? this.vehiculoId,
+    ubicacionSalida: ubicacionSalida ?? this.ubicacionSalida,
+    desde: limpiarDesde ? null : (desde ?? this.desde),
+    hasta: limpiarHasta ? null : (hasta ?? this.hasta),
+  );
+}
+
+/// UNA UBICACION DE SALIDA DE LAS QUE HAY, con cuantas rutas salieron de ella.
+///
+/// Sale de las propias rutas (ver [ubicacionesDeSalidaDe]), no del catalogo de
+/// almacenes, y por eso la cuenta va pegada: un desplegable que dice
+/// «PV-STGO 12» contesta de un vistazo la pregunta de Jose —de donde salieron—
+/// sin tener que elegir para averiguarlo.
+class UbicacionDeSalida {
+  const UbicacionDeSalida({required this.clave, required this.rutas});
+
+  /// Lo que se guarda en `FiltrosRutas.ubicacionSalida`: el texto del origen,
+  /// o [FiltrosRutas.sinPuntoDePartida] para las que no tienen.
+  final String clave;
+
+  /// Cuantas rutas salieron de aqui.
+  final int rutas;
+
+  bool get esSinPuntoDePartida => clave == FiltrosRutas.sinPuntoDePartida;
+
+  /// Lo que se lee en el desplegable. Para las que no tienen origen es la
+  /// MISMA frase que ya pinta la tarjeta (`lista_rutas.dart`): dos maneras de
+  /// decir lo mismo en la misma pantalla es lo que hace dudar de si son dos
+  /// cosas distintas.
+  String get etiqueta =>
+      esSinPuntoDePartida ? 'Sin punto de partida' : clave;
+}
+
+/// LAS UBICACIONES DE SALIDA QUE HAY EN UNAS RUTAS, ordenadas y con su cuenta.
+///
+/// Suelta y sin providers a proposito: asi se puede probar la regla —que no se
+/// pierde ninguna, que las de sin origen van juntas y al final, y que el orden
+/// no depende de en que orden vinieran las rutas— sin montar una pantalla.
+///
+/// El orden es alfabetico y **sin distinguir mayusculas**, que es como se lee
+/// una lista de sitios; las que no tienen origen van SIEMPRE las ultimas,
+/// porque no son un sitio y mezcladas por la «S» de «Sin» estarian en medio.
+List<UbicacionDeSalida> ubicacionesDeSalidaDe(List<Ruta> rutas) {
+  final cuentas = <String, int>{};
+  var sinOrigen = 0;
+  for (final ruta in rutas) {
+    final origen = (ruta.originAddress ?? '').trim();
+    if (origen.isEmpty) {
+      sinOrigen++;
+      continue;
+    }
+    cuentas[origen] = (cuentas[origen] ?? 0) + 1;
+  }
+  final claves = cuentas.keys.toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  return [
+    for (final clave in claves)
+      UbicacionDeSalida(clave: clave, rutas: cuentas[clave]!),
+    if (sinOrigen > 0)
+      UbicacionDeSalida(
+        clave: FiltrosRutas.sinPuntoDePartida,
+        rutas: sinOrigen,
+      ),
+  ];
 }
 
 /// Una ruta con lo que la tarjeta y el detalle necesitan, ya resuelto.
@@ -510,6 +639,20 @@ bool _cuadra(
 ) {
   if (filtros.vehiculoId.isNotEmpty && ruta.vehicleId != filtros.vehiculoId) {
     return false;
+  }
+  // DE DONDE SALIO. Se compara con el texto YA RECORTADO por los dos lados,
+  // igual que lo recorta `ubicacionesDeSalidaDe` al armar las opciones: si una
+  // capa recorta y la otra no, `PV-STGO ` no cuadraria con `PV-STGO` y el
+  // desplegable ofreceria una opcion que no devuelve nada. Es el §3-bis —dos
+  // sitios que tienen que contestar lo mismo— en pequeño.
+  final queSalida = filtros.ubicacionSalida;
+  if (queSalida.isNotEmpty) {
+    final salida = (ruta.originAddress ?? '').trim();
+    if (queSalida == FiltrosRutas.sinPuntoDePartida) {
+      if (salida.isNotEmpty) return false;
+    } else if (salida != queSalida) {
+      return false;
+    }
   }
   final creada = ruta.createdAt;
   if (filtros.desde != null && creada != null) {

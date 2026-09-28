@@ -60,6 +60,16 @@ class FranjaDeEstado extends ConsumerWidget {
         ref.watch(trabajoHuerfanoProvider).value ?? const <TrabajoHuerfano>[];
     // Y LA BAJADA QUE VOLVIO A MEDIAS, con el motivo del servidor tal cual.
     final aMedias = ref.watch(bajadaAMediasProvider);
+    // LO QUE SUBIO Y SALIO CON MENOS DE LO QUE SE PUSO.
+    //
+    // El tercer caso que no revienta, y el que estuvo mudo hasta el
+    // 28/09/2026: el apunte de armar una zona entra, la ruta se crea arriba, y
+    // el servidor contesta ademas quien se cayo y por que. Eso no sale en «N
+    // sin subir» —ya subio— ni en la bandeja —no lo rechazo nadie—, y el
+    // apunte pudo entrar horas despues con la pantalla cerrada: si no se dice
+    // aqui, no se dice en ningun sitio. Ver `nucleo/cola/cola_salida.dart`,
+    // `descartesSinLeer`.
+    final descartados = ref.watch(descartadosProvider).value ?? const [];
 
     // Mientras la consulta de frescura no ha contestado NO se dice «sin
     // descargar»: seria acusar de vacio a algo que aun no se ha mirado. Se
@@ -91,11 +101,16 @@ class FranjaDeEstado extends ConsumerWidget {
           // trabajo huerfano o con una bajada a medias, igual: los dos son
           // «mira esto», y los dos pueden pasar con la hora en verde.
           enAmbar:
-              enAmbar || sinConexion || huerfano.hayAlguno || aMedias != null,
+              enAmbar ||
+              sinConexion ||
+              huerfano.hayAlguno ||
+              aMedias != null ||
+              descartados.isNotEmpty,
           sinConexion: sinConexion,
           actualizando: actualizando,
           huerfano: huerfano,
           aMedias: aMedias,
+          descartados: descartados.length,
           // Que se puede hacer ahora mismo. Las reglas viven en
           // `sincro/que_se_puede.dart`, no aqui: son de negocio y las mira
           // tambien la tarjeta del Panel.
@@ -117,6 +132,7 @@ class FranjaDeEstado extends ConsumerWidget {
     required bool actualizando,
     required List<TrabajoHuerfano> huerfano,
     required String? aMedias,
+    required int descartados,
     required QueSePuede puede,
   }) {
     return Container(
@@ -236,6 +252,21 @@ class FranjaDeEstado extends ConsumerWidget {
                   _Linea(
                     texto: 'Faltan datos por bajar: $aMedias',
                     alPulsar: () => abrirCajonDeTraerElDia(context),
+                  ),
+                // LA RUTA QUE SUBIO CON MENOS DE LO QUE SE PUSO. Aqui va el
+                // NUMERO y no los motivos: los motivos son largos —llevan el
+                // pedido, el porque y que hacer— y su sitio es el cajon, que
+                // es adonde lleva esto. Lo que tiene que hacer esta linea es
+                // que alguien lo abra.
+                if (descartados > 0)
+                  _Linea(
+                    texto: descartados == 1
+                        ? 'Una ruta subió con menos pedidos de los que pusiste'
+                        : '$descartados rutas subieron con menos pedidos de '
+                              'los que pusiste',
+                    alPulsar:
+                        alPulsarPendientes ??
+                        () => abrirCajonDeEntregarElDia(context),
                   ),
               ],
             ),

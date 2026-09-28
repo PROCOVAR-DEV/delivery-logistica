@@ -606,6 +606,19 @@ class Selector<T> extends StatelessWidget {
     message: titulo,
     child: OutlinedButton(
       onPressed: alPulsar,
+      // EL BLANCO SE QUEDA, Y ES LO QUE SE ESPERA — 28/09/2026.
+      //
+      // La regla de la casa es que **un boton no lleva fondo**
+      // (`diseno/tema.dart`, [Botones]), y esto es un `OutlinedButton` que
+      // contradice al tema a proposito: **no es un boton, es un campo**. Se
+      // dibuja al lado de las cajas de buscar y de fecha, hace lo mismo que un
+      // desplegable, y lo que manda ahi es `inputDecorationTheme`, que pone
+      // `filled: true` con `fillColor: Colores.blanco`. Quitarle el blanco
+      // dejaria un filtro translucido en una barra de filtros opacos: se veria
+      // roto, no limpio.
+      //
+      // La prueba de si algo de esto es un boton o un campo: ¿hace algo al
+      // pulsarlo, o abre algo para elegir? Esto abre.
       style: OutlinedButton.styleFrom(
         backgroundColor: Colores.blanco,
         foregroundColor: filtrando ? Colores.tinta : Colores.tintaSuave,
@@ -742,7 +755,10 @@ class _MenuConBuscadorState<T> extends State<_MenuConBuscador<T>> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (!_hayCoincidencias(widget.opciones, _texto))
-                    _NadaQueCuadre(texto: _texto),
+                    _NadaQueCuadre(
+                      texto: _texto,
+                      salida: _laSalida(widget.opciones),
+                    ),
                   for (final opcion in visibles)
                     MenuItemButton(
                       onPressed: () => widget.alElegir(opcion.valor),
@@ -836,7 +852,7 @@ class _OpcionesEnCajonState<T> extends State<_OpcionesEnCajon<T>> {
         // todavía peor que el panel en blanco de aquel día: ocupa los 390 px de
         // ancho y los 800 de alto para no decir nada.
         if (!_hayCoincidencias(widget.opciones, _texto))
-          _NadaQueCuadre(texto: _texto),
+          _NadaQueCuadre(texto: _texto, salida: _laSalida(widget.opciones)),
         for (final opcion in visibles)
           ListTile(
             // SIN `dense`, al contrario que el menú. Aquí se toca con el dedo y
@@ -897,16 +913,49 @@ bool _hayCoincidencias<T>(List<OpcionSelector<T>> opciones, String busca) {
       );
 }
 
+/// La etiqueta de la opcion que SIGUE ESTANDO debajo del aviso: la primera, la
+/// de «todos», que el buscador no filtra. `null` si no hay ninguna.
+String? _laSalida<T>(List<OpcionSelector<T>> opciones) =>
+    opciones.isEmpty ? null : opciones.first.etiqueta;
+
 class _NadaQueCuadre extends StatelessWidget {
-  const _NadaQueCuadre({required this.texto});
+  const _NadaQueCuadre({required this.texto, this.salida});
 
   final String texto;
+
+  /// La etiqueta de la opcion de «todos», que es la unica que queda debajo.
+  final String? salida;
+
+  /// EL AVISO NO PUEDE DESMENTIRLO LA PANTALLA DOS LINEAS MAS ABAJO —28/09/2026.
+  ///
+  /// Jose, escribiendo `toda` en un desplegable con buscador: salia «Nada que
+  /// cuadre con «toda»» y **debajo estaba `Todas (8)`**, que a la vista de quien
+  /// lee cuadra perfectamente. Un aviso que la propia pantalla contradice se
+  /// deja de leer, y entonces tampoco se lee el dia que dice la verdad.
+  ///
+  /// Lo que NO se toca es el motivo por el que esa opcion sigue ahi: la primera
+  /// —la de «todos»— es la que DESHACE el filtro, y se la llevaba el buscador
+  /// justo cuando hacia falta (ver [_visibles]). Eso esta bien y se queda.
+  ///
+  /// Lo que se arregla es el texto: se nombra lo que queda y **para que sirve**.
+  /// Nombrarlo es lo que convierte la contradiccion en una explicacion — quien
+  /// lee «abajo solo queda «Todas (8)», que quita el filtro» ya sabe las dos
+  /// cosas: que lo suyo no esta, y que lo de abajo es la salida y no un
+  /// resultado.
+  String _elTexto() {
+    final aviso = '${Selector.nadaQueCuadre} «${texto.trim()}»';
+    final queda = salida;
+    // Sin opciones no hay nada que nombrar y el aviso se queda como estaba: no
+    // se inventa una salida que no existe.
+    if (queda == null) return aviso;
+    return '$aviso.\nAbajo sólo queda «$queda», que quita el filtro.';
+  }
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(Aire.lg),
     child: Text(
-      '${Selector.nadaQueCuadre} «${texto.trim()}»',
+      _elTexto(),
       textAlign: TextAlign.center,
       style: Tipos.texto(tamano: 13, color: Colores.tintaSuave),
     ),
@@ -949,9 +998,30 @@ class BarraDeDatos extends ConsumerWidget {
     final sinSubir = ref.watch(sinSubirProvider);
 
     return RelojDeDatos(
-      // Mientras carga la propia consulta de frescura no se puede afirmar que
-      // los datos esten al dia: se dice lo mismo que si no se hubieran bajado.
-      estado: frescura.value ?? const SinDescargar(),
+      // «NO HE MIRADO» NO SE PINTA COMO «NO HAY NADA» — 28/09/2026.
+      //
+      // Aqui ponia `frescura.value ?? const SinDescargar()`, con el motivo de
+      // que «mientras carga no se puede afirmar que los datos esten al dia».
+      // El motivo era bueno y la conclusion equivocada: `SinDescargar` no es
+      // una reserva prudente, es una AFIRMACION —«este aparato no ha bajado
+      // nunca»—, va en ambar y enciende el gesto de traer el dia.
+      //
+      // Lo que se veia el 28/09/2026 al abrir sin senal en un SM-A165M: el
+      // renglon de frescura diciendo que no habia nada durante unos cuatro
+      // segundos y asentandose despues en la hora de la ultima bajada. Un
+      // estado vacio leido como otro, que es el §3-ter.
+      //
+      // `hasValue` y no `value != null` a proposito: la consulta contesta
+      // `null` de verdad cuando alguna coleccion no se bajo nunca, y ESE null
+      // si es `SinDescargar`. Los dos casos dan `value == null` y son opuestos.
+      estado: switch (frescura) {
+        AsyncData(:final value) => value,
+        // Un fallo leyendo la propia base no es «no hay datos», pero tampoco se
+        // puede callar (§4): se dice en ambar y con el unico estado que empuja
+        // al gesto que lo arregla.
+        AsyncError() => const SinDescargar(),
+        _ => const SinMirarTodavia(),
+      },
       sinSubir: sinSubir.value ?? 0,
       alPulsarPendientes: alPulsarPendientes,
     );

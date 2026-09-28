@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../diseno/cargando.dart';
+import '../../../diseno/tema.dart' show BotonDestructivo, BotonPrincipal;
 import '../../../nucleo/registro/registro.dart';
+import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcel;
 import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 import '../datos/modelos.dart';
 
@@ -131,7 +133,8 @@ abstract final class AccionesTablero {
                 leading: const Icon(Icons.view_column_outlined),
                 title: Text('Colocar en «${columna.nombre}»'),
                 subtitle: Text(
-                  '${columna.pedidos} pedidos · '
+                  '${columna.pedidos} '
+                  '${columna.pedidos == 1 ? 'pedido' : 'pedidos'} · '
                   '${pesoBonito(columna.pesoKg)}',
                 ),
                 onTap: () {
@@ -354,7 +357,10 @@ abstract final class AccionesTablero {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.view_column_outlined),
               title: Text(destino.nombre),
-              subtitle: Text('${destino.pedidos} pedidos'),
+              subtitle: Text(
+                '${destino.pedidos} '
+                '${destino.pedidos == 1 ? 'pedido' : 'pedidos'}',
+              ),
               onTap: () {
                 Navigator.of(contexto).pop();
                 hacer(context, ref, () async {
@@ -417,11 +423,15 @@ abstract final class AccionesTablero {
               'a crearla a mano con su nombre.',
             ),
             const SizedBox(height: 20),
-            FilledButton.icon(
-              icon: const Icon(Icons.delete_outline),
-              label: Text('Sí, borrar «${columna.nombre}»'),
-              style: FilledButton.styleFrom(backgroundColor: Colores.rojo),
-              onPressed: () => Navigator.of(contexto).pop(true),
+            // SIN RELLENO, como todos — 28/09/2026. Esto era el unico boton de
+            // la aplicacion con el fondo cambiado a mano
+            // (`backgroundColor: Colores.rojo`), y era eso lo que lo separaba
+            // de los demas. Ahora lo separan el color, el contorno de 2 px y la
+            // papelera, que es lo que [BotonDestructivo] trae puesto: el estilo
+            // no vive aqui, vive en `diseno/tema.dart`.
+            BotonDestructivo(
+              texto: 'Sí, borrar «${columna.nombre}»',
+              alPulsar: () => Navigator.of(contexto).pop(true),
             ),
             const SizedBox(height: 8),
             TextButton(
@@ -441,7 +451,18 @@ abstract final class AccionesTablero {
     }
     await mostrarCajon<void>(
       context: context,
-      titulo: '«${columna.nombre}» tiene ${columna.pedidos} pedidos puestos',
+      // «1 pedidos puestos» — 28/09/2026. Mismo patrón que las rutas
+      // («3 paradas» / «1 parada»).
+      //
+      // SU GEMELO SIGUE SIN ARREGLAR, y hay que saberlo: `RechazoDelTablero`
+      // escribe esta misma frase en `tablero/datos/repositorio.dart`, que es el
+      // «no» de la base cuando alguien llega ahí sin pasar por este cajón. Lo
+      // tenía abierto otro agente el día que se hizo esto, así que queda
+      // apuntado en vez de tocado — y es el §3-bis: dos copias de la misma
+      // frase que ya no dicen lo mismo.
+      titulo: columna.pedidos == 1
+          ? '«${columna.nombre}» tiene 1 pedido puesto'
+          : '«${columna.nombre}» tiene ${columna.pedidos} pedidos puestos',
       contenido: (contexto) => Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -507,9 +528,10 @@ abstract final class AccionesTablero {
             onSubmitted: (texto) => Navigator.of(contexto).pop(texto),
           ),
           const SizedBox(height: 16),
-          FilledButton(
-            onPressed: () => Navigator.of(contexto).pop(control.text),
-            child: const Text('Guardar'),
+          BotonPrincipal(
+            icono: Icons.save_outlined,
+            texto: 'Guardar',
+            alPulsar: () => Navigator.of(contexto).pop(control.text),
           ),
         ],
       ),
@@ -580,6 +602,12 @@ abstract final class AccionesTablero {
   /// un `hacer(() async {})` vacío sólo para enseñar una franja.
   static void decirQueSiSePudo(BuildContext context, String texto) =>
       _decir(context, texto);
+
+  /// El gesto SALIÓ, pero dejando algo fuera. No es un «sí» ni es un «no»: la
+  /// ruta existe y hay bultos que no van en ella, así que se pinta como problema
+  /// —para que se lea— y se queda el tiempo del problema, no los 3 s del «sí».
+  static void decirQueSeQuedoAlgoFuera(BuildContext context, String texto) =>
+      _decir(context, texto, problema: true);
 
   static void _decir(
     BuildContext context,
@@ -823,7 +851,13 @@ class _DetalleDelPedido extends ConsumerWidget {
             if (pedido.municipio case final m? when m.isNotEmpty) m,
           ].join(' · '),
         ),
-        if (pedido.customerPhone case final t? when t.isNotEmpty)
+        // EL TELÉFONO, SIN LA COMILLA DE EXCEL. Segunda línea de defensa: el dato
+        // ya entra limpio por la puerta (`espejo.SinLaComillaDeExcel`, en el
+        // servidor), pero lo que bajó ANTES de aquello sigue en la base de este
+        // aparato, y aquí es donde Jose lo vio el 28/09/2026 —`'+53 5 2675220`—
+        // al abrir este mismo cajón en un SM-A165M.
+        if (sinLaComillaDeExcel(pedido.customerPhone ?? '') case final t
+            when t.isNotEmpty)
           _Dato(Icons.phone_outlined, t),
         if (pedido.vendedor case final v? when v.isNotEmpty)
           _Dato(Icons.person_outline, v),
@@ -967,9 +1001,17 @@ class _ArmarLaRutaState extends ConsumerState<_ArmarLaRuta> {
       _no = null;
     });
     try {
+      // QUIÉN SE QUEDÓ FUERA, si es que se quedó alguien. En la web el gesto va
+      // al servidor y se espera, así que la respuesta trae quién no entró; en la
+      // APK esto no se llama, porque el apunte sube horas después y el aviso
+      // vive en el cajón de entregar el día. Ver `RepositorioTablero.armarRuta`.
+      var seQuedaronFuera = const <String>[];
       final rutaId = await ref
           .read(tableroProvider.notifier)
-          .armarRuta(widget.columna.id);
+          .armarRuta(
+            widget.columna.id,
+            alDejarFuera: (fuera) => seQuedaronFuera = fuera,
+          );
       if (!mounted) return;
       // Sólo aquí se cierra. Y el «sí» se dice DESPUÉS de cerrar, con el
       // contexto de la pantalla: dentro de algo que se cierra no lo lee nadie.
@@ -1008,10 +1050,32 @@ class _ArmarLaRutaState extends ConsumerState<_ArmarLaRuta> {
       ref.read(rutaElegidaProvider.notifier).elegir(rutaId);
       pantalla.go('/routes');
 
-      AccionesTablero.decirQueSiSePudo(
-        pantalla,
-        'Ruta armada con lo que se puede repartir de «$nombre».',
-      );
+      // EL «SÍ» DICE LO QUE SE QUEDÓ FUERA, cuando se quedó algo — 28/09/2026.
+      //
+      // Antes decía sólo «Ruta armada» y el resto de la respuesta se tiraba: la
+      // ruta salía con menos pedidos de los que el logístico puso, con un aviso
+      // verde encima y sin una palabra de quién faltaba. §4, nada se descarta en
+      // silencio, y se dice **qué se rompe sin ello** — aquí, qué bultos NO van
+      // en ese camión.
+      //
+      // Cuando no se cae nadie —lo normal— el mensaje es el de siempre: un aviso
+      // que sale en todos los armados deja de leerse (§3-quinquies).
+      if (seQuedaronFuera.isEmpty) {
+        AccionesTablero.decirQueSiSePudo(
+          pantalla,
+          'Ruta armada con lo que se puede repartir de «$nombre».',
+        );
+      } else {
+        AccionesTablero.decirQueSeQuedoAlgoFuera(
+          pantalla,
+          [
+            'Ruta armada de «$nombre», pero '
+                '${seQuedaronFuera.length} '
+                '${seQuedaronFuera.length == 1 ? 'pedido no entró' : 'pedidos no entraron'}:',
+            ...seQuedaronFuera,
+          ].join('\n'),
+        );
+      }
     } on RechazoDelTablero catch (no) {
       if (!mounted) return;
       setState(() {

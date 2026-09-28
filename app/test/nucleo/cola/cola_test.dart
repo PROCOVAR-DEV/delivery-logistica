@@ -245,6 +245,66 @@ void main() {
       expect(await cola.porClave(aplicado), isNull);
       expect(await cola.porClave(rechazado), isNotNull);
     });
+
+    test('la poda tampoco se lleva un APLICADO con el aviso sin leer', () async {
+      // Un apunte que entró y aun así dejó pedidos fuera es lo ÚNICO que
+      // explica por qué esa ruta salió con nueve de doce. Borrarlo a los siete
+      // días «porque ya subió» es descartarlo en silencio con un temporizador.
+      final conAviso = await cola.encolar(
+        metodo: 'POST',
+        ruta: '/board/columns/z-vista/route',
+        cuerpo: const {},
+      );
+      final limpio = await cola.encolar(
+        metodo: 'POST',
+        ruta: '/board/columns/z-centro/route',
+        cuerpo: const {},
+      );
+      await cola.resolver(
+        conAviso,
+        const ResultadoApunte(
+          estado: EstadoResultado.aplicado,
+          descartados: [
+            DescartadoDelServidor(
+              pedidoId: 'p2',
+              operationNumber: 'X-2992',
+              customerName: 'Ana Pérez',
+              motivo: 'ya no estaba en esa zona cuando llegó tu apunte',
+              queHacer: 'comprueba si se entregó igual',
+            ),
+          ],
+        ),
+      );
+      await cola.resolver(
+        limpio,
+        const ResultadoApunte(estado: EstadoResultado.aplicado),
+      );
+
+      // El aviso se guarda con el pedido NOMBRADO y con qué hacer: un uuid no
+      // le dice nada a nadie.
+      final apunte = await cola.porClave(conAviso);
+      expect(apunte!.estado, EstadoApunte.aplicado);
+      expect(apunte.motivo, contains('X-2992 · Ana Pérez'));
+      expect(apunte.motivo, contains('comprueba si se entregó igual'));
+      expect((await cola.descartesSinLeer().first).single.clave, conAviso);
+
+      reloj.avanzar(const Duration(days: 8));
+      expect(await cola.podar(), 1);
+      expect(await cola.porClave(limpio), isNull);
+      expect(
+        await cola.porClave(conAviso),
+        isNotNull,
+        reason:
+            'mientras nadie lo haya leído, es la única constancia de lo que no '
+            'subió a ese camión',
+      );
+
+      // Y en cuanto una persona lo da por leído, se poda como cualquier otro.
+      await cola.darPorLeidoElDescarte(conAviso);
+      expect(await cola.descartesSinLeer().first, isEmpty);
+      expect(await cola.podar(), 1);
+      expect(await cola.porClave(conAviso), isNull);
+    });
   });
 
   test('el cuerpo se guarda como JSON y vuelve igual', () async {

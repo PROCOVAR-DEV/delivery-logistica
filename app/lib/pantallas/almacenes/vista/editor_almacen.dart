@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../diseno/cajon.dart';
+import '../../../diseno/tema.dart' show BotonDestructivo, BotonPrincipal;
 import '../../rutas/datos/mapa_en_vivo.dart';
 import '../datos/almacen_api.dart';
 import '../datos/coordenadas.dart';
@@ -278,9 +279,13 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
             onPressed: () => Navigator.of(contexto).pop(false),
             child: const Text('Cancelar'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(contexto).pop(true),
-            child: const Text('Quitar'),
+          // QUITAR UN ALMACEN ES DESTRUCTIVO, y este es el boton que lo
+          // confirma: va en rojo, con contorno de 2 px y con la papelera, igual
+          // que el «Sí, borrar la columna» del tablero. Estaba de principal —el
+          // oro de guardar— dentro de un cuadro que pregunta si se borra.
+          BotonDestructivo(
+            texto: 'Quitar',
+            alPulsar: () => Navigator.of(contexto).pop(true),
           ),
         ],
       ),
@@ -306,8 +311,8 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
             child: const Text('Cerrar'),
           ),
           const SizedBox(width: 8),
-          FilledButton(
-            onPressed: _leFaltaElNombre || _puntoMalEscrito || widget.guardando
+          BotonPrincipal(
+            alPulsar: _leFaltaElNombre || _puntoMalEscrito || widget.guardando
                 ? null
                 : () => widget.alGuardar(
                     AlmacenDeAccesos(
@@ -325,7 +330,8 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
                       activo: _activo,
                     ),
                   ),
-            child: Text(widget.guardando ? 'Guardando…' : 'Guardar'),
+            icono: Icons.save_outlined,
+            texto: widget.guardando ? 'Guardando…' : 'Guardar',
           ),
         ],
       ),

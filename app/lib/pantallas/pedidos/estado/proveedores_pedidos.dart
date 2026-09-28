@@ -58,6 +58,21 @@ class FiltrosPedidosNotifier extends Notifier<FiltrosPedidos> {
     hasta: hasta,
     limpiarHasta: hasta == null,
   );
+
+  /// Las dos fechas de la ENTREGA, que son otro filtro y otro par.
+  ///
+  /// Se pone desde el Panel («Entregados hoy») y se quita aquí. Van aparte de
+  /// [ponerFechas] a propósito: acotar por la fecha del pedido y acotar por la de
+  /// la entrega son dos preguntas distintas, y mezclarlas en un solo par es lo
+  /// que hacía que «lo entregado hoy» fuera impedible — el pedido de Jose del
+  /// 28/09/2026 es del día 25.
+  void ponerFechasDeEntrega(DateTime? desde, DateTime? hasta) =>
+      state = state.copiarCon(
+        entregadoDesde: desde,
+        limpiarEntregadoDesde: desde == null,
+        entregadoHasta: hasta,
+        limpiarEntregadoHasta: hasta == null,
+      );
 }
 
 final filtrosPedidosProvider =

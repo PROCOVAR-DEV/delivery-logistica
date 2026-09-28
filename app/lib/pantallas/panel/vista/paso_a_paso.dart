@@ -298,9 +298,14 @@ class _PasoQueFalta extends StatelessWidget {
               padding: const EdgeInsets.only(left: 34),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: FilledButton(
-                  onPressed: () => context.go(ruta),
-                  child: Text(paso.textoDelBoton ?? 'Ir'),
+                child: BotonPrincipal(
+                  // EL GLIFO LO TRAE EL PASO, no este fichero: cada uno lleva a
+                  // una pantalla distinta. `Icons.arrow_forward` es el ultimo
+                  // recurso del paso que no dijo el suyo, y sigue siendo
+                  // honesto — «ir» es literalmente lo que hace el mando.
+                  icono: paso.iconoDelBoton ?? Icons.arrow_forward,
+                  texto: paso.textoDelBoton ?? 'Ir',
+                  alPulsar: () => context.go(ruta),
                 ),
               ),
             ),

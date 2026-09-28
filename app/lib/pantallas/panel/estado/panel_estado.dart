@@ -24,3 +24,14 @@ final pendientePorSucursalProvider = StreamProvider<List<PendienteDeSucursal>>(
       .watch(consultasPanelProvider)
       .porSucursal(sucursalId: ref.watch(sucursalMiradaProvider)),
 );
+
+/// EL NOMBRE DE LA SUCURSAL DE LA QUE SON LAS CIFRAS.
+///
+/// `null` cuando están todas —lo dice la propia línea— y también mientras el
+/// nombre no haya bajado. Stream y no Future: en la web `branches` llega un
+/// segundo después de que la pantalla se pinte (`CLAUDE.md` §3-ter).
+final nombreDeLaSucursalMiradaProvider = StreamProvider<String?>(
+  (ref) => ref
+      .watch(consultasPanelProvider)
+      .nombreDeLaSucursal(ref.watch(sucursalMiradaProvider)),
+);

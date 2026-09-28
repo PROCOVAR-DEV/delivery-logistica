@@ -264,6 +264,21 @@ abstract final class Colores {
   /// a secas no se ve sobre blanco.
   static final lineaFuerte = _mezcla(Paleta.tinta, Paleta.papel, 0.24);
 
+  /// EL CONTORNO DE UN BOTON SECUNDARIO, y hace falta que sea SUYO — 28/09/2026.
+  ///
+  /// Desde que los botones van sin fondo (`tema.dart`, [Botones]), de un boton
+  /// secundario sólo se ven dos cosas: la palabra y la raya de alrededor. La
+  /// palabra va en tinta y se lee de sobra; la raya iba en [lineaFuerte] y
+  /// **daba 1,7 de contraste sobre el papel**, o sea que al sol no estaba. Lo
+  /// cazó `botones_sin_fondo_test.dart` el mismo día, midiendo.
+  ///
+  /// [linea] y [lineaFuerte] siguen valiendo para lo que nacieron —separar una
+  /// tarjeta del fondo, marcar una casilla vacía—, donde la raya acompaña a algo
+  /// que ya se ve. Aquí la raya **es** el mando, así que sube hasta el 3 que
+  /// pide WCAG para lo que no es texto: la tinta al 50 % sobre papel, 3,4 contra
+  /// el papel y 3,7 contra el blanco de una tarjeta.
+  static final lineaDeMando = _mezcla(Paleta.tinta, Paleta.papel, 0.50);
+
   /// LA TINTA CON UNA OPACIDAD. De aqui salen las sombras, el velo que oscurece
   /// la pantalla detras de un cajon y la rejilla del papel: todo lo translucido
   /// tira a la tinta calida y nunca al negro puro, porque sobre papel crema una

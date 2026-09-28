@@ -6,7 +6,6 @@
 
 import 'package:flutter/material.dart';
 
-import '../../../diseno/pegado_al_borde.dart';
 import '../../../diseno/tema.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +17,7 @@ import '../../pedidos/datos/formato.dart';
 import '../../pedidos/vista/kit.dart';
 import '../datos/acciones_rutas.dart';
 import '../datos/importe_de_la_ruta.dart';
+import '../datos/peso_de_la_ruta.dart';
 import '../datos/repositorio_rutas.dart';
 import '../estado/proveedores_rutas.dart';
 
@@ -66,6 +66,14 @@ class ListaDeRutas extends ConsumerWidget {
     // Ver la cabecera de `datos/importe_de_la_ruta.dart` para los tres `?? 0`
     // que borraban el rastro.
     final importePorRuta = ref.watch(importePorRutaProvider).value;
+    // Y EL PESO, de la misma manera y por el mismo motivo.
+    //
+    // No sale de `ruta.totalWeight`: esa columna se escribe UNA VEZ, al armar,
+    // y nadie la recalcula, asi que es el peso del dia en que se armo y no el
+    // de las paradas que la ruta lleva hoy. Con el se medía la capacidad del
+    // camion, que es la peor de las dos maneras de equivocarse: un camion que
+    // no cabe puede parecer que cabe. Ver `datos/peso_de_la_ruta.dart`.
+    final pesoPorRuta = ref.watch(pesoPorRutaProvider).value;
 
     // Una lista vacia de una coleccion que nunca se bajo NO es «no hay rutas».
     //
@@ -137,6 +145,10 @@ class ListaDeRutas extends ConsumerWidget {
               importe: importePorRuta == null
                   ? null
                   : (importePorRuta[ruta.id] ?? ImporteDeRuta.nada),
+              // Igual que el importe: una ruta que no sale en el agrupado no
+              // lleva paradas, y ese cero si se sabe. `null` es solo «la
+              // consulta no ha llegado todavia».
+              peso: pesoPorRuta == null ? null : (pesoPorRuta[ruta.id] ?? 0),
             ),
         ],
         Paginacion(
@@ -196,6 +208,7 @@ class _TarjetaDeRuta extends ConsumerWidget {
     required this.seSabeLaOcupacion,
     required this.paradas,
     required this.importe,
+    required this.peso,
   });
 
   final Ruta ruta;
@@ -221,6 +234,11 @@ class _TarjetaDeRuta extends ConsumerWidget {
   /// por el mismo motivo y con mas razon: un `\$0.00` en el renglon del dinero se
   /// lee como que el reparto salio gratis.
   final ImporteDeRuta? importe;
+
+  /// LO QUE PESA LA RUTA, sumado de sus paradas. `null` = la consulta todavia
+  /// no ha llegado, y entonces **no se avisa de sobrepeso**: decir que cabe —o
+  /// que no— sin haberlo medido es el numero creible de siempre con otra cara.
+  final double? peso;
 
   /// CÓMO ANDA ESTE CAMIÓN, pegado a su nombre — 28/09/2026.
   ///
@@ -251,7 +269,15 @@ class _TarjetaDeRuta extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final elegida = ref.watch(rutaElegidaProvider) == ruta.id;
-    final sobrepeso = vehiculo != null && ruta.totalWeight > vehiculo!.capacity;
+    // EL SOBREPESO SE MIDE CONTRA LAS PARADAS, no contra `ruta.totalWeight`
+    // — 28/09/2026. Esa columna es el total del dia en que se armo y nadie la
+    // vuelve a calcular; aqui decide si el camion cabe, y un camion que no cabe
+    // pareciendo que cabe no se descubre hasta el almacen.
+    //
+    // Con el peso todavia sin llegar (`null`) NO se avisa: «Sobrepeso» sobre un
+    // numero que no se ha medido es peor que no decir nada.
+    final sobrepeso =
+        vehiculo != null && peso != null && peso! > vehiculo!.capacity;
 
     // La elegida se tine de primario y coge su borde: con el gris de antes, con
     // ocho rutas seguidas, no se veia cual estaba abierta a la derecha.
@@ -334,7 +360,8 @@ class _TarjetaDeRuta extends ConsumerWidget {
               const SizedBox(height: 6),
               _Renglon(
                 texto: [
-                  if (paradas != null) '$paradas ${paradas == 1 ? 'parada' : 'paradas'}',
+                  if (paradas != null)
+                    '$paradas ${paradas == 1 ? 'parada' : 'paradas'}',
                   '${ruta.totalDistance.toStringAsFixed(1)} km',
                   fechaCorta(ruta.deliveryDate),
                 ].join(' · '),
@@ -376,7 +403,22 @@ class _TarjetaDeRuta extends ConsumerWidget {
               //    `tarjetas_de_la_misma_altura_test.dart`.
               const SizedBox(height: 6),
               SizedBox(
-                height: 32,
+                // 48 Y NO 32 — 28/09/2026, al quitarle el relleno a los botones.
+                //
+                // El renglon medía 32 y el boton de dentro se quedaba con **32
+                // px de alto tactil**, dieciseis por debajo del minimo de
+                // Material: quien apunta a «Eliminar» en un telefono de pie en
+                // el almacen le da al importe de al lado. Se daba por bueno como
+                // algo que «viene de antes y no es cosa de esto», y hoy si lo
+                // es: sin relleno detras,
+                // apuntar a la palabra es lo unico que hay, asi que el sitio
+                // donde cae el dedo no puede seguir siendo mas pequeno de lo que
+                // manda [Botones.altoTactilMinimo].
+                //
+                // Sube igual en TODAS las tarjetas, asi que las dos siguen
+                // midiendo lo mismo: `tarjetas_de_la_misma_altura_test.dart`
+                // compara una con otra, no contra un numero.
+                height: Botones.altoTactilMinimo,
                 child: Row(
                   children: [
                     Expanded(
@@ -394,19 +436,29 @@ class _TarjetaDeRuta extends ConsumerWidget {
                       ),
                     ),
                     if (ruta.status != EstadoRuta.completada)
-                      TextButton(
-                        // SU TEXTO ACABA DONDE ACABA LA INSIGNIA DE ARRIBA.
-                        //
-                        // Un `TextButton` no tiene caja que se vea: lo unico que
-                        // se lee es la palabra, y Material le mete 12 px de aire
-                        // entre su rectangulo y ella. Con el rectangulo pegado
-                        // al borde, «Eliminar» acababa en x=362 y la insignia de
-                        // estado en 374 — los dos extremos derechos de la misma
-                        // tarjeta, separados por la sangria del boton. El porque
-                        // entero y lo que pasa con el area tactil, en
-                        // `diseno/pegado_al_borde.dart`.
-                        style: PegadoAlBorde.aLaDerecha(),
-                        onPressed: () async {
+                      // ESTO ERA UN `TextButton` PELADO Y YA TIENE CAJA —
+                      // 28/09/2026.
+                      //
+                      // Eliminar una ruta es lo mas destructivo de esta
+                      // pantalla y se leia exactamente igual que «Editar»: la
+                      // palabra sola, en el oro de cualquier enlace. Ahora es un
+                      // [BotonDestructivo]: rojo, contorno de 2 px y papelera.
+                      //
+                      // Y CON ESO SE VA EL AJUSTE DE SANGRIA que llevaba hasta
+                      // hoy —le restaba los 12 px de aire propio para que la
+                      // palabra acabase donde acaba la insignia de arriba—. Ese
+                      // ajuste es para los mandos **sin caja**, donde lo unico
+                      // que se ve es el texto. Con un contorno alrededor el caso
+                      // se da la vuelta: el borde visible ES el rectangulo del
+                      // boton, asi que pegar el rectangulo al borde del
+                      // contenido lo deja donde toca —igual que la insignia—, y
+                      // quitarle la sangria ahora pondria la palabra encima de
+                      // su propia linea. El reparto entre «las que tienen caja»
+                      // y «las que no», con sus numeros medidos, esta en
+                      // `diseno/tema.dart`, junto a [Botones].
+                      BotonDestructivo(
+                        texto: 'Eliminar',
+                        alPulsar: () async {
                           final mensajero = ScaffoldMessenger.maybeOf(context);
                           try {
                             await ref
@@ -418,7 +470,6 @@ class _TarjetaDeRuta extends ConsumerWidget {
                             );
                           }
                         },
-                        child: const Text('Eliminar'),
                       ),
                   ],
                 ),
@@ -462,9 +513,8 @@ class _Renglon extends StatelessWidget {
             texto,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(fontWeight: peso),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(fontWeight: peso),
           ),
         ),
       ],

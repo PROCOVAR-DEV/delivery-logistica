@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/diseno/tema.dart';
 import 'package:reparto/navegacion/franja_de_estado.dart';
 import 'package:reparto/navegacion/estado_navegacion.dart';
+import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/nucleo/red/salud.dart';
 import 'package:reparto/nucleo/sincro/huerfanos.dart';
@@ -37,9 +38,15 @@ void main() {
           // para no abrir una base de verdad en una prueba de widget. Lo que
           // pinta va en `la_franja_dice_lo_que_no_sube_test.dart`.
           trabajoHuerfanoProvider.overrideWith(
-            (ref) => Stream<List<TrabajoHuerfano>>.value(
-              const <TrabajoHuerfano>[],
-            ),
+            (ref) =>
+                Stream<List<TrabajoHuerfano>>.value(const <TrabajoHuerfano>[]),
+          ),
+          // Y lo mismo con los descartados —lo que subió y salió con menos de
+          // lo que se puso—, por la misma razón: es un proveedor de hoja que
+          // lee la cola. Lo que pinta va en
+          // `la_franja_dice_lo_que_no_subio_al_camion_test.dart`.
+          descartadosProvider.overrideWith(
+            (ref) => Stream<List<Apunte>>.value(const <Apunte>[]),
           ),
           if (sinConexion) saludDeLaRedProvider.overrideWith(_SaludMala.new),
         ],

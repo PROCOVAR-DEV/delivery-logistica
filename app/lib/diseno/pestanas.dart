@@ -444,8 +444,31 @@ class _Pestana extends StatelessWidget {
   final bool elegida;
   final VoidCallback alPulsar;
 
+  /// AQUI NO HAY ICONO DE ACCION, Y NO SE INVENTA UNO — 28/09/2026.
+  ///
+  /// El día que el nivel principal pasó a llevar su icono obligatorio
+  /// (`diseno/tema.dart`, `BotonPrincipal`), éste fue el único mando de toda la
+  /// aplicación que se quedó fuera, y a propósito: **una pestaña no es una
+  /// acción**. `Planificadas`, `En curso`, `Historial` no hacen nada — dicen qué
+  /// estás mirando. No existe el glifo de «Planificadas», y poner cualquiera
+  /// —una carpeta, un punto, una flecha— sería justo el ruido que se vino a
+  /// quitar: un dibujo que no significa nada repetido en las tres.
+  ///
+  /// Lo que sí tiene sentido decir con un glifo es **cuál está elegida**, que es
+  /// lo único que hay que ver de un vistazo aquí. Así que lleva el mismo visto
+  /// que ya marca al elegido del grupo de tres del cierre de ruta
+  /// (`Botones.elegidoDelGrupo`, escrito el mismo día): el signo es el mismo
+  /// porque la pregunta es la misma.
+  ///
+  /// Por eso esto **no** es un `BotonPrincipal`: se le parece, pero no es una
+  /// acción principal, y vestirlo de ella para cumplir una regla sería mentirle
+  /// a quien lea esto dentro de un mes.
   @override
   Widget build(BuildContext context) => elegida
-      ? FilledButton(onPressed: alPulsar, child: Text(texto))
+      ? FilledButton.icon(
+          onPressed: alPulsar,
+          icon: const Icon(Icons.check),
+          label: Text(texto),
+        )
       : OutlinedButton(onPressed: alPulsar, child: Text(texto));
 }

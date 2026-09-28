@@ -195,7 +195,8 @@ class TarjetaVehiculo extends StatelessWidget {
           ],
           const SizedBox(height: 8),
           Text(
-            '${vehiculo.pedidos} órdenes asignadas',
+            '${vehiculo.pedidos} '
+            '${vehiculo.pedidos == 1 ? 'orden asignada' : 'órdenes asignadas'}',
             style: tema.textTheme.bodySmall?.copyWith(
               color: Colores.tintaSuave,
             ),
@@ -262,7 +263,14 @@ class TarjetaVehiculo extends StatelessWidget {
               // Sin confirmacion, como la de Next. Se deja igual a proposito:
               // cambiarlo aqui y no alla es que la misma accion se comporte
               // distinto segun por donde entres.
-              TextButton(onPressed: alEliminar, child: const Text('Eliminar')),
+              //
+              // **Y justo por eso es el que mas tiene que verse que es** —
+              // 28/09/2026. Borra un camion de una, sin preguntar, y hasta hoy
+              // se leia exactamente igual que «Editar» y que «Marcar
+              // disponible»: la misma palabra en el mismo oro, tercera de una
+              // fila de tres. Ahora es un [BotonDestructivo] — rojo, contorno de
+              // 2 px y papelera —, que es lo unico rojo de la tarjeta.
+              BotonDestructivo(texto: 'Eliminar', alPulsar: alEliminar),
             ],
           ),
         ],

@@ -457,7 +457,7 @@ func TestElIDDeLoCreadoSeLeeDeLasDosFormas(t *testing.T) {
 				}))
 			defer srv.Close()
 
-			id, err := Nuevo(srv.URL, "clave", time.Second).
+			aplicado, err := Nuevo(srv.URL, "clave", time.Second).
 				Aplicar(context.Background(), sincro.Peticion{
 					Metodo: http.MethodPost,
 					Ruta:   "/routes",
@@ -468,8 +468,8 @@ func TestElIDDeLoCreadoSeLeeDeLasDosFormas(t *testing.T) {
 				t.Fatalf("no debería fallar: %v", err)
 			}
 			salio := ""
-			if id != nil {
-				salio = id.String()
+			if aplicado.ID != nil {
+				salio = aplicado.ID.String()
 			}
 			if salio != caso.quiere {
 				t.Errorf("EL ID DE LO CREADO NO VUELVE AL APARATO: se esperaba %q y salió %q. "+
@@ -534,7 +534,7 @@ func TestLaRutaQueSeArmaNoDejaRechazo(t *testing.T) {
 		}))
 	defer servidor.Close()
 
-	id, err := Nuevo(servidor.URL, "k", 5*time.Second).Aplicar(
+	aplicado, err := Nuevo(servidor.URL, "k", 5*time.Second).Aplicar(
 		context.Background(), sincro.Peticion{
 			Metodo: http.MethodPost, Ruta: "/routes",
 			Cuerpo: json.RawMessage(`{"orderIds":["p1"]}`),
@@ -543,7 +543,7 @@ func TestLaRutaQueSeArmaNoDejaRechazo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("no tenía que fallar: %v", err)
 	}
-	if id == nil || *id != creada {
-		t.Fatalf("el id de la ruta creada tiene que volver al aparato: %v", id)
+	if aplicado.ID == nil || *aplicado.ID != creada {
+		t.Fatalf("el id de la ruta creada tiene que volver al aparato: %v", aplicado.ID)
 	}
 }

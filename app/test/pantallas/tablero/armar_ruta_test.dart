@@ -91,9 +91,21 @@ void main() {
     // la del aparato, no la del servidor —un apunte hecho sin señal llega
     // horas tarde y la ruta se armó el día que la armó el logístico— y por eso
     // se comprueba que ESTÉ y que sea de hoy, no contra un literal.
+    //
+    // `pedidoIds` entró el mismo día y **en el orden del logístico**, que es el
+    // que va a recorrer el camión. Sin la lista el servidor arma la zona con lo
+    // que ÉL tenga puesto cuando le llegue el apunte —horas después—, así que
+    // sube al camión lo que nadie cargó y se queda fuera lo que sí salió. Aquí
+    // se comprueba dentro del mapa entero a propósito: un comentario no falla, y
+    // el que había al lado de este campo decía que la lista viajaba cuando no
+    // viajaba.
     final cuerpo = jsonDecode(ultimo.cuerpo) as Map<String, Object?>;
     final dia = cuerpo.remove('deliveryDate');
-    expect(cuerpo, {'vehiculoId': 'v1', 'optimizar': false});
+    expect(cuerpo, {
+      'vehiculoId': 'v1',
+      'optimizar': false,
+      'pedidoIds': ['p3', 'p1', 'p2'],
+    });
     expect(
       dia,
       isA<String>(),
@@ -339,7 +351,11 @@ void main() {
             )
             // NOMBRADA. «La zona no tiene camión» sobre un tablero de seis zonas
             // manda a mirar las seis.
-            .having((e) => e.mensaje, 'la zona, por su nombre', contains('Carretera'))
+            .having(
+              (e) => e.mensaje,
+              'la zona, por su nombre',
+              contains('Carretera'),
+            )
             // Y DÓNDE SE ARREGLA. El camión de una zona no se elige en el
             // asistente: se pone en «Camión previsto», en sus opciones. Un
             // rechazo que no dice dónde es un rechazo permanente.
@@ -398,33 +414,36 @@ void main() {
   // camión). Si dos fallan a la vez, la persona tiene que leer el MISMO mensaje
   // por los dos caminos: moverlo aquí y no allá deja al aparato y al servidor
   // diciendo cosas distintas del mismo gesto, y eso sólo se ve en producción.
-  test('una zona sin camión Y sin nada repartible habla de lo repartible', () async {
-    final sinNada = await repo.crearColumna(
-      sucursalId: sucursalStg,
-      nombre: 'Carretera',
-    );
-    await sembrarPedido(
-      base,
-      id: 'sin-cotejar',
-      cliente: 'Bodega La Palma',
-      operacion: 'SC06-1257',
-      facturaEstado: null,
-    );
-    await repo.colocar(pedidoId: 'sin-cotejar', columnaId: sinNada);
-
-    await expectLater(
-      repo.armarRuta(
-        columnaId: sinNada,
-        origen: origen,
+  test(
+    'una zona sin camión Y sin nada repartible habla de lo repartible',
+    () async {
+      final sinNada = await repo.crearColumna(
         sucursalId: sucursalStg,
-      ),
-      throwsA(
-        isA<RechazoDelTablero>().having(
-          (e) => e.mensaje,
-          'mensaje',
-          'La columna no tiene ningún pedido que se pueda repartir hoy',
+        nombre: 'Carretera',
+      );
+      await sembrarPedido(
+        base,
+        id: 'sin-cotejar',
+        cliente: 'Bodega La Palma',
+        operacion: 'SC06-1257',
+        facturaEstado: null,
+      );
+      await repo.colocar(pedidoId: 'sin-cotejar', columnaId: sinNada);
+
+      await expectLater(
+        repo.armarRuta(
+          columnaId: sinNada,
+          origen: origen,
+          sucursalId: sucursalStg,
         ),
-      ),
-    );
-  });
+        throwsA(
+          isA<RechazoDelTablero>().having(
+            (e) => e.mensaje,
+            'mensaje',
+            'La columna no tiene ningún pedido que se pueda repartir hoy',
+          ),
+        ),
+      );
+    },
+  );
 }

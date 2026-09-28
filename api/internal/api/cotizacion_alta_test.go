@@ -252,3 +252,70 @@ func TestUnRenglonSinPesoSeGuardaVacioYNoEnCero(t *testing.T) {
 		)
 	}
 }
+
+// EL APARATO YA NO TIENE RED DE SEGURIDAD: LO QUE NO SE RESUELVA AQUÍ, NO SE RESUELVE —
+// 28/09/2026.
+//
+// Hasta ese día la misma cascada del peso estaba escrita TRES veces: aquí
+// (`PesosDeRenglones`), en la ficha del pedido y en el pre-despacho. Los tres tenían que
+// contestar lo mismo y no lo hacían —la ficha decía «40,0 kg» y la hoja del almacén ponía
+// «—» sobre los mismos veinte empaques—, así que las dos del aparato se quitaron. Jose:
+// «era mas facil ponerlo en el api y ya q lo consuman una cada uno».
+//
+// Lo que eso cambia, y es la razón de esta prueba: **antes, un renglón que llegaba con el
+// peso del EMPAQUE y sin el de la línea lo salvaba el aparato multiplicando; ahora no lo
+// salva nadie.** Si la cascada dejara de correr entre la puerta y `order_items`, la celda
+// diría «—» en toda la flota y no fallaría ni una prueba de las de arriba, porque todas
+// entran ya con `WeightKg` puesto a mano.
+//
+// Por eso ésta arranca en la forma CRUDA que manda PEDIDO y termina en la fila.
+func TestElPesoSeResuelveAntesDeEscribirLaFila(t *testing.T) {
+	// La forma de producción: `pesoKg` es lo que pesa UN empaque y vienen 12. `pesoLineaKg`
+	// NO viene, que es el caso de los renglones que dejaban la hoja en blanco.
+	crudos := []cotizar.Renglon{{
+		Name:   "MALTA GUAJIRA 330 ML BLISTER 6U",
+		PesoKg: cotizar.De(2),
+		Packs:  cotizar.De(12),
+	}}
+
+	filas := renglonesParaLaBase(cotizar.PesosDeRenglones(crudos, nil).Renglones)
+	if len(filas) != 1 {
+		t.Fatalf("renglones: %d", len(filas))
+	}
+	if filas[0].PesoLineaKg == nil {
+		t.Fatal(
+			"la línea se guardó SIN peso teniendo con qué resolverlo (2 kg × 12 empaques). " +
+				"El aparato ya no rehace esta cuenta: lo que salga vacío de aquí sale como " +
+				"«—» en la ficha, en la hoja del almacén y en el papel, y el renglón entero " +
+				"se va al contador de «sin peso»",
+		)
+	}
+	if *filas[0].PesoLineaKg != 24 {
+		t.Fatalf("2 kg × 12 empaques son 24, no %v", *filas[0].PesoLineaKg)
+	}
+	// Y de dónde salió, que es lo que la vista mira para distinguir «no pesa» de «no se sabe».
+	if filas[0].OrigenPeso == nil || *filas[0].OrigenPeso != string(cotizar.PesoDePedido) {
+		t.Fatalf("no consta de dónde salió el peso: %v", filas[0].OrigenPeso)
+	}
+}
+
+// Y LA PAREJA, que es la que impide que la de arriba se «arregle» escribiendo siempre algo.
+//
+// Un renglón que de verdad no se puede pesar tiene que salir VACÍO y con `origen_peso` en
+// `none`: es la única forma de que el aparato lo cuente en «sin peso» en vez de sumar un
+// cero. Un aviso que sale siempre deja de leerse; un peso que sale siempre deja de ser un
+// peso.
+func TestUnRenglonQueNoSePuedePesarSaleVacioDeLaCascada(t *testing.T) {
+	crudos := []cotizar.Renglon{{Name: "PRODUCTO SIN NADA"}}
+
+	filas := renglonesParaLaBase(cotizar.PesosDeRenglones(crudos, nil).Renglones)
+	if filas[0].PesoLineaKg != nil {
+		t.Fatalf(
+			"se inventó un peso de %v: un cero se suma y se lee como «no pesa», y con eso "+
+				"se carga un camión", *filas[0].PesoLineaKg,
+		)
+	}
+	if filas[0].OrigenPeso == nil || *filas[0].OrigenPeso != string(cotizar.PesoDesconocido) {
+		t.Fatalf("no consta que se intentó y no se pudo: %v", filas[0].OrigenPeso)
+	}
+}

@@ -347,6 +347,9 @@ type aplicadorFalso struct {
 	// Qué contesta. Si es nil, aplica todo y devuelve un id nuevo cuando el apunte
 	// declaraba un provisional.
 	responde func(p Peticion) (*uuid.UUID, error)
+	// Lo que el reparto deja FUERA aunque el apunte entre, en crudo. Nil casi siempre:
+	// un armado normal no descarta a nadie.
+	descarta func(p Peticion) json.RawMessage
 	// El estado del reparto: ruta -> último cuerpo aplicado.
 	estado map[string]string
 }
@@ -355,22 +358,26 @@ func nuevoAplicador() *aplicadorFalso {
 	return &aplicadorFalso{estado: map[string]string{}}
 }
 
-func (a *aplicadorFalso) Aplicar(ctx context.Context, p Peticion) (*uuid.UUID, error) {
+func (a *aplicadorFalso) Aplicar(ctx context.Context, p Peticion) (Aplicado, error) {
 	a.llamadas = append(a.llamadas, p)
+	var fuera json.RawMessage
+	if a.descarta != nil {
+		fuera = a.descarta(p)
+	}
 	if a.responde != nil {
 		id, err := a.responde(p)
 		if err != nil {
-			return nil, err
+			return Aplicado{}, err
 		}
 		a.estado[p.Ruta] = string(p.Cuerpo)
-		return id, nil
+		return Aplicado{ID: id, Descartados: fuera}, nil
 	}
 	a.estado[p.Ruta] = string(p.Cuerpo)
 	if p.Clave != "" && strings.HasPrefix(p.Metodo, "POST") {
 		id := uuid.New()
-		return &id, nil
+		return Aplicado{ID: &id, Descartados: fuera}, nil
 	}
-	return nil, nil
+	return Aplicado{Descartados: fuera}, nil
 }
 
 func (a *aplicadorFalso) rutas() []string {

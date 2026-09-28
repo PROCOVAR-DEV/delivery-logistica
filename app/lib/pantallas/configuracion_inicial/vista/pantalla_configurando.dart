@@ -151,12 +151,13 @@ class _PantallaConfigurandoState extends ConsumerState<PantallaConfigurando> {
                 ],
                 const SizedBox(height: Aire.xl),
                 if (faltoAlgo)
-                  FilledButton(
-                    onPressed: () {
+                  BotonPrincipal(
+                    icono: Icons.refresh,
+                    texto: 'Reintentar',
+                    alPulsar: () {
                       setState(() => _masLejos = 0);
                       ref.read(porteroProvider).configurar();
                     },
-                    child: const Text('Reintentar'),
                   )
                 else
                   Text(

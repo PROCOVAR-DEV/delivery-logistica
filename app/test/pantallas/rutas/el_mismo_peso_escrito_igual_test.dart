@@ -57,13 +57,25 @@ void main() {
   });
 
   group('la cabecera del detalle', () {
+    // EL PESO VA EN LA PARADA, no en `routes.total_weight` — 28/09/2026.
+    //
+    // La cabecera dejo de leer esa columna: se escribe una vez al armar y nadie
+    // la recalcula, y con ella decia «420 kg» encima de dos paradas que suman
+    // 516,5 (`el_peso_de_la_ruta_test.dart`). Aqui se prueba el FORMATO, asi
+    // que el numero tiene que entrar por donde la pantalla lo lee ahora.
+    //
+    // `rutaAMano(peso: …)` se queda con un valor que NO es el de las paradas a
+    // proposito: si alguien devuelve la cabecera a leer la columna, este grupo
+    // se pone rojo tambien.
     Future<void> pintar(WidgetTester tester, double peso) => tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: LineaDeDatosDeLaRuta(
             ruta: rutaAMano(
-              peso: peso,
-              paradas: [paradaAMano(id: 'p1', cliente: 'Ana', costo: 8.0)],
+              peso: 1,
+              paradas: [
+                paradaAMano(id: 'p1', cliente: 'Ana', costo: 8.0, peso: peso),
+              ],
             ),
           ),
         ),

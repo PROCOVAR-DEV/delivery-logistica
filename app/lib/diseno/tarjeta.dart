@@ -128,12 +128,32 @@ class TarjetaDeCifra extends StatelessWidget {
     this.subtexto,
     this.color,
     this.icono,
+    this.alPulsar,
     super.key,
   });
 
   final String etiqueta;
   final String valor;
   final String? subtexto;
+
+  /// QUE UNA CIFRA SE PUEDA TOCAR PARA VER DE QUÉ SALE — 28/09/2026.
+  ///
+  /// Jose, mirando el Panel: «me dice q entregado uno y en hsitorial me sale
+  /// vacio eso q se entrego si no se ah completado nada». Los números estaban
+  /// bien —el pedido estaba en una ruta todavía abierta— pero **tuvo que
+  /// preguntarlo**, porque un contador que dice «1» y no deja llegar a CUÁL
+  /// obliga a adivinar.
+  ///
+  /// Va aquí y no en la pantalla porque `Tarjeta` ya sabe hacerlo: tiene su
+  /// `alPulsar` con la levantada al pasar por encima. Sin esto, quien lo
+  /// necesitaba tenía que superponerle un `GestureDetector` y una flecha con un
+  /// `Stack`, o sea reconstruir a mano la señal de «esto se pulsa» que el resto
+  /// de la aplicación ya da.
+  ///
+  /// `null` deja la tarjeta como siempre, que es lo correcto para una cifra que
+  /// no lleva a ningún sitio: un gesto que acaba en una pantalla vacía es peor
+  /// que ninguno.
+  final VoidCallback? alPulsar;
 
   /// En ambar cuando hay algo que mirar; en primario cuando no. Lo decide la
   /// pantalla, no la tarjeta.
@@ -146,6 +166,7 @@ class TarjetaDeCifra extends StatelessWidget {
     final tinte = color ?? Colores.primario;
     return Tarjeta(
       franja: tinte,
+      alPulsar: alPulsar,
       relleno: const EdgeInsets.fromLTRB(Aire.xl, Aire.xl, Aire.xl, Aire.xl),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

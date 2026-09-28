@@ -797,7 +797,14 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
     await refrescar();
   }
 
-  Future<String> armarRuta(String columnaId, {String? nombre}) async {
+  Future<String> armarRuta(
+    String columnaId, {
+    String? nombre,
+    /// Ver `RepositorioTablero.armarRuta`: quién se quedó fuera cuando el
+    /// servidor SÍ armó la ruta pero dejó tarjetas atrás. Sólo se llama cuando
+    /// se cayó alguien.
+    void Function(List<String> descartados)? alDejarFuera,
+  }) async {
     final tablero = state.value;
     if (tablero == null || tablero.problema != null) {
       throw const FaltaElegirSucursal();
@@ -809,6 +816,7 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
           origen: tablero.almacen,
           sucursalId: tablero.sucursalId,
           nombre: nombre,
+          alDejarFuera: alDejarFuera,
         );
     await refrescar();
     return rutaId;

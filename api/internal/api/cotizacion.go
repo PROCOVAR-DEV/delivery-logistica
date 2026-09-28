@@ -36,6 +36,7 @@ import (
 	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/auth"
 	"procovar/reparto-api/internal/cotizar"
+	"procovar/reparto-api/internal/espejo"
 	"procovar/reparto-api/internal/httpx"
 	"procovar/reparto-api/internal/store/sqlc"
 )
@@ -1401,21 +1402,35 @@ func armarPedidoDelLote(
 	p pedidoDelLote, suc sqlc.ListarSucursalesRow, pesos cotizar.PesosResueltos,
 	peso, km float64, origen cotizar.OrigenDelPedido,
 ) PedidoParaGuardar {
+	// LA COMILLA DE EXCEL SE QUITA EN LA PUERTA — 28/09/2026.
+	//
+	// El 28/09/2026 un teléfono salía en pantalla como `'+53 5 2675220`. La comilla la pone
+	// Excel delante de un número para que no lo convierta, y se coló hasta la pantalla del
+	// cajón de mover un pedido. Se limpia AQUÍ, en la puerta, porque `/api/quote/batch` es
+	// por donde entra TODO pedido de PEDIDO —el que trae el espejo y el que empuja el canal
+	// firmado—: limpiarlo en un consumidor deja sucios a los otros.
+	//
+	// `internal/espejo` lo quita además en su `textoONada`, y las dos capas hacen falta: la
+	// del espejo protege lo que el espejo copia, ésta protege la puerta venga quien venga.
+	//
+	// La regla es deliberadamente corta y sólo dispara sobre lo que no puede ser un nombre
+	// —ver [espejo.SinLaComillaDeExcel]—, y NO toca `externalId`, que es la identidad.
+	direccion := espejo.SinLaComillaDeExcel(strings.TrimSpace(p.Address))
+	nombre := espejo.SinLaComillaDeExcel(strings.TrimSpace(p.CustomerName))
 	// `address || customerName`: nunca vacío.
-	direccion := p.Address
 	if direccion == "" {
-		direccion = p.CustomerName
+		direccion = nombre
 	}
 
 	out := PedidoParaGuardar{
 		ExternalID:      refDelPedidoDelLote(p),
 		Source:          "pedido",
 		BranchID:        suc.ID,
-		OperationNumber: aTexto(p.OperationNumber),
-		CustomerName:    p.CustomerName,
-		CustomerPhone:   aTexto(p.Phone),
+		OperationNumber: aTexto(espejo.SinLaComillaDeExcel(strings.TrimSpace(p.OperationNumber))),
+		CustomerName:    nombre,
+		CustomerPhone:   aTexto(espejo.SinLaComillaDeExcel(strings.TrimSpace(p.Phone))),
 		Address:         direccion,
-		EndAddress:      aTexto(p.Address),
+		EndAddress:      aTexto(espejo.SinLaComillaDeExcel(strings.TrimSpace(p.Address))),
 		// Los cuatro con la coordenada del cliente. Ya se comprobó que no son nil.
 		Lat: *p.Lat, Lng: *p.Lng, EndLat: *p.Lat, EndLng: *p.Lng,
 		Weight:             peso,
@@ -1430,10 +1445,10 @@ func armarPedidoDelLote(
 		PedidoCosto:      p.PedidoCosto,
 		Estado:           p.Estado,
 		FacturaEstado:    p.FacturaEstado,
-		FacturaNumero:    p.FacturaNumero,
+		FacturaNumero:    limpioOpcional(p.FacturaNumero),
 		FacturaDomicilio: p.FacturaDomicilio,
-		Municipio:        p.Municipio,
-		Vendedor:         p.Vendedor,
+		Municipio:        limpioOpcional(p.Municipio),
+		Vendedor:         limpioOpcional(p.Vendedor),
 		SucursalCodigo:   suc.ExternalID,
 		// `orderDate` existe SEPARADO de `createdAt` por algo: `createdAt` es cuándo lo
 		// copió el espejo. Filtrar el día del armador de rutas por `createdAt` daba CERO

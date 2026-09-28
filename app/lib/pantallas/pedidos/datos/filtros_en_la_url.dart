@@ -76,6 +76,12 @@ abstract final class FiltrosEnLaUrl {
   static const claveArchivado = 'archivado';
   static const claveDesde = 'desde';
   static const claveHasta = 'hasta';
+
+  /// LAS DOS FECHAS DE LA ENTREGA, que son otras. `desde`/`hasta` acotan por la
+  /// fecha DEL PEDIDO; éstas por `delivered_at`. Las claves llevan el verbo
+  /// delante justo para que no se confundan al leer un enlace pegado.
+  static const claveEntregadoDesde = 'entregado_desde';
+  static const claveEntregadoHasta = 'entregado_hasta';
   static const claveOrden = 'orden';
   static const clavePagina = 'pagina';
 
@@ -160,6 +166,22 @@ abstract final class FiltrosEnLaUrl {
       hasta = null;
     }
 
+    // Y EL DE LA ENTREGA SE COMPRUEBA IGUAL, por separado. Son dos rangos
+    // independientes: uno al revés no puede llevarse por delante al otro, que
+    // sí se entendía.
+    var entregadoDesde = fecha(claveEntregadoDesde);
+    var entregadoHasta = fecha(claveEntregadoHasta);
+    if (entregadoDesde != null &&
+        entregadoHasta != null &&
+        entregadoDesde.isAfter(entregadoHasta)) {
+      fuera.add(
+        '$claveEntregadoDesde=${parametros[claveEntregadoDesde]} > '
+        '$claveEntregadoHasta=${parametros[claveEntregadoHasta]}',
+      );
+      entregadoDesde = null;
+      entregadoHasta = null;
+    }
+
     final base = const FiltrosPedidos();
     return LecturaDeLaUrl(
       FiltrosPedidos(
@@ -180,6 +202,8 @@ abstract final class FiltrosEnLaUrl {
             base.archivado,
         desde: desde,
         hasta: hasta,
+        entregadoDesde: entregadoDesde,
+        entregadoHasta: entregadoHasta,
         orden:
             deEnum(claveOrden, OrdenLocal.values, (v) => v.valor) ?? base.orden,
         pagina: pagina() ?? base.pagina,
@@ -206,6 +230,10 @@ abstract final class FiltrosEnLaUrl {
       if (f.archivado != base.archivado) claveArchivado: f.archivado.param,
       if (f.desde != null) claveDesde: _dia(f.desde!),
       if (f.hasta != null) claveHasta: _dia(f.hasta!),
+      if (f.entregadoDesde != null)
+        claveEntregadoDesde: _dia(f.entregadoDesde!),
+      if (f.entregadoHasta != null)
+        claveEntregadoHasta: _dia(f.entregadoHasta!),
       if (f.orden != base.orden) claveOrden: f.orden.valor,
       if (f.pagina != base.pagina) clavePagina: '${f.pagina}',
     };

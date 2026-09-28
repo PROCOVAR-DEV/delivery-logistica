@@ -250,6 +250,95 @@ cuando no.
   entrada de menú y sus pruebas.
 - **Cajón siempre**, también en escritorio (excepción aprobada para este
   proyecto el 05/09/2026). Sin emojis en la interfaz.
+- **Los botones van SIN FONDO.** Lo que los diferencia es el **color, el borde y
+  el icono**, no un rectángulo relleno. Jose lo ha dicho más de una vez y el
+  28/09/2026 tuvo que repetirlo —«te dije bien claro q sin background y de
+  colores y los bordes y iconos lo diferenciaban»—, así que queda escrito aquí:
+  **si no está en este fichero, se pierde**, y perderlo cuesta que lo diga otra
+  vez.
+
+  La jerarquía no desaparece, cambia de material: la acción principal se
+  distingue por su color y su icono, no por ir rellena. Lo que decide es el
+  tema (`app/lib/diseno/tema.dart`), no un `style:` puesto a mano en cada
+  pantalla — un relleno suelto en un fichero es lo que hace que dentro de un mes
+  haya dos aspectos en la misma aplicación.
+
+  **Y el icono no lo puede poner el tema**, porque es un hijo del widget y no
+  una propiedad del estilo: el mismo 28/09/2026 quedaban **25 `FilledButton(`
+  sin icono contra 9 con él**, o sea la mayoría de las acciones principales con
+  dos rasgos de los tres. Así que lo principal entra por `BotonPrincipal` igual
+  que lo destructivo entra por `BotonDestructivo` — **el icono es obligatorio en
+  el constructor y no tiene valor por defecto**. Ni `FilledButton(` ni
+  `ElevatedButton(` a pelo: los dos cuelgan del mismo nivel y lo vigila
+  `app/test/diseno/el_principal_lleva_su_icono_test.dart`, que barre `lib/`.
+
+  Y el icono es **el de SU acción**, uno por uno: guardar, añadir, armar,
+  imprimir, traer, entregar, reintentar. El mismo glifo repetido no diferencia
+  nada, que es justo lo que se vino a arreglar. Cuando una acción no tenga
+  ninguno honesto —una pestaña, por ejemplo, que no es una acción sino dónde
+  estás— **no se le pone uno cualquiera**: se escribe aparte y se explica por
+  qué, como `_Pestana` en `app/lib/diseno/pestanas.dart`.
+
+---
+
+## 3-sexies. El peso de un renglón son TRES escalones, y un cero no es ninguno
+
+El 28/09/2026 la hoja de pre-despacho enseñaba **el mismo peso para Santiago que para
+las ocho sucursales**, idéntico hasta el decimal, con un 68 % más de empaques. Los
+empaques y las unidades sí se recalculaban; los kilos se quedaban clavados. Se vio en un
+teléfono, no en una prueba.
+
+La causa: la cascada tenía **dos** escalones —`peso_linea_kg` y el catálogo local— y le
+faltaba el de en medio, `peso_kg × empaques`, que es lo que pesa UN empaque y viene en el
+propio renglón. Como el catálogo local **no trae el peso de ningún producto**, un renglón
+con `peso_kg` y sin `peso_linea_kg` no aportaba ni un kilo **y se iba entero al contador
+de «sin peso»**: por eso lo que entraba de más al ensanchar el alcance sólo movía el
+contador y dejaba la cifra quieta.
+
+Los tres escalones, en este orden:
+
+1. `peso_linea_kg` — lo que pesa la línea entera, ya multiplicado;
+2. `peso_kg × empaques` — lo que pesa un empaque, por los que van;
+3. el catálogo local — `products.weight × empaques`.
+
+**Y un CERO no es un peso: es «este escalón no lo sabe».** Con un `COALESCE` a secas, un
+`peso_linea_kg` guardado en cero tapa los dos escalones de debajo y la celda dice
+`0.0 kg` teniendo el dato. Cada escalón pasa por su `> 0`.
+
+### Y la regla vive en UN sitio, no en tres — la misma noche
+
+La regla estaba escrita TRES veces: `api/internal/cotizar/pesos.go` (`PesosDeRenglones`,
+§2.1 de `reglas-negocio.md`), la ficha del pedido y el pre-despacho, los dos últimos en
+`pantallas/pedidos/datos/repositorio_pedidos.dart`. Y **estuvieron distintos**: la ficha
+decía «40,0 kg» y la hoja del almacén ponía «—» sobre los mismos veinte empaques. Jose:
+«como q 3 veces lo repetiste mijo era mas facil ponerlo en el api y ya q lo consuman una
+cada uno».
+
+Y el proyecto **ya estaba diseñado así**: la `00004_peso_por_renglon.sql` añadió
+`peso_linea_kg` y `origen_peso` «precisamente para no tener que recalcular el peso con el
+catálogo de hoy sobre un pedido de hace tres meses». Los tres sitios no eran el diseño:
+eran una desviación suya, y por eso se desincronizaron.
+
+Así que **el servidor resuelve y el aparato LEE**. La cascada corre una vez, al entrar el
+pedido; el resultado se escribe en `order_items.peso_linea_kg`, viaja en `pesoLineaKg` y la
+aplicación lo lee de su base local —con señal o sin ella: el trabajo sin conexión no
+pierde nada, es la misma columna que ya bajaba—.
+
+Lo único que la aplicación repite es **la regla del cero**, y a propósito: un
+`peso_linea_kg` vacío o en cero es «no se sabe» y se pinta «—», nunca «0,0 kg». Está
+escrita dos veces —`soloSiPesa` en Dart y `_siPesa` en SQL— y que las dos contesten igual
+lo ata `app/test/pantallas/pedidos/el_peso_del_pre_despacho_cambia_de_sucursal_test.dart`,
+que es también donde viven las otras tres guardas de esa noche.
+
+**Lo que hay que saber antes de tocar el espejo:** ya no hay red de seguridad. Un renglón
+que se escriba sin `peso_linea_kg` sale «—» en la ficha, en la hoja del almacén y en el
+papel, y cuenta entero en «sin peso». Y los renglones **viejos** no se arreglan solos: el
+espejo sólo vuelve a pedirle a PEDIDO lo que se movió desde la marca de agua, así que un
+cambio que sólo afecta al cálculo no llega nunca a las filas de hace tres meses. Hay que
+relanzarlas (`internal/espejo`, el barrido del histórico, o `POST /api/admin/recompute` por
+tramos). Lo que SÍ funciona sin ayuda es la reescritura: `renglonesIguales` compara
+`peso_linea_kg` y `origen_peso`, así que en cuanto un pedido vuelve a pasar por el lote sus
+renglones se reescriben aunque la fila del pedido no haya cambiado.
 
 ---
 

@@ -266,6 +266,13 @@ class OrderItems extends Table {
 
   /// Lo que pesa UN empaque, tal como quedo cuando el pedido entro.
   ///
+  /// **ES CONSTANCIA, NO UN ESCALON DEL PESO** — 28/09/2026. El aparato no
+  /// calcula con esto: la cascada del peso corre UNA vez, en el servidor
+  /// (`PesosDeRenglones`, `api/internal/cotizar/pesos.go`), y lo que se lee es
+  /// [pesoLineaKg]. Esta columna se guarda porque es el dato con el que se
+  /// facturo —para eso la puso la `00004_peso_por_renglon.sql`— y porque es lo
+  /// que permite comprobar despues de donde salio un kilo.
+  ///
   /// SON DOS COLUMNAS Y CON NOMBRES DISTINTOS A PROPOSITO: esta es la de un
   /// empaque y [pesoLineaKg] la de la linea entera. Guardar solo la primera
   /// llamandola «el peso» es pedir que alguien se acuerde de multiplicar por los

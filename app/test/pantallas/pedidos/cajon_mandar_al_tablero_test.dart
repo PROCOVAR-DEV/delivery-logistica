@@ -28,6 +28,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reparto/diseno/tema.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
 import 'package:reparto/nucleo/identidad/sesion.dart';
@@ -267,12 +268,18 @@ void main() {
       await asentar(tester);
 
       // Sin zona elegida no se manda nada: el botón está apagado.
+      //
+      // Se busca por `BotonPrincipal` y no por `ElevatedButton` desde el
+      // 28/09/2026: el mando sigue siendo el mismo y sigue siendo de nivel
+      // principal, pero ahora entra por el widget que **le obliga a llevar su
+      // icono** (`diseno/tema.dart`). El icono es uno de los tres rasgos que
+      // separan un botón de otro cuando no hay relleno detrás.
       expect(
         tester
-            .widget<ElevatedButton>(
-              find.widgetWithText(ElevatedButton, CajonMandarAlTablero.mandar),
+            .widget<BotonPrincipal>(
+              find.widgetWithText(BotonPrincipal, CajonMandarAlTablero.mandar),
             )
-            .onPressed,
+            .alPulsar,
         isNull,
       );
 

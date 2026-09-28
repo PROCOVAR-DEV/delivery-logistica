@@ -113,7 +113,7 @@ void main() {
     await tester.tap(find.text('sólo ese día'));
     await asentar(tester);
     expect(
-      find.text('1 pedidos · del 2/9/2026, del más nuevo al más viejo'),
+      find.text('1 pedido · del 2/9/2026, del más nuevo al más viejo'),
       findsOneWidget,
     );
 
@@ -138,7 +138,7 @@ void main() {
     // Pasados los 400, si.
     await tester.pump(const Duration(milliseconds: 250));
     await asentar(tester);
-    expect(find.textContaining('1 pedidos'), findsOneWidget);
+    expect(find.textContaining('1 pedido,'), findsOneWidget);
 
     await desmontar(tester);
   });

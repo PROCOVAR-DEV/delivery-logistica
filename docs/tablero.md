@@ -159,9 +159,9 @@ cerrar, y el pedido se queda suelto en el tablero para que la web lo meta en **o
 
 **Cómo se comporta:**
 
-- **Si no viene** (las APK instaladas hoy no la mandan): todo igual que antes, se arma con
-  lo que haya puesto. El campo no puede volverse obligatorio sin dejar sin armar rutas a los
-  aparatos que ya están en la calle.
+- **Si no viene** (las APK instaladas antes del 28/09/2026 no la mandan): todo igual que
+  antes, se arma con lo que haya puesto. El campo no puede volverse obligatorio sin dejar sin
+  armar rutas a los aparatos que ya están en la calle.
 - **Si viene**: la ruta lleva **exactamente** lo que el aparato eligió y que todavía puede
   ir, y la respuesta **dice la diferencia** en `descartados`:
   - lo que él eligió y ya no está en la zona → `motivo:"ya no estaba en esa zona cuando
@@ -173,6 +173,31 @@ cerrar, y el pedido se queda suelto en el tablero para que la web lo meta en **o
   otra ruta, no entra por venir escrito en el cuerpo. El universo sigue siendo la columna.
 - **`"pedidoIds": []` es un `400`**, no «arma con todo»: una lista vacía es un cuerpo mal
   formado, y armar entonces con lo que haya es justo el fallo que esto viene a tapar.
+
+**Y quién la manda (28/09/2026).** Esto estuvo escrito y sin usar diez días: la aplicación
+encolaba sólo `{nombre, vehiculoId, optimizar, deliveryDate}`, con un comentario al lado
+diciendo que la lista sí viajaba. Desde hoy la manda `RepositorioTablero.armarRuta`, **por
+los dos caminos** —el POST en vivo de la web y el apunte que encola la APK, que comparten
+cuerpo—, en el orden que puso el logístico. Lo ata
+`app/test/pantallas/tablero/armar_ruta_test.dart` comparando el cuerpo entero.
+
+### 5-ter · Los `descartados` llegan hasta una persona (28/09/2026)
+
+Que el servidor lo diga no basta: hasta hoy nadie lo leía, y por eso lo de arriba pudo estar
+diez días sin usarse sin que saltara nada. El camino entero, de punta a punta:
+
+1. `reparto-api` los escribe en el `201` de armar la zona (`DescartadoSalida`);
+2. el sincronizador los **reenvía tal cual** dentro del resultado de ese apunte
+   (`sync/internal/sincro/subida.go`, `resultado.descartados`, con `omitempty`);
+3. la cola del aparato los guarda en el `motivo` del apunte **aplicado** —no rechazado: el
+   apunte entró, y ofrecer «reintentar» ahí armaría una segunda ruta—
+   (`ColaDeSalida.resolver`);
+4. la franja de estado lo dice en ámbar en las siete pantallas, y el cajón de entregar el
+   día lo cuenta entero: el pedido con su folio y su cliente, el motivo y qué hacer.
+
+Se queda a la vista hasta que una persona lo da por leído, y **la poda de los siete días no
+se lo lleva** mientras siga sin leer. Sale sólo cuando de verdad se cayó alguien: un aviso
+que sale en cada armado deja de leerse.
 
 ## 6 · Sin conexión
 

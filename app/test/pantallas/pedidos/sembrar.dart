@@ -148,9 +148,21 @@ Future<void> sembrarRenglon(
   double? empaques,
   String? productoId,
   int linea = 1,
-  /// Lo que pesa la LINEA entera, tal como lo manda Ventra. Es lo que manda
-  /// sobre el catalogo en el pre-despacho (ver `_pesoDeLaLinea`).
+  /// **El peso de la LINEA ya resuelto por el servidor**, que es lo unico que el
+  /// aparato lee (`_pesoDeLaLinea` y `RenglonConPeso.pesoLinea`).
+  ///
+  /// El servidor lo saca de su cascada —`PesosDeRenglones` en
+  /// `api/internal/cotizar/pesos.go`— y lo escribe en `peso_linea_kg`. Sembrarlo
+  /// nulo es sembrar «el servidor no supo pesar esta linea», que es un caso de
+  /// verdad y se cuenta en «sin peso».
   double? pesoLinea,
+  /// Lo que pesa UN EMPAQUE, tal como quedo constancia en la 00004.
+  ///
+  /// **El aparato NO calcula con esto**: es un dato guardado, no un escalon. La
+  /// cascada que lo usaba vivia aqui y se fue al servidor el 28/09/2026, que es
+  /// de donde salio el fallo de los tres sitios. Se siembra para poder comprobar
+  /// justamente eso: que estando puesto, no se cuela en la hoja.
+  double? pesoEmpaque,
 }) => base
     .into(base.orderItems)
     .insert(
@@ -163,6 +175,7 @@ Future<void> sembrarRenglon(
         packs: Value(empaques),
         productId: Value(productoId),
         pesoLineaKg: Value(pesoLinea),
+        pesoKg: Value(pesoEmpaque),
       ),
     );
 
@@ -325,6 +338,9 @@ Future<void> sembrarLosOnce(BaseLocal base) async {
 
   // Renglones: con estos se comprueba el pre-despacho y la busqueda por texto de
   // producto.
+  // El Arroz llega con su peso RESUELTO, que es como lo escribe el servidor: 25
+  // kg por empaque × 2 empaques. Antes salia del catalogo local, y el catalogo
+  // local no trae el peso de ningun producto en produccion.
   await sembrarRenglon(
     base,
     id: 'i1',
@@ -333,6 +349,7 @@ Future<void> sembrarLosOnce(BaseLocal base) async {
     unidades: 20,
     empaques: 2,
     productoId: 'p1',
+    pesoLinea: 50,
   );
   await sembrarRenglon(
     base,
@@ -351,6 +368,7 @@ Future<void> sembrarLosOnce(BaseLocal base) async {
     unidades: 30,
     empaques: 3,
     productoId: 'p1',
+    pesoLinea: 75,
   );
   await sembrarRenglon(
     base,

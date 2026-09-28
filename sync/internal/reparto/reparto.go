@@ -134,6 +134,18 @@ type sobreCreado struct {
 	Ruta *struct {
 		ID *uuid.UUID `json:"id"`
 	} `json:"ruta"`
+
+	// QUIÉN SE CAYÓ AUNQUE EL APUNTE ENTRARA. Se reenvía TAL CUAL al aparato.
+	//
+	// Lo escribe `api/internal/api/tablero.go` (`DescartadoSalida`) en el 201 de armar
+	// una zona, con el pedido nombrado, su motivo y qué hacer, y hasta el 28/09/2026
+	// se quedaba aquí: este servicio leía el `id` y tiraba el resto. Así, una zona de
+	// doce podía parir una ruta de nueve y el teléfono no tenía forma de saberlo.
+	//
+	// Va como `json.RawMessage` a propósito: esto es un reenvío, no una traducción. El
+	// día que el reparto añada un campo al descarte llega al aparato sin tocar nada de
+	// aquí, y ningún campo se pierde por el camino por no haberlo declarado.
+	Descartados json.RawMessage `json:"descartados"`
 }
 
 // id devuelve el primero que haya: la raíz manda, y si no, el de `ruta`.
@@ -159,7 +171,7 @@ func (c sobreCreado) id() *uuid.UUID {
 // Confundir los dos últimos es lo que llenaría la bandeja de rechazos falsos el día que el
 // reparto se reinicie, y lo que haría reintentar para siempre un apunte que nunca va a
 // entrar.
-func (c *Cliente) Aplicar(ctx context.Context, p sincro.Peticion) (*uuid.UUID, error) {
+func (c *Cliente) Aplicar(ctx context.Context, p sincro.Peticion) (sincro.Aplicado, error) {
 	var cuerpo io.Reader
 	if len(p.Cuerpo) > 0 {
 		cuerpo = bytes.NewReader(p.Cuerpo)
@@ -182,7 +194,7 @@ func (c *Cliente) Aplicar(ctx context.Context, p sincro.Peticion) (*uuid.UUID, e
 	// fallo del otro lado. Se pone AQUÍ, que es donde se reenvía lo del aparato.
 	req, err := http.NewRequestWithContext(ctx, p.Metodo, c.base+"/api"+p.Ruta, cuerpo)
 	if err != nil {
-		return nil, err
+		return sincro.Aplicado{}, err
 	}
 	if len(p.Cuerpo) > 0 {
 		req.Header.Set("Content-Type", "application/json")
@@ -205,13 +217,13 @@ func (c *Cliente) Aplicar(ctx context.Context, p sincro.Peticion) (*uuid.UUID, e
 
 	res, err := c.http.Do(req)
 	if err != nil {
-		return nil, err
+		return sincro.Aplicado{}, err
 	}
 	defer res.Body.Close()
 
 	datos, err := io.ReadAll(io.LimitReader(res.Body, 8<<20))
 	if err != nil {
-		return nil, err
+		return sincro.Aplicado{}, err
 	}
 
 	switch {
@@ -220,7 +232,7 @@ func (c *Cliente) Aplicar(ctx context.Context, p sincro.Peticion) (*uuid.UUID, e
 		// Que no venga `id` es normal: hay apuntes que no crean nada (marcar una parada,
 		// corregirla). Por eso un cuerpo que no se entiende no tira el apunte.
 		_ = json.Unmarshal(datos, &creado)
-		return creado.id(), nil
+		return sincro.Aplicado{ID: creado.id(), Descartados: creado.Descartados}, nil
 	case res.StatusCode == http.StatusNotFound && !esRespuestaDelReparto(datos):
 		// UN 404 QUE NO VIENE DEL REPARTO ES NUESTRO, NO UN RECHAZO.
 		//
@@ -236,7 +248,7 @@ func (c *Cliente) Aplicar(ctx context.Context, p sincro.Peticion) (*uuid.UUID, e
 		//
 		// Como caída, el apunte SE QUEDA EN LA COLA del aparato y sube solo en cuanto la
 		// puerta exista. Que es lo que tiene que pasar cuando el fallo es nuestro.
-		return nil, fmt.Errorf("el reparto contestó 404 sin decir por qué: la ruta %q no "+
+		return sincro.Aplicado{}, fmt.Errorf("el reparto contestó 404 sin decir por qué: la ruta %q no "+
 			"existe en el reparto (fallo de despliegue, no rechazo)", p.Ruta)
 	case res.StatusCode == http.StatusUnauthorized:
 		// UN 401 NO ES UN RECHAZO DE NEGOCIO. NUNCA.
@@ -260,12 +272,12 @@ func (c *Cliente) Aplicar(ctx context.Context, p sincro.Peticion) (*uuid.UUID, e
 		//
 		// El 403 sí se queda como rechazo: ahí el reparto SÍ entendió quién preguntaba y
 		// dijo que no puede. Reintentar eso para siempre es un bucle, no una defensa.
-		return nil, fmt.Errorf("el reparto no reconoció la sesión al subir %q (401): la "+
+		return sincro.Aplicado{}, fmt.Errorf("el reparto no reconoció la sesión al subir %q (401): la "+
 			"credencial no llegó o no vale — es fallo nuestro, no un rechazo", p.Ruta)
 	case res.StatusCode >= 400 && res.StatusCode < 500:
-		return nil, &sincro.Rechazo{Motivo: motivoDe(datos)}
+		return sincro.Aplicado{}, &sincro.Rechazo{Motivo: motivoDe(datos)}
 	default:
-		return nil, fmt.Errorf("el reparto contestó %d: %s", res.StatusCode, motivoDe(datos))
+		return sincro.Aplicado{}, fmt.Errorf("el reparto contestó %d: %s", res.StatusCode, motivoDe(datos))
 	}
 }
 

@@ -27,8 +27,8 @@ void main() {
   test(
     'el pre-despacho de lo marcado suma lo que sabe y cuenta lo que le falta',
     () async {
-      // o1: Arroz 2 empaques / 20 uds (producto con 25 kg por empaque) + Frijol 1/10
-      // o2: Arroz 3 empaques / 30 uds
+      // o1: Arroz 2 empaques / 20 uds (50 kg de linea) + Frijol 1/10, sin peso
+      // o2: Arroz 3 empaques / 30 uds (75 kg de linea)
       final totales = await consultas.preDespachoDe(['o1', 'o2']);
 
       expect(totales.lineas.length, 2);
@@ -37,7 +37,8 @@ void main() {
       expect(arroz.producto, 'Arroz');
       expect(arroz.empaques, 5);
       expect(arroz.unidades, 50);
-      // 5 empaques × 25 kg = 125 kg, hecho a mano.
+      // 50 + 75 = 125 kg, hecho a mano, y los dos numeros los resolvio el
+      // servidor: aqui solo se suman.
       expect(arroz.pesoKg, 125);
 
       final frijol = totales.lineas.last;
@@ -49,8 +50,8 @@ void main() {
       // cuya `quantity` NO son unidades, y ésa se mira por su forma —«7 pacas ·
       // 4 unidades» del 22/09/2026—, no por si el producto está emparejado.
       expect(frijol.unidades, 10);
-      // Sin producto emparejado no hay peso resuelto: **null, no cero**. Un cero se
-      // leeria como «no pesa» y la hoja del almacen cuadraria mal.
+      // El servidor no le resolvio el peso a esta linea: **null, no cero**. Un
+      // cero se leeria como «no pesa» y la hoja del almacen cuadraria mal.
       expect(frijol.pesoKg, isNull);
 
       expect(totales.productos, 2);
@@ -141,12 +142,16 @@ void main() {
     expect(elegido.lineas.single.empaques, 5, reason: hojaCorta);
   });
 
-  test('el peso de la linea usa los MISMOS empaques que la columna de al lado', () async {
-    // Una linea sin `packs` pero con producto emparejado: 4 unidades de Arroz,
-    // que pesa 25 kg por empaque. Si los empaques se cuentan con el respaldo
-    // (4) el peso son 100 kg; si se contaran con `packs` a secas, la fila
-    // diria 4 empaques y 0 kg — dos columnas de la misma fila hablando de
-    // bultos distintos.
+  test('una linea sin `packs` cuenta sus unidades Y trae su peso entero', () async {
+    // Una linea sin `packs`: 4 unidades de Arroz, y el servidor resolvio 100 kg
+    // para ella. Los empaques son 4 —el respaldo— y el peso son los 100 kg del
+    // renglon, enteros: la columna `kg` no vuelve a multiplicar por nada.
+    //
+    // QUE EL PESO SE CALCULE CON LOS MISMOS EMPAQUES QUE LA COLUMNA DE AL LADO
+    // sigue siendo cierto, pero ya no se decide aqui: es la rama 2 de
+    // `PesosDeRenglones` (`packs > 0 ? packs : quantity`) y la atan los casos
+    // «2) pesoKg × packs» y «2) pesoKg × quantity cuando no hay packs» de
+    // `api/internal/cotizar/pesos_test.go`.
     await sembrarPedido(base, id: 'o12', cliente: 'Lena');
     await sembrarRenglon(
       base,
@@ -155,6 +160,7 @@ void main() {
       producto: 'Arroz',
       unidades: 4,
       productoId: 'p1',
+      pesoLinea: 100,
     );
 
     final totales = await consultas.preDespachoDe(['o12']);
@@ -181,15 +187,19 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // EL DATO DEL PEDIDO MANDA SOBRE EL DEL CATALOGO — 28/09/2026
+  // EL CATALOGO LOCAL NO PINTA NADA EN EL PESO — 28/09/2026
   // ---------------------------------------------------------------------------
   //
   // La columna `kg` de la hoja salia entera en blanco porque se calculaba con
   // el catalogo, y el catalogo local no trae el peso de NINGUN producto. El dato
   // si estaba, en el renglon del pedido, que es quien lo sabe de verdad: 7.650
   // de las 7.738 lineas de produccion traen `peso_linea_kg`.
+  //
+  // El catalogo sigue existiendo —de ahi salen las unidades por empaque— pero
+  // ya no es un escalon del peso: el unico que queda esta en el servidor
+  // (`PesosDeRenglones`, rama 4), y su resultado llega aqui ya escrito.
 
-  test('el peso del RENGLON manda sobre el del catalogo', () async {
+  test('el peso sale del RENGLON aunque el catalogo diga otra cosa', () async {
     // Arroz esta emparejado y el catalogo dice 25 kg por empaque, o sea 50 kg
     // por estos dos. Pero el pedido dice que esta linea pesa 7, y el pedido es
     // el que se va a cargar en el camion.
@@ -210,8 +220,39 @@ void main() {
       totales.lineas.single.pesoKg,
       7,
       reason:
-          'si sale 50 es que se esta usando el catalogo teniendo el peso del '
-          'renglon: la hoja del almacen diria un peso que el pedido desmiente',
+          'si sale 50 es que el catalogo volvio a ser un escalon del peso: la '
+          'hoja del almacen diria un peso que el pedido desmiente',
+    );
+  });
+
+  test('sin peso en el renglon, el catalogo NO lo rellena', () async {
+    // La otra mitad, y la que se llevo el encargo del 28/09/2026: un renglon
+    // emparejado con Arroz —25 kg por empaque en el catalogo— y con el peso del
+    // EMPAQUE puesto, pero sin `peso_linea_kg`. El servidor no supo pesarlo.
+    //
+    // Aqui no se resuelve: se dice que falta. Si un dia vuelve a salir 50 (el
+    // catalogo) o 6 (el empaque), es que la cascada volvio al aparato y hay dos
+    // sitios contestando la misma pregunta otra vez.
+    await sembrarPedido(base, id: 'o16', cliente: 'Rosa');
+    await sembrarRenglon(
+      base,
+      id: 'i9',
+      pedidoId: 'o16',
+      producto: 'Arroz',
+      unidades: 20,
+      empaques: 2,
+      productoId: 'p1',
+      pesoEmpaque: 3,
+    );
+
+    final totales = await consultas.preDespachoDe(['o16']);
+    expect(totales.pesoKg, isNull, reason: 'no 50 del catalogo ni 6 del empaque');
+    expect(
+      totales.sinPeso,
+      1,
+      reason:
+          'y se cuenta, que es como se sabe que a ese renglon le falta pasar '
+          'otra vez por el espejo',
     );
   });
 
@@ -295,7 +336,7 @@ void main() {
   // número siempre, porque ése sí se sabe entero.
   group('la franja y la hoja', () {
     test('ningún producto emparejado: el total NO dice 0.0 kg NI «≥ 0»', () async {
-      // o3 lleva Aceite, que no está en el catálogo.
+      // o3 lleva Aceite, al que el servidor no le resolvió el peso.
       final totales = await consultas.preDespachoDe(['o3']);
 
       // SIN SABER NADA SIGUE SIENDO `null`, y esto es la otra mitad del `≥`.
@@ -338,14 +379,14 @@ void main() {
       // dejaría de significar nada y volveríamos a no poder distinguir un
       // total de un mínimo — que es el fallo entero, sólo que al revés.
       //
-      // o2 no tiene frijol: sólo arroz, que está en el catálogo con sus 25 kg
-      // y sus 10 unidades por empaque.
+      // o2 no tiene frijol: sólo arroz, con sus 75 kg de linea resueltos y sus
+      // 10 unidades por empaque del catálogo.
       final totales = await consultas.preDespachoDe(['o2']);
 
       expect(totales.lineas.single.producto, 'Arroz');
       expect(totales.empaques, 3);
       expect(totales.unidades, 30, reason: '3 empaques × 10 unidades');
-      expect(totales.pesoKg, 75, reason: '3 empaques × 25 kg');
+      expect(totales.pesoKg, 75, reason: 'el peso que trae la linea');
       expect(totales.sinPeso, 0);
       expect(totales.sinUnidades, 0);
       expect(

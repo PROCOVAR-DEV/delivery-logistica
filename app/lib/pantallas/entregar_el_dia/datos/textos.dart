@@ -62,6 +62,21 @@ abstract final class TextosDeEntregarElDia {
       'Lo que siga saliendo aquí después de subir hay que volver a hacerlo con '
       'conexión.';
 
+  /// EL APUNTE ENTRO Y AUN ASI SALIO CON MENOS.
+  ///
+  /// No es un rechazo —eso es la bandeja— ni algo sin subir: la ruta esta
+  /// arriba, y le faltan pedidos de los que se pusieron en la zona. El servidor
+  /// dice quienes y por que; hasta el 28/09/2026 nadie lo leia y la ruta salia
+  /// con nueve de doce sin que sonara nada.
+  static const noSubioTodo = 'No subió todo al camión';
+
+  static const noSubioTodoDetalle =
+      'La ruta se armó arriba, pero con menos pedidos de los que pusiste en la '
+      'zona. Esto es lo que el servidor dejó fuera y por qué. Si alguno se '
+      'entregó igual, hay que mirarlo antes de que salga en otra ruta.';
+
+  static const noSubioTodoLeido = 'Ya lo he visto';
+
   static const bandejaTitulo = 'Rechazados, esperando a una persona';
 
   static const bandejaExplicacion =

@@ -223,14 +223,19 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
             child: const Text('Cancelar'),
           ),
           const SizedBox(width: 8),
-          FilledButton(
+          BotonPrincipal(
+            // EL GLIFO SIGUE AL ROTULO, y el rotulo cambia: dar de alta un
+            // camion que no existe es un `+`; corregir el que ya esta es
+            // guardar. Con un solo icono para los dos, la ficha de editar diria
+            // «anadir» teniendo el camion delante.
+            icono: _esNuevo ? Icons.add : Icons.save_outlined,
+            texto: _esNuevo ? 'Agregar Vehículo' : 'Actualizar',
             // Sin nombre no se guarda: el servidor contestaria
             // `Vehicle name is required`, en ingles, y eso no se le ensena a
             // nadie pudiendo evitarlo aqui.
-            onPressed: _nombre.text.trim().isEmpty || widget.guardando
+            alPulsar: _nombre.text.trim().isEmpty || widget.guardando
                 ? null
                 : _guardar,
-            child: Text(_esNuevo ? 'Agregar Vehículo' : 'Actualizar'),
           ),
         ],
       ),
@@ -546,9 +551,10 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
               child: const Text('Cancelar'),
             ),
             const SizedBox(width: 8),
-            FilledButton(
-              onPressed: _guardandoTipo ? null : _crearTipoNuevo,
-              child: Text(_guardandoTipo ? '...' : 'Crear tipo'),
+            BotonPrincipal(
+              icono: Icons.add,
+              texto: _guardandoTipo ? '...' : 'Crear tipo',
+              alPulsar: _guardandoTipo ? null : _crearTipoNuevo,
             ),
           ],
         ),

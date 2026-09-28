@@ -70,6 +70,46 @@ class ColaDeSalida {
             ..orderBy([(a) => OrderingTerm.asc(a.orden)]))
           .watch();
 
+  /// LO QUE SUBIO BIEN Y AUN ASI DEJO GENTE FUERA, sin leer todavia.
+  ///
+  /// Son apuntes **aplicados** con motivo puesto: el servidor dijo que si y en
+  /// la misma respuesta nombro a los que no entraron (ver [resolver]). No caben
+  /// en [rechazados] —esos no subieron y se pueden reintentar— ni en el «N sin
+  /// subir» —estos ya subieron—, y por eso son una tercera pregunta: **salio
+  /// con menos de lo que pusiste**.
+  ///
+  /// Se ordena por `orden` descendente, el ultimo primero, igual que la
+  /// bandeja: lo de hace cinco minutos es lo que todavia se puede arreglar.
+  Stream<List<Apunte>> descartesSinLeer() =>
+      (_base.select(_base.apuntes)
+            ..where(
+              (a) =>
+                  a.estado.equalsValue(EstadoApunte.aplicado) &
+                  a.motivo.isNotNull(),
+            )
+            ..orderBy([(a) => OrderingTerm.desc(a.orden)]))
+          .watch();
+
+  /// «Ya lo he leido». Quita el aviso y **no borra el apunte**.
+  ///
+  /// Es un gesto de persona, como el de la bandeja, y por la misma razon: una
+  /// lista que solo crece deja de leerse a la tercera semana y entonces el
+  /// aviso que SI importaba se pierde entre los viejos. Lo que se quita es el
+  /// aviso; el apunte sigue en su sitio hasta que lo pode [podar], que es lo
+  /// unico que explica manana por que esa ruta salio con nueve.
+  Future<void> darPorLeidoElDescarte(String clave) async {
+    final tocadas =
+        await (_base.update(_base.apuntes)..where(
+              (a) =>
+                  a.clave.equals(clave) &
+                  a.estado.equalsValue(EstadoApunte.aplicado),
+            ))
+            .write(const ApuntesCompanion(motivo: Value(null)));
+    if (tocadas > 0) {
+      Registro.aviso('aviso de descartados dado por leido a mano: $clave');
+    }
+  }
+
   /// La bandeja de rechazos. Nada se descarta en silencio (regla 6).
   Stream<List<Apunte>> rechazados() =>
       (_base.select(_base.apuntes)
@@ -146,12 +186,41 @@ class ColaDeSalida {
         // Aqui es donde se sabe la verdad: el servidor acaba de decir que si.
         await _yaNoNacioAqui(apunte);
 
+        // LO QUE SE CAYO AUNQUE EL APUNTE ENTRARA — 28/09/2026.
+        //
+        // Aqui solo se miraba `resultado.id`. El servidor contesta ademas
+        // `descartados`, con el pedido nombrado, su motivo y que hacer
+        // (`api/internal/api/tablero.go`, `DescartadoSalida`), **y nadie lo
+        // leia**: una zona de doce podia parir una ruta de nueve y no quedaba
+        // rastro en ningun sitio. Eso es lo que impidio ver el otro fallo del
+        // mismo dia —la lista de pedidos que no viajaba— el dia que paso.
+        //
+        // Se guarda en `motivo` del propio apunte, que es la columna que ya
+        // existe para «lo que el servidor dijo de esto», y NO se toca el
+        // estado: el apunte se aplico de verdad y marcarlo rechazado ofreceria
+        // «reintentar», que aqui armaria una SEGUNDA ruta. Lo que hace falta es
+        // que alguien lo lea, no que se vuelva a mandar.
+        //
+        // Sin descartados no se escribe nada, y eso es la mitad de la regla:
+        // un aviso que sale en cada armado deja de leerse (§3-quinquies), y
+        // entonces tampoco se lee el dia que importa.
+        final aviso = textoDeLosDescartados(resultado.descartados);
+        if (aviso.isNotEmpty) {
+          Registro.aviso(
+            'el servidor dejo fuera ${resultado.descartados.length} '
+            'pedido(s) de $clave: $aviso',
+          );
+        }
+
         await (_base.update(
           _base.apuntes,
         )..where((a) => a.clave.equals(clave))).write(
           ApuntesCompanion(
             estado: const Value(EstadoApunte.aplicado),
             resueltoAt: Value(_reloj()),
+            // `Value.absent()` y no `Value(null)`: sin descartados esta columna
+            // NO se toca.
+            motivo: aviso.isEmpty ? const Value.absent() : Value(aviso),
           ),
         );
       } else {
@@ -294,12 +363,19 @@ class ColaDeSalida {
 
   /// Poda los aplicados viejos. Los rechazados NO se podan nunca: son la unica
   /// constancia de algo que no llego a pasar.
+  ///
+  /// **Y tampoco los que llevan un aviso sin leer** ([descartesSinLeer]). Es la
+  /// misma razon que la de los rechazados: ese apunte es lo unico que explica
+  /// por que una ruta salio con nueve de doce, y borrarlo a los siete dias
+  /// porque «ya subio» es descartarlo en silencio con un temporizador. Se va en
+  /// cuanto una persona lo da por leido, que es lo que quita el motivo.
   Future<int> podar() {
     final limite = _reloj().subtract(conservarAplicados);
     return (_base.delete(_base.apuntes)..where(
           (a) =>
               a.estado.equalsValue(EstadoApunte.aplicado) &
-              a.resueltoAt.isSmallerThanValue(limite),
+              a.resueltoAt.isSmallerThanValue(limite) &
+              a.motivo.isNull(),
         ))
         .go();
   }

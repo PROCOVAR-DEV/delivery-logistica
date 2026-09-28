@@ -232,8 +232,11 @@ func ArmarLote(pedidos []PedidoDeFuera) CuerpoDelLote {
 
 func pedidoAlLote(p PedidoDeFuera) PedidoDelCuerpo {
 	out := PedidoDelCuerpo{
-		ExternalID:         p.ID,
-		OperationNumber:    p.Folio,
+		ExternalID: p.ID,
+		// El folio pasa por la limpieza y el id NO. El folio es un rótulo que alguien lee y
+		// compara; el id es la identidad, y limpiarla partiría en dos cada fila ya guardada
+		// (ver [SinLaComillaDeExcel]).
+		OperationNumber:    SinLaComillaDeExcel(strings.TrimSpace(p.Folio)),
 		SucursalExternalID: p.SucursalCodigo,
 		CustomerName:       nombreDelCliente(p),
 		Address:            textoONada(direccionDelCliente(p)),
@@ -363,8 +366,14 @@ func renglonesAlLote(items []RenglonDeFuera) []RenglonDelLote {
 
 // textoONada: la cadena vacía se manda como ausente. Un `""` guardado se lee en pantalla
 // como un dato que está y no dice nada, y filtrar por él devuelve cosas que no son.
+//
+// Y DE PASO SE QUITA LA COMILLA DE EXCEL, porque éste es el embudo por el que pasa TODO el
+// texto que el espejo copia de PEDIDO —el teléfono, el folio, el número de factura, el
+// código y la zona del cliente, el municipio, el vendedor— y limpiarlo aquí es limpiarlo
+// una vez para todos los que lo consumen después. Las identidades (`ID` del pedido y del
+// cliente) NO pasan por aquí, y es a propósito: ver [SinLaComillaDeExcel].
 func textoONada(s string) *string {
-	s = strings.TrimSpace(s)
+	s = strings.TrimSpace(SinLaComillaDeExcel(strings.TrimSpace(s)))
 	if s == "" {
 		return nil
 	}

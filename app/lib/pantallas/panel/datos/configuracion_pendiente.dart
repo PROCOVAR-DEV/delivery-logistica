@@ -51,6 +51,9 @@
 library;
 
 import 'package:drift/drift.dart';
+// Sólo por `IconData`: el glifo del botón de cada paso viaja con el paso.
+import 'package:flutter/widgets.dart' show IconData;
+import 'package:flutter/material.dart' show Icons;
 
 import '../../../nucleo/almacenes/almacen_de_referencia.dart';
 import '../../../nucleo/base/base.dart';
@@ -91,6 +94,7 @@ class PasoDeConfiguracion {
     required this.lasQueFaltan,
     this.ruta,
     this.textoDelBoton,
+    this.iconoDelBoton,
     this.dondeSeArregla,
   });
 
@@ -131,6 +135,12 @@ class PasoDeConfiguracion {
   final String? ruta;
 
   final String? textoDelBoton;
+
+  /// EL GLIFO DE ESE BOTON, y viaja con el paso porque cada paso lleva a una
+  /// pantalla distinta: al camion o al almacen. Es el dibujo de **a donde va**,
+  /// que aqui es lo que hace el mando. Un icono unico para los cuatro diria que
+  /// los cuatro llevan al mismo sitio (`diseno/tema.dart`, [BotonPrincipal]).
+  final IconData? iconoDelBoton;
 
   /// Donde se arregla cuando [ruta] es `null`.
   final String? dondeSeArregla;
@@ -472,6 +482,7 @@ ORDER BY b.name
               'y una columna del tablero no puede llevar camión.',
           ruta: '/vehicles',
           textoDelBoton: 'Agregar el primer vehículo',
+          iconoDelBoton: Icons.local_shipping_outlined,
         ),
         PasoDeConfiguracion(
           clave: ClaveDePaso.almacen,
@@ -493,6 +504,7 @@ ORDER BY b.name
               'no tiene de dónde salir. Un almacén sin coordenadas tampoco sirve.',
           ruta: '/warehouses',
           textoDelBoton: 'Poner el almacén',
+          iconoDelBoton: Icons.warehouse_outlined,
         ),
         PasoDeConfiguracion(
           clave: ClaveDePaso.tasa,

@@ -141,9 +141,15 @@ class Invitacion extends StatelessWidget {
     this.llamada,
     this.icono,
     this.textoDelBoton,
+    this.iconoDelBoton,
     this.alPulsar,
     super.key,
-  });
+  }) : assert(
+         textoDelBoton == null || iconoDelBoton != null,
+         'un boton principal lleva SIEMPRE su icono (diseno/tema.dart, '
+         '[BotonPrincipal]): si hay textoDelBoton tiene que haber '
+         'iconoDelBoton, y el que le toque a ESA accion',
+       );
 
   /// El literal corto de siempre: `Sin vehículos`, `Sin almacenes`. Se conserva
   /// tal cual porque es el del pliego.
@@ -161,11 +167,20 @@ class Invitacion extends StatelessWidget {
   /// no se le quita una frase para poner otra, se le añade lo que le faltaba.
   final String? llamada;
 
+  /// El glifo grande del circulo gris, el del vacio. **No es el del boton.**
   final IconData? icono;
 
   /// `null` = **no se pinta boton**. No es lo mismo que uno apagado: uno gris
   /// invita a pulsarlo igual.
   final String? textoDelBoton;
+
+  /// El del boton, que es otro y no se hereda de [icono].
+  ///
+  /// El del vacio dice **que falta** (un camion, un almacen); este dice **que
+  /// hace el boton** (anadir uno). Si se reaprovechara el de arriba, el mando
+  /// repetiria el dibujo que ya esta 60 px por encima y no diria nada nuevo.
+  final IconData? iconoDelBoton;
+
   final VoidCallback? alPulsar;
 
   @override
@@ -238,7 +253,11 @@ class Invitacion extends StatelessWidget {
           ],
           if (etiqueta != null) ...[
             const SizedBox(height: Aire.md),
-            FilledButton(onPressed: alPulsar, child: Text(etiqueta)),
+            BotonPrincipal(
+              texto: etiqueta,
+              icono: iconoDelBoton!,
+              alPulsar: alPulsar,
+            ),
           ],
         ],
       ),

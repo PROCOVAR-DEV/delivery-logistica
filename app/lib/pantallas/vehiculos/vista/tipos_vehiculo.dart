@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../diseno/anchos.dart';
 import '../../../diseno/cajon.dart';
+import '../../../diseno/tema.dart' show BotonPrincipal;
 import '../datos/vehiculo_api.dart';
 
 /// El cajon `md` de «Tipos de vehículo». Pliego: `pantallas.md` §5.
@@ -68,8 +69,10 @@ class _TiposDeVehiculoState extends State<TiposDeVehiculo> {
           child: const Text('Cancelar'),
         ),
         const SizedBox(width: 8),
-        FilledButton(
-          onPressed: widget.guardando
+        BotonPrincipal(
+          icono: Icons.save_outlined,
+          texto: 'Guardar',
+          alPulsar: widget.guardando
               ? null
               : () => widget.alGuardar([
                   // Los que se quedaron sin nombre no se mandan: un tipo sin
@@ -81,7 +84,6 @@ class _TiposDeVehiculoState extends State<TiposDeVehiculo> {
                         costoKmUsd: double.tryParse(f.costo.text.trim()),
                       ),
                 ]),
-          child: const Text('Guardar'),
         ),
       ],
     ),

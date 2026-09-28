@@ -756,7 +756,21 @@ void main() {
         // decision de Jose. Una persona hace exactamente esto: si el mapa no
         // baja la pantalla, pone el dedo al lado. Lo que esta prueba sigue
         // vigilando es lo de siempre: **que al final del detalle se llega**.
-        for (var i = 0; i < 20 && ultimo.evaluate().isEmpty; i++) {
+        // Y EL BUCLE PARA CUANDO SE VE, NO CUANDO EXISTE — 28/09/2026.
+        //
+        // Un `Viewport` construye hasta 250 px por debajo de su borde
+        // (`cacheExtent`), asi que `ultimo.evaluate().isNotEmpty` se cumple con
+        // el renglon todavia fuera de la pantalla: el bucle paraba antes de
+        // tiempo y el `expect` de abajo fallaba por esos pocos pixeles. Lo cazo
+        // un boton que crecio 33 px al ponerle su icono — o sea que la prueba
+        // llevaba tiempo pasando por suerte, no por medida.
+        bool seVe() {
+          if (ultimo.evaluate().isEmpty) return false;
+          final donde = tester.getRect(ultimo);
+          return donde.bottom <= telefono.height && donde.top >= 0;
+        }
+
+        for (var i = 0; i < 20 && !seVe(); i++) {
           await tester.dragFrom(
             Offset(telefono.width - 8, telefono.height - 120),
             const Offset(0, -200),

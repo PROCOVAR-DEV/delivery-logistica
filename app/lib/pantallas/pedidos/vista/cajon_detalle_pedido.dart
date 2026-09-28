@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/plataforma.dart';
+import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../nucleo/base/base.dart';
@@ -102,7 +103,10 @@ class _Ficha extends StatelessWidget {
                     '${p.endLng!.toStringAsFixed(5)}',
                     style: TextStyle(color: Colores.gris),
                   ),
-                if (p.customerPhone != null) Text(p.customerPhone!),
+                // Sin la comilla de Excel, igual que en el cajón de mover un
+                // pedido del tablero. Ver `nucleo/texto_de_fuera.dart`.
+                if (p.customerPhone != null)
+                  Text(sinLaComillaDeExcel(p.customerPhone!)),
               ],
             ),
             _Seccion(
@@ -131,8 +135,10 @@ class _Ficha extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: 2),
                           child: Text(
                             '${r.renglon.description} · '
-                            '${cantidad(r.renglon.quantity)} unidades · '
-                            '×${cantidad(r.empaques)} empaques · '
+                            '${cantidad(r.renglon.quantity)} '
+                            '${r.renglon.quantity == 1 ? 'unidad' : 'unidades'} · '
+                            '×${cantidad(r.empaques)} '
+                            '${r.empaques == 1 ? 'empaque' : 'empaques'} · '
                             '${r.pesoLinea == null ? 'sin peso' : kg(r.pesoLinea)}',
                           ),
                         ),

@@ -33,6 +33,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../diseno/colores.dart';
+import '../../../diseno/tema.dart' show BotonPrincipal;
 import '../../../mapa/proveedores_de_mapa.dart';
 import '../../../nucleo/plataforma.dart';
 import '../../mapa/registro.dart';
@@ -257,7 +258,7 @@ class _SinRecorrido extends StatelessWidget {
             ? 'Esta ruta todavía no tiene paradas, así que no hay recorrido que '
                   'dibujar.'
             : 'No se puede dibujar el recorrido: ni el almacén de salida ni '
-                  'ninguna de las ${recorrido.paradas.length} paradas tienen '
+                  'ninguna de las ${recorrido.paradas.length} paradas tiene '
                   'coordenadas guardadas.',
         style: TextStyle(fontSize: 12, color: Colores.gris),
       ),
@@ -300,7 +301,7 @@ class _Acciones extends ConsumerWidget {
         if (r.name != null) r.name!,
       ].join(' — '),
       resumen: [
-        '${ruta.paradas.length} paradas',
+        EnlaceDeLaRuta.cuantasParadas(ruta.paradas.length),
         '${r.totalDistance.toStringAsFixed(1)} km (incl. regreso)',
         if (vehiculo != null)
           vehiculo.plate == null
@@ -406,9 +407,10 @@ class _SinMapaDescargado extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        FilledButton(
-          onPressed: () => context.go(caminoDelMapaSinConexion),
-          child: const Text('Descargar'),
+        BotonPrincipal(
+          icono: Icons.download_outlined,
+          texto: 'Descargar',
+          alPulsar: () => context.go(caminoDelMapaSinConexion),
         ),
       ],
     ),

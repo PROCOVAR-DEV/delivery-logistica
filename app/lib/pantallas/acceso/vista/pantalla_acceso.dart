@@ -285,18 +285,23 @@ class _PantallaAccesoState extends ConsumerState<PantallaAcceso> {
                     _Aviso(fallo: estado.fallo),
                   ],
                   const SizedBox(height: Aire.xl),
-                  FilledButton(
-                    onPressed: entrando ? null : _entrar,
-                    child: entrando
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colores.blanco,
-                            ),
-                          )
-                        : const Text('Entrar'),
+                  // LA RUEDA BLANCA SE FUE CON EL RELLENO — 28/09/2026.
+                  //
+                  // Mientras se entraba, el botón cambiaba la palabra por un
+                  // `CircularProgressIndicator` **en blanco**, escrito así
+                  // porque debajo había un rectángulo macizo del color de la
+                  // marca. Quitado el relleno, esa rueda quedaba blanca sobre el
+                  // papel crema: invisible, o sea un botón que al pulsarlo se
+                  // queda vacío y no dice nada.
+                  //
+                  // Ahora lo dice con las dos cosas que sí se ven sin fondo: el
+                  // rótulo y el glifo. El reloj de arena es el mismo que ya usan
+                  // «Traer el día» y «Entregar el día» para lo mismo, así que es
+                  // el gesto de esperar que esta aplicación ya tiene.
+                  BotonPrincipal(
+                    icono: entrando ? Icons.hourglass_top : Icons.login,
+                    texto: entrando ? 'Entrando…' : 'Entrar',
+                    alPulsar: entrando ? null : _entrar,
                   ),
                   // LA PROMESA DEL DÍA SIN SEÑAL — sólo donde hay día sin señal.
                   // En web no se escribe ninguna frase en su lugar: no hay nada

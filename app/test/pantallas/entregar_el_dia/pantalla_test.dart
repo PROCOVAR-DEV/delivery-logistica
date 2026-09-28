@@ -44,6 +44,10 @@ void main() {
 
   Future<RespuestaFalsa?> Function(PeticionVista) servidorQueAcepta({
     Set<String> rechazarRutas = const <String>{},
+    // LO QUE EL SERVIDOR DEJA FUERA aunque el apunte entre, por ruta del
+    // apunte. Es lo que contesta `POST /api/board/columns/{id}/route` en su 201
+    // y lo que `sync/internal/sincro/subida.go` reenvía en el resultado.
+    Map<String, List<Object?>> descartaEn = const <String, List<Object?>>{},
   }) {
     return (p) async {
       if (!p.ruta.endsWith('/subida')) return servidorQueTraeElDia(p);
@@ -62,7 +66,11 @@ void main() {
                     'elegirlos.',
               }
             else
-              <String, Object?>{'clave': a['clave'], 'estado': 'aplicado'},
+              <String, Object?>{
+                'clave': a['clave'],
+                'estado': 'aplicado',
+                'descartados': ?descartaEn[a['ruta']],
+              },
         ],
       });
     };
@@ -324,6 +332,100 @@ void main() {
       findsWidgets,
       reason: 'lo normal: subió, y no hay nada colgado que contradiga el verde',
     );
+    await desmontar(tester);
+  });
+
+  testWidgets('el armado que SUBIÓ dejando pedidos fuera sale en el cajón, con '
+      'el pedido nombrado y con qué hacer — y sin ofrecer reintentar', (
+    tester,
+  ) async {
+    // El apunte ENTRÓ: la ruta existe arriba. Lo que falta son dos de sus
+    // paradas, y el servidor dice cuáles y por qué. Antes esto se tiraba en
+    // `ColaDeSalida.resolver` y el cajón decía «Todo entregado» encima.
+    await cola.encolar(
+      metodo: 'POST',
+      ruta: '/api/board/columns/z-vista/route',
+      cuerpo: const <String, Object?>{'optimizar': false},
+      provisional: 'local-9f3a2b7c',
+    );
+    await montar(
+      tester,
+      responder: servidorQueAcepta(
+        descartaEn: {
+          '/api/board/columns/z-vista/route': [
+            <String, Object?>{
+              'pedidoId': '0199a1b2-0000-7000-8000-00000000000a',
+              'operationNumber': 'X-2992',
+              'customerName': 'Ana Pérez',
+              'motivo': 'ya no estaba en esa zona cuando llegó tu apunte',
+              'queHacer':
+                  'comprueba si se entregó igual y míralo antes de que '
+                  'salga en otra ruta',
+            },
+          ],
+        },
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Enviar datos (1)'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await dejarCorrer(tester);
+
+    // Subió, y eso no se discute: decir que no subió sería mentir al revés.
+    expect(find.text('Subieron 1 apunte'), findsWidgets);
+    // Y AUN ASÍ se dice que salió con menos.
+    expect(find.text('No subió todo al camión'), findsOneWidget);
+    expect(
+      find.textContaining('X-2992 · Ana Pérez'),
+      findsOneWidget,
+      reason:
+          'se nombra por el FOLIO y el cliente: un uuid no le dice nada a '
+          'nadie y no se puede buscar en PEDIDO',
+    );
+    expect(
+      find.textContaining('comprueba si se entregó igual'),
+      findsOneWidget,
+      reason: 'un aviso sin qué hacer es una queja',
+    );
+    // NO es un rechazo y no se le ofrece reintentar: el apunte entró y volver a
+    // mandarlo armaría una SEGUNDA ruta con el mismo camión.
+    expect(find.byType(FilaDeRechazo), findsNothing);
+    expect(find.text('Reintentar'), findsNothing);
+
+    // Y una persona puede darlo por leído.
+    await tester.tap(find.text('Ya lo he visto'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('No subió todo al camión'), findsNothing);
+
+    await desmontar(tester);
+  });
+
+  testWidgets('LO NORMAL NO AVISA: un armado que subió entero no saca nada en '
+      'el cajón', (tester) async {
+    await cola.encolar(
+      metodo: 'POST',
+      ruta: '/api/board/columns/z-vista/route',
+      cuerpo: const <String, Object?>{'optimizar': false},
+      provisional: 'local-9f3a2b7c',
+    );
+    await montar(tester, responder: servidorQueAcepta());
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Enviar datos (1)'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await dejarCorrer(tester);
+
+    expect(find.text('Subieron 1 apunte'), findsWidgets);
+    expect(
+      find.text('No subió todo al camión'),
+      findsNothing,
+      reason:
+          'nadie se cayó. Un aviso que sale en cada armado deja de leerse, y '
+          'entonces tampoco se lee el día que importa (§3-quinquies)',
+    );
+
     await desmontar(tester);
   });
 }

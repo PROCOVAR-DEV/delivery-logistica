@@ -676,6 +676,18 @@ class AccionesDeRuta {
         : '.';
     // La M es `pedidos.length`, lo que la persona marcó en la pantalla y tiene
     // delante mientras lee el aviso, no el número de ids distintos.
+    // ESTE MENSAJE ES EL DEL SERVIDOR, LETRA POR LETRA, y por eso «1 de los 1
+    // pedidos elegidos no pueden» SIGUE MAL a propósito — 28/09/2026.
+    //
+    // Lo copia de `api/internal/api/rutas.go` (`mensajeNoPuedenIr`) para que sin
+    // señal se lea exactamente lo mismo que con ella: es la regla del
+    // §3-quinquies —«lo que el servidor rechaza se dice, y con su motivo
+    // literal»—. Arreglar el plural SÓLO aquí rompe esa paridad y deja dos
+    // frases distintas para el mismo rechazo, que es peor que el «1 pedidos».
+    //
+    // Se arregla en los dos lados a la vez, con sus dos suites de pruebas —12
+    // literales en `test/pantallas/rutas/` y los de `api/internal/api/
+    // rutas_test.go`—, y eso es su propia tarea.
     return '${fuera.length} de los ${pedidos.length} pedidos elegidos no pueden '
         'ir en esta ruta: ${detalle.join(", ")}$cola';
   }

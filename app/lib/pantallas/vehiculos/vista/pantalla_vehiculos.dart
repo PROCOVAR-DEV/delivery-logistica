@@ -207,9 +207,10 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
                 onPressed: _abrirTipos,
                 child: const Text('Tipos de vehículo'),
               ),
-              FilledButton(
-                onPressed: () => _abrirFicha(),
-                child: const Text('Agregar Vehículo'),
+              BotonPrincipal(
+                icono: Icons.add,
+                texto: 'Agregar Vehículo',
+                alPulsar: () => _abrirFicha(),
               ),
             ],
           ),
@@ -558,6 +559,7 @@ class _Rejilla extends ConsumerWidget {
             'tablero se quedan sin camión.',
         llamada: 'Agrega tu primer vehículo para asignarlo a rutas',
         textoDelBoton: 'Agregar Vehículo',
+        iconoDelBoton: Icons.add,
         alPulsar: alAgregar,
       );
     }

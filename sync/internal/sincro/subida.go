@@ -51,6 +51,17 @@ type resultado struct {
 	Estado string     `json:"estado"`
 	ID     *uuid.UUID `json:"id,omitempty"`
 	Motivo string     `json:"motivo,omitempty"`
+
+	// QUIÉN SE CAYÓ AUNQUE EL APUNTE ENTRARA — 28/09/2026.
+	//
+	// No es un rechazo y por eso no cabe en `Motivo`: el apunte se aplicó de verdad. Es
+	// lo otro que el reparto contesta al armar una zona —el pedido nombrado, su motivo y
+	// qué hacer— y que hasta hoy se quedaba en este servicio. Sin esto, la ruta salía con
+	// menos pedidos de los que el logístico puso y el teléfono no tenía cómo saberlo.
+	//
+	// `omitempty` no es cosmética: lo normal es que no haya ninguno, y un `"descartados":
+	// []` en cada apunte del lote es peso en una conexión que se paga.
+	Descartados json.RawMessage `json:"descartados,omitempty"`
 }
 
 type subidaSalida struct {
@@ -210,7 +221,7 @@ func (s *Servicio) unApunte(ctx context.Context, aparato sqlc.Aparato, quien ide
 	}
 
 	// 3 · El reparto, que es el dueño de los datos.
-	idCreado, err := s.aplicador.Aplicar(ctx, Peticion{
+	aplicado, err := s.aplicador.Aplicar(ctx, Peticion{
 		Metodo:   a.Metodo,
 		Ruta:     ruta,
 		Cuerpo:   cuerpo,
@@ -227,6 +238,7 @@ func (s *Servicio) unApunte(ctx context.Context, aparato sqlc.Aparato, quien ide
 	case err != nil:
 		return resultado{}, err
 	}
+	idCreado := aplicado.ID
 
 	// 4 · La traducción del provisional se anota ANTES que el apunte, y el id que manda es
 	// el que devuelve esa consulta: si ese `local-…` ya estaba traducido, LA BUENA ES LA
@@ -280,7 +292,11 @@ func (s *Servicio) unApunte(ctx context.Context, aparato sqlc.Aparato, quien ide
 		return resultado{}, err
 	}
 
-	return resultado{Clave: a.Clave, Estado: EstadoAplicado, ID: idCreado}, nil
+	return resultado{
+		Clave: a.Clave, Estado: EstadoAplicado, ID: idCreado,
+		// Y lo que se quedó fuera, tal cual vino. Ver [resultado.Descartados].
+		Descartados: aplicado.Descartados,
+	}, nil
 }
 
 // mismaRespuestaQueLaPrimeraVez es la regla 1 entera: un apunte se queda para siempre como
@@ -289,6 +305,13 @@ func (s *Servicio) unApunte(ctx context.Context, aparato sqlc.Aparato, quien ide
 // Con el id que se creó entonces —no uno nuevo—, y si aquella vez fue un rechazo, con aquel
 // motivo, que se lee de la bandeja (el motivo vive ahí y sólo ahí; copiado en dos sitios
 // acaba discrepando).
+//
+// LO QUE ESTO NO DEVUELVE, Y HAY QUE SABERLO: los `descartados` de aquella primera vez. No
+// se guardan —el libro de apuntes tiene la clave, la ruta y el id creado, nada más—, así que
+// un apunte cuya respuesta se perdió por el camino vuelve como `repetido` **sin el aviso de
+// quién se cayó**. Pasa sólo cuando el reparto aplicó y la respuesta no llegó al aparato, y
+// taparlo entero pide una columna nueva en `apuntes` (migración + sqlc). Queda escrito aquí
+// para que no se dé por cubierto.
 func (s *Servicio) mismaRespuestaQueLaPrimeraVez(previo sqlc.BuscarApunteRow, a apunteEntrada, traduce *traductor) resultado {
 	r := resultado{Clave: a.Clave, Estado: EstadoRepetido}
 	if id := deIdentificador(previo.IDCreado); id != nil {

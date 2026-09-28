@@ -434,13 +434,13 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
                 ),
                 const SizedBox(width: Aire.sm),
                 Flexible(
-                  child: FilledButton(
-                    onPressed: puedeGenerar ? _generar : null,
-                    child: Text(
-                      _generando ? 'Generando ruta...' : 'Generar Ruta',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  child: BotonPrincipal(
+                    icono: Icons.route_outlined,
+                    texto: _generando ? 'Generando ruta...' : 'Generar Ruta',
+                    // El rotulo cambia de largo solo y el boton va dentro de un
+                    // `Flexible`: a 390 px, sin esto, el renglon se parte.
+                    enUnaLinea: true,
+                    alPulsar: puedeGenerar ? _generar : null,
                   ),
                 ),
               ],
@@ -529,11 +529,18 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       // arriba y otro abajo, es lo que hacía dudar de cuál era cuál.
       Align(
         alignment: Alignment.centerRight,
-        child: FilledButton(
-          onPressed: _sucursalId == null
+        child: BotonPrincipal(
+          // LA FLECHA VA DETRAS DE LA PALABRA. Es lo unico que hace este boton
+          // —pasar al paso siguiente— y una flecha que apunta a la derecha,
+          // puesta a la IZQUIERDA del rotulo, se lee como «volver». El
+          // `Icons.arrow_back` de «Volver a la lista» va delante por lo mismo,
+          // al reves.
+          icono: Icons.arrow_forward,
+          iconoAlFinal: true,
+          texto: 'Siguiente',
+          alPulsar: _sucursalId == null
               ? null
               : () => setState(() => _paso = 2),
-          child: const Text('Siguiente'),
         ),
       ),
     ],
@@ -544,6 +551,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       return const _SinSalida(
         texto: AsistenteNuevaRuta.sinAlmacenes,
         boton: AsistenteNuevaRuta.irAAlmacenes,
+        icono: Icons.warehouse_outlined,
         adonde: '/warehouses',
       );
     }
@@ -591,9 +599,11 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
         const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerRight,
-          child: FilledButton(
-            onPressed: () => setState(() => _paso = 3),
-            child: const Text('Siguiente'),
+          child: BotonPrincipal(
+            icono: Icons.arrow_forward,
+            iconoAlFinal: true,
+            texto: 'Siguiente',
+            alPulsar: () => setState(() => _paso = 3),
           ),
         ),
       ],
@@ -618,6 +628,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
                   'hay son de otras sucursales, y un camión de otra sucursal no '
                   'está donde sale esta ruta.',
         boton: AsistenteNuevaRuta.irAVehiculos,
+        icono: Icons.local_shipping_outlined,
         adonde: '/vehicles',
       );
     }
@@ -731,11 +742,13 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
         const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerRight,
-          child: FilledButton(
-            onPressed: _vehiculoId == null
+          child: BotonPrincipal(
+            icono: Icons.arrow_forward,
+            iconoAlFinal: true,
+            texto: 'Siguiente',
+            alPulsar: _vehiculoId == null
                 ? null
                 : () => setState(() => _paso = 4),
-            child: const Text('Siguiente'),
           ),
         ),
       ],
@@ -1241,7 +1254,8 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
           children: [
             Expanded(
               child: Text(
-                '${_elegidos.length} pedidos seleccionados'
+                '${_elegidos.length} '
+                '${_elegidos.length == 1 ? 'pedido seleccionado' : 'pedidos seleccionados'}'
                 '${fueraDeLaLista == 0 ? '' : ' ($fueraDeLaLista de otro día o filtro, siguen contando)'}',
                 style: Tipos.texto(tamano: 12, color: Colores.tintaSuave),
               ),
@@ -1853,11 +1867,18 @@ class _SinSalida extends StatelessWidget {
   const _SinSalida({
     required this.texto,
     required this.boton,
+    required this.icono,
     required this.adonde,
   });
 
   final String texto;
   final String boton;
+
+  /// EL GLIFO DE A DONDE LLEVA, y por eso lo pone quien lo usa y no este widget:
+  /// los dos sitios donde se cae aqui son distintos —el camion y el almacen— y
+  /// un icono unico diria que los dos llevan al mismo sitio.
+  final IconData icono;
+
   final String adonde;
 
   @override
@@ -1866,15 +1887,16 @@ class _SinSalida extends StatelessWidget {
     children: [
       Text(texto, style: TextStyle(color: Colores.gris)),
       const SizedBox(height: 12),
-      FilledButton(
-        onPressed: () {
+      BotonPrincipal(
+        icono: icono,
+        texto: boton,
+        alPulsar: () {
           // El router se coge ANTES de cerrar: despues de `pop` este
           // `context` ya no esta montado y `context.go` reventaria.
           final ir = GoRouter.of(context);
           Navigator.of(context).maybePop();
           ir.go(adonde);
         },
-        child: Text(boton),
       ),
     ],
   );

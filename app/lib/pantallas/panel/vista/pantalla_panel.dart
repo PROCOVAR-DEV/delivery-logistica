@@ -10,9 +10,13 @@ import '../../../diseno/tarjeta.dart';
 import '../../../diseno/tema.dart';
 import '../../../navegacion/estado_navegacion.dart';
 import '../../../nucleo/plataforma.dart';
+import '../../../nucleo/proveedores.dart';
+import '../../pedidos/datos/filtros_en_la_url.dart';
+import '../../pedidos/datos/filtros_pedidos.dart';
 import 'estado_del_dia.dart';
 import 'paso_a_paso.dart';
 import '../datos/consultas_panel.dart';
+import '../datos/textos_de_las_cifras.dart';
 import '../estado/panel_estado.dart';
 
 /// EL PANEL — la pantalla de la manana (pliego §1).
@@ -60,6 +64,14 @@ class PantallaPanel extends ConsumerWidget {
           const EstadoDelDia(),
           const SizedBox(height: Aire.xl),
         ],
+        // DE QUIÉN SON LAS CIFRAS. Las siete salen de la sucursal del selector
+        // de arriba, y eso no se veía. El 28/09/2026 fue la mitad de la
+        // confusión: la ruta completada que Jose buscaba existía, pero era de La
+        // Habana y él estaba mirando Santiago.
+        //
+        // Es un rótulo, no un aviso: dice el alcance de los números que vienen
+        // debajo, igual que la hoja del almacén dice de dónde sale la mercancía.
+        const _DeQuienSonLasCifras(),
         _Cifras(c),
         // `mb-8`: las cuatro cifras de arriba respiran mas que el resto, que es
         // lo que las separa de «el detalle».
@@ -92,14 +104,43 @@ class PantallaPanel extends ConsumerWidget {
   }
 }
 
+/// LA LÍNEA QUE DICE DE QUÉ SUCURSAL SON LAS CUATRO CIFRAS.
+class _DeQuienSonLasCifras extends ConsumerWidget {
+  const _DeQuienSonLasCifras();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final texto = TextosDeLasCifras.deQuienSon(
+      todas: (ref.watch(sucursalMiradaProvider) ?? '').isEmpty,
+      sucursal: ref.watch(nombreDeLaSucursalMiradaProvider).value,
+    );
+    // Mientras el nombre no haya bajado no se escribe nada, y tampoco se deja el
+    // hueco: en la web eso dura un segundo y una línea vacía que aparece y
+    // desaparece mueve las cuatro tarjetas debajo del dedo.
+    if (texto == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Aire.md),
+      child: Text(
+        texto,
+        style: Tipos.texto(
+          tamano: 12,
+          peso: FontWeight.w600,
+          color: Colores.tintaSuave,
+          interletra: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
 /// Las 4 tarjetas: en fila en escritorio, **1 columna en movil** (§1).
-class _Cifras extends StatelessWidget {
+class _Cifras extends ConsumerWidget {
   const _Cifras(this.c);
 
   final CifrasDelPanel c;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tarjetas = <Widget>[
       TarjetaDeCifra(
         etiqueta: 'Pedidos sin ruta',
@@ -118,11 +159,9 @@ class _Cifras extends StatelessWidget {
       // Cada tarjeta con SU color de marca, como en la de Next: entregados en
       // el verde del `--secondary`, flota en el naranja del `--accent`. Cuatro
       // franjas azules iguales obligan a leer la etiqueta cada vez.
-      TarjetaDeCifra(
-        etiqueta: 'Entregados hoy',
-        valor: Numeros.entero(c.entregadosHoy),
-        color: Colores.secundario,
-        icono: Icons.check_circle_outline,
+      _EntregadosHoy(
+        c,
+        medianoche: ref.watch(consultasPanelProvider).medianoche,
       ),
       TarjetaDeCifra(
         etiqueta: 'Vehículos',
@@ -161,6 +200,75 @@ class _Cifras extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// «ENTREGADOS HOY», Y SE PUEDE LLEGAR A LO QUE SE ENTREGÓ.
+///
+/// El 28/09/2026 Jose miró esta tarjeta y el Historial de Rutas:
+///
+/// > «me dice q entregado uno y en hsitorial me sale vacio eso q se entrego si no
+/// > se ah completado nada»
+///
+/// Los números estaban bien los dos. El pedido se entregó a las 19:44 en una ruta
+/// que sigue **en curso**, y el Historial cuenta rutas CERRADAS; encima la única
+/// cerrada que había era de otra sucursal. **El fallo no estaba en las cuentas:
+/// estaba en que un contador que dice «1» y no deja ver CUÁL obliga a adivinar o
+/// a preguntar.**
+///
+/// Se arregla como ya lo hacen las acciones rápidas de abajo: `context.go` a la
+/// pantalla que tiene el detalle, con los filtros en la dirección. Los filtros
+/// los arma `filtrosDeEntregadosDesde` —en el fichero de los filtros, junto a
+/// ellos— con la MISMA medianoche que usa la consulta de este contador, que es lo
+/// que hace que la lista no pueda decir otro número. Atado con
+/// `test/pantallas/pedidos/entregados_hoy_cuadra_test.dart` (`CLAUDE.md` §3-bis:
+/// una prueba, no un comentario).
+///
+/// **Con cero no se toca**: no hay lista que enseñar, y un gesto que lleva a una
+/// pantalla vacía es peor que ninguno.
+class _EntregadosHoy extends StatelessWidget {
+  const _EntregadosHoy(this.c, {required this.medianoche});
+
+  final CifrasDelPanel c;
+
+  /// Las 00:00 de hoy **con el reloj del aparato**, tal cual las calcula
+  /// `ConsultasPanel`. Entra por parámetro y no se vuelve a calcular aquí: dos
+  /// medianoches son dos verdades, y la que sobra es la que alguien mira.
+  final DateTime medianoche;
+
+  @override
+  Widget build(BuildContext context) {
+    // LA TARJETA SE PULSA Y YA ESTÁ — 28/09/2026, por la noche.
+    //
+    // Esto nació con un `GestureDetector` + `MouseRegion` + `Semantics` + un
+    // `Stack` con una flecha encima, porque `TarjetaDeCifra` no llevaba gesto
+    // propio y era del sistema de diseño. O sea: reconstruir a mano la señal de
+    // «esto se pulsa» que `Tarjeta` ya sabe dar —con su levantada al pasar por
+    // encima— y que el resto de la aplicación usa.
+    //
+    // En cuanto el fichero quedó libre se le puso `alPulsar` a `TarjetaDeCifra`
+    // y todo aquello sobra. Está contado en `diseno/tarjeta.dart`.
+    //
+    // **Con cero entregados NO se pulsa**: un gesto que acaba en una pantalla
+    // vacía es peor que ninguno.
+    return TarjetaDeCifra(
+      key: c.entregadosHoy > 0
+          ? const ValueKey(TextosDeLasCifras.verLosEntregados)
+          : null,
+      etiqueta: 'Entregados hoy',
+      valor: Numeros.entero(c.entregadosHoy),
+      subtexto: TextosDeLasCifras.entregadosHoy(
+        entregadosHoy: c.entregadosHoy,
+        enRutaSinCerrar: c.entregadosHoyEnRutaSinCerrar,
+      ),
+      color: Colores.secundario,
+      icono: Icons.check_circle_outline,
+      alPulsar: c.entregadosHoy <= 0
+          ? null
+          : () => context.go(
+              FiltrosEnLaUrl.direccion(filtrosDeEntregadosDesde(medianoche)),
+            ),
     );
   }
 }

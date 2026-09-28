@@ -354,8 +354,10 @@ class _Acciones extends ConsumerWidget {
           child: Text('Ver paradas (${ruta.paradas.length})'),
         ),
         if (estado == EstadoRuta.planificada)
-          FilledButton(
-            onPressed: () => hacer(() async {
+          BotonPrincipal(
+            icono: Icons.play_arrow,
+            texto: 'Iniciar ruta',
+            alPulsar: () => hacer(() async {
               await acciones.iniciar(ruta.ruta.id);
               // **Y se va con ella a la pestaña donde acaba de caer.**
               //
@@ -368,7 +370,6 @@ class _Acciones extends ConsumerWidget {
                   .read(pestanaRutasProvider.notifier)
                   .elegir(PestanaRutas.enCurso);
             }),
-            child: const Text('Iniciar ruta'),
           ),
         // EL CIERRE, en curso: se va marcando parada a parada segun se reparte,
         // y la ruta sigue en curso. La cuenta entre parentesis es lo que queda
@@ -404,9 +405,11 @@ class _Acciones extends ConsumerWidget {
             child: const Text('Ver cierre'),
           ),
         if (estado == EstadoRuta.enCurso)
-          FilledButton(
+          BotonPrincipal(
             key: claveDeCompletar,
-            onPressed: () {
+            icono: Icons.check_circle_outline,
+            texto: 'Marcar como completada',
+            alPulsar: () {
               // La navegacion de despues es la misma venga por donde venga:
               // soltar la ruta elegida e irse al Historial, como la de Next
               // (`routes/page.tsx:463-464`). Quedarse con ella abierta a la
@@ -441,7 +444,6 @@ class _Acciones extends ConsumerWidget {
                 luego();
               });
             },
-            child: const Text('Marcar como completada'),
           ),
         // ESTE PESO NO PASA POR `pesoDeLaRuta`, Y ES A PROPÓSITO.
         //
@@ -590,7 +592,15 @@ class LineaDeDatosDeLaRuta extends StatelessWidget {
           // (28/09/2026). Lo que ata los dos formatos es
           // `el_mismo_peso_escrito_igual_test.dart`, no este comentario
           // (`CLAUDE.md` §3-bis).
-          '${pesoDeLaRuta(r.totalWeight)} · ${importe.rotulo} · '
+          //
+          // Y EL NÚMERO SALE DE LAS PARADAS, no de `routes.total_weight`, que
+          // es lo que se arregló el 28/09/2026. Era el ÚNICO dato de este
+          // renglón que no se sumaba de la lista que hay justo debajo —el
+          // importe y la «Carga total» ya lo hacían—, y por eso era el único
+          // que podía mentir: en la APK 1.0.13, `RT-20260928-003` decía «420
+          // kg» encima de dos paradas de 419,7 y 96,8. El porqué entero está en
+          // `datos/peso_de_la_ruta.dart`.
+          '${pesoDeLaRuta(ruta.pesoTotal)} · ${importe.rotulo} · '
           // «Sin vehículo», LO MISMO QUE EN LA LISTA. Un `—` aquí se lee como
           // «no se sabe» estando al lado de otros dos que sí lo son, y no es
           // eso: es que esta ruta no lleva camión asignado, que es un dato.

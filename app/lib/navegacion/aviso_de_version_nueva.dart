@@ -302,6 +302,7 @@ class LoQueDiceElAviso {
     required this.titular,
     required this.detalle,
     this.textoDeAccion,
+    this.iconoDeAccion,
     this.accion,
   });
 
@@ -316,6 +317,14 @@ class LoQueDiceElAviso {
   /// El texto del boton. `null` cuando no hay nada que ofrecer todavia — es el
   /// caso de «primero sube»: ahi no se ofrece instalar.
   final String? textoDeAccion;
+
+  /// EL GLIFO DE ESE BOTON, y viaja con el texto porque los dos destinos no
+  /// ofrecen lo mismo: la web recarga la pestana y el aparato ensena como se
+  /// instala. Un icono unico para los dos volveria a decir que es el mismo
+  /// gesto, que es lo que este fichero entero existe para no decir
+  /// (`diseno/tema.dart`, [BotonPrincipal]).
+  final IconData? iconoDeAccion;
+
   final void Function(BuildContext)? accion;
 }
 
@@ -382,6 +391,7 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
           'Esta pestaña lleva abierta desde antes del último cambio. Recarga '
           'para tenerlo; aquí no hay nada sin guardar que se pueda perder.',
       textoDeAccion: 'Recargar ahora',
+      iconoDeAccion: Icons.refresh,
       accion: (_) => unawaited(recargarLaPagina()),
     );
   }
@@ -415,6 +425,7 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
             'Se instala a mano: primero se descarga el fichero y después se '
                 'instala encima.',
         textoDeAccion: 'Cómo instalarla',
+        iconoDeAccion: Icons.install_mobile,
         accion: (contexto) => _abrirElCajon(contexto, publicada, enlace),
       ),
       // PRIMERO SUBE, y sin boton de instalar. `docs/actualizaciones.md` §1.1:
@@ -494,23 +505,22 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
               style: Tipos.texto(tamano: 13, peso: FontWeight.w700),
             ),
             const SizedBox(height: Aire.xs),
-            Text(
-              switch (publicada.ficheroPara(Plataforma.deEsteAparato())) {
-                // CUÁNTO PESA, ANTES DE PULSAR. Quien está en la calle con datos
-                // contados tiene que poder decidir. El 22/09/2026 la descarga
-                // enseñaba «30 MB/?» porque el tamaño salía del `Content-Length`
-                // y Cloudflare lo quita: ahora sale del anuncio de la api.
-                final f? => 'Son ${enMegas(f.bytes)}. Se abre el navegador y se '
+            Text(switch (publicada.ficheroPara(Plataforma.deEsteAparato())) {
+              // CUÁNTO PESA, ANTES DE PULSAR. Quien está en la calle con datos
+              // contados tiene que poder decidir. El 22/09/2026 la descarga
+              // enseñaba «30 MB/?» porque el tamaño salía del `Content-Length`
+              // y Cloudflare lo quita: ahora sale del anuncio de la api.
+              final f? =>
+                'Son ${enMegas(f.bytes)}. Se abre el navegador y se '
                     'descarga el fichero. La descarga no toca esta aplicación: '
                     'lo que tengas dentro sigue aquí mientras no instales.',
-                // Una api anterior no lo manda. No se inventa un número ni se
-                // escribe «? MB»: se dice lo demás y ya.
-                null => 'Se abre el navegador y se descarga el fichero. La '
+              // Una api anterior no lo manda. No se inventa un número ni se
+              // escribe «? MB»: se dice lo demás y ya.
+              null =>
+                'Se abre el navegador y se descarga el fichero. La '
                     'descarga no toca esta aplicación: lo que tengas dentro '
                     'sigue aquí mientras no instales.',
-              },
-              style: Tipos.texto(tamano: 13, color: Colores.tintaSuave),
-            ),
+            }, style: Tipos.texto(tamano: 13, color: Colores.tintaSuave)),
             const SizedBox(height: Aire.md),
             Text(
               'Instálalo con señal y con la cola vacía. No hace falta que sea '
@@ -624,18 +634,23 @@ class _Franja extends StatelessWidget {
                     spacing: Aire.sm,
                     children: [
                       if (dice.textoDeAccion != null)
-                        FilledButton(
-                          onPressed: () => dice.accion?.call(context),
-                          style: FilledButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          child: Text(dice.textoDeAccion!),
+                        // SIN `VisualDensity.compact` — 28/09/2026. Los dos
+                        // botones de esta franja eran los unicos de la
+                        // aplicacion que lo llevaban, y `compact` le quita 8 px
+                        // a cada lado del blanco tactil: el objetivo se quedaba
+                        // en 40, ocho por debajo del minimo de Material. Con un
+                        // relleno macizo detras al menos se veia donde apuntar;
+                        // sin el —que es lo que se acaba de quitar de toda la
+                        // aplicacion— no se ve nada, asi que encoger el sitio
+                        // donde cae el dedo deja de tener excusa. El aire lo
+                        // decide el tema y nadie mas.
+                        BotonPrincipal(
+                          texto: dice.textoDeAccion!,
+                          icono: dice.iconoDeAccion!,
+                          alPulsar: () => dice.accion?.call(context),
                         ),
                       TextButton(
                         onPressed: alAhoraNo,
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                        ),
                         child: const Text('Ahora no'),
                       ),
                     ],
@@ -678,7 +693,7 @@ class _PieDeLaDescargaState extends State<_PieDeLaDescarga> {
         child: const Text('Ahora no'),
       ),
       const SizedBox(width: Aire.sm),
-      FilledButton(
+      BotonPrincipal(
         // `null` apaga el botón: el segundo toque ya no llega a ningún sitio.
         // Son 78 MB por descarga; dos son media tarde de la conexión de allá.
         // La guarda va DENTRO de la función, no sólo en el ternario de fuera.
@@ -691,14 +706,15 @@ class _PieDeLaDescargaState extends State<_PieDeLaDescarga> {
         //
         // El ternario se queda porque es lo que se VE: el botón apagado dice
         // que ya se pulsó.
-        onPressed: _yaSePulso
+        alPulsar: _yaSePulso
             ? null
             : () {
                 if (_yaSePulso) return;
                 setState(() => _yaSePulso = true);
                 widget.alDescargar();
               },
-        child: const Text('Descargar'),
+        icono: Icons.download_outlined,
+        texto: 'Descargar',
       ),
     ],
   );

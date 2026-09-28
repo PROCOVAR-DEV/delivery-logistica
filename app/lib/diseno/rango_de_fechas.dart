@@ -163,6 +163,19 @@ class _CampoDeFechaState extends State<CampoDeFecha> {
       onPressed: alPulsar,
       icon: const Icon(Icons.event, size: 16),
       label: Text(puesta ? CampoDeFecha._texto(valor!) : titulo),
+      // EL BLANCO SE QUEDA, Y ES LO QUE SE ESPERA — 28/09/2026.
+      //
+      // La regla de la casa es que **un boton no lleva fondo**
+      // (`diseno/tema.dart`, [Botones]), y esto es un `OutlinedButton` que
+      // contradice al tema a proposito: **no es un boton, es un campo**. Se
+      // dibuja al lado de las cajas de buscar y de fecha, hace lo mismo que un
+      // desplegable, y lo que manda ahi es `inputDecorationTheme`, que pone
+      // `filled: true` con `fillColor: Colores.blanco`. Quitarle el blanco
+      // dejaria un filtro translucido en una barra de filtros opacos: se veria
+      // roto, no limpio.
+      //
+      // La prueba de si algo de esto es un boton o un campo: ¿hace algo al
+      // pulsarlo, o abre algo para elegir? Esto abre.
       style: OutlinedButton.styleFrom(
         backgroundColor: Colores.blanco,
         foregroundColor: puesta ? Colores.tinta : Colores.tintaSuave,

@@ -106,6 +106,8 @@ class FiltrosPedidos {
     this.archivado = ArchivadoFiltro.no,
     this.desde,
     this.hasta,
+    this.entregadoDesde,
+    this.entregadoHasta,
     this.orden = OrdenLocal.recientes,
     this.pagina = 1,
   });
@@ -122,6 +124,8 @@ class FiltrosPedidos {
       archivado = ArchivadoFiltro.cualquiera,
       desde = null,
       hasta = null,
+      entregadoDesde = null,
+      entregadoHasta = null,
       orden = OrdenLocal.recientes,
       pagina = 1;
 
@@ -138,6 +142,21 @@ class FiltrosPedidos {
   /// servidor.
   final DateTime? desde;
   final DateTime? hasta;
+
+  /// LA OTRA FECHA, Y NO ES LA MISMA: el dia en que el pedido SE ENTREGO
+  /// (`delivered_at`), no el dia en que se hizo.
+  ///
+  /// Nacio el 28/09/2026 y de un caso concreto: el Panel decia «Entregados hoy:
+  /// 1» y no habia forma de llegar a ese pedido. Con [desde]/[hasta] no se podia
+  /// pedir —acotan por la fecha DEL PEDIDO— y justo el caso de Jose lo enseña:
+  /// el `POR26-260925-3700` es un pedido **del 25** entregado **el 28**, asi que
+  /// «del 28 al 28» sobre la fecha del pedido lo deja fuera. Dos preguntas
+  /// parecidas y distintas, cada una con su par de fechas.
+  ///
+  /// Dias naturales, igual que las otras dos: [entregadoDesde] desde las 00:00 y
+  /// [entregadoHasta] hasta las 23:59:59.999.
+  final DateTime? entregadoDesde;
+  final DateTime? entregadoHasta;
 
   final OrdenLocal orden;
   final int pagina;
@@ -158,7 +177,9 @@ class FiltrosPedidos {
       factura != FacturaFiltro.cualquiera ||
       archivado != ArchivadoFiltro.cualquiera ||
       desde != null ||
-      hasta != null;
+      hasta != null ||
+      entregadoDesde != null ||
+      entregadoHasta != null;
 
   /// Cualquier cambio de filtro vuelve a la pagina 1: quedarse en la 7 de una
   /// lista que ahora tiene 2 paginas es una pantalla vacia sin motivo.
@@ -174,6 +195,10 @@ class FiltrosPedidos {
     bool limpiarDesde = false,
     DateTime? hasta,
     bool limpiarHasta = false,
+    DateTime? entregadoDesde,
+    bool limpiarEntregadoDesde = false,
+    DateTime? entregadoHasta,
+    bool limpiarEntregadoHasta = false,
     OrdenLocal? orden,
     int? pagina,
   }) {
@@ -187,8 +212,12 @@ class FiltrosPedidos {
         archivado != null ||
         desde != null ||
         hasta != null ||
+        entregadoDesde != null ||
+        entregadoHasta != null ||
         limpiarDesde ||
-        limpiarHasta;
+        limpiarHasta ||
+        limpiarEntregadoDesde ||
+        limpiarEntregadoHasta;
 
     return FiltrosPedidos(
       q: q ?? this.q,
@@ -200,6 +229,12 @@ class FiltrosPedidos {
       archivado: archivado ?? this.archivado,
       desde: limpiarDesde ? null : (desde ?? this.desde),
       hasta: limpiarHasta ? null : (hasta ?? this.hasta),
+      entregadoDesde: limpiarEntregadoDesde
+          ? null
+          : (entregadoDesde ?? this.entregadoDesde),
+      entregadoHasta: limpiarEntregadoHasta
+          ? null
+          : (entregadoHasta ?? this.entregadoHasta),
       orden: orden ?? this.orden,
       pagina: pagina ?? (cambioUnFiltro ? 1 : this.pagina),
     );
@@ -218,6 +253,8 @@ class FiltrosPedidos {
           other.archivado == archivado &&
           other.desde == desde &&
           other.hasta == hasta &&
+          other.entregadoDesde == entregadoDesde &&
+          other.entregadoHasta == entregadoHasta &&
           other.orden == orden &&
           other.pagina == pagina;
 
@@ -232,6 +269,8 @@ class FiltrosPedidos {
     archivado,
     desde,
     hasta,
+    entregadoDesde,
+    entregadoHasta,
     orden,
     pagina,
   );
@@ -241,7 +280,9 @@ class FiltrosPedidos {
       'FiltrosPedidos(q: $q, reparto: ${reparto.param}, municipio: $municipio, '
       'vendedor: $vendedor, cotizado: ${cotizado.param}, '
       'factura: ${factura.param}, archivado: ${archivado.param}, '
-      'desde: $desde, hasta: $hasta, orden: ${orden.valor}, pagina: $pagina)';
+      'desde: $desde, hasta: $hasta, '
+      'entregadoDesde: $entregadoDesde, entregadoHasta: $entregadoHasta, '
+      'orden: ${orden.valor}, pagina: $pagina)';
 }
 
 /// El conteo de la cabecera, literal del pliego: `<total> pedidos`, con el rango
@@ -255,7 +296,9 @@ String textoDelConteo(
   FiltrosPedidos f,
   String Function(DateTime) dia,
 ) {
-  final partes = StringBuffer('$total pedidos');
+  // «1 pedidos» en la cabecera — 28/09/2026. Mismo patrón que las rutas
+  // («3 paradas» / «1 parada»), y el CERO en plural: «0 pedidos».
+  final partes = StringBuffer('$total ${total == 1 ? 'pedido' : 'pedidos'}');
   final desde = f.desde;
   final hasta = f.hasta;
   if (desde != null && hasta != null) {
@@ -269,6 +312,67 @@ String textoDelConteo(
   } else if (hasta != null) {
     partes.write(' · hasta el ${dia(hasta)}');
   }
+  // Y LA OTRA FECHA SE DICE APARTE, con el verbo delante.
+  //
+  // Sin esto, `/orders?entregado_desde=2026-09-28` enseña «1 pedidos, del más
+  // nuevo al más viejo» y nada dice por qué hay uno y no doce mil: un número
+  // acotado que se lee como el total. Y no se puede juntar con el rango de
+  // arriba porque no son lo mismo —una acota por la fecha DEL PEDIDO y la otra
+  // por la de la ENTREGA—, que es justo la confusión que esto viene a cerrar.
+  final entregadoDesde = f.entregadoDesde;
+  final entregadoHasta = f.entregadoHasta;
+  if (entregadoDesde != null && entregadoHasta != null) {
+    partes.write(
+      entregadoDesde == entregadoHasta
+          ? ' · entregados el ${dia(entregadoDesde)}'
+          : ' · entregados del ${dia(entregadoDesde)} '
+                'al ${dia(entregadoHasta)}',
+    );
+  } else if (entregadoDesde != null) {
+    partes.write(' · entregados desde el ${dia(entregadoDesde)}');
+  } else if (entregadoHasta != null) {
+    partes.write(' · entregados hasta el ${dia(entregadoHasta)}');
+  }
   partes.write(', del más nuevo al más viejo');
   return partes.toString();
 }
+
+/// LOS FILTROS DE «Entregados hoy» DEL PANEL, en un solo sitio.
+///
+/// El 28/09/2026 Jose miró el Panel: «me dice q entregado uno y en hsitorial me
+/// sale vacio eso q se entrego si no se ah completado nada». Los números estaban
+/// bien —el pedido se entregó a las 19:44 en una ruta que sigue **en curso**, y
+/// el Historial cuenta RUTAS cerradas—, pero la tarjeta no dejaba llegar al
+/// pedido, y entonces la única salida era preguntar.
+///
+/// Esta función es la mitad de pantalla del enlace; la otra mitad es la consulta
+/// del Panel (`panel/datos/consultas_panel.dart`, `entregados_hoy`). **Tienen
+/// que contar lo mismo**, y por eso están atadas con una prueba y no con un
+/// comentario (`CLAUDE.md` §3-bis):
+/// `test/pantallas/pedidos/entregados_hoy_cuadra_test.dart`.
+///
+/// Las dos trampas que hacen que cuadre, y las dos se ven aquí:
+///
+///  * **se parte de [FiltrosPedidos.sinNada], no del arranque**. El arranque
+///    acota a `con_factura` + `sin archivar` y el contador del Panel no mira
+///    ninguna de las dos: con el arranque, un pedido archivado entregado hoy
+///    saldría en la tarjeta y no en la lista, que es el §3-bis otra vez;
+///  * **sólo [FiltrosPedidos.entregadoDesde], sin `hasta`**. El contador es
+///    `delivered_at >= medianoche` y no tiene techo; ponerle uno al filtro
+///    dejaría fuera un `delivered_at` adelantado —el reloj del aparato del
+///    repartidor no es el de este— y la lista diría 0 debajo de un 1.
+///
+/// El alcance (la sucursal de arriba) NO va aquí: lo pone
+/// `sucursalMiradaProvider`, que es el mismo en las dos pantallas y no se pierde
+/// al navegar. Meterlo en el enlace sería tener dos formas de decir lo mismo.
+FiltrosPedidos filtrosDeEntregadosDesde(DateTime medianoche) =>
+    const FiltrosPedidos.sinNada().copiarCon(
+      // El día pelado. La hora la pone la consulta (00:00), y así el enlace que
+      // se escribe en la dirección —`AAAA-MM-DD`— vuelve a leerse igual: el
+      // viaje de ida y vuelta por la URL no puede cambiar lo que se cuenta.
+      entregadoDesde: DateTime(
+        medianoche.year,
+        medianoche.month,
+        medianoche.day,
+      ),
+    );

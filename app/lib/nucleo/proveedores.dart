@@ -821,7 +821,8 @@ final bajadaAMediasProvider = NotifierProvider<LaBajadaAMedias, String?>(
 /// Lo usa [SucursalMirada], que al cambiar de sucursal tiene que olvidar el
 /// cursor **y luego** bajar, en ese orden.
 final dispararCicloProvider = Provider<Future<void> Function(String motivo)>(
-  (ref) => (motivo) => ref.read(cicloProvider).ahora(motivo: motivo),
+  (ref) =>
+      (motivo) => ref.read(cicloProvider).ahora(motivo: motivo),
 );
 
 final cicloProvider = Provider<CicloDeSincronizacion>(
@@ -1033,6 +1034,21 @@ final vigiaProvider = Provider<VigiaDeSincronizacion>((ref) {
 /// bandeja y no se arreglan con señal.
 final sinSubirProvider = StreamProvider<int>(
   (ref) => ref.watch(colaProvider).pendientes().map((lista) => lista.length),
+);
+
+/// LO QUE SUBIO Y AUN ASI SALIO CON MENOS: los descartados del servidor.
+///
+/// Tercera pregunta, distinta de las otras dos y por eso su propio proveedor:
+/// [sinSubirProvider] es lo que todavia no ha salido del aparato, la bandeja es
+/// lo que el servidor rechazo entero, y esto es **un apunte que entro dejando
+/// gente fuera** — armar una zona de doce y que salgan nueve.
+///
+/// Vive en `nucleo/` y no en la pantalla del cajon porque lo miran dos sitios:
+/// el cajon, que lo cuenta entero, y la franja de estado, que esta en las siete
+/// pantallas y es lo unico que hace que alguien abra el cajon. Ver
+/// `ColaDeSalida.descartesSinLeer`.
+final descartadosProvider = StreamProvider<List<Apunte>>(
+  (ref) => ref.watch(colaProvider).descartesSinLeer(),
 );
 
 /// TRABAJO QUE NO ESTA ARRIBA, contando **tambien los rechazados**.

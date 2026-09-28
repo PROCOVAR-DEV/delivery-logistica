@@ -57,6 +57,16 @@ class ServidorDeLosDosLados {
   /// montar el día en que el servidor rechaza sin tener que tocar el doble.
   final Map<String, String> rechaza = <String, String>{};
 
+  /// CÓMO NOMBRA EL SERVIDOR A CADA PEDIDO: folio y cliente. Los rellena la
+  /// prueba con lo mismo que sembró en la base local.
+  ///
+  /// Hacen falta porque `descartados` **nombra la tarjeta**, no devuelve un
+  /// uuid a secas (`api/internal/api/tablero.go`, `DescartadoSalida`): un uuid
+  /// no le dice nada a nadie y no se puede buscar en PEDIDO. Una prueba que
+  /// sólo comprobara el id daría por bueno un aviso ilegible.
+  final Map<String, String> folios = <String, String>{};
+  final Map<String, String> clientes = <String, String>{};
+
   int _cuantasRutas = 0;
 
   /// UNO SOLO para todos los clientes de la prueba. El tablero y la subida
@@ -219,10 +229,20 @@ class ServidorDeLosDosLados {
       'estado': 'rechazado',
       'motivo': motivo,
     };
-    Map<String, Object?> si([String? id]) {
+    Map<String, Object?> si([String? id, List<Object?>? descartados]) {
       aplicados.add(ruta);
       if (propio != null && id != null) _traduccion[propio] = id;
-      return <String, Object?>{'clave': clave, 'estado': 'aplicado', 'id': ?id};
+      return <String, Object?>{
+        'clave': clave,
+        'estado': 'aplicado',
+        'id': ?id,
+        // QUIÉN SE CAYÓ AUNQUE EL APUNTE ENTRARA. Va en el resultado del
+        // apunte porque es por donde llega de verdad: el reparto lo escribe en
+        // el 201 y `sync/internal/sincro/subida.go` lo reenvía tal cual.
+        // Ausente cuando no hay ninguno, igual que el `omitempty` de allí.
+        if (descartados != null && descartados.isNotEmpty)
+          'descartados': descartados,
+      };
     }
 
     final preparado = rechaza[ruta];
@@ -261,10 +281,20 @@ class ServidorDeLosDosLados {
     }
 
     if (metodo == 'POST' && sinQuery.endsWith('/route')) {
-      // `POST /board/columns/{id}/route`: la ruta se arma con lo que hay puesto
-      // en esa zona **en el servidor**, que no tiene por qué ser lo que había
-      // en el aparato. Y al armarla, esas tarjetas salen del tablero: es lo que
-      // impide que un pedido quede en una ruta y en el tablero a la vez.
+      // `POST /board/columns/{id}/route`.
+      //
+      // Lo que hay puesto en esa zona **en el servidor** no tiene por qué ser
+      // lo que había en el aparato: entre que se armó sin señal y llegó el
+      // apunte pasan horas y la web no para. Por eso el aparato manda
+      // `pedidoIds` con lo que ÉL eligió, y entonces manda esa lista.
+      //
+      // La lista es OPCIONAL y así tiene que seguir: las APK ya instaladas no
+      // la mandan y volverla obligatoria las dejaría sin poder armar de golpe
+      // (`api/internal/api/tablero.go`, `cuerpoArmar.PedidoIds`). Sin ella se
+      // arma con lo que haya, como siempre.
+      //
+      // Y al armar, esas tarjetas salen del tablero: es lo que impide que un
+      // pedido quede en una ruta y en el tablero a la vez.
       final zonaId = sinQuery.substring(
         '/board/columns/'.length,
         sinQuery.length - '/route'.length,
@@ -273,17 +303,75 @@ class ServidorDeLosDosLados {
         for (final e in puestas.entries)
           if (e.value.columnaId == zonaId) e.key,
       ]..sort((a, b) => puestas[a]!.posicion.compareTo(puestas[b]!.posicion));
-      if (dentro.isEmpty) {
+
+      final crudo = cuerpo['pedidoIds'] ?? cuerpo['orderIds'];
+      final elegidos = crudo is List ? crudo.cast<String>() : null;
+      // Un `"pedidoIds": []` es un aparato diciendo que no eligió nada: cuerpo
+      // mal formado, no una orden de armar con todo lo que haya.
+      if (elegidos != null && elegidos.isEmpty) {
+        return no('La lista de pedidos vino vacía');
+      }
+
+      final descartados = <Object?>[];
+      Map<String, Object?> descarte(
+        String pedidoId,
+        String motivo,
+        String queHacer,
+      ) => <String, Object?>{
+        'pedidoId': pedidoId,
+        'operationNumber': folios[pedidoId],
+        'customerName': clientes[pedidoId] ?? '',
+        'motivo': motivo,
+        'queHacer': queHacer,
+      };
+
+      final van = <String>[];
+      if (elegidos == null) {
+        van.addAll(dentro);
+      } else {
+        for (final pedidoId in dentro) {
+          if (elegidos.contains(pedidoId)) {
+            van.add(pedidoId);
+          } else {
+            // Llegó a la zona DESPUÉS de que el aparato armara. No sube a ese
+            // camión: nadie lo cargó. Se queda en la zona y se dice.
+            descartados.add(
+              descarte(
+                pedidoId,
+                'lo pusieron en la zona después de que armaras',
+                'No iba en tu camión, así que no ha subido. Se queda en la '
+                    'zona: arma otra vez si tiene que salir hoy.',
+              ),
+            );
+          }
+        }
+        // Y lo que él eligió y ya no está puesto aquí. ÉSE es el que su
+        // repartidor puede llevar entregado.
+        for (final pedidoId in elegidos) {
+          if (dentro.contains(pedidoId)) continue;
+          descartados.add(
+            descarte(
+              pedidoId,
+              'ya no estaba en esa zona cuando llegó tu apunte',
+              'Se movió o se quitó de la zona mientras tu aparato estaba sin '
+                  'señal. NO ha subido a este camión: comprueba si se entregó '
+                  'igual y míralo antes de que salga en otra ruta.',
+            ),
+          );
+        }
+      }
+
+      if (van.isEmpty) {
         return no(
           'La columna no tiene ningún pedido que se pueda repartir hoy',
         );
       }
       final rutaId = 'ruta-servidor-${++_cuantasRutas}';
-      rutas[rutaId] = dentro;
-      for (final pedidoId in dentro) {
+      rutas[rutaId] = van;
+      for (final pedidoId in van) {
         puestas.remove(pedidoId);
       }
-      return si(rutaId);
+      return si(rutaId, descartados);
     }
 
     if (metodo == 'POST' && sinQuery.endsWith('/results')) {

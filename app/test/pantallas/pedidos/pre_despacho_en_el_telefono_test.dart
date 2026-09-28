@@ -262,7 +262,7 @@ void main() {
       final resumen = resumenDelPreDespacho(sinPeso);
       expect(
         resumen,
-        '3 producto(s) · 2226 empaques · sin peso en los pedidos',
+        '3 productos · 2226 empaques · sin peso en los pedidos',
         reason:
             'El texto del 22/09/2026 se queda: nada de «0.0 kg» cuando falta '
             'algún producto por emparejar.',
@@ -557,11 +557,11 @@ void main() {
       // saliera «29835.4 kg» a secas, el `≥` de dentro llega tarde.
       expect(
         resumenDelPreDespacho(aMedias),
-        '2 producto(s) · 5929 empaques · ≥ 26331.5 kg (21 renglones sin peso)',
+        '2 productos · 5929 empaques · ≥ 26331.5 kg (21 renglones sin peso)',
       );
       expect(
         resumenDelPreDespacho(sinPeso),
-        '3 producto(s) · 2226 empaques · sin peso en los pedidos',
+        '3 productos · 2226 empaques · sin peso en los pedidos',
       );
     });
   });

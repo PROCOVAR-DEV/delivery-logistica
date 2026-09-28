@@ -76,10 +76,12 @@ class LineaPreDespacho {
   /// para que lo que salga sea `≥ 600` y no un total de sólo algunas.
   final double? unidades;
 
-  /// **El peso que manda Ventra en cada renglón** (`peso_linea_kg`), sumado por
-  /// producto. Salía del catálogo —`empaques × products.weight`— y por eso la
-  /// columna estaba en blanco: el catálogo local no trae el peso de nadie,
-  /// mientras que 7.650 de las 7.738 líneas de producción sí lo traen.
+  /// **El peso que el servidor resolvió para cada renglón** (`peso_linea_kg`),
+  /// sumado por producto. Salía del catálogo local —`empaques ×
+  /// products.weight`— y por eso la columna estaba en blanco: ese catálogo no
+  /// trae el peso de nadie, mientras que 7.650 de las 7.738 líneas de
+  /// producción sí lo traen. La cascada que lo resuelve es UNA y está en
+  /// `PesosDeRenglones` (`api/internal/cotizar/pesos.go`); aquí sólo se suma.
   ///
   /// Es la suma de las líneas que SÍ lo traen, y [lineasSinPeso] dice cuántas
   /// no: por eso la columna lo pinta con un `≥` delante mientras ese contador
@@ -194,15 +196,30 @@ class Facetas {
   final List<OpcionFaceta> vendedores;
 }
 
-/// Un renglon del pedido con su peso ya resuelto: el que mando el servidor si
-/// lo trae, y si no el del catalogo local.
+/// Un renglon del pedido con su peso YA RESUELTO POR EL SERVIDOR.
+///
+/// ## EL PESO SE RESUELVE UNA VEZ, Y NO ES AQUI — 28/09/2026
+///
+/// Aqui habia una cascada de tres escalones, y otra igual en el pre-despacho, y
+/// la de verdad en `PesosDeRenglones` (`api/internal/cotizar/pesos.go`, §2.1 de
+/// `reglas-negocio.md`). TRES sitios contestando la misma pregunta. Jose: «era
+/// mas facil ponerlo en el api y ya q lo consuman».
+///
+/// Y el proyecto ya estaba hecho asi: la 00004 añadio `peso_linea_kg`
+/// «precisamente para no tener que recalcular el peso con el catalogo de hoy
+/// sobre un pedido de hace tres meses». Los tres sitios no eran el diseño: eran
+/// una desviacion suya, y por eso se desincronizaron — ese mismo dia la ficha
+/// decia «40,0 kg» y la hoja del almacen ponia «—» sobre los mismos veinte
+/// empaques.
+///
+/// Asi que el aparato **lee y no calcula**: `peso_linea_kg` es la respuesta, y
+/// el servidor ya guardo en `origen_peso` de que escalon salio. El trabajo sin
+/// conexion no pierde nada: el numero resuelto baja en la misma columna que ya
+/// bajaba y se lee de la base local con señal o sin ella.
 class RenglonConPeso {
-  const RenglonConPeso(this.renglon, this.kgPorEmpaque, {this.pesoDelRenglon});
+  const RenglonConPeso(this.renglon);
 
   final RenglonPedido renglon;
-
-  /// `null` = **sin peso**, que en la ficha se dice con esas palabras.
-  final double? kgPorEmpaque;
 
   /// Los empaques de la linea: sus `packs` y si no los trae sus `quantity`,
   /// nunca cero (`reglas-negocio.md` §12).
@@ -212,19 +229,25 @@ class RenglonConPeso {
     return renglon.quantity;
   }
 
-  /// El peso de la LINEA tal como lo mando el servidor, cuando lo mando.
+  /// El peso de la LINEA, tal como lo resolvio el servidor.
   ///
-  /// Se prefiere a multiplicar [kgPorEmpaque] por [empaques] porque es el que se
-  /// facturo: si alguna vez los dos no cuadran, el bueno es este.
-  final double? pesoDelRenglon;
-
-  double? get pesoLinea {
-    final delRenglon = pesoDelRenglon;
-    if (delRenglon != null) return delRenglon;
-    final kg = kgPorEmpaque;
-    return kg == null ? null : kg * empaques;
-  }
+  /// `null` = **sin peso**, y la ficha lo dice con esas palabras. Es la MISMA
+  /// lectura que hace el pre-despacho (`_pesoDeLaLinea`), y que las dos
+  /// contesten igual lo ata
+  /// `test/pantallas/pedidos/el_peso_del_pre_despacho_cambia_de_sucursal_test.dart`.
+  double? get pesoLinea => soloSiPesa(renglon.pesoLineaKg);
 }
+
+/// UN CERO NO ES UN PESO: devuelve el numero solo si es mayor que cero, y nulo
+/// en cualquier otro caso.
+///
+/// Es el `Positivo()` del servidor (`api/internal/cotizar/pesos.go`) escrito en
+/// Dart, y sigue haciendo falta aunque el servidor no escriba ceros: los
+/// renglones que dejo la migracion del delivery viejo (`db/migracion/02_pedidos.sql`)
+/// copian `pesoLineaKg` del JSON tal cual, cero incluido. Sin esto la celda dice
+/// «0,0 kg» sobre un renglon que no se sabe lo que pesa, y un cero se suma, se
+/// ordena y se lee como «no pesa nada».
+double? soloSiPesa(double? kg) => kg != null && kg > 0 ? kg : null;
 
 /// El pedido con todo lo que la ficha necesita, en una sola lectura.
 class DetallePedido {
@@ -368,6 +391,52 @@ class ConsultasPedidos {
         );
     }
 
+    // ACOTAR POR LA FECHA DE ENTREGA, que NO es la del pedido — 28/09/2026.
+    //
+    // Los nueve filtros que había no podían expresar «entregados hoy»:
+    // `reparto=entregado` es todo lo entregado alguna vez, sin ventana, y
+    // `desde`/`hasta` acotan por la fecha DEL PEDIDO. El pedido de la queja lo
+    // demuestra: `POR26-260925-3700` es del día 25 y se entregó el 28, así que
+    // «del 28 al 28» lo dejaba fuera.
+    //
+    // Sale de que Jose no pudiera ver QUÉ se había entregado: «me dice q
+    // entregado uno y en hsitorial me sale vacio eso q se entrego». El contador
+    // del Panel enlaza aquí.
+    final entregadoDesde = f.entregadoDesde;
+    if (entregadoDesde != null) {
+      // Un `delivered_at` NULO no entra: en SQL la comparación contra NULL da
+      // NULL y NULL no cuadra. Es lo que se quiere —«entregado desde el 28» no
+      // puede incluir lo que no se ha entregado— y es lo mismo que hace el
+      // contador del Panel, que pide `delivered_at IS NOT NULL` aparte.
+      anadir(
+        o.deliveredAt.isBiggerOrEqualValue(
+          DateTime(
+            entregadoDesde.year,
+            entregadoDesde.month,
+            entregadoDesde.day,
+          ),
+        ),
+      );
+    }
+    final entregadoHasta = f.entregadoHasta;
+    if (entregadoHasta != null) {
+      // El día entero, como el otro rango: sin esto, «entregado del 28 al 28»
+      // no devuelve nada y se lee como «ese día no se entregó nada».
+      anadir(
+        o.deliveredAt.isSmallerOrEqualValue(
+          DateTime(
+            entregadoHasta.year,
+            entregadoHasta.month,
+            entregadoHasta.day,
+            23,
+            59,
+            59,
+            999,
+          ),
+        ),
+      );
+    }
+
     final rango = _rangoDeFechas(f);
     if (rango != null) {
       final (desde, hasta) = rango;
@@ -443,37 +512,24 @@ class ConsultasPedidos {
     return consulta.watch();
   }
 
-  /// Los renglones de unos pedidos, con el peso por empaque resuelto contra el
-  /// catalogo de productos.
+  /// Los renglones de unos pedidos, con el peso que resolvio el SERVIDOR.
+  ///
+  /// Aqui habia un `leftOuterJoin` contra el catalogo local para rehacer la
+  /// cascada del peso. Fuera: la cascada es una y vive en
+  /// `PesosDeRenglones` (`api/internal/cotizar/pesos.go`). Ver [RenglonConPeso].
   Future<Map<String, List<RenglonConPeso>>> renglonesDe(
     List<String> pedidoIds,
   ) async {
     if (pedidoIds.isEmpty) return const {};
-    final consulta = _base.select(_base.orderItems).join([
-      leftOuterJoin(
-        _base.products,
-        _base.products.id.equalsExp(_base.orderItems.productId),
-      ),
-    ])..where(_base.orderItems.orderId.isIn(pedidoIds));
-    consulta.orderBy([OrderingTerm.asc(_base.orderItems.linea)]);
+    final consulta = _base.select(_base.orderItems)
+      ..where((r) => r.orderId.isIn(pedidoIds))
+      ..orderBy([(r) => OrderingTerm.asc(r.linea)]);
 
-    final filas = await consulta.get();
     final porPedido = <String, List<RenglonConPeso>>{};
-    for (final fila in filas) {
-      final renglon = fila.readTable(_base.orderItems);
-      final producto = fila.readTableOrNull(_base.products);
+    for (final renglon in await consulta.get()) {
       porPedido
           .putIfAbsent(renglon.orderId, () => <RenglonConPeso>[])
-          // EL PESO DEL RENGLON MANDA SOBRE EL DEL CATALOGO, y el catalogo solo
-          // se usa cuando el renglon no lo trae.
-          //
-          // Es el de cuando se facturo, que es lo que sube al camion. Antes solo
-          // se miraba el catalogo de hoy, y un producto que ya no esta en el de
-          // esa sucursal salia «sin peso»: la ficha decia eso en un renglon con
-          // 72,6 kg en el total, y el pre-despacho —la hoja de cargar— salia con
-          // las catorce filas en raya sobre 7.446 empaques.
-          .add(RenglonConPeso(renglon, renglon.pesoKg ?? producto?.weight,
-              pesoDelRenglon: renglon.pesoLineaKg));
+          .add(RenglonConPeso(renglon));
     }
     return porPedido;
   }
@@ -516,28 +572,48 @@ class ConsultasPedidos {
     orElse: _base.orderItems.quantity,
   );
 
-  /// **EL PESO DE UNA LINEA: primero el del PEDIDO, y el catalogo de respaldo**
-  /// — 28/09/2026.
+  /// **EL PESO DE UNA LINEA: EL QUE RESOLVIO EL SERVIDOR, Y NADA MAS** —
+  /// 28/09/2026.
   ///
-  /// Esto salia solo del catalogo (`kg por empaque × empaques`) y por eso la
-  /// columna `kg` de la hoja estaba entera en blanco: el catalogo local no trae
-  /// el peso de **ningun** producto. Jose, viendo el pre-despacho: «sigo sin ver
-  /// peso y sin ver unidades». Una columna que nunca sale no es una cautela.
+  /// ## AQUI HABIA UNA CASCADA, Y ERA LA TERCERA COPIA DE LA MISMA
   ///
-  /// Y el dato estaba, en el sitio que manda: Ventra lo pone en cada renglon del
-  /// pedido. 7.650 de las 7.738 lineas de produccion traen `peso_linea_kg`, y
-  /// cuadra al centimo con `empaques × peso_unitario_kg` en las 7.650 — o sea
-  /// que `pesoKg` es **por empaque**, no por unidad, y `pesoLineaKg` ya trae la
-  /// multiplicacion hecha.
+  /// Esto miraba `peso_linea_kg`, luego `peso_kg × empaques` y luego el catalogo
+  /// local. La ficha del pedido hacia lo mismo por su cuenta, y la de verdad
+  /// estaba en el servidor: `PesosDeRenglones`
+  /// (`api/internal/cotizar/pesos.go`, §2.1 de `reglas-negocio.md`). Tres sitios
+  /// para una sola pregunta, y por eso se separaron — la ficha decia «40,0 kg»
+  /// y esta hoja ponia «—» sobre los mismos veinte empaques.
   ///
-  /// El catalogo se queda **de respaldo y por linea**, que es distinto de
-  /// mezclar: cada linea aporta su peso de verdad o el que sepa el catalogo de
-  /// SU producto, y ninguna aporta el de otra. Lo que sigue prohibido es sumar
-  /// unas y callar las que faltan — de eso se encarga el contador de abajo.
-  Expression<double> get _pesoDeLaLinea => coalesce([
-    _base.orderItems.pesoLineaKg,
-    _empaquesDeLaLinea * _base.products.weight,
-  ]);
+  /// Jose, el mismo dia: «era mas facil ponerlo en el api y ya q lo consuman una
+  /// cada uno». Y el proyecto ya estaba hecho asi desde la 00004, que añadio
+  /// estas columnas «precisamente para no tener que recalcular el peso con el
+  /// catalogo de hoy sobre un pedido de hace tres meses».
+  ///
+  /// El servidor resuelve los cuatro escalones —la linea, el empaque por los
+  /// empaques, el peso escrito a mano y el catalogo— y escribe el resultado en
+  /// `peso_linea_kg`, con `origen_peso` al lado diciendo de cual salio. Aqui se
+  /// lee. Nada mas.
+  ///
+  /// EL CATALOGO LOCAL NO SE PIERDE PORQUE NUNCA ESTUVO: no trae el peso de
+  /// NINGUN producto en produccion, que es justamente por lo que la columna `kg`
+  /// salia entera en blanco antes del 28/09.
+  ///
+  /// Y SIGUE EXIGIENDO UN NUMERO POSITIVO, con `_siPesa`: el servidor no escribe
+  /// ceros —deja la columna vacia— pero los renglones que dejo la migracion del
+  /// delivery viejo (`api/db/migracion/02_pedidos.sql`) copian el JSON tal cual,
+  /// cero incluido. Un `0.0 kg` en la hoja del almacen se lee como «no pesa»: es
+  /// el cero creible del §3, y aqui no entra.
+  Expression<double> get _pesoDeLaLinea =>
+      _siPesa(_base.orderItems.pesoLineaKg);
+
+  /// Vale si el numero es MAYOR QUE CERO; si no, nulo. Nulo aqui no es «pesa
+  /// cero»: es «no se sabe», y es lo que cuenta el contador de «sin peso».
+  Expression<double> _siPesa(Expression<double> kg) =>
+      CaseWhenExpression<double>(
+        cases: <CaseWhen<bool, double>>[
+          CaseWhen(kg.isBiggerThanValue(0), then: kg),
+        ],
+      );
 
   /// **LAS UNIDADES DE UNA LINEA: su `quantity`, si es de fiar.**
   ///

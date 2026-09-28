@@ -51,6 +51,42 @@ import 'modelos.dart';
 /// estaban montadas en `api/internal/api/tablero.go`, y la web ya se autentica
 /// contra `/api/*` con la cookie de Accesos (`nucleo/red/escritura_en_vivo.dart`
 /// lo cuenta entero).
+/// QUIÉN SE CAYÓ Y POR QUÉ, NOMBRADO, venga en un «no» o en un «sí».
+///
+/// Se sacó aquí fuera el 28/09/2026 porque **hacía falta en los dos sitios y sólo
+/// estaba en uno**. El servidor manda `descartados` en el 409 de una zona que no
+/// se puede armar —eso ya se leía— y **también en el 201 de una que sí se armó
+/// pero dejando tarjetas fuera**, y ese segundo se tiraba entero.
+///
+/// El daño: en la web la ruta salía con menos pedidos de los que el logístico
+/// puso, con un «Ruta armada» verde encima y sin una palabra de quién faltaba.
+/// En la APK ya se avisa desde hoy (va al cajón de entregar el día); aquí no.
+/// Es el §4: nada se descarta en silencio, y se dice **qué se rompe sin ello**.
+///
+/// Devuelve una línea por descartado, `folio · cliente: motivo`. Vacía cuando no
+/// se cayó nadie, que es lo normal y no se enseña — un aviso que sale siempre
+/// deja de leerse (§3-quinquies).
+List<String> descartadosDeLaRespuesta(Object? cuerpo) {
+  if (cuerpo is! Map<Object?, Object?>) return const [];
+  final crudos = cuerpo['descartados'];
+  if (crudos is! List) return const [];
+  final detalles = <String>[];
+  for (final d in crudos) {
+    if (d is! Map<Object?, Object?>) continue;
+    final quien = d['operationNumber'] ?? d['pedidoId'];
+    final cliente = d['customerName'];
+    final motivo = d['motivo'];
+    detalles.add(
+      [
+            if (quien is String && quien.isNotEmpty) quien,
+            if (cliente is String && cliente.isNotEmpty) cliente,
+          ].join(' · ') +
+          (motivo is String && motivo.isNotEmpty ? ': $motivo' : ''),
+    );
+  }
+  return detalles;
+}
+
 class RepositorioTablero {
   RepositorioTablero(
     this._base,
@@ -120,23 +156,7 @@ class RepositorioTablero {
     if (cuerpo is! Map<Object?, Object?>) return RechazoDelTablero(no.motivo);
 
     final cuantos = cuerpo['pedidos'];
-    final crudos = cuerpo['descartados'];
-    final detalles = <String>[];
-    if (crudos is List) {
-      for (final d in crudos) {
-        if (d is! Map<Object?, Object?>) continue;
-        final quien = d['operationNumber'] ?? d['pedidoId'];
-        final cliente = d['customerName'];
-        final motivo = d['motivo'];
-        detalles.add(
-          [
-            if (quien is String && quien.isNotEmpty) quien,
-            if (cliente is String && cliente.isNotEmpty) cliente,
-          ].join(' · ') +
-              (motivo is String && motivo.isNotEmpty ? ': $motivo' : ''),
-        );
-      }
-    }
+    final detalles = descartadosDeLaRespuesta(cuerpo);
     return RechazoDelTablero(
       no.motivo,
       pedidos: cuantos is num ? cuantos.toInt() : null,
@@ -602,6 +622,19 @@ class RepositorioTablero {
     required AlmacenOrigen origen,
     required String sucursalId,
     String? nombre,
+    /// QUIÉN SE QUEDÓ FUERA, cuando el servidor arma la ruta y deja tarjetas
+    /// atrás — 28/09/2026.
+    ///
+    /// Entra por aquí y no por el valor de vuelta a propósito: el valor de
+    /// vuelta es el id de la ruta y lo usan siete sitios, así que cambiarlo
+    /// obliga a tocarlos todos para un dato que sólo le interesa a uno. Y va
+    /// opcional porque **en la APK no hace falta**: allí el apunte sube horas
+    /// después, con esta pantalla cerrada, y el aviso vive en el cajón de
+    /// entregar el día.
+    ///
+    /// Sólo se llama **cuando de verdad se cayó alguien**: un aviso que sale
+    /// siempre deja de leerse (§3-quinquies).
+    void Function(List<String> descartados)? alDejarFuera,
   }) async {
     await _listo();
     final consultas = ConsultasTablero(_base);
@@ -739,8 +772,39 @@ class RepositorioTablero {
       // Va la del APARATO y no la de alla: un apunte hecho sin señal llega
       // horas despues, y la ruta se armo el dia que la armo el logistico, no el
       // dia en que el servidor se entero. Misma razon por la que viajan los
-      // `pedidoIds`.
+      // `pedidoIds` de aqui abajo.
       'deliveryDate': _reloj().toIso8601String(),
+      // LOS PEDIDOS QUE ESTE APARATO ELIGIO. VIAJAN — 28/09/2026.
+      //
+      // ## Este comentario mintio, y por eso se arregla con una prueba
+      //
+      // Justo aqui arriba ponia «misma razon por la que viajan los
+      // `pedidoIds`», y NO viajaban: el cuerpo eran cuatro campos y ninguno era
+      // la lista. El servidor la esperaba desde el 18/09 con su porque escrito
+      // largo (`api/internal/api/tablero.go`, `cuerpoArmar.PedidoIds`), y este
+      // lado nunca la mando. Un comentario no falla, asi que lo que ata esto es
+      // `app/test/pantallas/tablero/la_lista_de_pedidos_viaja_test.dart`.
+      //
+      // ## Que se rompia sin ella
+      //
+      // Sin la lista el servidor arma la zona con **lo que EL tenga puesto ahi
+      // en el instante en que le llega el apunte**, y un apunte hecho sin señal
+      // llega horas despues. Los dos lados del daño, los dos vistos:
+      //
+      //  · sobra uno — la web coloco una tarjeta en esa zona mientras el
+      //    aparato estaba sin señal. Sube a la ruta del servidor un pedido que
+      //    **no va en ese camion**, porque nadie lo cargo.
+      //  · falta uno — se movio o se lo llevo otra ruta. El servidor arma con
+      //    los que queden, devuelve SU peso, y la bajada lo escribe encima del
+      //    que calculo el aparato: cabecera con el peso de uno y paradas con
+      //    los dos, que es lo que se vio el 28/09/2026 (516,5 kg contra uno).
+      //
+      // Con la lista, el servidor arma EXACTAMENTE esto y nombra las dos
+      // diferencias en `descartados` en vez de callarlas.
+      //
+      // Va `buenos` y no `puestas`: lo que no es repartible ya se quedo fuera
+      // aqui arriba, con su motivo, y no sube a ningun camion.
+      'pedidoIds': [for (final t in buenos) t.pedido.pedidoId],
     };
 
     // EN LA WEB LA RUTA LA CREA EL SERVIDOR, Y SU ID ES EL BUENO.
@@ -762,6 +826,12 @@ class RepositorioTablero {
         ruta: '/board/columns/$columnaId/route',
         cuerpo: cuerpo,
       );
+      // LOS DESCARTADOS DE UN «SÍ» TAMBIÉN SE DICEN. El 409 ya se leía; éste se
+      // tiraba entero, así que en la web la ruta salía con menos pedidos de los
+      // que se pusieron, con un «Ruta armada» verde encima. §4.
+      final fuera = descartadosDeLaRespuesta(respuesta);
+      if (fuera.isNotEmpty) alDejarFuera?.call(fuera);
+
       final id = respuesta is Map<Object?, Object?> ? respuesta['id'] : null;
       if (id is! String || id.isEmpty) {
         // Dijo que si y no dijo cual. No se inventa un id: dar la ruta por

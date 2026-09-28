@@ -65,6 +65,8 @@ class _CajonDeEntregarElDiaState extends ConsumerState<_CajonDeEntregarElDia> {
     final entrego = ref.watch(entregarElDiaProvider);
     final pendientes = ref.watch(sinSubirProvider).value ?? 0;
     final rechazados = ref.watch(rechazadosProvider).value ?? const <Apunte>[];
+    final descartados =
+        ref.watch(descartadosProvider).value ?? const <Apunte>[];
     final huerfano =
         ref.watch(trabajoHuerfanoProvider).value ?? const <TrabajoHuerfano>[];
 
@@ -98,6 +100,20 @@ class _CajonDeEntregarElDiaState extends ConsumerState<_CajonDeEntregarElDia> {
           if (huerfano.hayAlguno) ...[
             const SizedBox(height: Aire.md),
             _SoloEnEsteAparato(huerfano: huerfano),
+          ],
+          // LO QUE SUBIO Y SALIO CON MENOS DE LO QUE SE PUSO.
+          //
+          // Va aqui, entre el resultado y la bandeja, porque es lo mismo que
+          // los dos y no es ninguno: subio —asi que «Todo entregado» no
+          // miente— y aun asi falta trabajo por mirar. El apunte pudo entrar
+          // horas despues con la pantalla cerrada, asi que el aviso tiene que
+          // esperar aqui hasta que alguien lo lea.
+          //
+          // Cuando no hay ninguno no ocupa un pixel: un aviso que sale en cada
+          // armado deja de leerse (§3-quinquies).
+          if (descartados.isNotEmpty) ...[
+            const SizedBox(height: Aire.md),
+            _NoSubioTodoAlCamion(descartados: descartados),
           ],
           const SizedBox(height: Aire.xl),
           // LA BANDEJA, SIEMPRE. Tambien con cero dentro: que se vea vacia es lo
@@ -533,6 +549,101 @@ class _SoloEnEsteAparato extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// LO QUE SUBIO BIEN Y AUN ASI DEJO PEDIDOS FUERA.
+///
+/// ## Por que esto se ensena aqui y no en el Tablero
+///
+/// El caso que lo origina es **la APK sin señal**: se arma la zona a las ocho
+/// de la mañana, el apunte sube a las cuatro de la tarde y para entonces la
+/// pantalla del Tablero hace horas que se cerro. Un aviso que se pinte al armar
+/// no lo ve nadie, porque cuando se sabe la respuesta ya no hay nadie delante.
+///
+/// Asi que vive donde ya viven las otras dos preguntas de «¿que me falta por
+/// entregar?» —el «N sin subir» y la bandeja de rechazos—, que es el sitio al
+/// que se va justamente a comprobar que el dia salio entero, y espera ahi hasta
+/// que alguien lo da por leido. Y para que nadie tenga que acordarse de abrir
+/// el cajon, la franja de estado —que esta en las siete pantallas— dice en
+/// ambar que hay algo que mirar y lleva aqui (`navegacion/franja_de_estado.dart`).
+///
+/// **No se ofrece «reintentar»** y ahi esta la diferencia con la bandeja: el
+/// apunte se aplico de verdad, la ruta existe arriba, y volver a mandarlo
+/// armaria una SEGUNDA ruta con el mismo camion.
+class _NoSubioTodoAlCamion extends ConsumerWidget {
+  const _NoSubioTodoAlCamion({required this.descartados});
+
+  final List<Apunte> descartados;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tema = Theme.of(context);
+    final formato = DateFormat('d/M/y, H:mm', 'es');
+    return Container(
+      padding: const EdgeInsets.all(Aire.lg),
+      decoration: BoxDecoration(
+        color: Colores.ambarFondo,
+        borderRadius: BorderRadius.circular(Radios.lg),
+        border: Border.all(color: Colores.ambar.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.local_shipping_outlined,
+                size: 22,
+                color: Colores.ambar,
+              ),
+              const SizedBox(width: Aire.sm),
+              Expanded(
+                child: Text(
+                  TextosDeEntregarElDia.noSubioTodo,
+                  style: Tipos.texto(
+                    tamano: 17,
+                    peso: FontWeight.w700,
+                    color: Colores.ambar,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            TextosDeEntregarElDia.noSubioTodoDetalle,
+            style: tema.textTheme.bodyMedium,
+          ),
+          for (final a in descartados) ...[
+            const SizedBox(height: Aire.md),
+            // EL MOTIVO LITERAL DEL SERVIDOR, con el pedido nombrado y que
+            // hacer. Se pinta entero: es lo unico que le dice a alguien si esa
+            // entrega hay que ir a buscarla.
+            Text(a.motivo ?? '', style: tema.textTheme.bodyMedium),
+            const SizedBox(height: 4),
+            Text(
+              'armado ${formato.format(a.hechoAt)}'
+              '${a.resueltoAt == null ? '' : ' · subió ${formato.format(a.resueltoAt!)}'}',
+              style: tema.textTheme.bodySmall?.copyWith(
+                color: Colores.tintaSuave,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => unawaited(
+                  ref.read(colaProvider).darPorLeidoElDescarte(a.clave),
+                ),
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text(TextosDeEntregarElDia.noSubioTodoLeido),
+              ),
+            ),
+          ],
         ],
       ),
     );

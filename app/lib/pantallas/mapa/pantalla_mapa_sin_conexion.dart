@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../diseno/colores.dart';
+import '../../diseno/tema.dart' show BotonPrincipal;
 import '../../mapa/anuncio_de_mapa.dart';
 import '../../mapa/descarga_de_mapa.dart';
 import '../../mapa/proveedores_de_mapa.dart';
@@ -271,13 +272,14 @@ class _PantallaMapaSinConexionState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            FilledButton(
+            BotonPrincipal(
               key: claveDeBajar(n.nivel),
+              icono: Icons.download_outlined,
+              // EL TAMAÑO VA EN EL BOTÓN.
+              texto: TextosDelMapaGuardado.bajar(n),
               // Se apaga mientras hay otra descarga en marcha: dos a la vez por
               // esta conexión es no terminar ninguna.
-              onPressed: _comoVa != null ? null : () => _bajar(n),
-              // EL TAMAÑO VA EN EL BOTÓN.
-              child: Text(TextosDelMapaGuardado.bajar(n)),
+              alPulsar: _comoVa != null ? null : () => _bajar(n),
             ),
             const SizedBox(height: 4),
             Text(n.explicacion, style: const TextStyle(fontSize: 11)),

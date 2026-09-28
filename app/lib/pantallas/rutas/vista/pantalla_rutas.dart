@@ -327,10 +327,16 @@ class _CabeceraDeLaLista extends StatelessWidget {
         // El reloj de datos de las colecciones de esta pantalla. La franja del
         // armazon da la frescura global; esta da la de lo que se esta mirando.
         const reloj = BarraDeDatos(colecciones: ColeccionesDePantalla.rutas);
-        final boton = FilledButton(
-          onPressed: () =>
+        // EL GLIFO ES EL DE UNA RUTA Y NO UN `+`, aunque la accion sea crear:
+        // el rotulo del pliego ya empieza por `+` («+ Nueva Ruta», y se conserva
+        // letra a letra), asi que un `Icons.add` al lado seria el mismo signo
+        // dos veces y el boton no diria de que es la ruta. Es el mismo glifo con
+        // el que el tablero arma la ruta de una zona.
+        final boton = BotonPrincipal(
+          icono: Icons.route_outlined,
+          texto: '+ Nueva Ruta',
+          alPulsar: () =>
               abrirCajon<void>(context, (_) => const AsistenteNuevaRuta()),
-          child: const Text('+ Nueva Ruta'),
         );
 
         if (estrecho) {

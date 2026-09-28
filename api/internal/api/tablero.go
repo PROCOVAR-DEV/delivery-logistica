@@ -1259,9 +1259,11 @@ type cuerpoArmar struct {
 	FechaDeEntrega httpx.Opcional[string] `json:"deliveryDate"`
 
 	// LOS PEDIDOS QUE EL APARATO DECIDIÓ QUE IBAN EN ESA RUTA. Opcional, y así tiene que
-	// seguir: las APK ya instaladas NO lo mandan (`app/lib/pantallas/tablero/datos/
-	// repositorio.dart`, `armarRuta`, encola sólo nombre, vehículo y optimizar), y si
-	// esto se volviera obligatorio dejarían de poder armar rutas de golpe.
+	// seguir: la aplicación lo manda **desde el 28/09/2026** (`app/lib/pantallas/tablero/
+	// datos/repositorio.dart`, `armarRuta`), y hasta ese día no lo mandaba nadie aunque
+	// esto llevara escrito desde el 18/09 por qué hace falta. Las APK instaladas antes de
+	// esa versión siguen sin mandarlo, y si esto se volviera obligatorio dejarían de poder
+	// armar rutas de golpe.
 	//
 	// POR QUÉ HACE FALTA, que es el fallo del 18/09/2026 y es grave:
 	//

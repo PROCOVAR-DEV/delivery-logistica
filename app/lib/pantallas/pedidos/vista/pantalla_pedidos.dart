@@ -446,6 +446,28 @@ class _BarraDeFiltros extends ConsumerWidget {
             const _PreDespachoDeLoFiltrado(),
           ],
         ),
+        // EL RANGO DE LA ENTREGA, **sólo cuando está puesto**.
+        //
+        // Se pone desde «Entregados hoy» del Panel, no desde aquí, y por eso no
+        // ocupa sitio el resto del tiempo: a 390 px el comentario de arriba ya
+        // cuenta lo que pasa cuando esta barra crece —seis o siete filas de
+        // filtros antes de ver un solo pedido—, y una fila fija más por un
+        // filtro que casi nadie pone a mano es justo eso.
+        //
+        // Pero cuando está puesto tiene que **verse y poder quitarse**: la lista
+        // está acotada por él y nada más lo diría. Es la regla de siempre —nada
+        // se descarta ni se acota en silencio (`CLAUDE.md` §4)—, y la ✕ de
+        // `RangoDeFechas` es la salida.
+        if (filtros.entregadoDesde != null || filtros.entregadoHasta != null)
+          RangoDeFechas(
+            key: const ValueKey('rango-de-la-entrega'),
+            desde: filtros.entregadoDesde,
+            hasta: filtros.entregadoHasta,
+            tituloDesde: 'Entregado desde',
+            tituloHasta: 'Entregado hasta',
+            hoy: ref.watch(relojProvider)(),
+            alCambiar: notas.ponerFechasDeEntrega,
+          ),
       ],
     );
   }
@@ -520,7 +542,8 @@ void verEImprimirPreDespacho(
       // título no había forma de saber cuál se estaba mirando.
       titulo: PreDespacho.tituloDeLaHoja,
       subtitulo:
-          '${totales.pedidos} pedido(s) · '
+          '${totales.pedidos} '
+          '${totales.pedidos == 1 ? 'pedido' : 'pedidos'} · '
           '${totales.pesoDeLosPedidos.toStringAsFixed(1)} kg',
       ancho: AnchoCajon.xl,
       // La vista previa quiere todo el alto que le den, y el cuerpo del cajon

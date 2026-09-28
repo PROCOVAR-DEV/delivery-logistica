@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"procovar/reparto-api/internal/alcance"
+	"procovar/reparto-api/internal/espejo"
 	"procovar/reparto-api/internal/httpx"
 )
 
@@ -69,6 +71,17 @@ func aTexto(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// limpioOpcional quita la comilla de Excel de un campo que puede no venir, dejando el
+// `nil` como está: «no vino» y «vino vacío» siguen siendo dos cosas (§4). La regla y su
+// porqué, en [espejo.SinLaComillaDeExcel].
+func limpioOpcional(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	limpio := espejo.SinLaComillaDeExcel(strings.TrimSpace(*s))
+	return &limpio
 }
 
 // pgDe es lo contrario de idOpcional: un uuid nuestro en el tipo que espera sqlc.

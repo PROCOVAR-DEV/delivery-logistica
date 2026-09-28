@@ -238,9 +238,14 @@ class _CajonMandarAlTableroState extends ConsumerState<CajonMandarAlTablero> {
         onPressed: _trabajando ? null : () => Navigator.of(context).maybePop(),
         child: const Text('Cancelar'),
       ),
-      ElevatedButton(
-        onPressed: _zonaElegida == null || _trabajando ? null : _mandar,
-        child: const Text(CajonMandarAlTablero.mandar),
+      // `ElevatedButton` Y NO `FilledButton`, y da igual: los dos cuelgan del
+      // mismo nivel principal del tema (`diseno/tema.dart`, [Botones]). Por eso
+      // este tambien entra por [BotonPrincipal] — el agujero del icono era de
+      // los dos, no solo del relleno.
+      BotonPrincipal(
+        icono: Icons.send_outlined,
+        texto: CajonMandarAlTablero.mandar,
+        alPulsar: _zonaElegida == null || _trabajando ? null : _mandar,
       ),
     ],
   );
@@ -248,9 +253,10 @@ class _CajonMandarAlTableroState extends ConsumerState<CajonMandarAlTablero> {
   Widget _piePasoTerminado() => Wrap(
     alignment: WrapAlignment.end,
     children: [
-      ElevatedButton(
-        onPressed: () => Navigator.of(context).maybePop(),
-        child: const Text('Cerrar'),
+      BotonPrincipal(
+        icono: Icons.close,
+        texto: 'Cerrar',
+        alPulsar: () => Navigator.of(context).maybePop(),
       ),
     ],
   );

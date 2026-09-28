@@ -128,6 +128,20 @@ cruzarlo aquí contra un catálogo propio es **tener el mismo dato dos veces y d
 coinciden: el domicilio se cobra por un peso que no es el nuestro.** El catálogo local queda como
 respaldo para pedidos antiguos y para el día que PEDIDO no traiga peso.
 
+**Y ESTA CASCADA SE CORRE UNA SOLA VEZ, AQUÍ — 28/09/2026.** Estuvo escrita tres veces: en
+`api/internal/cotizar/pesos.go`, en la ficha del pedido y en el pre-despacho de la aplicación. Los
+tres tenían que contestar lo mismo y no lo hacían —la ficha decía «40,0 kg» y la hoja del almacén
+ponía «—» sobre los mismos veinte empaques—. El resultado se escribe en `order_items.peso_linea_kg`
+con `origen_peso` al lado, viaja en `pesoLineaKg` y **la aplicación lo LEE**: no rehace la cuenta ni
+consulta su catálogo. Lo único que repite es la regla del cero —vacío o `<= 0` es «no se sabe», no
+«no pesa»—, y eso se ata con
+`app/test/pantallas/pedidos/el_peso_del_pre_despacho_cambia_de_sucursal_test.dart`.
+
+Corolario, y es lo que cambia al operar: **lo que no se resuelva aquí ya no lo salva nadie.** Un
+renglón que se escriba sin `peso_linea_kg` sale como «—» en la ficha, en la hoja del almacén y en el
+papel, y entra entero en el contador de «sin peso». Lo vigila
+`TestElPesoSeResuelveAntesDeEscribirLaFila` en `api/internal/api/cotizacion_alta_test.go`.
+
 ### 2.2 `weightFromItems(items, fallback, catalog?) -> number`
 - Si `items` no es array o está vacío → `fallback || 0`.
 - Si no → `total` de `computeItemsWeights`, **salvo que `total` no sea `> 0`**, en cuyo caso

@@ -451,3 +451,76 @@ func TestElAltaDejaAlAparatoEnElPanelDesdeElPrimerDia(t *testing.T) {
 		t.Fatalf("el que nunca subió va arriba: %+v", filas)
 	}
 }
+
+// LOS DESCARTADOS LLEGAN AL APARATO, Y SÓLO CUANDO LOS HAY — 28/09/2026.
+//
+// Un apunte puede aplicarse y **aun así dejar gente fuera**: armar una zona de doce
+// devuelve 201 con la ruta creada y, en el mismo cuerpo, quién se cayó y por qué
+// (`api/internal/api/tablero.go`, `DescartadoSalida`). Este servicio leía el `id` y tiraba
+// el resto, así que la ruta salía con nueve paradas y el teléfono no tenía forma de
+// saberlo — el §4 del reparto al revés, «nada se descarta en silencio».
+//
+// Las dos mitades van juntas a propósito (§3-quinquies del reparto): que llegue cuando se
+// cayó alguien, y que **NO llegue** cuando no se cayó nadie. Un aviso que sale en cada
+// armado deja de leerse, y entonces tampoco se lee el día que importa; y en una conexión
+// que se paga, un `"descartados": []` por apunte es peso a cambio de nada.
+func TestLosDescartadosLleganAlAparato(t *testing.T) {
+	b := montar(t)
+
+	const fuera = `[{"pedidoId":"0199a1b2-0000-7000-8000-00000000000a",` +
+		`"operationNumber":"X-2992","customerName":"Ana Pérez",` +
+		`"motivo":"ya no estaba en esa zona cuando llegó tu apunte",` +
+		`"queHacer":"comprueba si se entregó igual"}]`
+
+	b.aplicador.descarta = func(p Peticion) json.RawMessage {
+		if strings.HasSuffix(p.Ruta, "/route") {
+			return json.RawMessage(fuera)
+		}
+		return nil
+	}
+
+	w, salida := b.subir([]apunteEntrada{
+		{
+			Clave: "01J8DESC1", Hecho: enPunto(t, "2026-09-28T08:05:00Z"),
+			Metodo: http.MethodPost, Ruta: "/api/board/columns/z1/route",
+			Cuerpo:      json.RawMessage(`{"pedidoIds":["p1","p2"]}`),
+			Provisional: "local-9f3a",
+		},
+		// Un apunte normal, que no descarta a nadie.
+		{
+			Clave: "01J8DESC2", Hecho: enPunto(t, "2026-09-28T08:06:00Z"),
+			Metodo: http.MethodPatch, Ruta: "/api/routes/r1",
+			Cuerpo: json.RawMessage(`{"status":"en_curso"}`),
+		},
+	}, b.quien)
+
+	if len(salida) != 2 {
+		t.Fatalf("tenían que volver dos resultados: %+v", salida)
+	}
+	if salida[0].Estado != EstadoAplicado {
+		t.Fatalf("el armado se aplicó, no es un rechazo: %+v", salida[0])
+	}
+	if !strings.Contains(string(salida[0].Descartados), "X-2992") {
+		t.Fatalf("EL APARATO NO SE ENTERA DE QUIÉN SE CAYÓ: el reparto lo dijo con nombre y "+
+			"motivo y aquí se perdió. Sin esto la ruta sale con menos pedidos de los que el "+
+			"logístico puso y no hay ni un aviso en ningún sitio. Volvió: %q",
+			string(salida[0].Descartados))
+	}
+	if !strings.Contains(string(salida[0].Descartados), "comprueba si se entregó igual") {
+		t.Fatalf("el `queHacer` también viaja: un aviso sin qué hacer es una queja. Volvió: %q",
+			string(salida[0].Descartados))
+	}
+
+	// Y LA OTRA MITAD: el apunte que no descartó a nadie no lleva el campo.
+	if salida[1].Descartados != nil {
+		t.Fatalf("un apunte que no dejó a nadie fuera NO puede llevar `descartados`: %q",
+			string(salida[1].Descartados))
+	}
+	// Y no lo lleva NI VACÍO EN EL CABLE. Se mira el cuerpo de verdad y no la struct
+	// porque lo que se paga es lo que viaja: `omitempty` es lo único que distingue «no se
+	// cayó nadie» de «se cayó una lista de cero», y las dos se leen igual desde Dart.
+	if strings.Count(w.Body.String(), `"descartados"`) != 1 {
+		t.Fatalf("`descartados` tiene que salir SÓLO en el apunte que descartó a alguien; "+
+			"el cuerpo fue: %s", w.Body.String())
+	}
+}

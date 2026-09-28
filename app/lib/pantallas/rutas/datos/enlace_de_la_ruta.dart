@@ -87,7 +87,15 @@ class EnlaceDeLaRuta {
     return trozos.isEmpty ? null : trozos.join(' ');
   }
 
-  static String _paradas(int n) => n == 1 ? '1 parada' : '$n paradas';
+  /// «3 paradas» / «1 parada». **Es EL patrón de plural de la casa** y por eso
+  /// es público: el mensaje al chofer del mapa lo usa también, y una segunda
+  /// copia es una segunda forma de decirlo el día que alguien la toque.
+  ///
+  /// El cero va en plural —«0 paradas»—, que es el que se cuela cuando uno
+  /// pregunta por el singular y sólo mira el uno.
+  static String cuantasParadas(int n) => n == 1 ? '1 parada' : '$n paradas';
+
+  static String _paradas(int n) => cuantasParadas(n);
   static String _quedan(int n) => n == 1 ? 'queda' : 'quedan';
   static String _tienen(int n) => n == 1 ? 'tiene' : 'tienen';
   static String _entran(int n) => n == 1 ? 'entra' : 'entran';

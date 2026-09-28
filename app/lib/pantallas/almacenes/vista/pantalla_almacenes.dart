@@ -298,9 +298,10 @@ class _Contenido extends StatelessWidget {
                 ],
                 alElegir: alElegirSucursal,
               ),
-            FilledButton(
-              onPressed: () => alAbrir(actual),
-              child: const Text('Nuevo almacén'),
+            BotonPrincipal(
+              icono: Icons.add,
+              texto: 'Nuevo almacén',
+              alPulsar: () => alAbrir(actual),
             ),
           ],
         ),
@@ -329,6 +330,7 @@ class _Contenido extends StatelessWidget {
                 'Esta sucursal no tiene ninguno: sus domicilios no se pueden '
                 'cotizar.',
             textoDelBoton: 'Nuevo almacén',
+            iconoDelBoton: Icons.add,
             alPulsar: () => alAbrir(actual),
           )
         else

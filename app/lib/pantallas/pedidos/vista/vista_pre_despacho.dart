@@ -139,16 +139,31 @@ String pesoDelPreDespacho(TotalesPreDespacho t) {
       '${t.sinPeso == 1 ? 'renglón' : 'renglones'} sin peso)';
 }
 
-/// Las cuentas en una línea: lo que va en el SUBTÍTULO del cajón.
+/// UNO NO ES «PRODUCTO(S)» NI «1 EMPAQUES» — 28/09/2026.
+///
+/// Visto en un SM-A165M. Son dos cosas distintas y las dos estaban aquí:
+///
+///  * el `(s)` entre paréntesis, que es lo que se escribe cuando no se quiere
+///    decidir. En el PAPEL se queda —es el punto de paridad con la hoja de Next
+///    y se compara palabra por palabra (`impresion/pre_despacho.dart`)—, pero
+///    esto es la pantalla y aquí no hay nada con lo que cuadrar;
+///  * y `1 empaques`, que es directamente una errata.
+///
+/// Se pluraliza con el mismo patrón que ya usan las rutas —«3 paradas» / «1
+/// parada»—, que es un ternario sobre `== 1` pegado al número. **Y el cero va en
+/// plural**: «0 productos», no «0 producto». Es el que se cuela cuando alguien
+/// pregunta por el singular y sólo mira el uno.
 String resumenDelPreDespacho(TotalesPreDespacho t) =>
-    '${t.productos} producto(s) · ${cantidad(t.empaques)} empaques · '
+    '${t.productos} ${t.productos == 1 ? 'producto' : 'productos'} · '
+    '${cantidad(t.empaques)} ${t.empaques == 1 ? 'empaque' : 'empaques'} · '
     '${pesoDelPreDespacho(t)}';
 
 /// Lo que dice el botón que abre la vista: lleva dentro lo que hay contado,
 /// para no tener que abrirlo sólo para ver si hay algo.
 String rotuloDelPreDespacho(TotalesPreDespacho? t) => t == null
     ? PreDespacho.rotulo
-    : '${PreDespacho.rotulo} · ${t.productos} productos';
+    : '${PreDespacho.rotulo} · ${t.productos} '
+          '${t.productos == 1 ? 'producto' : 'productos'}';
 
 /// EL CAJÓN DEL PRE-DESPACHO, entero. **Los dos caminos abren ÉSTE**: el botón
 /// de Pedidos y el del asistente de rutas.
@@ -192,9 +207,10 @@ class CajonDePreDespacho extends StatelessWidget {
       pie: Row(
         children: [
           const Spacer(),
-          FilledButton(
-            onPressed: hayQueImprimir ? alImprimir : null,
-            child: const Text(PreDespacho.verEImprimir),
+          BotonPrincipal(
+            icono: Icons.print_outlined,
+            texto: PreDespacho.verEImprimir,
+            alPulsar: hayQueImprimir ? alImprimir : null,
           ),
         ],
       ),
@@ -511,8 +527,23 @@ class _Tarjeta extends StatelessWidget {
           runSpacing: 2,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            _Cifra(cantidad(linea.empaques), 'empaques'),
-            _Cifra(TablaPreDespacho._unidades(linea), 'unidades'),
+            // EL RÓTULO VA EN SINGULAR CUANDO ES UNO. `1 empaques` y
+            // `1 unidades` se leyeron en un SM-A165M el 28/09/2026, y una
+            // errata pegada a un número hace dudar del número.
+            //
+            // Se mira el VALOR y no el texto ya formateado: `_unidades` puede
+            // devolver `≥ 1` o un `—`, y ninguna de las dos cosas es un uno.
+            // `kg` no se pluraliza, que es lo que hace un símbolo.
+            _Cifra(
+              cantidad(linea.empaques),
+              linea.empaques == 1 ? 'empaque' : 'empaques',
+            ),
+            _Cifra(
+              TablaPreDespacho._unidades(linea),
+              linea.unidades == 1 && linea.unidadesCompletas
+                  ? 'unidad'
+                  : 'unidades',
+            ),
             _Cifra(TablaPreDespacho._peso(linea), 'kg'),
           ],
         ),

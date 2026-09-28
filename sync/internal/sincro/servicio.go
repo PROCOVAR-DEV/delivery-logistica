@@ -100,13 +100,33 @@ type Peticion struct {
 	Token string
 }
 
+// Aplicado es lo que el reparto contestó de un apunte que SÍ entró.
+//
+// Era un `*uuid.UUID` a secas y por eso se perdía lo segundo: **un apunte puede aplicarse
+// y aun así dejar gente fuera**. Armar una zona de doce devuelve 201 con la ruta creada y,
+// en el mismo cuerpo, quién se cayó y por qué. Leyendo sólo el id, la ruta salía con nueve
+// paradas y en el teléfono no había ni un aviso — el §4 del reparto al revés.
+type Aplicado struct {
+	// El id de lo que se creó, o nil si el apunte no creaba nada (marcar una parada,
+	// corregirla).
+	ID *uuid.UUID
+
+	// QUIÉN SE CAYÓ, tal y como lo escribió el reparto: una lista JSON con el pedido
+	// nombrado, su motivo y qué hacer (`api/internal/api/tablero.go`,
+	// `DescartadoSalida`). Se reenvía sin tocar dentro del resultado del apunte.
+	//
+	// Casi siempre vacío, y así tiene que ser: un aviso que sale en cada armado deja de
+	// leerse, y entonces tampoco se lee el día que importa.
+	Descartados json.RawMessage
+}
+
 // Aplicador es el dueño de los datos, del lado de la escritura.
 //
-// Devuelve el id de lo que se creó —o nil si el apunte no creaba nada—. Un `*Rechazo`
-// significa que el reparto dijo que no por una razón de negocio y que NO hay que
-// reintentarlo; cualquier otro error es una caída y el apunte se queda en la cola.
+// Devuelve [Aplicado] —con el id de lo que se creó, si creó algo—. Un `*Rechazo` significa
+// que el reparto dijo que no por una razón de negocio y que NO hay que reintentarlo;
+// cualquier otro error es una caída y el apunte se queda en la cola.
 type Aplicador interface {
-	Aplicar(ctx context.Context, p Peticion) (*uuid.UUID, error)
+	Aplicar(ctx context.Context, p Peticion) (Aplicado, error)
 }
 
 // Rechazo es el «no» del servidor, con la frase que va a leer una persona.

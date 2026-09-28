@@ -163,6 +163,19 @@ class _SelectorState<T> extends State<Selector<T>> {
     required VoidCallback? alPulsar,
   }) => OutlinedButton(
     onPressed: alPulsar,
+    // EL BLANCO SE QUEDA, Y ES LO QUE SE ESPERA — 28/09/2026.
+    //
+    // La regla de la casa es que **un boton no lleva fondo**
+    // (`diseno/tema.dart`, [Botones]), y esto es un `OutlinedButton` que
+    // contradice al tema a proposito: **no es un boton, es un campo**. Se
+    // dibuja al lado de las cajas de buscar y de fecha, hace lo mismo que un
+    // desplegable, y lo que manda ahi es `inputDecorationTheme`, que pone
+    // `filled: true` con `fillColor: Colores.blanco`. Quitarle el blanco
+    // dejaria un filtro translucido en una barra de filtros opacos: se veria
+    // roto, no limpio.
+    //
+    // La prueba de si algo de esto es un boton o un campo: ¿hace algo al
+    // pulsarlo, o abre algo para elegir? Esto abre.
     style: OutlinedButton.styleFrom(
       backgroundColor: Colores.blanco,
       foregroundColor: filtrando ? Colores.tinta : Colores.tintaSuave,
@@ -313,7 +326,7 @@ class _OpcionesEnCajonState<T> extends State<_OpcionesEnCajon<T>> {
           const SizedBox(height: Aire.sm),
         ],
         if (!_hayCoincidencias(widget.opciones, _busca))
-          _NadaQueCuadre(busca: _busca),
+          _NadaQueCuadre(busca: _busca, salida: _laSalida(widget.opciones)),
         for (final o in visibles)
           _Opcion<T>(
             opcion: o,
@@ -355,16 +368,51 @@ bool _hayCoincidencias<T>(List<OpcionSelector<T>> opciones, String busca) {
       );
 }
 
+/// La etiqueta de la opcion que SIGUE ESTANDO debajo del aviso: la primera, la
+/// de «todos», que el buscador no filtra. `null` si no hay ninguna.
+String? _laSalida<T>(List<OpcionSelector<T>> opciones) =>
+    opciones.isEmpty ? null : opciones.first.etiqueta;
+
 class _NadaQueCuadre extends StatelessWidget {
-  const _NadaQueCuadre({required this.busca});
+  const _NadaQueCuadre({required this.busca, this.salida});
 
   final String busca;
+
+  /// La etiqueta de la opcion de «todos», que es la unica que queda debajo.
+  final String? salida;
+
+  /// EL AVISO NO PUEDE DESMENTIRLO LA PANTALLA DOS LINEAS MAS ABAJO —28/09/2026.
+  ///
+  /// Jose, escribiendo `toda` en un desplegable con buscador: salia «Nada que
+  /// cuadre con «toda»» y **debajo estaba `Todas (8)`**, que a la vista de quien
+  /// lee cuadra perfectamente. Un aviso que la propia pantalla contradice se
+  /// deja de leer, y entonces tampoco se lee el dia que dice la verdad.
+  ///
+  /// Lo que NO se toca es el motivo por el que esa opcion sigue ahi: la primera
+  /// —la de «todos»— es la que DESHACE el filtro, y se la llevaba el buscador
+  /// justo cuando hacia falta (ver [_visibles]). Eso esta bien y se queda.
+  ///
+  /// Lo que se arregla es el texto: se nombra lo que queda y **para que sirve**.
+  /// Nombrarlo es lo que convierte la contradiccion en una explicacion.
+  ///
+  /// El mismo texto que el del kit de Pedidos
+  /// (`pantallas/pedidos/vista/kit.dart`), que es el otro selector con buscador:
+  /// son dos piezas que hacen lo mismo hasta que alguien las unifique, y hasta
+  /// entonces dicen lo mismo palabra por palabra.
+  String _elTexto() {
+    final aviso = 'Nada que cuadre con «${busca.trim()}»';
+    final queda = salida;
+    // Sin opciones no hay nada que nombrar: no se inventa una salida que no
+    // existe.
+    if (queda == null) return aviso;
+    return '$aviso.\nAbajo sólo queda «$queda», que quita el filtro.';
+  }
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(Aire.lg),
     child: Text(
-      'Nada que cuadre con «$busca»',
+      _elTexto(),
       textAlign: TextAlign.center,
       style: Theme.of(context).textTheme.bodySmall
           ?.copyWith(color: Colores.tintaSuave),

@@ -395,17 +395,20 @@ void main() {
   );
 
   test('la web saca un pedido de la zona mientras el móvil arma y completa esa '
-      'ruta: el servidor arma la ruta SIN él y su entrega no llega', () async {
-    // ESTE ES EL AGUJERO, y la prueba está para que no se cierre por accidente
-    // ni se ensanche en silencio.
+      'ruta: el servidor arma la ruta SIN él, y AHORA se dice quién falta', () async {
+    // ESTE ERA EL AGUJERO, y la prueba está para que no se vuelva a abrir.
     //
-    // `POST /board/columns/{id}/route` **no manda los pedidos en el cuerpo**
-    // (`RepositorioTablero.armarRuta`: sólo `nombre`, `vehiculoId` y
-    // `optimizar`). O sea que el servidor sólo puede armar la ruta con lo que
-    // ÉL tiene puesto en esa zona en el momento en que le llega el apunte —
-    // horas después, y para entonces la web ya movió una tarjeta.
+    // El servidor sólo puede armar la ruta con los pedidos que siguen puestos
+    // en esa zona cuando le llega el apunte —horas después, y para entonces la
+    // web ya movió una tarjeta—: p3 se fue a «Centro», así que la ruta de allá
+    // nace con cinco aunque el móvil entregara seis. Eso no lo arregla la lista
+    // de `pedidoIds`: un pedido que ya no está en la zona no se puede enganchar
+    // desde aquí.
     //
-    // Resultado: el móvil entregó seis y el servidor sólo sabe de cinco.
+    // **Lo que sí cambió el 28/09/2026 es que deja de ser mudo.** Con la lista
+    // viajando, el servidor sabe que el aparato contaba con p3 y lo NOMBRA en
+    // `descartados`; el aparato lo guarda y la franja lo dice. Antes: el móvil
+    // entregó seis, el servidor supo de cinco, y no se enteraba nadie.
     final contenedor = montar();
     addTearDown(contenedor.dispose);
 
@@ -454,8 +457,21 @@ void main() {
       rechazados,
       isEmpty,
       reason:
-          'y NADIE se entera: el cierre volvió «aplicado» con una entrega '
-          'dentro que no se guardó',
+          'y no es un rechazo: el apunte entró, la ruta existe arriba. '
+          'Reintentarlo armaría una SEGUNDA ruta',
+    );
+
+    // PERO YA NO ES MUDO. El aviso espera a que alguien lo lea, con p3
+    // nombrado y con qué hacer: «comprueba si se entregó igual».
+    final aviso = (await ColaDeSalida(base).descartesSinLeer().first).single;
+    expect(aviso.motivo, contains('p3'));
+    expect(
+      aviso.motivo,
+      contains('ya no estaba en esa zona cuando llegó tu apunte'),
+      reason:
+          'ÉSE es el pedido que el repartidor puede llevar entregado, y es el '
+          'que la ruta del servidor no tiene: si no se dice aquí, no se dice '
+          'en ningún sitio',
     );
 
     // ---- Lo que sí sujeta el aparato, y hay que dejarlo sujeto. ---------

@@ -68,6 +68,37 @@ sealed class EstadoFrescura {
   bool get enAmbar;
 }
 
+/// TODAVIA NO SE HA MIRADO. Gris, y **no es [SinDescargar]** — 28/09/2026.
+///
+/// Jose, abriendo la aplicacion sin senal en un SM-A165M: el renglon de frescura
+/// decia que no habia nada durante unos **cuatro segundos** y despues se
+/// asentaba en «datos de las 15:03», encima de una base que si tenia cosas.
+///
+/// Lo que pasa: la consulta que dice de cuando son los datos es un stream sobre
+/// la base, y en un telefono de gama baja la primera respuesta tarda —abrir el
+/// fichero, las migraciones y nueve conteos sobre tablas con decenas de miles de
+/// renglones—. Mientras tanto no se sabe NADA, y lo que se pintaba era el estado
+/// que significa «este aparato no ha bajado nunca»: en ambar, que es la senal de
+/// «mira esto», y ofreciendo traer el dia que ya estaba dentro.
+///
+/// **«No hay nada» y «todavia no he mirado» son dos cosas.** Es el §3-ter del
+/// `CLAUDE.md` en su forma mas corta: un estado vacio que se lee como otro. Que
+/// dure cuatro segundos no lo hace menor —es justo el momento en que alguien
+/// abre la aplicacion y decide si le hace falta traer el dia antes de salir—.
+///
+/// Va en GRIS y sin diagnostico, por lo mismo que `PorQueEstaVacio.todaviaBajando`
+/// (`frescura/primera_bajada.dart`): todavia no se ha mirado nada, asi que no hay
+/// nada que acusar.
+class SinMirarTodavia extends EstadoFrescura {
+  const SinMirarTodavia();
+
+  @override
+  String get texto => 'Mirando qué hay…';
+
+  @override
+  bool get enAmbar => false;
+}
+
 /// Nunca se bajo. Ambar.
 class SinDescargar extends EstadoFrescura {
   const SinDescargar();

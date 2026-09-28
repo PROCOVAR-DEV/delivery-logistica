@@ -449,7 +449,7 @@ void main() {
     );
     await tester.tap(find.widgetWithText(CheckboxListTile, 'Cliente 039'));
     await asentar(tester);
-    expect(find.textContaining('1 pedidos seleccionados'), findsOneWidget);
+    expect(find.textContaining('1 pedido seleccionado'), findsOneWidget);
 
     // Y SE LLEGA AL FINAL DEL PASO. En un móvil lo último de todo es el botón
     // que abre el pre-despacho en su cajón (antes era el bloque entero colgando

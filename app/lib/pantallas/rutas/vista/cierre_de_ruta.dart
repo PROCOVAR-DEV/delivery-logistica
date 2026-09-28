@@ -345,25 +345,30 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
           // **En una ruta completada no hay boton de guardar.** No es que este
           // apagado: no esta. Un boton apagado invita a buscar como encenderlo.
           if (!_soloLectura)
-            FilledButton(
+            BotonPrincipal(
+              // EL GLIFO DICE CUAL DE LOS DOS GESTOS ES. Guardar lo marcado se
+              // puede repetir; guardar Y COMPLETAR cierra la ruta y la manda al
+              // historial, que no tiene vuelta. Con la papeleta de guardar en
+              // los dos, el que cierra la ruta se leeria igual que el que no.
+              icono: _completando
+                  ? Icons.check_circle_outline
+                  : Icons.save_outlined,
+              texto: _guardando
+                  ? 'Guardando…'
+                  : _completando
+                  ? 'Guardar y completar'
+                  // EL ROTULO DICE LAS DOS COSAS. Con una marca quitada,
+                  // `Guardar 0 marcada(s)` se lee como «no hay nada que
+                  // guardar» justo cuando si lo hay.
+                  : _desmarcadas > 0
+                  ? 'Guardar $_marcadas y quitar $_desmarcadas'
+                  : 'Guardar $_marcadas marcada(s)',
               // `_hayQueGuardar` y no `_marcadas > 0`: quitar la ultima marca
               // apagaba el boton, asi que el desmarcado no se podia ni intentar
               // guardar. Ver `_hayQueGuardar`.
-              onPressed: _guardando || (!_hayQueGuardar && !_completando)
+              alPulsar: _guardando || (!_hayQueGuardar && !_completando)
                   ? null
                   : () => _guardar(paradas),
-              child: Text(
-                _guardando
-                    ? 'Guardando…'
-                    : _completando
-                    ? 'Guardar y completar'
-                    // EL ROTULO DICE LAS DOS COSAS. Con una marca quitada,
-                    // `Guardar 0 marcada(s)` se lee como «no hay nada que
-                    // guardar» justo cuando si lo hay.
-                    : _desmarcadas > 0
-                    ? 'Guardar $_marcadas y quitar $_desmarcadas'
-                    : 'Guardar $_marcadas marcada(s)',
-              ),
             ),
         ],
       ),
@@ -627,49 +632,57 @@ class _BotonResultado extends StatelessWidget {
   final bool elegido;
   final VoidCallback alPulsar;
 
-  /// El fondo suave que le toca a cada color, de la paleta de la casa. Un
-  /// `withOpacity` sobre el color fuerte no vale: la paleta tiene el fondo
-  /// **calculado** para que se lea sobre papel crema, y aclarar a ojo devuelve
-  /// el gris sucio que esa paleta existe para evitar.
-  Color get _fondoSuave {
-    if (color == Colores.verde) return Colores.verdeFondo;
-    if (color == Colores.rojo) return Colores.rojoFondo;
-    // «Cancelado» es el que MENOS tiene que pesar de los tres: es el caso raro.
-    // Con el fondo gris de la paleta pesaba mas que el verde y el rojo —se ve en
-    // la foto del 21/09/2026— y eso invierte la lectura de la tarjeta.
-    return Colores.papel;
-  }
-
+  /// AQUI EL COLOR NO DICE JERARQUIA, DICE QUE ESTADO ES — y por eso este grupo
+  /// de tres tiene su propio par de estilos en [Botones] y no usa el principal y
+  /// el secundario de siempre.
+  ///
+  /// «Entregado» es verde, «Devuelto» rojo y «Cancelado» gris porque son las
+  /// senales de la paleta, no porque uno importe mas que otro. Lo que hay que ver
+  /// de un vistazo es **cual de los tres esta marcado**.
+  ///
+  /// ## Se marcaba rellenando, y eso ya no se hace — 28/09/2026
+  ///
+  /// El elegido era el unico `FilledButton` con el fondo cambiado a mano, con su
+  /// texto en blanco escrito a proposito para que se leyera encima del verde.
+  /// Jose: «sin background y de colores y los bordes y iconos lo diferenciaban».
+  ///
+  /// Asi que ahora se marca con lo mismo con lo que se marca todo:
+  ///
+  ///   · **color** — el elegido va en SU color fuerte, los otros dos en tinta
+  ///     suave. Antes los tres iban de color y el elegido se distinguia por el
+  ///     relleno; ahora el color es del que manda;
+  ///   · **borde** — 2 px del color contra 1 px del mismo color casi
+  ///     transparente;
+  ///   · **icono** — el elegido, y solo el elegido, lleva un visto delante. Es
+  ///     lo que sostiene la lectura cuando los tres se ven pequenos, de reojo y
+  ///     con sol, o cuando quien mira no separa el verde del rojo.
+  ///
+  /// Y con eso se va el tinte de fondo `_fondoSuave` que tenian los no elegidos
+  /// (verdeFondo / rojoFondo / papel): era un fondo, y un fondo es justo lo que
+  /// no puede llevar un boton. Lo que unia a los tres «como un juego de tres» y
+  /// no como botones sueltos lo hace ahora el borde, que es del color de cada
+  /// uno.
   @override
-  Widget build(BuildContext context) => elegido
-      ? FilledButton(
-          onPressed: alPulsar,
-          style: FilledButton.styleFrom(
-            backgroundColor: color,
-            // BLANCO, Y ESCRITO. Sin esto Flutter elige el color del texto por
-            // su cuenta y sobre el verde y el rojo de la casa elige oscuro: el
-            // boton elegido se lee peor que los otros dos, que es justo al
-            // reves de lo que tiene que pasar. Jose, 21/09/2026, viendolo en el
-            // telefono: «mejora esos colores».
-            foregroundColor: Colores.blanco,
-            // El elegido no necesita gritar: ya es el unico relleno de los
-            // tres. Sin sombra ni borde.
-            elevation: 0,
-          ),
-          child: Text(texto),
-        )
-      : OutlinedButton(
-          onPressed: alPulsar,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: color,
-            // Un tinte del mismo color, muy flojo, para que los tres se lean
-            // como un juego de tres y no como tres botones sueltos — y para que
-            // el que esta elegido destaque por CONTRASTE y no por color.
-            backgroundColor: _fondoSuave,
-            side: BorderSide(color: color.withValues(alpha: 0.35)),
-          ),
-          child: Text(texto),
-        );
+  Widget build(BuildContext context) {
+    // El widget sigue siendo `FilledButton` cuando esta elegido y
+    // `OutlinedButton` cuando no, **a proposito**: es por donde lo encuentran
+    // `cierre_widget_test.dart` y `cierre_al_completar_test.dart` para saber
+    // cual esta marcado, y cambiar el tipo de widget seria romper tres ficheros
+    // de pruebas para no ganar nada. Lo que cambia es con que se dibuja.
+    if (!elegido) {
+      return OutlinedButton(
+        onPressed: alPulsar,
+        style: Botones.sueltoDelGrupo(color),
+        child: Text(texto),
+      );
+    }
+    return FilledButton.icon(
+      onPressed: alPulsar,
+      style: Botones.elegidoDelGrupo(color),
+      icon: const Icon(Icons.check),
+      label: Text(texto),
+    );
+  }
 }
 
 /// La vista previa en vivo de lo que baja del camion. Se recalcula con cada

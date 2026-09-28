@@ -13,6 +13,8 @@ import '../datos/esquema.dart';
 import '../datos/modelos.dart';
 import '../datos/repositorio.dart';
 import '../datos/servicio.dart';
+import '../../pedidos/datos/repositorio_pedidos.dart';
+import '../../pedidos/estado/proveedores_pedidos.dart';
 
 export '../datos/consultas.dart' show FiltrosSinColocar;
 
@@ -822,3 +824,50 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
 final tableroProvider = AsyncNotifierProvider<TableroDelDia, Tablero>(
   TableroDelDia.new,
 );
+
+/// LOS RENGLONES DE UN PEDIDO, para el cajón de moverlo — 28/09/2026.
+///
+/// Jose: «ahi en tablero q cuando le den para mover en ves de solo decir q lo
+/// vamos a mover q me salga el detalle de el pedido ok».
+///
+/// El cajón de mover enseñaba el cliente, el peso y los km, y nada más. Y ese es
+/// el instante en el que alguien decide a qué zona va ese bulto: para decidirlo
+/// hace falta saber QUÉ bulto es. Lo demás del pedido ya viaja en `TarjetaPedido`
+/// —dirección, municipio, vendedor, factura, costo—; lo único que no estaba son
+/// los artículos, y son justo lo que se carga en el camión.
+///
+/// ## POR STREAM Y NO POR FUTURE, que es el §3-ter y ya costó una vez
+///
+/// Está copiado del molde de `renglonesDePaginaProvider` (Pedidos), y su
+/// comentario cuenta el incidente entero: en la bajada `orders` va ANTES que
+/// `order_items`, así que una respuesta pedida una sola vez —al abrir el cajón—
+/// se queda con lo que hubiera en ese instante. En la web la base nace vacía en
+/// cada carga, de modo que el cajón diría **«sin artículos»** sobre un pedido con
+/// doce líneas. Y «sin artículos» no se lee como «todavía no ha llegado»: se lee
+/// como que ese pedido no lleva nada.
+///
+/// Se vigilan las DOS tablas de las que sale la lista: `order_items` y
+/// `products` —el peso por empaque se resuelve contra el catálogo, que baja aún
+/// más tarde—.
+///
+/// El coste está acotado de sobra: son los renglones de UN pedido, y sólo
+/// mientras el cajón está abierto (`autoDispose`).
+final renglonesDelPedidoProvider = StreamProvider.autoDispose
+    .family<List<RenglonConPeso>, String>((ref, pedidoId) {
+      final base = ref.watch(baseProvider);
+      final consultas = ref.watch(consultasPedidosProvider);
+
+      Future<List<RenglonConPeso>> mirar() async =>
+          (await consultas.renglonesDe([pedidoId]))[pedidoId] ?? const [];
+
+      return () async* {
+        // El primero enseguida: `tableUpdates` no emite al suscribirse, y sin
+        // esto la lista arrancaría vacía aunque los renglones ya estuvieran.
+        yield await mirar();
+        yield* base
+            .tableUpdates(
+              TableUpdateQuery.onAllTables([base.orderItems, base.products]),
+            )
+            .asyncMap((_) => mirar());
+      }();
+    });

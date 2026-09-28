@@ -7,6 +7,13 @@ import '../../../diseno/cargando.dart';
 import '../../../nucleo/registro/registro.dart';
 import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 import '../datos/modelos.dart';
+
+import 'package:go_router/go_router.dart';
+
+import '../../pedidos/datos/formato.dart' show cantidad;
+import '../../rutas/datos/repositorio_rutas.dart' show PestanaRutas;
+import '../../rutas/estado/proveedores_rutas.dart'
+    show pestanaRutasProvider, rutaElegidaProvider;
 import '../estado/proveedores.dart';
 import 'kit.dart';
 
@@ -34,11 +41,21 @@ abstract final class AccionesTablero {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            '${pedido.customerName} · ${pesoBonito(pedido.weight)}'
-            '${pedido.kmAlAlmacen.isFinite ? ' · ${kmBonito(pedido.kmAlAlmacen)}' : ''}',
-            style: Theme.of(contexto).textTheme.bodySmall,
-          ),
+          // EL DETALLE DEL PEDIDO, Y NO SÓLO SU NOMBRE — 28/09/2026.
+          //
+          // Aquí había un renglón: «cliente · peso · km». Jose: «ahi en tablero
+          // q cuando le den para mover en ves de solo decir q lo vamos a mover
+          // q me salga el detalle de el pedido ok».
+          //
+          // Tiene razón por lo que es este cajón: es el instante en el que
+          // alguien decide A QUÉ ZONA va ese bulto, y para decidirlo hace falta
+          // saber qué bulto es — dónde va, quién lo vende, qué lleva dentro.
+          //
+          // Sigue siendo CORTO a propósito. Mover es un gesto rápido que se
+          // hace muchas veces seguidas, así que el detalle no puede obligar a
+          // desplazarse antes de poder elegir la zona: son dos bloques de datos
+          // y la lista de artículos acotada, no la ficha entera de Pedidos.
+          _DetalleDelPedido(pedido: pedido),
           // Lo que dejo de servir se dice tambien aqui, no sólo en la tarjeta:
           // es el momento en el que alguien esta decidiendo que hacer con el.
           for (final marca in pedido.marcas)
@@ -225,21 +242,23 @@ abstract final class AccionesTablero {
             },
           ),
           const Divider(height: 24),
-          FilledButton.icon(
-            icon: const Icon(Icons.route_outlined),
-            label: const Text('Armar la ruta de esta zona'),
-            onPressed: () {
-              Navigator.of(contexto).pop();
-              hacer(
-                context,
-                ref,
-                () => ref.read(tableroProvider.notifier).armarRuta(columna.id),
-                exito:
-                    'Ruta armada con lo que se puede repartir de '
-                    '«${columna.nombre}».',
-              );
-            },
-          ),
+          // EL «NO» SE DICE AQUÍ DENTRO Y NO TE ECHA — 28/09/2026.
+          //
+          // Esto hacía `Navigator.pop()` ANTES de intentar nada, así que el
+          // cajón se cerraba pasara lo que pasara y el motivo salía en una
+          // franja abajo, con la pantalla ya cambiada debajo. Jose, el día que
+          // se desplegó el bloqueo de «ninguna ruta sin camión»: «ya dio el
+          // error pero notifica el campo q hace falta para q relleno no le
+          // cierres eso».
+          //
+          // Tiene razón y es el §4 a medias: el aviso salía —eso estaba bien—
+          // pero te sacaba del único sitio donde se arregla. «Camión previsto»
+          // está en ESTE cajón, dos dedos más arriba.
+          //
+          // Ahora: se intenta primero, se cierra SÓLO si sale bien, y si el
+          // servidor o el aparato dicen que no, el cajón se queda abierto con el
+          // motivo dentro y el campo que falta señalado.
+          _ArmarLaRuta(columna: columna, deLaPantalla: context),
         ],
       ),
     );
@@ -546,11 +565,21 @@ abstract final class AccionesTablero {
     } on Object catch (e, pila) {
       // Queda en el registro con el error de verdad, que es lo unico con lo que
       // se puede diagnosticar despues; en pantalla va el texto de persona.
-      Registro.fallo('tablero: el gesto no se pudo guardar en el aparato', e, pila);
+      Registro.fallo(
+        'tablero: el gesto no se pudo guardar en el aparato',
+        e,
+        pila,
+      );
       if (!context.mounted) return;
       _decir(context, noSePudoGuardar, problema: true);
     }
   }
+
+  /// El «sí» de un gesto que ya cerró su cajón. Es [_decir] con nombre, para
+  /// que desde fuera de esta clase no haya que tocar un privado ni inventarse
+  /// un `hacer(() async {})` vacío sólo para enseñar una franja.
+  static void decirQueSiSePudo(BuildContext context, String texto) =>
+      _decir(context, texto);
 
   static void _decir(
     BuildContext context,
@@ -745,4 +774,332 @@ class _NadaQueElegir extends StatelessWidget {
       ),
     );
   }
+}
+
+/// EL DETALLE DEL PEDIDO DENTRO DEL CAJÓN DE MOVERLO — 28/09/2026.
+///
+/// Jose: «ahi en tablero q cuando le den para mover en ves de solo decir q lo
+/// vamos a mover q me salga el detalle de el pedido ok».
+///
+/// ## Por qué no se reutiliza la ficha de Pedidos
+///
+/// Existe y pinta esto mismo, pero **pide otra cosa**: trabaja sobre el pedido
+/// entero de la base, con sus renglones, su ruta y sus acciones, y vive dentro
+/// de su propia pantalla. Aquí lo que hay es una `TarjetaPedido` —lo que el
+/// tablero ya tiene en la mano— y el cajón tiene que abrirse al instante, sin
+/// esperar a ninguna consulta, porque mover es un gesto rápido que se repite.
+///
+/// Lo que sí se respeta es **el orden en que Jose ya tiene aprendidos los
+/// datos** en la ficha de Pedidos: quién, dónde, cuándo, cuánto, y al final lo
+/// que lleva dentro. Un segundo sitio que pinte lo mismo en otro orden es un
+/// sitio donde hay que volver a aprender a leer.
+///
+/// ## Lo único que no estaba en la mano: los artículos
+///
+/// Salen de [renglonesDelPedidoProvider], que es un `Stream` y no un `Future`
+/// por el §3-ter — el porqué está escrito allí. Mientras no han llegado se dice
+/// **«cargando»** y no «sin artículos»: son dos cosas distintas y la segunda se
+/// lee como que el pedido va vacío.
+class _DetalleDelPedido extends ConsumerWidget {
+  const _DetalleDelPedido({required this.pedido});
+
+  final TarjetaPedido pedido;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tema = Theme.of(context);
+    final renglones = ref.watch(renglonesDelPedidoProvider(pedido.pedidoId));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 1. DÓNDE VA. Es lo primero porque es lo que decide la zona, que es la
+        //    pregunta que se está contestando al abrir este cajón.
+        _Dato(
+          Icons.place_outlined,
+          [
+            pedido.address,
+            if (pedido.municipio case final m? when m.isNotEmpty) m,
+          ].join(' · '),
+        ),
+        if (pedido.customerPhone case final t? when t.isNotEmpty)
+          _Dato(Icons.phone_outlined, t),
+        if (pedido.vendedor case final v? when v.isNotEmpty)
+          _Dato(Icons.person_outline, v),
+
+        // 2. CUÁNTO. El peso y la distancia mandan sobre si cabe en ese camión;
+        //    el costo del domicilio se dice porque `sin cotizar` es un dato y no
+        //    un hueco (un cero ahí se leería como «el domicilio es gratis»).
+        _Dato(
+          Icons.scale_outlined,
+          [
+            pesoBonito(pedido.weight),
+            if (pedido.kmAlAlmacen.isFinite) kmBonito(pedido.kmAlAlmacen),
+            pedido.pedidoCosto == null
+                ? 'sin cotizar'
+                : '\$${pedido.pedidoCosto!.toStringAsFixed(2)}',
+          ].join(' · '),
+        ),
+
+        // 3. QUÉ LLEVA. Lo último, que es el orden de la ficha de Pedidos.
+        const SizedBox(height: 8),
+        renglones.when(
+          loading: () =>
+              Text('Cargando los artículos…', style: tema.textTheme.bodySmall),
+          // UN FALLO NO SE PINTA COMO UN PEDIDO VACÍO (§4). Si la consulta se
+          // cae, se dice; callarlo deja el cajón diciendo que no lleva nada.
+          error: (e, _) => Text(
+            'No se pudieron leer los artículos: $e',
+            style: tema.textTheme.bodySmall?.copyWith(color: Colores.ambar),
+          ),
+          data: (lista) => lista.isEmpty
+              ? Text(
+                  'Este pedido no tiene artículos.',
+                  style: tema.textTheme.bodySmall,
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final r in lista.take(_cuantosArticulos))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '${r.renglon.description} · '
+                          '${cantidad(r.renglon.quantity)} uds',
+                          style: tema.textTheme.bodySmall,
+                        ),
+                      ),
+                    // LOS QUE NO CABEN SE CUENTAN, NO SE CALLAN. Cortar la
+                    // lista sin decirlo deja a alguien creyendo que el camión
+                    // lleva cuatro cosas cuando lleva doce.
+                    if (lista.length > _cuantosArticulos)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'y ${lista.length - _cuantosArticulos} artículo(s) más',
+                          style: tema.textTheme.bodySmall?.copyWith(
+                            color: Colores.tintaSuave,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// Cuántos artículos caben antes de que el cajón obligue a desplazarse para
+  /// llegar a las zonas. Cuatro y el resto contado: mover es un gesto rápido.
+  static const _cuantosArticulos = 4;
+}
+
+/// Un dato del detalle: su icono y su texto, en una línea que puede envolver.
+class _Dato extends StatelessWidget {
+  const _Dato(this.icono, this.texto);
+
+  final IconData icono;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icono, size: 14, color: Colores.tintaSuave),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(texto, style: Theme.of(context).textTheme.bodySmall),
+        ),
+      ],
+    ),
+  );
+}
+
+/// EL BOTÓN DE ARMAR LA RUTA, QUE SE QUEDA SI DICEN QUE NO — 28/09/2026.
+///
+/// Jose, el día que se desplegó el bloqueo de «ninguna ruta sin camión»:
+///
+///     «ya dio el error pero notifica el campo q hace falta para q relleno no le
+///      cierres eso»
+///
+/// Antes esto era un `FilledButton` suelto que hacía `Navigator.pop()` **antes**
+/// de intentar nada. O sea: el cajón se cerraba pasara lo que pasara, y el motivo
+/// aparecía en una franja abajo con la pantalla ya cambiada debajo.
+///
+/// El §4 de la casa se cumplía a medias —el aviso salía— y fallaba en lo otro:
+/// **te sacaba del único sitio donde se arregla**. «Camión previsto» está en este
+/// mismo cajón, dos dedos más arriba.
+///
+/// Ahora el orden es el correcto: se intenta, y **sólo se cierra si sale bien**.
+/// Si dicen que no, el cajón se queda abierto con el motivo dentro y con el campo
+/// que falta señalado, para rellenarlo y volver a darle sin repetir el camino.
+///
+/// El «sí» sigue saliendo por la franja de siempre (`hacer(exito:)`), porque para
+/// entonces este cajón ya no está: un mensaje de éxito dentro de algo que se
+/// cierra no lo lee nadie.
+class _ArmarLaRuta extends ConsumerStatefulWidget {
+  const _ArmarLaRuta({required this.columna, required this.deLaPantalla});
+
+  final ColumnaTablero columna;
+
+  /// El contexto de la PANTALLA, no el del cajón. Es el que tiene el
+  /// `ScaffoldMessenger` donde sale la franja del «sí», y sigue vivo después de
+  /// cerrar el cajón — el del cajón no.
+  final BuildContext deLaPantalla;
+
+  @override
+  ConsumerState<_ArmarLaRuta> createState() => _ArmarLaRutaState();
+}
+
+class _ArmarLaRutaState extends ConsumerState<_ArmarLaRuta> {
+  RechazoDelTablero? _no;
+  bool _armando = false;
+
+  Future<void> _intentar() async {
+    setState(() {
+      _armando = true;
+      // El «no» de antes se borra al reintentar: dejarlo puesto mientras se
+      // vuelve a intentar hace creer que ha vuelto a fallar.
+      _no = null;
+    });
+    try {
+      final rutaId = await ref
+          .read(tableroProvider.notifier)
+          .armarRuta(widget.columna.id);
+      if (!mounted) return;
+      // Sólo aquí se cierra. Y el «sí» se dice DESPUÉS de cerrar, con el
+      // contexto de la pantalla: dentro de algo que se cierra no lo lee nadie.
+      final pantalla = widget.deLaPantalla;
+      final nombre = widget.columna.nombre;
+      Navigator.of(context).pop();
+      if (!pantalla.mounted) return;
+
+      // Y DERECHO A LA RUTA, sin pasar por ver cómo se vacía la zona.
+      //
+      // Jose: «y q cuando cree la ruta nueva por q no voy directo a la ruta por
+      // q pierdo el tiempo demostrando q el tablero se vacio mi loco», y
+      // después, quitando la duda: «q me lleve directo a rutas con la nueva
+      // ruta creada con tablero».
+      //
+      // Son tres cosas en este orden y las tres hacen falta:
+      //
+      //  1. **La pestaña.** Una ruta recién armada nace PLANIFICADA, o sea en
+      //     `PestanaRutas.activas`. Si Rutas abriera en la que estuviera puesta
+      //     —`Historial`, pongamos— se llegaría a una lista donde esa ruta no
+      //     está, y eso se lee como que no se creó.
+      //  2. **Elegirla.** `RutaElegida.elegir` resuelve el id **en el momento**
+      //     contra las equivalencias, y eso es justo lo que hace falta aquí: sin
+      //     señal la ruta nace con un `local-…` y, si el ciclo ya la subió, su
+      //     id de verdad existe antes de que nadie la mire. El porqué entero
+      //     está escrito en ese método, y viene del «Ver paradas (0)» encima de
+      //     una ruta recién armada del 21/09/2026.
+      //  3. **Ir**, y no `push`: Rutas es una pantalla del armazón, no algo que
+      //     se apila encima del Tablero.
+      //
+      // En un teléfono no hay dos paneles, así que «con ella elegida» es llegar
+      // a la lista con su detalle abierto — de eso ya se encarga `ListaDeRutas`
+      // con `rutaElegidaProvider`, que es el mismo camino que usar la lista a
+      // mano. No hay un segundo camino que mantener.
+      ref.read(pestanaRutasProvider.notifier).elegir(PestanaRutas.activas);
+      ref.read(rutaElegidaProvider.notifier).elegir(rutaId);
+      pantalla.go('/routes');
+
+      AccionesTablero.decirQueSiSePudo(
+        pantalla,
+        'Ruta armada con lo que se puede repartir de «$nombre».',
+      );
+    } on RechazoDelTablero catch (no) {
+      if (!mounted) return;
+      setState(() {
+        _armando = false;
+        _no = no;
+      });
+    } on Object catch (e, pila) {
+      // Lo que no es un «no» del tablero —el disco lleno, la copia sin
+      // permisos— se registra con su error de verdad y en pantalla va el texto
+      // de persona. Aquí tampoco se cierra: el gesto no se hizo.
+      Registro.fallo('tablero: no se pudo armar la ruta de la zona', e, pila);
+      if (!mounted) return;
+      setState(() {
+        _armando = false;
+        _no = const RechazoDelTablero(AccionesTablero.noSePudoGuardar);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final no = _no;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (no != null) ...[
+          // EL MOTIVO, ENCIMA DEL BOTÓN Y NO DEBAJO. Se lee de arriba abajo:
+          // primero por qué no, y después el botón con el que se reintenta.
+          Container(
+            key: _claveDelNo,
+            padding: const EdgeInsets.all(10),
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: ColoresTablero.rojo.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: ColoresTablero.rojo.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  no.mensaje,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                // LO QUE FALTA, NOMBRADO. `detalles` es justo eso: de dónde se
+                // cayó cada cosa y dónde se arregla. Sin esto el aviso dice
+                // «no» y deja a quien lo lee buscando.
+                for (final detalle in no.detalles)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      detalle,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+        FilledButton.icon(
+          icon: _armando
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.route_outlined),
+          label: Text(
+            // Al reintentar, el rótulo lo dice: pulsar lo mismo que acaba de
+            // fallar sin que cambie nada se lee como que el botón está roto.
+            _armando
+                ? 'Armando…'
+                : no == null
+                ? 'Armar la ruta de esta zona'
+                : 'Volver a intentarlo',
+          ),
+          onPressed: _armando ? null : _intentar,
+        ),
+      ],
+    );
+  }
+
+  /// Para poder medir en una prueba que el aviso está DENTRO del cajón y no en
+  /// una franja de la pantalla de detrás.
+  static const _claveDelNo = ValueKey('tablero-no-se-armo');
 }

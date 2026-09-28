@@ -227,10 +227,22 @@ void main() {
       final t = TotalesPreDespacho.de(h);
       expect(t.pesoDeLosPedidos, 412.5);
       // `Etiquetas` viene a cero, que es lo que la columna imprime como «—»:
-      // con una celda así el total de la columna no se puede dar.
-      expect(t.pesoDeLosProductos, isNull);
-      expect(t.sinPeso, 1);
+      // esa celda no entra en la suma, así que el total es el de las otras
+      // dos —300— y **es un mínimo**. Hasta el 28/09/2026 aquí no salía
+      // ningún número, y con esa regla la hoja de producción se quedaba en
+      // blanco: de los 129 productos de Ventra sólo 57 traen peso.
+      expect(t.pesoDeLosProductos, 300, reason: '180 + 120, sin las etiquetas');
+      expect(
+        t.pesoCompleto,
+        isFalse,
+        reason:
+            'es lo que hace que el papel escriba `≥ 300.0`. En `true` esos '
+            '300 kg se firman como el peso entero de la hoja',
+      );
+      expect(t.sinPeso, 1, reason: 'el renglón de las etiquetas');
       expect(t.productos, 3);
+      // Y los dos siguen siendo dos cuentas distintas: 300 contra 412.5.
+      expect(t.pesoDeLosProductos, isNot(t.pesoDeLosPedidos));
     });
 
     test('un producto sin peso imprime una raya, no un cero', () {
@@ -274,7 +286,7 @@ void main() {
       expect(cantidadDeFila(t.unidades), '800');
     });
 
-    test('con UNA sola línea sin saber, el total es null y en el papel sale el guion', () {
+    test('con UNA sola línea sin saber, el pie sale con `≥` y NUNCA desnudo', () {
       final h = _pre(
         lineas: const <LineaPreDespacho>[
           LineaPreDespacho(producto: 'Arroz', formatos: 18, unidades: 360, pesoKg: 180),
@@ -285,28 +297,82 @@ void main() {
       );
       final t = TotalesPreDespacho.de(h);
 
-      expect(
-        t.unidades,
-        isNull,
-        reason:
-            'Con una línea sin unidades el total NO se puede dar: sumar 360 + '
-            '240 e imprimir 600 es un total a medias que se lee como completo.',
-      );
+      // Esta prueba exigía `null` y una raya en el papel. El 28/09/2026 se
+      // midió lo que costaba: la raya se comía filas enteras de la hoja
+      // —4.949 empaques de MALTA GUAJIRA por 21 renglones de 1.149— y no era
+      // pasajero, que de 129 productos de Ventra sólo 57 traen peso. Lo que
+      // sale ahora es la suma de lo que se sabe MARCADA COMO MÍNIMO; lo que no
+      // puede salir, ni entonces ni ahora, es `600` a secas.
+      expect(t.unidades, 600, reason: '360 + 240, y la paca fuera');
+      expect(t.unidadesCompletas, isFalse);
+      expect(t.sinUnidades, 1);
 
       // Y lo que de verdad importa: lo que sale IMPRESO en el pie de la hoja.
-      final enElPapel = cantidadDeFila(t.unidades);
+      final enElPapel = conMinimo(
+        cantidadDeFila(t.unidades),
+        completo: t.unidadesCompletas,
+      );
       expect(
         enElPapel,
-        '—',
+        '≥ 600',
         reason:
-            'En el pie de la hoja del almacén salió «$enElPapel» donde tenía '
-            'que salir una raya. Un número ahí se saca del almacén.',
+            'En el pie de la hoja del almacén salió «$enElPapel». Sin el `≥` '
+            'ese 600 es el total, y le falta una línea: se saca de menos y no '
+            'se descubre hasta que el camión se fue.',
       );
-      expect(enElPapel, isNot('600'), reason: 'ése es el total PARCIAL');
       expect(
-        RegExp(r'\d').hasMatch(enElPapel),
-        isFalse,
-        reason: 'el pie no puede llevar ninguna cifra si falta una línea',
+        enElPapel,
+        isNot('600'),
+        reason: 'ése es el total PARCIAL vendido como completo',
+      );
+      expect(
+        enElPapel.startsWith('≥'),
+        isTrue,
+        reason: 'la marca va DELANTE de la cifra, que es donde se lee',
+      );
+    });
+
+    // LA PAREJA DEL `≥`: si saliera siempre, no distinguiría nada — 28/09/2026.
+    test('con TODO sabido el pie va desnudo, sin `≥`', () {
+      final t = TotalesPreDespacho.de(_pre(
+        lineas: const <LineaPreDespacho>[
+          LineaPreDespacho(producto: 'Arroz', formatos: 18, unidades: 360, pesoKg: 180),
+          LineaPreDespacho(producto: 'Azúcar', formatos: 12, unidades: 240, pesoKg: 120),
+        ],
+      ));
+      expect(t.sinUnidades, 0);
+      expect(t.sinPeso, 0);
+      expect(
+        conMinimo(cantidadDeFila(t.unidades), completo: t.unidadesCompletas),
+        '600',
+        reason:
+            'Éstas son las 600 unidades de verdad. Un `≥` aquí es un aviso '
+            'que sale siempre, y un aviso que sale siempre deja de leerse.',
+      );
+      expect(
+        conMinimo(pesoDeFila(t.pesoDeLosProductos), completo: t.pesoCompleto),
+        '300.0',
+      );
+    });
+
+    test('sin saber NADA se queda la raya, y sin `≥` delante', () {
+      // `≥ —` no es nada, y `≥ 0.0` es peor: es el «0.0 kg» del 22/09/2026 con
+      // un símbolo delante. Cuando no se sabe nada se dice que no se sabe.
+      final t = TotalesPreDespacho.de(_pre(
+        lineas: const <LineaPreDespacho>[
+          LineaPreDespacho(producto: 'Servilleta paca 24p', formatos: 7, unidades: null, pesoKg: null),
+          LineaPreDespacho(producto: 'Vodka regio', formatos: 3, unidades: null, pesoKg: null),
+        ],
+      ));
+      expect(t.unidades, isNull);
+      expect(t.pesoDeLosProductos, isNull);
+      expect(
+        conMinimo(cantidadDeFila(t.unidades), completo: t.unidadesCompletas),
+        '—',
+      );
+      expect(
+        conMinimo(pesoDeFila(t.pesoDeLosProductos), completo: t.pesoCompleto),
+        '—',
       );
     });
 

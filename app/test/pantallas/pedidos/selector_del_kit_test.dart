@@ -28,6 +28,23 @@ void main() {
   ];
 
   Future<void> abrir(WidgetTester tester) async {
+    // A 1200 px, Y HAY QUE PONERLO A MANO.
+    //
+    // Un `testWidgets` sin tocar `tester.view` mide **800x600**, que está POR
+    // DEBAJO de `Anchos.escritorio` (1024). Desde el 28/09/2026 este `Selector`
+    // abre un cajón por debajo de ese corte, así que estas cuatro pruebas
+    // —escritas para el MENÚ— pasaban solas a medir un cajón sin que nadie lo
+    // pidiera. Habrían seguido en verde, porque el aviso de «Nada que cuadre
+    // con…» está en los dos sitios, y entonces el menú de escritorio se habría
+    // quedado sin nadie que lo mirara.
+    //
+    // El cajón tiene su propia pareja en
+    // `test/diseno/el_selector_del_kit_es_cajon_test.dart`, que además prueba
+    // este mismo aviso dentro del cajón.
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(

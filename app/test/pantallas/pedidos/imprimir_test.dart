@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pdf/pdf.dart';
+import 'package:reparto/impresion/hoja.dart' as papel;
 import 'package:reparto/impresion/vista_previa.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/frescura/frescura.dart';
@@ -186,8 +187,8 @@ void main() {
             unidades: 50,
             pesoKg: 125,
           ),
-          // Sin peso resuelto: en el papel son cero kilos, que es lo que pesa
-          // lo que no sabemos.
+          // Sin peso resuelto: al papel va `null`, NUNCA cero. Un cero se lee
+          // como «no pesa» y en la hoja del almacén eso cuadra mal.
           LineaPreDespacho(producto: 'Frijol', empaques: 1, unidades: 10),
         ],
         pedidos: 2,
@@ -212,6 +213,67 @@ void main() {
       // cero no se distingue de un producto que de verdad no pesa. Lo pinta
       // `pesoDeFila` como `—`.
       expect(hoja.lineas.last.pesoKg, isNull);
+    });
+
+    // LOS CONTADORES TIENEN QUE LLEGAR AL PAPEL — 28/09/2026.
+    //
+    // Es el punto exacto por donde las dos hojas del mismo filtro se pueden
+    // separar: la pantalla suma lo que sabe y lo marca con `≥` porque tiene el
+    // contador de renglones delante; si en este traspaso se cae, el papel
+    // imprime la MISMA cifra **sin la marca** y ahí ya es un total. Se vería
+    // `26320.0 kg` en el papel y `≥ 26320.0 kg` en la pantalla del mismo
+    // filtro, y quien baja al almacén se queda con el papel.
+    test('los contadores de renglones viajan a la hoja, y cuentan igual', () {
+      final totales = TotalesPreDespacho(
+        const [
+          // La forma de MALTA GUAJIRA: 21 renglones de 1.149 sin peso.
+          LineaPreDespacho(
+            producto: 'MALTA GUAJIRA 1500 ML BLISTER 6U',
+            empaques: 4949,
+            unidades: 29694,
+            pesoKg: 26320,
+            lineasSinPeso: 21,
+          ),
+          // Y uno que no sabe nada en ninguno de sus 6.
+          LineaPreDespacho(
+            producto: 'VODKA REGIO BLISTER 6U',
+            empaques: 364,
+            unidades: 2184,
+            lineasSinPeso: 6,
+          ),
+        ],
+        pedidos: 264,
+        pesoDeLosPedidos: 29835.4,
+      );
+
+      final hoja = hojaDePreDespacho(
+        totales: totales,
+        sucursal: 'La Habana',
+        dia: null,
+      );
+
+      expect(
+        hoja.lineas.first.lineasSinPeso,
+        21,
+        reason:
+            'El contador se quedó en el camino: sin él la fila imprime '
+            '26320.0 como si fuera el peso entero de 4.949 empaques.',
+      );
+      expect(hoja.lineas.first.pesoCompleto, isFalse);
+      expect(hoja.lineas.last.lineasSinPeso, 6);
+
+      // Y el total del papel cuenta LOS MISMOS renglones que la pantalla: 27,
+      // no 2. Dos números distintos para la misma pregunta es el §3-bis.
+      final enElPapel = papel.TotalesPreDespacho.de(hoja);
+      expect(
+        enElPapel.sinPeso,
+        totales.sinPeso,
+        reason:
+            'La pantalla cuenta ${totales.sinPeso} renglones sin peso y el '
+            'papel ${enElPapel.sinPeso}, con las mismas líneas.',
+      );
+      expect(enElPapel.sinPeso, 27);
+      expect(enElPapel.pesoCompleto, isFalse);
     });
 
     test('el dia sólo se escribe cuando el rango ES un dia', () {

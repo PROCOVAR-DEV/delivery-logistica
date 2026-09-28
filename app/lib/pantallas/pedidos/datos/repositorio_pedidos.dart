@@ -23,10 +23,41 @@ class LineaPreDespacho {
     required this.empaques,
     required this.unidades,
     this.pesoKg,
+    this.lineasSinUnidades = 0,
+    this.lineasSinPeso = 0,
   });
 
   final String producto;
   final double empaques;
+
+  /// CUÁNTAS LÍNEAS DE ESTE PRODUCTO NO TRAEN EL DATO, y por qué se cuentan en
+  /// vez de borrar el número — 28/09/2026, por la tarde.
+  ///
+  /// Por la mañana la regla era: falta una, se borra el producto entero. Nació
+  /// bien —un total corto que parece completo es el fallo más caro de esta
+  /// casa— y en cuanto salió a producción se vio lo bruto que era: **21 líneas
+  /// de 1.149 dejaban sin kg una fila de 4.949 empaques** de MALTA GUAJIRA, que
+  /// es el producto que más se mueve. Jose, mirando la hoja: «por q me siguen
+  /// saliendo cosas sin nada por q razon».
+  ///
+  /// Y no se va a arreglar solo llenando datos: la sesión de PEDIDO comprobó
+  /// contra Ventra que **de 129 productos sólo 57 traen peso**. Los otros 72
+  /// vienen vacíos de verdad, así que con la regla de la mañana media hoja se
+  /// quedaba en blanco para siempre.
+  ///
+  /// La salida no es relajar la regla, es **decir la verdad entera**: se enseña
+  /// lo que sí se sabe marcado como MÍNIMO —`≥ 26.320,0 kg`— y al lado cuántas
+  /// líneas faltan. Un `≥` no se puede leer como un total completo, que es lo
+  /// único que el §3 prohíbe, y en cambio sí sirve para cargar un camión:
+  /// «pesa por lo menos esto» es una decisión que alguien puede tomar; una raya
+  /// no lo es.
+  final int lineasSinUnidades;
+  final int lineasSinPeso;
+
+  /// Si el número de arriba es el de TODAS las líneas o sólo el de las que lo
+  /// traen. Es lo que decide el `≥` de la pantalla.
+  bool get pesoCompleto => lineasSinPeso == 0;
+  bool get unidadesCompletas => lineasSinUnidades == 0;
 
   /// Las unidades sueltas que hay dentro de esos empaques: **la `quantity` de
   /// cada renglón del pedido**, cuando es de fiar.
@@ -41,8 +72,8 @@ class LineaPreDespacho {
   /// salir: lo manda Ventra renglón a renglón. Lo que había que conservar del
   /// 22/09/2026 —«SERVILLETA PROSITO PACA 24P · 7 empaques · 4 unidades»— es
   /// que `quantity` no SIEMPRE son unidades; ver [Repositorio] y su predicado,
-  /// que deja fuera esas líneas y pinta `—` en el producto que toque en vez de
-  /// dar la suma de sólo algunas.
+  /// que deja esas líneas fuera de la suma y las cuenta en [lineasSinUnidades],
+  /// para que lo que salga sea `≥ 600` y no un total de sólo algunas.
   final double? unidades;
 
   /// **El peso que manda Ventra en cada renglón** (`peso_linea_kg`), sumado por
@@ -50,9 +81,11 @@ class LineaPreDespacho {
   /// columna estaba en blanco: el catálogo local no trae el peso de nadie,
   /// mientras que 7.650 de las 7.738 líneas de producción sí lo traen.
   ///
-  /// `null` en cuanto UNA línea de ese producto no lo tenga. **No es cero**:
-  /// cero se lee como «no pesa», y en la hoja de almacén ése es otro error. Por
-  /// eso la columna pinta `—`.
+  /// Es la suma de las líneas que SÍ lo traen, y [lineasSinPeso] dice cuántas
+  /// no: por eso la columna lo pinta con un `≥` delante mientras ese contador
+  /// no sea cero. `null` sólo cuando no lo trae ninguna, y entonces la columna
+  /// pinta `—`. **Nunca cero**: cero se lee como «no pesa», y en la hoja del
+  /// almacén ése es otro error.
   final double? pesoKg;
 }
 
@@ -79,37 +112,65 @@ class TotalesPreDespacho {
   int get productos => lineas.length;
   double get empaques => lineas.fold(0, (suma, linea) => suma + linea.empaques);
 
-  /// UN TOTAL A MEDIAS ES PEOR QUE NINGUNO, y por eso los dos de abajo son
-  /// nulos en cuanto falte UNA línea — 22/09/2026.
+  /// LO QUE SE SABE, SUMADO; Y APARTE, CUÁNTO FALTA POR SABER.
   ///
-  /// La franja de la pantalla decía «10 producto(s) · 3185 empaques · **0.0
-  /// kg**» mientras la hoja imprimible del mismo filtro decía «264 pedido(s) ·
-  /// **24891.0 kg**». Los dos números eran ciertos cada uno en su definición
-  /// —uno suma el peso resuelto por producto, el otro el de los pedidos— y
-  /// juntos sólo pueden hacer una cosa: que quien carga el camión se crea que
-  /// no pesa nada.
+  /// El incidente que dio la regla sigue en pie y es el del 22/09/2026: la
+  /// franja decía «10 producto(s) · 3185 empaques · **0.0 kg**» mientras la hoja
+  /// imprimible del mismo filtro decía «264 pedido(s) · **24891.0 kg**». Los dos
+  /// números eran ciertos cada uno en su definición y juntos sólo podían hacer
+  /// una cosa: que quien carga el camión se crea que no pesa nada.
   ///
-  /// Sumar lo que hay y callar lo que falta es la misma mentira con menos
-  /// escándalo: 8 de 10 productos resueltos dan un peso que parece completo y
-  /// se queda corto. Mejor `null`, que la pantalla pinta `—` y dice cuántos
-  /// faltan.
-  double? get unidades => _sumaCompleta((l) => l.unidades);
-  double? get pesoKg => _sumaCompleta((l) => l.pesoKg);
+  /// Lo que cambió el 28/09/2026 es la SALIDA, no la regla. Devolver `null` en
+  /// cuanto faltara una línea dejaba media hoja en blanco —21 líneas de 1.149
+  /// borraban 4.949 empaques de MALTA GUAJIRA— y no era una situación pasajera:
+  /// de los 129 productos de Ventra, **sólo 57 traen peso**. Una columna que no
+  /// va a salir nunca no protege a nadie.
+  ///
+  /// Así que la suma es de lo que hay y se acompaña de [sinPeso] /
+  /// [sinUnidades], que dicen cuántas líneas quedaron fuera. La pantalla lo
+  /// pinta con un `≥`, y un `≥` no se puede leer como un total completo — que es
+  /// lo único que el §3 prohíbe. `null` sólo cuando no se sabe NADA.
+  double? get unidades => _suma((l) => l.unidades);
+  double? get pesoKg => _suma((l) => l.pesoKg);
 
-  /// Cuántas líneas no tienen el peso resuelto. Es lo que convierte el `—` en
-  /// algo que se puede arreglar: dice cuántos productos faltan por emparejar.
-  int get sinPeso => lineas.where((l) => l.pesoKg == null).length;
+  /// Cuántas LÍNEAS quedaron fuera de cada suma. **Líneas, no productos**: es lo
+  /// que dice de verdad cuánto falta, porque un producto con 21 líneas huérfanas
+  /// de 1.149 y otro con las 6 que tiene no son el mismo agujero.
+  ///
+  /// Y una línea sin cifra cuenta **al menos una**, aunque venga con el contador
+  /// en cero. Sin eso, unos totales armados a mano —los de una prueba, los de
+  /// otro sitio que construya [LineaPreDespacho] sin contadores— sumaban
+  /// `180 + nada` y lo enseñaban como `180.0 kg` **sin el `≥`**: una suma a
+  /// medias presentada como completa, que es exactamente lo único que esto
+  /// tiene que impedir. Misma regla que en el papel (`faltan`, en
+  /// `impresion/hoja.dart`), y lo que las ata es
+  /// `test/impresion/los_dos_pesos_del_pre_despacho_test.dart`.
+  int get sinPeso => lineas.fold(
+    0,
+    (n, l) => n + _faltan(l.lineasSinPeso, hayCifra: l.pesoKg != null),
+  );
+  int get sinUnidades => lineas.fold(
+    0,
+    (n, l) => n + _faltan(l.lineasSinUnidades, hayCifra: l.unidades != null),
+  );
 
-  /// Cuántas no saben sus unidades por empaque.
-  int get sinUnidades => lineas.where((l) => l.unidades == null).length;
+  /// Si lo de arriba es el total o un mínimo.
+  bool get pesoCompleto => sinPeso == 0;
+  bool get unidadesCompletas => sinUnidades == 0;
 
-  double? _sumaCompleta(double? Function(LineaPreDespacho) de) {
-    if (lineas.isEmpty) return null;
-    var suma = 0.0;
+  /// El gemelo de `faltan` del papel, escrito aquí porque esta capa no depende
+  /// de la de impresión. Que los dos digan lo mismo lo comprueba una prueba.
+  int _faltan(int contados, {required bool hayCifra}) {
+    if (contados > 0) return contados;
+    return hayCifra ? 0 : 1;
+  }
+
+  double? _suma(double? Function(LineaPreDespacho) de) {
+    double? suma;
     for (final linea in lineas) {
       final valor = de(linea);
-      if (valor == null) return null;
-      suma += valor;
+      if (valor == null) continue;
+      suma = (suma ?? 0) + valor;
     }
     return suma;
   }
@@ -515,10 +576,12 @@ class ConsultasPedidos {
     final empaques = _empaquesDeLaLinea.sum();
     final unidades = _unidadesDeLaLinea.sum();
     final peso = _pesoDeLaLinea.sum();
-    // UNA SUMA A MEDIAS ES PEOR QUE NINGUNA, y aqui se aplica por PRODUCTO.
-    // `SUM` se salta las lineas nulas y devuelve la suma de ALGUNAS con pinta de
-    // ser la de todas: el numero creible y equivocado del §3. Por eso al lado va
-    // el contador de las que faltan, y con una sola la celda se vuelve `—`.
+    // UNA SUMA A MEDIAS NO PUEDE PARECER COMPLETA, y aqui se aplica por
+    // PRODUCTO. `SUM` se salta las lineas nulas y devuelve la suma de ALGUNAS
+    // con pinta de ser la de todas: el numero creible y equivocado del §3. Por
+    // eso al lado va el contador de las que faltan, que es lo que la celda pinta
+    // como `≥ 26320.0 (21 renglones sin peso)`. La celda sólo se vuelve `—`
+    // cuando el contador se come TODAS las lineas del producto.
     // `filter:` y NO `isNull().count()`: `COUNT(x)` cuenta los valores NO
     // NULOS de lo que le den, y `x IS NULL` vale `true` o `false` pero nunca
     // nulo — o sea que `COUNT(x IS NULL)` son TODAS las filas, siempre mayor
@@ -563,10 +626,15 @@ class ConsultasPedidos {
           LineaPreDespacho(
             producto: fila.read(producto) ?? '',
             empaques: fila.read(empaques) ?? 0,
-            unidades: (fila.read(sinUnidades) ?? 0) > 0
-                ? null
-                : fila.read(unidades),
-            pesoKg: (fila.read(sinPeso) ?? 0) > 0 ? null : fila.read(peso),
+            // LO QUE SE SABE SE DA, Y SE DICE LO QUE FALTA. `SUM` se salta las
+            // líneas nulas, así que esto es la suma de las que sí traen el
+            // dato: un MÍNIMO, no un total. Lo que lo convierte en honesto es
+            // el contador de al lado, que la pantalla pinta como `≥`.
+            // Ver [LineaPreDespacho.lineasSinPeso].
+            unidades: fila.read(unidades),
+            pesoKg: fila.read(peso),
+            lineasSinUnidades: fila.read(sinUnidades) ?? 0,
+            lineasSinPeso: fila.read(sinPeso) ?? 0,
           ),
       ],
       pedidos: cuantos,

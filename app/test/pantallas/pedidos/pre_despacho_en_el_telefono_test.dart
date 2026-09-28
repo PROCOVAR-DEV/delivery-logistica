@@ -66,6 +66,30 @@ void main() {
     pedidos: 24,
   );
 
+  /// LO QUE SE SABE A MEDIAS, que es el caso normal desde el 28/09/2026: la
+  /// MALTA trae peso en 1.126 de sus 1.147 renglones —21 fuera— y la cerveza
+  /// en todos los suyos. Antes de ese día la fila entera de MALTA salía `—` y
+  /// con ella se borraban 4.949 empaques del producto que más se mueve.
+  final aMedias = TotalesPreDespacho(
+    const [
+      LineaPreDespacho(
+        producto: malta,
+        empaques: 4949,
+        unidades: 7404,
+        pesoKg: 26320,
+        lineasSinPeso: 21,
+      ),
+      LineaPreDespacho(
+        producto: cerveza,
+        empaques: 980,
+        unidades: 5880,
+        pesoKg: 11.5,
+      ),
+    ],
+    pedidos: 24,
+    pesoDeLosPedidos: 29835.4,
+  );
+
   /// LOS DIEZ PRODUCTOS DE PRODUCCIÓN, copiados de la hoja que QA sacó el
   /// 22/09/2026 (`qa-capturas/22-predespacho-1600.png`): los empaques suman
   /// **4887**, las unidades **34204**, ninguna línea tiene peso en el catálogo
@@ -399,6 +423,91 @@ void main() {
     });
   });
 
+  // EL `≥` EN LA CELDA, que es donde primero se mira — 28/09/2026.
+  //
+  // Estas dos columnas pintaban `—` en cuanto a UN renglón del producto le
+  // faltara el dato, y en producción eso dejó la columna `kg` en blanco justo
+  // en los productos que más se mueven: 21 renglones de 1.149 borraban los
+  // 4.949 empaques de MALTA GUAJIRA. Jose: «por q me siguen saliendo cosas sin
+  // nada por q razon».
+  //
+  // Lo que se pinta ahora es la suma de lo que SÍ se sabe con un `≥` delante.
+  // Y las dos mitades se comprueban en pareja, porque un `≥` que saliera
+  // siempre no significaría nada: con el dato entero la cifra va desnuda.
+  group('el `≥` de las celdas', () {
+    testWidgets('a 1440 px la celda a medias lleva `≥` y la completa no', (
+      tester,
+    ) async {
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: aMedias),
+        ancho: anchoDeEscritorio,
+      );
+
+      expect(
+        find.text('≥ 26320.0'),
+        findsOneWidget,
+        reason:
+            'La fila de MALTA —4.949 empaques— tiene que enseñar lo que pesa '
+            'de lo que se sabe. Antes salía `—` y con ella se iba el producto '
+            'que más se mueve.',
+      );
+      expect(
+        find.text('26320.0'),
+        findsNothing,
+        reason:
+            'Sin el `≥` esa cifra es el peso ENTERO de la fila, y le faltan '
+            '21 renglones: se carga de menos y no se descubre hasta que el '
+            'camión se fue.',
+      );
+      expect(
+        find.text('11.5'),
+        findsOneWidget,
+        reason:
+            'La cerveza sí trae sus renglones enteros: su cifra va desnuda. '
+            'Un `≥` que sale en todas las filas deja de querer decir nada.',
+      );
+      expect(find.text('≥ 11.5'), findsNothing);
+    });
+
+    testWidgets('a 390 px la tarjeta dice lo mismo, con su rótulo', (
+      tester,
+    ) async {
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: aMedias),
+        ancho: anchoDelTelefono,
+      );
+
+      final caja = tester.getRect(find.text('≥ 26320.0 kg'));
+      expect(
+        caja.right,
+        lessThanOrEqualTo(anchoDelTelefono),
+        reason:
+            'El `≥` alarga la cifra: llega hasta '
+            'x=${caja.right.toStringAsFixed(1)} y se sale de la pantalla.',
+      );
+      expect(find.text('11.5 kg'), findsOneWidget);
+      expect(find.text('26320.0 kg'), findsNothing);
+    });
+
+    testWidgets('sin saber NADA sigue siendo una raya, no un `≥ 0`', (
+      tester,
+    ) async {
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: sinPeso),
+        ancho: anchoDelTelefono,
+      );
+
+      // `≥ 0.0` es el «0.0 kg» del 22/09/2026 con un símbolo delante: cierto,
+      // inútil y se lee como que no pesa. La raya se queda para esto.
+      expect(find.text('— kg'), findsWidgets);
+      expect(find.textContaining('≥ 0'), findsNothing);
+      expect(find.text('— unidades'), findsWidgets);
+    });
+  });
+
   group('lo que dicen los rótulos', () {
     test('el botón lleva dentro lo que hay contado', () {
       // Sin nada sumado no se inventa un número.
@@ -406,15 +515,103 @@ void main() {
       expect(rotuloDelPreDespacho(conPeso), 'Pre-despacho · 2 productos');
     });
 
-    test('el peso a medias no se suma: se dice cuántos faltan', () {
+    test('el peso a medias se da como MÍNIMO y con los renglones que faltan', () {
+      // LAS DOS MITADES, y hacen falta las dos: el número solo diría «falta
+      // algo» sin decir cuánto, y el conteo solo no deja cargar un camión.
+      //
+      // Esta prueba decía `'1 de 2 productos sin peso'`: ni daba la cifra —la
+      // hoja salía muda con 4.949 empaques dentro— ni contaba renglones, que
+      // es lo que dice cuánto falta de verdad.
+      expect(
+        pesoDelPreDespacho(aMedias),
+        '≥ 26331.5 kg (21 renglones sin peso)',
+        reason: '26320 de MALTA + 11.5 de cerveza, y 21 renglones fuera',
+      );
+
+      // La pareja: con todo sabido, la cifra va desnuda. Si el `≥` saliera
+      // también aquí, dejaría de distinguir un mínimo de un total.
       expect(pesoDelPreDespacho(conPeso), '100.0 kg');
+      expect(pesoDelPreDespacho(conPeso), isNot(contains('≥')));
+
+      // Y sin saber nada, ni `≥` ni cero: se dice que no se sabe.
       expect(pesoDelPreDespacho(sinPeso), 'sin peso en los pedidos');
-      // Y con algunos resueltos y otros no, dice cuántos.
-      final aMedias = TotalesPreDespacho(const [
-        LineaPreDespacho(producto: malta, empaques: 1, unidades: 1, pesoKg: 2),
-        LineaPreDespacho(producto: cerveza, empaques: 1, unidades: 1),
+    });
+
+    test('un solo renglón se dice en singular', () {
+      // «1 renglones» en la hoja del almacén es una errata que hace dudar del
+      // número de al lado.
+      final unoSolo = TotalesPreDespacho(const [
+        LineaPreDespacho(
+          producto: malta,
+          empaques: 4949,
+          unidades: 7404,
+          pesoKg: 26320,
+          lineasSinPeso: 1,
+        ),
       ]);
-      expect(pesoDelPreDespacho(aMedias), '1 de 2 productos sin peso');
+      expect(pesoDelPreDespacho(unoSolo), '≥ 26320.0 kg (1 renglón sin peso)');
+    });
+
+    test('el resumen del cajón arrastra el `≥`, que es donde se lee primero', () {
+      // El subtítulo del cajón es lo único que se ve sin abrir nada. Si ahí
+      // saliera «29835.4 kg» a secas, el `≥` de dentro llega tarde.
+      expect(
+        resumenDelPreDespacho(aMedias),
+        '2 producto(s) · 5929 empaques · ≥ 26331.5 kg (21 renglones sin peso)',
+      );
+      expect(
+        resumenDelPreDespacho(sinPeso),
+        '3 producto(s) · 2226 empaques · sin peso en los pedidos',
+      );
+    });
+  });
+
+  // LAS UNIDADES VAN POR EL MISMO CAMINO, y también se pueden separar.
+  //
+  // El renglón `Unidades` del bloque de totales tiene su propio contador
+  // (`sinUnidades`) y su propio texto. Se prueba aparte porque es otra función:
+  // el 28/09/2026 el `≥` se puso primero en el peso, y una copia a medias
+  // habría dejado las unidades sumando a escondidas.
+  group('las unidades del total', () {
+    testWidgets('a medias salen con `≥` y con los renglones que faltan', (
+      tester,
+    ) async {
+      final t = TotalesPreDespacho(const [
+        LineaPreDespacho(
+          producto: malta,
+          empaques: 10,
+          unidades: 600,
+          pesoKg: 5,
+          lineasSinUnidades: 3,
+        ),
+      ]);
+      await pintar(
+        tester,
+        VistaPreDespacho(totales: t),
+        ancho: anchoDeEscritorio,
+      );
+
+      expect(
+        find.text('≥ 600 (3 renglones sin unidades)'),
+        findsOneWidget,
+        reason:
+            'Con tres renglones fuera, 600 unidades no son las de la hoja: '
+            'quien saca del almacén cuenta bultos contra ese número.',
+      );
+      expect(find.text('600'), findsNothing);
+    });
+
+    testWidgets('con todas sabidas va desnuda, y sin ninguna es una raya', (
+      tester,
+    ) async {
+      await pintar(
+        tester,
+        VistaPreDespacho(totales: conPeso),
+        ancho: anchoDeEscritorio,
+      );
+      // 7404 + 5880, sin `≥`: es el total de verdad.
+      expect(find.text('13284'), findsOneWidget);
+      expect(find.textContaining('≥'), findsNothing);
     });
   });
 }

@@ -13,6 +13,8 @@ class LineaPreDespacho {
     required this.formatos,
     required this.unidades,
     required this.pesoKg,
+    this.lineasSinUnidades = 0,
+    this.lineasSinPeso = 0,
   });
 
   final String producto;
@@ -36,6 +38,29 @@ class LineaPreDespacho {
   /// «que es lo que pesa lo que no sabemos», y eso es exactamente el cero
   /// creíble: en el papel no se distingue de un producto que de verdad no pesa.
   final num? pesoKg;
+
+  /// CUÁNTOS RENGLONES DEL PEDIDO QUEDARON FUERA de cada una de las dos cifras
+  /// de arriba — 28/09/2026.
+  ///
+  /// Hasta esa fecha bastaba UNO para que la celda saliera `—`. La intención
+  /// era buena y el resultado fue una hoja de almacén con la columna `kg` en
+  /// blanco justo en los productos que más se mueven: 21 renglones de 1.149
+  /// borraban 4.949 empaques de MALTA GUAJIRA. Y no era pasajero: de los 129
+  /// productos de Ventra sólo 57 traen peso.
+  ///
+  /// Ahora la cifra es la de lo que sí se sabe y el papel la imprime con un
+  /// `≥` delante cuando esto no es cero. «Pesa por lo menos esto» sirve para
+  /// cargar un camión; una raya no. Y un `≥` no se puede confundir con un
+  /// total, que es lo único que la regla vieja protegía de verdad.
+  ///
+  /// **Tiene que decir lo MISMO que la pantalla, letra por letra**, y eso lo
+  /// ata `test/impresion/los_dos_pesos_del_pre_despacho_test.dart`, no este
+  /// comentario.
+  final int lineasSinUnidades;
+  final int lineasSinPeso;
+
+  bool get pesoCompleto => lineasSinPeso == 0;
+  bool get unidadesCompletas => lineasSinUnidades == 0;
 }
 
 /// La hoja con la que alguien baja al almacen a sacar mercancia.
@@ -203,30 +228,43 @@ class TotalesPreDespacho {
     required this.pesoDeLosPedidos,
     required this.productos,
     required this.sinPeso,
+    this.sinUnidades = 0,
   });
 
   factory TotalesPreDespacho.de(HojaPreDespacho h) => TotalesPreDespacho(
     formatos: h.lineas.fold<num>(0, (t, l) => t + l.formatos),
-    unidades: _sumaCompleta(h.lineas.map((l) => l.unidades)),
-    pesoDeLosProductos: _sumaCompleta(
+    unidades: _suma(h.lineas.map((l) => l.unidades)),
+    pesoDeLosProductos: _suma(
       h.lineas.map((l) => sePuedeSumarElPeso(l.pesoKg) ? l.pesoKg : null),
     ),
     pesoDeLosPedidos: h.pesoKg,
     productos: h.lineas.length,
-    sinPeso: h.lineas.where((l) => !sePuedeSumarElPeso(l.pesoKg)).length,
+    // RENGLONES, no productos: un producto con 21 renglones huérfanos de 1.149
+    // y otro con los 6 que tiene no son el mismo agujero.
+    sinPeso: h.lineas.fold<int>(
+      0,
+      (n, l) => n + faltan(l.lineasSinPeso, hayCifra: sePuedeSumarElPeso(l.pesoKg)),
+    ),
+    sinUnidades: h.lineas.fold<int>(
+      0,
+      (n, l) => n + faltan(l.lineasSinUnidades, hayCifra: l.unidades != null),
+    ),
   );
 
   final num formatos;
 
-  /// `null` en cuanto UNA línea no sepa sus unidades: un total a medias se lee
-  /// como completo y se queda corto. Es la misma regla que en la pantalla
-  /// (`TotalesPreDespacho._sumaCompleta`).
+  /// La suma de las líneas que SÍ traen unidades, y `null` cuando no las trae
+  /// ninguna. Lo que impide que un total corto se lea como completo ya no es un
+  /// `null`, es el `≥` que el papel le pone delante mientras [sinUnidades] no
+  /// sea cero. Misma regla en la pantalla (`TotalesPreDespacho.unidades`, en
+  /// `pantallas/pedidos/datos/repositorio_pedidos.dart`).
   final num? unidades;
 
-  /// La suma de la columna `kg`, que es el peso **por producto** del catálogo.
-  /// `null` en cuanto una línea no lo sepa, por lo mismo que [unidades]: en la
-  /// hoja del almacén un total corto se carga de menos y no se descubre hasta
-  /// que el camión ya se fue.
+  /// La suma de la columna `kg`, que es el peso **por producto**. `null` sólo
+  /// cuando no lo sabe ninguna línea; si lo saben unas y otras no, es un MÍNIMO
+  /// y se imprime con `≥`, por lo mismo que [unidades]: en la hoja del almacén
+  /// un total corto se carga de menos y no se descubre hasta que el camión ya
+  /// se fue — pero una columna en blanco tampoco carga nada.
   final num? pesoDeLosProductos;
 
   /// El peso del CONJUNTO de pedidos, que **no** se suma de las líneas: viene
@@ -234,12 +272,19 @@ class TotalesPreDespacho {
   /// en la columna equivocada.
   final num pesoDeLosPedidos;
 
-  /// Cuántas líneas tiene la hoja y cuántas no traen peso. Están para poder
-  /// decir **cuántos productos faltan por emparejar** en vez de una raya muda,
-  /// igual que la pantalla: un `—` no se puede arreglar, «1 de 3 productos sin
-  /// peso» sí.
+  /// Cuántas líneas —productos— tiene la hoja. Lo que falta por saber NO se
+  /// cuenta aquí: va en [sinPeso] / [sinUnidades], que cuentan renglones.
   final int productos;
+
+  /// Cuántos RENGLONES quedaron fuera de cada suma. Con esto el papel escribe
+  /// `≥ 26.320,0 kg (21 renglones sin peso)` en vez de una raya muda: la
+  /// primera mitad deja cargar el camión y la segunda dice qué falta por
+  /// arreglar. Ver [LineaPreDespacho.lineasSinPeso].
   final int sinPeso;
+  final int sinUnidades;
+
+  bool get pesoCompleto => sinPeso == 0;
+  bool get unidadesCompletas => sinUnidades == 0;
 }
 
 /// Si el peso de una línea entra en el total de la columna `kg`.
@@ -258,6 +303,31 @@ class TotalesPreDespacho {
 /// Está atado a `pesoDeFila` con una prueba, no con este comentario:
 /// `test/impresion/los_dos_pesos_del_pre_despacho_test.dart`.
 bool sePuedeSumarElPeso(num? kg) => kg != null && kg != 0;
+
+/// CUÁNTOS RENGLONES FALTAN EN UNA LÍNEA, y por qué no es «uno por producto» —
+/// 28/09/2026, al probarlo.
+///
+/// Esto contaba `1` por cada producto que no trae la cifra, y con eso el papel
+/// decía **«1 renglón sin peso»** donde la pantalla del mismo filtro decía
+/// **«21 renglones sin peso»**: los 21 renglones huérfanos de MALTA GUAJIRA se
+/// aplastaban a uno solo. Dos números distintos para la misma pregunta, que es
+/// el §3-bis otra vez y justo lo que el `≥` venía a evitar.
+///
+/// Manda el contador de la línea, que es el que cuenta RENGLONES. El `1` se
+/// queda **sólo de respaldo**, para quien arma la hoja sin contadores: el
+/// asistente de rutas (`rutas/vista/asistente_nueva_ruta.dart`) construye sus
+/// líneas con `pesoKg: linea.pesoKg ?? 0` y sin `lineasSinPeso`, y por ese
+/// camino lo único que se sabe es que ese producto no aporta nada — pero eso ya
+/// basta para que el total no se pueda dar por completo.
+///
+/// La pantalla hace lo mismo con la misma regla (`TotalesPreDespacho.sinPeso`,
+/// en `pantallas/pedidos/datos/repositorio_pedidos.dart`); lo que las ata es
+/// `test/impresion/los_dos_pesos_del_pre_despacho_test.dart`, no este
+/// comentario.
+int faltan(int contados, {required bool hayCifra}) {
+  if (contados > 0) return contados;
+  return hayCifra ? 0 : 1;
+}
 
 /// El pie del post-despacho suma **las filas mostradas**, no todas: si sumara
 /// todas, el total no cuadraria con lo que se ve encima.
@@ -282,16 +352,21 @@ class TotalesPostDespacho {
   final num queda;
 }
 
-/// Suma sólo si están TODAS. Un total a medias no se distingue de uno completo
-/// y por eso es peor que no tener total: en la hoja del almacén se carga de
-/// menos y no se descubre hasta que el camión ya se fue.
-num? _sumaCompleta(Iterable<num?> valores) {
-  num suma = 0;
-  var hubo = false;
+/// Suma LO QUE HAY, y `null` sólo cuando no hay nada.
+///
+/// Antes era «suma sólo si están TODAS», y el motivo era bueno: un total a
+/// medias no se distingue de uno completo, y en la hoja del almacén eso es
+/// cargar de menos y no descubrirlo hasta que el camión se fue. Lo que cambió
+/// el 28/09/2026 no es ese motivo, es que **ahora sí se distingue**: el papel
+/// imprime `≥` cuando faltan renglones, y un `≥` no es un total.
+///
+/// La regla vieja dejaba media hoja en blanco —de 129 productos de Ventra sólo
+/// 57 traen peso— y una columna que no sale nunca no protege a nadie.
+num? _suma(Iterable<num?> valores) {
+  num? suma;
   for (final v in valores) {
-    if (v == null) return null;
-    suma += v;
-    hubo = true;
+    if (v == null) continue;
+    suma = (suma ?? 0) + v;
   }
-  return hubo ? suma : null;
+  return suma;
 }

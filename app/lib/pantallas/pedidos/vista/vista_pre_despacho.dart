@@ -104,6 +104,17 @@ abstract final class PreDespacho {
       ValueKey('pre-despacho-$producto');
 }
 
+/// Las unidades del total, con la misma regla del `≥` que la columna: lo que se
+/// sabe, marcado como mínimo, y cuántos renglones se quedaron fuera.
+String _unidadesDelTotal(TotalesPreDespacho t) {
+  final u = t.unidades;
+  if (u == null) return '—';
+  return t.unidadesCompletas
+      ? cantidad(u)
+      : '≥ ${cantidad(u)} (${t.sinUnidades} '
+            '${t.sinUnidades == 1 ? 'renglón' : 'renglones'} sin unidades)';
+}
+
 /// EL PESO DE LA FRANJA, o por qué no dice «0.0 kg» — 22/09/2026.
 ///
 /// La franja decía «10 producto(s) · 3185 empaques · **0.0 kg**» mientras la
@@ -111,14 +122,21 @@ abstract final class PreDespacho {
 /// dos números eran ciertos cada uno en su definición, y juntos sólo pueden
 /// hacer una cosa: que quien carga el camión se crea que no pesa nada.
 ///
-/// Cuando falta algún producto por emparejar se dice **cuántos**, que es lo que
-/// convierte un `—` en algo que alguien puede ir a arreglar.
+/// Cuando faltan renglones por saber se dice **cuántos**, y la cifra va con un
+/// `≥` delante: lo primero es lo que alguien puede ir a arreglar, lo segundo es
+/// lo que impide leer un mínimo como un total.
+///
+/// **Tiene que decir LO MISMO que el papel**, letra por letra
+/// (`pesoDeLosProductosEnPapel`, en `impresion/pre_despacho.dart`). Lo ata
+/// `test/impresion/los_dos_pesos_del_pre_despacho_test.dart`.
 String pesoDelPreDespacho(TotalesPreDespacho t) {
   final peso = t.pesoKg;
-  if (peso != null) return '${peso.toStringAsFixed(1)} kg';
-  return t.sinPeso == t.productos
-      ? 'sin peso en los pedidos'
-      : '${t.sinPeso} de ${t.productos} productos sin peso';
+  if (peso == null) return 'sin peso en los pedidos';
+  if (t.pesoCompleto) return '${peso.toStringAsFixed(1)} kg';
+  // El mínimo, y CUÁNTAS LÍNEAS faltan. El número solo diría «falta algo» sin
+  // decir cuánto; el conteo solo no deja cargar un camión. Las dos cosas sí.
+  return '≥ ${peso.toStringAsFixed(1)} kg (${t.sinPeso} '
+      '${t.sinPeso == 1 ? 'renglón' : 'renglones'} sin peso)';
 }
 
 /// Las cuentas en una línea: lo que va en el SUBTÍTULO del cajón.
@@ -297,10 +315,7 @@ class TotalesDelPreDespacho extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       _Fila('Empaques', cantidad(totales.empaques)),
-      _Fila(
-        'Unidades',
-        totales.unidades == null ? '—' : cantidad(totales.unidades!),
-      ),
+      _Fila('Unidades', _unidadesDelTotal(totales)),
       _Fila(pesoDeLosProductos, pesoDelPreDespacho(totales)),
       _Fila(
         pesoDeLosPedidos,
@@ -423,14 +438,38 @@ class TablaPreDespacho extends StatelessWidget {
         horizontalMargin: Aire.md,
       );
 
-  /// Sin unidades por empaque en el catálogo se pinta `—`, no un número que
-  /// contradiga a los empaques de al lado.
-  static String _unidades(LineaPreDespacho l) =>
-      l.unidades == null ? '—' : cantidad(l.unidades!);
+  /// EL `≥` ES LA MITAD DEL DATO, no un adorno — 28/09/2026.
+  ///
+  /// Estas dos celdas pintaban `—` en cuanto a UNA línea del producto le
+  /// faltara el número. La intención era buena —un total corto que parece
+  /// completo es el fallo más caro de esta casa— y el resultado fue que la
+  /// columna `kg` salía en blanco en los productos que más se mueven: 21 líneas
+  /// de 1.149 borraban 4.949 empaques de MALTA GUAJIRA. Jose, mirando la hoja:
+  /// «por q me siguen saliendo cosas sin nada por q razon».
+  ///
+  /// Y no era pasajero: de los 129 productos de Ventra **sólo 57 traen peso**.
+  ///
+  /// Con el `≥` delante, el número ya no puede leerse como un total: dice «pesa
+  /// por lo menos esto», que es una frase con la que alguien puede decidir si
+  /// carga el camión. Una raya no lo es. La raya se queda para lo único que la
+  /// merece: cuando no se sabe NADA.
+  static String _unidades(LineaPreDespacho l) => _conMinimo(
+    l.unidades,
+    l.unidadesCompletas,
+    (v) => cantidad(v),
+  );
 
-  /// Sin peso resuelto se pinta `—`, nunca un cero.
   static String _peso(LineaPreDespacho l) =>
-      l.pesoKg == null ? '—' : l.pesoKg!.toStringAsFixed(1);
+      _conMinimo(l.pesoKg, l.pesoCompleto, (v) => v.toStringAsFixed(1));
+
+  static String _conMinimo(
+    double? valor,
+    bool completo,
+    String Function(double) comoSeEscribe,
+  ) {
+    if (valor == null) return '—';
+    return completo ? comoSeEscribe(valor) : '≥ ${comoSeEscribe(valor)}';
+  }
 
   /// Las cifras, en mono y de ancho fijo: se comparan de arriba abajo y con la
   /// proporcional las unidades bailan de fila a fila.

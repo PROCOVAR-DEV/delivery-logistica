@@ -148,5 +148,17 @@ String pesoDeFila(num? kg) => (kg == null || kg == 0)
 /// y no se descubre hasta que se fue.
 String cantidadDeFila(num? n) => n == null ? '—' : numero(n);
 
+/// LO MISMO, PERO DICIENDO QUE ES UN MÍNIMO — 28/09/2026.
+///
+/// Cuando a una fila le faltan renglones, su cifra ya no es el total: es lo que
+/// se sabe. Con el `≥` delante se puede imprimir sin mentir, y con él la hoja
+/// del almacén vuelve a servir — antes salía `—` en los productos que más se
+/// mueven porque a 21 renglones de 1.149 les faltaba el dato.
+///
+/// El `≥` va pegado a la cifra y no en otra columna a propósito: quien lee la
+/// hoja en el almacén lee una línea, no una tabla de notas al pie.
+String conMinimo(String cifra, {required bool completo}) =>
+    completo || cifra == '—' ? cifra : '≥ $cifra';
+
 /// El peso de un total: siempre con su decimal, aunque sea cero.
 String pesoTotal(num kg) => kg.toStringAsFixed(1);

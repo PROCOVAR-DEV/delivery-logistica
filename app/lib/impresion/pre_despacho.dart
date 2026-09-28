@@ -74,10 +74,10 @@ abstract final class TextoPreDespacho {
 /// depende de la capa de pantallas—, así que se comparan con una prueba.
 String pesoDeLosProductosEnPapel(TotalesPreDespacho t) {
   final peso = t.pesoDeLosProductos;
-  if (peso != null) return '${pesoTotal(peso)}${TextoPreDespacho.kg}';
-  return t.sinPeso == t.productos
-      ? TextoPreDespacho.sinPesoEnElCatalogo
-      : '${t.sinPeso} de ${t.productos} productos sin peso';
+  if (peso == null) return TextoPreDespacho.sinPesoEnElCatalogo;
+  if (t.pesoCompleto) return '${pesoTotal(peso)}${TextoPreDespacho.kg}';
+  return '≥ ${pesoTotal(peso)}${TextoPreDespacho.kg} (${t.sinPeso} '
+      '${t.sinPeso == 1 ? 'renglón' : 'renglones'} sin peso)';
 }
 
 /// El peso **de los pedidos**: éste siempre se sabe, porque viene en el propio
@@ -181,8 +181,17 @@ pw.Widget _tabla(HojaPreDespacho h, TotalesPreDespacho t) => pw.Table(
         children: <pw.Widget>[
           celda(l.producto),
           celda(numero(l.formatos), derecha: true),
-          celda(cantidadDeFila(l.unidades), derecha: true),
-          celda(pesoDeFila(l.pesoKg), derecha: true),
+          celda(
+            conMinimo(
+              cantidadDeFila(l.unidades),
+              completo: l.unidadesCompletas,
+            ),
+            derecha: true,
+          ),
+          celda(
+            conMinimo(pesoDeFila(l.pesoKg), completo: l.pesoCompleto),
+            derecha: true,
+          ),
           celdaParaMarcar(),
         ],
       ),
@@ -191,13 +200,27 @@ pw.Widget _tabla(HojaPreDespacho h, TotalesPreDespacho t) => pw.Table(
       children: <pw.Widget>[
         celda(TextoPreDespacho.total, negrita: true),
         celda(numero(t.formatos), derecha: true, negrita: true),
-        celda(cantidadDeFila(t.unidades), derecha: true, negrita: true),
+        celda(
+          conMinimo(cantidadDeFila(t.unidades), completo: t.unidadesCompletas),
+          derecha: true,
+          negrita: true,
+        ),
         // EL TOTAL DE LA COLUMNA `kg` ES EL TOTAL DE ESA COLUMNA, y por eso
         // ya no es `h.pesoKg`. Aquí se imprimía el peso de los PEDIDOS debajo
         // de una columna de pesos por PRODUCTO; con diez líneas a `—` encima,
         // el 29.835,4 del pie se leía como la suma de esas diez rayas. Con la
-        // misma regla que las líneas (`pesoDeFila`): si falta una, raya.
-        celda(pesoDeFila(t.pesoDeLosProductos), derecha: true, negrita: true),
+        // misma regla que las líneas (`pesoDeFila` + `conMinimo`): lo que se
+        // sabe, con `≥` delante mientras falte un renglón, y raya sólo si no se
+        // sabe nada. Cuántos renglones faltan se dice abajo, en el bloque de
+        // los dos pesos: en una celda de cinco columnas no cabe.
+        celda(
+          conMinimo(
+            pesoDeFila(t.pesoDeLosProductos),
+            completo: t.pesoCompleto,
+          ),
+          derecha: true,
+          negrita: true,
+        ),
         celdaParaMarcar(),
       ],
     ),

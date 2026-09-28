@@ -25,7 +25,7 @@ void main() {
   tearDown(() => base.close());
 
   test(
-    'el pre-despacho de lo marcado suma empaques, unidades y kilos',
+    'el pre-despacho de lo marcado suma lo que sabe y cuenta lo que le falta',
     () async {
       // o1: Arroz 2 empaques / 20 uds (producto con 25 kg por empaque) + Frijol 1/10
       // o2: Arroz 3 empaques / 30 uds
@@ -57,11 +57,36 @@ void main() {
       expect(totales.empaques, 6);
       // Las unidades SÍ se saben enteras: las dos líneas las traen.
       expect(totales.unidades, 60, reason: '50 de arroz + 10 de frijol');
-      // EL PESO NO, Y POR ESO ES NULO. Sumar sólo el arroz daría 125 kg, que se
-      // lee como el total de la hoja y se queda corto: el mismo cero creíble
-      // con otra cara. Falta UNO y ya no hay total.
-      expect(totales.pesoKg, isNull);
-      expect(totales.sinPeso, 1);
+      expect(totales.unidadesCompletas, isTrue);
+
+      // EL PESO NO SE SABE ENTERO, Y AUN ASÍ SE DA — 28/09/2026.
+      //
+      // Hasta esa mañana esto era `isNull`: faltaba un renglón y se borraba el
+      // total. El motivo era bueno —125 kg leídos como el total de la hoja es
+      // cargar de menos— y la medida contra producción lo tumbó: **21
+      // renglones de 1.149 dejaban sin kg una fila de 4.949 empaques** de MALTA
+      // GUAJIRA, y no se arregla llenando datos, que de los 129 productos de
+      // Ventra sólo 57 traen peso. Jose, mirando la hoja: «por q me siguen
+      // saliendo cosas sin nada por q razon».
+      //
+      // Lo que sustituye al `null` **no es el número a secas**: es el número
+      // MÁS el contador de renglones que faltan, que es lo que la pantalla
+      // pinta con el `≥`. Si un día esto vuelve a ser sólo `125`, sin
+      // `sinPeso`, la suma a medias vuelve a leerse como completa.
+      expect(totales.pesoKg, 125, reason: 'los 125 kg del arroz, que sí se saben');
+      expect(
+        totales.sinPeso,
+        1,
+        reason:
+            'el renglón de frijol se quedó fuera de esos 125 kg y hay que '
+            'decirlo: sin este número, 125 kg es un total mentiroso',
+      );
+      expect(
+        totales.pesoCompleto,
+        isFalse,
+        reason: 'es lo que hace salir el `≥`; en `true` los 125 kg se firman '
+            'como el peso entero de la hoja',
+      );
       expect(totales.sinUnidades, 0);
     },
   );
@@ -255,22 +280,37 @@ void main() {
   // juntos sólo pueden hacer una cosa: que quien carga el camión se crea que no
   // pesa nada.
   //
-  // La regla que queda: el total por producto es `null` mientras falte uno, y
-  // el de la cabecera —el de los pedidos— sigue siendo un número siempre,
-  // porque ése sí se sabe entero.
+  // La regla que quedó aquel día fue «el total por producto es `null` mientras
+  // falte uno». El 28/09/2026 se midió contra producción y era demasiado bruta:
+  // 21 renglones de 1.149 borraban los 4.949 empaques de MALTA GUAJIRA, y de
+  // los 129 productos de Ventra sólo 57 traen peso, así que media hoja se
+  // quedaba en blanco para siempre.
+  //
+  // LO QUE NO CAMBIÓ es lo único que aquella regla protegía: **una suma
+  // incompleta no puede presentarse como completa**. Antes lo garantizaba el
+  // `null`; ahora lo garantizan las dos cifras juntas —la suma de lo que se
+  // sabe y `sinPeso`/`sinUnidades`, que la pantalla escribe como
+  // `≥ 26320.0 kg (21 renglones sin peso)`—. El `null` se queda para cuando no
+  // se sabe NADA, y el de la cabecera —el de los pedidos— sigue siendo un
+  // número siempre, porque ése sí se sabe entero.
   group('la franja y la hoja', () {
-    test('ningún producto emparejado: el total NO dice 0.0 kg', () async {
+    test('ningún producto emparejado: el total NO dice 0.0 kg NI «≥ 0»', () async {
       // o3 lleva Aceite, que no está en el catálogo.
       final totales = await consultas.preDespachoDe(['o3']);
 
+      // SIN SABER NADA SIGUE SIENDO `null`, y esto es la otra mitad del `≥`.
+      // Un `≥ 0.0 kg` es la misma mentira que el «0.0 kg» del 22/09/2026 con
+      // un símbolo delante: cierto, inútil, y se lee como que no pesa. La raya
+      // se queda exactamente para este caso.
       expect(totales.pesoKg, isNull, reason: 'cero se lee como «no pesa»');
       expect(totales.unidades, isNull);
-      expect(totales.sinPeso, totales.productos);
+      expect(totales.sinPeso, 1, reason: 'el único renglón de o3');
+      expect(totales.sinUnidades, 1);
     });
 
     test('la cabecera de la hoja SÍ sabe lo que pesa: sale de los pedidos', () async {
-      // Y por eso no es nula aunque no haya ni un producto emparejado: es el
-      // peso del conjunto, no la suma por producto.
+      // Y por eso es un número entero aunque no haya ni un producto emparejado:
+      // es el peso del conjunto, no la suma por producto.
       final totales = await consultas.preDespachoDe(['o1', 'o2', 'o3']);
 
       expect(totales.pedidos, 3);
@@ -279,12 +319,27 @@ void main() {
         greaterThan(0),
         reason: 'es lo que la hoja imprime arriba a la derecha',
       );
-      expect(totales.pesoKg, isNull, reason: 'y por producto no se sabe entero');
+      // Y el de los productos es un MÍNIMO: los 125 kg del arroz, con el
+      // frijol y el aceite fuera. Los dos siguen siendo dos cuentas distintas
+      // —125 y 350—, que es el fallo del 22/09/2026; lo que impide restarlas a
+      // ojo es que una lleve su `≥` y su cuenta de renglones.
+      expect(totales.pesoKg, 125, reason: 'lo único que se sabe pesar');
+      expect(totales.pesoCompleto, isFalse);
+      expect(
+        totales.sinPeso,
+        2,
+        reason: 'el renglón de frijol y el de aceite, que son DOS renglones',
+      );
+      expect(totales.pesoKg, isNot(totales.pesoDeLosPedidos));
     });
 
-    test('con TODO emparejado los dos totales son números', () async {
-      // o1 y o2 sin el frijol: sólo arroz, que está en el catálogo con sus 25
-      // kg y sus 10 unidades por empaque.
+    test('con TODO sabido los dos totales son números Y NO LLEVAN `≥`', () async {
+      // LA PAREJA DEL `≥`, y no es un adorno: si el `≥` saliera siempre
+      // dejaría de significar nada y volveríamos a no poder distinguir un
+      // total de un mínimo — que es el fallo entero, sólo que al revés.
+      //
+      // o2 no tiene frijol: sólo arroz, que está en el catálogo con sus 25 kg
+      // y sus 10 unidades por empaque.
       final totales = await consultas.preDespachoDe(['o2']);
 
       expect(totales.lineas.single.producto, 'Arroz');
@@ -293,6 +348,122 @@ void main() {
       expect(totales.pesoKg, 75, reason: '3 empaques × 25 kg');
       expect(totales.sinPeso, 0);
       expect(totales.sinUnidades, 0);
+      expect(
+        totales.pesoCompleto,
+        isTrue,
+        reason:
+            'con las dos cifras sabidas no hay nada que avisar: un `≥` aquí '
+            'es un aviso que sale siempre, y un aviso que sale siempre no se '
+            'lee el día que importa',
+      );
+      expect(totales.unidadesCompletas, isTrue);
+      expect(totales.lineas.single.pesoCompleto, isTrue);
+      expect(totales.lineas.single.unidadesCompletas, isTrue);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // SE CUENTAN RENGLONES, NO PRODUCTOS — 28/09/2026
+  // ---------------------------------------------------------------------------
+  //
+  // «21 renglones de 1.149» y «2 productos de 10» son dos frases distintas, y
+  // sólo la primera dice cuánto falta de verdad: un producto con 21 renglones
+  // huérfanos y otro con el único que tiene no son el mismo agujero. Contar
+  // productos deja el mismo «2 sin peso» tanto si faltan dos renglones como si
+  // faltan doscientos, y con eso nadie decide si la hoja sirve.
+  group('sinPeso y sinUnidades cuentan RENGLONES', () {
+    test('un producto con varios renglones huérfanos cuenta todos', () async {
+      // La forma de MALTA GUAJIRA, en pequeño: un producto con muchos
+      // renglones y sólo algunos con peso, y otro producto entero sin nada.
+      await sembrarPedido(base, id: 'o20', cliente: 'Pepe', peso: 500);
+      var linea = 0;
+      for (final peso in <double?>[12, null, null, null]) {
+        await sembrarRenglon(
+          base,
+          id: 'malta-${++linea}',
+          pedidoId: 'o20',
+          producto: 'MALTA GUAJIRA 1500 ML BLISTER 6U',
+          unidades: 6,
+          empaques: 1,
+          linea: linea,
+          pesoLinea: peso,
+        );
+      }
+      // Y uno que no trae NADA en ninguno de sus dos renglones.
+      for (final _ in <int>[1, 2]) {
+        await sembrarRenglon(
+          base,
+          id: 'vodka-${++linea}',
+          pedidoId: 'o20',
+          producto: 'VODKA REGIO BLISTER 6U',
+          unidades: 6,
+          empaques: 1,
+          linea: linea,
+        );
+      }
+
+      final totales = await consultas.preDespachoDe(['o20']);
+      expect(totales.productos, 2);
+
+      final malta = totales.lineas.firstWhere(
+        (l) => l.producto.startsWith('MALTA'),
+      );
+      expect(malta.pesoKg, 12, reason: 'el único renglón que trae peso');
+      expect(
+        malta.lineasSinPeso,
+        3,
+        reason:
+            'los tres renglones que no lo traen. En `1` —«el producto está a '
+            'medias»— la hoja no dice si falta un renglón o trescientos',
+      );
+
+      expect(
+        totales.sinPeso,
+        5,
+        reason:
+            'TRES renglones de MALTA + los DOS de VODKA. Si sale 2 es que se '
+            'están contando PRODUCTOS: el mismo número tanto si falta un '
+            'renglón como si faltan los mil de la hoja entera.',
+      );
+      expect(
+        totales.sinPeso,
+        isNot(totales.productos),
+        reason: 'el día que coincidan, este caso dejó de probar lo que prueba',
+      );
+      // El peso que sí se sabe se da, y marcado: 12 kg de 6 renglones.
+      expect(totales.pesoKg, 12);
+      expect(totales.pesoCompleto, isFalse);
+    });
+
+    test('un producto sin NADA aporta todos sus renglones, no uno', () async {
+      // Éste es el que se colaba: el producto que no trae ni un dato contaba
+      // como **1** en el papel mientras la pantalla contaba sus renglones, y
+      // las dos hojas del mismo filtro decían números distintos.
+      await sembrarPedido(base, id: 'o21', cliente: 'Quique', peso: 80);
+      for (var i = 1; i <= 4; i++) {
+        await sembrarRenglon(
+          base,
+          id: 'aceite-$i',
+          pedidoId: 'o21',
+          producto: 'ACEITE GIRASOL 1 L CAJA 12U',
+          // `quantity` por debajo de `packs`: tampoco son unidades (la paca del
+          // 22/09/2026), así que este producto no sabe ni peso ni unidades.
+          unidades: 2,
+          empaques: 5,
+          linea: i,
+        );
+      }
+
+      final totales = await consultas.preDespachoDe(['o21']);
+      expect(totales.productos, 1);
+      expect(totales.pesoKg, isNull, reason: 'no se sabe NADA: raya, no `≥ 0`');
+      expect(totales.unidades, isNull);
+      expect(
+        totales.sinPeso,
+        4,
+        reason: 'los cuatro renglones. `1` es contar el producto',
+      );
+      expect(totales.sinUnidades, 4);
     });
   });
 

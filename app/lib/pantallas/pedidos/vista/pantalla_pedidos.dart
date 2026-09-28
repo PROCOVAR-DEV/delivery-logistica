@@ -487,6 +487,12 @@ papel.HojaPreDespacho hojaDePreDespacho({
         formatos: linea.empaques,
         unidades: linea.unidades,
         pesoKg: linea.pesoKg,
+        // LOS CONTADORES VIAJAN AL PAPEL. Sin ellos la hoja imprimiría la suma
+        // de lo que se sabe **como si fuera el total**, que es justo lo que la
+        // pantalla ya no hace: se vería `26.320,0 kg` en el papel y
+        // `≥ 26.320,0 kg` en la pantalla del mismo filtro.
+        lineasSinUnidades: linea.lineasSinUnidades,
+        lineasSinPeso: linea.lineasSinPeso,
       ),
   ],
 );

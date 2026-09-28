@@ -43,23 +43,26 @@ void main() {
       final frijol = totales.lineas.last;
       expect(frijol.producto, 'Frijol');
       expect(frijol.empaques, 1);
-      // Sin producto emparejado tampoco se sabe cuántas unidades trae el
-      // empaque: **null, no un número**. Antes aquí salía `quantity`, y de ahí
-      // venía «7 pacas · 4 unidades» en la hoja del 22/09/2026.
-      expect(frijol.unidades, isNull);
+      // El frijol NO está en el catálogo y aun así sabe sus unidades: son las
+      // del propio renglón del pedido —10 unidades en 1 empaque—, que es de
+      // donde salen desde el 28/09/2026. Lo que sigue prohibido es la línea
+      // cuya `quantity` NO son unidades, y ésa se mira por su forma —«7 pacas ·
+      // 4 unidades» del 22/09/2026—, no por si el producto está emparejado.
+      expect(frijol.unidades, 10);
       // Sin producto emparejado no hay peso resuelto: **null, no cero**. Un cero se
       // leeria como «no pesa» y la hoja del almacen cuadraria mal.
       expect(frijol.pesoKg, isNull);
 
       expect(totales.productos, 2);
       expect(totales.empaques, 6);
-      // LOS DOS TOTALES SON NULOS PORQUE FALTA EL FRIJOL. Sumar sólo el arroz
-      // daría 50 unidades y 125 kg, que se leen como el total de la hoja y se
-      // quedan cortos: es el mismo cero creíble con otra cara.
-      expect(totales.unidades, isNull);
+      // Las unidades SÍ se saben enteras: las dos líneas las traen.
+      expect(totales.unidades, 60, reason: '50 de arroz + 10 de frijol');
+      // EL PESO NO, Y POR ESO ES NULO. Sumar sólo el arroz daría 125 kg, que se
+      // lee como el total de la hoja y se queda corto: el mismo cero creíble
+      // con otra cara. Falta UNO y ya no hay total.
       expect(totales.pesoKg, isNull);
       expect(totales.sinPeso, 1);
-      expect(totales.sinUnidades, 1);
+      expect(totales.sinUnidades, 0);
     },
   );
 
@@ -150,6 +153,65 @@ void main() {
 
     final totales = await consultas.preDespachoDe(['o13']);
     expect(totales.lineas.single.empaques, 7, reason: hojaCorta);
+  });
+
+  // ---------------------------------------------------------------------------
+  // EL DATO DEL PEDIDO MANDA SOBRE EL DEL CATALOGO — 28/09/2026
+  // ---------------------------------------------------------------------------
+  //
+  // La columna `kg` de la hoja salia entera en blanco porque se calculaba con
+  // el catalogo, y el catalogo local no trae el peso de NINGUN producto. El dato
+  // si estaba, en el renglon del pedido, que es quien lo sabe de verdad: 7.650
+  // de las 7.738 lineas de produccion traen `peso_linea_kg`.
+
+  test('el peso del RENGLON manda sobre el del catalogo', () async {
+    // Arroz esta emparejado y el catalogo dice 25 kg por empaque, o sea 50 kg
+    // por estos dos. Pero el pedido dice que esta linea pesa 7, y el pedido es
+    // el que se va a cargar en el camion.
+    await sembrarPedido(base, id: 'o14', cliente: 'Nadia');
+    await sembrarRenglon(
+      base,
+      id: 'i7',
+      pedidoId: 'o14',
+      producto: 'Arroz',
+      unidades: 20,
+      empaques: 2,
+      productoId: 'p1',
+      pesoLinea: 7,
+    );
+
+    final totales = await consultas.preDespachoDe(['o14']);
+    expect(
+      totales.lineas.single.pesoKg,
+      7,
+      reason:
+          'si sale 50 es que se esta usando el catalogo teniendo el peso del '
+          'renglon: la hoja del almacen diria un peso que el pedido desmiente',
+    );
+  });
+
+  test('una `quantity` que NO son unidades no se cuela en la hoja', () async {
+    // El caso del 22/09/2026: «SERVILLETA PROSITO PACA 24P · 7 empaques · 4
+    // unidades». `quantity` por debajo de `packs` no son unidades de nada, y
+    // sumarlas da un numero mas bajo que los propios bultos. Son 437 de las
+    // 7.738 lineas de produccion.
+    await sembrarPedido(base, id: 'o15', cliente: 'Omar');
+    await sembrarRenglon(
+      base,
+      id: 'i8',
+      pedidoId: 'o15',
+      producto: 'Servilleta',
+      unidades: 4,
+      empaques: 7,
+    );
+
+    final totales = await consultas.preDespachoDe(['o15']);
+    expect(totales.lineas.single.empaques, 7);
+    expect(
+      totales.lineas.single.unidades,
+      isNull,
+      reason: 'cuatro unidades dentro de siete pacas no es un dato, es un error',
+    );
   });
 
   test('la cabecera de la hoja: cuantos pedidos y cuantos kilos', () async {

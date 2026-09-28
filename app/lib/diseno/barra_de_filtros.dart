@@ -176,12 +176,36 @@ class _Rejilla extends StatelessWidget {
         // con alto sin acotar, y `stretch` le pide a la fila que ocupe todo lo
         // alto —que ahí es infinito— y revienta el trazado entero. Lo cazó
         // `test/diseno/barra_de_filtros_test.dart` antes de salir de aquí.
+        //
+        // CADA UNO SE LLEVA LO QUE MIDE, NO LA MITAD EXACTA — 28/09/2026.
+        //
+        // Jose, mirando Pedidos en el teléfono: «esos campos son de ese mismo
+        // tamaño en vez de repartirse para que quepan todos y con su respectivo
+        // tamaño». Tenía razón: «Cualquier precio» y «Todos los vendedores» no
+        // miden lo mismo, y darles media caja a cada uno deja al corto con
+        // hueco y al largo con los puntos suspensivos.
+        //
+        // `Expanded` con `flex` a lo que mide cada uno, y **`Expanded` y no
+        // `Flexible`**: el reparto ya no es 50/50, pero los dos siguen llenando
+        // la fila de borde a borde, que es lo que arregló el escalonado del
+        // 25/09 y no se puede perder.
+        //
+        // Con `Flexible` —que fue el primer intento, el 28/09— cada uno se
+        // queda en lo que mide su contenido y **el de la derecha deja hueco
+        // hasta el borde**: vuelve el borde en sierra del que se quejaba Jose,
+        // sólo que por el otro lado. Lo cazaron tres pruebas de aquí abajo
+        // diciendo `Expected: <208.0>  Actual: <390.0>`, que son esos 182 px de
+        // hueco. `Expanded` da las dos cosas: cada uno su tamaño, y la fila
+        // entera ocupada.
+        //
+        // El peso se mide por los caracteres del rótulo, que es lo único que
+        // esta capa sabe de un filtro: no conoce sus tipos ni tiene por qué.
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: filtros[i]),
+            Expanded(flex: _peso(filtros[i]), child: filtros[i]),
             const SizedBox(width: Aire.sm),
-            Expanded(child: filtros[i + 1]),
+            Expanded(flex: _peso(filtros[i + 1]), child: filtros[i + 1]),
           ],
         ),
       );
@@ -191,6 +215,34 @@ class _Rejilla extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: filas,
     );
+  }
+
+  /// Cuánto pesa un filtro en el reparto de su fila.
+  ///
+  /// Sale de la LONGITUD DE SU RÓTULO, que es lo único que esta capa sabe de un
+  /// filtro: aquí no se conocen sus tipos ni hay por qué conocerlos — ver la
+  /// nota de arriba sobre lo que esta barra NO hace.
+  ///
+  /// Con topes por los dos lados y a propósito: **sin el mínimo**, un rótulo de
+  /// una palabra se quedaría tan estrecho que su propio texto saldría cortado,
+  /// que es peor que el hueco que esto viene a quitar; **sin el máximo**, un
+  /// vendedor con nombre largo se llevaría la fila entera y dejaría al de al
+  /// lado hecho una rendija. Entre 2 y 5 el reparto va como mucho de 2 a 5, que
+  /// es bastante y no es una desaparición.
+  static int _peso(Widget filtro) {
+    final t = _rotuloDe(filtro);
+    if (t == null) return 3;
+    final n = (t.length / 8).round();
+    return n < 2 ? 2 : (n > 5 ? 5 : n);
+  }
+
+  /// El rótulo de un filtro, si se puede saber. `null` cuando no, y entonces
+  /// pesa lo de en medio: **no se adivina**, porque un peso inventado descoloca
+  /// la fila sin que nadie sepa por qué.
+  static String? _rotuloDe(Widget filtro) {
+    final k = filtro.key;
+    if (k is ValueKey<String>) return k.value;
+    return null;
   }
 }
 

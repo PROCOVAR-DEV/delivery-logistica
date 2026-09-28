@@ -28,22 +28,31 @@ class LineaPreDespacho {
   final String producto;
   final double empaques;
 
-  /// Las unidades sueltas que hay dentro de esos empaques, **sacadas del
-  /// catálogo**: `empaques × unitsPerPackage`.
+  /// Las unidades sueltas que hay dentro de esos empaques: **la `quantity` de
+  /// cada renglón del pedido**, cuando es de fiar.
   ///
-  /// `null` cuando el catálogo no lo dice, igual que [pesoKg] y por el mismo
-  /// motivo. **Y esto antes era `SUM(quantity)`**, que no es lo mismo: el
-  /// 22/09/2026 la hoja decía «SERVILLETA PROSITO PACA 24P · 7 empaques · 4
-  /// unidades» — cuatro unidades dentro de siete pacas—, y «SOPA DE POLLO CAJA
-  /// 72 P · 15 empaques · 15 unidades». `quantity` unas veces trae unidades y
-  /// otras repite los bultos; en la hoja con la que se saca del almacén eso es
-  /// un número creíble y equivocado. Lo único que se sabe de verdad es lo que
-  /// diga el catálogo, y si no lo dice se pinta `—`.
+  /// Esto salía del catálogo —`empaques × unitsPerPackage`— y en producción el
+  /// catálogo no lo dice de ningún producto, así que la columna entera era una
+  /// raya: Jose, 28/09/2026, mirando la hoja de pre-despacho, «sigo sin ver
+  /// peso y sin ver unidades». Un dato que nunca sale no es una cautela, es una
+  /// columna vacía.
+  ///
+  /// El dato sí está, y está en el propio pedido, que es de donde tiene que
+  /// salir: lo manda Ventra renglón a renglón. Lo que había que conservar del
+  /// 22/09/2026 —«SERVILLETA PROSITO PACA 24P · 7 empaques · 4 unidades»— es
+  /// que `quantity` no SIEMPRE son unidades; ver [Repositorio] y su predicado,
+  /// que deja fuera esas líneas y pinta `—` en el producto que toque en vez de
+  /// dar la suma de sólo algunas.
   final double? unidades;
 
-  /// `null` cuando ninguna linea de ese producto tiene el peso resuelto. **No es
-  /// cero**: cero se lee como «no pesa», y en la hoja de almacen eso es un error
-  /// distinto. Por eso la columna pinta `—`.
+  /// **El peso que manda Ventra en cada renglón** (`peso_linea_kg`), sumado por
+  /// producto. Salía del catálogo —`empaques × products.weight`— y por eso la
+  /// columna estaba en blanco: el catálogo local no trae el peso de nadie,
+  /// mientras que 7.650 de las 7.738 líneas de producción sí lo traen.
+  ///
+  /// `null` en cuanto UNA línea de ese producto no lo tenga. **No es cero**:
+  /// cero se lee como «no pesa», y en la hoja de almacén ése es otro error. Por
+  /// eso la columna pinta `—`.
   final double? pesoKg;
 }
 
@@ -446,20 +455,80 @@ class ConsultasPedidos {
     orElse: _base.orderItems.quantity,
   );
 
+  /// **EL PESO DE UNA LINEA: primero el del PEDIDO, y el catalogo de respaldo**
+  /// — 28/09/2026.
+  ///
+  /// Esto salia solo del catalogo (`kg por empaque × empaques`) y por eso la
+  /// columna `kg` de la hoja estaba entera en blanco: el catalogo local no trae
+  /// el peso de **ningun** producto. Jose, viendo el pre-despacho: «sigo sin ver
+  /// peso y sin ver unidades». Una columna que nunca sale no es una cautela.
+  ///
+  /// Y el dato estaba, en el sitio que manda: Ventra lo pone en cada renglon del
+  /// pedido. 7.650 de las 7.738 lineas de produccion traen `peso_linea_kg`, y
+  /// cuadra al centimo con `empaques × peso_unitario_kg` en las 7.650 — o sea
+  /// que `pesoKg` es **por empaque**, no por unidad, y `pesoLineaKg` ya trae la
+  /// multiplicacion hecha.
+  ///
+  /// El catalogo se queda **de respaldo y por linea**, que es distinto de
+  /// mezclar: cada linea aporta su peso de verdad o el que sepa el catalogo de
+  /// SU producto, y ninguna aporta el de otra. Lo que sigue prohibido es sumar
+  /// unas y callar las que faltan — de eso se encarga el contador de abajo.
+  Expression<double> get _pesoDeLaLinea => coalesce([
+    _base.orderItems.pesoLineaKg,
+    _empaquesDeLaLinea * _base.products.weight,
+  ]);
+
+  /// **LAS UNIDADES DE UNA LINEA: su `quantity`, si es de fiar.**
+  ///
+  /// Ventra manda `quantity` y `packs` juntos, y casi siempre `quantity` son las
+  /// unidades sueltas y `packs` los bultos: 7.301 de las 7.738 lineas de
+  /// produccion tienen `quantity` mayor o igual que `packs` y ademas multiplo
+  /// exacto suyo — «MALTA GUAJIRA 330 ML BLISTER 6U · 120 unidades · 20
+  /// empaques».
+  ///
+  /// Las otras 437 no: ahi `quantity` viene POR DEBAJO de los empaques, asi que
+  /// no son unidades de nada. Son las del 22/09/2026 —«SERVILLETA PROSITO PACA
+  /// 24P · 7 empaques · 4 unidades»—, y meterlas en la hoja con la que se carga
+  /// el camion da un numero mas bajo que los propios bultos.
+  ///
+  /// Asi que la linea vale cuando trae empaques Y `quantity` llega a ellos; si
+  /// no, se cae al catalogo igual que el peso. `packs` nulo queda fuera por el
+  /// `isBiggerThanValue`, como en [_empaquesDeLaLinea]: en SQL una comparacion
+  /// con nulo no es cierta.
+  Expression<double> get _unidadesDeLaLinea => coalesce([
+    CaseWhenExpression<double>(
+      cases: <CaseWhen<bool, double>>[
+        CaseWhen(
+          _base.orderItems.packs.isBiggerThanValue(0) &
+              _base.orderItems.quantity.isBiggerOrEqual(
+                _base.orderItems.packs,
+              ),
+          then: _base.orderItems.quantity,
+        ),
+      ],
+    ),
+    _empaquesDeLaLinea * _base.products.unitsPerPackage,
+  ]);
+
   Future<TotalesPreDespacho> _preDespacho(Expression<bool> filtro) async {
     final producto = _base.orderItems.description;
     final empaques = _empaquesDeLaLinea.sum();
-    // Las unidades salen del catálogo, igual que el peso: `empaques × unidades
-    // por empaque`. Ver `LineaPreDespacho.unidades` para lo que costó.
-    final unidades =
-        (_empaquesDeLaLinea * _base.products.unitsPerPackage).sum();
-    // El peso de la linea sale del catalogo: `kg por empaque × empaques`. Si el
-    // producto no esta emparejado, `SUM` se salta la linea y el total queda
-    // `null`, que la pantalla pinta `—` y no `0`. Los empaques son los mismos de
-    // arriba, con su respaldo: si aqui se usara `packs` a secas, una linea sin
-    // empaques contaria en la columna `Empaques` y no en la de `kg`, y las dos
-    // columnas de la misma fila dejarian de hablar del mismo bulto.
-    final peso = (_empaquesDeLaLinea * _base.products.weight).sum();
+    final unidades = _unidadesDeLaLinea.sum();
+    final peso = _pesoDeLaLinea.sum();
+    // UNA SUMA A MEDIAS ES PEOR QUE NINGUNA, y aqui se aplica por PRODUCTO.
+    // `SUM` se salta las lineas nulas y devuelve la suma de ALGUNAS con pinta de
+    // ser la de todas: el numero creible y equivocado del §3. Por eso al lado va
+    // el contador de las que faltan, y con una sola la celda se vuelve `—`.
+    // `filter:` y NO `isNull().count()`: `COUNT(x)` cuenta los valores NO
+    // NULOS de lo que le den, y `x IS NULL` vale `true` o `false` pero nunca
+    // nulo — o sea que `COUNT(x IS NULL)` son TODAS las filas, siempre mayor
+    // que cero, y con eso las dos columnas salian `—` hasta con el dato puesto.
+    // Duro media hora el 28/09/2026 y lo cazaron las pruebas de esta misma
+    // carpeta, que saben los numeros a mano.
+    final sinUnidades = _base.orderItems.id.count(
+      filter: _unidadesDeLaLinea.isNull(),
+    );
+    final sinPeso = _base.orderItems.id.count(filter: _pesoDeLaLinea.isNull());
 
     final consulta =
         _base.selectOnly(_base.orderItems).join([
@@ -472,7 +541,14 @@ class ConsultasPedidos {
               _base.products.id.equalsExp(_base.orderItems.productId),
             ),
           ])
-          ..addColumns([producto, empaques, unidades, peso])
+          ..addColumns([
+            producto,
+            empaques,
+            unidades,
+            sinUnidades,
+            peso,
+            sinPeso,
+          ])
           // Una linea sin nombre no se puede sacar del almacen: se salta, igual
           // que en el servidor.
           ..where(filtro & producto.trim().equals('').not())
@@ -487,8 +563,10 @@ class ConsultasPedidos {
           LineaPreDespacho(
             producto: fila.read(producto) ?? '',
             empaques: fila.read(empaques) ?? 0,
-            unidades: fila.read(unidades),
-            pesoKg: fila.read(peso),
+            unidades: (fila.read(sinUnidades) ?? 0) > 0
+                ? null
+                : fila.read(unidades),
+            pesoKg: (fila.read(sinPeso) ?? 0) > 0 ? null : fila.read(peso),
           ),
       ],
       pedidos: cuantos,

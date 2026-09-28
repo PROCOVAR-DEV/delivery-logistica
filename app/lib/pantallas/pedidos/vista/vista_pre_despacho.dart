@@ -117,7 +117,7 @@ String pesoDelPreDespacho(TotalesPreDespacho t) {
   final peso = t.pesoKg;
   if (peso != null) return '${peso.toStringAsFixed(1)} kg';
   return t.sinPeso == t.productos
-      ? 'sin peso en el catálogo'
+      ? 'sin peso en los pedidos'
       : '${t.sinPeso} de ${t.productos} productos sin peso';
 }
 
@@ -288,8 +288,8 @@ class TotalesDelPreDespacho extends StatelessWidget {
   static const pesoDeLosPedidos = 'Peso de los pedidos';
 
   static const porQueNoSuman =
-      'No son el mismo número: el de arriba lo pone el catálogo producto a '
-      'producto, y el de abajo viene en cada pedido.';
+      'No son el mismo número: el de arriba suma renglón a renglón, y el de '
+      'abajo es el peso que trae cada pedido entero.';
 
   @override
   Widget build(BuildContext context) => Column(

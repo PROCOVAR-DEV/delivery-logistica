@@ -12,12 +12,23 @@ import 'package:reparto/diseno/selector.dart';
 
 void main() {
   /// Monta un selector suelto y anota lo que elige.
+  ///
+  /// **A 1200 px a propósito.** El alto por defecto de una prueba de widget es
+  /// 800x600, y 800 está POR DEBAJO de `Anchos.escritorio`: desde el 28/09/2026
+  /// eso abre un cajón, no el menú. Estas cinco prueban el menú de escritorio,
+  /// que es lo que probaban cuando se escribieron, así que se les fija el ancho
+  /// en vez de dejarlo al azar del tamaño por defecto. El cajón del teléfono
+  /// tiene las suyas en `en_el_telefono_son_cajones_test.dart`.
   Future<List<String>> montar(
     WidgetTester tester, {
     required List<OpcionSelector<String>> opciones,
     String? valor,
     bool siempreConBuscador = false,
   }) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+
     final elegido = <String>[];
     await tester.pumpWidget(
       MaterialApp(

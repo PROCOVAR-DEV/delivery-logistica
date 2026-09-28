@@ -22,6 +22,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../nucleo/proveedores.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../diseno/tema.dart';
 import '../../pedidos/datos/formato.dart';
@@ -113,7 +114,7 @@ class DetalleDeRuta extends ConsumerWidget {
       ],
       _Acciones(ruta: conTodo),
       const SizedBox(height: 12),
-      LineaDeDatosDeLaRuta(ruta: conTodo),
+      LineaDeDatosDeLaRuta(ruta: conTodo, ahora: ref.read(relojProvider)()),
       const SizedBox(height: 12),
       // EL MAPA, con sus cuatro gestos —abrir en Google Maps, WhatsApp,
       // compartir y copiar. Antes aqui habia medio gesto: un boton que
@@ -492,9 +493,14 @@ class _Acciones extends ConsumerWidget {
 /// en vez de fallarla** (`CLAUDE.md` §5), y un cuelgue no prueba nada. Mismo
 /// motivo por el que [AvisoDeRechazo] vive en su propio fichero publico.
 class LineaDeDatosDeLaRuta extends StatelessWidget {
-  const LineaDeDatosDeLaRuta({required this.ruta, super.key});
+  const LineaDeDatosDeLaRuta({required this.ruta, this.ahora, super.key});
 
   final RutaConTodo ruta;
+
+  /// La hora de ahora, para lo que lleva una ruta EN CURSO. Entra por aquí y no
+  /// de un proveedor a propósito: esta cabecera se prueba suelta, sin
+  /// `ProviderScope` (ver la nota de arriba). `null` deja el `—` de siempre.
+  final DateTime? ahora;
 
   @override
   Widget build(BuildContext context) {
@@ -523,11 +529,14 @@ class LineaDeDatosDeLaRuta extends StatelessWidget {
         Text(
           '$estado · ${r.totalDistance.toStringAsFixed(1)} km (incl. regreso) · '
           '${kg(r.totalWeight)} · ${importe.rotulo} · '
-          '${ruta.vehiculo?.name ?? '—'}'
+          // «Sin vehículo», LO MISMO QUE EN LA LISTA. Un `—` aquí se lee como
+          // «no se sabe» estando al lado de otros dos que sí lo son, y no es
+          // eso: es que esta ruta no lleva camión asignado, que es un dato.
+          '${ruta.vehiculo?.name ?? 'Sin vehículo'}'
           '${ruta.vehiculo?.plate == null ? '' : ' · ${ruta.vehiculo!.plate}'} · '
           '${fechaCorta(r.deliveryDate)} · '
           'Carga total: ${ruta.paradas.length} · '
-          '${duracion(r.startedAt, r.finishedAt)}',
+          '${tiempoDeLaRuta(arranco: r.startedAt, termino: r.finishedAt, ahora: ahora)}',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         // Y DEBAJO, QUE HACER. El `— (2 de 5 sin cotizar)` de arriba dice que no

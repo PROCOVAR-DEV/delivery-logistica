@@ -69,7 +69,12 @@ Future<void> montar(
 /// natural DISTINTO a cada uno a propósito: es justo lo que hacía que el `Wrap`
 /// sacara escalones, así que si la rejilla los iguala, los iguala de verdad.
 class _Caja extends StatelessWidget {
-  const _Caja(this.nombre, {this.anchoNatural = 100});
+  /// La clave de arriba —`super.key`— es la que lee `_peso` para repartir la
+  /// fila; la de dentro, `nombre`, es por la que buscan las pruebas. Son dos a
+  /// propósito: con una sola, `find.byKey` encontraría dos widgets y `getRect`
+  /// no sabría cuál medir. **Y sin la de arriba el reparto no se prueba**: eso
+  /// es lo que dejó pasar que en la aplicación de verdad no hubiera ninguna.
+  const _Caja(this.nombre, {this.anchoNatural = 100, super.key});
 
   final String nombre;
   final double anchoNatural;
@@ -113,6 +118,49 @@ void main() {
       // recto que no había.
       expect(dos.right, cuatro.right);
       expect(uno.left, tres.left);
+    });
+
+    // CADA UNO SE LLEVA LO QUE MIDE, Y ENTRE LOS DOS LLENAN LA FILA — 28/09.
+    //
+    // Las de arriba fijan el borde derecho recto, que es lo del 25/09. Ésta fija
+    // lo otro que pidió Jose mirando Pedidos en el teléfono: «esos campos son de
+    // ese mismo tamaño en vez de repartirse para que quepan todos y con su
+    // respectivo tamaño». Media caja para cada uno deja al corto con hueco y al
+    // largo con los puntos suspensivos.
+    //
+    // Las dos cosas a la vez, y por eso van juntas en esta prueba: si alguien
+    // vuelve al 50/50 se cae el reparto, y si alguien vuelve a `Flexible` se cae
+    // el borde.
+    testWidgets('el rótulo largo se lleva más sitio, y la fila sigue llena', (
+      tester,
+    ) async {
+      await montar(
+        tester,
+        ancho: 390,
+        filtros: const [
+          _Caja('corto', anchoNatural: 30, key: ValueKey('ok')),
+          _Caja(
+            'largo',
+            anchoNatural: 30,
+            key: ValueKey('un rotulo bastante largo de verdad'),
+          ),
+        ],
+      );
+
+      final corto = tester.getRect(find.byKey(const ValueKey('corto')));
+      final largo = tester.getRect(find.byKey(const ValueKey('largo')));
+
+      expect(
+        largo.width,
+        greaterThan(corto.width),
+        reason:
+            'con media caja cada uno, «Cualquier precio» y «Todos los '
+            'vendedores» salen igual de anchos y el largo se corta',
+      );
+      // Y NO SE PIERDE EL BORDE: el de la izquierda empieza en el margen y el de
+      // la derecha acaba en el otro, aunque los dos pidieran 30 px.
+      expect(corto.left, 0);
+      expect(largo.right, 390);
     });
 
     testWidgets('un filtro impar ocupa la fila entera, no media con un hueco', (

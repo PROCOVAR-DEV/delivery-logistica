@@ -53,6 +53,16 @@ void main() {
     testWidgets('elegir avisa, cierra el menú y NO cierra la pantalla', (
       tester,
     ) async {
+      // A 1200 px, que es donde vive el MENÚ. Por debajo de
+      // `Anchos.escritorio` el selector de `diseno/` abre un cajón desde el
+      // 28/09/2026, y el cajón se cierra con el `Navigator` justo al revés que
+      // esto — que es el error que esta prueba vigila, visto desde el otro
+      // lado. El cajón tiene su propia pareja en
+      // `en_el_telefono_son_cajones_test.dart`.
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.reset);
+
       String? elegido;
 
       await tester.pumpWidget(

@@ -154,7 +154,6 @@ class _PantallaPedidosState extends ConsumerState<PantallaPedidos> {
           ),
           const _BarraDeFiltros(),
           const _PreDespachoDeLoElegido(),
-          const _PreDespachoDeLoFiltrado(),
           const SizedBox(height: Aire.lg),
           // Una lista vacia de una coleccion que nunca se bajo NO es «no hay
           // nada»: es un fallo que se lee como un dato (caso S7). Se dice con
@@ -341,8 +340,27 @@ class _BarraDeFiltros extends ConsumerWidget {
         valor: filtros.q,
         alBuscar: (t) => notas.cambiar((f) => f.copiarCon(q: t)),
       ),
+      // CADA FILTRO LLEVA SU CLAVE, Y ES LO QUE LE DA SU ANCHO — 28/09/2026.
+      //
+      // `BarraDeFiltros` reparte la fila del teléfono **a lo que mide cada
+      // uno**, que es lo que pidió Jose: «esos campos son de ese mismo tamaño
+      // en vez de repartirse para que quepan todos y con su respectivo
+      // tamaño». Y lo único que esa capa sabe de un filtro es su clave: no
+      // conoce `Selector` ni tiene por qué.
+      //
+      // Sin estas claves el reparto **no hacía nada**: `_peso` no encontraba
+      // rótulo, devolvía el valor de en medio para todos y los cinco salían
+      // iguales, o sea el 50/50 de antes con más código. Estuvo así desde que
+      // se escribió, y no lo cazó nadie porque las pruebas de la barra montan
+      // cajas que tampoco llevaban clave arriba.
+      //
+      // El texto es el `titulo` y no la opción elegida a propósito: la opción
+      // cambia al elegir, y una clave que cambia le tira el estado al widget.
+      // El `titulo` es estable y mide parecido, que es todo lo que hace falta
+      // para repartir una fila.
       filtros: [
         Selector<RepartoFiltro>(
+          key: const ValueKey('Estado de reparto en delivery'),
           titulo: 'Estado de reparto en delivery',
           valor: filtros.reparto,
           opciones: [
@@ -351,6 +369,7 @@ class _BarraDeFiltros extends ConsumerWidget {
           alElegir: (r) => notas.cambiar((f) => f.copiarCon(reparto: r)),
         ),
         Selector<String>(
+          key: const ValueKey('Municipio del cliente'),
           titulo: 'Municipio del cliente',
           valor: filtros.municipio,
           opciones: [
@@ -361,6 +380,7 @@ class _BarraDeFiltros extends ConsumerWidget {
           alElegir: (m) => notas.cambiar((f) => f.copiarCon(municipio: m)),
         ),
         Selector<CotizadoFiltro>(
+          key: const ValueKey('Precio del domicilio'),
           titulo: 'Precio del domicilio',
           valor: filtros.cotizado,
           opciones: [
@@ -370,6 +390,7 @@ class _BarraDeFiltros extends ConsumerWidget {
           alElegir: (c) => notas.cambiar((f) => f.copiarCon(cotizado: c)),
         ),
         Selector<String>(
+          key: const ValueKey('Vendedor del pedido'),
           titulo: 'Vendedor del pedido',
           valor: filtros.vendedor,
           opciones: [
@@ -380,6 +401,7 @@ class _BarraDeFiltros extends ConsumerWidget {
           alElegir: (v) => notas.cambiar((f) => f.copiarCon(vendedor: v)),
         ),
         Selector<OrdenLocal>(
+          key: const ValueKey('Cómo se ordena esta página'),
           titulo: 'Cómo se ordena esta página',
           valor: filtros.orden,
           opciones: [
@@ -395,13 +417,34 @@ class _BarraDeFiltros extends ConsumerWidget {
         //
         // Va a fila entera y no a la rejilla: son dos botones más una ✕, y en
         // media columna se partían dejando la ✕ colgando sola.
-        RangoDeFechas(
-          desde: filtros.desde,
-          hasta: filtros.hasta,
-          tituloDesde: 'Desde (fecha del pedido)',
-          tituloHasta: 'Hasta (fecha del pedido)',
-          hoy: ref.watch(relojProvider)(),
-          alCambiar: notas.ponerFechas,
+        // LAS FECHAS Y EL PRE-DESPACHO, EN LA MISMA FILA — 28/09/2026.
+        //
+        // El pre-despacho estaba solo en una fila debajo de todo, con su hueco
+        // a la derecha. Jose: «ahi mismo me tienes predespacho abajo podiendo
+        // ponerlo al lado de fechas del pedido».
+        //
+        // Y van juntos porque son la misma pregunta: «de lo que estoy viendo,
+        // que me llevo al papel». Acotar por fecha y sacar la hoja se hacen
+        // seguidos, y tenerlos separados por una fila entera obligaba a bajar
+        // la vista entre un gesto y el siguiente.
+        //
+        // `Wrap` y no `Row`: a 390 px no caben los dos, y entonces el
+        // pre-despacho baja solo en vez de apretar las fechas.
+        Wrap(
+          spacing: Aire.sm,
+          runSpacing: Aire.xs,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            RangoDeFechas(
+              desde: filtros.desde,
+              hasta: filtros.hasta,
+              tituloDesde: 'Desde (fecha del pedido)',
+              tituloHasta: 'Hasta (fecha del pedido)',
+              hoy: ref.watch(relojProvider)(),
+              alCambiar: notas.ponerFechas,
+            ),
+            const _PreDespachoDeLoFiltrado(),
+          ],
         ),
       ],
     );
@@ -667,22 +710,17 @@ class _PreDespachoDeLoFiltradoState
         ? ref.watch(preDespachoFiltradoProvider).value
         : null;
 
-    return Padding(
-      padding: const EdgeInsets.only(top: Aire.sm),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: BotonDelPreDespacho(
-          key: PreDespacho.claveDelBotonDeLoFiltrado,
-          totales: totales,
-          alAbrir: () {
-            setState(() => _pedido = true);
-            abrirVistaDePreDespacho(
-              context,
-              fuente: preDespachoFiltradoProvider,
-            );
-          },
-        ),
-      ),
+    // SIN `Padding` NI `Align`: desde el 28/09/2026 vive dentro del `Wrap` de
+    // las fechas, y es ese `Wrap` quien lo coloca. Los de antes eran para
+    // cuando estaba solo en su propia fila, y aquí dentro lo único que hacían
+    // era separarlo de las fechas con las que va.
+    return BotonDelPreDespacho(
+      key: PreDespacho.claveDelBotonDeLoFiltrado,
+      totales: totales,
+      alAbrir: () {
+        setState(() => _pedido = true);
+        abrirVistaDePreDespacho(context, fuente: preDespachoFiltradoProvider);
+      },
     );
   }
 }

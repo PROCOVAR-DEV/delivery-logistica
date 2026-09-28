@@ -57,3 +57,24 @@ String duracion(DateTime? desde, DateTime? hasta) {
   if (horas == 0) return '$minutos min';
   return minutos == 0 ? '$horas h' : '$horas h $minutos min';
 }
+
+/// LO QUE LLEVA UNA RUTA, no sólo lo que duró — 28/09/2026.
+///
+/// [duracion] necesita las dos puntas, así que una ruta **en curso** —que es
+/// justo la que alguien está mirando— salía `—`. Jose, viendo `RT-20260928-001`
+/// con tres paradas en la calle: «mira todos los — que hay en la ruta y esos
+/// datos debemos de tenerlo».
+///
+/// Y es un dato que sí se sabe: arrancó a una hora y son las que son. Va con su
+/// palabra al lado —`2 h 15 min en ruta`— porque un número suelto ahí se leería
+/// como lo que tardó, y la ruta no ha terminado.
+///
+/// El `ahora` entra por parámetro y no de `DateTime.now()`: así esto se prueba
+/// con una hora fija, y la cabecera del detalle sigue sin necesitar un
+/// `ProviderScope` para montarse.
+String tiempoDeLaRuta({DateTime? arranco, DateTime? termino, DateTime? ahora}) {
+  if (termino != null) return duracion(arranco, termino);
+  if (arranco == null || ahora == null) return '—';
+  final llevando = duracion(arranco, ahora);
+  return llevando == '—' ? '—' : '$llevando en ruta';
+}

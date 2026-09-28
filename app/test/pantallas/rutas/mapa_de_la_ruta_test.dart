@@ -908,7 +908,25 @@ void main() {
       // el dedo al lado. Lo que esta prueba vigila sigue siendo lo mismo —**que
       // al final del detalle se llega**—, y de paso ahora vigila que se llega
       // SIN tocar el mapa, que es la única forma que le queda al chofer.
-      for (var i = 0; i < 20 && ultima.evaluate().isEmpty; i++) {
+      // SE ARRASTRA HASTA QUE SE VE, NO HASTA QUE EXISTE — 28/09/2026.
+      //
+      // La condición era `ultima.evaluate().isEmpty`, o sea que paraba en
+      // cuanto el widget aparecía en el árbol. Pero un widget puede estar
+      // montado y asomando por debajo del borde, y eso es justo lo que esta
+      // prueba viene a impedir — lo dice su propio comentario de arriba: «hay
+      // que llegar y que quepa dentro de la ventana».
+      //
+      // Se destapó al alargar la línea de datos de la cabecera —«Sin vehículo»
+      // y «2 h 15 min en ruta» ocupan más que dos rayas—: el contenido creció
+      // ocho píxeles y la prueba paró un arrastre antes, con la tarjeta medio
+      // fuera. El fallo era de la prueba, no del cambio.
+      bool seVe() {
+        if (ultima.evaluate().isEmpty) return false;
+        final donde = tester.getRect(ultima);
+        return donde.bottom <= telefono.height && donde.top >= 0;
+      }
+
+      for (var i = 0; i < 20 && !seVe(); i++) {
         await tester.dragFrom(
           Offset(telefono.width - 8, telefono.height - 120),
           const Offset(0, -200),

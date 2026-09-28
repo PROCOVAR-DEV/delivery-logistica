@@ -15,6 +15,14 @@
 // boton». Era verdad sólo durante el primer fotograma, y un comentario no falla
 // —§3-bis del CLAUDE.md de este repo—, así que esto se ata aquí: si alguien
 // vuelve a `showMenu`, esta prueba lo dice.
+//
+// ESTA PRUEBA MIDE A 1200 px, Y ANTES MEDÍA A 390. El 28/09/2026 el selector
+// pasó a abrirse como CAJÓN por debajo de `Anchos.escritorio` —«los dropdowns
+// creo que seria mejor ponerlos como drawer», Jose—, así que a 390 px ya no hay
+// ningún menú anclado que pueda seguir a nada: hay un cajón a pantalla completa,
+// que es otra cosa y se prueba en `en_el_telefono_son_cajones_test.dart`. El
+// ancho se cambió, no el incidente: el menú anclado sigue siendo lo de
+// escritorio y sigue teniendo que seguir a su botón.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,7 +34,7 @@ void main() {
     tester,
   ) async {
     tester.view.devicePixelRatio = 1.0;
-    tester.view.physicalSize = const Size(390, 800);
+    tester.view.physicalSize = const Size(1200, 800);
     addTearDown(tester.view.reset);
 
     final desplazamiento = ScrollController();

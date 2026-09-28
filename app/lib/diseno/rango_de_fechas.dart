@@ -11,9 +11,14 @@
 // aplicacion no hay modales: es la excepcion aprobada del 05/09/2026
 // (`pantallas.md` §0 y §9.2). El calendario sale en un menu anclado al propio
 // boton, que es el mismo patron del `Selector` de la casa.
+//
+// **Y en el telefono sale en un CAJON**, no en el menu (28/09/2026). Ver el
+// comentario largo de `_CampoDeFechaState.build`.
 
 import 'package:flutter/material.dart';
 
+import 'anchos.dart';
+import 'cajon.dart';
 import 'colores.dart';
 import 'tema.dart';
 
@@ -83,6 +88,55 @@ class _CampoDeFechaState extends State<CampoDeFecha> {
     final ahora = widget.hoy ?? DateTime.now();
     final ultimo = maximo ?? DateTime(ahora.year + 1, 12, 31);
 
+    // Sin fecha puesta se abre por el tope de arriba —o por hoy, si cae dentro—,
+    // que es de donde se sale casi siempre: el dia de hoy.
+    final inicial = valor ?? _dentro(ahora, primero, ultimo);
+
+    // EN EL TELÉFONO, CAJÓN. EN ESCRITORIO, EL MENÚ ANCLADO DE SIEMPRE.
+    //
+    // Jose, 28/09/2026, mirando Pedidos en el móvil con el calendario abierto
+    // encima de la tabla:
+    //
+    //     «recuerda que este modal en el movil debe ser un drawer, el
+    //      calendario, todo lo que salga asi como modal que sobresalga, los
+    //      dropdowns creo que seria mejor ponerlos como drawer, todo eso para
+    //      las opciones y queda mucho mas comodo»
+    //
+    // El caso concreto es medible: el panel del menú mide 320×340 px fijos y el
+    // botón `Desde` vive en una barra de filtros que en un teléfono de 390 px ya
+    // va a dos columnas, o sea a media pantalla. El calendario le sale por el
+    // lado, se recorta contra el borde y tapa la tabla que se venía a filtrar,
+    // sin ninguna ✕ con la que salir. En cajón ocupa la pantalla entera, con su
+    // cabecera y su ✕, y el mes se toca con el dedo en vez de con la uña.
+    //
+    // **En escritorio no se cambia nada, y eso es parte del arreglo**: el menú
+    // anclado es lo que se decidió a propósito —ni `showDatePicker`, que es el
+    // modal centrado que el pliego no quiere, ni `showMenu`, que calculaba la
+    // posición una sola vez al abrir y dejaba el panel flotando al desplazar la
+    // página (25/09/2026)—. El corte sale de `Anchos.escritorio`, el mismo que
+    // usan `Cajon` y `Selector`: un número a mano aquí sería un tercer corte.
+    if (MediaQuery.sizeOf(context).width < Anchos.escritorio) {
+      return _boton(
+        titulo: titulo,
+        valor: valor,
+        puesta: puesta,
+        alPulsar: () => abrirCajon<void>(
+          context,
+          titulo: titulo,
+          ancho: AnchoCajon.md,
+          cuerpo: (contextoCajon) => _calendario(
+            inicial: inicial,
+            primero: primero,
+            ultimo: ultimo,
+            // El cajón SÍ es una ruta, así que se cierra con el `Navigator`. El
+            // menú no lo es y se cierra con su `MenuController` (ver arriba):
+            // cambiarlos de sitio cierra la pantalla de debajo.
+            alCerrar: () => Navigator.of(contextoCajon).maybePop(),
+          ),
+        ),
+      );
+    }
+
     return MenuAnchor(
       controller: _menu,
       style: MenuStyle(
@@ -95,53 +149,36 @@ class _CampoDeFechaState extends State<CampoDeFecha> {
           ),
         ),
       ),
-      builder: (contexto, controlador, _) => Tooltip(
-        message: titulo,
-        child: OutlinedButton.icon(
-          onPressed: () =>
-              controlador.isOpen ? controlador.close() : controlador.open(),
-          icon: const Icon(Icons.event, size: 16),
-          label: Text(puesta ? CampoDeFecha._texto(valor) : titulo),
-          style: OutlinedButton.styleFrom(
-            backgroundColor: Colores.blanco,
-            foregroundColor: puesta ? Colores.tinta : Colores.tintaSuave,
-            side: BorderSide(
-              color: puesta
-                  ? Colores.primario.withValues(alpha: 0.5)
-                  : Colores.linea,
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: Aire.md,
-              vertical: 9,
-            ),
-            textStyle: Tipos.texto(
-              tamano: 14,
-              peso: puesta ? FontWeight.w600 : FontWeight.w400,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(Radios.lg),
-            ),
-          ),
-        ),
+      builder: (contexto, controlador, _) => _boton(
+        titulo: titulo,
+        valor: valor,
+        puesta: puesta,
+        alPulsar: () =>
+            controlador.isOpen ? controlador.close() : controlador.open(),
       ),
       menuChildren: [
-        // El panel del menu monta su PROPIO `PrimaryScrollController`, con
-        // una barra de desplazamiento siempre visible. El calendario trae
-        // dentro otro desplazable vertical que heredaria ese mismo
-        // controlador, y dos posiciones en un controlador con barra visible
-        // es un error que tumba el fotograma entero. Aqui se corta la
-        // herencia: cada uno se desplaza por su cuenta.
+        // El panel del menu monta su PROPIO `PrimaryScrollController`, con una
+        // barra de desplazamiento siempre visible. El calendario trae dentro
+        // otro desplazable vertical —la lista de años— que heredaria ese mismo
+        // controlador, y dos posiciones en un controlador con barra visible es
+        // un error que tumba el fotograma entero. Aqui se corta la herencia:
+        // cada uno se desplaza por su cuenta.
+        //
+        // **En el cajon esto no se pone, y no es un olvido.** Medido con una
+        // sonda el 28/09/2026: dentro de un `Cajon` —que se abre con
+        // `showGeneralDialog`, o sea en el `Overlay`, POR ENCIMA del
+        // `Scaffold`— `PrimaryScrollController.maybeOf` devuelve `null`, asi
+        // que no hay ninguna herencia que cortar. Una linea que no se puede
+        // romper no es una guarda: lo que si vigila el caso es la prueba «se
+        // puede abrir la lista de años» del cajon, que mira el resultado.
         PrimaryScrollController.none(
           child: SizedBox(
             width: 320,
             height: 340,
-            child: _Calendario(
-              // Sin fecha puesta se abre por el tope de arriba —o por hoy, si
-              // cae dentro—, que es de donde se sale casi siempre: el dia de hoy.
-              inicial: valor ?? _dentro(ahora, primero, ultimo),
+            child: _calendario(
+              inicial: inicial,
               primero: primero,
               ultimo: ultimo,
-              alElegir: widget.alElegir,
               alCerrar: _menu.close,
             ),
           ),
@@ -149,6 +186,61 @@ class _CampoDeFechaState extends State<CampoDeFecha> {
       ],
     );
   }
+
+  /// El calendario, el mismo en el menu y en el cajon. Lo unico que cambia es
+  /// quien lo cierra.
+  ///
+  /// **No lleva alto propio**, y eso es a proposito aunque el menu se lo ponga
+  /// por fuera: `CalendarDatePicker` YA se mide solo —su `build` devuelve un
+  /// `SizedBox(height: cabecera + alto maximo de la rejilla)`—, asi que dentro
+  /// del cuerpo desplazable del cajon sale entero y sin recortes. Meterle aqui
+  /// los 340 px del menu seria peor que no poner nada: en un telefono recorta
+  /// la ultima fila de dias, que es donde caen los finales de mes.
+  Widget _calendario({
+    required DateTime inicial,
+    required DateTime primero,
+    required DateTime ultimo,
+    required VoidCallback alCerrar,
+  }) => _Calendario(
+    inicial: inicial,
+    primero: primero,
+    ultimo: ultimo,
+    alElegir: widget.alElegir,
+    alCerrar: alCerrar,
+  );
+
+  /// La caja del filtro. Es la MISMA en los dos sitios: lo unico que cambia es
+  /// lo que hace al pulsarla.
+  Widget _boton({
+    required String titulo,
+    required DateTime? valor,
+    required bool puesta,
+    required VoidCallback alPulsar,
+  }) => Tooltip(
+    message: titulo,
+    child: OutlinedButton.icon(
+      onPressed: alPulsar,
+      icon: const Icon(Icons.event, size: 16),
+      label: Text(puesta ? CampoDeFecha._texto(valor!) : titulo),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: Colores.blanco,
+        foregroundColor: puesta ? Colores.tinta : Colores.tintaSuave,
+        side: BorderSide(
+          color: puesta
+              ? Colores.primario.withValues(alpha: 0.5)
+              : Colores.linea,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: Aire.md, vertical: 9),
+        textStyle: Tipos.texto(
+          tamano: 14,
+          peso: puesta ? FontWeight.w600 : FontWeight.w400,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Radios.lg),
+        ),
+      ),
+    ),
+  );
 
   DateTime _dentro(DateTime d, DateTime primero, DateTime ultimo) {
     if (d.isBefore(primero)) return primero;

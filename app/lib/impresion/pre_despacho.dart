@@ -56,13 +56,13 @@ abstract final class TextoPreDespacho {
   /// La frase de debajo, también igual que en la pantalla: es lo único que
   /// impide restar las dos cifras a ojo.
   static const String noSonElMismoNumero =
-      'No son el mismo número: el de arriba lo pone el catálogo producto a '
-      'producto, y el de abajo viene en cada pedido.';
+      'No son el mismo número: el de arriba suma renglón a renglón, y el de '
+      'abajo es el peso que trae cada pedido entero.';
 
   /// Cuando NINGÚN producto trae peso. Si sólo faltan algunos se dice cuántos,
   /// que es lo que convierte una raya muda en algo que alguien puede ir a
   /// arreglar.
-  static const String sinPesoEnElCatalogo = 'sin peso en el catálogo';
+  static const String sinPesoEnElCatalogo = 'sin peso en los pedidos';
 }
 
 /// El peso **de los productos** tal como sale en el papel: la suma de la

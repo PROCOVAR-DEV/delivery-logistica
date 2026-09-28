@@ -136,8 +136,32 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
   String? _sucursalId;
   Almacen? _salida;
   String? _vehiculoId;
+
+  /// LA FECHA DE ENTREGA ARRANCA EN HOY, no vacía — 28/09/2026.
+  ///
+  /// Era «(opcional)» y nacía en blanco, y el resultado se vio en producción:
+  /// **las NUEVE rutas del servidor tenían `delivery_date` nulo**, las nueve.
+  /// Un campo opcional que nadie rellena nunca no es una opción, es una columna
+  /// muerta — y por eso la ficha y la lista de rutas enseñaban un `—` donde va
+  /// el día. Jose: «esos datos debemos de tenerlo por q no se estan poniendo».
+  ///
+  /// Hoy es además la respuesta correcta casi siempre: una ruta se arma con los
+  /// pedidos que suben al camión ahora. Quien la prepare para mañana cambia el
+  /// día, que sigue siendo un clic; lo que ya no se puede es dejarla sin
+  /// ninguno sin darse cuenta.
+  ///
+  /// Se pone en [initState] y no aquí para que salga del reloj de la casa y no
+  /// de `DateTime.now()`, que es lo que deja probar el asistente con una fecha
+  /// fija.
   DateTime? _fechaDeEntrega;
   final _nombre = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final ahora = ref.read(relojProvider)();
+    _fechaDeEntrega = DateTime(ahora.year, ahora.month, ahora.day);
+  }
 
   /// EL DESPLAZAMIENTO DE LA CAJA DE LA LISTA, y es SUYO.
   ///
@@ -636,18 +660,11 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
           children: [
             Expanded(
               child: CampoDeFecha(
-                titulo: 'Fecha de entrega (opcional)',
+                titulo: 'Fecha de entrega',
                 valor: _fechaDeEntrega,
                 alElegir: (d) => setState(() => _fechaDeEntrega = d),
               ),
             ),
-            if (_fechaDeEntrega != null)
-              IconButton(
-                onPressed: () => setState(() => _fechaDeEntrega = null),
-                icon: const Icon(Icons.close, size: 18),
-                tooltip: 'Quitar la fecha de entrega',
-                visualDensity: VisualDensity.compact,
-              ),
           ],
         ),
         const SizedBox(height: 12),

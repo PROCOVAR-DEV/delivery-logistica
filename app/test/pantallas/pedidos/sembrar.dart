@@ -148,6 +148,9 @@ Future<void> sembrarRenglon(
   double? empaques,
   String? productoId,
   int linea = 1,
+  /// Lo que pesa la LINEA entera, tal como lo manda Ventra. Es lo que manda
+  /// sobre el catalogo en el pre-despacho (ver `_pesoDeLaLinea`).
+  double? pesoLinea,
 }) => base
     .into(base.orderItems)
     .insert(
@@ -159,6 +162,7 @@ Future<void> sembrarRenglon(
         quantity: unidades,
         packs: Value(empaques),
         productId: Value(productoId),
+        pesoLineaKg: Value(pesoLinea),
       ),
     );
 

@@ -12,7 +12,7 @@
 //    `dataRowMaxHeight` de `temaDeTabla`—, así que cinco productos llenaban la
 //    pantalla y hay veinticuatro;
 //  - y el encabezado —«Pre-despacho de lo filtrado · 24 producto(s) · 23150
-//    empaques · sin peso en el catálogo»— se partía en CUATRO líneas con el
+//    empaques · sin peso en los pedidos»— se partía en CUATRO líneas con el
 //    botón «Ver e imprimir» encajado en medio.
 //
 // POR QUÉ ESTAS PRUEBAS MIDEN COORDENADAS. Un fallo de colocación no rompe
@@ -48,7 +48,7 @@ void main() {
   const vodka = 'VODKA REGIO BLISTER 6U';
 
   /// Sin ni un peso resuelto, que es lo que pasaba en la captura: el total de
-  /// kg es `null` y la franja dice «sin peso en el catálogo», no «0.0 kg».
+  /// kg es `null` y la franja dice «sin peso en los pedidos», no «0.0 kg».
   final sinPeso = TotalesPreDespacho(
     const [
       LineaPreDespacho(producto: malta, empaques: 1234, unidades: null),
@@ -238,7 +238,7 @@ void main() {
       final resumen = resumenDelPreDespacho(sinPeso);
       expect(
         resumen,
-        '3 producto(s) · 2226 empaques · sin peso en el catálogo',
+        '3 producto(s) · 2226 empaques · sin peso en los pedidos',
         reason:
             'El texto del 22/09/2026 se queda: nada de «0.0 kg» cuando falta '
             'algún producto por emparejar.',
@@ -321,7 +321,7 @@ void main() {
         find.text(TotalesDelPreDespacho.pesoDeLosProductos),
         findsOneWidget,
       );
-      expect(find.text('sin peso en el catálogo'), findsOneWidget);
+      expect(find.text('sin peso en los pedidos'), findsOneWidget);
       // Y desde luego no sale el de los pedidos en ese renglón.
       expect(
         find.descendant(
@@ -408,7 +408,7 @@ void main() {
 
     test('el peso a medias no se suma: se dice cuántos faltan', () {
       expect(pesoDelPreDespacho(conPeso), '100.0 kg');
-      expect(pesoDelPreDespacho(sinPeso), 'sin peso en el catálogo');
+      expect(pesoDelPreDespacho(sinPeso), 'sin peso en los pedidos');
       // Y con algunos resueltos y otros no, dice cuántos.
       final aMedias = TotalesPreDespacho(const [
         LineaPreDespacho(producto: malta, empaques: 1, unidades: 1, pesoKg: 2),

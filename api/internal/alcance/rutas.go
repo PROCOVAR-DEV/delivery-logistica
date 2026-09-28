@@ -181,6 +181,17 @@ func (a *Acotado) MarcarResultadoDeParada(ctx context.Context, ruta, pedido uuid
 	})
 }
 
+// LimpiarResultadoDeParada deshace la marca de una parada. Ver la consulta en
+// `db/queries/routes.sql`: devuelve además el `route_id`, o un devuelto desmarcado se
+// quedaría fuera de su propia ruta con la ruta todavía abierta.
+func (a *Acotado) LimpiarResultadoDeParada(ctx context.Context, ruta, pedido uuid.UUID) (int64, error) {
+	return a.q.LimpiarResultadoDeParada(ctx, sqlc.LimpiarResultadoDeParadaParams{
+		PedidoID: pedido,
+		RutaID:   aPg(&ruta),
+		Sucursal: a.sucursalPg(),
+	})
+}
+
 func (a *Acotado) SoltarPedidosDeRuta(ctx context.Context, ruta uuid.UUID) (int64, error) {
 	return a.q.SoltarPedidosDeRuta(ctx, sqlc.SoltarPedidosDeRutaParams{
 		RutaID: aPg(&ruta), Sucursal: a.sucursalPg(),

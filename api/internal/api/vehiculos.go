@@ -117,6 +117,66 @@ type VehiculoSalida struct {
 	CreatedAt         *time.Time `json:"createdAt"`
 	UpdatedAt         *time.Time `json:"updatedAt"`
 	Count             conteoVeh  `json:"_count"`
+
+	// EN QUÉ ANDA ESTE CAMIÓN. Cero o una ruta, la que lo tiene cogido ahora.
+	//
+	// Jose, 28/09/2026: «si la idea es q salga el vehiculo y ese vehiculo se ponga su
+	// estado para q saber como anda ese vehiculo y saber de la flota».
+	//
+	// Va como LISTA y no como objeto porque es la forma que el aparato ya lee desde el
+	// principio (`app/lib/pantallas/vehiculos/datos/vehiculo_api.dart`:
+	// `rutas.first`, para la caja azul «Ruta activa»). Esa caja llevaba desde siempre
+	// sin salir NUNCA, y no era cosa del aparato: este campo no existía, así que
+	// `j['routes']` era siempre nulo. Se sirve con el nombre que él ya espera en vez de
+	// inventar otro y tener dos.
+	//
+	// Y NO SALE DE `vehicles.status`: sale de las rutas abiertas del camión
+	// (`RutasAbiertasDeLaFlota`). El porqué está escrito en `db/queries/vehicles.sql`,
+	// y es el mismo que ya llevaba `ContarVehiculosEnRuta`: un campo que alguien pone a
+	// mano y nadie quita miente a los dos días.
+	Routes []RutaDeVehiculoSalida `json:"routes"`
+}
+
+// RutaDeVehiculoSalida: la ruta abierta de un camión, lo justo para decir en qué anda.
+//
+// `status` viaja aunque la caja azul de hoy no lo pinte: `planned` y `in_progress` son dos
+// respuestas distintas a «¿está libre?» —una ruta planificada es un camión comprometido
+// para mañana, una en curso es un camión que no está— y quien decide eso es la pantalla,
+// no esta capa.
+type RutaDeVehiculoSalida struct {
+	ID           uuid.UUID  `json:"id"`
+	RouteCode    *string    `json:"routeCode"`
+	Name         *string    `json:"name"`
+	Status       string     `json:"status"`
+	DeliveryDate *time.Time `json:"deliveryDate"`
+}
+
+// rutasPorCamion indexa las rutas abiertas por el id del camión que las lleva.
+//
+// Una consulta para toda la flota y no una por camión: con ocho camiones la diferencia no
+// se nota, pero una consulta por fila dentro de un bucle es cómo se llega a las 200
+// consultas por pantalla sin que nadie lo vea venir.
+func rutasPorCamion(filas []sqlc.RutasAbiertasDeLaFlotaRow) map[uuid.UUID]RutaDeVehiculoSalida {
+	m := make(map[uuid.UUID]RutaDeVehiculoSalida, len(filas))
+	for _, f := range filas {
+		if !f.VehicleID.Valid {
+			continue
+		}
+		m[uuid.UUID(f.VehicleID.Bytes)] = RutaDeVehiculoSalida{
+			ID: f.ID, RouteCode: f.RouteCode, Name: f.Name,
+			Status: string(f.Status), DeliveryDate: hora(f.DeliveryDate),
+		}
+	}
+	return m
+}
+
+// laSuya: la ruta abierta de este camión, como lista de cero o uno. Nunca `nil`, que en
+// JSON sale como `null` y obliga a cada cliente a distinguir dos formas del mismo vacío.
+func laSuya(porCamion map[uuid.UUID]RutaDeVehiculoSalida, id uuid.UUID) []RutaDeVehiculoSalida {
+	if ruta, hay := porCamion[id]; hay {
+		return []RutaDeVehiculoSalida{ruta}
+	}
+	return []RutaDeVehiculoSalida{}
 }
 
 type conteoVeh struct {
@@ -136,6 +196,15 @@ func (s *Servidor) listarVehiculos(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
+	// EN QUÉ ANDA CADA UNO. Si esta consulta falla se cae la lista entera y no se sirve
+	// media flota sin estado: «disponible» dicho de un camión que está fuera es
+	// exactamente el número creíble y equivocado que aquí sale caro.
+	abiertas, err := a.RutasAbiertasDeLaFlota(r.Context())
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	porCamion := rutasPorCamion(abiertas)
 	salida := make([]VehiculoSalida, 0, len(filas))
 	for _, f := range filas {
 		salida = append(salida, VehiculoSalida{
@@ -145,7 +214,8 @@ func (s *Servidor) listarVehiculos(w http.ResponseWriter, r *http.Request) {
 			Status: string(f.Status), Notes: f.Notes, BranchID: idOpcional(f.BranchID),
 			SucursalNombre: f.SucursalNombre,
 			CreatedAt:      hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
-			Count: conteoVeh{Routes: f.Rutas, Orders: f.Pedidos, OrderAssignments: f.Asignaciones},
+			Count:  conteoVeh{Routes: f.Rutas, Orders: f.Pedidos, OrderAssignments: f.Asignaciones},
+			Routes: laSuya(porCamion, f.ID),
 		})
 	}
 	httpx.JSON(w, r, http.StatusOK, salida)
@@ -170,13 +240,19 @@ func (s *Servidor) obtenerVehiculo(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
+	abiertas, err := a.RutasAbiertasDeLaFlota(r.Context())
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
 	httpx.JSON(w, r, http.StatusOK, VehiculoSalida{
 		ID: f.ID, Name: f.Name, Type: f.TipoNombre, VehicleTypeID: f.VehicleTypeID,
 		Plate: f.Plate, Capacity: f.Capacity, CostoKmUsd: f.CostoKmUsd,
 		TipoCostoKmUsd: f.TipoCostoKmUsd, UsarParaDomicilio: f.UsarParaDomicilio,
 		Status: string(f.Status), Notes: f.Notes, BranchID: idOpcional(f.BranchID),
 		CreatedAt: hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
-		Count: conteoVeh{Routes: f.Rutas, Orders: f.Pedidos, OrderAssignments: f.Asignaciones},
+		Count:  conteoVeh{Routes: f.Rutas, Orders: f.Pedidos, OrderAssignments: f.Asignaciones},
+		Routes: laSuya(rutasPorCamion(abiertas), f.ID),
 	})
 }
 

@@ -10,6 +10,7 @@ import '../../../diseno/anchos.dart';
 import '../../../diseno/barra_de_filtros.dart';
 import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/cajon.dart';
+import '../../../diseno/colores.dart';
 import '../../../diseno/estado_vacio.dart';
 import '../../../diseno/tema.dart';
 import '../../../navegacion/estado_navegacion.dart';
@@ -138,6 +139,7 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
     final busqueda = ref.watch(busquedaVehiculosProvider);
     final porPagina = ref.watch(porPaginaVehiculosProvider);
     final pagina = ref.watch(paginaVehiculosProvider);
+    final filtro = ref.watch(filtroAndarProvider);
 
     // Los avisos de escritura salen en la barra de abajo, no en el sitio de la
     // lista: la lista no cambio.
@@ -231,9 +233,25 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
               enWeb: !ref.watch(trabajaSinConexionProvider),
               alReintentar: () => ref.invalidate(vehiculosProvider),
             )
-          else if (lista.value case final vehiculos?)
+          else if (lista.value case final vehiculos?) ...[
+            // DE UN VISTAZO, QUE HAY LIBRE Y QUE NO — 28/09/2026.
+            //
+            // Jose: «saber de la flota». Hasta hoy esta pantalla listaba
+            // camiones y no decia en que andaba ninguno: habia que abrir tarjeta
+            // por tarjeta, y ni asi, porque la caja de «Ruta activa» no salia
+            // nunca (el servidor no mandaba el campo).
+            //
+            // Los contadores van SOBRE LA FLOTA ENTERA y no sobre lo buscado ni
+            // sobre la pagina: la pregunta es «¿tengo camion para esta ruta?», y
+            // contarla sobre lo que se esta mirando contesta otra cosa. Es el
+            // mismo cuidado con el denominador que costo los dias 25 y 26/09.
+            _ResumenDeLaFlota(flota: vehiculos),
+            const SizedBox(height: 12),
             _Rejilla(
-              vehiculos: vehiculos.where((v) => v.cuadraCon(busqueda)).toList(),
+              vehiculos: vehiculos
+                  .where((v) => v.cuadraCon(busqueda))
+                  .where((v) => filtro == null || v.andar == filtro)
+                  .toList(),
               pagina: pagina,
               porPagina: porPagina,
               alAgregar: () => _abrirFicha(),
@@ -243,13 +261,149 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
                 ref.read(porPaginaVehiculosProvider.notifier).poner(n);
                 ref.read(paginaVehiculosProvider.notifier).poner(1);
               },
-            )
-          else
+            ),
+          ] else
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 32),
               child: Center(child: Text('Cargando vehículos...')),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// LA FLOTA DE UN VISTAZO: cuantos libres, cuantos cogidos y cuantos fuera.
+///
+/// Los tres numeros salen de `VehiculoDeLaApi.andar`, o sea de las RUTAS de cada
+/// camion, no de `vehicles.status`. El porque esta escrito en `vehiculo_api.dart`
+/// y viene del propio servidor: un campo que alguien pone a mano y nadie quita se
+/// queda en `in_use` con la ruta ya cerrada.
+///
+/// Y son TRES y no dos porque «cogido para mañana» no es «fuera ahora». Juntarlos
+/// en «ocupado» manda a buscar otro camion a quien tenia uno disponible hasta que
+/// salga esa ruta.
+class _ResumenDeLaFlota extends ConsumerWidget {
+  const _ResumenDeLaFlota({required this.flota});
+
+  final List<VehiculoDeLaApi> flota;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filtro = ref.watch(filtroAndarProvider);
+    int cuantos(AndarDelCamion cual) =>
+        flota.where((v) => v.andar == cual).length;
+
+    // El de mantenimiento sólo se enseña SI HAY ALGUNO. Hoy no puede haberlo —el
+    // enum de la base no tiene ese valor— y un contador clavado en cero es una
+    // pregunta que nadie ha hecho ocupando sitio en un móvil de 390.
+    final enTaller = cuantos(AndarDelCamion.enMantenimiento);
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _Contador(
+          etiqueta: 'Libres',
+          cuantos: cuantos(AndarDelCamion.libre),
+          color: Colores.verde,
+          fondo: Colores.verdeFondo,
+          cual: AndarDelCamion.libre,
+          puesto: filtro,
+        ),
+        _Contador(
+          etiqueta: 'En ruta',
+          cuantos: cuantos(AndarDelCamion.enRuta),
+          color: Colores.enCurso,
+          fondo: Colores.enCursoFondo,
+          cual: AndarDelCamion.enRuta,
+          puesto: filtro,
+        ),
+        _Contador(
+          etiqueta: 'Con ruta planificada',
+          cuantos: cuantos(AndarDelCamion.asignado),
+          color: Colores.ambar,
+          fondo: Colores.ambarFondo,
+          cual: AndarDelCamion.asignado,
+          puesto: filtro,
+        ),
+        if (enTaller > 0)
+          _Contador(
+            etiqueta: 'Mantenimiento',
+            cuantos: enTaller,
+            color: Colores.ambar,
+            fondo: Colores.ambarFondo,
+            cual: AndarDelCamion.enMantenimiento,
+            puesto: filtro,
+          ),
+      ],
+    );
+  }
+}
+
+/// Un contador de la franja. Se toca para quedarse con ese grupo, y se vuelve a
+/// tocar para soltarlo.
+class _Contador extends ConsumerWidget {
+  const _Contador({
+    required this.etiqueta,
+    required this.cuantos,
+    required this.color,
+    required this.fondo,
+    required this.cual,
+    required this.puesto,
+  });
+
+  final String etiqueta;
+  final int cuantos;
+  final Color color;
+  final Color fondo;
+  final AndarDelCamion cual;
+  final AndarDelCamion? puesto;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final elegido = puesto == cual;
+    return InkWell(
+      borderRadius: BorderRadius.circular(Radios.md),
+      onTap: () {
+        ref.read(filtroAndarProvider.notifier).alternar(cual);
+        // A la primera pagina: si estabas en la 3 de 25 camiones y te quedas con
+        // los 2 libres, la pagina 3 no existe y la pantalla sale vacia teniendo
+        // dos.
+        ref.read(paginaVehiculosProvider.notifier).poner(1);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Aire.md,
+          vertical: Aire.sm,
+        ),
+        decoration: BoxDecoration(
+          color: fondo,
+          borderRadius: BorderRadius.circular(Radios.md),
+          // El elegido se marca con un borde y no sólo con el fondo: los cuatro
+          // fondos ya son de colores distintos, así que un fondo más fuerte no
+          // se lee como «éste está puesto».
+          border: Border.all(
+            color: elegido ? color : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // La cifra en mono, como las cajas de la tarjeta: estos cuatro
+            // números se comparan entre sí de un golpe de vista.
+            Text(
+              '$cuantos',
+              style: Tipos.mono(tamano: 16, peso: FontWeight.w700, color: color),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              etiqueta,
+              style: Tipos.texto(tamano: 12, peso: FontWeight.w600, color: color),
+            ),
+          ],
+        ),
       ),
     );
   }

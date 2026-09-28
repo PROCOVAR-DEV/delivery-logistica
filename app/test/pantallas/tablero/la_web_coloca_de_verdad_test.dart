@@ -299,9 +299,15 @@ void main() {
   // ---------------------------------------------------------------------------
   group('de una columna sale una ruta', () {
     Future<String> conUnaColumnaPuesta() async {
+      // CON SU CAMIÓN PREVISTO. Desde el 28/09/2026 una zona sin camión no arma
+      // ruta (`armarRuta`, `RechazoDelTablero` de «Camión previsto»), así que
+      // sin esto los cuatro casos de aquí abajo —el id del servidor, el 409, los
+      // descartados y el 201 sin id— medirían ese rechazo y no lo suyo.
+      await sembrarCamion(base, id: 'v1', capacidad: 2000);
       final id = await enLaWeb.crearColumna(
         sucursalId: sucursalStg,
         nombre: 'Vista',
+        vehiculoId: 'v1',
       );
       await enLaWeb.colocar(pedidoId: 'p1', columnaId: id);
       await enLaWeb.colocar(pedidoId: 'p2', columnaId: id);

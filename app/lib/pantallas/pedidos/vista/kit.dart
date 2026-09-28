@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../diseno/anchos.dart';
+import '../../../diseno/cajon.dart' show AtrasDelCajon;
 import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/base/base.dart';
@@ -238,7 +239,19 @@ Future<T?> abrirCajon<T>(BuildContext context, WidgetBuilder construir) {
     barrierLabel: 'Cerrar',
     barrierColor: Colores.tinta.withValues(alpha: 0.4),
     transitionDuration: const Duration(milliseconds: 180),
-    pageBuilder: (contexto, _, _) => construir(contexto),
+    // ATRÁS CIERRA EL CAJÓN, TAMBIÉN EN EL NAVEGADOR — 28/09/2026.
+    //
+    // Éste es el único cajón que no pasa por `diseno/cajon.dart`, y sin esto se
+    // quedaba puesto cuando alguien daba atrás en el navegador: el atrás del
+    // navegador no dispara ningún `popRoute`, sólo cambia la dirección, así que
+    // la pantalla de debajo se repintaba con la anterior y el cajón seguía
+    // flotando encima. Jose: «dar atras cuando estoy en un drawer no sale del
+    // drawer sigue trabajando atras».
+    //
+    // `AtrasDelCajon` vigila el CAMINO de la pantalla de debajo —no la
+    // dirección entera, que los filtros van después del `?` y hay cajones que
+    // existen justo para cambiarlos— y se cierra cuando cambia.
+    pageBuilder: (contexto, _, _) => AtrasDelCajon(child: construir(contexto)),
     transitionBuilder: (contexto, animacion, _, hijo) {
       final curva = CurvedAnimation(parent: animacion, curve: Curves.easeOut);
       return FadeTransition(

@@ -178,6 +178,25 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
     ),
   );
 
+
+  /// El estado, EN PALABRAS y sin elegirlo. Lo que se pinta aquí es el campo
+  /// GUARDADO, que es lo único que esta ficha conoce —no tiene delante las rutas
+  /// del camión—, y por eso dice de dónde sale el de verdad: la insignia de la
+  /// tarjeta y el resumen de la flota salen de las rutas, no de aquí.
+  String get _vistaDelEstado => switch (_estado) {
+    'in_use' || 'in_route' =>
+      'Marcado como ocupado. Lo pone y lo quita el despacho de la ruta, no esta '
+          'ficha: si el camión no lleva ninguna ruta abierta, la tarjeta lo '
+          'enseña como disponible y ahí se puede limpiar.',
+    'maintenance' =>
+      'En mantenimiento. Este valor viene de antes y el servidor ya no lo '
+          'acepta: se conserva tal cual y no se toca desde aquí.',
+    _ =>
+      'Disponible. En qué anda de verdad sale de sus rutas —libre, con ruta '
+          'planificada o en ruta— y se ve en la tarjeta y en el resumen de la '
+          'flota.',
+  };
+
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
@@ -242,21 +261,47 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
               ),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _estado,
+            // EL ESTADO SE MIRA, NO SE ELIGE — 28/09/2026.
+            //
+            // ## Lo que había: un desplegable con dos opciones muertas
+            //
+            // Aquí había un `DropdownButtonFormField` con `Disponible`,
+            // `En ruta` y `En mantenimiento`. **Dos de las tres fallaban
+            // siempre**: el enum `vehicle_status` de la base sólo tiene
+            // `available` e `in_use`, y `estadoValido` del servidor
+            // (`api/internal/api/vehiculos.go`) contesta 400 a cualquier otra
+            // cosa. Elegir «En ruta» o «En mantenimiento» y darle a Actualizar
+            // no guardaba nada, y el aviso de abajo decía que no se pudo sin que
+            // nadie supiera por qué.
+            //
+            // ## Y por qué no se arregla añadiendo los valores buenos
+            //
+            // Porque «en qué anda un camión» **no es una elección, es un hecho**,
+            // y ya se sabe sin preguntárselo a nadie: sale de sus rutas abiertas
+            // (`VehiculoDeLaApi.andar`, y en el servidor
+            // `RutasAbiertasDeLaFlota`). Un desplegable ahí invita a escribir a
+            // mano un dato que se calcula, y un estado que alguien pone y nadie
+            // quita miente a los dos días — que es justo lo que le pasaba a
+            // `vehicles.status`.
+            //
+            // Queda un hueco conocido y está dicho: **un camión en el taller no
+            // se puede guardar**, porque no se deduce de ninguna ruta —uno en el
+            // taller no tiene ruta, igual que uno libre— y el enum no tiene ese
+            // valor. Añadirlo es una migración y va aparte.
+            //
+            // El campo `_estado` sigue viajando TAL CUAL en `DatosVehiculo`: una
+            // edición no toca lo que hay guardado, ni para arreglarlo. Eso lo
+            // vigila «guardar sin tocar nada deja la ficha igual».
+            InputDecorator(
               decoration: const InputDecoration(
                 labelText: 'Estado del vehículo',
                 border: OutlineInputBorder(),
+                isDense: true,
               ),
-              items: const [
-                DropdownMenuItem(value: 'available', child: Text('Disponible')),
-                DropdownMenuItem(value: 'in_route', child: Text('En ruta')),
-                DropdownMenuItem(
-                  value: 'maintenance',
-                  child: Text('En mantenimiento'),
-                ),
-              ],
-              onChanged: (v) => setState(() => _estado = v ?? 'available'),
+              child: Text(
+                _vistaDelEstado,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
             ),
             const SizedBox(height: 12),
             TextField(

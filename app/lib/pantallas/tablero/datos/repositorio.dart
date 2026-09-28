@@ -633,6 +633,73 @@ class RepositorioTablero {
     final columna = (await consultas.columnas(sucursalId))
         .where((c) => c.id == columnaId)
         .firstOrNull;
+
+    // -------------------------------------------------------------------------
+    // NINGUNA RUTA SIN CAMIÓN — 28/09/2026
+    // -------------------------------------------------------------------------
+    //
+    // Jose, viendo `RT-20260928-001` en producción, «En curso · 3 paradas · Sin
+    // vehículo»: «por q se creo una ruta sin vehiculo eso no se puede mi
+    // broder». Y no es una pega de forma: sin camión la ruta sale con su
+    // `516.5 kg` y su `$2.99` y **no hay nada con que contrastarlos**. La
+    // capacidad se mide contra la del camión y el coste por km sale de su
+    // `costo_km_usd`; sin camión las dos cuentas se quedan sin denominador y el
+    // número que se pinta es creíble y no significa nada — que es el fallo que
+    // más caro sale en este proyecto.
+    //
+    // ## POR QUÉ ESTO SÍ SE BLOQUEA, y el aviso del §5.2 no
+    //
+    // El CLAUDE.md dice que «los avisos del armador son aviso, no bloqueo»,
+    // porque los datos reales tenían 657 de 686 domicilios sin costo y bloquear
+    // habría dejado la aplicación inservible. Aquí es al revés, y la diferencia
+    // es la que importa: **este hueco se tapa con un gesto, en la propia
+    // pantalla donde sale el «no»** —«Camión previsto» en las opciones de la
+    // zona—, mientras el del costo por km hay que rellenarlo cliente a cliente
+    // en otro sitio.
+    //
+    // Y los otros DOS caminos que crean rutas ya se niegan igual desde siempre:
+    // el asistente de Rutas (`rutas/datos/acciones_rutas.dart`, `armar`: «Se
+    // requiere un vehículo para crear la ruta») y `POST /api/routes`
+    // (`api/internal/api/rutas.go`, `msgFaltaVehiculo`). El que faltaba era
+    // éste, que es **el principal**: así arma Jose el día, por zonas.
+    //
+    // ## Y por qué no se podía tapar antes de hoy
+    //
+    // El botón «Camión previsto» de las opciones de una zona **no abría nada**:
+    // hacía `await ref.read(camionesProvider.future)` sobre un `StreamProvider`
+    // que nadie escuchaba y ese `await` no terminaba jamás
+    // (`tablero/vista/acciones.dart`, arreglado el 28/09/2026). Era el ÚNICO
+    // sitio desde donde se le pone camión a una zona —`crearColumna` no lo pide
+    // y la pantalla no lo manda—, así que hasta hoy toda ruta armada desde el
+    // tablero nacía sin camión a la fuerza. Bloquear sin ese arreglo sí habría
+    // dejado el tablero inservible; con él, el «no» se arregla en dos toques.
+    // **Las dos cosas van juntas o ninguna.**
+    //
+    // ## El sitio de esta guarda no es casual
+    //
+    // Va DESPUÉS de los dos «no hay nada repartible» y ANTES de escribir nada,
+    // en el mismo orden que el servidor (`api/internal/api/tablero.go`,
+    // `armarRutaDeColumna`: primero el 409 de la zona sin nada, luego el camión,
+    // luego la capacidad). Si dos fallan a la vez, la persona tiene que leer el
+    // mismo mensaje por los dos caminos.
+    //
+    // Si la columna ya no existe no se habla del camión: eso lo cuenta el
+    // `puestas.isEmpty` de arriba, y decir «no tiene camión previsto» de una
+    // zona borrada manda a arreglar donde no es.
+    if (columna != null && (columna.vehiculoId?.isEmpty ?? true)) {
+      throw RechazoDelTablero(
+        'La zona «${columna.nombre}» no tiene camión previsto, y sin camión no '
+        'se arma su ruta',
+        detalles: const [
+          'Elige el camión en «Camión previsto», en las opciones de la zona, y '
+              'vuelve a armar.',
+          'Sin camión no hay capacidad contra la que medir la carga ni costo '
+              'por km con el que cotizar el domicilio: la ruta saldría con su '
+              'peso y su importe sin nada con que contrastarlos.',
+        ],
+      );
+    }
+
     // LAS COORDENADAS DE CADA PARADA, para poder medir el recorrido.
     //
     // La tarjeta sólo lleva `kmAlAlmacen`, que es la distancia RADIAL desde el
@@ -766,6 +833,7 @@ class RepositorioTablero {
 
       for (var i = 0; i < buenos.length; i++) {
         final pedido = buenos[i].pedido;
+        final donde = coordenadas[pedido.pedidoId];
         await (_base.update(
           _base.orders,
         )..where((o) => o.id.equals(pedido.pedidoId))).write(
@@ -777,6 +845,42 @@ class RepositorioTablero {
             ultimaRutaId: Value(rutaId),
             vehicleId: Value(columna?.vehiculoId),
             stopOrder: Value(i + 1),
+            // LA DISTANCIA DE CADA PARADA, QUE AQUI NO SE ESCRIBIA — 28/09/2026.
+            //
+            // Los otros tres caminos que enganchan una parada la escriben: los
+            // dos del servidor (`EngancharPedidoARuta`, en POST /routes y al
+            // armar una zona) y el armado local del asistente de Rutas
+            // (`rutas/datos/acciones_rutas.dart`). Este no, y **este es el
+            // principal**: es como Jose arma el dia, por zonas.
+            //
+            // Asi que una ruta recien armada tenia `segment_km` nulo en TODAS
+            // sus paradas hasta que la siguiente bajada trajera del servidor un
+            // numero que el aparato ya podia sacar solo. En pantalla era una
+            // raya en las tres paradas de `RT-20260928-001`. Comprobado en
+            // produccion el mismo dia: las 24 paradas del servidor tienen su
+            // numero, o sea que lo que estaba en blanco era la copia de aqui.
+            //
+            // Es la RADIAL del punto de partida al cliente, no el tramo: es el
+            // numero con el que se cobra el domicilio y se hereda asi de
+            // delivery. La misma cuenta que hace el servidor en
+            // `api/internal/api/tablero.go` (busca «radial»), con el mismo
+            // radio: `radioTierraKm` de `rutas/datos/geo.dart`, que ya es el que
+            // usa el resto de esta funcion para medir el circuito.
+            //
+            // Y **la de `rutas/datos/geo.dart` a proposito**, que es la que ya
+            // esta importada aqui: en la aplicacion hay DOS haversine escritas
+            // aparte —esa con `atan2` y la de `tablero/datos/geo.dart` con
+            // `asin`— y usar una aqui y otra en la pantalla de Rutas daria dos
+            // numeros distintos para «cuan lejos esta este cliente».
+            //
+            // Sin coordenada del cliente no se puede medir, y entonces se deja
+            // NULO y no cero: un cero ahi se lee como «el cliente esta en la
+            // puerta del almacen», que es un numero creible y equivocado.
+            segmentKm: Value(
+              donde == null
+                  ? null
+                  : haversineKm(Punto(origen.lat, origen.lng), donde),
+            ),
           ),
         );
         await _base.customStatement(

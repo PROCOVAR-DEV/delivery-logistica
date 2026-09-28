@@ -257,7 +257,10 @@ func TestSiPedidoNoContestaElCierreSigueYQuedaEnElRegistro(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &salida); err != nil {
 		t.Fatalf("respuesta ilegible: %v", err)
 	}
-	if len(salida.Aplicados) != 1 || salida.Aplicados[0].Resultado != "entregado" {
+	// `Resultado` es un puntero desde el 28/09/2026: `null` es «se quitó la marca», que no
+	// es un resultado. Aquí se marcó de verdad, así que tiene que venir con valor.
+	if len(salida.Aplicados) != 1 || salida.Aplicados[0].Resultado == nil ||
+		*salida.Aplicados[0].Resultado != "entregado" {
 		t.Fatalf("el cierre tenía que quedar guardado igual: %+v", salida.Aplicados)
 	}
 

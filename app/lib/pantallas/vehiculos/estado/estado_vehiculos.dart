@@ -99,6 +99,29 @@ class PaginaVehiculos extends Notifier<int> {
   void poner(int pagina) => state = pagina;
 }
 
+/// EL FILTRO DE «QUE HAY LIBRE Y QUE NO» — 28/09/2026.
+///
+/// Jose pidio «saber de la flota»: de un vistazo, que hay libre y que no. Eso son
+/// dos piezas —unos contadores que se leen sin tocar nada, y poder quedarse con
+/// un grupo— y esta es la segunda.
+///
+/// `null` es «todos», que es como se entra. **No se recuerda entre visitas** a
+/// proposito: un filtro pegado es como se llega a «no hay ningun camion» delante
+/// de una flota entera, que es el mismo fallo que el aviso del tablero que sale
+/// siempre y deja de leerse.
+final filtroAndarProvider = NotifierProvider<FiltroAndar, AndarDelCamion?>(
+  FiltroAndar.new,
+);
+
+class FiltroAndar extends Notifier<AndarDelCamion?> {
+  @override
+  AndarDelCamion? build() => null;
+
+  /// Tocar el grupo que ya esta puesto lo quita: el mismo gesto entra y sale, y
+  /// asi no hace falta un boton de «quitar filtro» que nadie encuentra.
+  void alternar(AndarDelCamion cual) => state = state == cual ? null : cual;
+}
+
 /// El resultado de una accion de escritura, para pintarlo.
 class AvisoVehiculos {
   const AvisoVehiculos(this.texto, {required this.esFallo});

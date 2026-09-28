@@ -181,9 +181,16 @@ func TestElCamionDeHolguinNoSeGuardaEnUnaZonaDeSantiago(t *testing.T) {
 		t.Fatalf("código %d, se esperaba 400: el camión de Holguín no se engancha a una "+
 			"zona de Santiago ni sabiendo su id — %s", w.Code, w.Body.String())
 	}
-	if v := q.columnas[colCentro].VehicleID; v.Valid {
-		t.Fatalf("la zona de Santiago se quedó con el camión %s, que es de Holguín",
-			uuid.UUID(v.Bytes))
+	// SE COMPRUEBA QUE SIGA CON EL SUYO, no que se quede vacía.
+	//
+	// Antes esto era `if v.Valid { … }`, y valía mientras la zona naciera sin camión. Desde
+	// el 28/09/2026 `colCentro` nace con el de Santiago —lo pide `msgZonaSinCamion`, que se
+	// niega a armar una zona sin camión— y «vacía» dejaría de ser la respuesta correcta:
+	// un PATCH rechazado no puede DESENGANCHAR el camión bueno, que sería el mismo fallo
+	// con otra cara (la zona se queda sin poder armar por un intento que se denegó).
+	if v := q.columnas[colCentro].VehicleID; !v.Valid || uuid.UUID(v.Bytes) != vehStgTab {
+		t.Fatalf("la zona de Santiago tenía que quedarse con SU camión (%s) y tiene %v",
+			vehStgTab, v)
 	}
 }
 

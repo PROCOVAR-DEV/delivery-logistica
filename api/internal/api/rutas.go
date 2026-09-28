@@ -1487,15 +1487,31 @@ type cuerpoCierre struct {
 
 type entradaDeCierre struct {
 	OrderID string `json:"orderId"`
-	// Punteros para poder distinguir «no vino» de «vino vacío»: el mensaje de rechazo
-	// interpola el valor tal cual, y un resultado ausente sale como `undefined`.
-	Resultado *string `json:"resultado"`
-	Nota      *string `json:"nota"`
+	// TRI-ESTADO, y los tres significan cosas distintas — 28/09/2026:
+	//
+	//   · NO VINO el campo        → cuerpo mal formado. Se rechaza con `undefined`, que es
+	//     lo que ve quien mira el JSON que mandó.
+	//   · vino `"entregado"`…     → se marca.
+	//   · vino `null` EXPLÍCITO   → se QUITA la marca. Es lo que manda el aparato cuando
+	//     alguien pulsa dos veces el mismo botón en la hoja de cierre para corregir un
+	//     dedazo.
+	//
+	// Con un `*string` a secas los dos primeros casos son indistinguibles —`null` y
+	// «ausente» decodifican los dos a `nil`— y por eso desmarcar no tenía forma de llegar
+	// hasta aquí. `httpx.Opcional` es la pieza de la casa para exactamente esto.
+	//
+	// Las APK ya instaladas NO mandan `null`: mandan sólo las paradas con resultado, así
+	// que para ellas nada cambia.
+	Resultado httpx.Opcional[string] `json:"resultado"`
+	Nota      *string                `json:"nota"`
 }
 
 type aplicadoDeCierre struct {
-	OrderID   string `json:"orderId"`
-	Resultado string `json:"resultado"`
+	OrderID string `json:"orderId"`
+	// `null` cuando lo que se aplicó fue QUITAR la marca. Es el acuse de lo que se hizo, y
+	// «se quitó» no es un resultado: escribir `""` ahí obligaría a quien lo lea a
+	// distinguir dos formas del mismo vacío.
+	Resultado *string `json:"resultado"`
 }
 
 type rechazadoDeCierre struct {
@@ -1587,7 +1603,37 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
 			continue
 		}
-		resultado, ok := resultadoValido(e.Resultado)
+		// QUITAR LA MARCA — 28/09/2026. Jose: «desmarco el estado de cierre y no se
+		// guarda cuando salgo por q razon».
+		//
+		// Un `"resultado": null` EXPLÍCITO es «esta parada vuelve a estar sin marcar», y
+		// se ejecuta aquí y se acaba la vuelta: no hay resultado que validar, no hay nota
+		// que guardar —se va con la marca— y **no sale aviso a PEDIDO**, porque en su
+		// contrato no existe «des-entregado» e inventarle un estado es peor que no
+		// decirle nada. Eso queda dicho aquí y es un hueco conocido: si la parada ya le
+		// había llegado a PEDIDO como entregada, allí sigue entregada hasta que se
+		// vuelva a marcar con otro resultado.
+		//
+		// Lo que SÍ deshace, entero, está en `LimpiarResultadoDeParada`; lo delicado es
+		// que le devuelve el `route_id`, o un devuelto desmarcado se queda fuera de su
+		// propia ruta y sale en dos camiones.
+		if e.Resultado.Presente && e.Resultado.Valor == nil {
+			filas, err := a.LimpiarResultadoDeParada(r.Context(), ruta.ID, pedidoID)
+			if err != nil {
+				httpx.ErrorInterno(w, r, err)
+				return
+			}
+			if filas == 0 {
+				salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
+				continue
+			}
+			// En `aplicados` va con su `resultado: null`: el acuse dice lo que se hizo, y
+			// lo que se hizo fue dejarla sin marcar.
+			salida.Aplicados = append(salida.Aplicados, aplicadoDeCierre{OrderID: pedidoID.String()})
+			continue
+		}
+
+		resultado, ok := resultadoValido(e.Resultado.Valor)
 		if !ok {
 			salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{
 				OrderID: e.OrderID,
@@ -1616,7 +1662,8 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
 			continue
 		}
-		salida.Aplicados = append(salida.Aplicados, aplicadoDeCierre{OrderID: pedidoID.String(), Resultado: string(resultado)})
+		aplicado := string(resultado)
+		salida.Aplicados = append(salida.Aplicados, aplicadoDeCierre{OrderID: pedidoID.String(), Resultado: &aplicado})
 		if parada.Source != nil && *parada.Source == sqlc.ProcedenciaPedido && parada.ExternalID != nil {
 			aviso := AvisoDeParada{PedidoID: *parada.ExternalID, Estado: string(resultado), At: cuando}
 			if nota != nil {
@@ -2229,11 +2276,11 @@ func resultadoValido(v *string) (sqlc.StopResult, bool) {
 // valorTalCual es lo que se interpola en «resultado '<v>' desconocido». Un resultado que
 // no vino sale como `undefined`, calcado de delivery: el que lee el mensaje está mirando
 // el JSON que mandó, y ahí el campo no está.
-func valorTalCual(v *string) string {
-	if v == nil {
+func valorTalCual(v httpx.Opcional[string]) string {
+	if v.Valor == nil {
 		return "undefined"
 	}
-	return *v
+	return *v.Valor
 }
 
 // notaDeCierre limpia la nota: vacía es NULL, y se corta a 500. El corte va por RUNAS y no

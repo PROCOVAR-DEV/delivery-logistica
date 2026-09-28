@@ -515,6 +515,26 @@ func (d *dobleDeRutas) MarcarResultadoDeParada(_ context.Context, arg sqlc.Marca
 	return 1, nil
 }
 
+// LimpiarResultadoDeParada: deshace lo de arriba, columna por columna. Copiada tal cual de
+// `db/queries/routes.sql`, incluida la que no es obvia — `route_id = ultima_ruta_id`, que
+// devuelve al camión un devuelto que se desmarca.
+func (d *dobleDeRutas) LimpiarResultadoDeParada(_ context.Context, arg sqlc.LimpiarResultadoDeParadaParams) (int64, error) {
+	p, hay := d.pedidos[arg.PedidoID]
+	if !hay || p.ultimaRuta == nil || [16]byte(*p.ultimaRuta) != arg.RutaID.Bytes {
+		return 0, nil
+	}
+	if !alcanza(arg.Sucursal, &p.sucursal) {
+		return 0, nil
+	}
+	p.resultado = nil
+	p.resultadoAt = nil
+	p.nota = nil
+	p.entregadoEn = nil
+	p.estado = sqlc.OrderStatusPending
+	p.rutaID = p.ultimaRuta
+	return 1, nil
+}
+
 func (d *dobleDeRutas) SoltarPedidosDeRuta(_ context.Context, arg sqlc.SoltarPedidosDeRutaParams) (int64, error) {
 	var n int64
 	for _, p := range d.pedidos {

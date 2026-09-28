@@ -96,6 +96,16 @@ class CierreDeRuta extends ConsumerStatefulWidget {
 class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
   /// Lo marcado en esta sesion. `null` en el mapa = sin marcar.
   final _resultados = <String, String?>{};
+
+  /// LO QUE HABIA GUARDADO AL ABRIR. De aqui sale saber si una parada se
+  /// DESMARCO, que es distinto de no haberla tocado nunca — 28/09/2026.
+  ///
+  /// Jose: «desmarco el estado de cierre y no se guarda cuando salgo por q
+  /// razon». Sin esta foto no hay forma de distinguir los dos nulos: el de «esta
+  /// parada nunca se marco» y el de «estaba marcada y le he quitado la marca».
+  /// El primero no tiene nada que guardar; el segundo si, y era el que se
+  /// perdia.
+  final _alAbrir = <String, String?>{};
   final _notas = <String, TextEditingController>{};
   bool _partidoDeLoGuardado = false;
   bool _guardando = false;
@@ -122,6 +132,8 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
     _partidoDeLoGuardado = true;
     for (final parada in paradas) {
       _resultados[parada.id] = parada.resultado;
+      _alAbrir[parada.id] = parada.resultado;
+      _notaGuardada[parada.id] = parada.resultadoNota ?? '';
       _notas[parada.id] = TextEditingController(
         text: parada.resultadoNota ?? '',
       );
@@ -132,6 +144,37 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
       _notas.putIfAbsent(pedidoId, TextEditingController.new);
 
   int get _marcadas => _resultados.values.where((r) => r != null).length;
+
+  /// Las que estaban marcadas al abrir y ya NO lo estan. Es lo que hay que
+  /// guardar de un desmarcado, y es lo que antes no contaba nadie.
+  int get _desmarcadas => _alAbrir.entries
+      .where((e) => e.value != null && _resultados[e.key] == null)
+      .length;
+
+  /// Lo que ha cambiado respecto a lo guardado: marcas nuevas, marcas cambiadas
+  /// y marcas quitadas. **Las notas tambien cuentan**, o alguien escribe un
+  /// motivo de devolucion, sale, y ese motivo no existe.
+  int get _cambios => _alAbrir.keys
+      .where(
+        (id) =>
+            _resultados[id] != _alAbrir[id] ||
+            (_resultados[id] != null &&
+                _nota(id).text.trim() != (_notaGuardada[id] ?? '')),
+      )
+      .length;
+
+  /// La nota tal y como estaba al abrir, para poder ver si se toco.
+  final _notaGuardada = <String, String>{};
+
+  /// HAY ALGO QUE GUARDAR — 28/09/2026.
+  ///
+  /// Era `_marcadas == 0`, y ahi estaba la segunda mitad del fallo de Jose
+  /// («desmarco el estado de cierre y no se guarda cuando salgo»): abre una hoja
+  /// con UNA parada marcada, le quita la marca, y el boton de guardar **se
+  /// apaga**. Aunque la pantalla hubiera sabido mandar el desmarcado —no sabia—,
+  /// no habia forma de pulsarlo. Quitar la ultima marca es un cambio, y de los
+  /// que mas importan: dice que esa parada no bajo del camion.
+  bool get _hayQueGuardar => _marcadas > 0 || _desmarcadas > 0;
 
   bool get _soloLectura => widget.modo == ModoDelCierre.soloLectura;
   bool get _completando => widget.modo == ModoDelCierre.alCompletar;
@@ -151,14 +194,34 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
   });
 
   Future<void> _guardar(List<Pedido> paradas) async {
+    // LO MARCADO **Y LO DESMARCADO** — 28/09/2026.
+    //
+    // Jose: «desmarco el estado de cierre y no se guarda cuando salgo por q
+    // razon». Aqui ponia `if (_resultados[parada.id] != null)`, o sea que una
+    // parada a la que se le habia QUITADO la marca sencillamente no entraba en
+    // la lista: no se encolaba nada para ella, el servidor no se enteraba, y al
+    // volver a abrir la hoja la marca vieja seguia puesta. Marcar si persistia;
+    // quitar la marca, no.
+    //
+    // Es el clasico de «un valor que se quita se confunde con no haber tocado
+    // nada», y aqui pasaba en el primer eslabon de la cadena: el nulo ni
+    // siquiera llegaba a salir de la pantalla.
+    //
+    // Se manda `resultado: null` SOLO para las que estaban marcadas al abrir y
+    // ahora no lo estan. Las que nunca se marcaron no se mandan: un apunte por
+    // cada parada intacta seria escribir veinte UPDATE para no cambiar nada, y
+    // ademas los apuntes de la cola se leen uno a uno cuando algo va mal.
     final marcas = <MarcaDeParada>[
       for (final parada in paradas)
         if (_resultados[parada.id] != null)
           MarcaDeParada(
             pedidoId: parada.id,
-            resultado: _resultados[parada.id]!,
+            resultado: _resultados[parada.id],
             nota: _nota(parada.id).text,
-          ),
+          )
+        else if (_alAbrir[parada.id] != null)
+          // Estaba marcada y se le quito la marca. La nota se va con ella.
+          MarcaDeParada(pedidoId: parada.id, resultado: null),
     ];
     final completando = widget.modo == ModoDelCierre.alCompletar;
     // Sin nada marcado no hay nada que guardar **y no pasa nada**: se puede dar
@@ -181,6 +244,15 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
       // reves, un rechazo del cierre dejaria la ruta dada por cerrada con las
       // paradas sin marcar.
       if (completando) await acciones.completar(widget.rutaId);
+      // LA FOTO DE «LO GUARDADO» SE MUEVE. Sin esto, tras guardar, el boton de
+      // salir seguiria diciendo que hay cambios pendientes sobre algo que ya
+      // esta escrito, y un aviso que sale siempre deja de leerse (§3-quinquies).
+      for (final marca in marcas) {
+        _alAbrir[marca.pedidoId] = marca.resultado;
+        _notaGuardada[marca.pedidoId] = marca.quitaLaMarca
+            ? ''
+            : _nota(marca.pedidoId).text.trim();
+      }
       mensajero?.showSnackBar(
         SnackBar(
           content: Text(
@@ -255,15 +327,29 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
             ),
             child: const Text('Post-despacho'),
           ),
+          // NADA SE DESCARTA EN SILENCIO (§4). Si hay algo sin guardar, el boton
+          // lo dice con su cuenta en vez de llamarse «Cerrar»: cerrar la hoja
+          // con tres marcas puestas y que no pase nada es el «dato que esta y no
+          // se escribe» en su version mas barata de evitar.
+          //
+          // Se DICE y no se bloquea: salir sin guardar es legitimo —se abrio a
+          // mirar y se toco sin querer— y un cajon que no deja salir es peor.
           TextButton(
             onPressed: () => Navigator.of(context).maybePop(),
-            child: const Text('Cerrar'),
+            child: Text(
+              _soloLectura || _cambios == 0
+                  ? 'Cerrar'
+                  : 'Salir sin guardar ($_cambios sin guardar)',
+            ),
           ),
           // **En una ruta completada no hay boton de guardar.** No es que este
           // apagado: no esta. Un boton apagado invita a buscar como encenderlo.
           if (!_soloLectura)
             FilledButton(
-              onPressed: _guardando || (_marcadas == 0 && !_completando)
+              // `_hayQueGuardar` y no `_marcadas > 0`: quitar la ultima marca
+              // apagaba el boton, asi que el desmarcado no se podia ni intentar
+              // guardar. Ver `_hayQueGuardar`.
+              onPressed: _guardando || (!_hayQueGuardar && !_completando)
                   ? null
                   : () => _guardar(paradas),
               child: Text(
@@ -271,6 +357,11 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
                     ? 'Guardando…'
                     : _completando
                     ? 'Guardar y completar'
+                    // EL ROTULO DICE LAS DOS COSAS. Con una marca quitada,
+                    // `Guardar 0 marcada(s)` se lee como «no hay nada que
+                    // guardar» justo cuando si lo hay.
+                    : _desmarcadas > 0
+                    ? 'Guardar $_marcadas y quitar $_desmarcadas'
                     : 'Guardar $_marcadas marcada(s)',
               ),
             ),

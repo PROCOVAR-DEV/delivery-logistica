@@ -697,6 +697,36 @@ type Querier interface {
 	//
 	// Va sin alcance: la bajada entra con clave de servicio y recorre las ocho sucursales.
 	GuardarVentaFacturada(ctx context.Context, arg GuardarVentaFacturadaParams) (GuardarVentaFacturadaRow, error)
+	// QUITAR LA MARCA DE UNA PARADA — 28/09/2026.
+	//
+	// Jose: «desmarco el estado de cierre y no se guarda cuando salgo por q razon».
+	//
+	// En la hoja de cierre, pulsar dos veces el mismo botón DESMARCA: es como se corrige un
+	// dedazo, y estaba puesto desde el principio en la pantalla. Lo que no existía era el
+	// camino de vuelta: el aparato sólo mandaba las paradas CON resultado, así que quitar la
+	// marca no producía ningún apunte y la marca vieja seguía en la base. Al volver a abrir la
+	// hoja, ahí estaba otra vez. El clásico de «un campo que no viene» leído como «no lo
+	// toques» en vez de como «bórralo» — y aquí ni siquiera venía.
+	//
+	// Deshace EXACTAMENTE lo que hizo `MarcarResultadoDeParada`, columna por columna, porque
+	// media vuelta atrás es peor que ninguna:
+	//
+	//  1. `resultado`, `resultado_at` y `resultado_nota` a NULL. La nota se va con la marca:
+	//     un motivo de devolución colgando de una parada sin resultado es una explicación de
+	//     algo que ya no consta.
+	//  2. `delivered_at` a NULL y `status` a `pending`. Si no, la parada se queda sin resultado
+	//     pero con hora de entrega, y la lista la pinta «entregada»: la misma contradicción del
+	//     2 de septiembre, al revés.
+	//  3. `route_id = ultima_ruta_id`, que es la que MÁS importa y la que no es obvia. Un
+	//     devuelto SOLTÓ su `route_id` al marcarse; si al desmarcarlo no se le devuelve, el
+	//     pedido se queda fuera de su ruta —vuelve a la lista de disponibles de mañana— con la
+	//     ruta todavía abierta, y entonces sale en DOS camiones. `ultima_ruta_id` es la hoja de
+	//     lo que subió, así que es de ahí de donde se recupera.
+	//
+	// El `WHERE` es el mismo que el de marcar, y por lo mismo: por `ultima_ruta_id`, para poder
+	// desmarcar un devuelto que ya soltó su `route_id`. Cero filas es «ese pedido no va en esta
+	// ruta», el rechazo del contrato.
+	LimpiarResultadoDeParada(ctx context.Context, arg LimpiarResultadoDeParadaParams) (int64, error)
 	// La pantalla de administración: los últimos avisos, con lo que pasó con cada uno.
 	ListarAvisosAPedido(ctx context.Context, arg ListarAvisosAPedidoParams) ([]ListarAvisosAPedidoRow, error)
 	// Clientes: espejo de Ventra vía PEDIDO. Sólo los GEOLOCALIZADOS — sin coordenadas no se
@@ -1358,6 +1388,39 @@ type Querier interface {
 	RetirarTipoDeVehiculo(ctx context.Context, id uuid.UUID) (int64, error)
 	// La ruta viva más reciente de un camión, para la tarjeta de la flota.
 	RutaActivaDeVehiculo(ctx context.Context, arg RutaActivaDeVehiculoParams) (RutaActivaDeVehiculoRow, error)
+	// ---------------------------------------------------------------------------
+	// EN QUÉ ANDA CADA CAMIÓN: se DEDUCE de sus rutas, no se mantiene a mano
+	// ---------------------------------------------------------------------------
+	//
+	// Jose, 28/09/2026: «si la idea es q salga el vehiculo y ese vehiculo se ponga su estado
+	// para q saber como anda ese vehiculo y saber de la flota».
+	//
+	// `vehicles.status` ya existía y NO es la respuesta: es un campo que alguien pone y alguien
+	// tiene que quitar, y un estado que nadie mantiene miente a los dos días. Aquí abajo ya
+	// estaba escrito, en `ContarVehiculosEnRuta`: «se mira la ruta y no `vehicles.status`
+	// porque el estado es un campo que alguien puede haber dejado a mano en `available` con la
+	// ruta todavía abierta». Esto es esa misma cuenta, POR CAMIÓN en vez de en total, para que
+	// la tarjeta de Vehículos diga en qué anda cada uno y la ficha de una ruta diga cómo anda
+	// el suyo. Nace correcta para los camiones que ya existen, que es lo que un campo nuevo no
+	// puede hacer.
+	//
+	// UNA ruta por camión, la que manda. `DISTINCT ON` con su `ORDER BY`, y el orden no es
+	// caprichoso: primero la que está EN CURSO —ésa es la que tiene el camión fuera ahora
+	// mismo—, y entre planificadas la del día más próximo. Sin ese orden, una planificada de la
+	// semana que viene taparía la que está rodando hoy.
+	//
+	// VA COMO CONSULTA APARTE y no como `LEFT JOIN` dentro de `ListarVehiculos`, y es por una
+	// razón concreta, no por gusto: sqlc no sabe que un `LEFT JOIN` a una tabla derivada puede
+	// no casar, así que tipaba `ruta_abierta_id` como `uuid.UUID` y `ruta_abierta_estado` como
+	// `RouteStatus`, los dos NO nulos. El primer camión libre de la lista habría reventado el
+	// `Scan` en producción con un error que no dice nada. Probado con `LEFT JOIN LATERAL` y con
+	// `DISTINCT ON`: las dos formas dan el mismo tipo equivocado, y `nullif` para forzarlo sale
+	// tipado como `bool`. Aquí cada fila que vuelve es una ruta de verdad, así que no hay nada
+	// que pueda venir nulo, y el camión sin ruta es sencillamente el que no sale.
+	//
+	// El alcance se copia de `ListarVehiculos`: se acota por la sucursal de la RUTA, que es la
+	// misma por la que se acota `ContarVehiculosEnRuta`.
+	RutasAbiertasDeLaFlota(ctx context.Context, sucursal pgtype.UUID) ([]RutasAbiertasDeLaFlotaRow, error)
 	// ---------------------------------------------------------------------------
 	// Borrar una ruta  (DELETE /api/routes/[id])
 	// ---------------------------------------------------------------------------

@@ -29,6 +29,7 @@ import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/vista/kit.dart';
 import '../datos/acciones_rutas.dart';
+import '../datos/formato_de_la_ruta.dart';
 import '../datos/importe_de_la_ruta.dart';
 import '../datos/repositorio_rutas.dart';
 import '../estado/proveedores_rutas.dart';
@@ -114,7 +115,18 @@ class DetalleDeRuta extends ConsumerWidget {
       ],
       _Acciones(ruta: conTodo),
       const SizedBox(height: 12),
-      LineaDeDatosDeLaRuta(ruta: conTodo, ahora: ref.read(relojProvider)()),
+      // EN QUE ANDA EL CAMION DE ESTA RUTA. Entra por parametro y no lo lee la
+      // cabecera, porque esa cabecera se prueba SUELTA, sin `ProviderScope` (ver
+      // su nota): dentro de un `testWidgets` una consulta de Drift cuelga la
+      // prueba en vez de fallarla (`CLAUDE.md` §5).
+      LineaDeDatosDeLaRuta(
+        ruta: conTodo,
+        ahora: ref.read(relojProvider)(),
+        ocupacionDelCamion: conTodo.ruta.vehicleId == null
+            ? null
+            : ref.watch(camionesOcupadosProvider).value?[conTodo.ruta.vehicleId],
+        seSabeLaOcupacion: ref.watch(camionesOcupadosProvider).value != null,
+      ),
       const SizedBox(height: 12),
       // EL MAPA, con sus cuatro gestos —abrir en Google Maps, WhatsApp,
       // compartir y copiar. Antes aqui habia medio gesto: un boton que
@@ -431,6 +443,15 @@ class _Acciones extends ConsumerWidget {
             },
             child: const Text('Marcar como completada'),
           ),
+        // ESTE PESO NO PASA POR `pesoDeLaRuta`, Y ES A PROPÓSITO.
+        //
+        // No es «el peso de la ruta»: es el aviso de sobrepeso, y está escrito
+        // letra a letra como el del servidor —«Peso total (%.1f kg) supera la
+        // capacidad del vehículo (%g kg)», `api/internal/api/rutas.go:936` y
+        // `tablero.go:1571`—. Si dos fallan a la vez, la persona tiene que leer
+        // el mismo mensaje aquí y allí (lo mismo hace `acciones_rutas.armar`).
+        // Redondearlo aquí lo separaría del literal del servidor, que es peor
+        // que la diferencia de formato que arregla.
         if (ruta.sobrepeso)
           Insignia(
             'Peso total (${ruta.pesoTotal.toStringAsFixed(1)} kg) supera '
@@ -468,9 +489,11 @@ class _Acciones extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (var i = 0; i < ruta.paradas.length; i++)
-                    _TarjetaDeParada(
+                    TarjetaDeParada(
                       numero: ruta.paradas[i].stopOrder ?? i + 1,
                       parada: ruta.paradas[i],
+                      origenLat: ruta.ruta.originLat,
+                      origenLng: ruta.ruta.originLng,
                       lineas:
                           renglones[ruta.paradas[i].id] ??
                           const <RenglonConPeso>[],
@@ -493,9 +516,40 @@ class _Acciones extends ConsumerWidget {
 /// en vez de fallarla** (`CLAUDE.md` §5), y un cuelgue no prueba nada. Mismo
 /// motivo por el que [AvisoDeRechazo] vive en su propio fichero publico.
 class LineaDeDatosDeLaRuta extends StatelessWidget {
-  const LineaDeDatosDeLaRuta({required this.ruta, this.ahora, super.key});
+  const LineaDeDatosDeLaRuta({
+    required this.ruta,
+    this.ahora,
+    this.ocupacionDelCamion,
+    this.seSabeLaOcupacion = false,
+    super.key,
+  });
 
   final RutaConTodo ruta;
+
+  /// La ruta ABIERTA que tiene cogido al camión de ésta, si hay alguna. Puede
+  /// ser ésta misma —lo normal— o **otra**, que es el caso que importa: dos
+  /// rutas con el mismo camión, que hasta el 28/09/2026 no se veía por ningún
+  /// sitio. Ver `ConsultasRutas.camionesOcupados`.
+  final RutaQueOcupa? ocupacionDelCamion;
+
+  /// Si la consulta ya llegó. `false` por defecto para que la cabecera se pueda
+  /// seguir probando suelta sin decir nada del camión: escribir «libre» sin
+  /// haberlo comprobado sería un dato inventado.
+  final bool seSabeLaOcupacion;
+
+  /// CÓMO ANDA EL CAMIÓN, pegado a su nombre. Mismo criterio y mismo texto que
+  /// la lista (`lista_rutas.dart`, `_comoAndaElCamion`): sólo se escribe lo que
+  /// añade algo. Si quien lo tiene cogido es esta misma ruta no se dice nada
+  /// —ya se está mirando—; si lo tiene otra, se dice cuál.
+  String get _comoAndaElCamion {
+    if (!seSabeLaOcupacion || ruta.vehiculo == null) return '';
+    final ocupa = ocupacionDelCamion;
+    if (ocupa == null) return ' · libre';
+    if (ocupa.rutaId == ruta.ruta.id) return '';
+    return ocupa.enCurso
+        ? ' · EN RUTA en ${ocupa.titulo}'
+        : ' · ya va en ${ocupa.titulo}';
+  }
 
   /// La hora de ahora, para lo que lleva una ruta EN CURSO. Entra por aquí y no
   /// de un proveedor a propósito: esta cabecera se prueba suelta, sin
@@ -528,12 +582,21 @@ class LineaDeDatosDeLaRuta extends StatelessWidget {
       children: [
         Text(
           '$estado · ${r.totalDistance.toStringAsFixed(1)} km (incl. regreso) · '
-          '${kg(r.totalWeight)} · ${importe.rotulo} · '
+          // EL PESO DE LA RUTA, CON EL FORMATO DEL TABLERO.
+          //
+          // Aquí decía `kg(r.totalWeight)` —un decimal y punto— sobre el mismo
+          // `double` que la zona del Tablero escribe con `pesoBonito` —entero y
+          // coma—: «516 kg» allí y «516.5 kg» aquí, el mismo bulto
+          // (28/09/2026). Lo que ata los dos formatos es
+          // `el_mismo_peso_escrito_igual_test.dart`, no este comentario
+          // (`CLAUDE.md` §3-bis).
+          '${pesoDeLaRuta(r.totalWeight)} · ${importe.rotulo} · '
           // «Sin vehículo», LO MISMO QUE EN LA LISTA. Un `—` aquí se lee como
           // «no se sabe» estando al lado de otros dos que sí lo son, y no es
           // eso: es que esta ruta no lleva camión asignado, que es un dato.
           '${ruta.vehiculo?.name ?? 'Sin vehículo'}'
-          '${ruta.vehiculo?.plate == null ? '' : ' · ${ruta.vehiculo!.plate}'} · '
+          '${ruta.vehiculo?.plate == null ? '' : ' · ${ruta.vehiculo!.plate}'}'
+          '$_comoAndaElCamion · '
           '${fechaCorta(r.deliveryDate)} · '
           'Carga total: ${ruta.paradas.length} · '
           '${tiempoDeLaRuta(arranco: r.startedAt, termino: r.finishedAt, ahora: ahora)}',
@@ -637,15 +700,34 @@ class _Paradas extends ConsumerWidget {
 ///
 /// Es la forma del patrón, que aquí acierta: en `delivery.procovar.cloud` la
 /// hoja de paradas se lee de un vistazo y la nuestra no se leía.
-class _TarjetaDeParada extends StatelessWidget {
-  const _TarjetaDeParada({
+///
+/// **Es pública a propósito**, por el mismo motivo que [LineaDeDatosDeLaRuta]:
+/// así se prueba suelta, con un `Pedido` armado a mano y sin base. Vivía dentro
+/// del cajón de «Ver paradas», y probarla obligaba a abrir el cajón con su
+/// `ProviderScope` y su Drift detrás — que dentro de un `testWidgets` **cuelga
+/// la prueba en vez de fallarla** (`CLAUDE.md` §5). Por eso la raya muda de
+/// «— desde partida» no la cazaba nada: nadie la miraba.
+class TarjetaDeParada extends StatelessWidget {
+  const TarjetaDeParada({
     required this.numero,
     required this.parada,
     required this.lineas,
+    this.origenLat,
+    this.origenLng,
+    super.key,
   });
 
   final int numero;
   final Pedido parada;
+
+  /// EL PUNTO DE PARTIDA DE LA RUTA, que es de la ruta y no de la parada.
+  ///
+  /// Entra por aquí porque sin él no se puede medir nada: la parada sabe dónde
+  /// está el cliente (`endLat`/`endLng`) pero no de dónde salió el camión. Los
+  /// dos juntos son lo que deja de depender de que alguien haya escrito
+  /// `segment_km` en la base — ver `datos/formato_de_la_ruta.dart`.
+  final double? origenLat;
+  final double? origenLng;
 
   /// Lo que se baja en esta parada. Vacío mientras no han llegado; entonces no
   /// se escribe «nada que bajar», que sería mentira.
@@ -726,8 +808,22 @@ class _TarjetaDeParada extends StatelessWidget {
                   runSpacing: 6,
                   children: [
                     Insignia(kg(parada.weight), color: Colores.gris),
+                    // LO QUE HAY DESDE LA PARTIDA, y no una raya muda.
+                    //
+                    // Esto era `'${km(parada.segmentKm)} desde partida'`, o sea
+                    // que sólo sabía leer la columna de la base. Una ruta armada
+                    // desde el Tablero en el aparato no la escribe, así que sus
+                    // paradas salían **todas** con `—` (`RT-20260928-001`,
+                    // 28/09/2026). El porqué entero, y por qué el rótulo ahora
+                    // dice «en recta», están en `datos/formato_de_la_ruta.dart`.
                     Insignia(
-                      '${km(parada.segmentKm)} desde partida',
+                      rotuloDesdeLaPartida(
+                        guardado: parada.segmentKm,
+                        origenLat: origenLat,
+                        origenLng: origenLng,
+                        lat: parada.endLat,
+                        lng: parada.endLng,
+                      ),
                       color: Colores.gris,
                     ),
                     if (parada.operationNumber != null)

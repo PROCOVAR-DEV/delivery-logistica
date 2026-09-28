@@ -58,7 +58,11 @@ Future<T?> abrirPanel<T>(BuildContext contexto, WidgetBuilder panel) {
     barrierLabel: 'Cerrar',
     barrierColor: Colores.tinta.withValues(alpha: 0.4),
     transitionDuration: const Duration(milliseconds: 180),
-    pageBuilder: (contextoPanel, _, _) => panel(contextoPanel),
+    // TODO CAJON VIENE ENVUELTO EN [AtrasDelCajon], y no es opcional: es lo que
+    // hace que el cajon se vaya con la pantalla sobre la que se abrio. El porque
+    // esta entero en el comentario de esa clase.
+    pageBuilder: (contextoPanel, _, _) =>
+        AtrasDelCajon(child: panel(contextoPanel)),
     transitionBuilder: (_, animacion, _, hijo) {
       // Entra desde 24 px a la derecha, 180 ms. Los mismos numeros del pliego:
       // lo bastante para que se lea «viene de fuera» y no tanto como para
@@ -76,6 +80,194 @@ Future<T?> abrirPanel<T>(BuildContext contexto, WidgetBuilder panel) {
       );
     },
   );
+}
+
+/// EL «ATRAS» ES DEL CAJON, NO DE LA PANTALLA DE DEBAJO — 28/09/2026.
+///
+/// Jose, con el asistente de nueva ruta abierto: «dar atras cuando estoy en un
+/// drawer no sale del drawer sigue trabajando atras arregla eso tambien», «y
+/// tiene q ir al paso anterior de el drawer». Son dos cosas y las dos pasan por
+/// aqui.
+///
+/// ## 1. El cajon se va con la pantalla sobre la que se abrio
+///
+/// El cajon se abre con `showGeneralDialog`, o sea que es una ruta **sin
+/// pagina** colgada del `Navigator` de arriba. En el telefono eso basta: el
+/// atras del sistema llega como `didPopRoute`, go_router se lo pasa al
+/// `Navigator` raiz y el cajon —que es lo de arriba— se cierra. En el navegador
+/// **no**: el atras del navegador no dispara ningun `popRoute`, cambia la
+/// direccion. go_router repinta la pantalla de debajo con la anterior y el
+/// cajon, que no esta en el historial del navegador, **se queda puesto encima**.
+/// Reproducido el 28/09/2026 en `test/diseno/atras_en_el_cajon_test.dart`: con
+/// el cajon abierto sobre `/detalle` y el atras del navegador, la pantalla pasa
+/// a `/lista` y el cajon sigue ahi. Eso es literalmente «no sale del drawer,
+/// sigue trabajando atras».
+///
+/// Asi que el cajon se vigila la direccion: **si cambia la pantalla de debajo,
+/// el cajon se cierra**. Se mira el CAMINO y no la direccion entera a proposito:
+/// los filtros de las listas viajan en la parte de despues del `?`
+/// (`/orders?municipio=…`), y hay cajones —el de filtros del telefono— que
+/// existen justo para cambiarlos. Comparando la direccion entera, tocar un
+/// filtro dentro del cajon lo cerraria de golpe en la cara. Las dos mitades se
+/// prueban juntas: cambia el camino y se cierra; cambian solo los filtros y NO
+/// se cierra.
+///
+/// Se cierra **esta** ruta y solo esta (`isActive`, y `removeRoute` si ya no es
+/// la de arriba), nunca con un `pop` a ciegas: un `pop` cuando el cajon ya no
+/// esta se lleva por delante la pantalla de debajo, que es el fallo del
+/// 28/09/2026 con los selectores.
+///
+/// ## 2. Con pasos, atras va al paso anterior
+///
+/// El asistente de nueva ruta son 4 pasos DENTRO de un cajon. Estando en el 3,
+/// atras cerraba el asistente entero y se perdia lo elegido. Quien tenga pasos
+/// se envuelve en esto con [quedaPasoAtras] y [atras], y el cajon se queda con
+/// el gesto mientras quede paso; en el primero lo suelta y el cajon se cierra
+/// como siempre. Es generico a proposito: el cajon no sabe que hay un asistente
+/// dentro, solo pregunta «¿te queda paso atras?».
+///
+/// ### Por que NO es un `PopScope`, que es lo primero que uno prueba
+///
+/// `PopScope` se engancha al `popDisposition` de la ruta, o sea que se come
+/// **todos** los `Navigator.maybePop()` de la casa, no solo el gesto de atras.
+/// Y la ✕ de la cabecera de los dos cajones de este proyecto —el de aqui y el
+/// de `pantallas/pedidos/vista/kit.dart`, que es el que usa el asistente— cierra
+/// con `maybePop()`. Con un `PopScope` puesto, la ✕ del asistente en el paso 3
+/// **retrocederia un paso en vez de cerrar**, y la ✕ es la unica salida
+/// garantizada cuando el teclado tapa media pantalla (§9.2). Lo mismo el
+/// `Cancelar` del pie.
+///
+/// `BackButtonListener` se engancha un piso mas arriba, en el
+/// `BackButtonDispatcher` del `Router`, que es por donde entra **solo el atras
+/// del sistema**. Los `maybePop` de la casa ni lo rozan. Por eso la ✕ se queda
+/// como estaba y hay una prueba que lo ata: «la ✕ cierra el cajon entero aunque
+/// queden pasos».
+///
+/// El `PopScope` queda de red para un arbol **sin `Router`** (un `MaterialApp`
+/// normal, como los de algunas pruebas): ahi no hay dispatcher que escuchar y el
+/// atras entra por `WidgetsApp.didPopRoute` → `maybePop`, asi que el `PopScope`
+/// es el unico sitio donde cazarlo. La aplicacion de verdad es
+/// `MaterialApp.router` y va siempre por el primer camino.
+class AtrasDelCajon extends StatefulWidget {
+  const AtrasDelCajon({
+    required this.child,
+    this.quedaPasoAtras = false,
+    this.atras,
+    super.key,
+  });
+
+  final Widget child;
+
+  /// Lo que el contenido del cajon contesta a «¿te queda paso atras?». Mientras
+  /// sea `true` el cajon se queda con el gesto; en `false` lo suelta y atras
+  /// cierra.
+  final bool quedaPasoAtras;
+
+  /// Que hacer con el atras en vez de cerrar. Sin esto el cajon solo se vigila
+  /// la pantalla de debajo, que es lo que quiere el 99 % de los cajones.
+  final VoidCallback? atras;
+
+  @override
+  State<AtrasDelCajon> createState() => _AtrasDelCajonState();
+}
+
+class _AtrasDelCajonState extends State<AtrasDelCajon> {
+  ModalRoute<dynamic>? _ruta;
+  RouteInformationProvider? _direccion;
+
+  /// El camino sobre el que se abrio este cajon. No se actualiza nunca: el cajon
+  /// muere en el primer cambio, asi que solo hace falta el de la apertura.
+  String? _pantallaDeAbajo;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ruta = ModalRoute.of(context);
+
+    // Se lee del `Router` y no de go_router: `lib/diseno/` no conoce el
+    // enrutador de la aplicacion, y `routeInformationProvider` es lo que cambia
+    // tanto con el atras del navegador como con un `context.go` de dentro.
+    final direccion = Router.maybeOf(context)?.routeInformationProvider;
+    if (!identical(direccion, _direccion)) {
+      _direccion?.removeListener(_siCambioLaPantallaDeAbajo);
+      _direccion = direccion;
+      _pantallaDeAbajo = direccion?.value.uri.path;
+      direccion?.addListener(_siCambioLaPantallaDeAbajo);
+    }
+  }
+
+  @override
+  void dispose() {
+    _direccion?.removeListener(_siCambioLaPantallaDeAbajo);
+    super.dispose();
+  }
+
+  void _siCambioLaPantallaDeAbajo() {
+    final ahora = _direccion?.value.uri.path;
+    if (ahora == null || ahora == _pantallaDeAbajo) return;
+    // El aviso llega en mitad del fotograma en el que el enrutador esta
+    // rehaciendo sus paginas. Quitar una ruta ahi mismo es marcar el `Navigator`
+    // para reconstruir mientras se construye, y Flutter lo corta en seco. Se
+    // espera a que termine el fotograma.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _cerrarEsteCajonYNadaMas();
+    });
+  }
+
+  /// Cierra ESTA ruta, y solo esta.
+  ///
+  /// Nunca `Navigator.pop()` a secas: si el cajon ya no esta —porque lo cerro la
+  /// ✕ medio segundo antes, o porque la pantalla se fue— ese `pop` se lleva la
+  /// pantalla de debajo. Con dos rutas apiladas eso se ve; con una sola el
+  /// `Navigator` se niega a dejar la pila vacia y el fallo **sale verde**.
+  void _cerrarEsteCajonYNadaMas() {
+    final ruta = _ruta;
+    if (ruta == null || !ruta.isActive) return;
+    // Si es la de arriba se cierra con su animacion de salida; si le han puesto
+    // otro cajon encima, se saca de la pila sin tocar al de arriba.
+    if (ruta.isCurrent) {
+      ruta.navigator?.pop();
+    } else {
+      ruta.navigator?.removeRoute(ruta);
+    }
+  }
+
+  /// `true` = me quedo con el atras. `false` = que siga su camino y cierre el
+  /// cajon como siempre.
+  Future<bool> _alDarAtras() async {
+    // Con otro cajon abierto encima, el atras es del de arriba. Sin esto, el
+    // asistente retrocederia un paso por detras de un cajon que sigue puesto.
+    final ruta = _ruta;
+    if (ruta != null && !ruta.isCurrent) return false;
+    if (!widget.quedaPasoAtras) return false;
+    widget.atras?.call();
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Sin pasos no hay nada que interceptar: este cajon solo se vigila la
+    // pantalla de debajo.
+    if (widget.atras == null) return widget.child;
+
+    if (Router.maybeOf(context) != null) {
+      return BackButtonListener(
+        onBackButtonPressed: _alDarAtras,
+        child: widget.child,
+      );
+    }
+    // La red de abajo, para un arbol sin `Router`. Ojo: aqui SI se comen los
+    // `maybePop` de la casa, incluida la ✕.
+    return PopScope(
+      canPop: !widget.quedaPasoAtras,
+      onPopInvokedWithResult: (seFue, _) {
+        if (seFue) return;
+        widget.atras?.call();
+      },
+      child: widget.child,
+    );
+  }
 }
 
 /// El panel en si. Se expone suelto para poder probarlo sin abrir una ruta.

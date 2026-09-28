@@ -598,17 +598,97 @@ class _BarraDeArriba extends ConsumerWidget {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Traer lo del servidor',
-            visualDensity: VisualDensity.compact,
-            onPressed: () => unawaited(
-              ref.read(tableroProvider.notifier).bajarDelServidor(),
-            ),
-          ),
+          _BotonDeTraer(sucursalId: tablero.sucursalId),
         ],
       ),
     );
+  }
+}
+
+/// EL BOTÓN DE «TRAER LO DEL SERVIDOR», QUE **CONTESTA** — 28/09/2026.
+///
+/// Jose, sin señal, en el teléfono: se pulsa y «ni error, ni aviso, ni nada».
+/// Los datos se quedaban como estaban y no había forma de saber si es que no
+/// había nada nuevo, si seguía trayendo o si no se pudo. Era un `unawaited`
+/// suelto sobre una función que devolvía `void` y se tragaba el «sin señal».
+///
+/// Ahora dice lo que pasó **con el motivo literal**: «no hay conexión con el
+/// servidor», «hay 1 cambio sin subir», o lo que conteste el servidor. El
+/// §3-quinquies pide justo lo contrario de un aviso que sale siempre, y por eso
+/// esto va **en el gesto y sólo en el gesto**: el ciclo automático de cada dos
+/// minutos sigue tan callado como estaba, porque ahí no hay nadie esperando.
+///
+/// El «sí» va aparte y corto. Sin él vuelve el mismo agujero por el otro lado:
+/// si el aviso sale sólo cuando falla, un tablero que ya estaba al día se lee
+/// como un botón que no hace nada, que es la queja de partida.
+///
+/// Y mientras trae, la rueda: en la conexión de allá esto tarda de 55 s a 115 s
+/// según el propio cliente, y un botón que no cambia durante minuto y medio se
+/// pulsa cuatro veces.
+class _BotonDeTraer extends ConsumerStatefulWidget {
+  const _BotonDeTraer({required this.sucursalId});
+
+  /// Para no dejar una petición de la sucursal anterior contestando encima de
+  /// la nueva: si se cambia de sucursal a media bajada, lo que llegue ya no es
+  /// de lo que hay delante y no se dice nada.
+  final String sucursalId;
+
+  @override
+  ConsumerState<_BotonDeTraer> createState() => _BotonDeTraerState();
+}
+
+class _BotonDeTraerState extends ConsumerState<_BotonDeTraer> {
+  bool _trayendo = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_trayendo) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2.2),
+        ),
+      );
+    }
+    return IconButton(
+      icon: const Icon(Icons.refresh),
+      tooltip: 'Traer lo del servidor',
+      visualDensity: VisualDensity.compact,
+      onPressed: () => unawaited(_traer()),
+    );
+  }
+
+  Future<void> _traer() async {
+    final sucursal = widget.sucursalId;
+    setState(() => _trayendo = true);
+    final LoQuePasoAlTraer paso;
+    try {
+      paso = await ref.read(tableroProvider.notifier).bajarDelServidor();
+    } finally {
+      // El `finally` y no detrás del `await`: si esto revienta por algo que
+      // nadie previó, la rueda se queda girando para siempre y el botón no se
+      // puede volver a pulsar. Un tablero atascado sin decir por qué es el
+      // mismo fallo que se está arreglando, con otra cara.
+      if (mounted) setState(() => _trayendo = false);
+    }
+    if (!mounted || widget.sucursalId != sucursal) return;
+    final mensajero = ScaffoldMessenger.maybeOf(context);
+    if (mensajero == null) return;
+    mensajero
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            paso.seTrajo
+                ? 'Tablero al día con el servidor.'
+                : 'No se trajo nada: ${paso.motivo}.',
+          ),
+          backgroundColor: paso.seTrajo ? null : ColoresTablero.rojo,
+          duration: Duration(seconds: paso.seTrajo ? 2 : 6),
+        ),
+      );
   }
 }
 

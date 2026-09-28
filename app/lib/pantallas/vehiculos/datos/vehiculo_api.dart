@@ -17,17 +17,35 @@ double? _numero(Object? valor) => switch (valor) {
   _ => null,
 };
 
+/// En que anda un camion. Se DEDUCE de sus rutas: ver `VehiculoDeLaApi.andar`.
+enum AndarDelCamion { libre, asignado, enRuta, enMantenimiento }
+
 /// La ruta viva de un vehiculo, para la caja azul `Ruta activa`.
 class RutaDelVehiculo {
-  const RutaDelVehiculo({this.nombre, this.codigo});
+  const RutaDelVehiculo({this.id, this.nombre, this.codigo, this.estado});
 
   factory RutaDelVehiculo.deJson(Map<String, Object?> j) => RutaDelVehiculo(
+    id: j['id'] as String?,
     nombre: j['name'] as String?,
     codigo: j['routeCode'] as String?,
+    estado: j['status'] as String?,
   );
 
+  final String? id;
   final String? nombre;
   final String? codigo;
+
+  /// `routes.status`: `planned` o `in_progress`. Las cerradas y las canceladas no
+  /// llegan aqui — el servidor solo manda las ABIERTAS.
+  ///
+  /// Hace falta porque `planned` y `in_progress` son dos respuestas distintas a
+  /// «¿esta libre?»: una ruta planificada es un camion COMPROMETIDO para
+  /// manana, y una en curso es un camion que no esta. Juntarlas en «ocupado»
+  /// es lo que hace que alguien salga a buscar un camion que si podia usar.
+  final String? estado;
+
+  /// Esta rodando AHORA. Lo otro es «lo tiene cogido, pero no ha salido».
+  bool get enCurso => estado == 'in_progress';
 
   /// Nombre, si no codigo, si no el respaldo del pliego.
   String get titulo {
@@ -70,6 +88,9 @@ class VehiculoDeLaApi {
       notas: j['notes'] as String?,
       rutas: (_numero(cuenta?['routes']) ?? 0).toInt(),
       pedidos: (_numero(cuenta?['orders']) ?? 0).toInt(),
+      // `routes` trae CERO O UNA ruta, la abierta que manda. La lista viene del
+      // servidor ordenada —primero la que esta en curso— asi que `first` es la
+      // que tiene el camion cogido ahora mismo.
       rutaActiva: rutas.isEmpty
           ? null
           : RutaDelVehiculo.deJson(rutas.first! as Map<String, Object?>),
@@ -89,18 +110,84 @@ class VehiculoDeLaApi {
   final int pedidos;
   final RutaDelVehiculo? rutaActiva;
 
-  /// `in_use` es el del esquema y `in_route` el que manda la ficha del pliego.
-  /// Los dos significan lo mismo para quien mira la tarjeta, asi que los dos
-  /// pintan `En uso`.
+  // ---------------------------------------------------------------------------
+  // EN QUE ANDA ESTE CAMION — 28/09/2026
+  // ---------------------------------------------------------------------------
+  //
+  // Jose: «si la idea es q salga el vehiculo y ese vehiculo se ponga su estado
+  // para q saber como anda ese vehiculo y saber de la flota».
+  //
+  // ## Sale de su RUTA, no de `vehicles.status`
+  //
+  // `status` es un campo que alguien pone y alguien tiene que quitar, y un
+  // estado que nadie mantiene miente a los dos dias. En el servidor eso ya
+  // estaba escrito desde antes, en `ContarVehiculosEnRuta`: «se mira la ruta y
+  // no `vehicles.status` porque el estado es un campo que alguien puede haber
+  // dejado a mano en `available` con la ruta todavia abierta». Lo que se hizo el
+  // 28/09/2026 fue traer esa misma cuenta por camion
+  // (`db/queries/vehicles.sql`, `RutasAbiertasDeLaFlota`) y servirla en
+  // `routes`, que es el campo que esta clase leia desde el principio y que el
+  // servidor **nunca habia mandado**: por eso la caja azul «Ruta activa» de
+  // `tarjeta_vehiculo.dart` no salio nunca.
+  //
+  // Deducirlo tiene dos ventajas que un campo nuevo no puede tener: nace
+  // correcto para los camiones que YA existen, y no hay ningun gesto nuevo que
+  // alguien tenga que acordarse de hacer.
+  //
+  // ## Los estados, y por que son estos y no mas
+  //
+  //   · `enRuta`    — lleva una ruta `in_progress`. Esta fuera AHORA.
+  //   · `asignado`  — lleva una ruta `planned`. No ha salido, pero esta cogido.
+  //     El servidor lo dice claro en `vehicles.sql`: el camion se marca ocupado
+  //     al DESPACHAR la ruta, no al armarla, «entre que se arma la noche
+  //     anterior y sale por la mañana el camion sigue disponible para otra
+  //     cosa». Asi que ni «libre» ni «en ruta»: es la tercera respuesta, y es la
+  //     que evita que dos personas armen dos rutas con el mismo camion.
+  //   · `libre`     — ninguna ruta abierta.
+  //   · `enMantenimiento` — HOY NO PUEDE LLEGAR: el enum `vehicle_status` de la
+  //     base sólo tiene `available` e `in_use`, y `estadoValido` del servidor
+  //     rechaza cualquier otra cosa con un 400. Se deja reconocido a proposito,
+  //     porque es lo unico de esta lista que NO se puede deducir —un camion en
+  //     el taller no tiene ruta, igual que uno libre— y el dia que se guarde de
+  //     verdad esta pantalla ya sabe pintarlo. Mientras tanto no miente: nunca
+  //     sale.
+  //
+  // `in_route` se sigue reconociendo porque es lo que decia el pliego y lo que
+  // el desplegable de la ficha llego a mandar; para quien mira, es `in_use`.
+  RutaDelVehiculo? get rutaAbierta => rutaActiva;
+
+  AndarDelCamion get andar {
+    if (enMantenimiento) return AndarDelCamion.enMantenimiento;
+    final ruta = rutaActiva;
+    if (ruta == null) return AndarDelCamion.libre;
+    return ruta.enCurso ? AndarDelCamion.enRuta : AndarDelCamion.asignado;
+  }
+
+  /// Esta LIBRE de verdad: es el «que hay libre» de un vistazo que pidio Jose.
+  bool get libre => andar == AndarDelCamion.libre;
+
+  /// `in_use` es el del esquema y `in_route` el que mandaba la ficha del pliego.
+  /// Es el campo GUARDADO, no lo que el camion hace: se usa para saber si hay
+  /// que limpiarlo, no para pintar la insignia.
   bool get enUso => estado == 'in_use' || estado == 'in_route';
   bool get enMantenimiento => estado == 'maintenance';
 
-  /// El texto de la insignia, literal del pliego (§5).
-  String get etiquetaEstado {
-    if (enUso) return 'En uso';
-    if (enMantenimiento) return 'Mantenimiento';
-    return 'Disponible';
-  }
+  /// EL CAMPO GUARDADO DICE «EN USO» Y NO HAY NINGUNA RUTA ABIERTA.
+  ///
+  /// Es justo la mentira que el §`ContarVehiculosEnRuta` del servidor ya
+  /// avisaba: alguien liberó la ruta por otro camino, o la borró, y el camion se
+  /// quedo marcado. No se pinta como «ocupado» —seria repetir la mentira— pero
+  /// se deja el boton de limpiarlo, porque ese campo todavia lo miran el
+  /// desplegable del asistente y el del tablero.
+  bool get estadoGuardadoMiente => enUso && rutaActiva == null;
+
+  /// El texto de la insignia. Sale del [andar], no del campo guardado.
+  String get etiquetaEstado => switch (andar) {
+    AndarDelCamion.enRuta => 'En ruta',
+    AndarDelCamion.asignado => 'Con ruta',
+    AndarDelCamion.enMantenimiento => 'Mantenimiento',
+    AndarDelCamion.libre => 'Disponible',
+  };
 
   /// Filtra **en el cliente** por nombre y placa, que es lo que hace la de Next.
   bool cuadraCon(String busqueda) {

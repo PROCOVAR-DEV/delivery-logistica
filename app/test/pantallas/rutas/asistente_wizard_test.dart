@@ -139,7 +139,15 @@ void main() {
     expect(find.byKey(AsistenteNuevaRuta.claveDelPaso(3)), findsOneWidget);
     await tester.tap(find.text('Elige el vehículo…'));
     await asentar(tester);
-    await tester.tap(find.widgetWithText(MenuItemButton, 'Camión 1'));
+    // La opción se toca POR SU TEXTO, no por `MenuItemButton`.
+    //
+    // Desde el 28/09/2026 el `Selector` del kit abre un CAJÓN por debajo de
+    // `Anchos.escritorio` (1024), y allí las opciones son `ListTile`. Este
+    // ayudante lo usan pruebas de los dos lados del corte —las de escritorio y
+    // las de 390x844, que son justo las que Jose pidió— así que tiene que valer
+    // para los dos: el texto del camión está en el menú y en el cajón, y el
+    // botón cerrado dice «Elige el vehículo…», o sea que no se confunde con él.
+    await tester.tap(find.text('Camión 1'));
     await asentar(tester);
     await tester.tap(find.widgetWithText(FilledButton, 'Siguiente'));
     await asentar(tester);
@@ -582,5 +590,4 @@ void main() {
     );
     await desmontar(tester);
   });
-
 }

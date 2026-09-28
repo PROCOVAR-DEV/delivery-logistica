@@ -252,6 +252,29 @@ final vistoAtProvider = StreamProvider<DateTime?>(
   ]),
 );
 
+/// LO QUE PASÓ AL PULSAR «TRAER LO DEL SERVIDOR».
+///
+/// Existe para que el gesto **conteste**. Antes `bajarDelServidor` devolvía
+/// `void` y se tragaba el «sin señal»: se pulsaba, no pasaba nada, y la única
+/// huella quedaba en un registro que no lee nadie (28/09/2026, §4).
+///
+/// El motivo va **literal y en minúscula**, para que la pantalla lo pueda meter
+/// dentro de una frase suya sin recortarlo: «No se trajo nada: $motivo.» Lo que
+/// no se hace nunca es envolverlo en un «ha ocurrido un error», que es
+/// exactamente lo que el §3-quinquies prohíbe.
+class LoQuePasoAlTraer {
+  /// Se trajo la foto del servidor y el tablero está al día.
+  const LoQuePasoAlTraer.seTrajo() : motivo = null;
+
+  /// No se trajo nada, y por esto.
+  const LoQuePasoAlTraer.noSePudo(String this.motivo);
+
+  /// `null` sólo cuando se trajo de verdad.
+  final String? motivo;
+
+  bool get seTrajo => motivo == null;
+}
+
 /// EL TABLERO. Siempre desde la base local, con red y sin ella.
 class TableroDelDia extends AsyncNotifier<Tablero> {
   /// La lectura que esta en curso, si la hay.
@@ -600,22 +623,89 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
   String? get porQueNoSeRefresca => _porQueNoSeRefresca;
   String? _porQueNoSeRefresca;
 
-  Future<void> bajarDelServidor() async {
+  /// PULSAR «TRAER LO DEL SERVIDOR» **CONTESTA**, PASE LO QUE PASE — 28/09/2026.
+  ///
+  /// Jose, con el teléfono sin señal: se pulsa y «ni error, ni aviso, ni nada».
+  /// Los datos se quedan como estaban y quien lo pulsó no tiene forma de saber
+  /// si es que no había nada nuevo, si se está trayendo todavía o si no se
+  /// pudo. Se vuelve a pulsar, y otra vez nada.
+  ///
+  /// Estaba escrito a propósito —«sin señal no hay nada que avisar»— y era
+  /// verdad a medias: lo que no hay que avisar es el **ciclo** que corre solo
+  /// cada dos minutos, y ése sigue callado (`_traerDelServidor`). Un gesto es
+  /// otra cosa: alguien puso el dedo ahí esperando algo. El §4 no admite
+  /// matices —si algo falla, la pantalla no se queda verde— y el §3-quinquies
+  /// sólo pide que el aviso **no salga siempre**: éste sale cuando se pulsa, y
+  /// no en cada vuelta del reloj.
+  ///
+  /// Y se devuelve, no se pinta desde aquí: quien sabe dónde sale un aviso es
+  /// la pantalla, no el estado. Aquí se dice QUÉ pasó y con qué motivo literal
+  /// —«Sin conexión con el servidor.», «hay 1 cambio sin subir»—, porque «no se
+  /// pudo actualizar» no le dice a nadie qué hacer.
+  Future<LoQuePasoAlTraer> bajarDelServidor() async {
     final sucursalId = state.value?.sucursalId;
-    if (sucursalId == null || sucursalId.isEmpty) return;
+    if (sucursalId == null || sucursalId.isEmpty) {
+      // No es un fallo del servidor, pero tampoco se hizo nada, y callarlo es
+      // el mismo agujero: el botón existe en la barra y hay que poder pulsarlo
+      // sin quedarse sin respuesta.
+      return const LoQuePasoAlTraer.noSePudo(
+        'todavía no se sabe qué sucursal se está mirando',
+      );
+    }
     try {
       final r = await ref.read(servicioTableroProvider).descargar(sucursalId);
       _porQueNoSeRefresca = r.porQue;
       await refrescar();
+      // NEGARSE A BAJAR **TAMBIÉN ES NO HABER TRAÍDO NADA**, y por eso cuenta
+      // como que el gesto no se hizo. Es la protección que no se negocia —la
+      // foto del servidor no puede pisar lo que aún no subió— y sale ya en la
+      // franja de arriba; lo que faltaba es que contestara al dedo que la
+      // acaba de pulsar, en el acto y en el mismo sitio donde salen los demás
+      // «no».
+      if (r.porQue case final porQue?) {
+        return LoQuePasoAlTraer.noSePudo('hay $porQue');
+      }
+      return const LoQuePasoAlTraer.seTrajo();
     } on FalloDeRed catch (e) {
-      // SIN SEÑAL NO HAY NADA QUE AVISAR, y el cartel viejo se va.
+      // EL CARTEL VIEJO SE VA, PERO EL GESTO SE CONTESTA.
       //
-      // Sin esto se quedaba pegado: la aplicación se negaba una vez con trabajo
-      // sin subir, se subía la cola, se volvía a pulsar sin señal, y el cartel
-      // seguía en pantalla diciendo algo que ya no era verdad. Un aviso que no
-      // se retira deja de ser un aviso.
+      // Lo primero ya estaba y se queda: la aplicación se negaba una vez con
+      // trabajo sin subir, se subía la cola, se volvía a pulsar sin señal, y el
+      // cartel seguía en pantalla diciendo algo que ya no era verdad. Un aviso
+      // que no se retira deja de ser un aviso.
+      //
+      // Lo segundo es lo que faltaba: sin señal no se trajo nada, y eso hay que
+      // decirlo aquí y ahora. La franja de arriba no sirve para esto —habla de
+      // la copia, no del gesto— y encima acaba de quedarse en blanco.
       _porQueNoSeRefresca = null;
       Registro.info('tablero: sin conexion, se sigue con lo de aqui ($e)');
+      return const LoQuePasoAlTraer.noSePudo(
+        'no hay conexión con el servidor. Se sigue con lo que hay en este '
+        'aparato',
+      );
+    } on Rechazo catch (e) {
+      // El literal del servidor: «Esa sucursal no es tuya» le dice a alguien
+      // qué hacer; «no se pudo actualizar», no.
+      _porQueNoSeRefresca = e.mensaje;
+      await refrescar();
+      Registro.aviso('tablero: el servidor dijo que no al traer: ${e.mensaje}');
+      return LoQuePasoAlTraer.noSePudo(e.mensaje);
+    } on SesionMuerta catch (e) {
+      _porQueNoSeRefresca = 'la sesión se perdió: hace falta volver a entrar';
+      await refrescar();
+      Registro.aviso('tablero: sesión muerta al traer ($e)');
+      return const LoQuePasoAlTraer.noSePudo(
+        'la sesión se perdió: hace falta volver a entrar',
+      );
+    } on Object catch (e, pila) {
+      // EL SUELO, igual que en `_traerDelServidor`. Antes esto ni se cogía: el
+      // botón lanzaba un `unawaited` y un cuerpo que no cuadra se iba como
+      // error asíncrono sin dueño — o sea, en silencio, que es el fallo que
+      // esta función viene a cerrar.
+      _porQueNoSeRefresca = 'no se pudo traer del servidor';
+      await refrescar();
+      Registro.fallo('tablero: no se pudo traer al pulsar: $e', e, pila);
+      return const LoQuePasoAlTraer.noSePudo('no se pudo traer del servidor');
     }
   }
 

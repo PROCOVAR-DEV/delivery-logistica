@@ -237,7 +237,20 @@ void main() {
     expect(CostoPorKm.calcular(cobroCup: 180000, km: 72, tasa: 0), isNull);
   });
 
-  test('`in_use` e `in_route` se leen igual: En uso', () {
+  // LOS DOS NOMBRES DEL CAMPO GUARDADO, Y POR QUÉ YA NO PINTAN LA INSIGNIA.
+  //
+  // Hasta el 28/09/2026 esto comprobaba `etiquetaEstado == 'En uso'` para los
+  // dos, porque la insignia salía de `vehicles.status`. Ya no: sale de la RUTA
+  // del camión (`VehiculoDeLaApi.andar`), porque ese campo es uno que alguien
+  // pone y alguien tiene que quitar y se queda en `in_use` en cuanto una ruta se
+  // cierra por otro camino — el servidor ya lo tenía escrito en
+  // `ContarVehiculosEnRuta`.
+  //
+  // Lo que los dos nombres siguen significando es «el campo guardado dice que
+  // está cogido», y eso es `enUso`, que es lo que se comprueba aquí. La insignia
+  // de estos dos dice `Disponible` porque no llevan ninguna ruta abierta, y eso
+  // es la verdad, no un fallo.
+  test('`in_use` e `in_route` se leen igual en el campo guardado', () {
     const enUso = VehiculoDeLaApi(
       id: 'v1',
       nombre: 'a',
@@ -250,8 +263,15 @@ void main() {
       capacidad: 1000,
       estado: 'in_route',
     );
-    expect(enUso.etiquetaEstado, 'En uso');
-    expect(enRuta.etiquetaEstado, 'En uso');
+    expect(enUso.enUso, isTrue);
+    expect(enRuta.enUso, isTrue);
+    // Sin ruta abierta la insignia dice la verdad, no el campo.
+    expect(enUso.etiquetaEstado, 'Disponible');
+    expect(enRuta.etiquetaEstado, 'Disponible');
+    // Y los dos avisan de que ese campo está mintiendo: lo siguen mirando el
+    // desplegable del asistente y el del tablero.
+    expect(enUso.estadoGuardadoMiente, isTrue);
+    expect(enRuta.estadoGuardadoMiente, isTrue);
   });
 
   test('la búsqueda del encabezado mira nombre y placa, nada más', () {

@@ -71,11 +71,22 @@ class ServidorDeLosDosLados {
   // la web no tiene cola ni base local, sus gestos salen en el momento.
   // ---------------------------------------------------------------------
 
-  void laWebCreaZona(String id, String nombre, {int? posicion}) {
+  /// [vehiculoId] es el CAMIÓN PREVISTO de la zona, y desde el 28/09/2026 no es
+  /// decorativo: una zona sin camión no arma ruta ni aquí ni en el servidor
+  /// (`repositorio.dart`, `armarRuta`; `api/internal/api/tablero.go`,
+  /// `msgZonaSinCamion`). Una prueba que arme la ruta de esta zona tiene que
+  /// pasarlo, o medirá ese rechazo en vez de lo suyo.
+  void laWebCreaZona(
+    String id,
+    String nombre, {
+    int? posicion,
+    String? vehiculoId,
+  }) {
     zonas[id] = ZonaEnElServidor(
       id: id,
       nombre: nombre,
       posicion: posicion ?? zonas.length + 1,
+      vehiculoId: vehiculoId,
     );
   }
 

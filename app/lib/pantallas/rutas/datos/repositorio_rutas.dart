@@ -206,6 +206,71 @@ class ConsultasRutas {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // EN QUE ANDA CADA CAMION — 28/09/2026
+  // ---------------------------------------------------------------------------
+  //
+  // Jose: «si la idea es q salga el vehiculo y ese vehiculo se ponga su estado
+  // para q saber como anda ese vehiculo y saber de la flota».
+  //
+  // Devuelve, por camion, **la ruta abierta que lo tiene cogido**. Es la misma
+  // cuenta que hace el servidor en `db/queries/vehicles.sql`
+  // (`RutasAbiertasDeLaFlota`) y por la misma razon: `vehicles.status` es un
+  // campo que alguien pone y alguien tiene que quitar, y se queda en `in_use`
+  // en cuanto una ruta se cierra por otro camino.
+  //
+  // Aqui sirve para lo que la lista y la ficha de una ruta no podian decir: si
+  // el camion de ESTA ruta esta ademas metido en OTRA. Eso es un conflicto de
+  // verdad —dos rutas planificadas con el mismo camion el mismo dia— y hasta hoy
+  // no se veia por ningun sitio: la tarjeta pintaba el nombre y la matricula y
+  // se acababa ahi.
+  //
+  // VA POR STREAM y no por `Future` (CLAUDE.md §3-ter): en la web la base nace
+  // vacia en cada carga y la bajada llega un segundo despues, asi que una sola
+  // respuesta se queda congelada diciendo que no hay ninguna.
+  //
+  // EL ORDEN, que es el que decide cual gana si hay dos: primero la que esta EN
+  // CURSO —esa es la que tiene el camion fuera ahora mismo—, y entre
+  // planificadas la del dia mas proximo. Sin eso, una planificada de la semana
+  // que viene taparia la que esta rodando hoy. Calcado del `ORDER BY` del
+  // servidor.
+  Stream<Map<String, RutaQueOcupa>> camionesOcupados() {
+    final consulta = _base.select(_base.routes)
+      ..where(
+        (r) =>
+            r.vehicleId.isNotNull() &
+            r.status.isNotIn([EstadoRuta.completada, EstadoRuta.cancelada]),
+      )
+      ..orderBy([
+        // `in_progress` primero. Drift no tiene un `CASE` comodo aqui, asi que
+        // se ordena por el texto del estado: `in_progress` < `planned` en
+        // alfabetico, que da justo el orden que hace falta. Si alguna vez se
+        // añade un estado abierto nuevo, esto hay que volver a mirarlo — y por
+        // eso lo vigila una prueba, no este comentario (§3-bis).
+        (r) => OrderingTerm.asc(r.status),
+        (r) => OrderingTerm.asc(r.deliveryDate),
+        (r) => OrderingTerm.asc(r.createdAt),
+      ]);
+    return consulta.watch().map((filas) {
+      final porCamion = <String, RutaQueOcupa>{};
+      for (final r in filas) {
+        final camion = r.vehicleId;
+        if (camion == null) continue;
+        // La primera que llega gana: la lista ya viene en el orden bueno.
+        porCamion.putIfAbsent(
+          camion,
+          () => RutaQueOcupa(
+            rutaId: r.id,
+            codigo: r.routeCode,
+            nombre: r.name,
+            estado: r.status,
+          ),
+        );
+      }
+      return porCamion;
+    });
+  }
+
   /// Las paradas se miran en vivo para que el cierre se vea marcado en el
   /// detalle sin esperar a nada.
   Stream<List<Pedido>> mirarParadasDe(String rutaId) {
@@ -479,4 +544,33 @@ bool _cuadra(
     sucursales[ruta.branchId]?.name ?? '',
   ].join(' ').toLowerCase();
   return donde.contains(busca);
+}
+
+/// La ruta ABIERTA que tiene cogido a un camion. Ver `ConsultasRutas.camionesOcupados`.
+class RutaQueOcupa {
+  const RutaQueOcupa({
+    required this.rutaId,
+    required this.estado,
+    this.codigo,
+    this.nombre,
+  });
+
+  final String rutaId;
+
+  /// `routes.status`: `planned` o `in_progress`. Las cerradas no llegan aqui.
+  final String estado;
+  final String? codigo;
+  final String? nombre;
+
+  /// Esta rodando AHORA. Lo otro es «lo tiene cogido, pero no ha salido».
+  bool get enCurso => estado == EstadoRuta.enCurso;
+
+  /// Como se nombra en una linea: el codigo si lo hay, si no el nombre.
+  String get titulo {
+    final c = codigo?.trim();
+    if (c != null && c.isNotEmpty) return c;
+    final n = nombre?.trim();
+    if (n != null && n.isNotEmpty) return n;
+    return 'otra ruta';
+  }
 }

@@ -164,10 +164,22 @@ func nuevoTablero() *tableroFalso {
 			vehStgTab: {id: vehStgTab, nombre: "Camión de Santiago", sucursal: sucStg},
 			vehHolTab: {id: vehHolTab, nombre: "Camión de Holguín", sucursal: sucHol},
 		},
+		// CENTRO LLEVA SU CAMIÓN PREVISTO Y LAS OTRAS DOS NO, y es a propósito.
+		//
+		// Desde el 28/09/2026 `armarRutaDeColumna` se niega a armar una zona sin camión
+		// (ver `msgZonaSinCamion`), así que la zona con la que se prueba TODO lo demás
+		// —el orden de las paradas, los descartados, el día de la ruta— tiene que tener
+		// uno o cada una de esas pruebas mediría el rechazo del camión en vez de lo suyo.
+		// Y es además lo que hay en producción: 8 de las 9 rutas tenían vehículo.
+		//
+		// `colVista` y `colVacia` se quedan SIN camión a propósito: son las que prueban
+		// que el «no» sale cuando toca. Ponerles uno dejaría el rechazo sin nadie que lo
+		// ejercite.
 		columnas: map[uuid.UUID]sqlc.BoardColumn{
-			colCentro: {ID: colCentro, BranchID: sucStg, Nombre: "Centro", Posicion: 1},
-			colVista:  {ID: colVista, BranchID: sucStg, Nombre: "Vista Alegre", Posicion: 2},
-			colVacia:  {ID: colVacia, BranchID: sucStg, Nombre: "Carretera", Posicion: 3},
+			colCentro: {ID: colCentro, BranchID: sucStg, Nombre: "Centro", Posicion: 1,
+				VehicleID: pgDe(vehStgTab)},
+			colVista: {ID: colVista, BranchID: sucStg, Nombre: "Vista Alegre", Posicion: 2},
+			colVacia: {ID: colVacia, BranchID: sucStg, Nombre: "Carretera", Posicion: 3},
 		},
 		pedidos: map[uuid.UUID]pedidoFalso{
 			ped1:    {id: ped1, sucursal: sucStg, nombre: "Ana", peso: 30, lat: 20.02, lng: -75.82, factura: &igual},

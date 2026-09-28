@@ -30,20 +30,33 @@ class TarjetaVehiculo extends StatelessWidget {
   final VoidCallback alMarcarDisponible;
   final VoidCallback alUsarParaDomicilio;
 
-  /// Los tres colores son los SEMANTICOS del kit, no unos propios: azul = en
-  /// marcha, ambar = atencion, verde = listo. Los tenia repetidos aqui y por eso
-  /// el «en uso» de un vehiculo no era el mismo azul que el de un pedido.
-  Color get _colorEstado {
-    if (vehiculo.enUso) return Colores.enCurso;
-    if (vehiculo.enMantenimiento) return Colores.ambar;
-    return Colores.verde;
-  }
+  /// Los colores son los SEMANTICOS del kit, no unos propios: azul = en marcha,
+  /// ambar = atencion, verde = listo. Los tenia repetidos aqui y por eso el «en
+  /// uso» de un vehiculo no era el mismo azul que el de un pedido.
+  ///
+  /// SALEN DE `andar`, no del campo guardado — 28/09/2026. Antes salian de
+  /// `vehiculo.enUso`, que lee `vehicles.status`: un campo que alguien pone y
+  /// alguien tiene que quitar, y que se queda en `in_use` en cuanto una ruta se
+  /// cierra por otro camino. `andar` lo deduce de la ruta abierta del camion;
+  /// el porque entero esta en `VehiculoDeLaApi.andar`.
+  ///
+  /// `asignado` —tiene una ruta planificada pero no ha salido— va en AMBAR y no
+  /// en azul a proposito: azul es «esta fuera». Son las dos respuestas que
+  /// antes se juntaban en «En uso», y juntarlas manda a buscar otro camion a
+  /// quien tenia uno disponible hasta mañana.
+  Color get _colorEstado => switch (vehiculo.andar) {
+    AndarDelCamion.enRuta => Colores.enCurso,
+    AndarDelCamion.asignado => Colores.ambar,
+    AndarDelCamion.enMantenimiento => Colores.ambar,
+    AndarDelCamion.libre => Colores.verde,
+  };
 
-  Color get _fondoEstado {
-    if (vehiculo.enUso) return Colores.enCursoFondo;
-    if (vehiculo.enMantenimiento) return Colores.ambarFondo;
-    return Colores.verdeFondo;
-  }
+  Color get _fondoEstado => switch (vehiculo.andar) {
+    AndarDelCamion.enRuta => Colores.enCursoFondo,
+    AndarDelCamion.asignado => Colores.ambarFondo,
+    AndarDelCamion.enMantenimiento => Colores.ambarFondo,
+    AndarDelCamion.libre => Colores.verdeFondo,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -141,13 +154,19 @@ class TarjetaVehiculo extends StatelessWidget {
               ),
             ],
           ),
-          if (vehiculo.enUso && vehiculo.rutaActiva != null) ...[
+          // LA CAJA DE LA RUTA. Se pintaba `if (vehiculo.enUso && …)`, y con eso
+          // NO SALIA NUNCA por dos motivos a la vez: el servidor no mandaba el
+          // campo `routes` —lo empezo a mandar el 28/09/2026— y ademas se
+          // exigia que el campo guardado dijera `in_use`, que es justo el que no
+          // hay que creerse. Ahora la condicion es la unica que importa: si hay
+          // ruta abierta, se dice cual.
+          if (vehiculo.rutaActiva != null) ...[
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colores.enCursoFondo,
+                color: _fondoEstado,
                 borderRadius: BorderRadius.circular(Radios.md),
               ),
               child: Column(
@@ -155,11 +174,16 @@ class TarjetaVehiculo extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Ruta activa',
+                    // «Ruta activa» para la que esta rodando y «Ruta
+                    // planificada» para la que no ha salido: el rotulo dice
+                    // cual de las dos es sin que haya que leer el codigo.
+                    vehiculo.rutaActiva!.enCurso
+                        ? 'Ruta activa'
+                        : 'Ruta planificada',
                     style: Tipos.texto(
                       tamano: 10,
                       peso: FontWeight.w600,
-                      color: Colores.enCurso,
+                      color: _colorEstado,
                       interletra: 0.4,
                     ),
                   ),
@@ -176,6 +200,22 @@ class TarjetaVehiculo extends StatelessWidget {
               color: Colores.tintaSuave,
             ),
           ),
+          // EL CAMPO GUARDADO DICE «EN USO» Y NO LLEVA NINGUNA RUTA.
+          //
+          // No se pinta como ocupado —eso seria repetir la mentira— pero
+          // tampoco se calla: ese campo lo siguen mirando el desplegable del
+          // asistente de Rutas y el del tablero, asi que mientras no se limpie
+          // este camion sale con un «en ruta» falso en los dos. El boton
+          // «Marcar disponible» de aqui abajo es lo que lo arregla.
+          if (vehiculo.estadoGuardadoMiente) ...[
+            const SizedBox(height: Aire.xs),
+            Text(
+              'El estado guardado dice «en uso» y no lleva ninguna ruta '
+              'abierta. Márcalo disponible: hasta entonces sale como ocupado '
+              'al elegir camión.',
+              style: tema.textTheme.bodySmall?.copyWith(color: Colores.ambar),
+            ),
+          ],
           if (vehiculo.notas?.isNotEmpty ?? false) ...[
             const SizedBox(height: Aire.xs),
             Text(

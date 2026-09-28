@@ -77,11 +77,28 @@ class MarcaDeParada {
 
   final String pedidoId;
 
-  /// `entregado` | `devuelto` | `cancelado`.
-  final String resultado;
+  /// `entregado` | `devuelto` | `cancelado`, **o `null` = QUITAR LA MARCA**.
+  ///
+  /// Lo tercero se añadió el 28/09/2026. Jose: «desmarco el estado de cierre y
+  /// no se guarda cuando salgo por q razon».
+  ///
+  /// En la hoja de cierre, pulsar dos veces el mismo botón desmarca —así se
+  /// corrige un dedazo, y estaba puesto desde el principio—, pero esa marca
+  /// quitada **no tenía por dónde salir de la pantalla**: la hoja sólo armaba
+  /// `MarcaDeParada` para las paradas CON resultado, así que al volver a abrir
+  /// seguía puesta. El clásico de «no viene» leído como «no lo toques» en vez
+  /// de como «bórralo», con el agravante de que aquí ni siquiera venía.
+  ///
+  /// En el JSON viaja como `"resultado": null` EXPLÍCITO, que es distinto de no
+  /// mandar el campo: el servidor lo lee con `httpx.Opcional` y distingue los
+  /// dos (`api/internal/api/rutas.go`, `entradaDeCierre`).
+  final String? resultado;
   final String? nota;
 
   bool get seEntrego => resultado == ResultadoParada.entregado;
+
+  /// Esta marca no marca: la quita.
+  bool get quitaLaMarca => resultado == null;
 
   Map<String, Object?> aJson() => <String, Object?>{
     'orderId': pedidoId,
@@ -884,11 +901,15 @@ class AccionesDeRuta {
         );
         continue;
       }
-      if (!const [
-        ResultadoParada.entregado,
-        ResultadoParada.devuelto,
-        ResultadoParada.cancelado,
-      ].contains(marca.resultado)) {
+      // `null` es «quitar la marca» y es válido: NO es un resultado desconocido.
+      // Confundir los dos es lo que dejaba el desmarcado sin salir de la
+      // pantalla.
+      if (!marca.quitaLaMarca &&
+          !const [
+            ResultadoParada.entregado,
+            ResultadoParada.devuelto,
+            ResultadoParada.cancelado,
+          ].contains(marca.resultado)) {
         Registro.aviso(
           "cierre de $rutaId: resultado '${marca.resultado}' desconocido",
         );
@@ -907,7 +928,11 @@ class AccionesDeRuta {
         MarcaDeParada(
           pedidoId: marca.pedidoId,
           resultado: marca.resultado,
-          nota: _notaLimpia(marca.nota),
+          // LA NOTA SE VA CON LA MARCA. Un motivo de devolución colgando de una
+          // parada que ya no tiene resultado es la explicación de algo que no
+          // consta, y el servidor hace lo mismo (`LimpiarResultadoDeParada`
+          // pone `resultado_nota` a NULL).
+          nota: marca.quitaLaMarca ? null : _notaLimpia(marca.nota),
         ),
     ];
 
@@ -933,23 +958,51 @@ class AccionesDeRuta {
     await _base.transaction(() async {
       for (final marca in limpias) {
         final nota = marca.nota;
+        // QUITAR LA MARCA DESHACE LO DE ABAJO, COLUMNA POR COLUMNA. Media vuelta
+        // atras es peor que ninguna, y hay dos que no son obvias:
+        //
+        //  · `deliveredAt` a null y `status` a pendiente. Si no, la parada se
+        //    queda sin resultado pero con hora de entrega, y la lista la pinta
+        //    «entregada»: la contradiccion del 2 de septiembre, al reves.
+        //  · **`routeId` VUELVE A SER EL DE LA RUTA**, que es la que importa.
+        //    Un devuelto SOLTO su `routeId` al marcarse; desmarcarlo sin
+        //    devolverselo lo deja fuera de su propia ruta con la ruta todavia
+        //    abierta, y entonces sale en DOS camiones. Se recupera de `rutaId`,
+        //    que es por donde se eligieron las paradas (`ultimaRutaId`).
+        //
+        // Es lo mismo que hace el servidor en `LimpiarResultadoDeParada`.
         await (_base.update(
           _base.orders,
         )..where((o) => o.id.equals(marca.pedidoId))).write(
-          OrdersCompanion(
-            resultado: Value(marca.resultado),
-            resultadoAt: Value(ahora),
-            resultadoNota: Value(nota),
-            deliveredAt: Value(marca.seEntrego ? ahora : null),
-            status: Value(
-              marca.seEntrego ? EstadoPedido.entregado : EstadoPedido.pendiente,
-            ),
-            // Lo que NO se entrega suelta su `routeId` y vuelve a la lista de
-            // disponibles para la ruta de manana. `ultimaRutaId` y `stopOrder`
-            // no se tocan NUNCA: son lo que ata el pedido a la hoja de cierre.
-            routeId: marca.seEntrego ? const Value.absent() : const Value(null),
-            updatedAt: Value(ahora),
-          ),
+          marca.quitaLaMarca
+              ? OrdersCompanion(
+                  resultado: const Value(null),
+                  resultadoAt: const Value(null),
+                  resultadoNota: const Value(null),
+                  deliveredAt: const Value(null),
+                  status: const Value(EstadoPedido.pendiente),
+                  routeId: Value(rutaId),
+                  updatedAt: Value(ahora),
+                )
+              : OrdersCompanion(
+                  resultado: Value(marca.resultado),
+                  resultadoAt: Value(ahora),
+                  resultadoNota: Value(nota),
+                  deliveredAt: Value(marca.seEntrego ? ahora : null),
+                  status: Value(
+                    marca.seEntrego
+                        ? EstadoPedido.entregado
+                        : EstadoPedido.pendiente,
+                  ),
+                  // Lo que NO se entrega suelta su `routeId` y vuelve a la lista
+                  // de disponibles para la ruta de manana. `ultimaRutaId` y
+                  // `stopOrder` no se tocan NUNCA: son lo que ata el pedido a la
+                  // hoja de cierre.
+                  routeId: marca.seEntrego
+                      ? const Value.absent()
+                      : const Value(null),
+                  updatedAt: Value(ahora),
+                ),
         );
       }
     });

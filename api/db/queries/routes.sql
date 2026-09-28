@@ -416,6 +416,47 @@ WHERE id = sqlc.arg('pedido_id')
   AND ultima_ruta_id = sqlc.arg('ruta_id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
 
+-- QUITAR LA MARCA DE UNA PARADA — 28/09/2026.
+--
+-- Jose: «desmarco el estado de cierre y no se guarda cuando salgo por q razon».
+--
+-- En la hoja de cierre, pulsar dos veces el mismo botón DESMARCA: es como se corrige un
+-- dedazo, y estaba puesto desde el principio en la pantalla. Lo que no existía era el
+-- camino de vuelta: el aparato sólo mandaba las paradas CON resultado, así que quitar la
+-- marca no producía ningún apunte y la marca vieja seguía en la base. Al volver a abrir la
+-- hoja, ahí estaba otra vez. El clásico de «un campo que no viene» leído como «no lo
+-- toques» en vez de como «bórralo» — y aquí ni siquiera venía.
+--
+-- Deshace EXACTAMENTE lo que hizo `MarcarResultadoDeParada`, columna por columna, porque
+-- media vuelta atrás es peor que ninguna:
+--
+--  1. `resultado`, `resultado_at` y `resultado_nota` a NULL. La nota se va con la marca:
+--     un motivo de devolución colgando de una parada sin resultado es una explicación de
+--     algo que ya no consta.
+--  2. `delivered_at` a NULL y `status` a `pending`. Si no, la parada se queda sin resultado
+--     pero con hora de entrega, y la lista la pinta «entregada»: la misma contradicción del
+--     2 de septiembre, al revés.
+--  3. `route_id = ultima_ruta_id`, que es la que MÁS importa y la que no es obvia. Un
+--     devuelto SOLTÓ su `route_id` al marcarse; si al desmarcarlo no se le devuelve, el
+--     pedido se queda fuera de su ruta —vuelve a la lista de disponibles de mañana— con la
+--     ruta todavía abierta, y entonces sale en DOS camiones. `ultima_ruta_id` es la hoja de
+--     lo que subió, así que es de ahí de donde se recupera.
+--
+-- El `WHERE` es el mismo que el de marcar, y por lo mismo: por `ultima_ruta_id`, para poder
+-- desmarcar un devuelto que ya soltó su `route_id`. Cero filas es «ese pedido no va en esta
+-- ruta», el rechazo del contrato.
+-- name: LimpiarResultadoDeParada :execrows
+UPDATE orders SET
+    resultado      = NULL,
+    resultado_at   = NULL,
+    resultado_nota = NULL,
+    delivered_at   = NULL,
+    status         = 'pending'::order_status,
+    route_id       = ultima_ruta_id
+WHERE id = sqlc.arg('pedido_id')
+  AND ultima_ruta_id = sqlc.arg('ruta_id')
+  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
+
 -- ---------------------------------------------------------------------------
 -- Borrar una ruta  (DELETE /api/routes/[id])
 -- ---------------------------------------------------------------------------

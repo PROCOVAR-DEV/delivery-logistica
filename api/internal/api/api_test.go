@@ -47,6 +47,9 @@ var (
 type doble struct {
 	sqlc.Querier
 	vehiculos []sqlc.ListarVehiculosRow
+	// Las rutas ABIERTAS de la flota, una por camión. Es lo que dice en qué anda cada
+	// uno: `vehicles.status` no se mira (ver `db/queries/vehicles.sql`).
+	rutasAbiertas []sqlc.RutasAbiertasDeLaFlotaRow
 }
 
 func (d *doble) ResolverSucursal(_ context.Context, id uuid.UUID) (sqlc.ResolverSucursalRow, error) {
@@ -69,6 +72,13 @@ func (d *doble) ListarVehiculos(_ context.Context, sucursal pgtype.UUID) ([]sqlc
 		}
 	}
 	return salida, nil
+}
+
+// La flota de este doble no lleva rutas: aquí se mide el ALCANCE, no en qué anda cada
+// camión. Devuelve vacío y no `nil, error`: un `Querier` embebido sin implementar revienta
+// con un 500 que no dice nada, y ése fue el 500 que salió al añadir esta consulta.
+func (d *doble) RutasAbiertasDeLaFlota(_ context.Context, _ pgtype.UUID) ([]sqlc.RutasAbiertasDeLaFlotaRow, error) {
+	return d.rutasAbiertas, nil
 }
 
 func (d *doble) ObtenerVehiculo(_ context.Context, arg sqlc.ObtenerVehiculoParams) (sqlc.ObtenerVehiculoRow, error) {
@@ -94,6 +104,13 @@ func (f fuente) EnTx(_ context.Context, fn func(sqlc.Querier) error) error {
 
 func servidor(t *testing.T) http.Handler {
 	t.Helper()
+	return servidorCon(t, nil)
+}
+
+// servidorCon: el mismo montaje, con las rutas abiertas que se le digan. Existe para poder
+// probar «en qué anda cada camión» sin tocar las otras veinte pruebas que usan `servidor`.
+func servidorCon(t *testing.T, abiertas []sqlc.RutasAbiertasDeLaFlotaRow) http.Handler {
+	t.Helper()
 	t.Setenv("DATABASE_URL", "postgres://x:y@localhost:5432/z")
 	t.Setenv("JWT_SECRET", secreto)
 	cfg, err := config.Cargar("v-pruebas")
@@ -104,7 +121,7 @@ func servidor(t *testing.T) http.Handler {
 		{ID: vehStg, Name: "Camión de Santiago", TipoNombre: "truck", BranchID: pg(stg)},
 		{ID: vehHol, Name: "Camión de Holguín", TipoNombre: "truck", BranchID: pg(hol)},
 		{ID: uuid.New(), Name: "Camión compartido", TipoNombre: "van"},
-	}}
+	}, rutasAbiertas: abiertas}
 	reg := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return api.NuevoServidor(cfg, reg,
 		alcance.NuevaPorteria(fuente{q: q}, reg),

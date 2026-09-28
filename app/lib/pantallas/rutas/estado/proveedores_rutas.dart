@@ -191,6 +191,17 @@ final paradasPorRutaProvider = StreamProvider<Map<String, int>>(
   (ref) => ref.watch(consultasRutasProvider).paradasPorRuta(),
 );
 
+/// EN QUE ANDA CADA CAMION, para la lista y la ficha de una ruta.
+///
+/// Mapa `vehicleId -> ruta abierta que lo tiene cogido`. Sale de la tabla
+/// `routes` y NO de `vehicles.status`: ver `ConsultasRutas.camionesOcupados`.
+///
+/// Una sola consulta agrupada para las veinte tarjetas, como `paradasPorRuta`, y
+/// no una por tarjeta.
+final camionesOcupadosProvider = StreamProvider<Map<String, RutaQueOcupa>>(
+  (ref) => ref.watch(consultasRutasProvider).camionesOcupados(),
+);
+
 /// Las paradas en vivo: el cierre se tiene que ver marcado en el detalle sin
 /// esperar a nada ni a nadie.
 final paradasDeRutaProvider = StreamProvider.family<List<Pedido>, String>(

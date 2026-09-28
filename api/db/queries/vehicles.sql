@@ -186,6 +186,50 @@ WHERE (sqlc.narg('sucursal')::uuid IS NULL
        OR v.branch_id = sqlc.narg('sucursal')::uuid
        OR v.branch_id IS NULL);
 
+-- ---------------------------------------------------------------------------
+-- EN QUÉ ANDA CADA CAMIÓN: se DEDUCE de sus rutas, no se mantiene a mano
+-- ---------------------------------------------------------------------------
+--
+-- Jose, 28/09/2026: «si la idea es q salga el vehiculo y ese vehiculo se ponga su estado
+-- para q saber como anda ese vehiculo y saber de la flota».
+--
+-- `vehicles.status` ya existía y NO es la respuesta: es un campo que alguien pone y alguien
+-- tiene que quitar, y un estado que nadie mantiene miente a los dos días. Aquí abajo ya
+-- estaba escrito, en `ContarVehiculosEnRuta`: «se mira la ruta y no `vehicles.status`
+-- porque el estado es un campo que alguien puede haber dejado a mano en `available` con la
+-- ruta todavía abierta». Esto es esa misma cuenta, POR CAMIÓN en vez de en total, para que
+-- la tarjeta de Vehículos diga en qué anda cada uno y la ficha de una ruta diga cómo anda
+-- el suyo. Nace correcta para los camiones que ya existen, que es lo que un campo nuevo no
+-- puede hacer.
+--
+-- UNA ruta por camión, la que manda. `DISTINCT ON` con su `ORDER BY`, y el orden no es
+-- caprichoso: primero la que está EN CURSO —ésa es la que tiene el camión fuera ahora
+-- mismo—, y entre planificadas la del día más próximo. Sin ese orden, una planificada de la
+-- semana que viene taparía la que está rodando hoy.
+--
+-- VA COMO CONSULTA APARTE y no como `LEFT JOIN` dentro de `ListarVehiculos`, y es por una
+-- razón concreta, no por gusto: sqlc no sabe que un `LEFT JOIN` a una tabla derivada puede
+-- no casar, así que tipaba `ruta_abierta_id` como `uuid.UUID` y `ruta_abierta_estado` como
+-- `RouteStatus`, los dos NO nulos. El primer camión libre de la lista habría reventado el
+-- `Scan` en producción con un error que no dice nada. Probado con `LEFT JOIN LATERAL` y con
+-- `DISTINCT ON`: las dos formas dan el mismo tipo equivocado, y `nullif` para forzarlo sale
+-- tipado como `bool`. Aquí cada fila que vuelve es una ruta de verdad, así que no hay nada
+-- que pueda venir nulo, y el camión sin ruta es sencillamente el que no sale.
+--
+-- El alcance se copia de `ListarVehiculos`: se acota por la sucursal de la RUTA, que es la
+-- misma por la que se acota `ContarVehiculosEnRuta`.
+-- name: RutasAbiertasDeLaFlota :many
+SELECT DISTINCT ON (r.vehicle_id)
+       r.vehicle_id, r.id, r.route_code, r.name, r.status, r.delivery_date
+FROM routes r
+WHERE r.vehicle_id IS NOT NULL
+  AND r.status NOT IN ('completed', 'cancelled')
+  AND (sqlc.narg('sucursal')::uuid IS NULL OR r.branch_id = sqlc.narg('sucursal')::uuid)
+ORDER BY r.vehicle_id,
+         (r.status = 'in_progress') DESC,
+         r.delivery_date ASC NULLS LAST,
+         r.created_at ASC;
+
 -- Camiones que están fuera ahora mismo: los que llevan una ruta sin cerrar. Se mira la
 -- ruta y no `vehicles.status` porque el estado es un campo que alguien puede haber dejado
 -- a mano en `available` con la ruta todavía abierta.

@@ -53,6 +53,11 @@ class ListaDeRutas extends ConsumerWidget {
     // cero**: «0 paradas» se lee como «esta ruta va vacia», que es un
     // diagnostico y no un «todavia no se sabe».
     final paradasPorRuta = ref.watch(paradasPorRutaProvider).value;
+    // EN QUE ANDA EL CAMION DE CADA RUTA. Una sola consulta agrupada para las
+    // veinte tarjetas, como la de las paradas. `null` mientras no llega: la
+    // tarjeta entonces **no dice nada** del estado en vez de decir «libre», que
+    // es un dato y estaria sin comprobar.
+    final ocupados = ref.watch(camionesOcupadosProvider).value;
     // Y EL DINERO, de la misma manera y por el mismo motivo.
     //
     // No sale de `ruta.totalPrice`, que es una columna `NOT NULL DEFAULT 0` y
@@ -118,6 +123,10 @@ class ListaDeRutas extends ConsumerWidget {
             _TarjetaDeRuta(
               ruta: ruta,
               vehiculo: vehiculos[ruta.vehicleId],
+              ocupacionDelCamion: ruta.vehicleId == null
+                  ? null
+                  : ocupados?[ruta.vehicleId],
+              seSabeLaOcupacion: ocupados != null,
               paradas: paradasPorRuta == null
                   ? null
                   : (paradasPorRuta[ruta.id] ?? 0),
@@ -182,6 +191,8 @@ class _TarjetaDeRuta extends ConsumerWidget {
   const _TarjetaDeRuta({
     required this.ruta,
     required this.vehiculo,
+    required this.ocupacionDelCamion,
+    required this.seSabeLaOcupacion,
     required this.paradas,
     required this.importe,
   });
@@ -189,15 +200,52 @@ class _TarjetaDeRuta extends ConsumerWidget {
   final Ruta ruta;
   final Vehiculo? vehiculo;
 
+  /// La ruta ABIERTA que tiene cogido a este camión, si hay alguna. Puede ser
+  /// ésta misma —lo normal— o **otra**, que es el caso que importa: dos rutas
+  /// con el mismo camión el mismo día, y hasta el 28/09/2026 eso no se veía por
+  /// ningún sitio.
+  final RutaQueOcupa? ocupacionDelCamion;
+
+  /// Si la consulta ya llegó. `false` es «todavía no se sabe», y entonces no se
+  /// escribe nada: decir «libre» sin haberlo comprobado es el cero creíble de
+  /// siempre con otra cara.
+  final bool seSabeLaOcupacion;
+
   /// Cuantas paradas lleva. `null` = todavia no ha llegado la cuenta; entonces
   /// **no se escribe un cero**, que se leeria como «esta ruta va vacia».
   final int? paradas;
 
   /// Lo que suma la ruta y cuantas paradas le faltan por cotizar. `null` =
   /// todavia no ha llegado la consulta; entonces **tampoco se escribe un cero**,
-  /// por el mismo motivo y con mas razon: un `$0.00` en el renglon del dinero se
+  /// por el mismo motivo y con mas razon: un `\$0.00` en el renglon del dinero se
   /// lee como que el reparto salio gratis.
   final ImporteDeRuta? importe;
+
+  /// CÓMO ANDA ESTE CAMIÓN, pegado a su nombre — 28/09/2026.
+  ///
+  /// Jose: «que ese vehiculo se ponga su estado para q saber como anda ese
+  /// vehiculo». La tarjeta pintaba «Camión 1 (P-001)» y se acababa ahí.
+  ///
+  /// Sale de las RUTAS y no de `vehicles.status`, que es un campo que alguien
+  /// pone y nadie quita (ver `ConsultasRutas.camionesOcupados`). Y sólo se
+  /// escribe lo que AÑADE algo:
+  ///
+  ///   · si quien lo tiene cogido es ESTA ruta, no se dice nada: ya se está
+  ///     mirando, y repetirlo en cada tarjeta es ruido que tapa el caso de
+  ///     abajo;
+  ///   · si lo tiene OTRA, se dice cuál. Ése es el conflicto —dos rutas con el
+  ///     mismo camión— y es lo único de aquí que hace que alguien haga algo;
+  ///   · si no lo tiene ninguna, «libre», que es la respuesta a «¿puedo
+  ///     despachar ésta ya?».
+  String get _comoAndaElCamion {
+    if (!seSabeLaOcupacion) return '';
+    final ocupa = ocupacionDelCamion;
+    if (ocupa == null) return ' · libre';
+    if (ocupa.rutaId == ruta.id) return '';
+    return ocupa.enCurso
+        ? ' · EN RUTA en ${ocupa.titulo}'
+        : ' · ya va en ${ocupa.titulo}';
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -268,7 +316,8 @@ class _TarjetaDeRuta extends ConsumerWidget {
                 texto: vehiculo == null
                     ? 'Sin vehículo'
                     : '${vehiculo!.name}'
-                          '${vehiculo!.plate == null ? '' : ' (${vehiculo!.plate})'}',
+                          '${vehiculo!.plate == null ? '' : ' (${vehiculo!.plate})'}'
+                          '$_comoAndaElCamion',
               ),
               _Renglon(
                 icono: Icons.place_outlined,

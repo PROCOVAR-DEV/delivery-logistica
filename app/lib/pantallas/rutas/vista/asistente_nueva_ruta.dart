@@ -20,6 +20,7 @@ import '../../../impresion/hoja.dart' as papel;
 import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
 import '../../../impresion/vista_previa.dart';
 import '../../../diseno/anchos.dart';
+import '../../../diseno/cajon.dart' show AtrasDelCajon;
 import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/caja_de_numero.dart';
 import '../../../diseno/numeros.dart';
@@ -348,140 +349,153 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       4: _elegidos.isNotEmpty,
     };
 
-    return Cajon(
-      titulo: 'Nueva Ruta',
-      // DEBAJO DEL TÍTULO, LA SUCURSAL. Es el dato que manda sobre todo lo
-      // demás —los pedidos, los camiones y el punto de partida son los de esa
-      // sucursal— y quien abre el asistente tiene que verlo sin buscarlo. En el
-      // sitio donde ponía «Paso 3 de 4», que es lo que ya dice la barra de
-      // progreso con mucho más detalle.
-      subtitulo: sucursal?.name ?? 'Elige la sucursal',
-      ancho: AnchoCajon.completo,
-      // LA BARRA DE PASOS, PEGADA BAJO LA CABECERA Y FUERA DEL DESPLAZAMIENTO.
+    return AtrasDelCajon(
+      // ATRÁS VA AL PASO ANTERIOR, no cierra el asistente. Jose, 28/09/2026:
+      // «y tiene q ir al paso anterior de el drawer». En el paso 1 ya no queda
+      // paso atrás y el cajón se cierra como siempre.
       //
-      // Es el armazón, no el contenido. En un teléfono el paso 4 no cabe de una
-      // vez, y con la barra dentro del cuerpo había que subir por toda la lista
-      // de pedidos para poder volver al paso anterior. Jose, 17/09/2026, sobre
-      // esta misma trampa en el detalle de ruta: «me corta parte de abajo […]
-      // no puedo ver el final». Aquí se desplaza el paso; el marco no.
-      bajoLaCabecera: Center(
-        child: ConstrainedBox(
-          // El mismo ancho máximo que las tarjetas, para que los cuatro tramos
-          // caigan justo encima de ellas y no de oreja a oreja del monitor.
-          constraints: const BoxConstraints(maxWidth: 1152),
-          child: _BarraDePasos(
-            actual: _paso,
-            hechos: hechos,
-            // VIAJAR ENTRE LOS PASOS. Como sólo se pinta el que toca, ésta es
-            // la única forma de corregir el anterior sin cancelar y empezar de
-            // cero, y lo elegido se conserva: aquí no se limpia nada, sólo se
-            // cambia qué tarjeta se enseña.
-            alIr: (n) => setState(() => _paso = n),
+      // Se envuelve por fuera y no se mete en el `Cajon` porque este asistente
+      // NO usa el cajón de `diseno/`: usa el de `pedidos/vista/kit.dart`, que es
+      // otra clase con el mismo nombre. El mecanismo es del de diseño y sirve
+      // para los dos porque no sabe nada de asistentes: sólo pregunta si queda
+      // paso atrás.
+      quedaPasoAtras: _paso > 1,
+      atras: () => setState(() => _paso -= 1),
+      child: Cajon(
+        titulo: 'Nueva Ruta',
+        // DEBAJO DEL TÍTULO, LA SUCURSAL. Es el dato que manda sobre todo lo
+        // demás —los pedidos, los camiones y el punto de partida son los de esa
+        // sucursal— y quien abre el asistente tiene que verlo sin buscarlo. En el
+        // sitio donde ponía «Paso 3 de 4», que es lo que ya dice la barra de
+        // progreso con mucho más detalle.
+        subtitulo: sucursal?.name ?? 'Elige la sucursal',
+        ancho: AnchoCajon.completo,
+        // LA BARRA DE PASOS, PEGADA BAJO LA CABECERA Y FUERA DEL DESPLAZAMIENTO.
+        //
+        // Es el armazón, no el contenido. En un teléfono el paso 4 no cabe de una
+        // vez, y con la barra dentro del cuerpo había que subir por toda la lista
+        // de pedidos para poder volver al paso anterior. Jose, 17/09/2026, sobre
+        // esta misma trampa en el detalle de ruta: «me corta parte de abajo […]
+        // no puedo ver el final». Aquí se desplaza el paso; el marco no.
+        bajoLaCabecera: Center(
+          child: ConstrainedBox(
+            // El mismo ancho máximo que las tarjetas, para que los cuatro tramos
+            // caigan justo encima de ellas y no de oreja a oreja del monitor.
+            constraints: const BoxConstraints(maxWidth: 1152),
+            child: _BarraDePasos(
+              actual: _paso,
+              hechos: hechos,
+              // VIAJAR ENTRE LOS PASOS. Como sólo se pinta el que toca, ésta es
+              // la única forma de corregir el anterior sin cancelar y empezar de
+              // cero, y lo elegido se conserva: aquí no se limpia nada, sólo se
+              // cambia qué tarjeta se enseña.
+              alIr: (n) => setState(() => _paso = n),
+            ),
           ),
         ),
-      ),
-      // EL PIE, PEGADO ABAJO Y SIEMPRE A LA VISTA. Lo sostiene el `Cajon`; lo
-      // que hacía falta era que el cuerpo no creciera sin freno, y eso lo
-      // arregla la caja de la lista del paso 4.
-      //
-      // `spaceBetween` + `Flexible`, y no `Spacer`: a 390 px los dos botones
-      // pedían 354 px dentro de 342 y el pie se pasaba 12 px por la derecha —el
-      // «Generar Ruta» cortado, que es lo mismo que no estar—. Con `Spacer` no
-      // se arregla: el hueco es un hijo flexible más y el botón se quedaría a
-      // media anchura también en un monitor.
-      pie: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // EL «NO» DEL SERVIDOR, DENTRO DEL CAJÓN Y ENCIMA DEL BOTÓN.
-          //
-          // Esto salía por `showSnackBar`, y un `SnackBar` lo pinta el
-          // `ScaffoldMessenger` de la pantalla de detrás: **debajo del cajón**.
-          // O sea que el mensaje existía, se componía con su motivo y no lo veía
-          // nadie. Desde fuera —Jose, 22/09/2026, pulsando «Generar Ruta» tres
-          // veces seguidas— la aplicación «no hace nada y no dice nada», que es
-          // la peor forma de decir que no.
-          //
-          // Va pegado al botón que lo provocó, a propósito: quien acaba de
-          // pulsar está mirando ahí.
-          if (_rechazo != null) ...[
-            AvisoDeRechazo(
-              mensaje: _rechazo!,
-              alCerrar: () => setState(() => _rechazo = null),
+        // EL PIE, PEGADO ABAJO Y SIEMPRE A LA VISTA. Lo sostiene el `Cajon`; lo
+        // que hacía falta era que el cuerpo no creciera sin freno, y eso lo
+        // arregla la caja de la lista del paso 4.
+        //
+        // `spaceBetween` + `Flexible`, y no `Spacer`: a 390 px los dos botones
+        // pedían 354 px dentro de 342 y el pie se pasaba 12 px por la derecha —el
+        // «Generar Ruta» cortado, que es lo mismo que no estar—. Con `Spacer` no
+        // se arregla: el hueco es un hijo flexible más y el botón se quedaría a
+        // media anchura también en un monitor.
+        pie: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // EL «NO» DEL SERVIDOR, DENTRO DEL CAJÓN Y ENCIMA DEL BOTÓN.
+            //
+            // Esto salía por `showSnackBar`, y un `SnackBar` lo pinta el
+            // `ScaffoldMessenger` de la pantalla de detrás: **debajo del cajón**.
+            // O sea que el mensaje existía, se componía con su motivo y no lo veía
+            // nadie. Desde fuera —Jose, 22/09/2026, pulsando «Generar Ruta» tres
+            // veces seguidas— la aplicación «no hace nada y no dice nada», que es
+            // la peor forma de decir que no.
+            //
+            // Va pegado al botón que lo provocó, a propósito: quien acaba de
+            // pulsar está mirando ahí.
+            if (_rechazo != null) ...[
+              AvisoDeRechazo(
+                mensaje: _rechazo!,
+                alCerrar: () => setState(() => _rechazo = null),
+              ),
+              const SizedBox(height: Aire.sm),
+            ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  child: const Text('Cancelar'),
+                ),
+                const SizedBox(width: Aire.sm),
+                Flexible(
+                  child: FilledButton(
+                    onPressed: puedeGenerar ? _generar : null,
+                    child: Text(
+                      _generando ? 'Generando ruta...' : 'Generar Ruta',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: Aire.sm),
           ],
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.of(context).maybePop(),
-                child: const Text('Cancelar'),
-              ),
-              const SizedBox(width: Aire.sm),
-              Flexible(
-                child: FilledButton(
-                  onPressed: puedeGenerar ? _generar : null,
-                  child: Text(
-                    _generando ? 'Generando ruta...' : 'Generar Ruta',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+        ),
+        cuerpo: Center(
+          // El `mx-auto max-w-6xl` de la de Next: el cajón va a pantalla completa
+          // y sin esto, en un monitor ancho, una frase de ayuda se estira a 1.800
+          // px y deja de leerse como un párrafo.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1152),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_paso == 1)
+                  _Tarjeta(
+                    key: AsistenteNuevaRuta.claveDelPaso(1),
+                    numero: 1,
+                    titulo: 'Sucursal',
+                    hecho: hechos[1]!,
+                    hijo: _pasoSucursal(sucursales),
                   ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      cuerpo: Center(
-        // El `mx-auto max-w-6xl` de la de Next: el cajón va a pantalla completa
-        // y sin esto, en un monitor ancho, una frase de ayuda se estira a 1.800
-        // px y deja de leerse como un párrafo.
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1152),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_paso == 1)
-                _Tarjeta(
-                  key: AsistenteNuevaRuta.claveDelPaso(1),
-                  numero: 1,
-                  titulo: 'Sucursal',
-                  hecho: hechos[1]!,
-                  hijo: _pasoSucursal(sucursales),
-                ),
-              if (_paso == 2)
-                _Tarjeta(
-                  key: AsistenteNuevaRuta.claveDelPaso(2),
-                  numero: 2,
-                  titulo: 'Punto de partida',
-                  hecho: hechos[2]!,
-                  hijo: _pasoSalida(conUbicacion),
-                ),
-              if (_paso == 3)
-                _Tarjeta(
-                  key: AsistenteNuevaRuta.claveDelPaso(3),
-                  numero: 3,
-                  titulo: 'Vehículo',
-                  hecho: hechos[3]!,
-                  hijo: _pasoVehiculo(),
-                ),
-              if (_paso == 4)
-                _Tarjeta(
-                  key: AsistenteNuevaRuta.claveDelPaso(4),
-                  numero: 4,
-                  titulo: 'Pedidos de cliente (${_elegidos.length})',
-                  hecho: hechos[4]!,
-                  hijo: _pasoPedidos(
-                    sucursales: sucursales,
-                    disponibles: disponibles,
-                    zonas: zonas,
-                    cargando: lista.isLoading,
-                    peso: peso,
-                    capacidad: capacidad,
+                if (_paso == 2)
+                  _Tarjeta(
+                    key: AsistenteNuevaRuta.claveDelPaso(2),
+                    numero: 2,
+                    titulo: 'Punto de partida',
+                    hecho: hechos[2]!,
+                    hijo: _pasoSalida(conUbicacion),
                   ),
-                ),
-            ],
+                if (_paso == 3)
+                  _Tarjeta(
+                    key: AsistenteNuevaRuta.claveDelPaso(3),
+                    numero: 3,
+                    titulo: 'Vehículo',
+                    hecho: hechos[3]!,
+                    hijo: _pasoVehiculo(),
+                  ),
+                if (_paso == 4)
+                  _Tarjeta(
+                    key: AsistenteNuevaRuta.claveDelPaso(4),
+                    numero: 4,
+                    titulo: 'Pedidos de cliente (${_elegidos.length})',
+                    hecho: hechos[4]!,
+                    hijo: _pasoPedidos(
+                      sucursales: sucursales,
+                      disponibles: disponibles,
+                      zonas: zonas,
+                      cargando: lista.isLoading,
+                      peso: peso,
+                      capacidad: capacidad,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1727,23 +1741,13 @@ class _PreDespachoLateral extends ConsumerWidget {
   /// desde la propia vista previa: es el orden que tenia la de Next y el que
   /// tiene sentido cuando el que saca la mercancia es otra persona.
   void _verEImprimir(BuildContext context, TotalesPreDespacho totales) {
-    final hoja = papel.HojaPreDespacho(
+    final hoja = hojaDePreDespachoDeLaRuta(
+      totales: totales,
       sucursal: sucursal ?? '',
       vehiculo: vehiculo ?? '',
       dia: _diaDeLaHoja,
       pedidos: elegidos.length,
       pesoKg: pesoKg,
-      lineas: [
-        for (final linea in totales.lineas)
-          papel.LineaPreDespacho(
-            producto: linea.producto,
-            formatos: linea.empaques,
-            unidades: linea.unidades,
-            // En el papel el peso es un numero: un producto sin peso resuelto
-            // suma cero kilos a la hoja, que es lo que pesa lo que no sabemos.
-            pesoKg: linea.pesoKg ?? 0,
-          ),
-      ],
     );
 
     abrirCajon<void>(
@@ -1960,10 +1964,7 @@ class _CabeceraDeZona extends StatelessWidget {
                       '${zona.pedidos} ${zona.pedidos == 1 ? 'pedido' : 'pedidos'} · '
                       '${Numeros.kgRedondeado(zona.pesoKg)} · '
                       '${zona.vehiculoNombre == null ? 'sin camión previsto' : 'camión: ${zona.vehiculoNombre}'}',
-                      style: Tipos.texto(
-                        tamano: 11,
-                        color: Colores.tintaSuave,
-                      ),
+                      style: Tipos.texto(tamano: 11, color: Colores.tintaSuave),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1990,3 +1991,63 @@ class _CabeceraDeZona extends StatelessWidget {
     );
   }
 }
+
+/// LA HOJA DEL PRE-DESPACHO DEL ASISTENTE, como funcion pura.
+///
+/// Va aparte del widget por lo mismo que su gemela de Pedidos
+/// (`pedidos/vista/pantalla_pedidos.dart`, `hojaDePreDespacho`): es lo que de
+/// verdad lleva los numeros al papel, y asi se comprueba sin pintar nada.
+///
+/// ## Por que existe: este camino imprimia OTRA hoja — 28/09/2026
+///
+/// Lo de aqui dentro estaba escrito a mano dentro de `_verEImprimir`, y cuando
+/// el 28/09/2026 el pre-despacho cambio de regla —lo que no se sabe ya no borra
+/// la fila: se imprime lo que si se sabe marcado con `≥` y con cuantos renglones
+/// faltan— sólo se actualizo el camino de Pedidos. Por este otro, la misma fila
+/// salia `26320.0 kg` a secas, como si fueran los kilos enteros de 4.949
+/// empaques de MALTA GUAJIRA, mientras la vista del mismo cajon decia
+/// `≥ 26320.0 kg (21 renglones sin peso)`. Dos papeles distintos para lo mismo
+/// (`CLAUDE.md` §3-bis), y lo que baja al almacen es el papel.
+///
+/// Suelta, la cubre una prueba. Dentro del widget no la cubria nada.
+papel.HojaPreDespacho hojaDePreDespachoDeLaRuta({
+  required TotalesPreDespacho totales,
+  required String sucursal,
+  required String vehiculo,
+  required String? dia,
+  required int pedidos,
+  required double pesoKg,
+}) => papel.HojaPreDespacho(
+  sucursal: sucursal,
+  vehiculo: vehiculo,
+  dia: dia,
+  pedidos: pedidos,
+  pesoKg: pesoKg,
+  lineas: [
+    for (final linea in totales.lineas)
+      papel.LineaPreDespacho(
+        producto: linea.producto,
+        formatos: linea.empaques,
+        unidades: linea.unidades,
+        // EL PESO VA TAL CUAL, CON SU NULO — 28/09/2026.
+        //
+        // Aqui habia un `?? 0` con este comentario: «en el papel el peso es
+        // un numero: un producto sin peso resuelto suma cero kilos a la
+        // hoja, que es lo que pesa lo que no sabemos». Era verdad cuando la
+        // hoja no sabia imprimir un nulo; ya no lo es, y mientras tanto es
+        // el cero creible de siempre: en el papel, `0 kg` no se distingue
+        // de un producto que de verdad no pesa, y con esta hoja alguien
+        // baja al almacen a cargar un camion.
+        pesoKg: linea.pesoKg,
+        // LOS CONTADORES VIAJAN AL PAPEL, igual que por el otro camino
+        // (`pedidos/vista/pantalla_pedidos.dart`). Sin ellos esta hoja
+        // imprimia la suma de lo que se sabe COMO SI FUERA EL TOTAL: el
+        // mismo filtro decia `≥ 26320.0 kg (21 renglones sin peso)` en la
+        // pantalla y `26320.0 kg` a secas en el papel. Dos papeles distintos
+        // para lo mismo es el §3-bis, y lo que se lleva al almacen es el
+        // papel.
+        lineasSinUnidades: linea.lineasSinUnidades,
+        lineasSinPeso: linea.lineasSinPeso,
+      ),
+  ],
+);

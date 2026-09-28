@@ -104,6 +104,25 @@ const (
 	// un aparato diciendo que no eligió nada, y armar entonces con todo lo que haya
 	// puesto es exactamente el fallo que la lista viene a tapar.
 	msgListaVacia = "Vino la lista de pedidos pero está vacía: no se sabe qué tenía que salir en esta ruta"
+	// NINGUNA RUTA SIN CAMIÓN — 28/09/2026.
+	//
+	// Jose, viendo `RT-20260928-001`, «En curso · 3 paradas · Sin vehículo»: «por q se
+	// creo una ruta sin vehiculo eso no se puede mi broder». Aquí arriba se leía
+	// «Puede no haber ninguno; la ruta se arma igual y el camión se elige después», y eso
+	// era exactamente el agujero: sin camión, el `516.5 kg` y el `$2.99` de esa ruta no se
+	// pueden contrastar con nada —la capacidad se mide contra la del camión y el coste por
+	// km sale de su `costo_km_usd`—, así que la ruta sale con dos números creíbles y sin
+	// denominador.
+	//
+	// El mensaje NO es el de `POST /api/routes` («Se requiere un vehículo para crear la
+	// ruta») a propósito: ahí el camión se elige en el paso 3 del asistente y allí mismo se
+	// arregla; aquí el camión es el PREVISTO DE LA ZONA y se pone en otro sitio —«Camión
+	// previsto», en las opciones de la zona—, así que el «no» tiene que decir dónde. Un
+	// rechazo que no dice dónde se arregla es un rechazo permanente.
+	msgZonaSinCamion = "La zona no tiene camión previsto, y sin camión no se arma su ruta. " +
+		"Elígelo en «Camión previsto», en las opciones de la zona, y vuelve a armar: sin " +
+		"camión no hay capacidad contra la que medir la carga ni costo por km con el que " +
+		"cotizar el domicilio."
 )
 
 // TopeSinColocar es el tope por defecto de la mitad izquierda. Se puede bajar por query,
@@ -1518,8 +1537,7 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// El camión: el que venga en el cuerpo, si no el PREVISTO de la columna. Puede no
-	// haber ninguno; la ruta se arma igual y el camión se elige después.
+	// El camión: el que venga en el cuerpo, si no el PREVISTO de la columna.
 	vehiculo := columna.VehicleID
 	if c.VehiculoID.Presente {
 		v, ok := vehiculoDelCuerpo(w, r, a, c.VehiculoID)
@@ -1527,6 +1545,29 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		vehiculo = v
+	}
+	// Y TIENE QUE HABER UNO. Ver [msgZonaSinCamion]: hasta el 28/09/2026 aquí decía «puede
+	// no haber ninguno; la ruta se arma igual y el camión se elige después», y así nació
+	// `RT-20260928-001` sin vehículo.
+	//
+	// SE MIRA `vehiculo` Y NO `columna.VehicleID`, que es la diferencia que importa: un
+	// aparato que manda `vehiculoId` en el cuerpo tiene camión aunque su zona no lo tenga
+	// —es lo que hace una APK que armó con la zona ya elegida—, y negárselo sería negar
+	// una ruta que sí tiene camión.
+	//
+	// EL ORDEN es el mismo que el del aparato (`app/lib/pantallas/tablero/datos/
+	// repositorio.dart`, `armarRuta`): primero «la zona no tiene nada repartible», luego el
+	// camión, luego la capacidad. Si dos fallan a la vez, la persona lee el mismo mensaje
+	// por los dos caminos.
+	//
+	// 400 y no 409: no es una carrera ni algo que cambie al reintentar, es un dato que
+	// falta. Y con motivo legible, porque este 400 lo va a leer una persona dos veces: en
+	// la pantalla cuando arma con conexión, y en la bandeja de rechazos cuando el apunte de
+	// una APK sin señal suba horas después (`sync/internal/reparto/reparto.go`: un 4xx es
+	// rechazo de negocio, no se reintenta y se queda a la vista con su motivo).
+	if !vehiculo.Valid {
+		httpx.Error(w, r, http.StatusBadRequest, msgZonaSinCamion)
+		return
 	}
 
 	// El orden de visita. Por defecto se RESPETA el del logístico —ya vienen ordenados
@@ -1547,6 +1588,9 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	// La capacidad se comprueba AL ARMAR, que es donde importa. En el tablero el exceso
 	// sólo avisa (§7.3): el tablero es un borrador y el camión previsto es una intención.
 	// Aquí ya no: lo que no cabe, no sube.
+	// `vehiculo.Valid` es SIEMPRE cierto desde la guarda de arriba, y este `if` se queda a
+	// propósito: si algún día el camión vuelve a ser opcional por algún camino, la
+	// comprobación de capacidad no puede empezar a pedirle la fila a un uuid vacío.
 	if vehiculo.Valid {
 		v, err := a.TableroVehiculoParaCapacidad(r.Context(), uuid.UUID(vehiculo.Bytes))
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {

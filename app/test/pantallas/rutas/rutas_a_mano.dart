@@ -32,6 +32,13 @@ Pedido paradaAMano({
   double? costo,
   String tramo = Tramo.ida,
   String? resultado,
+  /// `orders.segment_km`, que **por defecto va nulo y eso no es descuido**: es
+  /// el caso de verdad. Una ruta armada desde el Tablero en el aparato deja
+  /// esta columna sin escribir (`pantallas/tablero/datos/repositorio.dart`), y
+  /// con ella nula es como Jose vio `RT-20260928-001` el 28/09/2026: tres
+  /// paradas y tres rayas mudas.
+  double? segmentKm,
+  double peso = 10,
 }) => Pedido(
   id: id,
   customerName: cliente,
@@ -40,7 +47,8 @@ Pedido paradaAMano({
   endLng: lng,
   price: precio,
   pedidoCosto: costo,
-  weight: 10,
+  segmentKm: segmentKm,
+  weight: peso,
   status: EstadoPedido.pendiente,
   tripLeg: tramo,
   resultado: resultado,
@@ -55,6 +63,7 @@ RutaConTodo rutaAMano({
   double? origenLat = 21.38,
   double? origenLng = -77.91,
   double km = 42.5,
+  double peso = 100,
   DateTime? fecha,
   Vehiculo? vehiculo,
   Sucursal? sucursal,
@@ -67,7 +76,7 @@ RutaConTodo rutaAMano({
     originLat: origenLat,
     originLng: origenLng,
     totalDistance: km,
-    totalWeight: 100,
+    totalWeight: peso,
     totalPrice: 250,
     deliveryDate: fecha ?? DateTime(2026, 9, 14),
     optimized: true,

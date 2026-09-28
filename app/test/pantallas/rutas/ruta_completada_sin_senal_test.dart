@@ -68,7 +68,10 @@ void main() {
     await aparatoYaDeAlta(base);
 
     servidor = ServidorDeLosDosLados(sucursalId: sucursalStg)
-      ..laWebCreaZona(zonaVista, 'Vista');
+      // CON SU CAMIÓN PREVISTO (`v1`, sembrado tres líneas más abajo). Desde el
+      // 28/09/2026 una zona sin camión no arma ruta, y de esta zona salen las
+      // tres rutas de este fichero.
+      ..laWebCreaZona(zonaVista, 'Vista', vehiculoId: 'v1');
 
     await sembrarSucursal(base);
     await sembrarAlmacen(base);

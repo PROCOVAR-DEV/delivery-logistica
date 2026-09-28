@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../diseno/cargando.dart';
 import '../../../nucleo/registro/registro.dart';
 import '../datos/modelos.dart';
 import '../estado/proveedores.dart';
@@ -252,59 +255,60 @@ abstract final class AccionesTablero {
     );
   }
 
+  /// EL CAJÓN DEL «CAMIÓN PREVISTO».
+  ///
+  /// ## Lo que pasaba: se cerraba el menú y NO SE ABRÍA NADA — 28/09/2026
+  ///
+  /// Jose, en un SM-A165M, con un vehículo dado de alta en la sucursal
+  /// («Vehículos 0 / 1»): tocar «Camión previsto / Sin elegir» cerraba la hoja
+  /// de opciones de la zona y ahí se acababa. Ni selector, ni rueda, ni aviso.
+  /// Dos veces seguidas. Y la consecuencia no es cosmética: la ruta se arma y
+  /// se inicia **sin vehículo**, así que después el coste por km no se puede
+  /// calcular y nadie sabe por qué.
+  ///
+  /// No era ni el teléfono ni un cajón abriéndose encima de otro —se reprodujo
+  /// igual a 1400 px—, era esta línea:
+  ///
+  ///     final camiones = await ref.read(camionesProvider.future);
+  ///
+  /// **Ese `await` no termina nunca.** `camionesProvider` es un `StreamProvider`
+  /// y aquí no lo estaba mirando nadie: un `ref.read` suelto lo crea, el
+  /// proveedor se apaga en cuanto acaba la microtarea —los proveedores se
+  /// apagan solos cuando nadie los escucha— y el `async*` de dentro no llega ni
+  /// a soltar su primer valor. El `Future` se queda colgado, y con él toda esta
+  /// función: el `pop` del menú ya se había hecho y el `mostrarCajon` de aquí
+  /// abajo no se llegaba a ejecutar. Medido en seco: con un `listen` puesto
+  /// delante devuelve `[F-350]` al instante; sin él, tres segundos de espera y
+  /// nada.
+  ///
+  /// El arreglo es **mirar la flota en vez de pedirla antes**: el cajón se abre
+  /// SIEMPRE y en el acto, y dentro un `Consumer` hace `ref.watch`, que sí es
+  /// alguien escuchando. De paso se recupera lo que el 17/09/2026 se vino a
+  /// arreglar y este `read` deshacía sin querer: la lista es un `Stream`
+  /// precisamente para que los camiones que bajan dos segundos después
+  /// aparezcan solos (`CLAUDE.md` §3-ter). Con la base en memoria de la web
+  /// —que nace vacía en cada carga— ése es el caso de siempre, no el raro.
+  ///
+  /// ## Y la pieza es la del kit, no una nueva
+  ///
+  /// `lib/diseno/selector.dart` acaba de resolver su caso del teléfono abriendo
+  /// un `Cajon` por debajo de 1024 px. Aquí ya se abría un `Cajon` —el mismo,
+  /// por `mostrarCajon`— en los dos tamaños, que es la excepción aprobada de
+  /// delivery del 05/09/2026. Lo que faltaba no era la pieza: era llegar a
+  /// abrirla.
   static Future<void> _elegirCamion(
     BuildContext context,
     WidgetRef ref,
     ColumnaTablero columna,
-  ) async {
-    final camiones = await ref.read(camionesProvider.future);
-    if (!context.mounted) return;
-    await mostrarCajon<void>(
-      context: context,
-      titulo: 'Camión previsto para «${columna.nombre}»',
-      contenido: (contexto) => Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.not_interested),
-            title: const Text('Sin camión'),
-            onTap: () {
-              Navigator.of(contexto).pop();
-              hacer(
-                context,
-                ref,
-                () => ref
-                    .read(tableroProvider.notifier)
-                    .elegirCamion(columna.id, null),
-              );
-            },
-          ),
-          for (final camion in camiones)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.local_shipping_outlined),
-              title: Text(camion.name),
-              subtitle: Text(
-                '${pesoBonito(camion.capacity)}'
-                '${camion.plate == null ? '' : ' · ${camion.plate}'}',
-              ),
-              onTap: () {
-                Navigator.of(contexto).pop();
-                hacer(
-                  context,
-                  ref,
-                  () => ref
-                      .read(tableroProvider.notifier)
-                      .elegirCamion(columna.id, camion.id),
-                );
-              },
-            ),
-        ],
-      ),
-    );
-  }
+  ) => mostrarCajon<void>(
+    context: context,
+    titulo: 'Camión previsto para «${columna.nombre}»',
+    contenido: (contexto) => _CamionesDeLaZona(
+      columna: columna,
+      deLaPantalla: context,
+      refDeLaPantalla: ref,
+    ),
+  );
 
   static Future<void> _elegirDestino(
     BuildContext context,
@@ -563,5 +567,148 @@ abstract final class AccionesTablero {
           duration: Duration(seconds: problema ? 6 : 3),
         ),
       );
+  }
+}
+
+/// LA FLOTA DE LA SUCURSAL, DENTRO DEL CAJÓN Y **MIRADA**, NO PEDIDA.
+///
+/// El porqué entero está en `AccionesTablero._elegirCamion`. En una frase: un
+/// `ref.read(camionesProvider.future)` antes de abrir el cajón no volvía nunca
+/// y dejaba el gesto muerto a media escalera. Aquí se hace `ref.watch`, que es
+/// alguien escuchando de verdad: el proveedor se mantiene vivo, suelta su
+/// primer valor y además repinta esta lista cuando la flota baja un segundo
+/// más tarde (§3-ter).
+class _CamionesDeLaZona extends ConsumerWidget {
+  const _CamionesDeLaZona({
+    required this.columna,
+    required this.deLaPantalla,
+    required this.refDeLaPantalla,
+  });
+
+  final ColumnaTablero columna;
+
+  /// El contexto de la PANTALLA, no el del cajón.
+  ///
+  /// El cajón se cierra antes de guardar, así que su contexto ya está muerto
+  /// cuando hay que decir algo: el motivo de un «no se pudo guardar» saldría a
+  /// un `ScaffoldMessenger` que ya no existe y **no lo leería nadie**, que es
+  /// exactamente el §4 de la casa al revés.
+  final BuildContext deLaPantalla;
+
+  /// Y su `ref`, por lo mismo: el del `Consumer` de aquí se va con el cajón.
+  final WidgetRef refDeLaPantalla;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final flota = ref.watch(camionesProvider);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // «Sin camión» va SIEMPRE y va el primero, pase lo que pase con la
+        // flota: quitar el camión que se puso mal es lo único que se puede
+        // hacer aquí sin depender de que baje nada.
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.not_interested),
+          title: const Text('Sin camión'),
+          selected: columna.vehiculoId == null,
+          onTap: () => _poner(context, null),
+        ),
+        const Divider(height: 24),
+        ...switch (flota) {
+          // Una lista vacía NO es «no hay camiones» a secas: se dice qué se
+          // rompe sin uno, que es el §4 —una colección que no bajó se dice, y
+          // se dice qué se rompe sin ella—. Sin camión previsto la ruta se
+          // arma igual, y el coste por km de esa ruta no sale.
+          AsyncData(:final value) when value.isEmpty => [
+            const _NadaQueElegir(
+              'Esta sucursal no tiene ningún vehículo en este aparato.',
+              'Se puede armar la ruta igual, pero sin camión no hay capacidad '
+                  'contra la que medir el peso ni coste por km que calcular. '
+                  'Los vehículos se dan de alta en Flota y bajan con la '
+                  'siguiente sincronización.',
+            ),
+          ],
+          AsyncData(:final value) => [
+            for (final camion in value)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.local_shipping_outlined),
+                title: Text(camion.name),
+                subtitle: Text(
+                  '${pesoBonito(camion.capacity)}'
+                  '${camion.plate == null ? '' : ' · ${camion.plate}'}',
+                ),
+                selected: columna.vehiculoId == camion.id,
+                onTap: () => _poner(context, camion.id),
+              ),
+          ],
+          // El motivo literal, no «ha ocurrido un error»: es lo único con lo
+          // que alguien puede decidir si vuelve a intentarlo o llama.
+          AsyncError(:final error) => [
+            _NadaQueElegir(
+              'No se pudo leer la flota de esta sucursal.',
+              '$error',
+            ),
+          ],
+          // La rueda SE VE, y ésa es media reparación: antes, mientras se
+          // esperaba, no había ni cajón. Un gesto que no enseña nada se lee
+          // como un gesto que no funciona, y se vuelve a pulsar.
+          _ => [const Cargando('Buscando los camiones de la sucursal…')],
+        },
+      ],
+    );
+  }
+
+  /// Cierra el cajón y guarda. En este orden y no al revés: el cajón tapa media
+  /// pantalla, y el aviso de «no se pudo guardar» sale por debajo.
+  void _poner(BuildContext contextoDelCajon, String? vehiculoId) {
+    Navigator.of(contextoDelCajon).pop();
+    unawaited(
+      AccionesTablero.hacer(
+        deLaPantalla,
+        refDeLaPantalla,
+        () => refDeLaPantalla
+            .read(tableroProvider.notifier)
+            .elegirCamion(columna.id, vehiculoId),
+      ),
+    );
+  }
+}
+
+/// Lo que se pinta cuando no hay de dónde elegir: el titular y **por qué
+/// importa**. Un cajón vacío con un «Sin camión» suelto se lee como que la
+/// pantalla está rota.
+class _NadaQueElegir extends StatelessWidget {
+  const _NadaQueElegir(this.titular, this.porQue);
+
+  final String titular;
+  final String porQue;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            titular,
+            style: tema.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            porQue,
+            style: tema.textTheme.bodySmall?.copyWith(
+              color: tema.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

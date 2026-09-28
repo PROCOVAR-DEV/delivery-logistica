@@ -153,8 +153,16 @@ void main() {
                 'status': 'in_use',
                 'type': 'truck',
                 '_count': <String, Object?>{'routes': 4, 'orders': 12},
+                // La ruta ABIERTA del camión, con SU estado. El servidor la
+                // manda desde el 28/09/2026 (`RutasAbiertasDeLaFlota`): hasta
+                // entonces este campo no existía y la caja azul de la tarjeta
+                // no salía nunca.
                 'routes': <Object?>[
-                  <String, Object?>{'id': 'r1', 'routeCode': 'STG-0007'},
+                  <String, Object?>{
+                    'id': 'r1',
+                    'routeCode': 'STG-0007',
+                    'status': 'in_progress',
+                  },
                 ],
               },
             ]),
@@ -164,11 +172,21 @@ void main() {
 
     expect(find.text('Camión #1'), findsOneWidget);
     expect(find.text('ABC-1234'), findsOneWidget);
-    expect(find.text('En uso'), findsOneWidget);
+    // LA INSIGNIA SALE DE LA RUTA, no de `status`. Antes decía «En uso» leyendo
+    // el campo guardado; ahora dice «En ruta» porque lleva una ruta `in_progress`
+    // encima, que es la pregunta que de verdad se hace quien mira la flota.
+    //
+    // Son DOS: la insignia de la tarjeta y el contador de la franja de arriba.
+    // Que digan lo mismo es el punto: un resumen que cuenta distinto de las
+    // tarjetas que tiene debajo es el §3-bis.
+    expect(find.text('En ruta'), findsNWidgets(2));
+    expect(find.text('En uso'), findsNothing);
     expect(find.text('2500 kg'), findsOneWidget);
     expect(find.text('12 órdenes asignadas'), findsOneWidget);
     // Sin nombre, la ruta activa se identifica por su codigo.
     expect(find.text('Ruta activa'), findsOneWidget);
+    // Y DE UN VISTAZO, LA FLOTA. Es lo que Jose pidió: «saber de la flota».
+    expect(find.text('Libres'), findsOneWidget);
     expect(find.text('STG-0007'), findsOneWidget);
     // Sin marcar para domicilio sale el boton, no el chip.
     expect(find.text('Usar para domicilio'), findsOneWidget);

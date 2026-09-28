@@ -350,6 +350,22 @@ void main() {
     required void Function(ZonaParaArmar?) alElegir,
     String? zonaId,
   }) async {
+    // A 1200 px, Y HAY QUE PONERLO A MANO.
+    //
+    // Un `testWidgets` sin tocar `tester.view` mide **800x600**, que está POR
+    // DEBAJO de `Anchos.escritorio` (1024). Desde el 28/09/2026 el `Selector`
+    // del kit —el que hay debajo de este selector de zona— abre un CAJÓN por
+    // debajo de ese corte, y allí las opciones son `ListTile` y no
+    // `MenuItemButton`. Estas tres pruebas no van del ancho: van de qué ofrece
+    // el desplegable y de qué devuelve al elegir, así que se quedan midiendo el
+    // menú de escritorio, que es donde se escribieron.
+    //
+    // Que el mismo desplegable sea cajón en el teléfono lo vigila
+    // `test/diseno/el_selector_del_kit_es_cajon_test.dart`, en pareja 390/1200.
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [zonasParaArmarProvider('stg').overrideWithValue(zonas)],

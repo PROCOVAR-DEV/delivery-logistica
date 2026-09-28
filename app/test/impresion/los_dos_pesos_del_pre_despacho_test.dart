@@ -823,14 +823,20 @@ void main() {
       }
     });
 
-    test('el `?? 0` del asistente de rutas no cuela un total corto: sale con `≥`', () {
-      // `rutas/vista/asistente_nueva_ruta.dart` construye la hoja con
-      // `pesoKg: linea.pesoKg ?? 0` **y sin contadores**: por ese camino un
-      // peso que no se sabe llega como cero y nadie dice cuántos renglones
-      // faltan. El cero no suma —la columna imprime «—» en esa fila— y el
-      // producto cuenta como uno que falta, que es lo único que por ahí se
-      // sabe. Lo que no puede pasar es que los 180 kg restantes salgan como el
-      // peso de la hoja.
+    test('un cero colado no cuela un total corto: sale con `≥`', () {
+      // EL `?? 0` DEL ASISTENTE YA NO EXISTE — 28/09/2026. La hoja del asistente
+      // de rutas manda el peso tal cual, con su nulo, y con sus contadores
+      // (`hojaDePreDespachoDeLaRuta`, probada en
+      // `test/pantallas/rutas/la_hoja_del_asistente_test.dart`). Antes hacía
+      // `pesoKg: linea.pesoKg ?? 0` **y sin contadores**, y de ahí salía este
+      // caso.
+      //
+      // La prueba se queda, y no por inercia: es el RESPALDO para cualquiera que
+      // mande un cero sin contadores —una APK vieja, un camino nuevo mal
+      // escrito—. El cero no suma —la columna imprime «—» en esa fila— y el
+      // producto cuenta como uno que falta, que es lo único que por ahí se sabe.
+      // Lo que no puede pasar es que los 180 kg restantes salgan como el peso de
+      // la hoja.
       final t = TotalesPreDespacho.de(
         const HojaPreDespacho(
           sucursal: 'Camagüey',

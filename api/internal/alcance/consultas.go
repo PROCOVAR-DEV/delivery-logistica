@@ -94,6 +94,16 @@ func (a *Acotado) ListarVehiculos(ctx context.Context) ([]sqlc.ListarVehiculosRo
 	return a.q.ListarVehiculos(ctx, a.sucursalPg())
 }
 
+// RutasAbiertasDeLaFlota: en qué anda cada camión, DEDUCIDO de sus rutas.
+//
+// Se acota por la sucursal de la RUTA y no por la del camión, igual que
+// `ContarVehiculosEnRuta`: un camión compartido (`branch_id` nulo) sale en la lista de
+// todas, pero la ruta que lleva es de UNA, y decirle a Holguín que su camión compartido
+// está en ruta cuando quien lo tiene es Santiago sería contar el trabajo de otro.
+func (a *Acotado) RutasAbiertasDeLaFlota(ctx context.Context) ([]sqlc.RutasAbiertasDeLaFlotaRow, error) {
+	return a.q.RutasAbiertasDeLaFlota(ctx, a.sucursalPg())
+}
+
 func (a *Acotado) ObtenerVehiculo(ctx context.Context, id uuid.UUID) (sqlc.ObtenerVehiculoRow, error) {
 	return a.q.ObtenerVehiculo(ctx, sqlc.ObtenerVehiculoParams{ID: id, Sucursal: a.sucursalPg()})
 }

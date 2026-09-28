@@ -1073,9 +1073,34 @@ func (s *Servidor) cotizarLote(w http.ResponseWriter, r *http.Request) {
 		}
 		// 4. Sin domicilio Y sin factura cotejada: no se guarda nada. Un pedido así no va
 		//    a salir en ningún camión y ocuparía sitio en la lista del logístico.
+		//
+		// LA FACTURA COTEJADA SON DOS ESTADOS, NO UNO — 28/09/2026, y esto congeló un
+		// tercio del espejo durante semanas sin dar un solo error.
+		//
+		// Aquí decía `== "igual"` a secas. Pero cotejada son **`igual` Y `cambiado`**: en
+		// todo el resto de este proyecto la condición es `factura_estado IN
+		// ('igual','cambiado')` —el armador de rutas, el panel, el pre-despacho— y el
+		// propio `soloRepartibles` de PEDIDO usa ese mismo par. `cambiado` significa que la
+		// factura existe y difiere del pedido, no que no haya factura.
+		//
+		// El efecto, con un pedido de MOSTRADOR (`requiereDomicilio = false`):
+		//
+		//   1. entra en el espejo el día que su factura está en `igual`;
+		//   2. PEDIDO la coteja después y la pasa a `cambiado`;
+		//   3. **desde ese momento, TODOS los barridos lo tiran aquí** — y su fila se queda
+		//      congelada con lo que hubiera el primer día. No sólo el peso: `factura_estado`
+		//      también, y cualquier otro campo que cambie después.
+		//
+		// Se vio el 28/09/2026 buscando por qué 81 renglones no tenían peso: tras TRES
+		// barridos seguían siendo 81, producto por producto idénticos, y el `updated_at` de
+		// esos pedidos no se movía. PEDIDO demostró que los servía con el peso puesto por
+		// todos los caminos —por id, por rango de fechas y con el filtro puesto—, así que la
+		// pérdida estaba entre la respuesta y la escritura. Estaba aquí.
+		//
+		// Y el aviso encima MENTÍA: decía `sin-domicilio-y-sin-factura` sobre pedidos que
+		// tienen factura, así que quien leyera el log iba a buscar donde no era.
 		sinDomicilio := p.RequiereDomicilio != nil && !*p.RequiereDomicilio
-		facturaIgual := p.FacturaEstado != nil && *p.FacturaEstado == "igual"
-		if sinDomicilio && !facturaIgual {
+		if esMostradorSinFactura(p.RequiereDomicilio, p.FacturaEstado) {
 			salida.Skipped++
 			salida.Results = append(salida.Results, loteSaltado{ref, "skipped", "sin-domicilio-y-sin-factura"})
 			continue
@@ -1234,6 +1259,36 @@ func resultadoDelLote(base baseDelLote, sinDomicilio bool) any {
 // refDelPedidoDelLote es `externalId || operationNumber || null`. Es con lo que PEDIDO reconoce
 // cada resultado en la respuesta, así que la cadena vacía NO vale: sería un `ref` que
 // parece puesto y no identifica nada.
+// facturaCotejada: los DOS estados en que la factura existe y se puede repartir.
+//
+// `igual` es «la factura dice lo mismo que el pedido» y `cambiado` es «existe y difiere».
+// Los dos son factura. El que NO lo es —`sin_factura`— y el nulo, que es «nadie la ha
+// cotejado todavía», se quedan fuera.
+//
+// Está aquí como función y no escrito a mano en el `if` para que no vuelva a pasar lo de
+// arriba: la próxima vez que alguien necesite esta pregunta, la encuentra.
+// esMostradorSinFactura: la regla del punto 4, entera y en un sitio que se puede probar.
+//
+// Está aquí fuera y no escrita dentro del `for` porque el `for` necesita un servidor, una
+// base y un catálogo para correr, y entonces la regla no tiene prueba propia — que es
+// exactamente cómo el `== "igual"` de arriba aguantó semanas congelando un tercio del
+// espejo sin que nada se pusiera rojo.
+//
+// `requiereDomicilio` es TRI-ESTADO: `true`, `false` y nil («nadie lo ha marcado»). Sólo un
+// `false` explícito es mostrador; el nil se queda dentro, porque descartar por lo que no se
+// sabe es descartar de verdad.
+func esMostradorSinFactura(requiereDomicilio *bool, facturaEstado *string) bool {
+	sinDomicilio := requiereDomicilio != nil && !*requiereDomicilio
+	return sinDomicilio && !facturaCotejada(facturaEstado)
+}
+
+func facturaCotejada(estado *string) bool {
+	if estado == nil {
+		return false
+	}
+	return *estado == "igual" || *estado == "cambiado"
+}
+
 func refDelPedidoDelLote(p pedidoDelLote) *string {
 	if p.ExternalID != "" {
 		v := p.ExternalID

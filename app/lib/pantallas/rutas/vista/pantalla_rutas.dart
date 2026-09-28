@@ -211,12 +211,25 @@ class PantallaRutas extends ConsumerWidget {
                     // carrusel teniendo sitio de sobra: dos de tres escondidas
                     // detrás de unas bolitas para nada.
                     //
-                    // 460 y no 420 clavados: las cuentas crecen —«Historial
-                    // (128)» mide más que «Historial (0)»— y un umbral pegado
-                    // al mínimo de hoy se rompe el día que haya rutas de
-                    // verdad. Por debajo de eso el carrusel es lo correcto y
-                    // sigue estando.
-                    anchoParaTodas: 460,
+                    // NO ES EL ANCHO, ES SI HAY DOS PANELES — 28/09/2026.
+                    //
+                    // Esto empezó siendo un número y se probaron dos, 460 y
+                    // 400, y los dos estaban mal por el mismo motivo: el panel
+                    // de la lista en un monitor (~433 px, porque la barra
+                    // lateral se lleva 255) y la pantalla de un teléfono grande
+                    // (~404 px a 420) **miden casi lo mismo**, así que ningún
+                    // umbral de ancho separa los dos casos sin acertar por los
+                    // pelos. Con 460 seguía saliendo el carrusel en el monitor;
+                    // con 400 salían las pastillas en un teléfono de 420.
+                    //
+                    // Y no hacía falta adivinarlo: quien construye esto YA SABE
+                    // si está en escritorio, que es lo mismo que decide si hay
+                    // dos columnas. En escritorio caben las tres —y si un día
+                    // no caben, el `Wrap` las baja de renglón, que sigue siendo
+                    // mejor que esconder dos detrás de unas bolitas—; en un
+                    // teléfono el carrusel es lo correcto y se queda con el
+                    // umbral común de `PestanasQueCaben`.
+                    anchoParaTodas: enEscritorio ? 0 : null,
                     alCambiar: irALaPestana,
                   ),
                 ),

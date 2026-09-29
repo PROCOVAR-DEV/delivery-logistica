@@ -111,20 +111,31 @@ Stream<String> escucharEventos(
   /// reintento: la web se quedaba muda y nadie se enteraba hasta que alguien
   /// recargaba.
   ///
-  /// Pasó esa misma noche, y esta en el registro del servidor:
+  /// Pasó esa misma noche. El registro del servidor, leido BIEN —la hora de cada
+  /// renglon es la del FINAL de la peticion, y es UTC (`CLAUDE.md` §3-septies)—:
   ///
   /// ```
-  /// 21:30:45  GET /api/eventos  200
-  /// 21:30:47  GET /api/eventos  200
-  /// 21:30:50  GET /api/eventos  401   <- se murio aqui
-  ///           ... CINCO MINUTOS SIN UNA SOLA PETICION ...
-  /// 21:35:49  GET /api/eventos  200
+  /// empezo 21:25:45 -> 21:30:45  200  299999ms   el proxy la corta a los 300 s
+  /// empezo 21:25:47 -> 21:30:47  200  300000ms   idem, otro cliente
+  ///                    21:30:50  401       0ms   <- «no viene token»
+  /// empezo 21:30:49 -> 21:35:49  200  299999ms   uno de los dos si reconecto
   /// ```
   ///
-  /// Jose creo una zona desde el telefono a las **21:32:10**, o sea dentro de ese
-  /// agujero, y en la web no aparecio. No es que el aviso llegara tarde: **no
-  /// habia nadie escuchando**. Sus palabras: «la aplicacion hace cosas y no sale
-  /// en la web».
+  /// **Dos reconexiones con 319 ms de diferencia: una entro y la otra se
+  /// rechazo.** Eso no es una sesion que caduca —las dos llevarian lo mismo—:
+  /// son dos clientes distintos, y el que se quedo fuera **no volvio a intentarlo
+  /// nunca**, porque este fichero lo cerraba para siempre.
+  ///
+  /// Jose creo una zona desde el telefono a las **21:32:10** y en la web no
+  /// aparecio. Comprobado por el otro lado: tras el `POST /api/board/columns`
+  /// (201) solo hubo UN `GET /api/board`, el del propio movil. **La web no pidio
+  /// nada.** Sus palabras: «la aplicacion hace cosas y no sale en la web».
+  ///
+  /// Por que llego un `401` con «no viene token» sigue **sin concluir** — paso dos
+  /// veces en todo el dia y nada mas—. Lo que se monto para saberlo la proxima vez
+  /// en un minuto es `auth.RastroDe` (`CLAUDE.md` §3-septies). Lo que este fichero
+  /// arregla es lo otro, que no depende de la causa: **un rechazo, venga de donde
+  /// venga, no puede dejar la pestaña muda para siempre**.
   ///
   /// La APK ya lo tenia arreglado desde esa misma tarde (`eventos_io.dart`,
   /// `programarReintento`) y **este lado se quedo con el camino viejo**. Es el

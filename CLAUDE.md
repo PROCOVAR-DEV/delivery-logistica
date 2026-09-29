@@ -231,6 +231,49 @@ cuando no.
 
 ---
 
+## 3-septies. Un 401 que el cliente no puede ver se escribe ENTERO en el servidor
+
+El 29/09/2026 a las 21:30:50 UTC, `GET /api/eventos` contestó 401. Lo que ese
+rechazo dejó escrito fue un `motivo` —«no viene token», «está caducado», «la firma
+no cuadra»…— y nada más.
+
+**No dice de quién.** Y ésa era la única pregunta, porque las dos puertas de esta
+casa duran cosas distintas —la cookie de la web, SIETE DÍAS
+(`duracionDeLaSesionWeb`); el token de la APK, QUINCE MINUTOS— y el arreglo no se
+parece en nada. **La causa quedó sin concluir**: no se pudo decidir cuál de los
+dos clientes fue el rechazado.
+
+Y encima, para leer bien ese registro hay que saber dos cosas que no están en él:
+**la hora es la del FINAL de la petición** (`RegistrarPeticiones` escribe
+`time.Since(inicio)` después del manejador), así que a un renglón de `299999ms`
+hay que restarle cinco minutos para saber cuándo empezó; y **la hora es UTC**, no
+la del portátil. Leídas como horas de inicio, las mismas cuatro líneas cuentan una
+película distinta y falsa.
+
+La regla: **cuando el cliente no puede ver el código de una respuesta, el renglón
+del servidor es la única versión de los hechos que va a existir, y tiene que
+bastarse solo.** `EventSource` no da el código —lo único que la web ve es
+`readyState == CLOSED`, que igual es un 401 que un `Content-Type` equivocado—, así
+que un `motivo` suelto ahí no es medio dato: es ninguno.
+
+Lo que se escribe está en `api/internal/auth/rastro.go` (`RastroDe`) y va en los
+dos sitios que rechazan sesión, `Exigir` y `servirEventos`: `via` (cabecera = APK
+y escritorio, cookie = web), `cookies_token` (**dos cookies `token` a la vez es una
+avería**, no una sesión vencida), `vida` = `exp − iat` —`168h0m0s` es la web,
+`15m0s` es la APK—, `caduco_hace` —dos segundos es un reloj desfasado, tres horas
+es que nadie renovó— y el `agente` recortado.
+
+Y su mitad prohibida, atada por `TestElRastroNoEnsenaElToken`: **el token no sale
+ahí ni recortado, ni su firma, ni el `sub`.** Un registro acaba pegado en un
+correo y en un chat; un token de siete días pegado en un chat es una sesión
+regalada.
+
+Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
+`TestDosCookiesTokenYLaBuenaEsLaSegunda` y `TestElRastroDiceCuandoNoVinoNada`, en
+`api/internal/auth/rastro_test.go`.
+
+---
+
 ## 4. Lo que no puede pasar nunca
 
 - **Nada se descarta en silencio.** Un apunte rechazado se queda a la vista con

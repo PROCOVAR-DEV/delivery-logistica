@@ -789,7 +789,24 @@ func (s *Servidor) eventos(w http.ResponseWriter, r *http.Request) {
 func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Difusor) {
 	u, err := s.verif.DelaPeticion(r)
 	if err != nil {
-		httpx.Registro(r).Warn("eventos sin sesión", "motivo", err)
+		// EL 401 DE ESTA RUTA ES MUDO EN EL NAVEGADOR, Y POR ESO SE ESCRIBE ENTERO AQUÍ.
+		//
+		// `EventSource` no da el código: lo único que ve la web es `readyState == CLOSED`,
+		// que igual es un 401 que un `Content-Type` equivocado
+		// (`app/lib/nucleo/red/eventos_web.dart`). O sea que **este renglón del registro
+		// es la única versión de los hechos que va a existir**.
+		//
+		// El 29/09/2026 a las 21:30:50 UTC salió uno de éstos con su `motivo` y nada más.
+		// Con eso NO se puede saber si el rechazado era el navegador o el teléfono —siete
+		// días de sesión contra quince minutos—, que era justo la pregunta, y la causa se
+		// quedó sin concluir. Lo que falta para contestarla en un minuto
+		// lo pone `auth.RastroDe`: por dónde vino, cuántas cookies `token` había, la vida
+		// entera del token y qué agente lo mandó. Nada de eso es secreto y el token no sale.
+		//
+		// Al cliente se le sigue contestando `Unauthorized` a secas: contarle a quien
+		// prueba por qué falló es regalarle el mapa.
+		httpx.Registro(r).Warn("eventos sin sesión",
+			append([]any{"motivo", err}, auth.RastroDe(r, time.Now()).Campos()...)...)
 		// TEXTO PLANO, no JSON: es lo que dice el contrato y lo que sabe leer el cliente.
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusUnauthorized)

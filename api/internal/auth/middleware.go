@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"net/http"
+	"time"
 
 	"procovar/reparto-api/internal/httpx"
 )
@@ -21,7 +22,14 @@ func (v *Verificador) Exigir(siguiente http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, err := v.DelaPeticion(r)
 		if err != nil {
-			httpx.Registro(r).Warn("sesión rechazada", "motivo", err, "ruta", r.URL.Path)
+			// EL MOTIVO SOLO NO BASTA, y costó una noche averiguarlo: ver `rastro.go`.
+			// «el token está caducado» no dice si el rechazado es el navegador o el
+			// teléfono, y las dos sesiones duran cosas distintas (7 días contra 15
+			// minutos), así que el arreglo no es el mismo. Al cliente se le sigue
+			// contestando lo de siempre, sin decirle nada.
+			httpx.Registro(r).Warn("sesión rechazada",
+				append([]any{"motivo", err, "ruta", r.URL.Path},
+					RastroDe(r, time.Now()).Campos()...)...)
 			httpx.NoAutorizado(w, r)
 			return
 		}

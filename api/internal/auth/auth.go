@@ -129,22 +129,38 @@ func NuevoVerificador(secreto []byte) *Verificador {
 // El orden es el del contrato: cabecera `Authorization: Bearer <token>` primero —es por
 // donde entra la APK— y si no, la cookie `token`, que es lo que deja el login único de
 // la web.
+//
+// # SE PRUEBAN TODAS LAS CANDIDATAS, NO LA PRIMERA — 29/09/2026
+//
+// Aquí se hacía `r.Cookie("token")`, que devuelve **la primera y calla las demás**. Un
+// navegador puede traer dos cookies con el mismo nombre sin que sea culpa de nadie: basta
+// que otra aplicación de la casa deje una `token` con `Domain=.procovar.cloud` —que viaja
+// a todos los subdominios— para que se cuele por delante de la nuestra, que es de host y
+// de `Path=/`. Y el orden lo decide el navegador, no nosotros.
+//
+// Ése es un 401 permanente que no se puede explicar desde fuera: la sesión buena está
+// puesta, es válida, y nadie la mira. Probándolas todas la buena entra, y no se pierde
+// nada de seguridad porque todas pasan por la misma firma.
+//
+// El motivo que se devuelve cuando ninguna vale es **el de la primera**, para que el
+// registro diga lo mismo que decía en el caso normal de una sola credencial. Cuántas
+// había se anota aparte, en [RastroDe] (`cookies_token`).
 func (v *Verificador) DelaPeticion(r *http.Request) (*Usuario, error) {
-	crudo := ""
-	if cab := r.Header.Get("Authorization"); cab != "" {
-		if partes := strings.Fields(cab); len(partes) == 2 && strings.EqualFold(partes[0], "Bearer") {
-			crudo = partes[1]
-		}
-	}
-	if crudo == "" {
-		if c, err := r.Cookie("token"); err == nil {
-			crudo = c.Value
-		}
-	}
-	if strings.TrimSpace(crudo) == "" {
+	candidatas, _, _ := Credenciales(r)
+	if len(candidatas) == 0 {
 		return nil, ErrSinToken
 	}
-	return v.Verificar(crudo)
+	var primerFallo error
+	for _, crudo := range candidatas {
+		u, err := v.Verificar(crudo)
+		if err == nil {
+			return u, nil
+		}
+		if primerFallo == nil {
+			primerFallo = err
+		}
+	}
+	return nil, primerFallo
 }
 
 // Verificar comprueba la firma y la vigencia, y devuelve la persona.
@@ -244,6 +260,11 @@ type reclamos struct {
 	Sucursal      string   `json:"sucursal"`
 	Exp           *float64 `json:"exp"`
 	Nbf           *float64 `json:"nbf"`
+	// `iat` NO se usa para decidir nada —un token sin él vale igual— y está aquí sólo para
+	// poder contar `exp - iat` en el registro de un rechazo: es lo que separa la sesión de
+	// la web (7 días) de la de la APK (15 minutos) sin tener que creerse el token. Ver
+	// `rastro.go`.
+	Iat *float64 `json:"iat"`
 }
 
 // UnmarshalJSON tolera que los campos de texto vengan como null o como número. El
@@ -275,6 +296,7 @@ func (c *reclamos) UnmarshalJSON(b []byte) error {
 			Sucursal:      texto(suelto, "sucursal"),
 			Exp:           numero(suelto, "exp"),
 			Nbf:           numero(suelto, "nbf"),
+			Iat:           numero(suelto, "iat"),
 		}
 	}
 	*c = reclamos(a)

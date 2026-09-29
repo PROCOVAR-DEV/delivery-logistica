@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"math"
 	"net/http"
 	"strconv"
@@ -26,6 +27,25 @@ import (
 // columna—, y lo rellena `internal/alcance`. Los clientes MANUALES (sin código) se ven
 // siempre: no vinieron de ninguna sucursal concreta y esconderlos haría desaparecer
 // clientes que sí se atienden, sin decir nada.
+
+// avisarCambioDeClientes publica «cambió un cliente» para que las pantallas abiertas se
+// enteren sin esperar al temporizador.
+//
+// # AQUÍ HABÍA UN COMENTARIO QUE MENTÍA — corregido el 29/09/2026
+//
+// `eventos.go` decía que `CambioClientes` no lo publicaba nadie y que **no era un olvido**,
+// porque «en esta API NO HAY ninguna puerta que escriba `customers`». Era falso: la
+// escribe `POST /api/webhooks/pedido` con el motivo `cliente`
+// (`webhook_de_pedido.go`, `base.GuardarCliente`), que es justo el aviso de que alguien
+// corrigió la coordenada de un cliente en PEDIDO.
+//
+// Y ése es el peor de los avisos que se pueden perder, porque **el reparto ordena las
+// paradas por esa coordenada**: sin enterarse, la ruta se arma hacia el sitio de antes, con
+// números y todo, sin un solo error y sin nada que lo desmienta.
+//
+// Lo que sigue sin publicar es el proceso del espejo (`cmd/espejo`, `ciclo.go`,
+// `clientes()`), que corre en OTRO proceso y este bus vive en la memoria de éste.
+var avisarCambioDeClientes = func(_ context.Context) {}
 
 // TopeClientes: 50 por página, FIJO y no configurable.
 //

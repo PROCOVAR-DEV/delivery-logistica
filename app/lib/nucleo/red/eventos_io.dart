@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../registro/registro.dart';
-import 'eventos.dart' show avisoDeQueVolvimos;
+import 'eventos.dart' show PulsoDelCanal, avisoDeQueVolvimos;
 
 /// EL CANAL EN VIVO DE LA APK Y DEL ESCRITORIO, por SSE a mano sobre `dio`.
 ///
@@ -144,7 +144,11 @@ Duration esperaDeReintento(
 /// Abre el canal y devuelve el TIPO de cada cambio: `pedidos`, `rutas`,
 /// `tablero`, `catalogo`, `clientes`.
 ///
-/// El `listo` del principio y los latidos no salen por aqui: son del transporte.
+/// Los latidos no salen por aqui, y no por lo que ponia antes —«son del
+/// transporte»—: es que **cada aviso que sale de aqui cuesta una bajada**, y un
+/// latido cada veinte segundos seria el polling que esto vino a quitar. Lo que
+/// hacen es marcar [pulso]: «sigo vivo», sin disparar nada. El `listo` SI sale,
+/// como `avisoDeQueVolvimos`.
 ///
 /// [token] se pide AL ABRIR y en cada reintento, no antes: el par de tokens se
 /// renueva cada quince minutos, y uno cogido al construir el proveedor estaria
@@ -156,6 +160,7 @@ Stream<String> escucharEventos(
   String urlBase,
   Future<String?> Function() token, {
   Future<void> Function()? renovarSesion,
+  PulsoDelCanal? pulso,
   Duration esperaInicial = esperaInicialDeEventos,
   Duration esperaMaxima = esperaMaximaDeEventos,
   Duration silencioMaximo = silencioMaximoDeEventos,
@@ -564,6 +569,22 @@ Stream<String> escucharEventos(
 
     suscripcion = flujo.stream.listen(
       (trozo) {
+        // EL PULSO SE MARCA CON **CUALQUIER BYTE**, no con los avisos — 29/09/2026.
+        //
+        // Aqui es donde se sabe de verdad que el canal esta: si llegan bytes, hay
+        // socket y hay servidor al otro lado. El latido de cada veinte segundos
+        // (`api/internal/api/eventos.go`, `latidoSSE`) entra por aqui igual que un
+        // `cambio`, y es justamente el que faltaba.
+        //
+        // Va en el mismo sitio que el vigilante del silencio a proposito: son la
+        // misma pregunta contestada en los dos sentidos —«¿llego algo?»—, y
+        // tenerlas separadas seria tener dos ideas de cuando vive el canal.
+        //
+        // Lo que costaba no tenerlo: el vigia solo se enteraba del canal cuando
+        // llegaba un aviso PARA UNA PANTALLA, asi que un canal sano por el que no
+        // habia cambiado nada en seis minutos se leia como muerto y el reloj pedia
+        // la vuelta entera. El detalle, en `PulsoDelCanal`.
+        pulso?.latio();
         reiniciarVigilante();
         for (final b in trozo) {
           if (b == 10) {

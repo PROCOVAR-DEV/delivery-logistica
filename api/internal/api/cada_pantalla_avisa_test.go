@@ -75,11 +75,19 @@ func contarAvisos(t *testing.T) *contadorDeAvisos {
 	antPedidos, antCatalogo := avisarCambioDePedidos, avisarCambioDelCatalogo
 	antVeh, antAlm := avisarCambioDeVehiculos, avisarCambioDeAlmacenes
 	antSuc, antAj := avisarCambioDeSucursales, avisarCambioDeAjustes
+	// LOS CUATRO QUE FALTABAN — 29/09/2026. Sin ellos enganchados, `exige` medía sobre un
+	// contador ciego: una puerta que avisara de tipos de vehículo, de clientes, del canal o
+	// de la tasa salía como «no avisó de nada», y peor, el `total()` que caza el aviso DE
+	// MÁS no los contaba. Es el mismo agujero que tenía el propio código.
+	antTipos, antClientes := avisarCambioDeTiposDeVehiculo, avisarCambioDeClientes
+	antCanal, antTasa := avisarCambioEnElCanal, avisarTasaDeSucursal
 	t.Cleanup(func() {
 		avisarCambioDeRutas, avisarCambioDelTablero = antRutas, antTablero
 		avisarCambioDePedidos, avisarCambioDelCatalogo = antPedidos, antCatalogo
 		avisarCambioDeVehiculos, avisarCambioDeAlmacenes = antVeh, antAlm
 		avisarCambioDeSucursales, avisarCambioDeAjustes = antSuc, antAj
+		avisarCambioDeTiposDeVehiculo, avisarCambioDeClientes = antTipos, antClientes
+		avisarCambioEnElCanal, avisarTasaDeSucursal = antCanal, antTasa
 	})
 
 	avisarCambioDeRutas = anota(CambioRutas)
@@ -90,6 +98,13 @@ func contarAvisos(t *testing.T) *contadorDeAvisos {
 	avisarCambioDeAlmacenes = anota(CambioAlmacenes)
 	avisarCambioDeSucursales = anota(CambioSucursales)
 	avisarCambioDeAjustes = anota(CambioAjustes)
+	// Los tipos de vehículo publican el MISMO texto que la flota (`vehiculos`) porque la
+	// pantalla es la misma; lo que cambia es a quién le llega, y eso lo vigila
+	// `TestLaTablaDeQueAvisoLlevaSucursal`, no esto.
+	avisarCambioDeTiposDeVehiculo = anota(CambioVehiculos)
+	avisarCambioDeClientes = anota(CambioClientes)
+	avisarCambioEnElCanal = anota(CambioCanal)
+	avisarTasaDeSucursal = func(context.Context, string) { c.tipos = append(c.tipos, CambioAjustes) }
 	return c
 }
 
@@ -844,7 +859,7 @@ func TestNingunaEscrituraDeNingunaPantallaSeQuedaSinAvisar(t *testing.T) {
 	// Qué gancho tiene que aparecer dentro de cada uno.
 	gancho := map[string]string{
 		"vehiculos.go":      "avisarCambioDeVehiculos(",
-		"tipos_vehiculo.go": "avisarCambioDeVehiculos(",
+		"tipos_vehiculo.go": "avisarCambioDeTiposDeVehiculo(",
 		"sucursales.go":     "avisarCambioDeSucursales(",
 		"ajustes.go":        "avisarCambioDeAjustes(",
 		"almacenes.go":      "avisarCambioDeAlmacenes(",

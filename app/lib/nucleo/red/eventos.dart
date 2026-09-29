@@ -3,6 +3,8 @@ import 'eventos_stub.dart'
     if (dart.library.io) 'eventos_io.dart'
     as destino;
 
+import '../reloj.dart';
+
 // EL ORDEN DE LAS CLAUSULAS IMPORTA: Dart se queda con la PRIMERA que se cumple.
 // `dart.library.js_interop` va delante para que la web siga eligiendo la suya
 // pase lo que pase; `dart.library.io` coge la APK, el escritorio y las pruebas
@@ -116,17 +118,84 @@ const avisoDeQueVolvimos = 'al-volver';
 /// No se descarta en silencio: lo que se salta queda en el registro.
 const sueloEntreVolver = Duration(seconds: 30);
 
-typedef EscuchaDeEventos = Stream<String> Function(
-  String urlBase,
-  Future<String?> Function() token, {
-  Future<void> Function()? renovarSesion,
-});
+/// EL PULSO DEL CANAL: «sigo vivo», y **nada mas**.
+///
+/// ## El agujero que tapa — 29/09/2026
+///
+/// El reloj del vigia dejo de ser el mecanismo y paso a ser la red de seguridad:
+/// mientras se sepa del canal, el tic no dispara nada
+/// (`VigiaDeSincronizacion.elCanalSeDaPorVivo`). Pero «saberse del canal» se
+/// apuntaba **solo cuando llegaba un aviso a una pantalla** —un `cambio`, o el
+/// `al-volver` de cada reconexion—, y eso NO es lo que dice si el canal vive.
+///
+/// El canal manda un latido cada **veinte segundos** (`api/internal/api/
+/// eventos.go`, `latidoSSE`). Un canal perfectamente sano por el que no ha
+/// cambiado nada en seis minutos —una oficina en calma, la hora del almuerzo— se
+/// leia como canal muerto, y el reloj pedia la vuelta entera. O sea que el
+/// polling seguia ahi, solo que mas espaciado: medido en la web ese dia, clavado
+/// a su periodo, 20:07:42 → 20:09:40 → 20:11:41 → 20:13:40.
+///
+/// Lo unico que sostenia el invento era que **el proxy corta cada 300 s** y cada
+/// reconexion manda `al-volver`: o sea que la prueba de vida era un corte de la
+/// infraestructura. El dia que ese corte se alargue —o en local, donde no hay
+/// proxy ninguno— el reloj vuelve a pedir contra un canal sano.
+///
+/// ## Por que NO viaja por el `Stream<String>` de los avisos
+///
+/// Porque **un latido no es un cambio**. Por ese stream van los dos que le dicen
+/// algo a una pantalla —el tipo que cambio y el `al-volver`—, y cada uno cuesta un
+/// ciclo de sincronizacion entero, un `GET /api/board` por tablero abierto y la
+/// flota por cada pantalla de vehiculos abierta. Un latido metido ahi seria eso
+/// **cada veinte segundos**: justo lo contrario de lo que se vino a arreglar.
+///
+/// Se podria filtrar en cada oyente, pero olvidarse de filtrar **no falla**: deja
+/// una bajada cada veinte segundos que nadie relaciona con esto. Asi que el
+/// latido no llega a ser un evento en ningun momento: el transporte marca aqui y
+/// el vigia lee de aqui. No hay ninguna forma de que dispare nada.
+///
+/// ## Quien lo marca
+///
+/// **La APK y el escritorio** (`eventos_io.dart`) lo marcan con *cualquier* byte
+/// que llegue por el socket, latido incluido: si llegan bytes, el canal esta.
+///
+/// **La web** (`eventos_web.dart`) no puede ver el latido: `EventSource` tira los
+/// comentarios SSE (`: latido`) sin avisar a nadie, y no hay forma de pedirselos.
+/// Alli el pulso lo marcan el `listo` de cada (re)conexion y los cambios. Esta
+/// escrito con todo el detalle en ese fichero.
+class PulsoDelCanal {
+  PulsoDelCanal({Reloj reloj = relojDelAparato}) : _reloj = reloj;
+
+  final Reloj _reloj;
+  DateTime? _ultimo;
+
+  /// Cuando se supo del canal por ultima vez. `null` es **nunca**, que no es
+  /// «hace mucho»: es el aparato al que el canal no le ha abierto, y ahi es
+  /// donde mas falta hace el reloj.
+  DateTime? get ultimo => _ultimo;
+
+  /// Llego algo por el canal. No dice QUE llego, y a proposito: aqui no hay
+  /// ningun dato, solo la hora.
+  void latio() => _ultimo = _reloj();
+}
+
+typedef EscuchaDeEventos =
+    Stream<String> Function(
+      String urlBase,
+      Future<String?> Function() token, {
+      Future<void> Function()? renovarSesion,
+      PulsoDelCanal? pulso,
+    });
 
 /// Abre el canal y devuelve el TIPO de cada cambio: `pedidos`, `rutas`,
 /// `tablero`, `catalogo`, `clientes`.
 ///
-/// El `listo` del principio y los latidos no salen por aqui: son del transporte y
-/// no le dicen nada a una pantalla.
+/// Los latidos no salen por aqui: no le dicen nada a una pantalla y, si salieran,
+/// cada uno costaria una bajada cada veinte segundos. Lo que hacen es marcar
+/// [pulso], que es lo que mira el vigia para callar el reloj. El `listo` SI sale,
+/// como `avisoDeQueVolvimos`.
+///
+/// [pulso] es opcional: sin el, el canal funciona igual y el vigia se queda con
+/// lo que ya sabia —los cambios y el `al-volver`—, que es exactamente lo de antes.
 ///
 /// En los destinos donde todavia no hay implementacion devuelve un stream vacio,
 /// y entonces manda el temporizador, que es exactamente lo de antes.
@@ -155,7 +224,13 @@ Stream<String> escucharEventos(
   String urlBase,
   Future<String?> Function() token, {
   Future<void> Function()? renovarSesion,
-}) => destino.escucharEventos(urlBase, token, renovarSesion: renovarSesion);
+  PulsoDelCanal? pulso,
+}) => destino.escucharEventos(
+  urlBase,
+  token,
+  renovarSesion: renovarSesion,
+  pulso: pulso,
+);
 
 /// `true` donde el canal esta implementado. Sirve para poder DECIRLO —y para que
 /// una prueba no compruebe algo que en ese destino no existe—.

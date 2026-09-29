@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reparto/nucleo/frescura/copia_bajada.dart';
 import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/red/fallos.dart';
+import 'package:reparto/navegacion/estado_navegacion.dart';
 
 import '../../../diseno/cajon.dart';
 import '../../../diseno/colores.dart';
@@ -35,11 +36,14 @@ class PantallaAlmacenes extends ConsumerStatefulWidget {
 class _PantallaAlmacenesState extends ConsumerState<PantallaAlmacenes> {
   bool _guardando = false;
 
-  SucursalDeAccesos? _sucursal(List<SucursalDeAccesos> todas) {
-    if (todas.isEmpty) return null;
-    final elegida = ref.watch(sucursalElegidaProvider);
-    return todas.where((s) => s.codigo == elegida).firstOrNull ?? todas.first;
-  }
+  /// La regla vive en [cualSeConfigura], que es donde se prueba. Aqui solo se
+  /// le dan las dos piezas: lo elegido en el desplegable de la pantalla y lo
+  /// elegido en la barra de arriba.
+  SucursalDeAccesos? _sucursal(List<SucursalDeAccesos> todas) => cualSeConfigura(
+    todas,
+    elegidaEnLaPantalla: ref.watch(sucursalElegidaProvider),
+    codigoDeLaBarra: ref.watch(codigoDeLaSucursalMiradaProvider),
+  );
 
   /// Guarda **la lista completa** de la sucursal. Todo cambio pasa por aqui:
   /// alta, edicion y baja son la misma llamada con una lista distinta.

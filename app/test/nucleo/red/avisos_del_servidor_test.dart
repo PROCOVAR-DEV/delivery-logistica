@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/proveedores.dart';
+import 'package:reparto/nucleo/red/eventos.dart' show PulsoDelCanal;
 
 /// EL CANAL COMPARTIDO: uno solo para los dos que lo escuchan, y que se vuelve a
 /// abrir cuando se vuelve a entrar.
@@ -83,6 +84,7 @@ class _CanalFalso {
     String urlBase,
     Future<String?> Function() token, {
     Future<void> Function()? renovarSesion,
+    PulsoDelCanal? pulso,
   }) {
     aperturas++;
     final control = StreamController<String>();

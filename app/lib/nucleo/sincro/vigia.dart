@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+import '../red/eventos.dart' show PulsoDelCanal;
 import '../registro/registro.dart';
 import '../reloj.dart';
 
@@ -110,6 +111,7 @@ class VigiaDeSincronizacion {
     Stream<bool> Function() avisosDeRed = avisosDeConnectivityPlus,
     Stream<void> Function()? avisosDeLaCola,
     Stream<String> Function()? avisosDelServidor,
+    PulsoDelCanal? pulso,
     Duration periodo = periodoPorDefecto,
     CrearTemporizador crearTemporizador = Timer.periodic,
     LoQueHayAhora loQueHay = noSeSabeLoQueHay,
@@ -118,6 +120,7 @@ class VigiaDeSincronizacion {
        _avisosDeRed = avisosDeRed,
        _avisosDeLaCola = avisosDeLaCola,
        _avisosDelServidor = avisosDelServidor,
+       _pulso = pulso,
        _periodo = periodo,
        _crearTemporizador = crearTemporizador,
        _loQueHay = loQueHay,
@@ -137,24 +140,38 @@ class VigiaDeSincronizacion {
   /// uno es una bajada por diferencias que casi siempre vuelve vacia.
   static const periodoPorDefecto = Duration(minutes: 5);
 
-  /// DOS MINUTOS EN WEB, y el numero tambien esta pensado.
+  /// DOS MINUTOS EN WEB. El numero se queda; **lo que significa ha cambiado**.
   ///
-  /// En la web no queda ni un gesto para traer el dia a mano: se le quitaron la
-  /// pieza del Panel y la franja de estado, porque ahi no hay dia que traer —se
-  /// sincroniza solo. Eso sube el liston de este reloj: **es lo unico que trae
-  /// los cambios**, y si se queda corto la oficina mira pedidos de hace cinco
-  /// minutos sin tener ningun sitio donde darle.
+  /// ## Se eligio para otra cosa — y por eso hay que releerlo, 29/09/2026
   ///
-  /// Los dos motivos que alargan el periodo en la APK aqui no aplican: no hay
-  /// bateria que gastar ni datos que pagar, y la conexion no es la del patio de
-  /// un almacen en Palma sino la de un navegador en una oficina. Lo que si
-  /// aplica es lo contrario — cada tic es una bajada **por diferencias** que
-  /// casi siempre vuelve vacia, o sea una peticion pequena.
+  /// Aqui ponia que este reloj «es lo unico que trae los cambios» en la web, y
+  /// eso ya no es verdad: lo que los trae es el canal en vivo, y desde
+  /// [elCanalSeDaPorVivo] el tic **no dispara nada mientras el canal viva**. O
+  /// sea que con el canal sano estos dos minutos cuestan exactamente cero
+  /// peticiones: una linea en el registro y volver a dormir.
   ///
-  /// Y corto del todo tampoco: cada ciclo enciende el giro y el `actualizando…`
-  /// de la barra superior, asi que medio minuto seria un parpadeo constante
-  /// arriba — que es justo la queja que se viene a arreglar. Dos minutos son
-  /// unos 240 ciclos en una jornada de ocho horas, quietos entre uno y otro.
+  /// Asi que este periodo ya no decide cada cuanto se pide. Decide **cuanto
+  /// tarda en volver el trabajo cuando el canal esta muerto de verdad**, que es
+  /// lo unico para lo que queda el reloj.
+  ///
+  /// ## Y para ESO dos minutos siguen siendo el numero
+  ///
+  /// Con el canal caido la web no tiene ninguna otra forma de enterarse: no hay
+  /// aviso de `connectivity_plus` que valga en un navegador y no queda ni un
+  /// gesto para traer el dia a mano —se le quitaron la pieza del Panel y la
+  /// franja de estado, porque ahi no hay dia que traer—. La cuenta entera de lo
+  /// que se puede quedar viendo alguien es **el plazo de [elCanalSeDaPorVivo]
+  /// mas un periodo**: 6 + 2 = **ocho minutos** en el peor caso. Con los cinco de
+  /// la APK serian once, y once minutos de tablero viejo en la oficina es
+  /// justamente la queja de la que salio todo esto.
+  ///
+  /// Mas corto tampoco: cada ciclo enciende el giro y el `actualizando…` de la
+  /// barra superior, y con el canal caido eso si sale en cada tic. Un minuto
+  /// seria el doble de peticiones contra un servidor que, si el canal no abre,
+  /// probablemente ya tenga algun problema.
+  ///
+  /// Lo que costaba antes, y ya no: 240 ciclos en una jornada de ocho horas,
+  /// **todos**, con el canal bueno o malo. Hoy, con el canal bueno, cero.
   static const periodoEnWeb = Duration(minutes: 2);
 
   /// CUANTO SE DA POR VIVO EL CANAL DESDE LO ULTIMO QUE LLEGO POR EL.
@@ -175,13 +192,30 @@ class VigiaDeSincronizacion {
   ///
   /// ## De donde sale el numero
   ///
-  /// No hace falta que el canal mande nada para saber que vive: **el proxy lo
-  /// corta cada 300 segundos exactos** —medido en el registro de la api— y cada
-  /// reconexion manda `al-volver`. O sea que por el canal llega algo cada cinco
-  /// minutos como mucho, aunque no cambie nada en el servidor.
+  /// No hace falta que el canal mande ningun **cambio** para saber que vive, y
+  /// eso se sabe por dos caminos distintos segun el destino:
   ///
-  /// Seis minutos deja margen a ese corte sin que un canal de verdad muerto
-  /// tarde mas de una vuelta en notarse.
+  ///  * **APK y escritorio**: el servidor late cada **20 s** (`latidoSSE`) y ese
+  ///    latido marca el pulso (`PulsoDelCanal`). Seis minutos son dieciocho
+  ///    latidos: si no llego ni uno, ese canal no existe.
+  ///  * **La web**: `EventSource` tira los latidos —son comentarios SSE— y alli
+  ///    lo que marca el pulso es el `listo` de cada reconexion. **El proxy corta
+  ///    el canal cada 300 s exactos** —medido en el registro de la api—, asi que
+  ///    llega uno cada cinco minutos como mucho. El porque de no inventarse un
+  ///    pulso con `readyState`, en `eventos_web.dart`.
+  ///
+  /// Seis minutos es el numero que le deja margen al peor de los dos —los 300 s
+  /// del proxy, mas lo que tarde en reconectar una linea mala— sin que un canal
+  /// de verdad muerto tarde mas de una vuelta en notarse.
+  ///
+  /// ## Lo que se apuntaba antes, y por que no bastaba — 29/09/2026
+  ///
+  /// Esto se apuntaba **solo con los avisos que le llegan a una pantalla**: un
+  /// `cambio` o el `al-volver`. Con eso, un canal perfectamente sano por el que no
+  /// habia cambiado nada en seis minutos se leia como canal muerto y el reloj
+  /// pedia la vuelta entera — o sea que el polling seguia ahi, solo que mas
+  /// espaciado. Medido en la web ese dia, clavado al periodo: 20:07:42 → 20:09:40
+  /// → 20:11:41 → 20:13:40.
   static const elCanalSeDaPorVivo = Duration(minutes: 6);
 
   final Future<void> Function(String motivo, String? avisoDe) _ciclo;
@@ -198,6 +232,25 @@ class VigiaDeSincronizacion {
   /// `null` o un stream vacio, y el temporizador sigue trayendo el trabajo. Un
   /// aviso que no llega no puede dejar a nadie sin sincronizar.
   final Stream<String> Function()? _avisosDelServidor;
+
+  /// EL LATIDO DEL CANAL, que **no** viaja por [_avisosDelServidor] — 29/09/2026.
+  ///
+  /// Es la otra mitad de [elCanalSeDaPorVivo], y sin ella el reloj seguia pidiendo
+  /// contra un canal sano: por el stream de arriba sólo llega lo que le dice algo
+  /// a una pantalla —un `cambio`, o el `al-volver` de cada reconexion—, asi que un
+  /// canal por el que no ha cambiado nada en seis minutos se leia como muerto.
+  ///
+  /// El canal late cada veinte segundos. Ese latido **no puede** meterse por el
+  /// stream de los avisos: alli cada aviso cuesta un ciclo de sincronizacion, un
+  /// `GET /api/board` por tablero abierto y la flota por cada pantalla de
+  /// vehiculos, o sea una bajada cada veinte segundos — lo contrario de lo que se
+  /// viene a arreglar. Por eso llega por aqui, donde no hay nada que disparar: el
+  /// transporte apunta la hora y ya. Todo el detalle, en [PulsoDelCanal].
+  ///
+  /// Es opcional: sin el, el vigia se queda con lo que ya sabia y el reloj se
+  /// comporta como antes. Peor, pero nunca ciego.
+  final PulsoDelCanal? _pulso;
+
   final Duration _periodo;
   final CrearTemporizador _crearTemporizador;
   final LoQueHayAhora _loQueHay;
@@ -401,9 +454,29 @@ class VigiaDeSincronizacion {
   /// justo el caso del aparato al que el canal no le abre, y es cuando mas falta
   /// hace el reloj.
   bool _elCanalVive() {
-    final ultimo = _ultimoDelCanal;
+    final ultimo = _ultimaSenalDelCanal();
     if (ultimo == null) return false;
     return _reloj().difference(ultimo) < elCanalSeDaPorVivo;
+  }
+
+  /// LA ULTIMA SEÑAL DEL CANAL, venga por donde venga.
+  ///
+  /// Son dos fuentes porque son dos caminos distintos y ninguno sobra:
+  ///
+  ///  * [_pulso] — **cualquier** cosa que llegue por el canal, latido incluido.
+  ///    Es la buena, y es la que faltaba.
+  ///  * [_ultimoDelCanal] — lo que llega por el stream de los avisos. Se sigue
+  ///    apuntando porque quien monte el vigia sin pasarle el pulso —una prueba, un
+  ///    destino sin canal— no puede quedarse peor que antes.
+  ///
+  /// Se coge la mas reciente de las dos: las dos dicen lo mismo —«se supo del
+  /// canal»— y quedarse con la vieja seria darlo por muerto teniendolo vivo.
+  DateTime? _ultimaSenalDelCanal() {
+    final delPulso = _pulso?.ultimo;
+    final delStream = _ultimoDelCanal;
+    if (delPulso == null) return delStream;
+    if (delStream == null) return delPulso;
+    return delPulso.isAfter(delStream) ? delPulso : delStream;
   }
 
   void _quitarTemporizador() {

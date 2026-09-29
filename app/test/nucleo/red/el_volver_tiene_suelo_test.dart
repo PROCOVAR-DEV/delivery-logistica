@@ -42,7 +42,7 @@ void main() {
       overrides: [
         relojProvider.overrideWithValue(() => ahora),
         escuchaDeEventosProvider.overrideWithValue(
-          (_, _, {renovarSesion}) => delCanal.stream,
+          (_, _, {renovarSesion, pulso}) => delCanal.stream,
         ),
       ],
     );

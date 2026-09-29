@@ -5,7 +5,7 @@ import 'dart:js_interop';
 import 'package:web/web.dart' as web;
 
 import '../registro/registro.dart';
-import 'eventos.dart' show avisoDeQueVolvimos;
+import 'eventos.dart' show PulsoDelCanal, avisoDeQueVolvimos;
 
 /// EL CANAL EN VIVO DE LA WEB, por `EventSource`.
 ///
@@ -30,6 +30,32 @@ import 'eventos.dart' show avisoDeQueVolvimos;
 /// (ver `eventos_io.dart`): **una sola renovacion por canal**, y **ninguna si la
 /// sesion no cambia**.
 ///
+/// ## AQUI EL LATIDO NO SE PUEDE VER, y hay que saberlo — 29/09/2026
+///
+/// El servidor manda un latido cada veinte segundos, pero lo manda como
+/// **comentario SSE** (`: latido`, en `api/internal/api/eventos.go`), y
+/// `EventSource` **descarta los comentarios**: no hay evento, no hay retrollamada,
+/// no hay forma de pedirlos. Asi que aqui el [PulsoDelCanal] no se puede marcar
+/// con el latido como en la APK; se marca con lo que SI se ve: el `listo` de cada
+/// (re)conexion y cada `cambio`.
+///
+/// **Y no se inventa uno con `readyState`**, que era lo facil. Un `EventSource`
+/// medio muerto —el socket que se queda abierto de este lado y por el que no
+/// llega nada, el portatil que sale de la suspension, el NAT que tira el flujo sin
+/// avisar— se queda en `OPEN` **para siempre**: el navegador no le pone plazo
+/// ninguno. Un pulso sacado de ahi diria «el canal vive» eternamente, el reloj se
+/// callaria eternamente, y la web se quedaria **ciega sin ninguna forma de
+/// volver** — porque aqui no hay aviso de `connectivity_plus` que sirva ni un
+/// gesto para traer el dia a mano. El reloj usa una peticion HTTP aparte, que es
+/// justo lo que sigue funcionando cuando ese socket ya no.
+///
+/// Lo que sostiene el silencio del reloj en la web es entonces el `listo`: **el
+/// proxy corta el canal cada 300 s exactos** —medido en el registro de la api— y
+/// cada reconexion trae uno. Eso cabe de sobra en los seis minutos de
+/// `VigiaDeSincronizacion.elCanalSeDaPorVivo`. Si algun dia ese corte se alarga, la
+/// web vuelve a pedir por el reloj: molesta, pero es el lado seguro del fallo —
+/// pide de mas, no se queda ciega—.
+///
 /// ## Lo que aqui NO se puede saber, y por que aun asi compensa
 ///
 /// `EventSource` no dice el codigo. Un `readyState == CLOSED` puede ser un 401 o
@@ -43,6 +69,7 @@ Stream<String> escucharEventos(
   String urlBase,
   Future<String?> Function() token, {
   Future<void> Function()? renovarSesion,
+  PulsoDelCanal? pulso,
 }) {
   final control = StreamController<String>();
   web.EventSource? fuente;
@@ -70,25 +97,58 @@ Stream<String> escucharEventos(
     // en el historial del navegador, y ahi se queda; la cookie no sale en
     // ninguno de los tres.
     //
-    // No es exposicion nueva: en la web el token ya vive en `localStorage`, o sea
-    // que el JavaScript de esta pagina ya lo tiene. `SameSite=Strict` para que no
-    // viaje desde otro sitio, y `Secure` porque esto sirve por https.
-    //
     // Se llama `token` porque es el nombre que ya lee `auth.DelaPeticion` del
     // reparto — la misma puerta que usan la APK y la web, sin inventar otra.
+    //
+    // ## SIN TOKEN **TAMBIEN** SE ABRE — 29/09/2026, y hasta hoy no
+    //
+    // Aqui habia un `if (t == null) { no se abre; return; }` con un comentario
+    // que daba por hecho que «en la web el token ya vive en localStorage». **Eso
+    // sólo es verdad por la puerta de respaldo** (usuario y contraseña). Por la
+    // puerta normal se entra por Accesos, y esa sesion es una cookie `httpOnly`
+    // que el JavaScript no puede leer: `localStorage` esta VACIO, `token()`
+    // devuelve `null`, y ese `if` mataba el canal **siempre**, ademas cerrando el
+    // control para toda la pestaña.
+    //
+    // O sea que la web nunca abrio el canal. Ni una vez. Medido el 29/09/2026 en
+    // produccion por tres caminos: `/api/eventos` no aparece en el panel de red,
+    // `performance.getEntriesByType('resource')` no tiene ni una entrada, y un
+    // espia puesto sobre el constructor `EventSource` registro **cero intentos**
+    // en hora y media. Cero errores en consola: fallaba en silencio absoluto, y
+    // lo unico que traia cambios era el temporizador — el «pollings» que este
+    // trabajo venia justamente a quitar.
+    //
+    // Y lo que duele: **no hacia ninguna falta ese token**. El servidor acepta
+    // `Authorization: Bearer` **o la cookie `token`** (`internal/auth/auth.go`,
+    // `DelaPeticion`), y esa cookie es la que ya deja puesta el login unico
+    // (`internal/api/auth_web.go`, `cookieDeLaWeb`). Con `withCredentials: true`
+    // el navegador la manda solo. Estaba todo puesto; se plantaba en el `if` de
+    // antes de intentarlo.
+    //
+    // Asi que el token, si lo hay, se escribe en la cookie como siempre —es la
+    // puerta de respaldo, donde no hay cookie de Accesos— y si no lo hay **se
+    // abre igual** y que conteste el servidor. Un 401 se sigue tratando abajo
+    // con sus dos frenos; lo que no puede pasar es no preguntar.
     if (control.isClosed) return;
     final t = await token();
-    if (t == null || t.isEmpty) {
-      Registro.info('canal de eventos: sin sesión todavía, no se abre');
-      unawaited(control.close());
-      return;
-    }
+    final hayToken = t != null && t.isNotEmpty;
     // FRENO 2: la renovacion no cambio la sesion, asi que no se insiste.
-    if (t == tokenRechazado) {
+    //
+    // Sólo aplica **cuando hay token que comparar**. Sin el, `t` y
+    // `tokenRechazado` son los dos `null` y el freno se dispararia solo en el
+    // segundo intento, que es cambiar un canal muerto por otro.
+    if (hayToken && t == tokenRechazado) {
       await cerrarDelTodo('el canal se rechaza y la sesión no ha cambiado');
       return;
     }
-    web.document.cookie = 'token=$t; Path=/; Secure; SameSite=Strict';
+    if (hayToken) {
+      web.document.cookie = 'token=$t; Path=/; Secure; SameSite=Strict';
+    } else {
+      Registro.info(
+        'canal de eventos: sin token guardado; se abre con la cookie del '
+        'acceso único',
+      );
+    }
 
     try {
       fuente = web.EventSource(
@@ -119,19 +179,48 @@ Stream<String> escucharEventos(
     fuente!.addEventListener(
       'listo',
       (web.Event _) {
+        // Se supo del canal. En la web esto es lo mas parecido a un latido que
+        // hay —el de verdad lo tira `EventSource`—, y llega cada vez que el proxy
+        // corta y el navegador reconecta.
+        pulso?.latio();
         yaSeRenovoPorUn401 = false;
         tokenRechazado = null;
         if (!control.isClosed) control.add(avisoDeQueVolvimos);
       }.toJS,
     );
 
+    // EL LATIDO, que desde el 29/09/2026 SI se ve desde aqui.
+    //
+    // Salia como comentario SSE (`: latido`) y `EventSource` descarta los
+    // comentarios por especificacion, asi que en la web era invisible. Ahora el
+    // servidor lo manda como evento con nombre —`event: latido` con su
+    // `data: {}`, que una trama con el buffer de datos vacio el navegador
+    // tampoco la entrega— y aqui se escucha igual que en la APK.
+    //
+    // **Marca el pulso y NO se reenvia.** Un latido no es un cambio: si saliera
+    // por el stream costaria un ciclo, un `GET /api/board` por cada tablero
+    // abierto y la flota por cada pantalla de vehiculos, cada veinte segundos.
+    // Eso es peor que el temporizador que esto viene a quitar.
+    //
+    // El nombre esta atado del otro lado por `TestElNombreDelLatidoNoSeRenombraSolo`
+    // (`api/internal/api/eventos_test.go`), que fija el literal y la trama entera
+    // y nombra este fichero en su mensaje. Sin esa prueba, renombrarlo alli
+    // dejaba toda la api en verde y la web muda otra vez.
+    fuente!.addEventListener(
+      'latido',
+      (web.Event _) {
+        pulso?.latio();
+      }.toJS,
+    );
+
     // El `cambio` es el unico que le dice algo a una pantalla. El `listo` del
-    // principio y los latidos son del transporte: sirven para que el navegador
+    // principio y el latido son del transporte: sirven para que el navegador
     // de la conexion por abierta y para que un proxy no la cierre por callada,
     // y no se reenvian.
     fuente!.addEventListener(
       'cambio',
       (web.Event e) {
+        pulso?.latio();
         final datos = (e as web.MessageEvent).data.dartify();
         control.add(_tipoDe(datos));
       }.toJS,

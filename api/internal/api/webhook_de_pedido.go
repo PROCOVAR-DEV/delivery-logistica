@@ -330,6 +330,23 @@ func (s *Servidor) aplicarElAviso(
 				http.StatusServiceUnavailable
 		}
 		reg.Info("pedido quitado por aviso de PEDIDO")
+		// SE AVISA A LAS PANTALLAS, y son DOS — 29/09/2026.
+		//
+		// Hasta hoy por aquí sólo salía `canal`, que es el aviso de la pantalla del
+		// desarrollador. O sea: se borraba un pedido de la base y **ninguna pantalla del
+		// logístico se enteraba de que había desaparecido**.
+		//
+		//   - `pedidos`, porque la fila se fue de `orders`;
+		//   - `tablero`, porque `board_placements.order_id` cuelga de `orders` con
+		//     `ON DELETE CASCADE` (`00002_tablero.sql`): si ese pedido estaba colocado en
+		//     una zona, la tarjeta se va con él. Quien esté armando el tablero tiene que
+		//     verla irse, no seguir arrastrando algo que ya no existe.
+		//
+		// Van sin acotar porque quien entra por esta puerta es el servicio de PEDIDO, que no
+		// es una persona y no tiene sucursal: `sucursalDelAlcance` devolvería vacío de todos
+		// modos, y el pedido borrado puede ser de cualquiera de las ocho.
+		avisarCambioDePedidos(ctx)
+		avisarCambioDelTablero(ctx)
 		return respuestaDelWebhook{Aplicados: 1}, http.StatusOK
 
 	// EL CLIENTE SE MOVIÓ DE SITIO. El reparto ordena las paradas por su coordenada: si
@@ -352,6 +369,11 @@ func (s *Servidor) aplicarElAviso(
 				http.StatusServiceUnavailable
 		}
 		reg.Info("cliente al día por aviso de PEDIDO", "cliente", c.Cliente.ID)
+		// Y SE AVISA. `CambioClientes` llevaba desde el principio declarado y sin publicar,
+		// con un comentario en `eventos.go` que lo daba por bueno diciendo que aquí no hay
+		// ninguna puerta que escriba `customers`. La hay, y es ésta. Ver
+		// `avisarCambioDeClientes` en `clientes.go`.
+		avisarCambioDeClientes(ctx)
 		return respuestaDelWebhook{Aplicados: 1}, http.StatusOK
 	}
 

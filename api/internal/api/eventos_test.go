@@ -150,9 +150,25 @@ func TestEventosMandaListoCambioYLatido(t *testing.T) {
 		t.Errorf("el dato del listo es %q", l)
 	}
 
-	// El latido: un comentario SSE, sin evento. Es lo único que impide que el proxy corte
-	// la conexión por callada.
-	esperarLinea(t, ch, ": latido", time.Second)
+	// EL LATIDO, Y SE MIRAN LAS DOS LÍNEAS.
+	//
+	// Es lo único que impide que el proxy corte la conexión por callada, y desde el
+	// 29/09/2026 va con NOMBRE y con `data:` para que el navegador pueda verlo: el
+	// `EventSource` descarta los comentarios SSE, y una trama sin `data:` tampoco la
+	// entrega. Mirar sólo una de las dos líneas deja pasar justo la mitad que lo haría
+	// invisible en la web — y eso no falla: el canal sigue vivo, lo que vuelve es el reloj.
+	if l := esperarLinea(t, ch, "event: ", time.Second); l != "event: "+NombreDelLatido {
+		t.Fatalf("el latido salió como %q y tenía que ser «event: %s».\n"+
+			"  Un comentario SSE (`: latido`) mantiene la conexión abierta pero el "+
+			"`EventSource` del navegador lo tira por especificación: la web se queda sin "+
+			"saber que el canal está vivo y le vuelve el reloj.", l, NombreDelLatido)
+	}
+	if l := esperarLinea(t, ch, "data:", time.Second); l != "data: {}" {
+		t.Errorf("el latido llegó con %q y tiene que llevar `data: {}`.\n"+
+			"  Un evento SIN `data:` el navegador NO lo entrega: el analizador de SSE "+
+			"descarta la trama con el búfer de datos vacío, así que sería el mismo "+
+			"agujero con otra forma.", l)
+	}
 
 	// Y un cambio de verdad.
 	if !bus.Avisar(CambioPedidos, map[string]any{"pedidos": 42}) {
@@ -479,5 +495,93 @@ func hayCambio(canal <-chan Cambio) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// EL LATIDO SE VE DESDE EL NAVEGADOR, Y SIGUE SIENDO TRÁFICO.
+//
+// Son las dos mitades del cambio del 29/09/2026 y hay que comprobar las dos:
+//
+//  1. **Que se ve.** `EventSource` descarta los comentarios SSE por especificación, así que
+//     un `: latido` es invisible en la web. Con nombre y con `data:` lo entrega — las dos
+//     cosas: una trama con el búfer de datos vacío tampoco se entrega.
+//  2. **Que sigue sirviendo para lo que servía.** El latido está ahí para que un proxy no
+//     corte una conexión callada, o sea para que haya tráfico cada veinte segundos. Un
+//     evento con nombre son más bytes que un comentario, pero si dejara de repetirse la
+//     conexión se caería igual. Por eso se esperan DOS, no uno.
+//
+// Y la tercera, que es la que no se ve venir: **un latido no puede leerse como un cambio**.
+// Si lo fuera, cada veinte segundos toda pantalla abierta volvería a pedir su lista — el
+// sondeo que esto vino a quitar, con otro nombre.
+func TestElLatidoSeVeDesdeElNavegadorYNoEsUnCambio(t *testing.T) {
+	original := latidoSSE
+	latidoSSE = 20 * time.Millisecond
+	defer func() { latidoSSE = original }()
+
+	srv := httptest.NewServer(manejadorDeEventos(t, NuevoDifusor()))
+	t.Cleanup(srv.Close)
+
+	r, err := http.NewRequest(http.MethodGet, srv.URL+"/api/eventos", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Authorization", "Bearer "+tokenDePanel(t,
+		map[string]any{"sub": "u1", "role": "SUPER ADMIN"}))
+	resp, err := http.DefaultClient.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	ch := lineasDeEventos(resp.Body)
+	esperarLinea(t, ch, "event: listo", time.Second)
+	esperarLinea(t, ch, "data:", time.Second)
+
+	// Se leen las tramas del latido de una en una: nombre, dato, y vuelta.
+	for i := 1; i <= 2; i++ {
+		l := esperarLinea(t, ch, "event", time.Second)
+		if l != "event: "+NombreDelLatido {
+			t.Fatalf("el latido %d salió como %q.\n"+
+				"  Tenía que ser «event: %s»: un comentario SSE no lo entrega el "+
+				"navegador, y un `event: cambio` mandaría a toda pantalla abierta a "+
+				"pedir su lista cada veinte segundos.", i, l, NombreDelLatido)
+		}
+		if d := esperarLinea(t, ch, "data", time.Second); d != "data: {}" {
+			t.Fatalf("el latido %d llegó con %q y tiene que llevar `data: {}`: una trama "+
+				"sin datos no se entrega y el latido volvería a ser invisible", i, d)
+		}
+	}
+}
+
+// EL LATIDO ES UN CONTRATO ENTRE DOS FICHEROS QUE NO SE VEN, así que su literal se fija.
+//
+// La web lo escucha por su nombre (`app/lib/nucleo/red/eventos_web.dart`,
+// `addEventListener`), y un `EventSource` que escucha «latido» no recibe nada si el
+// servidor manda «pulso». **Eso no falla**: la conexión sigue abierta, los avisos siguen
+// llegando, y lo único que pasa es que la web deja de saber que el canal está vivo y le
+// vuelve el reloj — nueve vueltas en una jornada, sin un error y sin un registro.
+//
+// SE COMPARA CONTRA EL TEXTO A PELO Y NO CONTRA LA CONSTANTE, a propósito: una prueba que
+// escribe `NombreDelLatido` a los dos lados pasa con la constante renombrada, que es
+// exactamente el fallo que viene a cerrar. Es la misma trampa de la casa que
+// `protocolo_avisos_test.go` cierra para los tipos de `Cambio…` — allí se puede leer el
+// fichero de Dart porque el Dockerfile lo copia; aquí se fija el literal, que es lo que
+// obliga a venir a este mensaje antes de cambiarlo.
+func TestElNombreDelLatidoNoSeRenombraSolo(t *testing.T) {
+	if NombreDelLatido != "latido" {
+		t.Errorf("el latido se llama ahora %q por el cable.\n"+
+			"  La web lo escucha por su nombre en app/lib/nucleo/red/eventos_web.dart: si "+
+			"se cambia aquí y no allí, el navegador deja de ver el latido, el canal se lee "+
+			"como callado y vuelve el reloj. No falla, no da error y no sale en ningún "+
+			"registro.\n"+
+			"  Si de verdad hay que renombrarlo, se cambian LOS DOS y se cambia también "+
+			"este literal.", NombreDelLatido)
+	}
+	if bloqueDelLatido != "event: latido\ndata: {}\n\n" {
+		t.Errorf("el latido sale por el cable como %q.\n"+
+			"  Tiene que ser una trama SSE entera: `event:` para que el navegador no la "+
+			"tire como comentario, y `data:` para que la entregue — sin datos, el "+
+			"analizador de SSE descarta la trama y el latido vuelve a ser invisible.",
+			bloqueDelLatido)
 	}
 }

@@ -113,4 +113,17 @@ func (s *Servidor) apuntarLaRecepcion(
 	}); err != nil {
 		s.reg.Error("no se pudo apuntar la recepción del webhook", "err", err)
 	}
+
+	// Y SE AVISA AL CANAL — 29/09/2026.
+	//
+	// Ésta es LA puerta por la que entran los pedidos de verdad: el lote del espejo de
+	// PEDIDO, en tandas de doscientos. La pantalla del canal existe para contestar «¿está
+	// entrando algo?», y hasta hoy esa pregunta sólo se le contestaba con lo que entraba de
+	// uno en uno por el webhook — la tanda grande escribía su fila y no la enseñaba nadie
+	// hasta que alguien recargara. La fila acaba de escribirse: que se vea aparecer.
+	//
+	// Va DESPUÉS del apunte y fuera del `if err`: aunque el apunte falle, la tanda entró y
+	// `escritosHoy` cambió igual. Un aviso de más cuesta una petición de una pantalla que
+	// mira un administrador; uno de menos deja esa pantalla mintiendo.
+	avisarCambioEnElCanal(r.Context())
 }

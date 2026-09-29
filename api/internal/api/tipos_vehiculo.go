@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -22,6 +23,25 @@ import (
 //
 // GLOBAL, sin alcance por sucursal: un «camión» es un camión en las ocho, y la tabla no
 // tiene columna de sucursal que filtrar.
+
+// avisarCambioDeTiposDeVehiculo publica «cambió el catálogo de tipos» A LAS OCHO.
+//
+// Publica el MISMO tipo de aviso que `avisarCambioDeVehiculos` (`vehiculos`), porque la
+// pantalla es la misma: Vehículos enseña la flota y el desplegable de tipos en la misma
+// vista, y un tipo nuevo que no aparece en el desplegable se ve igual de roto que un camión
+// que no aparece en la lista.
+//
+// LO QUE CAMBIA ES A QUIÉN LE LLEGA, y por eso son dos ganchos y no uno — 29/09/2026:
+//
+//   - un camión es de UNA sucursal (`vehicles.branch_id`), así que su aviso se acota;
+//   - un TIPO no es de ninguna: `vehicle_types` no tiene columna de sucursal. Acotarlo al
+//     alcance de quien lo creó dejaría a las otras siete pantallas de Vehículos sin
+//     enterarse de un tipo nuevo, y esa pantalla NO vive de la base local, así que el ciclo
+//     tampoco la repinta: se queda clavada hasta salir y volver a entrar.
+//
+// Compartir un solo gancho obligaba a elegir, y lo elegido era global: un camión de
+// Camagüey costaba dos peticiones en las otras siete. Ahora no hay que elegir.
+var avisarCambioDeTiposDeVehiculo = func(_ context.Context) {}
 
 type TipoVehiculoSalida struct {
 	ID         uuid.UUID  `json:"id"`
@@ -111,7 +131,7 @@ func (s *Servidor) crearTipoDeVehiculo(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDeVehiculos(r.Context())
+	avisarCambioDeTiposDeVehiculo(r.Context())
 	httpx.JSON(w, r, http.StatusCreated, deTipo(t, 0))
 }
 
@@ -147,7 +167,7 @@ func (s *Servidor) actualizarTipoDeVehiculo(w http.ResponseWriter, r *http.Reque
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDeVehiculos(r.Context())
+	avisarCambioDeTiposDeVehiculo(r.Context())
 	httpx.JSON(w, r, http.StatusOK, deTipo(t, 0))
 }
 
@@ -180,7 +200,7 @@ func (s *Servidor) borrarTipoDeVehiculo(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if filas > 0 {
-		avisarCambioDeVehiculos(r.Context())
+		avisarCambioDeTiposDeVehiculo(r.Context())
 		httpx.JSON(w, r, http.StatusOK, map[string]any{"success": true, "retirado": false})
 		return
 	}
@@ -196,7 +216,7 @@ func (s *Servidor) borrarTipoDeVehiculo(w http.ResponseWriter, r *http.Request) 
 	// Un tipo RETIRADO también sale del desplegable, así que la pantalla cambia igual que
 	// si se hubiera borrado. Avisar sólo en la rama del borrado dejaría la mitad de los
 	// casos sin decir nada.
-	avisarCambioDeVehiculos(r.Context())
+	avisarCambioDeTiposDeVehiculo(r.Context())
 	httpx.JSON(w, r, http.StatusOK, map[string]any{"success": true, "retirado": true})
 }
 

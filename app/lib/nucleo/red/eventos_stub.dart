@@ -1,3 +1,5 @@
+import 'eventos.dart' show PulsoDelCanal;
+
 /// SIN CANAL EN VIVO. Hoy no lo usa ningun destino.
 ///
 /// Era el de la APK y el escritorio hasta el 17/09/2026, cuando dejaron de ir a
@@ -12,6 +14,7 @@ Stream<String> escucharEventos(
   String urlBase,
   Future<String?> Function() token, {
   Future<void> Function()? renovarSesion,
+  PulsoDelCanal? pulso,
 }) => const Stream<String>.empty();
 
 bool get hayCanalDeEventos => false;

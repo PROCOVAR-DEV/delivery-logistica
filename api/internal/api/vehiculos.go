@@ -24,14 +24,26 @@ import (
 // y el del tablero. **No devuelve error y no se mira lo que conteste**: un camión no se
 // deja de dar de alta porque el aviso no salga.
 //
-// LO USAN DOS FICHEROS, éste y `tipos_vehiculo.go`, y es a propósito: la pantalla de
-// Vehículos enseña las dos cosas —la flota y el desplegable de tipos— en la misma vista, y
-// un tipo nuevo que no aparece en el desplegable se ve igual de roto que un camión que no
-// aparece en la lista.
-//
 // Y esta pantalla es de las que MÁS falta le hacía: no vive de la base local, pide
 // `GET /api/vehicles` a la red. El ciclo de sincronización no la repinta, así que sin este
 // aviso lo único que la actualizaba era volver a entrar.
+//
+// # ÉSTE VA ACOTADO A SU SUCURSAL, y el de los TIPOS no — 29/09/2026
+//
+// Hasta hoy los dos ficheros compartían este gancho y el gancho era GLOBAL, así que dar de
+// alta un camión en Camagüey mandaba a las otras SIETE pantallas de Vehículos a pedir otra
+// vez `GET /api/vehicles` **y** `GET /api/settings`, por la conexión de allá, para pintar
+// exactamente lo mismo. Jose: «el aviso por sucursales, ese evento debe de salir de su
+// sucursal, no puede dar una bajada a las otras 7».
+//
+// `vehicles` TIENE `branch_id` y todos los manejadores de este fichero pasan por
+// `acotado()`, así que el alcance de quien escribe es el techo de lo que pudo cambiar: un
+// camión tocado desde Camagüey no puede ser de Holguín. Por eso este gancho se acota.
+//
+// `vehicle_types` **no tiene columna de sucursal ninguna** —es un catálogo de toda la
+// empresa—, así que `tipos_vehiculo.go` tiene el SUYO, `avisarCambioDeTiposDeVehiculo`, y
+// ése sigue siendo de las ocho. Publican el MISMO tipo de aviso (`vehiculos`), porque la
+// pantalla es la misma y enseña las dos cosas; lo que cambia es a quién le llega.
 var avisarCambioDeVehiculos = func(_ context.Context) {}
 
 // TipoPorDefecto: el contrato dice `type || 'truck'`. El nombre se traduce al id del

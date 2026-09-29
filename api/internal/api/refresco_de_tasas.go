@@ -56,6 +56,37 @@ import (
 // `TASA_REFRESCO_MS`; ver el porqué de la hora en la cabecera del fichero.
 const RefrescoCada = time.Hour
 
+// avisarTasaDeSucursal publica «cambió la tasa de ESTA sucursal» cuando el refresco la
+// mueve de verdad.
+//
+// # LO QUE FALTABA, Y ESTÁ ESCRITO ARRIBA EN ESTE MISMO FICHERO — 29/09/2026
+//
+// La cabecera dice que PEDIDO refresca cada 12 h y puede permitírselo porque «cuando la
+// tasa cambia, `emitEvent('tasa')` va por Redis al SSE y las pantallas abiertas se enteran
+// al momento», y que «aquí no hay ese canal». **Ya lo hay** desde el 17/09/2026, y este
+// refresco se quedó siendo la ÚNICA escritura de la api que no publica nada: cambiaba
+// `branches.cup_rate` y no había forma de enterarse hasta que a alguien le tocara el
+// temporizador. Con el reloj fuera (plan §5, «el reloj no lo quiero») dejaría de llegar.
+//
+// Y es la peor que puede quedarse vieja: con la tasa se convierte TODO importe que se
+// pinta, así que no se ve rota — se ve como un número creíble y equivocado, que es lo peor
+// que le puede pasar a algo que alguien va a cobrar (`../../CLAUDE.md` §4, el caso de
+// Granma enseñando los 685 de La Habana).
+//
+// # VA ACOTADO A SU SUCURSAL, y por eso lleva el uuid por parámetro
+//
+// **La tasa es POR SUCURSAL** (regla de la casa). La de Granma cambiando no le cambia ni un
+// importe a Camagüey, así que no tiene por qué costarle una vuelta: son ocho sucursales y
+// esto corre cada hora. El uuid sale de la fila que se acaba de escribir —`branches.id`—, y
+// no de ningún alcance: aquí no hay petición, ni token, ni persona.
+//
+// Publica `ajustes` y no un tipo nuevo porque es el tipo que ya escucha quien pinta
+// importes; añadir uno obligaría a tocar el Dart, y el aviso no dice más que «vuelve a
+// pedir lo tuyo».
+//
+// Vacío por defecto y lo engancha `eventos.go`, igual que todos los demás.
+var avisarTasaDeSucursal = func(_ context.Context, _ string) {}
+
 // FuenteDeTasas es por dónde llega el Querier.
 //
 // **Sí, aquí hay un Querier y en un manejador no lo habría.** La regla de `servidor.go`
@@ -178,6 +209,14 @@ func (t *RefrescoDeTasas) UnaVuelta(ctx context.Context) int {
 			t.reg.Info("tasa de cambio actualizada",
 				"sucursal", codigo, "cupPorUsd", tasa.CupPorUsd,
 				"traidoAt", tasa.TraidoAt, "fresca", tasa.Fresca)
+			// SÓLO CUANDO CAMBIÓ DE VERDAD, y por eso va dentro de este `if`.
+			//
+			// `GuardarTasaDeSucursal` lleva un `IS DISTINCT FROM` en el `WHERE` justamente
+			// para no escribir cuando la tasa es la misma (ver `db/queries/branches.sql`).
+			// Avisar fuera de aquí sería ocho avisos cada hora, las 24 horas, para decir
+			// que no ha cambiado nada — y un aviso que sale siempre deja de leerse, que es
+			// la trampa del §3-quinquies del `CLAUDE.md`.
+			avisarTasaDeSucursal(ctx, f.ID.String())
 		}
 	}
 

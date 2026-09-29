@@ -975,6 +975,18 @@ final escuchaDeEventosProvider = Provider<EscuchaDeEventos>(
   (ref) => escucharEventos,
 );
 
+/// EL PULSO DEL CANAL: «sigo vivo», y nada mas.
+///
+/// Uno solo para toda la aplicacion, porque hay un solo canal. Lo marca el
+/// transporte con cada señal que llega —el latido de cada veinte segundos
+/// incluido— y lo lee el vigia para callar el reloj. **No es un stream a
+/// proposito**: por el stream de los avisos cada cosa que pasa cuesta una bajada,
+/// y un latido cada veinte segundos ahi seria el polling que esto vino a quitar.
+/// Todo el porque, en [PulsoDelCanal].
+final pulsoDelCanalProvider = Provider<PulsoDelCanal>(
+  (ref) => PulsoDelCanal(reloj: ref.read(relojProvider)),
+);
+
 final avisosDelServidorProvider = Provider<Stream<String>>((ref) {
   // ## SE ABRE AL PRIMER OYENTE Y SE VUELVE A ABRIR SI VUELVEN — 17/09/2026
   //
@@ -1022,6 +1034,9 @@ final avisosDelServidorProvider = Provider<Stream<String>>((ref) {
               }
               await ref.read(renovadorProvider).renovar(guardada);
             },
+            // LO QUE DICE QUE EL CANAL VIVE, y que NO pasa por este stream. Ver
+            // `pulsoDelCanalProvider`.
+            pulso: ref.read(pulsoDelCanalProvider),
           )
           .listen(
             (tipo) {
@@ -1098,6 +1113,11 @@ final vigiaProvider = Provider<VigiaDeSincronizacion>((ref) {
     // Es una MEJORA y no un cimiento: donde no hay canal devuelve un stream
     // vacío y manda el temporizador, que es lo que había. Ver `red/eventos.dart`.
     avisosDelServidor: () => ref.read(avisosDelServidorProvider),
+    // EL LATIDO, que no viaja por el stream de arriba. Sin esto, un canal sano
+    // por el que no ha cambiado nada en seis minutos se lee como canal muerto y
+    // el reloj pide la vuelta entera: el polling seguia ahi, sólo que mas
+    // espaciado. Ver `VigiaDeSincronizacion.elCanalSeDaPorVivo`.
+    pulso: ref.read(pulsoDelCanalProvider),
     // EL RITMO, segun el destino. En web es lo UNICO que trae los cambios —alli
     // no queda ni un gesto para traer el dia a mano—, asi que va mas seguido; en
     // la APK cada tic se paga en bateria y datos por la conexion de alla. El

@@ -1703,6 +1703,14 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			"err", salida.APedido.Error)
 	}
 	avisarCambioDeRutas(r.Context())
+	if encolados > 0 {
+		// Y EL CANAL, porque el cierre acaba de meter filas en el buzón de salida
+		// (`encolarAvisos`) — 29/09/2026. Es la otra mitad de la pregunta que contesta esa
+		// pantalla: `drenaje_del_buzon.go` avisa cuando la tanda SALE, pero nadie avisaba
+		// cuando ENTRA en el buzón. Con PEDIDO caído eso es justo lo que hay que ver: la
+		// cola llenándose. Sólo si se apuntó algo: un cierre sin avisos no mueve el buzón.
+		avisarCambioEnElCanal(r.Context())
+	}
 
 	// UN RECHAZO DENTRO DE UN 200 NO LLEGA A NINGUNA PARTE, Y ASÍ SE PIERDE UNA ENTREGA
 	// DE VERDAD. Esto es lo que se arregló el 18/09/2026.

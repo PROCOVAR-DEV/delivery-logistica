@@ -29,6 +29,11 @@ type baseDeTasas struct {
 	// deja ver si una tasa acabó en la sucursal que no era.
 	guardado map[string]sqlc.GuardarTasaDeSucursalParams
 	fallarAl string // el código cuyo UPDATE revienta
+	// sinFilasTocadas hace que el UPDATE no escriba NINGUNA fila, que es lo que pasa de
+	// verdad casi siempre: `GuardarTasaDeSucursal` lleva un `IS DISTINCT FROM` en el WHERE
+	// y la tasa se mueve a diario, no por hora. Es la forma de probar que no se avisa de
+	// una tasa que no cambió.
+	sinFilasTocadas bool
 }
 
 func (b *baseDeTasas) CodigosParaRefrescarLaTasa(context.Context) ([]sqlc.CodigosParaRefrescarLaTasaRow, error) {
@@ -46,6 +51,9 @@ func (b *baseDeTasas) GuardarTasaDeSucursal(_ context.Context, arg sqlc.GuardarT
 		b.guardado = map[string]sqlc.GuardarTasaDeSucursalParams{}
 	}
 	b.guardado[*arg.ExternalID] = arg
+	if b.sinFilasTocadas {
+		return 0, nil
+	}
 	return 1, nil
 }
 

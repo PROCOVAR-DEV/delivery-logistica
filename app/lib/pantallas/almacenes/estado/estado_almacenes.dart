@@ -45,17 +45,58 @@ final almacenesEnElAparatoProvider = StreamProvider<CopiaBajada>(
   ),
 );
 
-/// Que sucursal se esta mirando DENTRO de la pantalla. `null` = la primera de la
-/// lista.
+/// Que sucursal se esta configurando DENTRO de la pantalla, cuando alguien la
+/// ha elegido a mano en el desplegable. `null` = nadie la ha tocado, y entonces
+/// manda la barra de arriba ([cualSeConfigura]).
+///
+/// ## SE OLVIDA AL CAMBIAR DE SUCURSAL ARRIBA — 29/09/2026
+///
+/// `build()` mira [sucursalMiradaProvider], asi que un cambio en la barra
+/// reconstruye esto y devuelve la eleccion a `null`. Sin eso, la segunda mitad
+/// del mismo fallo: se elige Camaguey aqui dentro, se cambia la barra a
+/// Santiago, y la pantalla se queda en Camaguey — y ahi se edita el punto desde
+/// el que se cobra el domicilio de otra provincia.
 final sucursalElegidaProvider = NotifierProvider<SucursalElegida, String?>(
   SucursalElegida.new,
 );
 
 class SucursalElegida extends Notifier<String?> {
   @override
-  String? build() => null;
+  String? build() {
+    ref.watch(sucursalMiradaProvider);
+    return null;
+  }
 
   void poner(String? codigo) => state = codigo;
+}
+
+/// CUAL DE LAS SUCURSALES SE CONFIGURA, en orden de quien manda:
+///
+///  1. la que alguien haya elegido **en el desplegable de la pantalla**;
+///  2. la que esté elegida **en la barra de arriba**;
+///  3. la primera de la lista, que es lo único que queda cuando la barra dice
+///     «Todas» — ahí no hay ninguna respuesta correcta y hace falta enseñar
+///     alguna, porque esta pantalla configura una sucursal cada vez.
+///
+/// El escalón 2 es el que faltaba. `GET /api/almacenes` devuelve **las ocho** a
+/// quien ve las ocho, y a propósito (`api/internal/api/almacenes.go`: sin eso el
+/// aparato se queda sin copia al cambiar de sucursal), así que «la primera de la
+/// lista» no es la de nadie: es la primera que devuelve Accesos. Jose, con
+/// Santiago puesto arriba, veía Camagüey.
+///
+/// Función suelta y sin `ref` para poder probarla sin montar la pantalla.
+SucursalDeAccesos? cualSeConfigura(
+  List<SucursalDeAccesos> todas, {
+  required String? elegidaEnLaPantalla,
+  required String? codigoDeLaBarra,
+}) {
+  if (todas.isEmpty) return null;
+  for (final codigo in [elegidaEnLaPantalla, codigoDeLaBarra]) {
+    if (codigo == null) continue;
+    final suya = todas.where((s) => s.codigo == codigo).firstOrNull;
+    if (suya != null) return suya;
+  }
+  return todas.first;
 }
 
 class AvisoAlmacenes {

@@ -231,3 +231,111 @@ que es el único motivo por el que el reloj estaba ahí.
 ## 5. Lo que ya está hecho de este plan
 
 Sólo el **paso 1**. Todo lo demás está escrito y sin tocar.
+
+---
+
+# Lo que se aprendió probándolo contra producción — 29/09/2026, por la noche
+
+El plan de arriba estaba bien pensado y **no funcionaba en la web**. Se vio poniendo
+un agente con el navegador delante y otro con el teléfono de Jose, los dos a la vez.
+Lo que se midió, y lo que costó cada cosa.
+
+## 1. La web NUNCA abrió el canal. Ni una vez
+
+No es que se cayera: **no nacía**. Tres medidas independientes, en producción:
+
+- `/api/eventos` no aparece ni una sola vez en el panel de red;
+- `performance.getEntriesByType('resource')` no tiene ni una entrada hacia `/eventos`;
+- un espía puesto sobre el constructor `EventSource` registró **cero intentos** en hora y media.
+
+**Cero errores en consola.** Fallaba en silencio absoluto, que es la forma de fallo que
+este proyecto ya tiene escrita como la más cara.
+
+La causa: `eventos_web.dart` se plantaba en un `if (token == null) return;` con un
+comentario que daba por hecho que «en la web el token ya vive en `localStorage`». Eso
+sólo es cierto por la **puerta de respaldo** (usuario y contraseña). Por la puerta
+normal se entra por Accesos, y esa sesión es una cookie `httpOnly` que el JavaScript
+no puede leer: `localStorage` está vacío **siempre**.
+
+Y lo que duele: **ese token no hacía ninguna falta**. El servidor acepta
+`Authorization: Bearer` **o la cookie `token`** (`internal/auth/auth.go`), y esa cookie
+es la que ya deja puesta el login único (`internal/api/auth_web.go`). Con
+`withCredentials: true` el navegador la manda solo. Estaba todo puesto; se plantaba
+antes de intentarlo.
+
+**La regla que queda:** una condición que decide si algo se intenta siquiera tiene que
+probarse **con la forma de entrar de verdad**, no con la de las pruebas. Aquí había
+pruebas del canal, verdes, todas con token — que es el único caso que en la web no se
+da nunca.
+
+## 2. Un canal sano se leía como muerto, y el reloj seguía pidiendo
+
+`_ultimoDelCanal` sólo se apuntaba con un **`cambio`**. El latido de cada 20 s no
+llegaba al vigía, así que un canal perfecto por el que no cambiaba nada en 6 minutos
+se daba por muerto y el reloj pedía la vuelta entera. O sea: el polling seguía puesto,
+sólo que más espaciado. Medido en la web, clavado a los 2 minutos:
+
+```
+20:07:42 → 20:09:40 → 20:11:41 → 20:13:40   GET /api/sync/cambios
+```
+
+Arreglado con `PulsoDelCanal`: una hora suelta que se marca con **cualquier** señal del
+canal. **No viaja por el stream de los avisos, y es a propósito** — por ahí cada cosa
+cuesta un ciclo más las peticiones de cada pantalla, así que un latido ahí sería una
+bajada cada 20 segundos, lo contrario de lo que se pide.
+
+Jornada de 8 h con el canal sano y sin un solo cambio en el servidor:
+
+| | antes | ahora |
+|---|---|---|
+| web (periodo 2 min) | 240 ciclos | **0** |
+| APK (periodo 5 min) | 96 ciclos | **0** |
+
+## 3. El latido no se ve desde un navegador, y por eso deja de ser un comentario
+
+`EventSource` **descarta los comentarios SSE** por especificación, y el latido salía
+como comentario (`: latido`). En la APK daba igual —lee los bytes en crudo— pero en la
+web el latido era invisible, así que allí el silencio del reloj colgaba del `listo` de
+cada reconexión: el proxy corta cada **300 s** contra un plazo de **6 min**, o sea
+**60 segundos de margen**. Con la conexión de allá eso se rompe: si la reconexión tarda
+61 s son 9 ciclos de reloj en una jornada en vez de 0.
+
+Por eso el latido pasa a ser un **evento con nombre**. Es el mismo tráfico por el socket
+—sigue sirviendo para que un proxy no corte una conexión callada— y además se puede ver
+desde el navegador.
+
+Lo que NO se hizo, y conviene que quede escrito porque era lo fácil: **fiarse de
+`readyState`**. Un `EventSource` medio muerto se queda en `OPEN` para siempre —el
+navegador no le pone plazo—, así que el reloj se callaría eternamente y la web se
+quedaría ciega **sin ninguna forma de volver**: ahí no hay aviso de red que valga ni
+gesto para traer el día a mano. El reloj usa una petición HTTP aparte, que es justo lo
+que sigue funcionando cuando ese socket ya no.
+
+## 4. Ni la APK ni la web dejaban registro, y por eso no se podía contestar la pregunta
+
+La pregunta de la noche era **«¿esto bajó porque lo empujó el canal o porque tocó el
+reloj?»**, y no había forma de contestarla: la APK 1.0.17 no escribía **ni una línea**
+en `logcat` —cero del proceso, cero con la etiqueta `flutter`, en cuatro mil renglones—
+y la web tampoco en la consola.
+
+Eran dos cosas a la vez: `developer.log` no llega a `logcat` en una compilación de
+release (va al servicio de la máquina virtual, y en un aparato con la aplicación
+instalada no hay nadie escuchando ahí), y además el nivel `info` se tiraba entero en
+release — o sea justo «tocó el reloj», «canal de eventos: …», que son los que cuentan
+la historia. Ahora se escribe también por la salida estándar, que el arrancador de
+Flutter vuelca a `logcat`, y en la web sale por la consola del navegador:
+
+```
+adb logcat -s flutter | grep reparto
+```
+
+## 5. Y el almacén que no era: la pantalla no miraba la barra
+
+Con **Santiago** puesto arriba, Almacenes listaba **los tres de Camagüey** — no uno.
+`GET /api/almacenes` está bien y devuelve las ocho a propósito; era la pantalla, que
+tenía su propio selector arrancando en «la primera de la lista». La primera que
+devuelve Accesos es Camagüey, o sea la de nadie. Y no es cosmético: desde el almacén se
+mide lo que se cobra por el domicilio.
+
+La regla está en `cualSeConfigura`: manda lo que se elija a mano, luego **la barra**, y
+sólo cuando arriba dice «Todas» se cae en la primera.

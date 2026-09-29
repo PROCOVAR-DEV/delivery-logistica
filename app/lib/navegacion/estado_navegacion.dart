@@ -275,3 +275,36 @@ final actualizandoProvider = Provider<bool>(
 final frescuraGlobalProvider = StreamProvider<DateTime?>(
   (ref) => ref.watch(frescuraProvider).laMasVieja(),
 );
+
+/// EL CÓDIGO de la sucursal elegida en la barra de arriba, o `null` si está en
+/// «Todas» (o si las sucursales todavía no han bajado).
+///
+/// [sucursalMiradaProvider] guarda el **id** de la sucursal, y media aplicación
+/// trabaja con su **código** (`branches.external_id`: `CAM`, `STG`…), que es el
+/// que usan Accesos, los almacenes y los clientes. Traducirlo estaba repetido a
+/// mano en cada sitio que lo necesitaba, y donde faltaba no fallaba nada: la
+/// pantalla se quedaba mirando otra sucursal.
+///
+/// Eso es justo lo que pasó el 29/09/2026 en Almacenes. Con **Santiago** elegido
+/// arriba, la pantalla enseñaba los almacenes de **Camagüey**: su selector
+/// interno arrancaba vacío y caía en «el primero de la lista», y la lista, para
+/// quien ve las ocho, viene con las ocho —`GET /api/almacenes` las devuelve
+/// todas a propósito, para que al cambiar de sucursal el aparato no se quede sin
+/// copia—. Nadie mentía: la pantalla, simplemente, no miraba la barra.
+///
+/// Y no es cosmético. El domicilio se cobra por la distancia DESDE el almacén:
+/// editar ahí es editar el punto de cobro de otra provincia.
+///
+/// Sale de la base local, como [sucursalesProvider], para que valga sin conexión.
+final codigoDeLaSucursalMiradaProvider = Provider<String?>((ref) {
+  final id = ref.watch(sucursalMiradaProvider);
+  if (id == null) return null;
+  final sucursales = ref.watch(sucursalesProvider).value;
+  if (sucursales == null) return null;
+  final suya = sucursales.firstWhereOrNull((s) => s.id == id);
+  final codigo = suya?.externalId?.trim();
+  // Una sucursal sin `external_id` no se traduce, y **no se adivina**: se dice
+  // que no hay código. Quien llame decidirá; lo que no puede es recibir el de
+  // otra.
+  return (codigo == null || codigo.isEmpty) ? null : codigo;
+});

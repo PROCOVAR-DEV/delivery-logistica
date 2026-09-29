@@ -20,6 +20,9 @@
 //
 //  1. **El latido.** Una conexión callada la corta el proxy de delante al minuto o dos, y
 //     desde el navegador eso se ve como «los avisos dejaron de llegar» sin ningún error.
+//     Y desde el 29/09/2026 va como EVENTO CON NOMBRE (`event: latido`, con su `data:`) y
+//     no como comentario: ver `NombreDelLatido`, que explica por qué las dos cosas —el
+//     nombre y el `data:`— son obligatorias para que la web lo vea.
 //  2. **`X-Accel-Buffering: no`.** Sin esa cabecera, nginx guarda los eventos en su propio
 //     colchón y los suelta en bloque: la pantalla se entera de todo cuarenta segundos
 //     tarde, o cuando se cierra la conexión.
@@ -80,6 +83,50 @@ const (
 // Se sigue mandando un aviso cada quince segundos como mucho —que es lo que evita el
 // parpadeo— pero el último cambio siempre llega.
 const FrenoAvisos = 15 * time.Second
+
+// NombreDelLatido es cómo se llama el evento del latido POR EL CABLE.
+//
+// # POR QUÉ ES UN EVENTO CON NOMBRE Y YA NO UN COMENTARIO — 29/09/2026
+//
+// Era `: latido`, un comentario SSE. Eso mantiene viva la conexión —el proxy ve tráfico— y
+// a la APK le vale, porque lee el socket en crudo y marca el pulso con CUALQUIER byte
+// (`app/lib/nucleo/red/eventos_io.dart`). **Pero `EventSource` descarta los comentarios por
+// especificación y no hay forma de pedírselos**, así que en el navegador el latido era
+// invisible: existía, pasaba por el socket y no lo veía nadie.
+//
+// Eso dejó de ser gratis en cuanto «el canal está vivo» pasó a decidirse por cualquier
+// señal del canal —latido incluido— y con ello el reloj dejó de pedir nada. La APK late
+// cada veinte segundos y se calla; **la web sólo tenía el `listo` de cada reconexión**, y
+// el proxy corta cada 300 s contra un plazo de seis minutos: sesenta segundos de margen.
+// Con la conexión de allá ese margen se rompe — medido, una reconexión de 61 s son nueve
+// vueltas del reloj en una jornada en vez de cero.
+//
+// Con nombre, la web lo escucha igual que escucha `listo` y `cambio`, y el reloj se calla
+// del todo.
+//
+// # Y LLEVA `data:` AUNQUE NO TENGA NADA QUE DECIR
+//
+// **Un evento sin `data:` el navegador no lo entrega**: el analizador de SSE descarta la
+// trama cuando el búfer de datos está vacío. Un `event: latido` a secas sería exactamente
+// el mismo agujero con otra forma — invisible en la web, y esta vez sin que se note que lo
+// es. Por eso va `data: {}`, un objeto vacío: el latido no lleva información, y si algún
+// día la lleva cabe ahí sin cambiar la forma.
+//
+// # LO QUE NO CAMBIA
+//
+//   - Sigue siendo tráfico por el socket cada veinte segundos, que es para lo que estaba:
+//     lo que impide que un proxy corte una conexión callada. Son más bytes que un
+//     comentario y siguen siendo menos de cuarenta.
+//   - La APK no se entera de nada: su analizador ignora los eventos con un nombre que no
+//     conoce (`default: break`) y el pulso ya lo marcaba con cualquier byte.
+//
+// Es el mismo nombre que espera `app/lib/nucleo/red/eventos_web.dart`. Son dos ficheros que
+// no se ven, así que **renombrar un lado sin el otro deja a la web sin latido y sin que
+// falle nada**, igual que pasa con los tipos de `Cambio…`.
+const NombreDelLatido = "latido"
+
+// bloqueDelLatido es el latido tal cual sale por el cable, armado UNA vez.
+var bloqueDelLatido = "event: " + NombreDelLatido + "\ndata: {}\n\n"
 
 // El latido, y el plazo de cada escritura. Son variables y no constantes para que las
 // pruebas no tarden veinte segundos en comprobar que el latido sale.
@@ -231,13 +278,22 @@ var busEventos = NuevoDifusor()
 // `pedidos` por un cambio de camión es hacer que ocho navegadores se bajen la lista de
 // pedidos entera por nada, con la conexión de allá.
 //
-// **`CambioClientes` sigue sin tener quien lo publique, y no es un olvido**: en esta API
-// NO HAY ninguna puerta que escriba `customers`. El único que los escribe es el proceso
-// del espejo (`cmd/espejo`, `internal/espejo/ciclo.go`, `clientes()`), que va contra
-// Postgres directamente y **corre en otro proceso** — y este bus vive en la memoria de
-// éste (ver arriba). Desde allí no hay forma de publicar sin volver a un bus de verdad o
-// sin abrirle una puerta al espejo. Queda dicho aquí, y la constante se deja declarada
-// porque el cliente ya sabe leerla el día que haya quien la mande.
+// ## `CambioClientes` ESTABA DECLARADO Y SIN PUBLICAR, Y EL MOTIVO ERA FALSO — 29/09/2026
+//
+// Aquí decía, en negrita y para que nadie lo tocara, que «no es un olvido: en esta API NO
+// HAY ninguna puerta que escriba `customers`». La hay: `POST /api/webhooks/pedido` con el
+// motivo `cliente` (`webhook_de_pedido.go`, `base.GuardarCliente`), que es el aviso de que
+// en PEDIDO corrigieron la coordenada de un cliente. Y es de los peores que se pueden
+// perder, porque **el reparto ordena las paradas por esa coordenada**: sin enterarse, la
+// ruta se arma hacia el sitio de antes, con números y todo y sin un solo error.
+//
+// Un comentario no falla, y éste llevaba desde el 17/09/2026 tapando el hueco que decía
+// explicar. Ya lo publica `avisarCambioDeClientes` (`clientes.go`).
+//
+// Lo que sigue sin poder publicar es el proceso del espejo (`cmd/espejo`,
+// `internal/espejo/ciclo.go`, `clientes()`), que va contra Postgres directamente y **corre
+// en otro proceso** — y este bus vive en la memoria de éste (ver arriba). Desde allí no hay
+// forma de publicar sin volver a un bus de verdad o sin abrirle una puerta al espejo.
 //
 // Se enganchan aquí, en el fichero del bus, y no en cada manejador: quien escribe una zona
 // —o un camión— no tiene por qué saber cómo se reparten los avisos, y el día que esto
@@ -266,24 +322,41 @@ var busEventos = NuevoDifusor()
 //     cuelgan de `branch_id` y sus manejadores pasan todos por `acotado()`, así que el
 //     alcance de quien escribe es el techo de lo que pudo cambiar: un usuario de Camagüey
 //     no puede tocar nada de Holguín, por definición.
-//   - `catalogo` -> GLOBAL. `products` sí tiene `sucursal_codigo`, pero
-//     `POST /api/products/sync` (`espejo.go`) trae el catálogo de VARIAS sucursales en una
-//     sola vuelta y avisa una sola vez. Acotarlo al alcance de quien lo lanzó dejaría a las
-//     demás con el catálogo viejo y sin nada que lo desmienta.
-//   - `vehiculos` -> GLOBAL. Lo publican dos ficheros y sólo uno es de una sucursal:
-//     `vehicles` tiene `branch_id`, pero `vehicle_types` **no tiene columna de sucursal
-//     ninguna** (es un catálogo de toda la empresa) y avisa por este mismo tipo. Acotarlo
-//     dejaría a las otras siete pantallas de Vehículos sin enterarse de un tipo nuevo —y
-//     esa pantalla NO vive de la base local, así que el ciclo tampoco la repinta: se queda
-//     clavada hasta salir y volver a entrar.
+//   - `catalogo` -> GLOBAL. `products` sí tiene `sucursal_codigo`, pero las dos puertas que
+//     lo tocan son de las ocho: `POST /api/products/sync` (`espejo.go`) trae el catálogo de
+//     VARIAS sucursales en una sola vuelta y avisa una sola vez, y corregir un producto es
+//     **sólo del SUPER ADMIN** (`esSuperAdmin` en `productos.go`), o sea que su alcance ya
+//     es «todas» y acotarlo no cambiaría nada salvo esconder por qué.
+//   - `vehiculos` -> DOS GANCHOS, y aquí está la diferencia que costó la fuga hasta el
+//     29/09/2026. `avisarCambioDeVehiculos` (`vehiculos.go`) va ACOTADO: `vehicles` tiene
+//     `branch_id` y sus tres manejadores pasan por `acotado()`, así que dar de alta un
+//     camión en Camagüey ya no manda a las otras siete a pedir `/api/vehicles` **y**
+//     `/api/settings` para pintar lo mismo. `avisarCambioDeTiposDeVehiculo`
+//     (`tipos_vehiculo.go`) sigue GLOBAL: `vehicle_types` **no tiene columna de sucursal
+//     ninguna** (es un catálogo de toda la empresa), y acotarlo dejaría a las otras siete
+//     pantallas de Vehículos sin enterarse de un tipo nuevo —y esa pantalla NO vive de la
+//     base local, así que el ciclo tampoco la repinta: se queda clavada hasta salir y
+//     volver a entrar. Los dos publican el MISMO tipo, porque la pantalla es la misma.
+//   - `clientes` -> DE SU SUCURSAL, y desde el 29/09/2026 **sí lo publica alguien**: el
+//     aviso `cliente` de `POST /api/webhooks/pedido`, que es cuando en PEDIDO corrigen la
+//     coordenada de un cliente. Aquí decía que no había ninguna puerta que escribiera
+//     `customers` y era falso. Por esa puerta entra el servicio, sin sucursal, así que en
+//     la práctica sale global; el gancho se acota igual por si algún día lo llama otro.
+//     Lo que sigue sin publicar es el proceso del espejo (`cmd/espejo`), que corre fuera.
 //   - `sucursales`, `ajustes` -> GLOBAL. La lista de sucursales es de todos, y los ajustes
 //     lo dicen en su propio fichero: «GLOBALES: no llevan alcance por sucursal y no es un
 //     olvido». Con la moneda y la tasa se convierte TODO importe que se pinta.
-//   - `canal` -> GLOBAL. Lo publican el webhook de PEDIDO y el drenaje del buzón, que no
-//     tienen sesión de persona y por tanto no tienen alcance: aquí `sucursalDelAlcance`
-//     devolvería vacío de todos modos, y se escribe explícito para que se lea como una
-//     decisión y no como una casualidad.
-//   - `clientes` -> no lo publica nadie (ver arriba).
+//   - `ajustes` TIENE ADEMÁS UN SEGUNDO EMISOR, Y ÉSE SÍ VA ACOTADO: el refresco de tasas
+//     (`avisarTasaDeSucursal`, `refresco_de_tasas.go`). La tasa es POR SUCURSAL, y la de
+//     Granma no le mueve ni un importe a Camagüey. Que el mismo tipo salga unas veces
+//     global y otras acotado no es una incoherencia: el tipo dice QUÉ volver a pedir, la
+//     sucursal dice A QUIÉN le cambió.
+//   - `canal` -> GLOBAL. Lo publican el webhook de PEDIDO, la puerta del lote
+//     (`buzon_a_pedido.go`), el cierre de ruta cuando encola avisos y el drenaje del buzón.
+//     Los dos primeros no tienen sesión de persona y por tanto no tienen alcance —aquí
+//     `sucursalDelAlcance` devolvería vacío de todos modos—, y el cierre sí la tiene pero
+//     **la pantalla del canal es de administración y mira la cola entera**: acotarla
+//     dejaría a quien la vigila sin ver justo lo que va a atascarla.
 //
 // Lo ata `el_aviso_sale_de_su_sucursal_test.go`, que fija esta tabla: un gancho que cambie
 // de lado tiene que cambiarla a mano, y entonces se lee este comentario.
@@ -300,15 +373,28 @@ func init() {
 	avisarCambioDeAlmacenes = func(ctx context.Context) {
 		busEventos.AvisarDe(CambioAlmacenes, sucursalDelAlcance(ctx), nil)
 	}
+	avisarCambioDeVehiculos = func(ctx context.Context) {
+		busEventos.AvisarDe(CambioVehiculos, sucursalDelAlcance(ctx), nil)
+	}
+	avisarCambioDeClientes = func(ctx context.Context) {
+		busEventos.AvisarDe(CambioClientes, sucursalDelAlcance(ctx), nil)
+	}
 
 	// LOS DE TODAS. Van por `Avisar` —sin sucursal— a propósito; el porqué de cada uno,
 	// en la tabla de arriba. No se les pone `sucursalDelAlcance` aunque quien los toque
 	// tenga sucursal: lo que cambian lo ven las ocho.
 	avisarCambioDelCatalogo = func(_ context.Context) { busEventos.Avisar(CambioCatalogo, nil) }
-	avisarCambioDeVehiculos = func(_ context.Context) { busEventos.Avisar(CambioVehiculos, nil) }
+	avisarCambioDeTiposDeVehiculo = func(_ context.Context) { busEventos.Avisar(CambioVehiculos, nil) }
 	avisarCambioDeSucursales = func(_ context.Context) { busEventos.Avisar(CambioSucursales, nil) }
 	avisarCambioDeAjustes = func(_ context.Context) { busEventos.Avisar(CambioAjustes, nil) }
 	avisarCambioEnElCanal = func(_ context.Context) { busEventos.Avisar(CambioCanal, nil) }
+
+	// LA TASA, QUE NO SALE DE NINGÚN ALCANCE. El refresco de tasas corre de fondo, sin
+	// petición y sin persona, así que la sucursal viene de la fila que acaba de escribir.
+	// Ver `avisarTasaDeSucursal` en `refresco_de_tasas.go`.
+	avisarTasaDeSucursal = func(_ context.Context, sucursal string) {
+		busEventos.AvisarDe(CambioAjustes, sucursal, nil)
+	}
 }
 
 // sucursalDelAlcance: de qué sucursal es lo que acaba de cambiar.
@@ -600,9 +686,8 @@ func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Di
 			// atrás hasta el temporizador.
 			bus.SoltarPendientes()
 
-			// Un comentario SSE (`:`), que no es un evento: el cliente lo descarta y el
-			// proxy ve tráfico. Es lo único que impide que la conexión se corte sola.
-			if !enviarSSE(w, r, rc, ": latido\n\n") {
+			// EL LATIDO, CON NOMBRE Y CON `data:`. Ver `bloqueDelLatido`.
+			if !enviarSSE(w, r, rc, bloqueDelLatido) {
 				return
 			}
 		}

@@ -3,7 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/red/eventos_io.dart';
-import 'package:reparto/nucleo/red/eventos.dart' show avisoDeQueVolvimos;
+import 'package:reparto/nucleo/red/eventos.dart'
+    show PulsoDelCanal, avisoDeQueVolvimos;
 
 /// EL CANAL EN VIVO DEL APARATO, comprobado contra un servidor de verdad.
 ///
@@ -12,6 +13,19 @@ import 'package:reparto/nucleo/red/eventos.dart' show avisoDeQueVolvimos;
 /// que comprobar es justamente lo contrario —que una trama partida en dos trozos
 /// por la red se entiende igual—. Asi que se levanta un `HttpServer` de verdad
 /// en `127.0.0.1` con puerto 0. Es local: no sale un paquete de esta maquina.
+/// EL LATIDO, TAL Y COMO LO MANDA EL SERVIDOR DE VERDAD — 29/09/2026.
+///
+/// Aqui estaba escrito a mano como `': latido\n\n'`, o sea un **comentario** SSE,
+/// que es lo que era hasta hoy. Dejo de serlo porque `EventSource` descarta los
+/// comentarios y en la web el latido era invisible: ahora sale como evento con
+/// nombre (`api/internal/api/eventos.go`, `bloqueDelLatido`).
+///
+/// Que esto quede desfasado no falla: la prueba sigue verde probando que
+/// **cualquier byte** marca el pulso, que es cierto y es menos de lo que dice su
+/// nombre. Por eso se escribe una vez aqui y no cinco veces ahi abajo — y por eso
+/// el literal del otro lado lo fija `TestElNombreDelLatidoNoSeRenombraSolo`.
+const latidoDeVerdad = 'event: latido\ndata: {}\n\n';
+
 void main() {
   test('hayCanalDeEventos: en el aparato SI hay canal', () {
     expect(hayCanalDeEventos, isTrue);
@@ -91,10 +105,10 @@ void main() {
     final servidor = await ServidorDeEventos.abrir((s, req, n) async {
       final r = abrirSSE(req);
       await escribir(r, 'event: listo\ndata: {"vivo":true}\n\n');
-      await escribir(r, ': latido\n\n');
-      await escribir(r, ': latido\n\n');
+      await escribir(r, latidoDeVerdad);
+      await escribir(r, latidoDeVerdad);
       await escribir(r, 'event: cambio\ndata: {"tipo":"pedidos"}\n\n');
-      await escribir(r, ': latido\n\n');
+      await escribir(r, latidoDeVerdad);
     });
     addTearDown(servidor.cerrar);
 
@@ -114,6 +128,72 @@ void main() {
       recibidos.where((t) => t.contains('latido')),
       isEmpty,
       reason: 'los latidos sí son del transporte y no le dicen nada a nadie',
+    );
+  });
+
+  // ## EL LATIDO NO SALE POR EL STREAM, PERO SÍ MARCA EL PULSO — 29/09/2026
+  //
+  // Las dos mitades, y hacen falta las dos:
+  //
+  //  * **No sale**, porque cada aviso que sale de aquí cuesta un ciclo de
+  //    sincronización entero, un `GET /api/board` por tablero abierto y la flota
+  //    por cada pantalla de vehículos. Un latido cada veinte segundos ahí sería el
+  //    polling que todo esto vino a quitar, multiplicado.
+  //  * **Marca el pulso**, porque es lo único que demuestra que el canal está
+  //    cuando en el servidor no cambia nada. Sin esto, un canal sano por el que no
+  //    había cambiado nada en seis minutos se leía como muerto y el reloj del
+  //    vigía pedía la vuelta entera (`VigiaDeSincronizacion.elCanalSeDaPorVivo`).
+  //
+  // Aquí el servidor NO manda ni un `listo` ni un `cambio` a propósito: así lo
+  // único que puede haber marcado el pulso es el latido.
+  test('un canal que sólo late marca el pulso y no manda ni un aviso', () async {
+    final servidor = await ServidorDeEventos.abrir((s, req, n) async {
+      final r = abrirSSE(req);
+      while (await escribir(r, latidoDeVerdad)) {
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+      }
+    });
+    addTearDown(servidor.cerrar);
+
+    var ahora = DateTime(2026, 9, 29, 20, 0);
+    final pulso = PulsoDelCanal(reloj: () => ahora);
+    final recibidos = <String>[];
+    final sub = escucharEventos(
+      servidor.urlBase,
+      () async => 'tok',
+      pulso: pulso,
+    ).listen(recibidos.add);
+    addTearDown(sub.cancel);
+
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(
+      pulso.ultimo,
+      DateTime(2026, 9, 29, 20, 0),
+      reason:
+          'llegaron latidos y el pulso sigue sin marcarse. Entonces el vigía no '
+          'sabe que el canal está y a los seis minutos pide la vuelta entera '
+          'contra un canal sano',
+    );
+
+    // Y SIGUE marcando: un pulso que se apunta una vez y se olvida da el canal
+    // por muerto a los seis minutos igual que si no hubiera ninguno.
+    ahora = DateTime(2026, 9, 29, 20, 5);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(
+      pulso.ultimo,
+      DateTime(2026, 9, 29, 20, 5),
+      reason:
+          'el pulso se quedó con el primer latido: con eso el canal se da por '
+          'muerto a los seis minutos aunque esté latiendo cada veinte segundos',
+    );
+
+    expect(
+      recibidos,
+      isEmpty,
+      reason:
+          'un latido NO es un cambio. Si sale por el stream, cada veinte '
+          'segundos hay un ciclo de sincronización, un `GET /api/board` por '
+          'tablero abierto y la flota por cada pantalla de vehículos abierta',
     );
   });
 
@@ -515,7 +595,7 @@ void main() {
       if (n == 0) return;
       await escribir(r, 'event: cambio\ndata: {"tipo":"tablero"}\n\n');
       // La segunda si late, asi que no se la vuelve a dar por muerta.
-      while (await escribir(r, ': latido\n\n')) {
+      while (await escribir(r, latidoDeVerdad)) {
         await Future<void>.delayed(const Duration(milliseconds: 40));
       }
     });

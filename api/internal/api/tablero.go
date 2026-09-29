@@ -1737,8 +1737,20 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	// otra persona — quien esté mirando el tablero desde el navegador tiene que enterarse
 	// de que esas doce tarjetas ya salieron, no seguir arrastrándolas.
 	//
-	// Y avisa del TABLERO además de las rutas, que ya lo hace el armador: son dos
-	// pantallas distintas y las dos cambian.
+	// Y AVISA DE LAS DOS PANTALLAS, porque las dos cambian.
+	//
+	// Aquí decía «avisa del TABLERO además de las rutas, que ya lo hace el armador» y era
+	// FALSO: el armador que lo hace es el de `rutas.go` (`POST /api/routes`), y éste es
+	// otro —el de la columna— escrito entero en este fichero. Por esta puerta nace una ruta
+	// de verdad, con su código y sus paradas, y por aquí no salía ni un aviso de `rutas`:
+	// la pantalla de Rutas no se enteraba de que existía.
+	//
+	// Que hoy se tapara solo no lo arregla, lo esconde: el vigía del aparato dispara un
+	// ciclo con CUALQUIER aviso, así que el de `tablero` acababa trayendo también las rutas.
+	// Eso deja de ser verdad en cuanto el aviso se afine —que es justo lo que pide el plan,
+	// «por tablero no puede actualizarse cada vez que se haga algo en rutas»— y entonces
+	// esta pantalla se queda vieja sin que nadie sepa por qué.
+	avisarCambioDeRutas(r.Context())
 	avisarCambioDelTablero(r.Context())
 
 	httpx.JSON(w, r, http.StatusCreated, map[string]any{

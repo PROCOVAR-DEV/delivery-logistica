@@ -17,16 +17,30 @@
 // Así que el reloj deja de ser el mecanismo y pasa a ser la red de seguridad:
 // **mientras se sepa del canal, el tic no dispara nada.**
 //
-// # Y no hace falta que el canal mande nada para saber que vive
+// # Y no hace falta que el canal mande ningún CAMBIO para saber que vive
 //
-// El proxy lo corta cada 300 segundos exactos —medido en el registro de la api—
-// y cada reconexión manda `al-volver`. O sea que por el canal llega algo cada
-// cinco minutos como mucho, aunque no cambie nada en el servidor.
+// El canal late cada veinte segundos (`api/internal/api/eventos.go`,
+// `latidoSSE`), y en la web, donde `EventSource` tira los latidos, el proxy corta
+// cada 300 segundos exactos y cada reconexión manda `al-volver`.
+//
+// # LO QUE FALTABA, y por qué el polling seguía ahí — 29/09/2026
+//
+// El vigía sólo se enteraba del canal cuando llegaba un aviso **para una
+// pantalla**: un `cambio`, o el `al-volver`. El latido no viajaba hasta aquí.
+//
+// Resultado: un canal perfectamente sano por el que no había cambiado nada en
+// seis minutos —una oficina en calma— se leía como canal muerto, y el reloj pedía
+// la vuelta entera. El polling seguía puesto, sólo que más espaciado.
+//
+// El latido llega ahora por `PulsoDelCanal`, que NO es un stream: por el stream
+// de los avisos cada cosa cuesta una bajada, y un latido cada veinte segundos ahí
+// sería exactamente lo contrario de lo que se viene a arreglar.
 
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/nucleo/red/eventos.dart' show avisoDeQueVolvimos;
+import 'package:reparto/nucleo/red/eventos.dart'
+    show PulsoDelCanal, avisoDeQueVolvimos;
 import 'package:reparto/nucleo/sincro/vigia.dart';
 
 /// Un temporizador de mentira que la prueba dispara a mano. Ni un `sleep`: un
@@ -63,10 +77,11 @@ void main() {
 
   tearDown(() => delCanal.close());
 
-  VigiaDeSincronizacion montar() => VigiaDeSincronizacion(
+  VigiaDeSincronizacion montar({PulsoDelCanal? pulso}) => VigiaDeSincronizacion(
     ciclo: (motivo, _) async => disparos.add(motivo),
     avisosDeRed: () => const Stream<bool>.empty(),
     avisosDelServidor: () => delCanal.stream,
+    pulso: pulso,
     reloj: () => ahora,
     crearTemporizador: (_, alTocar) {
       final t = _ATiempo(alTocar);
@@ -162,6 +177,64 @@ void main() {
       reason:
           'sólo se da por vivo con el «volví» y no con un cambio de verdad. '
           'Cualquier cosa que llegue por el canal demuestra que el canal está',
+    );
+  });
+
+  // ## LA PRUEBA DE QUE EL POLLING SE FUE DEL TODO — 29/09/2026
+  //
+  // Es el caso normal de una oficina en calma: el canal está abierto y sano, late
+  // cada veinte segundos, y en el servidor no cambia nada durante diez minutos.
+  //
+  // Hasta hoy el vigía no se enteraba de esos latidos —sólo de los avisos que van
+  // a una pantalla— y a los seis minutos daba el canal por muerto: el reloj pedía
+  // la vuelta entera, y en la web cada dos minutos a partir de ahí.
+  test('un canal que sólo late, sin un cambio en diez minutos, calla al reloj', () async {
+    final pulso = PulsoDelCanal(reloj: () => ahora);
+    final vigia = montar(pulso: pulso)..arrancar();
+    addTearDown(vigia.parar);
+    await Future<void>.delayed(Duration.zero);
+
+    // Diez minutos de canal sano. NI UN aviso por el stream: nadie tocó nada en
+    // el servidor, que es justamente el caso.
+    for (var i = 0; i < 30; i++) {
+      ahora = ahora.add(const Duration(seconds: 20));
+      pulso.latio();
+    }
+    relojes.last.tocar();
+
+    expect(
+      disparos,
+      isEmpty,
+      reason:
+          'el canal lleva diez minutos latiendo cada veinte segundos y el reloj '
+          'pidió igual, porque no ha cambiado nada en seis minutos. Eso es el '
+          'polling que Jose no quiere, sólo que más espaciado: con el canal sano '
+          'el aparato hace CERO peticiones, nunca',
+    );
+  });
+
+  // LA OTRA MITAD, sin la cual se cambia el polling por un aparato ciego: el
+  // latido vale mientras haya latido.
+  test('pero si el canal deja de latir, el reloj vuelve', () async {
+    final pulso = PulsoDelCanal(reloj: () => ahora);
+    final vigia = montar(pulso: pulso)..arrancar();
+    addTearDown(vigia.parar);
+    await Future<void>.delayed(Duration.zero);
+
+    pulso.latio();
+    // Más que el plazo: dieciocho latidos perdidos seguidos no son un canal.
+    ahora = ahora.add(
+      VigiaDeSincronizacion.elCanalSeDaPorVivo + const Duration(minutes: 1),
+    );
+    relojes.last.tocar();
+
+    expect(
+      disparos,
+      contains('toco el reloj'),
+      reason:
+          'el canal dejó de latir y el reloj se fió del último latido para '
+          'siempre. Un canal muerto no avisa de que está muerto: ese aparato se '
+          'queda mudo y nadie se entera',
     );
   });
 }

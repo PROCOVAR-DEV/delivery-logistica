@@ -345,9 +345,18 @@ func TestLaTablaDeQueAvisoLlevaSucursal(t *testing.T) {
 		{"pedidos", avisarCambioDePedidos, CambioPedidos, true, "orders.branch_id"},
 		{"almacenes", avisarCambioDeAlmacenes, CambioAlmacenes, true, "el alcance impide tocar los de otra"},
 		{"catalogo", avisarCambioDelCatalogo, CambioCatalogo, false,
-			"POST /api/products/sync trae el catálogo de VARIAS sucursales y avisa una vez"},
-		{"vehiculos", avisarCambioDeVehiculos, CambioVehiculos, false,
-			"vehicle_types no tiene columna de sucursal y publica por este mismo tipo"},
+			"POST /api/products/sync trae el catálogo de VARIAS sucursales y avisa una vez, " +
+				"y corregir un producto es sólo del SUPER ADMIN"},
+		// LOS DOS DE LA FLOTA, Y VAN EN LADOS DISTINTOS. Era UN solo gancho global hasta el
+		// 29/09/2026, y por eso dar de alta un camión en Camagüey costaba a las otras siete
+		// una petición de `/api/vehicles` y otra de `/api/settings` para pintar lo mismo.
+		{"vehiculos", avisarCambioDeVehiculos, CambioVehiculos, true,
+			"vehicles.branch_id, y los tres manejadores pasan por acotado()"},
+		{"tipos de vehiculo", avisarCambioDeTiposDeVehiculo, CambioVehiculos, false,
+			"vehicle_types no tiene columna de sucursal ninguna: es de toda la empresa"},
+		{"clientes", avisarCambioDeClientes, CambioClientes, true,
+			"lo publica el aviso `cliente` del webhook, y la coordenada del cliente es la " +
+				"que ordena las paradas de SU sucursal"},
 		{"sucursales", avisarCambioDeSucursales, CambioSucursales, false, "la lista es de todos"},
 		{"ajustes", avisarCambioDeAjustes, CambioAjustes, false, "la moneda y la tasa son de toda la empresa"},
 		{"canal", avisarCambioEnElCanal, CambioCanal, false, "el webhook y el drenaje no tienen alcance de persona"},
@@ -506,11 +515,28 @@ func abrirElCanal(t *testing.T, url, rol, sucursal string) <-chan string {
 func nadaPorElCable(t *testing.T, lineas <-chan string, plazo time.Duration, queSeria string) {
 	t.Helper()
 	limite := time.After(plazo)
+	// EL LATIDO NO CUENTA, y desde el 29/09/2026 hay que decirlo: dejó de ser un comentario
+	// SSE y ahora es `event: latido` con su `data: {}`. Sin esta salvedad, un latido que
+	// cayera dentro del plazo se leería como «salió un aviso que no era mío» y esta prueba
+	// daría un rojo que no es. Se mira la trama entera —el `data:` sólo se salta si venía
+	// detrás de un `event: latido`—, que es distinto de saltarse todos los `data: {}`.
+	latiendo := false
 	for {
 		select {
 		case l, abierto := <-lineas:
 			if !abierto {
 				return
+			}
+			if strings.HasPrefix(l, "event: "+NombreDelLatido) {
+				latiendo = true
+				continue
+			}
+			if latiendo {
+				// La línea del latido y la vacía que cierra su trama.
+				if strings.HasPrefix(l, "data:") {
+					continue
+				}
+				latiendo = false
 			}
 			if strings.HasPrefix(l, "event: cambio") || strings.HasPrefix(l, "data:") {
 				t.Fatalf("por este canal salió %q.\n"+

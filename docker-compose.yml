@@ -112,16 +112,16 @@ services:
       # seguro era mientras no hubiera fichero colgado, y desde el 22/09 lo hay. Vacío
       # ahora significa que un aparato en la calle nunca se entera de que hay versión
       # nueva — y la aplicación se usa sin señal la mayor parte del día.
-      APP_ULTIMA_VERSION: ${APP_ULTIMA_VERSION:-1.0.10}
-      APP_ULTIMA_COMPILACION: ${APP_ULTIMA_COMPILACION:-11}
-      APP_ULTIMA_NOTAS: ${APP_ULTIMA_NOTAS:-}
-      APP_ULTIMA_PUBLICADA: ${APP_ULTIMA_PUBLICADA:-2026-09-26}
+      APP_ULTIMA_VERSION: ${APP_ULTIMA_VERSION:-1.0.15}
+      APP_ULTIMA_COMPILACION: ${APP_ULTIMA_COMPILACION:-16}
+      APP_ULTIMA_NOTAS: ${APP_ULTIMA_NOTAS:-Los errores de «Entregar el día» ya se pueden quitar de verdad: hasta ahora, al descartar uno, volvía a salir solo a los pocos minutos. Lo que quedaba colgado en el aparato y no tenía forma de cerrarse ahora se puede dar por perdido, sin borrar nada. Al volver la señal el día sube solo, sin esperar los cinco minutos del reloj. Los motivos por los que el servidor dice que no salen en español y dicen qué falta. Y en el teléfono ya no se corta la barra de arriba, que se comía el menú de la cuenta.}
+      APP_ULTIMA_PUBLICADA: ${APP_ULTIMA_PUBLICADA:-2026-09-29}
       # Los TRES juntos o ninguno: URL, BYTES y SHA256. Sin BYTES quien la baja por datos
       # móviles ve «30 MB/?» —Cloudflare quita el Content-Length— y sin SHA256 una descarga
       # cortada pasa por buena.
-      APP_DESCARGA_ANDROID: ${APP_DESCARGA_ANDROID:-https://archivos.procovar.cloud/reparto/apk/reparto-1.0.10-260926.apk}
-      APP_DESCARGA_ANDROID_BYTES: ${APP_DESCARGA_ANDROID_BYTES:-77954564}
-      APP_DESCARGA_ANDROID_SHA256: ${APP_DESCARGA_ANDROID_SHA256:-337ce312b2ddee1bc749f2b6971981bc3b0e7e27062179648304cdafaac71ee8}
+      APP_DESCARGA_ANDROID: ${APP_DESCARGA_ANDROID:-https://archivos.procovar.cloud/reparto/apk/reparto-1.0.15-260929.apk}
+      APP_DESCARGA_ANDROID_BYTES: ${APP_DESCARGA_ANDROID_BYTES:-78151976}
+      APP_DESCARGA_ANDROID_SHA256: ${APP_DESCARGA_ANDROID_SHA256:-b28cfdc902d2160ee3df07617e8f915e6678970f38d3427b85add438289a579c}
       # Windows y Linux siguen SIN COLGAR. No se inventa una URL que no tiene fichero
       # detrás: un enlace roto en la pantalla de alguien es peor que no ofrecer nada.
       APP_DESCARGA_WINDOWS: ${APP_DESCARGA_WINDOWS:-}

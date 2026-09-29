@@ -35,6 +35,7 @@ import 'package:reparto/nucleo/red/eventos.dart';
 const urlBase = 'http://127.0.0.1:8123/api';
 
 void main() {
+  pruebaDelRechazo();
   test('en la web se elige el transporte de la web, no el vacío del stub', () {
     expect(
       hayCanalDeEventos,
@@ -79,6 +80,58 @@ void main() {
       recibidos[1],
       'tablero',
       reason: 'el `cambio` de siempre dejó de salir por reenviar el `listo`',
+    );
+  });
+}
+
+/// UN 401 NO MATA EL CANAL. Se reintenta y vuelve.
+///
+/// # El caso, con la hora del registro del servidor — 29/09/2026
+///
+/// ```
+/// 21:30:45  GET /api/eventos  200
+/// 21:30:47  GET /api/eventos  200
+/// 21:30:50  GET /api/eventos  401   <- aqui se murio
+///           ... CINCO MINUTOS SIN UNA SOLA PETICION ...
+/// 21:35:49  GET /api/eventos  200
+/// ```
+///
+/// Jose creo una zona desde el telefono a las **21:32:10**, dentro de ese
+/// agujero, y en la web no aparecio nunca. No es que el aviso llegara tarde:
+/// **no habia nadie escuchando**. Sus palabras: «la aplicacion hace cosas y no
+/// sale en la web».
+///
+/// La causa era `cerrarDelTodo`, que ante un rechazo cerraba el canal **para
+/// toda la pestaña** — sin error en consola, sin aviso en pantalla y sin un solo
+/// reintento. La APK ya lo tenia arreglado esa misma tarde y este lado se quedo
+/// con el camino viejo.
+///
+/// Esta prueba levanta el rechazo a proposito: el servidor de mentira contesta
+/// **401 al primer intento** y abre al segundo. Si el cliente no reintenta, el
+/// `cambio` no llega nunca y esto falla.
+void pruebaDelRechazo() {
+  test('un 401 no mata el canal: se reintenta y el cambio acaba llegando', () async {
+    final recibidos = <String>[];
+    final sub = escucharEventos(
+      '$urlBase/rechaza-una-vez',
+      // Sin token, como la web de verdad con el acceso unico.
+      () async => null,
+      // Y SIN con que renovar, que es el camino que antes cerraba en seco.
+      renovarSesion: null,
+    ).listen(recibidos.add);
+
+    // La espera del primer reintento es de un segundo; se le dan cuatro para que
+    // el segundo intento abra y mande su `listo` y su `cambio`.
+    await Future<void>.delayed(const Duration(seconds: 4));
+    await sub.cancel();
+
+    expect(
+      recibidos,
+      contains('tablero'),
+      reason:
+          'tras un 401 el canal no volvio a intentarlo: la web se queda muda y '
+          'lo que haga el telefono no aparece nunca. Es el fallo del 29/09/2026, '
+          'cinco minutos sin una sola peticion.',
     );
   });
 }

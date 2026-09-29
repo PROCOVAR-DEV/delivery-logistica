@@ -65,6 +65,13 @@ import 'eventos.dart' show PulsoDelCanal, avisoDeQueVolvimos;
 /// canal. Y el canal importa: Vehiculos y Almacenes piden a la red y no viven de
 /// la base local, asi que sin canal se quedan clavadas con lo que pintaron al
 /// abrirse, temporizador o no.
+/// A partir de cuantos fallos seguidos se espera el minuto entero.
+///
+/// Es el mismo numero que la APK (`eventos_io.dart`): 1, 2, 4, 8, 16, 32, 64 ->
+/// tope. Se nombra para poder saltar directo al tope cuando ya se sabe que
+/// insistir rapido no va a servir de nada — un rechazo con la sesion sin cambiar.
+const _intentosParaEsperarElTope = 8;
+
 Stream<String> escucharEventos(
   String urlBase,
   Future<String?> Function() token, {
@@ -81,11 +88,72 @@ Stream<String> escucharEventos(
 
   late Future<void> Function() abrir;
 
-  Future<void> cerrarDelTodo(String motivo) async {
-    Registro.aviso('canal de eventos: $motivo; se sigue con el temporizador');
-    fuente?.close();
-    fuente = null;
-    if (!control.isClosed) await control.close();
+  /// Cuantas veces seguidas no se ha podido abrir. Se pone a cero con el `listo`.
+  var intentos = 0;
+  Timer? espera;
+
+  // AQUI VIVIA `cerrarDelTodo`, Y YA NO EXISTE — 29/09/2026.
+  //
+  // Cerraba el canal para toda la pestaña, y **no queda ni un camino que haga
+  // eso**: lo unico que lo cierra ahora es que se vaya el ultimo oyente
+  // (`onCancel`), que es el cierre legitimo. Todo lo demas reintenta.
+  //
+  // Se quita entero en vez de dejarlo sin usar porque una funcion que cierra el
+  // canal, ahi a mano, es una invitacion a volver a llamarla la proxima vez que
+  // alguien vea un rechazo raro. El porque esta en `programarReintento`.
+
+  /// VUELVE A INTENTARLO, CON ESPERA CRECIENTE Y TOPE DE UN MINUTO.
+  ///
+  /// # POR QUE ESTO NO PUEDE CERRAR EL CANAL PARA SIEMPRE — 29/09/2026
+  ///
+  /// Aqui se llamaba a [cerrarDelTodo] y **se acababa el canal para toda la
+  /// pestaña**. Sin error en consola, sin aviso en pantalla y sin un solo
+  /// reintento: la web se quedaba muda y nadie se enteraba hasta que alguien
+  /// recargaba.
+  ///
+  /// Pasó esa misma noche, y esta en el registro del servidor:
+  ///
+  /// ```
+  /// 21:30:45  GET /api/eventos  200
+  /// 21:30:47  GET /api/eventos  200
+  /// 21:30:50  GET /api/eventos  401   <- se murio aqui
+  ///           ... CINCO MINUTOS SIN UNA SOLA PETICION ...
+  /// 21:35:49  GET /api/eventos  200
+  /// ```
+  ///
+  /// Jose creo una zona desde el telefono a las **21:32:10**, o sea dentro de ese
+  /// agujero, y en la web no aparecio. No es que el aviso llegara tarde: **no
+  /// habia nadie escuchando**. Sus palabras: «la aplicacion hace cosas y no sale
+  /// en la web».
+  ///
+  /// La APK ya lo tenia arreglado desde esa misma tarde (`eventos_io.dart`,
+  /// `programarReintento`) y **este lado se quedo con el camino viejo**. Es el
+  /// mismo fallo dos veces, y por eso ahora los dos hacen lo mismo.
+  ///
+  /// # Y por que se reintenta aunque pueda ser un 403
+  ///
+  /// `EventSource` **no dice el codigo**: un `CLOSED` puede ser un 401, un 403 o
+  /// un `Content-Type` que no es `text/event-stream`. Antes eso se usaba para
+  /// justificar cerrar —«si no es un 401, insistir no arregla nada»—, y el precio
+  /// de equivocarse resulto ser mucho mas caro que el de insistir: con el tope de
+  /// un minuto, un 403 cuesta sesenta peticiones a la hora, y un canal muerto
+  /// cuesta que la oficina entera no vea lo que hace el reparto.
+  void programarReintento(String motivo) {
+    if (control.isClosed) return;
+    espera?.cancel();
+    // 1, 2, 4, 8… segundos, con tope de un minuto. El mismo perfil que la APK.
+    final segundos = intentos >= _intentosParaEsperarElTope
+        ? 60
+        : 1 << intentos;
+    final cuanto = Duration(seconds: segundos.clamp(1, 60));
+    intentos++;
+    Registro.aviso(
+      'canal de eventos: $motivo; se reintenta en ${cuanto.inSeconds} s',
+    );
+    espera = Timer(cuanto, () {
+      espera = null;
+      if (!control.isClosed) unawaited(abrir());
+    });
   }
 
   abrir = () async {
@@ -138,7 +206,12 @@ Stream<String> escucharEventos(
     // `tokenRechazado` son los dos `null` y el freno se dispararia solo en el
     // segundo intento, que es cambiar un canal muerto por otro.
     if (hayToken && t == tokenRechazado) {
-      await cerrarDelTodo('el canal se rechaza y la sesión no ha cambiado');
+      // FRENO 2: la renovacion no cambio la sesion, asi que no se insiste **con
+      // peticiones seguidas** — pero tampoco se cierra. Se espera al tope y se
+      // vuelve a probar: mientras el token no cambie no cuesta nada, y el dia que
+      // cambie el canal vuelve solo.
+      intentos = _intentosParaEsperarElTope;
+      programarReintento('el canal se rechaza y la sesión no ha cambiado');
       return;
     }
     if (hayToken) {
@@ -183,6 +256,7 @@ Stream<String> escucharEventos(
         // hay —el de verdad lo tira `EventSource`—, y llega cada vez que el proxy
         // corta y el navegador reconecta.
         pulso?.latio();
+        intentos = 0;
         yaSeRenovoPorUn401 = false;
         tokenRechazado = null;
         if (!control.isClosed) control.add(avisoDeQueVolvimos);
@@ -245,21 +319,16 @@ Stream<String> escucharEventos(
         fuente?.close();
         fuente = null;
         if (renovarSesion == null) {
-          unawaited(
-            cerrarDelTodo(
-              'el navegador cerró el canal y no hay con qué renovar',
-            ),
-          );
+          programarReintento('el navegador cerró el canal y no hay con qué renovar');
           return;
         }
         if (yaSeRenovoPorUn401) {
-          // FRENO 1: ya gasto su renovacion y sigue sin abrir. Esto es un 403, un
-          // 404 o una cabecera mala — algo que renovar no arregla.
-          unawaited(
-            cerrarDelTodo(
-              'el navegador cerró el canal con la sesión ya renovada',
-            ),
-          );
+          // FRENO 1: ya gasto su renovacion y sigue sin abrir. Puede ser un 403,
+          // un 404 o una cabecera mala — algo que renovar no arregla—, asi que no
+          // se gasta otra renovacion. **Pero no se cierra**: se espera al tope de
+          // un minuto y se vuelve a probar, que es lo que hace la APK.
+          intentos = _intentosParaEsperarElTope;
+          programarReintento('el canal se rechaza con la sesión ya renovada');
           return;
         }
         yaSeRenovoPorUn401 = true;
@@ -274,8 +343,8 @@ Stream<String> escucharEventos(
                 );
                 await abrir();
               })
-              .catchError((Object e) async {
-                await cerrarDelTodo('no se pudo renovar la sesión ($e)');
+              .catchError((Object _) async {
+                programarReintento('no se pudo renovar la sesión');
               }),
         );
         return;
@@ -287,6 +356,8 @@ Stream<String> escucharEventos(
   control.onListen = () => unawaited(abrir());
 
   control.onCancel = () {
+    espera?.cancel();
+    espera = null;
     fuente?.close();
     fuente = null;
   };

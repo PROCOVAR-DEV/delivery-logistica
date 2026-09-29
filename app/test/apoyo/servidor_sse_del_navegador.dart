@@ -23,6 +23,7 @@ Future<void> main(List<String> args) async {
   final servidor = await HttpServer.bind(InternetAddress.loopbackIPv4, puerto);
   stderr.writeln('sse de mentira escuchando en 127.0.0.1:$puerto');
 
+  var yaRechazo = false;
   await for (final p in servidor) {
     final origen = p.headers.value('origin') ?? '*';
     p.response.headers
@@ -33,6 +34,26 @@ Future<void> main(List<String> args) async {
       p.response.statusCode = 204;
       await p.response.close();
       continue;
+    }
+    // EL CAMINO QUE RECHAZA LA PRIMERA VEZ Y LUEGO ABRE — 29/09/2026.
+    //
+    // Sirve para una sola pregunta, y es la que costo la noche del 29: **un 401
+    // NO puede matar el canal para siempre**. El servidor de verdad contesto uno
+    // a las 21:30:50 y la web se quedo muda cinco minutos, justo cuando Jose creo
+    // una zona desde el telefono. Aqui se reproduce: el primer intento se rechaza
+    // y el segundo abre, asi que si el cliente no reintenta, la prueba se queda
+    // sin su `cambio` y falla.
+    if (p.uri.path.contains('/rechaza-una-vez/')) {
+      if (!yaRechazo) {
+        yaRechazo = true;
+        stderr.writeln('rechazando el primer intento de ${p.uri}');
+        p.response.statusCode = 401;
+        p.response.headers.contentType = ContentType.text;
+        p.response.write('Unauthorized');
+        await p.response.close();
+        continue;
+      }
+      stderr.writeln('segundo intento de ${p.uri}: ahora si');
     }
     if (!p.uri.path.endsWith('/eventos')) {
       p.response.statusCode = 404;

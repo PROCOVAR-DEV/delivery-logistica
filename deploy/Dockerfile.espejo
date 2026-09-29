@@ -91,6 +91,21 @@ COPY docs/orden-de-paradas.casos.json /docs/orden-de-paradas.casos.json
 COPY docs/almacen-de-origen.casos.json /docs/almacen-de-origen.casos.json
 COPY docker-compose.yml /docker-compose.yml
 
+# Y EL TERCERO, QUE VOLVIÓ A MORDER — 29/09/2026, y con eso van TRES veces.
+#
+# `armado_rechazado_casos_compartidos_test.go` lee `docs/armado-rechazado.casos.json`, que
+# es el mismo fichero que lee su gemela de Flutter: es lo que ata que el servidor y el
+# aparato escriban letra por letra la misma cabecera del armado.
+#
+# Se añadió al `Dockerfile.api` y al `.app` y **se olvidó éste**, que es exactamente lo que
+# cuenta el comentario de arriba sobre los otros dos. Resultado, el mismo: la api, el
+# sincronizador y la web entraron, y el espejo dijo «error» dejando corriendo el contenedor
+# viejo — o sea, el fallo que se ve menos, porque las otras tres salieron bien.
+#
+# Ya no hay que acordarse: `deploy/los_cuatro_copian_lo_mismo_test.go` barre los cuatro
+# Dockerfile y falla si a uno le falta un fichero que alguna prueba lee.
+COPY docs/armado-rechazado.casos.json /docs/armado-rechazado.casos.json
+
 # LAS PRUEBAS, ANTES DE CONSTRUIR. Los CUATRO Dockerfile lo hacen; éste era el que
 # faltaba, y es el que más pintaba tenerlo.
 #

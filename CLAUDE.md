@@ -250,6 +250,25 @@ cuando no.
   entrada de menú y sus pruebas.
 - **Cajón siempre**, también en escritorio (excepción aprobada para este
   proyecto el 05/09/2026). Sin emojis en la interfaz.
+- **Una decisión de una persona se ESCRIBE, no se borra.** Borrar no es decidir:
+  borrar deja un hueco, y otra pieza rellena ese hueco con lo que ella cree.
+
+  El 29/09/2026 costó semanas de «los errores se acumulan y nunca se borran»
+  (Jose). El botón «Descartar» de la bandeja existía y **borraba de verdad** —
+  ése era el fallo. Al irse el apunte, la fila que iba a subir se quedaba sin
+  nada que la nombrara, o sea huérfana, el ciclo la reencolaba, el servidor
+  repetía su «no» y el rechazo volvía a la bandeja con clave nueva. Ninguna
+  pieza mentía: fallaba la junta de tres.
+
+  Ahora `descartar` marca `EstadoApunte.descartado` y lo huérfano lo lee como
+  «esto ya se decidió». Y la segunda mitad, sin la cual se cambia un bucle por un
+  atasco: **también hay que soltar lo que protegía esa fila** (`nacio_aqui`), o la
+  bajada no la toca nunca más.
+
+  Su pariente, y por eso va aquí: **un aviso sin acción es un aviso que se queda
+  puesto para siempre.** «Sólo en este aparato» contaba trabajo que no iba a
+  subir y no tenía ni un botón. Si algo espera «hasta que una persona decida»,
+  tiene que haber **con qué** decidir desde donde se está mirando.
 - **Los botones van SIN FONDO.** Lo que los diferencia es el **color, el borde y
   el icono**, no un rectángulo relleno. Jose lo ha dicho más de una vez y el
   28/09/2026 tuvo que repetirlo —«te dije bien claro q sin background y de

@@ -179,6 +179,9 @@ func (b *baseFalsa) BuscarApunte(ctx context.Context, arg sqlc.BuscarApunteParam
 	fila := sqlc.BuscarApunteRow{
 		AparatoID: p.AparatoID, Clave: p.Clave, Metodo: p.Metodo, Ruta: p.Ruta,
 		Estado: p.Estado, IDCreado: p.IDCreado, HechoAt: p.HechoAt, CreatedAt: p.CreatedAt,
+		// Lo que se cayó aquella vez. Va en la propia fila —no en un JOIN— porque a
+		// diferencia del motivo, esto es del apunte y no de la bandeja.
+		Descartados: p.Descartados,
 	}
 	// El LEFT JOIN con la bandeja: el motivo vive ahí y sólo ahí.
 	if r, hayRechazo := b.rechazos[llave(arg.AparatoID, arg.Clave)]; hayRechazo {
@@ -192,6 +195,7 @@ func (b *baseFalsa) AnotarApunteAplicado(ctx context.Context, arg sqlc.AnotarApu
 	return b.guardarApunte(sqlc.Apunte{
 		AparatoID: arg.AparatoID, Clave: arg.Clave, Metodo: arg.Metodo, Ruta: arg.Ruta,
 		Estado: sqlc.ApunteEstadoAplicado, IDCreado: arg.IDCreado, HechoAt: arg.HechoAt,
+		Descartados: arg.Descartados,
 	})
 }
 

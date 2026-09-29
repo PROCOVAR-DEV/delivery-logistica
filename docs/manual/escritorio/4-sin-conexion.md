@@ -103,4 +103,10 @@ Ver [La primera vez](1-la-primera-vez.md#lee-esta-frase-antes-de-nada).
 En la franja sale como **«Sólo en este aparato: 1 ruta, 2 vehículos»**.
 
 **No es «todavía no ha subido». Es «no va a subir».** Conéctate, y lo que siga
-saliendo ahí después **hay que volver a hacerlo con conexión**.
+saliendo ahí después **hay que volver a hacerlo con conexión** — las zonas del tablero
+suben solas, pero las rutas, los vehículos y los almacenes no.
+
+**Y cuando ya lo hayas rehecho, quita el aviso.** Abre «Entregar el día», busca ese
+mismo recuadro ámbar y pulsa **«Dar por perdido: 1 ruta»**; confirma con **«Sí, darlo
+por perdido»**. No borra nada del equipo: lo que se quita es el aviso. Paso a paso en
+[Cuando algo sale mal](../comun/cuando-algo-sale-mal.md).

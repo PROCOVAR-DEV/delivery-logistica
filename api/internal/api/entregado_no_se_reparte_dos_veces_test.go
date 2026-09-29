@@ -240,8 +240,12 @@ func TestArmarUnaRutaConUnPedidoYaEntregadoEs409QueLoNombra(t *testing.T) {
 		t.Fatalf("código %d, se esperaba 409: %s", w.Code, w.Body.String())
 	}
 	motivo := errorDeRutas(t, w)
-	if !strings.Contains(motivo, "YA SE ENTREGARON") {
-		t.Errorf("el rechazo no dice que ya se entregaron: %q", motivo)
+	// «YA SE ENTREGÓ» porque aquí se cae UNO solo; con dos o más dice «YA SE ENTREGARON».
+	// Se mira el trozo común para no atar esta prueba a la concordancia, que ya tiene la
+	// suya en `armado_rechazado_casos_compartidos_test.go`; lo que se comprueba aquí es que
+	// el motivo que se da es ÉSE y no «ya va en otra ruta».
+	if !strings.Contains(motivo, "YA SE ENTREG") {
+		t.Errorf("el rechazo no dice que ya se entregó: %q", motivo)
 	}
 	if !strings.Contains(motivo, "X-Lejos") {
 		t.Errorf("no se nombra CUÁL de los dos pedidos es: %q", motivo)

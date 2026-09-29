@@ -106,6 +106,10 @@ type Querier interface {
 	//
 	// Trae el motivo con LEFT JOIN porque para contestar `repetido` hay que devolver la MISMA
 	// respuesta de la primera vez, y si aquella fue un rechazo, la respuesta incluye su motivo.
+	// Y trae los `descartados` de aquella vez por lo mismo: si el apunte entró dejando pedidos
+	// fuera, ese aviso forma parte de la respuesta y tiene que volver igual. Sin él, un apunte
+	// cuya respuesta se perdió vuelve como `repetido` sobre una ruta que salió con nueve de
+	// doce y nadie se entera de los tres.
 	BuscarApunte(ctx context.Context, arg BuscarApunteParams) (BuscarApunteRow, error)
 	// «¿Qué le queda a este aparato?», de un tirón.
 	EstadoDeAparato(ctx context.Context, id uuid.UUID) (EstadoDeAparatoRow, error)

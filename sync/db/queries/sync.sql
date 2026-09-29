@@ -143,9 +143,13 @@ ORDER BY e.pendientes DESC;
 --
 -- Trae el motivo con LEFT JOIN porque para contestar `repetido` hay que devolver la MISMA
 -- respuesta de la primera vez, y si aquella fue un rechazo, la respuesta incluye su motivo.
+-- Y trae los `descartados` de aquella vez por lo mismo: si el apunte entró dejando pedidos
+-- fuera, ese aviso forma parte de la respuesta y tiene que volver igual. Sin él, un apunte
+-- cuya respuesta se perdió vuelve como `repetido` sobre una ruta que salió con nueve de
+-- doce y nadie se entera de los tres.
 -- name: BuscarApunte :one
 SELECT p.aparato_id, p.clave, p.metodo, p.ruta, p.estado, p.id_creado, p.hecho_at,
-       p.created_at, r.motivo
+       p.created_at, p.descartados, r.motivo
 FROM apuntes p
 LEFT JOIN apuntes_rechazados r
        ON r.aparato_id = p.aparato_id AND r.clave = p.clave
@@ -155,8 +159,8 @@ WHERE p.aparato_id = $1 AND p.clave = $2;
 -- revés —anotar y luego aplicar— un corte en medio dejaría la clave marcada como hecha con
 -- el trabajo sin hacer, y el reintento contestaría `repetido` sobre algo que no existe.
 -- name: AnotarApunteAplicado :one
-INSERT INTO apuntes (aparato_id, clave, metodo, ruta, estado, id_creado, hecho_at)
-VALUES ($1, $2, $3, $4, 'aplicado', $5, $6)
+INSERT INTO apuntes (aparato_id, clave, metodo, ruta, estado, id_creado, hecho_at, descartados)
+VALUES ($1, $2, $3, $4, 'aplicado', $5, $6, $7)
 RETURNING *;
 
 -- El rechazo también se anota: `rechazado` no se reintenta, así que si el aparato vuelve a

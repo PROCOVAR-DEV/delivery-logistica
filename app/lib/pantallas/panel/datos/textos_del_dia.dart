@@ -1,3 +1,5 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../diseno/numeros.dart';
 import '../../../nucleo/sincro/ciclo.dart';
 import '../../../nucleo/sincro/huerfanos.dart';
@@ -131,20 +133,51 @@ abstract final class TextosDelDia {
 
   /// «datos de las 8:14» — en minuscula porque va detras de otra cosa tantas
   /// veces como sola.
-  static String datosDeLas(DateTime? cuando) => cuando == null
-      ? 'sin datos todavía'
-      : 'datos de las ${cuando.hour}:'
-            '${cuando.minute.toString().padLeft(2, '0')}';
+  ///
+  /// SON TRES RESPUESTAS Y NO DOS, y por eso esto recibe el `AsyncValue` entero
+  /// y no un `DateTime?`.
+  ///
+  /// El conteo de lo que hay dentro del aparato (`loQueHayProvider`) es una
+  /// consulta que tarda: abrir el fichero, las migraciones y nueve conteos sobre
+  /// tablas con decenas de miles de renglones. Mientras corre, `.value` es
+  /// `null` — y `null` aqui significaba «este aparato no tiene nada». O sea que
+  /// el Panel abria diciendo **«sin datos todavía»** encima de una base llena,
+  /// justo en el momento en que alguien mira si le hace falta traer el dia antes
+  /// de salir al reparto. Es el §3-ter del `CLAUDE.md` en su forma mas corta:
+  /// **«no hay» y «no he mirado» son dos cosas distintas**, y colapsar el
+  /// `AsyncLoading` en `null` las confunde.
+  ///
+  /// Ya estaba arreglado en la franja de Pedidos y de Rutas
+  /// (`SinMirarTodavia`, en `nucleo/frescura/reloj_de_datos.dart`, con las
+  /// mismas palabras) y aqui se habia quedado el literal viejo.
+  ///
+  /// Recibir el `AsyncValue` no es ceremonia: es lo que impide que el arreglo se
+  /// deshaga solo. Con un `DateTime?` cualquiera vuelve a escribir `.value` en
+  /// la llamada y el fallo regresa sin que cambie una linea de aqui.
+  ///
+  /// Y se mira `hasValue`, no `isLoading`: cuando el conteo se rehace porque
+  /// entro una bajada, Riverpod deja el valor anterior a la vista mientras
+  /// recalcula. Ahi la hora de antes sigue siendo cierta y parpadear a «mirando
+  /// qué hay…» seria perder un dato bueno.
+  static String datosDeLas(AsyncValue<DateTime?> cuando) {
+    if (!cuando.hasValue) return 'mirando qué hay…';
+    final hora = cuando.requireValue;
+    if (hora == null) return 'sin datos todavía';
+    return 'datos de las ${hora.hour}:'
+        '${hora.minute.toString().padLeft(2, '0')}';
+  }
 
   static String sinSubir(int cuantos) =>
       cuantos == 1 ? '1 sin subir' : '${Numeros.entero(cuantos)} sin subir';
 
   /// La linea de estado del aparato: de cuando son los datos y que queda dentro.
-  static String deQueHoraYQueQueda(DateTime? cuando, int pendientes) =>
-      <String>[
-        datosDeLas(cuando),
-        if (pendientes > 0) sinSubir(pendientes),
-      ].join(' · ');
+  static String deQueHoraYQueQueda(
+    AsyncValue<DateTime?> cuando,
+    int pendientes,
+  ) => <String>[
+    datosDeLas(cuando),
+    if (pendientes > 0) sinSubir(pendientes),
+  ].join(' · ');
 
   static String _coleccion(String clave) => switch (clave) {
     'orders' => 'Pedidos',

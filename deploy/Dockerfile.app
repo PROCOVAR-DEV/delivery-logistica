@@ -104,6 +104,15 @@ COPY herramientas/mapa-cuba/niveles.go /herramientas/mapa-cuba/niveles.go
 #    que faltaba.
 COPY docs/almacen-de-origen.casos.json /docs/almacen-de-origen.casos.json
 
+#  * `docs/armado-rechazado.casos.json` — el CUARTO, y del mismo tipo (29/09/2026). La
+#    cabecera del «no» del armado —«3 de los 4 pedidos elegidos no pueden ir en esta
+#    ruta»— la redacta el teléfono cuando se arma sin señal y la nube cuando hay red, así
+#    que está escrita dos veces y este fichero es lo único que las ata: lo leen
+#    `encabezado_del_armado_test.dart` por `../docs/…` y su gemelo de Go. Ya estuvieron mal
+#    las dos a la vez —«1 de los 1 pedidos elegidos no pueden ir»— y nadie las comparaba.
+#    Sin él la prueba muere al cargar y ESTA IMAGEN NO CONSTRUYE.
+COPY docs/armado-rechazado.casos.json /docs/armado-rechazado.casos.json
+
 # LAS PRUEBAS, ANTES DE CONSTRUIR. Como en `Dockerfile.api` y `Dockerfile.sync`.
 #
 # El 16/09/2026 una mutación de prueba llegó a producción porque el Dockerfile del

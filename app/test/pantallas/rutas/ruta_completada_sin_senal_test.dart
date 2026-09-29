@@ -247,7 +247,7 @@ void main() {
         isA<RechazoLocal>().having(
           (e) => e.mensaje,
           'mensaje',
-          '1 de los 1 pedidos elegidos no pueden ir en esta ruta: '
+          'El pedido elegido no puede ir en esta ruta: '
               'p1 (ya se entregó y no puede volver a un camión).',
         ),
       ),

@@ -552,35 +552,19 @@ func (q *Queries) EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoA
 const fijarTotalesDeRuta = `-- name: FijarTotalesDeRuta :one
 UPDATE routes SET
     total_distance = $1,
-    total_weight   = $2,
-    total_price    = $3,
-    -- CUÁNTAS DE ESAS PARADAS NO ESTÁN COTIZADAS. ` + "`" + `total_price` + "`" + ` suma sólo lo que sí lo
-    -- está —el que no tiene ` + "`" + `pedido_costo` + "`" + ` entra valiendo cero—, así que sin este número
-    -- al lado el total parece completo y no lo es. Dentro de la aplicación ya se resolvió
-    -- sumando de las paradas; esto es para quien lo consulta por SQL o lo exporta, que
-    -- ve un cero indistinguible de un cero de verdad.
-    --
-    -- Va con ` + "`" + `coalesce` + "`" + ` y no a secas: quien no lo manda NO lo pisa. El armador del tablero
-    -- (` + "`" + `internal/api/tablero.go` + "`" + `) todavía no lo calcula, y machacarlo a NULL desde ahí
-    -- borraría el número que sí puso el armador de rutas.
-    paradas_sin_cotizar = coalesce($4::integer,
-                                   paradas_sin_cotizar),
-    optimized      = coalesce($5::boolean, true)
-WHERE id = $6
-  AND ($7::uuid IS NULL OR branch_id = $7::uuid)
+    optimized      = coalesce($2::boolean, true)
+WHERE id = $3
+  AND ($4::uuid IS NULL OR branch_id = $4::uuid)
 RETURNING id, name, route_code, status, origin_address, origin_lat, origin_lng,
           total_distance, total_weight, total_price, paradas_sin_cotizar, delivery_date, vehicle_id,
           branch_id, started_at, finished_at, optimized, created_at, updated_at
 `
 
 type FijarTotalesDeRutaParams struct {
-	TotalDistance     float64     `json:"total_distance"`
-	TotalWeight       float64     `json:"total_weight"`
-	TotalPrice        float64     `json:"total_price"`
-	ParadasSinCotizar *int32      `json:"paradas_sin_cotizar"`
-	Optimizado        *bool       `json:"optimizado"`
-	ID                uuid.UUID   `json:"id"`
-	Sucursal          pgtype.UUID `json:"sucursal"`
+	TotalDistance float64     `json:"total_distance"`
+	Optimizado    *bool       `json:"optimizado"`
+	ID            uuid.UUID   `json:"id"`
+	Sucursal      pgtype.UUID `json:"sucursal"`
 }
 
 type FijarTotalesDeRutaRow struct {
@@ -605,7 +589,7 @@ type FijarTotalesDeRutaRow struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
-// Los totales, ya con las paradas puestas y el recorrido calculado.
+// El recorrido y la firma de quién ordenó, ya con las paradas puestas.
 // `total_distance` es el CIRCUITO CERRADO: los tramos más el regreso al origen. El camión
 // vuelve, y no contar la vuelta subestima el viaje justo a la mitad de las rutas largas.
 //
@@ -619,12 +603,18 @@ type FijarTotalesDeRutaRow struct {
 // Va como `narg` y no como `arg` a propósito: NULL significa «lo ordenó la máquina», que
 // es lo que hacía este UPDATE desde siempre, así que ningún llamador que no lo mande
 // cambia de comportamiento por esta línea. Quien sabe la respuesta la manda.
+// AQUÍ YA NO SE ESCRIBEN NI `total_weight` NI `total_price` NI `paradas_sin_cotizar`
+// —29/09/2026—, y ése es el arreglo entero. Esta consulta corre UNA vez, al armar, así que
+// lo que escribiera en esas tres columnas quedaba congelado en el día del armado: el
+// `$0.00` del 22/09 y los «420 kg» sobre 516,5 del 28/09 salieron de ahí. Las tres son la
+// suma de las paradas y las mantiene la base en cada cambio de paradas
+// (`db/migrations/00014_los_totales_de_la_ruta_no_se_congelan.sql`), que es el único sitio
+// donde vive esa aritmética. Volver a ponerlas aquí es volver a tener dos.
+//
+// Lo que sí se queda es lo que NO es una suma de las paradas: el recorrido y la firma.
 func (q *Queries) FijarTotalesDeRuta(ctx context.Context, arg FijarTotalesDeRutaParams) (FijarTotalesDeRutaRow, error) {
 	row := q.db.QueryRow(ctx, fijarTotalesDeRuta,
 		arg.TotalDistance,
-		arg.TotalWeight,
-		arg.TotalPrice,
-		arg.ParadasSinCotizar,
 		arg.Optimizado,
 		arg.ID,
 		arg.Sucursal,
@@ -1176,7 +1166,17 @@ SELECT
     r.origin_lng, r.total_distance, r.total_weight, r.total_price,
     -- Cuántas paradas entraron sin costo. Va PEGADO a ` + "`" + `total_price` + "`" + ` en las dos consultas
     -- a propósito: el total sin ese número al lado es el ` + "`" + `$0.00` + "`" + ` de RT-20260921-007, que
-    -- no dice «no hay tarifa», dice que el reparto fue gratis. NULL = no consta.
+    -- no dice «no hay tarifa», dice que el reparto fue gratis.
+    --
+    -- Las tres —` + "`" + `total_weight` + "`" + `, ` + "`" + `total_price` + "`" + ` y este contador— son la suma de las paradas
+    -- de la ruta, y las mantiene la base en cada cambio de paradas desde 00014. Antes se
+    -- escribían una sola vez al armar, y por eso lo que se leía aquí era el total del día
+    -- del armado y no el de las paradas de hoy.
+    --
+    -- El ` + "`" + `NULL = no consta` + "`" + ` que decía aquí **ya no puede darse**: 00014 recalculó todas las
+    -- rutas al aplicarse y desde entonces ninguna se queda sin el número. Se sigue leyendo
+    -- como puntero por si alguien deshace la migración (su ` + "`" + `Down` + "`" + ` quita el mantenimiento,
+    -- no los valores).
     r.paradas_sin_cotizar,
     r.delivery_date, r.vehicle_id, r.branch_id, r.creado_por,
     r.started_at, r.finished_at, r.optimized, r.created_at, r.updated_at,
@@ -1363,7 +1363,17 @@ SELECT
     r.origin_lng, r.total_distance, r.total_weight, r.total_price,
     -- Cuántas paradas entraron sin costo. Va PEGADO a ` + "`" + `total_price` + "`" + ` en las dos consultas
     -- a propósito: el total sin ese número al lado es el ` + "`" + `$0.00` + "`" + ` de RT-20260921-007, que
-    -- no dice «no hay tarifa», dice que el reparto fue gratis. NULL = no consta.
+    -- no dice «no hay tarifa», dice que el reparto fue gratis.
+    --
+    -- Las tres —` + "`" + `total_weight` + "`" + `, ` + "`" + `total_price` + "`" + ` y este contador— son la suma de las paradas
+    -- de la ruta, y las mantiene la base en cada cambio de paradas desde 00014. Antes se
+    -- escribían una sola vez al armar, y por eso lo que se leía aquí era el total del día
+    -- del armado y no el de las paradas de hoy.
+    --
+    -- El ` + "`" + `NULL = no consta` + "`" + ` que decía aquí **ya no puede darse**: 00014 recalculó todas las
+    -- rutas al aplicarse y desde entonces ninguna se queda sin el número. Se sigue leyendo
+    -- como puntero por si alguien deshace la migración (su ` + "`" + `Down` + "`" + ` quita el mantenimiento,
+    -- no los valores).
     r.paradas_sin_cotizar,
     r.delivery_date, r.vehicle_id, r.branch_id, r.creado_por,
     r.started_at, r.finished_at, r.optimized, r.created_at, r.updated_at,

@@ -43,6 +43,10 @@ import '../registro/registro.dart';
 /// No hace falta preguntarle nada al servidor, y es a proposito: esto tiene que
 /// poder contestarse **sin conexion**, que es justo cuando se acumula el
 /// trabajo.
+/// La tabla donde se anotan las renuncias. Va por nombre porque no es de Drift:
+/// la crea `BaseLocal` al abrir (`tablaDeRenuncias`), igual que las del Tablero.
+const tablaDeRenuncias = 'renuncias';
+
 class Huerfanos {
   const Huerfanos(this._base);
 
@@ -71,9 +75,14 @@ class Huerfanos {
     // Mirando la marca, el ciclo la reencola, sube, la bajada la pone a 0 y el
     // atasco se deshace solo.
     Sitio('board_columns', 'zona del tablero', 'zonas del tablero',
-        condicion: 'nacio_aqui = 1'),
+        condicion: 'nacio_aqui = 1', seReconstruye: true),
     // Las demas siguen con el provisional: ahi el servidor todavia no deja que
     // el aparato ponga el id, asi que `local-…` sigue siendo la senal buena.
+    //
+    // Y ninguna de las tres se reconstruye: `volverAEncolar` sabe rehacer el
+    // cuerpo de una zona del tablero desde la base, y de estas no. Por eso son
+    // las unicas que se pueden dar por perdidas a mano — a una zona no hay que
+    // renunciar, sube sola en cuanto haya senal.
     Sitio('routes', 'ruta', 'rutas'),
     Sitio('vehicles', 'vehículo', 'vehículos'),
     Sitio('warehouses', 'almacén', 'almacenes'),
@@ -115,16 +124,65 @@ class Huerfanos {
   ///     unico que evitaba una zona repetida arriba era el nombre repetido: un
   ///     rechazo falso en la bandeja por un trabajo que SI habia llegado.
   ///
-  ///  3. **Sin apunte vivo que la cree.** `pendiente` va a subir sola.
-  ///     `rechazado` esta esperando a que una persona decida y se puede
-  ///     reintentar a mano: volver a encolarla por detras seria insistirle a un
-  ///     servidor que ya dijo que no.
+  ///  3. **Sin apunte que hable de ella.** Y son TRES estados, no dos:
+  ///     `pendiente` va a subir sola; `rechazado` esta esperando a que una
+  ///     persona decida y se puede reintentar a mano —volver a encolarla por
+  ///     detras seria insistirle a un servidor que ya dijo que no—; y
+  ///     `descartado` es esa persona habiendo decidido ya.
+  ///
+  ///     **`descartado` es el que faltaba, y su ausencia hacia un circulo.** Al
+  ///     descartar un rechazo el apunte desaparecia, la fila se quedaba sin nada
+  ///     vivo que la nombrara, esto la daba por huerfana y la volvia a encolar,
+  ///     el servidor repetia su no y el rechazo estaba otra vez en la bandeja.
+  ///     Jose lo vio como lo unico que se ve desde fuera: «los errores se
+  ///     acumulan y nunca se borran» (29/09/2026). Un trabajo que una persona ha
+  ///     dado por cerrado no esta colgado: esta cerrado.
+  ///
+  ///  4. **Sin renunciar.** La cuarta, del 29/09/2026. Las zonas del tablero
+  ///     las reconstruye [volverAEncolar]; una ruta, un vehiculo o un almacen
+  ///     no, asi que se quedaban contados en el aviso ambar de las siete
+  ///     pantallas **para siempre y sin un boton**. El §4 del `CLAUDE.md` dice
+  ///     que eso espera «hasta que una persona decida», y no habia con que
+  ///     decidir. Ahora se puede dar por perdido ([darPorPerdido]), y esa
+  ///     decision se anota en `renuncias`.
   static String _esHuerfana(Sitio sitio) =>
       '${sitio.condicion} '
       'AND NOT EXISTS (SELECT 1 FROM equivalencias e WHERE e.provisional = t.id) '
       'AND NOT EXISTS ('
       '  SELECT 1 FROM apuntes a WHERE a.provisional = t.id '
       "  AND a.estado IN ('pendiente', 'rechazado')"
+      ') '
+      'AND NOT EXISTS ('
+      "  SELECT 1 FROM renuncias r WHERE r.tabla = '${sitio.tabla}' "
+      '  AND r.id = t.id'
+      ')';
+
+  /// Y LA OTRA PREGUNTA, QUE **NO** ES LA MISMA — 29/09/2026.
+  ///
+  /// [_esHuerfana] contesta «¿esto existe solo aqui?», que es lo que se AVISA.
+  /// Esta contesta «¿esto hay que volver a encolarlo?», que es lo que se HACE. Se
+  /// parecen tanto que estuvieron escritas como una sola durante unas horas, y
+  /// juntarlas se lleva por delante una de las dos:
+  ///
+  ///  * si el aviso hereda esta condicion, **descartar un rechazo apaga el
+  ///    aviso** — y es mentira: esa ruta sigue sin haber subido y no va a subir.
+  ///    Cambiar un error por un silencio no es arreglarlo.
+  ///  * si el reencolado hereda la otra, **descartar devuelve el rechazo**: se
+  ///    encola, el servidor repite su no, y el mismo error vuelve a la bandeja
+  ///    minutos despues. Eso es lo que Jose vio como «los errores se acumulan y
+  ///    nunca se borran».
+  ///
+  /// Asi que son dos, a proposito, y la unica diferencia es `descartado`: una
+  /// persona que descarta dice **«no lo vuelvas a intentar»**, no dice «esto ya
+  /// esta arriba». Para lo segundo esta [darPorPerdido], que es otro gesto.
+  ///
+  /// Las dos se atan con una prueba y no con este comentario (§3-bis):
+  /// `test/nucleo/cola/descartar_no_lo_devuelve_test.dart`.
+  static String _sePuedeReencolar(Sitio sitio) =>
+      '${_esHuerfana(sitio)} '
+      'AND NOT EXISTS ('
+      '  SELECT 1 FROM apuntes a WHERE a.provisional = t.id '
+      "  AND a.estado = 'descartado'"
       ')';
 
   /// Cuenta lo huerfano, por tipo. Vacio = no hay nada colgado.
@@ -149,15 +207,66 @@ class Huerfanos {
     return salida;
   }
 
-  /// Los ids huerfanos de una tabla, para poder volver a encolarlos.
-  Future<List<String>> idsDe(Sitio sitio) async {
+  /// DAR POR PERDIDO lo colgado de un sitio. Devuelve cuantos se anotaron.
+  ///
+  /// Es la decision de una persona y no pasa sola nunca, igual que descartar un
+  /// rechazo. Se usa cuando lo que hay aqui **ya no va a subir y ya no importa**:
+  /// la ruta se rehizo en la web, el reparto de aquel dia se cerro a mano, el
+  /// vehiculo se dio de alta por otro sitio.
+  ///
+  /// **No borra la fila.** Borrar una ruta local se lleva sus paradas y deja los
+  /// pedidos apuntando a algo que no esta; y ademas, lo que se hizo aquel dia
+  /// sigue siendo la unica explicacion de por que aquel reparto salio como
+  /// salio. Lo que se quita es el aviso, no el dato — el mismo trato que
+  /// [ColaDeSalida.darPorLeidoElDescarte] le da a los descartados.
+  Future<int> darPorPerdido(Sitio sitio) async {
+    final ids = await idsDe(sitio);
+    if (ids.isEmpty) return 0;
+    final cuando = DateTime.now().toIso8601String();
+    for (final id in ids) {
+      await _base.customStatement(
+        'INSERT OR IGNORE INTO renuncias (tabla, id, cuando) '
+        'VALUES (?1, ?2, ?3)',
+        [sitio.tabla, id, cuando],
+      );
+    }
+    // AVISO A MANO, porque `renuncias` no es una tabla de Drift: se crea al
+    // abrir con SQL suelto (`BaseLocal.tablaDeRenuncias`), asi que un
+    // `customStatement` no despierta a nadie. Sin esto el aviso ambar sigue
+    // puesto en las siete pantallas hasta el tic siguiente del ciclo, y quien
+    // acaba de darle al boton lee que no ha pasado nada.
+    _base.notifyUpdates({const TableUpdate(tablaDeRenuncias)});
+
+    // Queda dicho, que es lo unico que lo explica manana.
+    Registro.aviso(
+      '${ids.length} ${ids.length == 1 ? sitio.uno : sitio.varios} '
+      'dados por perdidos a mano: ${ids.join(', ')}',
+    );
+    return ids.length;
+  }
+
+  /// Los ids de lo que se AVISA: lo que existe solo aqui, se diga lo que se diga
+  /// de sus apuntes. Es el conjunto sobre el que decide una persona.
+  Future<List<String>> idsDe(Sitio sitio) => _idsCon(sitio, _esHuerfana(sitio));
+
+  /// Los ids de lo que se puede VOLVER A ENCOLAR, que es un subconjunto: de aqui
+  /// quedan fuera los que alguien ya descarto. Ver [_sePuedeReencolar].
+  Future<List<String>> idsParaReencolar(Sitio sitio) =>
+      _idsCon(sitio, _sePuedeReencolar(sitio));
+
+  Future<List<String>> _idsCon(Sitio sitio, String donde) async {
     final filas = await _base
-        .customSelect(
-          'SELECT t.id AS id FROM ${sitio.tabla} t WHERE ${_esHuerfana(sitio)}',
-        )
+        .customSelect('SELECT t.id AS id FROM ${sitio.tabla} t WHERE $donde')
         .get();
     return filas.map((f) => f.read<String>('id')).toList();
   }
+
+  /// LAS RUTAS, que son el caso de «esto ya no sube y hay que poder cerrarlo».
+  ///
+  /// Se saca a constante por lo mismo que [zonasDelTablero]: la pantalla y las
+  /// pruebas necesitan nombrar el sitio, y escribirlo otra vez a mano seria una
+  /// segunda copia de la condicion.
+  static const rutas = Sitio('routes', 'ruta', 'rutas');
 
   /// La zona del tablero, que es la unica que hoy se sabe reconstruir.
   static const zonasDelTablero = Sitio(
@@ -203,7 +312,7 @@ class Huerfanos {
   Future<int> _volverAEncolar(ColaDeSalida cola) async {
     if (!await _hayTabla('board_columns')) return 0;
     var puestos = 0;
-    for (final id in await idsDe(zonasDelTablero)) {
+    for (final id in await idsParaReencolar(zonasDelTablero)) {
       final columna = await _base
           .customSelect(
             'SELECT branch_id, nombre, vehicle_id FROM board_columns '
@@ -292,12 +401,15 @@ class Huerfanos {
           // Su zona SI esta arriba: las de zonas huerfanas ya salieron detras de
           // la suya en el bucle de arriba.
           '  AND c.nacio_aqui = 0 '
-          // Y no le queda ningun apunte vivo que la suba. Se busca por la ruta,
-          // que es donde el apunte nombra al pedido.
+          // Y no le queda ningun apunte que hable de ella. Se busca por la
+          // ruta, que es donde el apunte nombra al pedido. Los tres estados son
+          // los mismos que en `_esHuerfana` y por el mismo motivo: `descartado`
+          // es una persona que ya decidio, y volver a encolarlo le devuelve el
+          // rechazo que acaba de quitar.
           '  AND NOT EXISTS ('
           '    SELECT 1 FROM apuntes a '
           "    WHERE a.ruta = '/board/placements/' || p.order_id "
-          "      AND a.estado IN ('pendiente', 'rechazado')"
+          "      AND a.estado IN ('pendiente', 'rechazado', 'descartado')"
           '  )',
         )
         .get();
@@ -329,6 +441,7 @@ class Sitio {
     this.uno,
     this.varios, {
     this.condicion = "t.id LIKE 'local-%'",
+    this.seReconstruye = false,
   });
 
   final String tabla;
@@ -340,6 +453,15 @@ class Sitio {
   /// id definitivo; las demas siguen con el `local-…` provisional, porque ahi el
   /// servidor todavia no deja que el aparato nombre nada.
   final String condicion;
+
+  /// ¿SABE EL CICLO REHACER ESTO SOLO?
+  ///
+  /// La zona del tablero si: [Huerfanos.volverAEncolar] reconstruye su cuerpo
+  /// desde la base y la sube en cuanto haya senal, asi que su aviso es de paso
+  /// y ofrecer «darlo por perdido» seria tirar trabajo que iba a llegar.
+  ///
+  /// Las demas no, y por eso su aviso se queda puesto hasta que alguien decida.
+  final bool seReconstruye;
 
   /// Como se llama en singular y en plural, para poder DECIRLO. «1 zona del
   /// tablero», «3 vehículos». Un mensaje que diga «3 filas de board_columns» no
@@ -356,6 +478,11 @@ class TrabajoHuerfano {
   final int cuantos;
 
   String get tabla => _sitio.tabla;
+
+  /// El sitio, para poder ofrecer —o no— darlo por perdido desde la pantalla.
+  Sitio get sitio => _sitio;
+
+  bool get seReconstruye => _sitio.seReconstruye;
 
   /// «1 zona del tablero» · «3 vehículos».
   String get texto => '$cuantos ${cuantos == 1 ? _sitio.uno : _sitio.varios}';

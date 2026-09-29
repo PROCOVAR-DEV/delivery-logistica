@@ -524,3 +524,93 @@ func TestLosDescartadosLleganAlAparato(t *testing.T) {
 			"el cuerpo fue: %s", w.Body.String())
 	}
 }
+
+// EL REINTENTO DE UN APUNTE QUE DEJÓ GENTE FUERA TIENE QUE DECIR A QUIÉN.
+//
+// Es el caso más caro de todos los del reintento, y estuvo escrito como agujero conocido
+// desde el día que se hizo `mismaRespuestaQueLaPrimeraVez`:
+//
+//	se arma una zona sin señal con doce pedidos → el apunte sube → el reparto crea la ruta
+//	con NUEVE y nombra a los tres que se cayeron → la respuesta se pierde por el camino.
+//
+// El aparato, que no recibió nada, reintenta. Aquí se contesta `repetido` —correctamente,
+// la regla 1 dice que un apunte se queda como se resolvió la primera vez— pero hasta el
+// 29/09/2026 ese `repetido` **iba sin los descartados**, porque no se guardaban.
+//
+// Lo que se veía: la ruta arriba con nueve de doce, el teléfono enseñando que el armado
+// salió bien, y los tres pedidos sin repartir sin que sonara nada en ningún sitio. Es
+// exactamente el «nada se descarta en silencio» del §4, roto por el único camino que nadie
+// mira — el de la respuesta perdida.
+func TestUnRepetidoTambienDiceQuienSeCayo(t *testing.T) {
+	b := montar(t)
+
+	const fuera = `[{"pedidoId":"0199a1b2-0000-7000-8000-00000000000a",` +
+		`"operationNumber":"X-2992","customerName":"Ana Pérez",` +
+		`"motivo":"ya no estaba en esa zona cuando llegó tu apunte",` +
+		`"queHacer":"comprueba si se entregó igual"}]`
+
+	b.aplicador.descarta = func(p Peticion) json.RawMessage {
+		if strings.HasSuffix(p.Ruta, "/route") {
+			return json.RawMessage(fuera)
+		}
+		return nil
+	}
+
+	armar := []apunteEntrada{{
+		Clave: "01J8REP1", Hecho: enPunto(t, "2026-09-29T08:05:00Z"),
+		Metodo: http.MethodPost, Ruta: "/api/board/columns/z1/route",
+		Cuerpo:      json.RawMessage(`{"pedidoIds":["p1","p2"]}`),
+		Provisional: "local-9f3a",
+	}}
+
+	// PRIMERA VEZ: entra y deja a uno fuera. Esta respuesta es la que se pierde.
+	_, primera := b.subir(armar, b.quien)
+	if primera[0].Estado != EstadoAplicado {
+		t.Fatalf("la primera vez tenía que aplicarse: %+v", primera[0])
+	}
+
+	// SEGUNDA VEZ: el aparato, que no se enteró de nada, vuelve a mandar el mismo apunte.
+	_, segunda := b.subir(armar, b.quien)
+	if segunda[0].Estado != EstadoRepetido {
+		t.Fatalf("la segunda vez tenía que ser `repetido`: %+v", segunda[0])
+	}
+	if !strings.Contains(string(segunda[0].Descartados), "X-2992") {
+		t.Fatalf("EL REINTENTO NO DICE QUIÉN SE CAYÓ. La ruta está arriba con menos pedidos "+
+			"de los que se pusieron, el aparato da el armado por bueno y los que quedaron "+
+			"fuera no salen en ninguna pantalla. Volvió: %q", string(segunda[0].Descartados))
+	}
+	if !strings.Contains(string(segunda[0].Descartados), "comprueba si se entregó igual") {
+		t.Fatalf("el `queHacer` también tiene que volver: un aviso sin qué hacer es una "+
+			"queja. Volvió: %q", string(segunda[0].Descartados))
+	}
+	// Y sigue siendo el MISMO id, que es el resto de la regla 1.
+	if primera[0].ID == nil || segunda[0].ID == nil || *primera[0].ID != *segunda[0].ID {
+		t.Fatalf("`repetido` tiene que devolver el id de la primera vez: %+v vs %+v",
+			primera[0].ID, segunda[0].ID)
+	}
+}
+
+// Y LA OTRA MITAD, que es la que evita cambiar un silencio por un aviso falso: un apunte
+// que no dejó a nadie fuera no puede inventarse una lista vacía al repetirse. «[]» se lee
+// como «lo comprobé y no se cayó nadie», y eso sobre un apunte viejo —de antes de que la
+// columna existiera— sería afirmar algo que nunca se supo.
+func TestUnRepetidoSinDescartadosNoInventaNada(t *testing.T) {
+	b := montar(t)
+
+	normal := []apunteEntrada{{
+		Clave: "01J8REP2", Hecho: enPunto(t, "2026-09-29T08:06:00Z"),
+		Metodo: http.MethodPatch, Ruta: "/api/routes/r1",
+		Cuerpo: json.RawMessage(`{"status":"en_curso"}`),
+	}}
+
+	b.subir(normal, b.quien)
+	_, segunda := b.subir(normal, b.quien)
+
+	if segunda[0].Estado != EstadoRepetido {
+		t.Fatalf("la segunda vez tenía que ser `repetido`: %+v", segunda[0])
+	}
+	if segunda[0].Descartados != nil {
+		t.Fatalf("un apunte que no dejó a nadie fuera no puede volver con `descartados`: %q",
+			string(segunda[0].Descartados))
+	}
+}

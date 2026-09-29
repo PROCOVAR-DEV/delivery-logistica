@@ -174,6 +174,17 @@ Una subida a medias —el servidor guardó y se cortó antes de contestar— rei
 `clave` es lo que deja al servidor reconocerla y devolver lo mismo que la primera vez en
 vez de aplicarla otra vez. Sin esto, una ruta creada sin red puede acabar duplicada.
 
+**Lo MISMO quiere decir todo, y hasta el 29/09/2026 faltaba una cosa: los `descartados`.**
+El caso: se arma una zona sin señal con doce pedidos, el apunte sube, el reparto crea la
+ruta con **nueve** y nombra a los tres que se cayeron, y la respuesta se pierde por el
+camino. El aparato reintenta, el servidor contesta `repetido` —correcto— pero sin el aviso
+dentro: la ruta quedaba arriba con nueve de doce y en el teléfono parecía que había ido
+entera. Ahora se guardan en `apuntes.descartados`
+(`sync/db/migrations/00002_los_descartados_del_repetido.sql`) y vuelven con el `repetido`.
+
+Un apunte anterior a esa migración la tiene **nula**, y se deja nula a propósito: no se
+inventa una lista vacía, que se leería como «lo comprobé y no se cayó nadie».
+
 ### Los identificadores provisionales
 
 Una ruta armada sin conexión no tiene identificador: lo pone la base de datos. Pero la

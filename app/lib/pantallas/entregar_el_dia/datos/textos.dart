@@ -62,6 +62,25 @@ abstract final class TextosDeEntregarElDia {
       'Lo que siga saliendo aquí después de subir hay que volver a hacerlo con '
       'conexión.';
 
+  /// LA SALIDA, que hasta el 29/09/2026 no existía.
+  ///
+  /// Una zona del tablero sube sola en cuanto hay señal, así que su aviso es de
+  /// paso. Una ruta, un vehículo o un almacén, no: nadie sabe rehacerlos, y se
+  /// quedaban contados en ámbar en las siete pantallas para siempre. Jose: «los
+  /// errores se acumulan y nunca se borran».
+  static String darPorPerdido(String que) => 'Dar por perdido: $que';
+
+  static String seguroDePerder(String que) =>
+      '$que no llegó al servidor y ya no va a llegar. Al darlo por perdido deja '
+      'de avisarse, pero no se borra nada del aparato: lo hecho aquel día sigue '
+      'estando para quien pregunte.';
+
+  static const volverAHacerlo =
+      'Si todavía hace falta, hay que volver a hacerlo con conexión.';
+
+  static const siDarloPorPerdido = 'Sí, darlo por perdido';
+  static const mejorNo = 'Dejarlo como está';
+
   /// EL APUNTE ENTRO Y AUN ASI SALIO CON MENOS.
   ///
   /// No es un rechazo —eso es la bandeja— ni algo sin subir: la ruta esta

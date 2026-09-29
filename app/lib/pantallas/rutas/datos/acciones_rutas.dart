@@ -52,6 +52,36 @@ import '../../../nucleo/reloj.dart';
 import 'geo.dart';
 import 'importe_de_la_ruta.dart';
 
+/// LA CABECERA DEL RECHAZO DEL ARMADO, con sus dos numeros.
+///
+/// [seCaen] son los pedidos que no pueden ir y [seEligieron] los que la persona
+/// marco en la pantalla — no los ids distintos: es lo que tiene delante
+/// mientras lee el aviso.
+///
+/// **Es letra por letra la del servidor** (`encabezadoDelArmado` en
+/// `api/internal/api/rutas.go`): sin señal el rechazo lo redacta el aparato y
+/// con señal lo redacta la nube, y dos redacciones del mismo «no» obligan a
+/// aprender dos idiomas de error. Lo que ata las dos es
+/// `docs/armado-rechazado.casos.json`, que leen las dos pruebas.
+///
+/// # El singular — 29/09/2026
+///
+/// Decia «1 de los 1 pedidos elegidos no pueden ir en esta ruta»: tres faltas en
+/// siete palabras, y en el caso mas comun de todos, elegir UN pedido y que no
+/// entre. Son dos concordancias distintas porque los dos numeros cuentan cosas
+/// distintas: el verbo va con los que se caen, que son el sujeto, y el
+/// sustantivo con los que se eligieron. Y con un solo pedido elegido los dos
+/// numeros son el mismo, asi que decir «1 de 1» no informa de nada y la frase va
+/// sin ellos.
+///
+/// El patron de plural es el de la casa —`n == 1 ? singular : plural`, como
+/// `EnlaceDeLaRuta.cuantasParadas`—, con el cero cayendo en plural.
+String encabezadoDelArmado(int seCaen, int seEligieron) {
+  final verbo = seCaen == 1 ? 'no puede ir' : 'no pueden ir';
+  if (seEligieron == 1) return 'El pedido elegido $verbo en esta ruta: ';
+  return '$seCaen de los $seEligieron pedidos elegidos $verbo en esta ruta: ';
+}
+
 /// Un «no» dicho por el aparato, con el MISMO texto que diria el servidor.
 ///
 /// Se comprueba aqui lo que se puede para que el rechazo tardio —el que llega
@@ -676,20 +706,27 @@ class AccionesDeRuta {
         : '.';
     // La M es `pedidos.length`, lo que la persona marcó en la pantalla y tiene
     // delante mientras lee el aviso, no el número de ids distintos.
-    // ESTE MENSAJE ES EL DEL SERVIDOR, LETRA POR LETRA, y por eso «1 de los 1
-    // pedidos elegidos no pueden» SIGUE MAL a propósito — 28/09/2026.
     //
-    // Lo copia de `api/internal/api/rutas.go` (`mensajeNoPuedenIr`) para que sin
-    // señal se lea exactamente lo mismo que con ella: es la regla del
-    // §3-quinquies —«lo que el servidor rechaza se dice, y con su motivo
-    // literal»—. Arreglar el plural SÓLO aquí rompe esa paridad y deja dos
-    // frases distintas para el mismo rechazo, que es peor que el «1 pedidos».
+    // ESTE MENSAJE ES EL DEL SERVIDOR, LETRA POR LETRA. Lo copia de
+    // `api/internal/api/rutas.go` (`encabezadoDelArmado`) para que sin señal se
+    // lea exactamente lo mismo que con ella: es la regla del §3-quinquies —«lo
+    // que el servidor rechaza se dice, y con su motivo literal»—. Tocar el
+    // plural SÓLO aquí rompe esa paridad y deja dos frases distintas para el
+    // mismo rechazo, que es peor que un «1 pedidos».
     //
-    // Se arregla en los dos lados a la vez, con sus dos suites de pruebas —12
-    // literales en `test/pantallas/rutas/` y los de `api/internal/api/
-    // rutas_test.go`—, y eso es su propia tarea.
-    return '${fuera.length} de los ${pedidos.length} pedidos elegidos no pueden '
-        'ir en esta ruta: ${detalle.join(", ")}$cola';
+    // EL SINGULAR, ARREGLADO EN LOS DOS LADOS A LA VEZ — 29/09/2026. Decía «1 de
+    // los 1 pedidos elegidos no pueden ir en esta ruta», tres faltas en siete
+    // palabras y en el caso más común: elegir un pedido y que no entre. Son dos
+    // concordancias distintas porque los dos números cuentan cosas distintas:
+    // el VERBO va con los que se caen y el SUSTANTIVO con los que se eligieron.
+    // Y con un solo pedido elegido los dos números son el mismo, así que decir
+    // «1 de 1» no informa de nada y la frase va sin ellos.
+    //
+    // Lo que ata esta redacción con la del servidor es
+    // `docs/armado-rechazado.casos.json`, que leen las dos pruebas —la de aquí y
+    // la de Go—, no este comentario (`CLAUDE.md` §3-bis).
+    return '${encabezadoDelArmado(fuera.length, pedidos.length)}'
+        '${detalle.join(", ")}$cola';
   }
 
   /// El mensaje compuesto de los no facturados, letra a letra como el servidor:

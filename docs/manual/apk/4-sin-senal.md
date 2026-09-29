@@ -138,9 +138,14 @@ En la franja sale como **«Sólo en este aparato: 1 ruta, 2 vehículos»**.
 **No es «todavía no ha subido». Es «no va a subir».** Qué hacer:
 
 1. **No cierres sesión. No desinstales.**
-2. Conéctate: con señal, el sincronizador vuelve a encolar solo lo que sabe rehacer.
+2. Conéctate: con señal, el sincronizador vuelve a encolar solo lo que sabe rehacer
+   — las **zonas del tablero** suben solas así.
 3. **Lo que siga saliendo ahí después de subir hay que volver a hacerlo con
-   conexión.**
+   conexión.** Las rutas, los vehículos y los almacenes no se rehacen solos.
+4. **Y cuando ya lo hayas rehecho, quita el aviso**: abre «Entregar el día», toca
+   **«Dar por perdido: 1 ruta»** en ese mismo recuadro ámbar y confirma. No borra nada
+   del aparato — sólo deja de avisar. Paso a paso en
+   [Cuando algo sale mal](../comun/cuando-algo-sale-mal.md).
 
 ---
 

@@ -216,7 +216,7 @@ void main() {
       // pero es de Holguín» ya es contar algo de Holguín.
       await esperaRechazo(
         const ['no-existe'],
-        '1 de los 1 pedidos elegidos no pueden ir en esta ruta: '
+        'El pedido elegido no puede ir en esta ruta: '
         'no-existe (no existe o no es de tu sucursal).',
       );
     });
@@ -242,7 +242,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '1 de los 3 pedidos elegidos no pueden ir en esta ruta: '
+          '1 de los 3 pedidos elegidos no puede ir en esta ruta: '
           'F-002 (ya va en la ruta RT-20260922-003).',
         );
       });
@@ -262,7 +262,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '1 de los 3 pedidos elegidos no pueden ir en esta ruta: '
+          '1 de los 3 pedidos elegidos no puede ir en esta ruta: '
           'F-002 (ya se entregó y no puede volver a un camión).',
         );
       });
@@ -275,7 +275,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '1 de los 3 pedidos elegidos no pueden ir en esta ruta: '
+          '1 de los 3 pedidos elegidos no puede ir en esta ruta: '
           'F-002 (PEDIDO lo archivó).',
         );
       });
@@ -287,7 +287,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '1 de los 3 pedidos elegidos no pueden ir en esta ruta: '
+          '1 de los 3 pedidos elegidos no puede ir en esta ruta: '
           'F-002 (sin coordenadas de entrega).',
         );
       });
@@ -299,7 +299,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '1 de los 3 pedidos elegidos no pueden ir en esta ruta: '
+          '1 de los 3 pedidos elegidos no puede ir en esta ruta: '
           'F-002 (no vino de PEDIDO).',
         );
       });
@@ -332,7 +332,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q2', 'q3'],
-          '1 de los 4 pedidos elegidos no pueden ir en esta ruta: '
+          '1 de los 4 pedidos elegidos no puede ir en esta ruta: '
           'F-002 (ya va en la ruta RT-20260922-003).',
         );
       });

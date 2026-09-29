@@ -8,6 +8,7 @@ import 'package:reparto/nucleo/reloj.dart';
 import 'package:reparto/nucleo/red/fallos.dart';
 import 'package:reparto/nucleo/red/salud.dart';
 import 'package:reparto/nucleo/sincro/ciclo.dart';
+import 'package:reparto/nucleo/red/veredicto_del_sistema.dart';
 
 import '../../apoyo/apoyo_sesion.dart';
 import '../../apoyo/servidor_falso.dart';
@@ -163,6 +164,19 @@ ProviderContainer montarTraerElDia({
   required Future<RespuestaFalsa?> Function(PeticionVista) responder,
   bool haySesion = true,
   bool hayPista = true,
+  // EL VEREDICTO DEL SISTEMA, en sus tres piezas. Se anadio el 29/09/2026 para
+  // poder montar este mismo cableado con los canales puestos a mano y comprobar
+  // que volver la senal dispara un ciclo de verdad — no que la pieza exista, que
+  // existia y estaba desconectada.
+  //
+  // Van como TRES parametros con su tipo y no como una lista de overrides
+  // sueltos, y no es capricho: **`Override` no es un tipo publico en Riverpod
+  // 3.1** —no lo exporta ni `flutter_riverpod` ni `riverpod`—, asi que una lista
+  // asi no se puede declarar sin `dynamic`, y con `dynamic` el analizador la
+  // rechaza. Con tipo propio, pasar lo que no es falla al escribirlo.
+  VeredictoAhora? veredictoAhora,
+  AvisosDeVeredicto? avisosDeVeredicto,
+  CrearEspera? esperaDelSondeo,
 }) {
   final almacen = AlmacenEnMemoria(
     const Sesion(token: 't-viejo', refresh: 'r0', sub: 'u1'),
@@ -209,6 +223,16 @@ ProviderContainer montarTraerElDia({
               ref.read(marchaDelCicloProvider.notifier).avanza(avance),
         ),
       ),
+      // `?` y no un `if`: lo que no pase la prueba se queda con el de siempre.
+      ?veredictoAhora != null
+          ? veredictoAhoraProvider.overrideWithValue(veredictoAhora)
+          : null,
+      ?avisosDeVeredicto != null
+          ? avisosDeVeredictoProvider.overrideWithValue(avisosDeVeredicto)
+          : null,
+      ?esperaDelSondeo != null
+          ? crearEsperaDelSondeoProvider.overrideWithValue(esperaDelSondeo)
+          : null,
     ],
   );
 }

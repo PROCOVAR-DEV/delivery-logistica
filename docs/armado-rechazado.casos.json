@@ -1,0 +1,54 @@
+{
+  "queEsEsto": "La cabecera del «no» que sale al armar una ruta cuando alguno de los pedidos elegidos no puede ir. Se redacta DOS VECES: en el servidor (`api/internal/api/rutas.go`, `encabezadoDelArmado`) y en el aparato (`app/lib/pantallas/rutas/datos/acciones_rutas.dart`, `encabezadoDelArmado`), porque la ruta se arma en el patio del almacen sin señal y ahi el rechazo lo escribe el telefono. Tienen que decir EXACTAMENTE lo mismo o el mismo «no» se lee de dos maneras segun haya cobertura, y eso no lo enseña ninguna pantalla. Este fichero es lo que las ata (CLAUDE.md §3-bis: se atan con una prueba, no con un comentario).",
+  "quienLoLee": [
+    "api/internal/api/armado_rechazado_casos_compartidos_test.go",
+    "app/test/pantallas/rutas/encabezado_del_armado_test.dart"
+  ],
+  "deDondeSale": "El 28/09/2026 la cabecera decia «1 de los 1 pedidos elegidos no pueden ir en esta ruta»: tres faltas en siete palabras y en el caso mas comun de todos, elegir un pedido y que no entre. Estaba mal en los dos lados a la vez, y a proposito: arreglarlo en uno solo habria roto la paridad, que es peor. Se arreglo en los dos el 29/09/2026 y este fichero nacio con el arreglo.",
+  "laRegla": "Son DOS concordancias distintas porque los dos numeros cuentan cosas distintas. El VERBO va con `seCaen`, que es el sujeto de la frase: «1 ... no PUEDE ir», «3 ... no PUEDEN ir». El SUSTANTIVO va con `seEligieron`, los que la persona marco en la pantalla. Y cuando `seEligieron` es 1 los dos numeros son forzosamente el mismo, asi que decirlos no informa de nada y la frase va sin ellos.",
+  "comoSeLee": "Para cada caso, la funcion `encabezadoDelArmado(seCaen, seEligieron)` de los dos lenguajes tiene que devolver `encabezado`, con sus espacios y sus dos puntos finales: detras se pegan los pedidos nombrados uno a uno. Si se cambia la redaccion hay que cambiar los dos lados A LA VEZ y regenerar este fichero; tocar uno solo pone la otra prueba en rojo.",
+  "casos": [
+    {
+      "nombre": "uno-elegido-y-se-cae",
+      "nota": "EL CASO QUE SE ARREGLO. Un pedido elegido, un pedido que no entra: los dos numeros son el mismo y no se dicen.",
+      "seCaen": 1,
+      "seEligieron": 1,
+      "encabezado": "El pedido elegido no puede ir en esta ruta: "
+    },
+    {
+      "nombre": "uno-de-dos",
+      "nota": "El verbo en singular, el sustantivo en plural. Es el caso que mas se ve despues del de arriba.",
+      "seCaen": 1,
+      "seEligieron": 2,
+      "encabezado": "1 de los 2 pedidos elegidos no puede ir en esta ruta: "
+    },
+    {
+      "nombre": "uno-de-tres",
+      "nota": "Lo mismo con tres: la M es lo que la persona marco en la pantalla.",
+      "seCaen": 1,
+      "seEligieron": 3,
+      "encabezado": "1 de los 3 pedidos elegidos no puede ir en esta ruta: "
+    },
+    {
+      "nombre": "dos-de-tres",
+      "nota": "Los dos en plural, que es la frase que ya estaba bien.",
+      "seCaen": 2,
+      "seEligieron": 3,
+      "encabezado": "2 de los 3 pedidos elegidos no pueden ir en esta ruta: "
+    },
+    {
+      "nombre": "todos-de-cuatro",
+      "nota": "Se caen todos los elegidos y siguen siendo varios: no hay nada especial que decir.",
+      "seCaen": 4,
+      "seEligieron": 4,
+      "encabezado": "4 de los 4 pedidos elegidos no pueden ir en esta ruta: "
+    },
+    {
+      "nombre": "quince",
+      "nota": "La seleccion grande del logistico. La M es lo que hace que «1 de los 15» no obligue a adivinar cual.",
+      "seCaen": 12,
+      "seEligieron": 15,
+      "encabezado": "12 de los 15 pedidos elegidos no pueden ir en esta ruta: "
+    }
+  ]
+}

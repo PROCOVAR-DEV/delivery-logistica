@@ -9,7 +9,24 @@ import 'package:drift/drift.dart';
 /// dijo que no por algo y eso tiene que quedar a la vista con su motivo y su
 /// hora (regla 6). Un apunte que desaparece solo es trabajo perdido que nadie
 /// sabe que perdio.
-enum EstadoApunte { pendiente, aplicado, rechazado }
+///
+/// `descartado` ES LA DECISION DE UNA PERSONA, y es un estado y no un borrado
+/// por lo que paso el 29/09/2026. Jose, mirando el cajon de entregar el dia:
+/// «los errores se acumulan y nunca se borran, se mantienen aunque se hayan
+/// borrado las cosas y solucionado».
+///
+/// Y el boton de «Descartar» estaba puesto y borraba de verdad. Lo que fallaba
+/// era lo de despues: al borrar el apunte, la fila que ese apunte iba a subir
+/// se quedaba **sin ningun apunte vivo**, que es exactamente la definicion de
+/// huerfana (`nucleo/sincro/huerfanos.dart`). El ciclo la veia colgada, la
+/// volvia a encolar, el servidor volvia a decir que no y reaparecia en la
+/// bandeja. Descartar y esperar cinco minutos devolvia el mismo rechazo.
+///
+/// Guardandolo como estado en vez de borrarlo, la decision **se queda escrita**:
+/// no sale en la bandeja, no cuenta como sin subir, y lo huerfano lo ve como
+/// «esto ya se decidio» y no lo vuelve a encolar. Sigue siendo, ademas, la unica
+/// constancia de algo que no llego a pasar, que es lo que pide la regla 6.
+enum EstadoApunte { pendiente, aplicado, rechazado, descartado }
 
 /// LA COLA DE SALIDA.
 ///

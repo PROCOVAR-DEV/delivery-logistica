@@ -237,10 +237,13 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
   Es un circuito cerrado.
 - **Por pedido**: `segmentKm = haversine(origen, pedido)` — ojo, es la distancia **radial
   desde el origen**, no la del tramo del recorrido.
-- `totalWeight = Σ weight`, `totalPrice = Σ pedidoCosto (|| 0)`.
+- `totalWeight = Σ weight`, `totalPrice = Σ pedidoCosto` de las cotizadas. **No los escribe
+  el armador**: los mantiene la base en cada cambio de paradas (00014), junto con
+  `paradasSinCotizar`. El armador sí suma el peso para validar la capacidad antes de crear
+  nada, y lo devuelve en la respuesta.
 - Actualiza cada `Order`: `routeId`, `ultimaRutaId` (ambos = id de la ruta), `stopOrder =
   i+1`, `tripLeg = 'outbound'`, `segmentKm`, `price = pedidoCosto || 0`.
-- Actualiza la `Route`: `totalDistance`, `totalWeight`, `totalPrice`, `optimized = true`.
+- Actualiza la `Route`: `totalDistance`, `optimized = true`.
   - **Nos separamos aquí (21/09/2026):** el cuerpo acepta además `optimizar` (booleano,
     por defecto `true`, que es este mismo comportamiento y el que mandan las APK ya
     instaladas). Con `optimizar:false` **no se reordena**: se respeta el orden en que

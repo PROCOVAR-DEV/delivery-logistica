@@ -283,8 +283,8 @@ garantiza que concuerden.
 | `originLat` | Float? | sí | — | |
 | `originLng` | Float? | sí | — | |
 | `totalDistance` | Float | no | `0` | km del recorrido incl. regreso (§5) |
-| `totalWeight` | Float | no | `0` | kg (§5) |
-| `totalPrice` | Float | no | `0` | (§5) |
+| `totalWeight` | Float | no | `0` | kg (§5). **No se escribe al armar: es la suma de las paradas y la mantiene la base** (00014) |
+| `totalPrice` | Float | no | `0` | (§5). Ídem, y suma sólo lo cotizado: va con `paradasSinCotizar` |
 | `deliveryDate` | DateTime? | sí | — | fecha planificada |
 | `vehicleId` | String? | sí | — | FK → `Vehicle.id` |
 | `userId` | String | no | — | FK → `User.id` |
@@ -519,8 +519,9 @@ tocó la fila»).
 | `Order.status` | `results`: `entregado ? 'delivered' : 'pending'` | |
 | `Route.routeCode` | `generateRouteCode()` en `POST /api/routes` | `RT-{YYYYMMDD}-{count+1 pad 3}` |
 | `Route.totalDistance` | `POST /api/routes` (update posterior) | Σ `calculateRouteSegments(origin, stops)` + haversine última parada → origen (incluye el regreso) |
-| `Route.totalWeight` | `POST /api/routes` | Σ `order.weight` de las paradas; se valida contra `Vehicle.capacity` **antes** (HTTP 400) |
-| `Route.totalPrice` | `POST /api/routes` | Σ `order.pedidoCosto || 0` |
+| `Route.totalWeight` | **La base, en cada cambio de paradas** (trigger `trg_orders_totales_de_ruta`, 00014) | Σ `order.weight` de las paradas (`ultimaRutaId`). Al armar se valida además contra `Vehicle.capacity` **antes** (HTTP 400) |
+| `Route.totalPrice` | **La base, en cada cambio de paradas** (00014) | Σ `order.pedidoCosto` de las cotizadas; las que no lo están se cuentan en `paradasSinCotizar` |
+| `Route.paradasSinCotizar` | **La base, en cada cambio de paradas** (00014) | Cuántas paradas entraron sin `pedidoCosto`. Va pegado a `totalPrice`: sin él, un total corto parece completo |
 | `Route.optimized` | `POST /api/routes`: el `optimizar` del cuerpo (por defecto `true`) | `true` tras `ordenDeVisita`; `false` cuando se respeta el orden de los `orderIds`. El SQL lo clavaba a `true` y firmaba como calculado el orden de la persona (21/09/2026) |
 | `Route.startedAt` | `PATCH /api/routes/[id]` al pasar a `in_progress`, sólo si estaba `null` | y limpia `finishedAt` si había |
 | `Route.finishedAt` | `PATCH /api/routes/[id]` al pasar a `completed`: `new Date()` | con `startedAt` da la duración real |

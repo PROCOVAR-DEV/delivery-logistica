@@ -140,8 +140,39 @@ Qué hacer:
 
 1. **No cierres sesión** y **no desinstales la aplicación**.
 2. Conéctate: con señal, el sincronizador vuelve a encolar solo lo que sabe rehacer.
+   Las **zonas del tablero** suben solas así, sin que toques nada.
 3. **Lo que siga saliendo ahí después de subir, hay que volver a hacerlo con
-   conexión.**
+   conexión.** Las rutas, los vehículos y los almacenes no se rehacen solos.
+
+### Y cuando ya lo has rehecho: quitar el aviso
+
+Una ruta que se quedó aquí y ya rehiciste con conexión **sigue saliendo en ámbar**, y
+ese aviso está en las siete pantallas. Para quitarlo:
+
+1. Abre **«Entregar el día»** (la franja de arriba, o el botón del Panel).
+2. Busca el recuadro ámbar **«Sólo en este aparato: …»**.
+3. Toca **«Dar por perdido: 1 ruta»**.
+4. Lee lo que sale y toca **«Sí, darlo por perdido»**. Si te arrepientes,
+   **«Dejarlo como está»**.
+
+**No se borra nada del aparato.** Lo que se quita es el aviso; lo que hiciste aquel día
+sigue estando para quien pregunte. Y **sólo sale para lo que no se rehace solo**: a una
+zona del tablero no te lo ofrece, porque esa va a subir sola.
+
+> Úsalo cuando **ya no haga falta**: la ruta se rehizo en la web, el reparto se cerró a
+> mano. Si todavía hace falta, primero rehazlo con conexión.
+
+---
+
+## «Los errores no se van nunca»
+
+Si ves lo mismo una y otra vez en **«Entregar el día»** —lo descartas y a los pocos
+minutos está otra vez ahí— **tienes una versión vieja de la aplicación**. Se arregló el
+29/09/2026 en la **1.0.15**: descartar borraba el apunte, y al quedarse la zona sin nada
+que la subiera el sincronizador la volvía a encolar, el servidor repetía su «no», y el
+mismo error volvía a la bandeja.
+
+Actualiza la aplicación. Desde la 1.0.15, lo que descartas se queda descartado.
 
 ---
 

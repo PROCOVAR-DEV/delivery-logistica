@@ -76,16 +76,17 @@ type AparatoEstado struct {
 }
 
 type Apunte struct {
-	AparatoID uuid.UUID          `json:"aparato_id"`
-	Clave     string             `json:"clave"`
-	Metodo    string             `json:"metodo"`
-	Ruta      string             `json:"ruta"`
-	Estado    ApunteEstado       `json:"estado"`
-	IDCreado  pgtype.UUID        `json:"id_creado"`
-	HechoAt   pgtype.Timestamptz `json:"hecho_at"`
-	ExpiraAt  pgtype.Timestamptz `json:"expira_at"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	AparatoID   uuid.UUID          `json:"aparato_id"`
+	Clave       string             `json:"clave"`
+	Metodo      string             `json:"metodo"`
+	Ruta        string             `json:"ruta"`
+	Estado      ApunteEstado       `json:"estado"`
+	IDCreado    pgtype.UUID        `json:"id_creado"`
+	HechoAt     pgtype.Timestamptz `json:"hecho_at"`
+	ExpiraAt    pgtype.Timestamptz `json:"expira_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Descartados []byte             `json:"descartados"`
 }
 
 type ApuntesRechazado struct {

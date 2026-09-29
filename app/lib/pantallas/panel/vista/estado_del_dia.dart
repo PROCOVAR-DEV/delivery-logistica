@@ -41,7 +41,13 @@ class EstadoDelDia extends ConsumerWidget {
     final marcha = ref.watch(marchaDelCicloProvider);
     final trajo = ref.watch(traerElDiaProvider);
     final entrego = ref.watch(entregarElDiaProvider);
-    final hay = ref.watch(loQueHayProvider).value;
+    // EL CONTEO ENTERO, SIN COLAPSAR. `.value` para las cifras —que mientras no
+    // haya nada no se pintan— y el `AsyncValue` sin tocar para la hora, porque
+    // ahi «todavia no he mirado» tiene que poder distinguirse de «no hay nada».
+    // Ver `TextosDelDia.datosDeLas`.
+    final loQueHay = ref.watch(loQueHayProvider);
+    final hay = loQueHay.value;
+    final deCuandoSon = loQueHay.whenData((r) => r.laMasVieja);
     final pendientes = ref.watch(sinSubirProvider).value ?? 0;
     // LO QUE ESTA AQUI, NO ESTA ARRIBA Y NO LO VA A SUBIR NADIE.
     //
@@ -105,6 +111,7 @@ class EstadoDelDia extends ConsumerWidget {
         trajo: trajo,
         entrego: entrego,
         hay: hay,
+        deCuandoSon: deCuandoSon,
         pendientes: pendientes,
         colgado: colgado,
       ),
@@ -113,6 +120,7 @@ class EstadoDelDia extends ConsumerWidget {
         trajo: trajo,
         entrego: entrego,
         hay: hay,
+        deCuandoSon: deCuandoSon,
         pendientes: pendientes,
       ),
       color: _color(toca: toca, trajo: trajo, entrego: entrego),
@@ -157,6 +165,7 @@ class EstadoDelDia extends ConsumerWidget {
     required LoQueSeTrajo? trajo,
     required LoQueSeEntrego? entrego,
     required RecuentoDeLoQueHay? hay,
+    required AsyncValue<DateTime?> deCuandoSon,
     required int pendientes,
     required List<TrabajoHuerfano> colgado,
   }) {
@@ -165,7 +174,7 @@ class EstadoDelDia extends ConsumerWidget {
       case QueToca.enviando:
         return TextosDelDia.porDondeVa(marcha.avance);
       case QueToca.sinConexion:
-        return TextosDelDia.deQueHoraYQueQueda(hay?.laMasVieja, pendientes);
+        return TextosDelDia.deQueHoraYQueQueda(deCuandoSon, pendientes);
       case QueToca.hayQueEnviar:
         // Si se acaba de intentar, lo que manda es COMO QUEDO: "Quedan 23 sin
         // subir" dice mas que repetir el numero.
@@ -191,6 +200,7 @@ class EstadoDelDia extends ConsumerWidget {
     required LoQueSeTrajo? trajo,
     required LoQueSeEntrego? entrego,
     required RecuentoDeLoQueHay? hay,
+    required AsyncValue<DateTime?> deCuandoSon,
     required int pendientes,
   }) {
     switch (toca) {
@@ -202,16 +212,16 @@ class EstadoDelDia extends ConsumerWidget {
       case QueToca.hayQueEnviar:
         return entrego != null
             ? TextosDeEntregarElDia.subieron(entrego.subidos)
-            : TextosDelDia.datosDeLas(hay?.laMasVieja);
+            : TextosDelDia.datosDeLas(deCuandoSon);
       case QueToca.trabajoColgado:
-        return TextosDelDia.datosDeLas(hay?.laMasVieja);
+        return TextosDelDia.datosDeLas(deCuandoSon);
       case QueToca.alDia:
       case QueToca.todoAlDia:
         if (entrego != null && entrego.completo) {
           return TextosDeEntregarElDia.subieron(entrego.subidos);
         }
         if (trajo != null) return TextosDeTraerElDia.deLasHoras(trajo.hora);
-        return TextosDelDia.datosDeLas(hay?.laMasVieja);
+        return TextosDelDia.datosDeLas(deCuandoSon);
     }
   }
 

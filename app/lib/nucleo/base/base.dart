@@ -189,6 +189,7 @@ class BaseLocal extends _$BaseLocal {
       for (final indice in indicesDeLaBase) {
         await customStatement(indice);
       }
+      await customStatement(tablaDeRenuncias);
       // QUIEN ES EL DUENO, dentro de la propia base. Escrito al abrir y no al
       // guardar el primer apunte: la cola tiene que poder decir de quien es
       // AUNQUE este vacia, porque lo que se comprueba antes de subir es de quien
@@ -240,6 +241,35 @@ class BaseLocal extends _$BaseLocal {
     // La cola: cuántos quedan, y si una zona tiene algo sin subir.
     'CREATE INDEX IF NOT EXISTS apuntes_estado_idx ON apuntes (estado)',
   ];
+
+  /// LO QUE UNA PERSONA HA DADO POR PERDIDO, y por que hace falta una tabla.
+  ///
+  /// El aviso de «sólo en este aparato» cuenta trabajo que se hizo sin señal y
+  /// que **no va a subir nunca**: una ruta con id `local-…` que se quedó sin
+  /// ningún apunte que la subiera. El ciclo sabe reconstruir las zonas del
+  /// tablero, pero no una ruta ni un vehículo ni un almacén, así que ésos se
+  /// cuentan y ahí se quedan — en ámbar, en las siete pantallas, sin un botón.
+  ///
+  /// Jose, 29/09/2026: «los errores se acumulan y nunca se borran se mantienen
+  /// aunq se allan borrado las cosas y solucionado». El §4 del `CLAUDE.md` dice
+  /// que eso se queda a la vista **hasta que una persona decida**, y hasta hoy
+  /// no había forma de decidir.
+  ///
+  /// Se anota la renuncia en vez de borrar la fila, y es a propósito: borrar una
+  /// ruta local se lleva por delante sus paradas y deja los pedidos apuntando a
+  /// algo que ya no está. Aquí no se destruye nada — deja de contarse, y la fila
+  /// sigue ahí para quien pregunte mañana qué pasó con aquel reparto.
+  ///
+  /// **Se crea al abrir y con `IF NOT EXISTS`, no en una migración**, por lo
+  /// mismo que [indicesDeLaBase]: así la recibe también el aparato que ya está
+  /// en la calle con su base llena, sin tocar `schemaVersion`.
+  static const tablaDeRenuncias =
+      'CREATE TABLE IF NOT EXISTS renuncias ('
+      '  tabla TEXT NOT NULL,'
+      '  id TEXT NOT NULL,'
+      '  cuando TEXT NOT NULL,'
+      '  PRIMARY KEY (tabla, id)'
+      ')';
 
   /// Vacia el dominio de ESTA copia.
   ///

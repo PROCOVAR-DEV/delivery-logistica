@@ -288,6 +288,13 @@ func (s *Servicio) unApunte(ctx context.Context, aparato sqlc.Aparato, quien ide
 		Ruta:      ruta,
 		IDCreado:  creado,
 		HechoAt:   marca(a.Hecho),
+		// Y QUIÉN SE CAYÓ, para poder repetirlo — 29/09/2026.
+		//
+		// Hasta hoy esto no se guardaba y el agujero estaba escrito abajo, en
+		// `mismaRespuestaQueLaPrimeraVez`: un apunte que entró dejando pedidos fuera y
+		// cuya respuesta se perdió por el camino volvía como `repetido` **sin el aviso**.
+		// La ruta existía arriba con nueve de doce y en el teléfono parecía entera.
+		Descartados: aplicado.Descartados,
 	}); err != nil {
 		return resultado{}, err
 	}
@@ -306,14 +313,18 @@ func (s *Servicio) unApunte(ctx context.Context, aparato sqlc.Aparato, quien ide
 // motivo, que se lee de la bandeja (el motivo vive ahí y sólo ahí; copiado en dos sitios
 // acaba discrepando).
 //
-// LO QUE ESTO NO DEVUELVE, Y HAY QUE SABERLO: los `descartados` de aquella primera vez. No
-// se guardan —el libro de apuntes tiene la clave, la ruta y el id creado, nada más—, así que
-// un apunte cuya respuesta se perdió por el camino vuelve como `repetido` **sin el aviso de
-// quién se cayó**. Pasa sólo cuando el reparto aplicó y la respuesta no llegó al aparato, y
-// taparlo entero pide una columna nueva en `apuntes` (migración + sqlc). Queda escrito aquí
-// para que no se dé por cubierto.
+// Y CON LOS `descartados` DE AQUELLA VEZ, que hasta el 29/09/2026 se perdían y estaba
+// escrito aquí como agujero conocido. El caso entero: se arma una zona sin señal con doce
+// pedidos, el apunte sube, el reparto la crea con NUEVE y nombra a los tres que se cayeron,
+// y la respuesta se pierde por el camino. El aparato reintenta, aquí se contestaba
+// `repetido` sin el aviso dentro, y la ruta quedaba arriba con nueve mientras en el
+// teléfono parecía que había ido entera. Se tapó con la columna `descartados`
+// (`00002_los_descartados_del_repetido.sql`).
+//
+// Las filas anteriores a esa migración la tienen nula, y eso es literalmente lo que eran:
+// no se sabía. No se inventa una lista vacía, que se leería como «no se cayó nadie».
 func (s *Servicio) mismaRespuestaQueLaPrimeraVez(previo sqlc.BuscarApunteRow, a apunteEntrada, traduce *traductor) resultado {
-	r := resultado{Clave: a.Clave, Estado: EstadoRepetido}
+	r := resultado{Clave: a.Clave, Estado: EstadoRepetido, Descartados: previo.Descartados}
 	if id := deIdentificador(previo.IDCreado); id != nil {
 		r.ID = id
 		// Y el `local-…` de aquel apunte sigue valiendo: lo que venga detrás en ESTE lote

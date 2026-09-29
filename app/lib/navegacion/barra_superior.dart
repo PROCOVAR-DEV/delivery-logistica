@@ -84,85 +84,131 @@ class BarraSuperior extends ConsumerWidget implements PreferredSizeWidget {
           // y la moneda, en cambio, CAMBIAN LOS NUMEROS que se estan mirando, y
           // por eso el pliego (§11) prohibe esconderlas. El avatar tiene que
           // poder pulsarse.
+          // TODO LO QUE NO ES EL BOTON DE MENU VA DENTRO DE ESTE `Expanded`, y
+          // el `LayoutBuilder` de dentro es lo que arregla el desborde.
+          //
+          // El hijo de un `Row` que NO es flexible se mide con el ancho SIN
+          // TOPE: el grupo de la derecha pedia sus 150 + 8 + 92,9 + 8 + 66 sin
+          // enterarse de que la barra medía 366, y lo que sobraba salia por el
+          // borde con la cebra amarilla y negra. Medido a 390 px con las ocho
+          // sucursales, una elegida —la caja llega a su tope de 150— y la moneda
+          // en CUP con la tasa vieja, que añade el reloj de aviso: **376,9 px en
+          // una barra de 366, o sea casi once de desborde**, y lo que se comia
+          // era otra vez el avatar.
+          //
+          // Metido dentro de un `Expanded`, el `LayoutBuilder` sí sabe cuánto
+          // queda (`medidas.maxWidth`), y con ese número se le pone tope al
+          // grupo de la derecha. A partir de ahi el `Flexible` de la sucursal
+          // recorta su etiqueta con puntos suspensivos en vez de empujar al
+          // avatar fuera de la pantalla. En un monitor ancho no cambia nada: el
+          // tope es mayor que lo que el grupo pide, asi que sigue midiendo lo
+          // suyo y pegado a su esquina.
           Expanded(
-            child: Row(
-              children: [
-                if (!estrecho)
-                  Flexible(
-                    child: Text(
-                      titulo,
-                      overflow: TextOverflow.ellipsis,
-                      style: tema.textTheme.titleLarge,
+            child: LayoutBuilder(
+              builder: (context, medidas) => Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        if (!estrecho)
+                          Flexible(
+                            child: Text(
+                              titulo,
+                              overflow: TextOverflow.ellipsis,
+                              style: tema.textTheme.titleLarge,
+                            ),
+                          ),
+                        // EL GIRO DE «actualizando…» NO SALE EN UN TELEFONO.
+                        //
+                        // No cabe, y lo que hacia al no caber era peor que faltar: con
+                        // el titulo ya fuera, este hueco se queda en unos pocos pixeles
+                        // —el menu, la sucursal, la moneda y el avatar se llevan los
+                        // 390—, asi que el giro se salia y se pintaba DEBAJO del
+                        // selector de sucursal. Visto por Jose el 16/09/2026: «el
+                        // actualizando me sale atras de el selector de sucursales».
+                        //
+                        // Y tiene un sitio mejor: la franja de estado de debajo, que es
+                        // donde se mira si los datos estan al dia. Ahi va, con la hora
+                        // al lado, que es lo que de verdad hace falta saber.
+                        // Sin conexion tampoco se gira aqui: el ciclo reintenta por
+                        // detras, pero no hay progreso que ensenar. Ver la franja.
+                        if (actualizando && !estrecho && !sinConexion) ...[
+                          const SizedBox(width: 10),
+                          SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colores.tintaSuave,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'actualizando…',
+                            style: Tipos.texto(
+                              tamano: 11,
+                              peso: FontWeight.w500,
+                              color: Colores.tintaSuave.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                // EL GIRO DE «actualizando…» NO SALE EN UN TELEFONO.
-                //
-                // No cabe, y lo que hacia al no caber era peor que faltar: con
-                // el titulo ya fuera, este hueco se queda en unos pocos pixeles
-                // —el menu, la sucursal, la moneda y el avatar se llevan los
-                // 390—, asi que el giro se salia y se pintaba DEBAJO del
-                // selector de sucursal. Visto por Jose el 16/09/2026: «el
-                // actualizando me sale atras de el selector de sucursales».
-                //
-                // Y tiene un sitio mejor: la franja de estado de debajo, que es
-                // donde se mira si los datos estan al dia. Ahi va, con la hora
-                // al lado, que es lo que de verdad hace falta saber.
-                // Sin conexion tampoco se gira aqui: el ciclo reintenta por
-                // detras, pero no hay progreso que ensenar. Ver la franja.
-                if (actualizando && !estrecho && !sinConexion) ...[
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colores.tintaSuave,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'actualizando…',
-                    style: Tipos.texto(
-                      tamano: 11,
-                      peso: FontWeight.w500,
-                      color: Colores.tintaSuave.withValues(alpha: 0.7),
+                  // EL GRUPO DE LA DERECHA, CON TOPE PERO SIN REPARTO.
+                  //
+                  // NADA DE `Flexible` SUELTO AQUI, por mucho que lo pida el
+                  // cuerpo. Se probó y rompió la prueba de «el grupo de la
+                  // derecha llega al borde»: un `Flexible` al lado del
+                  // `Expanded` del título son dos hijos con el mismo peso, así
+                  // que Flutter les reparte el sobrante A MEDIAS y el grupo
+                  // vuelve a quedarse flotando en mitad de la barra.
+                  //
+                  // Un `ConstrainedBox` no reparte nada: sólo le dice al grupo
+                  // cuánto hay como mucho. Si le sobra —un monitor ancho—, el
+                  // grupo mide lo suyo y el `Expanded` del título se queda con
+                  // el resto, que es lo que lo pega a la esquina. Si no le
+                  // llega, el recorte cae donde tiene que caer: en la ETIQUETA
+                  // de la sucursal, que se queda con puntos suspensivos. La
+                  // sucursal y la moneda no se esconden nunca (§11) porque son
+                  // las que cambian los números; lo que se acorta es su texto.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: medidas.maxWidth),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(child: _Sucursal(compacta: estrecho)),
+                        // AQUI NO VA NINGUN SELECTOR DE IDIOMA, Y NO ES UN
+                        // PENDIENTE.
+                        //
+                        // El pliego lo pide (`docs/pantallas.md` §11: `Idioma`
+                        // ES/EN entre sucursal y moneda, oculto por debajo de
+                        // 640 px), y llego a estar medio hecho: 305 claves en
+                        // `app_es.arb`, otras 305 en `app_en.arb`, la clase
+                        // `Textos` de gen_l10n y sus delegaciones. Enchufado a
+                        // UNA pantalla de las cuarenta y pico; el resto de la
+                        // aplicacion, incluida esta barra, siempre fueron
+                        // literales en espanol a pelo.
+                        //
+                        // **Jose decidio el 24/09/2026 quitarlo entero.** Las
+                        // ocho sucursales son de Cuba y nadie ha pedido ingles;
+                        // lo que habia era codigo muerto que las pruebas daban
+                        // por vivo, que es peor que no tenerlo. No hay nada que
+                        // terminar aqui: si algun dia hace falta ingles, se
+                        // empieza de cero y se empieza por las pantallas, no por
+                        // la barra. El porque completo esta en
+                        // `lib/idioma.dart`.
+                        const SizedBox(width: 8),
+                        const _Moneda(),
+                        const SizedBox(width: 8),
+                        const MenuDeCuenta(),
+                      ],
                     ),
                   ),
                 ],
-              ],
+              ),
             ),
           ),
-          // NADA DE `Flexible` AQUI, por mucho que lo pida el cuerpo.
-          //
-          // Se probó y rompió la prueba de «el grupo de la derecha llega al
-          // borde»: un `Flexible` al lado del `Expanded` del título son dos
-          // hijos con el mismo peso, así que Flutter les reparte el sobrante A
-          // MEDIAS y el grupo de la derecha vuelve a quedarse flotando en mitad
-          // de la barra. Es exactamente el fallo que explica el comentario de
-          // arriba, recreado desde el otro lado.
-          //
-          // Lo que hace que quepa en un teléfono es que la caja mida 150 en vez
-          // de 220 (ver `_Sucursal`), no un reparto de espacio.
-          _Sucursal(compacta: estrecho),
-          // AQUI NO VA NINGUN SELECTOR DE IDIOMA, Y NO ES UN PENDIENTE.
-          //
-          // El pliego lo pide (`docs/pantallas.md` §11: `Idioma` ES/EN entre
-          // sucursal y moneda, oculto por debajo de 640 px), y llego a estar
-          // medio hecho: 305 claves en `app_es.arb`, otras 305 en `app_en.arb`,
-          // la clase `Textos` de gen_l10n y sus delegaciones. Enchufado a UNA
-          // pantalla de las cuarenta y pico; el resto de la aplicacion, incluida
-          // esta barra, siempre fueron literales en espanol a pelo.
-          //
-          // **Jose decidio el 24/09/2026 quitarlo entero.** Las ocho sucursales
-          // son de Cuba y nadie ha pedido ingles; lo que habia era codigo muerto
-          // que las pruebas daban por vivo, que es peor que no tenerlo. No hay
-          // nada que terminar aqui: si algun dia hace falta ingles, se empieza
-          // de cero y se empieza por las pantallas, no por la barra. El porque
-          // completo esta en `lib/idioma.dart`.
-          const SizedBox(width: 8),
-          const _Moneda(),
-          const SizedBox(width: 8),
-          const MenuDeCuenta(),
         ],
       ),
     );
@@ -215,14 +261,20 @@ class _Sucursal extends ConsumerWidget {
           children: [
             Icon(Icons.store_outlined, size: 16, color: Colores.tintaSuave),
             const SizedBox(width: 6),
-            ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: compacta ? 110 : 180),
-              child: Text(
-                codigo == null
-                    ? unica.name
-                    : (compacta ? codigo : '${unica.name} ($codigo)'),
-                overflow: TextOverflow.ellipsis,
-                style: Tipos.texto(tamano: 14, color: Colores.tinta),
+            // `Flexible` y no el `ConstrainedBox` a secas: la barra le pone tope
+            // a esta pastilla cuando no cabe, y un hijo rigido dentro de un
+            // `Row` se lleva el recorte por el borde en vez de acortar su texto.
+            // Es el mismo desborde de la barra, una capa mas adentro.
+            Flexible(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: compacta ? 110 : 180),
+                child: Text(
+                  codigo == null
+                      ? unica.name
+                      : (compacta ? codigo : '${unica.name} ($codigo)'),
+                  overflow: TextOverflow.ellipsis,
+                  style: Tipos.texto(tamano: 14, color: Colores.tinta),
+                ),
               ),
             ),
           ],

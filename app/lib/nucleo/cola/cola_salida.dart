@@ -284,26 +284,66 @@ class ColaDeSalida {
   ///
   /// Las dos decisiones son distintas a proposito:
   ///
-  ///  * **Descartar** borra el apunte. Se usa cuando ya no aplica —el pedido
-  ///    entro en otra ruta, la zona se hizo a mano en la web— o cuando el
+  ///  * **Descartar** da el apunte por cerrado. Se usa cuando ya no aplica —el
+  ///    pedido entro en otra ruta, la zona se hizo a mano en la web— o cuando el
   ///    rechazo fue culpa nuestra y ya esta arreglado.
   ///  * **Reintentar** lo devuelve a la cola. Se usa cuando lo que lo tumbaba ya
   ///    no esta: un despliegue que faltaba, un permiso que se dio.
   ///
   /// Ninguna de las dos pasa sola. Eso es lo que no se toca del pliego.
+  ///
+  /// ## DESCARTAR NO BORRA, Y ESA ES LA CORRECCION DEL 29/09/2026
+  ///
+  /// Hasta ese dia borraba la fila, y por eso el boton parecia no servir para
+  /// nada. Jose: «los errores se acumulan y nunca se borran, se mantienen aunque
+  /// se hayan borrado las cosas y solucionado».
+  ///
+  /// El recorrido completo, que es un circulo:
+  ///
+  ///  1. se descarta el rechazo y el apunte desaparece;
+  ///  2. la zona que ese apunte iba a subir se queda **sin ningun apunte vivo**,
+  ///     que es la definicion de huerfana (`nucleo/sincro/huerfanos.dart`);
+  ///  3. el ciclo la ve colgada y la vuelve a encolar —para eso esta—;
+  ///  4. el servidor vuelve a decir que no, y el rechazo esta otra vez en la
+  ///     bandeja, con clave nueva y la misma pinta.
+  ///
+  /// Nadie miente en ese circulo: cada pieza hace lo suyo. Lo que faltaba es que
+  /// **la decision de la persona quedara escrita en algun sitio**, y el unico
+  /// sitio donde cabe es el propio apunte. Por eso ahora pasa a `descartado` y se
+  /// queda ahi: fuera de la bandeja, fuera del «N sin subir», y visible para lo
+  /// huerfano como «esto ya se decidio, no lo vuelvas a encolar».
+  ///
+  /// **Y hay que soltar la marca de «nacio aqui»**, que es la otra mitad. Esa
+  /// marca protege la fila local para que una bajada no borre trabajo que
+  /// todavia no subio; en cuanto una persona dice que ese trabajo ya no sube,
+  /// protegerla deja de ser proteger y pasa a ser atascar: la bajada no puede
+  /// tocar esa zona y el Tablero de ese aparato se queda congelado esperando una
+  /// subida que nadie va a hacer. Es el mismo atasco de la zona «Vista» del
+  /// 16/09/2026, por el otro lado.
   Future<void> descartar(String clave) async {
-    final borradas =
-        await (_base.delete(_base.apuntes)..where(
+    final apunte =
+        await (_base.select(_base.apuntes)..where(
               (a) =>
                   a.clave.equals(clave) &
                   a.estado.equalsValue(EstadoApunte.rechazado),
             ))
-            .go();
-    if (borradas > 0) {
-      // Queda dicho: si manana alguien pregunta por que no llego un cierre,
-      // esto es lo unico que lo explica.
-      Registro.aviso('rechazo descartado a mano: $clave');
-    }
+            .getSingleOrNull();
+    if (apunte == null) return;
+
+    await (_base.update(_base.apuntes)..where((a) => a.clave.equals(clave)))
+        .write(
+          ApuntesCompanion(
+            estado: const Value(EstadoApunte.descartado),
+            resueltoAt: Value(_reloj()),
+          ),
+        );
+    // EL MOTIVO NO SE TOCA. Es lo unico que explica manana por que ese cierre no
+    // llego, y la persona que lo descarta hoy no es la que preguntara el lunes.
+    await _yaNoNacioAqui(apunte);
+
+    // Queda dicho: si manana alguien pregunta por que no llego un cierre, esto
+    // es lo unico que lo explica.
+    Registro.aviso('rechazo descartado a mano: $clave');
   }
 
   /// Quita la marca de «solo existe aqui» a lo que este apunte acaba de subir.

@@ -97,6 +97,25 @@ const (
 	// entregó» NO se arregla nunca, y quien lo lea tiene que saber que no tiene que
 	// esperar a nada. Decirle lo primero cuando pasa lo segundo es mandarlo a vigilar
 	// una ruta que puede que ni exista ya.
+	// LOS «NO ESTÁ», EN ESPAÑOL Y DICIENDO QUÉ — 29/09/2026.
+	//
+	// Estos catorce sitios contestaban `httpx.MsgNotFound`, o sea **«Not found»**, y son
+	// justo las puertas por las que sube un apunte armado sin señal. El sincronizador
+	// reenvía el cuerpo del 4xx tal cual (`sync/internal/reparto/reparto.go`), así que ese
+	// «Not found» acababa literalmente en la bandeja del teléfono de un repartidor, en
+	// inglés y sin decir qué es lo que no está.
+	//
+	// La constante de `httpx` no se toca: está inventariada como literal del contrato de
+	// `/api/vehicles/[id]` y cambiarla rompe a quien la compara. Lo que se cambia es lo
+	// que dice ESTA pantalla, que es la que lee una persona.
+	//
+	// Y se dice «no existe» también cuando existe pero es de otra sucursal, a propósito:
+	// decir «existe pero no es tuyo» ya es contar algo de otra sucursal, que es la fuga
+	// que el §4 prohíbe. La persona ve lo mismo en los dos casos, y es lo correcto.
+	msgZonaNoEsta     = "Esa zona del tablero ya no existe"
+	msgPedidoNoEsta   = "Ese pedido no existe o no es de tu sucursal"
+	msgSucursalNoEsta = "Esa sucursal no existe o no es tuya"
+
 	msgYaSeEntrego     = "Ese pedido ya se entregó"
 	msgColumnaSinNada  = "La columna no tiene ningún pedido que se pueda repartir hoy"
 	msgNombreRequerido = "La columna necesita un nombre"
@@ -308,7 +327,7 @@ func (s *Servidor) tableroDe(w http.ResponseWriter, r *http.Request, a *alcance.
 	if err != nil {
 		// Un id que ni siquiera es un uuid es el mismo caso que uno que ya no está: los
 		// de delivery eran cuid. 404, no 400.
-		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+		httpx.Error(w, r, http.StatusNotFound, msgSucursalNoEsta)
 		return ctx, false
 	}
 
@@ -317,7 +336,7 @@ func (s *Servidor) tableroDe(w http.ResponseWriter, r *http.Request, a *alcance.
 	// columnas»: el modo de fallo que este proyecto ya vio en producción.
 	suc, err := a.ObtenerSucursal(r.Context(), id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+		httpx.Error(w, r, http.StatusNotFound, msgSucursalNoEsta)
 		return ctx, false
 	}
 	if err != nil {
@@ -741,7 +760,7 @@ func (s *Servidor) crearColumna(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		// El `FROM branches` de la consulta no casó: la sucursal no existe o no es del
 		// alcance. Ya se comprobó arriba, así que llegar aquí es una carrera.
-		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+		httpx.Error(w, r, http.StatusNotFound, msgSucursalNoEsta)
 		return
 	}
 	if err != nil {
@@ -758,7 +777,7 @@ func (s *Servidor) actualizarColumna(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id, ok := idDeRuta(w, r, httpx.MsgNotFound)
+	id, ok := idDeRuta(w, r, msgZonaNoEsta)
 	if !ok {
 		return
 	}
@@ -790,7 +809,7 @@ func (s *Servidor) actualizarColumna(w http.ResponseWriter, r *http.Request) {
 
 	fila, err := a.ActualizarColumna(r.Context(), arg)
 	if errors.Is(err, pgx.ErrNoRows) {
-		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+		httpx.Error(w, r, http.StatusNotFound, msgZonaNoEsta)
 		return
 	}
 	if esClaveRepetida(err) {
@@ -891,7 +910,7 @@ func (s *Servidor) borrarColumna(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id, ok := idDeRuta(w, r, httpx.MsgNotFound)
+	id, ok := idDeRuta(w, r, msgZonaNoEsta)
 	if !ok {
 		return
 	}
@@ -914,7 +933,7 @@ func (s *Servidor) borrarColumna(w http.ResponseWriter, r *http.Request) {
 
 	columna, err := a.ObtenerColumna(r.Context(), id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+		httpx.Error(w, r, http.StatusNotFound, msgZonaNoEsta)
 		return
 	}
 	if err != nil {
@@ -975,7 +994,7 @@ func (s *Servidor) borrarColumna(w http.ResponseWriter, r *http.Request) {
 			"La columna de destino no existe o es de otra sucursal")
 		return
 	case errors.Is(err, errColumnaNoEstaba):
-		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+		httpx.Error(w, r, http.StatusNotFound, msgZonaNoEsta)
 		return
 	case err != nil:
 		httpx.ErrorInterno(w, r, err)
@@ -1037,7 +1056,7 @@ func (s *Servidor) colocarPedido(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	pedido, ok := idDeRuta(w, r, httpx.MsgNotFound)
+	pedido, ok := idDeRuta(w, r, msgPedidoNoEsta)
 	if !ok {
 		return
 	}
@@ -1163,7 +1182,7 @@ func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request,
 	p, err := a.TableroObtenerPedido(r.Context(), pedido)
 	if err != nil {
 		// Si no se puede leer —no existe, o es de otra sucursal—, 404 y punto.
-		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+		httpx.Error(w, r, http.StatusNotFound, msgPedidoNoEsta)
 		return
 	}
 	// PRIMERO EL ENTREGADO Y DESPUÉS LA RUTA, y el orden es lo que importa aquí.
@@ -1183,7 +1202,7 @@ func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	// El pedido existe y está libre: entonces lo que no cuadra es la columna.
-	httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+	httpx.Error(w, r, http.StatusNotFound, msgZonaNoEsta)
 }
 
 // DELETE /api/board/placements/{id} — de vuelta a «sin colocar», que es de donde salió.
@@ -1195,7 +1214,7 @@ func (s *Servidor) quitarPedidoDelTablero(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	pedido, ok := idDeRuta(w, r, httpx.MsgNotFound)
+	pedido, ok := idDeRuta(w, r, msgPedidoNoEsta)
 	if !ok {
 		return
 	}
@@ -1332,7 +1351,7 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id, ok := idDeRuta(w, r, httpx.MsgNotFound)
+	id, ok := idDeRuta(w, r, msgZonaNoEsta)
 	if !ok {
 		return
 	}
@@ -1353,7 +1372,7 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 
 	columna, err := a.ObtenerColumna(r.Context(), id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+		httpx.Error(w, r, http.StatusNotFound, msgZonaNoEsta)
 		return
 	}
 	if err != nil {
@@ -1682,9 +1701,17 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		// como «la ordenó la máquina» aunque el orden lo hubiera puesto una persona a
 		// mano, arrastrando tarjetas. Quien lo lea después no tiene forma de saberlo.
 		optimizado := c.Optimizar.Con(false)
+		//
+		// El peso y el importe ya NO se mandan desde aquí (29/09/2026): los escriben los
+		// `TableroEngancharPedidoARuta` de arriba, en esta misma transacción, porque una
+		// parada que entra dispara el recálculo del espejo de su ruta
+		// (`db/migrations/00014_los_totales_de_la_ruta_no_se_congelan.sql`). De paso se
+		// arregla lo que este armador nunca llegó a calcular: `paradas_sin_cotizar`, que
+		// salía NULL en toda ruta armada desde el tablero y dejaba su importe pareciendo
+		// completo.
 		if _, err := tx.TableroFijarTotalesDeRuta(r.Context(), sqlc.FijarTotalesDeRutaParams{
-			TotalDistance: distancia, TotalWeight: pesoTotal, TotalPrice: costoTotal,
-			ID: ruta.ID, Optimizado: &optimizado,
+			TotalDistance: distancia,
+			ID:            ruta.ID, Optimizado: &optimizado,
 		}); err != nil {
 			return err
 		}

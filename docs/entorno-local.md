@@ -258,14 +258,18 @@ Aparte de los dos del código de sucursal, tres más:
    que firma el almacén imprimía «Nada: se entregó todo lo que salió» con tres
    paradas SIN MARCAR listadas dos líneas más abajo. Ahora dice **NO CONSTA**.
 
-Y dos que quedan **escritos y sin arreglar**, porque no son de esta aplicación:
+Y dos que quedaron escritos aquí sin arreglar y **se cerraron el 29/09/2026**, los dos
+fuera de esta aplicación:
 
-- **El motivo de un rechazo, en el panel de Sincronización, sale en inglés y sin
-  el pedido**: «Not found» y `PUT /board/placements/<uuid>`. En el Tablero se
-  dice bien —«1 pedido que tenías puesto ya no está en PEDIDO: X-3042
-  (Centro)»—, pero el panel donde una persona tiene que DECIDIR es justo el que
-  no lo explica.
-- **Volver la señal no dispara la subida: hay que esperar al ciclo.** Medido: la
-  red volvió a las 14:45, la pantalla de Sincronización habló con el servidor a
-  las 14:48, y la cola no salió hasta las 14:50. Cinco minutos con el día dentro
-  del aparato y nada que pulsar que lo adelante.
+- ~~**El motivo de un rechazo sale en inglés y sin el pedido**: «Not found»~~. Las catorce
+  puertas del tablero contestan ya en español diciendo QUÉ no está —la zona, el pedido o la
+  sucursal—, que son tres arreglos distintos para quien lo lee. Ver `docs/tablero.md` §10.
+- ~~**Volver la señal no dispara la subida: hay que esperar al ciclo.**~~ Medido entonces:
+  la red volvió a las 14:45 y la cola no salió hasta las 14:50 — cinco minutos con el día
+  dentro del aparato. **Cinco minutos es, al segundo, `VigiaDeSincronizacion.
+  periodoPorDefecto`**, y esa coincidencia era la pista: no lo disparaba la señal, lo
+  disparaba el reloj. El vigía escuchaba sólo a `connectivity_plus`, que avisa cuando
+  cambia A QUÉ ESTÁS ENGANCHADO, y aquí eso no cambia nunca: el teléfono se queda pegado al
+  mismo wifi o a los mismos datos y lo que se cae y vuelve está aguas arriba. Desde el
+  29/09/2026 se le junta el veredicto nativo de Android —el que enciende el icono de wifi
+  con la exclamación—, que sí se entera (`avisosParaElVigiaProvider`).

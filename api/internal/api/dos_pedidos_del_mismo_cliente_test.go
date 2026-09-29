@@ -72,12 +72,18 @@ func TestElPesoDeLaRutaCuentaLosDosPedidosDelMismoCliente(t *testing.T) {
 		t.Fatal("no se fijaron los totales de la ruta")
 	}
 	// LA CABECERA CONTRA SUS PARADAS: son dos preguntas sobre lo mismo (§3-bis).
-	if paradas := pesoDeLoEnganchado(q); q.totales.TotalWeight != paradas {
-		t.Fatalf("la cabecera dice %.1f kg y sus paradas suman %.1f kg: "+
+	//
+	// Se mira la respuesta del armador y ya no `q.totales.TotalWeight`, porque desde el
+	// 29/09/2026 el armador **no escribe** el peso en `routes`: lo calcula la base en cada
+	// cambio de paradas (00014). Lo que sigue teniendo que cuadrar es lo que el armador le
+	// contesta a quien armó contra lo que de verdad subió al camión.
+	m := leerTab(t, w)
+	if paradas := pesoDeLoEnganchado(q); m["totalWeight"] != paradas {
+		t.Fatalf("la respuesta dice %v kg y sus paradas suman %.1f kg: "+
 			"dos pedidos del mismo cliente cuentan como uno y el camión parece "+
-			"más vacío de lo que sale", q.totales.TotalWeight, paradas)
+			"más vacío de lo que sale", m["totalWeight"], paradas)
 	}
-	if m := leerTab(t, w); m["totalWeight"] != 516.5 {
+	if m["totalWeight"] != 516.5 {
 		t.Fatalf("la respuesta dice %v kg y tienen que ser 516.5", m["totalWeight"])
 	}
 }

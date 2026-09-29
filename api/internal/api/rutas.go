@@ -885,29 +885,20 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 	sinCosto := cuantosSinCosto(pedidos)
 
 	// --- Capacidad por peso ------------------------------------------------
-	var pesoTotal, precioTotal float64
-	// CUÁNTAS PARADAS NO APORTAN IMPORTE, contadas AQUÍ DENTRO y no en otra pasada: el
-	// contador sube exactamente en el `else` de la suma, así que no hay forma de que digan
-	// cosas distintas. Se guarda en `routes.paradas_sin_cotizar` junto al total.
 	//
-	// NO ES `sinCosto`, y la diferencia importa: `sinCosto` cuenta los que LLEVAN DOMICILIO
-	// y no tienen costo, que es de lo que hay que avisar a quien arma. Éste cuenta los que
-	// no sumaron nada al total, lleven domicilio o no, porque es el número que explica ese
-	// total. Es además el mismo criterio que `ImporteDeRuta.deLasParadas` en el aparato
-	// (`app/lib/pantallas/rutas/datos/importe_de_la_ruta.dart`), que cuenta toda parada con
-	// `pedidoCosto == null`: si aquí se contara otra cosa, servidor y aparato dirían dos
-	// números distintos sobre la misma ruta y ninguno de los dos fallaría.
-	sinCotizar := 0
+	// Esto es UNA COMPROBACIÓN, no el total de la ruta. Aquí se sumaban también el importe
+	// y las paradas sin cotizar para escribirlos en `routes`, y eso se fue el 29/09/2026:
+	// los totales de una ruta son la suma de sus paradas y los mantiene la base en cada
+	// cambio de paradas (`db/migrations/00014_los_totales_de_la_ruta_no_se_congelan.sql`).
+	// Escribirlos también desde aquí era tener la misma aritmética en dos sitios, que es
+	// como se separan (`CLAUDE.md` §3-sexies).
+	//
+	// El peso se queda porque hace falta AHORA, antes de crear nada: es lo que decide si
+	// la ruta se arma o se contesta «supera la capacidad». Se suma de los pedidos que van
+	// a entrar, que todavía no son paradas de ninguna ruta.
+	var pesoTotal float64
 	for _, p := range pedidos {
 		pesoTotal += p.Weight // un peso sin resolver cuenta 0 kg, como en delivery
-		if p.PedidoCosto != nil {
-			precioTotal += *p.PedidoCosto
-		} else {
-			sinCotizar++
-		}
-		// El que no tiene costo NO suma. Ver `sinCosto` arriba: el total que sale de aquí
-		// es el de lo que sí está costeado, y la respuesta dice cuántos faltan. Un total
-		// a secas, sin ese número al lado, es un número que parece completo y no lo es.
 	}
 	// Si el id del camión no es un uuid o no existe, NO se valida capacidad y la ruta se
 	// crea igual —así lo dice el contrato— pero se crea SIN camión: guardar un id que no
@@ -1077,20 +1068,18 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		if len(escapados) > 0 {
 			return errPedidosEscapados
 		}
-		// CUÁNTAS ENTRARON SIN COTIZAR, guardado junto al total. `precioTotal` suma sólo
-		// las que tienen `pedido_costo`, así que sin este número al lado el total parece
-		// completo y no lo es — y quien lo lee por SQL o lo exporta no tiene forma de
-		// enterarse, que es justo lo que pasaba con `routes.total_price`.
+		// EL PESO, EL IMPORTE Y LAS PARADAS SIN COTIZAR YA NO SE MANDAN DESDE AQUÍ.
 		//
-		// Se manda SIEMPRE, también cuando vale 0: es la diferencia entre «estaban todas
-		// cotizadas» y «no consta». Sin mandarlo se quedaría en NULL, que es la otra
-		// respuesta, y entonces una ruta entera bien cotizada diría «no me fío».
-		paradasSinCotizar := int32(sinCotizar)
+		// Los escribían los `EngancharPedidoARuta` de arriba, en esta misma transacción:
+		// cada parada que entra dispara el recálculo del espejo de su ruta
+		// (`db/migrations/00014_los_totales_de_la_ruta_no_se_congelan.sql`). Así los tres
+		// números siguen siendo los de las paradas también dentro de un mes, cuando el
+		// espejo de PEDIDO haya repasado el peso o el costo de alguna de ellas — que es lo
+		// que no pasaba, y lo que puso «420 kg» sobre dos paradas de 516,5.
+		//
+		// Lo que se manda es lo que NO es una suma de las paradas: el recorrido y la firma.
 		_, err = tx.FijarTotalesDeRuta(r.Context(), sqlc.FijarTotalesDeRutaParams{
-			TotalDistance:     distanciaTotal,
-			TotalWeight:       pesoTotal,
-			TotalPrice:        precioTotal,
-			ParadasSinCotizar: &paradasSinCotizar,
+			TotalDistance: distanciaTotal,
 			// LA FIRMA DE QUIÉN ORDENÓ. Se manda SIEMPRE, también cuando vale `true`:
 			// dejarlo a nil aquí lo devolvería al `optimized = true` de la consulta y el
 			// dato volvería a mentir en cuanto alguien armara respetando el orden.
@@ -1849,8 +1838,36 @@ func soloUuids(ids []string) []uuid.UUID {
 //
 // La M sigue siendo `len(orderIds)`, lo que la persona marcó en la pantalla, y no el número
 // de ids distintos: es lo que tiene delante mientras lee el aviso.
+//
+// # EL SINGULAR — 29/09/2026
+//
+// Decía «1 de los 1 pedidos elegidos no pueden ir en esta ruta». Tres faltas en siete
+// palabras, y salía en el caso más común de todos: elegir UN pedido y que no entre.
+//
+// Los dos números son la misma cuenta contada de dos maneras, así que el arreglo son dos
+// concordancias distintas:
+//
+//   - el VERBO va con `faltan`, que es el sujeto: «1 … no PUEDE ir», «3 … no PUEDEN ir»;
+//   - el SUSTANTIVO va con `pedidos`, los que la persona marcó.
+//
+// Y con un solo pedido elegido los dos números son el mismo, así que decirlos no informa de
+// nada: se dice la frase entera sin ellos. El patrón de plural es el de la casa —`n == 1 ?
+// singular : plural`, como `EnlaceDeLaRuta.cuantasParadas`—, con el cero cayendo en plural.
+//
+// **SE ESCRIBE IGUAL EN EL APARATO**, en `app/lib/pantallas/rutas/datos/acciones_rutas.dart`
+// (`_mensajeNoPuedenIr`), porque sin señal el rechazo lo redacta él: dos redacciones del
+// mismo rechazo son peor que el «1 pedidos». Lo que ata las dos es
+// `docs/armado-rechazado.casos.json`, que leen esta prueba y la del aparato — no un
+// comentario (`CLAUDE.md` §3-bis).
 func encabezadoDelArmado(faltan, pedidos int) string {
-	return fmt.Sprintf("%d de los %d pedidos elegidos no pueden ir en esta ruta: ", faltan, pedidos)
+	verbo := "no pueden ir"
+	if faltan == 1 {
+		verbo = "no puede ir"
+	}
+	if pedidos == 1 {
+		return "El pedido elegido " + verbo + " en esta ruta: "
+	}
+	return fmt.Sprintf("%d de los %d pedidos elegidos %s en esta ruta: ", faltan, pedidos, verbo)
 }
 
 // faltanDelArmado separa lo que se pidió de lo que volvió.
@@ -2010,8 +2027,14 @@ func mensajeYaEntregados(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 		}
 		detalle = append(detalle, quien)
 	}
-	mensaje := fmt.Sprintf("%d de los pedidos elegidos YA SE ENTREGARON y no pueden volver "+
-		"a un camión: %s", len(malos), strings.Join(detalle, ", "))
+	// El singular, por lo mismo que el encabezado del armado: con un pedido elegido y
+	// entregado salía «1 de los pedidos elegidos YA SE ENTREGARON y no pueden volver».
+	entregaron, pueden := "YA SE ENTREGARON", "no pueden"
+	if len(malos) == 1 {
+		entregaron, pueden = "YA SE ENTREGÓ", "no puede"
+	}
+	mensaje := fmt.Sprintf("%d de los pedidos elegidos %s y %s volver "+
+		"a un camión: %s", len(malos), entregaron, pueden, strings.Join(detalle, ", "))
 	if len(malos) > 5 {
 		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
 	}
@@ -2039,8 +2062,14 @@ func mensajeSinMapa(pedidos []sqlc.PedidosParaArmarRutaRow, sinMapa []uuid.UUID)
 			strconv.FormatFloat(valorO(p.EndLat), 'g', -1, 64),
 			strconv.FormatFloat(valorO(p.EndLng), 'g', -1, 64)))
 	}
-	mensaje := fmt.Sprintf("%d de los pedidos elegidos tienen el punto de entrega fuera del mapa "+
-		"y no se les puede calcular el recorrido: %s", len(sinMapa), strings.Join(detalle, ", "))
+	// El singular, como en los otros dos rechazos de este fichero.
+	tienen, les := "tienen", "les"
+	if len(sinMapa) == 1 {
+		tienen, les = "tiene", "le"
+	}
+	mensaje := fmt.Sprintf("%d de los pedidos elegidos %s el punto de entrega fuera del mapa "+
+		"y no se %s puede calcular el recorrido: %s",
+		len(sinMapa), tienen, les, strings.Join(detalle, ", "))
 	if len(sinMapa) > 5 {
 		mensaje += fmt.Sprintf(" y %d más", len(sinMapa)-5)
 	}

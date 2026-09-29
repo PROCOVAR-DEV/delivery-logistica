@@ -12,6 +12,7 @@ import '../../../diseno/numeros.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
+import '../../../nucleo/registro/registro.dart';
 import '../../../nucleo/sincro/ciclo.dart';
 import '../../../nucleo/sincro/huerfanos.dart';
 import '../../../nucleo/sincro/sucursal_del_aparato.dart';
@@ -499,13 +500,42 @@ class _EnCalma extends StatelessWidget {
 /// pantalla: ni en el «sin subir» de arriba, porque no le queda apunte; ni en la
 /// bandeja,
 /// porque nadie la rechazo. Ver `nucleo/sincro/huerfanos.dart`.
-class _SoloEnEsteAparato extends StatelessWidget {
+/// EL AVISO DE LO QUE NO VA A SUBIR, **y ahora con salida**.
+///
+/// Hasta el 29/09/2026 esto era un rótulo ámbar y nada más. Para las zonas del
+/// tablero está bien: el ciclo las reconstruye y suben solas en cuanto hay
+/// señal, así que el aviso es de paso. Para una ruta, un vehículo o un almacén
+/// no lo está — nadie sabe rehacerlos, así que el aviso se quedaba puesto en las
+/// siete pantallas **para siempre y sin un botón**.
+///
+/// Jose, ese día, sobre esta misma parte de la aplicación: «los errores se
+/// acumulan y nunca se borran se mantienen aunq se allan borrado las cosas y
+/// solucionado». El §4 del `CLAUDE.md` dice que un aviso así espera «hasta que
+/// una persona decida»; lo que faltaba era con qué decidir.
+///
+/// Darlo por perdido **no borra nada**: anota la renuncia y el aviso deja de
+/// contarlo. Por eso el botón no es destructivo aunque lo parezca — no destruye.
+class _SoloEnEsteAparato extends ConsumerStatefulWidget {
   const _SoloEnEsteAparato({required this.huerfano});
 
   final List<TrabajoHuerfano> huerfano;
 
   @override
+  ConsumerState<_SoloEnEsteAparato> createState() => _SoloEnEsteAparatoState();
+}
+
+class _SoloEnEsteAparatoState extends ConsumerState<_SoloEnEsteAparato> {
+  /// Sobre cuál se está preguntando. `null` = no se ha pulsado nada.
+  ///
+  /// La pregunta se hace AQUÍ DENTRO y no abriendo otro cajón encima: esto ya
+  /// está dentro del cajón de entregar el día, y un cajón sobre otro deja a
+  /// quien dice que no en una pantalla distinta de la que estaba mirando. Es lo
+  /// mismo que se arregló el 28/09 con el «no» del camión.
+  String? preguntandoPor;
+
+  @override
   Widget build(BuildContext context) {
+    final huerfano = widget.huerfano;
     final tema = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(Aire.lg),
@@ -546,8 +576,120 @@ class _SoloEnEsteAparato extends StatelessWidget {
                     color: Colores.ambar,
                   ),
                 ),
+                // Y LA DECISION, solo para lo que nadie sabe rehacer. A una zona
+                // del tablero no se le ofrece: sube sola en cuanto haya senal, y
+                // ofrecer renunciar a ella seria tirar trabajo que iba a llegar.
+                for (final h in huerfano.where((h) => !h.seReconstruye))
+                  _LaDecisionSobreLoPerdido(
+                    huerfano: h,
+                    preguntando: preguntandoPor == h.tabla,
+                    alPreguntar: () =>
+                        setState(() => preguntandoPor = h.tabla),
+                    alDejarlo: () => setState(() => preguntandoPor = null),
+                    alConfirmar: () async {
+                      // SI ESTO FALLA, LA PREGUNTA SE QUEDA PUESTA. No se cierra
+                      // «como si» hubiera ido bien: el aviso ámbar seguiría ahí
+                      // al lado, y el botón que acaba de desaparecer era la
+                      // única forma de volver a intentarlo.
+                      try {
+                        await ref
+                            .read(huerfanosProvider)
+                            .darPorPerdido(h.sitio);
+                      } on Object catch (e, pila) {
+                        Registro.fallo(
+                          'no se pudo dar por perdido lo colgado de '
+                          '${h.tabla}: $e',
+                          e,
+                          pila,
+                        );
+                        return;
+                      }
+                      if (mounted) setState(() => preguntandoPor = null);
+                    },
+                  ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// El botón y su pregunta, para UN tipo de trabajo colgado.
+class _LaDecisionSobreLoPerdido extends StatelessWidget {
+  const _LaDecisionSobreLoPerdido({
+    required this.huerfano,
+    required this.preguntando,
+    required this.alPreguntar,
+    required this.alDejarlo,
+    required this.alConfirmar,
+  });
+
+  final TrabajoHuerfano huerfano;
+  final bool preguntando;
+  final VoidCallback alPreguntar;
+  final VoidCallback alDejarlo;
+  final Future<void> Function() alConfirmar;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    if (!preguntando) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.only(top: Aire.sm),
+          child: TextButton.icon(
+            key: ValueKey('dar-por-perdido-${huerfano.tabla}'),
+            style: Botones.secundario(),
+            onPressed: alPreguntar,
+            icon: const Icon(Icons.playlist_remove_outlined, size: 18),
+            label: Text(
+              TextosDeEntregarElDia.darPorPerdido(huerfano.texto),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // LA PREGUNTA DICE QUE PASA Y QUE NO PASA. «¿Seguro?» a secas sobre algo
+    // que suena a borrar trabajo es una pregunta que nadie contesta que si.
+    return Padding(
+      padding: const EdgeInsets.only(top: Aire.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            TextosDeEntregarElDia.seguroDePerder(huerfano.texto),
+            style: tema.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            TextosDeEntregarElDia.volverAHacerlo,
+            style: tema.textTheme.bodySmall?.copyWith(
+              color: Colores.tintaSuave,
+            ),
+          ),
+          const SizedBox(height: Aire.sm),
+          Wrap(
+            spacing: Aire.sm,
+            runSpacing: Aire.sm,
+            children: [
+              TextButton.icon(
+                key: ValueKey('perder-de-verdad-${huerfano.tabla}'),
+                style: Botones.secundario(),
+                onPressed: () => unawaited(alConfirmar()),
+                icon: const Icon(Icons.playlist_remove_outlined, size: 18),
+                label: const Text(TextosDeEntregarElDia.siDarloPorPerdido),
+              ),
+              TextButton.icon(
+                style: Botones.secundario(),
+                onPressed: alDejarlo,
+                icon: const Icon(Icons.undo, size: 18),
+                label: const Text(TextosDeEntregarElDia.mejorNo),
+              ),
+            ],
           ),
         ],
       ),

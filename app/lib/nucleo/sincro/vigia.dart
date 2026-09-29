@@ -20,6 +20,68 @@ import '../reloj.dart';
 Stream<bool> avisosDeConnectivityPlus() => Connectivity().onConnectivityChanged
     .map((resultados) => resultados.any((r) => r != ConnectivityResult.none));
 
+/// DOS AVISOS DE RED EN UNO, porque ninguno de los dos llega solo a tiempo.
+///
+/// El 29/09/2026, auditando lo que quedaba abierto, se confirmo medido lo que
+/// Jose habia visto en su telefono dias antes: **volver la senal no disparaba la
+/// subida**. Con el dia entero dentro del aparato, la subida tardaba cinco
+/// minutos exactos — o sea que no la disparaba nadie, la disparaba el reloj
+/// ([VigiaDeSincronizacion.periodoPorDefecto], que son justo cinco).
+///
+/// El motivo: el vigia escuchaba solo a [avisosDeConnectivityPlus], que avisa
+/// cuando cambia **a que estas enganchado** —wifi, datos, nada—, y aqui lo que
+/// cambia casi nunca es eso. El telefono se queda pegado al mismo wifi o a los
+/// mismos datos toda la manana y lo que se cae y vuelve esta aguas arriba: la
+/// linea del hotel, la antena, el proveedor. Para `connectivity_plus` no ha
+/// pasado nada, y no emite.
+///
+/// Desde el 28/09/2026 hay quien si se entera: el canal nativo que lee el
+/// veredicto del propio Android (`NET_CAPABILITY_VALIDATED`, o sea «he probado y
+/// salgo»), que es lo que enciende y apaga ese icono de wifi con la
+/// exclamacion. Se usaba solo para pintar. Aqui se une al otro, que es para lo
+/// que servia desde el principio.
+///
+/// **Los dos, y no uno en vez del otro.** El veredicto es de Android y solo lo
+/// contestan los aparatos Android; en escritorio y en la web es siempre «no lo
+/// se», y alli el unico aviso que hay es el de `connectivity_plus`. Y al reves:
+/// enchufar el cable o encender los datos lo dice el segundo antes de que el
+/// primero haya terminado de probar nada.
+///
+/// Que dispare dos veces no cuesta nada: el ciclo tiene candado de «uno en
+/// vuelo» y lo segundo que llegue se encuentra la puerta cerrada.
+Stream<bool> juntarAvisosDeRed(Iterable<Stream<bool> Function()> fuentes) {
+  final abiertas = <StreamSubscription<bool>>[];
+  late final StreamController<bool> control;
+  control = StreamController<bool>(
+    // SE ABREN AL ESCUCHAR, no al construir. El vigia arranca y para con la
+    // sesion (`app.dart`), y dejar canales abiertos desde antes de que nadie
+    // escuche es justo lo que deja un aparato sondeando la red sin sesion.
+    onListen: () {
+      for (final abrir in fuentes) {
+        abiertas.add(
+          abrir().listen(
+            control.add,
+            // Que UNA fuente falle no puede llevarse la otra por delante: en un
+            // destino sin canal nativo, esto es lo unico que separa «no hay
+            // veredicto» de «no hay aviso de red ninguno».
+            onError: (Object e) => Registro.aviso(
+              'vigia: una de las fuentes de aviso de red falló: $e',
+            ),
+            cancelOnError: false,
+          ),
+        );
+      }
+    },
+    onCancel: () async {
+      for (final abierta in abiertas) {
+        await abierta.cancel();
+      }
+      abiertas.clear();
+    },
+  );
+  return control.stream;
+}
+
 /// La MISMA pista, preguntada una vez en vez de escuchada.
 ///
 /// Hace falta para el boton: quien le da y no tiene senal no puede quedarse

@@ -398,6 +398,11 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
 - `Se requiere un vehículo para crear la ruta` (400)
 - `Los pedidos seleccionados ya no están disponibles: <detalle>` (400)
 - `<n> de los <total> pedidos elegidos no pueden ir en esta ruta: <folio> (ya va en la ruta RT-…|ya se entregó y no puede volver a un camión|PEDIDO lo archivó|sin coordenadas de entrega|no vino de PEDIDO|no existe o no es de tu sucursal|no es un identificador de pedido), … y <k> más.` (409)
+  — con `<n>` = 1 el verbo va en singular (`no puede ir`), y si se eligió UN SOLO
+  pedido la cabecera entera es `El pedido elegido no puede ir en esta ruta: …`:
+  los dos números serían el mismo y no informan de nada. La escriben igual el
+  servidor y el aparato —la ruta se arma sin señal—, y lo que las ata es
+  `docs/armado-rechazado.casos.json`.
 - `En una ruta sólo entra lo facturado y que cuadre. <n> no cumplen: <folio> (cambió en la factura|sin facturar|sin cotejar), … y <n> más.` (409)
 - `Peso total (<w> kg) supera la capacidad del vehículo (<c> kg)` (400)
 - `Una ruta se arma eligiendo pedidos ya existentes. Manda \`orderIds\`.`

@@ -429,6 +429,46 @@ final avisosDeRedProvider = Provider<Stream<bool> Function()>(
   (ref) => avisosDeConnectivityPlus,
 );
 
+/// LO QUE DESPIERTA AL VIGIA, que NO es lo mismo que [avisosDeRedProvider].
+///
+/// Son dos preguntas parecidas y la diferencia costo cinco minutos por subida.
+/// [avisosDeRedProvider] es la pista **para pintar**: si el aparato cree que hay
+/// red, para no ensenar una rueda a quien no la tiene. Esto otro es para
+/// **actuar**: cuando vuelve la salida, subir el dia sin esperar al reloj.
+///
+/// Medido en el telefono de Jose con la jornada entera dentro: volvia la senal y
+/// la subida tardaba cinco minutos, que son exactamente
+/// `VigiaDeSincronizacion.periodoPorDefecto`. O sea que no la disparaba la
+/// senal. `connectivity_plus` avisa cuando cambia **a que estas enganchado**, y
+/// eso en Cuba casi nunca cambia: el telefono se queda pegado al mismo wifi o a
+/// los mismos datos y lo que se cae y vuelve esta aguas arriba.
+///
+/// Asi que se le junta el veredicto de Android —el mismo que enciende el icono
+/// de wifi con la exclamacion—, que si se entera. Por que los DOS y no uno, y
+/// por que da igual que dispare dos veces: en `juntarAvisosDeRed`.
+///
+/// Y es un provider propio, y no una linea dentro del vigia, para que una prueba
+/// pueda sustituirlo entero — que es como se comprueba que sigue enganchado.
+final avisosParaElVigiaProvider = Provider<Stream<bool> Function()>((ref) {
+  // `veredictoDeLaRedProvider` es un `StreamProvider` y esto es un `Provider`,
+  // asi que se sigue con `ref.listen` y se reparte por un controlador propio.
+  // La alternativa —volver a montar aqui la ventana de sondeo— seria tener dos
+  // respuestas distintas a la misma pregunta, que es el §3-bis del CLAUDE.md.
+  final vueltaDeLaRed = StreamController<bool>.broadcast();
+  ref.onDispose(vueltaDeLaRed.close);
+  ref.listen<AsyncValue<Veredicto>>(veredictoDeLaRedProvider, (_, ahora) {
+    // SOLO EL FLANCO BUENO. «No valida» no dispara nada: no hay nada que hacer
+    // sin salida, y un ciclo lanzado a tumba abierta gasta bateria para acabar
+    // en el mismo `FalloDeRed`.
+    if (ahora.value == Veredicto.valida && !vueltaDeLaRed.isClosed) {
+      vueltaDeLaRed.add(true);
+    }
+  });
+
+  final deSiempre = ref.watch(avisosDeRedProvider);
+  return () => juntarAvisosDeRed([deSiempre, () => vueltaDeLaRed.stream]);
+});
+
 /// EL VEREDICTO DEL SISTEMA, en tres piezas inyectables.
 ///
 /// Las tres son providers por lo mismo que las dos de arriba: el canal nativo no
@@ -768,6 +808,11 @@ final trabajoHuerfanoProvider = StreamProvider<List<TrabajoHuerfano>>((ref) {
             // `Huerfanos._dondeMirar`.
             TableUpdateQuery.onTableName(tablaDeZonasDelTablero),
             TableUpdateQuery.onTableName(tablaDeTarjetasDelTablero),
+            // Y LO QUE UNA PERSONA DA POR PERDIDO. Tampoco es de Drift —la crea
+            // `BaseLocal` al abrir— y `Huerfanos.darPorPerdido` avisa a mano.
+            // Sin vigilarla, se pulsa el boton y el aviso ambar sigue puesto:
+            // se lee como que no ha servido de nada.
+            TableUpdateQuery.onTableName(tablaDeRenuncias),
           ]),
         )
         .asyncMap((_) => huerfanos.mirar());
@@ -991,6 +1036,7 @@ final avisosDelServidorProvider = Provider<Stream<String>>((ref) {
 final vigiaProvider = Provider<VigiaDeSincronizacion>((ref) {
   final vigia = VigiaDeSincronizacion(
     ciclo: (motivo) => ref.read(cicloProvider).ahora(motivo: motivo),
+    avisosDeRed: ref.watch(avisosParaElVigiaProvider),
     // LO QUE ENTRA EN LA COLA SE INTENTA SUBIR YA, sin esperar al reloj. Se
     // escucha la tabla y no se avisa desde quien encola: asi entra cualquier
     // gesto, lo escriba quien lo escriba, y la cola no tiene que saber nada del

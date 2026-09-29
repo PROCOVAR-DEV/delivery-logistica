@@ -394,9 +394,50 @@ func (d *dobleDeRutas) EngancharPedidoARuta(_ context.Context, arg sqlc.Engancha
 		v := *arg.Price
 		p.precio = &v
 	}
+	// Y AQUÍ SALTA EL TRIGGER, como en la base: enganchar una parada mueve el espejo de
+	// los totales de su ruta. Ver `refrescarEspejoDeTotales`.
+	d.refrescarEspejoDeTotales(ruta)
 	return 1, nil
 }
 
+// EL ESPEJO DE LOS TOTALES DE UNA RUTA, tal y como lo mantiene la base desde
+// `00014_los_totales_de_la_ruta_no_se_congelan.sql`.
+//
+// Allí lo hace `trg_orders_totales_de_ruta`: cada vez que una parada entra, sale o le
+// cambia el peso o el costo, `total_weight`, `total_price` y `paradas_sin_cotizar` se
+// vuelven a sumar de las paradas de esa ruta —las de `ultima_ruta_id`, que no se suelta
+// nunca, y no las de `route_id`, que un devuelto suelta al cerrar—.
+//
+// Un doble que no lo repitiera dejaría el peso de toda ruta armada en cero, y las pruebas
+// del armado no podrían distinguir «lo calcula la base» de «no lo calcula nadie».
+func (d *dobleDeRutas) refrescarEspejoDeTotales(rutaID uuid.UUID) {
+	r, hay := d.rutas[rutaID]
+	if !hay {
+		return
+	}
+	var peso, precio float64
+	var sinCotizar int32
+	for _, p := range d.pedidos {
+		if p.ultimaRuta == nil || *p.ultimaRuta != rutaID {
+			continue
+		}
+		peso += p.peso
+		// El que no tiene costo NO suma y SÍ cuenta, que es el mismo criterio que
+		// `ImporteDeRuta.deLasParadas` en el aparato: si aquí se contara otra cosa,
+		// servidor y aparato dirían dos números distintos sobre la misma ruta.
+		if p.costo != nil {
+			precio += *p.costo
+		} else {
+			sinCotizar++
+		}
+	}
+	r.peso, r.precio = peso, precio
+	n := sinCotizar
+	r.sinCotizar = &n
+}
+
+// FijarTotalesDeRuta YA NO ESCRIBE EL PESO NI EL IMPORTE (29/09/2026): son la suma de las
+// paradas y los mantiene la base. Aquí quedan el recorrido y la firma de quién ordenó.
 func (d *dobleDeRutas) FijarTotalesDeRuta(_ context.Context, arg sqlc.FijarTotalesDeRutaParams) (sqlc.FijarTotalesDeRutaRow, error) {
 	r, hay := d.rutas[arg.ID]
 	if !hay || !alcanza(arg.Sucursal, r.sucursal) {
@@ -406,15 +447,9 @@ func (d *dobleDeRutas) FijarTotalesDeRuta(_ context.Context, arg sqlc.FijarTotal
 	// «lo ordenó la máquina». Aquí estaba clavado a `true` y por eso ninguna prueba podía
 	// ver la diferencia entre un orden calculado y el que puso una persona a mano — un
 	// doble que no repite el WHERE ni el SET deja pasar justo el fallo que se busca.
-	r.km, r.peso, r.precio = arg.TotalDistance, arg.TotalWeight, arg.TotalPrice
+	r.km = arg.TotalDistance
 	r.optimized = arg.Optimizado == nil || *arg.Optimizado
-	// Y `paradas_sin_cotizar` con el MISMO `coalesce` del SQL: quien no lo manda no lo
-	// pisa. Un doble que lo machacara a nil dejaría pasar justo el fallo de que el armador
-	// del tablero borrase el número que puso el armador de rutas.
-	if arg.ParadasSinCotizar != nil {
-		n := *arg.ParadasSinCotizar
-		r.sinCotizar = &n
-	}
+	// El `RETURNING` sale de la fila YA refrescada por el trigger, como en Postgres.
 	return sqlc.FijarTotalesDeRutaRow{ID: r.id, TotalDistance: r.km, TotalWeight: r.peso,
 		TotalPrice: r.precio, ParadasSinCotizar: r.sinCotizar, Optimized: r.optimized}, nil
 }
@@ -1034,7 +1069,7 @@ func TestArmarRutaNombraElPedidoYLaRutaEnQueYaVa(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
-	esperado := "1 de los 3 pedidos elegidos no pueden ir en esta ruta: X-Cerca (ya va en la ruta " + codigo + ")."
+	esperado := "1 de los 3 pedidos elegidos no puede ir en esta ruta: X-Cerca (ya va en la ruta " + codigo + ")."
 	if got := errorDeRutas(t, w); got != esperado {
 		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", got, esperado)
 	}
@@ -1143,7 +1178,7 @@ func TestArmarRutaConUnEntregadoLoDiceAsiYNoComoOtraRuta(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
-	esperado := "1 de los 2 pedidos elegidos no pueden ir en esta ruta: " +
+	esperado := "1 de los 2 pedidos elegidos no puede ir en esta ruta: " +
 		"X-Lejos (ya se entregó y no puede volver a un camión)."
 	if got := errorDeRutas(t, w); got != esperado {
 		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", got, esperado)
@@ -1185,7 +1220,7 @@ func TestArmarRutaNombraTambienLoQueNoEsUnIdentificador(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
-	const esperado = "1 de los 2 pedidos elegidos no pueden ir en esta ruta: " +
+	const esperado = "1 de los 2 pedidos elegidos no puede ir en esta ruta: " +
 		"local-7 (no es un identificador de pedido)."
 	if got := errorDeRutas(t, w); got != esperado {
 		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", got, esperado)
@@ -1342,7 +1377,7 @@ func TestArmarRutaNoCogePedidosDeOtraSucursal(t *testing.T) {
 	// pedido no está en ninguna ruta, es que no es de Santiago. Con el motivo equivocado la
 	// persona se va a buscar una ruta que no existe y vuelve a pulsar, y vuelve a salir lo
 	// mismo.
-	esperado := "1 de los 2 pedidos elegidos no pueden ir en esta ruta: " +
+	esperado := "1 de los 2 pedidos elegidos no puede ir en esta ruta: " +
 		ajeno.String() + " (no existe o no es de tu sucursal)."
 	if got := errorDeRutas(t, w); got != esperado {
 		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", got, esperado)

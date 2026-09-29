@@ -203,7 +203,7 @@ void main() {
 
     test('el servidor dice que no: el motivo LITERAL y NI UNA FILA', () async {
       const elNo =
-          '1 de los 2 pedidos elegidos no pueden ir en esta ruta: '
+          '1 de los 2 pedidos elegidos no puede ir en esta ruta: '
           'F-002 (ya va en la ruta RT-20260922-003).';
       contesta = (p) async =>
           RespuestaFalsa(409, <String, Object?>{'error': elNo});

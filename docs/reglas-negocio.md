@@ -991,7 +991,14 @@ Recorriendo `optimizedIds` con índice `i` desde 0:
     pedido se devuelve y `routeId` vuelve a null, `ultimaRutaId` se queda).
   - `price` se **copia** de `pedidoCosto`; un `null` se guarda como **0** aquí.
   - Las actualizaciones se hacen **una a una y sin transacción**.
-- Luego `Route.update {totalDistance, totalWeight, totalPrice, optimized: true}`.
+- Luego `Route.update {totalDistance, optimized: true}`.
+  - **Nos separamos aquí (29/09/2026):** `totalWeight`, `totalPrice` y `paradasSinCotizar`
+    **ya no se escriben al armar**. Un total escrito una vez se queda con el número de aquel
+    día mientras sus paradas siguen moviéndose —el espejo de PEDIDO repasa `weight` y
+    `pedidoCosto` cada minuto—, y de ahí salieron el `$0.00` del 22/09 y los «420 kg» sobre
+    dos paradas de 516,5 del 28/09. Los mantiene la base en cada cambio de paradas
+    (`api/db/migrations/00014_los_totales_de_la_ruta_no_se_congelan.sql`). `totalWeight` se
+    sigue sumando aquí para validar la capacidad ANTES de crear nada, que es otra cosa.
 
 ### 15.10 El vehículo NO se ocupa al crear la ruta
 *Crear una ruta no ocupa el camión: se planifica, no se despacha.* Se marcaba «en uso» al crearla,

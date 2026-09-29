@@ -107,6 +107,20 @@ COPY docs/orden-de-paradas.casos.json /docs/orden-de-paradas.casos.json
 # `/docs/…`.
 COPY docs/almacen-de-origen.casos.json /docs/almacen-de-origen.casos.json
 
+# Y EL TERCERO — 29/09/2026
+#
+# `internal/api/armado_rechazado_casos_compartidos_test.go` lee
+# `docs/armado-rechazado.casos.json`, que es EL MISMO fichero que lee
+# `app/test/pantallas/rutas/encabezado_del_armado_test.dart` — no una copia. Ata la cabecera
+# del «no» del armado escrita en Go con la escrita en Dart: la ruta se arma sin señal en el
+# patio del almacén, así que ese rechazo lo redacta el teléfono, y con cobertura lo redacta
+# la nube. Si los dos lados se separan, el mismo «no» se lee de dos maneras según haya red y
+# no falla nada. Ya estuvo mal en los dos a la vez —«1 de los 1 pedidos elegidos no pueden
+# ir»— sin nadie vigilándolo. Si falta, la prueba hace `Fatalf` y ESTA IMAGEN NO CONSTRUYE.
+#
+# Misma ruta que los de arriba: desde `/src/internal/api`, `../../../docs/…` cae en `/docs/…`.
+COPY docs/armado-rechazado.casos.json /docs/armado-rechazado.casos.json
+
 # Y EL COMPOSE, POR LA MISMA RAZÓN — 24/09/2026
 #
 # `internal/config/config_test.go` y `internal/api/version_test.go` leen las `APP_*` de

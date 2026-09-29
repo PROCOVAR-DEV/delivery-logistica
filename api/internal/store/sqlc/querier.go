@@ -557,7 +557,7 @@ type Querier interface {
 	// Hace falta guardarlo porque de los datos NO se puede deducir: hay pedidos viejos
 	// sueltos, así que «el más antiguo que tengo» no significa «tengo todo hasta ahí».
 	FijarBarridoDelEspejo(ctx context.Context, syncBarridoDia int32) error
-	// Los totales, ya con las paradas puestas y el recorrido calculado.
+	// El recorrido y la firma de quién ordenó, ya con las paradas puestas.
 	// `total_distance` es el CIRCUITO CERRADO: los tramos más el regreso al origen. El camión
 	// vuelve, y no contar la vuelta subestima el viaje justo a la mitad de las rutas largas.
 	//
@@ -571,6 +571,15 @@ type Querier interface {
 	// Va como `narg` y no como `arg` a propósito: NULL significa «lo ordenó la máquina», que
 	// es lo que hacía este UPDATE desde siempre, así que ningún llamador que no lo mande
 	// cambia de comportamiento por esta línea. Quien sabe la respuesta la manda.
+	// AQUÍ YA NO SE ESCRIBEN NI `total_weight` NI `total_price` NI `paradas_sin_cotizar`
+	// —29/09/2026—, y ése es el arreglo entero. Esta consulta corre UNA vez, al armar, así que
+	// lo que escribiera en esas tres columnas quedaba congelado en el día del armado: el
+	// `$0.00` del 22/09 y los «420 kg» sobre 516,5 del 28/09 salieron de ahí. Las tres son la
+	// suma de las paradas y las mantiene la base en cada cambio de paradas
+	// (`db/migrations/00014_los_totales_de_la_ruta_no_se_congelan.sql`), que es el único sitio
+	// donde vive esa aritmética. Volver a ponerlas aquí es volver a tener dos.
+	//
+	// Lo que sí se queda es lo que NO es una suma de las paradas: el recorrido y la firma.
 	FijarTotalesDeRuta(ctx context.Context, arg FijarTotalesDeRutaParams) (FijarTotalesDeRutaRow, error)
 	// Idempotencia del espejo: `source` + `external_id` es lo que reconoce a un cliente entre
 	// pasadas. Sin alcance — el espejo entra con clave de servicio y trae las ocho sucursales.

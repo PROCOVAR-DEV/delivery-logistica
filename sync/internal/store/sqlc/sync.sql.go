@@ -92,18 +92,19 @@ func (q *Queries) AltaAparato(ctx context.Context, arg AltaAparatoParams) (Apara
 }
 
 const anotarApunteAplicado = `-- name: AnotarApunteAplicado :one
-INSERT INTO apuntes (aparato_id, clave, metodo, ruta, estado, id_creado, hecho_at)
-VALUES ($1, $2, $3, $4, 'aplicado', $5, $6)
-RETURNING aparato_id, clave, metodo, ruta, estado, id_creado, hecho_at, expira_at, created_at, updated_at
+INSERT INTO apuntes (aparato_id, clave, metodo, ruta, estado, id_creado, hecho_at, descartados)
+VALUES ($1, $2, $3, $4, 'aplicado', $5, $6, $7)
+RETURNING aparato_id, clave, metodo, ruta, estado, id_creado, hecho_at, expira_at, created_at, updated_at, descartados
 `
 
 type AnotarApunteAplicadoParams struct {
-	AparatoID uuid.UUID          `json:"aparato_id"`
-	Clave     string             `json:"clave"`
-	Metodo    string             `json:"metodo"`
-	Ruta      string             `json:"ruta"`
-	IDCreado  pgtype.UUID        `json:"id_creado"`
-	HechoAt   pgtype.Timestamptz `json:"hecho_at"`
+	AparatoID   uuid.UUID          `json:"aparato_id"`
+	Clave       string             `json:"clave"`
+	Metodo      string             `json:"metodo"`
+	Ruta        string             `json:"ruta"`
+	IDCreado    pgtype.UUID        `json:"id_creado"`
+	HechoAt     pgtype.Timestamptz `json:"hecho_at"`
+	Descartados []byte             `json:"descartados"`
 }
 
 // Se anota DESPUÉS de aplicarlo y en la misma transacción que el cambio en el reparto. Al
@@ -117,6 +118,7 @@ func (q *Queries) AnotarApunteAplicado(ctx context.Context, arg AnotarApunteApli
 		arg.Ruta,
 		arg.IDCreado,
 		arg.HechoAt,
+		arg.Descartados,
 	)
 	var i Apunte
 	err := row.Scan(
@@ -130,6 +132,7 @@ func (q *Queries) AnotarApunteAplicado(ctx context.Context, arg AnotarApunteApli
 		&i.ExpiraAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Descartados,
 	)
 	return i, err
 }
@@ -137,7 +140,7 @@ func (q *Queries) AnotarApunteAplicado(ctx context.Context, arg AnotarApunteApli
 const anotarApunteRechazado = `-- name: AnotarApunteRechazado :one
 INSERT INTO apuntes (aparato_id, clave, metodo, ruta, estado, hecho_at)
 VALUES ($1, $2, $3, $4, 'rechazado', $5)
-RETURNING aparato_id, clave, metodo, ruta, estado, id_creado, hecho_at, expira_at, created_at, updated_at
+RETURNING aparato_id, clave, metodo, ruta, estado, id_creado, hecho_at, expira_at, created_at, updated_at, descartados
 `
 
 type AnotarApunteRechazadoParams struct {
@@ -170,6 +173,7 @@ func (q *Queries) AnotarApunteRechazado(ctx context.Context, arg AnotarApunteRec
 		&i.ExpiraAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Descartados,
 	)
 	return i, err
 }
@@ -499,7 +503,7 @@ func (q *Queries) AtenderRechazo(ctx context.Context, arg AtenderRechazoParams) 
 const buscarApunte = `-- name: BuscarApunte :one
 
 SELECT p.aparato_id, p.clave, p.metodo, p.ruta, p.estado, p.id_creado, p.hecho_at,
-       p.created_at, r.motivo
+       p.created_at, p.descartados, r.motivo
 FROM apuntes p
 LEFT JOIN apuntes_rechazados r
        ON r.aparato_id = p.aparato_id AND r.clave = p.clave
@@ -512,15 +516,16 @@ type BuscarApunteParams struct {
 }
 
 type BuscarApunteRow struct {
-	AparatoID uuid.UUID          `json:"aparato_id"`
-	Clave     string             `json:"clave"`
-	Metodo    string             `json:"metodo"`
-	Ruta      string             `json:"ruta"`
-	Estado    ApunteEstado       `json:"estado"`
-	IDCreado  pgtype.UUID        `json:"id_creado"`
-	HechoAt   pgtype.Timestamptz `json:"hecho_at"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	Motivo    *string            `json:"motivo"`
+	AparatoID   uuid.UUID          `json:"aparato_id"`
+	Clave       string             `json:"clave"`
+	Metodo      string             `json:"metodo"`
+	Ruta        string             `json:"ruta"`
+	Estado      ApunteEstado       `json:"estado"`
+	IDCreado    pgtype.UUID        `json:"id_creado"`
+	HechoAt     pgtype.Timestamptz `json:"hecho_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	Descartados []byte             `json:"descartados"`
+	Motivo      *string            `json:"motivo"`
 }
 
 // ===========================================================================
@@ -531,6 +536,10 @@ type BuscarApunteRow struct {
 //
 // Trae el motivo con LEFT JOIN porque para contestar `repetido` hay que devolver la MISMA
 // respuesta de la primera vez, y si aquella fue un rechazo, la respuesta incluye su motivo.
+// Y trae los `descartados` de aquella vez por lo mismo: si el apunte entró dejando pedidos
+// fuera, ese aviso forma parte de la respuesta y tiene que volver igual. Sin él, un apunte
+// cuya respuesta se perdió vuelve como `repetido` sobre una ruta que salió con nueve de
+// doce y nadie se entera de los tres.
 func (q *Queries) BuscarApunte(ctx context.Context, arg BuscarApunteParams) (BuscarApunteRow, error) {
 	row := q.db.QueryRow(ctx, buscarApunte, arg.AparatoID, arg.Clave)
 	var i BuscarApunteRow
@@ -543,6 +552,7 @@ func (q *Queries) BuscarApunte(ctx context.Context, arg BuscarApunteParams) (Bus
 		&i.IDCreado,
 		&i.HechoAt,
 		&i.CreatedAt,
+		&i.Descartados,
 		&i.Motivo,
 	)
 	return i, err
@@ -897,7 +907,7 @@ func (q *Queries) TocarAparato(ctx context.Context, id uuid.UUID) error {
 }
 
 const ultimosApuntesDeAparato = `-- name: UltimosApuntesDeAparato :many
-SELECT aparato_id, clave, metodo, ruta, estado, id_creado, hecho_at, expira_at, created_at, updated_at FROM apuntes
+SELECT aparato_id, clave, metodo, ruta, estado, id_creado, hecho_at, expira_at, created_at, updated_at, descartados FROM apuntes
 WHERE aparato_id = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -929,6 +939,7 @@ func (q *Queries) UltimosApuntesDeAparato(ctx context.Context, arg UltimosApunte
 			&i.ExpiraAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Descartados,
 		); err != nil {
 			return nil, err
 		}

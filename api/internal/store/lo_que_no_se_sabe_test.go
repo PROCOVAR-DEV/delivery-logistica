@@ -157,17 +157,17 @@ func TestTodaAltaDePedidoNombraElPeso(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // `total_price` SUMA SÓLO LO COTIZADO, así que el número que dice cuántas faltan tiene que
-// ir con él a todas partes. Donde se escribe el total se escribe el contador, y donde se
-// lee el total se lee el contador: en cuanto uno de los dos se quede por el camino, vuelve
-// el `$0.00` de RT-20260921-007 — un cero que se lee como «el reparto fue gratis».
+// ir con él a todas partes. Donde se lee el total se lee el contador: en cuanto uno de los
+// dos se quede por el camino, vuelve el `$0.00` de RT-20260921-007 — un cero que se lee
+// como «el reparto fue gratis».
+//
+// La parte de ESCRIBIRLOS ya no se mira aquí y no es un olvido: desde el 29/09/2026
+// ninguna consulta escribe ni el total ni su contador. Los mantiene la base en cada cambio
+// de paradas, y lo vigila `totales_de_ruta_test.go` —que además ata la cuenta con su
+// disparador—. Lo que queda aquí es que los dos números salgan JUNTOS a donde sea que
+// vayan.
 func TestElTotalDeLaRutaViajaConSuContador(t *testing.T) {
 	sql := leerFichero(t, "routes.sql")
-
-	escribe := consulta(t, sql, "FijarTotalesDeRuta")
-	if !strings.Contains(escribe, "paradas_sin_cotizar") {
-		t.Error("FijarTotalesDeRuta escribe `total_price` y ya no escribe " +
-			"`paradas_sin_cotizar`: el total vuelve a parecer completo cuando no lo es.")
-	}
 
 	for _, nombre := range []string{"ListarRutas", "ObtenerRuta", "FijarTotalesDeRuta"} {
 		cuerpo := consulta(t, sql, nombre)

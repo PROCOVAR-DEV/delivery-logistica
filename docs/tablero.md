@@ -410,7 +410,9 @@ Errores propios, literales:
 | Colocar un pedido que ya va en una ruta | `409 {"error":"Ese pedido ya está en una ruta"}` |
 | Colocar un pedido que YA SE ENTREGÓ | `409 {"error":"Ese pedido ya se entregó"}` — se mira ANTES que la ruta: un entregado conserva su `route_id`, y decir «ya está en una ruta» manda a esperar a que se cierre un camión que puede que ya no exista |
 | Armar la zona con una tarjeta ya entregada | `201`, y la tarjeta sale en `descartados` con `motivo:"ya se entregó"`. No bloquea la zona |
-| Colocar un pedido de otra sucursal | `404 {"error":"Not found"}` — no se dice que existe |
+| Colocar un pedido de otra sucursal | `404 {"error":"Ese pedido no existe o no es de tu sucursal"}` — se contesta lo MISMO que si no existiera: decir «existe pero no es tuyo» ya es contar algo de otra sucursal |
+| Tocar una zona que ya no está —o con un id que no es un uuid— | `404 {"error":"Esa zona del tablero ya no existe"}` |
+| Pedir el tablero de una sucursal que no es tuya | `404 {"error":"Esa sucursal no existe o no es tuya"}` |
 | Armar una columna sin nada repartible | `409` con la lista de por qué se cayó cada uno |
 | Dos columnas con el mismo nombre | `409 {"error":"Ya hay una columna «<nombre>» en este tablero"}` |
 
@@ -461,3 +463,20 @@ Errores propios, literales:
 >
 > En este equipo sigue sin poderse: el demonio de docker no acepta a este usuario
 > (`permission denied ... /var/run/docker.sock`), igual que el 14/09 con `00001`.
+
+## 10 · Por qué estos «no está» van en español
+
+Hasta el 29/09/2026 las catorce puertas del tablero contestaban `httpx.MsgNotFound`, o sea
+literalmente **«Not found»**. Y son justo las puertas por las que sube un apunte armado sin
+señal: el sincronizador reenvía el cuerpo del 4xx tal cual (`sync/internal/reparto/
+reparto.go`, `motivoDe`), así que ese texto viajaba entero hasta la bandeja del teléfono de
+quien reparte — en inglés, sin decir qué era lo que no estaba y sin decir qué hacer.
+
+La constante de `httpx` **no se tocó**: está inventariada como literal del contrato de
+`/api/vehicles/[id]` y cambiarla rompe a quien la compara. Lo que cambió es lo que dicen
+estas puertas, que son las que lee una persona.
+
+Lo que más dice de esto: al cambiarlo **no falló ni una prueba de las que había**. Nadie
+vigilaba el texto que lee quien reparte. Ahora sí, en
+`api/internal/api/los_no_esta_se_leen_en_espanol_test.go`, que comprueba además que una
+zona de otra sucursal conteste **exactamente lo mismo** que una que no existe.

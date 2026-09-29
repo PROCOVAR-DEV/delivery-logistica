@@ -274,30 +274,37 @@ func TestQuienVeLasOchoSeEnteraDeTodas(t *testing.T) {
 
 // LA TRAMPA DEL FRENO. Era por tipo; con el aviso acotado tiene que ser por tipo Y
 // sucursal, o Holguín se come el aviso de Camagüey dentro de la misma ventana de quince
-// segundos y ese tablero se queda quieto hasta el temporizador.
+// segundos y esa pantalla se queda quieta hasta el temporizador.
+//
+// SE PRUEBA CON `pedidos` Y NO CON `tablero` — 29/09/2026. Esta prueba estaba escrita con
+// `tablero`, que era el ejemplo vivo mientras TODOS los tipos se frenaban. Ya no: desde hoy
+// el freno es sólo de los tres que nombra `tiposFrenados` y `tablero` sale al momento. Lo
+// que esta prueba comprueba —que la clave del freno lleva la sucursal— no ha cambiado, así
+// que se muda al tipo frenado que más volumen tiene.
 func TestElFrenoNoSeCruzaEntreSucursales(t *testing.T) {
 	cam, hol := idDeSucursal(t, "CAM").String(), idDeSucursal(t, "HOL").String()
 
 	d := NuevoDifusor()
 	reloj := time.Now()
 	d.ahora = func() time.Time { return reloj }
+	sinDespertadores(d)
 
 	todas, cortar, _ := d.Suscribir()
 	defer cortar()
 
-	if !d.AvisarDe(CambioTablero, cam, nil) {
+	if !d.AvisarDe(CambioPedidos, cam, nil) {
 		t.Fatal("el primero tenía que salir")
 	}
 	// DENTRO del freno, pero de OTRA sucursal: tiene que salir igual.
 	reloj = reloj.Add(time.Second)
-	if !d.AvisarDe(CambioTablero, hol, nil) {
-		t.Error("el tablero de Holguín se quedó frenado por el de Camagüey.\n" +
-			"  El freno tiene que ser por tipo Y sucursal: si no, el gesto de una se come " +
+	if !d.AvisarDe(CambioPedidos, hol, nil) {
+		t.Error("los pedidos de Holguín se quedaron frenados por los de Camagüey.\n" +
+			"  El freno tiene que ser por tipo Y sucursal: si no, el aviso de una se come " +
 			"el de la otra y esa pantalla no se entera hasta el temporizador.")
 	}
 	// Y dentro del freno de la MISMA: ése sí se para (y se guarda como pendiente).
 	reloj = reloj.Add(time.Second)
-	if d.AvisarDe(CambioTablero, cam, nil) {
+	if d.AvisarDe(CambioPedidos, cam, nil) {
 		t.Error("dos avisos de la misma sucursal en dos segundos: el segundo tenía que " +
 			"quedarse dentro del freno")
 	}

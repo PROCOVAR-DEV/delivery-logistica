@@ -33,6 +33,11 @@
 //     segundos, pase lo que pase.
 //  5. **El apagado.** Ver `registrarApagado`: una conexión abierta para siempre deja el
 //     `Shutdown` esperándola hasta que se le acaba el plazo.
+//  6. **El despertador de cada pendiente** (`despertarEn`). Lo que el freno retiene NO puede
+//     depender del latido para salir: con el latido cada 20 s y el freno de 15, un pendiente
+//     salía «15 redondeado al alza a múltiplo de 20» — medido en producción el 29/09/2026,
+//     hasta 26,68 s. Quitarlo no rompe ninguna pantalla y no falla nada: sólo hace que lo
+//     frenado tarde casi el doble de lo que dice `FrenoAvisos`.
 package api
 
 import (
@@ -63,26 +68,112 @@ const (
 	CambioTablero = "tablero"
 )
 
-// FrenoAvisos: como mucho UN aviso cada quince segundos por tipo.
+// FrenoAvisos: cuánto espera un aviso DE LOS FRENADOS. Quince segundos.
 //
-// POR QUÉ: el espejo importa por lotes de doscientos y avisaba por cada lote — veinte
-// avisos seguidos y la pantalla recargándose veinte veces. Lo que pasa en ese rato viaja
-// en el siguiente aviso, así que no se pierde nada: se pierde el parpadeo.
+// POR QUÉ EXISTE: el espejo importa por lotes de doscientos y avisaba por cada lote —
+// veinte avisos seguidos y la pantalla recargándose veinte veces. Y en el aparato es peor
+// que el parpadeo: **cada aviso dispara un ciclo de sincronización entero**, o sea veinte
+// ciclos contra la conexión de allá.
 //
 // ## Y POR ESO HAY FLANCO DE BAJADA — 17/09/2026
 //
-// «Lo que pasa en ese rato viaja en el siguiente aviso» era cierto para el espejo, que
-// siempre tiene un lote detrás. **Para un gesto humano es falso**: doce tarjetas
-// arrastradas en doce segundos mandaban UN aviso —el de la primera, o sea el momento en
-// que menos hay que contar— y las once siguientes se descartaban sin dejar rastro. La otra
-// pantalla refrescaba tras la tarjeta 1 y se quedaba once atrás hasta el temporizador: dos
-// minutos en la web, cinco en la APK. La queja que esto venía a arreglar, arreglada a un
-// doceavo.
+// «Lo que pasa en ese rato viaja en el siguiente aviso» es cierto para el espejo, que
+// siempre tiene un lote detrás. Lo que llega dentro del freno **se anota como pendiente** y
+// sale solo al vencer (`SoltarPendientes`), así que el último cambio siempre llega.
 //
-// Ahora lo que llega dentro del freno **se anota como pendiente** y sale solo al vencer.
-// Se sigue mandando un aviso cada quince segundos como mucho —que es lo que evita el
-// parpadeo— pero el último cambio siempre llega.
+// ## EL NÚMERO QUE LA GENTE SUFRE ERA OTRO: 15 REDONDEADO AL ALZA A MÚLTIPLO DE 20
+//
+// Queda escrito aquí, donde se lee la constante y donde alguien se va a creer el quince.
+// Hasta el 29/09/2026 lo retenido **no salía solo**: lo soltaba el latido de cada conexión
+// abierta (`SoltarPendientes` desde el `case <-tic.C`), que corre cada `latidoSSE` = 20 s. O
+// sea que un pendiente no salía a los 15 s suyos, salía **en el siguiente tic de 20 s**.
+//
+// Diez muestras de producción de esa noche, comparando la hora del servidor que viaja dentro
+// del aviso con la hora en que llega al navegador:
+//
+//   - sin freno: 70 · 67 · 95 · 69 · 70 ms;
+//   - con freno: 6,77 · 17,89 · 20,41 · 20,76 · **26,68** s.
+//
+// Cuatro de cinco por encima de 17 s y el peor **casi el doble del freno nominal**. Las
+// horas a las que salían los pendientes lo delataban —21:02:40.300 · 21:03:00.298 ·
+// 21:03:20.319, veinte segundos clavados—, y el de 26,68 s se comió un tic entero de más: el
+// cambio era de 21:02:13.622, el freno vencía sobre 21:02:25.4 y no salió hasta 21:02:40.3.
+//
+// **Ya no.** Cada pendiente se despierta solo cuando vence SU freno (ver `despertarEn`), así
+// que el número de aquí es el de verdad: quince segundos, no «quince redondeados a veinte».
+// El latido sigue llamando a `SoltarPendientes` como red de seguridad, no como mecanismo.
 const FrenoAvisos = 15 * time.Second
+
+// tiposFrenados: LOS QUE ESPERAN. Todo lo que no esté nombrado aquí sale AL MOMENTO.
+//
+// # EL CASO QUE LO CAMBIÓ — 29/09/2026, medido en la ventana de Jose
+//
+// Jose, con el navegador en una mano y el teléfono en la otra, mueve dos tarjetas del
+// tablero seguidas. Lo que salió por el cable:
+//
+//	20:59:22.622  mueve la primera tarjeta  ->  aviso 20:59:22.776    154 ms
+//	20:59:24.052  mueve la segunda          ->  aviso 20:59:40.441    16 SEGUNDOS
+//
+// La primera al instante y la segunda dieciséis segundos después: los quince del freno más
+// lo que tardó el latido en soltar el pendiente. Jose: «pero debe ser en tiempo real deben
+// ocurrir por q se demoran 15segundos en ocurrir».
+//
+// # LA LÍNEA ES DE DÓNDE VIENE, ESCRITA POR TIPO
+//
+// El primer plan fue separar por origen —sesión de persona contra proceso de máquina, un
+// campo que llevara cada aviso— y lo cerró Jose, que tenía razón y es más simple:
+//
+//	«pues cierralo para ahi nada mas para pedido y deja todo lo demas listo al momento,
+//	 pedidos y clientes si pero lo otro no q se utiliza en reparto dejalo al momento»
+//	«lo q viene al espejo q dispara tantas cosas ese si ponle el freno y a lo otro
+//	 dejamelo listo»
+//
+// La regla en una frase: **lo que entra por el espejo y el webhook de PEDIDO se frena; lo
+// que se usa para trabajar en el reparto sale al momento.** `canal` está frenado por eso y
+// no por gusto de nadie —lo decidió Jose con esa segunda frase—: queda dicho para que dentro
+// de dos meses nadie lo saque de aquí creyendo que se coló.
+//
+// # Y LA AVALANCHA NO ES TEÓRICA: PASÓ HOY
+//
+// Hasta la tarde del 29/09/2026 PEDIDO nos devolvía **2.000 pedidos por cada aviso de uno**
+// —fallo suyo, arreglado y desplegado a las 20:02—. Con eso, una sola importación son
+// muchos lotes seguidos, un aviso por lote y **un ciclo de sincronización entero por aviso**
+// en cada aparato, contra la conexión de allá.
+//
+// Sí, `pedidos` también cambia por un gesto de persona (`PATCH /api/orders/{id}`), así que
+// separar por tipo no es perfecto. Se acepta a propósito: por esa misma puerta entra el lote
+// del espejo (`cotizacion.go`, doscientos pedidos por vuelta) y el webhook de PEDIDO. Un
+// pedido corregido a mano que tarde medio minuto en verse es barato; veinte ciclos seguidos
+// contra la conexión de Cuba, no.
+//
+// # LA LISTA ES DE LOS FRENADOS, NO DE LOS LIBRES, Y ESO ES LA MITAD DEL DISEÑO
+//
+// Escrita al revés —«éstos no se frenan»— un tipo nuevo que alguien añada mañana entraría
+// **frenado sin querer**, su pantalla se quedaría hasta medio minuto vieja, y eso no falla,
+// no sale en ningún registro y no lo nota nadie: el modo de fallo de esta casa. Así:
+// nombrarse aquí es un acto, y el valor del mapa obliga a escribir por qué.
+//
+// Lo fija `TestSoloEstosTiposSeFrenan`, con los tres nombres a mano.
+var tiposFrenados = map[string]string{
+	CambioPedidos: "la manguera de PEDIDO: el lote del espejo son doscientos pedidos por " +
+		"vuelta y avisa por cada uno, y el webhook manda un aviso por pedido movido",
+	CambioClientes: "misma manguera: entra por el webhook de PEDIDO, un aviso por cliente " +
+		"corregido, y una importación los corrige a montones",
+	CambioCanal: "también viene del espejo: es la propia cola de PEDIDO —la entrada del " +
+		"webhook y el drenaje del buzón—, o sea el tipo con más volumen de todos. Lo " +
+		"decidió Jose el 29/09/2026 («lo q viene al espejo q dispara tantas cosas ese si " +
+		"ponle el freno»), no se coló aquí. Y de paso su pantalla es de administración: " +
+		"nadie arma una ruta mirándola",
+}
+
+// frenoDe: cuánto espera un aviso de este tipo. Cero para todo lo que no esté nombrado en
+// [tiposFrenados], que es la mayoría y es lo que se usa para trabajar en el reparto.
+func (d *Difusor) frenoDe(tipo string) time.Duration {
+	if _, frenado := tiposFrenados[tipo]; !frenado {
+		return 0
+	}
+	return d.freno
+}
 
 // NombreDelLatido es cómo se llama el evento del latido POR EL CABLE.
 //
@@ -219,23 +310,32 @@ type Difusor struct {
 	// bajada; sin esto, lo que pasa en esos quince segundos no se dice nunca. La clave es
 	// la misma que la del freno: tipo Y sucursal.
 	pendiente map[string]Cambio
-	cerrado   bool
+	// temporizadores: el despertador de cada pendiente, uno por clave y SÓLO mientras hay
+	// algo que soltar. Ver `despertarEn`.
+	temporizadores map[string]*time.Timer
+	cerrado        bool
 	// enganchados: los servidores HTTP a los que ya se les colgó el cierre. Ver
 	// `registrarApagado`.
 	enganchados map[*http.Server]struct{}
 
 	freno time.Duration
 	ahora func() time.Time // el reloj, por fuera, para poder probar el freno sin esperar
+	// alVencer arma un despertador. Es `time.AfterFunc` y es un campo por lo mismo que
+	// `ahora`: una prueba de reloj falso lo pone a nil y no deja temporizadores de verdad
+	// colgando del proceso de pruebas.
+	alVencer func(time.Duration, func()) *time.Timer
 }
 
 func NuevoDifusor() *Difusor {
 	return &Difusor{
-		abonados:    map[chan Cambio]string{},
-		ultimo:      map[string]time.Time{},
-		pendiente:   map[string]Cambio{},
-		enganchados: map[*http.Server]struct{}{},
-		freno:       FrenoAvisos,
-		ahora:       time.Now,
+		abonados:       map[chan Cambio]string{},
+		ultimo:         map[string]time.Time{},
+		pendiente:      map[string]Cambio{},
+		temporizadores: map[string]*time.Timer{},
+		enganchados:    map[*http.Server]struct{}{},
+		freno:          FrenoAvisos,
+		ahora:          time.Now,
+		alVencer:       time.AfterFunc,
 	}
 }
 
@@ -442,21 +542,81 @@ func (d *Difusor) AvisarDe(tipo, sucursal string, detalle map[string]any) bool {
 	c := Cambio{Tipo: tipo, Cuando: ahora, Detalle: detalle, Sucursal: sucursal}
 	k := clave(tipo, sucursal)
 
-	if visto, hay := d.ultimo[k]; hay && ahora.Sub(visto) < d.freno {
-		// DENTRO DEL FRENO: no sale ahora, pero **se guarda**. Sale solo al vencer, con
-		// `soltarPendientes`. Antes se descartaba, y de doce gestos seguidos llegaba uno
-		// —el primero— y once se perdían para siempre.
-		//
-		// Se queda el ÚLTIMO: es el que describe cómo está el tablero ahora, y quien lo
-		// reciba va a pedir la lista entera de todos modos.
-		d.pendiente[k] = c
-		return false
+	// EL FRENO ES DE UNOS POCOS TIPOS, Y SALE DE LA LISTA. Para todo lo demás `frenoDe`
+	// devuelve cero y el aviso sale en el acto — que es lo que Jose pidió el 29/09/2026
+	// después de ver su segunda tarjeta tardar dieciséis segundos. Ver `tiposFrenados`.
+	if freno := d.frenoDe(tipo); freno > 0 {
+		if visto, hay := d.ultimo[k]; hay && ahora.Sub(visto) < freno {
+			// DENTRO DEL FRENO: no sale ahora, pero **se guarda**. Sale solo al vencer, con
+			// `SoltarPendientes`. Antes se descartaba, y de doce avisos seguidos llegaba uno
+			// —el primero— y once se perdían para siempre.
+			//
+			// Se queda el ÚLTIMO: es el que describe cómo está la cosa ahora, y quien lo
+			// reciba va a pedir la lista entera de todos modos.
+			d.pendiente[k] = c
+			d.despertarEn(k, freno-ahora.Sub(visto))
+			return false
+		}
 	}
 	d.ultimo[k] = ahora
 	delete(d.pendiente, k)
+	d.olvidarDespertador(k)
 
 	d.repartir(c)
 	return true
+}
+
+// despertarEn deja programada la suelta de un pendiente. Con el candado ya cogido.
+//
+// # POR QUÉ HAY UN TEMPORIZADOR AQUÍ, SI ARRIBA DECÍA QUE NO HACÍA FALTA — 29/09/2026
+//
+// En `SoltarPendientes` ponía que colgarlo del latido bastaba, «para algo que ya tiene quien
+// lo despierte cada veinte segundos». Medido en producción, no bastaba: el latido va cada
+// 20 s y el freno es de 15, así que un pendiente salía **en el siguiente tic**, o sea 15
+// redondeados al alza a múltiplo de 20. La peor muestra de esa noche fue de **26,68 s** —un
+// tic entero de más— contra los 15 que dice la constante. El detalle, en `FrenoAvisos`.
+//
+// Lo que cuesta: un `time.AfterFunc` por clave CON PENDIENTE, y sólo mientras lo haya. No es
+// un hilo por conexión ni un temporizador siempre vivo; en reposo no hay ninguno.
+//
+// # UNO POR CLAVE Y NO SE REPROGRAMA
+//
+// Si ya hay despertador puesto para esta clave, salta a la vez o antes que el que pondríamos
+// ahora —se armó por el mismo freno y desde un `ultimo` que no se ha movido—, así que el
+// pendiente que acaba de pisar al anterior sale con él. Reprogramarlo sólo lo retrasaría, y
+// retrasar es justo lo que se vino a arreglar.
+//
+// Y no hace falta rearmarlo si salta en falso: entre que se arma y que salta, `ultimo[k]`
+// sólo puede moverlo una salida de esa misma clave, y las dos —la de `AvisarDe` y la de
+// `SoltarPendientes`— borran el pendiente y el despertador. O sea que cuando salta, o hay
+// pendiente y el freno ya venció, o no hay nada que soltar.
+func (d *Difusor) despertarEn(k string, dentroDe time.Duration) {
+	if d.alVencer == nil {
+		return
+	}
+	if _, ya := d.temporizadores[k]; ya {
+		return
+	}
+	if dentroDe < 0 {
+		dentroDe = 0
+	}
+	d.temporizadores[k] = d.alVencer(dentroDe, func() {
+		// Se quita a sí mismo ANTES de soltar: `SoltarPendientes` coge el mismo candado.
+		d.mu.Lock()
+		delete(d.temporizadores, k)
+		d.mu.Unlock()
+		d.SoltarPendientes()
+	})
+}
+
+// olvidarDespertador quita el despertador de una clave que ya no tiene nada pendiente. Con
+// el candado ya cogido. Sin esto, un despertador viejo sigue en el mapa e impide poner el
+// del pendiente siguiente — y ése sí volvería a esperar al latido.
+func (d *Difusor) olvidarDespertador(k string) {
+	if t, hay := d.temporizadores[k]; hay {
+		t.Stop()
+		delete(d.temporizadores, k)
+	}
 }
 
 // repartir manda el cambio a los abonados A QUIEN LE TOCA. Con el candado ya cogido.
@@ -494,12 +654,22 @@ func (d *Difusor) repartir(c Cambio) {
 
 // SoltarPendientes manda lo que se quedó dentro del freno y ya venció.
 //
-// Lo llama el latido de cada conexión abierta (`eventos.go`, el `ticker`), que es lo único
-// que corre solo en este servicio: montar un temporizador propio sería un hilo más vivo
-// para algo que ya tiene quien lo despierte cada veinte segundos.
+// Lo llaman DOS, y el orden importa para entender el número:
 //
-// Y por eso el retraso máximo de un aviso es el freno más un latido. Sigue siendo dos
-// órdenes de magnitud menos que los dos minutos del temporizador de la pantalla.
+//  1. **El despertador del propio pendiente** (`despertarEn`), que salta cuando vence SU
+//     freno. Es el mecanismo, y es lo que hace que quince segundos sean quince.
+//  2. **El latido de cada conexión abierta** (el `ticker` de `servirEventos`), cada 20 s.
+//     Ya no es el mecanismo: es la red de seguridad, para un pendiente que se quedara sin
+//     despertador —una prueba que puso `alVencer` a nil, un reloj falso que no avanza—.
+//
+// # AQUÍ PONÍA QUE EL LATIDO BASTABA, Y ERA FALSO — 29/09/2026
+//
+// Decía que montar un temporizador propio «sería un hilo más vivo para algo que ya tiene
+// quien lo despierte cada veinte segundos». Con el latido solo, un pendiente de 15 s salía
+// **en el siguiente tic de 20**: quince redondeados al alza a múltiplo de veinte. Medido esa
+// noche en producción, cinco frenadas de 6,77 · 17,89 · 20,41 · 20,76 y **26,68** segundos,
+// contra una constante que dice quince. Un comentario no falla, y éste tapaba once segundos.
+// El detalle completo, en `FrenoAvisos`.
 func (d *Difusor) SoltarPendientes() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -508,11 +678,12 @@ func (d *Difusor) SoltarPendientes() {
 	}
 	ahora := d.ahora()
 	for k, c := range d.pendiente {
-		if visto, hay := d.ultimo[k]; hay && ahora.Sub(visto) < d.freno {
+		if visto, hay := d.ultimo[k]; hay && ahora.Sub(visto) < d.frenoDe(c.Tipo) {
 			continue
 		}
 		d.ultimo[k] = ahora
 		delete(d.pendiente, k)
+		d.olvidarDespertador(k)
 		d.repartir(c)
 	}
 }
@@ -558,6 +729,13 @@ func (d *Difusor) Cerrar() {
 	for ch := range d.abonados {
 		close(ch)
 		delete(d.abonados, ch)
+	}
+	// Y LOS DESPERTADORES. Un `time.AfterFunc` vivo es una gorutina esperando a saltar sobre
+	// un bus ya cerrado; no rompe nada —`SoltarPendientes` sale a la primera si está
+	// cerrado— pero es exactamente lo que este fichero no puede dejar detrás en un apagado.
+	for k, t := range d.temporizadores {
+		t.Stop()
+		delete(d.temporizadores, k)
 	}
 }
 

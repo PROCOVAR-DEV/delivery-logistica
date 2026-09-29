@@ -294,6 +294,7 @@ func TestDifusorFrenaUnAvisoPorTipoCada15s(t *testing.T) {
 	reloj := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 	d := NuevoDifusor()
 	d.ahora = func() time.Time { return reloj }
+	sinDespertadores(d)
 
 	if !d.Avisar(CambioPedidos, nil) {
 		t.Fatal("el primer aviso tiene que salir")
@@ -374,16 +375,138 @@ func esperarA(t *testing.T, plazo time.Duration, cumple func() bool, queja strin
 // LO QUE PASA DENTRO DEL FRENO NO SE PIERDE: sale al vencer.
 //
 // El freno era de flanco de SUBIDA puro: lo que llegaba dentro de los quince segundos se
-// descartaba y no se reprogramaba. Con el espejo daba igual —siempre hay un lote detrás
-// que vuelve a avisar—, pero **con un gesto humano no**: doce tarjetas arrastradas en doce
-// segundos mandaban UN aviso, el de la primera, o sea el momento en que menos hay que
-// contar. La otra pantalla refrescaba tras la tarjeta 1 y se quedaba once atrás hasta el
-// temporizador: dos minutos en la web, cinco en la APK.
+// descartaba y no se reprogramaba. Con una avalancha de PEDIDO daba igual —siempre hay un
+// lote detrás que vuelve a avisar—, pero si el último lote es el que se come el freno, ese
+// aviso no se decía nunca y la pantalla se quedaba en el penúltimo hasta el temporizador:
+// dos minutos en la web, cinco en la APK.
 //
-// Es la queja de Jose del 16/09 —«moví cosas y en la web no salió en tiempo real»—
-// arreglada a un doceavo.
-func TestLoQueEntraDentroDelFrenoSaleAlVencer(t *testing.T) {
+// # VEINTE AVISOS DE MÁQUINA SEGUIDOS Y SALEN FRENADOS — la pareja obligatoria
+//
+// Esta prueba es la mitad que impide cambiar un fallo por el otro. Su pareja es
+// `TestDosGestosSeguidosSalenLosDosAlMomento`: allí se comprueba que un gesto no espera
+// NADA, y aquí que una importación sigue sin provocar una tormenta. Si sólo estuviera una de
+// las dos, arreglar un lado rompería el otro en silencio.
+//
+// Estaba escrita con `CambioTablero` porque ése era el ejemplo vivo mientras TODOS los tipos
+// se frenaban. Va con `CambioPedidos`, que es lo que de verdad llega por lotes de doscientos
+// (`tiposFrenados`).
+func TestVeinteAvisosDeMaquinaSalenFrenadosYNoSePierdeElUltimo(t *testing.T) {
 	reloj := time.Date(2026, 9, 17, 10, 0, 0, 0, time.UTC)
+	d := NuevoDifusor()
+	d.ahora = func() time.Time { return reloj }
+	sinDespertadores(d)
+
+	canal, cortar, vivo := d.Suscribir()
+	if !vivo {
+		t.Fatal("el bus tenía que estar vivo")
+	}
+	defer cortar()
+
+	// Veinte lotes en veinte segundos, que es lo que hace una importación del espejo.
+	for i := 0; i < 20; i++ {
+		d.Avisar(CambioPedidos, map[string]any{"lote": i})
+		reloj = reloj.Add(time.Second)
+	}
+
+	// VEINTE LOTES, DOS AVISOS. Los números van a mano y son de la aritmética, no de la
+	// constante: con freno de 15 s y lotes de 1 s salen el lote 0 (no había nada antes) y el
+	// lote 15 (justo cuando vence el freno del 0). Los otros dieciocho se quedan dentro.
+	salidos := []any{}
+	for {
+		c, hay := siHayCambio(canal)
+		if !hay {
+			break
+		}
+		salidos = append(salidos, c.Detalle["lote"])
+	}
+	if len(salidos) != 2 {
+		t.Fatalf("de veinte lotes salieron %d avisos (%v) y tenían que salir 2.\n"+
+			"  Cada aviso dispara un ciclo de sincronización ENTERO en el aparato: veinte "+
+			"avisos son veinte ciclos contra la conexión de Cuba, que es la tormenta que "+
+			"el freno existe para evitar («tiposFrenados»).", len(salidos), salidos)
+	}
+	if salidos[0] != 0 || salidos[1] != 15 {
+		t.Errorf("salieron los lotes %v y tenían que salir el 0 y el 15 (segundo 0 y "+
+			"segundo 15, que es cuando vence el freno del primero)", salidos)
+	}
+
+	// Y EL ÚLTIMO NO SE PIERDE: lo que se quedó dentro sale al vencer.
+	reloj = reloj.Add(15 * time.Second)
+	d.SoltarPendientes()
+
+	ultimo := recibir(t, canal)
+	if ultimo.Detalle["lote"] != 19 {
+		t.Errorf("salió el lote %v y tenía que salir el ÚLTIMO (19): es el que describe "+
+			"cómo está la base ahora, y si se pierde nadie vuelve a decirlo",
+			ultimo.Detalle["lote"])
+	}
+}
+
+// EL PENDIENTE SALE SOLO, SIN QUE NADIE LLAME A NADA — 29/09/2026.
+//
+// Hasta hoy `SoltarPendientes` sólo lo llamaba el latido, cada `latidoSSE` = 20 s. Con un
+// freno de 15, eso son quince segundos REDONDEADOS AL ALZA A MÚLTIPLO DE VEINTE. Medido en
+// producción esa noche: cinco frenadas de 6,77 · 17,89 · 20,41 · 20,76 y **26,68** segundos,
+// contra una constante que dice quince. Las horas de salida lo cantaban —21:02:40.300 ·
+// 21:03:00.298 · 21:03:20.319, veinte clavados.
+//
+// Va con el RELOJ DEL SISTEMA y con un freno de milisegundos, porque lo que se comprueba es
+// justamente el temporizador de verdad: con el reloj a mano no hay nada que esperar y la
+// prueba pasaría sin despertador ninguno. **Y NO SE LLAMA A `SoltarPendientes`**: si hiciera
+// falta llamarlo, esto se cuelga hasta el plazo y sale rojo, que es lo que tiene que pasar.
+func TestElPendienteSaleSoloSinEsperarAlLatido(t *testing.T) {
+	d := NuevoDifusor()
+	d.freno = 40 * time.Millisecond
+
+	canal, cortar, vivo := d.Suscribir()
+	if !vivo {
+		t.Fatal("el bus tenía que estar vivo")
+	}
+	defer cortar()
+
+	if !d.Avisar(CambioPedidos, map[string]any{"lote": 1}) {
+		t.Fatal("el primero tenía que salir")
+	}
+	recibir(t, canal)
+	if d.Avisar(CambioPedidos, map[string]any{"lote": 2}) {
+		t.Fatal("el segundo tenía que quedarse dentro del freno")
+	}
+
+	// Un segundo de plazo contra un freno de 40 ms: veinticinco veces de margen. Si el
+	// pendiente esperase al latido no llegaría nunca aquí — `latidoSSE` son 20 s.
+	select {
+	case c := <-canal:
+		if c.Detalle["lote"] != 2 {
+			t.Errorf("salió el lote %v y tenía que salir el 2", c.Detalle["lote"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("el pendiente NO salió solo: sigue esperando a que alguien llame a " +
+			"SoltarPendientes.\n" +
+			"  Colgado del latido, un freno de 15 s se convierte en 15 redondeado al alza a " +
+			"múltiplo de 20 — medido en producción el 29/09/2026, la peor frenada fue de " +
+			"26,68 s contra una constante que dice quince. Ver «despertarEn».")
+	}
+}
+
+// EL CASO DE JOSE, MEDIDO: dos gestos seguidos y los DOS salen al momento.
+//
+// 29/09/2026, con el navegador en una mano y el teléfono en la otra, moviendo dos tarjetas
+// del tablero. Lo que salió por el cable:
+//
+//	20:59:22.622  mueve la primera  ->  aviso 20:59:22.776    154 ms
+//	20:59:24.052  mueve la segunda  ->  aviso 20:59:40.441    16 SEGUNDOS
+//
+// Los quince del freno más lo que tardó el latido en soltar el pendiente. Jose: «pero debe
+// ser en tiempo real deben ocurrir por q se demoran 15segundos en ocurrir».
+//
+// **Un gesto de una persona no espera NADA. Cero.** No es un número más corto: es que
+// `tablero` ya no está en `tiposFrenados`.
+//
+// EL RELOJ NO SE MUEVE ENTRE LOS DOS AVISOS a propósito — o sí, un segundo, que es lo que
+// Jose tardó. Si hubiera cualquier freno, por corto que fuera, el segundo se quedaría dentro
+// y esta prueba se pondría roja. Es justo lo que tiene que pasar.
+func TestDosGestosSeguidosSalenLosDosAlMomento(t *testing.T) {
+	reloj := time.Date(2026, 9, 29, 20, 59, 22, 0, time.UTC)
 	d := NuevoDifusor()
 	d.ahora = func() time.Time { return reloj }
 
@@ -393,30 +516,111 @@ func TestLoQueEntraDentroDelFrenoSaleAlVencer(t *testing.T) {
 	}
 	defer cortar()
 
-	// Doce gestos en doce segundos, como arrastrar doce tarjetas seguidas.
-	for i := 0; i < 12; i++ {
-		d.Avisar(CambioTablero, map[string]any{"gesto": i})
-		reloj = reloj.Add(time.Second)
+	if !d.Avisar(CambioTablero, map[string]any{"tarjeta": 1}) {
+		t.Fatal("la primera tarjeta no avisó")
+	}
+	// UN SEGUNDO DESPUÉS, que es lo que Jose tardó en coger la segunda.
+	reloj = reloj.Add(time.Second)
+	if !d.Avisar(CambioTablero, map[string]any{"tarjeta": 2}) {
+		t.Fatal("LA SEGUNDA TARJETA SE QUEDÓ FRENADA.\n" +
+			"  Éste es el fallo entero: el 29/09/2026 tardó 16,4 segundos en verse en la " +
+			"otra pantalla. Un gesto de una persona no espera nada — «tablero» no puede " +
+			"estar en `tiposFrenados` (eventos.go).")
 	}
 
-	// Sale el primero, que es lo correcto: la pantalla se entera en el acto.
-	primero := recibir(t, canal)
-	if primero.Detalle["gesto"] != 0 {
-		t.Fatalf("el primero fue %v", primero.Detalle["gesto"])
+	// Y LAS DOS SALEN POR EL CABLE, en orden y sin que nadie suelte nada.
+	if c := recibir(t, canal); c.Detalle["tarjeta"] != 1 {
+		t.Errorf("la primera que salió fue la tarjeta %v", c.Detalle["tarjeta"])
 	}
-	if hayCambio(canal) {
-		t.Fatal("salió un segundo aviso dentro del freno: eso es el parpadeo que el " +
-			"freno viene a evitar")
+	segunda := recibir(t, canal)
+	if segunda.Detalle["tarjeta"] != 2 {
+		t.Errorf("la segunda que salió fue la tarjeta %v", segunda.Detalle["tarjeta"])
 	}
+	// Sin llamar a `SoltarPendientes`: si hiciera falta el latido, el retraso real sería de
+	// hasta veinte segundos más y volveríamos a los dieciséis de aquel día.
+	if len(d.pendiente) != 0 {
+		t.Errorf("quedaron %d avisos esperando al latido: %v.\n"+
+			"  Un gesto que se guarda como pendiente sale cuando late la conexión, o sea "+
+			"hasta 20 s después. Eso NO es tiempo real.", len(d.pendiente), d.pendiente)
+	}
+}
 
-	// Pasa el freno y lo suelta el latido.
-	reloj = reloj.Add(15 * time.Second)
-	d.SoltarPendientes()
+// LOS TIPOS FRENADOS SON EXACTAMENTE ESTOS TRES, Y LOS TRES NOMBRES VAN A MANO.
+//
+// # Por qué la lista se fija aquí y no se compara contra la constante
+//
+// Comparar `tiposFrenados` consigo misma no comprueba nada: añadir un tipo mañana dejaría
+// esto en verde y su pantalla se quedaría hasta medio minuto vieja sin que fallara nada, sin
+// error y sin registro. Los tres nombres están escritos a mano para que meter un cuarto
+// obligue a venir aquí — y de paso a leer lo que significa estar en esa lista.
+//
+// # Qué significa estar en la lista
+//
+// Que ese aviso puede tardar **hasta 15 segundos** en llegar a la otra pantalla. Se acepta
+// sólo para lo que entra por la manguera de PEDIDO, donde un aviso por lote son veinte
+// ciclos de sincronización seguidos contra la conexión de allá.
+//
+// Eran hasta 35 —el freno más el latido que lo soltaba— hasta que el 29/09/2026 cada
+// pendiente pasó a tener su propio despertador (`despertarEn`). Sin él, cualquier número que
+// se ponga en `FrenoAvisos` se redondea al alza a múltiplo de `latidoSSE`.
+func TestSoloEstosTiposSeFrenan(t *testing.T) {
+	// A mano y por su texto, no por las constantes: renombrar una constante y la entrada del
+	// mapa a la vez dejaría esto verde, y ese texto es lo que viaja por el cable.
+	frenadosEsperados := map[string]bool{"pedidos": true, "clientes": true, "canal": true}
 
-	ultimo := recibir(t, canal)
-	if ultimo.Detalle["gesto"] != 11 {
-		t.Errorf("salió el gesto %v y tenía que salir el ÚLTIMO (11): es el que describe "+
-			"cómo está el tablero ahora", ultimo.Detalle["gesto"])
+	for tipo, motivo := range tiposFrenados {
+		if !frenadosEsperados[tipo] {
+			t.Errorf("«%s» se ha metido en la lista de frenados y no estaba decidido.\n"+
+				"  Estar ahí significa que ese aviso puede tardar HASTA 15 SEGUNDOS en "+
+				"llegar a la otra pantalla.\n"+
+				"  Sólo se frena lo que entra en avalancha desde PEDIDO. Lo que se usa "+
+				"para trabajar en el reparto va al momento — Jose, 29/09/2026: «deja todo "+
+				"lo demas listo al momento... q se utiliza en reparto».\n"+
+				"  El motivo que trae escrito es: %s", tipo, motivo)
+		}
+		if strings.TrimSpace(motivo) == "" {
+			t.Errorf("«%s» está frenado sin decir por qué. El valor del mapa es "+
+				"obligatorio: un tipo frenado sin motivo es el que nadie se atreve a "+
+				"sacar dentro de seis meses", tipo)
+		}
+	}
+	for tipo := range frenadosEsperados {
+		if _, hay := tiposFrenados[tipo]; !hay {
+			t.Errorf("«%s» ha SALIDO de la lista de frenados.\n"+
+				"  Los tres que quedan son la manguera de PEDIDO: el lote del espejo son "+
+				"doscientos pedidos por vuelta y avisa por cada uno, y hasta el 29/09/2026 "+
+				"PEDIDO devolvía 2.000 pedidos por cada aviso de uno. Sin freno, cada aviso "+
+				"es un ciclo de sincronización entero en el aparato: veinte ciclos seguidos "+
+				"contra la conexión de Cuba.", tipo)
+		}
+	}
+}
+
+// Y AL REVÉS: lo que se usa para trabajar en el reparto NO se frena, uno por uno.
+//
+// Es la otra mitad de la de arriba y no sobra: aquélla cazaría un tipo NUEVO metido en la
+// lista, y ésta caza que alguien meta en ella uno de los que ya hay. Jose los nombró:
+// «pedidos y clientes si pero lo otro no q se utiliza en reparto dejalo al momento».
+func TestLoDelRepartoSaleAlMomento(t *testing.T) {
+	alMomento := []string{
+		CambioTablero, CambioRutas, CambioVehiculos, CambioAlmacenes,
+		CambioSucursales, CambioAjustes, CambioCatalogo,
+	}
+	d := NuevoDifusor()
+	reloj := time.Date(2026, 9, 29, 21, 0, 0, 0, time.UTC)
+	d.ahora = func() time.Time { return reloj }
+
+	for _, tipo := range alMomento {
+		if freno := d.frenoDe(tipo); freno != 0 {
+			t.Errorf("«%s» tiene un freno de %s y tenía que salir al momento.\n"+
+				"  Es una pantalla de trabajo del reparto: dos personas la miran a la vez, "+
+				"una desde el teléfono y otra desde el navegador, y lo que hace una tiene "+
+				"que aparecerle a la otra en el acto.", tipo, freno)
+		}
+		// Y de verdad, no sólo en la cuenta: dos seguidos sin mover el reloj.
+		if !d.Avisar(tipo, nil) || !d.Avisar(tipo, nil) {
+			t.Errorf("dos avisos seguidos de «%s» y el segundo no salió", tipo)
+		}
 	}
 }
 
@@ -446,23 +650,28 @@ func TestSoltarSinNadaPendienteNoMandaNada(t *testing.T) {
 	}
 }
 
-// Cada tipo lleva su propio pendiente: un cambio del tablero no se come el de pedidos.
+// Cada tipo lleva su propio pendiente: un cambio de clientes no se come el de pedidos.
+//
+// VA CON LOS DOS TIPOS FRENADOS y no con `tablero`, que era como estaba: desde el
+// 29/09/2026 `tablero` sale al momento y nunca se queda pendiente, así que escrito con él
+// esta prueba pasaría comprobando la mitad (`tiposFrenados`).
 func TestCadaTipoGuardaSuPendiente(t *testing.T) {
 	reloj := time.Date(2026, 9, 17, 10, 0, 0, 0, time.UTC)
 	d := NuevoDifusor()
 	d.ahora = func() time.Time { return reloj }
+	sinDespertadores(d)
 
 	canal, cortar, _ := d.Suscribir()
 	defer cortar()
 
-	d.Avisar(CambioTablero, nil)
+	d.Avisar(CambioClientes, nil)
 	d.Avisar(CambioPedidos, nil)
 	recibir(t, canal)
 	recibir(t, canal)
 
 	// Los dos, dentro del freno.
 	reloj = reloj.Add(2 * time.Second)
-	d.Avisar(CambioTablero, map[string]any{"cual": "tablero"})
+	d.Avisar(CambioClientes, map[string]any{"cual": "clientes"})
 	d.Avisar(CambioPedidos, map[string]any{"cual": "pedidos"})
 
 	reloj = reloj.Add(20 * time.Second)
@@ -473,10 +682,22 @@ func TestCadaTipoGuardaSuPendiente(t *testing.T) {
 		c := recibir(t, canal)
 		vistos[c.Tipo] = true
 	}
-	if !vistos[CambioTablero] || !vistos[CambioPedidos] {
+	if !vistos[CambioClientes] || !vistos[CambioPedidos] {
 		t.Errorf("se perdió uno de los dos: %v", vistos)
 	}
 }
+
+// sinDespertadores apaga los `time.AfterFunc` de un bus con el reloj a mano.
+//
+// NO ES COSMÉTICO. Un despertador de verdad armado sobre un reloj falso salta quince
+// segundos después, cuando esta prueba ya terminó, y lee la variable `reloj` del cuerpo sin
+// ninguna sincronización: eso es una carrera que `-race` marca, y el fallo sale con el
+// nombre de OTRA prueba. Lo que estas pruebas comprueban es la aritmética del freno, y para
+// eso llaman a `SoltarPendientes` a mano.
+//
+// Que el despertador funciona de verdad lo prueba `TestElPendienteSaleSoloSinEsperarAlLatido`,
+// que va con el reloj del sistema.
+func sinDespertadores(d *Difusor) { d.alVencer = nil }
 
 func recibir(t *testing.T, canal <-chan Cambio) Cambio {
 	t.Helper()
@@ -495,6 +716,17 @@ func hayCambio(canal <-chan Cambio) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// siHayCambio saca lo que ya esté en el canal, sin esperar. Para contar cuántos avisos
+// salieron de verdad en vez de sólo mirar si salió alguno.
+func siHayCambio(canal <-chan Cambio) (Cambio, bool) {
+	select {
+	case c := <-canal:
+		return c, true
+	default:
+		return Cambio{}, false
 	}
 }
 

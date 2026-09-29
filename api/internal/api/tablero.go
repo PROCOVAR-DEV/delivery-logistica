@@ -77,8 +77,15 @@ func (s *Servidor) rutasTablero(rt *httpx.Router, sesion, admin []httpx.Medio) {
 //
 // Vacío por defecto y lo engancha el fichero del bus (`eventos.go`), igual que el de rutas.
 // **NO devuelve error y no se mira lo que conteste**: una zona no se deja de crear porque
-// el aviso no salga. El bus tiene además un freno de quince segundos por tipo, así que
-// arrastrar doce tarjetas seguidas no manda doce avisos.
+// el aviso no salga.
+//
+// AQUÍ DECÍA QUE EL BUS LO FRENA, Y YA NO — 29/09/2026. Ponía que «el bus tiene un freno de
+// quince segundos por tipo, así que arrastrar doce tarjetas seguidas no manda doce avisos».
+// Eso era verdad y era justamente el fallo: Jose movió dos tarjetas seguidas con el teléfono
+// y el navegador delante, y la segunda tardó dieciséis segundos en aparecer al otro lado.
+// `tablero` ya NO está en `tiposFrenados` (`eventos.go`): cada gesto sale en el acto, y sí,
+// doce tarjetas son doce avisos. Es lo que se pidió — esta pantalla es la que dos personas
+// miran a la vez.
 var avisarCambioDelTablero = func(_ context.Context) {}
 
 // ---------------------------------------------------------------------------

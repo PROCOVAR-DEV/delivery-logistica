@@ -35,11 +35,14 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"sync"
 	"time"
 
+	"procovar/reparto-api/internal/alcance"
+	"procovar/reparto-api/internal/auth"
 	"procovar/reparto-api/internal/httpx"
 )
 
@@ -88,11 +91,39 @@ var (
 
 // Cambio es lo que se publica. `Detalle` es libre —`{"pedidos": 42}`, `{"productos": 300}`—
 // y lo pone quien avisa.
+//
+// # `Sucursal`: DE DÓNDE ES el cambio — 29/09/2026
+//
+// Vacío = **de todas**, y el aviso le llega a todo el mundo. Un uuid = sólo a quien mira
+// esa sucursal. Jose: «el aviso por sucursales, ese evento debe de salir de su sucursal,
+// no puede dar una bajada a las otras 7».
+//
+// **VACÍO NO ES «DE NINGUNA»**, y ésa es la única forma de equivocarse aquí que no falla,
+// no sale en ningún registro y deja la pantalla vieja: el catálogo, los ajustes, la lista
+// de sucursales y el canal con PEDIDO no son de nadie en concreto y TIENEN que seguir
+// llegando a las ocho. Por eso el campo es un texto y el vacío se lee «no lo acota», no
+// un puntero que alguien pueda comparar por igualdad con el de otro.
+//
+// Es un campo suyo y no una entrada del `Detalle` porque decide DOS cosas que el detalle
+// no puede: a quién se le reparte (`repartir`) y con quién comparte freno (`clave`).
 type Cambio struct {
 	Tipo    string
 	Cuando  time.Time
 	Detalle map[string]any
+	// Sucursal: el uuid de la sucursal del reparto a la que pertenece lo que cambió.
+	// Vacío = de todas.
+	Sucursal string
 }
+
+// clave: con quién comparte freno este cambio.
+//
+// **EL FRENO ES POR TIPO *Y* POR SUCURSAL, y esto no es un adorno.** Con el freno sólo por
+// tipo, mover una tarjeta en Camagüey y otra en Holguín dentro de los mismos quince
+// segundos dejaba UN pendiente —el último, porque `pendiente[tipo]` se pisa— y el otro no
+// salía nunca. O sea: arreglando el ruido de las otras siete se habría abierto justo el
+// fallo que este trabajo venía a evitar, un aviso que no le llega a quien sí lo
+// necesitaba. Lo ata `TestElFrenoNoSeCruzaEntreSucursales`.
+func clave(tipo, sucursal string) string { return tipo + "\x00" + sucursal }
 
 // datos arma el `data:` del evento: `{tipo, ...detalle, cuando}`, tal cual el contrato.
 //
@@ -105,6 +136,13 @@ func (c Cambio) datos() []byte {
 		m[k] = v
 	}
 	m["tipo"] = c.Tipo
+	// LA SUCURSAL SÓLO SI LA HAY. Un `"sucursal": ""` en el cuerpo sería un texto que la
+	// pantalla compararía con el suyo y nunca casaría: el aviso de todos se convertiría en
+	// el aviso de nadie. Sin la clave, el cliente lee «no dice de dónde es» y lo deja
+	// pasar, que es lo correcto.
+	if c.Sucursal != "" {
+		m["sucursal"] = c.Sucursal
+	}
 	// Con milisegundos y en UTC, que es lo que lee la pantalla (`2026-09-14T10:00:00.000Z`).
 	m["cuando"] = c.Cuando.UTC().Format("2006-01-02T15:04:05.000Z07:00")
 	b, err := json.Marshal(m)
@@ -123,11 +161,16 @@ func (c Cambio) datos() []byte {
 // aviso, no el trabajo. Una importación de mil pedidos no puede quedarse esperando a que
 // un navegador con la pestaña en segundo plano lea su canal.
 type Difusor struct {
-	mu       sync.Mutex
-	abonados map[chan Cambio]struct{}
-	ultimo   map[string]time.Time // el freno, por tipo
+	mu sync.Mutex
+	// abonados: el canal de cada conexión abierta -> LA SUCURSAL QUE MIRA, o vacío si
+	// las ve todas (DESARROLLADOR y SUPER ADMIN sin sucursal elegida). Es lo que permite
+	// que el reparto se haga aquí y no en el aparato: un aviso de Camagüey ni siquiera
+	// sale por el cable de los otros siete. Ver `repartir`.
+	abonados map[chan Cambio]string
+	ultimo   map[string]time.Time // el freno, por tipo Y sucursal (ver `clave`)
 	// pendiente: lo que llegó DENTRO del freno y todavía no ha salido. Es el flanco de
-	// bajada; sin esto, lo que pasa en esos quince segundos no se dice nunca.
+	// bajada; sin esto, lo que pasa en esos quince segundos no se dice nunca. La clave es
+	// la misma que la del freno: tipo Y sucursal.
 	pendiente map[string]Cambio
 	cerrado   bool
 	// enganchados: los servidores HTTP a los que ya se les colgó el cierre. Ver
@@ -140,7 +183,7 @@ type Difusor struct {
 
 func NuevoDifusor() *Difusor {
 	return &Difusor{
-		abonados:    map[chan Cambio]struct{}{},
+		abonados:    map[chan Cambio]string{},
 		ultimo:      map[string]time.Time{},
 		pendiente:   map[string]Cambio{},
 		enganchados: map[*http.Server]struct{}{},
@@ -199,49 +242,160 @@ var busEventos = NuevoDifusor()
 // Se enganchan aquí, en el fichero del bus, y no en cada manejador: quien escribe una zona
 // —o un camión— no tiene por qué saber cómo se reparten los avisos, y el día que esto
 // vuelva a ser Redis no hay que tocar ni el tablero ni los demás.
+//
+// ## Y DE QUÉ SUCURSAL ES CADA UNO — 29/09/2026
+//
+// Jose: «el aviso por sucursales, ese evento debe de salir de su sucursal, no puede dar
+// una bajada a las otras 7». Mover una tarjeta en Camagüey mandaba a los ocho navegadores
+// de la oficina —más los teléfonos, por la conexión de allá— a bajarse su tablero entero,
+// y siete de los ocho no tenían nada que bajar. Desde el 29/09 era peor todavía, porque
+// también se refresca al reconectar el canal.
+//
+// El modelo es el de PEDIDO (`api/src/lib/events.ts`, `api/src/routes/events.ts`), que ya
+// lo tenía resuelto: el evento lleva `sucursalId`, **nulo = global**, y el corte se hace
+// en el SERVIDOR al repartir, contra la sucursal que resolvió la sesión de quien escucha.
+// Se copia entero, incluido lo que más importa: lo que no dice de qué sucursal es llega a
+// todos.
+//
+// **Qué lleva sucursal y qué no**, con el porqué de cada uno. La regla es una: el aviso se
+// acota sólo cuando lo que cambió SÓLO puede ser de esa sucursal. En la duda va sin acotar,
+// porque un aviso de más cuesta una petición y uno de menos deja una pantalla vieja y
+// callada, que es el fallo caro de esta casa.
+//
+//   - `tablero`, `rutas`, `pedidos`, `almacenes` -> DE SU SUCURSAL. Las cuatro cosas
+//     cuelgan de `branch_id` y sus manejadores pasan todos por `acotado()`, así que el
+//     alcance de quien escribe es el techo de lo que pudo cambiar: un usuario de Camagüey
+//     no puede tocar nada de Holguín, por definición.
+//   - `catalogo` -> GLOBAL. `products` sí tiene `sucursal_codigo`, pero
+//     `POST /api/products/sync` (`espejo.go`) trae el catálogo de VARIAS sucursales en una
+//     sola vuelta y avisa una sola vez. Acotarlo al alcance de quien lo lanzó dejaría a las
+//     demás con el catálogo viejo y sin nada que lo desmienta.
+//   - `vehiculos` -> GLOBAL. Lo publican dos ficheros y sólo uno es de una sucursal:
+//     `vehicles` tiene `branch_id`, pero `vehicle_types` **no tiene columna de sucursal
+//     ninguna** (es un catálogo de toda la empresa) y avisa por este mismo tipo. Acotarlo
+//     dejaría a las otras siete pantallas de Vehículos sin enterarse de un tipo nuevo —y
+//     esa pantalla NO vive de la base local, así que el ciclo tampoco la repinta: se queda
+//     clavada hasta salir y volver a entrar.
+//   - `sucursales`, `ajustes` -> GLOBAL. La lista de sucursales es de todos, y los ajustes
+//     lo dicen en su propio fichero: «GLOBALES: no llevan alcance por sucursal y no es un
+//     olvido». Con la moneda y la tasa se convierte TODO importe que se pinta.
+//   - `canal` -> GLOBAL. Lo publican el webhook de PEDIDO y el drenaje del buzón, que no
+//     tienen sesión de persona y por tanto no tienen alcance: aquí `sucursalDelAlcance`
+//     devolvería vacío de todos modos, y se escribe explícito para que se lea como una
+//     decisión y no como una casualidad.
+//   - `clientes` -> no lo publica nadie (ver arriba).
+//
+// Lo ata `el_aviso_sale_de_su_sucursal_test.go`, que fija esta tabla: un gancho que cambie
+// de lado tiene que cambiarla a mano, y entonces se lee este comentario.
 func init() {
-	avisarCambioDeRutas = func(_ context.Context) { busEventos.Avisar(CambioRutas, nil) }
-	avisarCambioDelTablero = func(_ context.Context) { busEventos.Avisar(CambioTablero, nil) }
-	avisarCambioDePedidos = func(_ context.Context) { busEventos.Avisar(CambioPedidos, nil) }
+	avisarCambioDeRutas = func(ctx context.Context) {
+		busEventos.AvisarDe(CambioRutas, sucursalDelAlcance(ctx), nil)
+	}
+	avisarCambioDelTablero = func(ctx context.Context) {
+		busEventos.AvisarDe(CambioTablero, sucursalDelAlcance(ctx), nil)
+	}
+	avisarCambioDePedidos = func(ctx context.Context) {
+		busEventos.AvisarDe(CambioPedidos, sucursalDelAlcance(ctx), nil)
+	}
+	avisarCambioDeAlmacenes = func(ctx context.Context) {
+		busEventos.AvisarDe(CambioAlmacenes, sucursalDelAlcance(ctx), nil)
+	}
+
+	// LOS DE TODAS. Van por `Avisar` —sin sucursal— a propósito; el porqué de cada uno,
+	// en la tabla de arriba. No se les pone `sucursalDelAlcance` aunque quien los toque
+	// tenga sucursal: lo que cambian lo ven las ocho.
 	avisarCambioDelCatalogo = func(_ context.Context) { busEventos.Avisar(CambioCatalogo, nil) }
 	avisarCambioDeVehiculos = func(_ context.Context) { busEventos.Avisar(CambioVehiculos, nil) }
-	avisarCambioDeAlmacenes = func(_ context.Context) { busEventos.Avisar(CambioAlmacenes, nil) }
 	avisarCambioDeSucursales = func(_ context.Context) { busEventos.Avisar(CambioSucursales, nil) }
 	avisarCambioDeAjustes = func(_ context.Context) { busEventos.Avisar(CambioAjustes, nil) }
 	avisarCambioEnElCanal = func(_ context.Context) { busEventos.Avisar(CambioCanal, nil) }
 }
 
-// Avisar publica un cambio. Devuelve si salió o si lo paró el freno; nunca bloquea y nunca
-// entra en pánico.
+// sucursalDelAlcance: de qué sucursal es lo que acaba de cambiar.
+//
+// Sale del alcance de la petición que lo escribió, que es la única fuente honesta: el
+// alcance lo resuelve la portería a partir de QUIÉN pide —nunca de lo que mande el
+// cliente—, y acota las consultas, así que lo que un manejador pudo escribir no puede
+// salirse de él. Un usuario de Camagüey no puede haber cambiado nada de Holguín.
+//
+// Devuelve vacío —o sea, «de todas»— en los dos casos en los que no se sabe:
+//
+//   - quien lo tocó ve las ocho (DESARROLLADOR, SUPER ADMIN sin sucursal elegida): pudo
+//     cambiar cualquiera, así que el aviso tiene que llegarle a cualquiera;
+//   - no hay alcance en el contexto (una ruta sin el middleware, un proceso de fondo, una
+//     prueba): «no se sabe» **no es «de ninguna»**. Tratarlo como «de ninguna» sería el
+//     aviso que no le llega a nadie, que no falla y no se ve.
+func sucursalDelAlcance(ctx context.Context) string {
+	a := alcance.DelContexto(ctx)
+	if a == nil || a.Todas() {
+		return ""
+	}
+	if id := a.Sucursal(); id != nil {
+		return id.String()
+	}
+	return ""
+}
+
+// Avisar publica un cambio QUE ES DE TODAS LAS SUCURSALES. Devuelve si salió o si lo paró
+// el freno; nunca bloquea y nunca entra en pánico.
+//
+// Es el caso seguro y por eso es el que tiene el nombre corto: un aviso de más cuesta una
+// petición, y uno de menos deja una pantalla vieja sin que falle nada.
 func (d *Difusor) Avisar(tipo string, detalle map[string]any) bool {
+	return d.AvisarDe(tipo, "", detalle)
+}
+
+// AvisarDe publica un cambio DE UNA SUCURSAL. Con `sucursal` vacío es igual que [Avisar].
+func (d *Difusor) AvisarDe(tipo, sucursal string, detalle map[string]any) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.cerrado {
 		return false
 	}
 	ahora := d.ahora()
-	c := Cambio{Tipo: tipo, Cuando: ahora, Detalle: detalle}
+	c := Cambio{Tipo: tipo, Cuando: ahora, Detalle: detalle, Sucursal: sucursal}
+	k := clave(tipo, sucursal)
 
-	if visto, hay := d.ultimo[tipo]; hay && ahora.Sub(visto) < d.freno {
+	if visto, hay := d.ultimo[k]; hay && ahora.Sub(visto) < d.freno {
 		// DENTRO DEL FRENO: no sale ahora, pero **se guarda**. Sale solo al vencer, con
 		// `soltarPendientes`. Antes se descartaba, y de doce gestos seguidos llegaba uno
 		// —el primero— y once se perdían para siempre.
 		//
 		// Se queda el ÚLTIMO: es el que describe cómo está el tablero ahora, y quien lo
 		// reciba va a pedir la lista entera de todos modos.
-		d.pendiente[tipo] = c
+		d.pendiente[k] = c
 		return false
 	}
-	d.ultimo[tipo] = ahora
-	delete(d.pendiente, tipo)
+	d.ultimo[k] = ahora
+	delete(d.pendiente, k)
 
 	d.repartir(c)
 	return true
 }
 
-// repartir manda el cambio a todos los abonados. Con el candado ya cogido.
+// repartir manda el cambio a los abonados A QUIEN LE TOCA. Con el candado ya cogido.
+//
+// # LA REGLA, y se lee en un renglón
+//
+// Se descarta SÓLO cuando las dos partes saben de qué sucursal hablan y no es la misma.
+// Todo lo demás pasa:
+//
+//   - el cambio no dice de qué sucursal es (catálogo, ajustes, sucursales, canal) -> a TODOS;
+//   - quien escucha ve las ocho (DESARROLLADOR, SUPER ADMIN) -> se lo lleva TODO;
+//   - coinciden -> pasa.
+//
+// Escrito al revés —«se manda sólo si coinciden»— un aviso sin sucursal no le llegaría a
+// nadie, y ése es el fallo caro: no falla, no hay error, no sale en ningún registro, y la
+// pantalla se queda vieja sin que nadie sepa por qué.
+//
+// Y esto es además la mitad que NO se puede hacer en el aparato: saber que «cambió el
+// tablero de Camagüey» ya es contar algo, así que el corte por persona va aquí, donde el
+// alcance sale de quién pregunta y no de lo que mande el cliente.
 func (d *Difusor) repartir(c Cambio) {
-	for ch := range d.abonados {
+	for ch, suya := range d.abonados {
+		if suya != "" && c.Sucursal != "" && suya != c.Sucursal {
+			continue
+		}
 		select {
 		case ch <- c:
 		default:
@@ -267,26 +421,31 @@ func (d *Difusor) SoltarPendientes() {
 		return
 	}
 	ahora := d.ahora()
-	for tipo, c := range d.pendiente {
-		if visto, hay := d.ultimo[tipo]; hay && ahora.Sub(visto) < d.freno {
+	for k, c := range d.pendiente {
+		if visto, hay := d.ultimo[k]; hay && ahora.Sub(visto) < d.freno {
 			continue
 		}
-		d.ultimo[tipo] = ahora
-		delete(d.pendiente, tipo)
+		d.ultimo[k] = ahora
+		delete(d.pendiente, k)
 		d.repartir(c)
 	}
 }
 
-// Suscribir abre un abono. El tercer valor es false cuando el bus está cerrado —el proceso
-// se está parando—, y entonces no hay canal que escuchar.
-func (d *Difusor) Suscribir() (<-chan Cambio, func(), bool) {
+// Suscribir abre un abono QUE SE LO LLEVA TODO. El tercer valor es false cuando el bus
+// está cerrado —el proceso se está parando—, y entonces no hay canal que escuchar.
+func (d *Difusor) Suscribir() (<-chan Cambio, func(), bool) { return d.SuscribirDe("") }
+
+// SuscribirDe abre un abono acotado a UNA sucursal: sólo recibe lo suyo y lo que no es de
+// ninguna. Con `sucursal` vacío es igual que [Suscribir] — que es lo que le toca a quien ve
+// las ocho, y también el caso seguro si algún día no se puede averiguar cuál es la suya.
+func (d *Difusor) SuscribirDe(sucursal string) (<-chan Cambio, func(), bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.cerrado {
 		return nil, func() {}, false
 	}
 	ch := make(chan Cambio, colaAbonado)
-	d.abonados[ch] = struct{}{}
+	d.abonados[ch] = sucursal
 	// El corte NO cierra el canal: sólo lo saca del reparto. Cerrarlo aquí y cerrarlo en
 	// `Cerrar` es cerrarlo dos veces el día que las dos cosas pasen a la vez.
 	return ch, func() {
@@ -341,10 +500,12 @@ func (s *Servidor) CerrarEventos() { busEventos.Cerrar() }
 //   - la sesión se comprueba DENTRO porque el 401 de esta ruta es `Unauthorized` en TEXTO
 //     PLANO y no el `{"error":...}` de todas las demás. Es lo que espera el `EventSource`
 //     del navegador, que no lee JSON;
-//   - el alcance no se monta porque aquí no se consulta nada y porque el aviso no lleva
-//     datos: dice «los pedidos cambiaron», no cuáles. Quien lo reciba volverá a pedir la
-//     lista, y ESA sí va acotada. Un aviso no puede enseñar la sucursal de nadie porque no
-//     enseña nada.
+//   - el middleware de alcance no se monta porque aquí no se consulta nada. **El alcance sí
+//     se resuelve**, a mano y dentro (`sucursalDeQuienEscucha`), desde el 29/09/2026: el
+//     aviso ya dice de qué sucursal es, así que hay que cortar por persona. Se hace con la
+//     MISMA portería que todo lo demás —`s.porteria.Resolver`—, y no con una comparación
+//     propia, porque dos copias de una regla de permisos acaban diciendo cosas distintas y
+//     la que se olvide de actualizar es por donde se cuela alguien.
 func (s *Servidor) rutasEventos(rt *httpx.Router, sesion, admin []httpx.Medio) {
 	rt.ManejarFunc(http.MethodGet, "/api/eventos", s.eventos)
 }
@@ -362,7 +523,8 @@ func (s *Servidor) eventos(w http.ResponseWriter, r *http.Request) {
 // lo que se queda viva cuando el navegador cierra la pestaña sin avisar, y con doscientas
 // pestañas al día eso es un proceso que crece hasta que alguien lo reinicia.
 func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Difusor) {
-	if _, err := s.verif.DelaPeticion(r); err != nil {
+	u, err := s.verif.DelaPeticion(r)
+	if err != nil {
 		httpx.Registro(r).Warn("eventos sin sesión", "motivo", err)
 		// TEXTO PLANO, no JSON: es lo que dice el contrato y lo que sabe leer el cliente.
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -384,7 +546,14 @@ func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Di
 
 	rc := http.NewResponseController(w)
 
-	canal, cortar, vivo := bus.Suscribir()
+	// DE QUIÉN ES ESTA CONEXIÓN. Se resuelve antes de abrir nada: si la cuenta no puede
+	// ver ninguna sucursal, no hay canal que darle y se dice por qué.
+	suya, puede := s.sucursalDeQuienEscucha(w, r, u)
+	if !puede {
+		return
+	}
+
+	canal, cortar, vivo := bus.SuscribirDe(suya)
 	if !vivo {
 		// El bus está cerrado: el proceso se está parando. Se contesta y se cierra, que es
 		// mejor que dejar al navegador con una conexión que no le va a traer nada. La
@@ -438,6 +607,74 @@ func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Di
 			}
 		}
 	}
+}
+
+// sucursalDeQuienEscucha: a qué sucursal está acotado el que abre el canal. Vacío = ve las
+// ocho, y entonces se lleva todo.
+//
+// ES LA MITAD QUE NO SE PUEDE HACER EN EL APARATO. Filtrar en el cliente ahorra peticiones,
+// pero el aviso ya habría salido por el cable: saber que «cambió el tablero de Camagüey» ya
+// es contar algo, y el alcance sale de quién pregunta, nunca de lo que mande el cliente
+// (`../../CLAUDE.md` §4; en delivery un operador de Santiago llegó a ver los precios de La
+// Habana). Por eso el corte va aquí.
+//
+// Se resuelve UNA vez, al abrir, y no en cada aviso: la portería toca la base, y hacerlo por
+// evento serían cientos de consultas por minuto para contestar siempre lo mismo. El precio
+// es que cambiar de sucursal en la barra no se nota hasta que el canal se vuelve a abrir —y
+// eso pasa solo cada cinco minutos, porque el proxy lo corta—; mientras tanto lo tapa el
+// filtro del aparato, que sí mira la sucursal en el momento de cada aviso.
+//
+// La cabecera `X-Sucursal-Id` se pasa tal cual porque la portería ya sabe qué hacer con
+// ella: **la sucursal DE LA PERSONA manda sobre la cabecera**, así que sólo puede estrechar
+// dentro de lo que esa persona ya podía ver, nunca abrir. En la web no llega nunca
+// —`EventSource` no sabe mandar cabeceras— y ahí el corte fino lo hace el aparato.
+//
+// Si la portería falla —la base caída medio segundo— se devuelve vacío y se deja
+// constancia: quien escucha se lleva de más, que es exactamente lo que tenía antes de este
+// cambio. Al revés —«no pude resolverlo, pues no le mando nada»— sería una pantalla que se
+// queda vieja sin un error, sin un registro y sin nadie mirando.
+func (s *Servidor) sucursalDeQuienEscucha(w http.ResponseWriter, r *http.Request, u *auth.Usuario) (string, bool) {
+	if s.porteria == nil || u == nil {
+		return "", true
+	}
+	a, err := s.porteria.Resolver(r.Context(), u, r.Header.Get(alcance.CabeceraSucursal))
+	switch {
+	case errors.Is(err, alcance.ErrSinAlcance):
+		// NO SE ABRE EL CANAL, y no es por tacañería: esta cuenta no está dada de alta en
+		// ninguna sucursal, así que TODAS las demás rutas le contestan 403 y sus pantallas
+		// están vacías. Un canal abierto para ella sería mandarle los uuid de las ocho
+		// sucursales para refrescar lo que no ve.
+		//
+		// Texto plano y el literal de siempre, por lo mismo que el 401 de arriba: el
+		// `EventSource` del navegador no lee JSON. Un 403 lo cierra para siempre, que es lo
+		// correcto — esto no se arregla reintentando, se arregla en la oficina.
+		httpx.Registro(r).Warn("eventos: cuenta sin alcance", "persona", u.ID)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = io.WriteString(w, alcance.ErrSinAlcance.Error())
+		return "", false
+	case err != nil:
+		// CUALQUIER OTRO FALLO ABRE A TODAS, y deja constancia. Aquí es al revés que en
+		// las consultas —donde «no pude comprobarlo» tiene que ser un 500, porque abrir
+		// enseñaría datos de otra sucursal—: por el canal no viaja ningún dato, sólo «algo
+		// cambió». Un Postgres que tose medio segundo no puede dejar a una oficina entera
+		// con las pantallas quietas y sin un error que lo diga.
+		httpx.Registro(r).Warn("eventos: no se pudo resolver el alcance; se le mandan todos",
+			"motivo", err)
+		return "", true
+	}
+	// `Todas()` es DESARROLLADOR o SUPER ADMIN (o uno de ellos sin sucursal elegida). No se
+	// pregunta aquí por el rol a mano: lo decide la portería con la misma regla que el
+	// resto de la api, que compara el nombre del rol EXACTO. `ADMINISTRADOR` es de UNA
+	// sucursal, y un «¿contiene admin?» escrito aquí le daría las ocho — que es justo la
+	// fuga que este cambio no puede abrir.
+	if a.Todas() {
+		return "", true
+	}
+	if id := a.Sucursal(); id != nil {
+		return id.String(), true
+	}
+	return "", true
 }
 
 // enviarSSE escribe un bloque y lo vacía. Devuelve false cuando ya no se puede escribir

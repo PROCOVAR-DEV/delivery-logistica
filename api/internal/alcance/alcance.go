@@ -265,8 +265,19 @@ func (p *Porteria) Exigir(siguiente http.Handler) http.Handler {
 }
 
 // De saca el alcance de la petición. nil si el middleware no se montó.
-func De(r *http.Request) *Acotado {
-	a, _ := r.Context().Value(claveAcotado).(*Acotado)
+func De(r *http.Request) *Acotado { return DelContexto(r.Context()) }
+
+// DelContexto es lo mismo pero sin la petición delante.
+//
+// Hace falta para los avisos en vivo: los ganchos `avisarCambio…` reciben un
+// `context.Context` a secas —los llaman desde dentro del manejador, ya escrito el cambio—
+// y necesitan saber DE QUÉ SUCURSAL es lo que acaba de cambiar para no mandarle el aviso
+// a las otras siete. Ver `internal/api/eventos.go`.
+//
+// Devuelve nil donde no hay alcance, y eso NO es «de ninguna sucursal»: es «no se sabe».
+// Quien lo use tiene que tratarlo como un aviso global, o el aviso no le llega a nadie.
+func DelContexto(ctx context.Context) *Acotado {
+	a, _ := ctx.Value(claveAcotado).(*Acotado)
 	return a
 }
 

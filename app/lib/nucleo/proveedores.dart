@@ -449,25 +449,39 @@ final avisosDeRedProvider = Provider<Stream<bool> Function()>(
 ///
 /// Y es un provider propio, y no una linea dentro del vigia, para que una prueba
 /// pueda sustituirlo entero — que es como se comprueba que sigue enganchado.
-final avisosParaElVigiaProvider = Provider<Stream<bool> Function()>((ref) {
-  // `veredictoDeLaRedProvider` es un `StreamProvider` y esto es un `Provider`,
-  // asi que se sigue con `ref.listen` y se reparte por un controlador propio.
-  // La alternativa —volver a montar aqui la ventana de sondeo— seria tener dos
-  // respuestas distintas a la misma pregunta, que es el §3-bis del CLAUDE.md.
-  final vueltaDeLaRed = StreamController<bool>.broadcast();
-  ref.onDispose(vueltaDeLaRed.close);
-  ref.listen<AsyncValue<Veredicto>>(veredictoDeLaRedProvider, (_, ahora) {
-    // SOLO EL FLANCO BUENO. «No valida» no dispara nada: no hay nada que hacer
-    // sin salida, y un ciclo lanzado a tumba abierta gasta bateria para acabar
-    // en el mismo `FalloDeRed`.
-    if (ahora.value == Veredicto.valida && !vueltaDeLaRed.isClosed) {
-      vueltaDeLaRed.add(true);
-    }
-  });
-
-  final deSiempre = ref.watch(avisosDeRedProvider);
-  return () => juntarAvisosDeRed([deSiempre, () => vueltaDeLaRed.stream]);
-});
+/// LO QUE DESPIERTA AL VIGIA.
+///
+/// Es el aviso de red de siempre ([avisosDeRedProvider]) y nada mas. Lo que
+/// despierta de verdad cuando vuelve la conexion es **el canal**, que al
+/// reconectar manda `avisoDeQueVolvimos` — y eso viaja por
+/// [avisosDelServidorProvider], no por aqui.
+///
+/// ## AQUI ESTUVO ENGANCHADO EL VEREDICTO DE ANDROID, Y SE QUITO — 29/09/2026
+///
+/// Duro unas horas y costo caro. El veredicto nativo se engancho para que volver
+/// la senal subiera el dia sin esperar al reloj, y resulto que Android manda uno
+/// en **cada `onCapabilitiesChanged`** — que en datos moviles salta sin parar,
+/// porque hasta la estimacion de ancho de banda cuenta como cambio. Medido en el
+/// telefono de Jose ese mismo dia: ciclos cada 11, 17, 18, 36 y 38 segundos, con
+/// un periodo de CINCO MINUTOS, a 3.255 bytes cada uno. **~1,4 MB por hora y por
+/// aparato** para no traer nada.
+///
+/// Se le puso un suelo y funcionaba. Pero la pregunta buena la hizo Jose: «¿y ese
+/// Kotlin, si estamos en Dart?». Y tenia razon —
+///
+///  * **el canal ya da esa misma senal**: cuando la red vuelve, el reintento del
+///    canal conecta y manda `listo`, que sale como `avisoDeQueVolvimos`;
+///  * lo unico que adelantaba el veredicto era **hasta un minuto**, que es el
+///    tope de la espera creciente del canal;
+///  * y era codigo nativo **que no se puede probar desde aqui**, que no corre en
+///    la web ni en el escritorio, y que ya habia costado un fallo de datos.
+///
+/// Un minuto de adelanto no paga eso. El veredicto **sigue existiendo** y sigue
+/// haciendo lo suyo —decir «sin conexion» cuando la wifi tiene el `!`, que es
+/// para lo que se puso el 28/09—: lo que se quito es que dispare ciclos.
+final avisosParaElVigiaProvider = Provider<Stream<bool> Function()>(
+  (ref) => ref.watch(avisosDeRedProvider),
+);
 
 /// EL VEREDICTO DEL SISTEMA, en tres piezas inyectables.
 ///
@@ -1067,7 +1081,8 @@ final avisosDelServidorProvider = Provider<Stream<String>>((ref) {
 /// lo que diga el portero — nada vivo sin sesion.
 final vigiaProvider = Provider<VigiaDeSincronizacion>((ref) {
   final vigia = VigiaDeSincronizacion(
-    ciclo: (motivo) => ref.read(cicloProvider).ahora(motivo: motivo),
+    ciclo: (motivo, avisoDe) =>
+        ref.read(cicloProvider).ahora(motivo: motivo, avisoDe: avisoDe),
     avisosDeRed: ref.watch(avisosParaElVigiaProvider),
     // LO QUE ENTRA EN LA COLA SE INTENTA SUBIR YA, sin esperar al reloj. Se
     // escucha la tabla y no se avisa desde quien encola: asi entra cualquier

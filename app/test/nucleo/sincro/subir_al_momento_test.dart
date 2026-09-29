@@ -25,7 +25,7 @@ void main() {
     cola = StreamController<void>.broadcast();
     ciclos = <String>[];
     vigia = VigiaDeSincronizacion(
-      ciclo: (motivo) async => ciclos.add(motivo),
+      ciclo: (motivo, _) async => ciclos.add(motivo),
       avisosDeRed: Stream<bool>.empty,
       avisosDeLaCola: () => cola.stream,
       // Sin temporizador: lo que se comprueba es el aviso, no el reloj.
@@ -100,7 +100,7 @@ void main() {
     setUp(() {
       servidor = StreamController<String>.broadcast();
       vigia = VigiaDeSincronizacion(
-        ciclo: (motivo) async => ciclos.add(motivo),
+        ciclo: (motivo, _) async => ciclos.add(motivo),
         avisosDeRed: Stream<bool>.empty,
         avisosDelServidor: () => servidor.stream,
         crearTemporizador: (_, _) => Timer(const Duration(days: 1), () {}),
@@ -141,7 +141,7 @@ void main() {
 
     test('sin canal —la APK— no pasa nada: manda el temporizador', () async {
       final sinCanal = VigiaDeSincronizacion(
-        ciclo: (motivo) async => ciclos.add(motivo),
+        ciclo: (motivo, _) async => ciclos.add(motivo),
         avisosDeRed: Stream<bool>.empty,
         crearTemporizador: (_, _) => Timer(const Duration(days: 1), () {}),
       );

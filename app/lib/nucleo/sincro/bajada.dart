@@ -260,7 +260,63 @@ class Bajada {
   /// que no hay diferencias posibles— y por eso aqui se reemplaza la copia
   /// entera en vez de mezclarla. Desde el almacen se mide lo que se le cobra al
   /// cliente por el domicilio: uno viejo cobra mal cada entrega del dia.
-  Future<int> almacenes({AvisoDeBajada? avisar, int tanda = 1}) async {
+  /// CADA CUANTO SE VUELVEN A PEDIR LOS ALMACENES SI NADIE AVISA.
+  ///
+  /// Hace falta un suelo y no se puede quitar del todo: **los almacenes viven en
+  /// Accesos**, y un almacen que se cree o se mueva alli **no publica ningun
+  /// aviso del reparto**. Sin este plazo, un almacen nuevo no llegaria nunca a un
+  /// aparato que ya tiene los suyos.
+  ///
+  /// Una hora es de sobra: un almacen no se muda dos veces en la misma manana, y
+  /// quien lo cambie desde el reparto si publica su aviso y llega al momento.
+  static const cadaCuantoLosAlmacenes = Duration(hours: 1);
+
+  /// ¿HACE FALTA VOLVER A PEDIR LOS ALMACENES?
+  ///
+  /// Sin fila de frescura es que nunca se bajaron: entonces si, y ademas sin
+  /// almacen no hay Tablero.
+  Future<bool> _hacenFaltaLosAlmacenes() async {
+    final cuando = await _frescura.laMasViejaAhora(const [
+      Colecciones.almacenes,
+    ]);
+    if (cuando == null) return true;
+    return _reloj().difference(cuando) >= cadaCuantoLosAlmacenes;
+  }
+
+  /// Los almacenes, y **NO en cada vuelta** — 29/09/2026.
+  ///
+  /// ## Lo que costaba pedirlos siempre
+  ///
+  /// Esto se llamaba al final de cada ciclo, sin condicion. Medido ese dia en el
+  /// telefono de Jose, con la aplicacion abierta y sin tocar nada:
+  ///
+  ///     GET /api/sync/cambios    584 bytes   <- las OCHO colecciones, en vacio
+  ///     GET /api/almacenes     2.671 bytes   <- siempre, cambien o no
+  ///
+  /// O sea que **el 82 % de lo que se gasta en reposo son los almacenes**, que no
+  /// cambian casi nunca. Con la conexion de alla y un ciclo cada pocos minutos,
+  /// eso es mas de un mega por hora y por aparato para traer ocho filas iguales.
+  ///
+  /// ## Cuando se piden ahora
+  ///
+  ///  * **la primera vez**, o si la copia esta vacia — sin almacen no hay desde
+  ///    donde medir, o sea que no hay Tablero;
+  ///  * **cuando llega su aviso** (`forzar`), que es el caso de alguien
+  ///    cambiandolos desde el reparto: llega al momento;
+  ///  * y **cada hora** como red de seguridad, porque viven en Accesos y un
+  ///    cambio hecho alli no publica ningun aviso nuestro.
+  ///
+  /// Devuelve 0 cuando no hacia falta, que no es lo mismo que «no habia
+  /// ninguno»: quien mire el resumen tiene la marca de frescura para saberlo.
+  Future<int> almacenes({
+    AvisoDeBajada? avisar,
+    int tanda = 1,
+    bool forzar = false,
+  }) async {
+    if (!forzar && !await _hacenFaltaLosAlmacenes()) {
+      Registro.info('almacenes: recientes, no se piden');
+      return 0;
+    }
     avisar?.call(
       AvanceDeBajada(coleccion: Colecciones.almacenes, tanda: tanda, filas: 0),
     );

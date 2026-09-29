@@ -55,13 +55,13 @@ void main() {
   final ahora = DateTime(2026, 9, 15, 10);
 
   VigiaDeSincronizacion montar({
-    Future<void> Function(String)? ciclo,
+    Future<void> Function(String, String?)? ciclo,
     Duration periodo = const Duration(minutes: 5),
     EstadoDeLoQueHay? hay,
   }) => VigiaDeSincronizacion(
     ciclo:
         ciclo ??
-        (motivo) async {
+        (motivo, _) async {
           disparos.add(motivo);
         },
     avisosDeRed: () => red.stream,

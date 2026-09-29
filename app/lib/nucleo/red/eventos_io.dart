@@ -81,6 +81,15 @@ const esperaInicialDeEventos = Duration(seconds: 1);
 /// mas tarde que el reloj que ya habia.
 const esperaMaximaDeEventos = Duration(minutes: 1);
 
+/// CUANTOS INTENTOS HAY QUE FINGIR PARA QUE LA ESPERA SEA LA MAXIMA.
+///
+/// La espera crece al doble desde un segundo con tope de un minuto, asi que a
+/// partir del sexto intento ya se espera el tope. Se usa cuando un 401 se repite:
+/// ahi no se quiere la espera corta del principio —seria insistirle a un
+/// servidor que acaba de decir que no dos veces— sino la larga, sin matar el
+/// canal.
+const _intentosParaEsperarElTope = 8;
+
 /// CUANTO SILENCIO SE AGUANTA antes de dar la conexion por muerta.
 ///
 /// El servidor manda un latido cada veinte segundos (`api/internal/api/
@@ -284,9 +293,20 @@ Stream<String> escucharEventos(
     // FRENO 2. La renovacion termino y la sesion es la MISMA que se comio el
     // 401: no hay nada nuevo que presentar, asi que no se gasta ni una peticion.
     if (t == tokenRechazado) {
-      await cerrarDelTodo(
-        'el 401 se repite y la sesión no ha cambiado; no se insiste',
-      );
+      // FRENO 2, y aqui NO se gasta ni una peticion: presentar el mismo token que
+      // acaban de rechazar es regalar un 401.
+      //
+      // Pero tampoco se muere el canal —eso era lo de antes y dejaba al aparato
+      // ciego toda la jornada—: se mira otra vez dentro de un minuto. El ciclo
+      // renueva la sesion cada quince por su cuenta, asi que en cuanto el token
+      // cambie esta misma comprobacion deja pasar la apertura, sola y sin que
+      // nadie toque nada.
+      //
+      // O sea que mientras la sesion no cambie esto cuesta **cero peticiones y
+      // cero renovaciones**: solo un temporizador que se despierta y se vuelve a
+      // dormir.
+      intentos = _intentosParaEsperarElTope;
+      programarReintento('el 401 se repite y la sesión no ha cambiado');
       return;
     }
 
@@ -351,9 +371,47 @@ Stream<String> escucharEventos(
         }
         if (yaSeRenovoPorUn401) {
           // FRENO 1. Ya se renovo una vez en esta tanda y el servidor sigue
-          // diciendo que no: la sesion murio de verdad. Quien saca a la persona
-          // es el ciclo, no esto — un canal de avisos no mueve pantallas.
-          await cerrarDelTodo('401 otra vez con la sesión ya renovada');
+          // diciendo que no.
+          //
+          // ## ESTO MATABA EL CANAL PARA TODA LA SESION, y estaba mal — 29/09/2026
+          //
+          // Aqui habia un `cerrarDelTodo` con este razonamiento: «la sesion murio
+          // de verdad, quien saca a la persona es el ciclo». Medido ese dia en el
+          // telefono de Jose, justo despues de reinstalar la APK:
+          //
+          //     18:59:40  GET /api/eventos  401  0 ms
+          //
+          // **Y no hubo un segundo intento en media hora.** Un 401 en un mal
+          // momento —la sesion recien cargada, una renovacion que se cruza con la
+          // del ciclo, la red que se va a mitad— y ese aparato se queda sin
+          // tiempo real **hasta que alguien cierre y vuelva a abrir la
+          // aplicacion**. Nadie se entera: no hay error en pantalla, y el ciclo
+          // sigue trayendo datos, solo que tarde.
+          //
+          // Y con el arreglo del canal de hoy es peor todavia: sin canal no hay
+          // `listo`, y sin `listo` no hay «volvi», asi que las pantallas que
+          // piden a la red se quedan clavadas.
+          //
+          // Un 401 **no es permanente**. Lo dice el aviso de arriba de este
+          // fichero y lo dice el propio protocolo: el token de acceso dura quince
+          // minutos. Repetirse dos veces seguidas significa «ahora no», no «nunca
+          // mas».
+          //
+          // Asi que se espera lo maximo —un minuto— y se vuelve a intentar CON
+          // derecho a renovar otra vez. Un minuto no es insistir: es una peticion
+          // por minuto en el peor caso, contra las que costaria tener a un
+          // repartidor con la pantalla vieja toda la jornada. El freno sigue
+          // haciendo su trabajo dentro de cada tanda, que es para lo que esta.
+          // NO se vuelve a renovar aqui, y es a proposito: eso seria una ida y
+          // vuelta a Accesos por minuto, por aparato, durante toda la jornada.
+          // **Quien recupera esto es el ciclo**, que renueva la sesion por su
+          // cuenta cada quince minutos. Cuando lo haga, el token sera otro y el
+          // freno de abajo dejara pasar la apertura sola.
+          await cerrarConexion();
+          if (!vivo) return;
+          tokenRechazado = t;
+          intentos = _intentosParaEsperarElTope;
+          programarReintento('401 otra vez con la sesión ya renovada');
           return;
         }
         yaSeRenovoPorUn401 = true;

@@ -119,7 +119,53 @@ class VeredictoDeRed(contexto: Context) : EventChannel.StreamHandler {
         return if (sirve) VALIDA else NO_VALIDA
     }
 
+    /**
+     * EL ULTIMO QUE SE MANDO. Sirve para no mandar dos veces lo mismo.
+     *
+     * `null` es «todavia no se ha mandado ninguno», que no es lo mismo que
+     * «ninguno»: el primero SIEMPRE sale, aunque sea `SIN_RED`.
+     */
+    private var ultimoMandado: String? = null
+
+    /**
+     * Manda el veredicto **solo si cambio**.
+     *
+     * ## Lo que costo no tener esto, medido el 29/09/2026
+     *
+     * `onCapabilitiesChanged` no salta solo cuando se va o vuelve internet: salta
+     * en **cualquier** cambio de capacidad de la red, y en datos moviles eso
+     * incluye la estimacion de ancho de banda, que cambia sin parar. En el
+     * telefono de Jose, con la aplicacion abierta y sin tocar nada, eso eran
+     * decenas de veredictos identicos por minuto.
+     *
+     * El 28/09 daba igual: este canal solo pintaba una franja. El 29/09 se
+     * engancho al vigia —para que volver la senal subiera el dia sin esperar al
+     * reloj— y cada uno de esos veredictos paso a costar **un ciclo de
+     * sincronizacion entero**. Medido en el registro de la api ese mismo dia:
+     *
+     *     19:06:23 · 19:08:23 · 19:08:41 · 19:09:17 · 19:09:28 · 19:10:06 · 19:10:23
+     *
+     * Huecos de 11, 17, 18, 36 y 38 segundos cuando el periodo de la APK son
+     * CINCO MINUTOS. Y cada vuelta son 3.255 bytes por la conexion de alla sin
+     * que haya cambiado nada: ~1,4 MB por hora y por aparato. Jose lo vio antes
+     * que nadie: «en el movil cada 1 min me hace la cosa de sincronizacion, por
+     * que razon si no ha cambiado nada?».
+     *
+     * ## Por que el filtro va AQUI y no en Dart
+     *
+     * Porque aqui es donde se sabe que el veredicto es el mismo. Mandarlos todos
+     * y descartarlos al otro lado ya cuesta un salto al hilo principal y un
+     * mensaje por el canal por cada parpadeo, y ademas deja la puerta abierta a
+     * que el siguiente que enganche algo a este canal se lleve la sorpresa otra
+     * vez.
+     *
+     * Lo que NO se filtra: el primero. Al abrirse el canal siempre sale uno,
+     * porque el caso del repartidor es **abrir la aplicacion con la red ya
+     * muerta**, y ahi no hay ningun cambio que avisar.
+     */
     private fun mandar(veredicto: String) {
+        if (veredicto == ultimoMandado) return
+        ultimoMandado = veredicto
         hiloPrincipal.post { haciaFlutter?.success(veredicto) }
     }
 
@@ -147,6 +193,10 @@ class VeredictoDeRed(contexto: Context) : EventChannel.StreamHandler {
     }
 
     override fun onCancel(argumentos: Any?) {
+        // SE OLVIDA EL ULTIMO. La proxima vez que alguien escuche, el primer
+        // veredicto tiene que salir aunque sea el mismo de antes: quien acaba de
+        // abrir no sabe nada todavia.
+        ultimoMandado = null
         vigilante?.let { gestor.unregisterNetworkCallback(it) }
         vigilante = null
         haciaFlutter = null

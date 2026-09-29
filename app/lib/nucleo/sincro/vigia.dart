@@ -20,68 +20,6 @@ import '../reloj.dart';
 Stream<bool> avisosDeConnectivityPlus() => Connectivity().onConnectivityChanged
     .map((resultados) => resultados.any((r) => r != ConnectivityResult.none));
 
-/// DOS AVISOS DE RED EN UNO, porque ninguno de los dos llega solo a tiempo.
-///
-/// El 29/09/2026, auditando lo que quedaba abierto, se confirmo medido lo que
-/// Jose habia visto en su telefono dias antes: **volver la senal no disparaba la
-/// subida**. Con el dia entero dentro del aparato, la subida tardaba cinco
-/// minutos exactos — o sea que no la disparaba nadie, la disparaba el reloj
-/// ([VigiaDeSincronizacion.periodoPorDefecto], que son justo cinco).
-///
-/// El motivo: el vigia escuchaba solo a [avisosDeConnectivityPlus], que avisa
-/// cuando cambia **a que estas enganchado** —wifi, datos, nada—, y aqui lo que
-/// cambia casi nunca es eso. El telefono se queda pegado al mismo wifi o a los
-/// mismos datos toda la manana y lo que se cae y vuelve esta aguas arriba: la
-/// linea del hotel, la antena, el proveedor. Para `connectivity_plus` no ha
-/// pasado nada, y no emite.
-///
-/// Desde el 28/09/2026 hay quien si se entera: el canal nativo que lee el
-/// veredicto del propio Android (`NET_CAPABILITY_VALIDATED`, o sea «he probado y
-/// salgo»), que es lo que enciende y apaga ese icono de wifi con la
-/// exclamacion. Se usaba solo para pintar. Aqui se une al otro, que es para lo
-/// que servia desde el principio.
-///
-/// **Los dos, y no uno en vez del otro.** El veredicto es de Android y solo lo
-/// contestan los aparatos Android; en escritorio y en la web es siempre «no lo
-/// se», y alli el unico aviso que hay es el de `connectivity_plus`. Y al reves:
-/// enchufar el cable o encender los datos lo dice el segundo antes de que el
-/// primero haya terminado de probar nada.
-///
-/// Que dispare dos veces no cuesta nada: el ciclo tiene candado de «uno en
-/// vuelo» y lo segundo que llegue se encuentra la puerta cerrada.
-Stream<bool> juntarAvisosDeRed(Iterable<Stream<bool> Function()> fuentes) {
-  final abiertas = <StreamSubscription<bool>>[];
-  late final StreamController<bool> control;
-  control = StreamController<bool>(
-    // SE ABREN AL ESCUCHAR, no al construir. El vigia arranca y para con la
-    // sesion (`app.dart`), y dejar canales abiertos desde antes de que nadie
-    // escuche es justo lo que deja un aparato sondeando la red sin sesion.
-    onListen: () {
-      for (final abrir in fuentes) {
-        abiertas.add(
-          abrir().listen(
-            control.add,
-            // Que UNA fuente falle no puede llevarse la otra por delante: en un
-            // destino sin canal nativo, esto es lo unico que separa «no hay
-            // veredicto» de «no hay aviso de red ninguno».
-            onError: (Object e) => Registro.aviso(
-              'vigia: una de las fuentes de aviso de red falló: $e',
-            ),
-            cancelOnError: false,
-          ),
-        );
-      }
-    },
-    onCancel: () async {
-      for (final abierta in abiertas) {
-        await abierta.cancel();
-      }
-      abiertas.clear();
-    },
-  );
-  return control.stream;
-}
-
 /// La MISMA pista, preguntada una vez en vez de escuchada.
 ///
 /// Hace falta para el boton: quien le da y no tiene senal no puede quedarse
@@ -168,7 +106,7 @@ Future<EstadoDeLoQueHay> noSeSabeLoQueHay() async => EstadoDeLoQueHay.noSeSabe;
 /// sobre una sesion muerta, y en las pruebas es un fallo que no dice nada.
 class VigiaDeSincronizacion {
   VigiaDeSincronizacion({
-    required Future<void> Function(String motivo) ciclo,
+    required Future<void> Function(String motivo, String? avisoDe) ciclo,
     Stream<bool> Function() avisosDeRed = avisosDeConnectivityPlus,
     Stream<void> Function()? avisosDeLaCola,
     Stream<String> Function()? avisosDelServidor,
@@ -219,7 +157,34 @@ class VigiaDeSincronizacion {
   /// unos 240 ciclos en una jornada de ocho horas, quietos entre uno y otro.
   static const periodoEnWeb = Duration(minutes: 2);
 
-  final Future<void> Function(String motivo) _ciclo;
+  /// CUANTO SE DA POR VIVO EL CANAL DESDE LO ULTIMO QUE LLEGO POR EL.
+  ///
+  /// ## Esto es lo que quita el polling — 29/09/2026
+  ///
+  /// Jose: «el reloj no lo quiero, la verdad, porque eso es una pinga». Y tenia
+  /// razon: con el canal en vivo funcionando, un reloj que pide cada pocos
+  /// minutos es preguntar por si acaso algo que ya te van a contar.
+  ///
+  /// Pero quitarlo del todo deja al aparato **ciego** si el canal se cae, y eso
+  /// se vio ese mismo dia: un 401 dejo el canal muerto y el telefono no volvio a
+  /// abrirlo en media hora. Sin reloj detras, nadie se entera nunca.
+  ///
+  /// Asi que el reloj deja de ser el mecanismo y pasa a ser **la red de
+  /// seguridad**: mientras se sepa del canal, el tic **no dispara nada**. Con el
+  /// canal vivo, un aparato en reposo hace **cero peticiones**.
+  ///
+  /// ## De donde sale el numero
+  ///
+  /// No hace falta que el canal mande nada para saber que vive: **el proxy lo
+  /// corta cada 300 segundos exactos** —medido en el registro de la api— y cada
+  /// reconexion manda `al-volver`. O sea que por el canal llega algo cada cinco
+  /// minutos como mucho, aunque no cambie nada en el servidor.
+  ///
+  /// Seis minutos deja margen a ese corte sin que un canal de verdad muerto
+  /// tarde mas de una vuelta en notarse.
+  static const elCanalSeDaPorVivo = Duration(minutes: 6);
+
+  final Future<void> Function(String motivo, String? avisoDe) _ciclo;
   final Stream<bool> Function() _avisosDeRed;
 
   /// Avisa cuando ENTRA algo en la cola, para intentar subirlo ya. `null` en las
@@ -242,6 +207,12 @@ class VigiaDeSincronizacion {
   StreamSubscription<void>? _suscripcionCola;
   StreamSubscription<String>? _suscripcionServidor;
   Timer? _temporizador;
+
+  /// CUANDO SE SUPO DEL CANAL POR ULTIMA VEZ.
+  ///
+  /// Se apunta con **cualquier** cosa que llegue por el —un cambio, o el
+  /// `al-volver` de cada reconexion—. Ver [elCanalSeDaPorVivo].
+  DateTime? _ultimoDelCanal;
   bool _andando = false;
   bool _delante = true;
 
@@ -287,7 +258,15 @@ class VigiaDeSincronizacion {
     // «un solo ciclo en vuelo» vive dentro del ciclo, asi que arrastrar doce
     // tarjetas seguidas no lanza doce.
     _suscripcionServidor = _avisosDelServidor?.call().listen(
-      (tipo) => _disparar('cambió $tipo en el servidor'),
+      // EL TIPO VIAJA, no solo el texto del registro: el ciclo lo necesita para
+      // decidir si tiene que pedir los almacenes al momento en vez de esperar a
+      // su plazo. Ver `CicloDeSincronizacion.avisoQueFuerzaLosAlmacenes`.
+      (tipo) {
+        // SE APUNTA QUE EL CANAL VIVE, con cualquier cosa que llegue por el.
+        // Es lo que deja al reloj callarse mientras haya canal.
+        _ultimoDelCanal = _reloj();
+        _disparar('cambió $tipo en el servidor', avisoDe: tipo);
+      },
       onError: (Object e) =>
           Registro.aviso('vigia: el canal de eventos se cayó: $e'),
       cancelOnError: false,
@@ -405,10 +384,26 @@ class VigiaDeSincronizacion {
 
   void _ponerTemporizador() {
     if (!_delante || _temporizador != null) return;
-    _temporizador = _crearTemporizador(
-      _periodo,
-      (_) => _disparar('toco el reloj'),
-    );
+    _temporizador = _crearTemporizador(_periodo, (_) {
+      // EL RELOJ NO DISPARA NADA SI EL CANAL VIVE. Ver [elCanalSeDaPorVivo]:
+      // con canal, un aparato en reposo hace CERO peticiones.
+      if (_elCanalVive()) {
+        Registro.info('tocó el reloj, pero el canal está vivo: no se pide nada');
+        return;
+      }
+      _disparar('toco el reloj');
+    });
+  }
+
+  /// ¿Se ha sabido del canal hace poco?
+  ///
+  /// Sin ninguna noticia suya —nunca llego nada— **no** se da por vivo: eso es
+  /// justo el caso del aparato al que el canal no le abre, y es cuando mas falta
+  /// hace el reloj.
+  bool _elCanalVive() {
+    final ultimo = _ultimoDelCanal;
+    if (ultimo == null) return false;
+    return _reloj().difference(ultimo) < elCanalSeDaPorVivo;
   }
 
   void _quitarTemporizador() {
@@ -421,8 +416,8 @@ class VigiaDeSincronizacion {
   /// No se espera al resultado a proposito —quien dispara es un aviso o un tic,
   /// no hay nadie escuchando— pero el ciclo no lanza nunca, asi que aqui no se
   /// pierde ningun error.
-  void _disparar(String motivo) {
+  void _disparar(String motivo, {String? avisoDe}) {
     if (!_andando) return;
-    _ciclo(motivo).ignore();
+    _ciclo(motivo, avisoDe).ignore();
   }
 }

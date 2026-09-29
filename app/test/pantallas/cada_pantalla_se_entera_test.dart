@@ -404,7 +404,7 @@ void main() {
     addTearDown(avisos.close);
 
     final vigia = VigiaDeSincronizacion(
-      ciclo: (motivo) async => motivos.add(motivo),
+      ciclo: (motivo, _) async => motivos.add(motivo),
       avisosDeRed: Stream<bool>.empty,
       avisosDelServidor: () => avisos.stream,
       // Un temporizador de verdad dejaría la prueba colgada por algo que no

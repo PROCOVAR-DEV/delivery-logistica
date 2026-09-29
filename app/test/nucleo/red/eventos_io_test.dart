@@ -185,11 +185,29 @@ void main() {
       await compruebaQueElRechazoEsPermanente(HttpStatus.notFound);
     });
 
-    // FRENO 2. El caso de verdad: el servidor sigue diciendo 401 y la
-    // renovación devuelve la MISMA sesión. Volver a pedir con lo mismo es la
-    // tanda de peticiones rechazadas de toda la jornada que la regla prohíbe.
+    // FRENO 2, Y ESTA PRUEBA DECÍA «cierra» HASTA EL 29/09/2026.
+    //
+    // Hay que contar por qué cambió, porque no se relajó: se corrigió. El freno
+    // está bien —presentar el mismo token que acaban de rechazar es regalar un
+    // 401— pero **cerrar el canal para toda la sesión estaba mal**.
+    //
+    // Medido ese día en el teléfono de Jose, justo después de reinstalar la APK:
+    //
+    //     18:59:40  GET /api/eventos  401  0 ms
+    //
+    // Y ni un segundo intento en media hora. Ese aparato se quedó sin tiempo
+    // real hasta que alguien cerrara y volviera a abrir la aplicación, y nadie
+    // se enteró: ni error en pantalla, ni aviso, ni nada. Jose: «arregla eso
+    // para que no se quede ciego».
+    //
+    // Un 401 **no es permanente**: el token de acceso dura quince minutos y el
+    // ciclo renueva la sesión por su cuenta. Así que ahora se espera lo máximo y
+    // se vuelve a mirar, y en cuanto el token cambie entra solo.
+    //
+    // Lo que NO cambia, y es lo que esta prueba sigue vigilando: mientras la
+    // sesión sea la misma, **no se gasta ni una petición ni una renovación**.
     test(
-      'un 401 que se repite SIN sesión nueva cierra, y ni lo intenta',
+      'un 401 que se repite SIN sesión nueva no gasta nada, pero NO se muere',
       () async {
         final servidor = await ServidorDeEventos.abrir((s, req, n) async {
           req.response.statusCode = HttpStatus.unauthorized;
@@ -210,23 +228,44 @@ void main() {
         addTearDown(sub.cancel);
 
         await Future<void>.delayed(const Duration(milliseconds: 500));
-        expect(cerrado, isTrue, reason: 'esto no puede quedarse dando vueltas');
+        expect(
+          cerrado,
+          isFalse,
+          reason:
+              'el canal se cerró para toda la sesión. Un 401 en un mal momento '
+              'deja al aparato sin tiempo real hasta que alguien reabra la '
+              'aplicación, y nadie se entera',
+        );
         expect(renovaciones, 1, reason: 'una renovación como mucho');
         expect(
           servidor.peticiones,
           1,
           reason:
               'si la sesión no cambió, la segunda petición sería idéntica a la '
-              'que acaban de rechazar: no se gasta',
+              'que acaban de rechazar: no se gasta. Esperar y volver a MIRAR no '
+              'es volver a pedir',
         );
-        expect(temporizadoresDeEventos, 0);
+        // Sigue esperando, que es justo lo que le deja recuperarse solo en
+        // cuanto el ciclo renueve la sesión.
+        expect(
+          temporizadoresDeEventos,
+          greaterThan(0),
+          reason:
+              'sin temporizador no hay recuperación: el canal no vuelve aunque '
+              'la sesión se arregle sola cinco minutos después',
+        );
       },
     );
 
     // FRENO 1. El otro bucle posible, más caro: la renovación SÍ da un token
     // nuevo cada vez y el servidor lo rechaza igual. Sin freno, esto es una ida
     // y vuelta a Accesos por vuelta, para siempre.
-    test('un 401 que se repite CON sesión nueva también acaba cerrando', () async {
+    //
+    // Esta prueba también decía «cierra» hasta el 29/09/2026, y por lo mismo que
+    // la de arriba: el freno está bien, morirse no. Lo que se vigila ahora es
+    // que **una sola renovación** sigue siendo el tope —eso es lo caro— sin que
+    // el canal se quede muerto.
+    test('un 401 que se repite CON sesión nueva gasta UNA renovación y espera', () async {
       final servidor = await ServidorDeEventos.abrir((s, req, n) async {
         req.response.statusCode = HttpStatus.unauthorized;
         await req.response.close();
@@ -251,11 +290,10 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 600));
       expect(
         cerrado,
-        isTrue,
+        isFalse,
         reason:
-            'sin freno, cada 401 pide otra renovación y vuelve a abrir: una ida '
-            'y vuelta a Accesos por vuelta, y una rotación del refresh, para '
-            'siempre',
+            'el canal se cerró para toda la sesión: el aparato se queda ciego '
+            'hasta que alguien reabra la aplicación',
       );
       expect(
         renovaciones,
@@ -267,9 +305,14 @@ void main() {
         2,
         reason:
             'la de siempre y la de después de renovar. Una tercera ya sería el '
-            'bucle',
+            'bucle: sin freno esto es una ida y vuelta a Accesos por vuelta, y '
+            'una rotación del refresh, para siempre',
       );
-      expect(temporizadoresDeEventos, 0);
+      expect(
+        temporizadoresDeEventos,
+        greaterThan(0),
+        reason: 'sigue esperando, que es lo que le deja recuperarse solo',
+      );
     });
 
     // Lo que manda es el «no» de la renovación, no lo que quede guardado. Por

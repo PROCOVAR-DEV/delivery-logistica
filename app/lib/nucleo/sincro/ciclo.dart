@@ -208,9 +208,20 @@ class CicloDeSincronizacion {
   /// dedos despues es una ida y vuelta regalada por la conexion de alla y una
   /// rotacion del refresh que no hacia falta. En cualquier otro sitio va a
   /// `false` y el paso 1 se hace, que es la regla.
+  /// [avisoDe] es el TIPO del aviso que disparo este ciclo, si lo disparo uno.
+  ///
+  /// Hoy lo usa una sola cosa y por un motivo medido: los almacenes ya no se
+  /// piden en cada vuelta —eran el 82 % de lo que se gastaba en reposo— sino
+  /// cada hora. Sin esto, alguien que cambia un almacen desde el reparto
+  /// tendria que esperarse esa hora aunque el aviso llegara al instante.
+  ///
+  /// Va como tipo y no colado dentro de [motivo] a proposito: `motivo` es un
+  /// texto para el registro, y decidir mirando un texto que alguien puede
+  /// reescribir es la clase de atadura que se rompe sin que nada falle.
   Future<ResumenDelCiclo> ahora({
     String motivo = 'a mano',
     bool yaSeRenovo = false,
+    String? avisoDe,
   }) {
     final yaVa = _enVuelo;
     if (yaVa != null) {
@@ -250,7 +261,7 @@ class CicloDeSincronizacion {
 
     // `_correr` es `async`, asi que devuelve en el primer `await` y esta
     // asignacion pasa antes de que nadie pueda volver a entrar aqui.
-    final futuro = _correr(motivo, yaSeRenovo: yaSeRenovo);
+    final futuro = _correr(motivo, yaSeRenovo: yaSeRenovo, avisoDe: avisoDe);
     _enVuelo = futuro;
     futuro
         .then((resumen) async {
@@ -299,9 +310,26 @@ class CicloDeSincronizacion {
     return resumen;
   }
 
+  /// EL TIPO DE AVISO QUE OBLIGA A PEDIR LOS ALMACENES AL MOMENTO.
+  ///
+  /// Es el literal de `CambioEnVivo.almacenes`, y **no se importa** a proposito:
+  /// esa constante vive en `nucleo/refresco_en_vivo.dart`, que arrastra Riverpod,
+  /// y el ciclo de sincronizacion no depende de Riverpod ni debe empezar a
+  /// hacerlo.
+  ///
+  /// Que sean el mismo texto lo ata una prueba y **no este comentario** (§3-bis
+  /// del `CLAUDE.md`): un comentario no falla, y si alguien renombra el aviso,
+  /// esto deja de forzar nada y los almacenes tardan una hora en llegar sin que
+  /// nada avise.
+  ///
+  /// Ojo, que no es el nombre de la coleccion: el aviso se llama `almacenes` y la
+  /// coleccion `warehouses`.
+  static const avisoQueFuerzaLosAlmacenes = 'almacenes';
+
   Future<ResumenDelCiclo> _correr(
     String motivo, {
     required bool yaSeRenovo,
+    String? avisoDe,
   }) async {
     final pasos = <PasoDelCiclo>[];
     var subidos = 0;
@@ -369,7 +397,16 @@ class CicloDeSincronizacion {
       // transaccion de las diferencias, asi que son justo las que se quedan sin
       // bajar cuando la senal se va a mitad de gesto. Que avisen tambien es lo
       // que deja decir «faltan los almacenes» en vez de «hubo un error».
-      await _bajada.almacenes(avisar: avisar, tanda: bajada.tandas);
+      // LOS ALMACENES, y ya NO en cada vuelta: eran el 82 % de lo que se
+      // gastaba en reposo (2.671 de 3.255 bytes, medido el 29/09/2026). Se piden
+      // cada hora, la primera vez, y **al momento si el aviso es suyo** — que es
+      // el caso de alguien cambiandolos desde el reparto. El porque entero, en
+      // `Bajada.almacenes`.
+      await _bajada.almacenes(
+        avisar: avisar,
+        tanda: bajada.tandas,
+        forzar: avisoDe == avisoQueFuerzaLosAlmacenes,
+      );
       pasos.add(PasoDelCiclo.bajar);
 
       Registro.info('ciclo hecho ($motivo): $subidos apuntes subidos, $bajada');

@@ -1178,6 +1178,93 @@ class _PintorDelSimbolo extends CustomPainter {
   bool shouldRepaint(_PintorDelSimbolo viejo) => viejo.cual != cual;
 }
 
+/// UNA CHINCHETA POR SITIO, con todas las paradas que caen en el.
+///
+/// Ver el comentario largo del paso 3 de `_PintorDelCroquis.paint`: dos paradas
+/// en la misma direccion se dibujaban una encima de otra y el mapa ensenaba
+/// menos paradas de las que hay.
+class ParadasJuntas {
+  ParadasJuntas(this.donde, this.rotulo, this.color);
+
+  final Offset donde;
+
+  /// Los numeros de las paradas que hay aqui: `3`, o `2\u00b73`, o `2\u00b73+2`.
+  final String rotulo;
+
+  final Color color;
+}
+
+/// EL REDONDEO CON EL QUE DOS PARADAS SON «EL MISMO SITIO», en pixeles.
+///
+/// La chincheta mide 21 px de ancho (radio 10,5). Con menos de eso, dos
+/// marcadores se solapan lo bastante como para que uno tape el numero del otro,
+/// que es el fallo que esto viene a cerrar — no hace falta que caigan en el
+/// pixel exacto.
+///
+/// No se sube mas: agrupar dos portales de la misma cuadra en una sola chincheta
+/// seria mentir por el otro lado, y el chofer tiene que ir a los dos.
+const _mismoSitio = 20.0;
+
+/// Cuantos numeros caben en una chincheta antes de que no se lea ninguno.
+///
+/// Con tres ya va justo (`2\u00b73\u00b74`); a partir de ahi se dice el primero y
+/// **cuantos mas hay**, que es la pregunta de quien conduce: «¿cuantas me quedan
+/// aqui?».
+const _numerosQueCaben = 3;
+
+/// Junta las paradas que caen en el mismo sitio, **en el orden de visita**.
+///
+/// Es una funcion suelta y no un metodo a proposito: asi se prueba con `Offset`
+/// a mano, sin montar un widget ni pintar nada
+/// (`test/pantallas/rutas/dos_paradas_en_el_mismo_portal_test.dart`).
+List<ParadasJuntas> lasQueCaenJuntas(List<PuntoDelCroquis> paradas) {
+  final grupos = <List<PuntoDelCroquis>>[];
+  for (final punto in paradas) {
+    final juntoA = grupos
+        .where((g) => (g.first.donde - punto.donde).distance <= _mismoSitio)
+        .firstOrNull;
+    if (juntoA == null) {
+      grupos.add([punto]);
+    } else {
+      juntoA.add(punto);
+    }
+  }
+
+  return [
+    for (final g in grupos)
+      ParadasJuntas(
+        // El sitio es el de la PRIMERA, no el promedio: promediar mueve la
+        // chincheta a un punto donde no hay ninguna parada.
+        g.first.donde,
+        _rotuloDe(g),
+        _colorDe(g),
+      ),
+  ];
+}
+
+String _rotuloDe(List<PuntoDelCroquis> grupo) {
+  final numeros = [for (final p in grupo) '${p.parada.numero}'];
+  if (numeros.length <= _numerosQueCaben) return numeros.join('\u00b7');
+  // «2·3·4+5»: los que caben y cuantos mas hay. Un `…` no dice cuantos, y
+  // cuantos es justo lo que hace falta para saber si la ruta esta terminada.
+  final caben = numeros.take(_numerosQueCaben).join('\u00b7');
+  return '$caben+${numeros.length - _numerosQueCaben}';
+}
+
+/// EL COLOR DEL GRUPO ES EL DE LO QUE FALTA.
+///
+/// Con una parada entregada y otra sin entregar en el mismo portal, pintar el
+/// grupo en verde —el color de «entregada»— dice «aqui ya esta hecho» sobre una
+/// parada que sigue en el camion. Mientras quede una sin entregar, la chincheta
+/// es la del recorrido.
+Color _colorDe(List<PuntoDelCroquis> grupo) {
+  final queda = grupo.where((p) => !p.parada.entregada).toList();
+  if (queda.isEmpty) return ColoresDelMapa.salida;
+  return queda.any((p) => p.parada.esRegreso)
+      ? ColoresDelMapa.regreso
+      : ColoresDelMapa.recorrido;
+}
+
 class _PintorDelCroquis extends CustomPainter {
   _PintorDelCroquis({
     required this.recorrido,
@@ -1266,17 +1353,45 @@ class _PintorDelCroquis extends CustomPainter {
       }
     }
 
-    // 3. LAS PARADAS, numeradas en su orden.
-    for (final punto in trazado.paradas) {
+    // 3. LAS PARADAS, numeradas en su orden — Y LAS QUE CAEN JUNTAS, CONTADAS.
+    //
+    // ## El fallo, visto por Jose el 29/09/2026
+    //
+    // Una ruta con TRES paradas dibujaba DOS chinchetas. «Por qué siguen 2 en vez
+    // de 3, son 3 paradas y sólo veo 2.»
+    //
+    // Las paradas 2 y 3 eran el mismo cliente en la misma direccion
+    // —`POR26-260927-3733` y `POR26-260925-3700`, los dos «KIOSKO HABANA CLUB
+    // OMAR JIMENEZ MONTOYA L2» en Aguilera/San Agustin y Baranda— asi que sus
+    // marcadores caian en el MISMO pixel y el de atras quedaba tapado por el de
+    // delante. Este bucle pintaba los dos, uno encima del otro.
+    //
+    // ## Por que no es cosmetico
+    //
+    // **Quien lleva el camion cuenta las chinchetas** para saber cuantas paradas
+    // le quedan; Jose acaba de hacerlo. Con doce paradas donde cuatro comparten
+    // direccion se ven ocho, y se da por hecho que faltan pedidos — o peor, se
+    // da la ruta por terminada con cuatro entregas sin hacer.
+    //
+    // Es la misma familia que lo del 28/09/2026 —dos pedidos del mismo cliente
+    // contados como uno en el peso de la ruta— en el mapa en vez de en el peso.
+    // Un cliente con dos pedidos el mismo dia no es raro: la tarjeta del tablero
+    // lo dice con sus palabras, «2 pedidos de este cliente hoy».
+    //
+    // ## Lo que se hace
+    //
+    // Las que caen en el mismo sitio se dibujan **una vez, con sus numeros
+    // dentro**: `2·3`. Ninguna se esconde y el numero de chinchetas deja de
+    // mentir sobre cuantas paradas hay.
+    for (final grupo in lasQueCaenJuntas(trazado.paradas)) {
       _marca(
         lienzo,
-        punto.donde,
-        '${punto.parada.numero}',
-        punto.parada.entregada
-            ? ColoresDelMapa.salida
-            : punto.parada.esRegreso
-            ? ColoresDelMapa.regreso
-            : ColoresDelMapa.recorrido,
+        grupo.donde,
+        grupo.rotulo,
+        // EL COLOR DEL GRUPO ES EL DE LA QUE FALTA, no el de la primera. Con una
+        // entregada y otra sin entregar en el mismo portal, pintarlo en verde
+        // dice «aqui ya esta hecho» sobre una parada que sigue en el camion.
+        grupo.color,
       );
     }
 
@@ -1426,10 +1541,22 @@ class _PintorDelCroquis extends CustomPainter {
     }
   }
 
+  /// LA CHINCHETA DE UNA PARADA — o de varias, si caen en el mismo sitio.
+  ///
+  /// Con un numero corto es el circulo de siempre. Con un rotulo de grupo
+  /// —`2\u00b73`— **se ensancha**: en un circulo de 18 px de diametro no cabe, y
+  /// un rotulo que se sale del circulo se lee peor que el fallo que vino a
+  /// arreglar. La altura no cambia, asi que sigue siendo la misma chincheta.
   void _marca(Canvas lienzo, Offset donde, String numero, Color color) {
+    const alto = 21.0;
+    // 6,5 px por caracter es lo que ocupa el texto a tamano 10 con esta fuente,
+    // medido; el resto es el aire de los lados.
+    final ancho = math.max(alto, numero.length * 6.5 + 11);
+    final caja = Rect.fromCenter(center: donde, width: ancho, height: alto);
+    final forma = RRect.fromRectAndRadius(caja, const Radius.circular(alto / 2));
     lienzo
-      ..drawCircle(donde, 10.5, Paint()..color = Colores.blanco)
-      ..drawCircle(donde, 9, Paint()..color = color);
+      ..drawRRect(forma, Paint()..color = Colores.blanco)
+      ..drawRRect(forma.deflate(1.5), Paint()..color = color);
     _letrero(lienzo, donde, numero, Colores.blanco, 10, centrado: true);
   }
 

@@ -977,6 +977,8 @@ final avisosDelServidorProvider = Provider<Stream<String>>((ref) {
   // abre el canal, al ultimo que se va se suelta —conexion incluida— y si
   // vuelven se abre otra vez.
   StreamSubscription<String>? fuente;
+  /// Cuando salio el ultimo «volví». Ver `sueloEntreVolver`.
+  DateTime? ultimoVolver;
   final control = StreamController<String>.broadcast();
   control
     ..onListen = () {
@@ -1008,7 +1010,37 @@ final avisosDelServidorProvider = Provider<Stream<String>>((ref) {
             },
           )
           .listen(
-            control.add,
+            (tipo) {
+              // EL SUELO DEL «volví» — 29/09/2026.
+              //
+              // Va aqui y no en cada transporte porque este es el unico embudo
+              // por el que pasan los dos: escribirlo dos veces es tenerlo
+              // distinto dentro de un mes.
+              //
+              // Lo que cierra: un servidor que acepta, manda el `listo` y se
+              // muere reinicia la espera creciente, asi que reconecta al
+              // segundo — y cada vuelta costaria un ciclo entero, un
+              // `GET /api/board` por tablero abierto y la flota por cada
+              // pantalla de vehiculos. Cientos de peticiones por minuto contra
+              // un servidor que ya se esta cayendo. El porque entero, en
+              // `sueloEntreVolver`.
+              if (tipo == avisoDeQueVolvimos) {
+                final ahora = ref.read(relojProvider)();
+                final antes = ultimoVolver;
+                if (antes != null &&
+                    ahora.difference(antes) < sueloEntreVolver) {
+                  // NO EN SILENCIO: el dia que alguien se pregunte por que una
+                  // pantalla no se refresco, esto lo explica.
+                  Registro.info(
+                    'canal de eventos: se reconectó otra vez en menos de '
+                    '${sueloEntreVolver.inSeconds} s, no se reenvía el «volví»',
+                  );
+                  return;
+                }
+                ultimoVolver = ahora;
+              }
+              control.add(tipo);
+            },
             // El canal no lanza nunca, pero si algun dia lanzara no puede
             // tumbar al vigia: queda el temporizador.
             onError: (Object e) =>

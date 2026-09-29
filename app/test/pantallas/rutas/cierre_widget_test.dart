@@ -1,3 +1,4 @@
+import 'dart:async';
 // El cierre de ruta, pintado. Lo que aqui se comprueba no se ve en un test de
 // datos: que pulsar dos veces el mismo boton DESMARCA, que `Todas:` marca de
 // golpe, que la ✕ de cerrar esta siempre, y —lo que mas importa— que **al
@@ -181,6 +182,95 @@ void main() {
     // Salieron 6 empaques de arroz; se entrego 1 parada (2), quedan 4: los 2 de
     // la devuelta... o mas bien los 4 de las dos sin marcar.
     expect(find.text('Arroz ×4'), findsOneWidget);
+    await desmontar(tester);
+  });
+
+  // EL «ATRÁS» NO SE LLEVA LAS MARCAS SIN PREGUNTAR — 29/09/2026.
+  //
+  // Se vio probando el cierre en el teléfono de Jose: dos paradas marcadas, sin
+  // guardar, y el botón de atrás cerró el cajón llevándoselas. La pantalla lo
+  // avisaba —el pie dice «Salir sin guardar (2 sin guardar)»— pero eso es el
+  // rótulo de un botón que nadie pulsó. En Android el atrás se hace sin mirar,
+  // con el gesto del borde, y ahí se va una jornada entera de marcas.
+  //
+  // No se bloquea: irse sin guardar es legítimo y un cajón que no deja salir es
+  // peor. Lo que no puede pasar es que se pierda **en silencio** (§4).
+  testWidgets('con marcas sin guardar, el atrás PREGUNTA en vez de llevárselas',
+      (tester) async {
+    await pintar(tester);
+    await tester.tap(botonDeParada('Entregado', 0));
+    await asentar(tester);
+    await tester.tap(botonDeParada('Entregado', 1));
+    await asentar(tester);
+    expect(find.textContaining('2 sin guardar'), findsOneWidget);
+
+    // El gesto de atrás del sistema, que es el que se hace sin mirar.
+    //
+    // SIN `await`, y hace falta: con un `PopScope` que pregunta, ese future no
+    // se completa hasta que alguien conteste la pregunta — y quien la contesta
+    // es esta misma prueba, dos líneas más abajo. Esperarlo aquí es esperarse a
+    // uno mismo: la prueba **se cuelga en vez de fallar**, que es la trampa del
+    // §5 del CLAUDE.md.
+    unawaited(tester.binding.handlePopRoute());
+    await asentar(tester);
+
+    expect(
+      find.textContaining('Tienes 2 sin guardar'),
+      findsOneWidget,
+      reason:
+          'el atrás cerró el cajón con dos marcas puestas y no preguntó nada. '
+          'Doce paradas marcadas en el patio del almacén se van con un gesto '
+          'del borde de la pantalla',
+    );
+    expect(
+      find.text('Cierre de ruta'),
+      findsOneWidget,
+      reason: 'además cerró la hoja: ya no hay a dónde volver aunque se diga no',
+    );
+
+    await desmontar(tester);
+  });
+
+  testWidgets('y si dice que sigue marcando, no se pierde ninguna', (
+    tester,
+  ) async {
+    await pintar(tester);
+    await tester.tap(botonDeParada('Entregado', 0));
+    await asentar(tester);
+    unawaited(tester.binding.handlePopRoute());
+    await asentar(tester);
+
+    await tester.tap(find.byKey(const ValueKey('cierre-seguir-marcando')));
+    await asentar(tester);
+
+    expect(
+      find.textContaining('1 sin guardar'),
+      findsOneWidget,
+      reason:
+          'dijo que seguía marcando y la marca ya no está: la pregunta salió '
+          'para nada',
+    );
+
+    await desmontar(tester);
+  });
+
+  // Y LA OTRA MITAD, la que evita cambiar un fallo por un estorbo: sin nada que
+  // perder, el atrás no pregunta. Un aviso que sale siempre deja de leerse, y
+  // entonces tampoco se lee el día que importa (§3-quinquies).
+  testWidgets('sin nada sin guardar, el atrás NO pregunta', (tester) async {
+    await pintar(tester);
+
+    unawaited(tester.binding.handlePopRoute());
+    await asentar(tester);
+
+    expect(
+      find.textContaining('Tienes'),
+      findsNothing,
+      reason:
+          'pregunta sin que haya nada que perder. A la tercera vez nadie lee '
+          'esa pregunta, y entonces tampoco la leerá el día que sí importa',
+    );
+
     await desmontar(tester);
   });
 

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/red/eventos_io.dart';
+import 'package:reparto/nucleo/red/eventos.dart' show avisoDeQueVolvimos;
 
 /// EL CANAL EN VIVO DEL APARATO, comprobado contra un servidor de verdad.
 ///
@@ -62,7 +63,7 @@ void main() {
       escucharEventos(servidor.urlBase, () async => 'tok'),
     );
     expect(
-      recibidos,
+      soloLosCambios(recibidos),
       ['tablero'],
       reason:
           'los trozos de red no son lineas: hay que acumular hasta el salto de '
@@ -70,7 +71,23 @@ void main() {
     );
   });
 
-  test('los latidos y el listo NO salen por el stream', () async {
+  // ESTA PRUEBA DECÍA LO CONTRARIO HASTA EL 29/09/2026, y hay que contar por qué
+  // cambió: no se relajó, se corrigió.
+  //
+  // Decía «sólo los cambios; el listo y los latidos son del transporte». Los
+  // latidos sí lo son. El `listo` NO: dice **«estuve desconectado»**, y lo que
+  // pasara en el servidor mientras tanto no lo vio nadie.
+  //
+  // Lo que costó tirarlo, medido ese día con el teléfono y la web delante: se
+  // creó una zona desde el teléfono, entró en el servidor a las 17:34:55, y la
+  // web siguió diciendo «las zonas las pones tú» **tres minutos después**. Su
+  // canal se había abierto a las 17:35:22 —27 segundos tarde, porque el proxy
+  // había cortado el anterior— y el Tablero no se vuelve a pedir nunca por su
+  // cuenta. Un aviso perdido lo dejaba mal para siempre.
+  //
+  // Los latidos siguen sin salir, y eso también se comprueba aquí: son de verdad
+  // del transporte y salen cada veinte segundos.
+  test('el listo SÍ sale —es «volví»—, y los latidos no', () async {
     final servidor = await ServidorDeEventos.abrir((s, req, n) async {
       final r = abrirSSE(req);
       await escribir(r, 'event: listo\ndata: {"vivo":true}\n\n');
@@ -84,9 +101,20 @@ void main() {
     final recibidos = await recoger(
       escucharEventos(servidor.urlBase, () async => 'tok'),
     );
-    expect(recibidos, [
-      'pedidos',
-    ], reason: 'sólo los cambios; el listo y los latidos son del transporte');
+    expect(
+      recibidos,
+      [avisoDeQueVolvimos, 'pedidos'],
+      reason:
+          'el `listo` no sale, y con él se pierde la única señal de que estuvimos '
+          'desconectados: quien pide a la red en cada visita se queda con lo que '
+          'pintó al abrirse, para siempre. Y va PRIMERO, antes que los cambios: '
+          'es el instante en que se recupera el canal',
+    );
+    expect(
+      recibidos.where((t) => t.contains('latido')),
+      isEmpty,
+      reason: 'los latidos sí son del transporte y no le dicen nada a nadie',
+    );
   });
 
   // ## EL 401 NO ES PERMANENTE. EL 403 Y EL 404 SÍ.
@@ -136,7 +164,7 @@ void main() {
       );
 
       expect(
-        recibidos,
+        soloLosCambios(recibidos),
         ['vehiculos'],
         reason:
             'un 401 por token caducado no puede dejar sin canal a Vehículos ni '
@@ -359,7 +387,7 @@ void main() {
       ),
       durante: const Duration(milliseconds: 800),
     );
-    expect(recibidos, ['rutas']);
+    expect(soloLosCambios(recibidos), ['rutas']);
     expect(servidor.peticiones, greaterThanOrEqualTo(2));
   });
 
@@ -461,7 +489,7 @@ void main() {
       durante: const Duration(milliseconds: 800),
     );
     expect(
-      recibidos,
+      soloLosCambios(recibidos),
       ['tablero'],
       reason: 'sin vigilante del latido, una conexión muerta no se nota nunca',
     );
@@ -821,3 +849,16 @@ class ServidorDeEventos {
 
   Future<void> cerrar() => _servidor.close(force: true);
 }
+
+/// LOS CAMBIOS, SIN EL «volví» DEL TRANSPORTE.
+///
+/// Desde el 29/09/2026 el canal emite [avisoDeQueVolvimos] en cada (re)conexión
+/// —es lo que evita que una pantalla se quede vieja para siempre cuando el proxy
+/// corta—. Las pruebas que van de OTRA cosa —una trama partida, un 401 que se
+/// renueva, un 500 que se reintenta, una conexión muda— no tienen por qué
+/// repetirlo en cada `expect`: lo que comprueban es que el CAMBIO llegue.
+///
+/// Que salga o no salga lo vigila `el listo SÍ sale —es «volví»—, y los latidos
+/// no`, aquí mismo. Filtrarlo allí sería quedarse sin quien lo mire.
+List<String> soloLosCambios(List<String> recibidos) =>
+    recibidos.where((t) => t != avisoDeQueVolvimos).toList();

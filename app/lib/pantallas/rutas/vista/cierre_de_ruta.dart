@@ -270,6 +270,52 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
     }
   }
 
+  /// ¿DE VERDAD SE VA SIN GUARDAR? `true` sólo si la persona lo dice.
+  ///
+  /// Cajón y no diálogo, también en escritorio: regla de la casa (§4). Y la
+  /// pregunta lleva el NÚMERO delante en vez de un «¿seguro?»: quien tiene doce
+  /// marcas puestas no le da que sí sin mirar si el título se las cuenta.
+  ///
+  /// Los dos botones dicen lo que hacen —«Seguir marcando» y «Salir y
+  /// perderlas»—, que es lo que deja contestar sin volver a leer el título.
+  Future<bool> _seVaSinGuardar() async {
+    final dijoQueSi = await abrirCajon<bool>(
+      context,
+      (contexto) => Cajon(
+        titulo: 'Tienes $_cambios sin guardar',
+        subtitulo:
+            'Si sales ahora se pierden, y marcar las paradas otra vez es '
+            'volver a recorrer la hoja entera.',
+        ancho: AnchoCajon.md,
+        cuerpo: Padding(
+          padding: const EdgeInsets.all(Aire.lg),
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: Aire.sm,
+            runSpacing: Aire.sm,
+            children: [
+              TextButton.icon(
+                key: const ValueKey('cierre-seguir-marcando'),
+                style: Botones.secundario(),
+                onPressed: () => Navigator.of(contexto).pop(false),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Seguir marcando'),
+              ),
+              TextButton.icon(
+                key: const ValueKey('cierre-salir-sin-guardar'),
+                style: Botones.destructivo(),
+                onPressed: () => Navigator.of(contexto).pop(true),
+                icon: const Icon(Icons.close, size: 18),
+                label: const Text('Salir y perderlas'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return dijoQueSi ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final ruta = ref.watch(rutaConTodoProvider(widget.rutaId)).value;
@@ -296,131 +342,159 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
         ),
     ]);
 
-    return Cajon(
-      titulo: 'Cierre de ruta',
-      subtitulo:
-          '${ruta?.ruta.routeCode ?? ruta?.ruta.name ?? widget.rutaId} · '
-          '${paradas.length} parada(s)',
-      ancho: AnchoCajon.xl,
-      // EL PIE VA EN UN `Wrap`, NO EN UN `Row` — 22/09/2026.
-      //
-      // Era un `Row` con un `Spacer`, y un `Row` no baja de linea: aprieta.
-      // Medido a 390 px —el telefono de Jose—, los tres botones piden 678 px en
-      // los 342 que hay: **desbordaba 336 px** y `Guardar 0 marcada(s)`
-      // terminaba en x=677.9, o sea 288 px POR FUERA de la pantalla. El boton
-      // de guardar el cierre, inalcanzable en un telefono, que es justo el
-      // aparato con el que se cierra una ruta en el patio del almacen.
-      //
-      // Con el `Wrap` los que no caben bajan ENTEROS y `Guardar` se queda solo
-      // en la segunda linea, que ademas es donde tiene que estar: es la accion
-      // principal.
-      pie: Wrap(
-        alignment: WrapAlignment.end,
-        spacing: Aire.sm,
-        runSpacing: Aire.sm,
-        children: [
-          OutlinedButton(
-            onPressed: () => _verPostDespacho(
-              ruta: ruta,
-              paradas: paradas,
-              renglones: renglones,
-            ),
-            child: const Text('Post-despacho'),
-          ),
-          // NADA SE DESCARTA EN SILENCIO (§4). Si hay algo sin guardar, el boton
-          // lo dice con su cuenta en vez de llamarse «Cerrar»: cerrar la hoja
-          // con tres marcas puestas y que no pase nada es el «dato que esta y no
-          // se escribe» en su version mas barata de evitar.
-          //
-          // Se DICE y no se bloquea: salir sin guardar es legitimo —se abrio a
-          // mirar y se toco sin querer— y un cajon que no deja salir es peor.
-          TextButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            child: Text(
-              _soloLectura || _cambios == 0
-                  ? 'Cerrar'
-                  : 'Salir sin guardar ($_cambios sin guardar)',
-            ),
-          ),
-          // **En una ruta completada no hay boton de guardar.** No es que este
-          // apagado: no esta. Un boton apagado invita a buscar como encenderlo.
-          if (!_soloLectura)
-            BotonPrincipal(
-              // EL GLIFO DICE CUAL DE LOS DOS GESTOS ES. Guardar lo marcado se
-              // puede repetir; guardar Y COMPLETAR cierra la ruta y la manda al
-              // historial, que no tiene vuelta. Con la papeleta de guardar en
-              // los dos, el que cierra la ruta se leeria igual que el que no.
-              icono: _completando
-                  ? Icons.check_circle_outline
-                  : Icons.save_outlined,
-              texto: _guardando
-                  ? 'Guardando…'
-                  : _completando
-                  ? 'Guardar y completar'
-                  // EL ROTULO DICE LAS DOS COSAS. Con una marca quitada,
-                  // `Guardar 0 marcada(s)` se lee como «no hay nada que
-                  // guardar» justo cuando si lo hay.
-                  : _desmarcadas > 0
-                  ? 'Guardar $_marcadas y quitar $_desmarcadas'
-                  : 'Guardar $_marcadas marcada(s)',
-              // `_hayQueGuardar` y no `_marcadas > 0`: quitar la ultima marca
-              // apagaba el boton, asi que el desmarcado no se podia ni intentar
-              // guardar. Ver `_hayQueGuardar`.
-              alPulsar: _guardando || (!_hayQueGuardar && !_completando)
-                  ? null
-                  : () => _guardar(paradas),
-            ),
-        ],
-      ),
-      cuerpo: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    // EL «ATRÁS» DEL SISTEMA PREGUNTA — 29/09/2026.
+    //
+    // Se vio probando el cierre en el teléfono: con dos paradas marcadas y sin
+    // guardar, el botón de atrás cerró el cajón y **se perdieron las dos**. La
+    // pantalla lo avisaba —el botón de abajo dice «Salir sin guardar (2 sin
+    // guardar)»— pero eso es el rótulo de un botón que nadie pulsó: quien da
+    // atrás no lo lee. Y en Android el atrás se hace sin mirar, con el gesto del
+    // borde: una jornada de doce marcas se va con eso.
+    //
+    // **No se bloquea, se pregunta**, que es lo que ya decía el comentario del
+    // botón de salir: irse sin guardar es legítimo —se abrió a mirar y se tocó
+    // sin querer— y un cajón que no deja salir es peor. Lo que no puede pasar es
+    // que se pierda sin que nadie lo diga (§4).
+    //
+    // Y sin nada que perder no pregunta nada: un aviso que sale siempre deja de
+    // leerse, y entonces tampoco se lee el día que importa (§3-quinquies).
+    return PopScope(
+      canPop: _soloLectura || _cambios == 0,
+      onPopInvokedWithResult: (bool salio, Object? _) async {
+        if (salio || !mounted) return;
+        // EL NAVIGATOR SE COGE ANTES DEL `await`, no despues. Entre la pregunta
+        // y la respuesta puede pasar de todo —cerrar sesion, un 401 que echa a
+        // la puerta— y buscar el contexto al volver es buscarlo en un arbol que
+        // ya no es el mismo.
+        final volver = Navigator.of(context);
+        if (await _seVaSinGuardar() && mounted) volver.pop();
+      },
+      child: Cajon(
+        titulo: 'Cierre de ruta',
+        subtitulo:
+            '${ruta?.ruta.routeCode ?? ruta?.ruta.name ?? widget.rutaId} · '
+            '${paradas.length} parada(s)',
+        ancho: AnchoCajon.xl,
+        // EL PIE VA EN UN `Wrap`, NO EN UN `Row` — 22/09/2026.
+        //
+        // Era un `Row` con un `Spacer`, y un `Row` no baja de linea: aprieta.
+        // Medido a 390 px —el telefono de Jose—, los tres botones piden 678 px en
+        // los 342 que hay: **desbordaba 336 px** y `Guardar 0 marcada(s)`
+        // terminaba en x=677.9, o sea 288 px POR FUERA de la pantalla. El boton
+        // de guardar el cierre, inalcanzable en un telefono, que es justo el
+        // aparato con el que se cierra una ruta en el patio del almacen.
+        //
+        // Con el `Wrap` los que no caben bajan ENTEROS y `Guardar` se queda solo
+        // en la segunda linea, que ademas es donde tiene que estar: es la accion
+        // principal.
+        pie: Wrap(
+          alignment: WrapAlignment.end,
+          spacing: Aire.sm,
+          runSpacing: Aire.sm,
           children: [
-            Text(switch (widget.modo) {
-              ModoDelCierre.marcar => CierreDeRuta.cabecera,
-              ModoDelCierre.alCompletar => CierreDeRuta.cabeceraAlCompletar,
-              ModoDelCierre.soloLectura => CierreDeRuta.cabeceraSoloLectura,
-            }),
-            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => _verPostDespacho(
+                ruta: ruta,
+                paradas: paradas,
+                renglones: renglones,
+              ),
+              child: const Text('Post-despacho'),
+            ),
+            // NADA SE DESCARTA EN SILENCIO (§4). Si hay algo sin guardar, el boton
+            // lo dice con su cuenta en vez de llamarse «Cerrar»: cerrar la hoja
+            // con tres marcas puestas y que no pase nada es el «dato que esta y no
+            // se escribe» en su version mas barata de evitar.
+            //
+            // Se DICE y no se bloquea: salir sin guardar es legitimo —se abrio a
+            // mirar y se toco sin querer— y un cajon que no deja salir es peor.
+            TextButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              child: Text(
+                _soloLectura || _cambios == 0
+                    ? 'Cerrar'
+                    : 'Salir sin guardar ($_cambios sin guardar)',
+              ),
+            ),
+            // **En una ruta completada no hay boton de guardar.** No es que este
+            // apagado: no esta. Un boton apagado invita a buscar como encenderlo.
             if (!_soloLectura)
-              Wrap(
-                spacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  const Text('Todas:'),
-                  for (final atajo in const [
-                    (ResultadoParada.entregado, 'Entregado'),
-                    (ResultadoParada.devuelto, 'Devuelto'),
-                    (ResultadoParada.cancelado, 'Cancelado'),
-                  ])
-                    OutlinedButton(
-                      onPressed: () => _todas(atajo.$1, paradas),
-                      child: Text(atajo.$2),
-                    ),
-                ],
+              BotonPrincipal(
+                // EL GLIFO DICE CUAL DE LOS DOS GESTOS ES. Guardar lo marcado se
+                // puede repetir; guardar Y COMPLETAR cierra la ruta y la manda al
+                // historial, que no tiene vuelta. Con la papeleta de guardar en
+                // los dos, el que cierra la ruta se leeria igual que el que no.
+                icono: _completando
+                    ? Icons.check_circle_outline
+                    : Icons.save_outlined,
+                texto: _guardando
+                    ? 'Guardando…'
+                    : _completando
+                    ? 'Guardar y completar'
+                    // EL ROTULO DICE LAS DOS COSAS. Con una marca quitada,
+                    // `Guardar 0 marcada(s)` se lee como «no hay nada que
+                    // guardar» justo cuando si lo hay.
+                    : _desmarcadas > 0
+                    ? 'Guardar $_marcadas y quitar $_desmarcadas'
+                    : 'Guardar $_marcadas marcada(s)',
+                // `_hayQueGuardar` y no `_marcadas > 0`: quitar la ultima marca
+                // apagaba el boton, asi que el desmarcado no se podia ni intentar
+                // guardar. Ver `_hayQueGuardar`.
+                alPulsar: _guardando || (!_hayQueGuardar && !_completando)
+                    ? null
+                    : () => _guardar(paradas),
               ),
-            if (sinMarcar > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  '$sinMarcar sin marcar · cuentan como que siguen en el camión',
-                  style: TextStyle(color: Colores.ambar),
-                ),
-              ),
-            const SizedBox(height: 12),
-            for (var i = 0; i < paradas.length; i++)
-              _Parada(
-                numero: paradas[i].stopOrder ?? (i + 1),
-                pedido: paradas[i],
-                resultado: _resultados[paradas[i].id],
-                nota: _nota(paradas[i].id),
-                soloLectura: _soloLectura,
-                alMarcar: (cual) => _marcar(paradas[i].id, cual),
-              ),
-            const SizedBox(height: 16),
-            _QuedaEnElCamion(hoja: hoja),
           ],
+        ),
+        cuerpo: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(switch (widget.modo) {
+                ModoDelCierre.marcar => CierreDeRuta.cabecera,
+                ModoDelCierre.alCompletar => CierreDeRuta.cabeceraAlCompletar,
+                ModoDelCierre.soloLectura => CierreDeRuta.cabeceraSoloLectura,
+              }),
+              const SizedBox(height: 12),
+              if (!_soloLectura)
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text('Todas:'),
+                    for (final atajo in const [
+                      (ResultadoParada.entregado, 'Entregado'),
+                      (ResultadoParada.devuelto, 'Devuelto'),
+                      (ResultadoParada.cancelado, 'Cancelado'),
+                    ])
+                      OutlinedButton(
+                        onPressed: () => _todas(atajo.$1, paradas),
+                        child: Text(atajo.$2),
+                      ),
+                  ],
+                ),
+              if (sinMarcar > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    '$sinMarcar sin marcar · cuentan como que siguen en el camión',
+                    style: TextStyle(color: Colores.ambar),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              for (var i = 0; i < paradas.length; i++)
+                _Parada(
+                  numero: paradas[i].stopOrder ?? (i + 1),
+                  pedido: paradas[i],
+                  resultado: _resultados[paradas[i].id],
+                  nota: _nota(paradas[i].id),
+                  soloLectura: _soloLectura,
+                  alMarcar: (cual) => _marcar(paradas[i].id, cual),
+                ),
+              const SizedBox(height: 16),
+              _QuedaEnElCamion(hoja: hoja),
+            ],
+          ),
         ),
       ),
     );

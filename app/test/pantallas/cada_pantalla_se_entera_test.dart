@@ -25,6 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/proveedores.dart';
+import 'package:reparto/nucleo/red/eventos.dart' show avisoDeQueVolvimos;
 import 'package:reparto/nucleo/refresco_en_vivo.dart';
 import 'package:reparto/nucleo/sincro/bajada.dart';
 import 'package:reparto/nucleo/sincro/vigia.dart';
@@ -137,6 +138,87 @@ void main() {
       reason:
           'volvió a pedir pero no se repintó, que para quien mira es lo '
           'mismo que no haberse enterado',
+    );
+
+    await desmontar(tester);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Y LA MITAD QUE FALTABA: QUÉ PASA CON LO QUE OCURRIÓ MIENTRAS NO ESCUCHÁBAMOS
+  // ---------------------------------------------------------------------------
+  //
+  // Todo lo de arriba comprueba que un aviso que LLEGA repinta. El 29/09/2026 se
+  // vio el otro lado, probando la web y el teléfono a la vez:
+  //
+  //   se creó una zona desde el teléfono → entró en el servidor a las 17:34:55
+  //   → y la web siguió diciendo «las zonas las pones tú» TRES MINUTOS DESPUÉS.
+  //
+  // Jose: «cómo que la web no se entera de lo que pasa en otro aparato, si eso
+  // te dije que tiene que saberse en todos».
+  //
+  // De los registros de la api salió el mecanismo, y son tres cosas que sólo
+  // juntas hacen el fallo: la web tarda ~50 s desde que carga hasta que abre el
+  // canal (la zona se creó a las 17:34:55 y el canal se abrió a las 17:35:22);
+  // el proxy corta el canal cada 300 s exactos; y estas pantallas **no tienen
+  // temporizador ninguno** — piden a la red al abrirse y nada más.
+  //
+  // O sea que un aviso perdido no las deja viejas «hasta la vuelta siguiente»:
+  // las deja viejas **para siempre**, sin un error, sin un registro y con la
+  // misma cara que si estuvieran bien.
+  //
+  // El arreglo es que el canal diga cuándo vuelve (`avisoDeQueVolvimos`) y que
+  // esto se sume SOLO al tipo de cada pantalla, sin que nadie tenga que
+  // acordarse: olvidarlo no falla, y ése es justo el modo de fallo que hay que
+  // cerrar.
+  testWidgets('Vehículos: al volver el canal se pone al día, aunque no haya '
+      'llegado ningún aviso suyo', (tester) async {
+    var nombre = 'Camión viejo';
+    final banco = veh.Banco((p) async {
+      if (p.ruta.endsWith('/settings')) {
+        return RespuestaFalsa(200, const <String, Object?>{
+          'tiposVehiculo': <Object?>[],
+          'cupRate': 320,
+        });
+      }
+      return RespuestaFalsa(200, [
+        <String, Object?>{
+          'id': 'v1',
+          'name': nombre,
+          'type': 'truck',
+          'capacity': 1000,
+          'status': 'available',
+        },
+      ]);
+    });
+    addTearDown(banco.cerrar);
+    await pintarVehiculos(tester, banco);
+
+    expect(find.text('Camión viejo'), findsOneWidget);
+    final pedidasAlAbrir = banco.servidor.cuantas('GET', '/vehicles');
+
+    // MIENTRAS EL CANAL ESTABA CAÍDO alguien renombró el camión desde otro
+    // aparato. El aviso de «vehiculos» salió y no lo recibió nadie: no se
+    // simula, porque el caso real es justo ése — no llega.
+    nombre = 'Camión nuevo';
+
+    // Y el canal vuelve.
+    enVivo.add(avisoDeQueVolvimos);
+    await asentar(tester);
+
+    expect(
+      banco.servidor.cuantas('GET', '/vehicles'),
+      greaterThan(pedidasAlAbrir),
+      reason:
+          'volvió el canal y esta pantalla no volvió a pedir la flota. Lo que '
+          'cambiara mientras estuvo caído no lo vio nadie, y aquí no hay '
+          'temporizador que lo arregle después: se queda así para siempre',
+    );
+    expect(
+      find.text('Camión nuevo'),
+      findsOneWidget,
+      reason:
+          'volvió a pedir pero no se repintó, que para quien mira es lo mismo '
+          'que no haberse enterado',
     );
 
     await desmontar(tester);

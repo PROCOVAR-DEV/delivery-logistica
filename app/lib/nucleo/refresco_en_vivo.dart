@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'proveedores.dart';
+import 'red/eventos.dart' show avisoDeQueVolvimos;
 
 /// LOS TIPOS DE AVISO, escritos UNA vez.
 ///
@@ -96,6 +97,22 @@ abstract final class CambioEnVivo {
 /// No sustituye al temporizador: donde no hay canal, esto no se dispara nunca y
 /// el reloj del vigia sigue trayendo el trabajo. Un aviso que no llega no puede
 /// dejar a nadie con la pantalla vieja para siempre.
+/// ## Y SIEMPRE AL VOLVER DE UNA DESCONEXION — 29/09/2026
+///
+/// Al tipo que pida cada pantalla se le suma [avisoDeQueVolvimos], y no es
+/// opcional: **mientras el canal estuvo caido, los avisos que pasaran no los vio
+/// nadie**. Sin esto, uno solo perdido deja esa pantalla mal para siempre — no
+/// hasta el temporizador, para siempre, porque quien pide a la red en cada visita
+/// no tiene temporizador ninguno.
+///
+/// Medido ese dia: una zona creada desde el telefono, en el servidor a las
+/// 17:34:55, y la web sin enterarse tres minutos despues. El canal se habia
+/// abierto a las 17:35:22 — veintisiete segundos tarde— porque el anterior lo
+/// corto el proxy. Todo el detalle, en [avisoDeQueVolvimos].
+///
+/// No se le pide a quien llama que lo incluya, y es a proposito: **olvidarlo no
+/// falla**, deja la pantalla vieja y nadie sabe por que. Es el mismo modo de
+/// fallo que esta lista de constantes vino a cerrar.
 void refrescarConElAviso(Ref ref, List<String> tipos) {
   assert(
     tipos.every(CambioEnVivo.todos.contains),
@@ -103,9 +120,10 @@ void refrescarConElAviso(Ref ref, List<String> tipos) {
     'la pantalla se queda con el temporizador y nadie sabe por que. Tipos: '
     '$tipos',
   );
+  final losSuyosYAlVolver = {...tipos, avisoDeQueVolvimos};
   final suscripcion = ref
       .watch(avisosDelServidorProvider)
-      .where(tipos.contains)
+      .where(losSuyosYAlVolver.contains)
       // `invalidateSelf` vuelve a ejecutar el proveedor, que vuelve a pedir y a
       // suscribirse. No hay bucle: pedir no publica ningun aviso.
       .listen((_) => ref.invalidateSelf());

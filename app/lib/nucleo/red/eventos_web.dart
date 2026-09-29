@@ -5,6 +5,7 @@ import 'dart:js_interop';
 import 'package:web/web.dart' as web;
 
 import '../registro/registro.dart';
+import 'eventos.dart' show avisoDeQueVolvimos;
 
 /// EL CANAL EN VIVO DE LA WEB, por `EventSource`.
 ///
@@ -102,14 +103,25 @@ Stream<String> escucharEventos(
       return;
     }
 
-    // EL `listo` NO SE REENVIA, pero si sirve para algo: es la señal de que la
-    // sesion que llevamos vale. Con el se sueltan los dos frenos, igual que en
-    // la APK.
+    // EL `listo` SI SE REENVIA — 29/09/2026, y hasta ese dia no.
+    //
+    // Sirve para dos cosas. La de siempre: es la señal de que la sesion que
+    // llevamos vale, y con ella se sueltan los dos frenos del 401, igual que en
+    // la APK. Y la que faltaba: **decirle a las pantallas que estuvimos
+    // desconectados**.
+    //
+    // Aqui ponia que el `listo` es del transporte y no le dice nada a una
+    // pantalla. Le dice lo mas importante de todo: lo que pasara en el servidor
+    // mientras el canal estuvo caido **no lo vio nadie**. En esta web eso es
+    // especialmente caro: el canal tarda ~50 s en abrirse desde que carga la
+    // pantalla, y el proxy lo corta cada 300 s. El porque entero y lo que se
+    // midio, en `avisoDeQueVolvimos`.
     fuente!.addEventListener(
       'listo',
       (web.Event _) {
         yaSeRenovoPorUn401 = false;
         tokenRechazado = null;
+        if (!control.isClosed) control.add(avisoDeQueVolvimos);
       }.toJS,
     );
 

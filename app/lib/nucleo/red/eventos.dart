@@ -38,6 +38,84 @@ import 'eventos_stub.dart'
 /// se cae —un proxy que corta, una red que se va— el reloj sigue ahi y el trabajo
 /// llega igual, sólo que mas tarde. Por eso esto nunca lanza: un aviso que no
 /// llega no puede dejar a nadie sin sincronizar.
+/// EL AVISO QUE **NO** VIENE DEL SERVIDOR: «acabo de (re)conectar, ponte al dia».
+///
+/// ## El agujero que tapa, medido el 29/09/2026
+///
+/// Se creo una zona desde el telefono. Subio al servidor al instante —esta en la
+/// base a las 17:34:55— y **la web siguio diciendo «las zonas las pones tu»
+/// pasados tres minutos**, sin un aviso, sin un error: un tablero vacio se pinta
+/// igual que uno correcto. Jose: «como que la web no se entera de lo que pasa en
+/// otro aparato, si eso te dije que tiene que saberse en todos».
+///
+/// De los registros de la api salio el mecanismo, y son TRES cosas que solo
+/// juntas hacen el fallo:
+///
+/// ```
+/// 17:23:17  /api/eventos  200      65 s
+/// 17:35:22  /api/eventos  200  299 999 ms   <- cortado a los 300 s exactos
+/// 17:40:23  /api/eventos  200  299 998 ms   <- y otra vez
+/// ```
+///
+///  1. la web tarda ~50 s desde que carga hasta que abre el canal — la zona se
+///     creo a las 17:34:55 y el canal se abrio a las 17:35:22, o sea **27
+///     segundos tarde**;
+///  2. el canal **se corta cada 300 s**. No es la api ni el aparato: lo pone el
+///     proxy, y volvera a ponerlo aunque se suba el numero;
+///  3. y el Tablero **no se vuelve a pedir nunca por su cuenta**: solo al abrir
+///     la pantalla, al pulsar el refresco, o cuando llega un aviso. No viaja en
+///     el ciclo de sincronizacion.
+///
+/// O sea que **un aviso perdido deja la pantalla mal para siempre**. Y el propio
+/// canal se describe como «una mejora, no un cimiento»; el Tablero lo estaba
+/// usando como cimiento.
+///
+/// ## Por que esto es la pieza que faltaba
+///
+/// El transporte YA sabia cuando volvia: el `listo` del servidor se usaba para
+/// soltar los frenos del 401 y para reiniciar la espera, y **se tiraba** con este
+/// comentario, que estaba escrito aqui mismo: «el `listo` del principio y los
+/// latidos no salen por aqui: son del transporte y no le dicen nada a una
+/// pantalla».
+///
+/// Si le dicen: **«estuve desconectado, lo que pasara mientras no lo viste»**. Con
+/// eso, cada pantalla vuelve a pedir lo suyo al reconectar — y como el proxy corta
+/// cada cinco minutos, eso le pone ademas un suelo de cinco minutos a lo que antes
+/// no tenia ninguno.
+///
+/// ## Por que va aqui y NO en `CambioEnVivo`
+///
+/// `CambioEnVivo` es **lo que publica el servidor**, y hay una prueba de Go que
+/// compara esa lista con la de `eventos.go` en los dos sentidos
+/// (`protocolo_avisos_test.go`). Esto no lo publica nadie: lo pone el transporte.
+/// Meterlo alli romperia esa prueba con razon, y de paso convertiria «el servidor
+/// dice que cambio X» y «me reconecte» en la misma clase de cosa, que no lo son.
+///
+/// El valor lleva guion a proposito: ningun tipo del servidor lo usa, asi que no
+/// puede chocar con uno. Lo ata `app/test/nucleo/red/al_volver_no_choca_test.dart`.
+const avisoDeQueVolvimos = 'al-volver';
+
+/// LO MÍNIMO ENTRE DOS «volví» SEGUIDOS, y por qué hace falta un suelo.
+///
+/// El aviso cuesta: cada uno dispara un ciclo de sincronizacion entero, un
+/// `GET /api/board` por tablero abierto y un `GET /vehicles` + `GET /settings`
+/// por pantalla de flota abierta. Con el corte normal del proxy —cada 300 s—
+/// eso esta bien pagado. El problema es otro caso:
+///
+/// **un servidor que acepta, manda el `listo` y se muere**, que es justo lo que
+/// pasa en un reinicio o con un contenedor que no levanta. El `listo` reinicia
+/// la espera creciente (`eventos_io.dart`, `intentos = 0`), asi que la
+/// reconexion siguiente va al segundo — y sin suelo, cada una de esas vueltas
+/// seria un ciclo completo. Eso son **cientos de peticiones por minuto** contra
+/// un servidor que ya se esta cayendo, desde cada aparato a la vez, por la
+/// conexion de alla y con la bateria del repartidor.
+///
+/// Treinta segundos: mucho mas que el segundo del bucle, y mucho menos que los
+/// 300 s del corte normal, asi que **la reconexion de verdad siempre pasa**.
+///
+/// No se descarta en silencio: lo que se salta queda en el registro.
+const sueloEntreVolver = Duration(seconds: 30);
+
 typedef EscuchaDeEventos = Stream<String> Function(
   String urlBase,
   Future<String?> Function() token, {

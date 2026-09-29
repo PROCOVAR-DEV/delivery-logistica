@@ -10,6 +10,7 @@ import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/nucleo/red/cliente_api.dart';
 import 'package:reparto/pantallas/tablero/datos/esquema.dart';
 import 'package:reparto/pantallas/tablero/estado/proveedores.dart';
+import 'package:reparto/nucleo/red/eventos.dart' show avisoDeQueVolvimos;
 
 import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/servidor_falso.dart';
@@ -99,6 +100,53 @@ void main() {
       reason:
           'tres filtros son tres idas y vueltas de balde: los datos ya están '
           'en el aparato y la pantalla se queda en blanco mientras tanto',
+    );
+  });
+
+  // EL TABLERO SE PONE AL DÍA CUANDO VUELVE EL CANAL — 29/09/2026.
+  //
+  // Es el fallo que se vio probando la web y el teléfono a la vez. Se creó una
+  // zona desde el teléfono, entró en el servidor a las 17:34:55, y la web siguió
+  // diciendo «las zonas las pones tú» **tres minutos después**. Jose: «cómo que
+  // la web no se entera de lo que pasa en otro aparato».
+  //
+  // Esta pantalla es la que más caro lo paga, y por una razón que está escrita
+  // en su propio código: **no viaja en el ciclo de sincronización**. La bajada
+  // por diferencias trae pedidos, clientes, rutas y catálogo; las zonas se piden
+  // aparte con `GET /api/board`, y sólo al abrir la pantalla, al pulsar el
+  // refresco, o cuando llega un aviso. No hay temporizador detrás.
+  //
+  // Así que un aviso perdido no la deja vieja «hasta la vuelta siguiente»: la
+  // deja vieja **para siempre**. Y perderlo es lo normal, no lo raro — de los
+  // registros de la api de ese día:
+  //
+  //     17:35:22  /api/eventos  200  299 999 ms   ← cortado a los 300 s exactos
+  //     17:40:23  /api/eventos  200  299 998 ms   ← y otra vez
+  //
+  // El proxy corta cada cinco minutos y la web tarda ~50 s en abrir el canal
+  // desde que carga. Todo lo que pase en esas ventanas se pierde.
+  test('al volver el canal vuelve a pedir la foto, aunque no llegue su aviso',
+      () async {
+    await contenedor.read(tableroProvider.future);
+    expect(peticionesDelTablero(), 1, reason: 'al abrir sí: manda el servidor');
+
+    // MIENTRAS EL CANAL ESTABA CAÍDO alguien creó una zona desde el teléfono. Su
+    // aviso de «tablero» salió y no lo recibió nadie: no se simula, porque el
+    // caso real es exactamente ése — no llega.
+    //
+    // Y el canal vuelve.
+    enVivo.add(avisoDeQueVolvimos);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(
+      peticionesDelTablero(),
+      greaterThan(1),
+      reason:
+          'volvió el canal y el tablero no volvió a pedir la foto. Lo que se '
+          'creara mientras estuvo caído no lo ve nadie, y aquí no hay ningún '
+          'temporizador que lo arregle después: la pantalla se queda mal hasta '
+          'que una persona pulse el refresco, con la misma cara que si '
+          'estuviera bien',
     );
   });
 

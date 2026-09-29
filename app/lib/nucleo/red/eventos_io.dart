@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../registro/registro.dart';
+import 'eventos.dart' show avisoDeQueVolvimos;
 
 /// EL CANAL EN VIVO DE LA APK Y DEL ESCRITORIO, por SSE a mano sobre `dio`.
 ///
@@ -447,6 +448,13 @@ Stream<String> escucharEventos(
           // proposito — un proxy que acepta y no entrega nada devuelve 200
           // tambien, y ahi lo que hace falta es que la espera siga creciendo.
           intentos = 0;
+          // Y SALE HACIA LAS PANTALLAS — 29/09/2026.
+          //
+          // Aqui ponia que el `listo` «no le dice nada a una pantalla». Si le
+          // dice: **estuve desconectado**. Lo que pasara en el servidor mientras
+          // tanto no lo vio nadie, y sin esto la pantalla se queda con lo de
+          // antes para siempre. El porque entero, en `avisoDeQueVolvimos`.
+          control.add(avisoDeQueVolvimos);
           // Y con el `listo` se sueltan los dos frenos del 401: la sesion que
           // tenemos en la mano acaba de demostrar que vale, asi que el proximo
           // 401 —dentro de quince minutos— vuelve a tener derecho a su

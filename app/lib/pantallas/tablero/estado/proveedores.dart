@@ -15,6 +15,7 @@ import '../datos/repositorio.dart';
 import '../datos/servicio.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/estado/proveedores_pedidos.dart';
+import '../../../nucleo/red/eventos.dart' show avisoDeQueVolvimos;
 
 export '../datos/consultas.dart' show FiltrosSinColocar;
 
@@ -357,7 +358,26 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
         // comparaba a mano, y el docstring de `CambioEnVivo` ya lo nombraba
         // como el motivo por el que se creo — o sea, un comentario que daba por
         // hecho un cambio que no se habia hecho.
-        .where((tipo) => tipo == CambioEnVivo.tablero)
+        // Y TAMBIEN AL VOLVER DE UNA DESCONEXION — 29/09/2026.
+        //
+        // Esta pantalla es la que mas caro paga que se pierda un aviso: **no se
+        // vuelve a pedir nunca por su cuenta**. No viaja en el ciclo —lo dice el
+        // comentario de arriba— asi que, sin esto, un aviso perdido la deja mal
+        // hasta que alguien pulse el refresco. No hasta el temporizador
+        // siguiente: **para siempre**.
+        //
+        // Y perderlos no es raro, es lo normal: el proxy corta el canal cada 300
+        // segundos y la web tarda ~50 s en abrirlo desde que carga. Medido el
+        // 29/09/2026 con el telefono y la web delante — una zona creada en el
+        // telefono, en el servidor a las 17:34:55, y la web sin enterarse tres
+        // minutos despues. Todo el detalle, en `avisoDeQueVolvimos`.
+        //
+        // De regalo, esto le pone un SUELO que no tenia: como el corte es cada
+        // cinco minutos, el tablero se refresca al menos cada cinco minutos
+        // aunque no cambie nada.
+        .where(
+          (tipo) => tipo == CambioEnVivo.tablero || tipo == avisoDeQueVolvimos,
+        )
         .listen((_) async {
           await _traerDelServidor(sucursalId);
           await refrescar();

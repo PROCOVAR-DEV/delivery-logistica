@@ -12,6 +12,7 @@ import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/cajon.dart';
 import '../../../diseno/colores.dart';
 import '../../../diseno/estado_vacio.dart';
+import '../../../diseno/preguntar_antes_de_borrar.dart';
 import '../../../diseno/tema.dart';
 import '../../../navegacion/estado_navegacion.dart';
 import '../datos/vehiculo_api.dart';
@@ -527,6 +528,47 @@ class _Rejilla extends ConsumerWidget {
   final ValueChanged<int> alIr;
   final ValueChanged<int> alCambiarTamano;
 
+  /// BORRAR UN CAMIÓN PREGUNTA ANTES — 01/10/2026.
+  ///
+  /// Hasta hoy no preguntaba nada: un toque y el camión desaparecía. El
+  /// comentario que había en la tarjeta decía que era «sin confirmación, como la
+  /// de Next», y que cambiarlo aquí y no allá haría que la misma acción se
+  /// comportara distinto según por dónde entres. Eso vale cuando las dos son
+  /// igual de defendibles, y ésta no lo era: la casa **ya había decidido lo
+  /// contrario** el 25/09/2026 con «Borrar la columna» del tablero, cuando Jose
+  /// vio una zona irse de un toque. Lo que quedaba aquí no era una decisión, era
+  /// un descuido: se le escapó.
+  ///
+  /// Y el precio no es el mismo que el de una zona. La semana que viene el
+  /// logístico de Santiago prueba esto solo delante de la pantalla, a 900 km: un
+  /// camión borrado por error ahí es una llamada de teléfono y una tarde perdida.
+  ///
+  /// La pieza es la misma y el literal es el mismo —[preguntarAntesDeBorrar]—,
+  /// no uno inventado. Lo único propio es **qué se pierde**, y sale del servidor:
+  /// `borrarVehiculo` desvincula el camión de sus rutas y de sus pedidos dentro
+  /// de la transacción antes de quitarlo, así que el histórico de lo repartido se
+  /// queda, pero sin camión.
+  Future<void> _borrarPreguntando(
+    BuildContext contexto,
+    ControlVehiculos control,
+    VehiculoDeLaApi vehiculo,
+  ) async {
+    final seguro = await preguntarAntesDeBorrar(
+      contexto,
+      queSeVa: vehiculo.nombre,
+      loQuePasa:
+          'El camión se va de la flota. Las rutas y los pedidos que lo '
+          'llevaban puesto NO se borran —el histórico de lo repartido se '
+          'queda— pero se quedan sin camión, y hay que ponerles otro. Y el '
+          'camión hay que volver a darlo de alta a mano, con su placa, su '
+          'capacidad y su costo por km.',
+      // «dejarla» es el de la zona; aquí es un camión.
+      noLoBorres: 'No, dejarlo',
+    );
+    if (!seguro) return;
+    await control.eliminar(vehiculo.id);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // El dinero de esta pantalla —el costo por km del vehiculo de calculo— va
@@ -600,7 +642,7 @@ class _Rejilla extends ConsumerWidget {
                       vehiculo: v,
                       importe: importe,
                       alEditar: () => alEditar(v),
-                      alEliminar: () => control.eliminar(v.id),
+                      alEliminar: () => _borrarPreguntando(context, control, v),
                       alMarcarDisponible: () => control.marcarDisponible(v.id),
                       alUsarParaDomicilio: () =>
                           control.usarParaDomicilio(v.id),

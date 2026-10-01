@@ -504,39 +504,45 @@ abstract final class AccionesTablero {
     );
   }
 
+  /// EL CAMPO DEL NOMBRE DE UNA ZONA, con su controlador DENTRO — 01/10/2026.
+  ///
+  /// Aquí el `TextEditingController` se creaba en esta función y se desechaba
+  /// en la línea de después del `await`, y las dos cosas estaban mal por la
+  /// misma razón: **el `await` de un cajón vuelve cuando se pulsa `pop`, no
+  /// cuando el cajón se ha ido.** La salida dura 180 ms
+  /// (`abrirPanel.transitionDuration`), y durante esos 180 ms el `TextField`
+  /// sigue montado y sigue repintándose contra un controlador ya desechado.
+  ///
+  /// Lo que Flutter contesta a eso, y no es un aviso suelto:
+  ///
+  ///     A TextEditingController was used after being disposed.
+  ///
+  /// y detrás de él otros cinco —`_dependents.isEmpty`, «dirty widget in the
+  /// wrong build scope», «looking up a deactivated widget's ancestor»—, o sea
+  /// el árbol de widgets roto a media animación cada vez que alguien crea o
+  /// renombra una zona.
+  ///
+  /// Por eso NO HABÍA NINGUNA PRUEBA que entrara el nombre de una zona por la
+  /// pantalla: la primera que se escribió reventó aquí
+  /// (`el_nombre_de_la_zona_es_lo_tecleado_test.dart`). `columnas_test.dart`
+  /// llama a `crearColumna` a pelo y por eso llevaba semanas en verde. Un
+  /// camino que no se puede probar es donde se esconde el siguiente fallo —y de
+  /// hecho se vino a mirar esto por un aviso de que el nombre se guardaba con
+  /// dos letras de más delante.
+  ///
+  /// El arreglo es el de siempre en este proyecto: **el controlador es del
+  /// widget que lo usa**, igual que en la ficha de vehículo, el editor de
+  /// almacén o `CajaDeBusqueda`. Este era el único sitio de la aplicación donde
+  /// un `TextEditingController` vivía fuera de un `State`.
   static Future<String?> _pedirNombre(
     BuildContext context,
     String inicial,
   ) async {
-    final control = TextEditingController(text: inicial);
     final nombre = await mostrarCajon<String>(
       context: context,
       titulo: inicial.isEmpty ? 'Nueva columna' : 'Renombrar «$inicial»',
-      contenido: (contexto) => Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: control,
-            autofocus: true,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Nombre de la zona',
-              hintText: 'Centro, Vista Alegre, Carretera…',
-              border: OutlineInputBorder(),
-            ),
-            onSubmitted: (texto) => Navigator.of(contexto).pop(texto),
-          ),
-          const SizedBox(height: 16),
-          BotonPrincipal(
-            icono: Icons.save_outlined,
-            texto: 'Guardar',
-            alPulsar: () => Navigator.of(contexto).pop(control.text),
-          ),
-        ],
-      ),
+      contenido: (contexto) => _CampoDelNombreDeLaZona(inicial: inicial),
     );
-    control.dispose();
     return (nombre == null || nombre.trim().isEmpty) ? null : nombre.trim();
   }
 
@@ -1166,4 +1172,64 @@ class _ArmarLaRutaState extends ConsumerState<_ArmarLaRuta> {
   /// Para poder medir en una prueba que el aviso está DENTRO del cajón y no en
   /// una franja de la pantalla de detrás.
   static const _claveDelNo = ValueKey('tablero-no-se-armo');
+}
+
+/// El cuerpo del cajón de «Nueva columna» y de «Renombrar»: un campo y su
+/// `Guardar`.
+///
+/// Existe para que el `TextEditingController` **viva y muera con el campo**. El
+/// porqué entero está en `AccionesTablero._pedirNombre`: el `await` de un cajón
+/// vuelve al pulsar `pop` y el cajón sigue montado 180 ms más, así que
+/// desecharlo desde fuera lo deja en uso después de desechado.
+class _CampoDelNombreDeLaZona extends StatefulWidget {
+  const _CampoDelNombreDeLaZona({required this.inicial});
+
+  /// Vacío al crear; el nombre de ahora al renombrar.
+  final String inicial;
+
+  @override
+  State<_CampoDelNombreDeLaZona> createState() =>
+      _CampoDelNombreDeLaZonaState();
+}
+
+class _CampoDelNombreDeLaZonaState extends State<_CampoDelNombreDeLaZona> {
+  late final TextEditingController _control = TextEditingController(
+    text: widget.inicial,
+  );
+
+  @override
+  void dispose() {
+    _control.dispose();
+    super.dispose();
+  }
+
+  /// Un solo sitio por donde sale el nombre: el `Guardar` y el Intro del teclado
+  /// tienen que entregar lo MISMO. Con dos caminos, uno de los dos se queda sin
+  /// el `trim` o sin el `pop` el día que se toque esto.
+  void _entregar(String texto) => Navigator.of(context).pop(texto);
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      TextField(
+        controller: _control,
+        autofocus: true,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: const InputDecoration(
+          labelText: 'Nombre de la zona',
+          hintText: 'Centro, Vista Alegre, Carretera…',
+          border: OutlineInputBorder(),
+        ),
+        onSubmitted: _entregar,
+      ),
+      const SizedBox(height: 16),
+      BotonPrincipal(
+        icono: Icons.save_outlined,
+        texto: 'Guardar',
+        alPulsar: () => _entregar(_control.text),
+      ),
+    ],
+  );
 }

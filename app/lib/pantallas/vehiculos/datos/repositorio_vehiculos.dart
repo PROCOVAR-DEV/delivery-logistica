@@ -35,8 +35,13 @@ class RepositorioVehiculos {
   Future<void> editar(String id, DatosVehiculo datos) =>
       _api.mandar<Object?>('PATCH', '/vehicles/$id', datos.aJson());
 
-  /// Sin confirmacion, como la de Next. Lo que evita el susto es que el
-  /// servidor desasocia antes de borrar, no un dialogo mas.
+  /// El servidor desasocia de rutas y pedidos antes de borrar, asi que el
+  /// historico de lo repartido no se va con el camion.
+  ///
+  /// Eso no quita la pregunta, y aqui decia que si: «sin confirmacion, como la
+  /// de Next». La pregunta la pone la pantalla desde el 01/10/2026
+  /// (`_Rejilla._borrarPreguntando`). Lo que el servidor conserva es el
+  /// historico; lo que no devuelve nadie es el camion.
   Future<void> eliminar(String id) =>
       _api.mandar<Object?>('DELETE', '/vehicles/$id', null);
 

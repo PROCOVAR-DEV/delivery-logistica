@@ -260,11 +260,15 @@ class TarjetaVehiculo extends StatelessWidget {
                   child: const Text('Marcar disponible'),
                 ),
               TextButton(onPressed: alEditar, child: const Text('Editar')),
-              // Sin confirmacion, como la de Next. Se deja igual a proposito:
-              // cambiarlo aqui y no alla es que la misma accion se comporte
-              // distinto segun por donde entres.
+              // PREGUNTA ANTES, desde el 01/10/2026. Aqui decia «sin
+              // confirmacion, como la de Next», y era un descuido vestido de
+              // decision: la casa ya habia decidido lo contrario el 25/09/2026
+              // con «Borrar la columna» del tablero. La pregunta la pone quien
+              // conoce el camion —`_Rejilla._borrarPreguntando`, que es donde
+              // esta el porque entero—, no la tarjeta: esto sigue siendo un
+              // `VoidCallback` y no sabe de red ni de cajones.
               //
-              // **Y justo por eso es el que mas tiene que verse que es** —
+              // **Y aun asi es el que mas tiene que verse que es** —
               // 28/09/2026. Borra un camion de una, sin preguntar, y hasta hoy
               // se leia exactamente igual que «Editar» y que «Marcar
               // disponible»: la misma palabra en el mismo oro, tercera de una

@@ -167,32 +167,107 @@ class ControlVehiculos extends Notifier<AvisoVehiculos?> {
 
   void limpiar() => state = null;
 
+  /// LO QUE YA VA DE CAMINO, por acción.
+  ///
+  /// UN SOLO CLIC MANDABA DOS BORRADOS — 01/10/2026.
+  ///
+  /// Medido en producción con el navegador delante: un espía de ratón
+  /// certificó **un** `pointerdown`, **un** `pointerup` y **un** `click`, y el
+  /// registro de red enseñó DOS `DELETE /api/vehicles/<id>` a 113 ms uno del
+  /// otro. El primero contestó `200 {"success":true}` y el segundo `404
+  /// {"error":"Not found"}`, porque el camión ya no estaba: lo había borrado el
+  /// primero.
+  ///
+  /// No era el reintento de `ClienteApi._conReintento` —ése espera 1 s, 4 s y
+  /// 10 s y sólo reintenta un `FalloDeRed`, nunca un `Rechazo`—: las dos
+  /// peticiones **se solapan**, o sea que el manejador entró dos veces. En un
+  /// `widget test` no pasa (un `tester.tap` da un `onPressed` y una sola
+  /// petición): el gesto se duplica en el navegador, que es donde el mismo clic
+  /// llega por dos caminos —los eventos de puntero y el nodo de accesibilidad
+  /// del botón—, y eso desde aquí no se arregla.
+  ///
+  /// Lo que SÍ se arregla aquí, y es la causa de que se notara: **nada impedía
+  /// que la misma acción se ejecutara dos veces a la vez.** Ninguna de las seis
+  /// escrituras de esta clase tenía guarda de «ya voy»; el `_guardando` de la
+  /// pantalla sólo apaga el `Guardar` de los dos cajones, y los tres botones de
+  /// la tarjeta —Eliminar, Marcar disponible, Usar para domicilio— no tenían
+  /// nada. Con dos borrados a la vez el segundo recibe el «no» del servidor
+  /// sobre un borrado que SÍ funcionó, y por el §4 ese «no» se pinta LITERAL:
+  /// una franja roja a todo lo ancho que dice «Not found», en inglés
+  /// (`httpx.MsgNotFound`), encima de una operación correcta. El §4 hizo lo
+  /// suyo; lo que estaba mal es que hubiera un rechazo que no debía existir.
+  ///
+  /// La guarda es **por acción concreta** y no una sola para toda la pantalla, a
+  /// propósito: con una global, borrar el camión A y acto seguido el B dejaría
+  /// el B tirado sin decir nada, que es el descarte en silencio que el §4
+  /// prohíbe. Y al segundo que llega no se le contesta `false` —eso cerraría mal
+  /// el cajón o pintaría un fallo que no hubo—: **se le devuelve el mismo
+  /// `Future`**, así que los dos ven el mismo resultado y la pantalla se
+  /// comporta como lo que de verdad hubo, un gesto.
+  ///
+  /// Y es «mientras va», no «una sola vez en la vida»: en cuanto la primera
+  /// termina la llave se suelta, así que reintentar a mano tras un fallo de red
+  /// sigue saliendo.
+  final Map<String, Future<bool>> _enVuelo = <String, Future<bool>>{};
+
   Future<bool> crear(DatosVehiculo datos) =>
-      _hacer(() => _repositorio.crear(datos), 'Vehículo agregado.');
+      // Sin id todavía, así que la llave es la acción: es justo lo que hace
+      // falta para que un doble `Guardar` no dé de alta el camión dos veces.
+      _hacer('crear', () => _repositorio.crear(datos), 'Vehículo agregado.');
 
-  Future<bool> editar(String id, DatosVehiculo datos) =>
-      _hacer(() => _repositorio.editar(id, datos), 'Vehículo actualizado.');
+  Future<bool> editar(String id, DatosVehiculo datos) => _hacer(
+    'editar:$id',
+    () => _repositorio.editar(id, datos),
+    'Vehículo actualizado.',
+  );
 
-  Future<bool> eliminar(String id) =>
-      _hacer(() => _repositorio.eliminar(id), 'Vehículo eliminado.');
+  Future<bool> eliminar(String id) => _hacer(
+    'eliminar:$id',
+    () => _repositorio.eliminar(id),
+    'Vehículo eliminado.',
+  );
 
   Future<bool> marcarDisponible(String id) => _hacer(
+    'disponible:$id',
     () => _repositorio.marcarDisponible(id),
     'Vehículo marcado como disponible.',
   );
 
   Future<bool> usarParaDomicilio(String id) => _hacer(
+    'domicilio:$id',
     () => _repositorio.usarParaDomicilio(id),
     'Se usará este vehículo para calcular el domicilio.',
   );
 
-  Future<bool> guardarTipos(List<TipoDeVehiculo> tipos) =>
-      _hacer(() => _repositorio.guardarTipos(tipos), 'Tipos guardados.');
+  Future<bool> guardarTipos(List<TipoDeVehiculo> tipos) => _hacer(
+    'tipos',
+    () => _repositorio.guardarTipos(tipos),
+    'Tipos guardados.',
+  );
 
   RepositorioVehiculos get _repositorio =>
       ref.read(repositorioVehiculosProvider);
 
-  Future<bool> _hacer(Future<void> Function() accion, String exito) async {
+  /// La puerta de las seis escrituras: una sola de cada [clave] a la vez.
+  Future<bool> _hacer(
+    String clave,
+    Future<void> Function() accion,
+    String exito,
+  ) {
+    final yaVa = _enVuelo[clave];
+    if (yaVa != null) return yaVa;
+    final vuelo = _mandar(accion, exito);
+    _enVuelo[clave] = vuelo;
+    // Se suelta en cuanto termina, salga bien o mal. `whenComplete` y no un
+    // `finally` dentro de `_mandar`: la llave la pone esta puerta, así que la
+    // quita esta puerta.
+    vuelo.whenComplete(() {
+      if (_enVuelo[clave] == vuelo) _enVuelo.remove(clave);
+    });
+    return vuelo;
+  }
+
+  Future<bool> _mandar(Future<void> Function() accion, String exito) async {
     state = null;
     try {
       await accion();

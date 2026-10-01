@@ -59,8 +59,30 @@ class ResultadoApunte {
   /// armado deja de leerse (§3-quinquies).
   final List<DescartadoDelServidor> descartados;
 
+  /// UN `repetido` CON MOTIVO **NO** ES UN APUNTE APLICADO — 01/10/2026.
+  ///
+  /// `repetido` significa «esta clave ya la vi», y el servidor contesta eso
+  /// **tanto si entro como si se rechazo**: cuando se rechazo, **reenvia el
+  /// motivo de entonces a proposito** (`sync/internal/sincro/subida.go`). Aqui
+  /// ese motivo se tiraba a la basura y el apunte pasaba a `aplicado`.
+  ///
+  /// Lo que se veia, probado en el telefono de Jose ese dia: un pedido movido
+  /// sin red que el servidor rechazo porque ya iba en otra ruta; se pulsa
+  /// **«Reintentar»** en la bandeja —que es el boton que pulsa cualquiera, «a lo
+  /// mejor ahora pasa»— y la aplicacion dice **«1 apunte subido»** de algo que
+  /// NO subio. El rechazo desaparece de la bandeja, la insignia se va de la
+  /// tarjeta, y **no queda constancia de que decidio nadie**.
+  ///
+  /// Es el `CLAUDE.md` §4 por los dos lados a la vez: «nada se descarta en
+  /// silencio» y «una decision de una persona se ESCRIBE, no se borra». Y es el
+  /// mismo patron que costo semanas el 29/09/2026 con el boton «Descartar».
+  ///
+  /// Un `repetido` **sin** motivo si es una aplicacion: es el caso para el que
+  /// se invento —la respuesta se perdio por el camino y se reintenta—, y ahi la
+  /// clave es justo lo que impide duplicar la ruta.
   bool get seAplico =>
-      estado == EstadoResultado.aplicado || estado == EstadoResultado.repetido;
+      estado == EstadoResultado.aplicado ||
+      (estado == EstadoResultado.repetido && motivo == null);
 }
 
 /// Un apunte, tal y como sale hacia `POST /sync/subida`.

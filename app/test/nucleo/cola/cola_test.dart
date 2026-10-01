@@ -161,6 +161,91 @@ void main() {
       expect(equivalencia.idReal, 'cm2xabc123');
     });
 
+    test('un `repetido` CON MOTIVO sigue rechazado: el «Reintentar» no lo blanquea',
+        () async {
+      // EL CASO DE JOSE, 01/10/2026, probado en su telefono.
+      //
+      // Mueve un pedido sin red. Cuando vuelve la senal, el servidor lo rechaza
+      // porque ese pedido ya iba en otra ruta. El rechazo queda en la bandeja
+      // con su motivo, como tiene que ser.
+      //
+      // Y entonces se pulsa **«Reintentar»**, que es el boton que pulsa
+      // cualquiera —«a lo mejor ahora pasa»—. El servidor reconoce la clave,
+      // contesta `repetido` y **reenvia el motivo de entonces a proposito**,
+      // porque no puede volver a intentarlo: la clave lo impide por diseno.
+      //
+      // Hasta hoy ese motivo se tiraba: el apunte pasaba a `aplicado`, la
+      // aplicacion decia «1 apunte subido» de algo que NO subio, el rechazo
+      // desaparecia de la bandeja y **no quedaba constancia de que decidio
+      // nadie**. El §4 por los dos lados: nada se descarta en silencio, y una
+      // decision de una persona se ESCRIBE, no se borra.
+      final clave = await cola.encolar(
+        metodo: 'PUT',
+        ruta: '/api/board/placements/f83f1be6-5566-448e-96e3-b4c58af1892f',
+        cuerpo: const {'columnaId': 'zona-1', 'posicion': 1},
+      );
+
+      await cola.resolver(
+        clave,
+        const ResultadoApunte(
+          estado: EstadoResultado.rechazado,
+          motivo: 'Ese pedido ya está en una ruta',
+        ),
+      );
+      expect((await cola.porClave(clave))!.estado, EstadoApunte.rechazado);
+
+      // EL «REINTENTAR» DE VERDAD, que es lo que hace el boton: devuelve el
+      // apunte a la cola. Sin este paso el apunte sigue en `rechazado` y
+      // `resolver` se corta en seco al principio —«ya estaba resuelto»—, asi que
+      // la prueba NO ejercitaria la guarda y saldria verde con el fallo puesto.
+      // Comprobado: la primera version de esta prueba se escribio sin esto y la
+      // mutacion paso.
+      await cola.reintentar(clave);
+      expect((await cola.porClave(clave))!.estado, EstadoApunte.pendiente);
+
+      // Y el servidor contesta `repetido` arrastrando el motivo de entonces,
+      // porque no puede volver a intentarlo: la clave lo impide por diseno.
+      await cola.resolver(
+        clave,
+        const ResultadoApunte(
+          estado: EstadoResultado.repetido,
+          motivo: 'Ese pedido ya está en una ruta',
+        ),
+      );
+
+      final apunte = await cola.porClave(clave);
+      expect(
+        apunte!.estado,
+        EstadoApunte.rechazado,
+        reason: 'el rechazo se blanqueó: la aplicación va a decir «1 apunte '
+            'subido» de algo que no subió, y la bandeja se vacía sin que quede '
+            'constancia de qué decidió la persona',
+      );
+      expect(
+        apunte.motivo,
+        'Ese pedido ya está en una ruta',
+        reason: 'el motivo que el servidor se molestó en reenviar se tiró',
+      );
+    });
+
+    test('un `repetido` SIN motivo sigue siendo una aplicación', () async {
+      // La otra mitad, y es la que no se puede romper al arreglar lo de arriba:
+      // `repetido` se invento para la respuesta que se pierde por el camino. Ahi
+      // el apunte SI entro y la clave es justo lo que evita duplicarlo.
+      final clave = await cola.encolar(
+        metodo: 'POST',
+        ruta: '/api/routes',
+        cuerpo: const {'nombre': 'Bayamo'},
+      );
+
+      await cola.resolver(
+        clave,
+        const ResultadoApunte(estado: EstadoResultado.repetido, id: 'cm2xzzz'),
+      );
+
+      expect((await cola.porClave(clave))!.estado, EstadoApunte.aplicado);
+    });
+
     test('resolver dos veces no reescribe nada', () async {
       final clave = await cola.encolar(
         metodo: 'POST',

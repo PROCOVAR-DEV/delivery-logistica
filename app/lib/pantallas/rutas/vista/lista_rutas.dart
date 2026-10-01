@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../diseno/preguntar_antes_de_borrar.dart';
 import '../../../diseno/tema.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,6 +75,12 @@ class ListaDeRutas extends ConsumerWidget {
     // camion, que es la peor de las dos maneras de equivocarse: un camion que
     // no cabe puede parecer que cabe. Ver `datos/peso_de_la_ruta.dart`.
     final pesoPorRuta = ref.watch(pesoPorRutaProvider).value;
+    // Y CUANTAS PARADAS LLEVA YA CERRADAS cada una, por lo mismo que las otras
+    // cuatro: una sola consulta agrupada. Esto no se pinta, decide si «Eliminar»
+    // puede llegar a preguntar: con una sola parada cerrada el servidor se niega
+    // (`api/internal/api/rutas.go`, `borrarRuta`), y entonces lo que hay que
+    // hacer es decirlo, no preguntar. `null` es «todavia no se sabe».
+    final cerradasPorRuta = ref.watch(paradasCerradasPorRutaProvider).value;
 
     // Una lista vacia de una coleccion que nunca se bajo NO es «no hay rutas».
     //
@@ -149,6 +156,12 @@ class ListaDeRutas extends ConsumerWidget {
               // lleva paradas, y ese cero si se sabe. `null` es solo «la
               // consulta no ha llegado todavia».
               peso: pesoPorRuta == null ? null : (pesoPorRuta[ruta.id] ?? 0),
+              // Igual que el importe y el peso: una ruta que no sale en el
+              // agrupado no lleva ninguna parada cerrada, y ese cero SI se
+              // sabe. `null` es solo «la consulta no ha llegado todavia».
+              cerradas: cerradasPorRuta == null
+                  ? null
+                  : (cerradasPorRuta[ruta.id] ?? 0),
             ),
         ],
         Paginacion(
@@ -209,6 +222,7 @@ class _TarjetaDeRuta extends ConsumerWidget {
     required this.paradas,
     required this.importe,
     required this.peso,
+    required this.cerradas,
   });
 
   final Ruta ruta;
@@ -240,6 +254,12 @@ class _TarjetaDeRuta extends ConsumerWidget {
   /// que no— sin haberlo medido es el numero creible de siempre con otra cara.
   final double? peso;
 
+  /// CUANTAS PARADAS LLEVA YA CERRADAS. `null` = la consulta todavia no ha
+  /// llegado; entonces no se da por hecho ni que hay ninguna ni que las hay, y
+  /// `Eliminar` se comporta como se comportaba: pregunta, y si el servidor se
+  /// niega sale su motivo literal.
+  final int? cerradas;
+
   /// CÓMO ANDA ESTE CAMIÓN, pegado a su nombre — 28/09/2026.
   ///
   /// Jose: «que ese vehiculo se ponga su estado para q saber como anda ese
@@ -264,6 +284,82 @@ class _TarjetaDeRuta extends ConsumerWidget {
     return ocupa.enCurso
         ? ' · EN RUTA en ${ocupa.titulo}'
         : ' · ya va en ${ocupa.titulo}';
+  }
+
+  /// BORRAR UNA RUTA PREGUNTA ANTES — 01/10/2026.
+  ///
+  /// Hasta hoy no preguntaba nada: un toque en «Eliminar» y la ruta se iba. El
+  /// 25/09/2026 la casa ya habia decidido lo contrario con «Borrar la columna»
+  /// del tablero —Jose, viendo una zona desaparecer de un toque: «sacame
+  /// notificaciones emergentes para esto, no me pongas eso asi borrar por
+  /// borrar»—, y el 01/10 se arreglo lo mismo en Vehiculos. Aqui se habia
+  /// quedado, y es la pantalla donde mas duele: la semana que viene el logistico
+  /// de Santiago prueba esto solo, a 900 km, y una ruta borrada por error es una
+  /// mañana de armado tirada.
+  ///
+  /// La pieza es la de la casa —[preguntarAntesDeBorrar]— y no una inventada
+  /// aqui: cajon tambien en escritorio, con su ✕, el boton nombra la ruta que se
+  /// va, y **cerrar sin contestar es NO**.
+  ///
+  /// ## Lo propio es QUE SE PIERDE, y sale del servidor
+  ///
+  /// Leido de `borrarRuta` (`api/internal/api/rutas.go`), que es quien lo hace de
+  /// verdad: se borra la fila de `routes` —con ella se van el codigo, la fecha,
+  /// el punto de partida y los kilometros—, `SoltarPedidosDeRuta` deja los
+  /// pedidos **sin borrar** soltandoles `route_id`, `stop_order`, `segment_km` y
+  /// `trip_leg` (o sea que vuelven a la lista de disponibles), `ultima_ruta_id`
+  /// se conserva, y el camion se libera si estaba `in_use`. Nada de «¿estas
+  /// seguro?»: eso no es informacion, es un peaje.
+  ///
+  /// ## Y SI LA RUTA NO SE PUEDE BORRAR, SE DICE ANTES DE PREGUNTAR
+  ///
+  /// El servidor se niega en seco cuando la ruta ya tiene paradas cerradas —se
+  /// perderia la hoja de lo que bajo del camion— y contesta 409 con el numero
+  /// dentro. Preguntar primero y comerse el portazo despues es lo peor de los dos
+  /// mundos: se pide una decision irreversible a alguien y, cuando la toma, se le
+  /// contesta que no. Asi que se cuenta aqui lo mismo que cuenta el servidor
+  /// (`ConsultasRutas.paradasCerradasPorRuta`) y se dice su motivo LITERAL, el
+  /// mismo texto que saldria con red (§3-quinquies: lo que el servidor rechaza se
+  /// dice, y con su motivo literal).
+  ///
+  /// Esto ademas tapa un agujero que solo tenia el aparato: sin red no hay
+  /// servidor que diga que no, asi que el borrado se escribia en local y el «no»
+  /// llegaba horas despues a la bandeja de rechazados, con la ruta ya
+  /// desaparecida de la pantalla.
+  ///
+  /// Con la cuenta todavia sin llegar (`null`) **no se inventa nada**: se
+  /// pregunta, y si el servidor se niega sale su motivo, que es como se
+  /// comportaba hasta hoy.
+  Future<void> _borrarPreguntando(BuildContext contexto, WidgetRef ref) async {
+    // El mensajero se coge ANTES de cualquier `await`: despues, este widget
+    // puede no estar montado y su `context` no sirve.
+    final mensajero = ScaffoldMessenger.maybeOf(contexto);
+    final yaCerradas = cerradas;
+    if (yaCerradas != null && yaCerradas > 0) {
+      mensajero?.showSnackBar(
+        SnackBar(content: Text(msgRutaConParadasCerradas(yaCerradas))),
+      );
+      return;
+    }
+    final seguro = await preguntarAntesDeBorrar(
+      contexto,
+      // El mismo rotulo que lleva la insignia de la tarjeta, para que sea
+      // evidente que se esta borrando LA QUE SE ESTA MIRANDO.
+      queSeVa: ruta.routeCode ?? ruta.id,
+      loQuePasa:
+          'La ruta desaparece con su código, su fecha, el orden de visita y '
+          'los kilómetros que se calcularon al armarla. Para tenerla otra vez '
+          'hay que volver a armarla desde el asistente, a mano.\n\n'
+          'Lo que NO se borra son los pedidos: sueltan esta ruta y vuelven a '
+          'la lista de disponibles, listos para ponerlos en otra. Y el camión '
+          'se queda libre.',
+    );
+    if (!seguro) return;
+    try {
+      await ref.read(accionesDeRutaProvider).eliminar(ruta.id);
+    } on RechazoLocal catch (fallo) {
+      mensajero?.showSnackBar(SnackBar(content: Text(fallo.mensaje)));
+    }
   }
 
   @override
@@ -458,18 +554,7 @@ class _TarjetaDeRuta extends ConsumerWidget {
                       // `diseno/tema.dart`, junto a [Botones].
                       BotonDestructivo(
                         texto: 'Eliminar',
-                        alPulsar: () async {
-                          final mensajero = ScaffoldMessenger.maybeOf(context);
-                          try {
-                            await ref
-                                .read(accionesDeRutaProvider)
-                                .eliminar(ruta.id);
-                          } on RechazoLocal catch (fallo) {
-                            mensajero?.showSnackBar(
-                              SnackBar(content: Text(fallo.mensaje)),
-                            );
-                          }
-                        },
+                        alPulsar: () => _borrarPreguntando(context, ref),
                       ),
                   ],
                 ),

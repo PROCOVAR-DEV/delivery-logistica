@@ -220,6 +220,20 @@ final paradasPorRutaProvider = StreamProvider<Map<String, int>>(
   (ref) => ref.watch(consultasRutasProvider).paradasPorRuta(),
 );
 
+/// CUANTAS PARADAS LLEVA YA CERRADAS cada ruta, para la lista.
+///
+/// Con esto la tarjeta sabe, antes de que nadie pulse nada, que esa ruta NO se
+/// puede borrar: el servidor se niega en cuanto hay una parada con resultado
+/// (`ConsultasRutas.paradasCerradasPorRuta`).
+///
+/// Una sola consulta agrupada para las veinte tarjetas, como `paradasPorRuta`.
+/// Y `Stream`, no `Future`: una parada se cierra con esta pantalla delante
+/// —desde la ficha de al lado, o porque llegó la bajada— y entonces el botón
+/// tiene que cambiar de respuesta sin que nadie recargue (`CLAUDE.md` §3-ter).
+final paradasCerradasPorRutaProvider = StreamProvider<Map<String, int>>(
+  (ref) => ref.watch(consultasRutasProvider).paradasCerradasPorRuta(),
+);
+
 /// EN QUE ANDA CADA CAMION, para la lista y la ficha de una ruta.
 ///
 /// Mapa `vehicleId -> ruta abierta que lo tiene cogido`. Sale de la tabla

@@ -104,8 +104,18 @@ Y debajo del mapa, según haya cargado el fondo o no:
 - **Sólo puede haber un principal.** Al marcar uno, los demás se desmarcan.
 - **Un almacén sin punto se puede guardar**, pero se te avisa antes: «Sin
   coordenadas: desde éste no se puede medir el domicilio.»
-- Al quitar uno: «¿Quitar «Almacén Central»? Deja de poder medirse desde ahí.», con
-  **«Cancelar»** y **«Quitar»**.
+- **Al quitar uno se pregunta en un cajón**, igual que al borrar una zona del
+  tablero o un camión: **«Borrar «Almacén Central»»**, con **«Sí, borrar «Almacén
+  Central»»** y **«No, dejarlo»**. Cerrar el cajón sin contestar —la ✕, tocar
+  fuera, Escape— es **No**.
+
+  Y dice qué se pierde, porque no se deshace: se guarda la lista de la sucursal
+  **sin él**, así que desaparece para todo el mundo; deja de poder medirse desde
+  ahí (los pedidos que lo traen puesto pasan a medirse desde el principal de la
+  sucursal, y si era el último con punto los domicilios de esa sucursal salen sin
+  precio); los teléfonos que ya lo bajaron siguen midiendo desde él hasta la
+  próxima vez que tengan red, así que cada entrega de ese día se cobra mal y no se
+  ve hasta cuadrar la caja; y volver a ponerlo es darlo de alta a mano.
 
 ---
 

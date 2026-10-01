@@ -97,6 +97,27 @@ class RechazoLocal implements Exception {
   String toString() => mensaje;
 }
 
+/// EL PORTAZO AL BORRADO DE UNA RUTA QUE YA LLEVA PARADAS CERRADAS.
+///
+/// Es el literal del servidor, palabra por palabra: `msgRutaConResultados` en
+/// `api/internal/api/rutas.go`, el 409 de `borrarRuta`. Aquí no se traduce ni
+/// se resume **porque es el mismo «no»**: lo único que cambia es que se dice
+/// ANTES de preguntar, en vez de después de que alguien conteste «Sí,
+/// borrar» y se coma el error por un gesto que nunca iba a salir.
+///
+/// Que los dos lados digan exactamente lo mismo lo ata
+/// `test/pantallas/rutas/borrar_una_ruta_pregunta_test.dart`, que lee la
+/// constante de Go: un comentario no falla (`CLAUDE.md` §3-bis).
+///
+/// El número va dentro a propósito. Es lo que hace que quien lo lee sepa de
+/// qué ruta le hablan, y en el aparato ese número SÍ se sabe sin preguntarle a
+/// nadie: sale de `ConsultasRutas.paradasCerradasPorRuta`, que cuenta lo mismo
+/// que cuenta el servidor.
+String msgRutaConParadasCerradas(int cerradas) =>
+    'Esa ruta ya tiene $cerradas parada(s) cerradas y no se puede borrar: se '
+    'perdería la hoja de lo que bajó del camión. Márcala como '
+    'cancelada si hace falta.';
+
 /// Como acabo una parada, tal y como sale del cierre.
 class MarcaDeParada {
   const MarcaDeParada({
@@ -185,6 +206,58 @@ class AccionesDeRuta {
   /// El sufijo que distingue los codigos de ruta generados sin conexion. Sin el,
   /// dos sucursales sin red el mismo dia generan `RT-20260914-001` las dos.
   final String _sufijo;
+
+  /// LO QUE YA VA DE CAMINO, por accion.
+  ///
+  /// UN SOLO CLIC MANDABA DOS BORRADOS — 01/10/2026, medido en Vehiculos con el
+  /// navegador delante: un espia de raton certifico UN `pointerdown`, UN
+  /// `pointerup` y UN `click`, y el registro de red enseno DOS `DELETE` a 113 ms
+  /// uno del otro. El primero contesto `200 {"success":true}` y el segundo `404
+  /// {"error":"Not found"}`, porque el camion ya no estaba: lo habia borrado el
+  /// primero. El gesto se duplica **en el navegador** —el mismo clic llega por
+  /// los eventos de puntero y por el nodo de accesibilidad del boton— y eso
+  /// desde aqui no se arregla. Todo el detalle esta en
+  /// `pantallas/vehiculos/estado/estado_vehiculos.dart`.
+  ///
+  /// `Eliminar` de la lista de rutas tenia el mismo agujero y es peor: aqui el
+  /// «no» del segundo borrado se pinta LITERAL por el §4, asi que lo que se ve
+  /// es «No encontrada» —o el `Not found` del servidor— **encima de un borrado
+  /// que si funciono**. El §4 hace lo suyo; lo que estaba mal es que hubiera un
+  /// rechazo que no debia existir.
+  ///
+  /// Dos cosas que no se pueden perder, las dos razonadas en Vehiculos:
+  ///
+  ///  * la llave es **por accion concreta** y no una para toda la pantalla: con
+  ///    una global, borrar la ruta A y acto seguido la B dejaria la B tirada sin
+  ///    decir nada, que es el descarte en silencio que prohibe el §4;
+  ///  * al segundo que llega se le devuelve **el mismo `Future`**, no un `false`
+  ///    ni un rechazo inventado: los dos ven el mismo resultado y la pantalla se
+  ///    comporta como lo que de verdad hubo, un gesto. Si el primero falla, los
+  ///    dos reciben el mismo `RechazoLocal`.
+  ///
+  /// Y es «mientras va», no «una sola vez en la vida»: la llave se suelta en
+  /// cuanto termina, asi que reintentar a mano tras un fallo de red sigue
+  /// saliendo.
+  final Map<String, Future<void>> _enVuelo = <String, Future<void>>{};
+
+  /// La puerta: una sola de cada [clave] a la vez.
+  Future<void> _unaSola(String clave, Future<void> Function() accion) {
+    final yaVa = _enVuelo[clave];
+    if (yaVa != null) return yaVa;
+    final vuelo = accion();
+    _enVuelo[clave] = vuelo;
+    // Se suelta en cuanto termina, salga bien o mal. Y el `Future` que devuelve
+    // `whenComplete` se IGNORA a proposito: si `vuelo` acaba en `RechazoLocal`,
+    // ese segundo `Future` acaba igual, y un error que nadie escucha lo denuncia
+    // Dart como no atrapado. Quien lo tiene que escuchar es quien llamo, y a ese
+    // se le devuelve `vuelo`.
+    vuelo
+        .whenComplete(() {
+          if (_enVuelo[clave] == vuelo) _enVuelo.remove(clave);
+        })
+        .ignore();
+    return vuelo;
+  }
 
   /// El maximo que acepta el servidor para la nota de una parada.
   static const topeDeNota = 500;
@@ -866,7 +939,14 @@ class AccionesDeRuta {
   /// **No borra pedidos**: les suelta la ruta y los devuelve a la lista de
   /// disponibles. `ultimaRutaId` se conserva, o el pedido desapareceria de la
   /// hoja de lo que bajo del camion.
-  Future<void> eliminar(String rutaId) async {
+  ///
+  /// Y PASA POR [_unaSola]: el gesto duplicado del navegador mandaba dos
+  /// borrados, y el segundo pintaba un «No encontrada» en rojo encima de un
+  /// borrado que si funciono.
+  Future<void> eliminar(String rutaId) =>
+      _unaSola('eliminar:$rutaId', () => _eliminar(rutaId));
+
+  Future<void> _eliminar(String rutaId) async {
     final ruta = await _ruta(rutaId);
     if (ruta == null) throw const RechazoLocal('No encontrada');
     if (ruta.status == EstadoRuta.completada) {

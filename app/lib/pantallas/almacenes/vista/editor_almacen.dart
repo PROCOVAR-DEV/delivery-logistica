@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../diseno/cajon.dart';
-import '../../../diseno/tema.dart' show BotonDestructivo, BotonPrincipal;
+import '../../../diseno/preguntar_antes_de_borrar.dart';
+import '../../../diseno/tema.dart' show BotonPrincipal;
 import '../../rutas/datos/mapa_en_vivo.dart';
 import '../datos/almacen_api.dart';
 import '../datos/coordenadas.dart';
@@ -268,29 +269,67 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
     });
   }
 
+  /// QUITAR UN ALMACEN PREGUNTA, Y PREGUNTA EN UN CAJON — 01/10/2026.
+  ///
+  /// Preguntaba, que es lo que de verdad importaba, pero lo hacia con un
+  /// `AlertDialog` centrado: la unica pieza de este editor —que ES un cajon—
+  /// que se salia de la regla de la casa, **cajon siempre, tambien en
+  /// escritorio** (`CLAUDE.md` §4, excepcion aprobada el 05/09/2026). Un modal
+  /// centrado no se parece a nada mas de la aplicacion y en un telefono se
+  /// comporta distinto: ancho de pantalla menos margenes, sin la ✕ de la
+  /// cabecera y con el teclado tapandolo si hay algo que leer debajo.
+  ///
+  /// La pieza es [preguntarAntesDeBorrar], la misma que usan la zona del
+  /// tablero y el camion de Vehiculos, **sin tocarla**: el titulo y el boton
+  /// que nombra lo que se va son los suyos, y cerrar sin contestar —la ✕, tocar
+  /// fuera, Escape— es NO.
+  ///
+  /// ## [loQuePasa] NO ES «¿ESTAS SEGURO?»
+  ///
+  /// Aqui lo que se pierde es el punto desde el que se mide lo que se le cobra
+  /// a cada domicilio, asi que la frase dice las cuatro cosas que pasan de
+  /// verdad, y todas salen de lo que hace el guardado:
+  ///
+  ///  1. **Se va de Accesos, no de esta pantalla.** Quitar es guardar **la
+  ///     lista completa de la sucursal sin el** (`PUT /api/almacenes`, ver
+  ///     `datos/repositorio_almacenes.dart`): el almacen deja de existir para
+  ///     todo el mundo en cuanto Accesos contesta.
+  ///  2. **Deja de poder medirse desde ahi** —el literal que ya tenia el cuadro
+  ///     viejo, que era lo unico que decia y es verdad—. Y lo que pasa entonces
+  ///     esta escrito en `internal/cotizar/almacen.go`: un pedido que traiga su
+  ///     codigo se mide **desde el principal de la sucursal**, con otro
+  ///     kilometraje y otro importe, y ese importe se cobra igual que uno bueno.
+  ///  3. **Si era el ultimo con punto, la sucursal se queda sin desde donde** y
+  ///     la cotizacion contesta que no se puede (el 409 de `ElegirAlmacen`):
+  ///     sus domicilios salen sin precio.
+  ///  4. **Los aparatos que ya lo bajaron siguen midiendo desde el.** Accesos
+  ///     no avisa de los que se retiran, asi que la copia del telefono no se
+  ///     entera hasta la proxima bajada, y eso es exactamente lo que ya dice la
+  ///     franja de esta pantalla: «si sobra uno, cada entrega del dia se cobra
+  ///     mal y no se ve hasta cuadrar la caja»
+  ///     (`vista/almacenes_de_la_ultima_bajada.dart`).
   Future<void> _confirmarQuitar() async {
     final nombre = widget.almacen?.titulo ?? '';
-    final seguro = await showDialog<bool>(
-      context: context,
-      builder: (contexto) => AlertDialog(
-        content: Text('¿Quitar «$nombre»? Deja de poder medirse desde ahí.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(contexto).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          // QUITAR UN ALMACEN ES DESTRUCTIVO, y este es el boton que lo
-          // confirma: va en rojo, con contorno de 2 px y con la papelera, igual
-          // que el «Sí, borrar la columna» del tablero. Estaba de principal —el
-          // oro de guardar— dentro de un cuadro que pregunta si se borra.
-          BotonDestructivo(
-            texto: 'Quitar',
-            alPulsar: () => Navigator.of(contexto).pop(true),
-          ),
-        ],
-      ),
+    final seguro = await preguntarAntesDeBorrar(
+      context,
+      queSeVa: nombre,
+      loQuePasa:
+          'El almacén se va de Accesos: se guarda la lista de '
+          '${widget.sucursal} sin él, así que desaparece para todo el mundo y '
+          'no sólo en esta pantalla. Deja de poder medirse desde ahí: los '
+          'pedidos que lo traen puesto pasan a medirse desde el principal de '
+          'la sucursal, con otro kilometraje y otro importe que se cobra igual '
+          'que uno bueno; y si era el último con punto, los domicilios de '
+          '${widget.sucursal} salen sin precio. Los teléfonos que ya lo '
+          'bajaron siguen midiendo desde él hasta la próxima vez que tengan '
+          'red —Accesos no avisa de los que se retiran—, así que cada entrega '
+          'de ese día se cobra mal y no se ve hasta cuadrar la caja. Volver a '
+          'ponerlo es darlo de alta a mano, con su dirección y su punto.',
+      // «dejarla» es el de la zona del tablero; aquí es un almacén.
+      noLoBorres: 'No, dejarlo',
     );
-    if (seguro ?? false) widget.alQuitar?.call();
+    if (!seguro) return;
+    widget.alQuitar?.call();
   }
 
   @override

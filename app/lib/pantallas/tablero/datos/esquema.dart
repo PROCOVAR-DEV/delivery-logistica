@@ -38,6 +38,23 @@ abstract final class EsquemaTablero {
   static const coleccionColumnas = 'boardColumns';
   static const coleccionColocaciones = 'boardPlacements';
 
+  /// LAS DOS, EN UNA SOLA LISTA. Es de donde sale «de cuando son los datos» del
+  /// Tablero, y sale de **un** sitio a proposito.
+  ///
+  /// Lo miran dos piezas: el `vistoAtProvider` de la propia pantalla y la franja
+  /// de estado del armazon, via `PantallaRegistrada.colecciones`
+  /// (`pantallas/tablero/registro.dart`). Escritas dos veces se separarian sin
+  /// que salte nada, y entonces la franja y la cabecera dirian dos horas
+  /// distintas en la misma ventana — que es exactamente el fallo del 01/10/2026
+  /// que las junto (§3-bis).
+  ///
+  /// No estan en `Colecciones` porque no son de la bajada por diferencias: el
+  /// tablero se pide aparte con `GET /api/board`.
+  static const colecciones = <String>[
+    coleccionColumnas,
+    coleccionColocaciones,
+  ];
+
   /// Las fechas van como TEXTO ISO-8601, que es como las guarda el resto de la
   /// base (`build.yaml`: `store_date_time_values_as_text`). Un entero de
   /// segundos aqui y texto en `orders` obligaria a convertir en cada `JOIN` y

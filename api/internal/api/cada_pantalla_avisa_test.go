@@ -49,7 +49,27 @@ import (
 // uno. Se enganchan todos y no sólo el que interesa a propósito: así una prueba caza
 // también el aviso DE MÁS —mandar `pedidos` al tocar un camión— que es lo que hace que la
 // oficina entera se baje lo que no ha cambiado.
-type contadorDeAvisos struct{ tipos []string }
+type contadorDeAvisos struct {
+	tipos []string
+	// sucursales: LA SUCURSAL DE CADA AVISO, en el mismo orden que `tipos`. Vacía = «de
+	// todas», que es lo que el bus reparte a las ocho.
+	//
+	// Hace falta desde el 01/10/2026, cuando los ganchos acotados pasaron a recibir la
+	// sucursal de la FILA que se escribe: sin anotarla, un aviso que saliera PELADO —el fallo
+	// medido ese día— se contaba como un aviso correcto y la prueba quedaba verde.
+	sucursales []string
+}
+
+// sucursalDe: con qué sucursal salió el aviso de ese tipo. El segundo valor es false si no
+// salió ninguno, que no es lo mismo que haber salido sin sucursal.
+func (c *contadorDeAvisos) sucursalDe(tipo string) (string, bool) {
+	for i, t := range c.tipos {
+		if t == tipo {
+			return c.sucursales[i], true
+		}
+	}
+	return "", false
+}
 
 func (c *contadorDeAvisos) tiene(tipo string) int {
 	n := 0
@@ -67,8 +87,19 @@ func (c *contadorDeAvisos) total() int { return len(c.tipos) }
 func contarAvisos(t *testing.T) *contadorDeAvisos {
 	t.Helper()
 	c := &contadorDeAvisos{}
+	// Los ACOTADOS: anotan el tipo Y la sucursal con la que se publicó.
+	anotaDe := func(tipo string) func(context.Context, string) {
+		return func(_ context.Context, sucursal string) {
+			c.tipos = append(c.tipos, tipo)
+			c.sucursales = append(c.sucursales, sucursal)
+		}
+	}
+	// Los GLOBALES: no reciben sucursal porque no pueden llevarla, así que se anota vacía.
 	anota := func(tipo string) func(context.Context) {
-		return func(context.Context) { c.tipos = append(c.tipos, tipo) }
+		return func(context.Context) {
+			c.tipos = append(c.tipos, tipo)
+			c.sucursales = append(c.sucursales, DeTodasLasSucursales)
+		}
 	}
 
 	antRutas, antTablero := avisarCambioDeRutas, avisarCambioDelTablero
@@ -90,21 +121,21 @@ func contarAvisos(t *testing.T) *contadorDeAvisos {
 		avisarCambioEnElCanal, avisarTasaDeSucursal = antCanal, antTasa
 	})
 
-	avisarCambioDeRutas = anota(CambioRutas)
-	avisarCambioDelTablero = anota(CambioTablero)
-	avisarCambioDePedidos = anota(CambioPedidos)
+	avisarCambioDeRutas = anotaDe(CambioRutas)
+	avisarCambioDelTablero = anotaDe(CambioTablero)
+	avisarCambioDePedidos = anotaDe(CambioPedidos)
 	avisarCambioDelCatalogo = anota(CambioCatalogo)
-	avisarCambioDeVehiculos = anota(CambioVehiculos)
-	avisarCambioDeAlmacenes = anota(CambioAlmacenes)
+	avisarCambioDeVehiculos = anotaDe(CambioVehiculos)
+	avisarCambioDeAlmacenes = anotaDe(CambioAlmacenes)
 	avisarCambioDeSucursales = anota(CambioSucursales)
 	avisarCambioDeAjustes = anota(CambioAjustes)
 	// Los tipos de vehículo publican el MISMO texto que la flota (`vehiculos`) porque la
 	// pantalla es la misma; lo que cambia es a quién le llega, y eso lo vigila
 	// `TestLaTablaDeQueAvisoLlevaSucursal`, no esto.
 	avisarCambioDeTiposDeVehiculo = anota(CambioVehiculos)
-	avisarCambioDeClientes = anota(CambioClientes)
+	avisarCambioDeClientes = anotaDe(CambioClientes)
 	avisarCambioEnElCanal = anota(CambioCanal)
-	avisarTasaDeSucursal = func(context.Context, string) { c.tipos = append(c.tipos, CambioAjustes) }
+	avisarTasaDeSucursal = anotaDe(CambioAjustes)
 	return c
 }
 
@@ -247,11 +278,13 @@ func (d *dobleAvisos) BorrarAsignacionesDeVehiculo(context.Context, uuid.UUID) (
 	return 0, nil
 }
 
-func (d *dobleAvisos) BorrarVehiculo(_ context.Context, arg sqlc.BorrarVehiculoParams) (int64, error) {
+// BorrarVehiculo devuelve la SUCURSAL del camión borrado, como el `RETURNING branch_id` de
+// verdad: es de donde salen los tres avisos de la baja. `pgx.ErrNoRows` es el 404.
+func (d *dobleAvisos) BorrarVehiculo(_ context.Context, arg sqlc.BorrarVehiculoParams) (pgtype.UUID, error) {
 	if arg.ID != avVehStg {
-		return 0, nil
+		return pgtype.UUID{}, pgx.ErrNoRows
 	}
-	return 1, nil
+	return avPg(avSucStg), nil
 }
 
 // --- tipos de vehículo
@@ -560,6 +593,44 @@ func TestGuardarLosAlmacenesAvisa(t *testing.T) {
 	avCodigo(t, w, http.StatusOK)
 
 	avisos.exige(t, "guardar los almacenes", CambioAlmacenes)
+
+}
+
+// Y SALE CON LA SUCURSAL DEL CÓDIGO QUE SE GUARDÓ, no con la del alcance de quien llamó.
+//
+// LO HACE UN SUPER ADMIN, y eso es la prueba, no un detalle: con un operador de Santiago el
+// alcance YA es Santiago, así que un aviso que lo saque del alcance sale bien y la mutación no
+// se ve. Comprobado el 01/10/2026: sustituido `deLaFila(...)` por `sucursalDelAlcance(...)`,
+// `TestGuardarLosAlmacenesAvisa` seguía verde. Con el SUPER ADMIN el alcance es «todas» y el
+// aviso sale pelado, que es el fallo de ese día.
+func TestGuardarLosAlmacenesAvisaSoloASuSucursal(t *testing.T) {
+	// El uuid va A MANO: es el que el doble de datos usa para Santiago. Compararlo con
+	// `datSucStg` sería comparar el código consigo mismo.
+	const santiagoAMano = "11111111-1111-1111-1111-111111111111"
+	if datSucStg.String() != santiagoAMano {
+		t.Fatalf("el doble de datos ya no usa %s para Santiago: %s", santiagoAMano, datSucStg)
+	}
+
+	conAccesos(t, almacenesDePrueba())
+	h := montarDeDatos(t, datosDePrueba())
+	avisos := contarAvisos(t)
+
+	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", superAdminDeDatos(t),
+		`{"codigo":"STG","almacenes":[{"nombre":"Central","latitud":20.0,"longitud":-75.8}]}`, nil)
+	avCodigo(t, w, http.StatusOK)
+
+	suc, hubo := avisos.sucursalDe(CambioAlmacenes)
+	if !hubo {
+		t.Fatalf("guardar los almacenes no avisó. Salieron: %v", avisos.tipos)
+	}
+	if suc != santiagoAMano {
+		t.Errorf("el aviso de almacenes salió con la sucursal %q y tenía que ser %s, la del "+
+			"código `STG` que vino en el cuerpo y que ya se comprobó contra las sucursales "+
+			"visibles.\n"+
+			"  Sacarlo del alcance manda a las OCHO a pedir `GET /api/almacenes` —que no vive "+
+			"de la base local— por un punto que sólo cambió en Santiago. Y el domicilio se "+
+			"cobra por la distancia DESDE el almacén.", suc, santiagoAMano)
+	}
 }
 
 // Y si Accesos NO aceptó el cambio, no se avisa: no se guardó nada.

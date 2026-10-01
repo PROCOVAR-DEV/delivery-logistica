@@ -58,11 +58,15 @@ void main() {
     );
   }
 
-  test('sube el lote entero en UNA peticion, en orden', () async {
-    late Map<String, Object?> mandado;
+  test('sube UNO POR PETICION, en orden, y nunca dos a la vez', () async {
+    // El cambio del 01/10/2026: veinte apuntes son veinte peticiones, una
+    // detras de otra. No es el caso I1 —eso son veinte A LA VEZ—, y la ultima
+    // comprobacion de esta prueba es justamente la que separa las dos cosas.
+    final mandados = <Map<String, Object?>>[];
     final m = montar((p) async {
-      mandado = p.cuerpo! as Map<String, Object?>;
-      final apuntes = mandado['apuntes']! as List<Object?>;
+      final cuerpo = p.cuerpo! as Map<String, Object?>;
+      mandados.add(cuerpo);
+      final apuntes = cuerpo['apuntes']! as List<Object?>;
       return RespuestaFalsa(200, {
         'resultados': [
           for (final a in apuntes)
@@ -81,18 +85,30 @@ void main() {
     expect(await m.subida.ciclo(), 20);
     expect(
       m.servidor.vistas,
-      hasLength(1),
-      reason: 'veinte apuntes NO son veinte peticiones (caso I1)',
+      hasLength(20),
+      reason:
+          'veinte apuntes son veinte peticiones: una grande que se corta al '
+          '90 % no deja nada arriba',
+    );
+    expect(
+      mandados.map((c) => (c['apuntes']! as List<Object?>).length).toSet(),
+      {1},
+      reason: 'uno por peticion, ni dos ni cero',
     );
     // El identificador es el que dio el SERVIDOR en el alta, no uno inventado
     // aqui: uno inventado por el telefono podria repetirse entre dos
     // instalaciones y entonces dos aparatos compartirian cola y claves de
     // idempotencia (`sync/internal/sincro/aparato.go`).
-    expect(mandado['aparato'], '9f3a0d2e-0000-4000-8000-000000000001');
-    final apuntes = mandado['apuntes']! as List<Object?>;
+    expect(mandados.map((c) => c['aparato']).toSet(), {
+      '9f3a0d2e-0000-4000-8000-000000000001',
+    });
     expect(
-      apuntes.map((a) => (a! as Map<String, Object?>)['ruta']).take(3).toList(),
-      ['/api/x/1', '/api/x/2', '/api/x/3'],
+      [
+        for (final c in mandados)
+          ((c['apuntes']! as List<Object?>).single as Map<String, Object?>)['ruta'],
+      ],
+      [for (var i = 1; i <= 20; i++) '/api/x/$i'],
+      reason: 'y EN ORDEN: al reves, la correccion de una parada se pierde',
     );
     expect(await cola.lote(), isEmpty);
   });

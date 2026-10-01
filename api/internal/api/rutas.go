@@ -495,7 +495,15 @@ const (
 // avisarCambio publica «algo cambió en rutas» para que las pantallas abiertas se enteren.
 // Mientras no haya Redis no hace nada, y por eso NO devuelve error: una ruta no se deja de
 // crear porque el aviso no salga.
-var avisarCambioDeRutas = func(_ context.Context) {}
+//
+// LA SUCURSAL SE LA PASA EL MANEJADOR, LEÍDA DE `routes.branch_id` — 01/10/2026. Antes la
+// sacaba el bus del alcance de quien llamó, y para quien ve las ocho eso es «de todas»: una
+// ruta de Santiago mandaba a las otras siete a bajarse su lista de rutas. El porqué entero,
+// en `eventos.go` encima del `init()`.
+//
+// `routes.branch_id` admite nulo, así que se pasa con `deLaFilaPg`: una ruta sin sucursal
+// —no debería haberlas— se avisa a las ocho, que es el lado seguro.
+var avisarCambioDeRutas = func(_ context.Context, _ string) {}
 
 // ---------------------------------------------------------------------------
 // La forma de la respuesta
@@ -1122,7 +1130,8 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.avisarDeFondo(r, avisos)
-	avisarCambioDeRutas(r.Context())
+	// DE LA RUTA QUE SE ACABA DE CREAR, no del alcance de quien la creó.
+	avisarCambioDeRutas(r.Context(), deLaFilaPg(creada.BranchID))
 
 	// El aviso viaja CON la ruta creada, no en su lugar.
 	//
@@ -1300,7 +1309,9 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 	if estado != nil && *estado == sqlc.RouteStatusInProgress {
 		s.avisarDeFondo(r, s.avisosDeLasParadas(r, a, id, estadoEnTransito))
 	}
-	avisarCambioDeRutas(r.Context())
+	// `antes` es la ruta leída al entrar, y la sucursal de una ruta no se cambia nunca: ni
+	// el estado ni el camión la mueven, así que es la misma antes y después.
+	avisarCambioDeRutas(r.Context(), deLaFilaPg(antes.BranchID))
 	s.responderConLaRuta(w, r, a, id, http.StatusOK)
 }
 
@@ -1365,7 +1376,7 @@ func (s *Servidor) cambiarCamionDeRuta(w http.ResponseWriter, r *http.Request, a
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDeRutas(r.Context())
+	avisarCambioDeRutas(r.Context(), deLaFilaPg(antes.BranchID))
 	s.responderConLaRuta(w, r, a, antes.ID, http.StatusOK)
 }
 
@@ -1462,7 +1473,9 @@ func (s *Servidor) borrarRuta(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDeRutas(r.Context())
+	// DE LA RUTA QUE SE FUE. `antes` se leyó al entrar —hace falta para saber si su camión
+	// estaba ocupado—, así que la sucursal está en la mano cuando la fila ya no existe.
+	avisarCambioDeRutas(r.Context(), deLaFilaPg(antes.BranchID))
 	httpx.JSON(w, r, http.StatusOK, map[string]bool{"success": true})
 }
 
@@ -1702,7 +1715,7 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			"ruta", ruta.ID, "avisos", len(avisos), "encolados", encolados,
 			"err", salida.APedido.Error)
 	}
-	avisarCambioDeRutas(r.Context())
+	avisarCambioDeRutas(r.Context(), deLaFilaPg(ruta.BranchID))
 	if encolados > 0 {
 		// Y EL CANAL, porque el cierre acaba de meter filas en el buzón de salida
 		// (`encolarAvisos`) — 29/09/2026. Es la otra mitad de la pregunta que contesta esa

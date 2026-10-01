@@ -117,11 +117,21 @@ class ColaDeSalida {
             ..orderBy([(a) => OrderingTerm.desc(a.orden)]))
           .watch();
 
-  /// El lote que sale en la proxima `POST /sync/subida`.
+  /// LO QUE SALE EN LA PROXIMA VUELTA, en el orden en que se hizo.
   ///
-  /// Veinte apuntes NO son veinte peticiones en paralelo: son una peticion con
-  /// los veinte dentro, en orden. Veinte peticiones a la vez al recuperar la
-  /// senal es justo lo que dispara veinte renovaciones (caso I1).
+  /// Se llama «lote» por historia y **ya no es una peticion**: desde el
+  /// 01/10/2026 la subida manda estos apuntes **uno a uno**, cada peticion
+  /// esperando su respuesta antes de mandar la siguiente, porque una peticion
+  /// grande que se corta al 90 % no deja nada arriba y hay que volver a empezar
+  /// por el primero (`nucleo/sincro/subida.dart`).
+  ///
+  /// Lo que NO cambio: veinte apuntes no son veinte peticiones **en paralelo**.
+  /// Veinte a la vez al recuperar la senal es justo lo que dispara veinte
+  /// renovaciones (caso I1), y eso sigue prohibido. Una detras de otra no es a la
+  /// vez: nunca hay dos de esta cola en vuelo.
+  ///
+  /// El orden es lo que hace que esto se pueda partir en peticiones sueltas sin
+  /// perder nada: sale por `orden` ascendente y se manda en ese mismo orden.
   Future<List<Apunte>> lote({int maximo = 200}) =>
       (_base.select(_base.apuntes)
             ..where((a) => a.estado.equalsValue(EstadoApunte.pendiente))
@@ -259,12 +269,21 @@ class ColaDeSalida {
     );
   }
 
-  /// Cuantos apuntes quedarian pendientes DESPUES de subir un lote de [enElLote].
+  /// Cuantos apuntes quedarian pendientes DESPUES de subir [enElLote] de ellos.
   ///
   /// Va en el cuerpo de `POST /sync/subida` porque la cola vive en el telefono:
   /// lo que no ha subido no existe en el servidor, y sin este numero el panel de
   /// control ensenaria a Palma en verde justo el dia que se le corto la subida a
   /// la mitad (`sync/internal/sincro/subida.go`).
+  ///
+  /// **Con la subida de uno en uno, [enElLote] es 1**, y no el tamano de la cola.
+  /// Lo que ya subio ha dejado de ser `pendiente` en la base, asi que esta cuenta
+  /// ya lo ha descontado; lo unico que falta por descontar es el que va dentro de
+  /// la peticion que se esta armando. Ver `Subida._mandarUno`.
+  ///
+  /// Un rechazado tampoco cuenta, y esta bien: `cuantosPendientes()` no los mira,
+  /// porque no van a subir solos —esperan a que una persona decida— y el servidor
+  /// los lleva por su cuenta en su propio contador (`AnotarSubida`, `rechazados`).
   Future<int> cuantosQuedanTras(int enElLote) async {
     final quedan = await _base.cuantosPendientes() - enElLote;
     return quedan > 0 ? quedan : 0;

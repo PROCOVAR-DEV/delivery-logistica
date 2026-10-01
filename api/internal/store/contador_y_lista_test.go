@@ -163,16 +163,22 @@ func filtrosDe(t *testing.T, sql, nombre string) []string {
 	t.Helper()
 	cuerpo := cuerpoDe(t, sql, nombre)
 
-	i := strings.Index(cuerpo, "\nWHERE")
-	if i < 0 {
+	// EL `WHERE` PUEDE IR SANGRADO, y eso no es cosmético: desde el 01/10/2026 hay consultas
+	// cuyo cuerpo va dentro de un CTE (`WITH puesta AS ( … )`), porque el `RETURNING` de un
+	// `INSERT` no puede nombrar los `FROM` de su propio `SELECT` y hacía falta sacar el
+	// `branch_id` de la columna para el aviso en vivo. Buscando `"\nWHERE"` a secas, esas
+	// consultas contestaban «no tiene WHERE» y **el vigilante se apagaba entero**: no es que
+	// fallara la comprobación, es que ya no comprobaba las guardas de dentro.
+	m := inicioDelWhere.FindStringIndex(cuerpo)
+	if m == nil {
 		t.Fatalf("la consulta %q no tiene WHERE", nombre)
 	}
-	cuerpo = cuerpo[i+len("\nWHERE"):]
-	// Lo que va después del WHERE y no es filtro.
-	for _, corte := range []string{"\nORDER BY", "\nGROUP BY", "\nLIMIT"} {
-		if j := strings.Index(cuerpo, corte); j >= 0 {
-			cuerpo = cuerpo[:j]
-		}
+	cuerpo = cuerpo[m[1]:]
+	// Lo que va después del WHERE y no es filtro. También sangrados, por lo mismo de arriba, y
+	// con los dos que cierran un `INSERT … RETURNING` dentro de un CTE: sin ellos, el
+	// `ON CONFLICT` y el `RETURNING` se pegarían a la última condición y dejarían de casar.
+	if j := finDelWhere.FindStringIndex(cuerpo); j != nil {
+		cuerpo = cuerpo[:j[0]]
 	}
 
 	var condiciones []string
@@ -200,6 +206,15 @@ func filtrosDe(t *testing.T, sql, nombre string) []string {
 	sort.Strings(condiciones)
 	return condiciones
 }
+
+// inicioDelWhere y finDelWhere delimitan el `WHERE` DE UNA CONSULTA, con o sin sangría.
+//
+// `(?m)` para que `^` sea principio de línea y no de texto: así una condición que lleve la
+// palabra `where` dentro de una cadena no abre un `WHERE` falso.
+var (
+	inicioDelWhere = regexp.MustCompile(`(?m)^[ \t]*WHERE`)
+	finDelWhere    = regexp.MustCompile(`(?m)^[ \t]*(ORDER BY|GROUP BY|LIMIT|ON CONFLICT|RETURNING)`)
+)
 
 // Lo que está en `referencia` y no en `esto`.
 func loQueFaltaEn(esto, referencia []string) []string {

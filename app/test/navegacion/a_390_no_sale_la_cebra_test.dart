@@ -36,6 +36,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:reparto/app.dart';
 import 'package:reparto/diseno/banner_de_gesto.dart';
 import 'package:reparto/navegacion/estado_navegacion.dart';
+import 'package:reparto/nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'package:reparto/navegacion/pantalla_registrada.dart';
 import 'package:reparto/navegacion/rutas.dart';
 import 'package:reparto/nucleo/base/base.dart';
@@ -212,6 +213,7 @@ void main() {
           titulo: 'Uno',
           icono: Icons.looks_one_outlined,
           enElMenu: true,
+          colecciones: ColeccionesDePantalla.panel,
           construir: (contexto, estado) => const Text('cuerpo de uno'),
         ),
         PantallaRegistrada(
@@ -219,6 +221,7 @@ void main() {
           titulo: 'Dos',
           icono: Icons.looks_two_outlined,
           enElMenu: true,
+          colecciones: ColeccionesDePantalla.panel,
           construir: (contexto, estado) => const Text('cuerpo de dos'),
         ),
       ];

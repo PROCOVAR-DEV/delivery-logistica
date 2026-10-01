@@ -48,7 +48,14 @@ import (
 // —cambiar el estado, asignar ruta, borrar uno— no los avisaba nadie. Justo al revés de lo
 // que hace falta, porque lo que toca una persona es lo que otra está mirando en ese mismo
 // momento.
-var avisarCambioDePedidos = func(_ context.Context) {}
+//
+// ## LA SUCURSAL SE LA PASA EL MANEJADOR, LEÍDA DE `orders.branch_id` — 01/10/2026
+//
+// Antes la sacaba el bus del alcance, y para quien ve las ocho eso es «de todas». El porqué
+// entero, en `eventos.go` encima del `init()`. Las dos puertas de persona —el `PATCH` y el
+// `DELETE`— tienen la fila delante; la faena del repaso de pesos NO, y ésa sigue saliendo del
+// alcance con su motivo escrito en el sitio.
+var avisarCambioDePedidos = func(_ context.Context, _ string) {}
 
 // Los topes del contrato, con nombre para que se vean en un sitio y no repartidos por los
 // manejadores.
@@ -872,7 +879,9 @@ func (s *Servidor) actualizarPedido(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, err := a.ActualizarPedido(r.Context(), arg)
+	// SE GUARDA LA FILA, aunque la respuesta se arme releyendo: de ella sale la sucursal
+	// del aviso. Era un `_` y por eso el aviso tenía que salir del alcance de quien llamó.
+	tocado, err := a.ActualizarPedido(r.Context(), arg)
 	// Cero filas: o no existe, o es de otra sucursal. Las dos cosas son 404; decir cuál
 	// sólo le sirve a quien está probando qué ids existen.
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -892,7 +901,7 @@ func (s *Servidor) actualizarPedido(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	avisarCambioDePedidos(r.Context())
+	avisarCambioDePedidos(r.Context(), deLaFilaPg(tocado.BranchID))
 	httpx.JSON(w, r, http.StatusOK, salida)
 }
 
@@ -935,16 +944,19 @@ func (s *Servidor) borrarPedido(w http.ResponseWriter, r *http.Request) {
 	// Los renglones se van solos: `order_items.order_id` es una clave ajena con
 	// ON DELETE CASCADE. No hace falta transacción ni borrado previo, y por eso esto es
 	// una sola consulta y no un `EnTx`.
-	filas, err := a.BorrarPedido(r.Context(), id)
+	// DEVUELVE LA SUCURSAL DEL PEDIDO BORRADO, y no el número de filas: el aviso sale de la
+	// fila y la fila ya no existe cuando se avisa. `pgx.ErrNoRows` es el «no existe o no es
+	// de tu sucursal» que antes era `filas == 0`, o sea el mismo 404.
+	sucursalDelBorrado, err := a.BorrarPedido(r.Context(), id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+		return
+	}
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	if filas == 0 {
-		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
-		return
-	}
-	avisarCambioDePedidos(r.Context())
+	avisarCambioDePedidos(r.Context(), deLaFilaPg(sucursalDelBorrado))
 	httpx.JSON(w, r, http.StatusOK, map[string]bool{"success": true})
 }
 
@@ -1056,7 +1068,15 @@ func (s *Servidor) recalcularPesos(w http.ResponseWriter, r *http.Request) {
 	// aviso ahí manda a todas las pantallas abiertas a volver a pedir la lista para
 	// encontrarla igual; sin nada actualizado tampoco hay nada nuevo que enseñar.
 	if !enSeco && salida.Updated > 0 {
-		avisarCambioDePedidos(r.Context())
+		// AQUÍ SÍ SALE DEL ALCANCE, Y ES EL ÚNICO DE PEDIDOS QUE LO HACE. No hay una fila
+		// de la que leerlo: esto recorre TODO el espejo de una fuente y puede haber
+		// corregido el peso de pedidos de las ocho sucursales en la misma pasada. La única
+		// sucursal honesta es el techo de quien lo lanzó, y cuando ese techo son las ocho
+		// el aviso tiene que llegarles a las ocho — que es exactamente lo que pasa.
+		//
+		// Acotarlo a una sola sería el fallo caro de esta casa: las otras siete pantallas se
+		// quedarían con el peso viejo, sin error y sin nada en ningún registro.
+		avisarCambioDePedidos(r.Context(), sucursalDelAlcance(r.Context()))
 	}
 	httpx.JSON(w, r, http.StatusOK, salida)
 }

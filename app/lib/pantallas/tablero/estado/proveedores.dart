@@ -249,10 +249,10 @@ final camionesProvider = StreamProvider<List<Vehiculo>>((ref) {
 /// tablero que parece vivo y lleva seis horas congelado es peor que uno que
 /// avisa (§6).
 final vistoAtProvider = StreamProvider<DateTime?>(
-  (ref) => ref.watch(frescuraProvider).laMasVieja(const [
-    EsquemaTablero.coleccionColumnas,
-    EsquemaTablero.coleccionColocaciones,
-  ]),
+  // LA MISMA LISTA que declara `registrarTablero()` para la franja de arriba, y
+  // por eso sale de `EsquemaTablero` y no se escribe aqui: dos horas distintas
+  // en la misma ventana es el fallo del 01/10/2026 (§3-bis).
+  (ref) => ref.watch(frescuraProvider).laMasVieja(EsquemaTablero.colecciones),
 );
 
 /// LO QUE PASÓ AL PULSAR «TRAER LO DEL SERVIDOR».
@@ -378,11 +378,11 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
         .where(
           (tipo) => tipo == CambioEnVivo.tablero || tipo == avisoDeQueVolvimos,
         )
-        .listen((_) async {
-          await _traerDelServidor(sucursalId);
-          await refrescar();
-        });
+        // UN AVISO NO ES UNA BAJADA. Se juntan, y la que sale trae el estado
+        // final — el porqué entero, en [_llegoUnAviso] y en [ventanaDeJunta].
+        .listen((_) => _llegoUnAviso(sucursalId));
     ref.onDispose(enVivo.cancel);
+    ref.onDispose(_cerrarLaJunta);
 
     final sub = base
         .tableUpdates(
@@ -547,7 +547,109 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // UN GESTO DE UNA PERSONA NO PUEDE COSTAR CUATRO TABLEROS — 01/10/2026
+  // ---------------------------------------------------------------------
+  //
+  // Medido esta manana en el navegador, con la pagina delante. Por **un solo
+  // gesto** llegaron cuatro avisos de tipo `tablero` en 32 milisegundos:
+  //
+  //     12:59:39.581  {"cuando":"…465Z","tipo":"tablero"}
+  //     12:59:39.606  {"cuando":"…477Z","tipo":"tablero"}
+  //     12:59:39.607  {"cuando":"…489Z","tipo":"tablero"}
+  //     12:59:39.612  {"cuando":"…497Z","tipo":"tablero"}
+  //
+  // Y el cliente contesto con **cuatro `GET /api/board` enteros** en 387 ms:
+  // 39.896 · 40.013 · 40.116 · 40.283. En otra prueba, **dos bajadas de 89.495
+  // bytes en 175 ms**. Eso son cientos de kilobytes de mas contra la conexion de
+  // alla, en cada aparato que tenga el tablero abierto, por un gesto que nadie
+  // repitio.
+  //
+  // El ciclo de sincronizacion ya sabia decir «ya hay uno en vuelo, no se lanza
+  // otro» (`nucleo/sincro/ciclo.dart`); el Tablero no. Aqui estan las dos
+  // mitades que le faltaban.
+
+  /// LO QUE SE ESPERA PARA VER SI DETRAS DE UN AVISO VIENEN MAS. **150 ms.**
+  ///
+  /// El numero sale de lo medido, y de los dos lados:
+  ///
+  ///  * **Por abajo**, la racha entera cabia en **32 ms** —los cuatro avisos de
+  ///    arriba—. 150 ms la cubren con casi cinco veces de margen, que es lo que
+  ///    hace falta para que un gesto que toca varias cosas salga en UNA bajada y
+  ///    no en una por aviso.
+  ///  * **Por arriba**, el aviso ya tarda de 91 a 153 ms en llegar desde que el
+  ///    servidor lo manda. Esperar 150 ms mas deja el tablero al dia en ~250-300
+  ///    ms, que sigue siendo «al momento» para quien esta mirando. Medio segundo
+  ///    —que fue lo primero que se penso— ya no: eso es cambiar un problema por
+  ///    otro, y el tablero es la pantalla del dia del logistico.
+  ///
+  /// Y la comparacion que de verdad cierra el numero: la bajada que se ahorra son
+  /// **89.495 bytes**, que por la conexion de alla tardan mucho mas de 150 ms en
+  /// bajar. O sea que la ventana se paga a si misma hasta cuando el aviso viene
+  /// solo, porque lo que se espera nunca pasa de 150 ms y lo que se quita es una
+  /// foto entera.
+  ///
+  /// **La ventana NO se re-arma con cada aviso.** El primero de la racha la abre
+  /// y los demas entran en ella; si se reiniciara, un goteo de avisos cada 100 ms
+  /// la aplazaria para siempre y el tablero no bajaria nunca. El tope de espera
+  /// es este numero y punto.
+  static const ventanaDeJunta = Duration(milliseconds: 150);
+
+  /// La racha de avisos que se esta juntando. `null` = no hay ninguna abierta.
+  Timer? _juntaDeAvisos;
+
+  /// CUANTOS AVISOS DEL CANAL HAN ENTRADO. Es un contador, no una hora.
+  ///
+  /// La pregunta que hay que contestar es «¿la foto que ya se pidio trae este
+  /// aviso dentro?», y eso es un orden de sucesos, no una distancia en minutos.
+  /// Con un reloj habria que fiarse de la hora del aparato —que es justo lo que
+  /// este proyecto ya sabe que no se puede: ver `RelojQueNoCuadra`— y las pruebas
+  /// con el reloj congelado contestarian «si» a todo. Un contador no tiene
+  /// ninguno de los dos problemas.
+  int _avisosLlegados = 0;
+
+  /// Los avisos que ya tenia contados la ultima bajada **cuando empezo**.
+  ///
+  /// Una bajada que empieza DESPUES de que un aviso haya entrado trae ese cambio
+  /// dentro: la peticion sale despues, asi que el servidor la contesta con lo que
+  /// ya habia cuando mando el aviso. Eso es lo que convierte «no se lanza otra»
+  /// en algo seguro y no en descartar un cambio.
+  ///
+  /// Arranca en `-1` y no en `0` porque `0` significaria que la foto que nadie ha
+  /// pedido todavia ya cubre el primer aviso.
+  int _avisosQueYaCubreLaFoto = -1;
+
+  /// LLEGO UN AVISO DEL CANAL. Abre la racha, o se mete en la que ya hay.
+  void _llegoUnAviso(String sucursalId) {
+    _avisosLlegados++;
+    // Ya hay una racha abierta: este aviso entra en ella y no arma otra espera.
+    if (_juntaDeAvisos != null) return;
+    _juntaDeAvisos = Timer(ventanaDeJunta, () async {
+      _juntaDeAvisos = null;
+      // El aviso puede llegar cuando la pantalla ya se fue.
+      if (!ref.mounted) return;
+      // Lo que esta racha tiene que traer dentro: TODO lo que haya entrado hasta
+      // este instante, no solo el aviso que la abrio.
+      await _traerDelServidor(sucursalId, cubrirHasta: _avisosLlegados);
+      if (!ref.mounted) return;
+      await refrescar();
+    });
+  }
+
+  void _cerrarLaJunta() {
+    _juntaDeAvisos?.cancel();
+    _juntaDeAvisos = null;
+  }
+
+  /// LA BAJADA QUE ESTA EN VUELO, si la hay. El candado, igual que el del ciclo.
+  Future<void>? _bajadaEnVuelo;
+
   /// Trae la foto del servidor y **se queda con el porque si no se pudo**.
+  ///
+  /// [cubrirHasta] es el numero de avisos que esta bajada tiene que traer dentro;
+  /// `null` es «baja igual, sin preguntar», y es lo que pasan el abrir la
+  /// pantalla, el cambio de sucursal y los dos reintentos — esos no vienen de un
+  /// aviso y no se pueden juntar con nada.
   ///
   /// ## Lo que se traga y lo que NO — 17/09/2026
   ///
@@ -565,7 +667,50 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
   ///
   /// Ninguna de esas tres puede impedir ver el tablero: lo que hay en el aparato
   /// se pinta igual, y lo que pasó se DICE arriba.
-  Future<void> _traerDelServidor(String sucursalId) async {
+  Future<void> _traerDelServidor(String sucursalId, {int? cubrirHasta}) async {
+    // YA HAY UNA EN VUELO.
+    final enVuelo = _bajadaEnVuelo;
+    if (enVuelo != null) {
+      // Y empezo DESPUES de estos avisos, asi que los trae dentro. Se espera a
+      // esa y no se pide otra: es el caso de los cuatro avisos pegados.
+      if (cubrirHasta != null && _avisosQueYaCubreLaFoto >= cubrirHasta) {
+        Registro.info(
+          'tablero: ya hay una bajada en vuelo que trae estos avisos; '
+          'no se pide otra',
+        );
+        return enVuelo;
+      }
+      // JUNTAR NO ES DESCARTAR. La que va empezo ANTES de este aviso, asi que
+      // NO lo trae: se espera a que acabe y se pide UNA detras —una, no una por
+      // aviso—. Sin esto, un cambio que llega con la bajada a medio camino se
+      // perderia hasta que alguien pulse el refresco: esta pantalla no se vuelve
+      // a pedir sola nunca.
+      await enVuelo;
+      if (!ref.mounted) return;
+      return _traerDelServidor(sucursalId, cubrirHasta: cubrirHasta);
+    }
+    // No hay ninguna en vuelo, pero **acaba de haber una** y empezo despues de
+    // estos avisos: ya esta todo dentro.
+    if (cubrirHasta != null && _avisosQueYaCubreLaFoto >= cubrirHasta) {
+      Registro.info(
+        'tablero: la última bajada ya trae estos avisos; no se pide otra',
+      );
+      return;
+    }
+    // Se apunta ANTES de pedir, y con lo que hay AHORA: todo aviso que ya haya
+    // entrado viaja en esta foto.
+    _avisosQueYaCubreLaFoto = _avisosLlegados;
+    final futuro = _bajarLaFoto(sucursalId);
+    _bajadaEnVuelo = futuro;
+    try {
+      await futuro;
+    } finally {
+      if (identical(_bajadaEnVuelo, futuro)) _bajadaEnVuelo = null;
+    }
+  }
+
+  /// La bajada de verdad. No lanza nunca: los cuatro `catch` son el suelo.
+  Future<void> _bajarLaFoto(String sucursalId) async {
     try {
       final r = await ref.read(servicioTableroProvider).descargar(sucursalId);
       // Y si la bajada se NEGO —queda trabajo sin subir—, se dice. Antes se

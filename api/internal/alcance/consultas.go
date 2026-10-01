@@ -120,7 +120,10 @@ func (a *Acotado) ActualizarVehiculo(ctx context.Context, arg sqlc.ActualizarVeh
 	return a.q.ActualizarVehiculo(ctx, arg)
 }
 
-func (a *Acotado) BorrarVehiculo(ctx context.Context, id uuid.UUID) (int64, error) {
+// BorrarVehiculo devuelve LA SUCURSAL DEL CAMIÓN QUE SE FUE, no el número de filas: es de
+// donde sale el aviso en vivo de la flota, y cuando se avisa la fila ya no está. Un
+// `pgx.ErrNoRows` es «no existe o no es de tu sucursal», o sea el 404.
+func (a *Acotado) BorrarVehiculo(ctx context.Context, id uuid.UUID) (pgtype.UUID, error) {
 	return a.q.BorrarVehiculo(ctx, sqlc.BorrarVehiculoParams{ID: id, Sucursal: a.sucursalPg()})
 }
 
@@ -263,7 +266,9 @@ func (a *Acotado) ActualizarPedido(ctx context.Context, arg sqlc.ActualizarPedid
 	return a.q.ActualizarPedido(ctx, arg)
 }
 
-func (a *Acotado) BorrarPedido(ctx context.Context, id uuid.UUID) (int64, error) {
+// BorrarPedido devuelve LA SUCURSAL DEL PEDIDO QUE SE FUE, por lo mismo que
+// `BorrarVehiculo`: el aviso sale de la fila y la fila ya no está. `pgx.ErrNoRows` es el 404.
+func (a *Acotado) BorrarPedido(ctx context.Context, id uuid.UUID) (pgtype.UUID, error) {
 	return a.q.BorrarPedido(ctx, sqlc.BorrarPedidoParams{ID: id, Sucursal: a.sucursalPg()})
 }
 

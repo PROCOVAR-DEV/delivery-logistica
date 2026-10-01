@@ -164,10 +164,11 @@ func (q *Queries) ActualizarPesoDePedido(ctx context.Context, arg ActualizarPeso
 	return err
 }
 
-const borrarPedido = `-- name: BorrarPedido :execrows
+const borrarPedido = `-- name: BorrarPedido :one
 DELETE FROM orders
 WHERE id = $1
   AND ($2::uuid IS NULL OR branch_id = $2::uuid)
+RETURNING branch_id
 `
 
 type BorrarPedidoParams struct {
@@ -175,14 +176,19 @@ type BorrarPedidoParams struct {
 	Sucursal pgtype.UUID `json:"sucursal"`
 }
 
-// :execrows y no :exec: cero filas es «no existe O no es de tu sucursal», que es el 404.
-// Con :exec no hay forma de distinguirlo de un borrado hecho.
-func (q *Queries) BorrarPedido(ctx context.Context, arg BorrarPedidoParams) (int64, error) {
-	result, err := q.db.Exec(ctx, borrarPedido, arg.ID, arg.Sucursal)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// :one y no :exec: «no existe O no es de tu sucursal» es el 404, y con :exec no hay forma
+// de distinguirlo de un borrado hecho. `pgx.ErrNoRows` es ese caso.
+//
+// Y DEVUELVE LA SUCURSAL DEL PEDIDO BORRADO — 01/10/2026. Era `:execrows` y lo único que
+// volvía era el número de filas, así que el aviso en vivo de `pedidos` no tenía de dónde
+// sacar la sucursal y salía del alcance de quien llamó: para un SUPER ADMIN, «de todas», y
+// las ocho sucursales se bajaban la lista de pedidos por un borrado de una sola. La fila ya
+// no está cuando se avisa, así que el dato tiene que venir del propio DELETE.
+func (q *Queries) BorrarPedido(ctx context.Context, arg BorrarPedidoParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, borrarPedido, arg.ID, arg.Sucursal)
+	var branch_id pgtype.UUID
+	err := row.Scan(&branch_id)
+	return branch_id, err
 }
 
 const borrarRenglonesDePedido = `-- name: BorrarRenglonesDePedido :exec

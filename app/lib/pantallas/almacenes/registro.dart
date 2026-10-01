@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
+import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'vista/pantalla_almacenes.dart';
 
 /// Almacenes en el menu.
@@ -17,6 +18,7 @@ PantallaRegistrada registrarAlmacenes() => const PantallaRegistrada(
   titulo: 'Almacenes',
   icono: Icons.warehouse_outlined,
   enElMenu: true,
+  colecciones: ColeccionesDePantalla.almacenes,
   construir: _construir,
 );
 

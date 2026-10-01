@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:reparto/nucleo/base/base.dart';
+import 'package:reparto/nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'package:reparto/nucleo/frescura/reloj_de_datos.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 
@@ -69,6 +69,10 @@ final frescuraClientesProvider = StreamProvider.autoDispose<EstadoFrescura>((
   final reloj = ref.watch(relojProvider);
   return ref
       .watch(frescuraProvider)
-      .laMasVieja(const [Colecciones.clientes, Colecciones.almacenes])
+      // LA MISMA LISTA que declara `registrarClientes()` para la franja de
+      // arriba. Estaba escrita aqui a mano, y dos copias se separan sin que
+      // salte nada: entonces la franja y este reloj dicen dos horas distintas
+      // en la misma ventana (§3-bis).
+      .laMasVieja(ColeccionesDePantalla.clientes)
       .map((bajada) => EstadoFrescura.de(bajada, ahora: reloj()));
 });

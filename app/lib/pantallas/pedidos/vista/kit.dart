@@ -19,13 +19,25 @@ import '../../../diseno/anchos.dart';
 import '../../../diseno/cajon.dart' show AtrasDelCajon;
 import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart';
-import '../../../nucleo/base/base.dart';
 import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/proveedores.dart';
 
 /// La paleta y los anchos de cajon son los de `lib/diseno/`, punto. Se
 /// reexportan para no tocar los `import` de las ocho pantallas que los leen
 /// desde aqui.
+// `ColeccionesDePantalla` SE REEXPORTA y ya no vive aqui — 01/10/2026.
+//
+// Estaba declarada en este fichero «al lado de la barra», y el motivo era bueno.
+// El problema es que la franja de estado del armazon necesita la MISMA lista
+// —desde el arreglo de la frescura por pantalla— y `navegacion/` no puede
+// importar `pantallas/pedidos/`. Dos copias de esa lista se separan sin que salte
+// nada, y entonces la franja de arriba y el reloj de esta pantalla dicen dos
+// horas distintas en la misma ventana (§3-bis).
+//
+// Ahora vive en `nucleo/frescura/colecciones_de_cada_pantalla.dart` y se
+// reexporta desde aqui para que las pantallas que la usan no cambien su `import`.
+export '../../../nucleo/frescura/colecciones_de_cada_pantalla.dart'
+    show ColeccionesDePantalla;
 export '../../../diseno/anchos.dart' show AnchoCajon;
 export '../../../diseno/colores.dart' show Colores;
 
@@ -1026,22 +1038,4 @@ class BarraDeDatos extends ConsumerWidget {
       alPulsarPendientes: alPulsarPendientes,
     );
   }
-}
-
-/// Las colecciones que mira cada pantalla. Se declaran aqui, al lado de la
-/// barra, para que anadir una consulta nueva a una pantalla obligue a pensar si
-/// su frescura cuenta.
-abstract final class ColeccionesDePantalla {
-  static const pedidos = <String>[
-    Colecciones.pedidos,
-    Colecciones.renglones,
-    Colecciones.productos,
-  ];
-
-  static const rutas = <String>[
-    Colecciones.rutas,
-    Colecciones.pedidos,
-    Colecciones.vehiculos,
-    Colecciones.almacenes,
-  ];
 }

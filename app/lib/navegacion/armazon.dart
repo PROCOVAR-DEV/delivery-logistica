@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../diseno/anchos.dart';
+import '../nucleo/base/base.dart';
 import '../nucleo/plataforma.dart';
 import 'aviso_de_version_nueva.dart';
 import 'barra_lateral.dart';
@@ -139,7 +140,18 @@ class Armazon extends ConsumerWidget {
                 // datos: con la version vieja, la hora puede estar bien y la
                 // pantalla seguir mintiendo.
                 const AvisoDeVersionNueva(),
-                if (hayDiaQueTraer) const FranjaDeEstado(),
+                // LA FRANJA SE MIDE CONTRA LO QUE ESTA PANTALLA USA, no
+                // contra la copia entera. El armazon es el unico que sabe en
+                // que pantalla estamos, asi que es el que se lo pasa; el porque
+                // entero, en `FranjaDeEstado.colecciones`.
+                //
+                // Una ruta que no esta en el registro —no deberia haberla— se
+                // queda con las nueve, que es la medida mas vieja posible y por
+                // tanto el lado seguro.
+                if (hayDiaQueTraer)
+                  FranjaDeEstado(
+                    colecciones: actual?.colecciones ?? Colecciones.todas,
+                  ),
                 Expanded(child: child),
               ],
             );

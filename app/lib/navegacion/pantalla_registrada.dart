@@ -26,6 +26,9 @@ import 'package:go_router/go_router.dart';
 ///           titulo: 'Pedidos',              // literal de la barra superior
 ///           icono: Icons.inventory_2_outlined,
 ///           enElMenu: true,
+///           // DE QUE HORA SON LOS DATOS DE ESTA PANTALLA. Obligatorio y sin
+///           // valor por defecto: ver [PantallaRegistrada.colecciones].
+///           colecciones: ColeccionesDePantalla.pedidos,
 ///           construir: (contexto, estado) => const PantallaPedidos(),
 ///         );
 ///     ```
@@ -55,6 +58,7 @@ class PantallaRegistrada {
     required this.ruta,
     required this.titulo,
     required this.construir,
+    required this.colecciones,
     this.icono,
     this.enElMenu = false,
     this.soloParaRoles = const <String>[],
@@ -69,6 +73,32 @@ class PantallaRegistrada {
   final String titulo;
 
   final ConstructorDePantalla construir;
+
+  /// LAS COLECCIONES QUE ESTA PANTALLA USA. Contra ellas se mide la franja de
+  /// arriba, y **sólo contra ellas**.
+  ///
+  /// Sale de `ColeccionesDePantalla`
+  /// (`nucleo/frescura/colecciones_de_cada_pantalla.dart`), que es donde viven
+  /// las listas y el caso del 01/10/2026 que las trajo: la franja decia «Datos de
+  /// las 8:46» con el Tablero al dia a las 9:07, porque se medía contra las NUEVE
+  /// colecciones y una de ellas —`almacenes`— se refresca sola una vez por hora.
+  ///
+  /// **OBLIGATORIO Y SIN VALOR POR DEFECTO, a proposito.** Un defecto —cualquiera
+  /// de los dos: las nueve, o ninguna— deja a la pantalla nueva midiendo contra
+  /// algo que no es lo suyo **sin que nada falle**, que es exactamente el modo de
+  /// fallo que esto viene a cerrar. Asi, quien anada una pantalla no tiene la
+  /// opcion de olvidarlo: no compila.
+  ///
+  /// Si una pantalla de verdad no pinta nada de la copia —la puerta de acceso,
+  /// Sincronizacion, el canal con PEDIDO, el mapa— eso se declara, y se declara
+  /// con nombre: `ColeccionesDePantalla.ninguna`. Es una decision escrita, no un
+  /// hueco (§4: «borrar no es decidir»).
+  ///
+  /// La lista lleva **todo** lo que alimenta algo de lo que se ve, aunque sea un
+  /// dato de al lado. Quedarse corto hace que la franja se diga **mas fresca de
+  /// lo que esta**, y ése es el único lado del que este aviso no puede
+  /// equivocarse.
+  final List<String> colecciones;
 
   /// El icono de la barra lateral. Solo hace falta si [enElMenu].
   final IconData? icono;

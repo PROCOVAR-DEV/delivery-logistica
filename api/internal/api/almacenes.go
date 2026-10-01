@@ -46,7 +46,14 @@ import (
 // LOS ORÍGENES (`/api/origins`) NO AVISAN, y no es un olvido: ninguna pantalla de la
 // aplicación los pide —se comprobó buscando `origins` en `app/lib` el 17/09/2026—. Son
 // herencia del front de delivery. El día que una pantalla los enseñe, aquí va su aviso.
-var avisarCambioDeAlmacenes = func(_ context.Context) {}
+//
+// LA SUCURSAL SE LA PASA EL MANEJADOR — 01/10/2026. Antes la sacaba el bus del alcance, y
+// para un SUPER ADMIN eso es «de todas»: mover el punto del almacén de Santiago mandaba a las
+// otras siete a pedir `GET /api/almacenes` por nada. Aquí la sucursal es la del CÓDIGO que
+// viene en el cuerpo (`{codigo, almacenes}`), que es lo que se acaba de guardar, y ese código
+// **ya se comprobó** contra las sucursales que esta persona puede ver — si no, se salió con
+// un 403 antes de llegar al aviso. El porqué entero, en `eventos.go` encima del `init()`.
+var avisarCambioDeAlmacenes = func(_ context.Context, _ string) {}
 
 // PUNTOS DE PARTIDA (/api/origins) y ALMACENES (/api/almacenes). Dos cosas parecidas que
 // NO son la misma, y por eso están juntas aquí donde se ve la diferencia:
@@ -464,9 +471,15 @@ func (s *Servidor) guardarAlmacenes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	puede := false
+	// Y DE PASO SU UUID, que es de donde sale la sucursal del aviso: el cuerpo trae el código
+	// (`STG`) y el bus reparte por uuid. Se coge de la MISMA fila que concede el permiso, no
+	// de una segunda consulta: así no hay forma de que el aviso hable de una sucursal distinta
+	// de la que se autorizó.
+	var sucursalDeLosAlmacenes uuid.UUID
 	for _, v := range visibles {
 		if v.ExternalID != nil && strings.TrimSpace(*v.ExternalID) == codigo {
 			puede = true
+			sucursalDeLosAlmacenes = v.ID
 			break
 		}
 	}
@@ -504,7 +517,7 @@ func (s *Servidor) guardarAlmacenes(w http.ResponseWriter, r *http.Request) {
 	// DESPUÉS de que Accesos lo haya aceptado, nunca antes: si contestó un error ya se
 	// salió con el 502 de arriba, y avisar de lo que no se guardó manda a todas las
 	// pantallas abiertas a pedir la lista para encontrarla igual.
-	avisarCambioDeAlmacenes(r.Context())
+	avisarCambioDeAlmacenes(r.Context(), deLaFila(sucursalDeLosAlmacenes))
 	httpx.JSON(w, r, http.StatusOK, respuesta)
 }
 

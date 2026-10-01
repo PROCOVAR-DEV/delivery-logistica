@@ -8,6 +8,7 @@ import 'package:reparto/navegacion/barra_superior.dart';
 import 'package:reparto/navegacion/estado_navegacion.dart';
 import 'package:reparto/navegacion/franja_de_estado.dart';
 import 'package:reparto/navegacion/menu_de_cuenta.dart';
+import 'package:reparto/nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'package:reparto/navegacion/pantalla_registrada.dart';
 import 'package:reparto/navegacion/rutas.dart';
 import 'package:reparto/nucleo/base/base.dart';
@@ -17,12 +18,19 @@ import '../apoyo/base_de_prueba.dart';
 
 /// Dos pantallas de mentira: el armazon se prueba solo, sin arrastrar el Panel
 /// ni los Informes a un test de navegacion.
+///
+/// `colecciones: panel` —o sea las nueve— porque es lo que mide la franja cuando
+/// nadie recorta nada, y es con lo que estan escritas las comprobaciones de aqui
+/// («Sin descargar todavia» sobre una base vacia). Lo que una pantalla de verdad
+/// declara y lo que la franja hace con ello se prueba aparte, en
+/// `test/nucleo/frescura/la_franja_mide_lo_de_su_pantalla_test.dart`.
 List<PantallaRegistrada> _dePrueba() => <PantallaRegistrada>[
   PantallaRegistrada(
     ruta: '/uno',
     titulo: 'Uno',
     icono: Icons.looks_one_outlined,
     enElMenu: true,
+    colecciones: ColeccionesDePantalla.panel,
     construir: (contexto, estado) => const Text('cuerpo de uno'),
   ),
   PantallaRegistrada(
@@ -30,11 +38,17 @@ List<PantallaRegistrada> _dePrueba() => <PantallaRegistrada>[
     titulo: 'Dos',
     icono: Icons.looks_two_outlined,
     enElMenu: true,
+    // ESTA DECLARA OTRA LISTA a proposito, y es lo unico que permite comprobar
+    // que el armazon le pasa a la franja las colecciones **de la pantalla en la
+    // que se esta**. Con las dos iguales, esa prueba saldria verde con el cable
+    // cortado.
+    colecciones: ColeccionesDePantalla.clientes,
     construir: (contexto, estado) => const Text('cuerpo de dos'),
   ),
   PantallaRegistrada(
     ruta: '/escondida',
     titulo: 'Escondida',
+    colecciones: ColeccionesDePantalla.panel,
     construir: (contexto, estado) => const Text('cuerpo escondido'),
   ),
 ];
@@ -153,6 +167,47 @@ void main() {
     await montar(tester, const Size(390, 800));
     expect(find.byType(FranjaDeEstado), findsOneWidget);
     expect(find.text('Sin descargar todavía'), findsOneWidget);
+    await desmontar(tester);
+  });
+
+  /// LA FRANJA SE MIDE CONTRA LAS COLECCIONES DE SU PANTALLA — 01/10/2026.
+  ///
+  /// El armazon es el unico que sabe en que pantalla estamos, asi que es el que
+  /// se lo pasa. Si ese cable se corta, la franja se queda con su valor por
+  /// defecto —las nueve— y vuelve el caso de aquel dia: «Datos de las 8:46»
+  /// encima de una pantalla al dia a las 9:07, porque los almacenes se refrescan
+  /// una vez por hora a proposito.
+  ///
+  /// Se comprueba en las DOS pantallas y navegando de una a otra: con una sola,
+  /// cualquier valor fijo pasaria.
+  testWidgets('la franja recibe las colecciones de la pantalla que hay debajo', (
+    tester,
+  ) async {
+    await montar(tester, const Size(1440, 900));
+
+    List<String> loQueMideLaFranja() => tester
+        .widget<FranjaDeEstado>(find.byType(FranjaDeEstado))
+        .colecciones;
+
+    expect(
+      loQueMideLaFranja(),
+      ColeccionesDePantalla.panel,
+      reason: '/uno declara las nueve',
+    );
+
+    await tester.tap(find.text('Dos'));
+    await tester.pumpAndSettle();
+    expect(find.text('cuerpo de dos'), findsOneWidget);
+
+    expect(
+      loQueMideLaFranja(),
+      ColeccionesDePantalla.clientes,
+      reason:
+          'la franja se quedo midiendo lo de la pantalla anterior —o lo de todas—: '
+          'el armazon no le esta pasando `PantallaRegistrada.colecciones`, y '
+          'entonces la hora de arriba no es la de lo que se esta viendo',
+    );
+
     await desmontar(tester);
   });
 

@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:reparto/app.dart';
 import 'package:reparto/navegacion/aviso_de_version_nueva.dart';
+import 'package:reparto/nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'package:reparto/navegacion/pantalla_registrada.dart';
 import 'package:reparto/navegacion/rutas.dart';
 import 'package:reparto/nucleo/actualizacion/comprobador.dart';
@@ -54,6 +55,7 @@ void main() {
       titulo: 'Uno',
       icono: Icons.looks_one_outlined,
       enElMenu: true,
+      colecciones: ColeccionesDePantalla.panel,
       construir: (contexto, estado) => const Text('cuerpo de uno'),
     ),
     PantallaRegistrada(
@@ -61,6 +63,7 @@ void main() {
       titulo: 'Dos',
       icono: Icons.looks_two_outlined,
       enElMenu: true,
+      colecciones: ColeccionesDePantalla.panel,
       construir: (contexto, estado) => const Text('cuerpo de dos'),
     ),
   ];

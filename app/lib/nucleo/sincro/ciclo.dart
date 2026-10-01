@@ -377,8 +377,16 @@ class CicloDeSincronizacion {
       }
 
       // 3 · SUBIR la cola, con el token ya fresco.
+      //
+      // SE CUENTA SEGUN SUBEN, no al final. La subida va de uno en uno
+      // (`subida.dart`, 01/10/2026), asi que un corte a mitad de cola deja
+      // apuntes arriba y lanza: con `subidos = await ...` a secas, esa
+      // asignacion no llega a pasar y el cajon de «Entregar el dia» pintaria
+      // «Subieron 0 apuntes» encima de dos que SI subieron. El `quedan` de esa
+      // misma pantalla sale de la base y diria la verdad, asi que las dos
+      // mitades del mismo cartel se contradirian.
       _alAvanzar?.call(const AvanceDelCiclo(PasoDelCiclo.subir));
-      subidos = await _subida.ciclo();
+      subidos = await _subida.ciclo(alSubirUno: (van) => subidos = van);
       pasos.add(PasoDelCiclo.subir);
 
       // 4 · BAJAR las diferencias, ya sin nada del aparato pendiente que pisar.

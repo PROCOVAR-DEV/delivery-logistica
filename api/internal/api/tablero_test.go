@@ -500,29 +500,33 @@ func (q *tableroFalso) BorrarColumna(_ context.Context, arg sqlc.BorrarColumnaPa
 	return 1, nil
 }
 
-func (q *tableroFalso) ColocarPedido(_ context.Context, arg sqlc.ColocarPedidoParams) (sqlc.BoardPlacement, error) {
+// Y DEVUELVE `BranchID`, el de la COLUMNA, igual que el `JOIN` del CTE de verdad. Sin él
+// este doble no podría cazar un aviso que saliera pelado: la sucursal del aviso de colocar
+// una tarjeta sale de aquí, y un cero se leería como «de todas» y pasaría por bueno.
+func (q *tableroFalso) ColocarPedido(_ context.Context, arg sqlc.ColocarPedidoParams) (sqlc.ColocarPedidoRow, error) {
 	p, ok := q.pedidos[arg.PedidoID]
 	c, ok2 := q.columnas[arg.ColumnaID]
 	// Las condiciones del `WHERE` del INSERT de verdad. La de `delivered_at` es la que
 	// `route_id IS NULL` no cubre: un entregado cuya ruta se borró está suelto.
 	if !ok || !ok2 || p.sucursal != c.BranchID || p.ruta != nil || p.entregado {
-		return sqlc.BoardPlacement{}, pgx.ErrNoRows
+		return sqlc.ColocarPedidoRow{}, pgx.ErrNoRows
 	}
 	if arg.Sucursal.Valid && c.BranchID != uuid.UUID(arg.Sucursal.Bytes) {
-		return sqlc.BoardPlacement{}, pgx.ErrNoRows
+		return sqlc.ColocarPedidoRow{}, pgx.ErrNoRows
 	}
 	// La única de (columna, posición): si ya hay OTRA tarjeta en ese sitio, la base
 	// revienta. Es lo que prueba que el manejador abre hueco antes de soltar.
 	for ped, col := range q.colocadas {
 		if ped != arg.PedidoID && col.columna == arg.ColumnaID && col.posicion == arg.Posicion {
-			return sqlc.BoardPlacement{}, &pgconn.PgError{Code: "23505", ConstraintName: "board_placements_posicion_unica"}
+			return sqlc.ColocarPedidoRow{}, &pgconn.PgError{Code: "23505", ConstraintName: "board_placements_posicion_unica"}
 		}
 	}
 	q.colocadas[arg.PedidoID] = colocacion{arg.ColumnaID, arg.Posicion}
-	return sqlc.BoardPlacement{
+	return sqlc.ColocarPedidoRow{
 		OrderID: arg.PedidoID, ColumnID: arg.ColumnaID, Posicion: arg.Posicion,
 		ColocadoPor: arg.ColocadoPor,
 		ColocadoAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		BranchID:    c.BranchID,
 	}, nil
 }
 
@@ -565,7 +569,12 @@ func (q *tableroFalso) QuitarPedidoDelTablero(_ context.Context, arg sqlc.Quitar
 		return sqlc.QuitarPedidoDelTableroRow{}, pgx.ErrNoRows
 	}
 	delete(q.colocadas, arg.PedidoID)
-	return sqlc.QuitarPedidoDelTableroRow{OrderID: arg.PedidoID, ColumnID: c.columna, Posicion: c.posicion}, nil
+	// `BranchID` sale de la COLUMNA, como el `JOIN` de la consulta de verdad: es la sucursal
+	// con la que se publica el aviso de que la tarjeta se quitó.
+	return sqlc.QuitarPedidoDelTableroRow{
+		OrderID: arg.PedidoID, ColumnID: c.columna, Posicion: c.posicion,
+		BranchID: q.columnas[c.columna].BranchID,
+	}, nil
 }
 
 // ObtenerVehiculo repite el `WHERE` de `vehicles.sql`: con alcance salen los de esa

@@ -86,7 +86,20 @@ func (s *Servidor) rutasTablero(rt *httpx.Router, sesion, admin []httpx.Medio) {
 // `tablero` ya NO está en `tiposFrenados` (`eventos.go`): cada gesto sale en el acto, y sí,
 // doce tarjetas son doce avisos. Es lo que se pidió — esta pantalla es la que dos personas
 // miran a la vez.
-var avisarCambioDelTablero = func(_ context.Context) {}
+//
+// # LA SUCURSAL SE LA PASA EL MANEJADOR, LEÍDA DE LA FILA — 01/10/2026
+//
+// Antes no llevaba ninguna y el bus la sacaba del alcance de quien llamó. Eso dejaba el
+// aviso PELADO —y por tanto «de todas», o sea una bajada del tablero entero en las otras
+// siete— en los dos casos que más se dan aquí: quien ve las ocho (SUPER ADMIN) y cualquier
+// apunte que suba por la cola del teléfono, porque el sincronizador no reenvía
+// `X-Sucursal-Id`. Medido en producción el 01/10/2026 a las 13:07:54 UTC.
+//
+// Los siete manejadores de este fichero tienen la sucursal delante sin preguntar nada: o es
+// `t.sucursal` —la del tablero que se está tocando, ya comprobada contra el alcance en
+// `tableroDe`— o es el `BranchID` de la propia fila que se acaba de escribir, leer o borrar.
+// El porqué entero está en `eventos.go`, encima del `init()`.
+var avisarCambioDelTablero = func(_ context.Context, _ string) {}
 
 // ---------------------------------------------------------------------------
 // Mensajes literales del tablero
@@ -774,7 +787,9 @@ func (s *Servidor) crearColumna(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDelTablero(r.Context())
+	// DE LA FILA, no del alcance: la zona se acaba de escribir con `BranchID: t.sucursal`
+	// tres líneas más arriba, así que la sucursal del aviso es la que lleva dentro.
+	avisarCambioDelTablero(r.Context(), deLaFila(fila.BranchID))
 	httpx.JSON(w, r, http.StatusCreated, deColumnaPelada(fila))
 }
 
@@ -828,7 +843,7 @@ func (s *Servidor) actualizarColumna(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDelTablero(r.Context())
+	avisarCambioDelTablero(r.Context(), deLaFila(fila.BranchID))
 	httpx.JSON(w, r, http.StatusOK, deColumnaPelada(fila))
 }
 
@@ -894,7 +909,10 @@ func (s *Servidor) reordenarColumnas(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDelTablero(r.Context())
+	// `t.sucursal` y no el alcance: es el tablero que se acaba de reordenar, y el propio
+	// SQL sólo movió columnas de ESA sucursal (`ReordenarColumnas` filtra por `branch_id`),
+	// así que no hay otra que pueda haber cambiado.
+	avisarCambioDelTablero(r.Context(), deLaFila(t.sucursal))
 	httpx.JSON(w, r, http.StatusOK, map[string]any{
 		"reordenadas": n,
 		"columnas":    deColumnas(columnas),
@@ -1007,7 +1025,11 @@ func (s *Servidor) borrarColumna(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDelTablero(r.Context())
+	// DE LA COLUMNA QUE SE FUE. Se leyó arriba con `ObtenerColumna` —hace falta de todos
+	// modos para poder decir ««Centro» tiene 8 pedidos puestos»—, así que la sucursal está
+	// en la mano sin una consulta más, y eso es lo que importa aquí: cuando se avisa, la
+	// fila ya no existe.
+	avisarCambioDelTablero(r.Context(), deLaFila(columna.BranchID))
 	httpx.JSON(w, r, http.StatusOK, map[string]any{"success": true, "movidos": dentro})
 }
 
@@ -1081,7 +1103,7 @@ func (s *Servidor) colocarPedido(w http.ResponseWriter, r *http.Request) {
 		posicion = *c.Posicion
 	}
 
-	var puesto sqlc.BoardPlacement
+	var puesto sqlc.ColocarPedidoRow
 	err = a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
 		// 1. De donde estuviera. `pgx.ErrNoRows` aquí es lo NORMAL: el pedido venía de
 		//    la mitad izquierda y no estaba puesto en ninguna parte.
@@ -1137,7 +1159,11 @@ func (s *Servidor) colocarPedido(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDelTablero(r.Context())
+	// LA SUCURSAL VIENE DENTRO DE LA TARJETA COLOCADA. `board_placements` no tiene
+	// `branch_id` —cuelga de la columna—, así que `ColocarPedido` devuelve el de
+	// `board_columns` en la MISMA sentencia que escribe (ver su SQL): una lectura aparte
+	// sería una segunda versión de los hechos.
+	avisarCambioDelTablero(r.Context(), deLaFila(puesto.BranchID))
 	httpx.JSON(w, r, http.StatusOK, map[string]any{
 		"pedidoId":   puesto.OrderID,
 		"columnaId":  puesto.ColumnID,
@@ -1227,6 +1253,11 @@ func (s *Servidor) quitarPedidoDelTablero(w http.ResponseWriter, r *http.Request
 	}
 
 	quitado := false
+	// La sucursal de la tarjeta que se quitó, para el aviso. Se queda vacía cuando no había
+	// nada que quitar —quitar dos veces lo que ya no está es reaplicable y no es un error—,
+	// y entonces el aviso sale global, que es el lado seguro: el reintento de un lote no
+	// puede dejar una pantalla vieja.
+	var sucursalDeLaTarjeta string
 	err := a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
 		fila, err := tx.QuitarPedidoDelTablero(r.Context(), pedido)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1236,6 +1267,7 @@ func (s *Servidor) quitarPedidoDelTablero(w http.ResponseWriter, r *http.Request
 			return err
 		}
 		quitado = true
+		sucursalDeLaTarjeta = deLaFila(fila.BranchID)
 		// Cerrar el hueco no es imprescindible —el orden se lee, no se cuenta— pero sin
 		// ello las posiciones se van separando hasta que un día alguien lee «la parada
 		// número 47» de una columna de nueve.
@@ -1246,7 +1278,7 @@ func (s *Servidor) quitarPedidoDelTablero(w http.ResponseWriter, r *http.Request
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDelTablero(r.Context())
+	avisarCambioDelTablero(r.Context(), sucursalDeLaTarjeta)
 	httpx.JSON(w, r, http.StatusOK, map[string]any{"success": true, "quitado": quitado})
 }
 
@@ -1757,8 +1789,12 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	// Eso deja de ser verdad en cuanto el aviso se afine —que es justo lo que pide el plan,
 	// «por tablero no puede actualizarse cada vez que se haga algo en rutas»— y entonces
 	// esta pantalla se queda vieja sin que nadie sepa por qué.
-	avisarCambioDeRutas(r.Context())
-	avisarCambioDelTablero(r.Context())
+	//
+	// Y LAS DOS CON LA SUCURSAL DE LA COLUMNA, que es la misma con la que nació la ruta
+	// (`CrearRutaParams{… BranchID: pgDe(columna.BranchID)}`, aquí arriba): la zona y la
+	// ruta que sale de ella son de la misma sucursal por construcción.
+	avisarCambioDeRutas(r.Context(), deLaFila(columna.BranchID))
+	avisarCambioDelTablero(r.Context(), deLaFila(columna.BranchID))
 
 	httpx.JSON(w, r, http.StatusCreated, map[string]any{
 		"id":          ruta.ID,

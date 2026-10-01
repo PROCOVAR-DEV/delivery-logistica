@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
+import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'vista/pantalla_rutas.dart';
 
 export 'vista/pantalla_rutas.dart' show PantallaRutas;
@@ -22,6 +23,7 @@ PantallaRegistrada registrarRutas() => const PantallaRegistrada(
   titulo: 'Rutas',
   icono: Icons.route_outlined,
   enElMenu: true,
+  colecciones: ColeccionesDePantalla.rutas,
   construir: _construir,
 );
 

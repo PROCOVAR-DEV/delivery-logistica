@@ -383,7 +383,20 @@ class _Filtros extends ConsumerWidget {
   }
 }
 
-class _Fecha extends StatelessWidget {
+/// EL «HOY» SALE DEL RELOJ DE LA APLICACION, NO DE `DateTime.now()` — 01/10/2026.
+///
+/// `CampoDeFecha` abre el calendario por el mes de hoy, y si no se le dice cual
+/// es, lo pregunta el solo. Eso convierte a esta pantalla en una que **cambia de
+/// mes sola al cambiar el dia**, y su prueba en una que **se pudre con el
+/// calendario**: pulsaba el dia 20 esperando «20/9/2026», y el 1 de octubre
+/// empezo a salir «20/10/2026». Rojo sin que nadie tocara una linea.
+///
+/// Lo avisaba el propio `rango_de_fechas.dart`: «en una prueba serian un mes
+/// distinto cada vez que pase». Estaba el parametro y no se usaba.
+///
+/// Con el reloj de la aplicacion por medio, una prueba lo congela y la pantalla
+/// se comporta igual el dia 1 que el 31.
+class _Fecha extends ConsumerWidget {
   const _Fecha({
     required this.etiqueta,
     required this.valor,
@@ -395,7 +408,7 @@ class _Fecha extends StatelessWidget {
   final ValueChanged<DateTime?> alElegir;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // EL CALENDARIO DE LA CASA, no `showDatePicker`.
     //
     // `showDatePicker` es una ventana modal centrada, y aquí no hay modales: es
@@ -413,6 +426,7 @@ class _Fecha extends StatelessWidget {
       titulo: etiqueta,
       valor: valor,
       alElegir: alElegir,
+      hoy: ref.watch(relojProvider)(),
     );
 
     if (valor == null) return boton;

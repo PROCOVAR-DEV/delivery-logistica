@@ -332,41 +332,55 @@ func TestElFrenoNoSeCruzaEntreSucursales(t *testing.T) {
 
 // --------------------------------------------------------------------------- la tabla
 
-// QUÉ AVISO LLEVA SUCURSAL Y CUÁL NO. La tabla está escrita en `eventos.go`, encima del
-// `init()`, con el porqué de cada uno; esto la fija para que cambiar de lado uno de los
+// QUÉ AVISO PUEDE LLEVAR SUCURSAL Y CUÁL NO. La tabla está escrita en `eventos.go`, encima
+// del `init()`, con el porqué de cada uno; esto la fija para que cambiar de lado uno de los
 // ganchos obligue a venir aquí — y de paso a leer ese porqué.
 //
-// Los cuatro acotados cuelgan de `branch_id` y sus manejadores pasan todos por `acotado()`.
-// Los cinco globales NO se acotan aunque quien los toque tenga sucursal: lo que cambian lo
-// ven las ocho.
+// LOS SEIS ACOTADOS RECIBEN LA SUCURSAL, no la adivinan — 01/10/2026. Hasta hoy la sacaba el
+// bus del alcance de la petición, y esta prueba comprobaba eso; era justo la mitad que
+// fallaba en producción, porque el alcance de quien ve las ocho es «todas» y entonces el
+// aviso salía pelado. Ahora se les pasa la de la FILA, así que lo que esto fija es otra cosa
+// y más dura: **que el gancho publica la sucursal que le dan, tal cual, sin tocarla**.
+//
+// Los cinco GLOBALES ni la aceptan: su firma no tiene dónde ponerla. Eso no es un descuido,
+// es lo que impide que alguien los acote sin querer y deje a las otras siete sin enterarse de
+// un producto nuevo o de un cambio de tasa.
 func TestLaTablaDeQueAvisoLlevaSucursal(t *testing.T) {
-	casos := []struct {
-		nombre  string
-		gancho  func(context.Context)
-		tipo    string
-		acotado bool
-		porque  string
+	acotados := []struct {
+		nombre string
+		gancho func(context.Context, string)
+		tipo   string
+		porque string
 	}{
-		{"tablero", avisarCambioDelTablero, CambioTablero, true, "board_columns.branch_id"},
-		{"rutas", avisarCambioDeRutas, CambioRutas, true, "routes.branch_id"},
-		{"pedidos", avisarCambioDePedidos, CambioPedidos, true, "orders.branch_id"},
-		{"almacenes", avisarCambioDeAlmacenes, CambioAlmacenes, true, "el alcance impide tocar los de otra"},
-		{"catalogo", avisarCambioDelCatalogo, CambioCatalogo, false,
-			"POST /api/products/sync trae el catálogo de VARIAS sucursales y avisa una vez, " +
-				"y corregir un producto es sólo del SUPER ADMIN"},
+		{"tablero", avisarCambioDelTablero, CambioTablero, "board_columns.branch_id"},
+		{"rutas", avisarCambioDeRutas, CambioRutas, "routes.branch_id"},
+		{"pedidos", avisarCambioDePedidos, CambioPedidos, "orders.branch_id"},
+		{"almacenes", avisarCambioDeAlmacenes, CambioAlmacenes,
+			"el código de sucursal viene en el cuerpo y se comprueba contra las visibles"},
 		// LOS DOS DE LA FLOTA, Y VAN EN LADOS DISTINTOS. Era UN solo gancho global hasta el
 		// 29/09/2026, y por eso dar de alta un camión en Camagüey costaba a las otras siete
 		// una petición de `/api/vehicles` y otra de `/api/settings` para pintar lo mismo.
-		{"vehiculos", avisarCambioDeVehiculos, CambioVehiculos, true,
-			"vehicles.branch_id, y los tres manejadores pasan por acotado()"},
-		{"tipos de vehiculo", avisarCambioDeTiposDeVehiculo, CambioVehiculos, false,
+		{"vehiculos", avisarCambioDeVehiculos, CambioVehiculos, "vehicles.branch_id"},
+		{"clientes", avisarCambioDeClientes, CambioClientes,
+			"la coordenada del cliente es la que ordena las paradas de SU sucursal"},
+		// LA TASA. Mismo tipo que los ajustes globales y acotada: el tipo dice QUÉ volver a
+		// pedir, la sucursal dice A QUIÉN le cambió.
+		{"tasa de una sucursal", avisarTasaDeSucursal, CambioAjustes, "settings_por_sucursal"},
+	}
+	globales := []struct {
+		nombre string
+		gancho func(context.Context)
+		tipo   string
+		porque string
+	}{
+		{"catalogo", avisarCambioDelCatalogo, CambioCatalogo,
+			"POST /api/products/sync trae el catálogo de VARIAS sucursales y avisa una vez, " +
+				"y corregir un producto es sólo del SUPER ADMIN"},
+		{"tipos de vehiculo", avisarCambioDeTiposDeVehiculo, CambioVehiculos,
 			"vehicle_types no tiene columna de sucursal ninguna: es de toda la empresa"},
-		{"clientes", avisarCambioDeClientes, CambioClientes, true,
-			"lo publica el aviso `cliente` del webhook, y la coordenada del cliente es la " +
-				"que ordena las paradas de SU sucursal"},
-		{"sucursales", avisarCambioDeSucursales, CambioSucursales, false, "la lista es de todos"},
-		{"ajustes", avisarCambioDeAjustes, CambioAjustes, false, "la moneda y la tasa son de toda la empresa"},
-		{"canal", avisarCambioEnElCanal, CambioCanal, false, "el webhook y el drenaje no tienen alcance de persona"},
+		{"sucursales", avisarCambioDeSucursales, CambioSucursales, "la lista es de todos"},
+		{"ajustes", avisarCambioDeAjustes, CambioAjustes, "la moneda y la tasa son de toda la empresa"},
+		{"canal", avisarCambioEnElCanal, CambioCanal, "la pantalla del canal mira la cola entera"},
 	}
 
 	// SE MIRA CONTRA UN BUS DE PRUEBAS. Los ganchos publican en `busEventos`, que es del
@@ -375,11 +389,40 @@ func TestLaTablaDeQueAvisoLlevaSucursal(t *testing.T) {
 	anterior := busEventos
 	t.Cleanup(func() { busEventos = anterior })
 
-	// Quien toca es de Camagüey: si el aviso se acota, tiene que salir con SU uuid.
-	ctx := alcanceDe(t, "ADMINISTRADOR", "CAM")
-	cam := idDeSucursal(t, "CAM").String()
+	// EL UUID VA A MANO, no `idDeSucursal(...)`: una prueba que compara contra lo que el
+	// código le dio no comprueba nada. Es el de Camagüey de `lasOchoSucursales`.
+	const camAMano = "0a000001-0000-0000-0000-000000000001"
+	// Y EL ALCANCE ES DE OTRA SUCURSAL A PROPÓSITO —Holguín— para que se vea que el gancho
+	// publica lo que le PASAN y no lo que diga el contexto. Con el alcance de Camagüey, un
+	// gancho que siguiera leyendo el contexto saldría verde.
+	ctx := alcanceDe(t, "ADMINISTRADOR", "HOL")
 
-	for _, c := range casos {
+	for _, c := range acotados {
+		t.Run(c.nombre, func(t *testing.T) {
+			busEventos = NuevoDifusor()
+			canal, cortar, _ := busEventos.Suscribir()
+			defer cortar()
+
+			c.gancho(ctx, camAMano)
+
+			cambio, hay := recibio(canal)
+			if !hay {
+				t.Fatalf("el gancho de %s no publicó nada", c.nombre)
+			}
+			if cambio.Tipo != c.tipo {
+				t.Errorf("publicó el tipo %q y le toca %q", cambio.Tipo, c.tipo)
+			}
+			if cambio.Sucursal != camAMano {
+				t.Errorf("el aviso %q se publicó para la sucursal %s y salió con %q.\n"+
+					"  El gancho tiene que publicar LA QUE LE DAN —la de la fila que se "+
+					"escribió— y no la del alcance de quien llamó, que aquí es Holguín.\n"+
+					"  Motivo por el que este aviso va acotado: %s",
+					c.tipo, camAMano, cambio.Sucursal, c.porque)
+			}
+		})
+	}
+
+	for _, c := range globales {
 		t.Run(c.nombre, func(t *testing.T) {
 			busEventos = NuevoDifusor()
 			canal, cortar, _ := busEventos.Suscribir()
@@ -394,14 +437,7 @@ func TestLaTablaDeQueAvisoLlevaSucursal(t *testing.T) {
 			if cambio.Tipo != c.tipo {
 				t.Errorf("publicó el tipo %q y le toca %q", cambio.Tipo, c.tipo)
 			}
-			switch {
-			case c.acotado && cambio.Sucursal != cam:
-				t.Errorf("el aviso %q salió con la sucursal %q y tenía que salir con la "+
-					"de quien lo tocó (%s, Camagüey).\n"+
-					"  Sin ella, las otras siete sucursales se bajan lo suyo por nada. "+
-					"Motivo por el que va acotado: %s",
-					c.tipo, cambio.Sucursal, cam, c.porque)
-			case !c.acotado && cambio.Sucursal != "":
+			if cambio.Sucursal != "" {
 				t.Errorf("el aviso %q salió acotado a %q y tiene que ir a TODAS.\n"+
 					"  Motivo: %s.\n"+
 					"  Acotarlo deja a las otras siete sin enterarse, y eso no falla, no "+
@@ -412,10 +448,12 @@ func TestLaTablaDeQueAvisoLlevaSucursal(t *testing.T) {
 	}
 }
 
-// «NO SE SABE» NO ES «DE NINGUNA». Un gancho llamado desde un contexto sin alcance —un
-// proceso de fondo, una ruta sin el middleware— publica un aviso de TODAS, no uno acotado
-// a la nada que no le llegaría a nadie.
-func TestSinAlcanceEnElContextoElAvisoEsDeTodas(t *testing.T) {
+// «NO SE SABE» NO ES «DE NINGUNA». Un aviso publicado sin sucursal —porque quien avisa no la
+// tiene: el webhook de PEDIDO, el catálogo, los ajustes— le llega a TODOS, no a nadie.
+//
+// Es la mitad de este trabajo que más fácil se rompe «arreglando» la otra, y la que no falla
+// cuando se rompe: la pantalla se queda vieja, sin error y sin una línea en ningún registro.
+func TestUnAvisoSinSucursalEsDeTodasYNoDeNinguna(t *testing.T) {
 	anterior := busEventos
 	t.Cleanup(func() { busEventos = anterior })
 	busEventos = NuevoDifusor()
@@ -423,30 +461,28 @@ func TestSinAlcanceEnElContextoElAvisoEsDeTodas(t *testing.T) {
 	canal, cortar, _ := busEventos.SuscribirDe(idDeSucursal(t, "HOL").String())
 	defer cortar()
 
-	avisarCambioDelTablero(context.Background())
+	avisarCambioDelTablero(context.Background(), DeTodasLasSucursales)
 
 	if _, hay := recibio(canal); !hay {
-		t.Error("un aviso publicado sin alcance en el contexto no le llegó a Holguín.\n" +
+		t.Error("un aviso publicado sin sucursal no le llegó a Holguín.\n" +
 			"  «No se sabe de qué sucursal es» tiene que leerse como «de todas». Al revés " +
 			"es un aviso que no le llega a nadie, que es el fallo que no se ve.")
 	}
 }
 
-// Y quien ve las ocho tampoco acota lo que toca: pudo cambiar cualquiera.
-func TestLoQueTocaUnSuperAdminEsDeTodas(t *testing.T) {
-	anterior := busEventos
-	t.Cleanup(func() { busEventos = anterior })
-	busEventos = NuevoDifusor()
-
-	canal, cortar, _ := busEventos.SuscribirDe(idDeSucursal(t, "TUN").String())
-	defer cortar()
-
-	avisarCambioDelTablero(alcanceDe(t, "SUPER ADMIN", ""))
-
-	if _, hay := recibio(canal); !hay {
-		t.Error("un SUPER ADMIN movió un tablero y a Las Tunas no le llegó.\n" +
-			"  Quien ve las ocho pudo cambiar cualquiera de las ocho, así que su aviso " +
-			"tiene que llegarle a cualquiera.")
+// Y `DeTodasLasSucursales` ES el texto vacío. La constante tiene nombre para que pasarla sea
+// un acto y no parezca un olvido, pero el valor es el que el bus lee como «no lo acota»: si
+// alguien le pusiera cualquier otra cosa, todos los avisos globales se convertirían en avisos
+// de una sucursal que no existe y no le llegarían a nadie.
+//
+// El valor va A MANO. Comparar la constante consigo misma no comprueba nada.
+func TestDeTodasLasSucursalesEsElTextoVacio(t *testing.T) {
+	if DeTodasLasSucursales != "" {
+		t.Errorf("DeTodasLasSucursales vale %q y tiene que ser el texto vacío.\n"+
+			"  Es lo que `repartir` lee como «este aviso no dice de qué sucursal es» para "+
+			"mandárselo a las ocho. Con cualquier otro valor, el catálogo, los ajustes, la "+
+			"lista de sucursales y el canal dejan de llegarle a todo el mundo.",
+			DeTodasLasSucursales)
 	}
 }
 

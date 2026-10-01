@@ -135,7 +135,7 @@ func (a *Acotado) ContarPedidosSinColocar(ctx context.Context, arg sqlc.ContarPe
 // pedido y la columna sean de la misma sucursal, y que el pedido no vaya ya en un
 // camión— lo comprueba el propio SQL en la misma sentencia que escribe, que es el único
 // sitio donde esa comprobación no puede estar vieja.
-func (a *Acotado) ColocarPedido(ctx context.Context, arg sqlc.ColocarPedidoParams) (sqlc.BoardPlacement, error) {
+func (a *Acotado) ColocarPedido(ctx context.Context, arg sqlc.ColocarPedidoParams) (sqlc.ColocarPedidoRow, error) {
 	arg.Sucursal = a.sucursalPg()
 	arg.ColocadoPor = a.ActorRef()
 	return a.q.ColocarPedido(ctx, arg)

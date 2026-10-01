@@ -351,8 +351,12 @@ void main() {
 
       expect(
         servidor.intentos,
-        1,
-        reason: 'dos apuntes NO son dos peticiones: van los dos en el lote',
+        2,
+        reason:
+            'dos apuntes SON dos peticiones desde el 01/10/2026, una detras de '
+            'otra: lo que sube se queda arriba aunque la segunda se caiga. Lo '
+            'que importa aqui es que el ORDEN se respeta igual, y lo dice el '
+            '`resultadosDe` de abajo',
       );
       expect(servidor.resultadosDe('p-1'), [
         ResultadoParada.devuelto,
@@ -368,7 +372,7 @@ void main() {
     });
 
     test(
-      'un lote de varios apuntes va en UNA petición y en su orden',
+      'doce apuntes salen en DOCE peticiones, una detrás de otra y en su orden',
       () async {
         servidor.hayRed = false;
         final a = await abrirElAparato();
@@ -384,7 +388,14 @@ void main() {
 
         servidor.hayRed = true;
         expect(await a.subida.ciclo(), 12);
-        expect(servidor.intentos, 1);
+        expect(
+          servidor.intentos,
+          12,
+          reason:
+              'una jornada entera sin señal son ~12 apuntes, y van de uno en '
+              'uno: si la antena se va en el séptimo, los seis de antes ya '
+              'están arriba',
+        );
         expect(servidor.aplicados.map((x) => x['ruta']).toList(), [
           for (var i = 1; i <= 12; i++) '/routes/r-$i',
         ]);
@@ -460,7 +471,13 @@ void main() {
 
       // Y otra vuelta no lo reintenta ni lo vuelve a mandar.
       expect(await a.subida.ciclo(), 0);
-      expect(servidor.intentos, 1);
+      expect(
+        servidor.intentos,
+        4,
+        reason:
+            'las CUATRO de la primera vuelta y ni una más: la segunda vuelta no '
+            'vuelve a llamar por nadie',
+      );
     });
   });
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
+import 'datos/esquema.dart';
 import 'estado/filtros_en_la_url.dart';
 import 'vista/pantalla_tablero.dart';
 
@@ -24,6 +25,15 @@ PantallaRegistrada registrarTablero() => PantallaRegistrada(
   titulo: 'Tablero',
   icono: Icons.view_column_outlined,
   enElMenu: true,
+  // LAS SUYAS, y son suyas de verdad: las dos colecciones del tablero no van en
+  // la bajada por diferencias, se piden con `GET /api/board`. Es la MISMA lista
+  // que mira `vistoAtProvider`, para que la franja de arriba y la cabecera de la
+  // pantalla no puedan decir dos horas distintas (§3-bis).
+  //
+  // Y es el caso que trajo el arreglo del 01/10/2026: la franja decia «Datos de
+  // las 8:46» —la mas vieja de las NUEVE colecciones, con `almacenes` dentro, que
+  // se refresca una vez por hora— encima de un tablero al dia a las 9:07.
+  colecciones: EsquemaTablero.colecciones,
   construir: (contexto, estado) => PantallaTablero(
     lectura: FiltrosEnLaUrl.leer(estado.uri.queryParameters),
   ),

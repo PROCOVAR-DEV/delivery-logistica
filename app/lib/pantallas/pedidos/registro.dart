@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
+import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'vista/pantalla_pedidos.dart';
 
 export 'vista/pantalla_pedidos.dart' show PantallaPedidos;
@@ -21,6 +22,7 @@ PantallaRegistrada registrarPedidos() => const PantallaRegistrada(
   titulo: 'Pedidos',
   icono: Icons.inventory_2_outlined,
   enElMenu: true,
+  colecciones: ColeccionesDePantalla.pedidos,
   construir: _construir,
 );
 

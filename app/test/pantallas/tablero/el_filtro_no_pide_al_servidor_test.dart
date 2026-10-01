@@ -136,7 +136,13 @@ void main() {
     //
     // Y el canal vuelve.
     enVivo.add(avisoDeQueVolvimos);
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    // 400 ms Y NO 50: desde el 01/10/2026 los avisos pasan por la ventana de
+    // junta de 150 ms antes de costar una bajada (`TableroDelDia.ventanaDeJunta`
+    // — cuatro avisos pegados costaban cuatro fotos de 89.495 bytes). La bajada
+    // SIGUE SALIENDO, que es lo que esta prueba vigila; lo único que cambia es
+    // que sale un pelo más tarde. Esperar aquí menos que la ventana sería medir
+    // el reloj, no la guarda.
+    await Future<void>.delayed(const Duration(milliseconds: 400));
 
     expect(
       peticionesDelTablero(),
@@ -287,7 +293,8 @@ void main() {
       expect(peticionesDelTablero(), 1);
 
       enVivo.add('tablero');
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // 400 ms: la ventana de junta de 150 ms va delante. Ver arriba.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
 
       expect(
         peticionesDelTablero(),
@@ -303,7 +310,7 @@ void main() {
 
       enVivo.add('clientes');
       enVivo.add('catalogo');
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
 
       expect(
         peticionesDelTablero(),

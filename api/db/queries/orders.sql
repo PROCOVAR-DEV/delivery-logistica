@@ -652,12 +652,19 @@ RETURNING id, operation_number, customer_name, address, end_address, end_lat,
           ultima_ruta_id, price, segment_km, stop_order, delivered_at,
           branch_id, updated_at;
 
--- :execrows y no :exec: cero filas es «no existe O no es de tu sucursal», que es el 404.
--- Con :exec no hay forma de distinguirlo de un borrado hecho.
--- name: BorrarPedido :execrows
+-- :one y no :exec: «no existe O no es de tu sucursal» es el 404, y con :exec no hay forma
+-- de distinguirlo de un borrado hecho. `pgx.ErrNoRows` es ese caso.
+--
+-- Y DEVUELVE LA SUCURSAL DEL PEDIDO BORRADO — 01/10/2026. Era `:execrows` y lo único que
+-- volvía era el número de filas, así que el aviso en vivo de `pedidos` no tenía de dónde
+-- sacar la sucursal y salía del alcance de quien llamó: para un SUPER ADMIN, «de todas», y
+-- las ocho sucursales se bajaban la lista de pedidos por un borrado de una sola. La fila ya
+-- no está cuando se avisa, así que el dato tiene que venir del propio DELETE.
+-- name: BorrarPedido :one
 DELETE FROM orders
 WHERE id = sqlc.arg('id')
-  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
+  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
+RETURNING branch_id;
 
 -- Recalcular el peso desde el catálogo (POST /api/orders/recompute-weights). Va sin
 -- alcance a propósito: es una faena de servicio sobre todo el espejo, con clave de API.

@@ -269,9 +269,19 @@ final actualizandoProvider = Provider<bool>(
   (ref) => ref.watch(enVueloProvider) > 0,
 );
 
-/// De que hora son los datos, para TODA la aplicacion: la bajada **mas vieja**
-/// de todas las colecciones. Una pantalla no esta al dia si una de las
-/// colecciones que usa no lo esta, asi que manda la peor.
+/// DE QUE HORA ES LA COPIA ENTERA: la bajada **mas vieja** de las nueve
+/// colecciones.
+///
+/// **Ya NO es lo que mide la franja de arriba** — 01/10/2026. Lo era, y dentro de
+/// las nueve va `almacenes`, que se refresca sola una vez por hora a proposito:
+/// la franja decia «Datos de las 8:46» toda la manana encima de un Tablero al dia
+/// a las 9:07. Ahora cada pantalla declara lo suyo
+/// (`PantallaRegistrada.colecciones`) y la franja se mide contra eso.
+///
+/// Esto se queda, y con su sitio: lo miran el **Panel** y **Reportes**, donde la
+/// pregunta de verdad es «¿le falta algo a este aparato?» —de eso sale si hay que
+/// traer el dia antes de salir a la calle—, y el cajon de traer el dia para
+/// repintarse cuando llega la bajada. Ahi manda la peor de todas, y es correcto.
 final frescuraGlobalProvider = StreamProvider<DateTime?>(
   (ref) => ref.watch(frescuraProvider).laMasVieja(),
 );

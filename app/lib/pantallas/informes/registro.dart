@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
+import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'vista/pantalla_informes.dart';
 
 /// El registro de Reportes. El contrato esta en
@@ -25,5 +26,6 @@ PantallaRegistrada registrarInformes() => PantallaRegistrada(
   titulo: 'Reportes',
   icono: Icons.assessment_outlined,
   enElMenu: true,
+  colecciones: ColeccionesDePantalla.informes,
   construir: (contexto, estado) => const PantallaInformes(),
 );

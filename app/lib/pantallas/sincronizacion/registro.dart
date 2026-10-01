@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
+import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import '../../nucleo/plataforma.dart';
 import 'datos/panel_sincronizacion.dart';
 import 'vista/pantalla_sincronizacion.dart';
@@ -36,5 +37,9 @@ PantallaRegistrada registrarSincronizacion() => PantallaRegistrada(
   titulo: TextosDeSincronizacion.titulo,
   icono: Icons.sync_outlined,
   enElMenu: Destino.trabajaSinConexion,
+  // NINGUNA: esta pantalla lee EN VIVO del servidor (`GET /sync/estado`) y
+  // habla de los telefonos, no de esta copia. La hora de una bajada de aqui
+  // no dice nada de lo que se esta mirando.
+  colecciones: ColeccionesDePantalla.ninguna,
   construir: (contexto, estado) => const PantallaSincronizacion(),
 );

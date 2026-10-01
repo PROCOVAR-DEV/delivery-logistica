@@ -165,9 +165,15 @@ type Querier interface {
 	// quien llama ya sabe —por `ContarPedidosEnColumna`— qué tiene que decirle a la persona.
 	BorrarColumna(ctx context.Context, arg BorrarColumnaParams) (int64, error)
 	BorrarOrigen(ctx context.Context, arg BorrarOrigenParams) (int64, error)
-	// :execrows y no :exec: cero filas es «no existe O no es de tu sucursal», que es el 404.
-	// Con :exec no hay forma de distinguirlo de un borrado hecho.
-	BorrarPedido(ctx context.Context, arg BorrarPedidoParams) (int64, error)
+	// :one y no :exec: «no existe O no es de tu sucursal» es el 404, y con :exec no hay forma
+	// de distinguirlo de un borrado hecho. `pgx.ErrNoRows` es ese caso.
+	//
+	// Y DEVUELVE LA SUCURSAL DEL PEDIDO BORRADO — 01/10/2026. Era `:execrows` y lo único que
+	// volvía era el número de filas, así que el aviso en vivo de `pedidos` no tenía de dónde
+	// sacar la sucursal y salía del alcance de quien llamó: para un SUPER ADMIN, «de todas», y
+	// las ocho sucursales se bajaban la lista de pedidos por un borrado de una sola. La fila ya
+	// no está cuando se avisa, así que el dato tiene que venir del propio DELETE.
+	BorrarPedido(ctx context.Context, arg BorrarPedidoParams) (pgtype.UUID, error)
 	BorrarProducto(ctx context.Context, id uuid.UUID) (int64, error)
 	BorrarRenglonesDePedido(ctx context.Context, pedidoID uuid.UUID) error
 	BorrarRuta(ctx context.Context, arg BorrarRutaParams) (int64, error)
@@ -175,7 +181,17 @@ type Querier interface {
 	// Sólo se puede borrar de verdad un tipo que no use nadie. Se comprueba aquí, en la misma
 	// sentencia, y no con un conteo antes: entre el conteo y el borrado cabe un alta.
 	BorrarTipoDeVehiculoSinUso(ctx context.Context, id uuid.UUID) (int64, error)
-	BorrarVehiculo(ctx context.Context, arg BorrarVehiculoParams) (int64, error)
+	// DEVUELVE LA SUCURSAL DEL CAMIÓN BORRADO, y no es un adorno — 01/10/2026. El aviso en
+	// vivo de la flota sale de la sucursal de la FILA y no del alcance de quien llamó, y aquí la
+	// fila ya no está cuando se avisa: o la trae el DELETE, o no la trae nadie.
+	//
+	// `branch_id` puede venir NULL, que es un camión COMPARTIDO entre sucursales. Eso se lee
+	// como «de todas» y el aviso sale global, que es lo correcto: su alta o su baja la ven las
+	// ocho.
+	//
+	// `:one` y no `:execrows`: cero filas es «no existe O no es de tu sucursal», o sea el 404, y
+	// ése es ahora `pgx.ErrNoRows`.
+	BorrarVehiculo(ctx context.Context, arg BorrarVehiculoParams) (pgtype.UUID, error)
 	// EL PEDIDO QUE NO HIZO FALTA TOCAR, para poder seguir con sus renglones.
 	//
 	// El upsert de arriba no devuelve fila cuando nada cambió, y quien llama necesita el `id`
@@ -243,7 +259,29 @@ type Querier interface {
 	// La condición de `factura_estado` NO está: un pedido colocado que deja de ser repartible
 	// se queda puesto y marcado (ver `ListarPedidosColocados`), así que volver a colocarlo
 	// tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador.
-	ColocarPedido(ctx context.Context, arg ColocarPedidoParams) (BoardPlacement, error)
+	//
+	// # Y DEVUELVE LA SUCURSAL DE LA COLUMNA, QUE NO ES UN ADORNO — 01/10/2026
+	//
+	// El aviso en vivo del tablero tiene que salir de la sucursal de la FILA que se acaba de
+	// escribir y no del alcance de quien llamó (`api/internal/api/eventos.go`), porque el
+	// alcance de un SUPER ADMIN es «todas» y entonces el aviso sale pelado y las ocho
+	// sucursales se bajan el tablero entero. `board_placements` no tiene `branch_id` —cuelga de
+	// la columna—, así que la sucursal hay que sacarla de `board_columns`.
+	//
+	// Y VA EN **UNA** SENTENCIA, CON UN CTE, no con una segunda lectura detrás. Un
+	// `SELECT branch_id FROM board_columns` aparte sería una segunda versión de los hechos: la
+	// columna puede haberse borrado entre el INSERT y esa lectura, y entonces el aviso saldría
+	// global o no saldría. Aquí el `JOIN` se hace sobre la fila que la sentencia ACABA de
+	// escribir, en la misma instantánea.
+	//
+	// `RETURNING` de un `INSERT` **no puede ver** los `FROM` de su propio `SELECT` (sólo la fila
+	// insertada), y por eso no basta con añadirle `c.branch_id`: hace falta el CTE. Si vuelve a
+	// intentarse sin él, Postgres contesta «missing FROM-clause entry for table c».
+	//
+	// Cero filas sigue significando lo mismo: si el INSERT no coloca nada, el CTE va vacío, el
+	// `SELECT` de fuera tampoco devuelve nada y el manejador recibe su `pgx.ErrNoRows` para
+	// traducirlo en `porQueNoSePudoColocar`.
+	ColocarPedido(ctx context.Context, arg ColocarPedidoParams) (ColocarPedidoRow, error)
 	// Al liberar un camión a mano se cierra la ruta que llevaba: un camión disponible con una
 	// ruta abierta detrás es una ruta que nadie va a cerrar nunca y que sigue contando como
 	// activa en el panel.
@@ -1310,6 +1348,15 @@ type Querier interface {
 	// Sacar una tarjeta del tablero: vuelve a «sin colocar», donde la lista la pondrá otra vez
 	// en su sitio por cercanía. Devuelve la columna y la posición que tenía para poder cerrar
 	// el hueco sin volver a preguntar.
+	//
+	// Y DEVUELVE LA SUCURSAL DE LA COLUMNA POR LO MISMO QUE `ColocarPedido`: el aviso en vivo
+	// sale de la sucursal de la FILA, no del alcance de quien llamó.
+	//
+	// Va con el mismo CTE, y aquí el motivo es otro: Postgres sí deja que el `RETURNING` de un
+	// `DELETE` nombre sus `USING`, pero **el analizador de sqlc no** — con
+	// `RETURNING p.order_id, …, c.branch_id` contesta `column "branch_id" does not exist` y no
+	// genera nada. Probado el 01/10/2026 con sqlc v1.31.1. Así que el `JOIN` se hace fuera, que
+	// además lo deja igual que su gemela de arriba.
 	QuitarPedidoDelTablero(ctx context.Context, arg QuitarPedidoDelTableroParams) (QuitarPedidoDelTableroRow, error)
 	// LOS PEDIDOS QUE PEDIDO BORRÓ, quitados por su referencia.
 	//

@@ -28,6 +28,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -35,6 +36,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
+	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/cotizar"
 	"procovar/reparto-api/internal/store/sqlc"
 )
@@ -63,6 +67,22 @@ func conElBusDePruebas(t *testing.T) map[string]<-chan Cambio {
 		canales[s.codigo] = ch
 	}
 	return canales
+}
+
+// elAvisoDe vacía el canal y devuelve el aviso de ESE tipo, si salió.
+//
+// No vale mirar el primero que llegue: hay puertas que publican dos avisos distintos a la vez
+// —el armador de una zona cambia el tablero Y crea una ruta— y el orden es cosa del manejador.
+func elAvisoDe(canal <-chan Cambio, tipo string) (Cambio, bool) {
+	for {
+		c, hay := recibio(canal)
+		if !hay {
+			return Cambio{}, false
+		}
+		if c.Tipo == tipo {
+			return c, true
+		}
+	}
 }
 
 // aQuienesLlego devuelve los códigos de las sucursales a cuyo cable salió algo.
@@ -536,5 +556,592 @@ func TestUnCierreQueNoEncolaNadaNoAvisaAlCanal(t *testing.T) {
 		t.Errorf("salieron %d avisos de «%s» sin que el buzón se moviera: un aviso que "+
 			"sale siempre deja de leerse, y entonces tampoco se lee el día que importa",
 			n, CambioCanal)
+	}
+}
+
+// ===========================================================================
+// EL AVISO SALE DE LA FILA, NO DEL ALCANCE DE QUIEN LLAMÓ  — 01/10/2026
+// ===========================================================================
+//
+// LO QUE SE MIDIÓ EN PRODUCCIÓN ESE DÍA. Se creó una zona en el Tablero de Santiago desde el
+// teléfono y por el canal salió, literal:
+//
+//	{"cuando":"2026-10-01T13:07:54.849Z","tipo":"tablero"}
+//
+// **Sin `sucursal`**, o sea «de todas»: las ocho se bajaron el tablero entero por un gesto de
+// una. Y la columna se había escrito CON su `branch_id` puesto (`CrearColumnaParams{…
+// BranchID: t.sucursal}`), así que el dato estaba ahí y el aviso no lo usaba.
+//
+// Eran dos piezas que se sumaban, y por eso lo de abajo se prueba con el PEOR de los dos
+// casos a la vez:
+//
+//  1. el aviso sacaba la sucursal del ALCANCE, y el alcance de quien ve las ocho
+//     (DESARROLLADOR, SUPER ADMIN) es «todas» -> vacío;
+//  2. todo lo que hace el teléfono sube por la COLA, y el sincronizador no reenvía
+//     `X-Sucursal-Id` (`sync/internal/reparto/reparto.go`, `cabeceras`) -> la petición llega
+//     sin decir qué sucursal se miraba, sea quien sea el que pulsó.
+//
+// Así que estas pruebas entran con un **SUPER ADMIN sin sucursal y SIN la cabecera** —
+// `tokenTab(t, "")` y `pedirTab`, que no la pone— que es exactamente la petición que llega del
+// teléfono. Con el aviso saliendo del alcance, las siete fallan.
+
+// losSieteGestosDelTablero: las siete escrituras del tablero, cada una dejando el doble en el
+// estado que necesita. Son las MISMAS siete que vigila
+// `TestNingunaEscrituraDelTableroSeQuedaSinAvisar` en el otro fichero.
+//
+// Todas trabajan sobre zonas de SANTIAGO (`sucStg`), así que el aviso de las siete tiene que
+// salir con ese uuid y con ningún otro.
+func losSieteGestosDelTablero() []struct {
+	nombre   string
+	preparar func(q *tableroFalso)
+	pedir    func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder
+	codigo   int
+	// tambienRutas: el armador de una zona avisa de DOS pantallas porque cambian las dos.
+	tambienRutas bool
+} {
+	return []struct {
+		nombre   string
+		preparar func(q *tableroFalso)
+		pedir    func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder
+		codigo   int
+
+		tambienRutas bool
+	}{
+		{
+			nombre:   "crear una zona",
+			preparar: func(*tableroFalso) {},
+			pedir: func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder {
+				// CON `?branchId=`, que es como lo manda el aparato: la cola encola
+				// `/board/columns?branchId=<sucursal>` (`app/lib/pantallas/tablero/datos/
+				// repositorio.dart`). Es el único dato que dice de qué tablero se habla
+				// cuando no viene la cabecera.
+				return pedirTab(t, h, http.MethodPost,
+					"/api/board/columns?branchId="+sucStg.String(), jwt, `{"nombre":"Reparto Norte"}`)
+			},
+			codigo: http.StatusCreated,
+		},
+		{
+			nombre:   "renombrarla",
+			preparar: func(*tableroFalso) {},
+			pedir: func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder {
+				return pedirTab(t, h, http.MethodPatch, "/api/board/columns/"+colCentro.String(),
+					jwt, `{"nombre":"Centro Norte"}`)
+			},
+			codigo: http.StatusOK,
+		},
+		{
+			nombre:   "reordenar el tablero",
+			preparar: func(*tableroFalso) {},
+			pedir: func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder {
+				return pedirTab(t, h, http.MethodPut,
+					"/api/board/columns/orden?branchId="+sucStg.String(), jwt,
+					`{"ids":["`+colVista.String()+`","`+colCentro.String()+`"]}`)
+			},
+			codigo: http.StatusOK,
+		},
+		{
+			nombre:   "borrar una zona vacía",
+			preparar: func(*tableroFalso) {},
+			pedir: func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder {
+				return pedirTab(t, h, http.MethodDelete, "/api/board/columns/"+colVacia.String(), jwt, "")
+			},
+			codigo: http.StatusOK,
+		},
+		{
+			nombre:   "colocar una tarjeta",
+			preparar: func(*tableroFalso) {},
+			pedir: func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder {
+				return pedirTab(t, h, http.MethodPut, "/api/board/placements/"+ped1.String(),
+					jwt, `{"columnaId":"`+colCentro.String()+`"}`)
+			},
+			codigo: http.StatusOK,
+		},
+		{
+			nombre: "quitarla",
+			// TIENE QUE HABER TARJETA PUESTA. Quitar lo que no está es reaplicable y no
+			// escribe nada, así que ahí no hay fila de la que leer la sucursal — y entonces
+			// esta prueba mediría el caso vacío creyendo medir el bueno.
+			preparar: func(q *tableroFalso) { q.colocadas[ped1] = colocacion{colCentro, 1} },
+			pedir: func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder {
+				return pedirTab(t, h, http.MethodDelete, "/api/board/placements/"+ped1.String(), jwt, "")
+			},
+			codigo: http.StatusOK,
+		},
+		{
+			nombre: "armar la ruta de la zona",
+			preparar: func(q *tableroFalso) {
+				q.colocadas[ped1] = colocacion{colCentro, 1}
+				q.colocadas[ped2] = colocacion{colCentro, 2}
+				q.capacidad = 1000
+			},
+			pedir: func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder {
+				return pedirTab(t, h, http.MethodPost,
+					"/api/board/columns/"+colCentro.String()+"/route", jwt, `{}`)
+			},
+			codigo:       http.StatusCreated,
+			tambienRutas: true,
+		},
+	}
+}
+
+// UN GESTO DEL TELÉFONO SALE CON SU SUCURSAL AUNQUE NO VENGA LA CABECERA Y LO HAGA UN SUPER
+// ADMIN. Es la prueba del fallo medido: con el aviso saliendo del alcance, las siete fallan.
+func TestElGestoDelTableroSaleDeSuSucursalSinCabeceraYDeUnSuperAdmin(t *testing.T) {
+	// EL UUID A MANO. `sucStg` es la constante que usa el doble; compararse con ella no
+	// comprobaría nada, así que el valor esperado se escribe aquí.
+	const santiagoAMano = "11111111-1111-1111-1111-111111111111"
+	if sucStg.String() != santiagoAMano {
+		t.Fatalf("el doble del tablero ya no usa %s para Santiago, sino %s: esta prueba "+
+			"compara contra el valor escrito a mano y hay que cambiarlo aquí",
+			santiagoAMano, sucStg)
+	}
+
+	for _, c := range losSieteGestosDelTablero() {
+		t.Run(c.nombre, func(t *testing.T) {
+			q := nuevoTablero()
+			c.preparar(q)
+			h := montarTab(t, q)
+
+			// UN BUS LIMPIO con un canal para Santiago y otro para Holguín. Son los dos
+			// lados de la misma pregunta: a Santiago TIENE que llegarle y a Holguín NO.
+			anterior := busEventos
+			t.Cleanup(func() { busEventos = anterior })
+			busEventos = NuevoDifusor()
+			stg, cortarStg, _ := busEventos.SuscribirDe(santiagoAMano)
+			t.Cleanup(cortarStg)
+			hol, cortarHol, _ := busEventos.SuscribirDe(sucHol.String())
+			t.Cleanup(cortarHol)
+
+			// SUPER ADMIN SIN SUCURSAL, y `pedirTab` no manda `X-Sucursal-Id`: la petición
+			// que llega de la cola del teléfono, tal cual.
+			w := c.pedir(t, h, tokenTab(t, ""))
+			if w.Code != c.codigo {
+				t.Fatalf("código %d, se esperaba %d: %s", w.Code, c.codigo, w.Body.String())
+			}
+
+			// SE VACÍA EL CANAL Y SE BUSCA EL DE `tablero`, no se mira el primero: el
+			// armador de una zona publica DOS avisos —`rutas` y `tablero`— y el de rutas sale
+			// antes. Quedarse con el primero haría que esta prueba midiera otro aviso en ese
+			// caso y sólo en ése.
+			cambio, hay := elAvisoDe(stg, CambioTablero)
+			if !hay {
+				t.Fatalf("%s no avisó del tablero ni a Santiago, que es de quien es la zona",
+					c.nombre)
+			}
+			if cambio.Sucursal != santiagoAMano {
+				t.Errorf("%s publicó el aviso con la sucursal %q y tenía que ser %s "+
+					"(Santiago, la de la fila que se escribió).\n"+
+					"  Vacío = «de todas»: es el fallo medido en producción el 01/10/2026 a "+
+					"las 13:07:54 UTC, cuando las OCHO sucursales se bajaron el tablero "+
+					"entero por una zona creada en Santiago.\n"+
+					"  Esta petición entra como la del teléfono: SUPER ADMIN (alcance = las "+
+					"ocho) y SIN `X-Sucursal-Id`, porque el sincronizador no la reenvía. Si "+
+					"la sucursal se saca del alcance, aquí sale vacía. Tiene que salir de la "+
+					"FILA.", c.nombre, cambio.Sucursal, santiagoAMano)
+			}
+
+			if _, llego := recibio(hol); llego {
+				t.Errorf("%s en Santiago le llegó también a Holguín.\n"+
+					"  Eso son SIETE sucursales bajándose un tablero que no ha cambiado, "+
+					"por la conexión de allá y con ocho navegadores en la oficina más los "+
+					"teléfonos.", c.nombre)
+			}
+		})
+	}
+}
+
+// Y EL AVISO DE RUTAS DEL ARMADOR TAMBIÉN SALE ACOTADO. Es el otro aviso de la misma puerta
+// —nace una ruta de verdad, con su código y sus paradas— y se le olvidaba igual.
+func TestLaRutaQueNaceDeUnaZonaAvisaSoloASuSucursal(t *testing.T) {
+	const santiagoAMano = "11111111-1111-1111-1111-111111111111"
+
+	q := nuevoTablero()
+	q.colocadas[ped1] = colocacion{colCentro, 1}
+	q.colocadas[ped2] = colocacion{colCentro, 2}
+	q.capacidad = 1000
+	h := montarTab(t, q)
+
+	avisos := contarAvisos(t)
+	w := pedirTab(t, h, http.MethodPost, "/api/board/columns/"+colCentro.String()+"/route",
+		tokenTab(t, ""), `{}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("la ruta no se armó: %d %s", w.Code, w.Body.String())
+	}
+
+	for _, tipo := range []string{CambioRutas, CambioTablero} {
+		suc, hubo := avisos.sucursalDe(tipo)
+		if !hubo {
+			t.Errorf("armar la zona no avisó de «%s». Salieron: %v", tipo, avisos.tipos)
+			continue
+		}
+		if suc != santiagoAMano {
+			t.Errorf("el aviso de «%s» salió con la sucursal %q y tenía que ser %s, la de "+
+				"la columna de la que nació la ruta.\n"+
+				"  La ruta se crea con `BranchID: pgDe(columna.BranchID)`, así que el dato "+
+				"está en la mano: sacarlo del alcance de quien llamó lo tira.",
+				tipo, suc, santiagoAMano)
+		}
+	}
+}
+
+// ===========================================================================
+// UN GESTO ES UN AVISO. ¿Y los CUATRO que se midieron?
+// ===========================================================================
+//
+// El 01/10/2026 a las 12:59:39 llegaron CUATRO `cambio` de tipo `tablero` en 32 ms (`.465`,
+// `.477`, `.489`, `.497`) por un solo gesto de una persona armando una ruta desde una zona.
+// La pregunta era si sobraban tres.
+//
+// NO SOBRAN, Y ESTA PRUEBA ES LA MITAD QUE LE TOCA AL SERVIDOR: cada puerta del tablero
+// publica **un** aviso de `tablero` por petición, ni dos ni cuatro. Los cuatro de aquella
+// mañana son cuatro PETICIONES, no una que avisa cuatro veces — el aparato encola **un
+// apunte por tarjeta** a propósito (`vaciarColumna` y `moverTodo` en
+// `app/lib/pantallas/tablero/datos/repositorio.dart`: «Un apunte por tarjeta y no uno de
+// “vaciar”: el contrato no tiene esa orden, y quitar tarjeta a tarjeta es además
+// reaplicable»), y el sincronizador los sube de uno en uno (`Aplicar`, una llamada HTTP por
+// apunte). Tres tarjetas y el armado son cuatro escrituras legítimas en 32 ms.
+//
+// Lo que esta prueba impide es el OTRO caso, el que sí sería de más: que un manejador
+// empiece a publicar dos avisos del mismo tipo por una sola escritura.
+func TestUnaPeticionDelTableroPublicaUnSoloAvisoDeTablero(t *testing.T) {
+	for _, c := range losSieteGestosDelTablero() {
+		t.Run(c.nombre, func(t *testing.T) {
+			q := nuevoTablero()
+			c.preparar(q)
+			h := montarTab(t, q)
+			avisos := contarAvisos(t)
+
+			w := c.pedir(t, h, tokenTab(t, sucStg.String()))
+			if w.Code != c.codigo {
+				t.Fatalf("código %d, se esperaba %d: %s", w.Code, c.codigo, w.Body.String())
+			}
+
+			if n := avisos.tiene(CambioTablero); n != 1 {
+				t.Errorf("%s publicó %d avisos de «%s» y tiene que publicar exactamente 1.\n"+
+					"  Cada aviso dispara un ciclo de sincronización entero en cada aparato, "+
+					"contra la conexión de allá: dos por un solo gesto es el doble de todo.\n"+
+					"  Salieron: %v", c.nombre, n, CambioTablero, avisos.tipos)
+			}
+			// Y NADA MÁS, salvo el armador, que avisa también de Rutas porque la pantalla de
+			// Rutas cambió de verdad.
+			esperados := 1
+			if c.tambienRutas {
+				esperados = 2
+			}
+			if avisos.total() != esperados {
+				t.Errorf("%s publicó %v y se esperaban %d avisos.\n"+
+					"  Un aviso de más manda a todas las pantallas abiertas a bajarse una "+
+					"lista que no ha cambiado.", c.nombre, avisos.tipos, esperados)
+			}
+		})
+	}
+}
+
+// ===========================================================================
+// Y ESTO NO TOCA LA REGLA 1 DE LA CASA
+// ===========================================================================
+//
+// «El alcance sale de quién pregunta, no de lo que mande el cliente» (`CLAUDE.md` §4). El
+// aviso ahora lee la sucursal de la fila, y en una de las siete puertas esa sucursal llega
+// por el `?branchId=` del cliente (`tableroDe`). La pregunta es si por ahí se cuela algo.
+//
+// NO: `tableroDe` comprueba ese `branchId` contra `a.ObtenerSucursal`, que va acotada, así que
+// un id ajeno muere en un 404 **antes** de que haya nada escrito y antes de cualquier aviso.
+// Lo que se afina es a quién se le AVISA, no a quién se le deja VER.
+//
+// Se prueba por los dos lados, porque fallan distinto: el que manda un `branchId` ajeno y el
+// que nombra la zona de otra sucursal sin mandar ninguno.
+func TestNadieSeAsomaAOtraSucursalPorElAviso(t *testing.T) {
+	casos := []struct {
+		nombre string
+		pedir  func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder
+	}{
+		{"con el branchId de otra sucursal en la URL",
+			func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder {
+				return pedirTab(t, h, http.MethodPost,
+					"/api/board/columns?branchId="+sucStg.String(), jwt, `{"nombre":"Colada"}`)
+			}},
+		{"nombrando la zona de otra sucursal",
+			func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder {
+				return pedirTab(t, h, http.MethodPatch, "/api/board/columns/"+colCentro.String(),
+					jwt, `{"nombre":"Colada"}`)
+			}},
+		{"soltando una tarjeta en la zona de otra sucursal",
+			func(t *testing.T, h http.Handler, jwt string) *httptest.ResponseRecorder {
+				return pedirTab(t, h, http.MethodPut, "/api/board/placements/"+ped1.String(),
+					jwt, `{"columnaId":"`+colCentro.String()+`"}`)
+			}},
+	}
+
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			h := montarTab(t, nuevoTablero())
+
+			anterior := busEventos
+			t.Cleanup(func() { busEventos = anterior })
+			busEventos = NuevoDifusor()
+			// UN ABONADO QUE SE LO LLEVA TODO, también lo global: si se colara un aviso
+			// —acotado o pelado—, aquí se ve.
+			todo, cortar, _ := busEventos.Suscribir()
+			t.Cleanup(cortar)
+
+			// UN OPERADOR DE HOLGUÍN. Todo lo de arriba es de Santiago.
+			w := c.pedir(t, h, tokenTab(t, sucHol.String()))
+			if w.Code != http.StatusNotFound {
+				t.Fatalf("código %d y tenía que ser 404: un operador de Holguín no puede "+
+					"tocar nada de Santiago, ni sabiendo sus ids. Respuesta: %s",
+					w.Code, w.Body.String())
+			}
+			if c, hay := recibio(todo); hay {
+				t.Errorf("salió un aviso (%s / sucursal %q) por una escritura RECHAZADA.\n"+
+					"  Avisar de lo que no pasó ya es malo; aquí es peor, porque el aviso "+
+					"nombraría una sucursal que esta persona no puede ver.", c.Tipo, c.Sucursal)
+			}
+		})
+	}
+}
+
+// ===========================================================================
+// LAS OTRAS PANTALLAS, con el mismo SUPER ADMIN sin cabecera
+// ===========================================================================
+
+// LA BAJA DE UN CAMIÓN AVISA DE TRES COSAS Y LAS TRES CON SU SUCURSAL.
+//
+// Es la puerta que más se notaba: un SUPER ADMIN dando de baja un camión de Santiago mandaba a
+// las OCHO a pedir `/api/vehicles`, `/api/routes` y `/api/orders`. Y la sucursal no estaba en
+// ninguna variable: la fila ya no existe cuando se avisa, así que la trae el propio DELETE
+// (`BorrarVehiculo` devuelve `branch_id`).
+func TestLaBajaDeUnCamionAvisaSoloASuSucursal(t *testing.T) {
+	// A MANO: es el uuid con el que `dobleAvisos` resuelve Santiago.
+	const santiagoAMano = "11111111-1111-1111-1111-111111111111"
+	if avSucStg.String() != santiagoAMano {
+		t.Fatalf("el doble de avisos ya no usa %s para Santiago: %s", santiagoAMano, avSucStg)
+	}
+
+	h := montarAvisos(t, &dobleAvisos{})
+	avisos := contarAvisos(t)
+
+	// SUPER ADMIN y sin `X-Sucursal-Id`: alcance «todas», que es donde el aviso salía pelado.
+	w := pedirAv(t, h, http.MethodDelete, "/api/vehicles/"+avVehStg.String(), avAdmin(t), "")
+	avCodigo(t, w, http.StatusOK)
+
+	for _, tipo := range []string{CambioVehiculos, CambioRutas, CambioPedidos} {
+		suc, hubo := avisos.sucursalDe(tipo)
+		if !hubo {
+			t.Errorf("la baja del camión no avisó de «%s»: desvincula sus rutas y sus "+
+				"pedidos antes de borrarlo, así que las tres listas cambiaron. Salieron: %v",
+				tipo, avisos.tipos)
+			continue
+		}
+		if suc != santiagoAMano {
+			t.Errorf("el aviso de «%s» salió con la sucursal %q y tenía que ser %s.\n"+
+				"  Lo borra un SUPER ADMIN, o sea alcance «todas»: si la sucursal sale del "+
+				"alcance, este aviso va a las OCHO y siete se bajan tres listas que no han "+
+				"cambiado.", tipo, suc, santiagoAMano)
+		}
+	}
+}
+
+// EL ALTA Y LA EDICIÓN DE UN CAMIÓN, por el mismo camino y con el mismo SUPER ADMIN.
+func TestElAltaYLaEdicionDeUnCamionAvisanSoloASuSucursal(t *testing.T) {
+	const santiagoAMano = "11111111-1111-1111-1111-111111111111"
+
+	casos := []struct {
+		nombre string
+		hacer  func(t *testing.T, h http.Handler) *httptest.ResponseRecorder
+		codigo int
+	}{
+		{nombre: "dar de alta un camión", hacer: func(t *testing.T, h http.Handler) *httptest.ResponseRecorder {
+			// CON LA CABECERA, porque el alta necesita saber de qué sucursal es el camión:
+			// sin alcance no hay `branch_id` que poner. Lo que esta prueba mira es que el
+			// aviso salga de la FILA creada, no que se adivine la sucursal.
+			return pedirAvConSucursal(t, h, http.MethodPost, "/api/vehicles", avAdmin(t),
+				`{"name":"Camión nuevo","type":"truck"}`, avSucStg.String())
+		}, codigo: http.StatusCreated},
+		{nombre: "editarlo", hacer: func(t *testing.T, h http.Handler) *httptest.ResponseRecorder {
+			return pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(),
+				avAdmin(t), `{"name":"Camión renombrado"}`)
+		}, codigo: http.StatusOK},
+	}
+
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			h := montarAvisos(t, &dobleAvisos{})
+			avisos := contarAvisos(t)
+			w := c.hacer(t, h)
+			avCodigo(t, w, c.codigo)
+
+			suc, hubo := avisos.sucursalDe(CambioVehiculos)
+			if !hubo {
+				t.Fatalf("%s no avisó de la flota. Salieron: %v", c.nombre, avisos.tipos)
+			}
+			if suc != santiagoAMano {
+				t.Errorf("%s publicó el aviso con la sucursal %q y tenía que ser %s, la del "+
+					"camión.\n"+
+					"  Lo hace un SUPER ADMIN: con la sucursal sacada del alcance sale vacía "+
+					"y las otras siete pantallas de Vehículos se bajan `/api/vehicles` y "+
+					"`/api/settings` para pintar lo mismo.", c.nombre, suc, santiagoAMano)
+			}
+		})
+	}
+}
+
+// pedirAvConSucursal es `pedirAv` con la cabecera de sucursal puesta. Hace falta para el alta
+// de un camión: un SUPER ADMIN sin sucursal elegida no tiene `branch_id` que escribir.
+func pedirAvConSucursal(t *testing.T, h http.Handler, metodo, ruta, jwt, cuerpo, sucursal string) *httptest.ResponseRecorder {
+	t.Helper()
+	var lector io.Reader
+	if cuerpo != "" {
+		lector = strings.NewReader(cuerpo)
+	}
+	r := httptest.NewRequest(metodo, ruta, lector)
+	r.Header.Set("Authorization", "Bearer "+jwt)
+	r.Header.Set(alcance.CabeceraSucursal, sucursal)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	return w
+}
+
+// UN PEDIDO EDITADO O BORRADO AVISA SOLO A SU SUCURSAL.
+//
+// El borrado es el interesante: la fila ya no está cuando se avisa, así que la sucursal la
+// trae el `RETURNING branch_id` del propio DELETE.
+func TestTocarUnPedidoAvisaSoloASuSucursal(t *testing.T) {
+	// A MANO: el uuid con el que el doble de pedidos resuelve Santiago.
+	const santiagoAMano = "11111111-1111-1111-1111-111111111111"
+	if pedidosSucStg.String() != santiagoAMano {
+		t.Fatalf("el doble de pedidos ya no usa %s para Santiago: %s", santiagoAMano, pedidosSucStg)
+	}
+
+	casos := []struct {
+		nombre string
+		hacer  func(t *testing.T, h http.Handler) *httptest.ResponseRecorder
+	}{
+		{"editarlo", func(t *testing.T, h http.Handler) *httptest.ResponseRecorder {
+			return pedirPedidos(t, h, http.MethodPatch, "/api/orders/"+pedidosStgA.String(),
+				superAdminDePedidos(t), `{"customerName":"Bar del puerto"}`, nil)
+		}},
+		{"borrarlo", func(t *testing.T, h http.Handler) *httptest.ResponseRecorder {
+			return pedirPedidos(t, h, http.MethodDelete, "/api/orders/"+pedidosStgA.String(),
+				superAdminDePedidos(t), "", nil)
+		}},
+	}
+
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			h := servidorDePedidos(t, datosDePedidos())
+			avisos := contarAvisos(t)
+			w := c.hacer(t, h)
+			avCodigo(t, w, http.StatusOK)
+
+			suc, hubo := avisos.sucursalDe(CambioPedidos)
+			if !hubo {
+				t.Fatalf("%s no avisó de pedidos. Salieron: %v", c.nombre, avisos.tipos)
+			}
+			if suc != santiagoAMano {
+				t.Errorf("%s publicó el aviso con la sucursal %q y tenía que ser %s, la del "+
+					"pedido.\n"+
+					"  Lo hace un SUPER ADMIN sin cabecera de sucursal: si el aviso sale del "+
+					"alcance, sale vacío y las ocho se bajan la lista de pedidos entera.",
+					c.nombre, suc, santiagoAMano)
+			}
+		})
+	}
+}
+
+// superAdminDePedidos: el que ve las ocho, en el harness de pedidos. Es el caso en el que el
+// alcance no sirve para acotar el aviso.
+func superAdminDePedidos(t *testing.T) string {
+	t.Helper()
+	return jwtDePedidos(t, map[string]any{"sub": "p-super", "email": "super@procovar.cu",
+		"role": "SUPER ADMIN"})
+}
+
+// LAS CUATRO PUERTAS DE RUTAS AVISAN CON LA SUCURSAL DE LA RUTA.
+//
+// Van con un SUPER ADMIN y sin cabecera de sucursal, que es el caso en el que el alcance no
+// sirve de nada: es «todas». La ruta sí sabe de dónde es (`routes.branch_id`), y de ahí sale.
+func TestLasPuertasDeRutasAvisanConLaSucursalDeLaRuta(t *testing.T) {
+	// A MANO: es el uuid con el que el doble de rutas resuelve Santiago.
+	const santiagoAMano = "11111111-1111-1111-1111-111111111111"
+	if stgDeRutas.String() != santiagoAMano {
+		t.Fatalf("el doble de rutas ya no usa %s para Santiago: %s", santiagoAMano, stgDeRutas)
+	}
+
+	casos := []struct {
+		nombre string
+		hacer  func(t *testing.T, h http.Handler, ruta uuid.UUID) *httptest.ResponseRecorder
+	}{
+		{nombre: "despacharla", hacer: func(t *testing.T, h http.Handler, ruta uuid.UUID) *httptest.ResponseRecorder {
+			return llamarRutas(t, h, http.MethodPatch, "/api/routes/"+ruta.String(),
+				superAdminEnRutas(t), `{"status":"in_progress"}`)
+		}},
+		{nombre: "cambiarle el camión", hacer: func(t *testing.T, h http.Handler, ruta uuid.UUID) *httptest.ResponseRecorder {
+			return llamarRutas(t, h, http.MethodPatch, "/api/routes/"+ruta.String(),
+				superAdminEnRutas(t), `{"vehicleId":null}`)
+		}},
+		{nombre: "borrarla", hacer: func(t *testing.T, h http.Handler, ruta uuid.UUID) *httptest.ResponseRecorder {
+			return llamarRutas(t, h, http.MethodDelete, "/api/routes/"+ruta.String(),
+				superAdminEnRutas(t), "")
+		}},
+	}
+
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			d, stg, _ := datosDeReparto()
+			h := montarRutas(t, d)
+			// La ruta se arma con el token de Santiago —hace falta sucursal para crearla— y
+			// lo que se MIDE es la puerta de después, que va con el SUPER ADMIN.
+			ruta := armarRutaDePrueba(t, h, deSantiagoEnRutas(t), stg[1])
+
+			avisos := contarAvisos(t)
+			w := c.hacer(t, h, ruta)
+			if w.Code != http.StatusOK {
+				t.Fatalf("código %d, se esperaba 200: %s", w.Code, w.Body.String())
+			}
+
+			suc, hubo := avisos.sucursalDe(CambioRutas)
+			if !hubo {
+				t.Fatalf("%s no avisó de rutas. Salieron: %v", c.nombre, avisos.tipos)
+			}
+			if suc != santiagoAMano {
+				t.Errorf("%s publicó el aviso con la sucursal %q y tenía que ser %s, la de "+
+					"la ruta.\n"+
+					"  Lo hace un SUPER ADMIN y sin `X-Sucursal-Id`: si el aviso sale del "+
+					"alcance, sale vacío y las ocho se bajan la lista de rutas entera.",
+					c.nombre, suc, santiagoAMano)
+			}
+		})
+	}
+}
+
+// Y EL ARMADO DE UNA RUTA, la otra puerta de `rutas.go`.
+func TestArmarUnaRutaAvisaConLaSucursalDeLaRutaCreada(t *testing.T) {
+	const santiagoAMano = "11111111-1111-1111-1111-111111111111"
+
+	d, stg, _ := datosDeReparto()
+	h := montarRutas(t, d)
+	avisos := contarAvisos(t)
+
+	// CON LA CABECERA, porque crear una ruta necesita saber de qué sucursal es: sin alcance no
+	// hay `branch_id` que escribir. Lo que se mide es que el aviso salga de la fila CREADA.
+	r := httptest.NewRequest(http.MethodPost, "/api/routes",
+		strings.NewReader(cuerpoDeArmado(camionStg.String(), stg[1])))
+	r.Header.Set("Authorization", "Bearer "+superAdminEnRutas(t))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set(alcance.CabeceraSucursal, stgDeRutas.String())
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("la ruta no se armó (%d): %s", w.Code, w.Body.String())
+	}
+
+	suc, hubo := avisos.sucursalDe(CambioRutas)
+	if !hubo {
+		t.Fatalf("armar una ruta no avisó de rutas. Salieron: %v", avisos.tipos)
+	}
+	if suc != santiagoAMano {
+		t.Errorf("el aviso salió con la sucursal %q y tenía que ser %s, la de la ruta que "+
+			"se acaba de crear (`creada.BranchID`).", suc, santiagoAMano)
 	}
 }

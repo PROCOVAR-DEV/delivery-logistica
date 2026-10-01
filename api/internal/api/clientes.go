@@ -45,7 +45,16 @@ import (
 //
 // Lo que sigue sin publicar es el proceso del espejo (`cmd/espejo`, `ciclo.go`,
 // `clientes()`), que corre en OTRO proceso y este bus vive en la memoria de éste.
-var avisarCambioDeClientes = func(_ context.Context) {}
+//
+// # LA SUCURSAL SE LA PASA QUIEN LLAMA, Y SU ÚNICO EMISOR LA MANDA GLOBAL
+//
+// Desde el 01/10/2026 el gancho acepta la sucursal igual que los demás, pero su único emisor
+// —el webhook de PEDIDO— pasa `DeTodasLasSucursales` **a propósito y con su motivo escrito
+// allí**: `customers` se acota por CÓDIGO de sucursal (`CAM`, `STG`…) y no por uuid, y el bus
+// reparte por uuid, así que afinarlo costaría una consulta de traducción más en el camino de
+// MÁS volumen que tiene esta API. El parámetro está para el día que lo llame alguien que ya
+// tenga el uuid en la mano.
+var avisarCambioDeClientes = func(_ context.Context, _ string) {}
 
 // TopeClientes: 50 por página, FIJO y no configurable.
 //

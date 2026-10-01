@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/diseno/tema.dart';
 import 'package:reparto/navegacion/franja_de_estado.dart';
-import 'package:reparto/navegacion/estado_navegacion.dart';
 import 'package:reparto/nucleo/base/base.dart';
+import 'package:reparto/nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/nucleo/red/salud.dart';
 import 'package:reparto/nucleo/sincro/huerfanos.dart';
@@ -28,7 +28,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          frescuraGlobalProvider.overrideWith(
+          // La franja mide contra LAS COLECCIONES DE SU PANTALLA desde el
+          // 01/10/2026, y aqui se monta sin decir ninguna, o sea con las nueve
+          // por defecto. El caso de recortarlas va en
+          // `test/nucleo/frescura/la_franja_mide_lo_de_su_pantalla_test.dart`.
+          frescuraDeLaPantallaProvider(Colecciones.todas).overrideWith(
             (ref) => Stream<DateTime?>.value(
               DateTime.now().subtract(const Duration(hours: 2)),
             ),

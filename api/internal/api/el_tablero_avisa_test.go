@@ -54,7 +54,7 @@ func TestCadaEscrituraDelTableroAvisa(t *testing.T) {
 
 			var avisos int
 			anterior := avisarCambioDelTablero
-			avisarCambioDelTablero = func(context.Context) { avisos++ }
+			avisarCambioDelTablero = func(context.Context, string) { avisos++ }
 			t.Cleanup(func() { avisarCambioDelTablero = anterior })
 
 			c.hacer(t, h, jwt)
@@ -75,7 +75,7 @@ func TestLeerElTableroNoAvisa(t *testing.T) {
 
 	var avisos int
 	anterior := avisarCambioDelTablero
-	avisarCambioDelTablero = func(context.Context) { avisos++ }
+	avisarCambioDelTablero = func(context.Context, string) { avisos++ }
 	t.Cleanup(func() { avisarCambioDelTablero = anterior })
 
 	pedirTab(t, h, http.MethodGet, "/api/board?branchId="+sucStg.String(), jwt, "")
@@ -96,7 +96,7 @@ func TestUnaEscrituraRECHAZADANoAvisa(t *testing.T) {
 
 	var avisos int
 	anterior := avisarCambioDelTablero
-	avisarCambioDelTablero = func(context.Context) { avisos++ }
+	avisarCambioDelTablero = func(context.Context, string) { avisos++ }
 	t.Cleanup(func() { avisarCambioDelTablero = anterior })
 
 	// «Centro» ya existe: choca con el índice único del nombre.
@@ -153,14 +153,41 @@ func TestNingunaEscrituraDelTableroSeQuedaSinAvisar(t *testing.T) {
 			t.Errorf("%s escribe en el tablero y NO avisa: lo que haga esa persona no "+
 				"aparecerá en la pantalla de al lado hasta dentro de dos minutos", nombre)
 		}
+		// Y AVISA CON LA SUCURSAL DE LA FILA, NO CON EL ALCANCE DE QUIEN LLAMÓ — 01/10/2026.
+		//
+		// `sucursalDelAlcance` es la fuente que falló en producción: el alcance de quien ve
+		// las ocho es «todas», así que el aviso salía PELADO y las otras siete se bajaban el
+		// tablero entero. Y para cualquier apunte que suba por la cola del teléfono da lo
+		// mismo quién sea, porque el sincronizador no reenvía `X-Sucursal-Id`.
+		//
+		// Un manejador de este fichero que vuelva a tirar de ahí compila, pasa todas las
+		// demás pruebas y deja el fallo puesto otra vez. Aquí no.
+		if strings.Contains(cuerpo, "avisarCambioDelTablero(r.Context(), sucursalDelAlcance") {
+			t.Errorf("%s avisa con `sucursalDelAlcance` y tiene la sucursal de la fila "+
+				"delante.\n"+
+				"  Eso es el fallo del 01/10/2026: para un SUPER ADMIN —y para TODO lo que "+
+				"sube por la cola del teléfono, que no manda `X-Sucursal-Id`— el alcance es "+
+				"«todas» y el aviso sale sin sucursal, así que las ocho se bajan el tablero "+
+				"entero por un gesto de una.\n"+
+				"  Lo que hay que pasarle es `deLaFila(...)` de la columna o de la tarjeta "+
+				"que se acaba de escribir.", nombre)
+		}
 	}
 
 	// El suelo: si mañana se renombran los manejadores, esta prueba dejaría de mirar lo
 	// que cree y se quedaría verde para siempre.
-	if n := strings.Count(fuente, "avisarCambioDelTablero(r.Context())"); n < len(escriben) {
-		t.Errorf("hay %d avisos para %d manejadores de escritura: o falta alguno, o "+
-			"cambió la forma de escribirlos y esta prueba dejó de servir",
-			n, len(escriben))
+	//
+	// El número va A MANO (siete) y no `len(escriben)`: la lista de arriba y este suelo tienen
+	// que poder discrepar, que es lo único que delata a alguien que añada un manejador a la
+	// lista sin su aviso. Comparar una cosa con la otra siempre cuadra.
+	//
+	// Y se cuenta la forma CON SUCURSAL —`r.Context(), `—, que es la única válida desde el
+	// 01/10/2026: un aviso que vuelva a la forma vieja de un solo argumento ni compila, pero
+	// uno que se escriba de otra manera dejaría este suelo dormido.
+	if n := strings.Count(fuente, "avisarCambioDelTablero(r.Context(), "); n < 7 {
+		t.Errorf("hay %d avisos del tablero con su sucursal y tienen que ser al menos 7, "+
+			"uno por manejador de escritura: o falta alguno, o cambió la forma de "+
+			"escribirlos y esta prueba dejó de servir", n)
 	}
 }
 

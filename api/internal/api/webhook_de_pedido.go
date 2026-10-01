@@ -342,11 +342,21 @@ func (s *Servidor) aplicarElAviso(
 		//     una zona, la tarjeta se va con él. Quien esté armando el tablero tiene que
 		//     verla irse, no seguir arrastrando algo que ya no existe.
 		//
-		// Van sin acotar porque quien entra por esta puerta es el servicio de PEDIDO, que no
-		// es una persona y no tiene sucursal: `sucursalDelAlcance` devolvería vacío de todos
-		// modos, y el pedido borrado puede ser de cualquiera de las ocho.
-		avisarCambioDePedidos(ctx)
-		avisarCambioDelTablero(ctx)
+		// LOS DOS VAN GLOBALES, Y ESO SE QUEDA ASÍ — repasado el 01/10/2026, cuando los demás
+		// avisos pasaron a sacar la sucursal de la fila que escriben.
+		//
+		// Aquí no hay fila de la que leerla **y no se puede fingir que la haya**: el pedido se
+		// identifica por su `external_id` de PEDIDO y `QuitarPedidosDelEspejo` borra por un
+		// array de ellos, así que cuando se avisa ya no existe nada que nombre su sucursal.
+		// Averiguarla pediría una lectura MÁS antes del borrado, en el camino de más volumen
+		// que tiene esta API —la manguera del webhook—, y el que entra por aquí es el servicio
+		// de PEDIDO: no es una persona, no tiene sucursal, y el pedido borrado puede ser de
+		// cualquiera de las ocho.
+		//
+		// Global es además el lado seguro: un aviso de más cuesta una petición; uno de menos
+		// deja una tarjeta en el tablero de alguien apuntando a un pedido que ya no existe.
+		avisarCambioDePedidos(ctx, DeTodasLasSucursales)
+		avisarCambioDelTablero(ctx, DeTodasLasSucursales)
 		return respuestaDelWebhook{Aplicados: 1}, http.StatusOK
 
 	// EL CLIENTE SE MOVIÓ DE SITIO. El reparto ordena las paradas por su coordenada: si
@@ -373,7 +383,15 @@ func (s *Servidor) aplicarElAviso(
 		// con un comentario en `eventos.go` que lo daba por bueno diciendo que aquí no hay
 		// ninguna puerta que escriba `customers`. La hay, y es ésta. Ver
 		// `avisarCambioDeClientes` en `clientes.go`.
-		avisarCambioDeClientes(ctx)
+		//
+		// GLOBAL A PROPÓSITO, repasado el 01/10/2026. El cliente SÍ dice de dónde es —trae
+		// `sucursalCodigo`—, pero lo trae como CÓDIGO (`STG`) y el bus reparte por uuid:
+		// acotarlo costaría un `BuscarSucursalPorCodigo` más por cada aviso de cliente, en el
+		// camino de más volumen que tiene esta API, para afinar un aviso que además va
+		// FRENADO (`clientes` está en `tiposFrenados`). No sale a cuenta, y errar hacia
+		// global sólo cuesta una petición; errar hacia acotado deja una ruta armándose con la
+		// coordenada de antes.
+		avisarCambioDeClientes(ctx, DeTodasLasSucursales)
 		return respuestaDelWebhook{Aplicados: 1}, http.StatusOK
 	}
 

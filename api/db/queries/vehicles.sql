@@ -169,12 +169,23 @@ WHERE vehicle_id = sqlc.arg('vehiculo_id')
 -- name: BorrarAsignacionesDeVehiculo :execrows
 DELETE FROM order_vehicles WHERE vehicle_id = sqlc.arg('vehiculo_id');
 
--- name: BorrarVehiculo :execrows
+-- DEVUELVE LA SUCURSAL DEL CAMIÓN BORRADO, y no es un adorno — 01/10/2026. El aviso en
+-- vivo de la flota sale de la sucursal de la FILA y no del alcance de quien llamó, y aquí la
+-- fila ya no está cuando se avisa: o la trae el DELETE, o no la trae nadie.
+--
+-- `branch_id` puede venir NULL, que es un camión COMPARTIDO entre sucursales. Eso se lee
+-- como «de todas» y el aviso sale global, que es lo correcto: su alta o su baja la ven las
+-- ocho.
+--
+-- `:one` y no `:execrows`: cero filas es «no existe O no es de tu sucursal», o sea el 404, y
+-- ése es ahora `pgx.ErrNoRows`.
+-- name: BorrarVehiculo :one
 DELETE FROM vehicles
 WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL
        OR branch_id = sqlc.narg('sucursal')::uuid
-       OR branch_id IS NULL);
+       OR branch_id IS NULL)
+RETURNING branch_id;
 
 -- ---------------------------------------------------------------------------
 -- Panel

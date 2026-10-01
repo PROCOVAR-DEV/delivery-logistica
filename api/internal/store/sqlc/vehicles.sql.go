@@ -145,12 +145,13 @@ func (q *Queries) BorrarAsignacionesDeVehiculo(ctx context.Context, vehiculoID u
 	return result.RowsAffected(), nil
 }
 
-const borrarVehiculo = `-- name: BorrarVehiculo :execrows
+const borrarVehiculo = `-- name: BorrarVehiculo :one
 DELETE FROM vehicles
 WHERE id = $1
   AND ($2::uuid IS NULL
        OR branch_id = $2::uuid
        OR branch_id IS NULL)
+RETURNING branch_id
 `
 
 type BorrarVehiculoParams struct {
@@ -158,12 +159,21 @@ type BorrarVehiculoParams struct {
 	Sucursal pgtype.UUID `json:"sucursal"`
 }
 
-func (q *Queries) BorrarVehiculo(ctx context.Context, arg BorrarVehiculoParams) (int64, error) {
-	result, err := q.db.Exec(ctx, borrarVehiculo, arg.ID, arg.Sucursal)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// DEVUELVE LA SUCURSAL DEL CAMIÓN BORRADO, y no es un adorno — 01/10/2026. El aviso en
+// vivo de la flota sale de la sucursal de la FILA y no del alcance de quien llamó, y aquí la
+// fila ya no está cuando se avisa: o la trae el DELETE, o no la trae nadie.
+//
+// `branch_id` puede venir NULL, que es un camión COMPARTIDO entre sucursales. Eso se lee
+// como «de todas» y el aviso sale global, que es lo correcto: su alta o su baja la ven las
+// ocho.
+//
+// `:one` y no `:execrows`: cero filas es «no existe O no es de tu sucursal», o sea el 404, y
+// ése es ahora `pgx.ErrNoRows`.
+func (q *Queries) BorrarVehiculo(ctx context.Context, arg BorrarVehiculoParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, borrarVehiculo, arg.ID, arg.Sucursal)
+	var branch_id pgtype.UUID
+	err := row.Scan(&branch_id)
+	return branch_id, err
 }
 
 const cambiarEstadoDeVehiculo = `-- name: CambiarEstadoDeVehiculo :execrows

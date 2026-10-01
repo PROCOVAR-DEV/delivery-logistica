@@ -183,25 +183,31 @@ func (q *Queries) CerrarHuecoEnColumna(ctx context.Context, arg CerrarHuecoEnCol
 
 const colocarPedido = `-- name: ColocarPedido :one
 
-INSERT INTO board_placements (order_id, column_id, posicion, colocado_por, colocado_at)
-SELECT o.id, c.id, $1, $2, now()
-FROM orders o, board_columns c
-WHERE o.id = $3
-  AND c.id = $4
-  AND o.branch_id = c.branch_id
-  AND o.route_id IS NULL
-  -- Y NO SE PUEDE COLOCAR LO QUE YA SE ENTREGÓ. ` + "`" + `route_id IS NULL` + "`" + ` no lo cubre: la
-  -- clave ajena es ` + "`" + `ON DELETE SET NULL` + "`" + `, así que borrar la ruta de ayer deja sueltos a
-  -- los entregados. Quien lo traduce a un 409 con su motivo es ` + "`" + `porQueNoSePudoColocar` + "`" + `.
-  AND o.delivered_at IS NULL
-  AND (o.resultado IS NULL OR o.resultado <> 'entregado')
-  AND ($5::uuid IS NULL OR c.branch_id = $5::uuid)
-ON CONFLICT (order_id) DO UPDATE SET
-    column_id    = excluded.column_id,
-    posicion     = excluded.posicion,
-    colocado_por = excluded.colocado_por,
-    colocado_at  = now()
-RETURNING order_id, column_id, posicion, colocado_por, colocado_at, created_at, updated_at
+WITH puesta AS (
+    INSERT INTO board_placements (order_id, column_id, posicion, colocado_por, colocado_at)
+    SELECT o.id, c.id, $1, $2, now()
+    FROM orders o, board_columns c
+    WHERE o.id = $3
+      AND c.id = $4
+      AND o.branch_id = c.branch_id
+      AND o.route_id IS NULL
+      -- Y NO SE PUEDE COLOCAR LO QUE YA SE ENTREGÓ. ` + "`" + `route_id IS NULL` + "`" + ` no lo cubre: la
+      -- clave ajena es ` + "`" + `ON DELETE SET NULL` + "`" + `, así que borrar la ruta de ayer deja sueltos a
+      -- los entregados. Quien lo traduce a un 409 con su motivo es ` + "`" + `porQueNoSePudoColocar` + "`" + `.
+      AND o.delivered_at IS NULL
+      AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+      AND ($5::uuid IS NULL OR c.branch_id = $5::uuid)
+    ON CONFLICT (order_id) DO UPDATE SET
+        column_id    = excluded.column_id,
+        posicion     = excluded.posicion,
+        colocado_por = excluded.colocado_por,
+        colocado_at  = now()
+    RETURNING order_id, column_id, posicion, colocado_por, colocado_at, created_at, updated_at
+)
+SELECT p.order_id, p.column_id, p.posicion, p.colocado_por, p.colocado_at,
+       p.created_at, p.updated_at, c.branch_id
+FROM puesta p
+JOIN board_columns c ON c.id = p.column_id
 `
 
 type ColocarPedidoParams struct {
@@ -210,6 +216,17 @@ type ColocarPedidoParams struct {
 	PedidoID    uuid.UUID   `json:"pedido_id"`
 	ColumnaID   uuid.UUID   `json:"columna_id"`
 	Sucursal    pgtype.UUID `json:"sucursal"`
+}
+
+type ColocarPedidoRow struct {
+	OrderID     uuid.UUID          `json:"order_id"`
+	ColumnID    uuid.UUID          `json:"column_id"`
+	Posicion    int32              `json:"posicion"`
+	ColocadoPor *string            `json:"colocado_por"`
+	ColocadoAt  pgtype.Timestamptz `json:"colocado_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	BranchID    uuid.UUID          `json:"branch_id"`
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +253,29 @@ type ColocarPedidoParams struct {
 // La condición de `factura_estado` NO está: un pedido colocado que deja de ser repartible
 // se queda puesto y marcado (ver `ListarPedidosColocados`), así que volver a colocarlo
 // tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador.
-func (q *Queries) ColocarPedido(ctx context.Context, arg ColocarPedidoParams) (BoardPlacement, error) {
+//
+// # Y DEVUELVE LA SUCURSAL DE LA COLUMNA, QUE NO ES UN ADORNO — 01/10/2026
+//
+// El aviso en vivo del tablero tiene que salir de la sucursal de la FILA que se acaba de
+// escribir y no del alcance de quien llamó (`api/internal/api/eventos.go`), porque el
+// alcance de un SUPER ADMIN es «todas» y entonces el aviso sale pelado y las ocho
+// sucursales se bajan el tablero entero. `board_placements` no tiene `branch_id` —cuelga de
+// la columna—, así que la sucursal hay que sacarla de `board_columns`.
+//
+// Y VA EN **UNA** SENTENCIA, CON UN CTE, no con una segunda lectura detrás. Un
+// `SELECT branch_id FROM board_columns` aparte sería una segunda versión de los hechos: la
+// columna puede haberse borrado entre el INSERT y esa lectura, y entonces el aviso saldría
+// global o no saldría. Aquí el `JOIN` se hace sobre la fila que la sentencia ACABA de
+// escribir, en la misma instantánea.
+//
+// `RETURNING` de un `INSERT` **no puede ver** los `FROM` de su propio `SELECT` (sólo la fila
+// insertada), y por eso no basta con añadirle `c.branch_id`: hace falta el CTE. Si vuelve a
+// intentarse sin él, Postgres contesta «missing FROM-clause entry for table c».
+//
+// Cero filas sigue significando lo mismo: si el INSERT no coloca nada, el CTE va vacío, el
+// `SELECT` de fuera tampoco devuelve nada y el manejador recibe su `pgx.ErrNoRows` para
+// traducirlo en `porQueNoSePudoColocar`.
+func (q *Queries) ColocarPedido(ctx context.Context, arg ColocarPedidoParams) (ColocarPedidoRow, error) {
 	row := q.db.QueryRow(ctx, colocarPedido,
 		arg.Posicion,
 		arg.ColocadoPor,
@@ -244,7 +283,7 @@ func (q *Queries) ColocarPedido(ctx context.Context, arg ColocarPedidoParams) (B
 		arg.ColumnaID,
 		arg.Sucursal,
 	)
-	var i BoardPlacement
+	var i ColocarPedidoRow
 	err := row.Scan(
 		&i.OrderID,
 		&i.ColumnID,
@@ -253,6 +292,7 @@ func (q *Queries) ColocarPedido(ctx context.Context, arg ColocarPedidoParams) (B
 		&i.ColocadoAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BranchID,
 	)
 	return i, err
 }
@@ -1314,12 +1354,17 @@ func (q *Queries) QuitarDelTableroLosDeRuta(ctx context.Context, arg QuitarDelTa
 }
 
 const quitarPedidoDelTablero = `-- name: QuitarPedidoDelTablero :one
-DELETE FROM board_placements p
-USING board_columns c
-WHERE c.id = p.column_id
-  AND p.order_id = $1
-  AND ($2::uuid IS NULL OR c.branch_id = $2::uuid)
-RETURNING p.order_id, p.column_id, p.posicion
+WITH quitada AS (
+    DELETE FROM board_placements p
+    USING board_columns c
+    WHERE c.id = p.column_id
+      AND p.order_id = $1
+      AND ($2::uuid IS NULL OR c.branch_id = $2::uuid)
+    RETURNING p.order_id, p.column_id, p.posicion
+)
+SELECT q.order_id, q.column_id, q.posicion, c.branch_id
+FROM quitada q
+JOIN board_columns c ON c.id = q.column_id
 `
 
 type QuitarPedidoDelTableroParams struct {
@@ -1331,15 +1376,30 @@ type QuitarPedidoDelTableroRow struct {
 	OrderID  uuid.UUID `json:"order_id"`
 	ColumnID uuid.UUID `json:"column_id"`
 	Posicion int32     `json:"posicion"`
+	BranchID uuid.UUID `json:"branch_id"`
 }
 
 // Sacar una tarjeta del tablero: vuelve a «sin colocar», donde la lista la pondrá otra vez
 // en su sitio por cercanía. Devuelve la columna y la posición que tenía para poder cerrar
 // el hueco sin volver a preguntar.
+//
+// Y DEVUELVE LA SUCURSAL DE LA COLUMNA POR LO MISMO QUE `ColocarPedido`: el aviso en vivo
+// sale de la sucursal de la FILA, no del alcance de quien llamó.
+//
+// Va con el mismo CTE, y aquí el motivo es otro: Postgres sí deja que el `RETURNING` de un
+// `DELETE` nombre sus `USING`, pero **el analizador de sqlc no** — con
+// `RETURNING p.order_id, …, c.branch_id` contesta `column "branch_id" does not exist` y no
+// genera nada. Probado el 01/10/2026 con sqlc v1.31.1. Así que el `JOIN` se hace fuera, que
+// además lo deja igual que su gemela de arriba.
 func (q *Queries) QuitarPedidoDelTablero(ctx context.Context, arg QuitarPedidoDelTableroParams) (QuitarPedidoDelTableroRow, error) {
 	row := q.db.QueryRow(ctx, quitarPedidoDelTablero, arg.PedidoID, arg.Sucursal)
 	var i QuitarPedidoDelTableroRow
-	err := row.Scan(&i.OrderID, &i.ColumnID, &i.Posicion)
+	err := row.Scan(
+		&i.OrderID,
+		&i.ColumnID,
+		&i.Posicion,
+		&i.BranchID,
+	)
 	return i, err
 }
 

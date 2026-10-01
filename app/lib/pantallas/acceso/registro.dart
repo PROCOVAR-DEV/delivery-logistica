@@ -1,4 +1,5 @@
 import '../../navegacion/pantalla_registrada.dart';
+import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import '../../navegacion/portero.dart';
 import 'vista/pantalla_acceso.dart';
 
@@ -19,5 +20,9 @@ PantallaRegistrada registrarAcceso() => PantallaRegistrada(
   titulo: 'Entrar',
   enElMenu: false,
   conArmazon: false,
+  // NINGUNA, y por el mismo motivo que `conArmazon: false`: aqui todavia no
+  // hay copia de nada. Un «sin descargar» en la puerta es decir que la
+  // aplicacion esta rota antes de haber entrado.
+  colecciones: ColeccionesDePantalla.ninguna,
   construir: (contexto, estado) => const PantallaAcceso(),
 );

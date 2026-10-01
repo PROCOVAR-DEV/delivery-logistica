@@ -247,12 +247,17 @@ func (d *dobleDePedidos) ActualizarPedido(_ context.Context, arg sqlc.Actualizar
 		if arg.TocarRouteID {
 			d.pedidos[i].RouteID = arg.RouteID
 		}
-		return sqlc.ActualizarPedidoRow{ID: p.ID, CustomerName: d.pedidos[i].CustomerName}, nil
+		// CON SU `BranchID`: de la fila que vuelve del UPDATE sale la sucursal del aviso en
+		// vivo. Sin él, un aviso que saliera pelado pasaría por bueno aquí.
+		return sqlc.ActualizarPedidoRow{ID: p.ID, CustomerName: d.pedidos[i].CustomerName,
+			BranchID: d.pedidos[i].BranchID}, nil
 	}
 	return sqlc.ActualizarPedidoRow{}, pgx.ErrNoRows
 }
 
-func (d *dobleDePedidos) BorrarPedido(_ context.Context, arg sqlc.BorrarPedidoParams) (int64, error) {
+// BorrarPedido devuelve la SUCURSAL del pedido borrado, como el `RETURNING branch_id` de
+// verdad, y `pgx.ErrNoRows` cuando no borró nada (que es el 404).
+func (d *dobleDePedidos) BorrarPedido(_ context.Context, arg sqlc.BorrarPedidoParams) (pgtype.UUID, error) {
 	for i, p := range d.pedidos {
 		if p.ID != arg.ID {
 			continue
@@ -260,10 +265,11 @@ func (d *dobleDePedidos) BorrarPedido(_ context.Context, arg sqlc.BorrarPedidoPa
 		if !pedidosEnAlcance(arg.Sucursal, p.BranchID) {
 			break
 		}
+		suc := p.BranchID
 		d.pedidos = append(d.pedidos[:i], d.pedidos[i+1:]...)
-		return 1, nil
+		return suc, nil
 	}
-	return 0, nil
+	return pgtype.UUID{}, pgx.ErrNoRows
 }
 
 func (d *dobleDePedidos) PesosDelCatalogoPorFuente(_ context.Context, _ sqlc.Procedencia) ([]sqlc.PesosDelCatalogoPorFuenteRow, error) {

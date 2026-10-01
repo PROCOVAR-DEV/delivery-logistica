@@ -146,9 +146,9 @@ func (q *registrador) ContarPedidosSinColocar(_ context.Context, arg sqlc.Contar
 	return 0, nil
 }
 
-func (q *registrador) ColocarPedido(_ context.Context, arg sqlc.ColocarPedidoParams) (sqlc.BoardPlacement, error) {
+func (q *registrador) ColocarPedido(_ context.Context, arg sqlc.ColocarPedidoParams) (sqlc.ColocarPedidoRow, error) {
 	q.apuntar(arg.Sucursal)
-	return sqlc.BoardPlacement{}, nil
+	return sqlc.ColocarPedidoRow{}, nil
 }
 
 func (q *registrador) AbrirHuecoEnColumna(_ context.Context, arg sqlc.AbrirHuecoEnColumnaParams) (int64, error) {

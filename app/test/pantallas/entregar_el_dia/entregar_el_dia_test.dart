@@ -222,15 +222,26 @@ void main() {
 
     test('una subida a medias deja lo que no subio, y lo dice', () async {
       await encolar(5);
-      // El servidor contesta solo por dos de los cinco: se corto a la mitad.
+      // SE CORTA A LA MITAD, Y DESDE EL 01/10/2026 ESO TIENE OTRA FORMA.
+      //
+      // Antes la cola entera iba en UNA peticion y «a medias» era un servidor
+      // que contestaba por dos de los cinco apuntes de dentro. Ahora cada apunte
+      // es su propia peticion, asi que a medias es lo que de verdad pasa en la
+      // calle: las dos primeras llegan y contestan, y en la tercera se va la
+      // antena. **Lo que esta prueba vigila no cambia** —que lo que no subio se
+      // quede y se diga— y encima ahora los dos primeros estan ARRIBA, que es
+      // justo lo que se vino a ganar.
+      var contestadas = 0;
       final caja = montar((p) async {
         if (!p.ruta.endsWith('/subida')) return servidorQueTraeElDia(p);
+        if (contestadas >= 2) return null;
+        contestadas++;
         final cuerpo = p.cuerpo! as Map<String, Object?>;
         final apuntes = (cuerpo['apuntes']! as List<Object?>)
             .cast<Map<String, Object?>>();
         return RespuestaFalsa(200, <String, Object?>{
           'resultados': [
-            for (final a in apuntes.take(2))
+            for (final a in apuntes)
               <String, Object?>{'clave': a['clave'], 'estado': 'aplicado'},
           ],
         });
@@ -238,7 +249,14 @@ void main() {
 
       final entrego = await caja.read(entregarElDiaProvider.notifier).ahora();
 
-      expect(entrego.subidos, 2);
+      expect(
+        entrego.subidos,
+        2,
+        reason:
+            'los DOS que subieron antes del corte. Un cero aqui, con el «quedan '
+            '3» de al lado sacado de la base, serian las dos mitades del mismo '
+            'cartel contradiciendose',
+      );
       expect(entrego.quedan, 3);
       expect(entrego.completo, isFalse);
       expect(TextosDeEntregarElDia.comoQuedo(entrego), 'Quedan 3 sin subir');
@@ -312,8 +330,11 @@ void main() {
 
       expect(
         rutas.where((r) => r.endsWith('/subida')),
-        hasLength(1),
-        reason: 'dos subidas del mismo lote son dos veces el mismo trabajo',
+        hasLength(2),
+        reason:
+            'DOS apuntes, DOS peticiones (la cola sube de uno en uno desde el '
+            '01/10/2026) — y ni una más: lo que esto vigila es que los dos '
+            'botones no disparen DOS ciclos, que serían cuatro',
       );
       expect(rutas.where((r) => r.endsWith('/refresh')), hasLength(1));
       expect(rutas.where((r) => r.endsWith('/sync/cambios')), hasLength(1));

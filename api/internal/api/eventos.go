@@ -49,6 +49,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/auth"
 	"procovar/reparto-api/internal/httpx"
@@ -419,9 +422,8 @@ var busEventos = NuevoDifusor()
 // callada, que es el fallo caro de esta casa.
 //
 //   - `tablero`, `rutas`, `pedidos`, `almacenes` -> DE SU SUCURSAL. Las cuatro cosas
-//     cuelgan de `branch_id` y sus manejadores pasan todos por `acotado()`, así que el
-//     alcance de quien escribe es el techo de lo que pudo cambiar: un usuario de Camagüey
-//     no puede tocar nada de Holguín, por definición.
+//     cuelgan de `branch_id`, y **la sucursal se la pasa el manejador leyéndola de LA FILA
+//     que acaba de escribir** (ver más abajo, «DE DÓNDE SALE LA SUCURSAL»).
 //   - `catalogo` -> GLOBAL. `products` sí tiene `sucursal_codigo`, pero las dos puertas que
 //     lo tocan son de las ocho: `POST /api/products/sync` (`espejo.go`) trae el catálogo de
 //     VARIAS sucursales en una sola vuelta y avisa una sola vez, y corregir un producto es
@@ -437,11 +439,15 @@ var busEventos = NuevoDifusor()
 //     pantallas de Vehículos sin enterarse de un tipo nuevo —y esa pantalla NO vive de la
 //     base local, así que el ciclo tampoco la repinta: se queda clavada hasta salir y
 //     volver a entrar. Los dos publican el MISMO tipo, porque la pantalla es la misma.
-//   - `clientes` -> DE SU SUCURSAL, y desde el 29/09/2026 **sí lo publica alguien**: el
-//     aviso `cliente` de `POST /api/webhooks/pedido`, que es cuando en PEDIDO corrigen la
+//   - `clientes` -> ACOTABLE, y desde el 29/09/2026 **sí lo publica alguien**: el aviso
+//     `cliente` de `POST /api/webhooks/pedido`, que es cuando en PEDIDO corrigen la
 //     coordenada de un cliente. Aquí decía que no había ninguna puerta que escribiera
-//     `customers` y era falso. Por esa puerta entra el servicio, sin sucursal, así que en
-//     la práctica sale global; el gancho se acota igual por si algún día lo llama otro.
+//     `customers` y era falso. Hoy ese único emisor lo manda **GLOBAL a propósito**, y el
+//     porqué está escrito en su sitio (`webhook_de_pedido.go`): `customers` se acota por
+//     CÓDIGO de sucursal (`CAM`, `STG`…) y no por uuid, así que traducirlo costaría una
+//     consulta más **en el camino de más volumen que tiene esta API** —la manguera de
+//     PEDIDO— para afinar un aviso que ya va frenado. El gancho acepta sucursal por si
+//     algún día lo llama otro con el uuid en la mano.
 //     Lo que sigue sin publicar es el proceso del espejo (`cmd/espejo`), que corre fuera.
 //   - `sucursales`, `ajustes` -> GLOBAL. La lista de sucursales es de todos, y los ajustes
 //     lo dicen en su propio fichero: «GLOBALES: no llevan alcance por sucursal y no es un
@@ -458,31 +464,62 @@ var busEventos = NuevoDifusor()
 //     **la pantalla del canal es de administración y mira la cola entera**: acotarla
 //     dejaría a quien la vigila sin ver justo lo que va a atascarla.
 //
+// ## DE DÓNDE SALE LA SUCURSAL: DE LA FILA, NO DE QUIEN LLAMÓ — 01/10/2026
+//
+// Hasta hoy los seis ganchos acotados la sacaban de `sucursalDelAlcance(ctx)`, o sea del
+// alcance de la petición. **No bastaba, y está medido en producción.** Lo que salió por el
+// cable al crear una zona en el Tablero de Santiago desde el teléfono, cuerpo literal:
+//
+//	{"cuando":"2026-10-01T13:07:54.849Z","tipo":"tablero"}
+//
+// **Sin `sucursal`**, o sea «de todas»: las ocho sucursales se bajaron el tablero entero por
+// un gesto de una. Son dos piezas que se suman:
+//
+//  1. el alcance de quien ve las ocho (DESARROLLADOR, SUPER ADMIN) es «todas», así que
+//     `sucursalDelAlcance` devuelve vacío por mucho que la fila escrita tenga su `branch_id`
+//     puesto — y lo tiene: `CrearColumnaParams{… BranchID: t.sucursal}`;
+//  2. **todo lo que hace el teléfono sube por la cola**, y el sincronizador reenvía sólo
+//     `x-api-key`, `Accept` y `X-Hecho-At` (`sync/internal/reparto/reparto.go`,
+//     `cabeceras`). No reenvía `X-Sucursal-Id`, así que la petición llega sin decir qué
+//     sucursal se estaba mirando aunque en el móvil estuviera Santiago puesto.
+//
+// Así que ahora **la sucursal la pasa el manejador, leída de la fila que acaba de escribir**:
+// `fila.BranchID`, `columna.BranchID`, `t.sucursal`. Vale llegue la cabecera o no y no
+// depende de quién pulse, que es la única forma de que esto no vuelva.
+//
+// **Y NO TOCA LA REGLA 1 DE LA CASA** («el alcance sale de quién pregunta, no de lo que mande
+// el cliente», `CLAUDE.md` §4). Lo que se afina es a QUIÉN se le avisa, no a quién se le deja
+// ver: la fila de la que se lee el `branch_id` ya se escribió a través de `acotado()`, o sea
+// filtrada por el alcance, y donde la sucursal viene del cuerpo o del `?branchId=` —
+// `tableroDe`— se comprueba antes contra `a.ObtenerSucursal`, que es el propio alcance. Un
+// `branchId` ajeno no llega hasta el aviso: se queda en el 404 de ahí. Y lo ata
+// `TestNadieSeAsomaAOtraSucursalPorElAviso`.
+//
 // Lo ata `el_aviso_sale_de_su_sucursal_test.go`, que fija esta tabla: un gancho que cambie
 // de lado tiene que cambiarla a mano, y entonces se lee este comentario.
 func init() {
-	avisarCambioDeRutas = func(ctx context.Context) {
-		busEventos.AvisarDe(CambioRutas, sucursalDelAlcance(ctx), nil)
+	avisarCambioDeRutas = func(_ context.Context, sucursal string) {
+		busEventos.AvisarDe(CambioRutas, sucursal, nil)
 	}
-	avisarCambioDelTablero = func(ctx context.Context) {
-		busEventos.AvisarDe(CambioTablero, sucursalDelAlcance(ctx), nil)
+	avisarCambioDelTablero = func(_ context.Context, sucursal string) {
+		busEventos.AvisarDe(CambioTablero, sucursal, nil)
 	}
-	avisarCambioDePedidos = func(ctx context.Context) {
-		busEventos.AvisarDe(CambioPedidos, sucursalDelAlcance(ctx), nil)
+	avisarCambioDePedidos = func(_ context.Context, sucursal string) {
+		busEventos.AvisarDe(CambioPedidos, sucursal, nil)
 	}
-	avisarCambioDeAlmacenes = func(ctx context.Context) {
-		busEventos.AvisarDe(CambioAlmacenes, sucursalDelAlcance(ctx), nil)
+	avisarCambioDeAlmacenes = func(_ context.Context, sucursal string) {
+		busEventos.AvisarDe(CambioAlmacenes, sucursal, nil)
 	}
-	avisarCambioDeVehiculos = func(ctx context.Context) {
-		busEventos.AvisarDe(CambioVehiculos, sucursalDelAlcance(ctx), nil)
+	avisarCambioDeVehiculos = func(_ context.Context, sucursal string) {
+		busEventos.AvisarDe(CambioVehiculos, sucursal, nil)
 	}
-	avisarCambioDeClientes = func(ctx context.Context) {
-		busEventos.AvisarDe(CambioClientes, sucursalDelAlcance(ctx), nil)
+	avisarCambioDeClientes = func(_ context.Context, sucursal string) {
+		busEventos.AvisarDe(CambioClientes, sucursal, nil)
 	}
 
 	// LOS DE TODAS. Van por `Avisar` —sin sucursal— a propósito; el porqué de cada uno,
-	// en la tabla de arriba. No se les pone `sucursalDelAlcance` aunque quien los toque
-	// tenga sucursal: lo que cambian lo ven las ocho.
+	// en la tabla de arriba. No se les pasa ninguna sucursal aunque quien los toque
+	// tenga una: lo que cambian lo ven las ocho.
 	avisarCambioDelCatalogo = func(_ context.Context) { busEventos.Avisar(CambioCatalogo, nil) }
 	avisarCambioDeTiposDeVehiculo = func(_ context.Context) { busEventos.Avisar(CambioVehiculos, nil) }
 	avisarCambioDeSucursales = func(_ context.Context) { busEventos.Avisar(CambioSucursales, nil) }
@@ -497,12 +534,53 @@ func init() {
 	}
 }
 
+// DeTodasLasSucursales es la sucursal de un aviso que NO es de ninguna en concreto: el
+// catálogo, los ajustes, la lista de sucursales, el canal con PEDIDO.
+//
+// Es el texto vacío, y tiene nombre A PROPÓSITO. Un `""` suelto en una llamada se lee como
+// un descuido —«se le olvidó pasar la sucursal»— y el día que alguien lo «arregle» poniéndole
+// una, las otras siete pantallas dejan de enterarse de un producto nuevo o de un cambio de
+// tasa. Eso no falla, no da error y no sale en ningún registro. Con nombre, pasarlo es un
+// acto y obliga a escribir por qué.
+//
+// Y al contrario: **vacío NO es «de ninguna»**. El bus lo lee como «no lo acota» y el aviso
+// le llega a las ocho (ver `Cambio.Sucursal` y `repartir`).
+const DeTodasLasSucursales = ""
+
+// deLaFila: la sucursal de una fila que SÍ tiene columna `branch_id`, como la quiere el bus.
+//
+// `uuid.Nil` se trata como «no se sabe» y sale `DeTodasLasSucursales`. No es un caso que
+// deba darse —`board_columns.branch_id` es `NOT NULL`— pero si se diera, el aviso tiene que
+// llegarle a todos: un aviso acotado a la sucursal cero no le llega a nadie.
+func deLaFila(sucursal uuid.UUID) string {
+	if sucursal == uuid.Nil {
+		return DeTodasLasSucursales
+	}
+	return sucursal.String()
+}
+
+// deLaFilaPg es lo mismo para las columnas `branch_id` que ADMITEN NULO —`routes`, `orders`,
+// `vehicles`—. Un nulo es «de todas»: un camión sin sucursal es un camión COMPARTIDO, y su
+// alta o su baja la ven las ocho.
+func deLaFilaPg(sucursal pgtype.UUID) string {
+	if !sucursal.Valid {
+		return DeTodasLasSucursales
+	}
+	return deLaFila(uuid.UUID(sucursal.Bytes))
+}
+
 // sucursalDelAlcance: de qué sucursal es lo que acaba de cambiar.
 //
 // Sale del alcance de la petición que lo escribió, que es la única fuente honesta: el
 // alcance lo resuelve la portería a partir de QUIÉN pide —nunca de lo que mande el
 // cliente—, y acota las consultas, así que lo que un manejador pudo escribir no puede
 // salirse de él. Un usuario de Camagüey no puede haber cambiado nada de Holguín.
+//
+// SE USA DONDE NO HAY UNA FILA SOLA DE LA QUE LEERLO, y sólo ahí. Desde el 01/10/2026 los
+// manejadores pasan la sucursal de la fila que escriben (ver `init`), que es lo que vale
+// llegue o no la cabecera `X-Sucursal-Id`; esto queda para las faenas que tocan MUCHAS filas
+// de una vez, donde la única sucursal honesta es el techo del alcance — el repaso de pesos
+// de `POST /api/orders/recompute-weights`, por ejemplo.
 //
 // Devuelve vacío —o sea, «de todas»— en los dos casos en los que no se sabe:
 //

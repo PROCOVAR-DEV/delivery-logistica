@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
+import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'vista/pantalla_clientes.dart';
 
 /// Clientes en el menu.
@@ -17,6 +18,7 @@ PantallaRegistrada registrarClientes() => const PantallaRegistrada(
   titulo: 'Clientes',
   icono: Icons.people_outline,
   enElMenu: true,
+  colecciones: ColeccionesDePantalla.clientes,
   construir: _construir,
 );
 

@@ -37,18 +37,73 @@ class ColaDeOtraPersona implements Exception {
       '${quienEsta ?? "nadie"}; no se sube nada)';
 }
 
-/// `POST /sync/subida` — la cola del aparato, en el orden en que se hizo.
+/// `POST /sync/subida` — la cola del aparato, DE UNO EN UNO y en el orden en que
+/// se hizo.
 ///
-/// Un solo trabajador y un solo lote. Veinte apuntes no son veinte peticiones en
-/// paralelo, y no por elegancia: veinte peticiones a la vez al recuperar la
-/// senal es lo que dispara veinte 401 a la vez, y eso es lo que el candado de
-/// renovacion tiene que aguantar (caso I1). Mejor no darselo.
+/// ## Un apunte, una peticion, una detras de otra — 01/10/2026
+///
+/// Hasta hoy esto mandaba **un solo lote**: hasta 200 apuntes dentro de una
+/// unica peticion. Jose: «las subidas sin conexion es por cola para q no caiga
+/// todo de una y suba uno a uno las cosas q se hicieron».
+///
+/// Y tiene razon, porque el que paga la diferencia es el reparto en Cuba: **una
+/// peticion grande que se corta al 90 % no deja nada**. Medido en su telefono el
+/// 01/10/2026: tres gestos hechos sin cobertura salieron en UNA peticion de 6.368
+/// bytes. Si esa peticion se cae, los tres se quedan abajo y hay que volver a
+/// empezar por el primero. De uno en uno, lo que ya paso **se queda arriba** y
+/// solo se reintenta lo que falta. Con una jornada entera de trabajo dentro del
+/// telefono, esa diferencia es el dia.
+///
+/// ## LO QUE SIGUE PROHIBIDO, que no es lo mismo
+///
+/// Son TRES disenos distintos y confundirlos cuesta el candado de renovacion:
+///
+///  1. **un solo lote** — lo que habia;
+///  2. **N en paralelo** — veinte peticiones A LA VEZ al recuperar la senal es
+///     lo que dispara veinte 401 a la vez, y eso es lo que el candado de
+///     renovacion tiene que aguantar (caso I1). **Esto sigue prohibido.**
+///  3. **N secuenciales**, cada una esperando su respuesta antes de mandar la
+///     siguiente — lo que hay ahora.
+///
+/// El 3 no es el 2: en el bucle de [Subida.ciclo] hay un `await` por apunte, asi
+/// que **nunca hay dos peticiones de esta cola en vuelo a la vez**. Un 401 a
+/// mitad de cola es UN 401, lo renueva el cliente y la cola sigue. Lo que el caso
+/// I1 prohibe es la simultaneidad, no la cantidad.
+///
+/// ## Lo que cuesta, dicho con el numero
+///
+/// El sobre de cada `POST /sync/subida` son ~579 bytes medidos (la vuelta vacia).
+/// Pagarlo 200 veces en vez de una son ~116 KB de mas en el peor dia imaginable.
+/// Es caro y se paga a gusto: la alternativa es que un corte deje 0 bytes de
+/// progreso. En un dia normal son ~12 apuntes (`jornada_entera_sin_senal_test`),
+/// o sea unos 7 KB de sobres.
 /// LA MARCA DEL UNICO 404 QUE SIGNIFICA «date de alta otra vez».
 ///
 /// La manda `sync/internal/httpx` (`CodigoAparatoNoRegistrado`). Las dos partes
 /// tienen que decir lo mismo: lo ata
 /// `test/nucleo/sincro/solo_un_404_tira_el_aparato_test.dart`.
 const marcaDeAparatoNoRegistrado = 'aparato_no_registrado';
+
+/// CUANTOS APUNTES COMO MAXIMO SALEN EN UNA VUELTA DEL CICLO. **Doscientos.**
+///
+/// Con el lote unico este numero era «cuantos caben en una peticion»; ahora es
+/// **cuantas peticiones se hacen seguidas**, asi que hay que justificarlo otra
+/// vez (§3 del `CLAUDE.md`: un tope que no se comprueba es el fallo que mas caro
+/// sale aqui).
+///
+/// Sigue siendo 200, y el tope **no se quita**, por dos razones:
+///
+///  * Una vuelta tiene que terminar. Despues de subir viene BAJAR, y una cola de
+///    mil apuntes sin tope dejaria al aparato sin bajar el tablero durante toda
+///    la subida. El tope es lo que acota la vuelta.
+///  * Lo que sobra NO se pierde ni espera al temporizador: la vuelta acaba
+///    `bien`, queda cola, y `CicloDeSincronizacion._haceFaltaOtraVuelta` lanza
+///    otra en el acto —**sin renovar otra vez**, que es lo que haria dano—.
+///
+/// Y 200 es un techo, no una medida: una jornada entera sin senal son ~12
+/// apuntes. Si alguna vez se alcanza de verdad, se ve, porque la vuelta siguiente
+/// sale sola y el registro la nombra.
+const topeDeLaVuelta = 200;
 
 class Subida {
   Subida({
@@ -76,8 +131,8 @@ class Subida {
   /// Quien sabe el identificador de esta instalacion y sabe darla de alta.
   final IdentidadDelAparato _aparato;
 
-  /// Sube un lote y aplica los resultados. Devuelve cuantos apuntes **aceptó el
-  /// servidor**.
+  /// Sube la cola **de uno en uno** y aplica cada resultado en cuanto llega.
+  /// Devuelve cuantos apuntes **aceptó el servidor**.
   ///
   /// Aceptados, no resueltos: un rechazado tambien se resuelve —queda en la
   /// bandeja con su motivo— pero **no subio**, y contarlo aqui hace que la
@@ -85,10 +140,26 @@ class Subida {
   /// que alguien decida». Visto en el navegador el 15/09/2026, y es la clase de
   /// contradiccion que le quita el valor a todo lo demas que diga la pantalla.
   ///
-  /// Lo que lance sale tal cual: si es `FalloDeRed`, la cola se queda entera y
-  /// se reintenta luego; si es `SesionMuerta`, quien llama manda a la pantalla
-  /// de acceso. En ningun caso se borra un apunte por no haber podido subirlo.
-  Future<int> ciclo({int maximo = 200}) async {
+  /// ## Lo que lanza, y lo que YA subio cuando lanza
+  ///
+  /// Lo que lance sale tal cual: si es `FalloDeRed`, lo que no se mando sigue
+  /// pendiente y se reintenta luego; si es `SesionMuerta`, quien llama manda a la
+  /// pantalla de acceso. En ningun caso se borra un apunte por no haber podido
+  /// subirlo.
+  ///
+  /// **Pero ahora un corte a mitad deja apuntes arriba**, y eso es justamente lo
+  /// que se venia a ganar. Por eso existe [alSubirUno]: una excepcion no puede
+  /// devolver un numero, y sin ella el cajon de «Entregar el dia» pintaria
+  /// «Subieron 0 apuntes» encima de dos que SI subieron. Un numero que se lee
+  /// bien y esta mal es el peor fallo de esta casa.
+  ///
+  /// [alSubirUno] se llama con el total que va aceptado, despues de cada apunte
+  /// que el servidor acepta y que la cola ya ha marcado. No se llama por un
+  /// rechazado: ese se resuelve pero no sube.
+  Future<int> ciclo({
+    int maximo = topeDeLaVuelta,
+    void Function(int yaSubieron)? alSubirUno,
+  }) async {
     final lote = await _cola.lote(maximo: maximo);
     if (lote.isEmpty) return 0;
 
@@ -99,22 +170,80 @@ class Subida {
     // token de B. Ver [ColaDeOtraPersona].
     await _laColaEsDeQuienEsta();
 
-    // EL ALTA, ANTES DEL PRIMER ENVIO. Si falla, lo que lance sale de aqui tal
-    // cual y la cola no se toca: sin aparato registrado el servidor contesta 404
-    // y no se sube nada, asi que dar el lote por bueno seria tirar el dia.
-    final respuesta = await _mandarLote(await _aparato.asegurar(), lote);
+    var aceptados = 0;
+    for (var i = 0; i < lote.length; i++) {
+      // EL ALTA, ANTES DEL PRIMER ENVIO. Si falla, lo que lance sale de aqui tal
+      // cual y la cola no se toca: sin aparato registrado el servidor contesta
+      // 404 y no se sube nada, asi que dar el apunte por bueno seria tirar el
+      // dia.
+      //
+      // Va DENTRO del bucle y no antes, y no cuesta nada: `asegurar()` se cachea
+      // en memoria, asi que del segundo apunte en adelante no toca ni la base.
+      // Lo que gana es que si uno de los de en medio se come el 404 de «date de
+      // alta otra vez», los que quedan detras salen ya con el identificador
+      // nuevo.
+      final aparato = await _aparato.asegurar();
 
+      // SE VUELVE A LEER EL APUNTE JUSTO ANTES DE MANDARLO, y no es paranoia.
+      //
+      // El apunte de delante pudo traer el id de verdad de un `local-…`, y
+      // `Provisionales.sustituir` reescribe con el la ruta y el cuerpo de **los
+      // que quedan en la cola**. Con el lote unico eso daba igual —los cuerpos se
+      // serializaban todos a la vez y traducia el servidor—; de uno en uno,
+      // mandar la copia que se leyo al principio seria mandar `local-9f3a…`
+      // teniendo ya el `cm2x…` en la mano. Es el caso S4 por el lado nuevo.
+      final apunte = await _cola.porClave(lote[i].clave);
+      if (apunte == null || apunte.estado != EstadoApunte.pendiente) {
+        // No se descarta nada en silencio (§4): esto no deberia pasar nunca
+        // —nada saca un apunte de `pendiente` mientras este bucle corre— y si
+        // pasa, se dice y se sigue con los demas.
+        Registro.aviso(
+          'el apunte ${lote[i].clave} dejo de estar pendiente mientras subia la '
+          'cola (${apunte?.estado}): no se manda',
+        );
+        continue;
+      }
+
+      final Map<String, Object?> respuesta;
+      try {
+        respuesta = await _mandarUno(aparato, apunte);
+      } on Object {
+        // EL CORTE A MITAD DE COLA, DICHO CON LOS DOS NUMEROS.
+        //
+        // Lo de antes ya esta arriba y no se vuelve a mandar; este y los de
+        // detras siguen pendientes. Esto es lo unico que deja entender manana
+        // por que de doce gestos aparecieron siete.
+        final quedan = lote.length - i;
+        Registro.aviso(
+          'la subida se corto en el apunte ${i + 1} de ${lote.length}: '
+          '$aceptados ya estan arriba y $quedan '
+          '${quedan == 1 ? "sigue pendiente" : "siguen pendientes"}',
+        );
+        rethrow;
+      }
+
+      if (await _aplicar(apunte, respuesta)) {
+        aceptados++;
+        alSubirUno?.call(aceptados);
+      }
+    }
+    return aceptados;
+  }
+
+  /// Aplica la respuesta de UN apunte. Devuelve `true` si el servidor lo acepto.
+  ///
+  /// Se casa por `clave`, NO por posicion, y de uno en uno eso vale MAS que
+  /// antes: la respuesta de esta peticion solo puede hablar del apunte que iba
+  /// dentro. Una respuesta que nombra otra clave es un servidor equivocado o una
+  /// respuesta de otra peticion, y resolver con ella marcaria como rechazado un
+  /// apunte que nadie mando — trabajo perdido en el sitio que no es, sin un solo
+  /// error por ningun lado.
+  Future<bool> _aplicar(Apunte apunte, Map<String, Object?> respuesta) async {
     final crudos = respuesta['resultados'];
     if (crudos is! List) {
       throw const FormatException('la subida no devolvio `resultados`');
     }
 
-    // Se casa por `clave`, NO por posicion. El protocolo dice que vienen en el
-    // mismo orden, pero fiarse de eso significa que un servidor que un dia
-    // reordene marcaria el apunte equivocado como rechazado, y eso no da ningun
-    // error: sólo trabajo perdido en el sitio que no es.
-    var resueltos = 0;
-    var aceptados = 0;
     for (final crudo in crudos) {
       if (crudo is! Map<String, Object?>) continue;
       final clave = crudo['clave'] as String?;
@@ -122,18 +251,25 @@ class Subida {
         Registro.fallo('resultado de subida sin clave: $crudo');
         continue;
       }
+      if (clave != apunte.clave) {
+        Registro.fallo(
+          'se mando ${apunte.clave} y la respuesta habla de $clave: no se '
+          'resuelve ninguno de los dos',
+        );
+        continue;
+      }
       final resultado = ResultadoApunte.deJson(crudo);
       await _cola.resolver(clave, resultado);
-      resueltos++;
-      if (resultado.estado != EstadoResultado.rechazado) aceptados++;
+      return resultado.estado != EstadoResultado.rechazado;
     }
 
-    // Los que no vinieron en la respuesta se quedan pendientes y se reintentan.
-    final sinRespuesta = lote.length - resueltos;
-    if (sinRespuesta > 0) {
-      Registro.aviso('$sinRespuesta apuntes subieron sin respuesta; se quedan');
-    }
-    return aceptados;
+    // Subio y no se sabe como quedo. Se queda pendiente y se reintenta: la
+    // `clave` es lo que hace que ese reintento vuelva `repetido` en vez de
+    // duplicar el cierre de la ruta.
+    Registro.aviso(
+      'el apunte ${apunte.clave} subio sin respuesta; se queda pendiente',
+    );
+    return false;
   }
 
   /// Comprueba que la cola que se va a subir es de quien tiene la sesion.
@@ -181,7 +317,7 @@ class Subida {
     throw fallo;
   }
 
-  /// Manda el lote, y si el servidor dice que este aparato **no esta
+  /// Manda UN apunte, y si el servidor dice que este aparato **no esta
   /// registrado**, se da de alta otra vez y lo manda UNA sola vez mas.
   ///
   /// Ese 404 es un caso real y no una rareza: al aparato lo borraron del
@@ -193,9 +329,15 @@ class Subida {
   /// **UNA sola vez**, y no en bucle: si el alta nueva tampoco sirve, lo que
   /// toca es que el fallo suba y se vea, no gastarle la bateria y los datos al
   /// logistico reintentando contra algo que no va a cambiar.
-  Future<Map<String, Object?>> _mandarLote(
+  ///
+  /// El cuerpo sigue siendo el del protocolo —una lista `apuntes`— con **uno
+  /// dentro**. No se cambia la forma: la firman las dos partes
+  /// (`sync/internal/sincro/subida.go`), las APK instaladas la usan, y un
+  /// servidor que un dia reciba un lote de dos de una version vieja tiene que
+  /// seguir sabiendo leerlo.
+  Future<Map<String, Object?>> _mandarUno(
     String aparato,
-    List<Apunte> lote, {
+    Apunte apunte, {
     bool reintentar = true,
   }) async {
     try {
@@ -208,8 +350,17 @@ class Subida {
           // cola vive en el telefono: lo que no ha subido no existe en el
           // servidor, y sin este numero el panel ensenaria a Palma en verde
           // justo el dia que se le corto la subida a la mitad (`subida.go`).
-          'pendientes': await _cola.cuantosQuedanTras(lote.length),
-          'apuntes': [for (final a in lote) a.aJson(ColaDeSalida.cuerpoDe(a))],
+          //
+          // **UNO, no `lote.length`.** Con el lote unico se restaba el lote
+          // entero porque el lote entero se iba en esa peticion. Ahora se va uno:
+          // los que ya subieron han dejado de ser `pendiente` en la base, asi que
+          // `cuantosPendientes()` ya los ha descontado y lo unico que falta por
+          // descontar es ESTE. Restar el lote aqui dejaria al panel con
+          // `pendientes` en cero desde la primera peticion de una cola de doce —y
+          // ese cero es la pinta exacta de «Palma esta al dia» mientras no lo
+          // esta.
+          'pendientes': await _cola.cuantosQuedanTras(1),
+          'apuntes': [apunte.aJson(ColaDeSalida.cuerpoDe(apunte))],
         },
       );
     } on Rechazo catch (e) {
@@ -245,7 +396,7 @@ class Subida {
       );
       await _aparato.olvidar();
       final nuevo = await _aparato.asegurar();
-      return _mandarLote(nuevo, lote, reintentar: false);
+      return _mandarUno(nuevo, apunte, reintentar: false);
     }
   }
 }

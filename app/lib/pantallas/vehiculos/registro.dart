@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
+import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'vista/pantalla_vehiculos.dart';
 
 /// Vehículos en el menu.
@@ -17,6 +18,7 @@ PantallaRegistrada registrarVehiculos() => const PantallaRegistrada(
   titulo: 'Vehículos',
   icono: Icons.local_shipping_outlined,
   enElMenu: true,
+  colecciones: ColeccionesDePantalla.vehiculos,
   construir: _construir,
 );
 

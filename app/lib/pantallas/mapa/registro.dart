@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
+import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import '../../nucleo/plataforma.dart';
 import 'pantalla_mapa_sin_conexion.dart';
 
@@ -30,5 +31,8 @@ PantallaRegistrada registrarMapaSinConexion() => PantallaRegistrada(
   titulo: TextosDelMapaGuardado.titulo,
   icono: Icons.map_outlined,
   enElMenu: Destino.trabajaSinConexion,
+  // NINGUNA: el mapa son teselas en disco, no una coleccion de la
+  // sincronizacion. De cuando es lo guardado lo dice la propia pantalla.
+  colecciones: ColeccionesDePantalla.ninguna,
   construir: (contexto, estado) => const PantallaMapaSinConexion(),
 );

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/httpx"
@@ -44,7 +45,18 @@ import (
 // empresa—, así que `tipos_vehiculo.go` tiene el SUYO, `avisarCambioDeTiposDeVehiculo`, y
 // ése sigue siendo de las ocho. Publican el MISMO tipo de aviso (`vehiculos`), porque la
 // pantalla es la misma y enseña las dos cosas; lo que cambia es a quién le llega.
-var avisarCambioDeVehiculos = func(_ context.Context) {}
+//
+// # Y DESDE EL 01/10/2026 LA SUCURSAL SALE DE LA FILA, NO DEL ALCANCE
+//
+// «El alcance de quien escribe es el techo de lo que pudo cambiar» es verdad y **no bastaba**:
+// el techo de un SUPER ADMIN son las ocho, así que su alta de un camión seguía saliendo
+// pelada y las otras siete seguían bajándose la flota. Ahora la pasa el manejador leída de
+// `vehicles.branch_id`, que vale llegue o no la cabecera de sucursal. El porqué entero, en
+// `eventos.go` encima del `init()`.
+//
+// Se pasa con `deLaFilaPg` porque `vehicles.branch_id` admite nulo: un camión sin sucursal es
+// un camión COMPARTIDO y su aviso tiene que llegar a las ocho.
+var avisarCambioDeVehiculos = func(_ context.Context, _ string) {}
 
 // TipoPorDefecto: el contrato dice `type || 'truck'`. El nombre se traduce al id del
 // catálogo `vehicle_types`, que es la tabla que antes no existía.
@@ -338,7 +350,7 @@ func (s *Servidor) crearVehiculo(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	avisarCambioDeVehiculos(r.Context())
+	avisarCambioDeVehiculos(r.Context(), deLaFilaPg(creado.BranchID))
 	httpx.JSON(w, r, http.StatusCreated, deVehiculo(creado, c.Type.Con(TipoPorDefecto)))
 }
 
@@ -451,10 +463,13 @@ func (s *Servidor) actualizarVehiculo(w http.ResponseWriter, r *http.Request) {
 			// Rutas. Se avisa de LAS DOS cosas porque cambiaron las dos, y cada pantalla
 			// vuelve a pedir lo suyo: mandar sólo `vehiculos` dejaría la ruta abierta en
 			// la pantalla de al lado hasta el temporizador.
-			avisarCambioDeRutas(r.Context())
+			// La ruta que se cerró es de este camión, así que es de su misma sucursal: un
+			// camión de Camagüey no puede estar en una ruta de Holguín (lo cierra
+			// `CompletarRutasDeVehiculo`, que va acotado).
+			avisarCambioDeRutas(r.Context(), deLaFilaPg(actualizado.BranchID))
 		}
 	}
-	avisarCambioDeVehiculos(r.Context())
+	avisarCambioDeVehiculos(r.Context(), deLaFilaPg(actualizado.BranchID))
 	httpx.JSON(w, r, http.StatusOK, deVehiculo(actualizado, nombreTipo))
 }
 
@@ -473,6 +488,11 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// LA SUCURSAL DEL CAMIÓN QUE SE VA, para los tres avisos. La pone el propio DELETE
+	// (`BorrarVehiculo` devuelve `branch_id`): cuando se avisa, la fila ya no está, así que
+	// o la trae el borrado o no la trae nadie. Un camión compartido viene con nulo y entonces
+	// el aviso sale a las ocho, que es lo correcto.
+	var sucursalDelCamion pgtype.UUID
 	err := a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
 		// Desasociar primero. El histórico de lo que se repartió NO se borra porque un
 		// camión se dé de baja: las rutas y los pedidos se quedan, sin vehículo.
@@ -485,13 +505,14 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 		if _, err := tx.BorrarAsignacionesDeVehiculo(r.Context(), id); err != nil {
 			return err
 		}
-		filas, err := tx.BorrarVehiculo(r.Context(), id)
+		suc, err := tx.BorrarVehiculo(r.Context(), id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errNoEstaba
+		}
 		if err != nil {
 			return err
 		}
-		if filas == 0 {
-			return errNoEstaba
-		}
+		sucursalDelCamion = suc
 		return nil
 	})
 	if errors.Is(err, errNoEstaba) {
@@ -505,9 +526,12 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 	// TRES AVISOS, y no es de más: este borrado desvincula el camión de sus rutas y de sus
 	// pedidos antes de quitarlo. Las tres listas cambiaron de verdad, y quien tenga Rutas
 	// delante vería el camión de una ruta que ya no lo tiene hasta el temporizador.
-	avisarCambioDeVehiculos(r.Context())
-	avisarCambioDeRutas(r.Context())
-	avisarCambioDePedidos(r.Context())
+	//
+	// Y LAS TRES CON LA SUCURSAL DEL CAMIÓN: las rutas y los pedidos que se acaban de
+	// desvincular eran los suyos, y los suyos son de su sucursal.
+	avisarCambioDeVehiculos(r.Context(), deLaFilaPg(sucursalDelCamion))
+	avisarCambioDeRutas(r.Context(), deLaFilaPg(sucursalDelCamion))
+	avisarCambioDePedidos(r.Context(), deLaFilaPg(sucursalDelCamion))
 	httpx.JSON(w, r, http.StatusOK, map[string]bool{"success": true})
 }
 

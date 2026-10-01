@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
+import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import '../../nucleo/plataforma.dart';
 import 'vista/pantalla_webhook.dart';
 
@@ -50,6 +51,8 @@ PantallaRegistrada? registrarWebhook() {
     enElMenu: true,
     soloParaRoles: rolesQueVenElCanal,
     icono: Icons.cable_outlined,
+    // NINGUNA: el estado del canal se pregunta al servidor en vivo.
+    colecciones: ColeccionesDePantalla.ninguna,
     construir: (contexto, estado) => const PantallaWebhook(),
   );
 }

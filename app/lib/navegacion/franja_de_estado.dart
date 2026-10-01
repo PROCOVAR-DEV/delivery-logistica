@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../diseno/colores.dart';
 import '../diseno/tema.dart';
+import '../nucleo/base/base.dart';
+import '../nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import '../nucleo/frescura/reloj_de_datos.dart';
 import '../nucleo/proveedores.dart';
 import '../nucleo/sincro/huerfanos.dart';
@@ -27,13 +29,44 @@ import 'estado_navegacion.dart';
 /// hay senal: le sirve saber si los pedidos que esta mirando son de esta manana
 /// o de anteayer, porque de eso depende si arma la ruta de hoy o la de ayer.
 class FranjaDeEstado extends ConsumerWidget {
-  const FranjaDeEstado({this.alPulsarPendientes, super.key});
+  const FranjaDeEstado({
+    this.colecciones = Colecciones.todas,
+    this.alPulsarPendientes,
+    super.key,
+  });
+
+  /// LAS COLECCIONES DE LA PANTALLA QUE ESTA DEBAJO. Las pone el armazon, que es
+  /// el unico que sabe en que pantalla estamos
+  /// (`PantallaRegistrada.colecciones`).
+  ///
+  /// ## Por que esto es un parametro y no un provider
+  ///
+  /// Hasta el 01/10/2026 esta franja miraba `frescuraGlobalProvider`, o sea la
+  /// bajada mas vieja de **las nueve** colecciones. Y dentro de las nueve va
+  /// `almacenes`, que se refresca sola **una vez por hora** a proposito. El
+  /// resultado, medido en el telefono: la franja decia «Datos de las 8:46» toda
+  /// la manana mientras el Tablero, dos centimetros mas abajo, decia «Visto por
+  /// ultima vez a las 9:07» y estaba al dia. Veintiun minutos de diferencia, y
+  /// puede llegar a cincuenta y nueve.
+  ///
+  /// Eso es el §3-quinquies: con el umbral en una hora justa, la franja rozaba el
+  /// borde **cada hora por diseno**, y un aviso que sale siempre deja de leerse.
+  ///
+  /// ## El valor por defecto son las NUEVE, y es el lado seguro
+  ///
+  /// Lo que no puede pasar nunca es que esta franja se diga **mas fresca** de lo
+  /// que esta. Las nueve es la medida mas vieja posible, asi que quien monte esta
+  /// franja sin decir nada —una prueba, o un sitio que todavia no lo pase— se
+  /// queda con lo de siempre: corto, que es el lado del que no se engaña a nadie.
+  /// Lo que si es obligatorio es declararlo **en el registro de la pantalla**,
+  /// donde no compila si falta.
+  final List<String> colecciones;
 
   final VoidCallback? alPulsarPendientes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bajada = ref.watch(frescuraGlobalProvider);
+    final bajada = ref.watch(frescuraDeLaPantallaProvider(colecciones));
     final sinSubir = ref.watch(sinSubirProvider);
     final ahora = ref.watch(relojProvider)();
     // SI NO HAY CONEXION, SE DICE AQUI. Esta franja esta en las siete pantallas;
@@ -74,7 +107,13 @@ class FranjaDeEstado extends ConsumerWidget {
     // Mientras la consulta de frescura no ha contestado NO se dice «sin
     // descargar»: seria acusar de vacio a algo que aun no se ha mirado. Se
     // espera, que dura un fotograma.
-    final estado = bajada.hasValue
+    //
+    // Y una pantalla que no pinta NADA de la copia —la puerta, Sincronizacion,
+    // el canal, el mapa— no tiene hora que ensenar: ahi no se pinta el reloj, y
+    // **no se cae a «Sin descargar todavia»**, que seria acusar de vacia una
+    // copia que esta entera. El resto de la franja sigue: la nube tachada, lo
+    // que queda sin subir y lo huerfano no dependen de ninguna coleccion.
+    final estado = colecciones.isNotEmpty && bajada.hasValue
         ? EstadoFrescura.de(bajada.value, ahora: ahora)
         : null;
 

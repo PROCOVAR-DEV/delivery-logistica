@@ -199,8 +199,7 @@ class UbicacionDeSalida {
   /// MISMA frase que ya pinta la tarjeta (`lista_rutas.dart`): dos maneras de
   /// decir lo mismo en la misma pantalla es lo que hace dudar de si son dos
   /// cosas distintas.
-  String get etiqueta =>
-      esSinPuntoDePartida ? 'Sin punto de partida' : clave;
+  String get etiqueta => esSinPuntoDePartida ? 'Sin punto de partida' : clave;
 }
 
 /// LAS UBICACIONES DE SALIDA QUE HAY EN UNAS RUTAS, ordenadas y con su cuenta.

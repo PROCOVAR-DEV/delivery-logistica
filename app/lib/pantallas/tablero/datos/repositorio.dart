@@ -622,6 +622,7 @@ class RepositorioTablero {
     required AlmacenOrigen origen,
     required String sucursalId,
     String? nombre,
+
     /// QUIÉN SE QUEDÓ FUERA, cuando el servidor arma la ruta y deja tarjetas
     /// atrás — 28/09/2026.
     ///

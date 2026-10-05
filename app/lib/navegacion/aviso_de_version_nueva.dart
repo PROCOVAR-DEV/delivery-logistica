@@ -107,12 +107,15 @@ import 'package:url_launcher/url_launcher.dart';
 import '../diseno/cajon.dart';
 import '../diseno/colores.dart';
 import '../diseno/tema.dart';
+import '../nucleo/actualizacion/bajada_de_la_actualizacion.dart';
 import '../nucleo/actualizacion/comprobador.dart';
-import '../mapa/anuncio_de_mapa.dart' show enMegas;
 import '../nucleo/actualizacion/version_publicada.dart';
+import '../nucleo/descarga/en_megas.dart';
 import '../nucleo/plataforma.dart';
 import '../nucleo/proveedores.dart';
 import '../nucleo/registro/registro.dart';
+import '../pantallas/ayuda/datos/controles_senalados.dart';
+import '../pantallas/ayuda/vista/control_senalado.dart';
 import 'recargar_la_pagina.dart';
 
 /// Cada cuanto se vuelve a mirar la huella, en la web. Los mismos cinco minutos
@@ -401,6 +404,17 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
     _volverAMirarAlTerminarUnaSubida();
 
     final estado = ref.watch(actualizacionProvider).value;
+
+    // LO QUE ESTE PASANDO CON LA DESCARGA MANDA SOBRE EL AVISO — 05/10/2026.
+    //
+    // Y no es un adorno: **el cajon se cierra**. Quien lo cierra a mitad de una
+    // descarga de 75 MB no la ha cancelado, y sin esto se quedaria sin ninguna
+    // forma de saber como va ni de volver a ella. La franja esta en las siete
+    // pantallas, asi que es el unico sitio donde eso se puede decir siempre.
+    if (estado is SePuedeActualizar) {
+      final enMarcha = _laBajadaEnMarcha(estado);
+      if (enMarcha != null) return enMarcha;
+    }
     // El numero SE LEE DE LA COLA, en vivo, y no del que traia el estado: ese es
     // de cuando se pregunto, y entre medias la persona sube. Un «te quedan 14»
     // encima de una cola de 3 es un numero creible y equivocado.
@@ -417,7 +431,7 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
       // `AlDia`, `NoAplica`, `NoSeSupo` y el `null` de mientras se pregunta: no
       // se enseña NADA. `NoSeSupo` es el que importa de los cuatro — no saber si
       // hay version nueva no es una noticia para quien esta repartiendo.
-      SePuedeActualizar(:final publicada, :final enlace) => LoQueDiceElAviso(
+      SePuedeActualizar(:final publicada) => LoQueDiceElAviso(
         firma: 'instalar:${publicada.version}',
         titular: 'Hay una versión nueva: ${publicada.version}',
         detalle:
@@ -426,7 +440,7 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
                 'instala encima.',
         textoDeAccion: 'Cómo instalarla',
         iconoDeAccion: Icons.install_mobile,
-        accion: (contexto) => _abrirElCajon(contexto, publicada, enlace),
+        accion: (contexto) => _abrirElCajon(contexto, estado),
       ),
       // PRIMERO SUBE, y sin boton de instalar. `docs/actualizaciones.md` §1.1:
       // instalar con cola pendiente puede llevarse la base local por delante, y
@@ -448,6 +462,88 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
       // Repintar «te quedan 0 cosas por subir» seria decirle a alguien que no
       // hizo lo que acaba de hacer.
       _ => null,
+    };
+  }
+
+  /// LA FRANJA CUANDO LA DESCARGA YA ESTA EN MARCHA (o parada, o lista).
+  ///
+  /// Devuelve `null` cuando no hay nada bajandose: entonces manda el aviso de
+  /// siempre. **Cada caso lleva su accion**, porque un aviso sin accion es un
+  /// aviso que se queda puesto para siempre (`CLAUDE.md` §4): hasta el de «Android
+  /// esta instalando» ofrece volver a intentarlo, que es lo que hace falta si la
+  /// persona cancelo esa pantalla del sistema sin querer.
+  LoQueDiceElAviso? _laBajadaEnMarcha(SePuedeActualizar nueva) {
+    final version = nueva.publicada.version;
+    return switch (ref.watch(bajadaDeLaActualizacionProvider)) {
+      SinEmpezar() => null,
+      BajandoLaActualizacion(:final bajados, :final total) => LoQueDiceElAviso(
+        // La firma NO lleva los bytes: con ellos cambiaria cada por ciento y el
+        // «Ahora no» se levantaria solo al segundo siguiente.
+        firma: 'bajando:$version',
+        titular: 'Bajando la versión $version',
+        detalle:
+            '${enMegas(bajados)} de ${enMegas(total)}. Puedes seguir '
+            'trabajando; si se corta la conexión, continúa desde donde iba.',
+        textoDeAccion: 'Ver la descarga',
+        iconoDeAccion: Icons.downloading_outlined,
+        accion: (contexto) => _abrirElCajon(contexto, nueva),
+      ),
+      BajadaComprobada() => LoQueDiceElAviso(
+        firma: 'instalar-ya:$version',
+        titular: 'La versión $version está descargada',
+        detalle:
+            'Falta instalarla. Android enseñará su pantalla de «¿instalar?»: '
+            'hay que confirmar ahí, eso no lo puede hacer la aplicación.',
+        textoDeAccion: 'Instalar',
+        iconoDeAccion: Icons.install_mobile,
+        accion: (_) => unawaited(
+          ref.read(bajadaDeLaActualizacionProvider.notifier).instalar(),
+        ),
+      ),
+      FaltaElPermisoParaInstalar() => LoQueDiceElAviso(
+        firma: 'permiso:$version',
+        titular: 'La versión $version está descargada, falta un permiso',
+        detalle:
+            'Android no deja instalar a una aplicación que no lo tenga. Es un '
+            'ajuste del sistema, se da una vez y no hay que volver a bajar nada.',
+        textoDeAccion: 'Dar el permiso',
+        iconoDeAccion: Icons.lock_open_outlined,
+        accion: (contexto) => _abrirElCajon(contexto, nueva),
+      ),
+      ElInstaladorEstaEnPantalla() => LoQueDiceElAviso(
+        firma: 'instalando:$version',
+        titular: 'Android está instalando la versión $version',
+        detalle:
+            'Si cerraste esa pantalla sin instalar, el fichero sigue aquí: toca '
+            'otra vez y vuelve a salir. No hay que bajar nada de nuevo.',
+        textoDeAccion: 'Instalar',
+        iconoDeAccion: Icons.install_mobile,
+        accion: (_) => unawaited(
+          ref.read(bajadaDeLaActualizacionProvider.notifier).instalar(),
+        ),
+      ),
+      NoSePudoInstalarla(:final motivo) => LoQueDiceElAviso(
+        firma: 'no-instalo:$version',
+        titular: 'No se pudo instalar la versión $version',
+        // EL MOTIVO LITERAL, que ya dice que paso y que se conserva.
+        detalle: motivo,
+        textoDeAccion: 'Intentar de nuevo',
+        iconoDeAccion: Icons.refresh,
+        accion: (contexto) => _abrirElCajon(contexto, nueva),
+      ),
+      FalloLaBajada(:final motivo, :final sePuedeReanudar) => LoQueDiceElAviso(
+        firma: 'fallo:$version',
+        titular: 'La descarga de la versión $version no terminó',
+        detalle: motivo,
+        // «Seguir descargando» cuando de verdad sigue, y «Empezar de nuevo»
+        // cuando no: prometer que continúa y que empiece de cero es lo que hace
+        // que nadie se fíe del botón.
+        textoDeAccion: sePuedeReanudar
+            ? 'Seguir descargando'
+            : 'Empezar de nuevo',
+        iconoDeAccion: Icons.download_outlined,
+        accion: (contexto) => _abrirElCajon(contexto, nueva),
+      ),
     };
   }
 
@@ -479,96 +575,393 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
     });
   }
 
-  void _abrirElCajon(
-    BuildContext contexto,
-    VersionPublicada publicada,
-    String enlace,
-  ) {
+  void _abrirElCajon(BuildContext contexto, SePuedeActualizar nueva) {
     // Cajon, como todo en este proyecto — tambien en escritorio, que es la
     // excepcion aprobada el 05/09/2026 (`diseno/cajon.dart`).
+    //
+    // `abrirPanel` y no `abrirCajon`: en `abrirCajon` el cuerpo y el pie se
+    // construyen UNA vez, y aqui los dos cambian con la descarga —la barra sube,
+    // el boton pasa de «Descargar» a «Detener» y de ahi a «Instalar»—. Con el
+    // cuerpo construido una vez, la barra se quedaria clavada en el cero y el
+    // boton nunca cambiaria: es el §3-ter otra vez, lo que se pinta y puede
+    // cambiar no puede pedirse una sola vez.
     unawaited(
-      abrirCajon<void>(
-        contexto,
-        titulo: 'Versión ${publicada.version}',
-        subtitulo: publicada.compilacion == null
-            ? null
-            : 'compilación ${publicada.compilacion}',
-        cuerpo: (dentro) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (publicada.notas != null) ...[
-              Text(publicada.notas!, style: Tipos.texto(tamano: 14)),
-              const SizedBox(height: Aire.lg),
-            ],
-            Text(
-              'Qué va a pasar',
-              style: Tipos.texto(tamano: 13, peso: FontWeight.w700),
-            ),
-            const SizedBox(height: Aire.xs),
-            Text(switch (publicada.ficheroPara(Plataforma.deEsteAparato())) {
-              // CUÁNTO PESA, ANTES DE PULSAR. Quien está en la calle con datos
-              // contados tiene que poder decidir. El 22/09/2026 la descarga
-              // enseñaba «30 MB/?» porque el tamaño salía del `Content-Length`
-              // y Cloudflare lo quita: ahora sale del anuncio de la api.
-              final f? =>
-                'Son ${enMegas(f.bytes)}. Se abre el navegador y se '
-                    'descarga el fichero. La descarga no toca esta aplicación: '
-                    'lo que tengas dentro sigue aquí mientras no instales.',
-              // Una api anterior no lo manda. No se inventa un número ni se
-              // escribe «? MB»: se dice lo demás y ya.
-              null =>
-                'Se abre el navegador y se descarga el fichero. La '
-                    'descarga no toca esta aplicación: lo que tengas dentro '
-                    'sigue aquí mientras no instales.',
-            }, style: Tipos.texto(tamano: 13, color: Colores.tintaSuave)),
-            const SizedBox(height: Aire.md),
-            Text(
-              'Instálalo con señal y con la cola vacía. No hace falta que sea '
-              'ahora: la versión de ahora sigue funcionando.',
-              style: Tipos.texto(tamano: 13, color: Colores.tintaSuave),
-            ),
-          ],
-        ),
-        // UNA DESCARGA POR TOQUE, NO DOS.
-        //
-        // Jose, 25/09/2026: «cuando le doy a descargar me dispara dos descargas
-        // en ves de una». El botón no tenía nada que impidiera dispararse dos
-        // veces: un doble toque —o un toque con rebote, que en una pantalla
-        // usada con prisa pasa— llamaba dos veces a `launchUrl` y Android
-        // arrancaba dos bajadas del mismo APK. Son 78 MB cada una, y con la
-        // conexión de allá eso no es un detalle: es la mitad de la tarde.
-        //
-        // La guarda va en el propio botón y no en el abridor porque lo que hay
-        // que impedir es el SEGUNDO TOQUE, no la segunda llamada: apagándolo se
-        // ve además que ya se pulsó.
-        pie: (dentro) => _PieDeLaDescarga(
-          alDescargar: () {
-            // SE BAJA LA ÚLTIMA QUE HAYA AHORA, NO LA QUE HABÍA AL ABRIR ESTO.
-            //
-            // El enlace llega por parámetro desde el momento en que se pintó la
-            // franja, y entre eso y el toque puede haber salido otra versión.
-            // Pasó el 25/09/2026: se publicó la 1.0.6, y quince minutos después
-            // la 1.0.7 con los arreglos de lo que Jose acababa de contar. Él
-            // pulsó en los dos momentos y se bajó las dos:
-            //
-            //     «me mando a descargar la 1.06 y la 1.07 [...] te dije q la
-            //      ultima» · «no quiero q actualize todo el tramo»
-            //
-            // Son 78 MB cada una. Al tocar se vuelve a preguntar cuál es la
-            // última AHORA; el `enlace` de antes sólo se usa si en este
-            // instante no hay respuesta —quedarse sin descarga sería peor que
-            // bajar una versión de hace un minuto—.
-            final ahora = ref.read(actualizacionProvider).value;
-            final ultimo = ahora is SePuedeActualizar ? ahora.enlace : enlace;
+      abrirPanel<void>(contexto, (_) => _CajonDeLaVersion(nueva: nueva)),
+    );
+  }
+}
 
-            Navigator.of(dentro).maybePop();
-            unawaited(ref.read(abridorDeLaDescargaProvider)(ultimo));
-          },
-          alCerrar: () => Navigator.of(dentro).maybePop(),
-        ),
+/// EL CAJON DE LA VERSION NUEVA: lo que va a pasar, y el boton que lo hace.
+///
+/// Es un `ConsumerWidget` aparte y no un trozo del aviso porque **mira la
+/// descarga en vivo**: el estado vive en `bajadaDeLaActualizacionProvider` y no
+/// aqui dentro, para que cerrar el cajon no se lleve la descarga por delante.
+class _CajonDeLaVersion extends ConsumerWidget {
+  const _CajonDeLaVersion({required this.nueva});
+
+  final SePuedeActualizar nueva;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // SE BAJA LA ULTIMA QUE HAYA AHORA, NO LA QUE HABIA AL ABRIR ESTO.
+    //
+    // Paso el 25/09/2026: se publico la 1.0.6, y quince minutos despues la 1.0.7
+    // con los arreglos de lo que Jose acababa de contar. El pulso en los dos
+    // momentos y se bajo las dos:
+    //
+    //     «me mando a descargar la 1.06 y la 1.07 [...] te dije q la ultima»
+    //     «no quiero q actualize todo el tramo»
+    //
+    // Son 75 MB cada una. Lo que llego por parametro solo se usa si en este
+    // instante no hay respuesta: quedarse sin descarga seria peor que bajar una
+    // version de hace un minuto.
+    final ahora = ref.watch(actualizacionProvider).value;
+    final ultima = ahora is SePuedeActualizar ? ahora : nueva;
+    final publicada = ultima.publicada;
+    final fichero = publicada.ficheroPara(Plataforma.deEsteAparato());
+    final bajada = ref.watch(bajadaDeLaActualizacionProvider);
+
+    // LA COLA MANDA TAMBIEN AQUI — `docs/actualizaciones.md` §1.1.
+    //
+    // `actualizacionProvider` se pregunta UNA vez al arrancar, asi que no se
+    // entera de que la cola creció despues: alguien puede bajarse la version por
+    // la mañana, trabajar el dia entero sin señal —la cola crece— y encontrarse
+    // el boton de instalar puesto por la tarde. Instalar encima con trabajo sin
+    // subir puede llevarselo, y eso no se arregla con nada.
+    //
+    // Se lee EN VIVO de la cola y contando los rechazados, por lo mismo que la
+    // franja: un rechazado es trabajo que no esta arriba y que ademas no se
+    // arregla solo.
+    final sinSubir = ref.watch(sinSubirDeVerdadProvider).value ?? 0;
+
+    // SE BAJA DENTRO SOLO SI SE SABE QUE SE BAJA.
+    //
+    // Sin `bytes` y sin `sha256` no hay barra honesta ni forma de saber si llego
+    // entero —el `Content-Length` no llega (ver `bajada_de_la_actualizacion.dart`)
+    // y la huella no se puede inventar—, asi que una api anterior al 22/09/2026
+    // se queda con el navegador. **No se quita lo que funciona hoy.**
+    final dentro =
+        Plataforma.deEsteAparato() == Plataforma.android && fichero != null;
+
+    return Cajon(
+      titulo: 'Versión ${publicada.version}',
+      subtitulo: publicada.compilacion == null
+          ? null
+          : 'compilación ${publicada.compilacion}',
+      pie: dentro
+          ? _PieDeDentro(
+              bajada: bajada,
+              enlace: ultima.enlace,
+              fichero: fichero,
+              version: publicada.version,
+              sinSubir: sinSubir,
+            )
+          : _PieDelNavegador(enlace: ultima.enlace),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (publicada.notas != null) ...[
+            Text(publicada.notas!, style: Tipos.texto(tamano: 14)),
+            const SizedBox(height: Aire.lg),
+          ],
+          Text(
+            'Qué va a pasar',
+            style: Tipos.texto(tamano: 13, peso: FontWeight.w700),
+          ),
+          const SizedBox(height: Aire.xs),
+          Text(
+            _queVaAPasar(dentro: dentro, fichero: fichero),
+            style: Tipos.texto(tamano: 13, color: Colores.tintaSuave),
+          ),
+          // PRIMERO SUBE. Va antes que el estado de la descarga a proposito: es
+          // lo que decide si el boton de instalar esta vivo, asi que tiene que
+          // leerse antes de buscarlo.
+          if (sinSubir > 0)
+            ..._elMotivo(
+              clave: claveDeLaColaPendiente,
+              'Te quedan $sinSubir cosas por subir. Instalar ahora puede '
+              'llevárselas, así que el botón de instalar está apagado: primero '
+              'sube el trabajo (desde la franja de arriba o la pantalla de '
+              'Sincronización) y después instala. Lo descargado se queda aquí.',
+            ),
+          ..._comoVa(bajada),
+          const SizedBox(height: Aire.md),
+          Text(
+            'Instálalo con señal y con la cola vacía. No hace falta que sea '
+            'ahora: la versión de ahora sigue funcionando.',
+            style: Tipos.texto(tamano: 13, color: Colores.tintaSuave),
+          ),
+        ],
       ),
     );
   }
+
+  /// LO QUE VA A PASAR, dicho antes de pulsar.
+  ///
+  /// **CUANTO PESA SALE DEL ANUNCIO DE LA API**, no de la respuesta: el
+  /// 22/09/2026 la descarga enseñaba «30 MB/?» porque el tamaño salia del
+  /// `Content-Length`, que Cloudflare quita. Quien esta en la calle con datos
+  /// contados tiene que poder decidir **antes**.
+  ///
+  /// Y LA PANTALLA DE ANDROID SE AVISA. No se puede saltar: Android enseña su
+  /// «¿instalar?» y ahi confirma la persona. Dicho antes es un paso; sin decir,
+  /// parece un error y se cancela.
+  String _queVaAPasar({
+    required bool dentro,
+    required FicheroPublicado? fichero,
+  }) {
+    if (dentro) {
+      return 'Son ${enMegas(fichero!.bytes)} y se descargan aquí dentro, con su '
+          'barra: no hace falta salir al navegador ni buscar el fichero después. '
+          'Si se corta la conexión, continúa desde donde iba. Al terminar, '
+          'Android enseña su propia pantalla de «¿instalar?» y ahí hay que '
+          'confirmar: eso no lo puede hacer la aplicación.';
+    }
+    // El navegador, que es lo que hay en el escritorio y con una api anterior.
+    // Una api sin `ficheros` no manda el tamaño: no se inventa un número ni se
+    // escribe «? MB», se dice lo demás y ya.
+    final pesa = fichero == null ? '' : 'Son ${enMegas(fichero.bytes)}. ';
+    return '${pesa}Se abre el navegador y se descarga el fichero. La descarga no '
+        'toca esta aplicación: lo que tengas dentro sigue aquí mientras no '
+        'instales.';
+  }
+
+  /// LA BARRA Y EL MOTIVO. Nada de esto sale cuando no hay nada que contar.
+  List<Widget> _comoVa(ComoVaLaActualizacion bajada) => switch (bajada) {
+    SinEmpezar() || ElInstaladorEstaEnPantalla() => const [],
+    // LA BARRA SABE CUANTO FALTA, asi que lo dice. Un `value` nulo —la rueda que
+    // da vueltas— seria fingir que no se sabe teniendo el dato.
+    BajandoLaActualizacion(:final bajados, :final total, :final parte) => [
+      const SizedBox(height: Aire.lg),
+      Text(
+        'Bajando ${enMegas(bajados)} de ${enMegas(total)} '
+        '(${(parte * 100).round()} %)',
+        key: claveDeLoQueVaBajado,
+        style: Tipos.texto(tamano: 13, peso: FontWeight.w700),
+      ),
+      const SizedBox(height: Aire.xs),
+      LinearProgressIndicator(value: parte, key: claveDeLaBarraDeLaBajada),
+    ],
+    BajadaComprobada(:final bytes) => [
+      const SizedBox(height: Aire.lg),
+      Text(
+        'Descargada y comprobada: ${enMegas(bytes)}. Falta instalarla.',
+        style: Tipos.texto(tamano: 13, peso: FontWeight.w700),
+      ),
+    ],
+    // EL MOTIVO LITERAL, que es lo unico accionable (`CLAUDE.md` §4).
+    FalloLaBajada(:final motivo) => _elMotivo(motivo),
+    FaltaElPermisoParaInstalar() => _elMotivo(
+      'Android no deja instalar a una aplicación que no tenga el permiso de '
+      '«instalar aplicaciones desconocidas». Es un ajuste del sistema, se da '
+      'una vez y lo descargado no se pierde.',
+    ),
+    NoSePudoInstalarla(:final motivo) => _elMotivo(motivo),
+  };
+
+  /// UN AVISO ÁMBAR con su motivo.
+  ///
+  /// La clave viaja por parámetro y no va fija dentro: con la cola pendiente y una
+  /// descarga fallada salen **dos** de éstos como hermanos en la misma columna, y
+  /// dos hermanos con la misma `Key` es un error de Flutter en pantalla. Se
+  /// descubrió leyendo, no probando — y en producción la combinación es de las
+  /// normales: se cortó la descarga y además queda trabajo sin subir.
+  List<Widget> _elMotivo(
+    String motivo, {
+    Key clave = claveDelMotivoDeLaBajada,
+  }) => [
+    const SizedBox(height: Aire.lg),
+    DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colores.ambarFondo,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Text(motivo, key: clave, style: Tipos.texto(tamano: 12)),
+      ),
+    ),
+  ];
+}
+
+/// Para encontrar las piezas desde las pruebas sin depender de un literal.
+const claveDeLaBarraDeLaBajada = Key('barra-de-la-bajada');
+const claveDeLoQueVaBajado = Key('lo-que-va-bajado');
+const claveDelMotivoDeLaBajada = Key('motivo-de-la-bajada');
+const claveDeLaColaPendiente = Key('cola-pendiente-no-instalar');
+
+/// EL PIE CUANDO SE BAJA DENTRO. Un boton por estado, y ninguno sin salida.
+class _PieDeDentro extends ConsumerWidget {
+  const _PieDeDentro({
+    required this.bajada,
+    required this.enlace,
+    required this.fichero,
+    required this.version,
+    required this.sinSubir,
+  });
+
+  final ComoVaLaActualizacion bajada;
+  final String enlace;
+  final FicheroPublicado? fichero;
+  final String version;
+
+  /// Cuanto trabajo queda sin subir. Con uno solo, **no se instala**: el cuerpo
+  /// del cajon dice por que y el boton se queda apagado.
+  final int sinSubir;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mando = ref.read(bajadaDeLaActualizacionProvider.notifier);
+
+    // BAJAR SI, INSTALAR NO: bajar no toca nada de lo que hay dentro, y tenerlo
+    // bajado es justo lo que hace falta para instalar en cuanto suba la cola.
+    void bajar() => unawaited(
+      mando.bajar(enlace: enlace, fichero: fichero!, version: version),
+    );
+    final instalar = sinSubir > 0 ? null : () => unawaited(mando.instalar());
+
+    // EL NAVEGADOR NO SE QUITA. Es la salida cuando el permiso no esta, cuando el
+    // instalador no arranca y cuando la descarga lleva tres fallos seguidos:
+    // quitar la unica forma que funciona hoy seria cambiar un problema por otro.
+    Widget elNavegador() => TextButton(
+      onPressed: () {
+        Navigator.of(context).maybePop();
+        unawaited(ref.read(abridorDeLaDescargaProvider)(enlace));
+      },
+      child: const Text('Abrir en el navegador'),
+    );
+
+    final botones = switch (bajada) {
+      // UNA DESCARGA POR TOQUE, NO DOS. Jose, 25/09/2026: «cuando le doy a
+      // descargar me dispara dos descargas en ves de una». La guarda de verdad
+      // esta en `BajadaDeLaActualizacion.bajar` —`_enMarcha`, que se pone antes
+      // del primer `await`, asi que los dos toques de un doble toque no pasan
+      // los dos—; aqui el boton ademas se va en cuanto hay estado, que es lo que
+      // se VE.
+      SinEmpezar() => [
+        TextButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: const Text('Ahora no'),
+        ),
+        const SizedBox(width: Aire.sm),
+        ControlSenalado(
+          nombre: Senalado.cajonDescargarEInstalar,
+          child: BotonPrincipal(
+            texto: 'Descargar e instalar',
+            icono: Icons.download_outlined,
+            alPulsar: bajar,
+          ),
+        ),
+      ],
+      BajandoLaActualizacion() => [
+        TextButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          // Cerrar NO para la descarga, y se dice: lo contrario es que alguien
+          // cierre creyendo que cancela, o que no cierre por miedo a cancelar.
+          child: const Text('Cerrar y seguir bajando'),
+        ),
+        const SizedBox(width: Aire.sm),
+        OutlinedButton.icon(
+          onPressed: mando.detener,
+          icon: const Icon(Icons.stop_outlined, size: 18),
+          label: const Text('Detener'),
+        ),
+      ],
+      BajadaComprobada() => [
+        TextButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: const Text('Ahora no'),
+        ),
+        const SizedBox(width: Aire.sm),
+        BotonPrincipal(
+          texto: 'Instalar',
+          icono: Icons.install_mobile,
+          alPulsar: instalar,
+        ),
+      ],
+      ElInstaladorEstaEnPantalla() => [
+        TextButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          child: const Text('Cerrar'),
+        ),
+        const SizedBox(width: Aire.sm),
+        BotonPrincipal(
+          texto: 'Instalar',
+          icono: Icons.install_mobile,
+          alPulsar: instalar,
+        ),
+      ],
+      // SIN PERMISO: las tres salidas a la vez, porque las tres hacen falta.
+      // Ir al ajuste; volver y decir que ya esta; o el navegador de siempre.
+      FaltaElPermisoParaInstalar() => [
+        elNavegador(),
+        const SizedBox(width: Aire.sm),
+        OutlinedButton.icon(
+          onPressed: instalar,
+          icon: const Icon(Icons.install_mobile, size: 18),
+          label: const Text('Ya lo di: instalar'),
+        ),
+        const SizedBox(width: Aire.sm),
+        BotonPrincipal(
+          texto: 'Dar el permiso',
+          icono: Icons.lock_open_outlined,
+          alPulsar: () => unawaited(mando.pedirElPermiso()),
+        ),
+      ],
+      NoSePudoInstalarla() => [
+        elNavegador(),
+        const SizedBox(width: Aire.sm),
+        BotonPrincipal(
+          texto: 'Intentar de nuevo',
+          icono: Icons.refresh,
+          alPulsar: instalar,
+        ),
+      ],
+      FalloLaBajada(:final sePuedeReanudar, :final seOfreceElNavegador) => [
+        if (seOfreceElNavegador) ...[
+          elNavegador(),
+          const SizedBox(width: Aire.sm),
+        ],
+        BotonPrincipal(
+          // Lo que dice el boton es lo que va a hacer: si lo bajado ya no sirve,
+          // no se promete que continua.
+          texto: sePuedeReanudar ? 'Seguir descargando' : 'Empezar de nuevo',
+          icono: Icons.download_outlined,
+          alPulsar: bajar,
+        ),
+      ],
+    };
+
+    // `Wrap` y no `Row`: a 390 px las tres salidas del caso sin permiso no caben
+    // en una linea, y lo que se pierde al no caber es justo el que explica como
+    // salir.
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: Aire.xs,
+      runSpacing: Aire.xs,
+      children: botones,
+    );
+  }
+}
+
+/// EL PIE DEL NAVEGADOR: el de siempre, para el escritorio y para una api que no
+/// anuncia ni el tamaño ni la huella.
+class _PieDelNavegador extends ConsumerWidget {
+  const _PieDelNavegador({required this.enlace});
+
+  final String enlace;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => _PieDeLaDescarga(
+    alDescargar: () {
+      // La ultima que haya AHORA, igual que arriba.
+      final ahora = ref.read(actualizacionProvider).value;
+      final ultimo = ahora is SePuedeActualizar ? ahora.enlace : enlace;
+      Navigator.of(context).maybePop();
+      unawaited(ref.read(abridorDeLaDescargaProvider)(ultimo));
+    },
+    alCerrar: () => Navigator.of(context).maybePop(),
+  );
 }
 
 /// La franja en si. Ambar, a lo ancho, debajo de la barra superior.
@@ -644,10 +1037,20 @@ class _Franja extends StatelessWidget {
                         // aplicacion— no se ve nada, asi que encoger el sitio
                         // donde cae el dedo deja de tener excusa. El aire lo
                         // decide el tema y nadie mas.
-                        BotonPrincipal(
-                          texto: dice.textoDeAccion!,
-                          icono: dice.iconoDeAccion!,
-                          alPulsar: () => dice.accion?.call(context),
+                        // SEÑALADO PARA LA GUIA. La tarea «Actualizar la
+                        // aplicacion» empieza aqui, y este boton cambia de
+                        // palabra segun el estado —«Como instalarla»,
+                        // «Instalar», «Dar el permiso», «Seguir descargando»—:
+                        // el nombre es del SITIO, no de la palabra, que es
+                        // justo por lo que un nombre de control no puede ser el
+                        // texto del boton.
+                        ControlSenalado(
+                          nombre: Senalado.franjaVersionNueva,
+                          child: BotonPrincipal(
+                            texto: dice.textoDeAccion!,
+                            icono: dice.iconoDeAccion!,
+                            alPulsar: () => dice.accion?.call(context),
+                          ),
                         ),
                       TextButton(
                         onPressed: alAhoraNo,
@@ -693,28 +1096,35 @@ class _PieDeLaDescargaState extends State<_PieDeLaDescarga> {
         child: const Text('Ahora no'),
       ),
       const SizedBox(width: Aire.sm),
-      BotonPrincipal(
-        // `null` apaga el botón: el segundo toque ya no llega a ningún sitio.
-        // Son 78 MB por descarga; dos son media tarde de la conexión de allá.
-        // La guarda va DENTRO de la función, no sólo en el ternario de fuera.
-        //
-        // El ternario se evalúa al CONSTRUIR el botón, así que dos toques en el
-        // mismo fotograma —que es justo lo que es un doble toque— ejecutan la
-        // MISMA función dos veces: el widget no ha tenido tiempo de volver a
-        // construirse con el botón ya apagado. El `if` de dentro sí corre en
-        // cada toque, y es el que de verdad impide la segunda descarga.
-        //
-        // El ternario se queda porque es lo que se VE: el botón apagado dice
-        // que ya se pulsó.
-        alPulsar: _yaSePulso
-            ? null
-            : () {
-                if (_yaSePulso) return;
-                setState(() => _yaSePulso = true);
-                widget.alDescargar();
-              },
-        icono: Icons.download_outlined,
-        texto: 'Descargar',
+      ControlSenalado(
+        // El «Descargar» del cajon del ESCRITORIO, que sigue saliendo al
+        // navegador: alli la APK no se instala sola. Nombre distinto del de la
+        // APK a proposito — son dos botones que hacen dos cosas, y el manual de
+        // cada forma cuenta la suya.
+        nombre: Senalado.cajonDescargarAlNavegador,
+        child: BotonPrincipal(
+          // `null` apaga el botón: el segundo toque ya no llega a ningún sitio.
+          // Son 78 MB por descarga; dos son media tarde de la conexión de allá.
+          // La guarda va DENTRO de la función, no sólo en el ternario de fuera.
+          //
+          // El ternario se evalúa al CONSTRUIR el botón, así que dos toques en el
+          // mismo fotograma —que es justo lo que es un doble toque— ejecutan la
+          // MISMA función dos veces: el widget no ha tenido tiempo de volver a
+          // construirse con el botón ya apagado. El `if` de dentro sí corre en
+          // cada toque, y es el que de verdad impide la segunda descarga.
+          //
+          // El ternario se queda porque es lo que se VE: el botón apagado dice
+          // que ya se pulsó.
+          alPulsar: _yaSePulso
+              ? null
+              : () {
+                  if (_yaSePulso) return;
+                  setState(() => _yaSePulso = true);
+                  widget.alDescargar();
+                },
+          icono: Icons.download_outlined,
+          texto: 'Descargar',
+        ),
       ),
     ],
   );

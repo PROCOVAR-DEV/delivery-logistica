@@ -72,8 +72,9 @@ class ImporteDeRuta {
   /// sólo se sabe el numerador y aquí se sabe el de abajo también. Las dos
   /// palabras, que son las que atan a todas las pantallas a llamar a esto de la
   /// misma manera, salen de la misma constante.
-  String get rotulo =>
-      total == null ? '— ($sinCotizar de $paradas ${Numeros.sinCotizar})' : usd(total);
+  String get rotulo => total == null
+      ? '— ($sinCotizar de $paradas ${Numeros.sinCotizar})'
+      : usd(total);
 
   /// LA FRASE QUE DICE QUÉ HACER, o `null` cuando no falta nada.
   ///

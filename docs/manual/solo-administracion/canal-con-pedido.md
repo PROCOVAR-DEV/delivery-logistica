@@ -27,6 +27,21 @@ comparar las dos sin traducir nada.
 
 ---
 
+## Mirar cómo va el canal con PEDIDO
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Canal con PEDIDO»**. **Sólo en la web, y sólo para
+`DESARROLLADOR` y `SUPER ADMIN`.**
+
+1. Mira **«El canal con PEDIDO»**, arriba: contesta si el canal respira.
+   <!-- señala: canal-respira -->
+2. Baja a **«Saliendo»**: lo que el reparto le cuenta a PEDIDO.
+   <!-- señala: canal-saliendo -->
+3. Y a **«Entrando»**: lo que PEDIDO le cuenta al reparto.
+   <!-- señala: canal-entrando -->
+4. Si hay algo en **«Sin terminar»**, mira su motivo antes de reintentar nada.
+   <!-- señala: canal-sin-terminar -->
+
 ## «El canal con PEDIDO»
 
 Tres datos:

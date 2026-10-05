@@ -26,6 +26,8 @@ import 'package:flutter/material.dart';
 
 import '../../../diseno/tema.dart';
 import '../../../nucleo/base/base.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/estado_reparto.dart';
 import '../datos/formato.dart';
 import '../datos/repositorio_pedidos.dart';
@@ -107,8 +109,9 @@ class TablaPedidos extends StatelessWidget {
               alMarcarPagina: (marcar) => alMarcarPagina(ids, marcar),
             ),
             Divider(height: 1, thickness: 1, color: Colores.linea),
-            for (final pedido in pedidos)
+            for (final (cual, pedido) in pedidos.indexed)
               _Tarjeta(
+                esLaPrimera: cual == 0,
                 // La llave de la tarjeta entera: es lo que deja MEDIRLA en una
                 // prueba (`tester.getRect`), que es la unica forma de ver que
                 // una fila ya no ocupa media pantalla.
@@ -138,8 +141,9 @@ class TablaPedidos extends StatelessWidget {
             alMarcarPagina: (marcar) => alMarcarPagina(ids, marcar),
           ),
           Divider(height: 1, thickness: 1, color: Colores.linea),
-          for (final pedido in pedidos)
+          for (final (cual, pedido) in pedidos.indexed)
             _Fila(
+              esLaPrimera: cual == 0,
               pedido: pedido,
               columnas: columnas,
               renglones: renglones[pedido.id] ?? const [],
@@ -186,11 +190,14 @@ class _Cabecera extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: Aire.sm, vertical: 10),
       child: Row(
         children: [
-          Semantics(
-            label: 'Elegir todos los de esta página',
-            child: Checkbox(
-              value: todosMarcados,
-              onChanged: (v) => alMarcarPagina(v ?? false),
+          ControlSenalado(
+            nombre: Senalado.pedidosMarcarTodos,
+            child: Semantics(
+              label: 'Elegir todos los de esta página',
+              child: Checkbox(
+                value: todosMarcados,
+                onChanged: (v) => alMarcarPagina(v ?? false),
+              ),
             ),
           ),
           _celda(flex: 2, hijo: Text('Fecha', style: estilo)),
@@ -239,7 +246,16 @@ class _Fila extends StatelessWidget {
     required this.alMarcar,
     required this.alAbrir,
     required this.ahora,
+    this.esLaPrimera = false,
   });
+
+  /// SI ESTA ES LA PRIMERA DE LA PAGINA.
+  ///
+  /// Sólo para la Guia: hay una fila por pedido —cincuenta en una pagina— y el
+  /// recorrido sólo puede senalar un control por nombre. Marcando la primera,
+  /// senala una y no tiene que elegir
+  /// (`pantallas/ayuda/vista/control_senalado.dart`).
+  final bool esLaPrimera;
 
   final Pedido pedido;
   final ColumnasVisibles columnas;
@@ -256,106 +272,120 @@ class _Fila extends StatelessWidget {
     final reparto = estadoDeReparto(pedido, estadoDeSuRuta);
     final enPedido = estadoEnPedido(pedido, ahora: ahora);
 
-    return InkWell(
-      // La fila entera abre el detalle; la casilla no lo abre.
-      onTap: alAbrir,
-      hoverColor: Colores.papel,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colores.linea)),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: Aire.sm, vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Checkbox(value: marcado, onChanged: (_) => alMarcar()),
-            _celda(flex: 2, hijo: _Fecha(pedido: pedido)),
-            if (columnas.sucursal)
-              _celda(flex: 2, hijo: Text(pedido.sucursalCodigo ?? '—')),
-            _celda(
-              flex: 2,
-              hijo: Insignia(
-                enPedido.etiqueta,
-                color: _colorEnPedido(enPedido),
-                tooltip: pedido.archivado ? 'Archivado en PEDIDO' : null,
+    return ControlSenalado(
+      nombre: Senalado.pedidosAbrirElPedido,
+      senalable: esLaPrimera,
+      child: InkWell(
+        // La fila entera abre el detalle; la casilla no lo abre.
+        onTap: alAbrir,
+        hoverColor: Colores.papel,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: Colores.linea)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: Aire.sm, vertical: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ControlSenalado(
+                nombre: Senalado.pedidosMarcarUno,
+                senalable: esLaPrimera,
+                child: Checkbox(value: marcado, onChanged: (_) => alMarcar()),
               ),
-            ),
-            _celda(
-              flex: 3,
-              hijo: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(pedido.customerName, overflow: TextOverflow.ellipsis),
-                  // El folio en JetBrains Mono, no en la `monospace` del
-                  // sistema: en Windows esa es Courier New y canta a kilometros
-                  // dentro de una tabla escrita en Hanken.
-                  Text(
-                    pedido.operationNumber ?? '',
-                    style: Tipos.mono(tamano: 11.5, color: Colores.tintaSuave),
-                  ),
-                ],
-              ),
-            ),
-            if (columnas.ruta)
-              _celda(
-                flex: 2,
-                hijo: codigoDeRuta == null
-                    ? const Text('—')
-                    : Insignia(codigoDeRuta!, color: Colores.enCurso),
-              ),
-            if (columnas.vehiculo)
-              _celda(flex: 2, hijo: Text(pedido.vehicleId == null ? '—' : '·')),
-            if (columnas.articulos)
-              _celda(flex: 2, hijo: _Articulos(renglones: renglones)),
-            _celda(
-              flex: 4,
-              hijo: Text(
-                pedido.endAddress ?? pedido.address,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            // El peso y el precio, en mono: son las dos columnas que se leen de
-            // arriba abajo para decidir que cabe en el camion.
-            _celda(
-              flex: 2,
-              hijo: Text(
-                kg(pedido.weight),
-                textAlign: TextAlign.right,
-                style: Tipos.mono(tamano: 13, color: Colores.tinta),
-              ),
-            ),
-            _celda(
-              flex: 2,
-              hijo: Text(
-                usd(pedido.pedidoCosto),
-                style: Tipos.mono(
-                  tamano: 13,
-                  color: pedido.pedidoCosto == null
-                      ? Colores.tintaSuave
-                      : Colores.tinta,
-                ),
-              ),
-            ),
-            if (columnas.factura)
-              _celda(flex: 2, hijo: _Factura(pedido: pedido)),
-            if (columnas.entrega)
+              _celda(flex: 2, hijo: _Fecha(pedido: pedido)),
+              if (columnas.sucursal)
+                _celda(flex: 2, hijo: Text(pedido.sucursalCodigo ?? '—')),
               _celda(
                 flex: 2,
                 hijo: Insignia(
-                  reparto.etiqueta,
-                  color: _colorDeReparto(reparto),
+                  enPedido.etiqueta,
+                  color: _colorEnPedido(enPedido),
+                  tooltip: pedido.archivado ? 'Archivado en PEDIDO' : null,
                 ),
               ),
-            SizedBox(
-              width: 32,
-              child: Icon(
-                Icons.chevron_right,
-                size: 18,
-                color: Colores.tintaSuave,
+              _celda(
+                flex: 3,
+                hijo: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(pedido.customerName, overflow: TextOverflow.ellipsis),
+                    // El folio en JetBrains Mono, no en la `monospace` del
+                    // sistema: en Windows esa es Courier New y canta a kilometros
+                    // dentro de una tabla escrita en Hanken.
+                    Text(
+                      pedido.operationNumber ?? '',
+                      style: Tipos.mono(
+                        tamano: 11.5,
+                        color: Colores.tintaSuave,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (columnas.ruta)
+                _celda(
+                  flex: 2,
+                  hijo: codigoDeRuta == null
+                      ? const Text('—')
+                      : Insignia(codigoDeRuta!, color: Colores.enCurso),
+                ),
+              if (columnas.vehiculo)
+                _celda(
+                  flex: 2,
+                  hijo: Text(pedido.vehicleId == null ? '—' : '·'),
+                ),
+              if (columnas.articulos)
+                _celda(flex: 2, hijo: _Articulos(renglones: renglones)),
+              _celda(
+                flex: 4,
+                hijo: Text(
+                  pedido.endAddress ?? pedido.address,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // El peso y el precio, en mono: son las dos columnas que se leen de
+              // arriba abajo para decidir que cabe en el camion.
+              _celda(
+                flex: 2,
+                hijo: Text(
+                  kg(pedido.weight),
+                  textAlign: TextAlign.right,
+                  style: Tipos.mono(tamano: 13, color: Colores.tinta),
+                ),
+              ),
+              _celda(
+                flex: 2,
+                hijo: Text(
+                  usd(pedido.pedidoCosto),
+                  style: Tipos.mono(
+                    tamano: 13,
+                    color: pedido.pedidoCosto == null
+                        ? Colores.tintaSuave
+                        : Colores.tinta,
+                  ),
+                ),
+              ),
+              if (columnas.factura)
+                _celda(flex: 2, hijo: _Factura(pedido: pedido)),
+              if (columnas.entrega)
+                _celda(
+                  flex: 2,
+                  hijo: Insignia(
+                    reparto.etiqueta,
+                    color: _colorDeReparto(reparto),
+                  ),
+                ),
+              SizedBox(
+                width: 32,
+                child: Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: Colores.tintaSuave,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -402,11 +432,14 @@ class _CabeceraDeTarjetas extends StatelessWidget {
     padding: const EdgeInsets.only(right: Aire.sm),
     child: Row(
       children: [
-        Semantics(
-          label: 'Elegir todos los de esta página',
-          child: Checkbox(
-            value: todosMarcados,
-            onChanged: (v) => alMarcarPagina(v ?? false),
+        ControlSenalado(
+          nombre: Senalado.pedidosMarcarTodos,
+          child: Semantics(
+            label: 'Elegir todos los de esta página',
+            child: Checkbox(
+              value: todosMarcados,
+              onChanged: (v) => alMarcarPagina(v ?? false),
+            ),
           ),
         ),
         Expanded(
@@ -445,8 +478,17 @@ class _Tarjeta extends StatelessWidget {
     required this.alMarcar,
     required this.alAbrir,
     required this.ahora,
+    this.esLaPrimera = false,
     super.key,
   });
+
+  /// SI ESTA ES LA PRIMERA DE LA PAGINA.
+  ///
+  /// Sólo para la Guia: hay una fila por pedido —cincuenta en una pagina— y el
+  /// recorrido sólo puede senalar un control por nombre. Marcando la primera,
+  /// senala una y no tiene que elegir
+  /// (`pantallas/ayuda/vista/control_senalado.dart`).
+  final bool esLaPrimera;
 
   final Pedido pedido;
   final String? estadoDeSuRuta;
@@ -462,102 +504,110 @@ class _Tarjeta extends StatelessWidget {
     final enPedido = estadoEnPedido(pedido, ahora: ahora);
     final folio = pedido.operationNumber ?? '';
 
-    return InkWell(
-      // La tarjeta entera abre el detalle; la casilla no lo abre.
-      onTap: alAbrir,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colores.linea)),
-        ),
-        padding: const EdgeInsets.fromLTRB(0, Aire.sm, Aire.sm, Aire.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Checkbox(value: marcado, onChanged: (_) => alMarcar()),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 6),
-                  Text(
-                    pedido.customerName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Tipos.texto(tamano: 14, peso: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 2),
-                  // Folio y fecha en la misma linea mientras quepan, y en dos
-                  // cuando no: es un `Wrap`, asi que saltan enteros.
-                  Wrap(
-                    spacing: Aire.sm,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (folio.isNotEmpty)
+    return ControlSenalado(
+      nombre: Senalado.pedidosAbrirElPedido,
+      senalable: esLaPrimera,
+      child: InkWell(
+        // La tarjeta entera abre el detalle; la casilla no lo abre.
+        onTap: alAbrir,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: Colores.linea)),
+          ),
+          padding: const EdgeInsets.fromLTRB(0, Aire.sm, Aire.sm, Aire.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ControlSenalado(
+                nombre: Senalado.pedidosMarcarUno,
+                senalable: esLaPrimera,
+                child: Checkbox(value: marcado, onChanged: (_) => alMarcar()),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 6),
+                    Text(
+                      pedido.customerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Tipos.texto(tamano: 14, peso: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    // Folio y fecha en la misma linea mientras quepan, y en dos
+                    // cuando no: es un `Wrap`, asi que saltan enteros.
+                    Wrap(
+                      spacing: Aire.sm,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (folio.isNotEmpty)
+                          Text(
+                            folio,
+                            style: Tipos.mono(
+                              tamano: 11.5,
+                              color: Colores.tintaSuave,
+                            ),
+                          ),
+                        _Fecha(pedido: pedido),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      pedido.endAddress ?? pedido.address,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Tipos.texto(tamano: 13, color: Colores.tinta),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: Aire.sm,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
                         Text(
-                          folio,
+                          kg(pedido.weight),
+                          style: Tipos.mono(tamano: 13, color: Colores.tinta),
+                        ),
+                        Text(
+                          usd(pedido.pedidoCosto),
                           style: Tipos.mono(
-                            tamano: 11.5,
-                            color: Colores.tintaSuave,
+                            tamano: 13,
+                            color: pedido.pedidoCosto == null
+                                ? Colores.tintaSuave
+                                : Colores.tinta,
                           ),
                         ),
-                      _Fecha(pedido: pedido),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    pedido.endAddress ?? pedido.address,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Tipos.texto(tamano: 13, color: Colores.tinta),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: Aire.sm,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        kg(pedido.weight),
-                        style: Tipos.mono(tamano: 13, color: Colores.tinta),
-                      ),
-                      Text(
-                        usd(pedido.pedidoCosto),
-                        style: Tipos.mono(
-                          tamano: 13,
-                          color: pedido.pedidoCosto == null
-                              ? Colores.tintaSuave
-                              : Colores.tinta,
+                        Insignia(
+                          enPedido.etiqueta,
+                          color: _colorEnPedido(enPedido),
+                          tooltip: pedido.archivado
+                              ? 'Archivado en PEDIDO'
+                              : null,
                         ),
-                      ),
-                      Insignia(
-                        enPedido.etiqueta,
-                        color: _colorEnPedido(enPedido),
-                        tooltip: pedido.archivado
-                            ? 'Archivado en PEDIDO'
-                            : null,
-                      ),
-                      Insignia(
-                        reparto.etiqueta,
-                        color: _colorDeReparto(reparto),
-                      ),
-                      if (codigoDeRuta != null)
-                        Insignia(codigoDeRuta!, color: Colores.enCurso),
-                      _Factura(pedido: pedido),
-                    ],
-                  ),
-                ],
+                        Insignia(
+                          reparto.etiqueta,
+                          color: _colorDeReparto(reparto),
+                        ),
+                        if (codigoDeRuta != null)
+                          Insignia(codigoDeRuta!, color: Colores.enCurso),
+                        _Factura(pedido: pedido),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Icon(
-                Icons.chevron_right,
-                size: 18,
-                color: Colores.tintaSuave,
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: Colores.tintaSuave,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

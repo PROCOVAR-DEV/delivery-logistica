@@ -17,6 +17,8 @@ import 'package:reparto/mapa/carpeta_del_mapa.dart';
 import 'package:reparto/mapa/proveedores_de_mapa.dart';
 import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/pantallas/mapa/pantalla_mapa_sin_conexion.dart';
+import 'package:reparto/pantallas/ayuda/datos/controles_senalados.dart';
+import 'package:reparto/pantallas/ayuda/vista/control_senalado.dart';
 
 /// Un servidor que anuncia lo que se le diga y sirve lo que se le diga.
 class _Servidor implements HttpClientAdapter {
@@ -26,7 +28,11 @@ class _Servidor implements HttpClientAdapter {
   final int codigoDelFichero;
 
   @override
-  Future<ResponseBody> fetch(RequestOptions o, Stream<List<int>>? cuerpo, Future<void>? cancelar) async {
+  Future<ResponseBody> fetch(
+    RequestOptions o,
+    Stream<List<int>>? cuerpo,
+    Future<void>? cancelar,
+  ) async {
     if (o.path.endsWith('/mapa')) {
       return ResponseBody.fromString(
         jsonEncode(anuncio ?? {'niveles': null}),
@@ -56,16 +62,18 @@ Widget _montaje(
   overrides: [
     // Ésta es la única línea que separa la APK de la web, y es a propósito.
     trabajaSinConexionProvider.overrideWithValue(enElAparato),
-    carpetaDelMapaProvider.overrideWith((ref) async => carpeta ?? CarpetaEnMemoria()),
-    dioDelMapaProvider.overrideWith((ref) => Dio()..httpClientAdapter = servidor),
+    carpetaDelMapaProvider.overrideWith(
+      (ref) async => carpeta ?? CarpetaEnMemoria(),
+    ),
+    dioDelMapaProvider.overrideWith(
+      (ref) => Dio()..httpClientAdapter = servidor,
+    ),
   ],
   // Con `Scaffold` puesto POR LA PRUEBA: la pantalla no lo lleva, que es lo que
   // manda el contrato de registro (`navegacion/pantalla_registrada.dart`) —
   // devolver otro dejaría dos barras superiores y rompería el selector de
   // sucursal.
-  child: const MaterialApp(
-    home: Scaffold(body: PantallaMapaSinConexion()),
-  ),
+  child: const MaterialApp(home: Scaffold(body: PantallaMapaSinConexion())),
 );
 
 Map<String, Object?> _anuncioDeDos() => {
@@ -177,7 +185,9 @@ void main() {
     );
   });
 
-  testWidgets('un nivel que la aplicación no entiende se AVISA', (tester) async {
+  testWidgets('un nivel que la aplicación no entiende se AVISA', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _montaje(
         _Servidor(
@@ -207,6 +217,42 @@ void main() {
 
     // NADA SE DESCARTA EN SILENCIO: el que no se entiende no desaparece sin más.
     expect(find.text(TextosDelMapaGuardado.ilegibles(1)), findsOneWidget);
+  });
+
+  testWidgets('con DOS niveles ofrecidos la Guía señala el primer botón', (
+    tester,
+  ) async {
+    // El paso 2 de «Descargar el mapa de Cuba» apunta a «Completo, con calles —
+    // 49,2 MB», y aquí hay UN botón por nivel ofrecido. Marcar los dos no rompe
+    // la pantalla: deja `donde` en `null` y el paso sale **sin foco** con el
+    // resto de este fichero en verde. Con un solo nivel ofrecido la prueba
+    // pasaría igual teniendo la marca en todos, así que se piden dos.
+    RegistroDeControles.vaciar();
+    addTearDown(RegistroDeControles.vaciar);
+
+    await tester.pumpWidget(
+      _montaje(_Servidor(anuncio: _anuncioDeDos()), enElAparato: true),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(claveDeBajar('basico')), findsOneWidget);
+    expect(find.byKey(claveDeBajar('completo')), findsOneWidget);
+
+    final puesto = RegistroDeControles.donde(Senalado.mapaBajar);
+    expect(
+      puesto,
+      isNotNull,
+      reason:
+          'con dos niveles ofrecidos no hay a cuál señalar: la marca está en los '
+          'dos botones y dos a la vez no se distinguen.',
+    );
+    expect(
+      puesto!.rect,
+      tester.getRect(find.byKey(claveDeBajar('basico'))),
+      reason:
+          'el foco no está en el PRIMER botón de la lista, que es el que se '
+          'marcó y el que nombra el paso',
+    );
   });
 
   testWidgets('con el detallado puesto NO se ofrecen los más pequeños', (

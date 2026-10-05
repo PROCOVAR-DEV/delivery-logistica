@@ -146,7 +146,10 @@ class ConsultasTablero {
   /// preferido invalido significa que el dato cambio DESPUES de elegirlo. No se
   /// calla: se deja dicho en el registro, porque de otro modo los kilometros
   /// cambian solos y nadie sabe por que.
-  Future<AlmacenOrigen> almacenDe(String sucursalId, {String? preferido}) async {
+  Future<AlmacenOrigen> almacenDe(
+    String sucursalId, {
+    String? preferido,
+  }) async {
     final sucursal = await (_base.select(
       _base.branches,
     )..where((b) => b.id.equals(sucursalId))).getSingleOrNull();

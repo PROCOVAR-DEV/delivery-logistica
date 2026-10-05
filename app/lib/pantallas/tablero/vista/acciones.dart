@@ -2,20 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../diseno/cargando.dart';
 import '../../../diseno/tema.dart' show BotonDestructivo, BotonPrincipal;
 import '../../../nucleo/registro/registro.dart';
 import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcel;
-import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
-import '../datos/modelos.dart';
-
-import 'package:go_router/go_router.dart';
-
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../pedidos/datos/formato.dart' show cantidad;
 import '../../rutas/datos/repositorio_rutas.dart' show PestanaRutas;
 import '../../rutas/estado/proveedores_rutas.dart'
     show pestanaRutasProvider, rutaElegidaProvider;
+import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
+import '../datos/modelos.dart';
 import '../estado/proveedores.dart';
 import 'kit.dart';
 
@@ -70,25 +70,28 @@ abstract final class AccionesTablero {
             ),
           const Divider(height: 24),
           if (columnaActual != null) ...[
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.arrow_upward),
-              title: const Text('Subir una posición'),
-              enabled: (posicionActual ?? 1) > 1,
-              onTap: () {
-                Navigator.of(contexto).pop();
-                hacer(
-                  context,
-                  ref,
-                  () => ref
-                      .read(tableroProvider.notifier)
-                      .colocar(
-                        pedidoId: pedido.pedidoId,
-                        columnaId: columnaActual,
-                        posicion: (posicionActual ?? 2) - 1,
-                      ),
-                );
-              },
+            ControlSenalado(
+              nombre: Senalado.tableroSubirUnaPosicion,
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.arrow_upward),
+                title: const Text('Subir una posición'),
+                enabled: (posicionActual ?? 1) > 1,
+                onTap: () {
+                  Navigator.of(contexto).pop();
+                  hacer(
+                    context,
+                    ref,
+                    () => ref
+                        .read(tableroProvider.notifier)
+                        .colocar(
+                          pedidoId: pedido.pedidoId,
+                          columnaId: columnaActual,
+                          posicion: (posicionActual ?? 2) - 1,
+                        ),
+                  );
+                },
+              ),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -109,34 +112,12 @@ abstract final class AccionesTablero {
                 );
               },
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.undo),
-              title: const Text('Devolver a sin colocar'),
-              onTap: () {
-                Navigator.of(contexto).pop();
-                hacer(
-                  context,
-                  ref,
-                  () => ref
-                      .read(tableroProvider.notifier)
-                      .quitar(pedido.pedidoId),
-                );
-              },
-            ),
-            const Divider(height: 24),
-          ],
-          for (final columna in tablero.columnas)
-            if (columna.id != columnaActual)
-              ListTile(
+            ControlSenalado(
+              nombre: Senalado.tableroDevolverASinColocar,
+              child: ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.view_column_outlined),
-                title: Text('Colocar en «${columna.nombre}»'),
-                subtitle: Text(
-                  '${columna.pedidos} '
-                  '${columna.pedidos == 1 ? 'pedido' : 'pedidos'} · '
-                  '${pesoBonito(columna.pesoKg)}',
-                ),
+                leading: const Icon(Icons.undo),
+                title: const Text('Devolver a sin colocar'),
                 onTap: () {
                   Navigator.of(contexto).pop();
                   hacer(
@@ -144,12 +125,42 @@ abstract final class AccionesTablero {
                     ref,
                     () => ref
                         .read(tableroProvider.notifier)
-                        .colocar(
-                          pedidoId: pedido.pedidoId,
-                          columnaId: columna.id,
-                        ),
+                        .quitar(pedido.pedidoId),
                   );
                 },
+              ),
+            ),
+            const Divider(height: 24),
+          ],
+          for (final (cual, columna) in tablero.columnas.indexed)
+            if (columna.id != columnaActual)
+              // Sólo la primera se deja senalar: hay una fila por zona.
+              ControlSenalado(
+                nombre: Senalado.tableroColocarEnLaZona,
+                senalable: cual == 0,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.view_column_outlined),
+                  title: Text('Colocar en «${columna.nombre}»'),
+                  subtitle: Text(
+                    '${columna.pedidos} '
+                    '${columna.pedidos == 1 ? 'pedido' : 'pedidos'} · '
+                    '${pesoBonito(columna.pesoKg)}',
+                  ),
+                  onTap: () {
+                    Navigator.of(contexto).pop();
+                    hacer(
+                      context,
+                      ref,
+                      () => ref
+                          .read(tableroProvider.notifier)
+                          .colocar(
+                            pedidoId: pedido.pedidoId,
+                            columnaId: columna.id,
+                          ),
+                    );
+                  },
+                ),
               ),
           if (tablero.columnas.isEmpty)
             const Padding(
@@ -179,46 +190,55 @@ abstract final class AccionesTablero {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.edit_outlined),
-            title: const Text('Renombrar'),
-            onTap: () async {
-              Navigator.of(contexto).pop();
-              final nombre = await _pedirNombre(context, columna.nombre);
-              if (nombre == null || !context.mounted) return;
-              await hacer(
-                context,
-                ref,
-                () => ref
-                    .read(tableroProvider.notifier)
-                    .renombrar(columna.id, nombre),
-              );
-            },
+          ControlSenalado(
+            nombre: Senalado.tableroRenombrar,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Renombrar'),
+              onTap: () async {
+                Navigator.of(contexto).pop();
+                final nombre = await _pedirNombre(context, columna.nombre);
+                if (nombre == null || !context.mounted) return;
+                await hacer(
+                  context,
+                  ref,
+                  () => ref
+                      .read(tableroProvider.notifier)
+                      .renombrar(columna.id, nombre),
+                );
+              },
+            ),
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.local_shipping_outlined),
-            title: const Text('Camión previsto'),
-            subtitle: Text(columna.vehiculoNombre ?? 'Sin elegir'),
-            onTap: () {
-              Navigator.of(contexto).pop();
-              _elegirCamion(context, ref, columna);
-            },
+          ControlSenalado(
+            nombre: Senalado.tableroCamionPrevisto,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.local_shipping_outlined),
+              title: const Text('Camión previsto'),
+              subtitle: Text(columna.vehiculoNombre ?? 'Sin elegir'),
+              onTap: () {
+                Navigator.of(contexto).pop();
+                _elegirCamion(context, ref, columna);
+              },
+            ),
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.layers_clear_outlined),
-            title: const Text('Vaciar'),
-            subtitle: const Text('Las tarjetas vuelven a «sin colocar»'),
-            onTap: () {
-              Navigator.of(contexto).pop();
-              hacer(
-                context,
-                ref,
-                () => ref.read(tableroProvider.notifier).vaciar(columna.id),
-              );
-            },
+          ControlSenalado(
+            nombre: Senalado.tableroVaciar,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.layers_clear_outlined),
+              title: const Text('Vaciar'),
+              subtitle: const Text('Las tarjetas vuelven a «sin colocar»'),
+              onTap: () {
+                Navigator.of(contexto).pop();
+                hacer(
+                  context,
+                  ref,
+                  () => ref.read(tableroProvider.notifier).vaciar(columna.id),
+                );
+              },
+            ),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -235,14 +255,17 @@ abstract final class AccionesTablero {
               );
             },
           ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.delete_outline),
-            title: const Text('Borrar la columna'),
-            onTap: () {
-              Navigator.of(contexto).pop();
-              _borrar(context, ref, columna: columna, tablero: tablero);
-            },
+          ControlSenalado(
+            nombre: Senalado.tableroBorrarLaZona,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Borrar la columna'),
+              onTap: () {
+                Navigator.of(contexto).pop();
+                _borrar(context, ref, columna: columna, tablero: tablero);
+              },
+            ),
           ),
           const Divider(height: 24),
           // EL «NO» SE DICE AQUÍ DENTRO Y NO TE ECHA — 28/09/2026.
@@ -717,28 +740,33 @@ class _CamionesDeLaZona extends ConsumerWidget {
             // El aviso va en el subtítulo, que es donde ya están la capacidad y
             // la placa: en mayúsculas porque es lo único de esta lista que hace
             // que uno elija otro.
-            for (final camion in value)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  camion.status == estadoEnMantenimiento
-                      ? Icons.build_outlined
-                      : Icons.local_shipping_outlined,
-                  color: camion.status == estadoEnMantenimiento
-                      ? Colores.ambar
-                      : null,
+            for (final (cual, camion) in value.indexed)
+              // Sólo el primero se deja senalar: hay una fila por camion.
+              ControlSenalado(
+                nombre: Senalado.tableroElegirCamion,
+                senalable: cual == 0,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    camion.status == estadoEnMantenimiento
+                        ? Icons.build_outlined
+                        : Icons.local_shipping_outlined,
+                    color: camion.status == estadoEnMantenimiento
+                        ? Colores.ambar
+                        : null,
+                  ),
+                  title: Text(camion.name),
+                  subtitle: Text(
+                    '${pesoBonito(camion.capacity)}'
+                    '${camion.plate == null ? '' : ' · ${camion.plate}'}'
+                    '${camion.status == estadoEnMantenimiento ? ' · EN EL TALLER' : ''}',
+                    style: camion.status == estadoEnMantenimiento
+                        ? TextStyle(color: Colores.ambar)
+                        : null,
+                  ),
+                  selected: columna.vehiculoId == camion.id,
+                  onTap: () => _poner(context, camion.id),
                 ),
-                title: Text(camion.name),
-                subtitle: Text(
-                  '${pesoBonito(camion.capacity)}'
-                  '${camion.plate == null ? '' : ' · ${camion.plate}'}'
-                  '${camion.status == estadoEnMantenimiento ? ' · EN EL TALLER' : ''}',
-                  style: camion.status == estadoEnMantenimiento
-                      ? TextStyle(color: Colores.ambar)
-                      : null,
-                ),
-                selected: columna.vehiculoId == camion.id,
-                onTap: () => _poner(context, camion.id),
               ),
           ],
           // El motivo literal, no «ha ocurrido un error»: es lo único con lo
@@ -1146,24 +1174,27 @@ class _ArmarLaRutaState extends ConsumerState<_ArmarLaRuta> {
             ),
           ),
         ],
-        FilledButton.icon(
-          icon: _armando
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.route_outlined),
-          label: Text(
-            // Al reintentar, el rótulo lo dice: pulsar lo mismo que acaba de
-            // fallar sin que cambie nada se lee como que el botón está roto.
-            _armando
-                ? 'Armando…'
-                : no == null
-                ? 'Armar la ruta de esta zona'
-                : 'Volver a intentarlo',
+        ControlSenalado(
+          nombre: Senalado.tableroArmarLaRuta,
+          child: FilledButton.icon(
+            icon: _armando
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.route_outlined),
+            label: Text(
+              // Al reintentar, el rótulo lo dice: pulsar lo mismo que acaba de
+              // fallar sin que cambie nada se lee como que el botón está roto.
+              _armando
+                  ? 'Armando…'
+                  : no == null
+                  ? 'Armar la ruta de esta zona'
+                  : 'Volver a intentarlo',
+            ),
+            onPressed: _armando ? null : _intentar,
           ),
-          onPressed: _armando ? null : _intentar,
         ),
       ],
     );
@@ -1213,22 +1244,28 @@ class _CampoDelNombreDeLaZonaState extends State<_CampoDelNombreDeLaZona> {
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      TextField(
-        controller: _control,
-        autofocus: true,
-        textCapitalization: TextCapitalization.sentences,
-        decoration: const InputDecoration(
-          labelText: 'Nombre de la zona',
-          hintText: 'Centro, Vista Alegre, Carretera…',
-          border: OutlineInputBorder(),
+      ControlSenalado(
+        nombre: Senalado.tableroNombreDeLaZona,
+        child: TextField(
+          controller: _control,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Nombre de la zona',
+            hintText: 'Centro, Vista Alegre, Carretera…',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: _entregar,
         ),
-        onSubmitted: _entregar,
       ),
       const SizedBox(height: 16),
-      BotonPrincipal(
-        icono: Icons.save_outlined,
-        texto: 'Guardar',
-        alPulsar: () => _entregar(_control.text),
+      ControlSenalado(
+        nombre: Senalado.tableroGuardarLaZona,
+        child: BotonPrincipal(
+          icono: Icons.save_outlined,
+          texto: 'Guardar',
+          alPulsar: () => _entregar(_control.text),
+        ),
       ),
     ],
   );

@@ -16,24 +16,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../impresion/hoja.dart' as papel;
-import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
-import '../../../impresion/vista_previa.dart';
 import '../../../diseno/anchos.dart';
-import '../../../diseno/cajon.dart' show AtrasDelCajon;
 import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/caja_de_numero.dart';
+import '../../../diseno/cajon.dart' show AtrasDelCajon;
 import '../../../diseno/numeros.dart';
 import '../../../diseno/rango_de_fechas.dart';
 import '../../../diseno/tema.dart';
+import '../../../impresion/hoja.dart' as papel;
+import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
+import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
+import '../../almacenes/vista/almacenes_de_la_ultima_bajada.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/estado/proveedores_pedidos.dart';
 import '../../pedidos/vista/kit.dart';
 import '../../pedidos/vista/vista_pre_despacho.dart';
-import '../../almacenes/vista/almacenes_de_la_ultima_bajada.dart';
 import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 import '../datos/acciones_rutas.dart';
 import '../datos/meter_la_zona.dart';
@@ -434,13 +436,16 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
                 ),
                 const SizedBox(width: Aire.sm),
                 Flexible(
-                  child: BotonPrincipal(
-                    icono: Icons.route_outlined,
-                    texto: _generando ? 'Generando ruta...' : 'Generar Ruta',
-                    // El rotulo cambia de largo solo y el boton va dentro de un
-                    // `Flexible`: a 390 px, sin esto, el renglon se parte.
-                    enUnaLinea: true,
-                    alPulsar: puedeGenerar ? _generar : null,
+                  child: ControlSenalado(
+                    nombre: Senalado.rutasAsistenteGenerar,
+                    child: BotonPrincipal(
+                      icono: Icons.route_outlined,
+                      texto: _generando ? 'Generando ruta...' : 'Generar Ruta',
+                      // El rotulo cambia de largo solo y el boton va dentro de un
+                      // `Flexible`: a 390 px, sin esto, el renglon se parte.
+                      enUnaLinea: true,
+                      alPulsar: puedeGenerar ? _generar : null,
+                    ),
                   ),
                 ),
               ],
@@ -506,15 +511,18 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
   Widget _pasoSucursal(List<Sucursal> sucursales) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Selector<String>(
-        titulo: 'Sucursal de la ruta',
-        valor: _sucursalId ?? '',
-        opciones: [
-          const OpcionSelector('', 'Elige la sucursal…'),
-          for (final s in sucursales)
-            OpcionSelector(s.id, s.name, nota: s.externalId),
-        ],
-        alElegir: _cambiarSucursal,
+      ControlSenalado(
+        nombre: Senalado.rutasAsistenteSucursal,
+        child: Selector<String>(
+          titulo: 'Sucursal de la ruta',
+          valor: _sucursalId ?? '',
+          opciones: [
+            const OpcionSelector('', 'Elige la sucursal…'),
+            for (final s in sucursales)
+              OpcionSelector(s.id, s.name, nota: s.externalId),
+          ],
+          alElegir: _cambiarSucursal,
+        ),
       ),
       const SizedBox(height: 8),
       Text(
@@ -529,18 +537,21 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       // arriba y otro abajo, es lo que hacía dudar de cuál era cuál.
       Align(
         alignment: Alignment.centerRight,
-        child: BotonPrincipal(
-          // LA FLECHA VA DETRAS DE LA PALABRA. Es lo unico que hace este boton
-          // —pasar al paso siguiente— y una flecha que apunta a la derecha,
-          // puesta a la IZQUIERDA del rotulo, se lee como «volver». El
-          // `Icons.arrow_back` de «Volver a la lista» va delante por lo mismo,
-          // al reves.
-          icono: Icons.arrow_forward,
-          iconoAlFinal: true,
-          texto: 'Siguiente',
-          alPulsar: _sucursalId == null
-              ? null
-              : () => setState(() => _paso = 2),
+        child: ControlSenalado(
+          nombre: Senalado.rutasAsistenteSiguiente,
+          child: BotonPrincipal(
+            // LA FLECHA VA DETRAS DE LA PALABRA. Es lo unico que hace este boton
+            // —pasar al paso siguiente— y una flecha que apunta a la derecha,
+            // puesta a la IZQUIERDA del rotulo, se lee como «volver». El
+            // `Icons.arrow_back` de «Volver a la lista» va delante por lo mismo,
+            // al reves.
+            icono: Icons.arrow_forward,
+            iconoAlFinal: true,
+            texto: 'Siguiente',
+            alPulsar: _sucursalId == null
+                ? null
+                : () => setState(() => _paso = 2),
+          ),
         ),
       ),
     ],
@@ -570,19 +581,22 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
         // unico que se puede hacer es DECIRLO, con su fecha. Regla 4: si algo
         // puede estar viejo, se dice. En la web esto no pinta nada (regla 1).
         const AlmacenesDeLaUltimaBajada(),
-        Selector<String>(
-          titulo: 'Almacén del que sale el camión',
-          valor: _salida?.id ?? '',
-          opciones: [
-            for (final a in conUbicacion)
-              OpcionSelector(
-                a.id,
-                a.nombre,
-                nota: a.principal ? 'principal' : null,
-              ),
-          ],
-          alElegir: (id) => setState(
-            () => _salida = conUbicacion.where((a) => a.id == id).first,
+        ControlSenalado(
+          nombre: Senalado.rutasAsistenteAlmacen,
+          child: Selector<String>(
+            titulo: 'Almacén del que sale el camión',
+            valor: _salida?.id ?? '',
+            opciones: [
+              for (final a in conUbicacion)
+                OpcionSelector(
+                  a.id,
+                  a.nombre,
+                  nota: a.principal ? 'principal' : null,
+                ),
+            ],
+            alElegir: (id) => setState(
+              () => _salida = conUbicacion.where((a) => a.id == id).first,
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -635,34 +649,37 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Selector<String>(
-          titulo: 'Vehículo de la ruta',
-          valor: _vehiculoId ?? '',
-          opciones: [
-            const OpcionSelector('', 'Elige el vehículo…'),
-            // **Se ofrecen todos los vehiculos, tambien los ocupados y los que
-            // estan en el taller**: la pantalla no decide por nadie, sólo avisa
-            // de como anda cada uno. El porque de NO bloquear el del taller esta
-            // abajo, en el aviso ambar.
-            for (final v in vehiculos)
-              OpcionSelector(
-                v.id,
-                v.name,
-                nota: switch (v.status) {
-                  estadoEnMantenimiento =>
-                    '${v.capacity.toStringAsFixed(0)} kg · en el taller',
-                  EstadoVehiculo.enUso =>
-                    '${v.capacity.toStringAsFixed(0)} kg · en ruta',
-                  _ => '${v.capacity.toStringAsFixed(0)} kg',
-                },
-              ),
-          ],
-          alElegir: (id) => setState(() {
-            _vehiculoId = id.isEmpty ? null : id;
-            // A MANO. Desde aqui lo elige una persona, y a partir de ese
-            // momento una zona del tablero ya no se lo pisa sin decirlo.
-            _camionAMano = _vehiculoId != null;
-          }),
+        ControlSenalado(
+          nombre: Senalado.rutasAsistenteVehiculo,
+          child: Selector<String>(
+            titulo: 'Vehículo de la ruta',
+            valor: _vehiculoId ?? '',
+            opciones: [
+              const OpcionSelector('', 'Elige el vehículo…'),
+              // **Se ofrecen todos los vehiculos, tambien los ocupados y los que
+              // estan en el taller**: la pantalla no decide por nadie, sólo avisa
+              // de como anda cada uno. El porque de NO bloquear el del taller esta
+              // abajo, en el aviso ambar.
+              for (final v in vehiculos)
+                OpcionSelector(
+                  v.id,
+                  v.name,
+                  nota: switch (v.status) {
+                    estadoEnMantenimiento =>
+                      '${v.capacity.toStringAsFixed(0)} kg · en el taller',
+                    EstadoVehiculo.enUso =>
+                      '${v.capacity.toStringAsFixed(0)} kg · en ruta',
+                    _ => '${v.capacity.toStringAsFixed(0)} kg',
+                  },
+                ),
+            ],
+            alElegir: (id) => setState(() {
+              _vehiculoId = id.isEmpty ? null : id;
+              // A MANO. Desde aqui lo elige una persona, y a partir de ese
+              // momento una zona del tablero ya no se lo pisa sin decirlo.
+              _camionAMano = _vehiculoId != null;
+            }),
+          ),
         ),
         // EL CAMION DEL TALLER SE AVISA, NO SE BLOQUEA — 28/09/2026.
         //
@@ -699,9 +716,8 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
               '${_vehiculo!.name} está marcado EN EL TALLER. La ruta se arma '
               'igual —tiene su capacidad y su costo por km— pero ese camión no '
               'puede salir hoy. Si ya volvió, sácalo del taller en Vehículos.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colores.ambar,
-              ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: Colores.ambar),
             ),
           ),
         const SizedBox(height: 8),
@@ -924,11 +940,14 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       ),
       // La MISMA caja que Pedidos, Clientes, Vehiculos, Rutas y el Tablero.
       // `ancho: null` porque el ancho lo da el `Wrap` de arriba con `caja()`.
-      CajaDeBusqueda(
-        valor: _filtros.q,
-        ancho: null,
-        pista: 'Buscar pedido...',
-        alBuscar: _buscar,
+      ControlSenalado(
+        nombre: Senalado.rutasAsistenteBuscar,
+        child: CajaDeBusqueda(
+          valor: _filtros.q,
+          ancho: null,
+          pista: 'Buscar pedido...',
+          alBuscar: _buscar,
+        ),
       ),
       Selector<String>(
         titulo: 'Vendedor del pedido',
@@ -1947,14 +1966,17 @@ class _BotonDePreDespacho extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: OutlinedButton.icon(
-        key: AsistenteNuevaRuta.claveDelBotonDePreDespacho,
-        onPressed: elegidos == 0 ? null : alAbrir,
-        icon: const Icon(Icons.inventory_2_outlined, size: 18),
-        label: Text(
-          elegidos == 0
-              ? 'Pre-despacho — elige pedidos primero'
-              : 'Pre-despacho de los $elegidos elegidos',
+      child: ControlSenalado(
+        nombre: Senalado.rutasPreDespacho,
+        child: OutlinedButton.icon(
+          key: AsistenteNuevaRuta.claveDelBotonDePreDespacho,
+          onPressed: elegidos == 0 ? null : alAbrir,
+          icon: const Icon(Icons.inventory_2_outlined, size: 18),
+          label: Text(
+            elegidos == 0
+                ? 'Pre-despacho — elige pedidos primero'
+                : 'Pre-despacho de los $elegidos elegidos',
+          ),
         ),
       ),
     );

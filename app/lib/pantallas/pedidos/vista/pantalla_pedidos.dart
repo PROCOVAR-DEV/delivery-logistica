@@ -27,6 +27,8 @@ import '../../../nucleo/base/base.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/proveedores.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/filtros_en_la_url.dart';
 import '../datos/filtros_pedidos.dart';
 import '../datos/formato.dart';
@@ -336,9 +338,17 @@ class _BarraDeFiltros extends ConsumerWidget {
       // Busca sola a los 400 ms, y **se vacia cuando se vacian los
       // filtros**: antes se quedaba el texto puesto filtrando en silencio
       // debajo de una lista que ya no estaba filtrada.
-      busqueda: CajaDeBusqueda(
-        valor: filtros.q,
-        alBuscar: (t) => notas.cambiar((f) => f.copiarCon(q: t)),
+      // EL ENVOLTORIO VA POR FUERA DEL `Selector`, NO LE QUITA LA `key`.
+      // `BarraDeFiltros` reparte el ancho de la fila **por la clave de cada
+      // filtro** (ver el comentario de abajo), asi que moverla al envoltorio
+      // devolveria los cinco filtros al 50/50 de antes del 28/09/2026 sin que
+      // nada fallara. El `ControlSenalado` no lleva `key` a proposito.
+      busqueda: ControlSenalado(
+        nombre: Senalado.pedidosBuscar,
+        child: CajaDeBusqueda(
+          valor: filtros.q,
+          alBuscar: (t) => notas.cambiar((f) => f.copiarCon(q: t)),
+        ),
       ),
       // CADA FILTRO LLEVA SU CLAVE, Y ES LO QUE LE DA SU ANCHO — 28/09/2026.
       //
@@ -359,25 +369,32 @@ class _BarraDeFiltros extends ConsumerWidget {
       // El `titulo` es estable y mide parecido, que es todo lo que hace falta
       // para repartir una fila.
       filtros: [
-        Selector<RepartoFiltro>(
-          key: const ValueKey('Estado de reparto en delivery'),
-          titulo: 'Estado de reparto en delivery',
-          valor: filtros.reparto,
-          opciones: [
-            for (final r in RepartoFiltro.values) OpcionSelector(r, r.etiqueta),
-          ],
-          alElegir: (r) => notas.cambiar((f) => f.copiarCon(reparto: r)),
+        ControlSenalado(
+          nombre: Senalado.pedidosFiltroEstado,
+          child: Selector<RepartoFiltro>(
+            key: const ValueKey('Estado de reparto en delivery'),
+            titulo: 'Estado de reparto en delivery',
+            valor: filtros.reparto,
+            opciones: [
+              for (final r in RepartoFiltro.values)
+                OpcionSelector(r, r.etiqueta),
+            ],
+            alElegir: (r) => notas.cambiar((f) => f.copiarCon(reparto: r)),
+          ),
         ),
-        Selector<String>(
-          key: const ValueKey('Municipio del cliente'),
-          titulo: 'Municipio del cliente',
-          valor: filtros.municipio,
-          opciones: [
-            const OpcionSelector('', 'Todos los municipios'),
-            for (final m in facetas.municipios)
-              OpcionSelector(m.valor, m.valor, nota: '${m.pedidos}'),
-          ],
-          alElegir: (m) => notas.cambiar((f) => f.copiarCon(municipio: m)),
+        ControlSenalado(
+          nombre: Senalado.pedidosFiltroMunicipio,
+          child: Selector<String>(
+            key: const ValueKey('Municipio del cliente'),
+            titulo: 'Municipio del cliente',
+            valor: filtros.municipio,
+            opciones: [
+              const OpcionSelector('', 'Todos los municipios'),
+              for (final m in facetas.municipios)
+                OpcionSelector(m.valor, m.valor, nota: '${m.pedidos}'),
+            ],
+            alElegir: (m) => notas.cambiar((f) => f.copiarCon(municipio: m)),
+          ),
         ),
         Selector<CotizadoFiltro>(
           key: const ValueKey('Precio del domicilio'),
@@ -400,14 +417,17 @@ class _BarraDeFiltros extends ConsumerWidget {
           ],
           alElegir: (v) => notas.cambiar((f) => f.copiarCon(vendedor: v)),
         ),
-        Selector<OrdenLocal>(
-          key: const ValueKey('Cómo se ordena esta página'),
-          titulo: 'Cómo se ordena esta página',
-          valor: filtros.orden,
-          opciones: [
-            for (final o in OrdenLocal.values) OpcionSelector(o, o.etiqueta),
-          ],
-          alElegir: (o) => notas.cambiar((f) => f.copiarCon(orden: o)),
+        ControlSenalado(
+          nombre: Senalado.pedidosOrden,
+          child: Selector<OrdenLocal>(
+            key: const ValueKey('Cómo se ordena esta página'),
+            titulo: 'Cómo se ordena esta página',
+            valor: filtros.orden,
+            opciones: [
+              for (final o in OrdenLocal.values) OpcionSelector(o, o.etiqueta),
+            ],
+            alElegir: (o) => notas.cambiar((f) => f.copiarCon(orden: o)),
+          ),
         ),
       ],
       anchoCompleto: [
@@ -594,10 +614,13 @@ class _Cuerpo extends ConsumerWidget {
             ? 'Ningún pedido cuadra con estos filtros.'
             : 'Aún no hay pedidos de esta sucursal.',
         accion: porUnFiltro
-            ? OutlinedButton(
-                onPressed: () =>
-                    ref.read(filtrosPedidosProvider.notifier).quitarTodos(),
-                child: const Text('Quitar todos los filtros'),
+            ? ControlSenalado(
+                nombre: Senalado.pedidosLimpiarFiltros,
+                child: OutlinedButton(
+                  onPressed: () =>
+                      ref.read(filtrosPedidosProvider.notifier).quitarTodos(),
+                  child: const Text('Quitar todos los filtros'),
+                ),
               )
             : null,
       );
@@ -687,9 +710,12 @@ class _PreDespachoDeLoElegido extends ConsumerWidget {
                 // tablero. Sin esto habia que irse al tablero y colocarlos uno a
                 // uno, y Jose lo pregunto tal cual: «sigo sin ver, cuando escojo
                 // los pedidos, seleccionar un tablero».
-                TextButton(
-                  onPressed: () => abrirCajonMandarAlTablero(context),
-                  child: const Text(PantallaPedidos.mandarAUnaZona),
+                ControlSenalado(
+                  nombre: Senalado.pedidosMandarAUnaZona,
+                  child: TextButton(
+                    onPressed: () => abrirCajonMandarAlTablero(context),
+                    child: const Text(PantallaPedidos.mandarAUnaZona),
+                  ),
                 ),
                 TextButton(
                   onPressed: () => ref
@@ -743,13 +769,16 @@ class _PreDespachoDeLoFiltradoState
     // las fechas, y es ese `Wrap` quien lo coloca. Los de antes eran para
     // cuando estaba solo en su propia fila, y aquí dentro lo único que hacían
     // era separarlo de las fechas con las que va.
-    return BotonDelPreDespacho(
-      key: PreDespacho.claveDelBotonDeLoFiltrado,
-      totales: totales,
-      alAbrir: () {
-        setState(() => _pedido = true);
-        abrirVistaDePreDespacho(context, fuente: preDespachoFiltradoProvider);
-      },
+    return ControlSenalado(
+      nombre: Senalado.pedidosPreDespachoDeLoFiltrado,
+      child: BotonDelPreDespacho(
+        key: PreDespacho.claveDelBotonDeLoFiltrado,
+        totales: totales,
+        alAbrir: () {
+          setState(() => _pedido = true);
+          abrirVistaDePreDespacho(context, fuente: preDespachoFiltradoProvider);
+        },
+      ),
     );
   }
 }

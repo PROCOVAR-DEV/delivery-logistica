@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../pantallas/ayuda/datos/controles_senalados.dart';
+import '../pantallas/ayuda/vista/control_senalado.dart';
 import 'cajon.dart';
 import 'tema.dart';
 
@@ -44,9 +46,19 @@ Future<bool> preguntarAntesDeBorrar(
       children: [
         Text(loQuePasa),
         const SizedBox(height: 20),
-        BotonDestructivo(
-          texto: 'Sí, borrar «$queSeVa»',
-          alPulsar: () => Navigator.of(contextoCajon).pop(true),
+        // SENALABLE POR LA GUIA, y es el unico control de `diseno/` que lo es.
+        //
+        // La pregunta de borrar la usan cinco tareas del manual —una ruta, un
+        // camion, un almacen, una zona— y el ultimo paso de las cinco es este
+        // boton. Marcarlo una vez aqui las deja a las cinco con su recorrido
+        // completo; marcarlo en cada pantalla seria el mismo boton con cinco
+        // nombres.
+        ControlSenalado(
+          nombre: Senalado.confirmarElBorrado,
+          child: BotonDestructivo(
+            texto: 'Sí, borrar «$queSeVa»',
+            alPulsar: () => Navigator.of(contextoCajon).pop(true),
+          ),
         ),
         const SizedBox(height: 8),
         TextButton(

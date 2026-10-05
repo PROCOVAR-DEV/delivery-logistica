@@ -16,5 +16,14 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(motor: FlutterEngine) {
         super.configureFlutterEngine(motor)
         VeredictoDeRed(applicationContext).registrar(motor.dartExecutor.binaryMessenger)
+        // Y lo otro que este lado sabe y Dart no: pedirle al sistema que instale el
+        // APK que la aplicacion acaba de bajar y comprobar. Ver [InstaladorDeApk] —
+        // «actualizar ahi mismo en la aplicacion sin necesidad de salir».
+        //
+        // `applicationContext` por lo mismo de arriba: el `Intent` sale con
+        // `FLAG_ACTIVITY_NEW_TASK` y no necesita la Activity, asi que atarlo a una
+        // que se recrea al girar el telefono solo trae un callback contra una
+        // pantalla que ya no existe.
+        InstaladorDeApk(applicationContext).registrar(motor.dartExecutor.binaryMessenger)
     }
 }

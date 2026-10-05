@@ -17,6 +17,8 @@ import '../../../nucleo/sincro/ciclo.dart';
 import '../../../nucleo/sincro/huerfanos.dart';
 import '../../../nucleo/sincro/sucursal_del_aparato.dart';
 import '../../rutas/estado/proveedores_rutas.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../sincronizacion/vista/fila_de_rechazo.dart';
 import '../datos/textos.dart';
 import '../estado/entregar_el_dia.dart';
@@ -197,26 +199,29 @@ class _Pie extends ConsumerWidget {
     return Row(
       children: [
         Expanded(
-          child: FilledButton.icon(
-            onPressed: corriendo || !hayQueHacer
-                ? null
-                : () => unawaited(
-                    ref.read(entregarElDiaProvider.notifier).ahora(),
-                  ),
-            icon: Icon(
-              corriendo ? Icons.hourglass_top : Icons.cloud_upload_outlined,
-              size: 20,
-            ),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: Aire.lg),
-              textStyle: Tipos.texto(tamano: 15, peso: FontWeight.w600),
-            ),
-            label: Text(
-              corriendo
-                  ? TextosDeEntregarElDia.subiendo
-                  : !hayQueHacer
-                  ? TextosDeEntregarElDia.todoEntregado
-                  : TextosDeEntregarElDia.boton,
+          child: ControlSenalado(
+            nombre: Senalado.entregarElDiaEntregar,
+            child: FilledButton.icon(
+              onPressed: corriendo || !hayQueHacer
+                  ? null
+                  : () => unawaited(
+                      ref.read(entregarElDiaProvider.notifier).ahora(),
+                    ),
+              icon: Icon(
+                corriendo ? Icons.hourglass_top : Icons.cloud_upload_outlined,
+                size: 20,
+              ),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: Aire.lg),
+                textStyle: Tipos.texto(tamano: 15, peso: FontWeight.w600),
+              ),
+              label: Text(
+                corriendo
+                    ? TextosDeEntregarElDia.subiendo
+                    : !hayQueHacer
+                    ? TextosDeEntregarElDia.todoEntregado
+                    : TextosDeEntregarElDia.boton,
+              ),
             ),
           ),
         ),
@@ -583,8 +588,7 @@ class _SoloEnEsteAparatoState extends ConsumerState<_SoloEnEsteAparato> {
                   _LaDecisionSobreLoPerdido(
                     huerfano: h,
                     preguntando: preguntandoPor == h.tabla,
-                    alPreguntar: () =>
-                        setState(() => preguntandoPor = h.tabla),
+                    alPreguntar: () => setState(() => preguntandoPor = h.tabla),
                     alDejarlo: () => setState(() => preguntandoPor = null),
                     alConfirmar: () async {
                       // SI ESTO FALLA, LA PREGUNTA SE QUEDA PUESTA. No se cierra
@@ -645,9 +649,7 @@ class _LaDecisionSobreLoPerdido extends StatelessWidget {
             style: Botones.secundario(),
             onPressed: alPreguntar,
             icon: const Icon(Icons.playlist_remove_outlined, size: 18),
-            label: Text(
-              TextosDeEntregarElDia.darPorPerdido(huerfano.texto),
-            ),
+            label: Text(TextosDeEntregarElDia.darPorPerdido(huerfano.texto)),
           ),
         ),
       );
@@ -806,22 +808,25 @@ class _Bandeja extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                rechazados.isEmpty
-                    ? TextosDeEntregarElDia.bandejaTitulo
-                    : '${TextosDeEntregarElDia.bandejaTitulo} '
-                          '(${Numeros.entero(rechazados.length)})',
-                style: Tipos.texto(
-                  tamano: 14,
-                  peso: FontWeight.w700,
-                  color: Colores.tinta,
+        ControlSenalado(
+          nombre: Senalado.entregarElDiaBandeja,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  rechazados.isEmpty
+                      ? TextosDeEntregarElDia.bandejaTitulo
+                      : '${TextosDeEntregarElDia.bandejaTitulo} '
+                            '(${Numeros.entero(rechazados.length)})',
+                  style: Tipos.texto(
+                    tamano: 14,
+                    peso: FontWeight.w700,
+                    color: Colores.tinta,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: 4),
         Text(
@@ -836,25 +841,35 @@ class _Bandeja extends ConsumerWidget {
             icono: Icons.inbox_outlined,
           )
         else
-          for (final a in rechazados)
-            FilaDeRechazo(
-              motivo: a.motivo ?? 'El servidor lo rechazó sin decir por qué.',
-              // En el cajon del propio aparato no hay a quien atribuirlo: es de
-              // quien esta mirando la pantalla.
-              quien: '',
-              horas: <String>[
-                'hecho ${formato.format(a.hechoAt)}',
-                if (a.resueltoAt != null)
-                  'rechazado ${formato.format(a.resueltoAt!)}',
-              ].join(' · '),
-              peticion: '${a.metodo} ${a.ruta}',
-              // LAS DOS DECISIONES. Aqui SI se pueden tomar: es la bandeja de
-              // ESTE aparato, o sea la de quien esta mirando. En la pantalla de
-              // Sincronizacion, que ensena la de los diez, no se ofrecen.
-              alReintentar: () =>
-                  unawaited(ref.read(colaProvider).reintentar(a.clave)),
-              alDescartar: () =>
-                  unawaited(ref.read(colaProvider).descartar(a.clave)),
+          // Hay una fila por rechazo, asi que la marca va SOLO en la primera: es
+          // la que siempre esta construida y la unica que se puede distinguir.
+          for (final (cual, a) in rechazados.indexed)
+            ControlSenalado(
+              nombre: Senalado.entregarElDiaRechazo,
+              senalable: cual == 0,
+              child: FilaDeRechazo(
+                motivo: a.motivo ?? 'El servidor lo rechazó sin decir por qué.',
+                // En el cajon del propio aparato no hay a quien atribuirlo: es de
+                // quien esta mirando la pantalla.
+                quien: '',
+                horas: <String>[
+                  'hecho ${formato.format(a.hechoAt)}',
+                  if (a.resueltoAt != null)
+                    'rechazado ${formato.format(a.resueltoAt!)}',
+                ].join(' · '),
+                peticion: '${a.metodo} ${a.ruta}',
+                // LAS DOS DECISIONES. Aqui SI se pueden tomar: es la bandeja de
+                // ESTE aparato, o sea la de quien esta mirando. En la pantalla de
+                // Sincronizacion, que ensena la de los diez, no se ofrecen.
+                alReintentar: () =>
+                    unawaited(ref.read(colaProvider).reintentar(a.clave)),
+                alDescartar: () =>
+                    unawaited(ref.read(colaProvider).descartar(a.clave)),
+                // Y el «Reintentar» de la primera, que es el control del ultimo
+                // paso de «Resolver un rechazo». Lo decide esta pantalla porque es
+                // la unica que sabe cual es la primera fila.
+                senalarLosGestos: cual == 0,
+              ),
             ),
       ],
     );

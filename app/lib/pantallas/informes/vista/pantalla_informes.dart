@@ -17,6 +17,8 @@ import '../../../diseno/tarjeta.dart';
 import '../../../navegacion/estado_navegacion.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/proveedores.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/consultas_informes.dart';
 import '../estado/informes_estado.dart';
 import 'boton_exportar.dart';
@@ -139,15 +141,18 @@ class PantallaInformes extends ConsumerWidget {
         children: [
           _Filtros(sinDescargar: sinDescargar, porQue: porQue),
           const SizedBox(height: Aire.lg),
-          _Advertencia(
-            sinDescargar: sinDescargar,
-            viejo: viejo,
-            cuando: cuando,
-            porQue: porQue,
-            // LA BAJADA QUE VOLVIO A MEDIAS. Lo leia un solo sitio —la franja
-            // de estado, una linea de doce puntos arriba del todo— y esta es la
-            // pantalla donde un truncamiento se convierte en un importe.
-            aMedias: ref.watch(bajadaAMediasProvider),
+          ControlSenalado(
+            nombre: Senalado.informesAdvertencia,
+            child: _Advertencia(
+              sinDescargar: sinDescargar,
+              viejo: viejo,
+              cuando: cuando,
+              porQue: porQue,
+              // LA BAJADA QUE VOLVIO A MEDIAS. Lo leia un solo sitio —la franja
+              // de estado, una linea de doce puntos arriba del todo— y esta es la
+              // pantalla donde un truncamiento se convierte en un importe.
+              aMedias: ref.watch(bajadaAMediasProvider),
+            ),
           ),
           const SizedBox(height: Aire.lg),
         ],
@@ -325,13 +330,16 @@ class _Filtros extends ConsumerWidget {
         runSpacing: 12,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          _Fecha(
-            etiqueta: 'Desde',
-            valor: filtro.desde,
-            alElegir: (d) => notas.poner(
-              d == null
-                  ? filtro.copiar(quitarDesde: true)
-                  : filtro.copiar(desde: d),
+          ControlSenalado(
+            nombre: Senalado.informesDesde,
+            child: _Fecha(
+              etiqueta: 'Desde',
+              valor: filtro.desde,
+              alElegir: (d) => notas.poner(
+                d == null
+                    ? filtro.copiar(quitarDesde: true)
+                    : filtro.copiar(desde: d),
+              ),
             ),
           ),
           _Fecha(
@@ -376,7 +384,15 @@ class _Filtros extends ConsumerWidget {
           // `datos/excel_del_informe.dart` y lo entrega
           // `datos/entrega_del_excel.dart`, que es donde vive la diferencia
           // entre guardar, compartir y descargar.
-          BotonExportarExcel(sinDescargar: sinDescargar, porQue: porQue),
+          // Es tambien el control del paso siguiente del manual: «Armando el
+          // Excel...» es lo que dice ESTE boton mientras trabaja, no otro sitio.
+          ControlSenalado(
+            nombre: Senalado.informesExportar,
+            child: BotonExportarExcel(
+              sinDescargar: sinDescargar,
+              porQue: porQue,
+            ),
+          ),
         ],
       ),
     );
@@ -525,24 +541,27 @@ class _PestanasState extends State<_Pestanas>
       // de sitio de un teléfono, y en una pantalla ancha esconder dos de tres
       // detrás de unas bolitas es quitar información a quien tiene sitio para
       // verla. Jose, 17/09/2026: «los tabs así como están eran para el móvil».
-      PestanasQueCaben(
-        indice: _mando.index,
-        etiquetas: _nombres,
-        alCambiar: _mando.animateTo,
-        // El número de filas va pegado a su nombre, como en la pestaña de
-        // antes: es la cuenta de lo que hay dentro, igual que el «(308)» de
-        // «Sin colocar» en el Tablero.
-        rotulo: _mando.index == 2
-            ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_nombres[2]),
-                  const SizedBox(width: 6),
-                  Insignia(Numeros.entero(widget.informe.filas.length)),
-                ],
-              )
-            : null,
+      ControlSenalado(
+        nombre: Senalado.informesPestanas,
+        child: PestanasQueCaben(
+          indice: _mando.index,
+          etiquetas: _nombres,
+          alCambiar: _mando.animateTo,
+          // El número de filas va pegado a su nombre, como en la pestaña de
+          // antes: es la cuenta de lo que hay dentro, igual que el «(308)» de
+          // «Sin colocar» en el Tablero.
+          rotulo: _mando.index == 2
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_nombres[2]),
+                    const SizedBox(width: 6),
+                    Insignia(Numeros.entero(widget.informe.filas.length)),
+                  ],
+                )
+              : null,
+        ),
       ),
       // `Expanded` y NO un alto fijo de 560 px.
       //

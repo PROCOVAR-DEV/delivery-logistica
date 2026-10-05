@@ -21,6 +21,8 @@ import 'package:reparto/navegacion/barra_superior.dart';
 import 'package:reparto/navegacion/estado_navegacion.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/proveedores.dart';
+import 'package:reparto/pantallas/ayuda/datos/controles_senalados.dart';
+import 'package:reparto/pantallas/ayuda/vista/control_senalado.dart';
 
 import '../apoyo/base_de_prueba.dart';
 
@@ -395,6 +397,90 @@ void main() {
           .widgetList<Tooltip>(find.byType(Tooltip))
           .map((t) => t.message ?? '');
       expect(avisos.where((m) => m.contains('Elegí una sucursal')), isNotEmpty);
+    });
+
+    // LA GUIA SEÑALA UNA OPCION DE DENTRO, no solo la caja que la abre.
+    //
+    // Tres pasos del manual apuntan ahi: «Elige de la lista. La primera opción es
+    // «Todas (8)»» y «La opción de CUP lleva la tasa». El envoltorio lo pone
+    // `Selector` cuando la pantalla le pasa `OpcionSelector.senalado`
+    // (`diseno/selector.dart`), y ese cable **no lo vigila la prueba de contrato**
+    // de `pantallas/ayuda/`: esa compara textos, y con `senalado:` escrito y el
+    // envoltorio quitado sigue saliendo verde. Esto es lo unico que lo caza.
+    //
+    // Se abre el cajon de verdad: la opcion no existe hasta que se abre, y eso
+    // tambien forma parte de lo que se esta comprobando.
+    testWidgets('la opción «Todas» y la opción CUP se pueden señalar', (
+      tester,
+    ) async {
+      RegistroDeControles.vaciar();
+      addTearDown(RegistroDeControles.vaciar);
+
+      await sucursal(
+        'stg',
+        'Santiago',
+        codigo: 'STG',
+        cupRate: _tasaDeHoy,
+        traidoAt: _del9,
+        fresca: true,
+      );
+      await sucursal(
+        'hab',
+        'La Habana',
+        codigo: 'HAB',
+        cupRate: _tasaDeHoy,
+        traidoAt: _del9,
+        fresca: true,
+      );
+      await montar(tester, elegida: 'stg');
+
+      // Con el cajon cerrado no hay ninguna opcion montada, y por eso no se
+      // puede senalar. Que es la verdad, y se comprueba para que la de abajo
+      // signifique algo.
+      expect(
+        RegistroDeControles.donde(Senalado.barraElegirSucursal),
+        isNull,
+        reason: 'sin abrir el desplegable esa opción no existe todavía',
+      );
+
+      await tester.tap(find.text('Santiago'));
+      await tester.pumpAndSettle();
+
+      final todas = RegistroDeControles.donde(Senalado.barraElegirSucursal);
+      expect(
+        todas,
+        isNotNull,
+        reason:
+            'el paso «Elige de la lista. La primera opción es «Todas (8)»» no '
+            'tiene a qué apuntar: `OpcionSelector.senalado` no está llegando a '
+            'un `ControlSenalado`.',
+      );
+      expect(
+        todas!.rect.contains(
+          tester.getRect(find.text('Todas las sucursales (2)')).center,
+        ),
+        isTrue,
+        reason: 'el foco no cae en la opción de «todas», que es la marcada',
+      );
+
+      // Y la de CUP, que es la SEGUNDA de su lista: no vale con marcar «la
+      // primera opción» y darlo por hecho.
+      Navigator.of(tester.element(find.text('Santiago').last)).pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('USD'));
+      await tester.pumpAndSettle();
+
+      final cup = RegistroDeControles.donde(Senalado.barraElegirMoneda);
+      expect(
+        cup,
+        isNotNull,
+        reason: 'el paso «La opción de CUP lleva la tasa» no tiene foco',
+      );
+      expect(
+        cup!.rect.contains(tester.getRect(find.text('CUP').last).center),
+        isTrue,
+        reason: 'el foco de la moneda no cae en la fila de CUP',
+      );
     });
   });
 }

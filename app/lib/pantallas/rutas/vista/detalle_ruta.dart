@@ -22,9 +22,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../nucleo/proveedores.dart';
-import '../../../nucleo/base/base.dart';
 import '../../../diseno/tema.dart';
+import '../../../nucleo/base/base.dart';
+import '../../../nucleo/proveedores.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/vista/kit.dart';
@@ -109,10 +111,7 @@ class DetalleDeRuta extends ConsumerWidget {
     final piezas = <Widget>[
       // La cabecera, SÓLO fuera del cajón: dentro, el código de la ruta y la ✕
       // los pone el propio cajón (ver [enCajon]).
-      if (!enCajon) ...[
-        _Cabecera(ruta: conTodo),
-        const SizedBox(height: 8),
-      ],
+      if (!enCajon) ...[_Cabecera(ruta: conTodo), const SizedBox(height: 8)],
       _Acciones(ruta: conTodo),
       const SizedBox(height: 12),
       // EN QUE ANDA EL CAMION DE ESTA RUTA. Entra por parametro y no lo lee la
@@ -124,7 +123,9 @@ class DetalleDeRuta extends ConsumerWidget {
         ahora: ref.read(relojProvider)(),
         ocupacionDelCamion: conTodo.ruta.vehicleId == null
             ? null
-            : ref.watch(camionesOcupadosProvider).value?[conTodo.ruta.vehicleId],
+            : ref
+                  .watch(camionesOcupadosProvider)
+                  .value?[conTodo.ruta.vehicleId],
         seSabeLaOcupacion: ref.watch(camionesOcupadosProvider).value != null,
       ),
       const SizedBox(height: 12),
@@ -149,12 +150,7 @@ class DetalleDeRuta extends ConsumerWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        12,
-        12,
-        12,
-        rellenoAlFinalDelDetalle,
-      ),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, rellenoAlFinalDelDetalle),
       children: piezas,
     );
   }
@@ -349,43 +345,52 @@ class _Acciones extends ConsumerWidget {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        OutlinedButton(
-          onPressed: () => _verParadas(context, ruta),
-          child: Text('Ver paradas (${ruta.paradas.length})'),
+        ControlSenalado(
+          nombre: Senalado.rutasVerParadas,
+          child: OutlinedButton(
+            onPressed: () => _verParadas(context, ruta),
+            child: Text('Ver paradas (${ruta.paradas.length})'),
+          ),
         ),
         if (estado == EstadoRuta.planificada)
-          BotonPrincipal(
-            icono: Icons.play_arrow,
-            texto: 'Iniciar ruta',
-            alPulsar: () => hacer(() async {
-              await acciones.iniciar(ruta.ruta.id);
-              // **Y se va con ella a la pestaña donde acaba de caer.**
-              //
-              // Iniciar la saca de `Planificadas` —correctamente: ya no esta
-              // activa, esta en curso—, y sin esto la ruta le desaparece de
-              // delante a quien acaba de arrancarla, que se queda mirando un
-              // hueco y creyendo que no funciono. La de Next hace esto mismo
-              // (`routes/page.tsx:447`).
-              ref
-                  .read(pestanaRutasProvider.notifier)
-                  .elegir(PestanaRutas.enCurso);
-            }),
+          ControlSenalado(
+            nombre: Senalado.rutasIniciar,
+            child: BotonPrincipal(
+              icono: Icons.play_arrow,
+              texto: 'Iniciar ruta',
+              alPulsar: () => hacer(() async {
+                await acciones.iniciar(ruta.ruta.id);
+                // **Y se va con ella a la pestaña donde acaba de caer.**
+                //
+                // Iniciar la saca de `Planificadas` —correctamente: ya no esta
+                // activa, esta en curso—, y sin esto la ruta le desaparece de
+                // delante a quien acaba de arrancarla, que se queda mirando un
+                // hueco y creyendo que no funciono. La de Next hace esto mismo
+                // (`routes/page.tsx:447`).
+                ref
+                    .read(pestanaRutasProvider.notifier)
+                    .elegir(PestanaRutas.enCurso);
+              }),
+            ),
           ),
         // EL CIERRE, en curso: se va marcando parada a parada segun se reparte,
         // y la ruta sigue en curso. La cuenta entre parentesis es lo que queda
         // por marcar, o sea una tarea pendiente.
         if (estado == EstadoRuta.enCurso)
-          OutlinedButton(
-            key: claveDelCierre,
-            onPressed: () => abrirCajon<void>(
-              context,
-              (_) => CierreDeRuta(
-                rutaId: ruta.ruta.id,
-                modo: ModoDelCierre.marcar,
+          ControlSenalado(
+            nombre: Senalado.rutasCierre,
+            child: OutlinedButton(
+              key: claveDelCierre,
+              onPressed: () => abrirCajon<void>(
+                context,
+                (_) => CierreDeRuta(
+                  rutaId: ruta.ruta.id,
+                  modo: ModoDelCierre.marcar,
+                ),
               ),
-            ),
-            child: Text(
-              ruta.sinMarcar > 0 ? 'Cierre (${ruta.sinMarcar})' : 'Cierre',
+              child: Text(
+                ruta.sinMarcar > 0 ? 'Cierre (${ruta.sinMarcar})' : 'Cierre',
+              ),
             ),
           ),
         // EL CIERRE, ya completada: **`Ver cierre`, y sin la cuenta**. En una
@@ -393,57 +398,63 @@ class _Acciones extends ConsumerWidget {
         // `Cierre (3)` ahi parece una tarea pendiente que nadie va a poder
         // hacer, y eso es peor que no ensenar el numero.
         if (estado == EstadoRuta.completada)
-          OutlinedButton(
-            key: claveDelCierre,
-            onPressed: () => abrirCajon<void>(
-              context,
-              (_) => CierreDeRuta(
-                rutaId: ruta.ruta.id,
-                modo: ModoDelCierre.soloLectura,
+          ControlSenalado(
+            nombre: Senalado.rutasCierre,
+            child: OutlinedButton(
+              key: claveDelCierre,
+              onPressed: () => abrirCajon<void>(
+                context,
+                (_) => CierreDeRuta(
+                  rutaId: ruta.ruta.id,
+                  modo: ModoDelCierre.soloLectura,
+                ),
               ),
+              child: const Text('Ver cierre'),
             ),
-            child: const Text('Ver cierre'),
           ),
         if (estado == EstadoRuta.enCurso)
-          BotonPrincipal(
-            key: claveDeCompletar,
-            icono: Icons.check_circle_outline,
-            texto: 'Marcar como completada',
-            alPulsar: () {
-              // La navegacion de despues es la misma venga por donde venga:
-              // soltar la ruta elegida e irse al Historial, como la de Next
-              // (`routes/page.tsx:463-464`). Quedarse con ella abierta a la
-              // derecha despues de darla por cerrada deja el detalle de algo que
-              // ya no es de lo que va la pantalla.
-              void luego() {
-                ref.read(rutaElegidaProvider.notifier).elegir(null);
-                ref
-                    .read(pestanaRutasProvider.notifier)
-                    .elegir(PestanaRutas.historial);
-              }
+          ControlSenalado(
+            nombre: Senalado.rutasCompletar,
+            child: BotonPrincipal(
+              key: claveDeCompletar,
+              icono: Icons.check_circle_outline,
+              texto: 'Marcar como completada',
+              alPulsar: () {
+                // La navegacion de despues es la misma venga por donde venga:
+                // soltar la ruta elegida e irse al Historial, como la de Next
+                // (`routes/page.tsx:463-464`). Quedarse con ella abierta a la
+                // derecha despues de darla por cerrada deja el detalle de algo que
+                // ya no es de lo que va la pantalla.
+                void luego() {
+                  ref.read(rutaElegidaProvider.notifier).elegir(null);
+                  ref
+                      .read(pestanaRutasProvider.notifier)
+                      .elegir(PestanaRutas.historial);
+                }
 
-              // CON PARADAS SIN MARCAR, SE PREGUNTA ANTES. El porque esta
-              // escrito en `acciones_rutas.dart` y en `CLAUDE.md` §2: el cierre
-              // viene con el estado de cuando se le va a dar a completado. El
-              // cajon guarda lo marcado **y** completa en el mismo gesto.
-              if (ruta.sinMarcar > 0) {
-                abrirCajon<void>(
-                  context,
-                  (_) => CierreDeRuta(
-                    rutaId: ruta.ruta.id,
-                    modo: ModoDelCierre.alCompletar,
-                    alCompletar: luego,
-                  ),
-                );
-                return;
-              }
-              // Sin nada que preguntar, se completa y ya: abrir un cajon para no
-              // preguntar nada es friccion.
-              hacer(() async {
-                await acciones.completar(ruta.ruta.id);
-                luego();
-              });
-            },
+                // CON PARADAS SIN MARCAR, SE PREGUNTA ANTES. El porque esta
+                // escrito en `acciones_rutas.dart` y en `CLAUDE.md` §2: el cierre
+                // viene con el estado de cuando se le va a dar a completado. El
+                // cajon guarda lo marcado **y** completa en el mismo gesto.
+                if (ruta.sinMarcar > 0) {
+                  abrirCajon<void>(
+                    context,
+                    (_) => CierreDeRuta(
+                      rutaId: ruta.ruta.id,
+                      modo: ModoDelCierre.alCompletar,
+                      alCompletar: luego,
+                    ),
+                  );
+                  return;
+                }
+                // Sin nada que preguntar, se completa y ya: abrir un cajon para no
+                // preguntar nada es friccion.
+                hacer(() async {
+                  await acciones.completar(ruta.ruta.id);
+                  luego();
+                });
+              },
+            ),
           ),
         // ESTE PESO NO PASA POR `pesoDeLaRuta`, Y ES A PROPÓSITO.
         //
@@ -481,9 +492,7 @@ class _Acciones extends ConsumerWidget {
             // oficina, y **no decía qué es**, que es lo único que le sirve a
             // quien descarga el camión delante del cliente.
             final renglones =
-                ref
-                    .watch(renglonesDeParadasProvider(ruta.ruta.id))
-                    .value ??
+                ref.watch(renglonesDeParadasProvider(ruta.ruta.id)).value ??
                 const <String, List<RenglonConPeso>>{};
             return Padding(
               padding: const EdgeInsets.all(16),
@@ -630,9 +639,8 @@ class LineaDeDatosDeLaRuta extends StatelessWidget {
               Expanded(
                 child: Text(
                   queFalta,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colores.ambar),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: Colores.ambar),
                 ),
               ),
             ],

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/modelos.dart';
 import 'kit.dart';
 import 'tarjeta.dart';
@@ -23,8 +25,17 @@ class ColumnaDelTablero extends StatelessWidget {
     required this.alAbrirMenu,
     required this.alSoltarColumna,
     this.ancho,
+    this.esLaPrimera = false,
     super.key,
   });
+
+  /// SI ESTA ES LA PRIMERA ZONA DE LA TIRA.
+  ///
+  /// Sólo para la Guia: los tres puntos de la cabecera existen una vez por zona
+  /// y el recorrido sólo puede senalar uno. Marcando la primera, senala una y no
+  /// tiene que elegir entre doce
+  /// (`pantallas/ayuda/vista/control_senalado.dart`).
+  final bool esLaPrimera;
 
   final ColumnaTablero columna;
   final List<TarjetaColocada> tarjetas;
@@ -88,6 +99,10 @@ class ColumnaDelTablero extends StatelessWidget {
                 columna: columna,
                 alAbrirMenu: alAbrirMenu,
                 alSoltar: alSoltar,
+                // La del `feedback` NO se marca: mientras se arrastra hay dos
+                // cabeceras montadas y dos con el mismo nombre no se pueden
+                // distinguir.
+                senalable: esLaPrimera,
               ),
             ),
             Expanded(
@@ -138,7 +153,11 @@ class _Cabecera extends ConsumerWidget {
     required this.columna,
     required this.alAbrirMenu,
     required this.alSoltar,
+    this.senalable = false,
   });
+
+  /// Si la Guia puede senalar los tres puntos de ESTA cabecera.
+  final bool senalable;
 
   final ColumnaTablero columna;
   final VoidCallback alAbrirMenu;
@@ -173,11 +192,15 @@ class _Cabecera extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.more_vert),
-                  tooltip: 'Opciones de la columna',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: alAbrirMenu,
+                ControlSenalado(
+                  nombre: Senalado.tableroMenuDeLaZona,
+                  senalable: senalable,
+                  child: IconButton(
+                    icon: const Icon(Icons.more_vert),
+                    tooltip: 'Opciones de la columna',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: alAbrirMenu,
+                  ),
                 ),
               ],
             ),

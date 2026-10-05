@@ -62,10 +62,13 @@ import '../../../diseno/colores.dart';
 import '../../../diseno/estado_vacio.dart';
 import '../../../diseno/insignia.dart';
 import '../../../diseno/tema.dart';
+import '../datos/controles_senalados.dart';
 import '../datos/enlaces.dart';
 import '../datos/manual.dart';
 import '../datos/proveedores.dart';
+import 'control_senalado.dart';
 import 'pintar_markdown.dart';
+import 'recorrido_guiado.dart';
 
 /// Los literales de la Guia, en un solo sitio: los usan la pantalla, su registro
 /// y sus pruebas.
@@ -95,6 +98,13 @@ abstract final class TextosDeLaGuia {
       '«$nombre» no existe en ${forma.comoSeLlama}, así que desde aquí no se '
       'puede ir. Los pasos se quedan por si te toca hacerlo en otra de las tres '
       'formas.';
+
+  /// Lo que se pinta debajo del nombre de una tarea que NO se puede recorrer.
+  ///
+  /// Hace falta porque la lista es la de «enséñame cómo»: una fila que al pulsar
+  /// sólo da texto tiene que decirlo **antes** de abrirse, o se vuelve a la queja
+  /// de la 1.0.22 («todo me lo pusiste como documento») fila por fila.
+  static const soloTexto = 'Sólo texto: no se cuenta en pasos';
 }
 
 /// Las claves de los mandos. Publicas porque las pruebas tienen que poder
@@ -104,6 +114,7 @@ abstract final class ClavesDeLaGuia {
   static const documento = ValueKey('guia-documento');
   static const buscar = ValueKey('guia-buscar');
   static const llevameAhi = ValueKey('guia-llevame-ahi');
+  static const guiarme = ValueKey('guia-guiarme');
 
   static ValueKey<String> tarea(String id) => ValueKey('guia-tarea-$id');
   static ValueKey<String> pagina(String camino) =>
@@ -218,8 +229,10 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
       }
     });
     context.go(
-      Uri(path: PantallaGuia.ruta, queryParameters: nuevos.isEmpty ? null : nuevos)
-          .toString(),
+      Uri(
+        path: PantallaGuia.ruta,
+        queryParameters: nuevos.isEmpty ? null : nuevos,
+      ).toString(),
     );
   }
 
@@ -302,16 +315,21 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
         subtitulo: tarea.tituloDeLaPagina,
         cuerpo: (_) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: pintarElManual(tarea.cuerpo, enlacesDe(tarea.camino)),
+          children: pintarElManual(
+            sinElAndamio(tarea.cuerpo),
+            enlacesDe(tarea.camino),
+          ),
         ),
-        // El pie sale si el manual NOMBRA una pantalla, tenga boton o no: cuando
-        // no lo tiene, el pie es justamente el que explica por que.
-        pie: tarea.nombreDePantalla == null
+        // El pie sale si la tarea se puede recorrer **o** si el manual nombra
+        // una pantalla, tenga boton o no: cuando no lo tiene, el pie es
+        // justamente el que explica por que.
+        pie: (tarea.pasos.isEmpty && tarea.nombreDePantalla == null)
             ? null
             : (_) => _PieDeLaTarea(
                 tarea: tarea,
                 forma: forma,
                 alLlevar: _llevarALaPantalla,
+                alGuiar: () => _guiar(tarea),
               ),
       );
     } else {
@@ -330,7 +348,10 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
         subtitulo: pagina.carpeta.isEmpty ? null : pagina.carpeta,
         cuerpo: (_) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: pintarElManual(pagina.contenido, enlacesDe(pagina.camino)),
+          children: pintarElManual(
+            sinElAndamio(pagina.contenido),
+            enlacesDe(pagina.camino),
+          ),
         ),
       );
     }
@@ -357,6 +378,39 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
     _nosVamos = true;
     _enElCajon = null;
     context.go(ruta);
+  }
+
+  /// EMPEZAR EL RECORRIDO. Es el encargo entero en seis lineas.
+  ///
+  /// El orden no es negociable y cada paso tiene su motivo:
+  ///
+  ///  1. **el `Overlay` de la raiz se resuelve ANTES de navegar.** Despues del
+  ///     `context.go` esta pantalla esta en camino de desaparecer, y buscar el
+  ///     `Overlay` desde un contexto que se va es buscarlo desde ningun sitio;
+  ///  2. **se navega**, si la tarea empieza en una pantalla. El cajon se cierra
+  ///     solo con el cambio de camino (`AtrasDelCajon`);
+  ///  3. **y si NO se navega** —«la franja de arriba, desde cualquier pantalla»—
+  ///     hay que cerrar el cajon a mano: sin cambio de camino nadie lo cierra, y
+  ///     el recorrido saldria encima de un cajon tapando lo que senala;
+  ///  4. la capa se mete al terminar el fotograma, por lo mismo que el cajon de la
+  ///     Guia: meter una ruta o una capa mientras se esta pintando lo corta
+  ///     Flutter en seco.
+  void _guiar(TareaDelManual tarea) {
+    _nosVamos = true;
+    _enElCajon = null;
+
+    final capa = Overlay.of(context, rootOverlay: true);
+    final ruta = tarea.rutaDePantalla;
+    if (ruta != null) {
+      context.go(ruta);
+    } else {
+      final navegador = Navigator.of(context);
+      if (navegador.canPop()) navegador.pop();
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Recorrido.empezarEn(capa, tarea);
+    });
   }
 
   void _seguirElEnlace(String resuelto) {
@@ -393,35 +447,90 @@ class _PieDeLaTarea extends StatelessWidget {
     required this.tarea,
     required this.forma,
     required this.alLlevar,
+    required this.alGuiar,
   });
 
   final TareaDelManual tarea;
   final FormaDeLaAplicacion forma;
   final ValueChanged<String> alLlevar;
+  final VoidCallback alGuiar;
 
   @override
   Widget build(BuildContext context) {
-    final nombre = tarea.nombreDePantalla ?? '';
-    if (tarea.rutaDePantalla == null) {
+    final nombre = tarea.nombreDePantalla;
+    final ruta = tarea.rutaDePantalla;
+
+    // LA PANTALLA QUE EN ESTA FORMA NO EXISTE. Ni boton de ir ni recorrido: el
+    // recorrido saldria encima de otra pantalla senalando cualquier cosa.
+    if (nombre != null && ruta == null) {
       return Text(
         TextosDeLaGuia.noHayEsaPantalla(nombre, forma),
         style: Tipos.texto(tamano: 13, color: Colores.tintaSuave, alto: 1.45),
       );
     }
-    return Row(
+
+    final aviso = tarea.pasos.isEmpty
+        ? TextosDelRecorrido.noSePuedeGuiar(tarea.titulo)
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(
-          child: BotonPrincipal(
-            key: ClavesDeLaGuia.llevameAhi,
-            texto: 'Ir a $nombre',
-            // La flecha al final porque el mando LLEVA HACIA ADELANTE: una flecha
-            // a la derecha puesta a la izquierda del rotulo se lee al reves de lo
-            // que hace (ver `BotonPrincipal.iconoAlFinal`).
-            icono: Icons.arrow_forward,
-            iconoAlFinal: true,
-            enUnaLinea: true,
-            alPulsar: () => alLlevar(tarea.rutaDePantalla!),
+        // SE DICE POR QUE NO HAY RECORRIDO, en vez de quedarse sin boton y que
+        // parezca que falta algo (§4: nada se descarta en silencio).
+        if (aviso != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: Aire.sm),
+            child: Text(
+              aviso,
+              style: Tipos.texto(
+                tamano: 13,
+                color: Colores.tintaSuave,
+                alto: 1.45,
+              ),
+            ),
           ),
+        Row(
+          children: [
+            // «Ir a ‹pantalla›» baja a secundario: sigue estando —hay quien
+            // quiere la pantalla y ya sabe qué hacer— pero **lo principal es el
+            // recorrido**, que es lo que se vino a arreglar.
+            if (ruta != null) ...[
+              Flexible(
+                child: OutlinedButton.icon(
+                  key: ClavesDeLaGuia.llevameAhi,
+                  onPressed: () => alLlevar(ruta),
+                  icon: const Icon(Icons.arrow_forward, size: 17),
+                  label: Text(
+                    'Ir a $nombre',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              const SizedBox(width: Aire.sm),
+            ],
+            // LA PREGUNTA SE HACE UNA VEZ, en `TareaDelManual.seAcompana`. El pie
+            // tenia su propio `if` y la fila de la lista usaba `seAcompana`: dos
+            // sitios contestando lo mismo (§3-bis). Se vio rompiendo `seAcompana` a
+            // proposito —la mutacion salia VERDE porque el pie no lo miraba.
+            if (tarea.seAcompana)
+              Expanded(
+                child: ControlSenalado(
+                  nombre: Senalado.guiaGuiarme,
+                  child: BotonPrincipal(
+                    key: ClavesDeLaGuia.guiarme,
+                    texto: TextosDelRecorrido.empezar,
+                    // La mano que senala: es literalmente lo que hace, y no se
+                    // repite en ningun otro mando de la aplicacion.
+                    icono: Icons.touch_app_outlined,
+                    enUnaLinea: true,
+                    alPulsar: alGuiar,
+                  ),
+                ),
+              ),
+          ],
         ),
       ],
     );
@@ -457,7 +566,12 @@ class _Contenido extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(Aire.lg, Aire.lg, Aire.lg, Aire.md),
+          padding: const EdgeInsets.fromLTRB(
+            Aire.lg,
+            Aire.lg,
+            Aire.lg,
+            Aire.md,
+          ),
           child: CajaDeBusqueda(
             key: ClavesDeLaGuia.buscar,
             valor: buscado,
@@ -488,6 +602,7 @@ class _Contenido extends StatelessWidget {
                 ),
                 const SizedBox(width: Aire.sm),
                 _Puerta(
+                  senalable: true,
                   clave: ClavesDeLaGuia.documento,
                   rotulo:
                       '${TextosDeLaGuia.documento} (${manual.paginas.length})',
@@ -538,7 +653,12 @@ class _Puerta extends StatelessWidget {
     required this.icono,
     required this.activa,
     required this.alPulsar,
+    this.senalable = false,
   });
+
+  /// Sólo la del Documento: es la que nombra la tarea «Que la Guía te lleve de la
+  /// mano» cuando dice «y si lo que quieres es leer…».
+  final bool senalable;
 
   final Key clave;
   final String rotulo;
@@ -550,40 +670,44 @@ class _Puerta extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = activa ? Colores.primario : Colores.tintaSuave;
     return Expanded(
-      child: Material(
-        key: clave,
-        color: activa ? Colores.primarioTenue : Colors.transparent,
-        borderRadius: BorderRadius.circular(Radios.lg),
-        child: InkWell(
-          onTap: alPulsar,
+      child: ControlSenalado(
+        nombre: Senalado.guiaDocumento,
+        senalable: senalable,
+        child: Material(
+          key: clave,
+          color: activa ? Colores.primarioTenue : Colors.transparent,
           borderRadius: BorderRadius.circular(Radios.lg),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Radios.lg),
-              border: Border.all(
-                color: activa ? Colores.primario : Colores.linea,
-                width: activa ? 1.4 : 1,
+          child: InkWell(
+            onTap: alPulsar,
+            borderRadius: BorderRadius.circular(Radios.lg),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Radios.lg),
+                border: Border.all(
+                  color: activa ? Colores.primario : Colores.linea,
+                  width: activa ? 1.4 : 1,
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icono, size: 17, color: color),
-                const SizedBox(width: Aire.sm),
-                Flexible(
-                  child: Text(
-                    rotulo,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Tipos.texto(
-                      tamano: 13.5,
-                      peso: activa ? FontWeight.w700 : FontWeight.w500,
-                      color: color,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icono, size: 17, color: color),
+                  const SizedBox(width: Aire.sm),
+                  Flexible(
+                    child: Text(
+                      rotulo,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Tipos.texto(
+                        tamano: 13.5,
+                        peso: activa ? FontWeight.w700 : FontWeight.w500,
+                        color: color,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -621,13 +745,21 @@ class _ListaDeTareas extends StatelessWidget {
         ),
       );
       for (final tarea in pagina.tareas) {
+        // Sólo la PRIMERA fila de toda la lista se deja senalar: es la que la tarea
+        // «Que la Guía te lleve de la mano» usa para ensenar donde se toca.
+        final esLaPrimeraDeTodas = filas.whereType<_Fila>().isEmpty;
         filas.add(
           _Fila(
+            senalable: esLaPrimeraDeTodas,
             clave: ClavesDeLaGuia.tarea(tarea.id),
             titulo: tarea.titulo,
-            debajo: tarea.nombreDePantalla == null
-                ? null
-                : 'En ${tarea.nombreDePantalla}',
+            debajo: _debajoDe(tarea),
+            // EL ICONO DICE SI ESTA ENSENA O SOLO CUENTA. La mano que señala es
+            // la misma del botón de «Guiarme paso a paso», así que la fila y el
+            // mando que abre dicen lo mismo con el mismo glifo.
+            icono: tarea.seAcompana
+                ? Icons.touch_app_outlined
+                : Icons.description_outlined,
             alPulsar: () => alAbrirTarea(tarea.id),
           ),
         );
@@ -647,6 +779,22 @@ class _ListaDeTareas extends StatelessWidget {
       children: filas,
     );
   }
+}
+
+/// LO QUE DICE UNA FILA DEBAJO DE SU NOMBRE, y es lo que la Guia aprendio el
+/// 05/10/2026: la fila tiene que decir **antes de abrirse** si esto te acompaña o
+/// si es un texto.
+///
+/// Jose abrio la 1.0.22, pulso fila por fila y todas le dieron lo mismo: un
+/// documento. «todo me lo pusiste como documento, nada de q me llevara o me
+/// enseñara». Con el numero de pasos en la fila, lo que da texto se ve desde
+/// fuera y no cuesta un toque descubrirlo.
+String? _debajoDe(TareaDelManual tarea) {
+  if (!tarea.seAcompana) return TextosDeLaGuia.soloTexto;
+  final cuantos = tarea.pasos.length;
+  final donde = tarea.nombreDePantalla;
+  final pasos = '$cuantos paso${cuantos == 1 ? '' : 's'} guiados';
+  return donde == null ? pasos : '$pasos · en $donde';
 }
 
 class _ListaDePaginas extends StatelessWidget {
@@ -742,11 +890,7 @@ class _CabeceraDeGrupo extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
         child: Row(
           children: [
-            Icon(
-              Icons.menu_book_outlined,
-              size: 15,
-              color: Colores.tintaSuave,
-            ),
+            Icon(Icons.menu_book_outlined, size: 15, color: Colores.tintaSuave),
             const SizedBox(width: Aire.sm),
             Expanded(
               child: Text(
@@ -787,7 +931,12 @@ class _Fila extends StatelessWidget {
     this.debajo,
     this.icono,
     this.insignia,
+    this.senalable = false,
   });
+
+  /// Si la Guia puede senalarse a si misma esta fila. Sólo la primera de la lista
+  /// de tareas: hay una por tarea.
+  final bool senalable;
 
   final Key clave;
   final String titulo;
@@ -799,75 +948,79 @@ class _Fila extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 2),
-    child: Material(
-      key: clave,
-      color: Colores.blanco,
-      borderRadius: BorderRadius.circular(Radios.md),
-      child: InkWell(
-        onTap: alPulsar,
+    child: ControlSenalado(
+      nombre: Senalado.guiaPrimeraTarea,
+      senalable: senalable,
+      child: Material(
+        key: clave,
+        color: Colores.blanco,
         borderRadius: BorderRadius.circular(Radios.md),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Aire.md,
-            vertical: 11,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Radios.md),
-            border: Border.all(color: Colores.linea),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (icono != null) ...[
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Icon(icono, size: 17, color: Colores.tintaSuave),
-                ),
-                const SizedBox(width: Aire.md),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      titulo,
-                      style: Tipos.texto(
-                        tamano: 14.5,
-                        peso: FontWeight.w600,
-                        color: Colores.tinta,
-                        alto: 1.3,
-                      ),
-                    ),
-                    if (debajo != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          debajo!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Tipos.texto(
-                            tamano: 12,
-                            color: Colores.tintaSuave,
-                          ),
+        child: InkWell(
+          onTap: alPulsar,
+          borderRadius: BorderRadius.circular(Radios.md),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Aire.md,
+              vertical: 11,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(Radios.md),
+              border: Border.all(color: Colores.linea),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (icono != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Icon(icono, size: 17, color: Colores.tintaSuave),
+                  ),
+                  const SizedBox(width: Aire.md),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titulo,
+                        style: Tipos.texto(
+                          tamano: 14.5,
+                          peso: FontWeight.w600,
+                          color: Colores.tinta,
+                          alto: 1.3,
                         ),
                       ),
-                  ],
+                      if (debajo != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            debajo!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Tipos.texto(
+                              tamano: 12,
+                              color: Colores.tintaSuave,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              if (insignia != null) ...[
-                const SizedBox(width: Aire.sm),
-                Insignia(insignia!),
+                if (insignia != null) ...[
+                  const SizedBox(width: Aire.sm),
+                  Insignia(insignia!),
+                ],
+                const SizedBox(width: Aire.xs),
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: Colores.tintaSuave,
+                  ),
+                ),
               ],
-              const SizedBox(width: Aire.xs),
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: Colores.tintaSuave,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

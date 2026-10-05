@@ -13,6 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../diseno/tema.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../tablero/datos/modelos.dart';
 import '../datos/mandar_al_tablero.dart';
 import '../estado/proveedores_pedidos.dart';
@@ -66,7 +68,9 @@ class _CajonMandarAlTableroState extends ConsumerState<CajonMandarAlTablero> {
           ? '${marcados.length} pedido(s) marcados'
           : 'Zona «${resultado.zona}»',
       ancho: AnchoCajon.md,
-      cuerpo: resultado == null ? _formulario() : _ResumenDeLoQuePaso(resultado),
+      cuerpo: resultado == null
+          ? _formulario()
+          : _ResumenDeLoQuePaso(resultado),
       pie: resultado == null ? _pie() : _piePasoTerminado(),
     );
   }
@@ -94,8 +98,9 @@ class _CajonMandarAlTableroState extends ConsumerState<CajonMandarAlTablero> {
         switch (zonas) {
           AsyncValue<List<ColumnaTablero>>(hasError: true, :final error?) =>
             _Aviso('No se pudieron leer las zonas: $error'),
-          AsyncValue<List<ColumnaTablero>>(:final value?) =>
-            _listaDeZonas(value),
+          AsyncValue<List<ColumnaTablero>>(:final value?) => _listaDeZonas(
+            value,
+          ),
           _ => const Padding(
             padding: EdgeInsets.symmetric(vertical: Aire.lg),
             child: Center(child: CircularProgressIndicator()),
@@ -118,7 +123,8 @@ class _CajonMandarAlTableroState extends ConsumerState<CajonMandarAlTablero> {
           style: Tipos.texto(tamano: 13, color: Colores.tintaSuave, alto: 1.5),
         )
       else
-        for (final zona in zonas) _fila(zona),
+        for (final (cual, zona) in zonas.indexed)
+          _fila(zona, esLaPrimera: cual == 0),
       const SizedBox(height: Aire.sm),
       if (_creando || zonas.isEmpty)
         _cajaDeNombre()
@@ -133,66 +139,71 @@ class _CajonMandarAlTableroState extends ConsumerState<CajonMandarAlTablero> {
 
   /// Una zona de la lista. Sin `RadioListTile`: lo que hace falta es que se vea
   /// cual esta elegida y que se pueda tocar toda la fila.
-  Widget _fila(ColumnaTablero zona) {
+  Widget _fila(ColumnaTablero zona, {required bool esLaPrimera}) {
     final elegida = zona.id == _zonaElegida;
     return Padding(
       padding: const EdgeInsets.only(bottom: Aire.xs),
-      child: Material(
-        color: elegida ? Colores.primarioTenue : Colores.blanco,
-        borderRadius: BorderRadius.circular(Radios.lg),
-        child: InkWell(
+      // Sólo la primera se deja senalar por la Guia: hay una fila por zona.
+      child: ControlSenalado(
+        nombre: Senalado.pedidosZonaDestino,
+        senalable: esLaPrimera,
+        child: Material(
+          color: elegida ? Colores.primarioTenue : Colores.blanco,
           borderRadius: BorderRadius.circular(Radios.lg),
-          onTap: _trabajando
-              ? null
-              : () => setState(() {
-                  _zonaElegida = zona.id;
-                  _error = null;
-                }),
-          child: Ink(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Radios.lg),
-              border: Border.all(
-                color: elegida ? Colores.primario : Colores.linea,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(Radios.lg),
+            onTap: _trabajando
+                ? null
+                : () => setState(() {
+                    _zonaElegida = zona.id;
+                    _error = null;
+                  }),
+            child: Ink(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Radios.lg),
+                border: Border.all(
+                  color: elegida ? Colores.primario : Colores.linea,
+                ),
               ),
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: Aire.md,
-              vertical: Aire.md,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  elegida
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                  size: 18,
-                  color: elegida ? Colores.primario : Colores.tintaSuave,
-                ),
-                const SizedBox(width: Aire.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        zona.nombre,
-                        style: Tipos.texto(
-                          tamano: 14,
-                          peso: FontWeight.w600,
-                          color: Colores.tinta,
-                        ),
-                      ),
-                      Text(
-                        '${zona.pedidos} pedido(s) puestos',
-                        style: Tipos.texto(
-                          tamano: 12,
-                          color: Colores.tintaSuave,
-                        ),
-                      ),
-                    ],
+              padding: const EdgeInsets.symmetric(
+                horizontal: Aire.md,
+                vertical: Aire.md,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    elegida
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 18,
+                    color: elegida ? Colores.primario : Colores.tintaSuave,
                   ),
-                ),
-              ],
+                  const SizedBox(width: Aire.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          zona.nombre,
+                          style: Tipos.texto(
+                            tamano: 14,
+                            peso: FontWeight.w600,
+                            color: Colores.tinta,
+                          ),
+                        ),
+                        Text(
+                          '${zona.pedidos} pedido(s) puestos',
+                          style: Tipos.texto(
+                            tamano: 12,
+                            color: Colores.tintaSuave,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -242,10 +253,13 @@ class _CajonMandarAlTableroState extends ConsumerState<CajonMandarAlTablero> {
       // mismo nivel principal del tema (`diseno/tema.dart`, [Botones]). Por eso
       // este tambien entra por [BotonPrincipal] — el agujero del icono era de
       // los dos, no solo del relleno.
-      BotonPrincipal(
-        icono: Icons.send_outlined,
-        texto: CajonMandarAlTablero.mandar,
-        alPulsar: _zonaElegida == null || _trabajando ? null : _mandar,
+      ControlSenalado(
+        nombre: Senalado.pedidosMandar,
+        child: BotonPrincipal(
+          icono: Icons.send_outlined,
+          texto: CajonMandarAlTablero.mandar,
+          alPulsar: _zonaElegida == null || _trabajando ? null : _mandar,
+        ),
       ),
     ],
   );

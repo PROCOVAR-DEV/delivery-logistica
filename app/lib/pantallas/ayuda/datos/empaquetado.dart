@@ -153,7 +153,6 @@ Map<String, String> desempaquetarManual(String paquete) {
   // lo que hace que `desempaquetar(empaquetar(x)) == x` para cualquier x ya
   // normalizado.
   return {
-    for (final e in paginas.entries)
-      e.key: normalizarPaginaDelManual(e.value),
+    for (final e in paginas.entries) e.key: normalizarPaginaDelManual(e.value),
   };
 }

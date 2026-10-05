@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../diseno/colores.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 
 /// UN RECHAZO, con su motivo y su hora. La misma pieza en los dos sitios.
 ///
@@ -30,6 +32,7 @@ class FilaDeRechazo extends StatelessWidget {
     required this.peticion,
     this.alDescartar,
     this.alReintentar,
+    this.senalarLosGestos = false,
     super.key,
   });
 
@@ -57,6 +60,17 @@ class FilaDeRechazo extends StatelessWidget {
 
   /// Devolverlo a la cola. Se usa cuando lo que lo tumbaba ya no esta.
   final VoidCallback? alReintentar;
+
+  /// SI ESTA FILA ES LA QUE LA GUIA SENALA.
+  ///
+  /// Lo decide **quien la pinta**, y no esta pieza, por lo mismo que en el resto
+  /// de la casa: hay una fila por rechazo y dos marcas con el mismo nombre a la
+  /// vez no se pueden distinguir, asi que solo la primera la lleva — y cual es la
+  /// primera lo sabe la lista, no la fila.
+  ///
+  /// Por defecto `false`: la pantalla de Sincronizacion ensena los rechazos de
+  /// los diez aparatos y alli no se decide nada (los dos gestos llegan en `null`).
+  final bool senalarLosGestos;
 
   @override
   Widget build(BuildContext context) {
@@ -110,12 +124,16 @@ class FilaDeRechazo extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 if (alReintentar != null)
-                  TextButton.icon(
-                    onPressed: alReintentar,
-                    icon: const Icon(Icons.refresh, size: 16),
-                    label: const Text('Reintentar'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colores.primario,
+                  ControlSenalado(
+                    nombre: Senalado.rechazoReintentar,
+                    senalable: senalarLosGestos,
+                    child: TextButton.icon(
+                      onPressed: alReintentar,
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Reintentar'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colores.primario,
+                      ),
                     ),
                   ),
                 if (alDescartar != null)

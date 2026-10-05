@@ -24,6 +24,8 @@ import '../diseno/tema.dart';
 import '../nucleo/identidad/sesion.dart';
 import '../nucleo/proveedores.dart';
 import '../nucleo/registro/registro.dart';
+import '../pantallas/ayuda/datos/controles_senalados.dart';
+import '../pantallas/ayuda/vista/control_senalado.dart';
 import 'portero.dart';
 
 /// Una baldosa del menu, tal como la manda `GET /api/apps` (`api/internal/api/
@@ -115,68 +117,71 @@ class _MenuDeCuentaState extends ConsumerState<MenuDeCuenta> {
     final sesion = ref.watch(sesionParaElMenuProvider).value;
     final estrecho = MediaQuery.sizeOf(context).width < Anchos.idioma;
 
-    return Semantics(
-      button: true,
-      label: 'Tu cuenta',
-      child: Material(
-        color: _abierto
-            ? Colores.tinta.withValues(alpha: 0.04)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(Radios.lg),
-        child: InkWell(
-          onTap: _abrir,
+    return ControlSenalado(
+      nombre: Senalado.cuentaAvatar,
+      child: Semantics(
+        button: true,
+        label: 'Tu cuenta',
+        child: Material(
+          color: _abierto
+              ? Colores.tinta.withValues(alpha: 0.04)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(Radios.lg),
-          hoverColor: Colores.tinta.withValues(alpha: 0.03),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(Aire.sm, 4, 4, 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // El nombre y el rol se esconden en el telefono (`hidden
-                // sm:block`): ahi el ancho es para el titulo de la pantalla.
-                if (!estrecho) ...[
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 160),
-                        child: Text(
-                          sesion?.nombreParaVer ?? 'Tu cuenta',
-                          overflow: TextOverflow.ellipsis,
-                          style: Tipos.texto(
-                            tamano: 14,
-                            peso: FontWeight.w600,
-                            color: Colores.tinta,
+          child: InkWell(
+            onTap: _abrir,
+            borderRadius: BorderRadius.circular(Radios.lg),
+            hoverColor: Colores.tinta.withValues(alpha: 0.03),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(Aire.sm, 4, 4, 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // El nombre y el rol se esconden en el telefono (`hidden
+                  // sm:block`): ahi el ancho es para el titulo de la pantalla.
+                  if (!estrecho) ...[
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 160),
+                          child: Text(
+                            sesion?.nombreParaVer ?? 'Tu cuenta',
+                            overflow: TextOverflow.ellipsis,
+                            style: Tipos.texto(
+                              tamano: 14,
+                              peso: FontWeight.w600,
+                              color: Colores.tinta,
+                            ),
                           ),
                         ),
-                      ),
-                      if ((sesion?.rolParaVer ?? '').isNotEmpty)
-                        Text(
-                          sesion!.rolParaVer,
-                          style: Tipos.texto(
-                            tamano: 10,
-                            peso: FontWeight.w600,
-                            color: Colores.tintaSuave.withValues(alpha: 0.75),
-                            interletra: 0.5,
+                        if ((sesion?.rolParaVer ?? '').isNotEmpty)
+                          Text(
+                            sesion!.rolParaVer,
+                            style: Tipos.texto(
+                              tamano: 10,
+                              peso: FontWeight.w600,
+                              color: Colores.tintaSuave.withValues(alpha: 0.75),
+                              interletra: 0.5,
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  _Inicial(sesion: sesion),
+                  // Gira 180° al abrir, como el de la de Next.
+                  AnimatedRotation(
+                    turns: _abierto ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 150),
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: Colores.tintaSuave,
+                    ),
                   ),
-                  const SizedBox(width: 10),
                 ],
-                _Inicial(sesion: sesion),
-                // Gira 180° al abrir, como el de la de Next.
-                AnimatedRotation(
-                  turns: _abierto ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 150),
-                  child: Icon(
-                    Icons.keyboard_arrow_down,
-                    size: 18,
-                    color: Colores.tintaSuave,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -381,7 +386,15 @@ class _Cuerpo extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  for (final a in aplicaciones) _Baldosa(aplicacion: a),
+                  // Hay una baldosa por aplicacion, asi que solo se deja
+                  // senalar la PRIMERA: dos con el mismo nombre a la vez no se
+                  // pueden distinguir y el recorrido no senalaria ninguna.
+                  for (final (cual, a) in aplicaciones.indexed)
+                    ControlSenalado(
+                      nombre: Senalado.cuentaIrALaAplicacion,
+                      senalable: cual == 0,
+                      child: _Baldosa(aplicacion: a),
+                    ),
                   const SizedBox(height: Aire.sm),
                 ],
               ),

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../diseno/cajon.dart';
 import '../../../diseno/preguntar_antes_de_borrar.dart';
 import '../../../diseno/tema.dart' show BotonPrincipal;
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../rutas/datos/mapa_en_vivo.dart';
 import '../datos/almacen_api.dart';
 import '../datos/coordenadas.dart';
@@ -350,27 +352,30 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
             child: const Text('Cerrar'),
           ),
           const SizedBox(width: 8),
-          BotonPrincipal(
-            alPulsar: _leFaltaElNombre || _puntoMalEscrito || widget.guardando
-                ? null
-                : () => widget.alGuardar(
-                    AlmacenDeAccesos(
-                      id: widget.almacen?.id,
-                      nombre: _nombre.text.trim(),
-                      direccion: _direccion.text.trim().isEmpty
-                          ? null
-                          : _direccion.text.trim(),
-                      // LO QUE SE GUARDA ES LO QUE SE VE. Sale de leer la caja
-                      // de coordenadas, escriba en ella quien escriba: la mano,
-                      // el mapa o la busqueda.
-                      latitud: punto?.lat,
-                      longitud: punto?.lng,
-                      principal: _principal,
-                      activo: _activo,
+          ControlSenalado(
+            nombre: Senalado.almacenesGuardar,
+            child: BotonPrincipal(
+              alPulsar: _leFaltaElNombre || _puntoMalEscrito || widget.guardando
+                  ? null
+                  : () => widget.alGuardar(
+                      AlmacenDeAccesos(
+                        id: widget.almacen?.id,
+                        nombre: _nombre.text.trim(),
+                        direccion: _direccion.text.trim().isEmpty
+                            ? null
+                            : _direccion.text.trim(),
+                        // LO QUE SE GUARDA ES LO QUE SE VE. Sale de leer la caja
+                        // de coordenadas, escriba en ella quien escriba: la mano,
+                        // el mapa o la busqueda.
+                        latitud: punto?.lat,
+                        longitud: punto?.lng,
+                        principal: _principal,
+                        activo: _activo,
+                      ),
                     ),
-                  ),
-            icono: Icons.save_outlined,
-            texto: widget.guardando ? 'Guardando…' : 'Guardar',
+              icono: Icons.save_outlined,
+              texto: widget.guardando ? 'Guardando…' : 'Guardar',
+            ),
           ),
         ],
       ),
@@ -379,12 +384,15 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-              controller: _nombre,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                hintText: 'Nombre del almacén',
-                border: OutlineInputBorder(),
+            ControlSenalado(
+              nombre: Senalado.almacenesNombre,
+              child: TextField(
+                controller: _nombre,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Nombre del almacén',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
             if (_leFaltaElNombre)
@@ -402,28 +410,37 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                Tooltip(
-                  message: 'Desde éste se mide cuando nadie dice cuál',
-                  child: FilterChip(
-                    selected: _principal,
-                    label: const Text('Principal'),
-                    avatar: Icon(
-                      _principal ? Icons.star : Icons.star_border,
-                      size: 18,
+                ControlSenalado(
+                  nombre: Senalado.almacenesPrincipal,
+                  child: Tooltip(
+                    message: 'Desde éste se mide cuando nadie dice cuál',
+                    child: FilterChip(
+                      selected: _principal,
+                      label: const Text('Principal'),
+                      avatar: Icon(
+                        _principal ? Icons.star : Icons.star_border,
+                        size: 18,
+                      ),
+                      onSelected: (v) => setState(() => _principal = v),
                     ),
-                    onSelected: (v) => setState(() => _principal = v),
                   ),
                 ),
-                FilterChip(
-                  selected: _activo,
-                  label: Text(_activo ? 'Activo' : 'Inactivo'),
-                  onSelected: (v) => setState(() => _activo = v),
+                ControlSenalado(
+                  nombre: Senalado.almacenesActivo,
+                  child: FilterChip(
+                    selected: _activo,
+                    label: Text(_activo ? 'Activo' : 'Inactivo'),
+                    onSelected: (v) => setState(() => _activo = v),
+                  ),
                 ),
                 if (widget.alQuitar != null)
-                  IconButton(
-                    tooltip: 'Quitar',
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: widget.guardando ? null : _confirmarQuitar,
+                  ControlSenalado(
+                    nombre: Senalado.almacenesQuitar,
+                    child: IconButton(
+                      tooltip: 'Quitar',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: widget.guardando ? null : _confirmarQuitar,
+                    ),
                   ),
               ],
             ),
@@ -443,24 +460,30 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _direccion,
-                    onChanged: (_) => setState(() {}),
-                    onSubmitted: (_) =>
-                        _sePuedeBuscar ? _buscarLaDireccion() : null,
-                    decoration: const InputDecoration(
-                      labelText: 'Dirección',
-                      border: OutlineInputBorder(),
+                  child: ControlSenalado(
+                    nombre: Senalado.almacenesDireccion,
+                    child: TextField(
+                      controller: _direccion,
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) =>
+                          _sePuedeBuscar ? _buscarLaDireccion() : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Dirección',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: OutlinedButton.icon(
-                    onPressed: _sePuedeBuscar ? _buscarLaDireccion : null,
-                    icon: const Icon(Icons.search, size: 18),
-                    label: Text(_preguntando ? 'Buscando…' : 'Buscar'),
+                  child: ControlSenalado(
+                    nombre: Senalado.almacenesBuscarLaDireccion,
+                    child: OutlinedButton.icon(
+                      onPressed: _sePuedeBuscar ? _buscarLaDireccion : null,
+                      icon: const Icon(Icons.search, size: 18),
+                      label: Text(_preguntando ? 'Buscando…' : 'Buscar'),
+                    ),
                   ),
                 ),
               ],
@@ -496,29 +519,35 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
             ],
             const SizedBox(height: 8),
             // VIA 2 — a mano. **No se toca nunca**: es la que funciona siempre.
-            TextField(
-              controller: _punto,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                labelText: 'Coordenadas',
-                hintText: '19.83, -75.82',
-                border: const OutlineInputBorder(),
-                errorText: _puntoMalEscrito
-                    ? 'No se entiende. Escríbelo como «19.83, -75.82».'
-                    : null,
+            ControlSenalado(
+              nombre: Senalado.almacenesCoordenadas,
+              child: TextField(
+                controller: _punto,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: 'Coordenadas',
+                  hintText: '19.83, -75.82',
+                  border: const OutlineInputBorder(),
+                  errorText: _puntoMalEscrito
+                      ? 'No se entiende. Escríbelo como «19.83, -75.82».'
+                      : null,
+                ),
               ),
             ),
             const SizedBox(height: 8),
             // VIA 3 — el mapa.
-            MapaParaElegirPunto(
-              fondo: widget.fondoDelMapa,
-              punto: punto,
-              centroPorDefecto: widget.centroDelMapa ?? centroDeCuba,
-              alElegir: _pulsarEnElMapa,
-              alVerse: (que) {
-                if (que.conCalles == _conCalles || !mounted) return;
-                setState(() => _conCalles = que.conCalles);
-              },
+            ControlSenalado(
+              nombre: Senalado.almacenesMapa,
+              child: MapaParaElegirPunto(
+                fondo: widget.fondoDelMapa,
+                punto: punto,
+                centroPorDefecto: widget.centroDelMapa ?? centroDeCuba,
+                alElegir: _pulsarEnElMapa,
+                alVerse: (que) {
+                  if (que.conCalles == _conCalles || !mounted) return;
+                  setState(() => _conCalles = que.conCalles);
+                },
+              ),
             ),
             const SizedBox(height: 6),
             Text(

@@ -10,6 +10,8 @@ import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/colores.dart';
 import '../../../diseno/tabla_ancha.dart';
 import '../../../diseno/tema.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/repositorio_clientes.dart';
 import '../estado/estado_clientes.dart';
 import 'paginacion.dart';
@@ -220,11 +222,14 @@ class _Filtros extends StatelessWidget {
     // todo el ancho pase lo que pase (`caja_de_busqueda.dart`).
     return BarraDeFiltros(
       margen: EdgeInsets.zero,
-      busqueda: CajaDeBusqueda(
-        valor: filtros.q ?? '',
-        ancho: 260,
-        pista: 'Buscar por nombre, dirección o municipio…',
-        alBuscar: alBuscar,
+      busqueda: ControlSenalado(
+        nombre: Senalado.clientesBuscar,
+        child: CajaDeBusqueda(
+          valor: filtros.q ?? '',
+          ancho: 260,
+          pista: 'Buscar por nombre, dirección o municipio…',
+          alBuscar: alBuscar,
+        ),
       ),
       accionFinal: filtros.hayQueQuitar
           ? TextButton.icon(

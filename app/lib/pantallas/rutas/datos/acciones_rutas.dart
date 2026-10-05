@@ -251,11 +251,9 @@ class AccionesDeRuta {
     // ese segundo `Future` acaba igual, y un error que nadie escucha lo denuncia
     // Dart como no atrapado. Quien lo tiene que escuchar es quien llamo, y a ese
     // se le devuelve `vuelo`.
-    vuelo
-        .whenComplete(() {
-          if (_enVuelo[clave] == vuelo) _enVuelo.remove(clave);
-        })
-        .ignore();
+    vuelo.whenComplete(() {
+      if (_enVuelo[clave] == vuelo) _enVuelo.remove(clave);
+    }).ignore();
     return vuelo;
   }
 
@@ -714,8 +712,9 @@ class AccionesDeRuta {
 
     // Se leen SIN ningún filtro: hace falta saber qué tiene cada fila, no si
     // pasa la criba. Que un pedido ni siquiera esté aquí también es respuesta.
-    final filas =
-        await (_base.select(_base.orders)..where((o) => o.id.isIn(fuera))).get();
+    final filas = await (_base.select(
+      _base.orders,
+    )..where((o) => o.id.isIn(fuera))).get();
     final porId = {for (final f in filas) f.id: f};
 
     // El CÓDIGO de la ruta, para poder decir en cuál va. «Ya va en la ruta

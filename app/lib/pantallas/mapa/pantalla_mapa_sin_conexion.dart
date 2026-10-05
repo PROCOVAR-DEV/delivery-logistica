@@ -22,6 +22,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../diseno/colores.dart';
 import '../../diseno/tema.dart' show BotonPrincipal;
+import '../ayuda/datos/controles_senalados.dart';
+import '../ayuda/vista/control_senalado.dart';
 import '../../mapa/anuncio_de_mapa.dart';
 import '../../mapa/descarga_de_mapa.dart';
 import '../../mapa/proveedores_de_mapa.dart';
@@ -98,7 +100,8 @@ abstract final class TextosDelMapaGuardado {
 
 const claveDeAtribucionDelMapa = ValueKey('mapa-guardado-atribucion');
 const claveDeAvisoDeDescarga = ValueKey('mapa-guardado-aviso');
-ValueKey<String> claveDeBajar(String nivel) => ValueKey<String>('mapa-guardado-bajar-$nivel');
+ValueKey<String> claveDeBajar(String nivel) =>
+    ValueKey<String>('mapa-guardado-bajar-$nivel');
 const claveDeVolverABajar = ValueKey('mapa-guardado-volver-a-bajar');
 
 class PantallaMapaSinConexion extends ConsumerStatefulWidget {
@@ -178,7 +181,10 @@ class _PantallaMapaSinConexionState
     NoSeSupoDelMapa(:final tengo) => [
       if (tengo != null) Text(TextosDelMapaGuardado.tengo(tengo)),
       const SizedBox(height: 8),
-      const Text(TextosDelMapaGuardado.noSeSupo, style: TextStyle(fontSize: 12)),
+      const Text(
+        TextosDelMapaGuardado.noSeSupo,
+        style: TextStyle(fontSize: 12),
+      ),
     ],
     SinPaqueteDeMapa(:final ofertas, :final ilegibles) => [
       if (ofertas.isEmpty)
@@ -193,10 +199,7 @@ class _PantallaMapaSinConexionState
     MapaAlDia(:final tengo, :final ofertas) => [
       Text(TextosDelMapaGuardado.tengo(tengo)),
       const SizedBox(height: 4),
-      const Text(
-        'Está al día.',
-        style: TextStyle(fontSize: 12),
-      ),
+      const Text('Está al día.', style: TextStyle(fontSize: 12)),
       const SizedBox(height: 12),
       ..._ofertas(_queMerecenLaPena(tengo, ofertas)),
       ..._laSalida(tengo, ofertas),
@@ -266,20 +269,27 @@ class _PantallaMapaSinConexionState
   }
 
   List<Widget> _ofertas(List<NivelDeMapa> niveles) => [
-    for (final n in niveles) ...[
+    // Se ofrece un boton por nivel, asi que la marca de la guia va SOLO en el
+    // primero: dos con el mismo nombre a la vez no se pueden distinguir, y el
+    // paso del manual nombra el de arriba («Completo, con calles — 49,2 MB»).
+    for (final (cual, n) in niveles.indexed) ...[
       Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            BotonPrincipal(
-              key: claveDeBajar(n.nivel),
-              icono: Icons.download_outlined,
-              // EL TAMAÑO VA EN EL BOTÓN.
-              texto: TextosDelMapaGuardado.bajar(n),
-              // Se apaga mientras hay otra descarga en marcha: dos a la vez por
-              // esta conexión es no terminar ninguna.
-              alPulsar: _comoVa != null ? null : () => _bajar(n),
+            ControlSenalado(
+              nombre: Senalado.mapaBajar,
+              senalable: cual == 0,
+              child: BotonPrincipal(
+                key: claveDeBajar(n.nivel),
+                icono: Icons.download_outlined,
+                // EL TAMAÑO VA EN EL BOTÓN.
+                texto: TextosDelMapaGuardado.bajar(n),
+                // Se apaga mientras hay otra descarga en marcha: dos a la vez por
+                // esta conexión es no terminar ninguna.
+                alPulsar: _comoVa != null ? null : () => _bajar(n),
+              ),
             ),
             const SizedBox(height: 4),
             Text(n.explicacion, style: const TextStyle(fontSize: 11)),

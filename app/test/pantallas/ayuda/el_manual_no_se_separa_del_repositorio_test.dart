@@ -105,7 +105,8 @@ void main() {
     expect(
       () => empaquetarManual(enElRepositorio),
       returnsNormally,
-      reason: 'alguna pagina tiene un renglon que empieza por «$marcaDeFichero»',
+      reason:
+          'alguna pagina tiene un renglon que empieza por «$marcaDeFichero»',
     );
   });
 }

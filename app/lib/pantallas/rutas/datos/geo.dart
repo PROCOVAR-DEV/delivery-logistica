@@ -215,7 +215,10 @@ class _Circuito {
     for (var i = 0; i < paradas.length - 1; i++) {
       for (var j = i + 1; j < paradas.length; j++) {
         final cambio =
-            _paso(i - 1, j) + _paso(i, j + 1) - _paso(i - 1, i) - _paso(j, j + 1);
+            _paso(i - 1, j) +
+            _paso(i, j + 1) -
+            _paso(i - 1, i) -
+            _paso(j, j + 1);
         if (cambio < -mejoraMinimaKm) {
           _invertir(i, j);
           movio = true;

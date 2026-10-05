@@ -129,14 +129,14 @@ De izquierda a derecha:
 | **«Datos de hace 9 h»** | Entre una hora y un día | gris |
 | **«Datos del martes — hace 3 días»** | Más de un día | ámbar |
 
-4. **«23 sin subir»**, un botón ámbar, sólo si hay algo. Lleva al cajón de entregar
+1. **«23 sin subir»**, un botón ámbar, sólo si hay algo. Lleva al cajón de entregar
    el día.
-5. Y dos líneas más que sólo salen cuando hay problema:
+2. Y dos líneas más que sólo salen cuando hay problema:
    - **«Sólo en este aparato: 1 ruta, 2 vehículos»** — trabajo que **nadie va a
      subir** porque ya no le queda ningún apunte detrás. Ver
      [Cuando algo sale mal](../cuando-algo-sale-mal.md).
    - **«Faltan datos por bajar: …»** — la bajada volvió a medias, con el motivo.
-6. A la derecha, dos botones: **«Traer el día»** y **«Entregar el día · 23 sin
+3. A la derecha, dos botones: **«Traer el día»** y **«Entregar el día · 23 sin
    subir»**, éste con el número en una insignia.
 
 **La franja entera se puede pulsar** y abre el cajón de traer el día. Así el gesto

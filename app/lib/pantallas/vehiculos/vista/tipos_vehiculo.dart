@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../diseno/anchos.dart';
 import '../../../diseno/cajon.dart';
 import '../../../diseno/tema.dart' show BotonPrincipal;
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/vehiculo_api.dart';
 
 /// El cajon `md` de «Tipos de vehículo». Pliego: `pantallas.md` §5.
@@ -69,21 +71,24 @@ class _TiposDeVehiculoState extends State<TiposDeVehiculo> {
           child: const Text('Cancelar'),
         ),
         const SizedBox(width: 8),
-        BotonPrincipal(
-          icono: Icons.save_outlined,
-          texto: 'Guardar',
-          alPulsar: widget.guardando
-              ? null
-              : () => widget.alGuardar([
-                  // Los que se quedaron sin nombre no se mandan: un tipo sin
-                  // nombre no se puede elegir despues y sólo ensucia la lista.
-                  for (final f in _filas)
-                    if (f.nombre.text.trim().isNotEmpty)
-                      TipoDeVehiculo(
-                        nombre: f.nombre.text.trim(),
-                        costoKmUsd: double.tryParse(f.costo.text.trim()),
-                      ),
-                ]),
+        ControlSenalado(
+          nombre: Senalado.vehiculosGuardarTipos,
+          child: BotonPrincipal(
+            icono: Icons.save_outlined,
+            texto: 'Guardar',
+            alPulsar: widget.guardando
+                ? null
+                : () => widget.alGuardar([
+                    // Los que se quedaron sin nombre no se mandan: un tipo sin
+                    // nombre no se puede elegir despues y sólo ensucia la lista.
+                    for (final f in _filas)
+                      if (f.nombre.text.trim().isNotEmpty)
+                        TipoDeVehiculo(
+                          nombre: f.nombre.text.trim(),
+                          costoKmUsd: double.tryParse(f.costo.text.trim()),
+                        ),
+                  ]),
+          ),
         ),
       ],
     ),
@@ -110,27 +115,36 @@ class _TiposDeVehiculoState extends State<TiposDeVehiculo> {
                   children: [
                     Expanded(
                       flex: 3,
-                      child: TextField(
-                        controller: fila.nombre,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre',
-                          isDense: true,
-                          border: OutlineInputBorder(),
+                      // Sólo la primera fila se deja senalar: hay una por tipo.
+                      child: ControlSenalado(
+                        nombre: Senalado.vehiculosTipoNombre,
+                        senalable: indice == 0,
+                        child: TextField(
+                          controller: fila.nombre,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       flex: 2,
-                      child: TextField(
-                        controller: fila.costo,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'Costo/km (USD)',
-                          isDense: true,
-                          border: OutlineInputBorder(),
+                      child: ControlSenalado(
+                        nombre: Senalado.vehiculosTipoCosto,
+                        senalable: indice == 0,
+                        child: TextField(
+                          controller: fila.costo,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Costo/km (USD)',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
                         ),
                       ),
                     ),
@@ -148,17 +162,20 @@ class _TiposDeVehiculoState extends State<TiposDeVehiculo> {
               ),
           Align(
             alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => setState(
-                () => _filas.add(
-                  _Fila(
-                    nombre: TextEditingController(),
-                    costo: TextEditingController(),
+            child: ControlSenalado(
+              nombre: Senalado.vehiculosAnadirTipo,
+              child: TextButton.icon(
+                onPressed: () => setState(
+                  () => _filas.add(
+                    _Fila(
+                      nombre: TextEditingController(),
+                      costo: TextEditingController(),
+                    ),
                   ),
                 ),
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar tipo'),
               ),
-              icon: const Icon(Icons.add),
-              label: const Text('Agregar tipo'),
             ),
           ),
         ],

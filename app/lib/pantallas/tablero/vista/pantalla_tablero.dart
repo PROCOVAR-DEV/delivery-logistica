@@ -6,7 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../diseno/pestanas.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/plataforma.dart';
-
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/modelos.dart';
 import '../estado/filtros_en_la_url.dart';
 import '../estado/proveedores.dart';
@@ -171,12 +172,15 @@ class _PantallaTableroState extends ConsumerState<PantallaTablero> {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
-                  child: CarruselDePestanas(
-                    indice: pagina,
-                    cuantas: cuantas,
-                    titulo: _tituloDePagina(tablero, pagina),
-                    etiquetas: _nombresDePagina(tablero),
-                    alCambiar: _irA,
+                  child: ControlSenalado(
+                    nombre: Senalado.tableroCarruselDeZonas,
+                    child: CarruselDePestanas(
+                      indice: pagina,
+                      cuantas: cuantas,
+                      titulo: _tituloDePagina(tablero, pagina),
+                      etiquetas: _nombresDePagina(tablero),
+                      alCambiar: _irA,
+                    ),
                   ),
                 ),
                 Expanded(
@@ -343,6 +347,9 @@ class _Zona extends ConsumerWidget {
     return ColumnaDelTablero(
       columna: columna,
       ancho: ancho,
+      // Sólo la primera zona se deja senalar por la Guia: ver
+      // `ColumnaDelTablero.esLaPrimera`.
+      esLaPrimera: cual == 0,
       tarjetas: tablero.deColumna(columna.id),
       alSoltar: (datos, posicion) {
         // Soltar una tarjeta donde ya estaba no es una orden: es un dedo que se
@@ -418,11 +425,20 @@ class _SinColumnas extends ConsumerWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () =>
-                unawaited(AccionesTablero.crearColumna(context, ref)),
-            icon: const Icon(Icons.add),
-            label: const Text('Nueva columna'),
+          // LOS TRES SITIOS DONDE SE CREA UNA ZONA COMPARTEN NOMBRE, y se puede:
+          // son excluyentes. Este sale con el tablero vacio, el de
+          // `_PaginaNuevaColumna` sólo en el telefono y el de
+          // `_BotonNuevaColumna` sólo en la tira de escritorio. Nunca hay dos
+          // montados a la vez, que es la unica condicion que pone
+          // `RegistroDeControles`.
+          ControlSenalado(
+            nombre: Senalado.tableroNuevaZona,
+            child: FilledButton.icon(
+              onPressed: () =>
+                  unawaited(AccionesTablero.crearColumna(context, ref)),
+              icon: const Icon(Icons.add),
+              label: const Text('Nueva columna'),
+            ),
           ),
         ],
       ),
@@ -453,11 +469,20 @@ class _PaginaNuevaColumna extends ConsumerWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () =>
-                unawaited(AccionesTablero.crearColumna(context, ref)),
-            icon: const Icon(Icons.add),
-            label: const Text('Nueva columna'),
+          // LOS TRES SITIOS DONDE SE CREA UNA ZONA COMPARTEN NOMBRE, y se puede:
+          // son excluyentes. Este sale con el tablero vacio, el de
+          // `_PaginaNuevaColumna` sólo en el telefono y el de
+          // `_BotonNuevaColumna` sólo en la tira de escritorio. Nunca hay dos
+          // montados a la vez, que es la unica condicion que pone
+          // `RegistroDeControles`.
+          ControlSenalado(
+            nombre: Senalado.tableroNuevaZona,
+            child: FilledButton.icon(
+              onPressed: () =>
+                  unawaited(AccionesTablero.crearColumna(context, ref)),
+              icon: const Icon(Icons.add),
+              label: const Text('Nueva columna'),
+            ),
           ),
         ],
       ),
@@ -474,15 +499,18 @@ class _BotonNuevaColumna extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => Container(
     width: ancho,
     margin: const EdgeInsets.symmetric(horizontal: 4),
-    child: OutlinedButton(
-      onPressed: () => unawaited(AccionesTablero.crearColumna(context, ref)),
-      child: const Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.add),
-          SizedBox(height: 4),
-          Text('Columna', textAlign: TextAlign.center),
-        ],
+    child: ControlSenalado(
+      nombre: Senalado.tableroNuevaZona,
+      child: OutlinedButton(
+        onPressed: () => unawaited(AccionesTablero.crearColumna(context, ref)),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add),
+            SizedBox(height: 4),
+            Text('Columna', textAlign: TextAlign.center),
+          ],
+        ),
       ),
     ),
   );
@@ -712,9 +740,7 @@ class _FranjaNoSePudo extends StatelessWidget {
     decoration: BoxDecoration(
       color: ColoresTablero.ambarFondo,
       border: Border(
-        bottom: BorderSide(
-          color: ColoresTablero.ambar.withValues(alpha: 0.45),
-        ),
+        bottom: BorderSide(color: ColoresTablero.ambar.withValues(alpha: 0.45)),
       ),
     ),
     child: Column(

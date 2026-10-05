@@ -23,87 +23,28 @@
 
 import 'dart:typed_data';
 
+import '../nucleo/descarga/almacen_de_bajadas.dart';
 import 'pmtiles.dart';
 
 /// Lo que hace falta saber hacer con los ficheros del mapa.
-abstract interface class CarpetaDelMapa {
-  /// Cuántos bytes tiene [nombre], o `0` si no está. **`0` y «no está» son lo
-  /// mismo aquí a propósito**: los dos significan «hay que empezar por el
-  /// principio».
-  Future<int> bytes(String nombre);
-
-  /// Añade al final. Es lo que hace posible reanudar.
-  Future<void> anadir(String nombre, List<int> trozo);
-
-  Future<void> borrar(String nombre);
-
-  Future<void> renombrar(String de, String a);
-
-  /// El contenido en trozos, para calcular el `sha256` sin cargarse 26 MB en la
-  /// memoria de un teléfono.
-  Stream<List<int>> porTrozos(String nombre);
-
+///
+/// Es [AlmacenDeBajadas] —el puerto que usa el motor de bajar, compartido con la
+/// actualizacion de la APK desde el 05/10/2026— **mas una cosa que solo el mapa
+/// necesita**: leer teselas sueltas sin cargar el fichero entero.
+abstract interface class CarpetaDelMapa implements AlmacenDeBajadas {
   /// Para leer teselas sueltas sin cargar el fichero entero.
   Future<LeerPorRangos> porRangos(String nombre);
-
-  Future<void> escribirTexto(String nombre, String texto);
-
-  Future<String?> leerTexto(String nombre);
 }
 
 /// UNA CARPETA EN MEMORIA. Es lo que usan las pruebas, y lo que permite
 /// ejercitar la reanudación y el `sha256` **sin una sola petición de red y sin
 /// tocar el disco**.
-class CarpetaEnMemoria implements CarpetaDelMapa {
-  final Map<String, List<int>> _ficheros = {};
-
-  /// Para que una prueba pueda dejar un fichero puesto de entrada.
-  void sembrar(String nombre, List<int> contenido) {
-    _ficheros[nombre] = [...contenido];
-  }
-
-  bool tiene(String nombre) => _ficheros.containsKey(nombre);
-
-  @override
-  Future<int> bytes(String nombre) async => _ficheros[nombre]?.length ?? 0;
-
-  @override
-  Future<void> anadir(String nombre, List<int> trozo) async {
-    (_ficheros[nombre] ??= <int>[]).addAll(trozo);
-  }
-
-  @override
-  Future<void> borrar(String nombre) async => _ficheros.remove(nombre);
-
-  @override
-  Future<void> renombrar(String de, String a) async {
-    final contenido = _ficheros.remove(de);
-    if (contenido != null) _ficheros[a] = contenido;
-  }
-
-  @override
-  Stream<List<int>> porTrozos(String nombre) async* {
-    final contenido = _ficheros[nombre];
-    if (contenido == null) return;
-    // En trozos de verdad, no de una vez: es lo que ejercita el cálculo por
-    // partes del sha256, que es como corre en el aparato.
-    for (var i = 0; i < contenido.length; i += 8192) {
-      yield contenido.sublist(i, i + 8192 > contenido.length ? contenido.length : i + 8192);
-    }
-  }
-
+///
+/// Todo lo de guardar bytes lo hereda de [AlmacenEnMemoria], que es el mismo que
+/// usan las pruebas de la actualización: lo único que añade aquí es la lectura
+/// por rangos, que es lo único que el mapa necesita de más.
+class CarpetaEnMemoria extends AlmacenEnMemoria implements CarpetaDelMapa {
   @override
   Future<LeerPorRangos> porRangos(String nombre) async =>
-      RangosEnMemoria(Uint8List.fromList(_ficheros[nombre] ?? const []));
-
-  @override
-  Future<void> escribirTexto(String nombre, String texto) async {
-    _ficheros[nombre] = texto.codeUnits;
-  }
-
-  @override
-  Future<String?> leerTexto(String nombre) async {
-    final c = _ficheros[nombre];
-    return c == null ? null : String.fromCharCodes(c);
-  }
+      RangosEnMemoria(Uint8List.fromList(bytesCrudos(nombre) ?? const []));
 }

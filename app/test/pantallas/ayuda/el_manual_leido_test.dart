@@ -1,7 +1,9 @@
 // EL MANUAL, LEIDO: tareas, formas, busqueda y el boton de «llévame ahí».
 //
-// Se prueba contra el paquete DE VERDAD (`assets/manual/manual.txt`, 39 paginas y
-// 301 tareas el 05/10/2026) y no contra un manual de mentira, porque la mitad de
+// Se prueba contra el paquete DE VERDAD (`assets/manual/manual.txt`: 39 paginas y
+// **44 tareas en la APK** el 05/10/2026 — antes de ese dia la cuenta era 301,
+// porque eran todos los `##` del manual y no las tareas) y no contra un manual de
+// mentira, porque la mitad de
 // lo que puede salir mal aqui sale de como esta escrito el manual: que un ancla
 // no cuadre con el enlace que ya apunta a ella, que una pagina no tenga `# `, que
 // una tarea nombre una pantalla que se renombro. Un manual de dos paginas
@@ -39,7 +41,12 @@ void main() {
     });
 
     test('trae tareas, y cada una con nombre y con cuerpo', () {
-      expect(completo.tareas.length, greaterThan(100));
+      // Mas de 50 y MENOS de 150: las dos mitades. Por abajo, que el troceador no
+      // se quede sin encontrar las marcas; por arriba, que no vuelva a contar
+      // todos los `##` del manual, que es lo que daba 301 y es lo que Jose
+      // rechazo.
+      expect(completo.tareas.length, greaterThan(50));
+      expect(completo.tareas.length, lessThan(150));
       for (final t in completo.tareas) {
         expect(t.titulo.trim(), isNotEmpty, reason: t.id);
         expect(
@@ -98,18 +105,30 @@ void main() {
       }
     });
 
-    test('y su titulo es un «## » de esa pagina', () {
+    /// Y SU TITULO ES UN ENCABEZADO **MARCADO** DE ESA PAGINA — 05/10/2026.
+    ///
+    /// Esto comparaba contra «todos los `##`», y eso era el fallo de la 1.0.22: en
+    /// `comun/puesta-en-marcha.md` los `##` son «Qué es», «Lo que hay que hacer» y
+    /// «Qué se rompe si no se hace», que no son cosas que hacer. Ahora se compara
+    /// contra los que llevan [marcaDeTarea] debajo, a cualquier nivel: el manual
+    /// las tiene escritas con `#`, con `##` y con `###`.
+    test('y su titulo es un encabezado MARCADO de esa pagina', () {
+      final encabezado = RegExp(r'^#{1,4} +(.*)$');
       for (final pagina in completo.paginas) {
-        final suyos = <String>[
-          for (final renglon in pagina.contenido.split('\n'))
-            if (renglon.startsWith('## ')) soloElTexto(renglon.substring(3).trim()),
-        ];
+        final renglones = pagina.contenido.split('\n');
+        final suyos = <String>[];
+        for (var i = 0; i < renglones.length - 1; i++) {
+          final cabeza = encabezado.firstMatch(renglones[i]);
+          if (cabeza == null) continue;
+          if (renglones[i + 1].trim() != marcaDeTarea) continue;
+          suyos.add(soloElTexto(cabeza.group(1)!.trim()));
+        }
         expect(
           pagina.tareas.map((t) => t.titulo).toList(),
           suyos,
           reason:
-              'las tareas de «${pagina.camino}» no son sus `##`, ni en el mismo '
-              'orden',
+              'las tareas de «${pagina.camino}» no son sus encabezados marcados '
+              'con «$marcaDeTarea», ni en el mismo orden',
         );
       }
     });
@@ -127,10 +146,19 @@ void main() {
       expect(anclaDe('Cambiar entre USD y CUP'), 'cambiar-entre-usd-y-cup');
       // Las tildes se QUEDAN, que es lo que hace GitHub y lo que esta escrito en
       // `docs/manual/comun/pantallas/almacenes.md`.
-      expect(anclaDe('Poner o corregir un almacén'), 'poner-o-corregir-un-almacén');
+      expect(
+        anclaDe('Poner o corregir un almacén'),
+        'poner-o-corregir-un-almacén',
+      );
       // La puntuacion se va, los espacios se juntan.
-      expect(anclaDe('¿Y si no aparece? (mira esto)'), 'y-si-no-aparece-mira-esto');
-      expect(anclaDe('Un **pedido** no me `aparece`'), 'un-pedido-no-me-aparece');
+      expect(
+        anclaDe('¿Y si no aparece? (mira esto)'),
+        'y-si-no-aparece-mira-esto',
+      );
+      expect(
+        anclaDe('Un **pedido** no me `aparece`'),
+        'un-pedido-no-me-aparece',
+      );
       // DOS GUIONES, y hace falta: `apk/3-tareas.md` ya enlaza a
       // `#paso-4--la-tasa-de-cambio-de-la-sucursal`. El `·` se va y deja dos
       // espacios, o sea dos guiones. Juntandolos, ese enlace no abre nada.
@@ -146,15 +174,18 @@ void main() {
       // filas de la lista abririan la misma.
       final leido = Manual.desdeElPaquete(
         empaquetarManual({
-          'comun/p.md': '# P\n\n## Qué es\n\nA.\n\n## Qué es\n\nB.\n\n'
-              '## Qué es\n\nC.\n',
+          'comun/p.md':
+              '# P\n\n## Qué es\n$marcaDeTarea\n\nA.\n\n'
+              '## Qué es\n$marcaDeTarea\n\nB.\n\n'
+              '## Qué es\n$marcaDeTarea\n\nC.\n',
         }),
         pantallas: pantallas,
       );
-      expect(
-        leido.paginas.single.tareas.map((t) => t.ancla),
-        ['qué-es', 'qué-es-1', 'qué-es-2'],
-      );
+      expect(leido.paginas.single.tareas.map((t) => t.ancla), [
+        'qué-es',
+        'qué-es-1',
+        'qué-es-2',
+      ]);
     });
 
     test('los enlaces con ancla del manual apuntan a una tarea que existe', () {
@@ -167,7 +198,10 @@ void main() {
         for (final enlace in conAncla.allMatches(pagina.contenido)) {
           final destino = _resolver(enlace.group(1)!, pagina.camino);
           final otra = completo.pagina(destino);
-          if (otra == null) continue; // pagina que no existe: no es cosa del ancla
+          // Pagina que no existe: no es cosa del ancla.
+          if (otra == null) {
+            continue;
+          }
           final ancla = enlace.group(2)!;
           // TODOS los encabezados de la pagina, numerados como GitHub. Un ancla
           // puede apuntar a un `###`, que no es una tarea: se admite, porque la
@@ -336,7 +370,7 @@ void main() {
       final leido = Manual.desdeElPaquete(
         empaquetarManual({
           'apk/prueba.md':
-              '# Prueba\n\n## Dar de alta un camión\n\n'
+              '# Prueba\n\n## Dar de alta un camión\n$marcaDeTarea\n\n'
               '**Empieza en:** **Menú → «Vehículos»**. **Necesita señal.**\n\n'
               '1. Toca «Nuevo vehículo».\n',
         }),
@@ -355,7 +389,7 @@ void main() {
       final leido = Manual.desdeElPaquete(
         empaquetarManual({
           'apk/prueba.md':
-              '# Prueba\n\n## Cambiar el camión\n\n'
+              '# Prueba\n\n## Cambiar el camión\n$marcaDeTarea\n\n'
               '**Empieza en:** [Rutas](/routes)\n\n1. Abre la ruta.\n',
         }),
         pantallas: pantallas,
@@ -374,19 +408,22 @@ void main() {
     /// Y la otra mitad, que es la que faltaba: **el nombre se queda**. Sin el, la
     /// tarea se quedaba sin pie y sin motivo, y quien la mirara no sabria por que
     /// esa no tiene boton y la de arriba si — un hueco en vez de una decision (§4).
-    test('sin pantalla registrada en esta forma: sin boton, pero con motivo', () {
-      final leido = Manual.desdeElPaquete(
-        empaquetarManual({
-          'comun/prueba.md':
-              '# Prueba\n\n## Mirar el canal\n\n'
-              '**Empieza en:** **Menú → «Canal con PEDIDO»**.\n',
-        }),
-        // La lista de la APK: sin el canal.
-        pantallas: const [PantallaDelMenu('/orders', 'Pedidos')],
-      );
-      expect(leido.tareas.single.rutaDePantalla, isNull);
-      expect(leido.tareas.single.nombreDePantalla, 'Canal con PEDIDO');
-    });
+    test(
+      'sin pantalla registrada en esta forma: sin boton, pero con motivo',
+      () {
+        final leido = Manual.desdeElPaquete(
+          empaquetarManual({
+            'comun/prueba.md':
+                '# Prueba\n\n## Mirar el canal\n$marcaDeTarea\n\n'
+                '**Empieza en:** **Menú → «Canal con PEDIDO»**.\n',
+          }),
+          // La lista de la APK: sin el canal.
+          pantallas: const [PantallaDelMenu('/orders', 'Pedidos')],
+        );
+        expect(leido.tareas.single.rutaDePantalla, isNull);
+        expect(leido.tareas.single.nombreDePantalla, 'Canal con PEDIDO');
+      },
+    );
 
     /// Y SU PAREJA: lo que NO lleva «Menú →» no se lee como una pantalla.
     ///
@@ -398,7 +435,7 @@ void main() {
       final leido = Manual.desdeElPaquete(
         empaquetarManual({
           'comun/prueba.md':
-              '# Prueba\n\n## Cambiar de sucursal\n\n'
+              '# Prueba\n\n## Cambiar de sucursal\n$marcaDeTarea\n\n'
               '**Empieza en:** la pastilla de «STG», arriba.\n',
         }),
         pantallas: pantallas,
@@ -411,7 +448,7 @@ void main() {
       final leido = Manual.desdeElPaquete(
         empaquetarManual({
           'apk/prueba.md':
-              '# Prueba\n\n## Traer el día\n\n'
+              '# Prueba\n\n## Traer el día\n$marcaDeTarea\n\n'
               '**Empieza en:** la franja de arriba, desde cualquier pantalla.\n',
         }),
         pantallas: pantallas,
@@ -455,6 +492,151 @@ void main() {
     });
   });
 
+  /// DONDE ACABA EL CUERPO DE UNA TAREA.
+  ///
+  /// Acaba en el siguiente encabezado **de nivel igual o mas alto**, no en el
+  /// siguiente a secas. Las dos mitades hacen falta y las dos se ven en
+  /// `comun/puesta-en-marcha.md`:
+  ///
+  ///  * un `##` mas profundo se queda DENTRO —«Qué es», «Lo que hay que hacer» y
+  ///    «Qué se rompe si no se hace» son el cuerpo del Paso 2, no tres tareas—;
+  ///  * y un `#` del mismo nivel la CIERRA, aunque no sea una tarea. Sin esto,
+  ///    «Paso 4» se lleva dentro «Quién puede hacer cada paso» y «Lo que NUNCA se
+  ///    configura», o sea media pagina, y el cajon de un paso de configuracion sale
+  ///    con tres pantallazos de texto que no son suyos.
+  group('donde acaba una tarea', () {
+    final leido = Manual.desdeElPaquete(
+      empaquetarManual({
+        'comun/p.md':
+            '# Pagina\n\n'
+            '# Paso 1\n$marcaDeTarea\n\n'
+            '**Empieza en:** **Menú → «Panel»**.\n\n'
+            '## Qué es\n\nLo del paso 1.\n\n'
+            '### Un detalle\n\nTambien del paso 1.\n\n'
+            '# Quién puede hacer cada paso\n\nESTO NO ES DEL PASO 1.\n\n'
+            '# Paso 2\n$marcaDeTarea\n\n'
+            '**Empieza en:** **Menú → «Vehículos»**.\n\nLo del paso 2.\n',
+      }),
+      pantallas: pantallas,
+    );
+
+    test('un encabezado mas profundo se queda DENTRO', () {
+      expect(leido.tareas.map((t) => t.titulo), ['Paso 1', 'Paso 2']);
+      final uno = leido.tareas.first;
+      expect(uno.cuerpo, contains('## Qué es'));
+      expect(uno.cuerpo, contains('Lo del paso 1.'));
+      expect(uno.cuerpo, contains('### Un detalle'));
+      expect(uno.cuerpo, contains('Tambien del paso 1.'));
+    });
+
+    test('y un encabezado del mismo nivel la CIERRA, aunque no sea tarea', () {
+      expect(
+        leido.tareas.first.cuerpo,
+        isNot(contains('ESTO NO ES DEL PASO 1')),
+        reason:
+            'el cuerpo del Paso 1 se llevo dentro el `#` de despues. En '
+            '`comun/puesta-en-marcha.md` eso son tres secciones de mas en el cajon '
+            'de un paso de configuracion',
+      );
+      expect(
+        leido.tareas.first.cuerpo,
+        isNot(contains('Lo del paso 2')),
+        reason: 'y encima se llevo el paso siguiente',
+      );
+      expect(leido.tareas.last.cuerpo, contains('Lo del paso 2.'));
+    });
+  });
+
+  /// LOS PASOS DEL RECORRIDO, Y LO QUE **NO** ES UN PASO.
+  group('los pasos de una tarea', () {
+    test(
+      'son la lista numerada, y se paran en el primer encabezado de despues',
+      () {
+        final leido = Manual.desdeElPaquete(
+          empaquetarManual({
+            'apk/p.md':
+                '# P\n\n## Hacer algo\n$marcaDeTarea\n\n'
+                '**Empieza en:** **Menú → «Vehículos»**.\n\n'
+                '1. Uno.\n2. Dos.\n\n'
+                '### Si no sale\n\n1. Esto no es un paso del recorrido.\n',
+          }),
+          pantallas: pantallas,
+        );
+        final pasos = leido.tareas.single.pasos;
+        expect(pasos.map((p) => p.texto), ['Uno.', 'Dos.']);
+        expect(pasos.map((p) => p.cual), [1, 2]);
+        expect(pasos.every((p) => p.deCuantos == 2), isTrue);
+      },
+    );
+
+    /// UN RENGLON PARTIDO QUE EMPIEZA POR «3. » NO ES UN PASO.
+    ///
+    /// Es un caso de verdad, de `web/2-tareas.md`: «…encima de una lista de / 3. No
+    /// es un fallo.» La frase se parte a los 80 caracteres y la mitad de abajo
+    /// empieza por «3. », asi que el lector de markdown la ve como un paso numerado.
+    /// Sin la guarda, «Filtrar la lista de rutas» salia con UN paso que decia «No es
+    /// un fallo.» y el recorrido se ofrecia para eso.
+    test('un trozo de frase que empieza por un numero NO es un paso', () {
+      final leido = Manual.desdeElPaquete(
+        empaquetarManual({
+          'apk/p.md':
+              '# P\n\n## Mirar los filtros\n$marcaDeTarea\n\n'
+              '**Empieza en:** **Menú → «Vehículos»**.\n\n'
+              'Por eso «Planificadas (12)» puede salir encima de una lista de\n'
+              '3. No es un fallo.\n',
+        }),
+        pantallas: pantallas,
+      );
+      expect(
+        leido.tareas.single.pasos,
+        isEmpty,
+        reason:
+            'ese «3. » es la segunda mitad de una frase partida, no un paso. Un '
+            'recorrido de un paso que dice «No es un fallo.» es peor que no ofrecer '
+            'recorrido',
+      );
+    });
+
+    test('la marca de «señala» se lee y NO se pinta', () {
+      final leido = Manual.desdeElPaquete(
+        empaquetarManual({
+          'apk/p.md':
+              '# P\n\n## Hacer algo\n$marcaDeTarea\n\n'
+              '**Empieza en:** **Menú → «Vehículos»**.\n\n'
+              '1. Toca **«Agregar Vehículo»**. <!-- señala: vehiculos-agregar -->\n'
+              '2. Y ya. \n',
+        }),
+        pantallas: pantallas,
+      );
+      final pasos = leido.tareas.single.pasos;
+      expect(pasos.first.senala, 'vehiculos-agregar');
+      expect(
+        pasos.first.texto,
+        'Toca **«Agregar Vehículo»**.',
+        reason:
+            'la marca es andamio: pintarla seria ensenar el comentario de HTML en '
+            'medio de la frase',
+      );
+      expect(pasos.last.senala, isNull);
+    });
+
+    /// Y EL ANDAMIO NO SE PINTA EN EL DOCUMENTO TAMPOCO.
+    ///
+    /// El lector de markdown de la casa no sabe de HTML, asi que sin [sinElAndamio]
+    /// la puerta del Documento sacaria `<!-- tarea -->` debajo de cada titulo.
+    test('sinElAndamio quita las dos marcas, y el renglon de la de tarea', () {
+      const crudo =
+          '# P\n\n## Hacer algo\n$marcaDeTarea\n\nTexto.\n'
+          '1. Toca algo. <!-- señala: vehiculos-agregar -->\n';
+      final limpio = sinElAndamio(crudo);
+      expect(limpio, isNot(contains(marcaDeTarea)));
+      expect(limpio, isNot(contains('señala:')));
+      expect(limpio, isNot(contains('<!--')));
+      // Y no deja un renglon en blanco de mas entre el titulo y su texto.
+      expect(limpio, contains('## Hacer algo\n\nTexto.'));
+    });
+  });
+
   group('lo que no se puede leer no se finge', () {
     test('un paquete en blanco da un manual sin paginas, no un error', () {
       final leido = Manual.desdeElPaquete('', pantallas: pantallas);
@@ -464,7 +646,9 @@ void main() {
 
     test('una pagina sin «# » coge el nombre del fichero', () {
       final leido = Manual.desdeElPaquete(
-        empaquetarManual({'comun/a-medio-escribir.md': '## Algo\n\nPasos.\n'}),
+        empaquetarManual({
+          'comun/a-medio-escribir.md': '## Algo\n$marcaDeTarea\n\nPasos.\n',
+        }),
         pantallas: pantallas,
       );
       expect(leido.paginas.single.titulo, 'a medio escribir');
@@ -473,7 +657,9 @@ void main() {
     test('un «## » dentro de un bloque de codigo no es una tarea', () {
       final leido = Manual.desdeElPaquete(
         empaquetarManual({
-          'comun/a.md': '# A\n\n## De verdad\n\n```\n## de mentira\n```\n',
+          'comun/a.md':
+              '# A\n\n## De verdad\n$marcaDeTarea\n\n'
+              '```\n## de mentira\n$marcaDeTarea\n```\n',
         }),
         pantallas: pantallas,
       );

@@ -12,9 +12,15 @@ Lo que hay montado:
 docs/compilar.md                   cómo se saca cada salida y desde qué máquina
 api/internal/api/version.go        GET /api/version: qué hay publicado y de dónde se baja
 api/internal/config/config.go      de dónde sale ese anuncio (§ Publicada)
-app/lib/nucleo/actualizacion/      la comprobación en el aparato
+app/lib/nucleo/actualizacion/      la comprobación en el aparato, y la bajada (§5-bis)
+app/lib/nucleo/descarga/           el motor de bajar, compartido con el mapa de Cuba
+app/android/.../InstaladorDeApk.kt lo que le pide a Android que instale
 docs/actualizaciones.md            esto
 ```
+
+**En Android, desde el 05/10/2026, el fichero se baja DENTRO de la aplicación** —con su
+barra, reanudable y comprobado por `sha256`— y sólo el «¿instalar?» final es una pantalla
+del sistema. Ver **§5-bis**. En el escritorio sigue siendo el navegador.
 
 ---
 
@@ -457,6 +463,114 @@ números**: comparados como texto, `"1.10.0" < "1.9.0"`, y la 1.10 no se anuncia
 Ante la duda, `false`: un aviso de más manda a alguien a reinstalar lo que ya tiene; uno de
 menos llega mañana.
 
+## 5-bis. La bajada DENTRO de la aplicación (sólo Android) — 05/10/2026
+
+> «el mapa sí me funciona dentro de la aplicación, pero la APK me manda a descargarla al
+> navegador en vez de actualizar ahí mismo en la aplicación sin necesidad de salir»
+> — Jose, 05/10/2026
+
+Era una incoherencia nuestra: el mapa de Cuba se baja aquí dentro y la actualización —que
+pesa el triple— echaba al navegador. **Lo raro era la actualización, no el mapa.**
+
+### Lo que se perdía al salir, medido contra producción el 05/10/2026
+
+```
+Petición completa:   HTTP 200 · SIN content-length · sin accept-ranges
+Pidiendo un trozo:   HTTP 206 · content-range: bytes 0-1023/78485416
+```
+
+**Los rangos funcionan**; lo que falla es que la respuesta completa no los ofrece, así que el
+gestor de descargas de Android ni lo intenta — y tampoco sabe cuánto pesa, porque el
+`Content-Length` lo quita Cloudflare (§3). O sea: 75 MB, sin reanudar, con una barra que no
+sabe cuánto queda, y el fichero a buscar en Descargas. **Una descarga de 75 MB que no se
+puede reanudar es una descarga que no termina**, y esta semana empieza a usar esto el
+logístico de Santiago.
+
+Bajándola desde la aplicación eso deja de importar: se pide por trozos y punto. Y los dos
+números que hacían falta **ya viajaban en el anuncio y no los usaba nadie**:
+`ficheros.android.bytes` y `.sha256` (`FicheroPublicado`).
+
+### Las piezas
+
+| Fichero | Qué hay |
+|---|---|
+| `app/lib/nucleo/descarga/descarga_reanudable.dart` | **el motor, que es el del mapa**: `.parcial`, `Range`, la comprobación de que el servidor de verdad reanudó, el tope y el `sha256` |
+| `app/lib/nucleo/descarga/almacen_de_bajadas.dart` | dónde se escribe (y el doble en memoria de las pruebas) |
+| `app/lib/nucleo/actualizacion/bajada_de_la_actualizacion.dart` | los estados, el apunte de qué versión es lo bajado y el reparto de salidas |
+| `app/lib/nucleo/actualizacion/instalador.dart` | el puerto hacia Android |
+| `app/android/.../InstaladorDeApk.kt` | el canal: `sePuede`, `instalar`, `ajusteDelPermiso` |
+| `app/android/.../res/xml/ficheros_de_la_actualizacion.xml` | qué carpetas puede ofrecer el `FileProvider` |
+
+**El motor no se duplicó: se sacó del mapa.** `mapa/descarga_de_mapa.dart` quedó como una
+envoltura con las palabras del mapa y su apunte, y su API no cambió ni una letra —la pantalla
+del mapa y sus 121 pruebas no se tocaron—. Dos descargadores que se separan es el fallo
+clásico de esta casa: el día que uno aprenda algo, el otro no lo sabrá, y el que no lo sepa
+será el que corre en el teléfono de quien está repartiendo.
+
+### El fichero baja a `files/actualizacion/`
+
+```
+reparto.apk           el bueno, comprobado por bytes y sha256
+reparto.apk.parcial   lo que se lleva bajado y todavía no vale
+reparto.json          de qué versión es eso
+```
+
+**El apunte no es adorno**: sin él, un `.parcial` de la 1.0.22 se reanudaría con el `Range` de
+la 1.0.23, los bytes cuadrarían al final —el tamaño lo dice el anuncio— y lo cazaría el
+`sha256` **después de haber gastado la descarga entera**. Con el apunte se tira el parcial
+ajeno antes de pedir un solo byte.
+
+Y lo que ya está bajado **no se vuelve a bajar**: pasa más de lo que parece —se baja, Android
+enseña su pantalla, la persona la cancela porque está conduciendo, y vuelve por la tarde—.
+
+### Los permisos: son DOS y sólo uno es nuestro
+
+1. `REQUEST_INSTALL_PACKAGES`, en el manifiesto. Se concede al instalar la APK; no se le pide
+   a nadie. **No da instalar en silencio**: Android sigue enseñando su «¿instalar?».
+2. **El ajuste por aplicación** de «instalar aplicaciones desconocidas» (Android 8+). Lo da la
+   persona y **la primera vez no está dado en ningún teléfono**. Se pregunta
+   (`canRequestPackageInstalls`) **antes** de ofrecer el botón: uno que lleva a una pantalla
+   que no sale enseña a no fiarse del botón.
+
+El fichero se le entrega al instalador por un `FileProvider` nuestro
+(`${applicationId}.ficheros`, clase `FicherosDelReparto`) porque desde Android 7 un `file://`
+a otra aplicación es una excepción. **La clase es propia y no `androidx.core.content
+.FileProvider` a secas**: en este APK ya hay dos proveedores que son `FileProvider`
+—`share_plus` y `printing`— y Android exige una clase distinta por `<provider>`.
+
+### Los tres caminos que no son el feliz, y el navegador que no se quita
+
+| Qué pasa | Qué se ve | Qué se puede hacer |
+|---|---|---|
+| **Falta el permiso** | «está descargada, falta un permiso», con el motivo | ir al ajuste · «ya lo di: instalar» · abrir en el navegador |
+| **La descarga se corta** | el motivo con los MB que llegaron y «toca Seguir descargando» | seguir desde donde iba (y a los **tres** fallos seguidos, también el navegador) |
+| **La huella no cuadra** | «no se instala a medias», y se borra lo bajado | empezar de nuevo |
+| **Queda trabajo sin subir** | «te quedan N cosas por subir», y el botón de instalar **apagado** | subir primero; bajar sí se puede, y lo bajado se queda |
+
+La cuarta es §1.1 llevada al sitio donde se puede escapar: `actualizacionProvider` se
+pregunta **una vez al arrancar**, así que no se entera de que la cola creció después — y
+crece, porque se baja por la mañana y se trabaja sin señal el día entero. El cajón lee la cola
+**en vivo** (contando los rechazados) y apaga el botón; **bajar** no se toca, porque bajar no
+toca nada de lo que hay dentro y tenerlo bajado es justo lo que hace falta para instalar en
+cuanto suba.
+
+**El navegador sigue estando**, y es la salida en los tres primeros: quitar la única forma que
+funciona hoy sería cambiar un problema por otro. Y con una api que no anuncie `bytes` y
+`sha256` —anterior al 22/09/2026— **ni se intenta bajar dentro**: sin tamaño no hay barra
+honesta y sin huella no hay forma de saber si llegó entero.
+
+### Lo que lo ata
+
+| Prueba | Qué caza |
+|---|---|
+| `app/test/nucleo/actualizacion/bajada_de_la_actualizacion_test.dart` | el corte a la mitad y el reanudado **contando los bytes pedidos**; la huella mala, que además **no llama al instalador**; el permiso que falta; los tres fallos; el parcial de otra versión; dos toques, una descarga |
+| `app/test/navegacion/la_actualizacion_se_baja_dentro_test.dart` | que la barra sepa cuánto falta; que no se abra el navegador en el camino feliz; que **sí** se abra sin `bytes`/`sha256` y cuando falta el permiso; que la franja lo cuente con el cajón cerrado; que un toque no sean dos descargas; y que el botón de instalar se apague cuando la cola crece **con la pantalla delante** |
+| `app/test/nucleo/actualizacion/el_lado_de_android_cuadra_test.dart` | que el canal, los códigos, el permiso del manifiesto y la autoridad del `FileProvider` **digan lo mismo en Dart y en Kotlin** |
+
+Lo que ninguna prueba puede comprobar, y hay que mirar en un teléfono: **que la pantalla de
+«¿instalar?» sale y que la instalación entra encima de la que hay**. Eso depende de la firma
+(§4).
+
 ## 6. Lo que falta
 
 - [x] **Dónde se cuelgan los ficheros.** Decidido y montado el 22/09/2026: **MinIO**, en
@@ -484,6 +598,11 @@ menos llega mañana.
       cajón en móvil y el modal en escritorio, como todo lo demás—. Después de subir la cola
       conviene `ref.invalidate(actualizacionProvider)`, para que un `PrimeroSube` se
       convierta en `SePuedeActualizar` sin reiniciar.
+- [x] **Bajarla sin salir de la aplicación**, en Android. Hecho el 05/10/2026, §5-bis: con su
+      barra, reanudable, comprobada por `sha256` y con el navegador de salida en los tres
+      casos que no son el feliz. En el escritorio sigue siendo el navegador a propósito —una
+      actualización de escritorio es un `.zip` que alguien descomprime encima, no un paquete
+      que el sistema instale—.
 - [ ] **Decidir si el aviso se repite.** Hoy se comprueba una vez por arranque, cuando
       alguien mira el provider. Si el aviso se cierra, no vuelve hasta el siguiente
       arranque. Puede estar bien; hay que verlo con gente usándolo.

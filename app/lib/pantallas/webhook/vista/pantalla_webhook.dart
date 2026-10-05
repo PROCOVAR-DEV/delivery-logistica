@@ -5,6 +5,8 @@ import '../../../diseno/colores.dart';
 import '../../../diseno/estado_vacio.dart';
 import '../../../diseno/tarjeta.dart';
 import '../../../diseno/tema.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../estado/proveedores_webhook.dart';
 import '../datos/estado_del_webhook.dart';
 
@@ -59,14 +61,30 @@ class PantallaWebhook extends ConsumerWidget {
       data: (d) => ListView(
         padding: const EdgeInsets.all(Aire.lg),
         children: [
-          _Respira(d.resumen),
+          ControlSenalado(
+            nombre: Senalado.canalRespira,
+            child: _Respira(d.resumen),
+          ),
           const SizedBox(height: Aire.lg),
-          _Saliendo(resumen: d.resumen, tandas: d.enviados),
+          ControlSenalado(
+            nombre: Senalado.canalSaliendo,
+            child: _Saliendo(resumen: d.resumen, tandas: d.enviados),
+          ),
           const SizedBox(height: Aire.lg),
-          _Entrando(resumen: d.resumen, tandas: d.recibidos),
+          ControlSenalado(
+            nombre: Senalado.canalEntrando,
+            child: _Entrando(resumen: d.resumen, tandas: d.recibidos),
+          ),
+          // «Sin terminar» sólo existe cuando hay algo sin terminar, y el paso
+          // del manual lo dice igual: «Si hay algo en «Sin terminar»…». Con la
+          // lista vacía el recorrido dice que ese control no está, que es la
+          // verdad.
           if (d.sinMandar.isNotEmpty) ...[
             const SizedBox(height: Aire.lg),
-            _SinMandar(d.sinMandar),
+            ControlSenalado(
+              nombre: Senalado.canalSinTerminar,
+              child: _SinMandar(d.sinMandar),
+            ),
           ],
         ],
       ),
@@ -86,24 +104,24 @@ class _Respira extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-      Wrap(
-        spacing: Aire.xl,
-        runSpacing: Aire.md,
-        children: [
-          _Dato('Último aviso recibido', _haceCuanto(r.ultimaEntrada)),
-          _Dato('Última tanda enviada', _haceCuanto(r.ultimaSalida)),
-          _Dato('Escritos hoy', '${r.escritosHoy}'),
-        ],
-      ),
-      if (r.estaAtascado) ...[
-        const SizedBox(height: Aire.md),
-        Text(
-          'Atascado: hay algo esperando desde hace '
-          '${_haceCuanto(r.masViejo)}. Con el canal sano no pasa de unos segundos.',
-          style: Tipos.texto(tamano: 12, color: Colores.rojo),
+        Wrap(
+          spacing: Aire.xl,
+          runSpacing: Aire.md,
+          children: [
+            _Dato('Último aviso recibido', _haceCuanto(r.ultimaEntrada)),
+            _Dato('Última tanda enviada', _haceCuanto(r.ultimaSalida)),
+            _Dato('Escritos hoy', '${r.escritosHoy}'),
+          ],
         ),
+        if (r.estaAtascado) ...[
+          const SizedBox(height: Aire.md),
+          Text(
+            'Atascado: hay algo esperando desde hace '
+            '${_haceCuanto(r.masViejo)}. Con el canal sano no pasa de unos segundos.',
+            style: Tipos.texto(tamano: 12, color: Colores.rojo),
+          ),
+        ],
       ],
-    ],
     ),
   );
 }
@@ -120,35 +138,35 @@ class _Saliendo extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-      Wrap(
-        spacing: Aire.xl,
-        runSpacing: Aire.md,
-        children: [
-          _Dato('Esperando', '${resumen.esperando}'),
-          _Dato('El más viejo', _haceCuanto(resumen.masViejo)),
-          // RECHAZADO NO ES «FALLÓ»: llegó perfectamente y PEDIDO dijo que no. No se
-          // reintenta, así que es una bandeja que alguien tiene que mirar.
-          _Dato('Rechazados por PEDIDO', '${resumen.rechazados}'),
-        ],
-      ),
-      const SizedBox(height: Aire.md),
-      if (tandas.isEmpty)
-        const Text('Todavía no ha salido ninguna tanda.')
-      else
-        for (final t in tandas.take(8))
-          _Linea(
-            cuando: t.cuando,
-            texto:
-                '${t.mandados} avisos · ${t.aceptados} aceptados'
-                '${t.rechazados > 0 ? ' · ${t.rechazados} no' : ''}'
-                '${t.http == null ? '' : ' · HTTP ${t.http}'}'
-                ' · ${t.duracionMs} ms',
-            // El motivo LITERAL de PEDIDO. «no se pudo» no le dice nada a nadie;
-            // «no existe aquí (¿otra sucursal?)» dice dónde mirar.
-            detalle: t.motivo,
-            malo: !t.llegoBien,
-          ),
-    ],
+        Wrap(
+          spacing: Aire.xl,
+          runSpacing: Aire.md,
+          children: [
+            _Dato('Esperando', '${resumen.esperando}'),
+            _Dato('El más viejo', _haceCuanto(resumen.masViejo)),
+            // RECHAZADO NO ES «FALLÓ»: llegó perfectamente y PEDIDO dijo que no. No se
+            // reintenta, así que es una bandeja que alguien tiene que mirar.
+            _Dato('Rechazados por PEDIDO', '${resumen.rechazados}'),
+          ],
+        ),
+        const SizedBox(height: Aire.md),
+        if (tandas.isEmpty)
+          const Text('Todavía no ha salido ninguna tanda.')
+        else
+          for (final t in tandas.take(8))
+            _Linea(
+              cuando: t.cuando,
+              texto:
+                  '${t.mandados} avisos · ${t.aceptados} aceptados'
+                  '${t.rechazados > 0 ? ' · ${t.rechazados} no' : ''}'
+                  '${t.http == null ? '' : ' · HTTP ${t.http}'}'
+                  ' · ${t.duracionMs} ms',
+              // El motivo LITERAL de PEDIDO. «no se pudo» no le dice nada a nadie;
+              // «no existe aquí (¿otra sucursal?)» dice dónde mirar.
+              detalle: t.motivo,
+              malo: !t.llegoBien,
+            ),
+      ],
     ),
   );
 }
@@ -165,28 +183,28 @@ class _Entrando extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-      if (tandas.isEmpty)
-        const Text(
-          'Todavía no ha entrado ninguna tanda. Si PEDIDO está avisando y esto '
-          'sigue vacío, mira que el grupo de lectura exista.',
-        )
-      else
-        for (final t in tandas.take(8))
-          _Linea(
-            cuando: t.cuando,
-            texto:
-                '${t.comoSeLlama} · ${t.traidos} avisos · '
-                '${t.escritos} llevaron a algo'
-                '${t.rechazados > 0 ? ' · ${t.rechazados} sin efecto' : ''}'
-                ' · ${t.duracionMs} ms',
-            detalle: t.motivos,
-            // SIN EFECTO NO ES ROJO, y es a propósito: un repetido en la misma tanda o
-            // un traer que un borrado anuló es el sistema haciendo lo correcto.
-            // Pintarlo de rojo enseña a ignorar el rojo, y entonces el rojo de verdad
-            // tampoco se mira.
-            malo: false,
-          ),
-    ],
+        if (tandas.isEmpty)
+          const Text(
+            'Todavía no ha entrado ninguna tanda. Si PEDIDO está avisando y esto '
+            'sigue vacío, mira que el grupo de lectura exista.',
+          )
+        else
+          for (final t in tandas.take(8))
+            _Linea(
+              cuando: t.cuando,
+              texto:
+                  '${t.comoSeLlama} · ${t.traidos} avisos · '
+                  '${t.escritos} llevaron a algo'
+                  '${t.rechazados > 0 ? ' · ${t.rechazados} sin efecto' : ''}'
+                  ' · ${t.duracionMs} ms',
+              detalle: t.motivos,
+              // SIN EFECTO NO ES ROJO, y es a propósito: un repetido en la misma tanda o
+              // un traer que un borrado anuló es el sistema haciendo lo correcto.
+              // Pintarlo de rojo enseña a ignorar el rojo, y entonces el rojo de verdad
+              // tampoco se mira.
+              malo: false,
+            ),
+      ],
     ),
   );
 }
@@ -202,21 +220,21 @@ class _SinMandar extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-      const Text(
-        'Lo que no llegó a PEDIDO. Los rechazados NO se reintentan: repetir lo '
-        'mismo da lo mismo, así que se quedan aquí hasta que alguien decida.',
-      ),
-      const SizedBox(height: Aire.md),
-      for (final a in avisos.take(20))
-        _Linea(
-          cuando: a.cuando,
-          texto:
-              '${a.folio ?? a.pedidoId} · ${a.estado} · '
-              '${a.situacion}${a.intentos > 0 ? ' · ${a.intentos} intentos' : ''}',
-          detalle: a.motivo,
-          malo: a.loRechazaron,
+        const Text(
+          'Lo que no llegó a PEDIDO. Los rechazados NO se reintentan: repetir lo '
+          'mismo da lo mismo, así que se quedan aquí hasta que alguien decida.',
         ),
-    ],
+        const SizedBox(height: Aire.md),
+        for (final a in avisos.take(20))
+          _Linea(
+            cuando: a.cuando,
+            texto:
+                '${a.folio ?? a.pedidoId} · ${a.estado} · '
+                '${a.situacion}${a.intentos > 0 ? ' · ${a.intentos} intentos' : ''}',
+            detalle: a.motivo,
+            malo: a.loRechazaron,
+          ),
+      ],
     ),
   );
 }
@@ -260,10 +278,7 @@ class _Linea extends StatelessWidget {
       children: [
         Text(
           '${_haceCuanto(cuando)} · $texto',
-          style: Tipos.texto(
-            tamano: 12,
-            color: malo ? Colores.rojo : null,
-          ),
+          style: Tipos.texto(tamano: 12, color: malo ? Colores.rojo : null),
         ),
         if (detalle != null && detalle!.trim().isNotEmpty)
           Text(

@@ -46,11 +46,13 @@ para ellos).
 ## Lo que cambia en el escritorio
 
 ### Traer el día a mano
+<!-- tarea -->
 
 **Empieza en:** la franja de arriba, desde cualquier pantalla.
 
 1. **Clic en la franja de arriba**, en cualquier sitio.
-2. **Clic en «Traer el día»**.
+   <!-- señala: franja-de-estado -->
+2. **Clic en «Traer el día»**. <!-- señala: traer-el-dia-traer -->
 
 **En la web esto no existe.** Aquí es el gesto que hace que todo lo demás funcione
 sin red.
@@ -59,28 +61,33 @@ Si el botón está apagado, el motivo sale al lado: **«Sin conexión con el ser
 o **«Los datos ya son de ahora mismo»**.
 
 ### Entregar el día a mano
+<!-- tarea -->
 
 **Empieza en:** la franja de arriba, desde cualquier pantalla.
 
 1. **Clic en la franja**, o directamente en el botón **«23 sin subir»**.
-2. **Clic en «Entregar el día»**.
+   <!-- señala: franja-entregar-el-dia -->
+2. **Clic en «Entregar el día»**. <!-- señala: entregar-el-dia-entregar -->
 
 Si está apagado: **«Trae el día primero: no se envía nada sin tener lo de ahora»**.
 
 ### Ver qué aparato lleva sin subir
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Sincronización»**.
 
 **Esta pantalla no existe en la web.**
 
-1. **Menú → «Sincronización»**.
+1. **Menú → «Sincronización»**. <!-- señala: menu-sincronizacion -->
 2. Arriba, las cuatro cifras: **«Sin subir nunca»**, **«Más de un día sin subir»**
    («Estos son los de llamar»), **«Apuntes pendientes»** y **«Rechazados sin
-   atender»**.
+   atender»**. <!-- señala: sincronizacion-cifras -->
 3. Debajo, la tabla **«Aparatos»**, **ordenada por el que lleva más sin subir**. El
    borde de cada fila es rojo (más de 24 h o nunca), ámbar (más de 8 h) o verde.
+   <!-- señala: sincronizacion-aparatos -->
 4. Y la bandeja **«Rechazados sin atender (4)»**, con el motivo literal del servidor,
    quién, cuándo se hizo y cuándo se rechazó.
+   <!-- señala: sincronizacion-bandeja -->
 
 **Desde aquí sólo se miran.** Los botones de **«Reintentar»** y **«Descartar»** están
 en el cajón de «Entregar el día», que enseña los rechazos **de este** ordenador.
@@ -88,29 +95,35 @@ en el cajón de «Entregar el día», que enseña los rechazos **de este** orden
 **Y necesita conexión**: se lee del servidor cada vez y no guarda copia.
 
 ### Resolver un rechazo
+<!-- tarea -->
 
 **Empieza en:** la franja de arriba, desde cualquier pantalla.
 
 1. **Clic en la franja** → botón de la nube con la flecha hacia arriba.
+   <!-- señala: franja-entregar-el-dia -->
 2. Baja hasta **«Rechazados, esperando a una persona»**.
+   <!-- señala: entregar-el-dia-bandeja -->
 3. **Lee el motivo**, con las palabras del servidor.
+   <!-- señala: entregar-el-dia-rechazo -->
 4. **«Reintentar»** si el motivo ya no se da; **«Descartar»** si ese cambio ya no tiene
-   sentido (**se pierde**).
+   sentido (**se pierde**). <!-- señala: rechazo-reintentar -->
 
 ### Descargar el mapa de Cuba
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Mapa de Cuba sin conexión»**.
 
 **Esta pantalla no existe en la web.**
 
-1. **Menú → «Mapa de Cuba sin conexión»**.
-2. **Clic en «Completo, con calles — 49,2 MB»**.
+1. **Menú → «Mapa de Cuba sin conexión»**. <!-- señala: menu-mapa -->
+2. **Clic en «Completo, con calles — 49,2 MB»**. <!-- señala: mapa-bajar -->
 
 Y si el mapa se ve mal, baja hasta **«Si el mapa se ve mal»** y usa **«Volver a bajar
 «Completo, con calles»»**. **Nunca desinstales la aplicación para arreglar el mapa:
 se llevaría el trabajo que no haya subido.**
 
 ### Exportar el Excel
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Reportes»**.
 
@@ -122,6 +135,7 @@ la carpeta de descargas** y te dice la ruta:
 **No se abre ningún cajón de compartir** (en Linux compartir ficheros no existe).
 
 ### Mandarle la ruta al chófer
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
@@ -135,6 +149,7 @@ nada**, y la aplicación lo dice:
 **Usa «Copiar»** y pégalo donde quieras.
 
 ### Actualizar la aplicación
+<!-- tarea -->
 
 **Empieza en:** la franja de arriba, desde cualquier pantalla.
 
@@ -146,11 +161,12 @@ nada**, y la aplicación lo dice:
    > por subir. Instalar ahora puede llevárselas: primero sube, después actualiza.
 
 2. Con la cola vacía, la franja dice **«Hay una versión nueva: 1.0.7»**.
-3. **Clic en «Cómo instalarla»**.
+3. **Clic en «Cómo instalarla»**. <!-- señala: franja-version-nueva -->
 4. Lee qué va a pasar: «Son 74 MB. Se abre el navegador y se descarga el fichero. La
    descarga no toca esta aplicación: lo que tengas dentro sigue aquí mientras no
    instales.»
 5. **Clic en «Descargar»** (el botón se apaga después del primer clic).
+   <!-- señala: cajon-descargar-al-navegador -->
 6. Instálalo encima cuando puedas: «No hace falta que sea ahora: la versión de ahora
    sigue funcionando.»
 

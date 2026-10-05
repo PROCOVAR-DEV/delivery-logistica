@@ -11,11 +11,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../diseno/tema.dart';
 import '../../../impresion/armar_post_despacho.dart' as papel;
 import '../../../impresion/post_despacho.dart' show pdfPostDespacho;
 import '../../../impresion/vista_previa.dart';
-import '../../../diseno/tema.dart';
 import '../../../nucleo/base/base.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/vista/kit.dart';
@@ -392,13 +394,16 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
           spacing: Aire.sm,
           runSpacing: Aire.sm,
           children: [
-            OutlinedButton(
-              onPressed: () => _verPostDespacho(
-                ruta: ruta,
-                paradas: paradas,
-                renglones: renglones,
+            ControlSenalado(
+              nombre: Senalado.rutasPostDespacho,
+              child: OutlinedButton(
+                onPressed: () => _verPostDespacho(
+                  ruta: ruta,
+                  paradas: paradas,
+                  renglones: renglones,
+                ),
+                child: const Text('Post-despacho'),
               ),
-              child: const Text('Post-despacho'),
             ),
             // NADA SE DESCARTA EN SILENCIO (§4). Si hay algo sin guardar, el boton
             // lo dice con su cuenta en vez de llamarse «Cerrar»: cerrar la hoja
@@ -418,30 +423,33 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
             // **En una ruta completada no hay boton de guardar.** No es que este
             // apagado: no esta. Un boton apagado invita a buscar como encenderlo.
             if (!_soloLectura)
-              BotonPrincipal(
-                // EL GLIFO DICE CUAL DE LOS DOS GESTOS ES. Guardar lo marcado se
-                // puede repetir; guardar Y COMPLETAR cierra la ruta y la manda al
-                // historial, que no tiene vuelta. Con la papeleta de guardar en
-                // los dos, el que cierra la ruta se leeria igual que el que no.
-                icono: _completando
-                    ? Icons.check_circle_outline
-                    : Icons.save_outlined,
-                texto: _guardando
-                    ? 'Guardando…'
-                    : _completando
-                    ? 'Guardar y completar'
-                    // EL ROTULO DICE LAS DOS COSAS. Con una marca quitada,
-                    // `Guardar 0 marcada(s)` se lee como «no hay nada que
-                    // guardar» justo cuando si lo hay.
-                    : _desmarcadas > 0
-                    ? 'Guardar $_marcadas y quitar $_desmarcadas'
-                    : 'Guardar $_marcadas marcada(s)',
-                // `_hayQueGuardar` y no `_marcadas > 0`: quitar la ultima marca
-                // apagaba el boton, asi que el desmarcado no se podia ni intentar
-                // guardar. Ver `_hayQueGuardar`.
-                alPulsar: _guardando || (!_hayQueGuardar && !_completando)
-                    ? null
-                    : () => _guardar(paradas),
+              ControlSenalado(
+                nombre: Senalado.rutasGuardarElCierre,
+                child: BotonPrincipal(
+                  // EL GLIFO DICE CUAL DE LOS DOS GESTOS ES. Guardar lo marcado se
+                  // puede repetir; guardar Y COMPLETAR cierra la ruta y la manda al
+                  // historial, que no tiene vuelta. Con la papeleta de guardar en
+                  // los dos, el que cierra la ruta se leeria igual que el que no.
+                  icono: _completando
+                      ? Icons.check_circle_outline
+                      : Icons.save_outlined,
+                  texto: _guardando
+                      ? 'Guardando…'
+                      : _completando
+                      ? 'Guardar y completar'
+                      // EL ROTULO DICE LAS DOS COSAS. Con una marca quitada,
+                      // `Guardar 0 marcada(s)` se lee como «no hay nada que
+                      // guardar» justo cuando si lo hay.
+                      : _desmarcadas > 0
+                      ? 'Guardar $_marcadas y quitar $_desmarcadas'
+                      : 'Guardar $_marcadas marcada(s)',
+                  // `_hayQueGuardar` y no `_marcadas > 0`: quitar la ultima marca
+                  // apagaba el boton, asi que el desmarcado no se podia ni intentar
+                  // guardar. Ver `_hayQueGuardar`.
+                  alPulsar: _guardando || (!_hayQueGuardar && !_completando)
+                      ? null
+                      : () => _guardar(paradas),
+                ),
               ),
           ],
         ),
@@ -484,6 +492,9 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
               const SizedBox(height: 12),
               for (var i = 0; i < paradas.length; i++)
                 _Parada(
+                  // Sólo la primera parada se deja senalar por la Guia: hay tres
+                  // botones por parada y pueden ser veinticinco paradas.
+                  esLaPrimera: i == 0,
                   numero: paradas[i].stopOrder ?? (i + 1),
                   pedido: paradas[i],
                   resultado: _resultados[paradas[i].id],
@@ -576,6 +587,7 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
 
 class _Parada extends StatelessWidget {
   const _Parada({
+    required this.esLaPrimera,
     required this.numero,
     required this.pedido,
     required this.resultado,
@@ -592,6 +604,9 @@ class _Parada extends StatelessWidget {
   /// La ruta ya esta completada: como acabo esta parada se mira, no se toca.
   final bool soloLectura;
   final void Function(String) alMarcar;
+
+  /// Si la Guia puede senalar los botones de resultado de ESTA parada.
+  final bool esLaPrimera;
 
   /// Como se llama cada resultado y de que color va, en un solo sitio: la
   /// insignia de solo lectura y los tres botones decian lo mismo por separado.
@@ -652,16 +667,21 @@ class _Parada extends StatelessWidget {
               Wrap(
                 spacing: 8,
                 children: [
-                  for (final cual in const [
+                  for (final (sitio, cual) in const [
                     ResultadoParada.entregado,
                     ResultadoParada.devuelto,
                     ResultadoParada.cancelado,
-                  ])
-                    _BotonResultado(
-                      texto: nombres[cual]!.$1,
-                      color: nombres[cual]!.$2,
-                      elegido: resultado == cual,
-                      alPulsar: () => alMarcar(cual),
+                  ].indexed)
+                    ControlSenalado(
+                      nombre: Senalado.rutasResultadoDeLaParada,
+                      // El primero de los tres, y sólo en la primera parada.
+                      senalable: esLaPrimera && sitio == 0,
+                      child: _BotonResultado(
+                        texto: nombres[cual]!.$1,
+                        color: nombres[cual]!.$2,
+                        elegido: resultado == cual,
+                        alPulsar: () => alMarcar(cual),
+                      ),
                     ),
                 ],
               ),

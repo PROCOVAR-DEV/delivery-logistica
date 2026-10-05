@@ -131,8 +131,7 @@ abstract final class FiltrosEnLaUrl {
       // salía acotada por él sin que nada lo dijera. Se comprueba que lo que
       // volvió es lo que se escribió.
       final dia = DateTime(d.year, d.month, d.day);
-      final comoSeEscribio =
-          '${_dos4(d.year)}-${_dos(d.month)}-${_dos(d.day)}';
+      final comoSeEscribio = '${_dos4(d.year)}-${_dos(d.month)}-${_dos(d.day)}';
       if (!crudo.startsWith(comoSeEscribio)) {
         fuera.add('$clave=$crudo');
         return null;
@@ -251,8 +250,7 @@ abstract final class FiltrosEnLaUrl {
   /// valor vacío en la dirección se lee luego como «no venía». Son lo mismo, y
   /// por eso [escribir] las omite comparando contra el arranque y no contra la
   /// cadena.
-  static String _dia(DateTime d) =>
-      '${d.year}-${_dos(d.month)}-${_dos(d.day)}';
+  static String _dia(DateTime d) => '${d.year}-${_dos(d.month)}-${_dos(d.day)}';
 
   static String _dos(int n) => n.toString().padLeft(2, '0');
 

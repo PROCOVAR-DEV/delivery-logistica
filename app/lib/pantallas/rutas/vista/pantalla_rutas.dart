@@ -47,17 +47,18 @@ import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/pestanas.dart';
 import '../../../diseno/rango_de_fechas.dart';
 import '../../../diseno/tema.dart';
-
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../pedidos/vista/kit.dart';
 import '../datos/repositorio_rutas.dart';
 import '../estado/proveedores_rutas.dart';
 import 'asistente_nueva_ruta.dart';
 import 'detalle_ruta.dart';
 import 'lista_rutas.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class PantallaRutas extends ConsumerWidget {
   const PantallaRutas({super.key});
@@ -332,11 +333,14 @@ class _CabeceraDeLaLista extends StatelessWidget {
         // letra a letra), asi que un `Icons.add` al lado seria el mismo signo
         // dos veces y el boton no diria de que es la ruta. Es el mismo glifo con
         // el que el tablero arma la ruta de una zona.
-        final boton = BotonPrincipal(
-          icono: Icons.route_outlined,
-          texto: '+ Nueva Ruta',
-          alPulsar: () =>
-              abrirCajon<void>(context, (_) => const AsistenteNuevaRuta()),
+        final boton = ControlSenalado(
+          nombre: Senalado.rutasNuevaRuta,
+          child: BotonPrincipal(
+            icono: Icons.route_outlined,
+            texto: '+ Nueva Ruta',
+            alPulsar: () =>
+                abrirCajon<void>(context, (_) => const AsistenteNuevaRuta()),
+          ),
         );
 
         if (estrecho) {
@@ -600,8 +604,7 @@ class _FiltrosDeLaLista extends ConsumerWidget {
               for (final u in ubicaciones)
                 OpcionSelector(u.clave, u.etiqueta, nota: '${u.rutas}'),
             ],
-            alElegir: (v) =>
-                notas.poner(filtros.copiarCon(ubicacionSalida: v)),
+            alElegir: (v) => notas.poner(filtros.copiarCon(ubicacionSalida: v)),
           ),
         ],
         // Fila entera: son dos botones de fecha más la ✕, y en media columna se

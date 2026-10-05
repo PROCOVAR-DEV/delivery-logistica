@@ -15,6 +15,8 @@ import '../../../diseno/estado_vacio.dart';
 import '../../../diseno/preguntar_antes_de_borrar.dart';
 import '../../../diseno/tema.dart';
 import '../../../navegacion/estado_navegacion.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/vehiculo_api.dart';
 import '../estado/estado_vehiculos.dart';
 import 'ficha_vehiculo.dart';
@@ -219,14 +221,24 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
             // Van en `acciones` y no en `filtros` porque no filtran nada: se
             // colocan igual, pero el nombre no engaña a quien lea esto luego.
             acciones: [
-              OutlinedButton(
-                onPressed: _abrirTipos,
-                child: const Text('Tipos de vehículo'),
+              // ENVUELTOS PARA QUE LA GUIA LOS PUEDA SENALAR. El envoltorio no
+              // pinta nada ni cambia el tamano: sólo dice donde esta el control
+              // para que el recorrido guiado le ponga el foco encima
+              // (`pantallas/ayuda/vista/control_senalado.dart`).
+              ControlSenalado(
+                nombre: Senalado.vehiculosTipos,
+                child: OutlinedButton(
+                  onPressed: _abrirTipos,
+                  child: const Text('Tipos de vehículo'),
+                ),
               ),
-              BotonPrincipal(
-                icono: Icons.add,
-                texto: 'Agregar Vehículo',
-                alPulsar: () => _abrirFicha(),
+              ControlSenalado(
+                nombre: Senalado.vehiculosAgregar,
+                child: BotonPrincipal(
+                  icono: Icons.add,
+                  texto: 'Agregar Vehículo',
+                  alPulsar: () => _abrirFicha(),
+                ),
               ),
             ],
           ),
@@ -421,12 +433,20 @@ class _Contador extends ConsumerWidget {
             // números se comparan entre sí de un golpe de vista.
             Text(
               '$cuantos',
-              style: Tipos.mono(tamano: 16, peso: FontWeight.w700, color: color),
+              style: Tipos.mono(
+                tamano: 16,
+                peso: FontWeight.w700,
+                color: color,
+              ),
             ),
             const SizedBox(width: 6),
             Text(
               etiqueta,
-              style: Tipos.texto(tamano: 12, peso: FontWeight.w600, color: color),
+              style: Tipos.texto(
+                tamano: 12,
+                peso: FontWeight.w600,
+                color: color,
+              ),
             ),
           ],
         ),
@@ -650,10 +670,13 @@ class _Rejilla extends ConsumerWidget {
               spacing: hueco,
               runSpacing: hueco,
               children: [
-                for (final v in trozo)
+                for (final (indice, v) in trozo.indexed)
                   SizedBox(
                     width: ancho,
                     child: TarjetaVehiculo(
+                      // Sólo la primera se deja senalar por la Guia: ver
+                      // `TarjetaVehiculo.esLaPrimera`.
+                      esLaPrimera: indice == 0,
                       vehiculo: v,
                       importe: importe,
                       alEditar: () => alEditar(v),

@@ -290,6 +290,16 @@ abstract final class Colores {
   /// El velo del cajon.
   static final velo = tintaCon(0.32);
 
+  /// EL VELO DEL RECORRIDO GUIADO, **mas oscuro que el del cajon** — 05/10/2026.
+  ///
+  /// El del cajon oscurece para apartar lo de detras; este tiene un agujero, y lo
+  /// que hace es **apagar todo menos un boton**. Al 32 % el resto de la pantalla
+  /// sigue leyendose igual de bien que el control senalado y el agujero no se ve:
+  /// el foco deja de serlo. Al 60 % lo de alrededor se sigue reconociendo —hace
+  /// falta, porque el paso dice «arriba, a la izquierda de tu avatar»— y el hueco
+  /// canta.
+  static final veloDelRecorrido = tintaCon(0.6);
+
   /// El pulgar de la barra de desplazamiento, y el mismo con el raton encima.
   /// Son la linea de las tarjetas, dos pasos mas marcada.
   static final barra = _mezcla(Paleta.tinta, Paleta.papel, 0.22);

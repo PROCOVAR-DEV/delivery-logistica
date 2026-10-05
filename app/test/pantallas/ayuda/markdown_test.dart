@@ -86,7 +86,9 @@ void main() {
     /// LO DE DENTRO NO ES MARKDOWN, y mirarlo antes de la valla lo convertiria en
     /// otra cosa. El manual tiene bloques con `|` y con `#` dentro.
     test('lo de dentro no se interpreta', () {
-      final bloques = bloquesDe('```\n# no soy un titulo\n| ni | una tabla |\n```\n');
+      final bloques = bloquesDe(
+        '```\n# no soy un titulo\n| ni | una tabla |\n```\n',
+      );
       expect(bloques, hasLength(1));
       expect(bloques.single, isA<Codigo>());
     });
@@ -99,10 +101,12 @@ void main() {
 
   group('las tablas', () {
     test('la primera fila son titulos si debajo viene la separadora', () {
-      final tabla = bloquesDe(
-        '| Dónde | Tu manual |\n|---|---|\n'
-        '| En el navegador | **Web** |\n| En el teléfono | **APK** |\n',
-      ).single as Tabla;
+      final tabla =
+          bloquesDe(
+                '| Dónde | Tu manual |\n|---|---|\n'
+                '| En el navegador | **Web** |\n| En el teléfono | **APK** |\n',
+              ).single
+              as Tabla;
       expect(tabla.encabezados, ['Dónde', 'Tu manual']);
       expect(tabla.filas, [
         ['En el navegador', '**Web**'],
@@ -119,7 +123,9 @@ void main() {
     test('la separadora con alineacion tambien se reconoce', () {
       final tabla = bloquesDe('| a |\n|:---:|\n| b |\n').single as Tabla;
       expect(tabla.encabezados, ['a']);
-      expect(tabla.filas, [['b']]);
+      expect(tabla.filas, [
+        ['b'],
+      ]);
     });
   });
 
@@ -158,7 +164,9 @@ void main() {
       final bloques = bloquesDe('| a |\n|---|\n| b |\n');
       expect(bloques.whereType<Regla>(), isEmpty);
       final tabla = bloques.whereType<Tabla>().single;
-      expect(tabla.filas, [['b']], reason: 'el renglon de guiones se cuela de fila');
+      expect(tabla.filas, [
+        ['b'],
+      ], reason: 'el renglon de guiones se cuela de fila');
       expect(tabla.encabezados, ['a']);
     });
   });
@@ -194,14 +202,20 @@ void main() {
       expect(trozos.single.fuerte, isTrue);
     });
 
-    test('una negrita dentro de un enlace no deja los asteriscos a la vista', () {
-      final trozos = trozosDe('[**Rutas**](routes.md)');
-      expect(trozos.single.texto, 'Rutas');
-      expect(trozos.single.destino, 'routes.md');
-    });
+    test(
+      'una negrita dentro de un enlace no deja los asteriscos a la vista',
+      () {
+        final trozos = trozosDe('[**Rutas**](routes.md)');
+        expect(trozos.single.texto, 'Rutas');
+        expect(trozos.single.destino, 'routes.md');
+      },
+    );
 
     test('lo que no cuadra con nada sale como texto, nunca se tira', () {
-      expect(trozosDe('a * b ** c ` d').map((t) => t.texto).join(), 'a * b ** c ` d');
+      expect(
+        trozosDe('a * b ** c ` d').map((t) => t.texto).join(),
+        'a * b ** c ` d',
+      );
     });
 
     test('soloElTexto quita los adornos y deja las palabras', () {
@@ -248,10 +262,10 @@ Mira en este orden:
 Ruta RT-20260928-001 — Reparto Vista
 ```
 ''';
-    final palabras = RegExp(r'[\p{L}\p{N}]+', unicode: true)
-        .allMatches(trozo)
-        .map((m) => m.group(0)!)
-        .toList();
+    final palabras = RegExp(
+      r'[\p{L}\p{N}]+',
+      unicode: true,
+    ).allMatches(trozo).map((m) => m.group(0)!).toList();
 
     final pintado = <String>[];
     for (final bloque in bloquesDe(trozo)) {
@@ -275,15 +289,16 @@ Ruta RT-20260928-001 — Reparto Vista
           break;
       }
     }
-    final salen = RegExp(r'[\p{L}\p{N}]+', unicode: true)
-        .allMatches(pintado.join(' '))
-        .map((m) => m.group(0)!)
-        .toList();
+    final salen = RegExp(
+      r'[\p{L}\p{N}]+',
+      unicode: true,
+    ).allMatches(pintado.join(' ')).map((m) => m.group(0)!).toList();
 
     expect(
       salen,
       containsAllInOrder(palabras),
-      reason: 'se ha perdido algo por el camino, y un manual recortado no avisa',
+      reason:
+          'se ha perdido algo por el camino, y un manual recortado no avisa',
     );
   });
 }

@@ -14,6 +14,8 @@ import '../nucleo/sincro/que_se_puede.dart';
 // unica desde la que se puede llegar al gesto de traer el dia estando en
 // Clientes o en Rutas. El cajon no puede vivir en `nucleo/` porque `nucleo/` no
 // depende de `diseno/` y el cajon es todo diseno.
+import '../pantallas/ayuda/datos/controles_senalados.dart';
+import '../pantallas/ayuda/vista/control_senalado.dart';
 import '../pantallas/entregar_el_dia/vista/cajon_entregar_el_dia.dart';
 import '../pantallas/traer_el_dia/vista/cajon_traer_el_dia.dart';
 import 'estado_navegacion.dart';
@@ -127,35 +129,38 @@ class FranjaDeEstado extends ConsumerWidget {
     // tiene que poder darle ahi mismo, sin aprenderse que hay que volver al
     // Panel. El sitio donde se lee que los datos estan viejos es el sitio donde
     // se arregla.
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => abrirCajonDeTraerElDia(context),
-        child: _pintar(
-          context,
-          estado: estado,
-          pendientes: pendientes,
-          // Sin conexion la franja se pone en ambar aunque los datos sean de
-          // hace un minuto: lo que hay que mirar entonces no es la hora. Con
-          // trabajo huerfano o con una bajada a medias, igual: los dos son
-          // «mira esto», y los dos pueden pasar con la hora en verde.
-          enAmbar:
-              enAmbar ||
-              sinConexion ||
-              huerfano.hayAlguno ||
-              aMedias != null ||
-              descartados.isNotEmpty,
-          sinConexion: sinConexion,
-          actualizando: actualizando,
-          huerfano: huerfano,
-          aMedias: aMedias,
-          descartados: descartados.length,
-          // Que se puede hacer ahora mismo. Las reglas viven en
-          // `sincro/que_se_puede.dart`, no aqui: son de negocio y las mira
-          // tambien la tarjeta del Panel.
-          puede: quePuedeHacerse(
-            hayConexion: !sinConexion,
-            hayQueTraer: enAmbar,
+    return ControlSenalado(
+      nombre: Senalado.franjaDeEstado,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => abrirCajonDeTraerElDia(context),
+          child: _pintar(
+            context,
+            estado: estado,
+            pendientes: pendientes,
+            // Sin conexion la franja se pone en ambar aunque los datos sean de
+            // hace un minuto: lo que hay que mirar entonces no es la hora. Con
+            // trabajo huerfano o con una bajada a medias, igual: los dos son
+            // «mira esto», y los dos pueden pasar con la hora en verde.
+            enAmbar:
+                enAmbar ||
+                sinConexion ||
+                huerfano.hayAlguno ||
+                aMedias != null ||
+                descartados.isNotEmpty,
+            sinConexion: sinConexion,
+            actualizando: actualizando,
+            huerfano: huerfano,
+            aMedias: aMedias,
+            descartados: descartados.length,
+            // Que se puede hacer ahora mismo. Las reglas viven en
+            // `sincro/que_se_puede.dart`, no aqui: son de negocio y las mira
+            // tambien la tarjeta del Panel.
+            puede: quePuedeHacerse(
+              hayConexion: !sinConexion,
+              hayQueTraer: enAmbar,
+            ),
           ),
         ),
       ),
@@ -327,29 +332,35 @@ class FranjaDeEstado extends ConsumerWidget {
           // porque sustituyen al icono suelto, y el numero de pendientes va
           // ENCIMA del de subir, que es donde significa algo.
           const SizedBox(width: 4),
-          _BotonDeFranja(
-            icono: Icons.cloud_download_outlined,
-            // Apagado, el tooltip dice POR QUE. Un boton apagado y mudo ensena
-            // a desconfiar de todos los botones.
-            tooltip: puede.traer.motivo ?? 'Traer el día',
-            enAmbar: enAmbar,
-            alPulsar: puede.traer.sePuede
-                ? () => abrirCajonDeTraerElDia(context)
-                : null,
+          ControlSenalado(
+            nombre: Senalado.franjaTraerElDia,
+            child: _BotonDeFranja(
+              icono: Icons.cloud_download_outlined,
+              // Apagado, el tooltip dice POR QUE. Un boton apagado y mudo ensena
+              // a desconfiar de todos los botones.
+              tooltip: puede.traer.motivo ?? 'Traer el día',
+              enAmbar: enAmbar,
+              alPulsar: puede.traer.sePuede
+                  ? () => abrirCajonDeTraerElDia(context)
+                  : null,
+            ),
           ),
-          _BotonDeFranja(
-            icono: Icons.cloud_upload_outlined,
-            tooltip:
-                puede.enviar.motivo ??
-                (pendientes > 0
-                    ? 'Entregar el día · $pendientes sin subir'
-                    : 'Entregar el día'),
-            enAmbar: enAmbar,
-            insignia: pendientes,
-            alPulsar: puede.enviar.sePuede
-                ? (alPulsarPendientes ??
-                      () => abrirCajonDeEntregarElDia(context))
-                : null,
+          ControlSenalado(
+            nombre: Senalado.franjaEntregarElDia,
+            child: _BotonDeFranja(
+              icono: Icons.cloud_upload_outlined,
+              tooltip:
+                  puede.enviar.motivo ??
+                  (pendientes > 0
+                      ? 'Entregar el día · $pendientes sin subir'
+                      : 'Entregar el día'),
+              enAmbar: enAmbar,
+              insignia: pendientes,
+              alPulsar: puede.enviar.sePuede
+                  ? (alPulsarPendientes ??
+                        () => abrirCajonDeEntregarElDia(context))
+                  : null,
+            ),
           ),
         ],
       ),

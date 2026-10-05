@@ -15,14 +15,40 @@
 ///
 /// Nadie va a leer 6.669 lineas. Van a buscar «como cambio el camion de una
 /// ruta» el dia que les toque, con el telefono en la mano y alguien esperando.
-/// Asi que cada `##` de cada pagina es una [TareaDelManual] con nombre propio, y
-/// eso es lo que se lista y lo que se busca.
 ///
 /// **Y el documento entero sigue estando**, que es la otra mitad del encargo:
 /// «pon las dos, el documento oficial y las tareas y sus pasos». No son dos
 /// copias —la tarea es un trozo de la pagina, sacado de la misma cadena de
 /// texto— y por eso no se pueden separar: no hay dos textos que mantener.
 /// `test/pantallas/ayuda/las_tareas_salen_de_la_pagina_test.dart` lo ata.
+///
+/// ## UNA TAREA NO ES UN `##`. Eso fue el fallo de la 1.0.22
+///
+/// La primera version listaba **todos los `##` del manual**: 301 filas. Jose las
+/// abrio y no le llevaban a ningun sitio, porque la mayoria no eran cosas que
+/// hacer sino trozos de un documento — «Qué es», «Lo que hay que hacer», «Qué se
+/// rompe si no se hace», «Los filtros». Sus palabras, 05/10/2026:
+///
+/// > «me pusiste las tareas pero las tareas no me mueven a ningún lugar
+/// > enseñándome cómo debería trabajar en tiempo real, como un vídeo»
+/// > «q las tareas enseñen algo de verdad no mierda textual q la gente no quiere
+/// > leer quiere q le enseñes donde ir donde tocar para cada cosa»
+///
+/// Asi que una tarea es **un encabezado marcado a mano** con [marcaDeTarea], a
+/// cualquier nivel (`#`, `##` o `###`): el manual las tiene escritas a los tres
+/// niveles y eso no se puede arreglar con una regla de nivel. Lo que **no** puede
+/// pasar es que la marca se olvide en ninguno de los dos sentidos, y por eso hay
+/// dos pruebas en pareja en
+/// `test/pantallas/ayuda/una_tarea_se_marca_test.dart`:
+///
+///  * **marcado sin «Empieza en:» ⇒ rojo.** Una tarea que no dice donde empieza
+///    no puede llevar a ningun sitio, que es de lo que se quejo Jose.
+///  * **«Empieza en:» sin marcar ⇒ rojo.** Es el sentido que de verdad importa:
+///    sin el, alguien escribe una tarea nueva, se olvida de la marca y la tarea
+///    **no sale en la lista sin que nada falle** — el modo de fallo del §3-bis,
+///    que es el peor de esta casa porque no se ve.
+///
+/// Un `##` nuevo en una ficha de pantalla no lleva marca, asi que no se cuela.
 library;
 
 import 'empaquetado.dart';
@@ -89,7 +115,75 @@ class OrigenDeLaPagina {
       deQuienEs == null || deQuienEs == forma;
 }
 
-/// UNA TAREA: un `##` de una pagina, con sus pasos.
+/// LA MARCA QUE DICE «ESTE ENCABEZADO ES UNA TAREA».
+///
+/// Va en el renglon **inmediatamente siguiente** al encabezado, sola. Es un
+/// comentario de HTML, asi que en GitHub no se ve: el manual se sigue leyendo
+/// igual en el repositorio, que es la mitad de su razon de ser.
+///
+/// Inmediatamente siguiente, y no «en algun sitio debajo»: una regla difusa se
+/// cumple a medias y entonces no se puede probar. Asi se puede buscar con un
+/// `grep` y se puede contar.
+const marcaDeTarea = '<!-- tarea -->';
+
+/// LA MARCA QUE DICE A QUE CONTROL APUNTA UN PASO.
+///
+/// Va **al final del renglon del paso**, tambien como comentario de HTML:
+///
+/// ```md
+/// 1. Toca **«Nuevo vehículo»**, arriba a la derecha. <!-- señala: vehiculos-nuevo -->
+/// ```
+///
+/// El nombre es el de [ControlSenalado], y que exista lo comprueba
+/// `test/pantallas/ayuda/los_pasos_senalan_controles_que_existen_test.dart`: un
+/// nombre mal escrito dejaria un paso apuntando a nada, y **un recorrido que
+/// apunta al boton equivocado es peor que uno que no apunta**.
+final marcaDeSenal = RegExp(r'<!--\s*se[nñ]ala:\s*([a-z0-9-]+)\s*-->');
+
+/// UN PASO DEL RECORRIDO GUIADO: una cosa que tocar, y donde esta.
+///
+/// Jose, 05/10/2026, despues de probar la 1.0.22:
+///
+/// > «las cosas q tienen botones me mueven a la página pero no me dice paso a
+/// > paso con sus tooltips señalándome paso a paso en la aplicación cada botón q
+/// > debo tocar»
+///
+/// O sea: el texto del paso no es el producto. **El producto es el foco encima
+/// del control.** Un paso que describe con palabras donde hay que tocar, aunque
+/// la descripcion sea exacta, esta a medias.
+class PasoGuiado {
+  const PasoGuiado({
+    required this.cual,
+    required this.deCuantos,
+    required this.texto,
+    required this.senala,
+    this.detalles = const <String>[],
+  });
+
+  /// 1..[deCuantos]. Es el sitio en el RECORRIDO, no el numero que el manual
+  /// escribio: el cajon dice «3 de 7» y eso tiene que cuadrar con cuantas veces
+  /// hay que pulsar «Siguiente», pase lo que pase con la numeracion del texto.
+  final int cual;
+  final int deCuantos;
+
+  /// El markdown del paso, **sin** la marca de [marcaDeSenal]: esa marca es para
+  /// la maquina y pintarla seria ensenar el andamio.
+  final String texto;
+
+  /// El nombre del control al que apunta, o `null` si el paso no senala ninguno.
+  ///
+  /// `null` **no se calla**: el recorrido lo pinta como un paso sin foco y lo
+  /// dice con esas palabras (§4, nada se descarta en silencio). Lo que no hace
+  /// nunca es apuntar a un sitio cualquiera.
+  final String? senala;
+
+  /// Los sub-puntos sangrados debajo del paso, tal cual los escribio el manual.
+  final List<String> detalles;
+
+  bool get seSenala => senala != null;
+}
+
+/// UNA TAREA: un encabezado marcado con [marcaDeTarea], con sus pasos.
 class TareaDelManual {
   const TareaDelManual({
     required this.camino,
@@ -97,6 +191,7 @@ class TareaDelManual {
     required this.titulo,
     required this.ancla,
     required this.cuerpo,
+    this.pasos = const <PasoGuiado>[],
     this.rutaDePantalla,
     this.nombreDePantalla,
   });
@@ -138,6 +233,29 @@ class TareaDelManual {
   /// COMO LA LLAMA EL MENU: «Vehículos». Es lo que el manual escribe entre
   /// comillas angulares, puesto o no puesto el boton.
   final String? nombreDePantalla;
+
+  /// LOS PASOS DEL RECORRIDO, en orden. Vacio = esta tarea no se puede guiar.
+  final List<PasoGuiado> pasos;
+
+  /// SE PUEDE GUIAR si hay pasos **y** se sabe sobre que pantalla ponerlos.
+  ///
+  /// Las dos mitades hacen falta y por motivos distintos:
+  ///
+  ///  * sin pasos no hay recorrido, solo texto;
+  ///  * con [nombreDePantalla] puesto y [rutaDePantalla] en `null`, el manual
+  ///    nombra una pantalla que **en esta forma no existe** (el canal con PEDIDO
+  ///    en la APK). Guiar ahi seria poner el foco encima de otra pantalla y
+  ///    senalar cualquier cosa.
+  ///
+  /// Una tarea sin pantalla ninguna —«la franja de arriba, desde cualquier
+  /// pantalla»— **si se guia**: el sitio es el de ahora mismo, no hay a donde
+  /// llevar a nadie, y eso es correcto, no un hueco.
+  bool get seAcompana =>
+      pasos.isNotEmpty && (nombreDePantalla == null || rutaDePantalla != null);
+
+  /// Cuantos de sus pasos senalan un control de verdad. Es el numero que dice si
+  /// esta tarea ensena o solo cuenta.
+  int get pasosSenalados => pasos.where((p) => p.seSenala).length;
 
   /// La clave con la que esta tarea viaja en la direccion
   /// (`/guia?tarea=apk/3-tareas.md~buscar-un-pedido`). Asi, al volver de «llévame
@@ -261,9 +379,10 @@ class Manual {
         if (p.origen.seVeEn(forma)) p,
     ];
     suyas.sort((a, b) {
-      final porGrupo = _ordenDelGrupo(a, forma).compareTo(
-        _ordenDelGrupo(b, forma),
-      );
+      final porGrupo = _ordenDelGrupo(
+        a,
+        forma,
+      ).compareTo(_ordenDelGrupo(b, forma));
       if (porGrupo != 0) return porGrupo;
       final porCarpeta = a.carpeta.compareTo(b.carpeta);
       if (porCarpeta != 0) return porCarpeta;
@@ -272,9 +391,7 @@ class Manual {
     return Manual(suyas);
   }
 
-  List<TareaDelManual> get tareas => [
-    for (final p in paginas) ...p.tareas,
-  ];
+  List<TareaDelManual> get tareas => [for (final p in paginas) ...p.tareas];
 
   PaginaDelManual? pagina(String camino) {
     for (final p in paginas) {
@@ -499,6 +616,18 @@ class PantallaDelMenu {
 /// tilde: el manual lo escribe a mano en mas de ochenta sitios.
 final _porElMenu = RegExp('[Mm]en[uú]\\s*(\u2192|->)');
 
+/// LEER UNA PAGINA: su titulo, su texto entero y sus TAREAS.
+///
+/// ## Donde empieza y donde acaba una tarea
+///
+/// Empieza en su encabezado marcado y acaba en **el siguiente encabezado de nivel
+/// igual o mas alto**, o en la siguiente tarea. Eso no es una comodidad: es lo que
+/// hace que `# Paso 2 — Al menos un vehículo` se lleve dentro su «Qué es», su «Lo
+/// que hay que hacer» y su «Qué se rompe si no se hace», que es como esta escrito
+/// en `comun/puesta-en-marcha.md` y como se entiende. Con la regla de «hasta el
+/// siguiente encabezado, sea del nivel que sea», ese paso se partiria en tres
+/// filas de la lista y ninguna de las tres seria una cosa que hacer — que es
+/// exactamente lo que Jose rechazo.
 PaginaDelManual _leerLaPagina({
   required String camino,
   required String contenido,
@@ -507,79 +636,89 @@ PaginaDelManual _leerLaPagina({
   final renglones = contenido.split('\n');
 
   var titulo = '';
-  final tareas = <TareaDelManual>[];
-
-  // Lo que se esta juntando de la tarea en curso.
-  String? tituloDeLaTarea;
-  var cuerpo = <String>[];
-  ({String nombre, String? ruta})? pantallaDeLaTarea;
+  var tituloVisto = false;
+  final tareas = <_TareaEnObra>[];
+  _TareaEnObra? enObra;
   var dentroDeCodigo = false;
 
   // CUANTAS VECES SE HA VISTO CADA ANCLA EN ESTA PAGINA.
   //
-  // Hace falta porque el manual repite titulos a proposito: en
-  // `comun/puesta-en-marcha.md` cada paso lleva su «## Qué es», su «## Lo que hay
-  // que hacer» y su «## Qué se rompe si no se hace». Son tareas distintas con el
-  // mismo nombre, y sin desambiguar comparten id: dos filas de la lista abririan
-  // la misma, y `?tarea=` solo puede llevar a una.
+  // Se cuentan **todos** los encabezados y no solo las tareas, porque el ancla
+  // tiene que ser la que escribe GitHub: en `docs/manual/` hay enlaces escritos a
+  // mano (`#paso-4--la-tasa-de-cambio-de-la-sucursal`) y GitHub numera por orden
+  // de aparicion contando todo. Contar solo las tareas daria otro sufijo y esos
+  // enlaces dejarian de abrir nada dentro de la aplicacion.
   //
-  // Se numera **como GitHub**: la primera tal cual, la segunda `-1`, la tercera
-  // `-2`. Asi los enlaces que ya estan escritos en el manual siguen cuadrando.
+  // Se numera como GitHub: la primera tal cual, la segunda `-1`, la tercera `-2`.
   final vistas = <String, int>{};
 
-  void cerrarLaTarea() {
-    if (tituloDeLaTarea == null) return;
-    final pantalla = pantallaDeLaTarea;
-    final base = anclaDe(tituloDeLaTarea!);
-    final cuantas = vistas.update(base, (n) => n + 1, ifAbsent: () => 0);
-    tareas.add(
-      TareaDelManual(
-        camino: camino,
-        tituloDeLaPagina: titulo,
-        titulo: tituloDeLaTarea!,
-        ancla: cuantas == 0 ? base : '$base-$cuantas',
-        cuerpo: cuerpo.join('\n').trim(),
-        rutaDePantalla: pantalla?.ruta,
-        nombreDePantalla: pantalla?.nombre,
-      ),
-    );
-    tituloDeLaTarea = null;
-    cuerpo = <String>[];
-    pantallaDeLaTarea = null;
-  }
+  final encabezado = RegExp(r'^(#{1,6})\s+(.*)$');
 
-  for (final renglon in renglones) {
+  for (var i = 0; i < renglones.length; i++) {
+    final renglon = renglones[i];
+
     // Dentro de un bloque de codigo no hay encabezados: un `## algo` ahi es una
     // linea de ejemplo, no una tarea nueva.
     if (RegExp(r'^\s{0,3}`{3,}').hasMatch(renglon)) {
       dentroDeCodigo = !dentroDeCodigo;
-      if (tituloDeLaTarea != null) cuerpo.add(renglon);
+      enObra?.cuerpo.add(renglon);
       continue;
     }
+
     if (!dentroDeCodigo) {
-      if (titulo.isEmpty && renglon.startsWith('# ')) {
-        titulo = soloElTexto(renglon.substring(2).trim());
+      final cabeza = encabezado.firstMatch(renglon);
+      if (cabeza != null) {
+        final nivel = cabeza.group(1)!.length;
+        final texto = soloElTexto(cabeza.group(2)!.trim());
+        final base = anclaDe(cabeza.group(2)!.trim());
+        final cuantas = vistas.update(base, (n) => n + 1, ifAbsent: () => 0);
+        final ancla = cuantas == 0 ? base : '$base-$cuantas';
+
+        // EL PRIMER `# ` ES EL TITULO DE LA PAGINA, nunca una tarea. Las paginas
+        // del dia (`apk/2-el-dia-en-el-telefono.md`) tienen DIEZ `# ` mas debajo,
+        // y esos si son tareas.
+        if (!tituloVisto && nivel == 1) {
+          titulo = texto;
+          tituloVisto = true;
+          if (enObra != null) {
+            tareas.add(enObra);
+            enObra = null;
+          }
+          continue;
+        }
+
+        final esTarea =
+            i + 1 < renglones.length && renglones[i + 1].trim() == marcaDeTarea;
+
+        // Se cierra la que habia si esta tarea empieza, o si el encabezado es de
+        // nivel igual o mas alto. Un encabezado mas profundo se queda DENTRO.
+        if (enObra != null && (esTarea || nivel <= enObra.nivel)) {
+          tareas.add(enObra);
+          enObra = null;
+        }
+
+        if (esTarea) {
+          enObra = _TareaEnObra(nivel: nivel, titulo: texto, ancla: ancla);
+          i++; // la marca no entra en el cuerpo: es andamio.
+          continue;
+        }
+        enObra?.cuerpo.add(renglon);
         continue;
       }
-      if (renglon.startsWith('## ')) {
-        cerrarLaTarea();
-        tituloDeLaTarea = soloElTexto(renglon.substring(3).trim());
-        continue;
-      }
-      // EL RENGLON DE «Empieza en:» SE QUEDA EN EL TEXTO, y ademas pone el
-      // boton. No se quita: lleva cosas que el boton no puede decir
-      // («**Necesita señal.**»), y la primera que declare la pantalla manda —una
-      // tarea empieza en un sitio, no en dos.
+
+      // EL RENGLON DE «Empieza en:» SE QUEDA EN EL TEXTO, y ademas pone el boton.
+      // No se quita: lleva cosas que el boton no puede decir («**Necesita
+      // señal.**»), y la primera que declare la pantalla manda — una tarea empieza
+      // en un sitio, no en dos.
       final conPantalla = renglonDePantalla.firstMatch(renglon);
-      if (conPantalla != null &&
-          tituloDeLaTarea != null &&
-          pantallaDeLaTarea == null) {
-        pantallaDeLaTarea = pantallaQueNombra(conPantalla.group(1)!, pantallas);
+      if (conPantalla != null && enObra != null && enObra.pantalla == null) {
+        enObra.pantalla = pantallaQueNombra(conPantalla.group(1)!, pantallas);
       }
     }
-    if (tituloDeLaTarea != null) cuerpo.add(renglon);
+
+    enObra?.cuerpo.add(renglon);
   }
-  cerrarLaTarea();
+  if (enObra != null) tareas.add(enObra);
 
   // Sin `# ` ninguno, el nombre del fichero. Pasa en una pagina a medio escribir,
   // y una tarjeta con el titulo en blanco no se puede ni pulsar a ciegas.
@@ -588,9 +727,6 @@ PaginaDelManual _leerLaPagina({
     titulo = nombre == 'README' ? camino : nombre.replaceAll('-', ' ');
   }
 
-  // El titulo de la pagina se sabe DESPUES de haber leido el `# `, y las tareas
-  // se cerraron con el que habia entonces. Se vuelve a poner aqui para que
-  // ninguna se quede con el titulo en blanco si el `# ` venia detras de algo.
   return PaginaDelManual(
     camino: camino,
     titulo: titulo,
@@ -599,17 +735,137 @@ PaginaDelManual _leerLaPagina({
     tareas: [
       for (final t in tareas)
         TareaDelManual(
-          camino: t.camino,
+          camino: camino,
+          // El titulo de la pagina se sabe DESPUES de haber leido el `# `, asi
+          // que se pone aqui y no al cerrar cada tarea.
           tituloDeLaPagina: titulo,
           titulo: t.titulo,
           ancla: t.ancla,
-          cuerpo: t.cuerpo,
-          rutaDePantalla: t.rutaDePantalla,
-          nombreDePantalla: t.nombreDePantalla,
+          cuerpo: t.cuerpo.join('\n').trim(),
+          pasos: pasosDelCuerpo(t.cuerpo.join('\n')),
+          rutaDePantalla: t.pantalla?.ruta,
+          nombreDePantalla: t.pantalla?.nombre,
         ),
     ],
   );
 }
+
+/// Lo que se va juntando de una tarea mientras se lee la pagina.
+class _TareaEnObra {
+  _TareaEnObra({
+    required this.nivel,
+    required this.titulo,
+    required this.ancla,
+  });
+
+  final int nivel;
+  final String titulo;
+  final String ancla;
+  final List<String> cuerpo = <String>[];
+  ({String nombre, String? ruta})? pantalla;
+}
+
+/// LOS PASOS DEL RECORRIDO, sacados del cuerpo de una tarea.
+///
+/// Son **la lista numerada pegada al margen**, y se para en el primer encabezado
+/// que venga DESPUES del primer paso. Esa segunda mitad hace falta y es medida, no
+/// prudencia: debajo de cada tarea el manual escribe sus averias en `###` —«Si no
+/// aparece», «Si el botón está apagado»— y esas listas tambien van numeradas. Sin
+/// la parada, «Dar de alta un camión» tendria diez pasos y cuatro de ellos serian
+/// «qué hacer si no se guarda», o sea el recorrido llevaria a sitios donde no hay
+/// que ir.
+///
+/// Y no se para en el primer encabezado a secas porque hay tareas cuyos pasos
+/// viven **debajo** de un `## Lo que hay que hacer` (`comun/puesta-en-marcha.md`):
+/// ahi el encabezado va antes del primer paso y pararse en el dejaria la tarea sin
+/// ninguno.
+/// Y EL RECORRIDO EMPIEZA EN EL PASO 1, o no es un recorrido.
+///
+/// Esa guarda la pidió un renglón de verdad, `web/2-tareas.md`: «…encima de una
+/// lista de / 3. No es un fallo.» La frase se parte a los 80 caracteres y la mitad
+/// de abajo empieza por «3. », así que el lector de markdown la ve como un paso
+/// numerado. Sin esta condición, «Filtrar la lista de rutas» salía con **un paso
+/// que decía «No es un fallo.»** y el recorrido guiado se ofrecía para eso.
+///
+/// Se comprueba el número que escribió el manual y no la cuenta propia: un trozo
+/// suelto de una frase no empieza en 1 casi nunca, y una lista de instrucciones
+/// empieza en 1 siempre.
+List<PasoGuiado> pasosDelCuerpo(String cuerpo) {
+  final crudos = <({String texto, List<String> detalles})>[];
+  var empezaron = false;
+
+  for (final bloque in bloquesDe(cuerpo)) {
+    if (bloque is Encabezado) {
+      if (empezaron) break;
+      continue;
+    }
+    if (bloque is! Punto) continue;
+    if (bloque.esPaso && bloque.nivel == 0) {
+      if (!empezaron && bloque.numero != '1') continue;
+      empezaron = true;
+      crudos.add((texto: bloque.texto, detalles: <String>[]));
+      continue;
+    }
+    // Un sub-punto debajo de un paso es una nota DE ESE paso.
+    if (empezaron && bloque.nivel > 0 && crudos.isNotEmpty) {
+      crudos.last.detalles.add(bloque.texto);
+    }
+  }
+
+  return [
+    for (var i = 0; i < crudos.length; i++)
+      PasoGuiado(
+        cual: i + 1,
+        deCuantos: crudos.length,
+        texto: sinLaMarcaDeSenal(crudos[i].texto),
+        // LA MARCA ES DEL PASO, LA ESCRIBA DONDE LA ESCRIBA.
+        //
+        // Se busca en el renglon del paso **y en sus notas**. En el manual los pasos
+        // largos llevan sus avisos como sub-vinetas, y la marca acaba al final de la
+        // ultima: buscandola solo en el renglon del paso, cuatro pasos de
+        // `web/2-tareas.md` salian sin foco teniendo su control escrito. Medido el
+        // 05/10/2026.
+        senala: _senalaDe([crudos[i].texto, ...crudos[i].detalles]),
+        detalles: [for (final d in crudos[i].detalles) sinLaMarcaDeSenal(d)],
+      ),
+  ];
+}
+
+/// El primer control que nombran estos renglones, o `null`.
+String? _senalaDe(List<String> renglones) {
+  for (final renglon in renglones) {
+    final cual = marcaDeSenal.firstMatch(renglon);
+    if (cual != null) return cual.group(1);
+  }
+  return null;
+}
+
+/// El texto de un paso sin su marca, y sin el hueco que deja al irse.
+String sinLaMarcaDeSenal(String texto) =>
+    texto.replaceAll(marcaDeSenal, '').replaceAll(RegExp(r'\s+'), ' ').trim();
+
+/// EL TEXTO SIN EL ANDAMIO, para pintarlo.
+///
+/// Las dos marcas —[marcaDeTarea] y [marcaDeSenal]— son comentarios de HTML, asi
+/// que en GitHub no se ven. **El lector de markdown de la casa no sabe de HTML**,
+/// asi que sin esto saldrian tal cual, en medio del texto, en la puerta del
+/// Documento: `<!-- tarea -->` debajo de cada titulo.
+///
+/// Se quita al PINTAR y no al leer, porque `PaginaDelManual.contenido` tiene que
+/// seguir siendo byte a byte lo que hay en `docs/manual/`: es lo que compara
+/// `el_manual_no_se_separa_del_repositorio_test.dart`.
+String sinElAndamio(String markdown) => markdown
+    .replaceAll(marcaDeSenal, '')
+    // El renglon de la marca de tarea se va ENTERO, con su salto: dejarlo vacio
+    // mete una linea en blanco de mas entre cada titulo y su texto.
+    .replaceAll(
+      RegExp(
+        '^[ \\t]*${RegExp.escape(marcaDeTarea)}[ \\t]*\n',
+        multiLine: true,
+      ),
+      '',
+    )
+    .replaceAll(marcaDeTarea, '');
 
 /// EL ANCLA DE UN ENCABEZADO, **como la escribe GitHub**.
 ///
@@ -627,8 +883,9 @@ PaginaDelManual _leerLaPagina({
 ///     `#paso-4--la-tasa-de-cambio-de-la-sucursal`, de un encabezado
 ///     «Paso 4 · La tasa…». El `·` se va y deja DOS espacios, o sea DOS guiones.
 ///     Juntandolos, ese enlace —y los demas con `·`— no abrian nada.
-String anclaDe(String titulo) => soloElTexto(titulo)
-    .toLowerCase()
-    .replaceAll(RegExp(r'[^\p{L}\p{N} \t-]', unicode: true), '')
-    .trim()
-    .replaceAll(RegExp(r'[ \t]'), '-');
+String anclaDe(String titulo) =>
+    soloElTexto(titulo)
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^\p{L}\p{N} \t-]', unicode: true), '')
+        .trim()
+        .replaceAll(RegExp(r'[ \t]'), '-');

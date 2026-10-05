@@ -11,6 +11,33 @@ en el menú. Es lo primero que hay que hacer en todas.
 
 ---
 
+## Que la Guía te lleve de la mano
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Guía»**.
+
+No hay que leerse esto. **La aplicación te lleva**: eliges la tarea, te lleva a la
+pantalla y te va marcando el botón que toca en cada paso.
+
+1. En la lista de **«Tareas»**, **toca la que quieras hacer**. Debajo de su nombre
+   pone cuántos pasos guiados tiene. <!-- señala: guia-primera-tarea -->
+2. Abajo del cajón, **toca «Guiarme paso a paso»**.
+   <!-- señala: guia-guiarme -->
+   - La aplicación te lleva a la pantalla de la tarea y **te marca el control** del
+     primer paso, con la nota al lado.
+   - **«Siguiente»** pasa al que viene, **«Atrás»** vuelve, y arriba pone por dónde
+     vas: «3 de 7».
+   - **«Salir»** lo deja donde quieras. No se queda nada a medias.
+3. Y si lo que quieres es leer, **toca «Documento»** arriba: ahí están las páginas
+   enteras, para leer de principio a fin o para imprimir.
+   <!-- señala: guia-documento -->
+
+**Lo que no se puede marcar, lo dice.** Un paso que no se hace en la aplicación
+—«pídelo a administración»— sale con su texto y diciendo que ahí no hay nada que
+tocar, en vez de quedarse mudo.
+
+---
+
 ## Lo de poner en marcha una sucursal
 
 Esto se hace **una vez**, y sólo se vuelve a tocar cuando hay algo nuevo: una

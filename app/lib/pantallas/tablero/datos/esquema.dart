@@ -50,10 +50,7 @@ abstract final class EsquemaTablero {
   ///
   /// No estan en `Colecciones` porque no son de la bajada por diferencias: el
   /// tablero se pide aparte con `GET /api/board`.
-  static const colecciones = <String>[
-    coleccionColumnas,
-    coleccionColocaciones,
-  ];
+  static const colecciones = <String>[coleccionColumnas, coleccionColocaciones];
 
   /// Las fechas van como TEXTO ISO-8601, que es como las guarda el resto de la
   /// base (`build.yaml`: `store_date_time_values_as_text`). Un entero de

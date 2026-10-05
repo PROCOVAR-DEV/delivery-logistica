@@ -11,13 +11,15 @@ import '../../../diseno/tema.dart';
 import '../../../navegacion/estado_navegacion.dart';
 import '../../../nucleo/plataforma.dart';
 import '../../../nucleo/proveedores.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../pedidos/datos/filtros_en_la_url.dart';
 import '../../pedidos/datos/filtros_pedidos.dart';
-import 'estado_del_dia.dart';
-import 'paso_a_paso.dart';
 import '../datos/consultas_panel.dart';
 import '../datos/textos_de_las_cifras.dart';
 import '../estado/panel_estado.dart';
+import 'estado_del_dia.dart';
+import 'paso_a_paso.dart';
 
 /// EL PANEL — la pantalla de la manana (pliego §1).
 ///
@@ -49,7 +51,10 @@ class PantallaPanel extends ConsumerWidget {
         // que es el que trae el dia; con datos y sin camiones, traer el dia otra
         // vez no va a hacer aparecer ninguno, asi que lo primero es configurar.
         // El porque entero, en `paso_a_paso.dart`.
-        const PasoAPaso(),
+        const ControlSenalado(
+          nombre: Senalado.panelPasoAPaso,
+          child: PasoAPaso(),
+        ),
 
         // EL ESTADO DEL DIA, lo primero de la pantalla y por encima de las
         // cifras. **Una sola pieza y no dos botones**: la pantalla ya sabe si

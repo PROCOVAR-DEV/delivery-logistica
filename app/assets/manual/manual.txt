@@ -305,33 +305,44 @@ Se pasa **deslizando el dedo a izquierda o derecha**, o tocando las flechas, o
 tocando las bolitas de abajo.
 
 ## 3.1 Crear una zona
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Tablero»**.
 
 1. **Desliza hasta la última página**, la que dice **«Nueva columna»**.
+   <!-- señala: tablero-carrusel-de-zonas -->
 2. **Toca el botón «Nueva columna»** (lleva un `+`).
-3. Se abre un cajón titulado **«Nueva columna»** con el campo **«Nombre de la
-   zona»** y el ejemplo «Centro, Vista Alegre, Carretera…».
-4. Escribe el nombre de tu zona y **toca «Guardar»** (o dale a intro).
-5. La zona aparece como una página nueva del carrusel.
+   <!-- señala: tablero-nueva-zona -->
+   - Se abre un cajón titulado **«Nueva columna»** con el campo **«Nombre de la
+     zona»** y el ejemplo «Centro, Vista Alegre, Carretera…».
+3. **Escribe el nombre de tu zona** en «Nombre de la zona».
+   <!-- señala: tablero-nombre-de-la-zona -->
+4. **Toca «Guardar»** (o dale a intro). La zona aparece como una página nueva del
+   carrusel. <!-- señala: tablero-guardar-la-zona -->
 
 Si ya existe una con ese nombre: **«Ya hay una columna «Centro» en este tablero»**.
 Ponle otro.
 
 ## 3.2 Ponerle el camión a la zona — HAZLO AHORA
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Tablero»**.
 
 **Sin camión la zona no arma ruta.** Hazlo antes de repartir los pedidos, no al
 final.
 
 1. **Desliza hasta la página de tu zona.**
+   <!-- señala: tablero-carrusel-de-zonas -->
 2. En la cabecera, arriba a la derecha, **toca el icono de tres puntos ⋮**
-   («Opciones de la columna»).
-3. Se abre un cajón con el nombre de la zona de título. **Toca «Camión previsto»**.
-   Debajo pone el camión que tiene, o **«Sin elegir»**.
-4. Se abre la lista de camiones de la sucursal. La primera opción es **«Sin
-   camión»**; debajo, cada camión con su capacidad y su matrícula: **«1.000 kg ·
-   P-123456»**.
-5. **Toca el camión que va a llevar esa zona.**
-6. El cajón se cierra. En la cabecera de la zona ahora pone **«Camión: F-350»** en
-   vez de «Camión: —».
+   («Opciones de la columna»). <!-- señala: tablero-menu-de-la-zona -->
+3. **Toca «Camión previsto»**. Debajo pone el camión que tiene, o **«Sin elegir»**.
+   <!-- señala: tablero-camion-previsto -->
+4. **Toca el camión que va a llevar esa zona.**
+   <!-- señala: tablero-elegir-camion -->
+   - La primera opción es **«Sin camión»**; debajo, cada camión con su capacidad y
+     su matrícula: **«1.000 kg · P-123456»**.
+   - El cajón se cierra. En la cabecera de la zona ahora pone **«Camión: F-350»** en
+     vez de «Camión: —».
 
 ### Si un camión pone «EN EL TALLER»
 
@@ -347,9 +358,14 @@ sale hoy.
 Con señal, ve al menú → **«Vehículos»** y da de alta el camión.
 
 ## 3.3 Repartir los pedidos por zonas
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Tablero»**.
 
 1. **Desliza hasta la primera página, «Sin colocar (308)».**
+   <!-- señala: tablero-carrusel-de-zonas -->
 2. Si quieres acotar, **toca el icono del embudo** y elige:
+   <!-- señala: tablero-sin-colocar-filtros -->
    - **«Día del pedido»**
    - **«Municipio»**
    - **«Vendedor»**
@@ -361,16 +377,17 @@ Con señal, ve al menú → **«Vehículos»** y da de alta el camión.
    embudo lleva un punto.
 3. O usa el buscador de arriba: **«Cliente, operación, dirección, artículo…»**.
    Filtra **según escribes**, sin darle a nada.
-4. **Si pone «Se ven 200 de 308.»** en ámbar, toca **«Ver 108 más»** para cargar el
-   resto.
-5. **Toca la tarjeta del pedido** que quieres colocar. Se abre un cajón con:
-   - Su dirección, su teléfono, su vendedor
-   - La línea de datos: **«12,5 kg · 3,7 km · $0.04»**
-   - Los artículos
-   - Sus marcas, si tiene
-6. **Baja en ese cajón hasta la lista de zonas** y **toca «Colocar en «Centro»»**.
+   <!-- señala: tablero-sin-colocar-buscar -->
+   - **Si pone «Se ven 200 de 308.»** en ámbar, toca **«Ver 108 más»** para cargar
+     el resto.
+4. **Toca la tarjeta del pedido** que quieres colocar.
+   <!-- señala: tablero-tarjeta-de-pedido -->
+   - Se abre un cajón con su dirección, su teléfono, su vendedor, la línea de datos
+     —**«12,5 kg · 3,7 km · $0.04»**—, los artículos y sus marcas, si tiene.
+5. **Baja en ese cajón hasta la lista de zonas** y **toca «Colocar en «Centro»»**.
    Debajo de cada zona pone cuánto lleva: «12 pedidos · 480 kg».
-7. El cajón se cierra y el pedido desaparece de «Sin colocar».
+   <!-- señala: tablero-colocar-en-la-zona -->
+   - El cajón se cierra y el pedido desaparece de «Sin colocar».
 
 ### Repetir para cada pedido
 
@@ -411,27 +428,38 @@ Métetelos en la misma zona **a propósito**.
 No tiene coordenadas de entrega. **Ese pedido no puede ir en una ruta.**
 
 ## 3.4 Mover, subir, bajar o sacar un pedido de una zona
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Tablero»**.
 
 1. **Desliza a la página de la zona** y **toca la tarjeta**.
-2. En el cajón, arriba de la lista de zonas, tienes:
-   - **«Subir una posición»** (apagado si ya es la primera)
-   - **«Bajar una posición»**
-   - **«Devolver a sin colocar»**
-3. O toca directamente otra zona: **«Colocar en «Carretera»»**.
+   <!-- señala: tablero-tarjeta-de-pedido -->
+2. En el cajón, **toca «Subir una posición»** para adelantarlo en el recorrido (está
+   apagado si ya es la primera). <!-- señala: tablero-subir-una-posicion -->
+   - **«Bajar una posición»** está justo debajo.
+3. Para sacarlo de la zona, **toca «Devolver a sin colocar»**.
+   <!-- señala: tablero-devolver-a-sin-colocar -->
+4. O mándalo a otra zona: **toca «Colocar en «Carretera»»**.
+   <!-- señala: tablero-colocar-en-la-zona -->
 
 **El orden que dejes es el que va a recorrer el camión.**
 
 ---
 
 # 4. Armar la ruta
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Tablero»**.
 
 1. **Desliza hasta la página de la zona.**
-2. **Toca el ⋮** de la cabecera.
+   <!-- señala: tablero-carrusel-de-zonas -->
+2. **Toca el ⋮** de la cabecera. <!-- señala: tablero-menu-de-la-zona -->
 3. **Baja del todo en el cajón** y **toca «Armar la ruta de esta zona»**.
-4. El botón pasa a **«Armando…»**.
-5. Si sale bien: una franja dice **«Ruta armada con lo que se puede repartir de
-   «Centro».»** y **la aplicación te lleva sola a Rutas**, pestaña **«Planificadas»**,
-   con la ruta nueva ya abierta.
+   <!-- señala: tablero-armar-la-ruta -->
+   - El botón pasa a **«Armando…»**.
+   - Si sale bien: una franja dice **«Ruta armada con lo que se puede repartir de
+     «Centro».»** y **la aplicación te lleva sola a Rutas**, pestaña
+     **«Planificadas»**, con la ruta nueva ya abierta.
 
 ### Si sale un recuadro rojo: «no tiene camión previsto»
 
@@ -470,19 +498,24 @@ convierte en su `RT-…` en cuanto suba**. Es normal y no hay que hacer nada.
 ---
 
 # 5. Sacar el pre-despacho
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Pedidos»**.
 
 Es la hoja del almacén: **qué hay que sacar de cada producto**.
 
 En el teléfono el pre-despacho de una ruta sale del **asistente de Rutas**, no del
 tablero. Si armaste por zona y quieres la hoja, la vía más corta es desde Pedidos:
 
-1. **Menú → «Pedidos»**.
-2. **Filtra** para dejar los de tu ruta (por municipio, por día, buscando).
-3. **Marca los pedidos** tocando su casilla, o toca **«Elegir los 50 de esta
-   página»**.
-4. Aparece una franja azul: **«7 pedido(s) elegidos»**.
-5. **Toca el botón «Pre-despacho»** (el del icono de caja).
-6. Se abre el cajón **«Pre-despacho»** con el resumen arriba:
+1. **Filtra por municipio** para dejar los de tu ruta.
+   <!-- señala: pedidos-filtro-municipio -->
+2. **Marca los pedidos** tocando **«Elegir los 50 de esta página»**.
+   <!-- señala: pedidos-marcar-todos -->
+   - O toca la casilla de cada uno. Aparece una franja azul: **«7 pedido(s)
+     elegidos»**.
+3. **Toca el botón «Pre-despacho»** (el del icono de caja).
+   <!-- señala: pedidos-pre-despacho-de-lo-filtrado -->
+   - Se abre el cajón **«Pre-despacho»** con el resumen arriba:
 
    ```
    15 producto(s) · 10197 empaques · ≥ 17318.8 kg (462 renglones sin peso)
@@ -491,8 +524,8 @@ tablero. Si armaste por zona y quieres la hoja, la vía más corta es desde Pedi
    **Ese `≥` no es un error.** Quiere decir «pesa **por lo menos** esto»: hay 462
    renglones a los que no se les conoce el peso. Con eso se carga el camión; lo que no
    se puede es firmar que ése es el peso exacto.
-7. **Toca «Ver e imprimir»**. Se abre la **«Hoja de pre-despacho»** con el PDF.
-8. Desde ahí lo puedes imprimir o compartir con el menú del sistema.
+   - **Toca «Ver e imprimir»**: se abre la **«Hoja de pre-despacho»** con el PDF, y
+     desde ahí lo puedes imprimir o compartir con el menú del sistema.
 
 La hoja lleva una columna **«Sacado»** en blanco, para ir marcando a mano en el
 almacén.
@@ -500,28 +533,42 @@ almacén.
 ---
 
 # 6. Iniciar la ruta y mandársela al chófer
+<!-- tarea -->
 
-1. **Menú → «Rutas»**.
-2. Arriba están las pestañas en carrusel: **«Planificadas (1)»**, **«En curso (0)»**,
-   **«Historial (0)»**. Se pasan **deslizando** o con las flechas.
-3. **Toca la tarjeta de tu ruta.** Se abre el detalle **en un cajón** (en el teléfono
-   no hay dos paneles).
-4. Comprueba la línea de datos:
+**Empieza en:** **Menú → «Rutas»**.
+
+1. **Toca la tarjeta de tu ruta.** Se abre el detalle **en un cajón** (en el teléfono
+   no hay dos paneles). <!-- señala: rutas-tarjeta-de-ruta -->
+   - Arriba están las pestañas en carrusel: **«Planificadas (1)»**, **«En curso
+     (0)»**, **«Historial (0)»**. Se pasan **deslizando** o con las flechas.
+   - Comprueba la línea de datos:
 
    ```
    Planificada · 68.0 km (incl. regreso) · 516 kg · $5212.78 · Camión 1 · P-001 ·
    libre · 28/9/2026 · Carga total: 3
    ```
 
-5. **Toca «Iniciar ruta»**.
-6. La ruta pasa a **«En curso»**, **el camión queda ocupado**, y la vista **salta sola
-   a la pestaña «En curso»** con la ruta abierta.
+2. **Toca «Ver paradas (3)»** si quieres repasar el orden antes de salir.
+   <!-- señala: rutas-ver-paradas -->
+3. **Toca «Iniciar ruta»**. <!-- señala: rutas-iniciar -->
+   - La ruta pasa a **«En curso»**, **el camión queda ocupado**, y la vista **salta
+     sola a la pestaña «En curso»** con la ruta abierta.
 
 ## Mandarle el recorrido al chófer
+<!-- tarea -->
 
-1. Dentro del detalle, **baja hasta el bloque «Recorrido»**.
-2. **Toca «WhatsApp»** (o **«Compartir»**, o **«Copiar»** si prefieres pegarlo tú).
-3. Se manda un mensaje así:
+**Empieza en:** **Menú → «Rutas»**.
+
+1. Dentro del detalle, **baja hasta el bloque «Recorrido»** y **toca «Abrir en
+   Google Maps»** para verlo tú. <!-- señala: rutas-abrir-en-google-maps -->
+2. **Toca «WhatsApp»** para mandárselo al chófer.
+   <!-- señala: rutas-whatsapp -->
+3. O **«Compartir»**, si lo quieres por otro sitio.
+   <!-- señala: rutas-compartir -->
+4. O **«Copiar»**, si prefieres pegarlo tú.
+   <!-- señala: rutas-copiar -->
+
+Se manda un mensaje así:
 
    ```
    Ruta RT-20260928-001 — Reparto Vista
@@ -543,33 +590,39 @@ salida…» o «Ninguna de las 3 paradas tiene coordenadas guardadas…».
 ---
 
 # 7. Marcar las entregas
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Rutas»**.
 
 **Esto funciona entero sin señal.**
 
-1. **Menú → «Rutas»**, pestaña **«En curso»**.
-2. **Toca tu ruta.**
-3. **Toca «Cierre (3)»**. El número son las paradas que faltan por marcar.
-4. Se abre el cajón **«Cierre de ruta»**, con el código y «3 parada(s)».
-5. Arriba lee lo que dice:
+1. En la pestaña **«En curso»**, **toca tu ruta**.
+   <!-- señala: rutas-tarjeta-de-ruta -->
+2. **Toca «Cierre (3)»**. El número son las paradas que faltan por marcar.
+   <!-- señala: rutas-cierre -->
+   - Se abre el cajón **«Cierre de ruta»**, con el código y «3 parada(s)».
+
+Arriba lee lo que dice:
 
    > «Marca cada parada según cómo acabó. De aquí sale el post-despacho: lo que tiene
    > que quedar en el camión es todo lo que no se entregó.»
 
-6. **Por cada parada**, toca uno de los tres botones:
-   - **«Entregado»** (verde)
-   - **«Devuelto»** (rojo)
-   - **«Cancelado»** (gris)
-7. **Si marcas «Devuelto» o «Cancelado»** se abre debajo un campo de nota, con la
-   pista **«¿Por qué volvió? (el cliente cerró, no lo quiso, no había nadie…)»**.
-   **Escríbelo.** Es opcional, pero es lo único que le explica a la oficina qué pasó.
-8. **Si te equivocas**, vuelve a tocar el mismo botón: se desmarca.
-9. Si la ruta entera fue igual, arriba hay atajos: **«Todas:»** y los tres botones.
-10. **Baja hasta «Queda en el camión».** Se recalcula con cada marca:
-    - **«Nada: se entregó todo lo que salió.»** — el camión vuelve vacío.
-    - O una lista: **«MALTA GUAJIRA ×36»**. Eso es lo que tiene que quedar arriba.
-11. **Toca el botón de guardar**, que dice **«Guardar 5 marcada(s)»**.
-12. Vas a ver: **«Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o
-    volvió.»**
+1. **Por cada parada**, toca uno de los tres botones: **«Entregado»** (verde),
+   **«Devuelto»** (rojo) o **«Cancelado»** (gris).
+   <!-- señala: rutas-resultado-de-la-parada -->
+   - **Si marcas «Devuelto» o «Cancelado»** se abre debajo un campo de nota, con la
+     pista **«¿Por qué volvió? (el cliente cerró, no lo quiso, no había nadie…)»**.
+     **Escríbelo.** Es opcional, pero es lo único que le explica a la oficina qué
+     pasó.
+   - **Si te equivocas**, vuelve a tocar el mismo botón: se desmarca.
+   - Si la ruta entera fue igual, arriba hay atajos: **«Todas:»** y los tres botones.
+   - **Baja hasta «Queda en el camión»**: se recalcula con cada marca. **«Nada: se
+     entregó todo lo que salió.»** o una lista —**«MALTA GUAJIRA ×36»**—, que es lo
+     que tiene que quedar arriba.
+2. **Toca el botón de guardar**, que dice **«Guardar 5 marcada(s)»**.
+   <!-- señala: rutas-guardar-el-cierre -->
+   - Vas a ver: **«Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o
+     volvió.»**
 
 ### Si dejas paradas sin marcar
 
@@ -590,26 +643,33 @@ pero te lo dice.
 ---
 
 # 8. Cerrar la ruta
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Rutas»**.
 
 1. En el detalle de la ruta (pestaña **«En curso»**), **toca «Marcar como
-   completada»**.
-2. **Si quedan paradas sin marcar**, te abre primero el cierre y avisa:
+   completada»**. <!-- señala: rutas-completar -->
+   - **Si quedan paradas sin marcar**, te abre primero el cierre y avisa:
 
    > «Antes de dar la ruta por completada: ¿cómo acabó cada parada? Lo que dejes sin
    > marcar se da por no entregado y cuenta como que sigue en el camión.»
 
-   Márcalas y **toca «Guardar y completar»**.
-3. Si ya estaban todas: se completa directo.
-4. **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
-   entregados **vuelven a estar disponibles** para mañana.
+2. Márcalas y **toca «Guardar y completar»**. Si ya estaban todas, se completa
+   directo. <!-- señala: rutas-guardar-el-cierre -->
+   - **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
+     entregados **vuelven a estar disponibles** para mañana.
 
 ## Sacar el post-despacho antes de descargar el camión
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Rutas»**.
 
 1. Vuelve a abrir la ruta (pestaña **«Historial»**).
-2. **Toca «Ver cierre»**.
-3. Abajo, **toca «Post-despacho»**.
-4. Se abre la hoja con el resumen: **«8 entregadas · 2 devueltas · 1 canceladas · 1
-   sin marcar»**.
+   <!-- señala: rutas-tarjeta-de-ruta -->
+2. **Toca «Ver cierre»**. <!-- señala: rutas-cierre -->
+3. Abajo, **toca «Post-despacho»**. <!-- señala: rutas-post-despacho -->
+   - Se abre la hoja con el resumen: **«8 entregadas · 2 devueltas · 1 canceladas ·
+     1 sin marcar»**.
 
 Lleva dos partes:
 
@@ -690,6 +750,7 @@ Tres comprobaciones de diez segundos:
 ---
 
 ## Cambiar de sucursal
+<!-- tarea -->
 
 **Empieza en:** la barra de arriba, desde cualquier pantalla.
 
@@ -698,8 +759,10 @@ suya fija.
 
 1. Arriba, a la izquierda de tu avatar, hay una pastilla con el código de la
    sucursal: **«STG»**, **«HAB»**…
-2. **Tócala.**
+   <!-- señala: barra-sucursal -->
+2. **Tócala.** <!-- señala: barra-sucursal -->
 3. Elige de la lista. La primera opción es **«Todas (8)»**.
+   <!-- señala: barra-elegir-sucursal -->
 
 **Ojo:** el Tablero **no funciona con «Todas»**. Te dirá «Elige una sucursal para ver
 su tablero».
@@ -707,12 +770,15 @@ su tablero».
 ---
 
 ## Cambiar entre USD y CUP
+<!-- tarea -->
 
 **Empieza en:** la barra de arriba, desde cualquier pantalla.
 
 1. Arriba, al lado de la sucursal, hay otra pastilla: **«USD»** o **«CUP»**.
-2. **Tócala** y elige.
+   <!-- señala: barra-moneda -->
+2. **Tócala** y elige. <!-- señala: barra-elegir-moneda -->
 3. La opción de CUP lleva la tasa: **«1 USD = 320 · del 9/9/2026»**.
+   <!-- señala: barra-elegir-moneda -->
 
 Esa fecha no es un adorno: es lo único que demuestra que la tasa es de verdad.
 
@@ -740,13 +806,13 @@ se puede convertir nada—, pero si vas a cobrar con ese número, pídela actual
 ---
 
 ## Buscar un pedido
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Pedidos»**.
 
-1. **Menú → «Pedidos».**
-2. **Toca la caja de buscar** («Buscar») y escribe el cliente, el folio, la
+1. **Toca la caja de buscar** («Buscar») y escribe el cliente, el folio, la
    dirección, el municipio, el vendedor o un producto. **Busca solo**, sin darle a
-   nada.
+   nada. <!-- señala: pedidos-buscar -->
 
 ### Si no aparece
 
@@ -764,42 +830,46 @@ Mira en este orden:
 ---
 
 ## Ver el detalle de un pedido
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Pedidos»**.
 
-1. **Menú → «Pedidos».**
-2. **Toca la tarjeta del pedido** (en el teléfono no hay tabla: cada pedido es una
-   tarjeta).
-3. Se abre un cajón con el cliente de título y el folio debajo. Dentro:
-   **«Entrega»**, **«Recorrido»**, la banda de la factura, el bloque del domicilio y
-   **«Productos (6)»**.
+1. **Toca la tarjeta del pedido** (en el teléfono no hay tabla: cada pedido es una
+   tarjeta). <!-- señala: pedidos-abrir-el-pedido -->
+   - Se abre un cajón con el cliente de título y el folio debajo. Dentro:
+     **«Entrega»**, **«Recorrido»**, la banda de la factura, el bloque del domicilio
+     y **«Productos (6)»**.
 
 **Es sólo lectura.** Aquí no se edita nada de un pedido: viene de PEDIDO.
 
 ---
 
 ## Mandar varios pedidos a una zona de golpe
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Pedidos»**.
 
 Éste es el atajo para no ir tarjeta por tarjeta en el Tablero.
 
-1. **Menú → «Pedidos».**
-2. **Filtra** para dejar los que quieres (por municipio, por vendedor, por día).
-3. **Toca la casilla de cada pedido**, o toca arriba **«Elegir los 50 de esta
-   página»**.
-4. Aparece una franja azul: **«7 pedido(s) elegidos»**.
-5. **Toca «Mandar a una zona»**.
-6. Se abre el cajón **«Mandar a una zona del tablero»**:
-
-   > «Se colocan en el orden en que están marcados, y el gesto es el mismo que
-   > arrastrarlos: se guarda aquí y sube cuando haya señal.»
-
-7. **Toca la zona** de la lista. Debajo de cada una pone «12 pedido(s) puestos».
+1. **Filtra por municipio** para dejar los que quieres (o por vendedor, o por
+   día). <!-- señala: pedidos-filtro-municipio -->
+2. **Toca arriba «Elegir los 50 de esta página»** para marcarlos todos.
+   <!-- señala: pedidos-marcar-todos -->
+   - O **toca la casilla de cada pedido**, uno a uno.
+3. **Toca la casilla de un pedido** para quitar o poner la marca de ese solo.
+   <!-- señala: pedidos-marcar-uno -->
+   - Aparece una franja azul: **«7 pedido(s) elegidos»**.
+4. **Toca «Mandar a una zona»**, en esa franja.
+   <!-- señala: pedidos-mandar-a-una-zona -->
+   - Se abre el cajón **«Mandar a una zona del tablero»**: «Se colocan en el orden en
+     que están marcados, y el gesto es el mismo que arrastrarlos: se guarda aquí y
+     sube cuando haya señal.»
+5. **Toca la zona** de la lista. Debajo de cada una pone «12 pedido(s) puestos».
+   <!-- señala: pedidos-zona-destino -->
    - Si no hay ninguna, toca **«Crear una zona nueva»**, escribe el nombre y
      **«Crear»**.
-8. **Toca «Mandar a la zona»** abajo.
-9. Te dice cómo fue: **«5 pedido(s) en «Centro»»**.
+6. **Toca «Mandar a la zona»** abajo. <!-- señala: pedidos-mandar -->
+   - Te dice cómo fue: **«5 pedido(s) en «Centro»»**.
 
 ### Si alguno se queda fuera
 
@@ -816,31 +886,41 @@ puedas seguir con ellos.
 ---
 
 ## Sacar el pre-despacho de lo que tienes filtrado
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Pedidos»**.
 
-1. **Menú → «Pedidos».**
-2. **Filtra** lo que quieras (por día, por municipio…).
-3. **Toca el botón «Pre-despacho»**, en la misma fila que las fechas.
-4. La suma **se hace al pulsar**, no antes. Al terminar, el botón pasa a
-   **«Pre-despacho · 24 productos»** y se abre el cajón.
-5. Dentro: el resumen, la tabla por producto y los cuatro totales.
-6. **Toca «Ver e imprimir»** para la hoja en PDF.
+1. **Filtra por municipio** lo que quieras (o por día).
+   <!-- señala: pedidos-filtro-municipio -->
+2. **Toca el botón «Pre-despacho»**, en la misma fila que las fechas.
+   <!-- señala: pedidos-pre-despacho-de-lo-filtrado -->
+   - La suma **se hace al pulsar**, no antes. Al terminar, el botón pasa a
+     **«Pre-despacho · 24 productos»** y se abre el cajón.
+   - Dentro: el resumen, la tabla por producto, los cuatro totales y **«Ver e
+     imprimir»** para la hoja en PDF.
 
 ---
 
 ## Renombrar, vaciar o borrar una zona
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Tablero»**.
 
-1. **Menú → «Tablero»** y **desliza hasta la página de la zona**.
-2. **Toca el ⋮** de la cabecera.
-3. Elige:
-   - **«Renombrar»** — escribe el nombre nuevo y **«Guardar»**.
-   - **«Vaciar»** — «Las tarjetas vuelven a «sin colocar»».
-   - **«Mover todo a otra columna»** — te sale la lista de destinos con cuántos
-     pedidos tiene cada uno.
-   - **«Borrar la columna»**.
+1. **Desliza hasta la página de la zona**, con las flechas o las bolitas de abajo.
+   <!-- señala: tablero-carrusel-de-zonas -->
+2. **Toca el ⋮** de la cabecera, arriba a la derecha de la zona.
+   <!-- señala: tablero-menu-de-la-zona -->
+3. Para cambiarle el nombre, **toca «Renombrar»**.
+   <!-- señala: tablero-renombrar -->
+4. **Escribe el nombre nuevo** en «Nombre de la zona».
+   <!-- señala: tablero-nombre-de-la-zona -->
+5. **Toca «Guardar»**. <!-- señala: tablero-guardar-la-zona -->
+6. Para devolver sus tarjetas a «sin colocar», en el mismo ⋮ **toca «Vaciar»**.
+   <!-- señala: tablero-vaciar -->
+   - **«Mover todo a otra columna»**, al lado, te saca la lista de destinos con
+     cuántos pedidos tiene cada uno.
+7. Y para quitar la zona entera, **toca «Borrar la columna»**.
+   <!-- señala: tablero-borrar-la-zona -->
 
 ### Al borrar
 
@@ -861,6 +941,7 @@ columna y borrar»**.
 ---
 
 ## Reordenar las zonas
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Tablero»**.
 
@@ -870,31 +951,36 @@ eso sólo funciona en pantalla grande (la web o el escritorio).
 ---
 
 ## Armar una ruta sin usar el Tablero
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
 Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
 
-1. **Menú → «Rutas»**.
-2. Arriba, **toca «+ Nueva Ruta»**. Se abre un cajón a pantalla completa, **«Nueva
-   Ruta»**, con cuatro tramos arriba: **«Sucursal» · «Salida» · «Vehículo» ·
-   «Pedidos»**.
-3. **Paso «Sucursal»** — elige en **«Sucursal de la ruta»** y toca **«Siguiente»**.
+1. Arriba, **toca «+ Nueva Ruta»**. <!-- señala: rutas-nueva-ruta -->
+   - Se abre un cajón a pantalla completa, **«Nueva Ruta»**, con cuatro tramos
+     arriba: **«Sucursal» · «Salida» · «Vehículo» · «Pedidos»**.
+2. **Paso «Sucursal»** — elige en **«Sucursal de la ruta»**.
+   <!-- señala: rutas-asistente-sucursal -->
    - Suele venir rellena con la de arriba.
    - **Cambiarla borra todo lo que hayas elegido después.**
+3. **Toca «Siguiente»**, abajo a la derecha de la tarjeta.
+   <!-- señala: rutas-asistente-siguiente -->
+   - Los pasos 2 y 3 llevan su propio **«Siguiente»** en el mismo sitio.
 4. **Paso «Salida»** — elige en **«Almacén del que sale el camión»** y toca
-   **«Siguiente»**.
+   **«Siguiente»**. <!-- señala: rutas-asistente-almacen -->
    - Sólo salen almacenes **con coordenadas**.
    - Si no hay ninguno: «Esta sucursal no tiene ningún almacén con ubicación…» y un
      botón **«Poner el almacén»**.
-5. **Paso «Vehículo»** — elige en **«Vehículo de la ruta»**. **Es obligatorio.**
+5. **Paso «Vehículo»** — elige en **«Vehículo de la ruta»** y toca **«Siguiente»**.
+   **Es obligatorio.** <!-- señala: rutas-asistente-vehiculo -->
    - Cada uno sale con su capacidad: «1000 kg», «1000 kg · en el taller», «1000 kg ·
      en ruta». **Se pueden elegir todos.**
    - Si eliges uno del taller sale un aviso en ámbar, pero **se arma igual**.
    - Puedes ponerle un nombre («Nombre (el código se genera solo)») y cambiar la
      **«Fecha de entrega»**, que **viene puesta en hoy**.
-   - **«Siguiente»**.
-6. **Paso «Pedidos»** — marca los que quieras.
+6. **Paso «Pedidos»** — busca y **marca los que quieras**.
+   <!-- señala: rutas-asistente-buscar -->
    - En el teléfono los filtros van **uno por línea**: sucursal, día, buscador,
      vendedor, municipio, «km máx.», «costo mín.», estado, domicilio y cotización.
    - **Mira la barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»**
@@ -904,7 +990,9 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
    - Puedes marcar **una zona entera del tablero** tocando su casilla. Te dirá qué
      entró: **«9 de 12 de «Vista» · 1 ya estaban · 1 ya no se pueden repartir hoy · 1
      no caben en el vehículo»**.
-7. **Toca «Generar Ruta»** abajo.
+7. **Toca «Pre-despacho de los N elegidos»** si quieres la hoja del almacén antes de
+   armar. <!-- señala: rutas-pre-despacho -->
+8. **Toca «Generar Ruta»** abajo. <!-- señala: rutas-asistente-generar -->
 
 ### Si «Generar Ruta» está apagado
 
@@ -928,16 +1016,17 @@ anterior y no cierra el asistente**.
 ---
 
 ## Eliminar una ruta
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
-1. **Menú → «Rutas»**.
-2. **Desliza a la pestaña** donde esté la ruta: **«Planificadas»** o **«En curso»**.
-3. **Toca la tarjeta de la ruta** y mira que es la que quieres: el código está arriba.
-4. Al final de su tarjeta, **toca «Eliminar»** (el botón rojo, con contorno y
-   papelera, sin relleno).
-5. **Se abre un cajón que pregunta antes**, titulado **«Borrar «RT-20260928-004»»**.
-   Dentro te dice lo que se pierde:
+1. **Toca la tarjeta de la ruta** y mira que es la que quieres: el código está
+   arriba. <!-- señala: rutas-tarjeta-de-ruta -->
+   - Antes, **desliza a la pestaña** donde esté: **«Planificadas»** o **«En curso»**.
+2. Al final de su tarjeta, **toca «Eliminar»** (el botón rojo, con contorno y
+   papelera, sin relleno). <!-- señala: rutas-eliminar -->
+   - **Se abre un cajón que pregunta antes**, titulado
+     **«Borrar «RT-20260928-004»»**. Dentro te dice lo que se pierde:
 
    > «La ruta desaparece con su código, su fecha, el orden de visita y los
    > kilómetros que se calcularon al armarla. Para tenerla otra vez hay que volver a
@@ -946,8 +1035,8 @@ anterior y no cierra el asistente**.
    > Lo que NO se borra son los pedidos: sueltan esta ruta y vuelven a la lista de
    > disponibles, listos para ponerlos en otra. Y el camión se queda libre.»
 
-6. **Toca «Sí, borrar «RT-20260928-004»»** para borrarla, o **«No, dejarla»** para
-   salir.
+3. **Toca «Sí, borrar «RT-20260928-004»»** para borrarla, o **«No, dejarla»**
+   para salir. <!-- señala: confirmar-el-borrado -->
 
 > **Ojo:** **cerrar el cajón sin contestar es NO.** La ✕ de la cabecera, tocar
 > fuera o la tecla Escape dejan la ruta donde estaba. Lo irreversible no se hace por
@@ -968,6 +1057,7 @@ Al eliminar una ruta, **sus pedidos vuelven a estar disponibles**.
 ---
 
 ## Sacar un pedido de una ruta
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
@@ -980,6 +1070,7 @@ Al eliminar una ruta, **sus pedidos vuelven a estar disponibles**.
 ---
 
 ## Cambiar el camión de una ruta
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
@@ -988,12 +1079,18 @@ para eso, ni en la tarjeta ni dentro del cajón del detalle. Las dos salidas:
 
 **Si la ruta todavía no ha salido (pestaña «Planificadas»):**
 
-1. **Menú → «Rutas»**, **desliza a «Planificadas»**.
-2. **Elimina la ruta** — ver [Eliminar una ruta](#eliminar-una-ruta). Sus pedidos
-   vuelven a la lista de disponibles y el camión queda libre.
-3. **Menú → «Tablero»**, **desliza a la página de la zona**, **toca el ⋮** →
-   **«Camión previsto»**, elige el otro camión, y otra vez **⋮ → «Armar la ruta de
-   esta zona»**.
+1. **Desliza a «Planificadas»** y **toca la tarjeta de la ruta**.
+   <!-- señala: rutas-tarjeta-de-ruta -->
+2. **Toca «Eliminar»** al final de su tarjeta y confirma — ver [Eliminar una
+   ruta](#eliminar-una-ruta). Sus pedidos vuelven a la lista de disponibles y el
+   camión queda libre. <!-- señala: rutas-eliminar -->
+3. Vete a **Menú → «Tablero»** y **desliza a la página de la zona**.
+   <!-- señala: tablero-carrusel-de-zonas -->
+4. **Toca el ⋮** de la cabecera. <!-- señala: tablero-menu-de-la-zona -->
+5. **Toca «Camión previsto»** y elige el otro camión.
+   <!-- señala: tablero-camion-previsto -->
+6. Otra vez **⋮** y, abajo del cajón, **«Armar la ruta de esta zona»**.
+   <!-- señala: tablero-armar-la-ruta -->
 
 **Si la ruta ya está «En curso»**, no la borres: tiene paradas que el servidor no va
 a dejar perder. Se termina con el camión que lleva y se cuadra en el cierre.
@@ -1005,13 +1102,16 @@ a dejar perder. Se termina con el camión que lleva y se cuadra en el cierre.
 ---
 
 ## Consultar un cliente
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Clientes»**.
 
-1. **Menú → «Clientes».**
+1. **Menú → «Clientes».** <!-- señala: menu-clientes -->
 2. **Toca la caja de buscar** («Buscar por nombre, dirección o municipio…»). Busca
    también por teléfono, código, zona y vendedor.
+   <!-- señala: clientes-buscar -->
 3. **Toca la tarjeta del cliente.** Se abre su ficha, con el **teléfono el primero**.
+   <!-- señala: clientes-abrir-el-cliente -->
 
 **Los clientes no se crean, ni se editan, ni se borran aquí.** Vienen de PEDIDO.
 
@@ -1020,22 +1120,26 @@ Y sólo aparecen los que **tienen geolocalización**.
 ---
 
 ## Dar de alta un camión
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**.
 
 **Esto necesita señal.** Vehículos no se guarda en el teléfono.
 
-1. **Menú → «Vehículos».**
-2. **Toca «Agregar Vehículo»**.
-3. Rellena:
-   - **«Nombre del Vehículo *»** — obligatorio. «Ej: Camión #1, Furgoneta Azul»
-   - **«Tipo»** — al elegirlo **hereda su costo por km**
-   - **«Placa (opcional)»**
-   - **«Capacidad Máx. (kg)»** — viene en 1000
-   - **«Estado del vehículo»** — sólo hay **«Disponible»** y **«En mantenimiento»**
-   - **«Costo por km (USD)»**
-4. **Toca «Agregar Vehículo»** abajo.
-5. Vas a ver **«Vehículo agregado.»**
+1. **Toca «Agregar Vehículo»**, arriba a la derecha.
+   <!-- señala: vehiculos-agregar -->
+2. Escribe el **«Nombre del Vehículo *»**. Es obligatorio: «Ej: Camión #1, Furgoneta
+   Azul». <!-- señala: vehiculos-nombre -->
+3. Elige el **«Tipo»**. Al elegirlo **hereda su costo por km**.
+   <!-- señala: vehiculos-tipo -->
+4. Escribe la **«Placa (opcional)»**. <!-- señala: vehiculos-placa -->
+5. Pon la **«Capacidad Máx. (kg)»**. Viene en 1000.
+   <!-- señala: vehiculos-capacidad -->
+6. Mira el **«Estado del vehículo»**: sólo hay **«Disponible»** y **«En
+   mantenimiento»**. <!-- señala: vehiculos-estado -->
+7. Pon el **«Costo por km (USD)»**. <!-- señala: vehiculos-costo-por-km -->
+8. **Toca «Agregar Vehículo»** abajo. Vas a ver **«Vehículo agregado.»**
+   <!-- señala: vehiculos-guardar -->
 
 ### Si no sabes el costo por km
 
@@ -1046,46 +1150,54 @@ O usa el ayudante: **toca «¿No sabes el costo por km?»**, escribe **«El cami
 cobra (CUP)»** (por ejemplo 180000) y **«hasta ___ km (ida)»** (por ejemplo 72), y
 toca **«Calcular»**. Te rellena el campo.
 
-### Marcar un camión en el taller
+## Marcar un camión en el taller
+<!-- tarea -->
 
-1. En su tarjeta, **toca «Editar»**.
+**Empieza en:** **Menú → «Vehículos»**. **Necesita señal.**
+
+1. En su tarjeta, **toca «Editar»**. <!-- señala: vehiculos-editar -->
 2. En **«Estado del vehículo»**, elige **«En mantenimiento»**.
-3. **Escribe el motivo en «Notas»**. Es lo único que le dice al de al lado por qué no
-   puede contar con él.
-4. **«Actualizar»**.
+   <!-- señala: vehiculos-estado -->
+3. **Escribe el motivo en «Notas»**. Es lo único que le dice al de al lado por qué
+   no puede contar con él. <!-- señala: vehiculos-notas -->
+4. **Toca «Actualizar»** abajo. <!-- señala: vehiculos-guardar -->
 
 **Marcarlo en el taller NO cierra la ruta que ya tuviera abierta.** Eso se arregla en
 la tarjeta del camión.
 
-### Si un camión sale como ocupado y no lo está
+## Liberar un camión que sale ocupado y no lo está
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Vehículos»**. **Necesita señal.**
 
 Su tarjeta lo dice:
 
 > «El estado guardado dice «en uso» y no lleva ninguna ruta abierta. Márcalo
 > disponible: hasta entonces sale como ocupado al elegir camión.»
 
-**Toca «Marcar disponible»** en esa misma tarjeta.
+1. **Toca «Marcar disponible»** en esa misma tarjeta.
+   <!-- señala: vehiculos-marcar-disponible -->
 
 ---
 
 ## Decir qué camión calcula el domicilio
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**. **Necesita señal.**
 
 De este camión sale **el costo por km con el que se le cobra al cliente el
 domicilio**. No está en el paso a paso del Panel, pero decide dinero.
 
-1. **Menú → «Vehículos»**.
-2. Busca la tarjeta del camión. **Debajo del nombre, en la fila de pastillas**, mira
-   qué hay:
-   - **«Cálculo domicilio · $1.65/km»**, con una casita — ya es el que calcula.
-   - El botón **«Usar para domicilio»** — no lo es.
-3. **Toca «Usar para domicilio»**.
-4. Abajo sale **«Se usará este vehículo para calcular el domicilio.»** y en la
-   tarjeta el botón se cambia por la pastilla **«Cálculo domicilio»**.
-
-**También desde la ficha:** **toca «Editar»** y marca la casilla **«Usar este
-vehículo para calcular el domicilio»**. Debajo pone **«Solo un vehículo por TIPO.»**
+1. Busca la tarjeta del camión y **toca «Usar para domicilio»**, debajo del nombre,
+   en la fila de pastillas. <!-- señala: vehiculos-usar-para-domicilio -->
+   - Si ahí pone **«Cálculo domicilio · $1.65/km»** con una casita, ya es el que
+     calcula y el botón no está.
+   - Abajo sale **«Se usará este vehículo para calcular el domicilio.»**
+2. También se puede desde la ficha: **toca «Editar»** en su tarjeta.
+   <!-- señala: vehiculos-editar -->
+3. Marca la casilla **«Usar este vehículo para calcular el domicilio»**. Debajo pone
+   **«Solo un vehículo por TIPO.»** <!-- señala: vehiculos-calcula-el-domicilio -->
+4. **Toca «Actualizar»** abajo. <!-- señala: vehiculos-guardar -->
 
 > **Ojo:** si la pastilla dice **«Cálculo domicilio»** **y no lleva importe
 > detrás**, ese camión está elegido y **no tiene costo por km**. Edítalo y ponle
@@ -1094,23 +1206,24 @@ vehículo para calcular el domicilio»**. Debajo pone **«Solo un vehículo por 
 ---
 
 ## Dar de baja un camión
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**. **Necesita señal.**
 
-1. **Menú → «Vehículos»**.
-2. Busca la tarjeta del camión y **comprueba el nombre y la placa** antes de nada.
-3. Al final de la tarjeta, **toca «Eliminar»** (rojo, con contorno y papelera, sin
-   relleno).
-4. **Se abre un cajón que pregunta antes**, titulado **«Borrar «Camión 1»»**, y dice
-   lo que se pierde:
+1. Busca la tarjeta del camión y **comprueba el nombre y la placa** antes de nada.
+   Al final de la tarjeta, **toca «Eliminar»** (rojo, con contorno y papelera, sin
+   relleno). <!-- señala: vehiculos-eliminar -->
+   - **Se abre un cajón que pregunta antes**, titulado **«Borrar «Camión 1»»**,
+     y dice lo que se pierde:
 
    > «El camión se va de la flota. Las rutas y los pedidos que lo llevaban puesto NO
    > se borran —el histórico de lo repartido se queda— pero se quedan sin camión, y
    > hay que ponerles otro. Y el camión hay que volver a darlo de alta a mano, con su
    > placa, su capacidad y su costo por km.»
 
-5. **Toca «Sí, borrar «Camión 1»»**, o **«No, dejarlo»** para salir.
-6. Sale **«Vehículo eliminado.»** y la tarjeta desaparece.
+2. **Toca «Sí, borrar «Camión 1»»**, o **«No, dejarlo»** para salir. Sale
+   **«Vehículo eliminado.»** y la tarjeta desaparece.
+   <!-- señala: confirmar-el-borrado -->
 
 > **Ojo:** **cerrar el cajón sin contestar es NO** — la ✕, tocar fuera, Escape. Y si
 > era el camión del **«Cálculo domicilio»**, elige otro antes de irte: sin ninguno,
@@ -1119,24 +1232,25 @@ vehículo para calcular el domicilio»**. Debajo pone **«Solo un vehículo por 
 ---
 
 ## Definir los tipos de camión y su costo por km
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**. **Necesita señal.**
 
 El tipo es **el punto de partida del costo por km**: un camión de ese tipo lo hereda,
 y luego se puede cambiar camión por camión.
 
-1. **Menú → «Vehículos»**.
-2. Arriba, en la misma fila que la caja de buscar, **toca «Tipos de vehículo»**.
-3. Se abre el cajón **«Tipos de vehículo»**, que empieza diciendo para qué es:
-
-   > «Define cada tipo con su costo por km por defecto. Al crear un vehículo de ese
-   > tipo se hereda el costo/km (editable por vehículo).»
-
-4. Por cada fila, rellena **«Nombre»** y **«Costo/km (USD)»**. La papelera
-   (**«Quitar»**) borra la fila.
-5. Para otra fila, **toca «Agregar tipo»**, abajo.
-6. Al pie, **toca «Guardar»** (al lado de **«Cancelar»**). Sale **«Tipos
-   guardados.»**
+1. Arriba, en la misma fila que la caja de buscar, **toca «Tipos de vehículo»**.
+   <!-- señala: vehiculos-tipos -->
+   - Se abre el cajón **«Tipos de vehículo»**, que empieza diciendo para qué es:
+     «Define cada tipo con su costo por km por defecto. Al crear un vehículo de ese
+     tipo se hereda el costo/km (editable por vehículo).»
+2. Escribe el **«Nombre»** del tipo. <!-- señala: vehiculos-tipo-nombre -->
+3. Escribe su **«Costo/km (USD)»**. La papelera (**«Quitar»**) borra la fila.
+   <!-- señala: vehiculos-tipo-costo -->
+4. Para otra fila, **toca «Agregar tipo»**, abajo.
+   <!-- señala: vehiculos-anadir-tipo -->
+5. Al pie, **toca «Guardar»** (al lado de **«Cancelar»**). Sale **«Tipos
+   guardados.»** <!-- señala: vehiculos-guardar-tipos -->
 
 > **Ojo:** **las filas sin nombre no se guardan.** Y un costo que no sepas **se deja
 > vacío, nunca en cero**: un cero se lee como «el kilómetro es gratis».
@@ -1152,23 +1266,30 @@ tipo nuevo…»**. Ábrela, escribe **«Nombre del tipo»** y su **«Costo/km (U
 ---
 
 ## Poner o corregir un almacén
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Almacenes»**.
 
 **Esto necesita señal.**
 
-1. **Menú → «Almacenes».**
-2. Elige la sucursal arriba, si hay más de una.
-3. **Toca «Nuevo almacén»**, o toca el almacén que quieras corregir.
-4. Escribe el **nombre**.
-5. Pon el punto, de una de las **tres formas**:
-   - **Escribe la dirección y toca «Buscar»** (necesita señal, y al menos 4 letras).
-   - **Toca en el mapa** — funciona sin señal.
-   - **Escribe las coordenadas a mano** en la caja «Coordenadas», así: `19.83, -75.82`
-     — funciona siempre.
-6. Si quieres que sea el principal, **toca el chip «Principal»**. «Desde éste se mide
-   cuando nadie dice cuál.»
-7. **Toca «Guardar»**. Vas a ver **«Guardado en Accesos.»**
+1. Elige la sucursal arriba, si hay más de una.
+   <!-- señala: almacenes-sucursal -->
+2. **Toca «Nuevo almacén»**. <!-- señala: almacenes-nuevo -->
+   - O **toca el renglón del almacén** que quieras corregir.
+3. Escribe el **nombre del almacén**. <!-- señala: almacenes-nombre -->
+4. Forma 1 de poner el punto: **escribe la dirección**…
+   <!-- señala: almacenes-direccion -->
+5. …y **toca «Buscar»** (necesita señal, y al menos 4 letras).
+   <!-- señala: almacenes-buscar-la-direccion -->
+6. Forma 2: **toca en el mapa** — funciona sin señal.
+   <!-- señala: almacenes-mapa -->
+7. Forma 3: **escribe las coordenadas a mano** en la caja «Coordenadas», así:
+   `19.83, -75.82` — funciona siempre.
+   <!-- señala: almacenes-coordenadas -->
+8. Si quieres que sea el principal, **toca el chip «Principal»**. «Desde éste se mide
+   cuando nadie dice cuál.» <!-- señala: almacenes-principal -->
+9. **Toca «Guardar»**. Vas a ver **«Guardado en Accesos.»**
+   <!-- señala: almacenes-guardar -->
 
 **Un almacén sin punto se puede guardar, pero desde él no se cotiza**, y te lo avisa:
 «Sin coordenadas: desde éste no se puede medir el domicilio.»
@@ -1176,18 +1297,21 @@ tipo nuevo…»**. Ábrela, escribe **«Nombre del tipo»** y su **«Costo/km (U
 ---
 
 ## Cambiar cuál es el almacén principal
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Almacenes»**. **Necesita señal.**
 
 El principal es el que se usa **cuando nadie dice cuál**. Lo dice el propio chip:
 «Desde éste se mide cuando nadie dice cuál».
 
-1. **Menú → «Almacenes»**, y arriba elige la sucursal si hay más de una.
+1. Arriba, elige la sucursal si hay más de una.
+   <!-- señala: almacenes-sucursal -->
 2. **Toca el renglón del almacén** que va a ser el principal. Se abre su cajón, con
-   su nombre de título.
+   su nombre de título. <!-- señala: almacenes-abrir -->
 3. Debajo del nombre, **toca el chip «Principal»** (la estrella se rellena).
-4. **Toca «Guardar»**. Sale **«Guardado en Accesos.»**
-5. En la lista, la **estrella** se ha movido a ese almacén.
+   <!-- señala: almacenes-principal -->
+4. **Toca «Guardar»**. Sale **«Guardado en Accesos.»** En la lista, la **estrella**
+   se ha movido a ese almacén. <!-- señala: almacenes-guardar -->
 
 > **Ojo:** **sólo puede haber un principal.** Al marcar éste, los demás se desmarcan
 > solos — no hay que ir a quitárselo al anterior.
@@ -1195,15 +1319,18 @@ El principal es el que se usa **cuando nadie dice cuál**. Lo dice el propio chi
 ---
 
 ## Quitar un almacén de la sucursal
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Almacenes»**. **Necesita señal.**
 
-1. **Menú → «Almacenes»**, y arriba elige la sucursal.
+1. Arriba, elige la sucursal. <!-- señala: almacenes-sucursal -->
 2. **Toca el renglón del almacén.** Se abre su cajón.
+   <!-- señala: almacenes-abrir -->
 3. Debajo del nombre, a la derecha de los chips **«Principal»** y **«Activo»**, hay
    una **papelera** (**«Quitar»**). **Tócala.**
-4. **Se abre un cajón que pregunta antes**, **«Borrar «Almacén Central»»**, y dice
-   las cuatro cosas que pasan de verdad:
+   <!-- señala: almacenes-quitar -->
+   - **Se abre un cajón que pregunta antes**, **«Borrar «Almacén Central»»**, y
+     dice las cuatro cosas que pasan de verdad:
 
    > «El almacén se va de Accesos: se guarda la lista de Santiago sin él, así que
    > desaparece para todo el mundo y no sólo en esta pantalla. Deja de poder medirse
@@ -1215,7 +1342,8 @@ El principal es el que se usa **cuando nadie dice cuál**. Lo dice el propio chi
    > día se cobra mal y no se ve hasta cuadrar la caja. Volver a ponerlo es darlo de
    > alta a mano, con su dirección y su punto.»
 
-5. **Toca «Sí, borrar «Almacén Central»»**, o **«No, dejarlo»**.
+4. **Toca «Sí, borrar «Almacén Central»»**, o **«No, dejarlo»**.
+   <!-- señala: confirmar-el-borrado -->
 
 > **Ojo:** eso de que **los teléfonos que ya lo bajaron siguen midiendo desde él** es
 > literal. Después de quitar un almacén, **avisa a quien tenga la aplicación en el
@@ -1228,18 +1356,22 @@ la lista queda con el rótulo «inactivo» y no se ofrece para salir.
 ---
 
 ## Sacar el informe y mandarlo por WhatsApp
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Reportes»**.
 
-1. **Menú → «Reportes».**
+1. **Menú → «Reportes».** <!-- señala: menu-reportes -->
 2. **Lee lo que dice encima de las pestañas**: «Cuadrado con los datos del aparato,
    del 28/9/2026, 10:36.» **Si sale un aviso ámbar de que los datos tienen más de un
    día, esto no sirve para cerrar.** Trae el día primero.
+   <!-- señala: informes-advertencia -->
 3. Pon **«Desde»** y **«Hasta»**, y el **«Vehículo»** si quieres.
+   <!-- señala: informes-desde -->
 4. Mira las tres pestañas: **«Resumen»**, **«Por Vehículo»**, **«Detalle de
-   Órdenes»**.
-5. **Toca «Exportar a Excel»**.
+   Órdenes»**. <!-- señala: informes-pestanas -->
+5. **Toca «Exportar a Excel»**. <!-- señala: informes-exportar -->
 6. Mientras lo arma dice **«Armando el Excel...»**.
+   <!-- señala: informes-exportar -->
 7. Al terminar: **«Excel listo: elegí dónde mandarlo o guardarlo.»** y **se abre el
    cajón de compartir de Android**: WhatsApp, Telegram, correo, Archivos.
 
@@ -1261,6 +1393,7 @@ Cambia arriba a **USD** y vuelve a exportar.
 ---
 
 ## Actualizar la aplicación
+<!-- tarea -->
 
 **Empieza en:** la franja de arriba, desde cualquier pantalla.
 
@@ -1273,13 +1406,29 @@ Cuando hay versión nueva sale una franja ámbar arriba del todo.
    > por subir. Instalar ahora puede llevárselas: primero sube, después actualiza.
 
 2. Con la cola vacía, la franja dice **«Hay una versión nueva: 1.0.7»**.
-3. **Toca «Cómo instalarla»**.
-4. Lee lo que va a pasar: «Son 74 MB. Se abre el navegador y se descarga el fichero.
-   La descarga no toca esta aplicación: lo que tengas dentro sigue aquí mientras no
-   instales.»
-5. **Toca «Descargar»** (el botón se apaga después del primer toque: una descarga por
-   toque).
-6. Cuando baje, abre el fichero e instálalo encima.
+3. **Toca «Cómo instalarla»**. <!-- señala: franja-version-nueva -->
+4. Lee lo que va a pasar: «Son 74 MB y se descargan aquí dentro, con su barra: no hace
+   falta salir al navegador ni buscar el fichero después. Si se corta la conexión,
+   continúa desde donde iba. Al terminar, Android enseña su propia pantalla de
+   «¿instalar?» y ahí hay que confirmar: eso no lo puede hacer la aplicación.»
+5. **Toca «Descargar e instalar»**. <!-- señala: cajon-descargar-e-instalar -->
+   La barra va diciendo los MB. Puedes cerrar el cajón: **no para la descarga**, y el
+   cajón lo dice.
+6. Al terminar sale la pantalla de **«¿instalar?» de Android**. Confirma ahí y la nueva
+   entra encima de la que hay.
+
+**La primera vez te va a pedir un permiso**, y no es un fallo: Android no deja instalar
+nada que no venga de su tienda hasta que se le dice que de esta aplicación sí. La franja
+te lo dice con el botón **«Dar el permiso»**, que abre el ajuste; al volver, **«Ya lo di:
+instalar»**. Lo descargado **no se pierde** mientras das el permiso.
+
+**Si se corta la conexión**, el cajón dice cuántos MB llegaron y **«Seguir descargando»**:
+continúa donde iba, no empieza de cero. A los tres cortes seguidos ofrece además el
+navegador.
+
+**Si la huella no cuadra**, no se instala y lo dice: «La actualización llegó completa pero
+no es la que el servidor dice tener». Con **«Empezar de nuevo»**. Eso es a propósito — una
+aplicación a medio instalar es peor que no actualizar.
 
 **«Ahora no» no mata el aviso: lo calla 30 minutos y vuelve.**
 #@ FICHERO apk/4-sin-senal.md
@@ -2992,14 +3141,14 @@ De izquierda a derecha:
 | **«Datos de hace 9 h»** | Entre una hora y un día | gris |
 | **«Datos del martes — hace 3 días»** | Más de un día | ámbar |
 
-4. **«23 sin subir»**, un botón ámbar, sólo si hay algo. Lleva al cajón de entregar
+1. **«23 sin subir»**, un botón ámbar, sólo si hay algo. Lleva al cajón de entregar
    el día.
-5. Y dos líneas más que sólo salen cuando hay problema:
+2. Y dos líneas más que sólo salen cuando hay problema:
    - **«Sólo en este aparato: 1 ruta, 2 vehículos»** — trabajo que **nadie va a
      subir** porque ya no le queda ningún apunte detrás. Ver
      [Cuando algo sale mal](../cuando-algo-sale-mal.md).
    - **«Faltan datos por bajar: …»** — la bajada volvió a medias, con el motivo.
-6. A la derecha, dos botones: **«Traer el día»** y **«Entregar el día · 23 sin
+3. A la derecha, dos botones: **«Traer el día»** y **«Entregar el día · 23 sin
    subir»**, éste con el número en una insignia.
 
 **La franja entera se puede pulsar** y abre el cajón de traer el día. Así el gesto
@@ -4945,17 +5094,18 @@ que hay que pedir y a quién.
 ---
 
 ## Lo primero de todo: mira que estás en TU sucursal
+<!-- tarea -->
 
 **Empieza en:** la barra de arriba, en cualquier pantalla.
 
 1. Arriba, a la izquierda de tu avatar, hay una pastilla con la sucursal. En el
    teléfono sólo cabe el código: **«STG»**, **«HAB»**. En pantalla grande sale el
-   nombre entero.
+   nombre entero. <!-- señala: barra-sucursal -->
 2. Si es la tuya, no toques nada. **Si tienes uno de los cinco roles de una sola
    sucursal, ya está puesta y no se puede cambiar**: no está roto, es que no te
-   toca.
+   toca. <!-- señala: barra-sucursal -->
 3. Si puedes cambiarla —sólo `DESARROLLADOR` y `SUPER ADMIN`—, **tócala** y elige
-   de la lista.
+   de la lista. <!-- señala: barra-elegir-sucursal -->
 
 **Ojo con «Todas las sucursales (8)»** (en el teléfono, **«Todas (8)»**): con eso
 puesto, el Panel cambia de título y dice **«Faltan cosas por configurar en 6 de
@@ -4974,6 +5124,7 @@ vista no sabes cuál te está hablando.
 ---
 
 # Paso 1 — El punto de partida de la sucursal
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Panel»**. Y acaba en un mensaje a administración: aquí no
 se toca.
@@ -4989,19 +5140,18 @@ Lo dice el Panel con estas palabras:
 
 ## Lo que hay que hacer
 
-1. **Menú → «Panel».** Es la primera entrada del menú.
-2. Mira el recuadro ámbar de arriba, **antes de las cuatro cifras**. Si el paso
+1. Mira el recuadro ámbar de arriba, **antes de las cuatro cifras**. Si el paso
    **1/4** dice **«El punto de partida de la sucursal»**, falta.
-3. **Debajo de ese paso NO hay botón.** Hay una línea gris con un icono de
-   información que dice:
-
-   > «No se pone aquí: lo deja hecho quien da de alta la sucursal. Pídelo a
-   > administración y baja solo con el día.»
-
-4. **Pídelo a administración.** Diles la sucursal y que le falta el punto de
-   partida.
-5. Cuando lo pongan, **no tienes que hacer nada más que traer el día** (franja de
+   <!-- señala: panel-paso-a-paso -->
+   - **Debajo de ese paso NO hay botón.** Hay una línea gris con un icono de
+     información: «No se pone aquí: lo deja hecho quien da de alta la sucursal.
+     Pídelo a administración y baja solo con el día.»
+2. **Pídelo a administración.** Diles la sucursal y que le falta el punto de
+   partida. **Esto no se hace en la aplicación**, así que aquí no hay nada que
+   tocar.
+3. Cuando lo pongan, **no tienes que hacer nada más que traer el día** (franja de
    arriba → **«Traer el día»**). El paso se tacha solo.
+   <!-- señala: franja-traer-el-dia -->
 
 > **Ojo:** no lo busques en Almacenes. Son dos cosas distintas y la pantalla de
 > Almacenes lo dice: «No pone el punto de partida de la sucursal. Eso es otra cosa,
@@ -5021,6 +5171,7 @@ sería un número creíble y falso— y no se les puede cobrar el domicilio.
 ---
 
 # Paso 2 — Al menos un vehículo
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**.
 
@@ -5034,32 +5185,37 @@ no se guarda en el aparato, y si no sale, no se guarda, y te lo dice.
 
 ## Lo que hay que hacer
 
-1. **Menú → «Panel»**, y en el paso **2/4** del recuadro ámbar, **toca el botón
-   «Agregar el primer vehículo»** (lleva el dibujo de un camión). Te lleva a
-   Vehículos.
+1. En el paso **2/4** del recuadro ámbar, **toca el botón «Agregar el primer
+   vehículo»** (lleva el dibujo de un camión). Te lleva a Vehículos.
+   <!-- señala: panel-arreglar-el-paso -->
    - O ve directo: **Menú → «Vehículos»**.
 2. **En Vehículos**, arriba a la derecha de la caja de buscar, **toca «Agregar
-   Vehículo»**.
-3. Se abre un cajón, **«Nuevo Vehículo»**. Rellena de arriba abajo:
-   - **«Nombre del Vehículo *»** — obligatorio. La pista pone «Ej: Camión #1,
-     Furgoneta Azul».
-   - **«Tipo»** — desplegable. **Al elegir uno hereda su costo por km**, y queda
-     editable. Si tu tipo no está, la última opción del desplegable es **«+ Crear
-     tipo nuevo…»**: ábrela, escribe **«Nombre del tipo»** y su **«Costo/km
-     (USD)»**, y **toca «Crear tipo»**.
-   - **«Placa (opcional)»** — «ABC-1234». Se pasa a mayúsculas sola.
-   - **«Capacidad Máx. (kg)»** — **viene en 1000**. Cámbialo por lo que carga de
-     verdad: es el número contra el que se mide «no cabe».
-   - **«Estado del vehículo»** — déjalo en **«Disponible»**.
-   - **«Costo por km (USD)»** — la pista pone «1.65».
-   - **«Usar este vehículo para calcular el domicilio»** — ver el paso 2-bis de
-     abajo.
-   - **«Notas (opcional)»**.
-4. **Toca «Agregar Vehículo»** abajo, en el pie del cajón.
-5. El cajón se cierra y sale un aviso: **«Vehículo agregado.»** El camión aparece
-   como una tarjeta en la lista, con la insignia verde **«Disponible»**.
-6. **Vuelve al Panel.** El paso 2/4 tiene que haberse ido a la lista de abajo, en
-   gris y con su marca verde.
+   Vehículo»**. <!-- señala: vehiculos-agregar -->
+3. Escribe el **«Nombre del Vehículo *»**. Es obligatorio; la pista pone «Ej: Camión
+   #1, Furgoneta Azul». <!-- señala: vehiculos-nombre -->
+4. Elige el **«Tipo»**. **Al elegir uno hereda su costo por km**, y queda editable.
+   <!-- señala: vehiculos-tipo -->
+   - Si tu tipo no está, la última opción del desplegable es **«+ Crear tipo
+     nuevo…»**: ábrela, escribe **«Nombre del tipo»** y su **«Costo/km (USD)»**, y
+     **toca «Crear tipo»**.
+5. Escribe la **«Placa (opcional)»** — «ABC-1234». Se pasa a mayúsculas sola.
+   <!-- señala: vehiculos-placa -->
+6. Pon la **«Capacidad Máx. (kg)»**. **Viene en 1000**: cámbialo por lo que carga de
+   verdad, que es el número contra el que se mide «no cabe».
+   <!-- señala: vehiculos-capacidad -->
+7. Deja el **«Estado del vehículo»** en **«Disponible»**.
+   <!-- señala: vehiculos-estado -->
+8. Pon el **«Costo por km (USD)»** — la pista pone «1.65».
+   <!-- señala: vehiculos-costo-por-km -->
+9. Si de este camión va a salir el precio del domicilio, marca **«Usar este vehículo
+   para calcular el domicilio»** — ver el paso 2-bis de abajo.
+   <!-- señala: vehiculos-calcula-el-domicilio -->
+10. **Toca «Agregar Vehículo»** abajo, en el pie del cajón.
+    <!-- señala: vehiculos-guardar -->
+    - El cajón se cierra y sale **«Vehículo agregado.»** El camión aparece como una
+      tarjeta en la lista, con la insignia verde **«Disponible»**.
+    - **Vuelve al Panel**: el paso 2/4 tiene que haberse ido a la lista de abajo, en
+      gris y con su marca verde.
 
 ### Si no sabes el costo por km
 
@@ -5123,6 +5279,7 @@ aparato»**.
 ---
 
 # Paso 2-bis — Decir qué camión calcula el domicilio
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**.
 
@@ -5133,20 +5290,20 @@ cuyo **costo por km** sale lo que se le cobra al cliente por el domicilio.
 
 ## Lo que hay que hacer
 
-1. **Menú → «Vehículos»**.
-2. Busca la tarjeta del camión. **Debajo del nombre y de la insignia de estado**,
-   en la fila de pastillas, mira qué pone:
-   - Si ya es el que calcula, lleva una pastilla con una casita: **«Cálculo
-     domicilio · $1.65/km»**.
-   - Si no lo es, en ese mismo sitio hay un botón: **«Usar para domicilio»**.
-3. **Toca «Usar para domicilio»**.
-4. Sale el aviso **«Se usará este vehículo para calcular el domicilio.»** y la
-   tarjeta cambia: el botón desaparece y en su sitio queda la pastilla **«Cálculo
-   domicilio»**.
-
-**También se puede desde la ficha:** **toca «Editar»** en la tarjeta y marca la
-casilla **«Usar este vehículo para calcular el domicilio»**. Debajo pone **«Solo un
-vehículo por TIPO.»**
+1. Busca la tarjeta del camión y, **debajo del nombre y de la insignia de estado**,
+   en la fila de pastillas, **toca «Usar para domicilio»**.
+   <!-- señala: vehiculos-usar-para-domicilio -->
+   - Si ya es el que calcula, ahí lleva una pastilla con una casita: **«Cálculo
+     domicilio · $1.65/km»**, y el botón no está.
+   - Al tocarlo sale **«Se usará este vehículo para calcular el domicilio.»** y el
+     botón se cambia por la pastilla.
+2. También se puede desde la ficha: **toca «Editar»** en la tarjeta.
+   <!-- señala: vehiculos-editar -->
+3. Marca la casilla **«Usar este vehículo para calcular el domicilio»**. Debajo pone
+   **«Solo un vehículo por TIPO.»**
+   <!-- señala: vehiculos-calcula-el-domicilio -->
+4. **Toca «Actualizar»** en el pie del cajón.
+   <!-- señala: vehiculos-guardar -->
 
 > **Ojo:** si la pastilla dice **«Cálculo domicilio»** **sin importe detrás**, ese
 > camión está elegido para calcular y **no tiene costo por km**. Edítalo y ponle
@@ -5161,6 +5318,7 @@ pedidos salen **«sin cotizar»**.
 ---
 
 # Paso 3 — Al menos un almacén con su punto puesto
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Almacenes»**.
 
@@ -5176,47 +5334,47 @@ guardan allí, y por eso el aviso de que salió bien dice **«Guardado en Acceso
 
 ## Lo que hay que hacer
 
-1. **Menú → «Panel»**, y en el paso **3/4**, **toca «Poner el almacén»** (lleva el
-   dibujo de un almacén). Te lleva a Almacenes.
+1. En el paso **3/4**, **toca «Poner el almacén»** (lleva el dibujo de un almacén).
+   Te lleva a Almacenes. <!-- señala: panel-arreglar-el-paso -->
    - O ve directo: **Menú → «Almacenes»**.
-2. **En Almacenes**, debajo del título lee la línea que explica para qué es: «El
-   punto desde el que se mide cada domicilio. Un almacén sin coordenadas no sirve
-   para cotizar: la distancia se mide desde aquí.»
-3. **Arriba, si hay más de una sucursal, elige la tuya** en el selector
+   - Allí, debajo del título, la línea explica para qué es: «El punto desde el que se
+     mide cada domicilio. Un almacén sin coordenadas no sirve para cotizar.»
+2. **Arriba, si hay más de una sucursal, elige la tuya** en el selector
    («Sucursal»). Si está vacío pone **«Elige sucursal»**.
-4. A la derecha de ese selector, **toca «Nuevo almacén»**.
-5. Se abre un cajón titulado **«Nuevo almacén»**, con el nombre de la sucursal
-   debajo del título.
-6. **Escribe el nombre** en la primera caja («Nombre del almacén»). Si lo dejas
+   <!-- señala: almacenes-sucursal -->
+3. A la derecha de ese selector, **toca «Nuevo almacén»**.
+   <!-- señala: almacenes-nuevo -->
+   - Se abre un cajón titulado **«Nuevo almacén»**, con el nombre de la sucursal
+     debajo del título.
+4. **Escribe el nombre** en la primera caja («Nombre del almacén»). Si lo dejas
    vacío sale **«Le falta el nombre.»** en rojo y **«Guardar»** no se puede pulsar.
-7. Debajo del nombre hay dos pastillas y una papelera:
-   - **«Principal»** — tócala si desde éste se mide cuando nadie dice cuál. **Sólo
-     puede haber uno: al marcar éste, los demás se desmarcan.**
-   - **«Activo» / «Inactivo»** — déjala en **«Activo»**.
-8. Baja a la sección **«Dónde está»**. Lee lo que dice, que es el resumen entero:
-
-   > «Tres formas de poner el punto: buscar la dirección, pulsar en el mapa, o
-   > escribir las coordenadas. Escribirlas a mano funciona siempre, también sin
-   > conexión.»
-
-9. **Pon el punto, por una de las tres**:
-   - **La dirección.** Escribe en **«Dirección»** y **toca «Buscar»**, a la derecha
-     del campo. **Hacen falta al menos 4 letras** —si no, pone «Escribe al menos 4
-     letras para poder buscar.»—. Mientras pregunta, el botón dice **«Buscando…»**.
-   - **El mapa.** Baja hasta el mapa y **toca donde está el almacén**. Debajo sale
-     **«Punto puesto en 20.02470, -75.82190.»** **Esto funciona sin señal.**
-   - **A mano.** Escribe en la caja **«Coordenadas»** así: `19.83, -75.82`. **Ésta
-     funciona siempre.** Si no se entiende, debajo pone «No se entiende. Escríbelo
-     como «19.83, -75.82».»
-
-   **Las tres escriben en la misma caja de «Coordenadas», y lo que se guarda es lo
-   que ponga ahí.** Puedes buscar y luego corregir a mano.
-
-10. **Toca «Guardar»**, en el pie del cajón, a la derecha de **«Cerrar»**. Mientras
+   <!-- señala: almacenes-nombre -->
+5. Debajo del nombre, **toca «Principal»** si desde éste se mide cuando nadie dice
+   cuál. **Sólo puede haber uno: al marcar éste, los demás se desmarcan.**
+   <!-- señala: almacenes-principal -->
+6. Al lado, deja **«Activo»** como está.
+   <!-- señala: almacenes-activo -->
+7. Forma 1 de poner el punto: **escribe la dirección** en **«Dirección»**.
+   <!-- señala: almacenes-direccion -->
+8. Y **toca «Buscar»**, a la derecha del campo. **Hacen falta al menos 4 letras**
+   —si no, pone «Escribe al menos 4 letras para poder buscar.»—. Mientras pregunta,
+   el botón dice **«Buscando…»**.
+   <!-- señala: almacenes-buscar-la-direccion -->
+9. Forma 2: **toca en el mapa**, donde está el almacén. Debajo sale **«Punto puesto
+   en 20.02470, -75.82190.»** **Esto funciona sin señal.**
+   <!-- señala: almacenes-mapa -->
+10. Forma 3: **escribe las coordenadas a mano** en **«Coordenadas»**, así:
+    `19.83, -75.82`. **Ésta funciona siempre.** Si no se entiende, debajo pone «No se
+    entiende. Escríbelo como «19.83, -75.82».»
+    <!-- señala: almacenes-coordenadas -->
+    - **Las tres escriben en la misma caja de «Coordenadas», y lo que se guarda es lo
+      que ponga ahí.** Puedes buscar y luego corregir a mano.
+11. **Toca «Guardar»**, en el pie del cajón, a la derecha de **«Cerrar»**. Mientras
     guarda dice **«Guardando…»**.
-11. Sale **«Guardado en Accesos.»** y el almacén aparece en la lista, con una
-    **estrella** si lo marcaste principal.
-12. **Vuelve al Panel.** El paso 3/4 tiene que haberse tachado.
+    <!-- señala: almacenes-guardar -->
+    - Sale **«Guardado en Accesos.»** y el almacén aparece en la lista, con una
+      **estrella** si lo marcaste principal.
+    - **Vuelve al Panel**: el paso 3/4 tiene que haberse tachado.
 
 ### Si al buscar la dirección te ofrece otra
 
@@ -5276,6 +5434,7 @@ en la propia pantalla:
 ---
 
 # Paso 4 — La tasa de cambio de la sucursal
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Panel»**. Y acaba en Accesos: aquí no se toca.
 
@@ -5288,25 +5447,29 @@ en la propia pantalla:
 
 ## Lo que hay que hacer
 
-1. **Menú → «Panel».** Mira el paso **4/4** del recuadro ámbar.
-2. **No hay botón.** Debajo, la línea gris dice:
-
-   > «No se pone aquí: la mantiene Accesos, que la trae de Entrega. Se arregla
-   > allí y baja sola con el día.»
-
-3. **Pídelo a administración**, y di de qué sucursal. **La tasa es de cada
-   sucursal, una por una**: que La Habana la tenga no le sirve de nada a Granma.
-4. Cuando la pongan, **trae el día** y el paso se tacha solo.
+1. Mira el paso **4/4** del recuadro ámbar.
+   <!-- señala: panel-paso-a-paso -->
+   - **No hay botón.** Debajo, la línea gris dice: «No se pone aquí: la mantiene
+     Accesos, que la trae de Entrega. Se arregla allí y baja sola con el día.»
+2. **Pídelo a administración**, y di de qué sucursal. **La tasa es de cada sucursal,
+   una por una**: que La Habana la tenga no le sirve de nada a Granma. **Esto no se
+   hace en la aplicación**, así que aquí no hay nada que tocar.
+3. Cuando la pongan, **trae el día** y el paso se tacha solo.
+   <!-- señala: franja-traer-el-dia -->
 
 ## Cómo compruebas que ya está
+<!-- tarea -->
 
 **Empieza en:** la barra de arriba, en cualquier pantalla.
 
 1. Arriba, a la derecha de la pastilla de la sucursal, hay otra que pone **«USD»**.
+   <!-- señala: barra-moneda -->
 2. **Tócala.** Si hay tasa, aparece la opción **«CUP»** y debajo, como nota, la
    tasa con su fecha: **«1 USD = 320 · del 9/9/2026»**.
+   <!-- señala: barra-elegir-moneda -->
 3. Si **no** hay tasa, la pastilla está en ámbar con un icono de dinero tachado y
    no se puede abrir. Su explicación es ésta, con el nombre de tu sucursal dentro:
+   <!-- señala: barra-moneda -->
 
    > «Santiago no tiene tasa de cambio todavía: los importes sólo se pueden ver en
    > USD.»
@@ -5334,6 +5497,7 @@ vuelve a exportar.
 ---
 
 # Cómo sabes que tu sucursal ya está lista
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Panel»**.
 
@@ -5342,11 +5506,11 @@ paso a paso **sólo se pinta cuando falta algo**, y cuando no falta nada no ocup
 una línea. Un asistente que sigue ahí cuando ya no hace falta es ruido para
 siempre, y el ruido de siempre se deja de leer.
 
-1. **Menú → «Panel».**
-2. Si arriba, antes de las cuatro cifras, **no hay recuadro ámbar**, está lista.
-3. Lo primero que vas a ver entonces es la banda de **«Estado del día»** (en el
-   teléfono y en el escritorio) y debajo las cuatro cifras: **«Pedidos sin ruta»**,
-   **«Rutas en marcha»**, **«Entregados hoy»** y **«Vehículos»**.
+1. Mira arriba, antes de las cuatro cifras: si **no hay recuadro ámbar**, está
+   lista. <!-- señala: panel-paso-a-paso -->
+   - Lo primero que vas a ver entonces es la banda de **«Estado del día»** (en
+     el teléfono y en el escritorio) y debajo las cuatro cifras: **«Pedidos sin
+     ruta»**, **«Rutas en marcha»**, **«Entregados hoy»** y **«Vehículos»**.
 
 ### El estado que NO es «falta algo»
 
@@ -5757,6 +5921,33 @@ las de arriba.
 
 **La columna «Empieza en» dice qué pantalla hay que abrir**, con el nombre que tiene
 en el menú. Es lo primero que hay que hacer en todas.
+
+---
+
+## Que la Guía te lleve de la mano
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Guía»**.
+
+No hay que leerse esto. **La aplicación te lleva**: eliges la tarea, te lleva a la
+pantalla y te va marcando el botón que toca en cada paso.
+
+1. En la lista de **«Tareas»**, **toca la que quieras hacer**. Debajo de su nombre
+   pone cuántos pasos guiados tiene. <!-- señala: guia-primera-tarea -->
+2. Abajo del cajón, **toca «Guiarme paso a paso»**.
+   <!-- señala: guia-guiarme -->
+   - La aplicación te lleva a la pantalla de la tarea y **te marca el control** del
+     primer paso, con la nota al lado.
+   - **«Siguiente»** pasa al que viene, **«Atrás»** vuelve, y arriba pone por dónde
+     vas: «3 de 7».
+   - **«Salir»** lo deja donde quieras. No se queda nada a medias.
+3. Y si lo que quieres es leer, **toca «Documento»** arriba: ahí están las páginas
+   enteras, para leer de principio a fin o para imprimir.
+   <!-- señala: guia-documento -->
+
+**Lo que no se puede marcar, lo dice.** Un paso que no se hace en la aplicación
+—«pídelo a administración»— sale con su texto y diciendo que ahí no hay nada que
+tocar, en vez de quedarse mudo.
 
 ---
 
@@ -6437,11 +6628,13 @@ para ellos).
 ## Lo que cambia en el escritorio
 
 ### Traer el día a mano
+<!-- tarea -->
 
 **Empieza en:** la franja de arriba, desde cualquier pantalla.
 
 1. **Clic en la franja de arriba**, en cualquier sitio.
-2. **Clic en «Traer el día»**.
+   <!-- señala: franja-de-estado -->
+2. **Clic en «Traer el día»**. <!-- señala: traer-el-dia-traer -->
 
 **En la web esto no existe.** Aquí es el gesto que hace que todo lo demás funcione
 sin red.
@@ -6450,28 +6643,33 @@ Si el botón está apagado, el motivo sale al lado: **«Sin conexión con el ser
 o **«Los datos ya son de ahora mismo»**.
 
 ### Entregar el día a mano
+<!-- tarea -->
 
 **Empieza en:** la franja de arriba, desde cualquier pantalla.
 
 1. **Clic en la franja**, o directamente en el botón **«23 sin subir»**.
-2. **Clic en «Entregar el día»**.
+   <!-- señala: franja-entregar-el-dia -->
+2. **Clic en «Entregar el día»**. <!-- señala: entregar-el-dia-entregar -->
 
 Si está apagado: **«Trae el día primero: no se envía nada sin tener lo de ahora»**.
 
 ### Ver qué aparato lleva sin subir
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Sincronización»**.
 
 **Esta pantalla no existe en la web.**
 
-1. **Menú → «Sincronización»**.
+1. **Menú → «Sincronización»**. <!-- señala: menu-sincronizacion -->
 2. Arriba, las cuatro cifras: **«Sin subir nunca»**, **«Más de un día sin subir»**
    («Estos son los de llamar»), **«Apuntes pendientes»** y **«Rechazados sin
-   atender»**.
+   atender»**. <!-- señala: sincronizacion-cifras -->
 3. Debajo, la tabla **«Aparatos»**, **ordenada por el que lleva más sin subir**. El
    borde de cada fila es rojo (más de 24 h o nunca), ámbar (más de 8 h) o verde.
+   <!-- señala: sincronizacion-aparatos -->
 4. Y la bandeja **«Rechazados sin atender (4)»**, con el motivo literal del servidor,
    quién, cuándo se hizo y cuándo se rechazó.
+   <!-- señala: sincronizacion-bandeja -->
 
 **Desde aquí sólo se miran.** Los botones de **«Reintentar»** y **«Descartar»** están
 en el cajón de «Entregar el día», que enseña los rechazos **de este** ordenador.
@@ -6479,29 +6677,35 @@ en el cajón de «Entregar el día», que enseña los rechazos **de este** orden
 **Y necesita conexión**: se lee del servidor cada vez y no guarda copia.
 
 ### Resolver un rechazo
+<!-- tarea -->
 
 **Empieza en:** la franja de arriba, desde cualquier pantalla.
 
 1. **Clic en la franja** → botón de la nube con la flecha hacia arriba.
+   <!-- señala: franja-entregar-el-dia -->
 2. Baja hasta **«Rechazados, esperando a una persona»**.
+   <!-- señala: entregar-el-dia-bandeja -->
 3. **Lee el motivo**, con las palabras del servidor.
+   <!-- señala: entregar-el-dia-rechazo -->
 4. **«Reintentar»** si el motivo ya no se da; **«Descartar»** si ese cambio ya no tiene
-   sentido (**se pierde**).
+   sentido (**se pierde**). <!-- señala: rechazo-reintentar -->
 
 ### Descargar el mapa de Cuba
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Mapa de Cuba sin conexión»**.
 
 **Esta pantalla no existe en la web.**
 
-1. **Menú → «Mapa de Cuba sin conexión»**.
-2. **Clic en «Completo, con calles — 49,2 MB»**.
+1. **Menú → «Mapa de Cuba sin conexión»**. <!-- señala: menu-mapa -->
+2. **Clic en «Completo, con calles — 49,2 MB»**. <!-- señala: mapa-bajar -->
 
 Y si el mapa se ve mal, baja hasta **«Si el mapa se ve mal»** y usa **«Volver a bajar
 «Completo, con calles»»**. **Nunca desinstales la aplicación para arreglar el mapa:
 se llevaría el trabajo que no haya subido.**
 
 ### Exportar el Excel
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Reportes»**.
 
@@ -6513,6 +6717,7 @@ la carpeta de descargas** y te dice la ruta:
 **No se abre ningún cajón de compartir** (en Linux compartir ficheros no existe).
 
 ### Mandarle la ruta al chófer
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
@@ -6526,6 +6731,7 @@ nada**, y la aplicación lo dice:
 **Usa «Copiar»** y pégalo donde quieras.
 
 ### Actualizar la aplicación
+<!-- tarea -->
 
 **Empieza en:** la franja de arriba, desde cualquier pantalla.
 
@@ -6537,11 +6743,12 @@ nada**, y la aplicación lo dice:
    > por subir. Instalar ahora puede llevárselas: primero sube, después actualiza.
 
 2. Con la cola vacía, la franja dice **«Hay una versión nueva: 1.0.7»**.
-3. **Clic en «Cómo instalarla»**.
+3. **Clic en «Cómo instalarla»**. <!-- señala: franja-version-nueva -->
 4. Lee qué va a pasar: «Son 74 MB. Se abre el navegador y se descarga el fichero. La
    descarga no toca esta aplicación: lo que tengas dentro sigue aquí mientras no
    instales.»
 5. **Clic en «Descargar»** (el botón se apaga después del primer clic).
+   <!-- señala: cajon-descargar-al-navegador -->
 6. Instálalo encima cuando puedas: «No hace falta que sea ahora: la versión de ahora
    sigue funcionando.»
 
@@ -6854,6 +7061,21 @@ PEDIDO —*esperando*, *sin terminar*, *el más viejo*, *último aviso*— para 
 comparar las dos sin traducir nada.
 
 ---
+
+## Mirar cómo va el canal con PEDIDO
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Canal con PEDIDO»**. **Sólo en la web, y sólo para
+`DESARROLLADOR` y `SUPER ADMIN`.**
+
+1. Mira **«El canal con PEDIDO»**, arriba: contesta si el canal respira.
+   <!-- señala: canal-respira -->
+2. Baja a **«Saliendo»**: lo que el reparto le cuenta a PEDIDO.
+   <!-- señala: canal-saliendo -->
+3. Y a **«Entrando»**: lo que PEDIDO le cuenta al reparto.
+   <!-- señala: canal-entrando -->
+4. Si hay algo en **«Sin terminar»**, mira su motivo antes de reintentar nada.
+   <!-- señala: canal-sin-terminar -->
 
 ## «El canal con PEDIDO»
 
@@ -7326,12 +7548,12 @@ Haz clic en **«Me quedo»**, arréglalo, y sal después.
 ---
 
 ## Buscar un pedido
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Pedidos»**.
 
-1. **Menú → «Pedidos».**
-2. Haz clic en la caja **«Buscar»** y escribe el cliente, el folio, la dirección, el
-   municipio, el vendedor o un producto. **Busca solo**, sin darle a intro.
+1. Haz clic en la caja **«Buscar»** y escribe el cliente, el folio, la dirección, el
+   municipio, el vendedor o un producto. **Busca solo**, sin darle a intro. <!-- señala: pedidos-buscar -->
 
 ### Si no aparece
 
@@ -7345,8 +7567,19 @@ Haz clic en **«Me quedo»**, arréglalo, y sal después.
 ---
 
 ## Filtrar y ordenar la lista de pedidos
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Pedidos»**.
+
+1. **Clic en «Estado de reparto en delivery»** y elige en qué punto del reparto
+   están los que quieres ver. <!-- señala: pedidos-filtro-estado -->
+2. **Clic en «Municipio del cliente»** para quedarte con un municipio.
+   <!-- señala: pedidos-filtro-municipio -->
+3. **Clic en «Cómo se ordena esta página»** para cambiar el orden.
+   <!-- señala: pedidos-orden -->
+4. Y para dejarlo todo como estaba, **clic en «Quitar todos los filtros»** (sale en
+   el vacío, cuando ningún pedido cuadra).
+   <!-- señala: pedidos-limpiar-filtros -->
 
 Los filtros van en una fila bajo la cabecera:
 
@@ -7370,23 +7603,24 @@ Cualquier cambio te devuelve a la página 1.
 ---
 
 ## Mandar varios pedidos a una zona de golpe
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Pedidos»**.
 
-1. **Menú → «Pedidos»** y **filtra** lo que quieras.
+1. **Menú → «Pedidos»** y **filtra** lo que quieras. <!-- señala: pedidos-filtro-municipio -->
 2. **Marca los pedidos**: clic en su casilla, o en la casilla de la cabecera («Elegir
-   todos los de esta página»).
-3. Aparece la franja azul **«7 pedido(s) elegidos»**.
-4. **Clic en «Mandar a una zona»**.
-5. Se abre **«Mandar a una zona del tablero»**:
+   todos los de esta página»). <!-- señala: pedidos-marcar-todos -->
+3. **Clic en «Mandar a una zona»**, en la franja azul que dice **«7 pedido(s)
+   elegidos»**. <!-- señala: pedidos-mandar-a-una-zona -->
+   - Se abre **«Mandar a una zona del tablero»**:
 
    > «Se colocan en el orden en que están marcados, y el gesto es el mismo que
    > arrastrarlos.»
 
-6. **Clic en la zona** de la lista. Debajo de cada una pone «12 pedido(s) puestos».
-   - Si no hay ninguna: **«Crear una zona nueva»**, el nombre, y **«Crear»**.
-7. **Clic en «Mandar a la zona»**.
-8. Te dice cómo fue: **«5 pedido(s) en «Centro»»**.
+4. **Clic en la zona** de la lista. Debajo de cada una pone «12 pedido(s) puestos».
+   - Si no hay ninguna: **«Crear una zona nueva»**, el nombre, y **«Crear»**. <!-- señala: pedidos-zona-destino -->
+5. **Clic en «Mandar a la zona»**. Te dice cómo fue: **«5 pedido(s) en «Centro»»**.
+   <!-- señala: pedidos-mandar -->
 
 **Si alguno se queda fuera**, sale en ámbar con el motivo de cada uno:
 
@@ -7401,25 +7635,37 @@ X-3010 · Luis: Sin coordenadas de entrega
 ---
 
 ## Ver el detalle de un pedido
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Pedidos»**.
 
-1. **Menú → «Pedidos».**
-2. **Clic en cualquier sitio de la fila** (la fila entera abre el detalle).
-3. Se abre un cajón por la derecha, con el cliente de título y el folio debajo:
-   **«Entrega»**, **«Recorrido»**, la banda de la factura, el bloque del domicilio y
-   **«Productos (6)»**.
+1. **Clic en cualquier sitio de la fila** (la fila entera abre el detalle).
+   <!-- señala: pedidos-abrir-el-pedido -->
+   - Se abre un cajón por la derecha, con el cliente de título y el folio debajo:
+     **«Entrega»**, **«Recorrido»**, la banda de la factura, el bloque del domicilio
+     y **«Productos (6)»**.
 
 **Es sólo lectura.** Los pedidos vienen de PEDIDO y aquí no se editan.
 
 ---
 
 ## Renombrar, vaciar o borrar una zona
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Tablero»**.
 
-1. **Menú → «Tablero»**, y **clic en el ⋮** de la cabecera de la zona.
-2. Elige:
+1. **Clic en el ⋮** de la cabecera de la zona.
+   <!-- señala: tablero-menu-de-la-zona -->
+2. Para cambiarle el nombre, **clic en «Renombrar»**, escríbelo y **«Guardar»**.
+   <!-- señala: tablero-renombrar -->
+3. Para devolver sus tarjetas a «sin colocar», **clic en «Vaciar»**.
+   <!-- señala: tablero-vaciar -->
+4. Y para quitar la zona entera, **clic en «Borrar la columna»**.
+   <!-- señala: tablero-borrar-la-zona -->
+5. Confirma con **«Sí, borrar «Centro»»**.
+   <!-- señala: confirmar-el-borrado -->
+
+Lo que hay en ese ⋮:
    - **«Renombrar»**
    - **«Vaciar»** — «Las tarjetas vuelven a «sin colocar»»
    - **«Mover todo a otra columna»**
@@ -7439,26 +7685,27 @@ columna y borrar»**.
 ---
 
 ## Armar una ruta sin usar el Tablero
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
 Es el camino largo, para cuando la ruta no sale de una zona entera.
 
-1. **Menú → «Rutas»**, y arriba a la derecha de la lista, **clic en «+ Nueva
-   Ruta»**.
-2. Se abre un cajón a pantalla completa, **«Nueva Ruta»**, con cuatro tramos arriba:
-   **«Sucursal» · «Salida» · «Vehículo» · «Pedidos»**.
-3. **«Sucursal»** — elige en **«Sucursal de la ruta»** y **«Siguiente»**.
-   **Cambiarla borra todo lo elegido después.**
-4. **«Salida»** — elige en **«Almacén del que sale el camión»** y **«Siguiente»**.
+1. Arriba a la derecha de la lista, **clic en «+ Nueva Ruta»**.
+   <!-- señala: rutas-nueva-ruta -->
+   - Se abre un cajón a pantalla completa, **«Nueva Ruta»**, con cuatro tramos
+     arriba: **«Sucursal» · «Salida» · «Vehículo» · «Pedidos»**.
+2. **«Sucursal»** — elige en **«Sucursal de la ruta»** y **«Siguiente»**.
+   **Cambiarla borra todo lo elegido después.** <!-- señala: rutas-asistente-sucursal -->
+3. **«Salida»** — elige en **«Almacén del que sale el camión»** y **«Siguiente»**.
    Sólo salen los que tienen coordenadas. Si no hay ninguno: «Esta sucursal no tiene
-   ningún almacén con ubicación…» y un botón **«Poner el almacén»**.
-5. **«Vehículo»** — **obligatorio**. Se ofrecen todos, con su capacidad de nota: «1000
+   ningún almacén con ubicación…» y un botón **«Poner el almacén»**. <!-- señala: rutas-asistente-almacen -->
+4. **«Vehículo»** — **obligatorio**. Se ofrecen todos, con su capacidad de nota: «1000
    kg», «1000 kg · en el taller», «1000 kg · en ruta».
    - Si eliges uno del taller, sale un aviso en ámbar pero **se arma igual**.
    - Opcionalmente, el nombre y la **«Fecha de entrega»**, que **viene puesta en
-     hoy**.
-6. **«Pedidos»** — marca los que quieras.
+     hoy**. <!-- señala: rutas-asistente-vehiculo -->
+5. **«Pedidos»** — marca los que quieras.
    - **La barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»** y
      **«Camión lleno — no cabe más»**.
    - **Las filas que ya no caben se apagan**, con el motivo «No cabe en el camión».
@@ -7469,8 +7716,8 @@ Es el camino largo, para cuando la ruta no sale de una zona entera.
      **«Dejar el mío»**.
    - Debajo, el resumen: **«12 pedidos seleccionados (2 de otro día o filtro, siguen
      contando)»**. Ese «siguen contando» es literal: **siguen en la ruta y siguen
-     sumando peso** aunque los filtros ya no los enseñen.
-7. **Clic en «Generar Ruta»**.
+     sumando peso** aunque los filtros ya no los enseñen. <!-- señala: rutas-asistente-buscar -->
+6. **Clic en «Generar Ruta»**. <!-- señala: rutas-asistente-generar -->
 
 Para volver atrás, **clic en el nombre del tramo** arriba («Vehículo», «Salida»…).
 
@@ -7490,6 +7737,7 @@ Falta salida, camión o pedidos, o te has pasado de peso.
 ---
 
 ## Filtrar la lista de rutas
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
@@ -7504,8 +7752,8 @@ En la columna de la izquierda:
 - **«Limpiar»** — sólo aparece si hay algo puesto
 
 **Ojo con el número de las pestañas:** cuenta **todas** las rutas de la sucursal, sin
-aplicar estos filtros. Por eso «Planificadas (12)» puede salir encima de una lista de
-3. No es un fallo.
+aplicar estos filtros. Por eso «Planificadas (12)» puede salir encima de una lista
+de 3, y no es un fallo.
 
 **Y los filtros no se pueden mandar en un enlace.** Viven sólo mientras tengas la
 pantalla abierta, y recargar los borra.
@@ -7513,16 +7761,17 @@ pantalla abierta, y recargar los borra.
 ---
 
 ## Eliminar una ruta
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
-1. **Menú → «Rutas»** y busca la ruta en su pestaña: **«Planificadas»** o **«En
-   curso»**.
-2. **Mira el código de la tarjeta** antes de nada, para no borrar la de al lado.
-3. Al final de su tarjeta, **clic en «Eliminar»** (el botón rojo, con contorno y
-   papelera, sin relleno).
-4. **Se abre un cajón que pregunta antes**, titulado **«Borrar «RT-20260928-004»»**,
-   y te dice lo que se pierde:
+1. **Mira el código de la tarjeta** antes de nada, para no borrar la de al lado.
+   <!-- señala: rutas-tarjeta-de-ruta -->
+   - Busca la ruta en su pestaña: **«Planificadas»** o **«En curso»**.
+2. Al final de su tarjeta, **clic en «Eliminar»** (el botón rojo, con contorno y
+   papelera, sin relleno). <!-- señala: rutas-eliminar -->
+   - **Se abre un cajón que pregunta antes**, titulado **«Borrar «RT-20260928-004»»**,
+     y te dice lo que se pierde:
 
    > «La ruta desaparece con su código, su fecha, el orden de visita y los
    > kilómetros que se calcularon al armarla. Para tenerla otra vez hay que volver a
@@ -7531,7 +7780,8 @@ pantalla abierta, y recargar los borra.
    > Lo que NO se borra son los pedidos: sueltan esta ruta y vuelven a la lista de
    > disponibles, listos para ponerlos en otra. Y el camión se queda libre.»
 
-5. **Clic en «Sí, borrar «RT-20260928-004»»**, o en **«No, dejarla»** para salir.
+3. **Clic en «Sí, borrar «RT-20260928-004»»**, o en **«No, dejarla»** para salir.
+   <!-- señala: confirmar-el-borrado -->
 
 > **Ojo:** **cerrar el cajón sin contestar es NO.** La ✕, clic fuera o Escape dejan
 > la ruta donde estaba.
@@ -7551,6 +7801,7 @@ Al eliminarla, **sus pedidos vuelven a estar disponibles**.
 ---
 
 ## Sacar un pedido de una ruta
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
@@ -7563,13 +7814,15 @@ Al eliminarla, **sus pedidos vuelven a estar disponibles**.
 ---
 
 ## Consultar un cliente
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Clientes»**.
 
-1. **Menú → «Clientes».**
+1. **Menú → «Clientes».** <!-- señala: menu-clientes -->
 2. Escribe en **«Buscar por nombre, dirección o municipio…»**. Busca también por
-   teléfono, código, zona y vendedor.
+   teléfono, código, zona y vendedor. <!-- señala: clientes-buscar -->
 3. **Clic en la fila.** Se abre la ficha, con el **teléfono el primero**.
+   <!-- señala: clientes-abrir-el-cliente -->
 
 **No se crean, ni se editan, ni se borran.** Vienen de PEDIDO, y sólo los que tienen
 geolocalización.
@@ -7580,19 +7833,24 @@ almacén»**: sólo entonces sale la columna de km.
 ---
 
 ## Dar de alta un camión
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**.
 
-1. **Menú → «Vehículos».**
-2. **Clic en «Agregar Vehículo»**.
-3. Rellena:
-   - **«Nombre del Vehículo *»** — obligatorio
-   - **«Tipo»** — al elegirlo **hereda su costo por km**
-   - **«Placa (opcional)»**
-   - **«Capacidad Máx. (kg)»** — viene en 1000
-   - **«Estado del vehículo»** — sólo hay **«Disponible»** y **«En mantenimiento»**
-   - **«Costo por km (USD)»**
-4. **Clic en «Agregar Vehículo»**. Verás **«Vehículo agregado.»**
+1. **Clic en «Agregar Vehículo»**, arriba a la derecha.
+   <!-- señala: vehiculos-agregar -->
+2. Escribe el **«Nombre del Vehículo *»**. Es obligatorio.
+   <!-- señala: vehiculos-nombre -->
+3. Elige el **«Tipo»**: al elegirlo **hereda su costo por km**.
+   <!-- señala: vehiculos-tipo -->
+4. Escribe la **«Placa (opcional)»**. <!-- señala: vehiculos-placa -->
+5. Pon la **«Capacidad Máx. (kg)»** — viene en 1000.
+   <!-- señala: vehiculos-capacidad -->
+6. Deja el **«Estado del vehículo»** en **«Disponible»**: sólo hay ésa y **«En
+   mantenimiento»**. <!-- señala: vehiculos-estado -->
+7. Pon el **«Costo por km (USD)»**. <!-- señala: vehiculos-costo-por-km -->
+8. **Clic en «Agregar Vehículo»**. Verás **«Vehículo agregado.»**
+   <!-- señala: vehiculos-guardar -->
 
 ### Si no sabes el costo por km
 
@@ -7619,21 +7877,22 @@ abierta.» **Clic en «Marcar disponible»** en esa misma tarjeta.
 ---
 
 ## Decir qué camión calcula el domicilio
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**.
 
 De este camión sale **el costo por km con el que se le cobra al cliente el
 domicilio**. No está en el paso a paso del Panel, pero decide dinero.
 
-1. **Menú → «Vehículos»**.
-2. Busca la tarjeta del camión. **Debajo del nombre, en la fila de pastillas**, mira
-   qué hay:
-   - **«Cálculo domicilio · $1.65/km»**, con una casita — ya es el que calcula.
-   - El botón **«Usar para domicilio»** — no lo es.
-3. **Clic en «Usar para domicilio»**.
-4. Abajo sale **«Se usará este vehículo para calcular el domicilio.»** y la tarjeta
-   cambia: el botón desaparece y queda la pastilla **«Cálculo domicilio»**.
-
+   - Busca la tarjeta del camión. **Debajo del nombre, en la fila de pastillas**, mira
+     qué hay:
+     - **«Cálculo domicilio · $1.65/km»**, con una casita — ya es el que calcula.
+     - El botón **«Usar para domicilio»** — no lo es.
+1. **Clic en «Usar para domicilio»**.
+   <!-- señala: vehiculos-usar-para-domicilio -->
+   - Abajo sale **«Se usará este vehículo para calcular el domicilio.»** y la
+     tarjeta cambia: el botón desaparece y en su sitio queda la pastilla
+     **«Cálculo domicilio»**.
 **También desde la ficha:** **clic en «Editar»** y marca **«Usar este vehículo para
 calcular el domicilio»**. Debajo pone **«Solo un vehículo por TIPO.»**
 
@@ -7644,22 +7903,24 @@ calcular el domicilio»**. Debajo pone **«Solo un vehículo por TIPO.»**
 ---
 
 ## Marcar un camión en el taller
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**.
 
-1. **Menú → «Vehículos»**.
-2. En la tarjeta del camión, abajo, **clic en «Editar»**.
-3. En el desplegable **«Estado del vehículo»**, elige **«En mantenimiento»**.
-4. **Lee la explicación que sale debajo del desplegable, en ámbar:**
+1. En la tarjeta del camión, abajo, **clic en «Editar»**.
+   <!-- señala: vehiculos-editar -->
+2. En el desplegable **«Estado del vehículo»**, elige **«En mantenimiento»**. <!-- señala: vehiculos-estado -->
+   - **Lee la explicación que sale debajo del desplegable, en ámbar:**
 
    > «En el taller: no se le puede dar ruta hasta que vuelva. Escribe el motivo en
    > Notas, aquí abajo — es lo único que le dice al de al lado por qué no puede
    > contar con él. Marcarlo NO cierra la ruta que ya tuviera abierta: eso se
    > arregla en la tarjeta del camión.»
 
-5. **Escribe el motivo en «Notas (opcional)»**, más abajo.
-6. **Clic en «Actualizar»**. La insignia de la tarjeta pasa a **«Mantenimiento»** en
-   ámbar.
+3. **Escribe el motivo en «Notas (opcional)»**, más abajo.
+   <!-- señala: vehiculos-notas -->
+4. **Clic en «Actualizar»**. La insignia de la tarjeta pasa a **«Mantenimiento»** en
+   ámbar. <!-- señala: vehiculos-guardar -->
 
 > **Ojo:** el desplegable sólo tiene **«Disponible»** y **«En mantenimiento»**.
 > **«En ruta» no está, a propósito**: eso sale de las rutas del camión y no se
@@ -7687,22 +7948,24 @@ disponible.»**
 ---
 
 ## Dar de baja un camión
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**.
 
-1. **Menú → «Vehículos»**.
-2. Busca la tarjeta del camión y **comprueba el nombre y la placa**.
-3. Al final de la tarjeta, **clic en «Eliminar»** (rojo, con papelera, sin relleno).
-4. **Se abre un cajón que pregunta antes**, titulado **«Borrar «Camión 1»»**, y dice
-   lo que se pierde:
+1. Busca la tarjeta del camión, **comprueba el nombre y la placa** y, al final de la
+   tarjeta, **clic en «Eliminar»** (rojo, con papelera, sin relleno).
+   <!-- señala: vehiculos-eliminar -->
+   - **Se abre un cajón que pregunta antes**, titulado **«Borrar «Camión 1»»**, y dice
+     lo que se pierde:
 
    > «El camión se va de la flota. Las rutas y los pedidos que lo llevaban puesto NO
    > se borran —el histórico de lo repartido se queda— pero se quedan sin camión, y
    > hay que ponerles otro. Y el camión hay que volver a darlo de alta a mano, con su
    > placa, su capacidad y su costo por km.»
 
-5. **Clic en «Sí, borrar «Camión 1»»**, o en **«No, dejarlo»**.
-6. Sale **«Vehículo eliminado.»** y la tarjeta desaparece de la lista.
+2. **Clic en «Sí, borrar «Camión 1»»**, o en **«No, dejarlo»**. Sale **«Vehículo
+   eliminado.»** y la tarjeta desaparece de la lista.
+   <!-- señala: confirmar-el-borrado -->
 
 > **Ojo:** **cerrar sin contestar es NO.** Y si era el camión del **«Cálculo
 > domicilio»**, elige otro antes de irte: sin ninguno, los domicilios salen sin
@@ -7711,24 +7974,26 @@ disponible.»**
 ---
 
 ## Definir los tipos de camión y su costo por km
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**.
 
 El tipo es **el punto de partida del costo por km**: al crear un camión de ese tipo,
 hereda su costo, y luego se puede cambiar camión por camión.
 
-1. **Menú → «Vehículos»**.
-2. Arriba, en la misma fila que la caja de buscar, **clic en «Tipos de vehículo»**.
-3. Se abre un cajón, **«Tipos de vehículo»**, que empieza explicando para qué es:
+1. Arriba, en la misma fila que la caja de buscar, **clic en «Tipos de vehículo»**.
+   <!-- señala: vehiculos-tipos -->
+   - Se abre un cajón, **«Tipos de vehículo»**, que empieza explicando para qué es:
 
    > «Define cada tipo con su costo por km por defecto. Al crear un vehículo de ese
    > tipo se hereda el costo/km (editable por vehículo).»
 
-4. Por cada fila, rellena **«Nombre»** y **«Costo/km (USD)»**. La papelera
-   (**«Quitar»**) borra la fila.
-5. Para una fila más, **clic en «Agregar tipo»**, abajo.
-6. Al pie, **clic en «Guardar»** (al lado de **«Cancelar»**). Sale **«Tipos
-   guardados.»**
+2. Por cada fila, rellena **«Nombre»**… <!-- señala: vehiculos-tipo-nombre -->
+3. …y su **«Costo/km (USD)»**. La papelera (**«Quitar»**) borra la fila.
+   <!-- señala: vehiculos-tipo-costo -->
+4. Para una fila más, **clic en «Agregar tipo»**, abajo. <!-- señala: vehiculos-anadir-tipo -->
+5. Al pie, **clic en «Guardar»** (al lado de **«Cancelar»**). Sale **«Tipos
+   guardados.»** <!-- señala: vehiculos-guardar-tipos -->
 
 > **Ojo:** **las filas sin nombre no se guardan.** Y el costo que no sepas,
 > **déjalo vacío, nunca en cero**: un cero se lee como «el kilómetro es gratis».
@@ -7745,6 +8010,7 @@ elegido y su costo se copia al campo del camión.
 ---
 
 ## Cambiar el camión de una ruta
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
@@ -7753,11 +8019,11 @@ botón para eso, ni en la tarjeta ni en el detalle. Las dos salidas:
 
 **Si la ruta todavía no ha salido (pestaña «Planificadas»):**
 
-1. **Menú → «Rutas»**, pestaña **«Planificadas»**.
-2. **Elimina la ruta** — ver [Eliminar una ruta](#eliminar-una-ruta). Sus pedidos
-   vuelven a la lista de disponibles y el camión queda libre.
-3. **Menú → «Tablero»**, ve a la zona, **⋮ → «Camión previsto»**, elige el otro
-   camión y **⋮ → «Armar la ruta de esta zona»**.
+1. En la pestaña **«Planificadas»**, **elimina la ruta** — ver [Eliminar una
+   ruta](#eliminar-una-ruta). Sus pedidos
+   vuelven a la lista de disponibles y el camión queda libre. <!-- señala: rutas-eliminar -->
+2. **Menú → «Tablero»**, ve a la zona, **⋮ → «Camión previsto»**, elige el otro
+   camión y **⋮ → «Armar la ruta de esta zona»**. <!-- señala: tablero-camion-previsto -->
 
 **Si la ruta ya está «En curso»**, no la borres: tiene paradas que el servidor no
 va a dejar perder. Se termina con el camión que lleva y se cuadra en el cierre.
@@ -7769,19 +8035,25 @@ va a dejar perder. Se termina con el camión que lleva y se cuadra en el cierre.
 ---
 
 ## Poner o corregir un almacén
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Almacenes»**.
 
-1. **Menú → «Almacenes».**
-2. Elige la sucursal arriba, si hay más de una.
-3. **Clic en «Nuevo almacén»**, o clic en el almacén que quieras corregir.
-4. Escribe el **nombre**.
-5. Pon el punto, de una de las **tres formas**:
-   - **Escribe la dirección y clic en «Buscar»** (al menos 4 letras).
-   - **Clic en el mapa.**
-   - **Escribe las coordenadas a mano**: `19.83, -75.82`.
-6. Si va a ser el principal, **clic en el chip «Principal»**.
-7. **Clic en «Guardar»**. Verás **«Guardado en Accesos.»**
+1. Elige la sucursal arriba, si hay más de una.
+   <!-- señala: almacenes-sucursal -->
+2. **Clic en «Nuevo almacén»**, o clic en el almacén que quieras corregir. <!-- señala: almacenes-nuevo -->
+3. Escribe el **nombre**. <!-- señala: almacenes-nombre -->
+4. Forma 1 de poner el punto: **escribe la dirección**…
+   <!-- señala: almacenes-direccion -->
+5. …y **clic en «Buscar»** (al menos 4 letras).
+   <!-- señala: almacenes-buscar-la-direccion -->
+6. Forma 2: **clic en el mapa**. <!-- señala: almacenes-mapa -->
+7. Forma 3: **escribe las coordenadas a mano**: `19.83, -75.82`.
+   <!-- señala: almacenes-coordenadas -->
+8. Si va a ser el principal, **clic en el chip «Principal»**.
+   <!-- señala: almacenes-principal -->
+9. **Clic en «Guardar»**. Verás **«Guardado en Accesos.»**
+   <!-- señala: almacenes-guardar -->
 
 **Sólo puede haber un principal:** al marcar uno, los demás se desmarcan.
 
@@ -7791,18 +8063,20 @@ va a dejar perder. Se termina con el camión que lleva y se cuadra en el cierre.
 ---
 
 ## Cambiar cuál es el almacén principal
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Almacenes»**.
 
 El principal es el que se usa **cuando nadie dice cuál**. Lo dice el propio chip:
 «Desde éste se mide cuando nadie dice cuál».
 
-1. **Menú → «Almacenes»**, y arriba elige la sucursal si hay más de una.
+1. Arriba, elige la sucursal si hay más de una.
+   <!-- señala: almacenes-sucursal -->
 2. En la lista, **clic en el renglón del almacén** que va a ser el principal. Se
-   abre su cajón, con su nombre de título.
-3. Debajo del nombre, **clic en el chip «Principal»** (la estrella se rellena).
-4. **Clic en «Guardar»**. Sale **«Guardado en Accesos.»**
-5. En la lista, la **estrella** se ha movido a ese almacén.
+   abre su cajón, con su nombre de título. <!-- señala: almacenes-abrir -->
+3. Debajo del nombre, **clic en el chip «Principal»** (la estrella se rellena). <!-- señala: almacenes-principal -->
+4. **Clic en «Guardar»**. Sale **«Guardado en Accesos.»** <!-- señala: almacenes-guardar -->
+   - En la lista, la **estrella** se ha movido a ese almacén.
 
 > **Ojo:** **sólo puede haber un principal.** Al marcar éste, los demás se
 > desmarcan solos — no hay que ir a quitárselo al anterior.
@@ -7810,15 +8084,16 @@ El principal es el que se usa **cuando nadie dice cuál**. Lo dice el propio chi
 ---
 
 ## Quitar un almacén de la sucursal
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Almacenes»**.
 
-1. **Menú → «Almacenes»**, y arriba elige la sucursal.
-2. **Clic en el renglón del almacén.** Se abre su cajón.
+1. Arriba, elige la sucursal. <!-- señala: almacenes-sucursal -->
+2. **Clic en el renglón del almacén.** Se abre su cajón. <!-- señala: almacenes-abrir -->
 3. Debajo del nombre, a la derecha de los chips **«Principal»** y **«Activo»**, hay
-   una **papelera** (**«Quitar»**). **Clic ahí.**
-4. **Se abre un cajón que pregunta antes**, **«Borrar «Almacén Central»»**, y dice
-   las cuatro cosas que pasan:
+   una **papelera** (**«Quitar»**). **Clic ahí.** <!-- señala: almacenes-quitar -->
+   - **Se abre un cajón que pregunta antes**, **«Borrar «Almacén Central»»**, y dice
+     las cuatro cosas que pasan:
 
    > «El almacén se va de Accesos: se guarda la lista de Santiago sin él, así que
    > desaparece para todo el mundo y no sólo en esta pantalla. Deja de poder medirse
@@ -7830,7 +8105,8 @@ El principal es el que se usa **cuando nadie dice cuál**. Lo dice el propio chi
    > día se cobra mal y no se ve hasta cuadrar la caja. Volver a ponerlo es darlo de
    > alta a mano, con su dirección y su punto.»
 
-5. **Clic en «Sí, borrar «Almacén Central»»**, o en **«No, dejarlo»**.
+4. **Clic en «Sí, borrar «Almacén Central»»**, o en **«No, dejarlo»**.
+   <!-- señala: confirmar-el-borrado -->
 
 > **Ojo:** si sólo quieres que deje de usarse pero no perderlo, **no lo quites**:
 > abre su cajón y **clic en el chip «Activo»** para dejarlo en **«Inactivo»**, y
@@ -7840,14 +8116,15 @@ El principal es el que se usa **cuando nadie dice cuál**. Lo dice el propio chi
 ---
 
 ## Cambiar entre USD y CUP
+<!-- tarea -->
 
 **Empieza en:** la barra de arriba, desde cualquier pantalla.
 
 1. Arriba, a la derecha de la pastilla de la sucursal, **clic en la pastilla «USD» /
-   «CUP»**.
+   «CUP»**. <!-- señala: barra-moneda -->
 2. Elige. **La opción de CUP lleva la tasa y su fecha como nota**: **«1 USD = 320 ·
    del 9/9/2026»**. Esa fecha no es un adorno: es lo único que demuestra que la tasa
-   es de verdad.
+   es de verdad. <!-- señala: barra-elegir-moneda -->
 3. Los importes de todas las pantallas pasan a esa moneda.
 
 ### Si sólo te deja USD
@@ -7873,12 +8150,14 @@ no se puede convertir nada. Pero si vas a cobrar con ese número, pídela actual
 ---
 
 ## Ir a otra aplicación de la casa
+<!-- tarea -->
 
 **Empieza en:** tu avatar, arriba a la derecha.
 
-1. **Clic en tu avatar**, arriba a la derecha.
+1. **Clic en tu avatar**, arriba a la derecha. <!-- señala: cuenta-avatar -->
 2. En la sección **«Ir a»** hay una baldosa por aplicación, con su nombre y su
    descripción. **Se abren en otra pestaña.**
+   <!-- señala: cuenta-ir-a-la-aplicacion -->
 
 Si esa sección no sale, es que no se pudieron leer. No es un error, y el resto del
 menú funciona igual.

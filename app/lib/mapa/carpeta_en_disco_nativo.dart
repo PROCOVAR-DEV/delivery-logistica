@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../nucleo/descarga/carpeta_en_disco_nativo.dart';
 import 'carpeta_del_mapa.dart';
 import 'pmtiles.dart';
 
@@ -14,52 +15,17 @@ import 'pmtiles.dart';
 /// MB suelto en Descargas se lo lleva por delante cualquier limpiador de los que
 /// vienen instalados en los telefonos de alla, y el mapa desaparece sin que
 /// nadie sepa por que.
-class CarpetaEnDisco implements CarpetaDelMapa {
-  CarpetaEnDisco(this.raiz);
+class CarpetaEnDisco extends CarpetaDeBajadasEnDisco implements CarpetaDelMapa {
+  CarpetaEnDisco(super.raiz);
 
-  final Directory raiz;
-
-  File _f(String nombre) =>
-      File('${raiz.path}${Platform.pathSeparator}$nombre');
-
-  @override
-  Future<int> bytes(String nombre) async {
-    final f = _f(nombre);
-    return await f.exists() ? f.length() : 0;
-  }
-
-  @override
-  Future<void> anadir(String nombre, List<int> trozo) =>
-      _f(nombre).writeAsBytes(trozo, mode: FileMode.append, flush: false);
-
-  @override
-  Future<void> borrar(String nombre) async {
-    final f = _f(nombre);
-    if (await f.exists()) await f.delete();
-  }
-
-  @override
-  Future<void> renombrar(String de, String a) async {
-    await borrar(a);
-    await _f(de).rename(_f(a).path);
-  }
-
-  @override
-  Stream<List<int>> porTrozos(String nombre) => _f(nombre).openRead();
-
+  /// LO UNICO QUE EL MAPA AÑADE: leer teselas sueltas sin cargar el fichero.
+  ///
+  /// Todo lo demas —añadir al final, renombrar, el texto del apunte, los trozos
+  /// para el `sha256`— lo hace [CarpetaDeBajadasEnDisco], que es la misma pieza
+  /// que usa la actualizacion de la APK desde el 05/10/2026.
   @override
   Future<LeerPorRangos> porRangos(String nombre) async =>
-      _RangosDeFichero(await _f(nombre).open());
-
-  @override
-  Future<void> escribirTexto(String nombre, String texto) =>
-      _f(nombre).writeAsString(texto, flush: true);
-
-  @override
-  Future<String?> leerTexto(String nombre) async {
-    final f = _f(nombre);
-    return await f.exists() ? f.readAsString() : null;
-  }
+      _RangosDeFichero(await ficheroDe(nombre).open());
 }
 
 class _RangosDeFichero implements LeerPorRangos {

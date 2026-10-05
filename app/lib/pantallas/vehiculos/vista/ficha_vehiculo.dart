@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-
-import '../../../diseno/colores.dart';
-import '../../../diseno/tema.dart';
-
 import 'package:flutter/services.dart';
 
 import '../../../diseno/cajon.dart';
+import '../../../diseno/colores.dart';
+import '../../../diseno/tema.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/costo_km.dart';
 import '../datos/vehiculo_api.dart';
 
@@ -178,7 +178,6 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
     ),
   );
 
-
   /// EL CAMION ESTA OCUPADO POR EL DESPACHO, asi que aqui no hay nada que
   /// elegir: `in_use` no es una opcion del desplegable y no puede serlo.
   ///
@@ -187,7 +186,8 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
   /// pinta `in_use` como si fuera una de las dos opciones, porque no lo es, y
   /// tampoco se reescribe a la callada. Si nadie toca el desplegable, `_estado`
   /// viaja tal cual y la edicion no cambia lo que hay guardado.
-  bool get _ocupadoPorElDespacho => _estado == 'in_use' || _estado == 'in_route';
+  bool get _ocupadoPorElDespacho =>
+      _estado == 'in_use' || _estado == 'in_route';
 
   /// La explicacion que va DEBAJO del desplegable. Dice lo que el desplegable no
   /// puede decir: de donde sale «en que anda» de verdad, que no es de aqui.
@@ -223,19 +223,22 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
             child: const Text('Cancelar'),
           ),
           const SizedBox(width: 8),
-          BotonPrincipal(
-            // EL GLIFO SIGUE AL ROTULO, y el rotulo cambia: dar de alta un
-            // camion que no existe es un `+`; corregir el que ya esta es
-            // guardar. Con un solo icono para los dos, la ficha de editar diria
-            // «anadir» teniendo el camion delante.
-            icono: _esNuevo ? Icons.add : Icons.save_outlined,
-            texto: _esNuevo ? 'Agregar Vehículo' : 'Actualizar',
-            // Sin nombre no se guarda: el servidor contestaria
-            // `Vehicle name is required`, en ingles, y eso no se le ensena a
-            // nadie pudiendo evitarlo aqui.
-            alPulsar: _nombre.text.trim().isEmpty || widget.guardando
-                ? null
-                : _guardar,
+          ControlSenalado(
+            nombre: Senalado.vehiculosGuardar,
+            child: BotonPrincipal(
+              // EL GLIFO SIGUE AL ROTULO, y el rotulo cambia: dar de alta un
+              // camion que no existe es un `+`; corregir el que ya esta es
+              // guardar. Con un solo icono para los dos, la ficha de editar diria
+              // «anadir» teniendo el camion delante.
+              icono: _esNuevo ? Icons.add : Icons.save_outlined,
+              texto: _esNuevo ? 'Agregar Vehículo' : 'Actualizar',
+              // Sin nombre no se guarda: el servidor contestaria
+              // `Vehicle name is required`, en ingles, y eso no se le ensena a
+              // nadie pudiendo evitarlo aqui.
+              alPulsar: _nombre.text.trim().isEmpty || widget.guardando
+                  ? null
+                  : _guardar,
+            ),
           ),
         ],
       ),
@@ -244,36 +247,48 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-              controller: _nombre,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                labelText: 'Nombre del Vehículo *',
-                hintText: 'Ej: Camión #1, Furgoneta Azul',
-                border: OutlineInputBorder(),
+            ControlSenalado(
+              nombre: Senalado.vehiculosNombre,
+              child: TextField(
+                controller: _nombre,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Nombre del Vehículo *',
+                  hintText: 'Ej: Camión #1, Furgoneta Azul',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
             const SizedBox(height: 12),
-            _desplegableDeTipo(),
+            ControlSenalado(
+              nombre: Senalado.vehiculosTipo,
+              child: _desplegableDeTipo(),
+            ),
             if (_creandoTipo) _crearTipoEnLinea(),
             const SizedBox(height: 12),
-            TextField(
-              controller: _placa,
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [_AMayusculas()],
-              decoration: const InputDecoration(
-                labelText: 'Placa (opcional)',
-                hintText: 'ABC-1234',
-                border: OutlineInputBorder(),
+            ControlSenalado(
+              nombre: Senalado.vehiculosPlaca,
+              child: TextField(
+                controller: _placa,
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [_AMayusculas()],
+                decoration: const InputDecoration(
+                  labelText: 'Placa (opcional)',
+                  hintText: 'ABC-1234',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _capacidad,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Capacidad Máx. (kg)',
-                border: OutlineInputBorder(),
+            ControlSenalado(
+              nombre: Senalado.vehiculosCapacidad,
+              child: TextField(
+                controller: _capacidad,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Capacidad Máx. (kg)',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -318,43 +333,46 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
             // solo**: si nadie toca el desplegable, `_estado` viaja tal cual y
             // la edicion deja la ficha igual. Eso lo vigila «guardar sin tocar
             // nada deja la ficha igual», que es el eje de las pruebas de aqui.
-            DropdownButtonFormField<String>(
-              // Como el de Tipo: sin esto desborda a 390 px. Ver su comentario.
-              isExpanded: true,
-              initialValue: _ocupadoPorElDespacho ? null : _estado,
-              hint: const Text(
-                'Ocupado por el despacho de una ruta',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Estado del vehículo',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'available',
-                  child: Text(
-                    'Disponible',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+            ControlSenalado(
+              nombre: Senalado.vehiculosEstado,
+              child: DropdownButtonFormField<String>(
+                // Como el de Tipo: sin esto desborda a 390 px. Ver su comentario.
+                isExpanded: true,
+                initialValue: _ocupadoPorElDespacho ? null : _estado,
+                hint: const Text(
+                  'Ocupado por el despacho de una ruta',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                DropdownMenuItem(
-                  value: estadoEnMantenimiento,
-                  child: Text(
-                    'En mantenimiento',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                decoration: const InputDecoration(
+                  labelText: 'Estado del vehículo',
+                  border: OutlineInputBorder(),
                 ),
-              ],
-              // Un `null` no borra nada: es el desplegable cerrandose sin
-              // elegir, y ahi lo guardado se queda como estaba.
-              onChanged: (valor) {
-                if (valor == null) return;
-                setState(() => _estado = valor);
-              },
+                items: const [
+                  DropdownMenuItem(
+                    value: 'available',
+                    child: Text(
+                      'Disponible',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: estadoEnMantenimiento,
+                    child: Text(
+                      'En mantenimiento',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+                // Un `null` no borra nada: es el desplegable cerrandose sin
+                // elegir, y ahi lo guardado se queda como estaba.
+                onChanged: (valor) {
+                  if (valor == null) return;
+                  setState(() => _estado = valor);
+                },
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -366,39 +384,48 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _costo,
-              // Para que el eco del ayudante siga a lo que se teclea aqui.
-              onChanged: (_) => setState(() {}),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Costo por km (USD)',
-                hintText: '1.65',
-                border: OutlineInputBorder(),
+            ControlSenalado(
+              nombre: Senalado.vehiculosCostoPorKm,
+              child: TextField(
+                controller: _costo,
+                // Para que el eco del ayudante siga a lo que se teclea aqui.
+                onChanged: (_) => setState(() {}),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Costo por km (USD)',
+                  hintText: '1.65',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
             _ayudante(tema),
             const SizedBox(height: 8),
-            CheckboxListTile(
-              value: _domicilio,
-              onChanged: (v) => setState(() => _domicilio = v ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              title: const Text(
-                'Usar este vehículo para calcular el domicilio',
+            ControlSenalado(
+              nombre: Senalado.vehiculosCalculaElDomicilio,
+              child: CheckboxListTile(
+                value: _domicilio,
+                onChanged: (v) => setState(() => _domicilio = v ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Usar este vehículo para calcular el domicilio',
+                ),
+                subtitle: const Text('Solo un vehículo por TIPO.'),
               ),
-              subtitle: const Text('Solo un vehículo por TIPO.'),
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: _notas,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Notas (opcional)',
-                hintText: 'Información relevante del vehículo...',
-                border: OutlineInputBorder(),
+            ControlSenalado(
+              nombre: Senalado.vehiculosNotas,
+              child: TextField(
+                controller: _notas,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Notas (opcional)',
+                  hintText: 'Información relevante del vehículo...',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
             const SizedBox(height: 12),

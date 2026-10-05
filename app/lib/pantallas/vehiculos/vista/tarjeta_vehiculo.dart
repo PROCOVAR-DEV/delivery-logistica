@@ -5,6 +5,8 @@ import '../../../diseno/insignia.dart';
 import '../../../diseno/numeros.dart';
 import '../../../diseno/tarjeta.dart';
 import '../../../diseno/tema.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/vehiculo_api.dart';
 
 /// La tarjeta de la rejilla. Pliego: `pantallas.md` §5.
@@ -16,8 +18,18 @@ class TarjetaVehiculo extends StatelessWidget {
     required this.alMarcarDisponible,
     required this.alUsarParaDomicilio,
     required this.importe,
+    this.esLaPrimera = false,
     super.key,
   });
+
+  /// SI ESTA ES LA PRIMERA TARJETA DE LA LISTA.
+  ///
+  /// Sólo sirve para una cosa: la Guia sólo puede senalar un control por nombre,
+  /// y «Editar» existe una vez por camion. Marcando sólo la primera, el recorrido
+  /// senala una y no tiene que elegir entre nueve
+  /// (`pantallas/ayuda/vista/control_senalado.dart` explica por que dos a la vez
+  /// no se pueden distinguir).
+  final bool esLaPrimera;
 
   final VehiculoDeLaApi vehiculo;
 
@@ -133,9 +145,13 @@ class TarjetaVehiculo extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                 )
               else
-                OutlinedButton(
-                  onPressed: alUsarParaDomicilio,
-                  child: const Text('Usar para domicilio'),
+                ControlSenalado(
+                  nombre: Senalado.vehiculosUsarParaDomicilio,
+                  senalable: esLaPrimera,
+                  child: OutlinedButton(
+                    onPressed: alUsarParaDomicilio,
+                    child: const Text('Usar para domicilio'),
+                  ),
                 ),
             ],
           ),
@@ -255,11 +271,22 @@ class TarjetaVehiculo extends StatelessWidget {
             spacing: 8,
             children: [
               if (vehiculo.enUso)
-                TextButton(
-                  onPressed: alMarcarDisponible,
-                  child: const Text('Marcar disponible'),
+                ControlSenalado(
+                  nombre: Senalado.vehiculosMarcarDisponible,
+                  senalable: esLaPrimera,
+                  child: TextButton(
+                    onPressed: alMarcarDisponible,
+                    child: const Text('Marcar disponible'),
+                  ),
                 ),
-              TextButton(onPressed: alEditar, child: const Text('Editar')),
+              ControlSenalado(
+                nombre: Senalado.vehiculosEditar,
+                senalable: esLaPrimera,
+                child: TextButton(
+                  onPressed: alEditar,
+                  child: const Text('Editar'),
+                ),
+              ),
               // PREGUNTA ANTES, desde el 01/10/2026. Aqui decia «sin
               // confirmacion, como la de Next», y era un descuido vestido de
               // decision: la casa ya habia decidido lo contrario el 25/09/2026
@@ -274,7 +301,14 @@ class TarjetaVehiculo extends StatelessWidget {
               // disponible»: la misma palabra en el mismo oro, tercera de una
               // fila de tres. Ahora es un [BotonDestructivo] — rojo, contorno de
               // 2 px y papelera —, que es lo unico rojo de la tarjeta.
-              BotonDestructivo(texto: 'Eliminar', alPulsar: alEliminar),
+              ControlSenalado(
+                nombre: Senalado.vehiculosEliminar,
+                senalable: esLaPrimera,
+                child: BotonDestructivo(
+                  texto: 'Eliminar',
+                  alPulsar: alEliminar,
+                ),
+              ),
             ],
           ),
         ],

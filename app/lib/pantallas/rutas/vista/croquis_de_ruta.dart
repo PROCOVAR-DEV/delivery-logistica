@@ -469,7 +469,6 @@ void olvidarLoTraidoDelMapa() {
 /// así que 1,5 px de `touchSlop` son los mismos 3 px de antes.
 const _loQueEsUnArrastre = 1.5;
 
-
 class _CroquisDeRutaState extends State<CroquisDeRuta> {
   String? _abierta;
   Map<String, ui.Image> get _teselas => _teselasTraidas;
@@ -775,9 +774,10 @@ class _CroquisDeRutaState extends State<CroquisDeRuta> {
                                     // La rapidez en aceptar, que es lo que antes
                                     // daba el reconocedor de arrastre. Ver
                                     // `_loQueEsUnArrastre`.
-                                    ..gestureSettings = const DeviceGestureSettings(
-                                      touchSlop: _loQueEsUnArrastre,
-                                    )
+                                    ..gestureSettings =
+                                        const DeviceGestureSettings(
+                                          touchSlop: _loQueEsUnArrastre,
+                                        )
                                     ..onStart = (gesto) {
                                       _acercamientoAlEmpezar = _acercamiento;
                                       _arrastreAlEmpezar = _arrastre;
@@ -1553,7 +1553,10 @@ class _PintorDelCroquis extends CustomPainter {
     // medido; el resto es el aire de los lados.
     final ancho = math.max(alto, numero.length * 6.5 + 11);
     final caja = Rect.fromCenter(center: donde, width: ancho, height: alto);
-    final forma = RRect.fromRectAndRadius(caja, const Radius.circular(alto / 2));
+    final forma = RRect.fromRectAndRadius(
+      caja,
+      const Radius.circular(alto / 2),
+    );
     lienzo
       ..drawRRect(forma, Paint()..color = Colores.blanco)
       ..drawRRect(forma.deflate(1.5), Paint()..color = color);

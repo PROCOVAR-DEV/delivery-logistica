@@ -36,6 +36,8 @@ import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart' show BotonPrincipal;
 import '../../../mapa/proveedores_de_mapa.dart';
 import '../../../nucleo/plataforma.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../mapa/registro.dart';
 import '../../pedidos/datos/formato.dart';
 import '../datos/abrir_y_compartir.dart';
@@ -330,48 +332,60 @@ class _Acciones extends ConsumerWidget {
         // que abrir. Los otros tres siguen sirviendo, porque un mensaje que dice
         // «esta ruta no tiene coordenadas del almacen» le sirve al chofer para
         // llamar a la oficina, y un boton muerto no le sirve para nada.
-        FilledButton.icon(
-          key: claveDeAbrirEnGoogleMaps,
-          icon: const Icon(Icons.map_outlined, size: 18),
-          label: const Text('Abrir en Google Maps'),
-          onPressed: !enlace.hay
-              ? null
-              : () async {
-                  if (!await aparato.abrir(Uri.parse(enlace.url!))) {
-                    decir(TextosDelMapa.noSeAbrio);
-                  }
-                },
+        ControlSenalado(
+          nombre: Senalado.rutasAbrirEnGoogleMaps,
+          child: FilledButton.icon(
+            key: claveDeAbrirEnGoogleMaps,
+            icon: const Icon(Icons.map_outlined, size: 18),
+            label: const Text('Abrir en Google Maps'),
+            onPressed: !enlace.hay
+                ? null
+                : () async {
+                    if (!await aparato.abrir(Uri.parse(enlace.url!))) {
+                      decir(TextosDelMapa.noSeAbrio);
+                    }
+                  },
+          ),
         ),
-        OutlinedButton.icon(
-          key: claveDeWhatsApp,
-          icon: const Icon(Icons.chat_outlined, size: 18),
-          label: const Text('WhatsApp'),
-          onPressed: () async {
-            if (!await aparato.abrir(enlaceDeWhatsApp(_mensaje))) {
-              decir(TextosDelMapa.noSeAbrioWhatsApp);
-            }
-          },
+        ControlSenalado(
+          nombre: Senalado.rutasWhatsApp,
+          child: OutlinedButton.icon(
+            key: claveDeWhatsApp,
+            icon: const Icon(Icons.chat_outlined, size: 18),
+            label: const Text('WhatsApp'),
+            onPressed: () async {
+              if (!await aparato.abrir(enlaceDeWhatsApp(_mensaje))) {
+                decir(TextosDelMapa.noSeAbrioWhatsApp);
+              }
+            },
+          ),
         ),
-        OutlinedButton.icon(
-          key: claveDeCompartir,
-          icon: const Icon(Icons.ios_share, size: 18),
-          label: const Text('Compartir'),
-          onPressed: () async {
-            if (!await aparato.compartir(
-              texto: _mensaje,
-              asunto: 'Ruta ${ruta.ruta.routeCode ?? ruta.ruta.id}',
-            )) {
-              decir(TextosDelMapa.noSeCompartio);
-            }
-          },
+        ControlSenalado(
+          nombre: Senalado.rutasCompartir,
+          child: OutlinedButton.icon(
+            key: claveDeCompartir,
+            icon: const Icon(Icons.ios_share, size: 18),
+            label: const Text('Compartir'),
+            onPressed: () async {
+              if (!await aparato.compartir(
+                texto: _mensaje,
+                asunto: 'Ruta ${ruta.ruta.routeCode ?? ruta.ruta.id}',
+              )) {
+                decir(TextosDelMapa.noSeCompartio);
+              }
+            },
+          ),
         ),
-        OutlinedButton.icon(
-          key: claveDeCopiar,
-          icon: const Icon(Icons.copy_all_outlined, size: 18),
-          label: const Text('Copiar'),
-          onPressed: () async {
-            if (await aparato.copiar(_mensaje)) decir(TextosDelMapa.copiado);
-          },
+        ControlSenalado(
+          nombre: Senalado.rutasCopiar,
+          child: OutlinedButton.icon(
+            key: claveDeCopiar,
+            icon: const Icon(Icons.copy_all_outlined, size: 18),
+            label: const Text('Copiar'),
+            onPressed: () async {
+              if (await aparato.copiar(_mensaje)) decir(TextosDelMapa.copiado);
+            },
+          ),
         ),
       ],
     );

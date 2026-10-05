@@ -10,6 +10,8 @@ import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/pantallas/panel/registro.dart';
 import 'package:reparto/pantallas/sincronizacion/vista/fila_de_rechazo.dart';
+import 'package:reparto/pantallas/ayuda/datos/controles_senalados.dart';
+import 'package:reparto/pantallas/ayuda/vista/control_senalado.dart';
 
 import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/reloj_falso.dart';
@@ -241,6 +243,64 @@ void main() {
           'un apunte rechazado que desaparece en silencio es trabajo '
           'perdido que nadie sabe que perdio',
     );
+    await desmontar(tester);
+  });
+
+  testWidgets('con DOS rechazos la Guía señala el primero, y su «Reintentar»', (
+    tester,
+  ) async {
+    // Los pasos 3 y 4 de «Resolver un rechazo» apuntan a la primera tarjeta y a
+    // su «Reintentar», y hay UNA tarjeta por rechazo. Marcar las dos no rompe la
+    // pantalla: deja `donde` en `null` y los dos pasos salen **sin foco** con
+    // todo lo demas de este fichero en verde. Por eso hacen falta DOS rechazos:
+    // con uno solo la prueba pasaria igual teniendo la marca en todos.
+    RegistroDeControles.vaciar();
+    addTearDown(RegistroDeControles.vaciar);
+
+    await encolar(2);
+    await montar(
+      tester,
+      responder: servidorQueAcepta(
+        rechazarRutas: {'/api/routes/r-1/results', '/api/routes/r-2/results'},
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Enviar datos (2)'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await dejarCorrer(tester);
+
+    expect(find.byType(FilaDeRechazo), findsNWidgets(2), reason: 'son dos');
+
+    final tarjeta = RegistroDeControles.donde(Senalado.entregarElDiaRechazo);
+    expect(
+      tarjeta,
+      isNotNull,
+      reason:
+          'con dos rechazos no hay a cuál señalar: la marca está en las dos y '
+          'las dos a la vez no se distinguen.',
+    );
+    final primera = tester.getRect(find.byType(FilaDeRechazo).first);
+    expect(
+      tarjeta!.rect.contains(primera.center),
+      isTrue,
+      reason: 'el foco no cae en la primera tarjeta de rechazo',
+    );
+
+    final reintentar = RegistroDeControles.donde(Senalado.rechazoReintentar);
+    expect(
+      reintentar,
+      isNotNull,
+      reason:
+          'los dos «Reintentar» están marcados: `senalarLosGestos` tiene que ser '
+          'true SÓLO en la primera fila',
+    );
+    expect(
+      primera.contains(reintentar!.rect.center),
+      isTrue,
+      reason: 'el «Reintentar» señalado no es el de la primera tarjeta',
+    );
+
     await desmontar(tester);
   });
 

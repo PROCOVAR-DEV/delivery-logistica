@@ -22,6 +22,26 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
+    <!-- INSTALAR LA ACTUALIZACION SIN SALIR DE LA APLICACION — 05/10/2026.
+
+         Jose: «el mapa si me funciona dentro de la aplicacion, pero la APK me manda
+         a descargarla al navegador en vez de actualizar ahi mismo en la aplicacion
+         sin necesidad de salir». La descarga ya la hace la aplicacion (reanudable y
+         comprobada por sha256, el mismo motor que el mapa de Cuba); esto es lo que
+         le deja pedirle a Android que instale el fichero que acaba de comprobar.
+
+         SON DOS PERMISOS Y SOLO UNO ESTA AQUI. Este se concede al instalar la APK y
+         no se le pide a nadie. El otro —«permitir instalar aplicaciones
+         desconocidas» para ESTA aplicacion, de Android 8 en adelante— lo da la
+         persona en los ajustes, y la primera vez NO esta dado en ningun telefono:
+         por eso la aplicacion lo pregunta antes de ofrecer el boton y, si falta,
+         ofrece el ajuste Y el navegador (`InstaladorDeApk.kt`).
+
+         Y lo que NO da este permiso: instalar en silencio. Android ensena su
+         pantalla de «¿instalar?» y ahi confirma la persona, siempre. Eso se dice en
+         la interfaz antes de empezar, para que no se lea como un error. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
     <application
         android:label="Reparto"
         android:name="${applicationName}"
@@ -48,6 +68,32 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- EL FICHERO SE LE PASA AL INSTALADOR POR AQUI.
+
+             Desde Android 7 no se puede entregar un `file://` a otra aplicacion
+             (`FileUriExposedException`), asi que el APK bajado viaja como un
+             `content://` de este proveedor, con permiso de lectura para una sola
+             peticion. Que carpetas puede ofrecer esta en
+             `res/xml/ficheros_de_la_actualizacion.xml`: las de esta aplicacion y
+             ninguna otra.
+
+             `exported="false"`: nadie lo llama de fuera. Lo unico que lo abre es el
+             instalador, y lo abre porque se le da permiso en el propio Intent
+             (`FLAG_GRANT_READ_URI_PERMISSION`).
+
+             La clase es NUESTRA (`FicherosDelReparto`) y no
+             `androidx.core.content.FileProvider` a secas: en este APK ya hay dos
+             proveedores que son FileProvider —el de `share_plus` y el de
+             `printing`— y Android exige una clase distinta por cada `<provider>`. -->
+        <provider
+            android:name=".FicherosDelReparto"
+            android:authorities="${applicationId}.ficheros"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/ficheros_de_la_actualizacion"/>
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

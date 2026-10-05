@@ -249,16 +249,18 @@ class _MapaParaElegirPuntoState extends State<MapaParaElegirPunto> {
     // Lo que se esta viendo AHORA, no lo que haya en memoria de otra vista: una
     // tesela guardada de otro sitio no es «el mapa cargó». Es el mismo arreglo
     // que lleva el croquis.
-    widget.alVerse?.call((
-      conCalles: hacenFalta.any(_teselas.containsKey),
-    ));
+    widget.alVerse?.call((conCalles: hacenFalta.any(_teselas.containsKey)));
     if (_laVistaQueSePidio == vista) return;
     _laVistaQueSePidio = vista;
     for (final clave in hacenFalta) {
       if (_teselas.containsKey(clave)) continue;
       final partes = clave.split('/');
       widget.fondo
-          .tesela(int.parse(partes[0]), int.parse(partes[1]), int.parse(partes[2]))
+          .tesela(
+            int.parse(partes[0]),
+            int.parse(partes[1]),
+            int.parse(partes[2]),
+          )
           .then((imagen) {
             if (!mounted || imagen == null) return;
             setState(() {
@@ -382,9 +384,10 @@ class _MapaParaElegirPuntoState extends State<MapaParaElegirPunto> {
                             _elGestoEsDelMapa = true;
                             final origen = _bajoElFocoAlEmpezar;
                             if (origen == null) return;
-                            final z = (_zoomAlEmpezar +
-                                    math.log(gesto.scale) / math.ln2)
-                                .clamp(zoomMinimo, zoomMaximo);
+                            final z =
+                                (_zoomAlEmpezar +
+                                        math.log(gesto.scale) / math.ln2)
+                                    .clamp(zoomMinimo, zoomMaximo);
                             // El punto que se agarro se queda debajo de los
                             // dedos: la cuenta se hace SIEMPRE contra donde se
                             // posaron, nunca contra el fotograma anterior, que
@@ -539,8 +542,7 @@ class _PintorDelMapa extends CustomPainter {
         if (y < 0 || y >= tope) continue;
         final imagen = teselas['$z/${((x % tope) + tope) % tope}/$y'];
         if (imagen == null) continue;
-        final izquierda =
-            (x * ladoDeTesela - cx) * escala + tamano.width / 2;
+        final izquierda = (x * ladoDeTesela - cx) * escala + tamano.width / 2;
         final arriba = (y * ladoDeTesela - cy) * escala + tamano.height / 2;
         lienzo.drawImageRect(
           imagen,
@@ -562,12 +564,7 @@ class _PintorDelMapa extends CustomPainter {
     }
     final p = punto;
     if (p == null) return;
-    final donde = enLaPantalla(
-      p,
-      centro: centro,
-      zoom: zoom,
-      tamano: tamano,
-    );
+    final donde = enLaPantalla(p, centro: centro, zoom: zoom, tamano: tamano);
     // La chincheta: un circulo con su aro blanco para que se vea sobre las
     // calles y sobre el papel liso.
     lienzo

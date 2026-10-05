@@ -6,6 +6,8 @@ import '../../../diseno/anchos.dart';
 import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/configuracion_pendiente.dart';
 import '../estado/configuracion_estado.dart';
 
@@ -145,12 +147,14 @@ class PasoAPaso extends ConsumerWidget {
           // lista completa —«3 de 4»— y no con el sitio que ocupan entre los que
           // faltan: si no, al hacer uno los demas se renumerarian y el paso 3 de
           // ayer seria el 2 de hoy.
-          for (final paso in pendientes) ...[
+          for (final (cual, paso) in pendientes.indexed) ...[
             _PasoQueFalta(
               numero: estado.pasos.indexOf(paso) + 1,
               total: estado.pasos.length,
               paso: paso,
               porQue: porQue,
+              // Sólo el primero que falta se deja senalar por la Guia.
+              esElPrimeroQueFalta: cual == 0,
             ),
             const SizedBox(height: Aire.md),
           ],
@@ -201,7 +205,12 @@ class _PasoQueFalta extends StatelessWidget {
     required this.total,
     required this.paso,
     required this.porQue,
+    this.esElPrimeroQueFalta = false,
   });
+
+  /// Si la Guia puede senalar el boton de ESTE paso. Sólo el primero pendiente:
+  /// hay un boton por paso y dos con el mismo nombre no se distinguen.
+  final bool esElPrimeroQueFalta;
 
   final int numero;
   final int total;
@@ -298,14 +307,23 @@ class _PasoQueFalta extends StatelessWidget {
               padding: const EdgeInsets.only(left: 34),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: BotonPrincipal(
-                  // EL GLIFO LO TRAE EL PASO, no este fichero: cada uno lleva a
-                  // una pantalla distinta. `Icons.arrow_forward` es el ultimo
-                  // recurso del paso que no dijo el suyo, y sigue siendo
-                  // honesto — «ir» es literalmente lo que hace el mando.
-                  icono: paso.iconoDelBoton ?? Icons.arrow_forward,
-                  texto: paso.textoDelBoton ?? 'Ir',
-                  alPulsar: () => context.go(ruta),
+                // Sólo el PRIMER paso que falta se deja senalar por la Guia: hay
+                // un boton por paso pendiente y el recorrido sólo puede senalar
+                // uno. El primero es ademas el que toca hacer
+                // (`pantallas/ayuda/vista/control_senalado.dart`).
+                child: ControlSenalado(
+                  nombre: Senalado.panelArreglarElPaso,
+                  senalable: esElPrimeroQueFalta,
+                  child: BotonPrincipal(
+                    // EL GLIFO LO TRAE EL PASO, no este fichero: cada uno lleva
+                    // a una pantalla distinta. `Icons.arrow_forward` es el
+                    // ultimo recurso del paso que no dijo el suyo, y sigue
+                    // siendo honesto — «ir» es literalmente lo que hace el
+                    // mando.
+                    icono: paso.iconoDelBoton ?? Icons.arrow_forward,
+                    texto: paso.textoDelBoton ?? 'Ir',
+                    alPulsar: () => context.go(ruta),
+                  ),
                 ),
               ),
             ),

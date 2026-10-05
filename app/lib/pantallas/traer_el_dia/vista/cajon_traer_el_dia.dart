@@ -12,6 +12,8 @@ import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../../nucleo/sincro/ciclo.dart';
 import '../../../nucleo/sincro/recuento.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/textos.dart';
 import '../estado/traer_el_dia.dart';
 
@@ -101,30 +103,34 @@ class _Pie extends ConsumerWidget {
     return Row(
       children: [
         Expanded(
-          child: FilledButton.icon(
-            // Mientras corre no se vuelve a disparar. **El candado de verdad no
-            // es este**: esta en `ciclo.dart`, y quien llegue mientras uno va se
-            // engancha al que ya corre. Esto es solo no invitar a pulsarlo.
-            onPressed: corriendo
-                ? null
-                : () =>
-                      unawaited(ref.read(traerElDiaProvider.notifier).ahora()),
-            icon: Icon(
-              corriendo ? Icons.hourglass_top : Icons.cloud_download_outlined,
-              size: 20,
-            ),
-            style: FilledButton.styleFrom(
-              // Grande: es el gesto principal de la pantalla, y se le da con el
-              // pulgar de pie en el almacen.
-              padding: const EdgeInsets.symmetric(vertical: Aire.lg),
-              textStyle: Tipos.texto(tamano: 15, peso: FontWeight.w600),
-            ),
-            label: Text(
-              corriendo
-                  ? TextosDeTraerElDia.trayendo
-                  : trajo != null
-                  ? TextosDeTraerElDia.botonOtraVez
-                  : TextosDeTraerElDia.boton,
+          child: ControlSenalado(
+            nombre: Senalado.traerElDiaTraer,
+            child: FilledButton.icon(
+              // Mientras corre no se vuelve a disparar. **El candado de verdad no
+              // es este**: esta en `ciclo.dart`, y quien llegue mientras uno va se
+              // engancha al que ya corre. Esto es solo no invitar a pulsarlo.
+              onPressed: corriendo
+                  ? null
+                  : () => unawaited(
+                      ref.read(traerElDiaProvider.notifier).ahora(),
+                    ),
+              icon: Icon(
+                corriendo ? Icons.hourglass_top : Icons.cloud_download_outlined,
+                size: 20,
+              ),
+              style: FilledButton.styleFrom(
+                // Grande: es el gesto principal de la pantalla, y se le da con el
+                // pulgar de pie en el almacen.
+                padding: const EdgeInsets.symmetric(vertical: Aire.lg),
+                textStyle: Tipos.texto(tamano: 15, peso: FontWeight.w600),
+              ),
+              label: Text(
+                corriendo
+                    ? TextosDeTraerElDia.trayendo
+                    : trajo != null
+                    ? TextosDeTraerElDia.botonOtraVez
+                    : TextosDeTraerElDia.boton,
+              ),
             ),
           ),
         ),

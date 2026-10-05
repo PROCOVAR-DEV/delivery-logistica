@@ -10,6 +10,8 @@ import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
 import 'package:reparto/nucleo/identidad/sesion.dart';
 import 'package:reparto/nucleo/proveedores.dart';
+import 'package:reparto/pantallas/ayuda/datos/controles_senalados.dart';
+import 'package:reparto/pantallas/ayuda/vista/control_senalado.dart';
 
 import '../apoyo/apoyo_sesion.dart';
 import '../apoyo/base_de_prueba.dart';
@@ -45,6 +47,7 @@ void main() {
     Size tamano = const Size(1440, 900),
     Sesion? sesion,
     bool appsCaido = false,
+    bool variasApps = false,
   }) async {
     tester.view.physicalSize = tamano;
     tester.view.devicePixelRatio = 1;
@@ -72,6 +75,23 @@ void main() {
                       'title': 'PEDIDO',
                       'description': 'Pedidos, clientes y vendedores.',
                     },
+                    // La segunda y la tercera solo con `variasApps`: hay pruebas
+                    // de aqui que cuentan textos («Ir a», findsOneWidget) y
+                    // meterle baldosas a todas cambiaria lo que miden.
+                    if (variasApps) ...[
+                      <String, Object?>{
+                        'href': 'https://analitics.procovar.cloud',
+                        'icon': 'mdi:chart-bar',
+                        'title': 'analitics',
+                        'description': 'Informes de ventas.',
+                      },
+                      <String, Object?>{
+                        'href': 'https://auth.procovar.cloud',
+                        'icon': 'mdi:shield-account-outline',
+                        'title': 'Accesos',
+                        'description': 'Usuarios y sucursales.',
+                      },
+                    ],
                   ],
                 });
               }
@@ -159,6 +179,44 @@ void main() {
     expect(find.text('Ir a'), findsOneWidget);
     expect(find.text('PEDIDO'), findsOneWidget);
     expect(find.text('Pedidos, clientes y vendedores.'), findsOneWidget);
+
+    await desmontar(tester);
+  });
+
+  testWidgets('con VARIAS aplicaciones la Guía señala la primera baldosa', (
+    tester,
+  ) async {
+    // El paso 2 de «Ir a otra aplicación de la casa» apunta a la seccion «Ir a»,
+    // y hay UNA baldosa por aplicacion. `ControlSenalado` no es un `GlobalKey`:
+    // marcar las tres no revienta nada, deja `donde` en `null` y el paso sale
+    // **sin foco** con todas las pruebas de este fichero en verde. Esta es la
+    // unica que lo caza, y por eso pide tres y no una.
+    RegistroDeControles.vaciar();
+    addTearDown(RegistroDeControles.vaciar);
+
+    await montar(tester, variasApps: true);
+    await abrirElMenu(tester);
+
+    expect(find.text('analitics'), findsOneWidget, reason: 'son tres baldosas');
+
+    final puesto = RegistroDeControles.donde(Senalado.cuentaIrALaAplicacion);
+    expect(
+      puesto,
+      isNotNull,
+      reason:
+          'con tres aplicaciones no hay a cuál señalar: la marca está en más de '
+          'una baldosa y dos a la vez no se distinguen.',
+    );
+    expect(
+      puesto!.rect.contains(tester.getRect(find.text('PEDIDO')).center),
+      isTrue,
+      reason: 'el foco no cae en la primera baldosa, que es la que se marcó',
+    );
+    expect(
+      puesto.rect.contains(tester.getRect(find.text('Accesos')).center),
+      isFalse,
+      reason: 'el foco abarca también la última: no está señalando una baldosa',
+    );
 
     await desmontar(tester);
   });

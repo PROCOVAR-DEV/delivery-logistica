@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
+import '../pantallas/ayuda/vista/control_senalado.dart';
 import 'anchos.dart';
 import 'cajon.dart';
 import 'colores.dart';
@@ -13,11 +14,26 @@ class OpcionSelector<T> {
     required this.valor,
     required this.etiqueta,
     this.nota,
+    this.senalado,
   });
 
   final T valor;
   final String etiqueta;
   final String? nota;
+
+  /// EL NOMBRE CON EL QUE LA GUIA SENALA ESTA OPCION, o `null`.
+  ///
+  /// Hace falta porque hay pasos del manual que no apuntan a la caja del filtro
+  /// sino a **una opcion concreta de dentro**: «Elige de la lista. La primera
+  /// opción es «Todas (8)»», «La opción de CUP lleva la tasa». Sin esto, el unico
+  /// control senalable de un desplegable es el boton que lo abre, y el paso que
+  /// habla de la opcion se queda sin foco.
+  ///
+  /// Lo pone **quien arma las opciones**, no el selector: es la pantalla la que
+  /// sabe cual de ellas nombra el manual, y marcarlas todas pondria dos con el
+  /// mismo nombre a la vez. Un selector sin esto no registra nada, asi que los
+  /// demas desplegables de la casa siguen igual.
+  final String? senalado;
 }
 
 /// El desplegable del pliego (§9.6). **No es un `<select>` del sistema**: es un
@@ -327,21 +343,32 @@ class _OpcionesEnCajonState<T> extends State<_OpcionesEnCajon<T>> {
         ],
         if (!_hayCoincidencias(widget.opciones, _busca))
           _NadaQueCuadre(busca: _busca, salida: _laSalida(widget.opciones)),
-        for (final o in visibles)
-          _Opcion<T>(
-            opcion: o,
-            elegida: o.valor == widget.valor,
-            alElegir: widget.alElegir,
-            // El cajón SÍ es una ruta —`showGeneralDialog`—, así que aquí el
-            // `Navigator` es lo correcto y no se lleva la pantalla de debajo.
-            // Es justo lo contrario del menú: ver `_Opcion.alCerrar`.
-            alCerrar: () => Navigator.of(context).maybePop(),
-            // Con el dedo, no con el ratón: 9 px arriba y abajo dejan una fila
-            // de 38 px y se falla el toque. Con 14 la fila pasa de 48.
-            aireVertical: 14,
-          ),
+        for (final o in visibles) _fila(context, o),
       ],
     );
+  }
+
+  /// Una fila del cajon, con su marca de la guia si la pantalla le puso una.
+  ///
+  /// El envoltorio **solo se pone donde hay nombre**: `ControlSenalado` es
+  /// transparente, pero uno en cada fila de cada desplegable de la casa es ruido
+  /// en el arbol que no paga nada.
+  Widget _fila(BuildContext context, OpcionSelector<T> o) {
+    final fila = _Opcion<T>(
+      opcion: o,
+      elegida: o.valor == widget.valor,
+      alElegir: widget.alElegir,
+      // El cajón SÍ es una ruta —`showGeneralDialog`—, así que aquí el
+      // `Navigator` es lo correcto y no se lleva la pantalla de debajo.
+      // Es justo lo contrario del menú: ver `_Opcion.alCerrar`.
+      alCerrar: () => Navigator.of(context).maybePop(),
+      // Con el dedo, no con el ratón: 9 px arriba y abajo dejan una fila
+      // de 38 px y se falla el toque. Con 14 la fila pasa de 48.
+      aireVertical: 14,
+    );
+    final nombre = o.senalado;
+    if (nombre == null) return fila;
+    return ControlSenalado(nombre: nombre, child: fila);
   }
 }
 

@@ -11,6 +11,7 @@ import 'barra_superior.dart';
 import 'franja_de_estado.dart';
 import 'menu_de_cuenta.dart';
 import 'pantalla_registrada.dart';
+import 'salir_con_el_gesto.dart';
 
 /// EL ARMAZON COMUN de todas las pantallas.
 ///
@@ -85,90 +86,116 @@ class Armazon extends ConsumerWidget {
     // pone la api con un 403. Ver `PantallaRegistrada.soloParaRoles`.
     final quienMira = ref.watch(sesionParaElMenuProvider).value;
 
-    return Scaffold(
-      // En movil la barra lateral vive en el cajon del Scaffold: fuera de
-      // pantalla, con velo, y pulsar fuera cierra (§8.1).
-      drawer: esEscritorio
-          ? null
-          : Drawer(
-              width: Anchos.barraLateral,
-              child: BarraLateral(
-                pantallas: pantallas,
-                rutaActual: rutaActual,
-                quienMira: quienMira,
-                dentroDeCajon: true,
-              ),
-            ),
-      // SAFEAREA. LA BARRA DE ARRIBA NO PUEDE METERSE DEBAJO DEL RELOJ.
-      //
-      // Este `Scaffold` no lleva `appBar` —la barra la pinta [BarraSuperior]
-      // dentro del cuerpo—, y sin `appBar` el cuerpo empieza en el pixel cero
-      // de la pantalla: por debajo del reloj, del wifi y de la bateria.
-      //
-      // En un navegador no se nota, porque ahi el cero es el borde de la
-      // pestana. En un telefono se nota mucho: el 16/09/2026, en un Galaxy A16,
-      // el selector de sucursal y el conmutador de moneda quedaron TAPADOS por
-      // la hora y los iconos del sistema, y no habia forma de pulsarlos. No es
-      // que se viera feo — es que la mitad de la barra no se podia tocar.
-      //
-      // Por eso va aqui y no dentro de [BarraSuperior]: lo que hay que apartar
-      // es el cuerpo entero, incluida la franja de estado y las pantallas, no
-      // solo la barra. El cajon lateral tiene el suyo propio
-      // (`barra_lateral.dart`) porque vive fuera de este arbol.
-      //
-      // El `Builder` de dentro no es adorno: `Scaffold.of` necesita un contexto
-      // POR DEBAJO del Scaffold. Con el contexto de `build` el boton de menu no
-      // encuentra ningun cajon y revienta al pulsarlo.
-      body: SafeArea(
-        child: Builder(
-          builder: (contexto) {
-            final columna = Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                BarraSuperior(
-                  titulo: titulo,
-                  // En escritorio no hay boton de menu: la barra lateral esta
-                  // fija y un boton que no abre nada ensena a desconfiar.
-                  alAbrirMenu: esEscritorio
-                      ? null
-                      : () => Scaffold.of(contexto).openDrawer(),
-                ),
-                // ENCIMA DE LA FRANJA DE ESTADO, y sin `if`: el aviso decide
-                // por si mismo si tiene algo que decir en este destino, y casi
-                // siempre no tiene nada y no ocupa un pixel. Arriba del todo
-                // porque cuando sale es mas importante que la hora de los
-                // datos: con la version vieja, la hora puede estar bien y la
-                // pantalla seguir mintiendo.
-                const AvisoDeVersionNueva(),
-                // LA FRANJA SE MIDE CONTRA LO QUE ESTA PANTALLA USA, no
-                // contra la copia entera. El armazon es el unico que sabe en
-                // que pantalla estamos, asi que es el que se lo pasa; el porque
-                // entero, en `FranjaDeEstado.colecciones`.
-                //
-                // Una ruta que no esta en el registro —no deberia haberla— se
-                // queda con las nueve, que es la medida mas vieja posible y por
-                // tanto el lado seguro.
-                if (hayDiaQueTraer)
-                  FranjaDeEstado(
-                    colecciones: actual?.colecciones ?? Colecciones.todas,
-                  ),
-                Expanded(child: child),
-              ],
-            );
-
-            if (!esEscritorio) return columna;
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                BarraLateral(
+    // EL ATRAS DEL SISTEMA PREGUNTA ANTES DE SACAR DE LA APLICACION.
+    //
+    // Va envolviendo al armazon y no dentro del `Scaffold` porque es el techo
+    // comun de todas las pantallas de trabajo, que es justo el alcance que
+    // tiene que tener: `/acceso` queda fuera a proposito. El porque de que no
+    // pueda ir en `app.dart` —y de que no sea un `PopScope`— esta escrito en
+    // `salir_con_el_gesto.dart`, y es lo mismo que ya estaba en
+    // `diseno/cajon.dart`.
+    return SalirConElGesto(
+      child: Scaffold(
+        // EL ARRASTRE DESDE EL BORDE NO ABRE LA BARRA — 05/10/2026.
+        //
+        // `Scaffold` abre el cajon con un arrastre desde el borde izquierdo, y en
+        // Android **ese es exactamente el gesto de atras**. Resultado: Jose iba
+        // hacia atras y se le abria el menu. Sus palabras: «cuando hago el gesto
+        // de ir atras en el movil me abre tambien el side bar».
+        //
+        // No es que el gesto este mal cogido: son el mismo gesto, y el sistema
+        // gana. Un cajon que se abre cuando querias retroceder es peor que un
+        // cajon al que hay que llamar, asi que **en movil la barra se abre solo
+        // con el boton de las tres rayas**, que esta siempre a la vista en la
+        // barra de arriba.
+        //
+        // En escritorio no hay `drawer` ninguno —la barra va fija— asi que esto
+        // ahi no pinta nada.
+        drawerEnableOpenDragGesture: false,
+        // En movil la barra lateral vive en el cajon del Scaffold: fuera de
+        // pantalla, con velo, y pulsar fuera cierra (§8.1).
+        drawer: esEscritorio
+            ? null
+            : Drawer(
+                width: Anchos.barraLateral,
+                child: BarraLateral(
                   pantallas: pantallas,
                   rutaActual: rutaActual,
                   quienMira: quienMira,
+                  dentroDeCajon: true,
                 ),
-                Expanded(child: columna),
-              ],
-            );
-          },
+              ),
+        // SAFEAREA. LA BARRA DE ARRIBA NO PUEDE METERSE DEBAJO DEL RELOJ.
+        //
+        // Este `Scaffold` no lleva `appBar` —la barra la pinta [BarraSuperior]
+        // dentro del cuerpo—, y sin `appBar` el cuerpo empieza en el pixel cero
+        // de la pantalla: por debajo del reloj, del wifi y de la bateria.
+        //
+        // En un navegador no se nota, porque ahi el cero es el borde de la
+        // pestana. En un telefono se nota mucho: el 16/09/2026, en un Galaxy A16,
+        // el selector de sucursal y el conmutador de moneda quedaron TAPADOS por
+        // la hora y los iconos del sistema, y no habia forma de pulsarlos. No es
+        // que se viera feo — es que la mitad de la barra no se podia tocar.
+        //
+        // Por eso va aqui y no dentro de [BarraSuperior]: lo que hay que apartar
+        // es el cuerpo entero, incluida la franja de estado y las pantallas, no
+        // solo la barra. El cajon lateral tiene el suyo propio
+        // (`barra_lateral.dart`) porque vive fuera de este arbol.
+        //
+        // El `Builder` de dentro no es adorno: `Scaffold.of` necesita un contexto
+        // POR DEBAJO del Scaffold. Con el contexto de `build` el boton de menu no
+        // encuentra ningun cajon y revienta al pulsarlo.
+        body: SafeArea(
+          child: Builder(
+            builder: (contexto) {
+              final columna = Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  BarraSuperior(
+                    titulo: titulo,
+                    // En escritorio no hay boton de menu: la barra lateral esta
+                    // fija y un boton que no abre nada ensena a desconfiar.
+                    alAbrirMenu: esEscritorio
+                        ? null
+                        : () => Scaffold.of(contexto).openDrawer(),
+                  ),
+                  // ENCIMA DE LA FRANJA DE ESTADO, y sin `if`: el aviso decide
+                  // por si mismo si tiene algo que decir en este destino, y casi
+                  // siempre no tiene nada y no ocupa un pixel. Arriba del todo
+                  // porque cuando sale es mas importante que la hora de los
+                  // datos: con la version vieja, la hora puede estar bien y la
+                  // pantalla seguir mintiendo.
+                  const AvisoDeVersionNueva(),
+                  // LA FRANJA SE MIDE CONTRA LO QUE ESTA PANTALLA USA, no
+                  // contra la copia entera. El armazon es el unico que sabe en
+                  // que pantalla estamos, asi que es el que se lo pasa; el porque
+                  // entero, en `FranjaDeEstado.colecciones`.
+                  //
+                  // Una ruta que no esta en el registro —no deberia haberla— se
+                  // queda con las nueve, que es la medida mas vieja posible y por
+                  // tanto el lado seguro.
+                  if (hayDiaQueTraer)
+                    FranjaDeEstado(
+                      colecciones: actual?.colecciones ?? Colecciones.todas,
+                    ),
+                  Expanded(child: child),
+                ],
+              );
+
+              if (!esEscritorio) return columna;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  BarraLateral(
+                    pantallas: pantallas,
+                    rutaActual: rutaActual,
+                    quienMira: quienMira,
+                  ),
+                  Expanded(child: columna),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

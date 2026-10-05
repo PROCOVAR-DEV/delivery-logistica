@@ -5,6 +5,8 @@ import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/caja_de_numero.dart';
 import '../../../diseno/rango_de_fechas.dart';
 import '../../../diseno/tema.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/modelos.dart';
 import '../estado/filtros_en_la_url.dart';
 import '../estado/proveedores.dart';
@@ -80,13 +82,16 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
                     )
                   else
                     const Spacer(),
-                  IconButton(
-                    icon: Badge(
-                      isLabelVisible: filtros.hayAlguno,
-                      child: const Icon(Icons.filter_list),
+                  ControlSenalado(
+                    nombre: Senalado.tableroSinColocarFiltros,
+                    child: IconButton(
+                      icon: Badge(
+                        isLabelVisible: filtros.hayAlguno,
+                        child: const Icon(Icons.filter_list),
+                      ),
+                      tooltip: 'Filtros',
+                      onPressed: _abrirFiltros,
                     ),
-                    tooltip: 'Filtros',
-                    onPressed: _abrirFiltros,
                   ),
                 ],
               ),
@@ -101,16 +106,19 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
               // pulsa Intro en un buscador.
               //
               // `ancho: null` = el ancho de la columna, que es lo que habia.
-              child: CajaDeBusqueda(
-                valor: filtros.q ?? '',
-                ancho: null,
-                // La misma caja de la lista de pedidos, contenido de los
-                // renglones incluido: «¿que pedidos llevan malta?».
-                pista: 'Cliente, operación, dirección, artículo…',
-                alBuscar: (texto) => FiltrosEnLaUrl.poner(
-                  context,
-                  ref,
-                  filtros.copiaCon(q: texto),
+              child: ControlSenalado(
+                nombre: Senalado.tableroSinColocarBuscar,
+                child: CajaDeBusqueda(
+                  valor: filtros.q ?? '',
+                  ancho: null,
+                  // La misma caja de la lista de pedidos, contenido de los
+                  // renglones incluido: «¿que pedidos llevan malta?».
+                  pista: 'Cliente, operación, dirección, artículo…',
+                  alBuscar: (texto) => FiltrosEnLaUrl.poner(
+                    context,
+                    ref,
+                    filtros.copiaCon(q: texto),
+                  ),
                 ),
               ),
             ),
@@ -181,10 +189,16 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
                     )
                   : ListView.builder(
                       itemCount: izquierda.pedidos.length,
-                      itemBuilder: (contexto, i) => TarjetaDePedido(
-                        pedido: izquierda.pedidos[i],
-                        onTap: () =>
-                            widget.alPulsarTarjeta(izquierda.pedidos[i]),
+                      // Sólo la primera tarjeta se deja senalar: hay una por
+                      // pedido sin colocar y pueden ser setecientas.
+                      itemBuilder: (contexto, i) => ControlSenalado(
+                        nombre: Senalado.tableroTarjetaDePedido,
+                        senalable: i == 0,
+                        child: TarjetaDePedido(
+                          pedido: izquierda.pedidos[i],
+                          onTap: () =>
+                              widget.alPulsarTarjeta(izquierda.pedidos[i]),
+                        ),
                       ),
                     ),
             ),

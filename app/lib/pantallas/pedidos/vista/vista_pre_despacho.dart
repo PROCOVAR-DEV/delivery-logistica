@@ -469,11 +469,8 @@ class TablaPreDespacho extends StatelessWidget {
   /// por lo menos esto», que es una frase con la que alguien puede decidir si
   /// carga el camión. Una raya no lo es. La raya se queda para lo único que la
   /// merece: cuando no se sabe NADA.
-  static String _unidades(LineaPreDespacho l) => _conMinimo(
-    l.unidades,
-    l.unidadesCompletas,
-    (v) => cantidad(v),
-  );
+  static String _unidades(LineaPreDespacho l) =>
+      _conMinimo(l.unidades, l.unidadesCompletas, (v) => cantidad(v));
 
   static String _peso(LineaPreDespacho l) =>
       _conMinimo(l.pesoKg, l.pesoCompleto, (v) => v.toStringAsFixed(1));

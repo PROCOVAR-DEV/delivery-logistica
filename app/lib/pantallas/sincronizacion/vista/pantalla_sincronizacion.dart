@@ -14,6 +14,8 @@ import '../../../diseno/tarjeta.dart';
 import '../../../diseno/tema.dart';
 import '../../../navegacion/estado_navegacion.dart';
 import '../../../nucleo/plataforma.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/panel_sincronizacion.dart';
 import 'fila_de_rechazo.dart';
 import '../estado/proveedores_sincronizacion.dart';
@@ -243,19 +245,31 @@ class _Panel extends StatelessWidget {
               ?.copyWith(color: Colores.gris),
         ),
         const SizedBox(height: 12),
-        _Cifras(estado: estado),
-        const SizedBox(height: 16),
-        Tarjeta(
-          titulo: 'Aparatos',
-          child: estado.aparatos.isEmpty
-              ? const EstadoVacio(
-                  TextosDeSincronizacion.sinAparatos,
-                  icono: Icons.phonelink_off_outlined,
-                )
-              : TablaAncha(anchoMinimo: 980, child: _Aparatos(estado: estado)),
+        ControlSenalado(
+          nombre: Senalado.sincronizacionCifras,
+          child: _Cifras(estado: estado),
         ),
         const SizedBox(height: 16),
-        _Bandeja(estado: estado),
+        ControlSenalado(
+          nombre: Senalado.sincronizacionAparatos,
+          child: Tarjeta(
+            titulo: 'Aparatos',
+            child: estado.aparatos.isEmpty
+                ? const EstadoVacio(
+                    TextosDeSincronizacion.sinAparatos,
+                    icono: Icons.phonelink_off_outlined,
+                  )
+                : TablaAncha(
+                    anchoMinimo: 980,
+                    child: _Aparatos(estado: estado),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ControlSenalado(
+          nombre: Senalado.sincronizacionBandeja,
+          child: _Bandeja(estado: estado),
+        ),
       ],
     );
   }

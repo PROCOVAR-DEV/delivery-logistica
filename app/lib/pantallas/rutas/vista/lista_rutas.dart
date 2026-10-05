@@ -8,12 +8,11 @@ import 'package:flutter/material.dart';
 
 import '../../../diseno/preguntar_antes_de_borrar.dart';
 import '../../../diseno/tema.dart';
-
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import '../../../nucleo/base/base.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/frescura/reloj_de_datos.dart';
-import '../../../nucleo/base/base.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/vista/kit.dart';
 import '../datos/acciones_rutas.dart';
@@ -21,6 +20,8 @@ import '../datos/importe_de_la_ruta.dart';
 import '../datos/peso_de_la_ruta.dart';
 import '../datos/repositorio_rutas.dart';
 import '../estado/proveedores_rutas.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ListaDeRutas extends ConsumerWidget {
   const ListaDeRutas({this.deLaPestana, super.key});
@@ -124,7 +125,10 @@ class ListaDeRutas extends ConsumerWidget {
       // quedan pegadas al borde de la pantalla.
       padding: const EdgeInsets.only(bottom: 48),
       children: [
-        for (final grupo in _agrupar(visibles, conVariasSucursales)) ...[
+        for (final (cualGrupo, grupo) in _agrupar(
+          visibles,
+          conVariasSucursales,
+        ).indexed) ...[
           if (grupo.titulo != null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -135,8 +139,10 @@ class ListaDeRutas extends ConsumerWidget {
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
-          for (final ruta in grupo.rutas)
+          for (final (cual, ruta) in grupo.rutas.indexed)
             _TarjetaDeRuta(
+              // Sólo la primera del primer grupo se deja senalar por la Guia.
+              esLaPrimera: cual == 0 && cualGrupo == 0,
               ruta: ruta,
               vehiculo: vehiculos[ruta.vehicleId],
               ocupacionDelCamion: ruta.vehicleId == null
@@ -215,6 +221,7 @@ class _Grupo {
 /// se busca de un vistazo cuando se recorre la lista.
 class _TarjetaDeRuta extends ConsumerWidget {
   const _TarjetaDeRuta({
+    required this.esLaPrimera,
     required this.ruta,
     required this.vehiculo,
     required this.ocupacionDelCamion,
@@ -224,6 +231,10 @@ class _TarjetaDeRuta extends ConsumerWidget {
     required this.peso,
     required this.cerradas,
   });
+
+  /// Si la Guia puede senalar los mandos de ESTA tarjeta. Sólo la primera: hay
+  /// una por ruta (`pantallas/ayuda/vista/control_senalado.dart`).
+  final bool esLaPrimera;
 
   final Ruta ruta;
   final Vehiculo? vehiculo;
@@ -388,178 +399,186 @@ class _TarjetaDeRuta extends ConsumerWidget {
               : Colores.linea,
         ),
       ),
-      child: InkWell(
-        onTap: () => ref.read(rutaElegidaProvider.notifier).elegir(ruta.id),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. El codigo y como esta. Los dos extremos del renglon, que es
-              //    donde los busca el ojo al recorrer la columna.
-              //
-              //    `spaceBetween` Y NADA DE `Spacer` — 28/09/2026. Es el mismo
-              //    fallo que ya esta contado en `pantalla_rutas.dart` y aqui
-              //    quedo sin arreglar; Jose lo vio en la tarjeta:
-              //
-              //        «mira ahi en curso no esta ni alinieado con eliminar q
-              //         es como deberia estar por q es en la esquina derecha de
-              //         arriba» · «esta corrida hacia la izquierda en ves de
-              //         estar a la esquina»
-              //
-              //    `Flexible` y `Spacer` son los DOS flexibles de este renglon,
-              //    los dos con flex 1, asi que el hueco libre se parte por la
-              //    mitad. El `Flexible` es `loose` y coge solo lo que mide la
-              //    insignia del codigo; la mitad que no gasta **no se la queda
-              //    el `Spacer`**: sobra al final del renglon, y con el
-              //    `mainAxisAlignment` de por defecto (`start`) se queda ahi,
-              //    empujando la insignia del estado hacia dentro.
-              //
-              //    Medido a 390 px con `tester.getRect`: la insignia de «En
-              //    curso» acababa en x=333 con el borde del contenido en 374
-              //    — 41 px corrida. Y **no la misma cantidad en cada tarjeta**:
-              //    depende de lo largo que sea el codigo de SU ruta, asi que
-              //    `RT-001` la dejaba en 333 y `RT-20260921-007` en 374. La
-              //    columna entera salia con dientes de sierra. A 1400 px eran
-              //    600 px de desvio.
-              //
-              //    Con `spaceBetween` y sin `Spacer` hay un solo flexible: el
-              //    codigo coge lo que necesita, todo lo que sobra se va al hueco
-              //    del medio y el estado se queda pegado al borde, mida lo que
-              //    mida el codigo.
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(
-                    child: Insignia(
-                      ruta.routeCode ?? ruta.id,
-                      color: Colores.enCurso,
-                    ),
-                  ),
-                  Insignia(
-                    switch (ruta.status) {
-                      EstadoRuta.planificada => 'Planificada',
-                      EstadoRuta.enCurso => 'En curso',
-                      EstadoRuta.completada => 'Completada',
-                      _ => ruta.status,
-                    },
-                    color: switch (ruta.status) {
-                      EstadoRuta.planificada => Colores.ambar,
-                      EstadoRuta.enCurso => Colores.enCurso,
-                      EstadoRuta.completada => Colores.verde,
-                      _ => Colores.gris,
-                    },
-                  ),
-                ],
-              ),
-              // 2. El tamano de la ruta: cuantas paradas y cuanto se anda.
-              const SizedBox(height: 6),
-              _Renglon(
-                texto: [
-                  if (paradas != null)
-                    '$paradas ${paradas == 1 ? 'parada' : 'paradas'}',
-                  '${ruta.totalDistance.toStringAsFixed(1)} km',
-                  fechaCorta(ruta.deliveryDate),
-                ].join(' · '),
-                peso: FontWeight.w600,
-              ),
-              // 3. El camion. 4. De donde sale. Cada uno con su icono y en una
-              //    sola linea: son los dos datos que mas se alargan.
-              _Renglon(
-                icono: Icons.local_shipping_outlined,
-                texto: vehiculo == null
-                    ? 'Sin vehículo'
-                    : '${vehiculo!.name}'
-                          '${vehiculo!.plate == null ? '' : ' (${vehiculo!.plate})'}'
-                          '$_comoAndaElCamion',
-              ),
-              _Renglon(
-                icono: Icons.place_outlined,
-                texto: ruta.originAddress ?? 'Sin punto de partida',
-              ),
-              if (sobrepeso)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Insignia('Sobrepeso', color: Colores.ambar),
-                ),
-              // 5. El importe, solo y en grande. Y `Eliminar` a su derecha, en
-              //    un renglon de alto fijo: sin eso, una ruta completada —que no
-              //    lleva boton— saldria mas baja que la de al lado, que es
-              //    justo lo que se venia a arreglar.
-              //
-              //    CUANDO FALTA COTIZAR ALGUNA PARADA NO HAY IMPORTE, y aqui se
-              //    dice con cuantas de cuantas y en ambar, no con un `$0.00` en
-              //    el azul de siempre. El 22/09/2026, `RT-20260921-007` decia
-              //    `$0.00` en este mismo hueco con sus dos paradas sin cotizar.
-              //
-              //    El texto va en `Expanded` con `ellipsis` **y no en un
-              //    `Spacer`**: el rotulo largo es mas ancho que un `$0.00`, y
-              //    sin eso una tarjeta sin cotizar se desbordaria o creceria
-              //    respecto a la de al lado, que es lo que arregla
-              //    `tarjetas_de_la_misma_altura_test.dart`.
-              const SizedBox(height: 6),
-              SizedBox(
-                // 48 Y NO 32 — 28/09/2026, al quitarle el relleno a los botones.
+      child: ControlSenalado(
+        nombre: Senalado.rutasTarjetaDeRuta,
+        senalable: esLaPrimera,
+        child: InkWell(
+          onTap: () => ref.read(rutaElegidaProvider.notifier).elegir(ruta.id),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. El codigo y como esta. Los dos extremos del renglon, que es
+                //    donde los busca el ojo al recorrer la columna.
                 //
-                // El renglon medía 32 y el boton de dentro se quedaba con **32
-                // px de alto tactil**, dieciseis por debajo del minimo de
-                // Material: quien apunta a «Eliminar» en un telefono de pie en
-                // el almacen le da al importe de al lado. Se daba por bueno como
-                // algo que «viene de antes y no es cosa de esto», y hoy si lo
-                // es: sin relleno detras,
-                // apuntar a la palabra es lo unico que hay, asi que el sitio
-                // donde cae el dedo no puede seguir siendo mas pequeno de lo que
-                // manda [Botones.altoTactilMinimo].
+                //    `spaceBetween` Y NADA DE `Spacer` — 28/09/2026. Es el mismo
+                //    fallo que ya esta contado en `pantalla_rutas.dart` y aqui
+                //    quedo sin arreglar; Jose lo vio en la tarjeta:
                 //
-                // Sube igual en TODAS las tarjetas, asi que las dos siguen
-                // midiendo lo mismo: `tarjetas_de_la_misma_altura_test.dart`
-                // compara una con otra, no contra un numero.
-                height: Botones.altoTactilMinimo,
-                child: Row(
+                //        «mira ahi en curso no esta ni alinieado con eliminar q
+                //         es como deberia estar por q es en la esquina derecha de
+                //         arriba» · «esta corrida hacia la izquierda en ves de
+                //         estar a la esquina»
+                //
+                //    `Flexible` y `Spacer` son los DOS flexibles de este renglon,
+                //    los dos con flex 1, asi que el hueco libre se parte por la
+                //    mitad. El `Flexible` es `loose` y coge solo lo que mide la
+                //    insignia del codigo; la mitad que no gasta **no se la queda
+                //    el `Spacer`**: sobra al final del renglon, y con el
+                //    `mainAxisAlignment` de por defecto (`start`) se queda ahi,
+                //    empujando la insignia del estado hacia dentro.
+                //
+                //    Medido a 390 px con `tester.getRect`: la insignia de «En
+                //    curso» acababa en x=333 con el borde del contenido en 374
+                //    — 41 px corrida. Y **no la misma cantidad en cada tarjeta**:
+                //    depende de lo largo que sea el codigo de SU ruta, asi que
+                //    `RT-001` la dejaba en 333 y `RT-20260921-007` en 374. La
+                //    columna entera salia con dientes de sierra. A 1400 px eran
+                //    600 px de desvio.
+                //
+                //    Con `spaceBetween` y sin `Spacer` hay un solo flexible: el
+                //    codigo coge lo que necesita, todo lo que sobra se va al hueco
+                //    del medio y el estado se queda pegado al borde, mida lo que
+                //    mida el codigo.
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: Text(
-                        importe == null ? '—' : importe!.rotulo,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Tipos.mono(
-                          tamano: 15,
-                          peso: FontWeight.w700,
-                          color: importe != null && !importe!.completo
-                              ? Colores.ambar
-                              : Colores.primario,
-                        ),
+                    Flexible(
+                      child: Insignia(
+                        ruta.routeCode ?? ruta.id,
+                        color: Colores.enCurso,
                       ),
                     ),
-                    if (ruta.status != EstadoRuta.completada)
-                      // ESTO ERA UN `TextButton` PELADO Y YA TIENE CAJA —
-                      // 28/09/2026.
-                      //
-                      // Eliminar una ruta es lo mas destructivo de esta
-                      // pantalla y se leia exactamente igual que «Editar»: la
-                      // palabra sola, en el oro de cualquier enlace. Ahora es un
-                      // [BotonDestructivo]: rojo, contorno de 2 px y papelera.
-                      //
-                      // Y CON ESO SE VA EL AJUSTE DE SANGRIA que llevaba hasta
-                      // hoy —le restaba los 12 px de aire propio para que la
-                      // palabra acabase donde acaba la insignia de arriba—. Ese
-                      // ajuste es para los mandos **sin caja**, donde lo unico
-                      // que se ve es el texto. Con un contorno alrededor el caso
-                      // se da la vuelta: el borde visible ES el rectangulo del
-                      // boton, asi que pegar el rectangulo al borde del
-                      // contenido lo deja donde toca —igual que la insignia—, y
-                      // quitarle la sangria ahora pondria la palabra encima de
-                      // su propia linea. El reparto entre «las que tienen caja»
-                      // y «las que no», con sus numeros medidos, esta en
-                      // `diseno/tema.dart`, junto a [Botones].
-                      BotonDestructivo(
-                        texto: 'Eliminar',
-                        alPulsar: () => _borrarPreguntando(context, ref),
-                      ),
+                    Insignia(
+                      switch (ruta.status) {
+                        EstadoRuta.planificada => 'Planificada',
+                        EstadoRuta.enCurso => 'En curso',
+                        EstadoRuta.completada => 'Completada',
+                        _ => ruta.status,
+                      },
+                      color: switch (ruta.status) {
+                        EstadoRuta.planificada => Colores.ambar,
+                        EstadoRuta.enCurso => Colores.enCurso,
+                        EstadoRuta.completada => Colores.verde,
+                        _ => Colores.gris,
+                      },
+                    ),
                   ],
                 ),
-              ),
-            ],
+                // 2. El tamano de la ruta: cuantas paradas y cuanto se anda.
+                const SizedBox(height: 6),
+                _Renglon(
+                  texto: [
+                    if (paradas != null)
+                      '$paradas ${paradas == 1 ? 'parada' : 'paradas'}',
+                    '${ruta.totalDistance.toStringAsFixed(1)} km',
+                    fechaCorta(ruta.deliveryDate),
+                  ].join(' · '),
+                  peso: FontWeight.w600,
+                ),
+                // 3. El camion. 4. De donde sale. Cada uno con su icono y en una
+                //    sola linea: son los dos datos que mas se alargan.
+                _Renglon(
+                  icono: Icons.local_shipping_outlined,
+                  texto: vehiculo == null
+                      ? 'Sin vehículo'
+                      : '${vehiculo!.name}'
+                            '${vehiculo!.plate == null ? '' : ' (${vehiculo!.plate})'}'
+                            '$_comoAndaElCamion',
+                ),
+                _Renglon(
+                  icono: Icons.place_outlined,
+                  texto: ruta.originAddress ?? 'Sin punto de partida',
+                ),
+                if (sobrepeso)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Insignia('Sobrepeso', color: Colores.ambar),
+                  ),
+                // 5. El importe, solo y en grande. Y `Eliminar` a su derecha, en
+                //    un renglon de alto fijo: sin eso, una ruta completada —que no
+                //    lleva boton— saldria mas baja que la de al lado, que es
+                //    justo lo que se venia a arreglar.
+                //
+                //    CUANDO FALTA COTIZAR ALGUNA PARADA NO HAY IMPORTE, y aqui se
+                //    dice con cuantas de cuantas y en ambar, no con un `$0.00` en
+                //    el azul de siempre. El 22/09/2026, `RT-20260921-007` decia
+                //    `$0.00` en este mismo hueco con sus dos paradas sin cotizar.
+                //
+                //    El texto va en `Expanded` con `ellipsis` **y no en un
+                //    `Spacer`**: el rotulo largo es mas ancho que un `$0.00`, y
+                //    sin eso una tarjeta sin cotizar se desbordaria o creceria
+                //    respecto a la de al lado, que es lo que arregla
+                //    `tarjetas_de_la_misma_altura_test.dart`.
+                const SizedBox(height: 6),
+                SizedBox(
+                  // 48 Y NO 32 — 28/09/2026, al quitarle el relleno a los botones.
+                  //
+                  // El renglon medía 32 y el boton de dentro se quedaba con **32
+                  // px de alto tactil**, dieciseis por debajo del minimo de
+                  // Material: quien apunta a «Eliminar» en un telefono de pie en
+                  // el almacen le da al importe de al lado. Se daba por bueno como
+                  // algo que «viene de antes y no es cosa de esto», y hoy si lo
+                  // es: sin relleno detras,
+                  // apuntar a la palabra es lo unico que hay, asi que el sitio
+                  // donde cae el dedo no puede seguir siendo mas pequeno de lo que
+                  // manda [Botones.altoTactilMinimo].
+                  //
+                  // Sube igual en TODAS las tarjetas, asi que las dos siguen
+                  // midiendo lo mismo: `tarjetas_de_la_misma_altura_test.dart`
+                  // compara una con otra, no contra un numero.
+                  height: Botones.altoTactilMinimo,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          importe == null ? '—' : importe!.rotulo,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Tipos.mono(
+                            tamano: 15,
+                            peso: FontWeight.w700,
+                            color: importe != null && !importe!.completo
+                                ? Colores.ambar
+                                : Colores.primario,
+                          ),
+                        ),
+                      ),
+                      if (ruta.status != EstadoRuta.completada)
+                        // ESTO ERA UN `TextButton` PELADO Y YA TIENE CAJA —
+                        // 28/09/2026.
+                        //
+                        // Eliminar una ruta es lo mas destructivo de esta
+                        // pantalla y se leia exactamente igual que «Editar»: la
+                        // palabra sola, en el oro de cualquier enlace. Ahora es un
+                        // [BotonDestructivo]: rojo, contorno de 2 px y papelera.
+                        //
+                        // Y CON ESO SE VA EL AJUSTE DE SANGRIA que llevaba hasta
+                        // hoy —le restaba los 12 px de aire propio para que la
+                        // palabra acabase donde acaba la insignia de arriba—. Ese
+                        // ajuste es para los mandos **sin caja**, donde lo unico
+                        // que se ve es el texto. Con un contorno alrededor el caso
+                        // se da la vuelta: el borde visible ES el rectangulo del
+                        // boton, asi que pegar el rectangulo al borde del
+                        // contenido lo deja donde toca —igual que la insignia—, y
+                        // quitarle la sangria ahora pondria la palabra encima de
+                        // su propia linea. El reparto entre «las que tienen caja»
+                        // y «las que no», con sus numeros medidos, esta en
+                        // `diseno/tema.dart`, junto a [Botones].
+                        ControlSenalado(
+                          nombre: Senalado.rutasEliminar,
+                          senalable: esLaPrimera,
+                          child: BotonDestructivo(
+                            texto: 'Eliminar',
+                            alPulsar: () => _borrarPreguntando(context, ref),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

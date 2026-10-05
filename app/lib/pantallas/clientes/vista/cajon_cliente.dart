@@ -98,11 +98,7 @@ class FichaDeCliente extends StatelessWidget {
         // Las coordenadas son el dato por el que este cliente está en la lista:
         // los de PEDIDO sólo entran cuando tienen geolocalización, y es lo que
         // usa el mapa para colocarlo.
-        _Dato(
-          etiqueta: 'Coordenadas',
-          valor: '${c.lat}, ${c.lng}',
-          mono: true,
-        ),
+        _Dato(etiqueta: 'Coordenadas', valor: '${c.lat}, ${c.lng}', mono: true),
       ],
     );
   }

@@ -965,6 +965,7 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
   Future<String> armarRuta(
     String columnaId, {
     String? nombre,
+
     /// Ver `RepositorioTablero.armarRuta`: quién se quedó fuera cuando el
     /// servidor SÍ armó la ruta pero dejó tarjetas atrás. Sólo se llama cuando
     /// se cayó alguien.

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- QUE CARPETAS PUEDE OFRECER NUESTRO FileProvider.
+
+     Solo las de esta aplicacion, y por eso estan las tres y ninguna mas: ni la
+     tarjeta, ni Descargas, ni `/`. Un `FileProvider` existe para dar permiso de
+     lectura sobre UN fichero concreto a quien lo vaya a abrir —aqui, el instalador
+     de Android— y no para abrir una puerta a lo que haya en el telefono.
+
+     `files-path` es la que se usa de verdad: el APK bajado vive en
+     `<datos>/files/actualizacion/reparto.apk`, que es donde deja las cosas
+     `getApplicationSupportDirectory()` (lo mismo que el mapa de Cuba, en
+     `files/mapa/`).
+
+     Las otras dos estan porque el fichero podria acabar en una de ellas el dia que
+     cambie la carpeta en Dart, y lo que pasaria entonces es que
+     `FileProvider.getUriForFile` lanza y la instalacion no arranca. El codigo lo
+     caza y lo dice (`NO_SE_COMPARTIO` en `InstaladorDeApk.kt`), pero con las tres
+     declaradas el caso no llega a darse.
+
+     `path="."` es la raiz de cada una, subcarpetas incluidas. -->
+<paths>
+    <files-path name="datos_de_la_aplicacion" path="." />
+    <cache-path name="cache_de_la_aplicacion" path="." />
+    <external-files-path name="datos_externos" path="." />
+</paths>

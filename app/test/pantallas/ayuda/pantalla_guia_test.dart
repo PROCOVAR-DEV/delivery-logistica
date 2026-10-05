@@ -41,6 +41,7 @@ final _paginas = <String, String>{
 «Quiero hacer X»: dónde tocar, paso a paso.
 
 ## Dar de alta un camión
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**. **Necesita señal.**
 
@@ -48,6 +49,7 @@ final _paginas = <String, String>{
 2. Escribe la matrícula.
 
 ## Mirar el canal con PEDIDO
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Canal con PEDIDO»**.
 
@@ -57,6 +59,9 @@ final _paginas = <String, String>{
 # Tareas del escritorio
 
 ## Entregar el día desde el ordenador
+<!-- tarea -->
+
+**Empieza en:** la franja de arriba, desde cualquier pantalla.
 
 1. Pulsa en la franja de arriba.
 ''',
@@ -66,6 +71,9 @@ final _paginas = <String, String>{
 La ficha de la pantalla de Almacenes.
 
 ## Poner o corregir un almacén
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Almacenes»**.
 
 1. Abre la sucursal.
 ''',
@@ -188,7 +196,9 @@ void main() {
 
     expect(
       find.byKey(
-        ClavesDeLaGuia.tarea('comun/pantallas/almacenes.md~poner-o-corregir-un-almacén'),
+        ClavesDeLaGuia.tarea(
+          'comun/pantallas/almacenes.md~poner-o-corregir-un-almacén',
+        ),
       ),
       findsOneWidget,
     );
@@ -247,6 +257,10 @@ void main() {
 
       expect(find.byKey(ClavesDeLaGuia.llevameAhi), findsOneWidget);
       expect(find.text('Ir a Vehículos'), findsOneWidget);
+      // Y EL RECORRIDO ES EL PRINCIPAL, desde el 05/10/2026. «Ir a ‹pantalla›»
+      // baja a secundario: sigue estando —hay quien quiere la pantalla y ya sabe
+      // qué hacer— pero lo que se vino a arreglar es el recorrido.
+      expect(find.byKey(ClavesDeLaGuia.guiarme), findsOneWidget);
 
       await tester.tap(find.byKey(ClavesDeLaGuia.llevameAhi));
       await tester.pumpAndSettle();
@@ -258,7 +272,9 @@ void main() {
     /// direccion, asi que la vuelta del atras —del telefono o del navegador—
     /// vuelve a abrir el cajon por donde se iba. Sin esto, «llévame ahí» se paga
     /// buscando la tarea otra vez.
-    testWidgets('abrir la direccion de una tarea abre su cajon', (tester) async {
+    testWidgets('abrir la direccion de una tarea abre su cajon', (
+      tester,
+    ) async {
       await _montar(tester, donde: _direccionDeTarea(_idDelCamion));
 
       expect(find.textContaining('Escribe la matrícula'), findsOneWidget);

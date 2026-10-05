@@ -5,6 +5,11 @@ import '../diseno/anchos.dart';
 import '../diseno/colores.dart';
 import '../diseno/tema.dart';
 import '../nucleo/identidad/sesion.dart';
+import '../pantallas/ayuda/datos/controles_senalados.dart';
+import '../pantallas/ayuda/vista/control_senalado.dart';
+import '../pantallas/mapa/registro.dart' show caminoDelMapaSinConexion;
+import '../pantallas/sincronizacion/vista/pantalla_sincronizacion.dart'
+    show PantallaSincronizacion;
 import 'pantalla_registrada.dart';
 
 /// La barra lateral: 256 px, alto completo, fija a la izquierda en escritorio.
@@ -141,10 +146,13 @@ class BarraLateral extends StatelessWidget {
                 ),
                 children: [
                   for (final p in enElMenu)
-                    _Entrada(
-                      pantalla: p,
-                      activa: rutaActual == p.ruta,
-                      dentroDeCajon: dentroDeCajon,
+                    _conSuMarca(
+                      p,
+                      _Entrada(
+                        pantalla: p,
+                        activa: rutaActual == p.ruta,
+                        dentroDeCajon: dentroDeCajon,
+                      ),
                     ),
                 ],
               ),
@@ -157,6 +165,41 @@ class BarraLateral extends StatelessWidget {
     );
   }
 }
+
+/// LAS ENTRADAS QUE EL MANUAL SENALA, por su ruta.
+///
+/// Hay pasos cuyo unico contenido es «**Menú → «Clientes».**», y el control del
+/// que hablan es esta entrada. No llevan todas marca: solo las que algun paso
+/// nombra, porque un nombre en el catalogo que ningun paso use lo caza
+/// `los_pasos_senalan_controles_que_existen_test.dart`.
+///
+/// Las demas entradas se devuelven tal cual: `ControlSenalado` es transparente,
+/// pero un envoltorio por entrada que nadie va a preguntar no paga nada.
+///
+/// **Aqui no hay dos a la vez**: en escritorio el armazon pone `drawer: null` y
+/// esta barra se monta una sola vez; por debajo de `Anchos.escritorio` se monta
+/// solo dentro del cajon. En un telefono, con el cajon cerrado, el recorrido dice
+/// «el control de este paso no está en esta pantalla» — que es la verdad.
+Widget _conSuMarca(PantallaRegistrada pantalla, Widget entrada) =>
+    switch (pantalla.ruta) {
+      '/customers' => ControlSenalado(
+        nombre: Senalado.menuClientes,
+        child: entrada,
+      ),
+      '/reports' => ControlSenalado(
+        nombre: Senalado.menuReportes,
+        child: entrada,
+      ),
+      PantallaSincronizacion.ruta => ControlSenalado(
+        nombre: Senalado.menuSincronizacion,
+        child: entrada,
+      ),
+      caminoDelMapaSinConexion => ControlSenalado(
+        nombre: Senalado.menuMapa,
+        child: entrada,
+      ),
+      _ => entrada,
+    };
 
 class _Entrada extends StatelessWidget {
   const _Entrada({

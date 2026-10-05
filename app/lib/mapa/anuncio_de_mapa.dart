@@ -27,6 +27,16 @@ import 'package:dio/dio.dart';
 
 import '../nucleo/registro/registro.dart';
 
+/// `enMegas` SE MUDÓ a `nucleo/descarga/en_megas.dart` el 05/10/2026, porque el
+/// motor de bajar —que ahora lo comparten el mapa y la actualización de la APK—
+/// tiene que escribir «llegaron 12,0 MB de los 75,0» y no puede depender del
+/// mapa para eso.
+///
+/// Se re-exporta desde aquí **a propósito**: cinco ficheros lo importaban de este
+/// y así ninguno se tuvo que tocar. Cambiar de sitio una función no es motivo
+/// para ir a mover cinco `import`.
+export '../nucleo/descarga/en_megas.dart' show enMegas;
+
 /// UN NIVEL DE DETALLE colgado para descargar, tal y como lo anuncia
 /// `GET /api/mapa`.
 class NivelDeMapa {
@@ -342,11 +352,4 @@ String versionComoSeLee(String version) {
   if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return version;
   return '20${version.substring(0, 2)}-${version.substring(2, 4)}-'
       '${version.substring(4, 6)}';
-}
-
-/// «25,8 MB». Con coma, que es como se escriben los números aquí.
-String enMegas(int bytes) {
-  if (bytes < 1000000) return '${(bytes / 1000).round()} kB';
-  final megas = bytes / 1000000;
-  return '${megas.toStringAsFixed(1).replaceAll('.', ',')} MB';
 }

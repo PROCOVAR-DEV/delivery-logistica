@@ -406,9 +406,9 @@ class EnvioAlTablero extends Notifier<void> {
           columnaId: columnaId,
           sucursalId: sucursalId,
         );
-    ref.read(seleccionPedidosProvider.notifier).quitarLaMarcaDe(
-      resultado.fueron,
-    );
+    ref
+        .read(seleccionPedidosProvider.notifier)
+        .quitarLaMarcaDe(resultado.fueron);
     return resultado;
   }
 

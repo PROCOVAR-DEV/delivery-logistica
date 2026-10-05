@@ -77,8 +77,7 @@ enum ComoVa { hecho, falta, sinSaber }
 String enumerarSucursales(List<String> nombres) => switch (nombres.length) {
   0 => '',
   1 => nombres.single,
-  _ =>
-    '${nombres.sublist(0, nombres.length - 1).join(', ')} y ${nombres.last}',
+  _ => '${nombres.sublist(0, nombres.length - 1).join(', ')} y ${nombres.last}',
 };
 
 /// Uno de los cuatro pasos, ya resuelto contra la base.
@@ -159,7 +158,8 @@ class PasoDeConfiguracion {
     if (sucursales <= 1 || como != ComoVa.falta || lasQueFaltan.isEmpty) {
       return null;
     }
-    final cuenta = 'Falta en ${lasQueFaltan.length} de las $sucursales '
+    final cuenta =
+        'Falta en ${lasQueFaltan.length} de las $sucursales '
         'sucursales';
     return lasQueFaltan.length > 3
         ? '$cuenta.'
@@ -448,8 +448,7 @@ ORDER BY b.name
             esta: sucursales > 0 && sinPunto.isEmpty,
           ),
           titulo: 'El punto de partida de la sucursal',
-          paraQue:
-              'Es el sitio desde el que se mide la distancia hasta cada cliente.',
+          paraQue: 'Es el sitio desde el que se mide la distancia hasta cada cliente.',
           siFalta:
               'Sin él no hay desde dónde medir: esos domicilios se quedan sin '
               'cotizar y los pedidos salen sin precio.',

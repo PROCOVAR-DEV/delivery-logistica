@@ -37,17 +37,18 @@ que hay que pedir y a quién.
 ---
 
 ## Lo primero de todo: mira que estás en TU sucursal
+<!-- tarea -->
 
 **Empieza en:** la barra de arriba, en cualquier pantalla.
 
 1. Arriba, a la izquierda de tu avatar, hay una pastilla con la sucursal. En el
    teléfono sólo cabe el código: **«STG»**, **«HAB»**. En pantalla grande sale el
-   nombre entero.
+   nombre entero. <!-- señala: barra-sucursal -->
 2. Si es la tuya, no toques nada. **Si tienes uno de los cinco roles de una sola
    sucursal, ya está puesta y no se puede cambiar**: no está roto, es que no te
-   toca.
+   toca. <!-- señala: barra-sucursal -->
 3. Si puedes cambiarla —sólo `DESARROLLADOR` y `SUPER ADMIN`—, **tócala** y elige
-   de la lista.
+   de la lista. <!-- señala: barra-elegir-sucursal -->
 
 **Ojo con «Todas las sucursales (8)»** (en el teléfono, **«Todas (8)»**): con eso
 puesto, el Panel cambia de título y dice **«Faltan cosas por configurar en 6 de
@@ -66,6 +67,7 @@ vista no sabes cuál te está hablando.
 ---
 
 # Paso 1 — El punto de partida de la sucursal
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Panel»**. Y acaba en un mensaje a administración: aquí no
 se toca.
@@ -81,19 +83,18 @@ Lo dice el Panel con estas palabras:
 
 ## Lo que hay que hacer
 
-1. **Menú → «Panel».** Es la primera entrada del menú.
-2. Mira el recuadro ámbar de arriba, **antes de las cuatro cifras**. Si el paso
+1. Mira el recuadro ámbar de arriba, **antes de las cuatro cifras**. Si el paso
    **1/4** dice **«El punto de partida de la sucursal»**, falta.
-3. **Debajo de ese paso NO hay botón.** Hay una línea gris con un icono de
-   información que dice:
-
-   > «No se pone aquí: lo deja hecho quien da de alta la sucursal. Pídelo a
-   > administración y baja solo con el día.»
-
-4. **Pídelo a administración.** Diles la sucursal y que le falta el punto de
-   partida.
-5. Cuando lo pongan, **no tienes que hacer nada más que traer el día** (franja de
+   <!-- señala: panel-paso-a-paso -->
+   - **Debajo de ese paso NO hay botón.** Hay una línea gris con un icono de
+     información: «No se pone aquí: lo deja hecho quien da de alta la sucursal.
+     Pídelo a administración y baja solo con el día.»
+2. **Pídelo a administración.** Diles la sucursal y que le falta el punto de
+   partida. **Esto no se hace en la aplicación**, así que aquí no hay nada que
+   tocar.
+3. Cuando lo pongan, **no tienes que hacer nada más que traer el día** (franja de
    arriba → **«Traer el día»**). El paso se tacha solo.
+   <!-- señala: franja-traer-el-dia -->
 
 > **Ojo:** no lo busques en Almacenes. Son dos cosas distintas y la pantalla de
 > Almacenes lo dice: «No pone el punto de partida de la sucursal. Eso es otra cosa,
@@ -113,6 +114,7 @@ sería un número creíble y falso— y no se les puede cobrar el domicilio.
 ---
 
 # Paso 2 — Al menos un vehículo
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**.
 
@@ -126,32 +128,37 @@ no se guarda en el aparato, y si no sale, no se guarda, y te lo dice.
 
 ## Lo que hay que hacer
 
-1. **Menú → «Panel»**, y en el paso **2/4** del recuadro ámbar, **toca el botón
-   «Agregar el primer vehículo»** (lleva el dibujo de un camión). Te lleva a
-   Vehículos.
+1. En el paso **2/4** del recuadro ámbar, **toca el botón «Agregar el primer
+   vehículo»** (lleva el dibujo de un camión). Te lleva a Vehículos.
+   <!-- señala: panel-arreglar-el-paso -->
    - O ve directo: **Menú → «Vehículos»**.
 2. **En Vehículos**, arriba a la derecha de la caja de buscar, **toca «Agregar
-   Vehículo»**.
-3. Se abre un cajón, **«Nuevo Vehículo»**. Rellena de arriba abajo:
-   - **«Nombre del Vehículo *»** — obligatorio. La pista pone «Ej: Camión #1,
-     Furgoneta Azul».
-   - **«Tipo»** — desplegable. **Al elegir uno hereda su costo por km**, y queda
-     editable. Si tu tipo no está, la última opción del desplegable es **«+ Crear
-     tipo nuevo…»**: ábrela, escribe **«Nombre del tipo»** y su **«Costo/km
-     (USD)»**, y **toca «Crear tipo»**.
-   - **«Placa (opcional)»** — «ABC-1234». Se pasa a mayúsculas sola.
-   - **«Capacidad Máx. (kg)»** — **viene en 1000**. Cámbialo por lo que carga de
-     verdad: es el número contra el que se mide «no cabe».
-   - **«Estado del vehículo»** — déjalo en **«Disponible»**.
-   - **«Costo por km (USD)»** — la pista pone «1.65».
-   - **«Usar este vehículo para calcular el domicilio»** — ver el paso 2-bis de
-     abajo.
-   - **«Notas (opcional)»**.
-4. **Toca «Agregar Vehículo»** abajo, en el pie del cajón.
-5. El cajón se cierra y sale un aviso: **«Vehículo agregado.»** El camión aparece
-   como una tarjeta en la lista, con la insignia verde **«Disponible»**.
-6. **Vuelve al Panel.** El paso 2/4 tiene que haberse ido a la lista de abajo, en
-   gris y con su marca verde.
+   Vehículo»**. <!-- señala: vehiculos-agregar -->
+3. Escribe el **«Nombre del Vehículo *»**. Es obligatorio; la pista pone «Ej: Camión
+   #1, Furgoneta Azul». <!-- señala: vehiculos-nombre -->
+4. Elige el **«Tipo»**. **Al elegir uno hereda su costo por km**, y queda editable.
+   <!-- señala: vehiculos-tipo -->
+   - Si tu tipo no está, la última opción del desplegable es **«+ Crear tipo
+     nuevo…»**: ábrela, escribe **«Nombre del tipo»** y su **«Costo/km (USD)»**, y
+     **toca «Crear tipo»**.
+5. Escribe la **«Placa (opcional)»** — «ABC-1234». Se pasa a mayúsculas sola.
+   <!-- señala: vehiculos-placa -->
+6. Pon la **«Capacidad Máx. (kg)»**. **Viene en 1000**: cámbialo por lo que carga de
+   verdad, que es el número contra el que se mide «no cabe».
+   <!-- señala: vehiculos-capacidad -->
+7. Deja el **«Estado del vehículo»** en **«Disponible»**.
+   <!-- señala: vehiculos-estado -->
+8. Pon el **«Costo por km (USD)»** — la pista pone «1.65».
+   <!-- señala: vehiculos-costo-por-km -->
+9. Si de este camión va a salir el precio del domicilio, marca **«Usar este vehículo
+   para calcular el domicilio»** — ver el paso 2-bis de abajo.
+   <!-- señala: vehiculos-calcula-el-domicilio -->
+10. **Toca «Agregar Vehículo»** abajo, en el pie del cajón.
+    <!-- señala: vehiculos-guardar -->
+    - El cajón se cierra y sale **«Vehículo agregado.»** El camión aparece como una
+      tarjeta en la lista, con la insignia verde **«Disponible»**.
+    - **Vuelve al Panel**: el paso 2/4 tiene que haberse ido a la lista de abajo, en
+      gris y con su marca verde.
 
 ### Si no sabes el costo por km
 
@@ -215,6 +222,7 @@ aparato»**.
 ---
 
 # Paso 2-bis — Decir qué camión calcula el domicilio
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Vehículos»**.
 
@@ -225,20 +233,20 @@ cuyo **costo por km** sale lo que se le cobra al cliente por el domicilio.
 
 ## Lo que hay que hacer
 
-1. **Menú → «Vehículos»**.
-2. Busca la tarjeta del camión. **Debajo del nombre y de la insignia de estado**,
-   en la fila de pastillas, mira qué pone:
-   - Si ya es el que calcula, lleva una pastilla con una casita: **«Cálculo
-     domicilio · $1.65/km»**.
-   - Si no lo es, en ese mismo sitio hay un botón: **«Usar para domicilio»**.
-3. **Toca «Usar para domicilio»**.
-4. Sale el aviso **«Se usará este vehículo para calcular el domicilio.»** y la
-   tarjeta cambia: el botón desaparece y en su sitio queda la pastilla **«Cálculo
-   domicilio»**.
-
-**También se puede desde la ficha:** **toca «Editar»** en la tarjeta y marca la
-casilla **«Usar este vehículo para calcular el domicilio»**. Debajo pone **«Solo un
-vehículo por TIPO.»**
+1. Busca la tarjeta del camión y, **debajo del nombre y de la insignia de estado**,
+   en la fila de pastillas, **toca «Usar para domicilio»**.
+   <!-- señala: vehiculos-usar-para-domicilio -->
+   - Si ya es el que calcula, ahí lleva una pastilla con una casita: **«Cálculo
+     domicilio · $1.65/km»**, y el botón no está.
+   - Al tocarlo sale **«Se usará este vehículo para calcular el domicilio.»** y el
+     botón se cambia por la pastilla.
+2. También se puede desde la ficha: **toca «Editar»** en la tarjeta.
+   <!-- señala: vehiculos-editar -->
+3. Marca la casilla **«Usar este vehículo para calcular el domicilio»**. Debajo pone
+   **«Solo un vehículo por TIPO.»**
+   <!-- señala: vehiculos-calcula-el-domicilio -->
+4. **Toca «Actualizar»** en el pie del cajón.
+   <!-- señala: vehiculos-guardar -->
 
 > **Ojo:** si la pastilla dice **«Cálculo domicilio»** **sin importe detrás**, ese
 > camión está elegido para calcular y **no tiene costo por km**. Edítalo y ponle
@@ -253,6 +261,7 @@ pedidos salen **«sin cotizar»**.
 ---
 
 # Paso 3 — Al menos un almacén con su punto puesto
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Almacenes»**.
 
@@ -268,47 +277,47 @@ guardan allí, y por eso el aviso de que salió bien dice **«Guardado en Acceso
 
 ## Lo que hay que hacer
 
-1. **Menú → «Panel»**, y en el paso **3/4**, **toca «Poner el almacén»** (lleva el
-   dibujo de un almacén). Te lleva a Almacenes.
+1. En el paso **3/4**, **toca «Poner el almacén»** (lleva el dibujo de un almacén).
+   Te lleva a Almacenes. <!-- señala: panel-arreglar-el-paso -->
    - O ve directo: **Menú → «Almacenes»**.
-2. **En Almacenes**, debajo del título lee la línea que explica para qué es: «El
-   punto desde el que se mide cada domicilio. Un almacén sin coordenadas no sirve
-   para cotizar: la distancia se mide desde aquí.»
-3. **Arriba, si hay más de una sucursal, elige la tuya** en el selector
+   - Allí, debajo del título, la línea explica para qué es: «El punto desde el que se
+     mide cada domicilio. Un almacén sin coordenadas no sirve para cotizar.»
+2. **Arriba, si hay más de una sucursal, elige la tuya** en el selector
    («Sucursal»). Si está vacío pone **«Elige sucursal»**.
-4. A la derecha de ese selector, **toca «Nuevo almacén»**.
-5. Se abre un cajón titulado **«Nuevo almacén»**, con el nombre de la sucursal
-   debajo del título.
-6. **Escribe el nombre** en la primera caja («Nombre del almacén»). Si lo dejas
+   <!-- señala: almacenes-sucursal -->
+3. A la derecha de ese selector, **toca «Nuevo almacén»**.
+   <!-- señala: almacenes-nuevo -->
+   - Se abre un cajón titulado **«Nuevo almacén»**, con el nombre de la sucursal
+     debajo del título.
+4. **Escribe el nombre** en la primera caja («Nombre del almacén»). Si lo dejas
    vacío sale **«Le falta el nombre.»** en rojo y **«Guardar»** no se puede pulsar.
-7. Debajo del nombre hay dos pastillas y una papelera:
-   - **«Principal»** — tócala si desde éste se mide cuando nadie dice cuál. **Sólo
-     puede haber uno: al marcar éste, los demás se desmarcan.**
-   - **«Activo» / «Inactivo»** — déjala en **«Activo»**.
-8. Baja a la sección **«Dónde está»**. Lee lo que dice, que es el resumen entero:
-
-   > «Tres formas de poner el punto: buscar la dirección, pulsar en el mapa, o
-   > escribir las coordenadas. Escribirlas a mano funciona siempre, también sin
-   > conexión.»
-
-9. **Pon el punto, por una de las tres**:
-   - **La dirección.** Escribe en **«Dirección»** y **toca «Buscar»**, a la derecha
-     del campo. **Hacen falta al menos 4 letras** —si no, pone «Escribe al menos 4
-     letras para poder buscar.»—. Mientras pregunta, el botón dice **«Buscando…»**.
-   - **El mapa.** Baja hasta el mapa y **toca donde está el almacén**. Debajo sale
-     **«Punto puesto en 20.02470, -75.82190.»** **Esto funciona sin señal.**
-   - **A mano.** Escribe en la caja **«Coordenadas»** así: `19.83, -75.82`. **Ésta
-     funciona siempre.** Si no se entiende, debajo pone «No se entiende. Escríbelo
-     como «19.83, -75.82».»
-
-   **Las tres escriben en la misma caja de «Coordenadas», y lo que se guarda es lo
-   que ponga ahí.** Puedes buscar y luego corregir a mano.
-
-10. **Toca «Guardar»**, en el pie del cajón, a la derecha de **«Cerrar»**. Mientras
+   <!-- señala: almacenes-nombre -->
+5. Debajo del nombre, **toca «Principal»** si desde éste se mide cuando nadie dice
+   cuál. **Sólo puede haber uno: al marcar éste, los demás se desmarcan.**
+   <!-- señala: almacenes-principal -->
+6. Al lado, deja **«Activo»** como está.
+   <!-- señala: almacenes-activo -->
+7. Forma 1 de poner el punto: **escribe la dirección** en **«Dirección»**.
+   <!-- señala: almacenes-direccion -->
+8. Y **toca «Buscar»**, a la derecha del campo. **Hacen falta al menos 4 letras**
+   —si no, pone «Escribe al menos 4 letras para poder buscar.»—. Mientras pregunta,
+   el botón dice **«Buscando…»**.
+   <!-- señala: almacenes-buscar-la-direccion -->
+9. Forma 2: **toca en el mapa**, donde está el almacén. Debajo sale **«Punto puesto
+   en 20.02470, -75.82190.»** **Esto funciona sin señal.**
+   <!-- señala: almacenes-mapa -->
+10. Forma 3: **escribe las coordenadas a mano** en **«Coordenadas»**, así:
+    `19.83, -75.82`. **Ésta funciona siempre.** Si no se entiende, debajo pone «No se
+    entiende. Escríbelo como «19.83, -75.82».»
+    <!-- señala: almacenes-coordenadas -->
+    - **Las tres escriben en la misma caja de «Coordenadas», y lo que se guarda es lo
+      que ponga ahí.** Puedes buscar y luego corregir a mano.
+11. **Toca «Guardar»**, en el pie del cajón, a la derecha de **«Cerrar»**. Mientras
     guarda dice **«Guardando…»**.
-11. Sale **«Guardado en Accesos.»** y el almacén aparece en la lista, con una
-    **estrella** si lo marcaste principal.
-12. **Vuelve al Panel.** El paso 3/4 tiene que haberse tachado.
+    <!-- señala: almacenes-guardar -->
+    - Sale **«Guardado en Accesos.»** y el almacén aparece en la lista, con una
+      **estrella** si lo marcaste principal.
+    - **Vuelve al Panel**: el paso 3/4 tiene que haberse tachado.
 
 ### Si al buscar la dirección te ofrece otra
 
@@ -368,6 +377,7 @@ en la propia pantalla:
 ---
 
 # Paso 4 — La tasa de cambio de la sucursal
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Panel»**. Y acaba en Accesos: aquí no se toca.
 
@@ -380,25 +390,29 @@ en la propia pantalla:
 
 ## Lo que hay que hacer
 
-1. **Menú → «Panel».** Mira el paso **4/4** del recuadro ámbar.
-2. **No hay botón.** Debajo, la línea gris dice:
-
-   > «No se pone aquí: la mantiene Accesos, que la trae de Entrega. Se arregla
-   > allí y baja sola con el día.»
-
-3. **Pídelo a administración**, y di de qué sucursal. **La tasa es de cada
-   sucursal, una por una**: que La Habana la tenga no le sirve de nada a Granma.
-4. Cuando la pongan, **trae el día** y el paso se tacha solo.
+1. Mira el paso **4/4** del recuadro ámbar.
+   <!-- señala: panel-paso-a-paso -->
+   - **No hay botón.** Debajo, la línea gris dice: «No se pone aquí: la mantiene
+     Accesos, que la trae de Entrega. Se arregla allí y baja sola con el día.»
+2. **Pídelo a administración**, y di de qué sucursal. **La tasa es de cada sucursal,
+   una por una**: que La Habana la tenga no le sirve de nada a Granma. **Esto no se
+   hace en la aplicación**, así que aquí no hay nada que tocar.
+3. Cuando la pongan, **trae el día** y el paso se tacha solo.
+   <!-- señala: franja-traer-el-dia -->
 
 ## Cómo compruebas que ya está
+<!-- tarea -->
 
 **Empieza en:** la barra de arriba, en cualquier pantalla.
 
 1. Arriba, a la derecha de la pastilla de la sucursal, hay otra que pone **«USD»**.
+   <!-- señala: barra-moneda -->
 2. **Tócala.** Si hay tasa, aparece la opción **«CUP»** y debajo, como nota, la
    tasa con su fecha: **«1 USD = 320 · del 9/9/2026»**.
+   <!-- señala: barra-elegir-moneda -->
 3. Si **no** hay tasa, la pastilla está en ámbar con un icono de dinero tachado y
    no se puede abrir. Su explicación es ésta, con el nombre de tu sucursal dentro:
+   <!-- señala: barra-moneda -->
 
    > «Santiago no tiene tasa de cambio todavía: los importes sólo se pueden ver en
    > USD.»
@@ -426,6 +440,7 @@ vuelve a exportar.
 ---
 
 # Cómo sabes que tu sucursal ya está lista
+<!-- tarea -->
 
 **Empieza en:** **Menú → «Panel»**.
 
@@ -434,11 +449,11 @@ paso a paso **sólo se pinta cuando falta algo**, y cuando no falta nada no ocup
 una línea. Un asistente que sigue ahí cuando ya no hace falta es ruido para
 siempre, y el ruido de siempre se deja de leer.
 
-1. **Menú → «Panel».**
-2. Si arriba, antes de las cuatro cifras, **no hay recuadro ámbar**, está lista.
-3. Lo primero que vas a ver entonces es la banda de **«Estado del día»** (en el
-   teléfono y en el escritorio) y debajo las cuatro cifras: **«Pedidos sin ruta»**,
-   **«Rutas en marcha»**, **«Entregados hoy»** y **«Vehículos»**.
+1. Mira arriba, antes de las cuatro cifras: si **no hay recuadro ámbar**, está
+   lista. <!-- señala: panel-paso-a-paso -->
+   - Lo primero que vas a ver entonces es la banda de **«Estado del día»** (en
+     el teléfono y en el escritorio) y debajo las cuatro cifras: **«Pedidos sin
+     ruta»**, **«Rutas en marcha»**, **«Entregados hoy»** y **«Vehículos»**.
 
 ### El estado que NO es «falta algo»
 

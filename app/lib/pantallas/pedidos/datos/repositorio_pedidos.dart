@@ -637,9 +637,7 @@ class ConsultasPedidos {
       cases: <CaseWhen<bool, double>>[
         CaseWhen(
           _base.orderItems.packs.isBiggerThanValue(0) &
-              _base.orderItems.quantity.isBiggerOrEqual(
-                _base.orderItems.packs,
-              ),
+              _base.orderItems.quantity.isBiggerOrEqual(_base.orderItems.packs),
           then: _base.orderItems.quantity,
         ),
       ],

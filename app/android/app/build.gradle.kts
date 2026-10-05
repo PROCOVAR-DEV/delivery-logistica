@@ -86,6 +86,22 @@ android {
     }
 }
 
+dependencies {
+    // `FileProvider`, y solo eso: es lo que deja entregarle el APK bajado al
+    // instalador de Android sin un `file://` (prohibido desde Android 7) y sin
+    // permisos de almacenamiento. Ver `InstaladorDeApk.kt`.
+    //
+    // POR QUE EXPLICITA Y NO DE REBOTE: `share_plus` y `printing` traen
+    // `androidx.core` dentro, pero como `implementation` de SUS modulos — o sea que
+    // no esta en el classpath de compilacion de este. Sin esta linea el Kotlin de
+    // aqui no compila, y el error habla de un `import` que «no existe» teniendo la
+    // biblioteca dentro del APK.
+    //
+    // La version, EXACTA como todas las del `pubspec.yaml` (PLAN.md §1), y la 1.13.1
+    // a proposito: es la ultima que no sube el `compileSdk` que pide Flutter.
+    implementation("androidx.core:core:1.13.1")
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17

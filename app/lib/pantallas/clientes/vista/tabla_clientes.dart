@@ -5,6 +5,8 @@ import '../../../diseno/insignia.dart';
 import '../../../diseno/tabla_ancha.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/base/base.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/repositorio_clientes.dart';
 import 'cajon_cliente.dart';
 
@@ -65,13 +67,20 @@ class TablaClientes extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final fila in clientes)
-              _Tarjeta(
-                // La llave de la tarjeta: es lo que deja medirla en una prueba.
-                key: ValueKey('cliente-${fila.cliente.id}'),
-                fila: fila,
-                conDistancia: conDistancia,
-                alAbrir: () => _abrir(context, fila),
+            // Solo la PRIMERA se deja senalar: hay una tarjeta por cliente y
+            // dos marcas con el mismo nombre a la vez no se distinguen. La
+            // primera es ademas la que siempre esta construida.
+            for (final (cual, fila) in clientes.indexed)
+              ControlSenalado(
+                nombre: Senalado.clientesAbrirElCliente,
+                senalable: cual == 0,
+                child: _Tarjeta(
+                  // La llave de la tarjeta: es lo que deja medirla en una prueba.
+                  key: ValueKey('cliente-${fila.cliente.id}'),
+                  fila: fila,
+                  conDistancia: conDistancia,
+                  alAbrir: () => _abrir(context, fila),
+                ),
               ),
           ],
         );
@@ -82,9 +91,8 @@ class TablaClientes extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(minWidth: medidas.maxWidth),
           child: Theme(
-            data: Theme.of(
-              context,
-            ).copyWith(dataTableTheme: temaDeTabla(context)),
+            data: Theme.of(context)
+                .copyWith(dataTableTheme: temaDeTabla(context)),
             child: DataTable(
               // Las filas se pulsan, pero NO se marcan: sin esto `DataTable`
               // añade una columna de casillas por su cuenta en cuanto una fila
@@ -97,7 +105,10 @@ class TablaClientes extends StatelessWidget {
                 DataColumn(label: cabecera('Vendedor')),
                 DataColumn(label: cabecera('Origen')),
               ],
-              rows: [for (final c in clientes) _fila(context, c)],
+              rows: [
+                for (final (cual, c) in clientes.indexed)
+                  _fila(context, c, laPrimera: cual == 0),
+              ],
             ),
           ),
         ),
@@ -105,42 +116,56 @@ class TablaClientes extends StatelessWidget {
     },
   );
 
-  DataRow _fila(BuildContext context, ClienteConKm fila) {
+  /// `laPrimera` es lo unico que decide si esta fila lleva la marca de la guia.
+  ///
+  /// La marca va DENTRO de la celda del nombre y no sobre la fila, y no por gusto:
+  /// una `DataRow` no es un `Widget` y no se puede envolver. La celda del nombre es
+  /// la que el paso nombra —«Clic en la fila», y la fila entera abre— y es la que
+  /// se ve a la izquierda, asi que el agujero cae donde esta mirando quien lee.
+  DataRow _fila(
+    BuildContext context,
+    ClienteConKm fila, {
+    required bool laPrimera,
+  }) {
     final c = fila.cliente;
 
     return DataRow(
       onSelectChanged: (_) => _abrir(context, fila),
       cells: [
         DataCell(
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                c.name,
-                style: Tipos.texto(tamano: 14, peso: FontWeight.w500),
-              ),
-              // El codigo en JetBrains Mono, no en la `monospace` del sistema:
-              // en Windows esa es Courier New y no se parece a nada de aqui.
-              if (c.codigo != null && c.codigo!.isNotEmpty)
+          ControlSenalado(
+            nombre: Senalado.clientesAbrirElCliente,
+            senalable: laPrimera,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  c.codigo!,
-                  style: Tipos.mono(tamano: 11.5, color: Colores.tintaSuave),
+                  c.name,
+                  style: Tipos.texto(tamano: 14, peso: FontWeight.w500),
                 ),
-              if (c.phone != null && c.phone!.isNotEmpty)
-                Text(
-                  c.phone!,
-                  style: Tipos.mono(tamano: 11.5, color: Colores.tintaSuave),
-                )
-              else
-                // En ambar porque un cliente sin telefono es una entrega que no
-                // se puede avisar, y eso se decide antes de salir, no en la
-                // puerta.
-                Text(
-                  'sin teléfono',
-                  style: Tipos.texto(tamano: 11.5, color: Colores.ambar),
-                ),
-            ],
+                // El codigo en JetBrains Mono, no en la `monospace` del sistema:
+                // en Windows esa es Courier New y no se parece a nada de aqui.
+                if (c.codigo != null && c.codigo!.isNotEmpty)
+                  Text(
+                    c.codigo!,
+                    style: Tipos.mono(tamano: 11.5, color: Colores.tintaSuave),
+                  ),
+                if (c.phone != null && c.phone!.isNotEmpty)
+                  Text(
+                    c.phone!,
+                    style: Tipos.mono(tamano: 11.5, color: Colores.tintaSuave),
+                  )
+                else
+                  // En ambar porque un cliente sin telefono es una entrega que no
+                  // se puede avisar, y eso se decide antes de salir, no en la
+                  // puerta.
+                  Text(
+                    'sin teléfono',
+                    style: Tipos.texto(tamano: 11.5, color: Colores.ambar),
+                  ),
+              ],
+            ),
           ),
         ),
         DataCell(

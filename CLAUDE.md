@@ -466,6 +466,22 @@ Dos reglas que salieron de ese día:
   parámetro del contador quitado (toda la api verde), un tipo de aviso renombrado
   en Go (toda la api verde, y Flutter sin enterarse), y la guarda que evita el
   «Vista (0)» puesta a `false` (853 pruebas verdes).
+- **Una mutación verde no siempre es una prueba floja: a veces las dos opciones
+  son EQUIVALENTES ahí.** El 05/10/2026, al poner el cartel de «¿seguro que
+  quieres salir?» en el armazón, cambiar su `BackButtonListener` por un
+  `PopScope` dejó las 20 pruebas en verde. No había prueba floja: en esa posición
+  —colgado de la página del `ShellRoute`— los `maybePop` que preocupaban en
+  `diseno/cajon.dart` son de **otras rutas** (la del cajón, la de una subruta) y
+  no pasan por él. La advertencia de `cajon.dart` es verdad donde está escrita,
+  dentro de la misma ruta que se va a cerrar, y se estaba aplicando fuera de su
+  sitio.
+
+  Qué se hace entonces, que es lo que importa: **no se inventa una prueba que la
+  finja, y no se calla.** La decisión se escribe con su motivo —en el código y en
+  el fichero de pruebas— y se dice ahí mismo que cambiarlo no pone nada en rojo.
+  Un comentario que promete una guarda inexistente es el «Sin colocar (722)» del
+  §3-bis otra vez: lo peor no es no tener la guarda, es creer que la tienes.
+
 - **Una guarda que sólo se recalcula al bajar la foto no se entera de lo que pasa
   después.** El aviso de «el servidor rechazó tu cambio» se calculaba dentro de
   la bajada, que corre al cambiar de sucursal y con un aviso del canal — y el

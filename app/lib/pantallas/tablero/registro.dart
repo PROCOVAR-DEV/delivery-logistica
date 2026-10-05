@@ -34,7 +34,6 @@ PantallaRegistrada registrarTablero() => PantallaRegistrada(
   // las 8:46» —la mas vieja de las NUEVE colecciones, con `almacenes` dentro, que
   // se refresca una vez por hora— encima de un tablero al dia a las 9:07.
   colecciones: EsquemaTablero.colecciones,
-  construir: (contexto, estado) => PantallaTablero(
-    lectura: FiltrosEnLaUrl.leer(estado.uri.queryParameters),
-  ),
+  construir: (contexto, estado) =>
+      PantallaTablero(lectura: FiltrosEnLaUrl.leer(estado.uri.queryParameters)),
 );

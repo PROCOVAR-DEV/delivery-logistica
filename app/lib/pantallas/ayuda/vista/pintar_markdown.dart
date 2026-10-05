@@ -249,8 +249,7 @@ class _RenglonDelManualState extends State<RenglonDelManual> {
     return Text.rich(
       TextSpan(
         children: [
-          for (final trozo in trozosDe(widget.texto))
-            _spanDe(trozo, enlaces),
+          for (final trozo in trozosDe(widget.texto)) _spanDe(trozo, enlaces),
         ],
       ),
       style: Tipos.texto(
@@ -282,7 +281,10 @@ class _RenglonDelManualState extends State<RenglonDelManual> {
     if (aDonde == null) {
       // Incluye el caso del enlace que no lleva a ningun sitio en esta forma:
       // sale como texto normal, sin color de enlace y sin reaccionar al dedo.
-      return TextSpan(text: trozo.texto, style: TextStyle(fontWeight: peso));
+      return TextSpan(
+        text: trozo.texto,
+        style: TextStyle(fontWeight: peso),
+      );
     }
 
     final reconocedor = TapGestureRecognizer()

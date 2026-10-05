@@ -8,6 +8,8 @@ import '../diseno/selector.dart';
 import '../diseno/tema.dart';
 import '../nucleo/base/base.dart';
 import '../nucleo/proveedores.dart';
+import '../pantallas/ayuda/datos/controles_senalados.dart';
+import '../pantallas/ayuda/vista/control_senalado.dart';
 import 'estado_navegacion.dart';
 import 'menu_de_cuenta.dart';
 
@@ -249,35 +251,42 @@ class _Sucursal extends ConsumerWidget {
       // Una sola sucursal: se dice cual es en una pastilla blanca con su borde
       // fino — la misma caja que el selector, para que la barra no tenga una
       // pieza sin forma al lado de otra que si la tiene.
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: Aire.md, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colores.blanco,
-          border: Border.all(color: Colores.linea),
-          borderRadius: BorderRadius.circular(Radios.lg),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.store_outlined, size: 16, color: Colores.tintaSuave),
-            const SizedBox(width: 6),
-            // `Flexible` y no el `ConstrainedBox` a secas: la barra le pone tope
-            // a esta pastilla cuando no cabe, y un hijo rigido dentro de un
-            // `Row` se lleva el recorte por el borde en vez de acortar su texto.
-            // Es el mismo desborde de la barra, una capa mas adentro.
-            Flexible(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: compacta ? 110 : 180),
-                child: Text(
-                  codigo == null
-                      ? unica.name
-                      : (compacta ? codigo : '${unica.name} ($codigo)'),
-                  overflow: TextOverflow.ellipsis,
-                  style: Tipos.texto(tamano: 14, color: Colores.tinta),
+      // LA MISMA MARCA QUE EL SELECTOR, y a proposito: el manual dice «la
+      // pastilla con la sucursal» y no sabe cual de las dos formas le toco a
+      // quien lee. Las dos son excluyentes —una sola sucursal o varias—, asi que
+      // nunca hay dos con este nombre a la vez.
+      return ControlSenalado(
+        nombre: Senalado.barraSucursal,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: Aire.md, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colores.blanco,
+            border: Border.all(color: Colores.linea),
+            borderRadius: BorderRadius.circular(Radios.lg),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.store_outlined, size: 16, color: Colores.tintaSuave),
+              const SizedBox(width: 6),
+              // `Flexible` y no el `ConstrainedBox` a secas: la barra le pone tope
+              // a esta pastilla cuando no cabe, y un hijo rigido dentro de un
+              // `Row` se lleva el recorte por el borde en vez de acortar su texto.
+              // Es el mismo desborde de la barra, una capa mas adentro.
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: compacta ? 110 : 180),
+                  child: Text(
+                    codigo == null
+                        ? unica.name
+                        : (compacta ? codigo : '${unica.name} ($codigo)'),
+                    overflow: TextOverflow.ellipsis,
+                    style: Tipos.texto(tamano: 14, color: Colores.tinta),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -290,31 +299,37 @@ class _Sucursal extends ConsumerWidget {
 
     return ConstrainedBox(
       constraints: BoxConstraints(maxWidth: compacta ? 150 : 220),
-      child: Selector<String>(
-        icono: Icons.store_outlined,
-        tooltip: 'Sucursal que se está mirando',
-        // `etiquetaVacia` NO basta, y esto costo una vuelta: el selector pinta
-        // `elegida?.etiqueta ?? etiquetaVacia`, y aqui SI hay una opcion con
-        // valor vacio —la de «todas»—, asi que la que manda es SU etiqueta. Con
-        // solo cambiar esta linea el telefono seguia diciendo «Todas las s…».
-        // Se acortan las dos, abajo tambien.
-        etiquetaVacia: _todas(sucursales.length, compacta),
-        valor: valor,
-        opciones: [
-          OpcionSelector<String>(
-            valor: '',
-            etiqueta: _todas(sucursales.length, compacta),
-          ),
-          for (final s in sucursales)
+      child: ControlSenalado(
+        nombre: Senalado.barraSucursal,
+        child: Selector<String>(
+          icono: Icons.store_outlined,
+          tooltip: 'Sucursal que se está mirando',
+          // `etiquetaVacia` NO basta, y esto costo una vuelta: el selector pinta
+          // `elegida?.etiqueta ?? etiquetaVacia`, y aqui SI hay una opcion con
+          // valor vacio —la de «todas»—, asi que la que manda es SU etiqueta. Con
+          // solo cambiar esta linea el telefono seguia diciendo «Todas las s…».
+          // Se acortan las dos, abajo tambien.
+          etiquetaVacia: _todas(sucursales.length, compacta),
+          valor: valor,
+          opciones: [
             OpcionSelector<String>(
-              valor: s.id,
-              etiqueta: s.name,
-              nota: s.externalId,
+              valor: '',
+              etiqueta: _todas(sucursales.length, compacta),
+              // «Elige de la lista. La primera opción es «Todas (8)».» El paso
+              // habla de ESTA opcion, no de la caja que la abre.
+              senalado: Senalado.barraElegirSucursal,
             ),
-        ],
-        alElegir: (v) => ref
-            .read(sucursalMiradaProvider.notifier)
-            .mirar(v.isEmpty ? null : v),
+            for (final s in sucursales)
+              OpcionSelector<String>(
+                valor: s.id,
+                etiqueta: s.name,
+                nota: s.externalId,
+              ),
+          ],
+          alElegir: (v) => ref
+              .read(sucursalMiradaProvider.notifier)
+              .mirar(v.isEmpty ? null : v),
+        ),
       ),
     );
   }
@@ -367,15 +382,25 @@ class _Moneda extends ConsumerWidget {
         'del ${tasa.traidoAt!.day}/${tasa.traidoAt!.month}/'
         '${tasa.traidoAt!.year}';
 
-    final selector = Selector<String>(
-      tooltip: tasa.aviso ?? 'Moneda de visualización',
-      etiquetaVacia: 'USD',
-      valor: mirada,
-      opciones: [
-        const OpcionSelector<String>(valor: 'USD', etiqueta: 'USD'),
-        OpcionSelector<String>(valor: 'CUP', etiqueta: 'CUP', nota: nota),
-      ],
-      alElegir: (v) => ref.read(monedaMiradaProvider.notifier).mirar(v),
+    final selector = ControlSenalado(
+      nombre: Senalado.barraMoneda,
+      child: Selector<String>(
+        tooltip: tasa.aviso ?? 'Moneda de visualización',
+        etiquetaVacia: 'USD',
+        valor: mirada,
+        opciones: [
+          const OpcionSelector<String>(valor: 'USD', etiqueta: 'USD'),
+          OpcionSelector<String>(
+            valor: 'CUP',
+            etiqueta: 'CUP',
+            nota: nota,
+            // «La opción de CUP lleva la tasa y su fecha como nota». Es la
+            // SEGUNDA de la lista, asi que no vale marcar «la primera».
+            senalado: Senalado.barraElegirMoneda,
+          ),
+        ],
+        alElegir: (v) => ref.read(monedaMiradaProvider.notifier).mirar(v),
+      ),
     );
 
     // TASA VIEJA: SE ENSEÑA, CON AVISO. Lo decide Accesos (24 h alli), no esta
@@ -398,30 +423,37 @@ class _Moneda extends ConsumerWidget {
 
   /// La pastilla de «aqui no se puede ver en CUP», con el motivo dentro.
   Widget _pastillaAmbar({required String aviso, required IconData icono}) {
-    return Tooltip(
-      message: aviso,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: Aire.md, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colores.blanco,
-          border: Border.all(color: Colores.ambar.withValues(alpha: 0.45)),
-          borderRadius: BorderRadius.circular(Radios.lg),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icono, size: 16, color: Colores.ambar),
-            const SizedBox(width: 6),
-            // En mono: es una cifra, aunque sea el codigo de la moneda.
-            Text(
-              'USD',
-              style: Tipos.mono(
-                tamano: 12,
-                peso: FontWeight.w600,
-                color: Colores.ambar,
+    // Marcada con el mismo nombre que el selector, porque para el manual es la
+    // misma pastilla: el paso 3 de «Cómo compruebas que ya está» habla justo de
+    // esta cara —«la pastilla está en ámbar con un icono de dinero tachado»—. Las
+    // dos caras son excluyentes: o hay tasa o no la hay.
+    return ControlSenalado(
+      nombre: Senalado.barraMoneda,
+      child: Tooltip(
+        message: aviso,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: Aire.md, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colores.blanco,
+            border: Border.all(color: Colores.ambar.withValues(alpha: 0.45)),
+            borderRadius: BorderRadius.circular(Radios.lg),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icono, size: 16, color: Colores.ambar),
+              const SizedBox(width: 6),
+              // En mono: es una cifra, aunque sea el codigo de la moneda.
+              Text(
+                'USD',
+                style: Tipos.mono(
+                  tamano: 12,
+                  peso: FontWeight.w600,
+                  color: Colores.ambar,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

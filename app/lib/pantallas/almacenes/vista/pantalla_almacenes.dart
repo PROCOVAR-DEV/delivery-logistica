@@ -10,6 +10,8 @@ import '../../../diseno/colores.dart';
 import '../../../diseno/estado_vacio.dart';
 import '../../../diseno/selector.dart';
 import '../../../diseno/tema.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../../rutas/datos/mapa_en_vivo.dart';
 import '../datos/almacen_api.dart';
 import '../datos/coordenadas.dart';
@@ -39,11 +41,12 @@ class _PantallaAlmacenesState extends ConsumerState<PantallaAlmacenes> {
   /// La regla vive en [cualSeConfigura], que es donde se prueba. Aqui solo se
   /// le dan las dos piezas: lo elegido en el desplegable de la pantalla y lo
   /// elegido en la barra de arriba.
-  SucursalDeAccesos? _sucursal(List<SucursalDeAccesos> todas) => cualSeConfigura(
-    todas,
-    elegidaEnLaPantalla: ref.watch(sucursalElegidaProvider),
-    codigoDeLaBarra: ref.watch(codigoDeLaSucursalMiradaProvider),
-  );
+  SucursalDeAccesos? _sucursal(List<SucursalDeAccesos> todas) =>
+      cualSeConfigura(
+        todas,
+        elegidaEnLaPantalla: ref.watch(sucursalElegidaProvider),
+        codigoDeLaBarra: ref.watch(codigoDeLaSucursalMiradaProvider),
+      );
 
   /// Guarda **la lista completa** de la sucursal. Todo cambio pasa por aqui:
   /// alta, edicion y baja son la misma llamada con una lista distinta.
@@ -285,27 +288,33 @@ class _Contenido extends StatelessWidget {
               // y no pegado al nombre porque el `Selector` ya tiene sitio para
               // eso, y asi la cuenta sale en gris al lado del nombre en vez de
               // alargar la etiqueta.
-              Selector<String>(
-                icono: Icons.store,
-                tooltip: 'Sucursal',
-                etiquetaVacia: 'Elige sucursal',
-                valor: actual.codigo,
-                opciones: [
-                  for (final s in sucursales)
-                    OpcionSelector<String>(
-                      valor: s.codigo,
-                      etiqueta: s.nombre,
-                      nota: s.almacenes.isEmpty
-                          ? 'sin almacenes'
-                          : '${s.almacenes.length}',
-                    ),
-                ],
-                alElegir: alElegirSucursal,
+              ControlSenalado(
+                nombre: Senalado.almacenesSucursal,
+                child: Selector<String>(
+                  icono: Icons.store,
+                  tooltip: 'Sucursal',
+                  etiquetaVacia: 'Elige sucursal',
+                  valor: actual.codigo,
+                  opciones: [
+                    for (final s in sucursales)
+                      OpcionSelector<String>(
+                        valor: s.codigo,
+                        etiqueta: s.nombre,
+                        nota: s.almacenes.isEmpty
+                            ? 'sin almacenes'
+                            : '${s.almacenes.length}',
+                      ),
+                  ],
+                  alElegir: alElegirSucursal,
+                ),
               ),
-            BotonPrincipal(
-              icono: Icons.add,
-              texto: 'Nuevo almacén',
-              alPulsar: () => alAbrir(actual),
+            ControlSenalado(
+              nombre: Senalado.almacenesNuevo,
+              child: BotonPrincipal(
+                icono: Icons.add,
+                texto: 'Nuevo almacén',
+                alPulsar: () => alAbrir(actual),
+              ),
             ),
           ],
         ),
@@ -339,37 +348,43 @@ class _Contenido extends StatelessWidget {
           )
         else
           for (final (indice, a) in actual.almacenes.indexed)
-            ListTile(
-              // SIN LA SANGRIA DE `ListTile` — 28/09/2026.
-              //
-              // `ListTile` trae 16 px de relleno propio a cada lado. Con el, en
-              // esta pantalla el ojo bajaba por cuatro verticales distintas:
-              // «Almacenes» y el selector de sucursal empezaban en x=24 —el
-              // relleno de la lista— y el icono de cada almacen en x=40, con su
-              // chevron acabando en 342 cuando el borde del contenido esta en
-              // 366. Medido con `tester.getRect` a 390 px.
-              //
-              // La sangria de `ListTile` esta pensada para una lista que ocupa
-              // la pantalla entera, sin nada al lado con que cuadrar. Aqui hay
-              // un titulo, un parrafo y dos mandos encima, y todos empiezan
-              // donde acaba el relleno de la lista: el que sobraba era este.
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(
-                a.principal ? Icons.star : Icons.warehouse,
-                color: a.principal ? Colores.ambar : Colores.tintaSuave,
+            // Sólo el primero se deja senalar por la Guia: hay uno por almacen y
+            // dos con el mismo nombre no se pueden distinguir.
+            ControlSenalado(
+              nombre: Senalado.almacenesAbrir,
+              senalable: indice == 0,
+              child: ListTile(
+                // SIN LA SANGRIA DE `ListTile` — 28/09/2026.
+                //
+                // `ListTile` trae 16 px de relleno propio a cada lado. Con el, en
+                // esta pantalla el ojo bajaba por cuatro verticales distintas:
+                // «Almacenes» y el selector de sucursal empezaban en x=24 —el
+                // relleno de la lista— y el icono de cada almacen en x=40, con su
+                // chevron acabando en 342 cuando el borde del contenido esta en
+                // 366. Medido con `tester.getRect` a 390 px.
+                //
+                // La sangria de `ListTile` esta pensada para una lista que ocupa
+                // la pantalla entera, sin nada al lado con que cuadrar. Aqui hay
+                // un titulo, un parrafo y dos mandos encima, y todos empiezan
+                // donde acaba el relleno de la lista: el que sobraba era este.
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  a.principal ? Icons.star : Icons.warehouse,
+                  color: a.principal ? Colores.ambar : Colores.tintaSuave,
+                ),
+                title: Text(a.titulo),
+                subtitle: Text(
+                  [
+                    a.direccion?.trim().isNotEmpty ?? false
+                        ? a.direccion!.trim()
+                        : 'sin dirección',
+                    if (a.sinPunto) 'sin punto',
+                    if (!a.activo) 'inactivo',
+                  ].join(' · '),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => alAbrir(actual, indice: indice),
               ),
-              title: Text(a.titulo),
-              subtitle: Text(
-                [
-                  a.direccion?.trim().isNotEmpty ?? false
-                      ? a.direccion!.trim()
-                      : 'sin dirección',
-                  if (a.sinPunto) 'sin punto',
-                  if (!a.activo) 'inactivo',
-                ].join(' · '),
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => alAbrir(actual, indice: indice),
             ),
       ],
     );

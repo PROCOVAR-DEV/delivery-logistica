@@ -390,16 +390,15 @@ class _SalidasDeLaPuerta extends ConsumerWidget {
             // con la conexion de alla pulsar sin saberlo es la tarde de datos de
             // alguien. Y «para Android» tambien va en el boton: esta pagina se
             // abre igual desde un ordenador, y ahi este fichero no sirve.
-            label: Text(
-              switch (oferta.bytes) {
-                final int b => 'Descargar la aplicación para Android '
+            label: Text(switch (oferta.bytes) {
+              final int b =>
+                'Descargar la aplicación para Android '
                     '(${enMegas(b)})',
-                // Una api anterior al 22/09/2026 no manda `ficheros`. No se
-                // inventa un numero ni se escribe «? MB»: se dice abajo que no
-                // se sabe.
-                null => 'Descargar la aplicación para Android',
-              },
-            ),
+              // Una api anterior al 22/09/2026 no manda `ficheros`. No se
+              // inventa un numero ni se escribe «? MB»: se dice abajo que no
+              // se sabe.
+              null => 'Descargar la aplicación para Android',
+            }),
           ),
           const SizedBox(height: Aire.xs),
           Text(

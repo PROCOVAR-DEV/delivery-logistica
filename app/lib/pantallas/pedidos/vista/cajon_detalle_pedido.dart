@@ -6,10 +6,12 @@
 // pedidos que todavia no bajaron.
 
 import 'package:flutter/material.dart';
+
 import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/plataforma.dart';
 import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcel;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../nucleo/base/base.dart';
@@ -57,18 +59,16 @@ class CajonDetallePedido extends ConsumerWidget {
             titulo: Destino.trabajaSinConexion
                 ? 'No está en el aparato'
                 : 'No se encontró el pedido',
-            cuerpo: EstadoVacio(
-              switch (ref.watch(porQueEstaVacioProvider)) {
-                PorQueEstaVacio.noSeDescargo =>
-                  SinDescargar.textoDeLaPantallaVacia,
-                PorQueEstaVacio.todaviaBajando => TextosDeLaWeb.cargando(
-                  'el pedido',
-                ),
-                PorQueEstaVacio.noPudoBajar => TextosDeLaWeb.noPudoBajar(
-                  'los pedidos',
-                ),
-              },
-            ),
+            cuerpo: EstadoVacio(switch (ref.watch(porQueEstaVacioProvider)) {
+              PorQueEstaVacio.noSeDescargo =>
+                SinDescargar.textoDeLaPantallaVacia,
+              PorQueEstaVacio.todaviaBajando => TextosDeLaWeb.cargando(
+                'el pedido',
+              ),
+              PorQueEstaVacio.noPudoBajar => TextosDeLaWeb.noPudoBajar(
+                'los pedidos',
+              ),
+            }),
           );
         }
         return _Ficha(ficha: ficha);

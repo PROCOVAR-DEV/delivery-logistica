@@ -1,5 +1,6 @@
 import '../pantallas/acceso/registro.dart';
 import '../pantallas/almacenes/registro.dart';
+import '../pantallas/ayuda/registro.dart';
 import '../pantallas/clientes/registro.dart';
 import '../pantallas/vehiculos/registro.dart';
 import '../pantallas/informes/registro.dart';
@@ -63,6 +64,13 @@ List<PantallaRegistrada> pantallasDeLaAplicacion() => <PantallaRegistrada>[
   // el escritorio —lo decide su propio `registro.dart`, regla 1— y sin entrada
   // no se llega a el. El porque entero, en `docs/mapa-sin-conexion.md`.
   registrarMapaSinConexion(),
+
+  // LA GUIA: el manual del reparto, dentro de la aplicacion. En el menu en las
+  // TRES formas —el de la oficina necesita la guia igual que el que se va al
+  // patio de un almacen—, y lo que cambia es lo que ensena cada una. Jose,
+  // 05/10/2026: «estas tareas me las agregas a el side bar para q puedan ir
+  // cuando quieran». El porque entero, en su `registro.dart`.
+  registrarGuia(),
 
   // Reportes SI va en el menu, y es un cambio deliberado respecto al patron: en
   // delivery no esta y se llega solo desde las acciones rapidas del Panel. Asi

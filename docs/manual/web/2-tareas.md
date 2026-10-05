@@ -6,6 +6,8 @@
 
 ## Buscar un pedido
 
+**Empieza en:** **Menú → «Pedidos»**.
+
 1. **Menú → «Pedidos».**
 2. Haz clic en la caja **«Buscar»** y escribe el cliente, el folio, la dirección, el
    municipio, el vendedor o un producto. **Busca solo**, sin darle a intro.
@@ -22,6 +24,8 @@
 ---
 
 ## Filtrar y ordenar la lista de pedidos
+
+**Empieza en:** **Menú → «Pedidos»**.
 
 Los filtros van en una fila bajo la cabecera:
 
@@ -45,6 +49,8 @@ Cualquier cambio te devuelve a la página 1.
 ---
 
 ## Mandar varios pedidos a una zona de golpe
+
+**Empieza en:** **Menú → «Pedidos»**.
 
 1. **Menú → «Pedidos»** y **filtra** lo que quieras.
 2. **Marca los pedidos**: clic en su casilla, o en la casilla de la cabecera («Elegir
@@ -75,6 +81,8 @@ X-3010 · Luis: Sin coordenadas de entrega
 
 ## Ver el detalle de un pedido
 
+**Empieza en:** **Menú → «Pedidos»**.
+
 1. **Menú → «Pedidos».**
 2. **Clic en cualquier sitio de la fila** (la fila entera abre el detalle).
 3. Se abre un cajón por la derecha, con el cliente de título y el folio debajo:
@@ -86,6 +94,8 @@ X-3010 · Luis: Sin coordenadas de entrega
 ---
 
 ## Renombrar, vaciar o borrar una zona
+
+**Empieza en:** **Menú → «Tablero»**.
 
 1. **Menú → «Tablero»**, y **clic en el ⋮** de la cabecera de la zona.
 2. Elige:
@@ -108,6 +118,8 @@ columna y borrar»**.
 ---
 
 ## Armar una ruta sin usar el Tablero
+
+**Empieza en:** **Menú → «Rutas»**.
 
 Es el camino largo, para cuando la ruta no sale de una zona entera.
 
@@ -158,6 +170,8 @@ Falta salida, camión o pedidos, o te has pasado de peso.
 
 ## Filtrar la lista de rutas
 
+**Empieza en:** **Menú → «Rutas»**.
+
 En la columna de la izquierda:
 
 - **El buscador**: «Buscar por código, nombre, vehículo...»
@@ -179,19 +193,45 @@ pantalla abierta, y recargar los borra.
 
 ## Eliminar una ruta
 
-1. **Menú → «Rutas»** y busca la ruta en su pestaña.
-2. Al final de su tarjeta, **clic en «Eliminar»** (el botón rojo con la papelera).
+**Empieza en:** **Menú → «Rutas»**.
+
+1. **Menú → «Rutas»** y busca la ruta en su pestaña: **«Planificadas»** o **«En
+   curso»**.
+2. **Mira el código de la tarjeta** antes de nada, para no borrar la de al lado.
+3. Al final de su tarjeta, **clic en «Eliminar»** (el botón rojo, con contorno y
+   papelera, sin relleno).
+4. **Se abre un cajón que pregunta antes**, titulado **«Borrar «RT-20260928-004»»**,
+   y te dice lo que se pierde:
+
+   > «La ruta desaparece con su código, su fecha, el orden de visita y los
+   > kilómetros que se calcularon al armarla. Para tenerla otra vez hay que volver a
+   > armarla desde el asistente, a mano.
+   >
+   > Lo que NO se borra son los pedidos: sueltan esta ruta y vuelven a la lista de
+   > disponibles, listos para ponerlos en otra. Y el camión se queda libre.»
+
+5. **Clic en «Sí, borrar «RT-20260928-004»»**, o en **«No, dejarla»** para salir.
+
+> **Ojo:** **cerrar el cajón sin contestar es NO.** La ✕, clic fuera o Escape dejan
+> la ruta donde estaba.
+
+### Si no te deja borrarla
+
+Si la ruta ya tiene paradas marcadas en el cierre, **ni pregunta**: sale el motivo
+abajo, con las palabras del servidor:
+
+> «Esa ruta ya tiene 3 parada(s) cerradas y no se puede borrar: se perdería la hoja
+> de lo que bajó del camión. Márcala como cancelada si hace falta.»
 
 **Las rutas completadas no se pueden eliminar**: ese botón no aparece.
 
 Al eliminarla, **sus pedidos vuelven a estar disponibles**.
 
-Si el servidor no deja, te dice por qué, con sus palabras: por ejemplo que esa ruta
-ya tiene paradas cerradas.
-
 ---
 
 ## Sacar un pedido de una ruta
+
+**Empieza en:** **Menú → «Rutas»**.
 
 **No hay ningún botón para quitar una parada.** Las dos formas:
 
@@ -202,6 +242,8 @@ ya tiene paradas cerradas.
 ---
 
 ## Consultar un cliente
+
+**Empieza en:** **Menú → «Clientes»**.
 
 1. **Menú → «Clientes».**
 2. Escribe en **«Buscar por nombre, dirección o municipio…»**. Busca también por
@@ -217,6 +259,8 @@ almacén»**: sólo entonces sale la columna de km.
 ---
 
 ## Dar de alta un camión
+
+**Empieza en:** **Menú → «Vehículos»**.
 
 1. **Menú → «Vehículos».**
 2. **Clic en «Agregar Vehículo»**.
@@ -253,7 +297,159 @@ abierta.» **Clic en «Marcar disponible»** en esa misma tarjeta.
 
 ---
 
+## Decir qué camión calcula el domicilio
+
+**Empieza en:** **Menú → «Vehículos»**.
+
+De este camión sale **el costo por km con el que se le cobra al cliente el
+domicilio**. No está en el paso a paso del Panel, pero decide dinero.
+
+1. **Menú → «Vehículos»**.
+2. Busca la tarjeta del camión. **Debajo del nombre, en la fila de pastillas**, mira
+   qué hay:
+   - **«Cálculo domicilio · $1.65/km»**, con una casita — ya es el que calcula.
+   - El botón **«Usar para domicilio»** — no lo es.
+3. **Clic en «Usar para domicilio»**.
+4. Abajo sale **«Se usará este vehículo para calcular el domicilio.»** y la tarjeta
+   cambia: el botón desaparece y queda la pastilla **«Cálculo domicilio»**.
+
+**También desde la ficha:** **clic en «Editar»** y marca **«Usar este vehículo para
+calcular el domicilio»**. Debajo pone **«Solo un vehículo por TIPO.»**
+
+> **Ojo:** si la pastilla dice **«Cálculo domicilio»** **y no lleva importe
+> detrás**, ese camión está elegido y **no tiene costo por km**. Edítalo y ponle
+> uno: así es como un domicilio sale sin precio teniendo camión.
+
+---
+
+## Marcar un camión en el taller
+
+**Empieza en:** **Menú → «Vehículos»**.
+
+1. **Menú → «Vehículos»**.
+2. En la tarjeta del camión, abajo, **clic en «Editar»**.
+3. En el desplegable **«Estado del vehículo»**, elige **«En mantenimiento»**.
+4. **Lee la explicación que sale debajo del desplegable, en ámbar:**
+
+   > «En el taller: no se le puede dar ruta hasta que vuelva. Escribe el motivo en
+   > Notas, aquí abajo — es lo único que le dice al de al lado por qué no puede
+   > contar con él. Marcarlo NO cierra la ruta que ya tuviera abierta: eso se
+   > arregla en la tarjeta del camión.»
+
+5. **Escribe el motivo en «Notas (opcional)»**, más abajo.
+6. **Clic en «Actualizar»**. La insignia de la tarjeta pasa a **«Mantenimiento»** en
+   ámbar.
+
+> **Ojo:** el desplegable sólo tiene **«Disponible»** y **«En mantenimiento»**.
+> **«En ruta» no está, a propósito**: eso sale de las rutas del camión y no se
+> escribe a mano.
+
+### Si el camión llevaba una ruta abierta
+
+**Mandarlo al taller no la cierra.** La tarjeta te lo dice:
+
+> «Está en el taller y lleva la ruta R-0412 abierta. O vuelve a estar disponible, o
+> esa ruta la tiene que llevar otro camión: mandarlo al taller no la cierra, porque
+> una ruta cerrada es una ruta repartida.»
+
+**Y esa ruta no se le puede cambiar el camión**: hay que eliminarla y volver a
+armarla con otro. Ver [Cambiar el camión de una
+ruta](#cambiar-el-camión-de-una-ruta).
+
+### Si sale como ocupado y no lo está
+
+Su tarjeta lo dice: «El estado guardado dice «en uso» y no lleva ninguna ruta
+abierta. Márcalo disponible: hasta entonces sale como ocupado al elegir camión.»
+**Clic en «Marcar disponible»** en esa misma tarjeta. Sale **«Vehículo marcado como
+disponible.»**
+
+---
+
+## Dar de baja un camión
+
+**Empieza en:** **Menú → «Vehículos»**.
+
+1. **Menú → «Vehículos»**.
+2. Busca la tarjeta del camión y **comprueba el nombre y la placa**.
+3. Al final de la tarjeta, **clic en «Eliminar»** (rojo, con papelera, sin relleno).
+4. **Se abre un cajón que pregunta antes**, titulado **«Borrar «Camión 1»»**, y dice
+   lo que se pierde:
+
+   > «El camión se va de la flota. Las rutas y los pedidos que lo llevaban puesto NO
+   > se borran —el histórico de lo repartido se queda— pero se quedan sin camión, y
+   > hay que ponerles otro. Y el camión hay que volver a darlo de alta a mano, con su
+   > placa, su capacidad y su costo por km.»
+
+5. **Clic en «Sí, borrar «Camión 1»»**, o en **«No, dejarlo»**.
+6. Sale **«Vehículo eliminado.»** y la tarjeta desaparece de la lista.
+
+> **Ojo:** **cerrar sin contestar es NO.** Y si era el camión del **«Cálculo
+> domicilio»**, elige otro antes de irte: sin ninguno, los domicilios salen sin
+> precio.
+
+---
+
+## Definir los tipos de camión y su costo por km
+
+**Empieza en:** **Menú → «Vehículos»**.
+
+El tipo es **el punto de partida del costo por km**: al crear un camión de ese tipo,
+hereda su costo, y luego se puede cambiar camión por camión.
+
+1. **Menú → «Vehículos»**.
+2. Arriba, en la misma fila que la caja de buscar, **clic en «Tipos de vehículo»**.
+3. Se abre un cajón, **«Tipos de vehículo»**, que empieza explicando para qué es:
+
+   > «Define cada tipo con su costo por km por defecto. Al crear un vehículo de ese
+   > tipo se hereda el costo/km (editable por vehículo).»
+
+4. Por cada fila, rellena **«Nombre»** y **«Costo/km (USD)»**. La papelera
+   (**«Quitar»**) borra la fila.
+5. Para una fila más, **clic en «Agregar tipo»**, abajo.
+6. Al pie, **clic en «Guardar»** (al lado de **«Cancelar»**). Sale **«Tipos
+   guardados.»**
+
+> **Ojo:** **las filas sin nombre no se guardan.** Y el costo que no sepas,
+> **déjalo vacío, nunca en cero**: un cero se lee como «el kilómetro es gratis».
+
+**Si no hay ninguno todavía**, el cajón pone **«Sin tipos. Agrega el primero.»**
+
+### El atajo desde la ficha de un camión
+
+No hace falta salir a este cajón: en la ficha de un vehículo, **el desplegable
+«Tipo» tiene como última opción «+ Crear tipo nuevo…»**. Ábrela, escribe **«Nombre
+del tipo»** y su **«Costo/km (USD)»**, y **clic en «Crear tipo»**. El tipo queda
+elegido y su costo se copia al campo del camión.
+
+---
+
+## Cambiar el camión de una ruta
+
+**Empieza en:** **Menú → «Rutas»**.
+
+**No se puede.** Una ruta ya armada no deja cambiarle el camión: no hay ningún
+botón para eso, ni en la tarjeta ni en el detalle. Las dos salidas:
+
+**Si la ruta todavía no ha salido (pestaña «Planificadas»):**
+
+1. **Menú → «Rutas»**, pestaña **«Planificadas»**.
+2. **Elimina la ruta** — ver [Eliminar una ruta](#eliminar-una-ruta). Sus pedidos
+   vuelven a la lista de disponibles y el camión queda libre.
+3. **Menú → «Tablero»**, ve a la zona, **⋮ → «Camión previsto»**, elige el otro
+   camión y **⋮ → «Armar la ruta de esta zona»**.
+
+**Si la ruta ya está «En curso»**, no la borres: tiene paradas que el servidor no
+va a dejar perder. Se termina con el camión que lleva y se cuadra en el cierre.
+
+> **Ojo:** mandar un camión al taller **no** le quita la ruta. La aplicación lo dice
+> en su tarjeta: «mandarlo al taller no la cierra, porque una ruta cerrada es una
+> ruta repartida».
+
+---
+
 ## Poner o corregir un almacén
+
+**Empieza en:** **Menú → «Almacenes»**.
 
 1. **Menú → «Almacenes».**
 2. Elige la sucursal arriba, si hay más de una.
@@ -273,17 +469,91 @@ abierta.» **Clic en «Marcar disponible»** en esa misma tarjeta.
 
 ---
 
+## Cambiar cuál es el almacén principal
+
+**Empieza en:** **Menú → «Almacenes»**.
+
+El principal es el que se usa **cuando nadie dice cuál**. Lo dice el propio chip:
+«Desde éste se mide cuando nadie dice cuál».
+
+1. **Menú → «Almacenes»**, y arriba elige la sucursal si hay más de una.
+2. En la lista, **clic en el renglón del almacén** que va a ser el principal. Se
+   abre su cajón, con su nombre de título.
+3. Debajo del nombre, **clic en el chip «Principal»** (la estrella se rellena).
+4. **Clic en «Guardar»**. Sale **«Guardado en Accesos.»**
+5. En la lista, la **estrella** se ha movido a ese almacén.
+
+> **Ojo:** **sólo puede haber un principal.** Al marcar éste, los demás se
+> desmarcan solos — no hay que ir a quitárselo al anterior.
+
+---
+
+## Quitar un almacén de la sucursal
+
+**Empieza en:** **Menú → «Almacenes»**.
+
+1. **Menú → «Almacenes»**, y arriba elige la sucursal.
+2. **Clic en el renglón del almacén.** Se abre su cajón.
+3. Debajo del nombre, a la derecha de los chips **«Principal»** y **«Activo»**, hay
+   una **papelera** (**«Quitar»**). **Clic ahí.**
+4. **Se abre un cajón que pregunta antes**, **«Borrar «Almacén Central»»**, y dice
+   las cuatro cosas que pasan:
+
+   > «El almacén se va de Accesos: se guarda la lista de Santiago sin él, así que
+   > desaparece para todo el mundo y no sólo en esta pantalla. Deja de poder medirse
+   > desde ahí: los pedidos que lo traen puesto pasan a medirse desde el principal de
+   > la sucursal, con otro kilometraje y otro importe que se cobra igual que uno
+   > bueno; y si era el último con punto, los domicilios de Santiago salen sin precio.
+   > Los teléfonos que ya lo bajaron siguen midiendo desde él hasta la próxima vez que
+   > tengan red —Accesos no avisa de los que se retiran—, así que cada entrega de ese
+   > día se cobra mal y no se ve hasta cuadrar la caja. Volver a ponerlo es darlo de
+   > alta a mano, con su dirección y su punto.»
+
+5. **Clic en «Sí, borrar «Almacén Central»»**, o en **«No, dejarlo»**.
+
+> **Ojo:** si sólo quieres que deje de usarse pero no perderlo, **no lo quites**:
+> abre su cajón y **clic en el chip «Activo»** para dejarlo en **«Inactivo»**, y
+> **«Guardar»**. En la lista queda con el rótulo «inactivo» y no se ofrece para
+> salir.
+
+---
+
 ## Cambiar entre USD y CUP
 
-1. Arriba, al lado de la sucursal, **clic en la pastilla «USD» / «CUP»**.
-2. Elige. La opción de CUP lleva la tasa: **«1 USD = 320 · del 9/9/2026»**.
+**Empieza en:** la barra de arriba, desde cualquier pantalla.
 
-**Si sólo te deja USD** y la pastilla está en ámbar, esa sucursal **no tiene tasa de
-cambio**. No se usa la de otra, a propósito. Se arregla en Accesos.
+1. Arriba, a la derecha de la pastilla de la sucursal, **clic en la pastilla «USD» /
+   «CUP»**.
+2. Elige. **La opción de CUP lleva la tasa y su fecha como nota**: **«1 USD = 320 ·
+   del 9/9/2026»**. Esa fecha no es un adorno: es lo único que demuestra que la tasa
+   es de verdad.
+3. Los importes de todas las pantallas pasan a esa moneda.
+
+### Si sólo te deja USD
+
+La pastilla sale **en ámbar, con un icono de dinero tachado, y no se abre**. Pasa el
+ratón por encima y lee el motivo, que lleva el nombre de tu sucursal dentro:
+
+> «Santiago no tiene tasa de cambio todavía: los importes sólo se pueden ver en
+> USD.»
+
+**No se usa la tasa de otra sucursal, y es a propósito.** Se arregla en Accesos —ver
+[Dejar una sucursal lista para trabajar](../comun/puesta-en-marcha.md#paso-4--la-tasa-de-cambio-de-la-sucursal).
+
+### Si al lado de la pastilla sale un reloj ámbar
+
+Sólo sale **mirando en CUP**, y quiere decir que la tasa está vieja:
+
+> «La tasa es del 9/9/2026 y puede estar desfasada.»
+
+**Se sigue usando**: una tasa de ayer convierte con un error pequeño, y sin ninguna
+no se puede convertir nada. Pero si vas a cobrar con ese número, pídela actualizada.
 
 ---
 
 ## Ir a otra aplicación de la casa
+
+**Empieza en:** tu avatar, arriba a la derecha.
 
 1. **Clic en tu avatar**, arriba a la derecha.
 2. En la sección **«Ir a»** hay una baldosa por aplicación, con su nombre y su

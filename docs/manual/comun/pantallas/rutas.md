@@ -66,7 +66,31 @@ $5212.78                                         Eliminar
 - **«Sobrepeso»** en ámbar si la ruta pesa más que la capacidad del camión.
 - **El importe**, que **se suma de las paradas**. Si falta cotizar alguna sale en
   ámbar: «— (2 de 5 sin cotizar)». Nunca sale `$0.00` por falta de datos.
-- **«Eliminar»** — **sólo si la ruta no está completada**.
+- **«Eliminar»** — **sólo si la ruta no está completada**, y **pregunta antes** (ver
+  abajo).
+
+### Al eliminar, pregunta antes
+
+Se abre un cajón titulado **«Borrar «RT-20260928-004»»**, con el mismo código que
+lleva la insignia de la tarjeta, para que se vea que es la que estás mirando. Dentro
+dice qué se pierde:
+
+> «La ruta desaparece con su código, su fecha, el orden de visita y los kilómetros
+> que se calcularon al armarla. Para tenerla otra vez hay que volver a armarla desde
+> el asistente, a mano.
+>
+> Lo que NO se borra son los pedidos: sueltan esta ruta y vuelven a la lista de
+> disponibles, listos para ponerlos en otra. Y el camión se queda libre.»
+
+Con **«Sí, borrar «RT-20260928-004»»** y **«No, dejarla»**. **Cerrar el cajón sin
+contestar —la ✕, tocar fuera, Escape— es No.**
+
+**Y si la ruta no se puede borrar, lo dice antes de preguntar.** Con paradas ya
+marcadas en el cierre no abre ningún cajón: sale el motivo, con las palabras del
+servidor y el número dentro, también sin señal.
+
+> «Esa ruta ya tiene 3 parada(s) cerradas y no se puede borrar: se perdería la hoja
+> de lo que bajó del camión. Márcala como cancelada si hace falta.»
 
 ---
 
@@ -437,8 +461,12 @@ El tope es de **25 paradas**, y lo que se queda fuera se dice en el propio mensa
   pedido de una ruta hay que **eliminar la ruta entera** o **marcarlo como no
   entregado en el cierre**; en los dos casos el pedido vuelve a estar disponible.
 - **No se pueden reordenar las paradas a mano** desde esta pantalla.
+- **No se le puede cambiar el camión a una ruta ya armada.** No hay ese botón, ni
+  aquí ni en Vehículos. Si todavía no ha salido: elimínala, cámbiale el **«Camión
+  previsto»** a la zona en el Tablero y vuelve a armarla. Si ya está «En curso», se
+  termina con el camión que lleva.
 - **No se puede eliminar una ruta completada.** El botón «Eliminar» ni siquiera
-  aparece.
+  aparece. Y las que sí se pueden, **preguntan antes**: no se borra de un toque.
 - **No se puede corregir el cierre de una ruta completada.** Hay que hacerlo en
   PEDIDO.
 - **No se teclean paradas a mano.**

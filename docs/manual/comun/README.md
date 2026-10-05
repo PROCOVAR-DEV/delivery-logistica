@@ -13,6 +13,8 @@ cambia aquí y en un solo sitio.
 
 | Página | Para qué |
 |---|---|
+| [Busca tu tarea](tareas.md) | **El índice.** Cada tarea con la pantalla en la que empieza |
+| [Dejar una sucursal lista para trabajar](puesta-en-marcha.md) | Las cuatro cosas que hay que configurar **antes** de poder armar una ruta, y quién hace cada una |
 | [Cómo se trabaja un día](el-dia-de-trabajo.md) | El camino entero, de entrar a cerrar la ruta |
 | [Qué significa cada número](que-significa-cada-numero.md) | **La más consultada.** «Entregados hoy» frente al Historial, el `≥` del peso, «sin cotizar», los dos kilometrajes |
 | [Roles y sucursales](roles-y-sucursales.md) | Los siete roles y quién ve qué |

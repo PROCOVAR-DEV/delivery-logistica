@@ -29,6 +29,11 @@ funciona sin una raya de cobertura. Cuando vuelve la señal, sube solo.
   un pedido dice «sin cotizar».
 - **[Las reglas del reparto](../comun/las-reglas-del-reparto.md)** — qué sube a un
   camión y qué no.
+- **[Busca tu tarea](../comun/tareas.md)** — el índice de todas las tareas, con la
+  pantalla en la que empieza cada una.
+- **[Dejar una sucursal lista para trabajar](../comun/puesta-en-marcha.md)** — las
+  cuatro cosas que hay que configurar antes de poder armar una ruta, y quién hace
+  cada una.
 - **[Roles y sucursales](../comun/roles-y-sucursales.md)**
 - **[Pantalla por pantalla](../comun/README.md#pantalla-por-pantalla)** — el detalle
   de cada una.

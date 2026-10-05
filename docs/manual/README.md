@@ -30,6 +30,11 @@ un icono en el ordenador y no se abre ningún navegador, es **el escritorio**.
 Está en [`comun/`](comun/README.md) y los tres manuales apuntan ahí. Si algo
 cambia, se cambia ahí y no en tres sitios.
 
+- [Busca tu tarea](comun/tareas.md) — **el índice.** Cada tarea con la pantalla en la
+  que empieza, para no tener que leerse nada de arriba abajo.
+- [Dejar una sucursal lista para trabajar](comun/puesta-en-marcha.md) — las cuatro
+  cosas que hay que dejar configuradas **antes** de poder armar una ruta, en orden,
+  con quién hace cada una y qué se pide a administración.
 - [Qué significa cada número](comun/que-significa-cada-numero.md) — el que más se
   consulta. Por qué «Entregados hoy» dice 1 y el Historial de Rutas está vacío,
   qué es `≥ 17318.8 kg (462 renglones sin peso)`, por qué un pedido dice «sin

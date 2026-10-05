@@ -3,7 +3,7 @@ description: "reparto-app — la interfaz del reparto, web y APK del mismo codig
 # Privado: nunca sale a pub.dev.
 publish_to: 'none'
 
-version: 1.0.21+22
+version: 1.0.22+23
 
 environment:
   sdk: ^3.13.3
@@ -146,6 +146,21 @@ flutter:
     # el manifiesto (`Familia-Peso.ttf`). Con esto `allowRuntimeFetching = false`
     # y la aplicacion nunca pide una tipografia por red.
     - assets/google_fonts/
+    # EL MANUAL, EMPAQUETADO EN UN SOLO FICHERO. Es lo que lee la Guia
+    # (`pantallas/ayuda/`), y lo que hace que se pueda leer **sin senal**: viaja
+    # dentro de la aplicacion y no se baja de ningun sitio.
+    #
+    # UNA SOLA LINEA, y es el motivo de que sea un fichero y no 37: una entrada
+    # de directorio de Flutter **no entra en las subcarpetas**, asi que
+    # `docs/manual/` con sus seis carpetas pediria una linea por carpeta y el dia
+    # que alguien anada una septima el manual del repositorio creceria y el de la
+    # aplicacion no, **sin que nada falle**. Eso es el §3-bis.
+    #
+    # Se escribe con `dart run herramientas/empaquetar_manual.dart` y es codigo
+    # generado, como lo de `sqlc`. Que no se separe de `docs/manual/` lo ata
+    # `test/pantallas/ayuda/el_manual_no_se_separa_del_repositorio_test.dart`,
+    # que rehace el paquete y lo compara: una prueba, no un comentario.
+    - assets/manual/manual.txt
     # La marca. Salen de `marca/*.svg` con `marca/generar.sh`, que decide cual
     # segun el tamano: `logo.png` lleva el monograma de PROCOVAR calado en la
     # caja del camion y vale de 96 px para arriba; `isotipo.png` es la silueta

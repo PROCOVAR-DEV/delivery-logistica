@@ -411,9 +411,11 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
                 ),
                 borderRadius: BorderRadius.circular(Radios.md),
               ),
+              // Mismo arreglo que la cabecera de `pantalla_vehiculos.dart`:
+              // mandaba a una «Configuracion» que no existe en el menu.
               child: const Text(
-                'Las tarifas de precios se configuran globalmente en '
-                'Configuración.',
+                'El costo por kilómetro no se pone aquí: sale del tipo de '
+                'camión, y se cambia en «Tipos de vehículo».',
               ),
             ),
           ],

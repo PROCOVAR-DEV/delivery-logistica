@@ -3,8 +3,8 @@
 **Para qué sirve:** es la flota. Qué camiones hay, cuánto carga cada uno, qué
 cuesta su kilómetro y cuál está hoy en la calle.
 
-Debajo del título: «Gestiona tu flota. Las tarifas se configuran globalmente en
-Configuración.»
+Debajo del título: «Gestiona tu flota. El costo por kilómetro de cada tipo de
+camión se pone en «Tipos de vehículo», aquí al lado.»
 
 **Importante: esta pantalla necesita conexión.** No hay cola ni copia en el
 aparato: si no sale, no se guarda, y se dice.
@@ -77,7 +77,20 @@ Se arregla con el botón **«Marcar disponible»**.
 
 - **«Marcar disponible»** — sólo si el estado guardado dice que está ocupado
 - **«Editar»**
-- **«Eliminar»** — **borra sin pedir confirmación**. Ojo con éste
+- **«Eliminar»** — **pregunta antes, en un cajón** (ver abajo)
+
+### Al eliminar, pregunta antes
+
+Se abre un cajón titulado **«Borrar «Camión 1»»**, igual que al borrar una zona del
+tablero o un almacén, y dice **qué se pierde**:
+
+> «El camión se va de la flota. Las rutas y los pedidos que lo llevaban puesto NO se
+> borran —el histórico de lo repartido se queda— pero se quedan sin camión, y hay que
+> ponerles otro. Y el camión hay que volver a darlo de alta a mano, con su placa, su
+> capacidad y su costo por km.»
+
+Con **«Sí, borrar «Camión 1»»** y **«No, dejarlo»**. **Cerrar el cajón sin
+contestar —la ✕, tocar fuera, Escape— es No.**
 
 ---
 
@@ -162,10 +175,21 @@ Al guardar bien: «Vehículo agregado.» · «Vehículo actualizado.» · «Veh�
 eliminado.» · «Vehículo marcado como disponible.» · «Se usará este vehículo para
 calcular el domicilio.» · «Tipos guardados.»
 
-Sin conexión, en la APK o el escritorio:
+Sin conexión, **y no dice lo mismo en los tres sitios, a propósito**: mandar a mirar
+la señal a quien está sentado en la oficina es mandarlo a mirar donde no es.
+
+En la APK y el escritorio:
 
 > «Sin conexión: no se guardó nada. Los vehículos se configuran con conexión;
 > inténtalo otra vez cuando haya red.»
+
+En la web:
+
+> «Sin conexión con el servidor: no se guardó nada. La página cargó, así que conexión
+> hay: el que no contesta es el servidor. Prueba otra vez y, si sigue igual, avisa a
+> la oficina.»
+
+**Lo que no cambia en ninguno: no se guardó nada.**
 
 Si el servidor contesta algo raro:
 
@@ -216,6 +240,16 @@ pág.»** o **«100 / pág.»**, y las flechas «Primera», «Anterior», «Sigu
 
 - **No funciona sin conexión.** Es la diferencia con Pedidos, Clientes o Rutas.
 - **No se marca «En ruta» a mano.**
-- **No se pide confirmación al eliminar.**
-- **Las tarifas de precios no se tocan aquí**: «Las tarifas de precios se
-  configuran globalmente en Configuración.»
+- **No se le cambia el camión a una ruta ya armada.** Eso no está aquí ni en Rutas:
+  hay que eliminar la ruta y volver a armarla.
+- **El costo por kilómetro no se pone en la ficha del camión**: sale del **tipo**
+  de camión. La ficha lo dice: «El costo por kilómetro no se pone aquí: sale del
+  tipo de camión, y se cambia en «Tipos de vehículo».»
+
+  Se cambia en el botón **«Tipos de vehículo»**, en esta misma pantalla.
+
+  > **Hasta el 05/10/2026 las dos pantallas mandaban a una «Configuración» que no
+  > existe** — no hay ninguna entrada así en el menú; era un resto del sistema
+  > anterior. Lo destapó quien escribía este manual, al tener que explicar dónde
+  > se ponen las tarifas. Si alguien te manda a buscar esa pantalla, ya no está:
+  > es «Tipos de vehículo».

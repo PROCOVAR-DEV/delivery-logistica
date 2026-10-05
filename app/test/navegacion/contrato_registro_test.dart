@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart' show IconData;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/navegacion/pantallas.dart';
 import 'package:reparto/nucleo/base/base.dart';
@@ -240,6 +241,12 @@ void main() {
       for (final ruta in <String>[
         '/sincronizacion',
         '/mapa-sin-conexion',
+        // LA GUIA, por el mismo motivo y con otra fuente: su contenido viaja
+        // horneado en `assets/manual/manual.txt` y se lee con `rootBundle`. La
+        // hora de la ultima bajada no dice nada de si el manual esta al dia, asi
+        // que medir la franja contra cualquier coleccion seria poner un aviso
+        // ambar sobre una pantalla que no puede estar desactualizada.
+        '/guia',
       ]) {
         final p = pantallas.firstWhere((p) => p.ruta == ruta);
         expect(
@@ -253,9 +260,68 @@ void main() {
     });
   });
 
+  /// LA GUIA ESTA EN EL MENU, Y EN LAS TRES FORMAS — 05/10/2026.
+  ///
+  /// Jose: «no hay navegacion en el side bar para ver el manual … necesito una
+  /// guia paso a paso para q la gente sepa utilizar la aplicacion» y «estas tareas
+  /// me las agregas a el side bar para q puedan ir cuando quieran».
+  ///
+  /// El manual estaba escrito —6.669 lineas en `docs/manual/`— y no se podia leer
+  /// desde ningun sitio: vivia en el repositorio, y el logistico de Santiago no
+  /// tiene el repositorio.
+  ///
+  /// **`enElMenu` NO depende del destino**, a diferencia del mapa sin conexion y
+  /// de Sincronizacion: el de la oficina con su navegador necesita la guia igual
+  /// que el que se va al patio de un almacen. Lo que cambia es **lo que la guia
+  /// ensena**, y eso se decide dentro
+  /// (`pantallas/ayuda/datos/proveedores.dart`), contra la misma
+  /// `Destino.trabajaSinConexion` de la regla 1. Si esta entrada vuelve a salir
+  /// del menu, que sea por una razon escrita y no por copiar a las otras dos.
+  test('la Guia esta en el menu, y se llama «Guia»', () {
+    final guia = pantallas.firstWhere((p) => p.ruta == '/guia');
+    expect(guia.enElMenu, isTrue);
+    expect(guia.titulo, 'Guía');
+    expect(
+      guia.soloParaRoles,
+      isEmpty,
+      reason: 'el manual es de los siete roles: nadie se queda sin instrucciones',
+    );
+  });
+
+  _losIconosNoSeRepiten();
+
   test('todo lo que sale en el menu tiene icono', () {
     for (final p in pantallas.where((p) => p.enElMenu)) {
       expect(p.icono, isNotNull, reason: p.ruta);
+    }
+  });
+}
+
+/// NINGUNA ENTRADA DEL MENU REPITE EL ICONO DE OTRA — 05/10/2026, al anadir la
+/// Guia.
+///
+/// La regla de la casa es que el icono es **el de SU accion, uno por uno**, y que
+/// «el mismo glifo repetido no diferencia nada, que es justo lo que se vino a
+/// arreglar» (`CLAUDE.md` §4). En una barra lateral de once entradas que en el
+/// telefono se abre en un cajon, dos iconos iguales son dos entradas que se
+/// confunden a la velocidad a la que se usa esto.
+///
+/// Va aqui abajo y no dentro de `main()` por accidente de escritura: se llama al
+/// final del fichero.
+void _losIconosNoSeRepiten() {
+  test('ninguna entrada del menu repite el icono de otra', () {
+    final delMenu = pantallasDeLaAplicacion().where((p) => p.enElMenu).toList();
+    final porIcono = <IconData, List<String>>{};
+    for (final p in delMenu) {
+      porIcono.putIfAbsent(p.icono!, () => <String>[]).add(p.titulo);
+    }
+    for (final entrada in porIcono.entries) {
+      expect(
+        entrada.value,
+        hasLength(1),
+        reason:
+            'estas entradas del menu comparten icono: ${entrada.value.join(', ')}',
+      );
     }
   });
 }

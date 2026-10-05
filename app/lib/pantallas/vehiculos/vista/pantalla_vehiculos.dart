@@ -178,9 +178,24 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
         children: [
           Text('Vehículos', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 4),
+          // MANDABA A UNA PANTALLA QUE NO EXISTE — 05/10/2026.
+          //
+          // Decia «las tarifas se configuran globalmente en **Configuracion**»
+          // y en esta aplicacion **no hay ninguna entrada «Configuracion» en el
+          // menu**: comprobado en los doce `registro.dart`. Es un resto del
+          // front de Next, de donde vino el patron.
+          //
+          // Lo caza quien escribe el manual, no una prueba: al contar «donde se
+          // ponen las tarifas» hubo que escribir «si buscas una pantalla de
+          // Configuracion, no la busques», que es justo el parrafo que no
+          // deberia existir. Y el logistico de Santiago la habria buscado solo,
+          // sin nadie al lado a quien preguntar.
+          //
+          // El sitio bueno estaba **en esta misma pantalla**, a dos dedos: el
+          // boton «Tipos de vehiculo». Ahora lo dice.
           Text(
-            'Gestiona tu flota. Las tarifas se configuran globalmente en '
-            'Configuración.',
+            'Gestiona tu flota. El costo por kilómetro de cada tipo de camión '
+            'se pone en «Tipos de vehículo», aquí al lado.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),

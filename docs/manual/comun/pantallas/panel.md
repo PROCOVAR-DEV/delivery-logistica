@@ -81,8 +81,27 @@ Tres atajos:
 
 ## «Paso a paso» de la configuración
 
+**El paso a paso de verdad, con quién hace cada cosa y qué se pide a quién, está en
+[Dejar una sucursal lista para trabajar](../puesta-en-marcha.md).** Aquí sólo está
+qué es cada cosa de la pantalla.
+
 Sale **sólo cuando falta algo** y el aparato ya tiene datos bajados. Son cuatro
 pasos, **en orden: cada uno necesita el anterior**.
+
+El título cambia según cuántas sucursales tengas puestas arriba:
+
+- Con **una**: **«Falta configurar esta sucursal»**.
+- Con **varias**: **«Faltan cosas por configurar en 6 de las 8 sucursales»**.
+
+Y la línea de debajo del título también:
+
+- Con una: «Sin esto no se puede armar una ruta. Van en este orden: cada uno necesita
+  el anterior.»
+- Con varias: «Un paso sólo está hecho cuando lo está en TODAS las sucursales que
+  estás mirando. Van en este orden: cada uno necesita el anterior.»
+
+Cada paso lleva delante su número sobre el total: **«1/4»**, **«2/4»**… **y no se
+renumeran al tacharlos**: el paso 3 de ayer sigue siendo el 3 hoy.
 
 | Paso | Para qué sirve | Qué se rompe sin él | Se arregla |
 |---|---|---|---|
@@ -102,6 +121,21 @@ por malo:
 
 > «Este aparato no lo ha descargado todavía, así que no se sabe si falta. Se
 > arregla trayendo el día, no dando nada de alta.»
+
+**En la web**, donde no hay día que traer, ese mismo estado se dice así:
+
+> «Esto no se pudo traer, así que no se sabe si falta. No es que no esté dado de
+> alta: es que no llegó. Prueba a recargar y, si sigue igual, avisa a la oficina.»
+
+**El color los separa, y hay que mirarlo**: **ámbar = falta y hay que hacerlo**;
+**azul = todavía no se sabe**. Un paso azul **no se arregla dando nada de alta**.
+
+Y cuando lo único pendiente es que baje, **el título también cambia** y no acusa a
+nadie: **«Falta por traer parte de la configuración»**, **«Todavía está bajando la
+configuración»** o **«No se pudo traer la configuración»**.
+
+**Si el recuadro no sale, la sucursal está lista.** No hay ninguna pantalla que diga
+«todo correcto»: el paso a paso sólo se pinta cuando falta algo.
 
 ---
 

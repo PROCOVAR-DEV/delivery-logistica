@@ -33,6 +33,11 @@ Qué significa eso en la práctica:
   «Entregados hoy» dice 1 y el Historial está vacío, qué es el `≥` del peso, por qué
   un pedido dice «sin cotizar».
 - **[Las reglas del reparto](../comun/las-reglas-del-reparto.md)**
+- **[Busca tu tarea](../comun/tareas.md)** — el índice de todas las tareas, con la
+  pantalla en la que empieza cada una.
+- **[Dejar una sucursal lista para trabajar](../comun/puesta-en-marcha.md)** — las
+  cuatro cosas que hay que configurar antes de poder armar una ruta, y quién hace
+  cada una.
 - **[Roles y sucursales](../comun/roles-y-sucursales.md)**
 - **[Pantalla por pantalla](../comun/README.md#pantalla-por-pantalla)**
 - **[Glosario](../comun/glosario.md)**

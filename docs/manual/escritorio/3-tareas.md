@@ -22,9 +22,20 @@ manual de la web:
 - [Sacar un pedido de una ruta](../web/2-tareas.md#sacar-un-pedido-de-una-ruta)
 - [Consultar un cliente](../web/2-tareas.md#consultar-un-cliente)
 - [Dar de alta un camión](../web/2-tareas.md#dar-de-alta-un-camión)
+- [Decir qué camión calcula el domicilio](../web/2-tareas.md#decir-qué-camión-calcula-el-domicilio)
+- [Marcar un camión en el taller](../web/2-tareas.md#marcar-un-camión-en-el-taller)
+- [Dar de baja un camión](../web/2-tareas.md#dar-de-baja-un-camión)
+- [Definir los tipos de camión y su costo por km](../web/2-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km)
+- [Cambiar el camión de una ruta](../web/2-tareas.md#cambiar-el-camión-de-una-ruta)
 - [Poner o corregir un almacén](../web/2-tareas.md#poner-o-corregir-un-almacén)
+- [Cambiar cuál es el almacén principal](../web/2-tareas.md#cambiar-cuál-es-el-almacén-principal)
+- [Quitar un almacén de la sucursal](../web/2-tareas.md#quitar-un-almacén-de-la-sucursal)
 - [Cambiar entre USD y CUP](../web/2-tareas.md#cambiar-entre-usd-y-cup)
 - [Ir a otra aplicación de la casa](../web/2-tareas.md#ir-a-otra-aplicación-de-la-casa)
+
+**Y la puesta en marcha de una sucursal** —las cuatro cosas que hay que dejar
+configuradas antes de poder armar una ruta— es la misma en los tres sitios: [Dejar
+una sucursal lista para trabajar](../comun/puesta-en-marcha.md).
 
 **Dos avisos al leerlas:** donde digan «recarga la página», aquí no hay página que
 recargar; y **Vehículos y Almacenes necesitan conexión también aquí** (no hay cola
@@ -35,6 +46,8 @@ para ellos).
 ## Lo que cambia en el escritorio
 
 ### Traer el día a mano
+
+**Empieza en:** la franja de arriba, desde cualquier pantalla.
 
 1. **Clic en la franja de arriba**, en cualquier sitio.
 2. **Clic en «Traer el día»**.
@@ -47,12 +60,16 @@ o **«Los datos ya son de ahora mismo»**.
 
 ### Entregar el día a mano
 
+**Empieza en:** la franja de arriba, desde cualquier pantalla.
+
 1. **Clic en la franja**, o directamente en el botón **«23 sin subir»**.
 2. **Clic en «Entregar el día»**.
 
 Si está apagado: **«Trae el día primero: no se envía nada sin tener lo de ahora»**.
 
 ### Ver qué aparato lleva sin subir
+
+**Empieza en:** **Menú → «Sincronización»**.
 
 **Esta pantalla no existe en la web.**
 
@@ -72,6 +89,8 @@ en el cajón de «Entregar el día», que enseña los rechazos **de este** orden
 
 ### Resolver un rechazo
 
+**Empieza en:** la franja de arriba, desde cualquier pantalla.
+
 1. **Clic en la franja** → botón de la nube con la flecha hacia arriba.
 2. Baja hasta **«Rechazados, esperando a una persona»**.
 3. **Lee el motivo**, con las palabras del servidor.
@@ -79,6 +98,8 @@ en el cajón de «Entregar el día», que enseña los rechazos **de este** orden
    sentido (**se pierde**).
 
 ### Descargar el mapa de Cuba
+
+**Empieza en:** **Menú → «Mapa de Cuba sin conexión»**.
 
 **Esta pantalla no existe en la web.**
 
@@ -91,6 +112,8 @@ se llevaría el trabajo que no haya subido.**
 
 ### Exportar el Excel
 
+**Empieza en:** **Menú → «Reportes»**.
+
 Igual que en la web hasta el botón, pero **el final es distinto**: aquí **se guarda en
 la carpeta de descargas** y te dice la ruta:
 
@@ -99,6 +122,8 @@ la carpeta de descargas** y te dice la ruta:
 **No se abre ningún cajón de compartir** (en Linux compartir ficheros no existe).
 
 ### Mandarle la ruta al chófer
+
+**Empieza en:** **Menú → «Rutas»**.
 
 Los botones son los mismos —**«Abrir en Google Maps»**, **«WhatsApp»**,
 **«Compartir»**, **«Copiar»**— pero en el escritorio **«Compartir» puede no ofrecer
@@ -110,6 +135,8 @@ nada**, y la aplicación lo dice:
 **Usa «Copiar»** y pégalo donde quieras.
 
 ### Actualizar la aplicación
+
+**Empieza en:** la franja de arriba, desde cualquier pantalla.
 
 **En la web basta con recargar. Aquí se instala a mano.**
 
@@ -131,4 +158,8 @@ nada**, y la aplicación lo dice:
 
 ## Lo que el escritorio NO tiene y la web sí
 
-  `DESARROLLADOR` y `SUPER ADMIN`.
+**La pantalla «Canal con PEDIDO».** No es que esté escondida: en el escritorio y en
+el teléfono **no existe**, no se registra siquiera. En la web la ven en el menú sólo
+`DESARROLLADOR` y `SUPER ADMIN`.
+
+Si tienes que mirar cómo va el canal, **ábrelo en el navegador**, no aquí.

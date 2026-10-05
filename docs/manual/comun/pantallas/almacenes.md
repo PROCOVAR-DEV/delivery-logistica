@@ -121,9 +121,15 @@ Y debajo del mapa, según haya cargado el fondo o no:
 
 ## Los avisos al guardar
 
-- Bien: **«Guardado en Accesos.»**
-- Sin conexión: **«Sin conexión: no se guardó nada en Accesos. Los almacenes se
-  configuran con conexión; inténtalo otra vez cuando haya red.»**
+- Bien: **«Guardado en Accesos.»** **Si no ves esas palabras, no está guardado**,
+  aunque el cajón se haya cerrado.
+- Sin conexión, **en la APK y el escritorio**: **«Sin conexión: no se guardó nada en
+  Accesos. Los almacenes se configuran con conexión; inténtalo otra vez cuando haya
+  red.»**
+- Sin conexión, **en la web**: **«Sin conexión con Accesos: no se guardó nada. La
+  página cargó, así que conexión hay: el que no contesta es Accesos. Prueba otra vez
+  y, si sigue igual, avisa a la oficina.»** No es el mismo texto a propósito: mandar
+  a mirar la señal a quien está en la oficina es mandarlo a mirar donde no es.
 - Si Accesos dice que no, el motivo sale **tal cual**, sin envolver.
 
 ---

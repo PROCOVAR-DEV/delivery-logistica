@@ -93,20 +93,34 @@ da por malo**:
    ruta».
 
 ## 3.1 Crear una zona
+<!-- tarea -->
 
-1. Al final de la tira, clic en el recuadro con el `+` que pone **«Columna»**.
+**Empieza en:** **Menú → «Tablero»**.
+
+1. Al final de la tira, **clic en el recuadro con el `+` que pone «Columna»**.
+   <!-- señala: tablero-nueva-zona -->
+   - **Aquí no hay carrusel que pasar**: «Sin colocar» y la tira de zonas están las
+     dos a la vista, como en la web.
 2. Escribe el **«Nombre de la zona»** («Centro, Vista Alegre, Carretera…»).
-3. **«Guardar»**, o intro.
+   <!-- señala: tablero-nombre-de-la-zona -->
+3. **«Guardar»**, o intro. <!-- señala: tablero-guardar-la-zona -->
 
 ## 3.2 Ponerle el camión a la zona — HAZLO AHORA
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Tablero»**.
 
 **Sin camión la zona no arma ruta.**
 
 1. **Clic en el ⋮** de la cabecera de la zona («Opciones de la columna»).
+   <!-- señala: tablero-menu-de-la-zona -->
 2. **Clic en «Camión previsto»**. Debajo pone el camión, o **«Sin elegir»**.
-3. Elige. La primera opción es **«Sin camión»**; cada camión sale con su capacidad y
-   su matrícula: **«1.000 kg · P-123456»**.
-4. La cabecera pasa a poner **«Camión: F-350»**.
+   <!-- señala: tablero-camion-previsto -->
+3. **Clic en el camión** que va a llevar esa zona.
+   <!-- señala: tablero-elegir-camion -->
+   - La primera opción es **«Sin camión»**; cada camión sale con su capacidad y su
+     matrícula: **«1.000 kg · P-123456»**.
+   - La cabecera pasa a poner **«Camión: F-350»**.
 
 Un camión con **«EN EL TALLER»** en ámbar **se puede elegir igual**: es aviso, no
 bloqueo.
@@ -115,22 +129,35 @@ bloqueo.
 a **«Vehículos»** y dalo de alta; baja con la siguiente sincronización.
 
 ## 3.3 Repartir los pedidos — arrastrando
+<!-- tarea -->
 
-1. Acota la mitad izquierda:
-   - **El buscador** («Cliente, operación, dirección, artículo…») **filtra mientras
-     escribes**.
-   - **El embudo** abre **«Día del pedido»**, **«Municipio»**, **«Vendedor»**, **«Hasta
-     cuántos km del almacén»** (se aplica al salir del campo o con intro) y **«Cobro del
+**Empieza en:** **Menú → «Tablero»**.
+
+**Aquí se arrastra con el ratón, del tirón.** En el teléfono no se arrastra: se toca
+cada tarjeta y se elige la zona en el cajón.
+
+1. **Clic en el embudo** para acotar la mitad izquierda.
+   <!-- señala: tablero-sin-colocar-filtros -->
+   - Abre **«Día del pedido»**, **«Municipio»**, **«Vendedor»**, **«Hasta cuántos km
+     del almacén»** (se aplica al salir del campo o con intro) y **«Cobro del
      domicilio»**.
+2. O usa **el buscador** («Cliente, operación, dirección, artículo…»), que **filtra
+   mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
    - Si pone **«Se ven 200 de 308.»**, clic en **«Ver 108 más»**.
-2. **Arrastra la tarjeta con el ratón** hasta la zona:
+3. **Agarra la tarjeta con el ratón** y arrástrala sin soltar.
+   <!-- señala: tablero-tarjeta-de-pedido -->
+4. **Suéltala sobre la zona.** <!-- señala: tablero-zona-donde-soltar -->
    - Sobre otra tarjeta: la pone en ese sitio del orden.
    - En el hueco de abajo o **sobre la cabecera**: la pone la última.
    - En la mitad izquierda: la devuelve a «sin colocar».
    - Donde ya estaba: **no hace nada**.
-3. Si la zona está vacía, mientras arrastras encima verás **«Suelta aquí»**.
-
-**También puedes hacer clic en la tarjeta** y elegir la zona en el cajón.
+   - Si la zona está vacía, mientras arrastras encima verás **«Suelta aquí»**.
+5. **Si prefieres no arrastrar**, clic en la tarjeta.
+   <!-- señala: tablero-tarjeta-de-pedido -->
+6. En el cajón, baja hasta la lista de zonas y **clic en «Colocar en «Centro»»**.
+   <!-- señala: tablero-colocar-en-la-zona -->
+   - Ahí están también **«Subir una posición»**, **«Bajar una posición»** y
+     **«Devolver a sin colocar»**.
 
 ### Qué mirar mientras repartes
 
@@ -155,18 +182,31 @@ Camión: F-350                       sin subir
 - **«2 pedidos de este cliente hoy»** — son dos de verdad. **No se juntan.**
 
 ## 3.4 Reordenar las zonas
+<!-- tarea -->
 
-**Arrastra la cabecera de una zona** sobre otra: se cambian de sitio.
+**Empieza en:** **Menú → «Tablero»**.
+
+**Esto sólo se puede en pantalla grande**, aquí y en la web. En el teléfono no hay
+forma: las zonas van una por página y no hay dónde soltar.
+
+1. **Agarra la cabecera de la zona** —donde está su nombre y su peso— y arrástrala sin
+   soltar. <!-- señala: tablero-cabecera-de-la-zona -->
+2. **Suéltala sobre la zona que quieres que ocupe su sitio**: se cambian de sitio.
+   <!-- señala: tablero-zona-donde-soltar -->
 
 ---
 
 # 4. Armar la ruta
+<!-- tarea -->
 
-1. **Clic en el ⋮** de la zona.
+**Empieza en:** **Menú → «Tablero»**.
+
+1. **Clic en el ⋮** de la zona. <!-- señala: tablero-menu-de-la-zona -->
 2. Baja del todo y **clic en «Armar la ruta de esta zona»**.
-3. El botón pasa a **«Armando…»**.
-4. Si sale bien: **«Ruta armada con lo que se puede repartir de «Centro».»** y **la
-   aplicación salta sola a Rutas**, pestaña «Planificadas», con la ruta ya elegida.
+   <!-- señala: tablero-armar-la-ruta -->
+   - El botón pasa a **«Armando…»**.
+   - Si sale bien: **«Ruta armada con lo que se puede repartir de «Centro».»** y **la
+     aplicación salta sola a Rutas**, pestaña «Planificadas», con la ruta ya elegida.
 
 ### Si sale un recuadro rojo: «no tiene camión previsto»
 
@@ -194,13 +234,17 @@ cuanto suba**. Es normal y no hay que hacer nada.
 ---
 
 # 5. Sacar el pre-despacho
+<!-- tarea -->
 
-1. **Menú → «Pedidos»** y **filtra** para dejar los de tu ruta.
-2. **Marca los pedidos** con su casilla, o con la de la cabecera («Elegir todos los de
-   esta página»).
-3. Aparece la franja azul **«7 pedido(s) elegidos»**.
-4. **Clic en el botón del pre-despacho** (icono de caja).
-5. Se abre el cajón con el resumen:
+**Empieza en:** **Menú → «Pedidos»**.
+
+1. **Filtra** para dejar los de tu ruta — por **«Municipio»**, por ejemplo.
+   <!-- señala: pedidos-filtro-municipio -->
+2. **Marca los pedidos** con la casilla de la cabecera («Elegir todos los de esta
+   página»), o con la de cada uno. <!-- señala: pedidos-marcar-todos -->
+   - Aparece la franja azul **«7 pedido(s) elegidos»**.
+3. **Clic en el botón del pre-despacho** (icono de caja). Se abre el cajón con el
+   resumen: <!-- señala: pedidos-pre-despacho-de-lo-filtrado -->
 
    ```
    15 producto(s) · 10197 empaques · ≥ 17318.8 kg (462 renglones sin peso)
@@ -208,29 +252,43 @@ cuanto suba**. Es normal y no hay que hacer nada.
 
    **El `≥` no es un error:** pesa **por lo menos** eso; hay 462 renglones sin peso
    conocido. Con eso se carga el camión; lo que no se puede es firmar el peso exacto.
-6. **Clic en «Ver e imprimir»** para la **«Hoja de pre-despacho»**, con su columna
-   **«Sacado»** en blanco.
+
+   - **Clic en «Ver e imprimir»** para la **«Hoja de pre-despacho»**, con su columna
+     **«Sacado»** en blanco.
 
 ---
 
 # 6. Iniciar la ruta y mandársela al chófer
+<!-- tarea -->
 
-1. **Menú → «Rutas».** Ves **la lista a la izquierda y el detalle a la derecha**.
-2. **Clic en la tarjeta de tu ruta.**
-3. Comprueba la línea de datos:
+**Empieza en:** **Menú → «Rutas»**.
+
+1. **Clic en la tarjeta de tu ruta.** Ves **la lista a la izquierda y el detalle a la
+   derecha**: no hay cajón que abrir, como en el teléfono.
+   <!-- señala: rutas-tarjeta-de-ruta -->
+   - Comprueba la línea de datos:
 
    ```
    Planificada · 68.0 km (incl. regreso) · 516 kg · $5212.78 · Camión 1 · P-001 ·
    libre · 28/9/2026 · Carga total: 3
    ```
 
-4. **Clic en «Iniciar ruta»**.
-5. Pasa a **«En curso»**, **el camión queda ocupado**, y la vista salta a esa pestaña.
+2. **Clic en «Ver paradas (3)»** si quieres repasar el orden antes de salir.
+   <!-- señala: rutas-ver-paradas -->
+3. **Clic en «Iniciar ruta»**. <!-- señala: rutas-iniciar -->
+   - Pasa a **«En curso»**, **el camión queda ocupado**, y la vista salta a esa
+     pestaña.
 
 ## Mandarle el recorrido
+<!-- tarea -->
 
-1. Baja hasta **«Recorrido»**.
-2. **Clic en «WhatsApp»**, **«Compartir»** o **«Copiar»**.
+**Empieza en:** **Menú → «Rutas»**.
+
+1. Baja hasta **«Recorrido»** y **clic en «Abrir en Google Maps»** para verlo tú.
+   <!-- señala: rutas-abrir-en-google-maps -->
+2. **Clic en «WhatsApp»** para mandárselo al chófer. <!-- señala: rutas-whatsapp -->
+3. **«Compartir»**, si lo quieres por otro sitio. <!-- señala: rutas-compartir -->
+4. O **«Copiar»**, y lo pegas tú. <!-- señala: rutas-copiar -->
 
 **Esto necesita conexión.**
 
@@ -243,19 +301,24 @@ portapapeles.» **Usa «Copiar».**
 ---
 
 # 7. Marcar las entregas
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Rutas»**.
 
 **Esto funciona entero sin conexión.**
 
-1. **Menú → «Rutas»**, pestaña **«En curso»**, clic en la ruta.
+1. En la pestaña **«En curso»**, **clic en la ruta**.
+   <!-- señala: rutas-tarjeta-de-ruta -->
 2. **Clic en «Cierre (3)»**. El número son las paradas sin marcar.
+   <!-- señala: rutas-cierre -->
 3. Por cada parada, **clic en «Entregado»**, **«Devuelto»** o **«Cancelado»**.
-4. Si marcas devuelto o cancelado, **escribe el motivo** en el campo que aparece.
-5. **Volver a hacer clic en el mismo botón lo desmarca.**
-6. Si la ruta entera fue igual, arriba hay atajos: **«Todas:»** y los tres botones.
-7. Baja hasta **«Queda en el camión»**, que se recalcula con cada marca:
-   - **«Nada: se entregó todo lo que salió.»**
-   - O la lista: **«MALTA GUAJIRA ×36»**.
-8. **Clic en «Guardar 5 marcada(s)»**.
+   <!-- señala: rutas-resultado-de-la-parada -->
+   - Si marcas devuelto o cancelado, **escribe el motivo** en el campo que aparece.
+   - **Volver a hacer clic en el mismo botón lo desmarca.**
+   - Si la ruta entera fue igual, arriba hay atajos: **«Todas:»** y los tres botones.
+   - Baja hasta **«Queda en el camión»**, que se recalcula con cada marca: **«Nada: se
+     entregó todo lo que salió.»** o la lista, **«MALTA GUAJIRA ×36»**.
+4. **Clic en «Guardar 5 marcada(s)»**. <!-- señala: rutas-guardar-el-cierre -->
 
 > «Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o volvió.»
 
@@ -268,24 +331,32 @@ te bloquea, pero te lo dice.
 ---
 
 # 8. Cerrar la ruta
+<!-- tarea -->
 
-1. **Clic en «Marcar como completada»**.
-2. Si quedan paradas sin marcar, te abre el cierre primero y avisa:
+**Empieza en:** **Menú → «Rutas»**.
+
+1. **Clic en «Marcar como completada»**. <!-- señala: rutas-completar -->
+   - **Si quedan paradas sin marcar**, te abre el cierre primero y avisa:
 
    > «Lo que dejes sin marcar se da por no entregado y cuenta como que sigue en el
    > camión.»
 
-   Márcalas y **clic en «Guardar y completar»**.
-3. **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
-   entregados **vuelven a estar disponibles**.
+2. Márcalas y **clic en «Guardar y completar»**. Si ya estaban todas, se completa
+   directo. <!-- señala: rutas-guardar-el-cierre -->
+   - **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
+     entregados **vuelven a estar disponibles**.
 
 ## Sacar el post-despacho
+<!-- tarea -->
 
-1. Abre la ruta en **«Historial»** y **clic en «Ver cierre»**.
-2. Abajo, **clic en «Post-despacho»**: «8 entregadas · 2 devueltas · 1 canceladas · 1
-   sin marcar».
-3. Lleva **«Tiene que quedar en el camión»** (con la columna **«Bajó»** en blanco para
-   contar a mano) y **«De quién es lo que vuelve»**.
+**Empieza en:** **Menú → «Rutas»**.
+
+1. Abre la ruta en **«Historial»**. <!-- señala: rutas-tarjeta-de-ruta -->
+2. **Clic en «Ver cierre»**. <!-- señala: rutas-cierre -->
+3. Abajo, **clic en «Post-despacho»**: «8 entregadas · 2 devueltas · 1 canceladas · 1
+   sin marcar». <!-- señala: rutas-post-despacho -->
+   - Lleva **«Tiene que quedar en el camión»** (con la columna **«Bajó»** en blanco
+     para contar a mano) y **«De quién es lo que vuelve»**.
 
 **Una ruta completada ya no se toca.** El cierre pasa a sólo lectura: «Para corregir
 algo, hay que hacerlo en PEDIDO.»
@@ -315,16 +386,21 @@ algo, hay que hacerlo en PEDIDO.»
 ---
 
 # 10. Cuadrar la caja
+<!-- tarea -->
 
-1. **Menú → «Reportes».**
+**Empieza en:** **Menú → «Reportes»**.
+
+1. **Menú → «Reportes».** <!-- señala: menu-reportes -->
 2. **Lee lo que dice encima de las pestañas**: «Cuadrado con los datos del aparato, del
    28/9/2026, 10:36. Con conexión sale el del servidor.»
    **Si sale el aviso ámbar de que los datos tienen más de un día, esto no sirve para
-   cerrar.** Trae el día primero.
+   cerrar.** Trae el día primero. <!-- señala: informes-advertencia -->
 3. Pon **«Desde»**, **«Hasta»** y, si quieres, un **«Vehículo»**.
+   <!-- señala: informes-desde -->
 4. Mira **«Resumen»**, **«Por Vehículo»** y **«Detalle de Órdenes»**.
-5. **Clic en «Exportar a Excel»**. Mientras lo arma dice **«Armando el Excel...»**.
-6. Al terminar te dice **dónde lo dejó**:
+   <!-- señala: informes-pestanas -->
+5. **Clic en «Exportar a Excel»**. Mientras lo arma dice **«Armando el Excel...»** y
+   al terminar te dice **dónde lo dejó**: <!-- señala: informes-exportar -->
 
    > «Excel guardado en /home/jose/Descargas/reporte-procovar-2026-09-28.xlsx»
 

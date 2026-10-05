@@ -67,6 +67,32 @@ abstract final class Senalado {
   /// zonas van en una tira y esto no se monta.
   static const tableroCarruselDeZonas = 'tablero-carrusel-de-zonas';
 
+  /// LA ZONA ENTERA, que es DONDE SE SUELTA lo que se arrastra.
+  ///
+  /// En la web y en el escritorio el reparto se hace arrastrando, y un gesto de
+  /// arrastre tiene dos sitios: de donde se coge —la tarjeta,
+  /// [tableroTarjetaDePedido]— y donde se deja. Sin este segundo nombre el paso
+  /// «suéltala sobre la zona» no tenia a que apuntar, y el foco se quedaba en la
+  /// tarjeta: justo lo que NO hay que mirar al soltar.
+  ///
+  /// Es tambien el blanco de reordenar zonas: el `DragTarget<ColumnaArrastrada>`
+  /// que recoge una cabecera arrastrada es esta misma columna.
+  ///
+  /// **Sólo la primera se marca** (`ColumnaDelTablero.esLaPrimera`): hay una por
+  /// zona. En el telefono la zona es la pagina entera, asi que alli el foco
+  /// cubriria todo — y por eso ningun paso de `apk/` lo nombra.
+  static const tableroZonaDondeSoltar = 'tablero-zona-donde-soltar';
+
+  /// LA CABECERA DE UNA ZONA, que es LO QUE SE AGARRA para reordenarlas.
+  ///
+  /// Reordenar zonas es arrastrar la cabecera, y **no hay ninguna otra via**: en
+  /// el menu de los tres puntos no existe un «mover a la izquierda». Asi que el
+  /// paso senala lo que hay que agarrar, que es esto.
+  ///
+  /// Sólo en pantalla ancha hay algo que reordenar, y por eso lo nombran `web/` y
+  /// `escritorio/` y no `apk/`. Se marca la primera, como el ⋮ que lleva dentro.
+  static const tableroCabeceraDeLaZona = 'tablero-cabecera-de-la-zona';
+
   // ----------------------------------------------------------------- PEDIDOS
   static const pedidosBuscar = 'pedidos-buscar';
   static const pedidosFiltroEstado = 'pedidos-filtro-estado';
@@ -318,6 +344,8 @@ abstract final class Senalado {
     tableroSubirUnaPosicion,
     tableroDevolverASinColocar,
     tableroCarruselDeZonas,
+    tableroZonaDondeSoltar,
+    tableroCabeceraDeLaZona,
     pedidosBuscar,
     pedidosFiltroEstado,
     pedidosFiltroMunicipio,

@@ -41,14 +41,18 @@ const _sueloDeSenalados = <FormaDeLaAplicacion, int>{
   // La APK es la del piloto de Santiago, y por eso es la que tiene el suelo alto.
   FormaDeLaAplicacion.apk: 78,
   FormaDeLaAplicacion.web: 78,
-  // EL ESCRITORIO VA DETRAS, Y ESTA ESCRITO PARA QUE NO SE OLVIDE — 48 % el
-  // 05/10/2026. Dos motivos, los dos conocidos: su página del día
-  // (`escritorio/2-el-dia-en-el-escritorio.md`) **todavía no tiene sus tareas
-  // marcadas**, y sus tareas propias son casi todas de la franja de arriba, de
-  // Sincronización y del mapa sin conexión, que viven en `navegacion/` y en
-  // pantallas que este trabajo no podía tocar. Subirlo es marcar esos controles y
-  // esa página; el suelo se sube con ellos.
-  FormaDeLaAplicacion.escritorio: 45,
+  // EL ESCRITORIO YA NO VA DETRAS — 94 % el 05/10/2026, contra el 48 % que tenía
+  // cuando se escribió esto.
+  //
+  // Lo que le faltaba era una cosa y está hecha: su página del día
+  // (`escritorio/2-el-dia-en-el-escritorio.md`) no tenía ni una tarea marcada, y
+  // ahora tiene once. Lo que queda sin foco en esta forma son pasos de
+  // `escritorio/3-tareas.md` y de `comun/` que no apuntan a un control porque no
+  // lo tienen —una pantalla de Android, una consecuencia—, no marcas que falten.
+  //
+  // El suelo sube con ello, que es para lo que está: 85 deja sitio a una tarea
+  // nueva sin marcar y no deja sitio a desmarcar la página del día.
+  FormaDeLaAplicacion.escritorio: 85,
 };
 
 void main() {
@@ -191,6 +195,23 @@ void main() {
           '3.3 Repartir los pedidos por zonas',
           '3.4 Mover, subir, bajar o sacar un pedido de una zona',
           '4. Armar la ruta',
+          // LAS MISMAS, CON LOS NOMBRES QUE LLEVAN EN LA WEB Y EN EL ESCRITORIO.
+          //
+          // El día es el mismo y el trabajo es el mismo, pero cada página lo
+          // numera por su cuenta —la web empieza por «Entrar» y la APK por
+          // «Traer el día», asi que todo lo demás va corrido— y el gesto de
+          // repartir **no es el mismo**: aquí se arrastra y en el teléfono se
+          // toca, y por eso el título tampoco. Sin estas líneas, marcar la
+          // página del día de la web o del escritorio y dejarse pasos sin foco
+          // sólo bajaría la media, que es justo lo que este test está aquí para
+          // no permitir en el camino principal.
+          '4.1 Crear una zona',
+          '4.2 Ponerle el camión a la zona — HAZLO AHORA',
+          '4.3 Repartir los pedidos — arrastrando',
+          '3.3 Repartir los pedidos — arrastrando',
+          '4.4 Reordenar las zonas',
+          '3.4 Reordenar las zonas',
+          '5. Armar la ruta',
           'Renombrar, vaciar o borrar una zona',
           'Dar de alta un camión',
           'Poner o corregir un almacén',

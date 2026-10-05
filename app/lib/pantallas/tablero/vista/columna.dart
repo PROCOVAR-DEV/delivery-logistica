@@ -55,93 +55,102 @@ class ColumnaDelTablero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
-    return DragTarget<ColumnaArrastrada>(
-      onAcceptWithDetails: (detalles) {
-        if (detalles.data.columnaId != columna.id) {
-          alSoltarColumna(detalles.data);
-        }
-      },
-      builder: (contexto, encimaColumna, _) => Container(
-        width: ancho,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: tema.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(10),
-          border: encimaColumna.isEmpty
-              ? null
-              : Border.all(color: tema.colorScheme.primary, width: 2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // La cabecera se arrastra: es como se reordena el tablero. Igual
-            // que las tarjetas, el gesto lo decide el PUNTERO: del tiron con
-            // raton o lapiz, con pulsacion larga con el dedo, que es lo que
-            // evita comerse el desplazamiento lateral de la tira en un
-            // telefono. El porque esta en `ArrastrableSegunPuntero`
-            // (`kit.dart`). Quien no quiera arrastrar tiene «mover a la
-            // izquierda / derecha» en el menu.
-            ArrastrableSegunPuntero<ColumnaArrastrada>(
-              datos: ColumnaArrastrada(columna.id),
-              feedback: Material(
-                elevation: 8,
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  width: ancho ?? 260,
-                  child: _Cabecera(
-                    columna: columna,
-                    alAbrirMenu: alAbrirMenu,
-                    alSoltar: alSoltar,
-                  ),
-                ),
-              ),
-              child: _Cabecera(
-                columna: columna,
-                alAbrirMenu: alAbrirMenu,
-                alSoltar: alSoltar,
-                // La del `feedback` NO se marca: mientras se arrastra hay dos
-                // cabeceras montadas y dos con el mismo nombre no se pueden
-                // distinguir.
-                senalable: esLaPrimera,
-              ),
-            ),
-            Expanded(
-              child: DragTarget<TarjetaArrastrada>(
-                // Soltar en el hueco de abajo es «ponlo el ultimo».
-                onAcceptWithDetails: (detalles) =>
-                    alSoltar(detalles.data, null),
-                builder: (contexto, encima, _) => Container(
-                  decoration: BoxDecoration(
-                    color: encima.isNotEmpty
-                        ? tema.colorScheme.primary.withValues(alpha: 0.08)
-                        : null,
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(10),
+    // LA ZONA ENTERA ES EL BLANCO DE LOS DOS ARRASTRES, y por eso la Guia la
+    // senala: en la web y en el escritorio se reparte arrastrando, y «suéltala
+    // sobre la zona» no tenia donde apuntar. Sólo la primera
+    // (`esLaPrimera`): hay una por zona y dos con el mismo nombre no se
+    // distinguen.
+    return ControlSenalado(
+      nombre: Senalado.tableroZonaDondeSoltar,
+      senalable: esLaPrimera,
+      child: DragTarget<ColumnaArrastrada>(
+        onAcceptWithDetails: (detalles) {
+          if (detalles.data.columnaId != columna.id) {
+            alSoltarColumna(detalles.data);
+          }
+        },
+        builder: (contexto, encimaColumna, _) => Container(
+          width: ancho,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: tema.colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(10),
+            border: encimaColumna.isEmpty
+                ? null
+                : Border.all(color: tema.colorScheme.primary, width: 2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // La cabecera se arrastra: es como se reordena el tablero. Igual
+              // que las tarjetas, el gesto lo decide el PUNTERO: del tiron con
+              // raton o lapiz, con pulsacion larga con el dedo, que es lo que
+              // evita comerse el desplazamiento lateral de la tira en un
+              // telefono. El porque esta en `ArrastrableSegunPuntero`
+              // (`kit.dart`). Quien no quiera arrastrar tiene «mover a la
+              // izquierda / derecha» en el menu.
+              ArrastrableSegunPuntero<ColumnaArrastrada>(
+                datos: ColumnaArrastrada(columna.id),
+                feedback: Material(
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: ancho ?? 260,
+                    child: _Cabecera(
+                      columna: columna,
+                      alAbrirMenu: alAbrirMenu,
+                      alSoltar: alSoltar,
                     ),
                   ),
-                  child: tarjetas.isEmpty
-                      ? _Vacia(encima: encima.isNotEmpty)
-                      : ListView.builder(
-                          padding: const EdgeInsets.only(bottom: 48),
-                          itemCount: tarjetas.length,
-                          itemBuilder: (contexto, i) => _Ranura(
-                            // Soltar SOBRE una tarjeta es «ponlo aqui», en su
-                            // sitio: el orden dentro de la columna es el orden de
-                            // visita que propone quien conoce las calles.
-                            alSoltar: (datos) =>
-                                alSoltar(datos, tarjetas[i].posicion),
-                            hijo: TarjetaDePedido(
-                              pedido: tarjetas[i].pedido,
-                              columnaId: columna.id,
-                              posicion: tarjetas[i].posicion,
-                              onTap: () => alPulsarTarjeta(tarjetas[i]),
-                            ),
-                          ),
-                        ),
+                ),
+                child: _Cabecera(
+                  columna: columna,
+                  alAbrirMenu: alAbrirMenu,
+                  alSoltar: alSoltar,
+                  // La del `feedback` NO se marca: mientras se arrastra hay dos
+                  // cabeceras montadas y dos con el mismo nombre no se pueden
+                  // distinguir.
+                  senalable: esLaPrimera,
                 ),
               ),
-            ),
-          ],
+              Expanded(
+                child: DragTarget<TarjetaArrastrada>(
+                  // Soltar en el hueco de abajo es «ponlo el ultimo».
+                  onAcceptWithDetails: (detalles) =>
+                      alSoltar(detalles.data, null),
+                  builder: (contexto, encima, _) => Container(
+                    decoration: BoxDecoration(
+                      color: encima.isNotEmpty
+                          ? tema.colorScheme.primary.withValues(alpha: 0.08)
+                          : null,
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(10),
+                      ),
+                    ),
+                    child: tarjetas.isEmpty
+                        ? _Vacia(encima: encima.isNotEmpty)
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(bottom: 48),
+                            itemCount: tarjetas.length,
+                            itemBuilder: (contexto, i) => _Ranura(
+                              // Soltar SOBRE una tarjeta es «ponlo aqui», en su
+                              // sitio: el orden dentro de la columna es el orden de
+                              // visita que propone quien conoce las calles.
+                              alSoltar: (datos) =>
+                                  alSoltar(datos, tarjetas[i].posicion),
+                              hijo: TarjetaDePedido(
+                                pedido: tarjetas[i].pedido,
+                                columnaId: columna.id,
+                                posicion: tarjetas[i].posicion,
+                                onTap: () => alPulsarTarjeta(tarjetas[i]),
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -168,108 +177,116 @@ class _Cabecera extends ConsumerWidget {
     final tema = Theme.of(context);
     final excede = columna.excedeCamion;
     final capacidad = columna.vehiculoCapacidad;
-    return DragTarget<TarjetaArrastrada>(
-      // Tambien se puede soltar en la cabecera: en el movil es lo que queda a
-      // la vista cuando la columna esta llena.
-      onAcceptWithDetails: (detalles) => alSoltar(detalles.data, null),
-      builder: (contexto, encima, _) => Container(
-        padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
-        decoration: BoxDecoration(
-          color: encima.isNotEmpty
-              ? tema.colorScheme.primary.withValues(alpha: 0.12)
-              : null,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${columna.nombre} (${columna.pedidos})',
-                    style: tema.textTheme.titleSmall,
-                    overflow: TextOverflow.ellipsis,
+    // LA CABECERA ES LO QUE SE AGARRA PARA REORDENAR LAS ZONAS, asi que es lo
+    // que la Guia senala en ese paso. La del `feedback` llega con
+    // `senalable: false`, que es lo que evita las dos a la vez mientras se
+    // arrastra.
+    return ControlSenalado(
+      nombre: Senalado.tableroCabeceraDeLaZona,
+      senalable: senalable,
+      child: DragTarget<TarjetaArrastrada>(
+        // Tambien se puede soltar en la cabecera: en el movil es lo que queda a
+        // la vista cuando la columna esta llena.
+        onAcceptWithDetails: (detalles) => alSoltar(detalles.data, null),
+        builder: (contexto, encima, _) => Container(
+          padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+          decoration: BoxDecoration(
+            color: encima.isNotEmpty
+                ? tema.colorScheme.primary.withValues(alpha: 0.12)
+                : null,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${columna.nombre} (${columna.pedidos})',
+                      style: tema.textTheme.titleSmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                ControlSenalado(
-                  nombre: Senalado.tableroMenuDeLaZona,
-                  senalable: senalable,
-                  child: IconButton(
-                    icon: const Icon(Icons.more_vert),
-                    tooltip: 'Opciones de la columna',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: alAbrirMenu,
+                  ControlSenalado(
+                    nombre: Senalado.tableroMenuDeLaZona,
+                    senalable: senalable,
+                    child: IconButton(
+                      icon: const Icon(Icons.more_vert),
+                      tooltip: 'Opciones de la columna',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: alAbrirMenu,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            // `Wrap` Y NO `Row`: con la capacidad delante, «1.210 kg / 1.000 kg ·
-            // 0,00 USD» mas el aviso no cabe en una columna de 300 px y un `Row`
-            // se desborda —franja amarilla y negra— o, con `Expanded`, se come
-            // con puntos suspensivos justo el numero que hay que leer. Aqui baja
-            // a la linea de abajo y se lee entero.
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 6,
-              children: [
-                Text(
-                  // CUÁNTO LLEVA **Y CUÁNTO CABE**, como el paso 3 del
-                  // asistente de rutas («0.0 / 1000 kg»). Sin el segundo número
-                  // el peso no dice nada: no hay forma de saber que te estás
-                  // pasando hasta que el camión está en el almacén, y para
-                  // entonces la ruta ya se armó. Sin camión previsto se pinta
-                  // sólo el peso: un «/ —» promete un tope que nadie ha puesto.
-                  '${pesoBonito(columna.pesoKg)}'
-                  '${capacidad == null ? '' : ' / ${pesoBonito(capacidad)}'} · '
-                  '${dineroBonito(ref, columna.costoUsd)}',
-                  style: tema.textTheme.bodySmall,
-                ),
-                // El exceso AVISA y no impide: el tablero es un borrador y el
-                // camion previsto es una intencion. La capacidad se comprueba
-                // donde importa, al armar la ruta (§7.3).
-                if (excede == true)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.warning_amber_rounded,
-                        size: 16,
-                        color: ColoresTablero.ambar,
-                      ),
-                      const SizedBox(width: 2),
-                      Text(
-                        'no cabe',
-                        style: tema.textTheme.bodySmall?.copyWith(
+                ],
+              ),
+              // `Wrap` Y NO `Row`: con la capacidad delante, «1.210 kg / 1.000 kg ·
+              // 0,00 USD» mas el aviso no cabe en una columna de 300 px y un `Row`
+              // se desborda —franja amarilla y negra— o, con `Expanded`, se come
+              // con puntos suspensivos justo el numero que hay que leer. Aqui baja
+              // a la linea de abajo y se lee entero.
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                children: [
+                  Text(
+                    // CUÁNTO LLEVA **Y CUÁNTO CABE**, como el paso 3 del
+                    // asistente de rutas («0.0 / 1000 kg»). Sin el segundo número
+                    // el peso no dice nada: no hay forma de saber que te estás
+                    // pasando hasta que el camión está en el almacén, y para
+                    // entonces la ruta ya se armó. Sin camión previsto se pinta
+                    // sólo el peso: un «/ —» promete un tope que nadie ha puesto.
+                    '${pesoBonito(columna.pesoKg)}'
+                    '${capacidad == null ? '' : ' / ${pesoBonito(capacidad)}'} · '
+                    '${dineroBonito(ref, columna.costoUsd)}',
+                    style: tema.textTheme.bodySmall,
+                  ),
+                  // El exceso AVISA y no impide: el tablero es un borrador y el
+                  // camion previsto es una intencion. La capacidad se comprueba
+                  // donde importa, al armar la ruta (§7.3).
+                  if (excede == true)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          size: 16,
                           color: ColoresTablero.ambar,
                         ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    // Sin camion previsto NO se dice «cabe»: se dice que no se
-                    // sabe, que es lo que pasa.
-                    'Camión: ${columna.vehiculoNombre ?? '—'}',
-                    style: tema.textTheme.bodySmall?.copyWith(
-                      color: tema.colorScheme.onSurfaceVariant,
+                        const SizedBox(width: 2),
+                        Text(
+                          'no cabe',
+                          style: tema.textTheme.bodySmall?.copyWith(
+                            color: ColoresTablero.ambar,
+                          ),
+                        ),
+                      ],
                     ),
-                    overflow: TextOverflow.ellipsis,
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      // Sin camion previsto NO se dice «cabe»: se dice que no se
+                      // sabe, que es lo que pasa.
+                      'Camión: ${columna.vehiculoNombre ?? '—'}',
+                      style: tema.textTheme.bodySmall?.copyWith(
+                        color: tema.colorScheme.onSurfaceVariant,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                // Una columna creada sin senal se puede usar igual; lo unico
-                // que se dice es que todavia no ha subido.
-                if (columna.rechazada)
-                  insigniaAviso('rechazada')
-                else if (columna.sinSubir)
-                  insigniaAviso('sin subir'),
-              ],
-            ),
-          ],
+                  // Una columna creada sin senal se puede usar igual; lo unico
+                  // que se dice es que todavia no ha subido.
+                  if (columna.rechazada)
+                    insigniaAviso('rechazada')
+                  else if (columna.sinSubir)
+                    insigniaAviso('sin subir'),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

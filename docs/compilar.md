@@ -12,10 +12,10 @@ construye **Dokploy** él solo: clona el repositorio y corre los Dockerfile de `
 subir una imagen sería hacer dos veces lo mismo y tener dos cosas que se pueden
 desincronizar.
 
-Lo único que hace GitHub Actions en este repositorio es **comprobar** que `api/` y `sync/`
-compilan, pasan `vet`, pasan las pruebas y tienen el código de sqlc al día
-(`.github/workflows/go.yml`). Nada de eso construye ni despliega: es para que el Deploy de
-Dokploy no se caiga después.
+GitHub Actions comprueba que `api/` y `sync/` compilan, pasan `vet`, pasan las pruebas
+y tienen el código de sqlc al día (`.github/workflows/go.yml`). Ese workflow no despliega.
+El workflow `.github/workflows/reparto-windows.yml` sí construye el instalador y el ZIP
+de Windows; su publicación verificada se hace aparte, como explica el apartado 4.
 
 ## Quién compila qué
 
@@ -172,8 +172,9 @@ tiene que estar encendido para esa compilación.
 El proceso está en `.github/workflows/reparto-windows.yml` y
 `deploy/windows/compilar.ps1`. Arranca al subir una rama `build/reparto-windows-*`;
 cuando el workflow esté en la rama principal, también se puede ejecutar manualmente.
-Antes de empaquetar corre `flutter analyze`, las pruebas de la Guía y la compilación
-nativa. Inno Setup genera `reparto-<version>-windows-setup.exe`, instala una copia de
+Antes de empaquetar corre `flutter analyze`, las pruebas de la Guía y del Tablero,
+y las de base local, cola y sincronización; después hace la compilación nativa.
+Inno Setup genera `reparto-<version>-windows-setup.exe`, instala una copia de
 prueba sin abrir la aplicación y compara todos sus archivos con la compilación.
 
 El artefacto del trabajo contiene:
@@ -187,11 +188,22 @@ El artefacto del trabajo contiene:
 Antes de ofrecerlo en procovar.cloud hay que descargar ese artefacto, contrastar
 sus huellas, publicar el instalador sin sobrescribir versiones y comprobar su descarga.
 
-La versión **1.0.25+26** está en procovar.cloud como **Reparto para Windows**:
-el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.25-windows-setup.exe).
-La ejecución [37520112144 de GitHub Actions](https://github.com/jose22072000/delivery-logistica/actions/runs/37520112144)
-compiló e instaló la copia de prueba. Las descargas públicas se verificaron por tamaño
-y SHA256 antes de añadir la tarjeta; la prueba en el PC del usuario queda pendiente.
+La versión **1.0.26+27** está en procovar.cloud como **Reparto para Windows**:
+el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.26-windows-setup.exe).
+La ejecución [37531990281 de GitHub Actions](https://github.com/jose22072000/delivery-logistica/actions/runs/37531990281)
+pasó 538 pruebas, compiló e instaló la copia de prueba. Las descargas públicas se
+verificaron por tamaño y SHA256 antes de actualizar la tarjeta; la prueba en el PC
+del usuario queda pendiente.
+
+Esta versión incluye la barra horizontal y las flechas del Tablero para usar ratón,
+con los mismos controles de la web y la base local propia del escritorio para trabajar
+sin conexión. La web sigue trabajando conectada al servidor.
+
+Para pasar de Windows 1.0.25 a 1.0.26, descargar e instalar el nuevo instalador del portal.
+El anuncio global `APP_ULTIMA_VERSION/COMPILACION` sigue en Android **1.0.25+26**: no se
+ha publicado una APK 1.0.26. Las variables `APP_DESCARGA_WINDOWS*` sí señalan el nuevo
+instalador; separar el aviso de versión por plataforma queda pendiente. No se afirma
+que Windows 1.0.25 ofrezca automáticamente esta actualización.
 
 Para hacerlo en el portátil en vez del ejecutor remoto:
 

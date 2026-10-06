@@ -162,9 +162,32 @@ así que los números dejan de ser los de `pubspec.yaml` y el anuncio de versió
 
 ---
 
-## 4. El escritorio de Windows (desde el portátil Windows de Jose)
+## 4. El escritorio de Windows (compilador remoto o portátil Windows)
 
-Esto **no se puede sacar desde Linux**. Hace falta la máquina Windows, una vez por versión.
+La compilación necesita las herramientas de Windows. Se puede lanzar desde Linux:
+el trabajo lo hace un ejecutor **Windows Server 2022 de GitHub Actions**, con Flutter
+**3.47.4**, y devuelve el instalador y el paquete completo. El portátil Windows no
+tiene que estar encendido para esa compilación.
+
+El proceso está en `.github/workflows/reparto-windows.yml` y
+`deploy/windows/compilar.ps1`. Arranca al subir una rama `build/reparto-windows-*`;
+cuando el workflow esté en la rama principal, también se puede ejecutar manualmente.
+Antes de empaquetar corre `flutter analyze`, las pruebas de la Guía y la compilación
+nativa. Inno Setup genera `reparto-<version>-windows-setup.exe`, instala una copia de
+prueba sin abrir la aplicación y compara todos sus archivos con la compilación.
+
+El artefacto del trabajo contiene:
+
+- el **instalador `.exe`**, que instala Reparto para el usuario y crea su acceso directo;
+- el **ZIP completo**, con el ejecutable, las DLL y `data/`;
+- `windows-verification.json`, con el commit, versión, tamaños y SHA256, y el alcance
+  de la comprobación. La instalación de prueba no acredita iniciar sesión, trabajar
+  sin conexión ni instalarlo en el ordenador de una persona.
+
+Antes de ofrecerlo en procovar.cloud hay que descargar ese artefacto, contrastar
+sus huellas, publicar el instalador sin sobrescribir versiones y comprobar su descarga.
+
+Para hacerlo en el portátil en vez del ejecutor remoto:
 
 Lo que tiene que haber instalado:
 
@@ -173,6 +196,8 @@ Lo que tiene que haber instalado:
   (*Desktop development with C++*). No vale Visual Studio **Code**: son cosas distintas y es
   la confusión de siempre. Lo que hace falta es el compilador MSVC.
 - `flutter doctor` tiene que dar ✓ en **Visual Studio** y en **Windows (desktop)**.
+- **Inno Setup 6** para generar el instalador. Desde la raíz del repositorio,
+  `./deploy/windows/compilar.ps1` ejecuta el mismo proceso que GitHub Actions.
 
 ```powershell
 cd <ruta>\delivery-logistica\app

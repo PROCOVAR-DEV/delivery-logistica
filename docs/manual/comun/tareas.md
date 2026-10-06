@@ -78,7 +78,7 @@ una zona entera con su camión.
 | 4. Armar la ruta de una zona | **Tablero** | [APK](../apk/2-el-dia-en-el-telefono.md#4-armar-la-ruta) |
 | 5. Sacar el pre-despacho | **Pedidos** o el asistente de **Rutas** | [APK](../apk/2-el-dia-en-el-telefono.md#5-sacar-el-pre-despacho) |
 | 6. Iniciar la ruta y mandarla al chófer | **Rutas** | [APK](../apk/2-el-dia-en-el-telefono.md#6-iniciar-la-ruta-y-mandársela-al-chófer) |
-| 7. Marcar las entregas | **Rutas** → «Cierre» | [APK](../apk/2-el-dia-en-el-telefono.md#7-marcar-las-entregas) |
+| 7. Marcar las entregas al completar | **Rutas** → «Marcar como completada» | [APK](../apk/2-el-dia-en-el-telefono.md#7-marcar-las-entregas) |
 | 8. Cerrar la ruta y sacar el post-despacho | **Rutas** | [APK](../apk/2-el-dia-en-el-telefono.md#8-cerrar-la-ruta) |
 | 9. Entregar el día | la franja de arriba | [APK](../apk/2-el-dia-en-el-telefono.md#9-entregar-el-día) · [escritorio](../escritorio/3-tareas.md#entregar-el-día-a-mano) · en la web no existe |
 | 10. Las tres comprobaciones de antes de irte | la franja de arriba | [APK](../apk/2-el-dia-en-el-telefono.md#10-antes-de-irte) |

@@ -309,12 +309,14 @@ portapapeles.» **Usa «Copiar».**
 
 **Empieza en:** **Menú → «Rutas»**.
 
+**Los estados se marcan sólo al completar la ruta. Antes no hay un cierre editable.**
+
 **Esto funciona entero sin conexión.**
 
 1. En la pestaña **«En curso»**, **clic en la ruta**.
    <!-- señala: rutas-tarjeta-de-ruta -->
-2. **Clic en «Cierre (3)»**. El número son las paradas sin marcar.
-   <!-- señala: rutas-cierre -->
+2. **Clic en «Marcar como completada»**. Aquí se abre la hoja para marcar los estados.
+   <!-- señala: rutas-completar -->
 3. Por cada parada, **clic en «Entregado»**, **«Devuelto»** o **«Cancelado»**.
    <!-- señala: rutas-resultado-de-la-parada -->
    - Si marcas devuelto o cancelado, **escribe el motivo** en el campo que aparece.
@@ -322,9 +324,9 @@ portapapeles.» **Usa «Copiar».**
    - Si la ruta entera fue igual, arriba hay atajos: **«Todas:»** y los tres botones.
    - Baja hasta **«Queda en el camión»**, que se recalcula con cada marca: **«Nada: se
      entregó todo lo que salió.»** o la lista, **«MALTA GUAJIRA ×36»**.
-4. **Clic en «Guardar 5 marcada(s)»**. <!-- señala: rutas-guardar-el-cierre -->
+4. **Clic en «Guardar y completar»**. <!-- señala: rutas-guardar-el-cierre -->
 
-> «Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o volvió.»
+Al confirmar, la ruta pasa al Historial y el camión queda libre.
 
 **Si dejas paradas sin marcar:** «3 sin marcar · cuentan como que siguen en el
 camión».
@@ -340,13 +342,12 @@ te bloquea, pero te lo dice.
 **Empieza en:** **Menú → «Rutas»**.
 
 1. **Clic en «Marcar como completada»**. <!-- señala: rutas-completar -->
-   - **Si quedan paradas sin marcar**, te abre el cierre primero y avisa:
+   - **Siempre abre primero la hoja de estados**, aunque hubiera marcas anteriores:
 
    > «Lo que dejes sin marcar se da por no entregado y cuenta como que sigue en el
    > camión.»
 
-2. Márcalas y **clic en «Guardar y completar»**. Si ya estaban todas, se completa
-   directo. <!-- señala: rutas-guardar-el-cierre -->
+2. Márcalas y **clic en «Guardar y completar»**. Revisa las marcas antes de confirmar. <!-- señala: rutas-guardar-el-cierre -->
    - **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
      entregados **vuelven a estar disponibles**.
 

@@ -273,7 +273,7 @@ const claveDeVolverDeLaQueNoEsta = ValueKey('ruta-que-ya-no-esta-volver');
 
 /// Las claves de los dos botones que cambian con el estado de la ruta. Buscarlos
 /// por su texto ataria la prueba a como se llaman hoy, y justo el texto es una
-/// de las cosas que cambia (`Cierre (3)` en curso, `Ver cierre` completada).
+/// de las cosas que cambia: sólo `Ver cierre` en una ruta completada.
 const claveDelCierre = ValueKey('ruta-cierre');
 const claveDeCompletar = ValueKey('ruta-marcar-como-completada');
 
@@ -373,26 +373,8 @@ class _Acciones extends ConsumerWidget {
               }),
             ),
           ),
-        // EL CIERRE, en curso: se va marcando parada a parada segun se reparte,
-        // y la ruta sigue en curso. La cuenta entre parentesis es lo que queda
-        // por marcar, o sea una tarea pendiente.
-        if (estado == EstadoRuta.enCurso)
-          ControlSenalado(
-            nombre: Senalado.rutasCierre,
-            child: OutlinedButton(
-              key: claveDelCierre,
-              onPressed: () => abrirCajon<void>(
-                context,
-                (_) => CierreDeRuta(
-                  rutaId: ruta.ruta.id,
-                  modo: ModoDelCierre.marcar,
-                ),
-              ),
-              child: Text(
-                ruta.sinMarcar > 0 ? 'Cierre (${ruta.sinMarcar})' : 'Cierre',
-              ),
-            ),
-          ),
+        // Jose, 06/10/2026: los estados se preguntan sólo al pulsar
+        // «Marcar como completada», nunca con un cierre previo en curso.
         // EL CIERRE, ya completada: **`Ver cierre`, y sin la cuenta**. En una
         // ruta cerrada «sin marcar» ya no es algo que hacer: es como acabo. Un
         // `Cierre (3)` ahi parece una tarea pendiente que nadie va a poder
@@ -432,27 +414,18 @@ class _Acciones extends ConsumerWidget {
                       .elegir(PestanaRutas.historial);
                 }
 
-                // CON PARADAS SIN MARCAR, SE PREGUNTA ANTES. El porque esta
-                // escrito en `acciones_rutas.dart` y en `CLAUDE.md` §2: el cierre
-                // viene con el estado de cuando se le va a dar a completado. El
-                // cajon guarda lo marcado **y** completa en el mismo gesto.
-                if (ruta.sinMarcar > 0) {
-                  abrirCajon<void>(
-                    context,
-                    (_) => CierreDeRuta(
-                      rutaId: ruta.ruta.id,
-                      modo: ModoDelCierre.alCompletar,
-                      alCompletar: luego,
-                    ),
-                  );
-                  return;
-                }
-                // Sin nada que preguntar, se completa y ya: abrir un cajon para no
-                // preguntar nada es friccion.
-                hacer(() async {
-                  await acciones.completar(ruta.ruta.id);
-                  luego();
-                });
+                // Siempre se revisa la hoja, incluso con marcas anteriores.
+                // Las selecciones iniciales se conservan para confirmar o corregir.
+                // Sin paradas el modal también permite confirmar la ruta vacía.
+                abrirCajon<void>(
+                  context,
+                  (_) => CierreDeRuta(
+                    rutaId: ruta.ruta.id,
+                    modo: ModoDelCierre.alCompletar,
+                    alCompletar: luego,
+                  ),
+                );
+                RegistroDeControles.completar(Senalado.rutasCompletar);
               },
             ),
           ),

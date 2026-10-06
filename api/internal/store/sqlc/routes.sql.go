@@ -193,6 +193,27 @@ func (q *Queries) AvisosAPedidoPendientes(ctx context.Context, tope int32) ([]Av
 	return items, nil
 }
 
+const bloquearRuta = `-- name: BloquearRuta :one
+SELECT status FROM routes
+WHERE id = $1
+  AND ($2::uuid IS NULL OR branch_id = $2::uuid)
+FOR UPDATE
+`
+
+type BloquearRutaParams struct {
+	ID       uuid.UUID   `json:"id"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
+
+// Serializa completar, editar, borrar y marcar sobre la MISMA fila.
+// Debe llamarse dentro de EnTx y conservar el bloqueo hasta terminar la escritura.
+func (q *Queries) BloquearRuta(ctx context.Context, arg BloquearRutaParams) (RouteStatus, error) {
+	row := q.db.QueryRow(ctx, bloquearRuta, arg.ID, arg.Sucursal)
+	var status RouteStatus
+	err := row.Scan(&status)
+	return status, err
+}
+
 const borrarRuta = `-- name: BorrarRuta :execrows
 DELETE FROM routes
 WHERE id = $1

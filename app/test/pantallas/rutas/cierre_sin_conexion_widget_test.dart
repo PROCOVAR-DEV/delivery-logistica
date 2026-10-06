@@ -114,7 +114,7 @@ void main() {
           relojProvider.overrideWithValue(() => laHoraDelPatio),
         ],
         child: const MaterialApp(
-          home: Scaffold(body: CierreDeRuta(rutaId: 'R1')),
+          home: Scaffold(body: CierreDeRuta(rutaId: 'R1', modo: ModoDelCierre.marcar)),
         ),
       ),
     );

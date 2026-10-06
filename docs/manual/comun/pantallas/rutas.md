@@ -79,18 +79,21 @@ dice qué se pierde:
 > que se calcularon al armarla. Para tenerla otra vez hay que volver a armarla desde
 > el asistente, a mano.
 >
-> Lo que NO se borra son los pedidos: sueltan esta ruta y vuelven a la lista de
-> disponibles, listos para ponerlos en otra. Y el camión se queda libre.»
+> Lo que NO se borra son los pedidos ni sus resultados: sueltan esta ruta. Los
+> pendientes vuelven a la lista de disponibles; los entregados siguen entregados y
+> no se reparten otra vez. Y el camión se queda libre.»
 
 Con **«Sí, borrar «RT-20260928-004»»** y **«No, dejarla»**. **Cerrar el cajón sin
 contestar —la ✕, tocar fuera, Escape— es No.**
 
-**Y si la ruta no se puede borrar, lo dice antes de preguntar.** Con paradas ya
-marcadas en el cierre no abre ningún cajón: sale el motivo, con las palabras del
-servidor y el número dentro, también sin señal.
+**Planificadas y en curso se pueden editar y eliminar**, incluso con cero
+paradas cargadas o con resultados provisionales. Una marca no completa la ruta.
+**Al completarla queda protegida como histórico:** no se modifica ni elimina.
+El cierre de una completada sólo se consulta.
 
-> «Esa ruta ya tiene 3 parada(s) cerradas y no se puede borrar: se perdería la hoja
-> de lo que bajó del camión. Márcala como cancelada si hace falta.»
+Borrar una ruta viva conserva los pedidos y sus resultados. Los pendientes y
+devueltos quedan disponibles; los entregados siguen entregados y no se reparten
+otra vez.
 
 ---
 
@@ -143,14 +146,13 @@ almacén de salida, **«sin punto de partida»**.
 |---|---|
 | **«Ver paradas (3)»** | Siempre |
 | **«Iniciar ruta»** | Sólo planificada |
-| **«Cierre (3)»** | Sólo en curso. El número son las paradas sin marcar |
 | **«Marcar como completada»** | Sólo en curso |
 | **«Ver cierre»** | Sólo completada. **Solo lectura**, y por eso no lleva número |
 
 - **«Iniciar ruta»** cambia el estado, **marca el camión ocupado** y te lleva
   sola a la pestaña «En curso» con la ruta abierta.
-- **«Marcar como completada»**: si quedan paradas sin marcar, abre primero el
-  cierre. Al terminar, suelta la ruta y salta al «Historial».
+- **«Marcar como completada»**: siempre abre primero la hoja de estados.
+  Es el único momento en que se pueden marcar las paradas. Al terminar, suelta la ruta y salta al «Historial».
 
 ### «Ver paradas»
 
@@ -345,12 +347,11 @@ comprueban en este orden:
 Título **«Cierre de ruta»**, con el código y cuántas paradas: «RT-20260928-001 · 3
 parada(s)».
 
-**Hay tres modos**, y cambian lo que se puede tocar:
+**Hay dos modos**, y cambian lo que se puede tocar:
 
 | Modo | Cuándo | Qué dice arriba |
 |---|---|---|
-| **Marcar** | Ruta en curso, botón «Cierre (3)» | «Marca cada parada según cómo acabó. De aquí sale el post-despacho: lo que tiene que quedar en el camión es todo lo que no se entregó…» |
-| **Al completar** | Al pulsar «Marcar como completada» quedando paradas sin marcar | «Antes de dar la ruta por completada: ¿cómo acabó cada parada? **Lo que dejes sin marcar se da por no entregado y cuenta como que sigue en el camión.**» |
+| **Al completar** | Sólo al pulsar «Marcar como completada», siempre antes de confirmar | «Antes de dar la ruta por completada: ¿cómo acabó cada parada? **Lo que dejes sin marcar se da por no entregado y cuenta como que sigue en el camión.**» |
 | **Solo lectura** | Ruta completada, botón «Ver cierre» | «La ruta ya está completada: así acabó cada parada. **Para corregir algo, hay que hacerlo en PEDIDO.**» |
 
 ### Qué se pregunta en cada parada
@@ -390,12 +391,12 @@ Se recalcula con cada marca, en vivo:
   todavía no lo hayas guardado.
 - **«Cerrar»**, o **«Salir sin guardar (3 sin guardar)»** si dejaste algo. **Se
   dice, no se bloquea.**
-- El de guardar, con cuatro textos según el caso: «Guardando…», «Guardar y
-  completar», «Guardar 4 y quitar 1», «Guardar 5 marcada(s)».
+- **«Guardar y completar»** guarda los resultados y después completa la ruta.
+  Mientras trabaja dice **«Guardando…»**. Si hay un rechazo, no la completa.
 
 Al guardar bien:
 
-> «Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o volvió.»
+Al guardar, los resultados de las paradas quedan registrados. Después la ruta pasa al Historial.
 
 ### En una ruta ya completada
 
@@ -421,7 +422,20 @@ para ir marcando a mano—, con su fila de **«Total»**, los dos pesos («Peso 
 productos» y «Peso de los pedidos») con su explicación, y las dos firmas: **«Sacó
 del almacén»** y **«Recibió (chofer)»**.
 
-### Post-despacho — al volver
+#### Si un cierre de Android o Windows queda rechazado
+
+Sin señal, la aplicación puede mostrar la ruta completada mientras sus apuntes
+siguen pendientes de subir. Eso todavía no confirma el cierre en el servidor.
+Al volver la conexión, los estados se entregan antes que el cierre: si el servidor
+rechaza la hoja, se retiene el cierre de esa ruta y se conserva el motivo en la
+bandeja. Las demás rutas pueden seguir subiendo.
+
+Revisa el rechazo con conexión y corrige la hoja desde la web si hace falta. En la
+bandeja, **Reintentar** vuelve a enviar el mismo apunte; **Descartar** es una decisión
+expresa y conserva la fila como descartada. No des por cerrado el servidor mientras
+esa revisión siga pendiente.
+
+## Post-despacho — al volver
 
 Se saca del **cierre**, con «Post-despacho». Título **«Post-despacho»**, y debajo
 el resumen: «8 entregadas · 2 devueltas · 1 canceladas · 1 sin marcar». El fichero

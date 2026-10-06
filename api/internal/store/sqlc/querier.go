@@ -149,6 +149,9 @@ type Querier interface {
 	// cabe en esta tanda se pide en la siguiente con la marca de la última fila servida. La
 	// clave desempata para que dos tandas iguales salgan iguales.
 	BajasDeLaBajada(ctx context.Context, arg BajasDeLaBajadaParams) ([]BajasDeLaBajadaRow, error)
+	// Serializa completar, editar, borrar y marcar sobre la MISMA fila.
+	// Debe llamarse dentro de EnTx y conservar el bloqueo hasta terminar la escritura.
+	BloquearRuta(ctx context.Context, arg BloquearRutaParams) (RouteStatus, error)
 	BorrarAsignacionesDeVehiculo(ctx context.Context, vehiculoID uuid.UUID) (int64, error)
 	// Los que ya no vienen de PEDIDO: borrados allá, o dejaron de tener coordenadas.
 	//

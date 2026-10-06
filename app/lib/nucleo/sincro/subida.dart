@@ -1,3 +1,5 @@
+import 'package:drift/drift.dart';
+
 import '../base/base.dart';
 import '../cola/apunte.dart';
 import '../cola/cola_salida.dart';
@@ -204,6 +206,17 @@ class Subida {
         continue;
       }
 
+      // Una hoja rechazada o sin acuse no permite congelar esa ruta como
+      // histórico. Se consulta la cola persistente: también vale en la próxima
+      // vuelta o después de reiniciar. Los apuntes independientes sí siguen.
+      if (await _cierreSinAceptar(apunte)) {
+        Registro.aviso(
+          'no se completa ${apunte.ruta}: sus resultados siguen pendientes '
+          'o rechazados en la bandeja',
+        );
+        continue;
+      }
+
       final Map<String, Object?> respuesta;
       try {
         respuesta = await _mandarUno(aparato, apunte);
@@ -228,6 +241,28 @@ class Subida {
       }
     }
     return aceptados;
+  }
+
+  Future<bool> _cierreSinAceptar(Apunte apunte) async {
+    final cuerpo = ColaDeSalida.cuerpoDe(apunte);
+    if (apunte.metodo != 'PATCH' ||
+        !RegExp(r'^/routes/[^/]+$').hasMatch(apunte.ruta) ||
+        cuerpo is! Map ||
+        cuerpo['status'] != 'completed') {
+      return false;
+    }
+    final bloqueantes =
+        await (_base.select(_base.apuntes)
+              ..where(
+                (a) =>
+                    a.orden.isSmallerThanValue(apunte.orden) &
+                    a.ruta.equals('${apunte.ruta}/results') &
+                    (a.estado.equalsValue(EstadoApunte.pendiente) |
+                        a.estado.equalsValue(EstadoApunte.rechazado)),
+              )
+              ..limit(1))
+            .get();
+    return bloqueantes.isNotEmpty;
   }
 
   /// Aplica la respuesta de UN apunte. Devuelve `true` si el servidor lo acepto.
@@ -260,7 +295,7 @@ class Subida {
       }
       final resultado = ResultadoApunte.deJson(crudo);
       await _cola.resolver(clave, resultado);
-      return resultado.estado != EstadoResultado.rechazado;
+      return resultado.seAplico;
     }
 
     // Subio y no se sabe como quedo. Se queda pendiente y se reintenta: la
@@ -341,28 +376,27 @@ class Subida {
     bool reintentar = true,
   }) async {
     try {
-      return await _cliente.mandar<Map<String, Object?>>(
-        'POST',
-        '/subida',
-        <String, Object?>{
-          'aparato': aparato,
-          // Cuantos quedan DESPUES de este envio. Lo dice el aparato porque la
-          // cola vive en el telefono: lo que no ha subido no existe en el
-          // servidor, y sin este numero el panel ensenaria a Palma en verde
-          // justo el dia que se le corto la subida a la mitad (`subida.go`).
-          //
-          // **UNO, no `lote.length`.** Con el lote unico se restaba el lote
-          // entero porque el lote entero se iba en esa peticion. Ahora se va uno:
-          // los que ya subieron han dejado de ser `pendiente` en la base, asi que
-          // `cuantosPendientes()` ya los ha descontado y lo unico que falta por
-          // descontar es ESTE. Restar el lote aqui dejaria al panel con
-          // `pendientes` en cero desde la primera peticion de una cola de doce —y
-          // ese cero es la pinta exacta de «Palma esta al dia» mientras no lo
-          // esta.
-          'pendientes': await _cola.cuantosQuedanTras(1),
-          'apuntes': [apunte.aJson(ColaDeSalida.cuerpoDe(apunte))],
-        },
-      );
+      return await _cliente.mandar<Map<String, Object?>>('POST', '/subida', <
+        String,
+        Object?
+      >{
+        'aparato': aparato,
+        // Cuantos quedan DESPUES de este envio. Lo dice el aparato porque la
+        // cola vive en el telefono: lo que no ha subido no existe en el
+        // servidor, y sin este numero el panel ensenaria a Palma en verde
+        // justo el dia que se le corto la subida a la mitad (`subida.go`).
+        //
+        // **UNO, no `lote.length`.** Con el lote unico se restaba el lote
+        // entero porque el lote entero se iba en esa peticion. Ahora se va uno:
+        // los que ya subieron han dejado de ser `pendiente` en la base, asi que
+        // `cuantosPendientes()` ya los ha descontado y lo unico que falta por
+        // descontar es ESTE. Restar el lote aqui dejaria al panel con
+        // `pendientes` en cero desde la primera peticion de una cola de doce —y
+        // ese cero es la pinta exacta de «Palma esta al dia» mientras no lo
+        // esta.
+        'pendientes': await _cola.cuantosQuedanTras(1),
+        'apuntes': [apunte.aJson(ColaDeSalida.cuerpoDe(apunte))],
+      });
     } on Rechazo catch (e) {
       // UN 404 NO BASTA: HACE FALTA QUE SEA **ESTE** 404.
       //

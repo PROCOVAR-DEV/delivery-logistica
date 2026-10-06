@@ -16,6 +16,7 @@
 
 import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:flutter/material.dart';
+import 'package:reparto/pantallas/ayuda/vista/control_senalado.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
@@ -84,6 +85,10 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    });
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -142,7 +147,9 @@ void main() {
       await tester.tap(botonDeParada('Devuelto', 2));
       await asentar(tester);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Guardar y completar'));
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Guardar y completar'),
+      );
       await asentar(tester);
 
       // Las tres marcas guardadas...
@@ -176,7 +183,9 @@ void main() {
       );
       expect(boton.onPressed, isNotNull);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Guardar y completar'));
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Guardar y completar'),
+      );
       await asentar(tester);
 
       expect(await estadoDeLaRuta(), EstadoRuta.completada);
@@ -200,8 +209,14 @@ void main() {
 
     await tester.tap(botonDeParada('Entregado', 0));
     await asentar(tester);
+    final antesDeGuardar = RegistroDeControles.acciones.value;
     await tester.tap(find.widgetWithText(FilledButton, 'Guardar y completar'));
     await asentar(tester);
+    expect(
+      RegistroDeControles.acciones.value,
+      antesDeGuardar,
+      reason: 'guardar rechazado no da la acción por completada',
+    );
 
     // **El orden importa**: completar va DESPUES de guardar y solo si guardar
     // salio bien. Al reves quedaria una ruta dada por cerrada con las paradas
@@ -253,7 +268,10 @@ void main() {
     // explicacion que queda.
     expect(find.text('el cliente había cerrado'), findsOneWidget);
     // El post-despacho se sigue pudiendo sacar: eso es leer, no marcar.
-    expect(find.widgetWithText(OutlinedButton, 'Post-despacho'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Post-despacho'),
+      findsOneWidget,
+    );
 
     await desmontar(tester);
   });

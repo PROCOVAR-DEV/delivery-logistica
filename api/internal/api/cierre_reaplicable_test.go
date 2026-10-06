@@ -166,55 +166,30 @@ func TestElCierreRepetidoVuelveAAvisarAPedido(t *testing.T) {
 	}
 }
 
-// UN RESULTADO QUE LLEGA TARDE, CON LA RUTA YA CERRADA EN EL SERVIDOR, SE APLICA.
-//
-// El caso: el camión vuelve, el logístico marca la ruta como `completed` desde la oficina
-// —o la cierra «liberando el camión», que hace lo mismo— y DESPUÉS el teléfono del
-// repartidor pilla señal y sube la hoja que traía del patio.
-//
-// Esa hoja es la única constancia de lo que pasó en la calle. Rechazarla por el estado de
-// la ruta sería tirar información real que nadie va a volver a teclear, y además llegaría
-// al aparato como `rechazado`, que no se reintenta. Por eso `cerrarRuta` no mira
-// `ruta.status` en ningún sitio, y esta prueba está para que siga sin mirarlo: la tentación
-// de «una ruta cerrada ya no acepta resultados» es grande y parece prudente.
-func TestUnResultadoQueLlegaTardeConLaRutaYaCompletadaSeAplica(t *testing.T) {
+// Jose, 06/10/2026: completar fija el histórico, incluso ante una hoja tardía.
+// La subida nativa debe enviar resultados ANTES de completar; un rechazo conserva
+// su motivo en la bandeja y nunca se descarta en silencio.
+func TestUnResultadoNuevoConLaRutaYaCompletadaNoReescribeElHistorico(t *testing.T) {
 	d, stg, _ := datosDeReparto()
 	h := montarRutas(t, d)
 	jwt := deSantiagoEnRutas(t)
 	id := armarRutaDePrueba(t, h, jwt, stg[1], stg[2])
-
-	// La ruta ya salió y ya se dio por terminada en el servidor.
 	for _, estado := range []string{"in_progress", "completed"} {
-		w := llamarRutas(t, h, http.MethodPatch, "/api/routes/"+id.String(), jwt,
-			fmt.Sprintf(`{"status":%q}`, estado))
-		if w.Code != http.StatusOK {
-			t.Fatalf("no se pudo poner la ruta en %s: %s", estado, w.Body.String())
+		w := llamarRutas(t, h, http.MethodPatch, "/api/routes/"+id.String(), jwt, fmt.Sprintf(`{"status":%q}`, estado))
+		if w.Code != 200 {
+			t.Fatalf("preparar ruta %s: %s", estado, w.Body.String())
 		}
 	}
-
 	cuerpo := fmt.Sprintf(`{"resultados":[{"orderId":%q,"resultado":"entregado"}]}`, stg[1])
 	w := llamarRutas(t, h, http.MethodPost, "/api/routes/"+id.String()+"/results", jwt, cuerpo)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("código %d: la hoja que sube el repartidor al recuperar la señal es la "+
-			"ÚNICA constancia de lo que pasó en la calle, y un rechazo aquí llega al "+
-			"aparato como `rechazado`, que no se reintenta — %s", w.Code, w.Body.String())
+	if w.Code != 409 || errorDeRutas(t, w) != msgRutaCompletada {
+		t.Fatalf("completada exige409 sin cambios: %d %s", w.Code, w.Body.String())
 	}
-	var salida salidaDeCierre
-	if err := json.Unmarshal(w.Body.Bytes(), &salida); err != nil {
-		t.Fatalf("respuesta ilegible: %v", err)
+	if d.pedidos[stg[1]].resultado != nil {
+		t.Fatal("se reescribió una parada del histórico")
 	}
-	if len(salida.Aplicados) != 1 || len(salida.Rechazados) != 0 {
-		t.Fatalf("aplicados %d, rechazados %d: %s",
-			len(salida.Aplicados), len(salida.Rechazados), w.Body.String())
-	}
-	if p := d.pedidos[stg[1]]; p.resultado == nil || *p.resultado != sqlc.StopResultEntregado {
-		t.Fatal("el resultado que llegó tarde no se guardó")
-	}
-	// Y el estado de la ruta no se mueve por recibir una hoja tardía.
 	if d.rutas[id].estado != sqlc.RouteStatusCompleted {
-		t.Fatalf("la ruta pasó de completed a %q al recibir el resultado tardío",
-			d.rutas[id].estado)
+		t.Fatal("se reabrió el histórico")
 	}
 }
 

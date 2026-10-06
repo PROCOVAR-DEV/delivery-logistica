@@ -24,7 +24,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del tutorial fallaron en Windows' }
     flutter test test/pantallas/tablero --concurrency=3
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del tablero con ratón fallaron en Windows' }
-    flutter test test/nucleo/base test/nucleo/cola test/pantallas/sincronizacion --concurrency=3
+    flutter test test/pantallas/rutas --concurrency=3
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas de rutas e histórico fallaron en Windows' }
+    flutter test test/nucleo/base test/nucleo/cola test/nucleo/sincro test/pantallas/sincronizacion --concurrency=3
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del trabajo sin conexión fallaron en Windows' }
     flutter build windows --release
     if ($LASTEXITCODE -ne 0) { throw 'Compilación Windows falló' }

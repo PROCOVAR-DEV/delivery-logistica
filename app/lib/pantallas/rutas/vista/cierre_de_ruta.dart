@@ -28,12 +28,13 @@ import '../estado/proveedores_rutas.dart';
 
 /// EN QUE MOMENTO SE ABRE EL CIERRE. Son tres, y no es lo mismo.
 enum ModoDelCierre {
-  /// La ruta esta EN CURSO y se va marcando parada a parada segun se reparte.
-  /// Es el modo de siempre: se guarda lo marcado y la ruta sigue en curso.
+  /// Operación interna de guardado que se conserva para probar el protocolo
+  /// de resultados. Ninguna entrada de navegación ofrece este modo: los
+  /// estados se piden sólo al pulsar «Marcar como completada».
   marcar,
 
-  /// Se acaba de pulsar `Marcar como completada` y **quedan paradas sin
-  /// marcar**. Aqui se pregunta como acabaron y, al guardar, la ruta se da por
+  /// Se acaba de pulsar `Marcar como completada`. Aquí se revisan siempre
+  /// todas las paradas, conservando marcas anteriores. Al guardar, se da por
   /// completada en el mismo gesto.
   alCompletar,
 
@@ -44,7 +45,7 @@ enum ModoDelCierre {
 class CierreDeRuta extends ConsumerStatefulWidget {
   const CierreDeRuta({
     required this.rutaId,
-    this.modo = ModoDelCierre.marcar,
+    required this.modo,
     this.alCompletar,
     super.key,
   });
@@ -178,7 +179,10 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
   /// que mas importan: dice que esa parada no bajo del camion.
   bool get _hayQueGuardar => _marcadas > 0 || _desmarcadas > 0;
 
-  bool get _soloLectura => widget.modo == ModoDelCierre.soloLectura;
+  bool get _soloLectura =>
+      widget.modo == ModoDelCierre.soloLectura ||
+      ref.read(rutaConTodoProvider(widget.rutaId)).value?.ruta.status ==
+          EstadoRuta.completada;
   bool get _completando => widget.modo == ModoDelCierre.alCompletar;
 
   void _marcar(String pedidoId, String resultado) => setState(() {
@@ -236,8 +240,8 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
     final mensajero = ScaffoldMessenger.maybeOf(context);
     final navegador = Navigator.of(context);
     try {
-      // Sin `await` a ninguna red: esto escribe en la base y encola. Lo que
-      // tarda es un `INSERT`.
+      // En APK/escritorio escribe y encola; en web espera el servidor.
+      // Ambos deben aceptar la hoja antes de intentar completar.
       final acciones = ref.read(accionesDeRutaProvider);
       if (marcas.isNotEmpty) {
         await acciones.cerrar(widget.rutaId, marcas);
@@ -246,6 +250,7 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
       // reves, un rechazo del cierre dejaria la ruta dada por cerrada con las
       // paradas sin marcar.
       if (completando) await acciones.completar(widget.rutaId);
+      RegistroDeControles.completar(Senalado.rutasGuardarElCierre);
       // LA FOTO DE «LO GUARDADO» SE MUEVE. Sin esto, tras guardar, el boton de
       // salir seguiria diciendo que hay cambios pendientes sobre algo que ya
       // esta escrito, y un aviso que sale siempre deja de leerse (§3-quinquies).
@@ -320,10 +325,17 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
 
   @override
   Widget build(BuildContext context) {
-    final ruta = ref.watch(rutaConTodoProvider(widget.rutaId)).value;
-    final paradas =
-        ref.watch(paradasDeRutaProvider(widget.rutaId)).value ??
-        const <Pedido>[];
+    final datosRuta = ref.watch(rutaConTodoProvider(widget.rutaId));
+    final datosParadas = ref.watch(paradasDeRutaProvider(widget.rutaId));
+    final ruta = datosRuta.value;
+    final paradas = datosParadas.value ?? const <Pedido>[];
+    // Un vacío mientras llega la consulta no prueba que la ruta no tenga paradas.
+    final datosListos =
+        ruta != null &&
+        datosParadas.hasValue &&
+        !datosRuta.hasError &&
+        !datosParadas.hasError;
+    final errorDatos = datosRuta.error ?? datosParadas.error;
     final renglones =
         ref.watch(renglonesDeParadasProvider(widget.rutaId)).value ??
         const <String, List<RenglonConPeso>>{};
@@ -446,7 +458,10 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
                   // `_hayQueGuardar` y no `_marcadas > 0`: quitar la ultima marca
                   // apagaba el boton, asi que el desmarcado no se podia ni intentar
                   // guardar. Ver `_hayQueGuardar`.
-                  alPulsar: _guardando || (!_hayQueGuardar && !_completando)
+                  alPulsar:
+                      !datosListos ||
+                          _guardando ||
+                          (!_hayQueGuardar && !_completando)
                       ? null
                       : () => _guardar(paradas),
                 ),
@@ -458,11 +473,19 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(switch (widget.modo) {
-                ModoDelCierre.marcar => CierreDeRuta.cabecera,
-                ModoDelCierre.alCompletar => CierreDeRuta.cabeceraAlCompletar,
-                ModoDelCierre.soloLectura => CierreDeRuta.cabeceraSoloLectura,
-              }),
+              Text(
+                _soloLectura
+                    ? CierreDeRuta.cabeceraSoloLectura
+                    : switch (widget.modo) {
+                        ModoDelCierre.marcar => CierreDeRuta.cabecera,
+                        ModoDelCierre.alCompletar =>
+                          CierreDeRuta.cabeceraAlCompletar,
+                        ModoDelCierre.soloLectura =>
+                          CierreDeRuta.cabeceraSoloLectura,
+                      },
+              ),
+              if (!datosListos)
+                Text(errorDatos?.toString() ?? 'Cargando las paradas…'),
               const SizedBox(height: 12),
               if (!_soloLectura)
                 Wrap(
@@ -680,7 +703,14 @@ class _Parada extends StatelessWidget {
                         texto: nombres[cual]!.$1,
                         color: nombres[cual]!.$2,
                         elegido: resultado == cual,
-                        alPulsar: () => alMarcar(cual),
+                        alPulsar: () {
+                          alMarcar(cual);
+                          if (esLaPrimera && sitio == 0 && resultado != cual) {
+                            RegistroDeControles.completar(
+                              Senalado.rutasResultadoDeLaParada,
+                            );
+                          }
+                        },
                       ),
                     ),
                 ],

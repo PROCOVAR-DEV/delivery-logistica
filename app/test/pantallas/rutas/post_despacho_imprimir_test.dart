@@ -85,7 +85,7 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: delegacionesDeIdioma,
           supportedLocales: idiomas,
-          home: const Scaffold(body: CierreDeRuta(rutaId: 'R1')),
+          home: const Scaffold(body: CierreDeRuta(rutaId: 'R1', modo: ModoDelCierre.marcar)),
         ),
       ),
     );

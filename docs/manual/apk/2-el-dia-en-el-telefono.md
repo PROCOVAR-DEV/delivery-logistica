@@ -402,18 +402,20 @@ salida…» o «Ninguna de las 3 paradas tiene coordenadas guardadas…».
 
 **Empieza en:** **Menú → «Rutas»**.
 
+**Los estados se marcan sólo al completar la ruta. Antes no hay un cierre editable.**
+
 **Esto funciona entero sin señal.**
 
 1. En la pestaña **«En curso»**, **toca tu ruta**.
    <!-- señala: rutas-tarjeta-de-ruta -->
-2. **Toca «Cierre (3)»**. El número son las paradas que faltan por marcar.
-   <!-- señala: rutas-cierre -->
+2. **Toca «Marcar como completada»**. Aquí se abre la hoja para marcar los estados.
+   <!-- señala: rutas-completar -->
    - Se abre el cajón **«Cierre de ruta»**, con el código y «3 parada(s)».
 
 Arriba lee lo que dice:
 
-   > «Marca cada parada según cómo acabó. De aquí sale el post-despacho: lo que tiene
-   > que quedar en el camión es todo lo que no se entregó.»
+   > «Antes de dar la ruta por completada: ¿cómo acabó cada parada? Lo que dejes sin
+   > marcar se da por no entregado y cuenta como que sigue en el camión.»
 
 1. **Por cada parada**, toca uno de los tres botones: **«Entregado»** (verde),
    **«Devuelto»** (rojo) o **«Cancelado»** (gris).
@@ -427,10 +429,9 @@ Arriba lee lo que dice:
    - **Baja hasta «Queda en el camión»**: se recalcula con cada marca. **«Nada: se
      entregó todo lo que salió.»** o una lista —**«MALTA GUAJIRA ×36»**—, que es lo
      que tiene que quedar arriba.
-2. **Toca el botón de guardar**, que dice **«Guardar 5 marcada(s)»**.
+2. **Toca el botón de guardar**, que dice **«Guardar y completar»**.
    <!-- señala: rutas-guardar-el-cierre -->
-   - Vas a ver: **«Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o
-     volvió.»**
+   - Al confirmar, la ruta pasa al Historial y el camión queda libre.
 
 ### Si dejas paradas sin marcar
 
@@ -457,13 +458,12 @@ pero te lo dice.
 
 1. En el detalle de la ruta (pestaña **«En curso»**), **toca «Marcar como
    completada»**. <!-- señala: rutas-completar -->
-   - **Si quedan paradas sin marcar**, te abre primero el cierre y avisa:
+   - **Siempre abre primero la hoja de estados**, aunque hubiera marcas anteriores:
 
    > «Antes de dar la ruta por completada: ¿cómo acabó cada parada? Lo que dejes sin
    > marcar se da por no entregado y cuenta como que sigue en el camión.»
 
-2. Márcalas y **toca «Guardar y completar»**. Si ya estaban todas, se completa
-   directo. <!-- señala: rutas-guardar-el-cierre -->
+2. Márcalas y **toca «Guardar y completar»**. Revisa las marcas antes de confirmar. <!-- señala: rutas-guardar-el-cierre -->
    - **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
      entregados **vuelven a estar disponibles** para mañana.
 

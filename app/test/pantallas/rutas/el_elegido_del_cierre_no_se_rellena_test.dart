@@ -92,7 +92,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: temaDeReparto(),
-          home: const Scaffold(body: CierreDeRuta(rutaId: 'R1')),
+          home: const Scaffold(body: CierreDeRuta(rutaId: 'R1', modo: ModoDelCierre.marcar)),
         ),
       ),
     );

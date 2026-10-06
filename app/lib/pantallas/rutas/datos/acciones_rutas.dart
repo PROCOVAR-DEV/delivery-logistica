@@ -97,26 +97,9 @@ class RechazoLocal implements Exception {
   String toString() => mensaje;
 }
 
-/// EL PORTAZO AL BORRADO DE UNA RUTA QUE YA LLEVA PARADAS CERRADAS.
-///
-/// Es el literal del servidor, palabra por palabra: `msgRutaConResultados` en
-/// `api/internal/api/rutas.go`, el 409 de `borrarRuta`. Aquí no se traduce ni
-/// se resume **porque es el mismo «no»**: lo único que cambia es que se dice
-/// ANTES de preguntar, en vez de después de que alguien conteste «Sí,
-/// borrar» y se coma el error por un gesto que nunca iba a salir.
-///
-/// Que los dos lados digan exactamente lo mismo lo ata
-/// `test/pantallas/rutas/borrar_una_ruta_pregunta_test.dart`, que lee la
-/// constante de Go: un comentario no falla (`CLAUDE.md` §3-bis).
-///
-/// El número va dentro a propósito. Es lo que hace que quien lo lee sepa de
-/// qué ruta le hablan, y en el aparato ese número SÍ se sabe sin preguntarle a
-/// nadie: sale de `ConsultasRutas.paradasCerradasPorRuta`, que cuenta lo mismo
-/// que cuenta el servidor.
-String msgRutaConParadasCerradas(int cerradas) =>
-    'Esa ruta ya tiene $cerradas parada(s) cerradas y no se puede borrar: se '
-    'perdería la hoja de lo que bajó del camión. Márcala como '
-    'cancelada si hace falta.';
+/// El mismo rechazo del servidor para el histórico ya completado.
+const msgRutaCompletada =
+    'La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico.';
 
 /// Como acabo una parada, tal y como sale del cierre.
 class MarcaDeParada {
@@ -855,6 +838,7 @@ class AccionesDeRuta {
     final ahora = _reloj();
     final ruta = await _ruta(rutaId);
     if (ruta == null) throw const RechazoLocal('No encontrada');
+    _exigirRutaEditable(ruta);
 
     // LA WEB PRIMERO AL SERVIDOR. Si dice que no, no se toca una fila y sale su
     // motivo: el camion no sale porque un boton se ponga gris.
@@ -901,6 +885,7 @@ class AccionesDeRuta {
     final ahora = _reloj();
     final ruta = await _ruta(rutaId);
     if (ruta == null) throw const RechazoLocal('No encontrada');
+    _exigirRutaEditable(ruta);
 
     final enVivo = _enVivo;
     if (enVivo != null) {
@@ -948,14 +933,9 @@ class AccionesDeRuta {
   Future<void> _eliminar(String rutaId) async {
     final ruta = await _ruta(rutaId);
     if (ruta == null) throw const RechazoLocal('No encontrada');
-    if (ruta.status == EstadoRuta.completada) {
-      throw const RechazoLocal('No encontrada');
-    }
+    _exigirRutaEditable(ruta);
 
-    // EN LA WEB EL PORTAZO DEL SERVIDOR ES EL QUE MANDA, y trae el numero de
-    // paradas cerradas dentro: «Esa ruta ya tiene 9 parada(s) cerradas y no se
-    // puede borrar…» dice de que ruta le hablan. Aqui no se puede saber ese
-    // numero sin bajarse la hoja entera.
+    // La web espera el borrado aceptado antes de tocar su vista.
     final enVivo = _enVivo;
     if (enVivo != null) {
       await _mandar(enVivo, metodo: 'DELETE', ruta: '/routes/$rutaId');
@@ -986,6 +966,12 @@ class AccionesDeRuta {
     );
   }
 
+  void _exigirRutaEditable(Ruta ruta) {
+    if (ruta.status == EstadoRuta.completada) {
+      throw const RechazoLocal(msgRutaCompletada);
+    }
+  }
+
   Future<Ruta?> _ruta(String rutaId) => (_base.select(
     _base.routes,
   )..where((r) => r.id.equals(rutaId))).getSingleOrNull();
@@ -1009,6 +995,9 @@ class AccionesDeRuta {
   ///
   /// Devuelve la `clave` del apunte, que es con lo que se le sigue la pista.
   Future<String> cerrar(String rutaId, List<MarcaDeParada> marcas) async {
+    final ruta = await _ruta(rutaId);
+    if (ruta == null) throw const RechazoLocal('No encontrada');
+    _exigirRutaEditable(ruta);
     if (marcas.isEmpty) throw const RechazoLocal('No vino ningún resultado');
 
     // El universo valido es `ultimaRutaId`, NO `routeId`: asi se puede corregir

@@ -12,6 +12,27 @@ Son **tres** formas de la misma aplicación y **no se comportan igual**. Esto no
 es un detalle de implementación: es la razón de existir del proyecto, y Jose lo
 ha tenido que repetir tres veces.
 
+### Rutas: el histórico se fija al completar — Jose, 06/10/2026
+
+Una ruta planificada o en curso se puede editar y eliminar, incluso con cero paradas
+cargadas o con marcas provisionales de entrega/devolución. **Una marca no completa la
+ruta.** El bloqueo anterior por «N paradas cerradas» impedía borrar una ruta de prueba
+en curso con cero paradas visibles y un devuelto por `ultima_ruta_id`.
+
+Los estados de las paradas se marcan **sólo al pulsar «Marcar como completada»**.
+Antes de ese gesto no hay cierre editable; siempre se revisan las paradas en su
+hoja antes de confirmar (incluidas marcas anteriores).
+
+Sólo `completed` impide modificar o borrar: incluye nombre, vehículo, estado y cierre.
+Se conserva como histórico. Los resultados de la cola nativa se mandan **antes** de
+completar; un cierre que llegue después se rechaza con su motivo visible, sin borrar
+el apunte silenciosamente. Una hoja pendiente o rechazada retiene el completed de
+su misma ruta en cada ciclo de subida, sin detener rutas independientes. El completed
+local optimista no acredita el servidor; un rechazo exige resolver con conexión/web
+y decidir explícitamente en la bandeja (Reintentar/Descartar). No cambiar los pedidos
+entregados a pendientes al borrar
+una ruta viva: el resultado del pedido sigue valiendo y evita repartirlo dos veces.
+
 ### La web NO trabaja sin conexión. Nunca.
 
 > «el trabajo sin conexion es solo para las aplicaciones cojone la web siempre va

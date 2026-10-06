@@ -56,10 +56,8 @@ const (
 	msgRutaNoEncontrada = "No encontrada"
 	msgSinResultados    = "No vino ningún resultado"
 	msgParadaAjena      = "ese pedido no va en esta ruta"
-	// EL PORTAZO AL BORRADO DE UNA RUTA YA CERRADA. Lleva el número de paradas dentro,
-	// que es lo que hace que quien lo lee sepa de qué ruta le están hablando.
-	msgRutaConResultados = "Esa ruta ya tiene %d parada(s) cerradas y no se puede borrar: " +
-		"se perdería la hoja de lo que bajó del camión. Márcala como cancelada si hace falta."
+	// Sólo completar fija el histórico. Una marca de parada no cierra la ruta.
+	msgRutaCompletada = "La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico."
 	// EL PUNTO DE PARTIDA TIENE QUE CAER EN EL PLANETA. Ver `puntoDelPlaneta`.
 	msgOrigenImposible = "El punto de partida (%s, %s) no es un punto del mapa: " +
 		"la latitud va de -90 a 90 y la longitud de -180 a 180. " +
@@ -1226,6 +1224,21 @@ type cuerpoActualizarRuta struct {
 	Status    httpx.Opcional[string] `json:"status"`
 }
 
+// La comprobación previa mejora el error, pero sólo esta lectura bloqueada
+// impide que otra petición complete entre la lectura y la escritura.
+var errRutaCompletada = errors.New(msgRutaCompletada)
+
+func rutaEditableEnTx(ctx context.Context, tx *alcance.Acotado, id uuid.UUID) (sqlc.ObtenerRutaRow, error) {
+	estado, err := tx.BloquearRuta(ctx, id)
+	if err != nil {
+		return sqlc.ObtenerRutaRow{}, err
+	}
+	if estado == sqlc.RouteStatusCompleted {
+		return sqlc.ObtenerRutaRow{}, errRutaCompletada
+	}
+	return tx.ObtenerRuta(ctx, id)
+}
+
 func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 	a, ok := acotado(w, r)
 	if !ok {
@@ -1251,6 +1264,10 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
+	if antes.Status == sqlc.RouteStatusCompleted {
+		httpx.Error(w, r, http.StatusConflict, msgRutaCompletada)
+		return
+	}
 
 	nombre := c.Name.Puntero()
 	var estado *sqlc.RouteStatus
@@ -1272,6 +1289,11 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 	// CAMINO B: el estado. Las horas de salida y regreso las pone el SQL —`started_at`
 	// sólo la primera vez— para que dos peticiones simultáneas no se pisen la hora.
 	err = a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
+		var err error
+		antes, err = rutaEditableEnTx(r.Context(), tx, antes.ID)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.ActualizarEstadoDeRuta(r.Context(), sqlc.ActualizarEstadoDeRutaParams{
 			ID: id, Name: nombre, Status: estado,
 		}); err != nil {
@@ -1295,6 +1317,10 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
+	if errors.Is(err, errRutaCompletada) {
+		httpx.Error(w, r, http.StatusConflict, msgRutaCompletada)
+		return
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNoEncontrado)
 		return
@@ -1346,6 +1372,11 @@ func (s *Servidor) cambiarCamionDeRuta(w http.ResponseWriter, r *http.Request, a
 	}
 
 	err := a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
+		var err error
+		antes, err = rutaEditableEnTx(r.Context(), tx, antes.ID)
+		if err != nil {
+			return err
+		}
 		// El camión viejo se libera SÓLO si estaba ocupado y de verdad cambia: una ruta
 		// que se reasigna al mismo camión no tiene por qué dejarlo libre.
 		if antes.VehicleID.Valid {
@@ -1363,11 +1394,15 @@ func (s *Servidor) cambiarCamionDeRuta(w http.ResponseWriter, r *http.Request, a
 				return err
 			}
 		}
-		_, err := tx.CambiarVehiculoDeRuta(r.Context(), sqlc.CambiarVehiculoDeRutaParams{
+		_, err = tx.CambiarVehiculoDeRuta(r.Context(), sqlc.CambiarVehiculoDeRutaParams{
 			ID: antes.ID, VehicleID: aPgOpcional(nuevo), Name: nombre, Status: estado,
 		})
 		return err
 	})
+	if errors.Is(err, errRutaCompletada) {
+		httpx.Error(w, r, http.StatusConflict, msgRutaCompletada)
+		return
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNoEncontrado)
 		return
@@ -1408,41 +1443,15 @@ func (s *Servidor) borrarRuta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// UNA RUTA CON RESULTADOS NO SE BORRA. Y no es celo: es lo único que tapa el agujero
-	// que deja la base.
-	//
-	// `orders.ultima_ruta_id` es «en qué camión VIAJÓ» y el esquema promete, con esas
-	// palabras, que «esto no se libera nunca» (`db/migrations/00001_init.sql:287`). No es
-	// verdad: su clave ajena es `ON DELETE SET NULL` (línea 447), así que borrar la ruta
-	// se lleva por delante la hoja entera de lo que bajó del camión — el `stop_order`, el
-	// «viajó aquí», y con la fila de `routes` también el código de ruta, la fecha y el
-	// vehículo. El `resultado` y el `delivered_at` de cada pedido se quedan, pero sueltos
-	// y sin nada a lo que referirse: ya no se puede decir en qué reparto se entregó.
-	//
-	// Y además el cierre deja de poder reintentarse: la hoja que suba el teléfono cuando
-	// recupere la señal va a `/api/routes/{id}/results` de una ruta que ya no existe, y lo
-	// que recibe es un 404 — que el sincronizador anota como `rechazado`, que por contrato
-	// no se reintenta. El trabajo del día se queda en el aparato para siempre.
-	//
-	// Borrar una ruta ARMADA POR ERROR sigue estando bien y sigue funcionando: lo que se
-	// prohíbe es borrar una por la que ya pasó mercancía.
-	viajaron, err := a.ParadasQueViajaronEnRuta(r.Context(), id)
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	cerradas := 0
-	for _, p := range viajaron {
-		if p.Resultado != nil {
-			cerradas++
-		}
-	}
-	if cerradas > 0 {
-		httpx.Error(w, r, http.StatusConflict, fmt.Sprintf(msgRutaConResultados, cerradas))
-		return
-	}
+	// Jose, 06/10/2026: planificada o en curso se puede borrar incluso con
+	// resultados provisionales. El histórico se protege bajo el bloqueo de fila de la transacción.
 
 	err = a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
+		var err error
+		antes, err = rutaEditableEnTx(r.Context(), tx, antes.ID)
+		if err != nil {
+			return err
+		}
 		// Borrar la ruta LIBERA el camión: si no, queda ocupado por una ruta que ya no
 		// existe y no hay pantalla donde soltarlo.
 		if antes.VehicleID.Valid && antes.VehiculoEstado != nil && *antes.VehiculoEstado == sqlc.VehicleStatusInUse {
@@ -1451,8 +1460,9 @@ func (s *Servidor) borrarRuta(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		// Los pedidos NO se borran: se sueltan y vuelven a la lista de disponibles.
-		// `ultima_ruta_id` se conserva — el pasado de un pedido no se reescribe porque
-		// alguien deshaga la ruta de hoy.
+		// El resultado del pedido se conserva. Al borrar la ruta, la clave ajena
+		// ON DELETE SET NULL suelta también ultima_ruta_id; sólo completed
+		// conserva esa ruta como histórico y nunca llega a este borrado.
 		if _, err := tx.SoltarPedidosDeRuta(r.Context(), id); err != nil {
 			return err
 		}
@@ -1465,7 +1475,11 @@ func (s *Servidor) borrarRuta(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
-	if errors.Is(err, errRutaNoEstaba) {
+	if errors.Is(err, errRutaCompletada) {
+		httpx.Error(w, r, http.StatusConflict, msgRutaCompletada)
+		return
+	}
+	if errors.Is(err, errRutaNoEstaba) || errors.Is(err, pgx.ErrNoRows) {
 		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNoEncontrado)
 		return
 	}
@@ -1553,6 +1567,10 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
+	if ruta.Status == sqlc.RouteStatusCompleted {
+		httpx.Error(w, r, http.StatusConflict, msgRutaCompletada)
+		return
+	}
 
 	// Un cuerpo ilegible se trata como `{}` y sale por «No vino ningún resultado», no por
 	// «Cuerpo de la petición no válido»: lo dice el contrato y además es lo útil — quien
@@ -1566,133 +1584,152 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// EL UNIVERSO SON LOS QUE VIAJARON EN ESTA RUTA, por `ultima_ruta_id` y no por
-	// `route_id`: así se puede corregir el resultado de un devuelto, que ya soltó su
-	// `route_id` al cerrarse. Con `route_id` media hoja de cierre sería incorregible.
-	viajaron, err := a.ParadasQueViajaronEnRuta(r.Context(), ruta.ID)
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	universo := map[uuid.UUID]sqlc.ListarParadasQueViajaronEnRutaRow{}
-	for _, p := range viajaron {
-		universo[p.ID] = p
-	}
-
 	salida := salidaDeCierre{Aplicados: []aplicadoDeCierre{}, Rechazados: []rechazadoDeCierre{}}
 	var avisos []AvisoDeParada
-
-	// LA HORA DEL CIERRE, que es el caso por el que existe todo esto. Una hoja de cierre
-	// se marca en el patio, sin señal, y sube cuando la hay: el apunte llega con
-	// `X-Hecho-At` puesto por el sincronizador y ésa es la hora que va a PEDIDO. Toda la
-	// hoja comparte una sola hora porque un apunte es un acto: si algún día hiciera falta
-	// la hora parada por parada, tendría que venir en el cuerpo y eso es cambiar el
-	// contrato con la pantalla.
-	cuando := horaDelSuceso(r)
-
-	// NO ABORTA: acumula. Cada parada es un hecho independiente —el camión volvió y ese
-	// pedido se entregó—, así que tumbar las nueve buenas porque la décima venga mal
-	// borraría información real que ya nadie va a volver a teclear. Por lo mismo esto no
-	// va en una transacción.
-	for _, e := range c.Resultados {
-		pedidoID, err := uuid.Parse(strings.TrimSpace(e.OrderID))
+	err = a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
+		var err error
+		ruta, err = rutaEditableEnTx(r.Context(), tx, id)
 		if err != nil {
-			salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
-			continue
+			return err
 		}
-		parada, iba := universo[pedidoID]
-		if !iba {
-			salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
-			continue
+		// EL UNIVERSO SON LOS QUE VIAJARON EN ESTA RUTA, por `ultima_ruta_id` y no por
+		// `route_id`: así se puede corregir el resultado de un devuelto, que ya soltó su
+		// `route_id` al cerrarse. Con `route_id` media hoja de cierre sería incorregible.
+		viajaron, err := tx.ParadasQueViajaronEnRuta(r.Context(), ruta.ID)
+		if err != nil {
+			return err
 		}
-		// QUITAR LA MARCA — 28/09/2026. Jose: «desmarco el estado de cierre y no se
-		// guarda cuando salgo por q razon».
-		//
-		// Un `"resultado": null` EXPLÍCITO es «esta parada vuelve a estar sin marcar», y
-		// se ejecuta aquí y se acaba la vuelta: no hay resultado que validar, no hay nota
-		// que guardar —se va con la marca— y **no sale aviso a PEDIDO**, porque en su
-		// contrato no existe «des-entregado» e inventarle un estado es peor que no
-		// decirle nada. Eso queda dicho aquí y es un hueco conocido: si la parada ya le
-		// había llegado a PEDIDO como entregada, allí sigue entregada hasta que se
-		// vuelva a marcar con otro resultado.
-		//
-		// Lo que SÍ deshace, entero, está en `LimpiarResultadoDeParada`; lo delicado es
-		// que le devuelve el `route_id`, o un devuelto desmarcado se queda fuera de su
-		// propia ruta y sale en dos camiones.
-		if e.Resultado.Presente && e.Resultado.Valor == nil {
-			filas, err := a.LimpiarResultadoDeParada(r.Context(), ruta.ID, pedidoID)
+		universo := map[uuid.UUID]sqlc.ListarParadasQueViajaronEnRutaRow{}
+		for _, p := range viajaron {
+			universo[p.ID] = p
+		}
+
+		// LA HORA DEL CIERRE, que es el caso por el que existe todo esto. Una hoja de cierre
+		// se marca en el patio, sin señal, y sube cuando la hay: el apunte llega con
+		// `X-Hecho-At` puesto por el sincronizador y ésa es la hora que va a PEDIDO. Toda la
+		// hoja comparte una sola hora porque un apunte es un acto: si algún día hiciera falta
+		// la hora parada por parada, tendría que venir en el cuerpo y eso es cambiar el
+		// contrato con la pantalla.
+		cuando := horaDelSuceso(r)
+
+		// NO ABORTA: acumula. Cada parada es un hecho independiente —el camión volvió y ese
+		// pedido se entregó—, así que tumbar las nueve buenas porque la décima venga mal
+		// borraría información real que ya nadie va a volver a teclear. Los rechazos
+		// individuales no abortan la transacción: se guardan todas las marcas válidas.
+		// El bloqueo sólo serializa con completar/borrar; ante un error de base no se
+		// acusa un cierre parcial como guardado y el aparato conserva el apunte.
+		for _, e := range c.Resultados {
+			pedidoID, err := uuid.Parse(strings.TrimSpace(e.OrderID))
 			if err != nil {
-				httpx.ErrorInterno(w, r, err)
-				return
-			}
-			if filas == 0 {
 				salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
 				continue
 			}
-			// En `aplicados` va con su `resultado: null`: el acuse dice lo que se hizo, y
-			// lo que se hizo fue dejarla sin marcar.
-			salida.Aplicados = append(salida.Aplicados, aplicadoDeCierre{OrderID: pedidoID.String()})
-			continue
+			parada, iba := universo[pedidoID]
+			if !iba {
+				salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
+				continue
+			}
+			// QUITAR LA MARCA — 28/09/2026. Jose: «desmarco el estado de cierre y no se
+			// guarda cuando salgo por q razon».
+			//
+			// Un `"resultado": null` EXPLÍCITO es «esta parada vuelve a estar sin marcar», y
+			// se ejecuta aquí y se acaba la vuelta: no hay resultado que validar, no hay nota
+			// que guardar —se va con la marca— y **no sale aviso a PEDIDO**, porque en su
+			// contrato no existe «des-entregado» e inventarle un estado es peor que no
+			// decirle nada. Eso queda dicho aquí y es un hueco conocido: si la parada ya le
+			// había llegado a PEDIDO como entregada, allí sigue entregada hasta que se
+			// vuelva a marcar con otro resultado.
+			//
+			// Lo que SÍ deshace, entero, está en `LimpiarResultadoDeParada`; lo delicado es
+			// que le devuelve el `route_id`, o un devuelto desmarcado se queda fuera de su
+			// propia ruta y sale en dos camiones.
+			if e.Resultado.Presente && e.Resultado.Valor == nil {
+				filas, err := tx.LimpiarResultadoDeParada(r.Context(), ruta.ID, pedidoID)
+				if err != nil {
+					return err
+				}
+				if filas == 0 {
+					salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
+					continue
+				}
+				// En `aplicados` va con su `resultado: null`: el acuse dice lo que se hizo, y
+				// lo que se hizo fue dejarla sin marcar.
+				salida.Aplicados = append(salida.Aplicados, aplicadoDeCierre{OrderID: pedidoID.String()})
+				continue
+			}
+
+			resultado, ok := resultadoValido(e.Resultado.Valor)
+			if !ok {
+				salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{
+					OrderID: e.OrderID,
+					Motivo:  fmt.Sprintf("resultado '%s' desconocido", valorTalCual(e.Resultado)),
+				})
+				continue
+			}
+
+			nota := notaDeCierre(e.Nota)
+			// Aquí está TODO lo delicado del cierre, y va en una sola sentencia SQL:
+			//   - un entregado fija `delivered_at` y conserva su `route_id`;
+			//   - un devuelto o un cancelado SUELTAN `route_id` —vuelven a la lista de
+			//     disponibles para mañana— pero NO `ultima_ruta_id` ni `stop_order`, que son
+			//     la hoja de lo que bajó del camión;
+			//   - `delivered_at` se limpia cuando no se entregó, o un devuelto con la hora de
+			//     un intento anterior se pinta «entregado» en la lista;
+			//   - ni devuelto ni cancelado tocan INVENTARIO: el reintegro lo hace Ventra.
+			filas, err := tx.MarcarResultadoDeParada(r.Context(), ruta.ID, pedidoID, resultado, nota)
+			if err != nil {
+				return err
+			}
+			if filas == 0 {
+				// El WHERE lleva `ultima_ruta_id` y el alcance: cero filas es el mismo
+				// rechazo, comprobado contra la base y no contra una lectura ya vieja.
+				salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
+				continue
+			}
+			aplicado := string(resultado)
+			salida.Aplicados = append(salida.Aplicados, aplicadoDeCierre{OrderID: pedidoID.String(), Resultado: &aplicado})
+			if parada.Source != nil && *parada.Source == sqlc.ProcedenciaPedido && parada.ExternalID != nil {
+				aviso := AvisoDeParada{PedidoID: *parada.ExternalID, Estado: string(resultado), At: cuando}
+				if nota != nil {
+					aviso.Nota = *nota
+				}
+				// UN AVISO POR PEDIDO, EL ÚLTIMO — y es el que la base acaba teniendo.
+				//
+				// Una hoja de cierre puede traer el mismo `orderId` dos veces: la cola del
+				// aparato junta apuntes cuando vuelve la señal, y una corrección —«entregado»
+				// y luego «devuelto»— es justo el caso S3 del guion de QA. En la base no hay
+				// duda: son dos UPDATE seguidos y manda el segundo. En PEDIDO sí la había,
+				// porque se le mandaban LOS DOS en el mismo lote y cuál gana depende de en qué
+				// orden los aplique él. Ahí es donde el vendedor ve «entregado» sobre un pedido
+				// que volvió en el camión: un estado creíble y equivocado, y las dos
+				// aplicaciones diciendo cosas distintas del mismo pedido.
+				//
+				// `aplicados` NO se toca: sigue llevando una entrada por cada cosa que se
+				// procesó, que es el acuse que el aparato compara con lo que mandó.
+				if donde, repetido := dondeEstaElAviso(avisos, aviso.PedidoID); repetido {
+					httpx.Registro(r).Warn("la hoja de cierre trae el mismo pedido dos veces: a PEDIDO va el último",
+						"ruta", ruta.ID, "pedido", aviso.PedidoID,
+						"antes", avisos[donde].Estado, "ahora", aviso.Estado)
+					avisos[donde] = aviso
+				} else {
+					avisos = append(avisos, aviso)
+				}
+			}
 		}
 
-		resultado, ok := resultadoValido(e.Resultado.Valor)
-		if !ok {
-			salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{
-				OrderID: e.OrderID,
-				Motivo:  fmt.Sprintf("resultado '%s' desconocido", valorTalCual(e.Resultado)),
-			})
-			continue
-		}
-
-		nota := notaDeCierre(e.Nota)
-		// Aquí está TODO lo delicado del cierre, y va en una sola sentencia SQL:
-		//   - un entregado fija `delivered_at` y conserva su `route_id`;
-		//   - un devuelto o un cancelado SUELTAN `route_id` —vuelven a la lista de
-		//     disponibles para mañana— pero NO `ultima_ruta_id` ni `stop_order`, que son
-		//     la hoja de lo que bajó del camión;
-		//   - `delivered_at` se limpia cuando no se entregó, o un devuelto con la hora de
-		//     un intento anterior se pinta «entregado» en la lista;
-		//   - ni devuelto ni cancelado tocan INVENTARIO: el reintegro lo hace Ventra.
-		filas, err := a.MarcarResultadoDeParada(r.Context(), ruta.ID, pedidoID, resultado, nota)
-		if err != nil {
-			httpx.ErrorInterno(w, r, err)
-			return
-		}
-		if filas == 0 {
-			// El WHERE lleva `ultima_ruta_id` y el alcance: cero filas es el mismo
-			// rechazo, comprobado contra la base y no contra una lectura ya vieja.
-			salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
-			continue
-		}
-		aplicado := string(resultado)
-		salida.Aplicados = append(salida.Aplicados, aplicadoDeCierre{OrderID: pedidoID.String(), Resultado: &aplicado})
-		if parada.Source != nil && *parada.Source == sqlc.ProcedenciaPedido && parada.ExternalID != nil {
-			aviso := AvisoDeParada{PedidoID: *parada.ExternalID, Estado: string(resultado), At: cuando}
-			if nota != nil {
-				aviso.Nota = *nota
-			}
-			// UN AVISO POR PEDIDO, EL ÚLTIMO — y es el que la base acaba teniendo.
-			//
-			// Una hoja de cierre puede traer el mismo `orderId` dos veces: la cola del
-			// aparato junta apuntes cuando vuelve la señal, y una corrección —«entregado»
-			// y luego «devuelto»— es justo el caso S3 del guion de QA. En la base no hay
-			// duda: son dos UPDATE seguidos y manda el segundo. En PEDIDO sí la había,
-			// porque se le mandaban LOS DOS en el mismo lote y cuál gana depende de en qué
-			// orden los aplique él. Ahí es donde el vendedor ve «entregado» sobre un pedido
-			// que volvió en el camión: un estado creíble y equivocado, y las dos
-			// aplicaciones diciendo cosas distintas del mismo pedido.
-			//
-			// `aplicados` NO se toca: sigue llevando una entrada por cada cosa que se
-			// procesó, que es el acuse que el aparato compara con lo que mandó.
-			if donde, repetido := dondeEstaElAviso(avisos, aviso.PedidoID); repetido {
-				httpx.Registro(r).Warn("la hoja de cierre trae el mismo pedido dos veces: a PEDIDO va el último",
-					"ruta", ruta.ID, "pedido", aviso.PedidoID,
-					"antes", avisos[donde].Estado, "ahora", aviso.Estado)
-				avisos[donde] = aviso
-			} else {
-				avisos = append(avisos, aviso)
-			}
-		}
+		return nil
+	})
+	if errors.Is(err, errRutaCompletada) {
+		httpx.Error(w, r, http.StatusConflict, msgRutaCompletada)
+		return
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusNotFound, msgRutaNoEncontrada)
+		return
+	}
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
 	}
 
 	// AL BUZÓN PRIMERO, Y DESPUÉS SE INTENTA MANDAR.

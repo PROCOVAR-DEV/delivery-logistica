@@ -189,6 +189,14 @@ func (d *dobleDeRutas) ListarRutas(_ context.Context, arg sqlc.ListarRutasParams
 	return salida, nil
 }
 
+func (d *dobleDeRutas) BloquearRuta(_ context.Context, p sqlc.BloquearRutaParams) (sqlc.RouteStatus, error) {
+	r := d.rutas[p.ID]
+	if r == nil || !alcanza(p.Sucursal, r.sucursal) {
+		return "", pgx.ErrNoRows
+	}
+	return r.estado, nil
+}
+
 func (d *dobleDeRutas) ObtenerRuta(_ context.Context, arg sqlc.ObtenerRutaParams) (sqlc.ObtenerRutaRow, error) {
 	d.sucursalVista = append(d.sucursalVista, arg.Sucursal)
 	r, hay := d.rutas[arg.ID]

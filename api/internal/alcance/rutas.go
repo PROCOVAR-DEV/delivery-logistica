@@ -58,6 +58,12 @@ func (a *Acotado) ObtenerRuta(ctx context.Context, id uuid.UUID) (sqlc.ObtenerRu
 	return a.q.ObtenerRuta(ctx, sqlc.ObtenerRutaParams{ID: id, Sucursal: a.sucursalPg()})
 }
 
+// BloquearRuta se usa sólo dentro de EnTx: completar y cualquier modificación
+// comparten el bloqueo de la fila; una lectura anterior no protege el histórico.
+func (a *Acotado) BloquearRuta(ctx context.Context, id uuid.UUID) (sqlc.RouteStatus, error) {
+	return a.q.BloquearRuta(ctx, sqlc.BloquearRutaParams{ID: id, Sucursal: a.sucursalPg()})
+}
+
 // ParadasDeRutas trae las paradas de VARIAS rutas de una vez. Es lo que evita que pintar
 // el tablero cueste una consulta por ruta.
 func (a *Acotado) ParadasDeRutas(ctx context.Context, rutas []uuid.UUID) ([]sqlc.ListarParadasDeRutasRow, error) {

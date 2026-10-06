@@ -85,6 +85,14 @@ LEFT JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
 WHERE r.id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR r.branch_id = sqlc.narg('sucursal')::uuid);
 
+-- Serializa completar, editar, borrar y marcar sobre la MISMA fila.
+-- Debe llamarse dentro de EnTx y conservar el bloqueo hasta terminar la escritura.
+-- name: BloquearRuta :one
+SELECT status FROM routes
+WHERE id = sqlc.arg('id')
+  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
+FOR UPDATE;
+
 -- Las paradas, en el orden en que el camión las visita.
 --
 -- Va por `route_id`: es la hoja del camión de HOY, lo que lleva cargado ahora mismo.

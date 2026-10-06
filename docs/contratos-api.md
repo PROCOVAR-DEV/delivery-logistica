@@ -267,6 +267,8 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
 
 ## `PATCH /api/routes/[id]`
 
+- Si ya está `completed`, rechaza cualquier cambio con 409 y el mismo motivo del
+  borrado: ni nombre, ni vehículo, ni estado pueden reescribir el histórico.
 - **Auth**: usuario. **Alcance**: sí. `404 {"error":"No encontrado"}`.
 - **Cuerpo** leído: `vehicleId`, `name`, `status`.
 - **Camino A — si `vehicleId !== undefined`** (tiene prioridad y **retorna antes**):
@@ -291,25 +293,35 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
 ## `DELETE /api/routes/[id]`
 
 - **Auth**: usuario. **Alcance**: sí. `404 {"error":"No encontrado"}`.
-- **Una ruta con paradas ya cerradas NO se borra** (18/09/2026):
-  `409 {"error":"Esa ruta ya tiene N parada(s) cerradas y no se puede borrar: se perdería
-  la hoja de lo que bajó del camión. Márcala como cancelada si hace falta."}`.
-  Se comprueba ANTES de tocar nada: ni se libera el vehículo ni se sueltan los pedidos.
-  Motivo: `orders.ultima_ruta_id` es `ON DELETE SET NULL` pese a que el esquema promete que
-  «esto no se libera nunca», así que borrar la ruta borra la hoja de lo que viajó en ella;
-  y el cierre que suba el aparato después recibe un 404, que el sincronizador anota como
-  `rechazado` y por contrato no se reintenta. Una ruta armada por error (sin resultados) se
-  sigue borrando igual.
+- **Sólo una ruta completada queda protegida** (regla de Jose, 06/10/2026):
+  `409 {"error":"La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico."}`.
+  Planificadas y en curso se pueden borrar incluso sin paradas o con resultados
+  provisionales. Una marca de parada no completa la ruta. No se borra ningún pedido
+  ni se limpia su resultado: un entregado sigue entregado y no se vuelve a repartir.
 - Si la ruta tiene vehículo `in_use` → pasa a `available`.
 - **No borra pedidos**: `updateMany` sobre `Order where routeId=id` →
   `routeId=null, stopOrder=null, segmentKm=null, tripLeg='outbound'`
-  (`ultimaRutaId` se conserva).
+  Al borrar la `Route`, las claves foráneas dejan también `ultimaRutaId=null`;
+  se conservan el pedido y su resultado, aunque ya no exista ese enlace a la ruta.
 - Borra la `Route`.
 - **200**: `{"success":true}`.
 - **Modelos**: `Vehicle`, `Order`, `Route`.
 
 ## `POST /api/routes/[id]/results` — cierre de ruta (detallado)
 
+La UI abre esta revisión sólo al pulsar «Marcar como completada». En la cola nativa,
+los resultados deben entregarse antes del `PATCH completed` de la misma ruta. Una
+hoja pendiente o rechazada retiene ese cierre, incluso en ciclos posteriores; no
+detiene los apuntes de otras rutas. El rechazo conserva su motivo. La ruta local
+puede figurar completada mientras sigue en cola: eso no acredita cierre en servidor.
+Si la hoja es rechazada, su corrección se resuelve con conexión/en la web y con una
+decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos en silencio.
+
+
+- Si ya está `completed`, rechaza la hoja con 409 y el motivo del histórico.
+  Los resultados se guardan mientras está en curso, antes de completar. La cola
+  nativa debe mantener ese orden; una hoja tardía rechazada conserva su motivo
+  en la bandeja y no se descarta en silencio.
 - **Auth**: usuario. `401 {"error":"Unauthorized"}`.
 - **Alcance**: sí, sobre la ruta (`{ id, ...scopeWhere(scope) }`).
 - `404 {"error":"No encontrada"}` (femenino, distinto del de `/api/routes/[id]`).

@@ -334,41 +334,6 @@ class ConsultasRutas {
     );
   }
 
-  /// CUANTAS PARADAS LLEVA YA CERRADAS CADA RUTA, todas de una vez.
-  ///
-  /// Es lo único que hace falta para saber, ANTES de preguntar nada, que el
-  /// servidor va a negarse a borrar esa ruta: `borrarRuta`
-  /// (`api/internal/api/rutas.go`) cuenta las paradas de la ruta con
-  /// `resultado` y, si hay una sola, contesta 409 con
-  /// `msgRutaConParadasCerradas` (en `acciones_rutas.dart`, que es donde viven
-  /// los literales del servidor de esta pantalla). Sin esto, el logístico pulsa
-  /// «Eliminar», contesta «Sí, borrar», y lo que recibe por el gesto es un
-  /// portazo.
-  ///
-  /// Se cuenta igual que el servidor y con sus dos condiciones, porque las dos
-  /// cuentan: por `ultimaRutaId` —no por `routeId`, que lo que se devuelve ya
-  /// soltó (`ListarParadasQueViajaronEnRuta`)— y sólo las que tienen
-  /// `resultado`. Contar sin la segunda diría que no se puede borrar ninguna
-  /// ruta con paradas, que es todas.
-  ///
-  /// Agrupada y no una por tarjeta, por lo mismo que [paradasPorRuta].
-  Stream<Map<String, int>> paradasCerradasPorRuta() {
-    final cuantas = _base.orders.id.count();
-    final consulta = _base.selectOnly(_base.orders)
-      ..addColumns([_base.orders.ultimaRutaId, cuantas])
-      ..where(
-        _base.orders.ultimaRutaId.isNotNull() &
-            _base.orders.resultado.isNotNull(),
-      )
-      ..groupBy([_base.orders.ultimaRutaId]);
-    return consulta.watch().map(
-      (filas) => <String, int>{
-        for (final fila in filas)
-          fila.read(_base.orders.ultimaRutaId)!: fila.read(cuantas) ?? 0,
-      },
-    );
-  }
-
   // ---------------------------------------------------------------------------
   // EN QUE ANDA CADA CAMION — 28/09/2026
   // ---------------------------------------------------------------------------

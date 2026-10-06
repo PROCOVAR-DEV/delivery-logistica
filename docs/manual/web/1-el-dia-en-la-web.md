@@ -351,13 +351,13 @@ El enlace no admite más. Las tres últimas hay que decírselas aparte.
 
 **Empieza en:** **Menú → «Rutas»**.
 
-Lo normal es que las entregas las marque el repartidor desde el teléfono. **Desde la
-web se puede hacer igual**, y en directo: lo que marque él lo ves tú.
+Los estados se marcan **al pulsar «Marcar como completada»**, al terminar el reparto.
+Antes no hay un cierre editable. **Desde la web se hace igual que en el teléfono**.
 
 1. En la pestaña **«En curso»**, **haz clic en tu ruta**.
    <!-- señala: rutas-tarjeta-de-ruta -->
-2. **Clic en «Cierre (3)»**. El número son las paradas sin marcar.
-   <!-- señala: rutas-cierre -->
+2. **Clic en «Marcar como completada»**. Aquí se abre la hoja para marcar los estados.
+   <!-- señala: rutas-completar -->
 3. Por cada parada, **clic en uno de los tres botones**: **«Entregado»**,
    **«Devuelto»** o **«Cancelado»**.
    <!-- señala: rutas-resultado-de-la-parada -->
@@ -365,9 +365,9 @@ web se puede hacer igual**, y en directo: lo que marque él lo ves tú.
      «¿Por qué volvió? (el cliente cerró, no lo quiso, no había nadie…)».
    - **Volver a hacer clic en el mismo botón lo desmarca**, por si te equivocas.
    - Baja hasta **«Queda en el camión»**: se recalcula con cada marca.
-4. **Clic en «Guardar 5 marcada(s)»**. <!-- señala: rutas-guardar-el-cierre -->
+4. **Clic en «Guardar y completar»**. <!-- señala: rutas-guardar-el-cierre -->
 
-Verás: **«Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o volvió.»**
+Al confirmar, la ruta pasa al Historial y el camión queda libre.
 
 ---
 
@@ -378,13 +378,12 @@ Verás: **«Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o volv
 
 1. En el detalle, **clic en «Marcar como completada»**.
    <!-- señala: rutas-completar -->
-   - **Si quedan paradas sin marcar**, te abre primero el cierre y avisa:
+   - **Siempre abre primero la hoja de estados**, aunque hubiera marcas anteriores:
 
    > «Antes de dar la ruta por completada: ¿cómo acabó cada parada? Lo que dejes sin
    > marcar se da por no entregado y cuenta como que sigue en el camión.»
 
-2. Márcalas y **clic en «Guardar y completar»**. Si ya estaban todas, se completa
-   directo. <!-- señala: rutas-guardar-el-cierre -->
+2. Márcalas y **clic en «Guardar y completar»**. Revisa las marcas antes de confirmar. <!-- señala: rutas-guardar-el-cierre -->
    - **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
      entregados **vuelven a estar disponibles**.
 

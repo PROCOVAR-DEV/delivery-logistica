@@ -20,13 +20,12 @@
 //     que lo que se ve es un fallo en rojo **encima de un borrado que sí
 //     funcionó**.
 //
-// Y la mitad que no se veía venir: el servidor **se niega** a borrar una ruta
-// con paradas cerradas (se perdería la hoja de lo que bajó del camión). Pedir
-// una decisión irreversible y, cuando se toma, contestar que no, es lo peor de
-// los dos mundos. Así que eso se dice ANTES de preguntar, con el motivo literal
-// del servidor.
+// Desde el 06/10/2026, sólo completar convierte la ruta en histórico. Las
+// marcas provisionales no impiden pedir confirmación ni borrar la ruta viva.
 
 import 'dart:io';
+
+import 'package:drift/drift.dart' show Value;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -137,14 +136,49 @@ void main() {
       );
     });
 
+    for (final operacion in ['eliminar', 'iniciar', 'completar', 'cerrar']) {
+      test(
+        'histórico completado impide $operacion sin tocar ni encolar',
+        () async {
+          await (base.update(
+            base.routes,
+          )..where((r) => r.id.equals('R1'))).write(
+            const RoutesCompanion(status: Value(EstadoRuta.completada)),
+          );
+          Future<Object?> actuar() => switch (operacion) {
+            'eliminar' => enElAparato.eliminar('R1'),
+            'iniciar' => enElAparato.iniciar('R1'),
+            'completar' => enElAparato.completar('R1'),
+            _ => enElAparato.cerrar('R1', const [
+              MarcaDeParada(pedidoId: 'P1', resultado: 'devuelto'),
+            ]),
+          };
+          await expectLater(
+            actuar,
+            throwsA(
+              isA<RechazoLocal>().having(
+                (e) => e.mensaje,
+                'motivo',
+                msgRutaCompletada,
+              ),
+            ),
+          );
+          final ruta = await (base.select(
+            base.routes,
+          )..where((r) => r.id.equals('R1'))).getSingle();
+          expect(ruta.status, EstadoRuta.completada);
+          expect(await base.select(base.apuntes).get(), isEmpty);
+        },
+      );
+    }
+
     test('los dos que llegan ven el MISMO resultado, también cuando el '
         'servidor dice que no', () async {
       // Al segundo se le devuelve el MISMO `Future`, no uno nuevo. Si se le
       // contestara «ya está» mientras el primero fallaba, el fallo no lo
       // pintaría nadie: el gesto saldría mudo, que es lo que prohíbe el §4.
-      contesta = (_) async => RespuestaFalsa(409, <String, Object?>{
-        'error': msgRutaConParadasCerradas(9),
-      });
+      contesta = (_) async =>
+          RespuestaFalsa(409, <String, Object?>{'error': msgRutaCompletada});
 
       final primera = enLaWeb.eliminar('R1');
       final segunda = enLaWeb.eliminar('R1');
@@ -160,7 +194,7 @@ void main() {
           isA<RechazoLocal>().having(
             (r) => r.mensaje,
             'mensaje',
-            msgRutaConParadasCerradas(9),
+            msgRutaCompletada,
           ),
         ),
         reason:
@@ -359,6 +393,12 @@ void main() {
       );
       expect(find.textContaining('el camión se queda libre'), findsOneWidget);
       expect(
+        find.textContaining(
+          'entregados siguen entregados y no se reparten otra vez',
+        ),
+        findsOneWidget,
+      );
+      expect(
         find.textContaining('seguro'),
         findsNothing,
         reason: '«¿estás seguro?» no es información, es un peaje',
@@ -431,7 +471,7 @@ void main() {
         find.text('Sí, borrar «RT-20261001-001»'),
         findsOneWidget,
         reason:
-            'una ruta con dos paradas sin cerrar se borra: lo que lo impide es '
+            'una ruta con dos paradas sin cerrar se borra: sólo completar la convierte en histórico; '
             'una parada CERRADA, no tener paradas',
       );
       expect(
@@ -443,32 +483,14 @@ void main() {
       await desmontar(tester);
     });
 
-    testWidgets('con paradas cerradas NO pregunta: dice por qué no se puede', (
+    testWidgets('en curso con resultados sigue preguntando y puede borrarse', (
       tester,
     ) async {
-      // EL PORTAZO, DICHO ANTES. El servidor contesta 409 a una ruta con
-      // resultados —se perdería la hoja de lo que bajó del camión—, así que
-      // preguntar primero sería pedir una decisión irreversible para
-      // contestarle que no cuando la tome.
       await pintar(tester, cerradas: 2, abiertas: 1);
       await pulsar(tester, 'Eliminar');
-
-      expect(
-        find.textContaining('Sí, borrar'),
-        findsNothing,
-        reason:
-            'no se pregunta por un borrado que el servidor va a negar: se dice '
-            'por qué no se puede',
-      );
-      expect(
-        find.text(msgRutaConParadasCerradas(2)),
-        findsOneWidget,
-        reason:
-            'el motivo es el LITERAL del servidor y lleva el número dentro: es '
-            'lo que hace que quien lo lee sepa de qué ruta le hablan',
-      );
-      expect(await sigueLaRuta(tester), isTrue);
-
+      expect(find.textContaining('Sí, borrar'), findsOneWidget);
+      await pulsar(tester, 'Sí, borrar «RT-20261001-001»');
+      expect(await sigueLaRuta(tester), isFalse);
       await desmontar(tester);
     });
   });
@@ -496,12 +518,12 @@ void main() {
         reason: 'sin ${fuente.path} no hay nada que ate los dos lados',
       );
       final texto = fuente.readAsStringSync();
-      final desde = texto.indexOf('msgRutaConResultados = ');
+      final desde = texto.indexOf('msgRutaCompletada = ');
       expect(
         desde,
         isNot(-1),
         reason:
-            'no está `msgRutaConResultados` en ${fuente.path}: si le cambiaron '
+            'no está `msgRutaCompletada` en ${fuente.path}: si le cambiaron '
             'el nombre, hay que mirar si le cambiaron también la redacción',
       );
 
@@ -517,21 +539,16 @@ void main() {
         if (!linea.trimRight().endsWith('+')) break;
       }
       final literalGo = trozos.join();
-      expect(
-        literalGo,
-        contains('%d'),
-        reason: 'el «no» del servidor lleva el número de paradas dentro',
-      );
 
       expect(
-        msgRutaConParadasCerradas(9),
-        literalGo.replaceFirst('%d', '9'),
+        msgRutaCompletada,
+        literalGo,
         reason:
             'el aparato y el servidor dicen el mismo «no» con otras palabras. '
             'Hay que cambiar los dos lados a la vez: '
-            'api/internal/api/rutas.go (msgRutaConResultados) y '
+            'api/internal/api/rutas.go (msgRutaCompletada) y '
             'app/lib/pantallas/rutas/datos/acciones_rutas.dart '
-            '(msgRutaConParadasCerradas)',
+            '(msgRutaCompletada)',
       );
     });
   });

@@ -91,7 +91,7 @@ void main() {
         // lo que pasaba aqui al guardar—. Montar el widget desnudo probaba una
         // pantalla que no existe en ningun sitio.
         child: const MaterialApp(
-          home: Scaffold(body: CierreDeRuta(rutaId: 'R1')),
+          home: Scaffold(body: CierreDeRuta(rutaId: 'R1', modo: ModoDelCierre.marcar)),
         ),
       ),
     );

@@ -136,8 +136,8 @@ fecha y el enlace de Google Maps.
 
 ## Paso 6 — Marcar las entregas
 
-Durante el reparto, en el detalle de la ruta: **«Cierre (3)»** — el número son las
-paradas que quedan sin marcar.
+Al terminar el reparto, en el detalle: **«Marcar como completada»**.
+Sólo entonces se abre la hoja para marcar los estados; antes no hay cierre editable.
 
 Por cada parada, tres botones: **«Entregado»**, **«Devuelto»** y **«Cancelado»**.
 
@@ -153,9 +153,9 @@ vacío.
 
 **Esto se puede hacer sin señal, entero.**
 
-Y guarda: **«Guardar 5 marcada(s)»**.
+Y confirma: **«Guardar y completar»**. Guarda los resultados y completa la ruta.
 
-> «Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o volvió.»
+Al guardar, los resultados de las paradas quedan registrados. Después la ruta pasa al Historial.
 
 ---
 
@@ -163,7 +163,7 @@ Y guarda: **«Guardar 5 marcada(s)»**.
 
 **«Marcar como completada»**.
 
-Si quedan paradas sin marcar, **te abre el cierre primero**, y avisa:
+**Siempre abre primero la hoja de estados**, y avisa:
 
 > «Lo que dejes sin marcar se da por no entregado y cuenta como que sigue en el
 > camión.»

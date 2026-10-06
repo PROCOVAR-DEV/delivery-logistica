@@ -282,7 +282,7 @@ func TestArmarUnaRutaConUnPedidoYaEntregadoEs409QueLoNombra(t *testing.T) {
 //
 // Una ruta ARMADA POR ERROR se sigue borrando igual: lo vigila
 // `TestBorrarLaRutaSueltaLosPedidosPeroNoSuPasado`, que es el mismo camino sin resultados.
-func TestNoSeBorraUnaRutaQueYaTieneResultados(t *testing.T) {
+func TestNoSeBorraUnaRutaCompletadaConResultados(t *testing.T) {
 	d, stg, _ := datosDeReparto()
 	h := montarRutas(t, d)
 	jwt := deSantiagoEnRutas(t)
@@ -291,6 +291,9 @@ func TestNoSeBorraUnaRutaQueYaTieneResultados(t *testing.T) {
 	if w := llamarRutas(t, h, http.MethodPost, "/api/routes/"+id.String()+"/results", jwt, cuerpo); w.Code != http.StatusOK {
 		t.Fatalf("no se pudo cerrar la parada: %s", w.Body.String())
 	}
+
+	d.rutas[id].estado = sqlc.RouteStatusCompleted
+	d.camiones[camionStg].estado = sqlc.VehicleStatusInUse
 
 	w := llamarRutas(t, h, http.MethodDelete, "/api/routes/"+id.String(), jwt, "")
 
@@ -303,12 +306,8 @@ func TestNoSeBorraUnaRutaQueYaTieneResultados(t *testing.T) {
 		t.Fatalf("código %d, se esperaba 409: %s", w.Code, w.Body.String())
 	}
 	motivo := errorDeRutas(t, w)
-	if !strings.Contains(motivo, "1 parada") {
-		t.Errorf("no se dice CUÁNTAS paradas cerradas hay dentro, que es lo que deja "+
-			"entender de qué ruta se está hablando: %q", motivo)
-	}
-	if !strings.Contains(motivo, "cancelada") {
-		t.Errorf("se dice que no y no se dice qué hacer en su lugar: %q", motivo)
+	if motivo != msgRutaCompletada {
+		t.Errorf("el rechazo no explica el histórico completado: %q", motivo)
 	}
 
 	// Y NO SE TOCÓ NADA. El 409 se contesta ANTES de la transacción, así que ni el camión

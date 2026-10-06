@@ -287,8 +287,9 @@ anterior y no cierra el asistente**.
    > kilómetros que se calcularon al armarla. Para tenerla otra vez hay que volver a
    > armarla desde el asistente, a mano.
    >
-   > Lo que NO se borra son los pedidos: sueltan esta ruta y vuelven a la lista de
-   > disponibles, listos para ponerlos en otra. Y el camión se queda libre.»
+   > Lo que NO se borra son los pedidos ni sus resultados: sueltan esta ruta. Los
+   > pendientes vuelven a la lista de disponibles; los entregados siguen entregados y
+   > no se reparten otra vez. Y el camión se queda libre.»
 
 3. **Toca «Sí, borrar «RT-20260928-004»»** para borrarla, o **«No, dejarla»**
    para salir. <!-- señala: confirmar-el-borrado -->
@@ -297,17 +298,18 @@ anterior y no cierra el asistente**.
 > fuera o la tecla Escape dejan la ruta donde estaba. Lo irreversible no se hace por
 > un descuido.
 
-### Si no te deja borrarla
+### Cuándo se puede borrar
 
-Si la ruta ya tiene paradas marcadas en el cierre, **ni siquiera pregunta**: sale
-una franja abajo con el motivo, y no es un fallo:
+Una ruta **planificada o en curso se puede eliminar**, aunque no tenga paradas
+cargadas o ya haya marcas de entrega, devolución o cancelación. Las marcas son
+provisionales mientras no se complete la ruta.
 
-> «Esa ruta ya tiene 3 parada(s) cerradas y no se puede borrar: se perdería la hoja
-> de lo que bajó del camión. Márcala como cancelada si hace falta.»
+**Las rutas completadas no se pueden editar ni eliminar**: forman el histórico,
+y el botón «Eliminar» no aparece. Su cierre sólo se consulta.
 
-**Las rutas completadas no se pueden eliminar**: ese botón ni siquiera aparece.
-
-Al eliminar una ruta, **sus pedidos vuelven a estar disponibles**.
+Al eliminar la ruta no se borra ningún pedido ni se cambia su resultado. Los
+pendientes y devueltos quedan disponibles; los ya entregados siguen entregados
+y no se vuelven a repartir.
 
 ---
 
@@ -337,8 +339,8 @@ para eso, ni en la tarjeta ni dentro del cajón del detalle. Las dos salidas:
 1. **Desliza a «Planificadas»** y **toca la tarjeta de la ruta**.
    <!-- señala: rutas-tarjeta-de-ruta -->
 2. **Toca «Eliminar»** al final de su tarjeta y confirma — ver [Eliminar una
-   ruta](#eliminar-una-ruta). Sus pedidos vuelven a la lista de disponibles y el
-   camión queda libre. <!-- señala: rutas-eliminar -->
+   ruta](#eliminar-una-ruta). Los pedidos pendientes quedan disponibles; los entregados conservan su
+   resultado. El camión queda libre. <!-- señala: rutas-eliminar -->
 3. Vete a **Menú → «Tablero»** y **desliza a la página de la zona**.
    <!-- señala: tablero-carrusel-de-zonas -->
 4. **Toca el ⋮** de la cabecera. <!-- señala: tablero-menu-de-la-zona -->
@@ -347,8 +349,9 @@ para eso, ni en la tarjeta ni dentro del cajón del detalle. Las dos salidas:
 6. Otra vez **⋮** y, abajo del cajón, **«Armar la ruta de esta zona»**.
    <!-- señala: tablero-armar-la-ruta -->
 
-**Si la ruta ya está «En curso»**, no la borres: tiene paradas que el servidor no va
-a dejar perder. Se termina con el camión que lleva y se cuadra en el cierre.
+**Si la ruta está «En curso»**, también se puede eliminar con confirmación y armar
+otra para los pedidos pendientes. Los resultados anteriores se conservan.
+**Si está completada**, no se modifica ni elimina: conserva su camión como histórico.
 
 > **Ojo:** mandar un camión al taller **no** le quita la ruta. La aplicación lo dice
 > en su tarjeta: «mandarlo al taller no la cierra, porque una ruta cerrada es una

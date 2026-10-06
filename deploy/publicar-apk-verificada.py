@@ -194,9 +194,24 @@ def update_env(original, replacements):
     return "".join(result)
 
 
+def verified_uploaded_journal(path, expected, deployment_ids):
+    require(path.is_file() and not path.is_symlink(), "diario de subida ausente o enlace")
+    evidence = json.loads(path.read_text())
+    require(evidence.get("phase") == "uploaded", "sólo se puede retomar una subida sin anuncio")
+    require(all(evidence.get(key) == value for key, value in expected.items()),
+            "diario corresponde a otra APK; no retomar")
+    require(evidence.get("production_verified") is False,
+            "diario ya marca producción verificada; no retomar")
+    require(evidence.get("old_deployment_ids") == deployment_ids,
+            "despliegues API cambiaron desde la subida; revisar antes de retomar")
+    return evidence
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--publish", action="store_true", required=True)
+    parser.add_argument("--resume-uploaded", action="store_true",
+                        help="retomar sólo diario uploaded verificado; no vuelve a subir")
     parser.add_argument("--version", required=True)
     parser.add_argument("--compilation", type=int, required=True)
     parser.add_argument("--date", required=True)
@@ -228,7 +243,8 @@ def main():
     except BlockingIOError:
         raise Stop("otra publicación está en curso") from None
     journal_path = HOST_DIR / f".publish-{args.file}.json"
-    require(not journal_path.exists(), "hay diario previo: inspeccionarlo antes de cualquier reintento")
+    if not args.resume_uploaded:
+        require(not journal_path.exists(), "hay diario previo: inspeccionarlo antes de cualquier reintento")
     verify_old_announcement()
 
     key = (SECRET_DIR / "dokploy.key").read_text().strip()
@@ -282,14 +298,24 @@ def main():
     replacement_env = update_env(original_env, changes)
     before_keys = store_keys()
     require(OLD_FILE in before_keys, "MinIO no conserva la APK anterior")
-    require(args.file not in before_keys, "el objeto nuevo ya existe: no sobrescribir")
+    if args.resume_uploaded:
+        require(args.file in before_keys, "objeto subido desapareció; no retomar")
+    else:
+        require(args.file not in before_keys, "el objeto nuevo ya existe: no sobrescribir")
 
     evidence = {"version": args.version, "compilation": args.compilation,
                 "file": args.file, "bytes": args.bytes, "sha256": args.sha256,
                 "url": PREFIX + args.file, "old_deployment_ids": old_ids,
                 "production_verified": False}
-    journal_fd = os.open(journal_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    os.close(journal_fd)
+    if args.resume_uploaded:
+        evidence = verified_uploaded_journal(journal_path, {
+            "version": args.version, "compilation": args.compilation,
+            "file": args.file, "bytes": args.bytes, "sha256": args.sha256,
+            "url": PREFIX + args.file,
+        }, old_ids)
+    else:
+        journal_fd = os.open(journal_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.close(journal_fd)
 
     def record(phase):
         evidence["phase"] = phase
@@ -300,14 +326,17 @@ def main():
             os.fsync(journal.fileno())
         emit(stage=phase, version=args.version, compilation=args.compilation)
 
-    record("upload_attempt")
-    command(["mc-procovar", "cp", "--attr",
-             "Content-Type=application/vnd.android.package-archive;Cache-Control=private, no-store",
-             "/host/apk/" + args.file, STORE + args.file], "subida MinIO", timeout=300)
-    after_keys = store_keys()
-    require(before_keys.issubset(after_keys) and args.file in after_keys,
-            "inventario APK no conserva las versiones previas")
-    record("uploaded")
+    if args.resume_uploaded:
+        record("resume_uploaded_verified")
+    else:
+        record("upload_attempt")
+        command(["mc-procovar", "cp", "--attr",
+                 "Content-Type=application/vnd.android.package-archive;Cache-Control=private, no-store",
+                 "/host/apk/" + args.file, STORE + args.file], "subida MinIO", timeout=300)
+        after_keys = store_keys()
+        require(before_keys.issubset(after_keys) and args.file in after_keys,
+                "inventario APK no conserva las versiones previas")
+        record("uploaded")
     verify_public(PREFIX + args.file, args.bytes, args.sha256)
     record("download_verified")
     verify_old_announcement()

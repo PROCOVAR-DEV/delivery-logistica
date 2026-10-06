@@ -1,0 +1,36 @@
+name: Compilar instalador de Reparto para Windows
+on:
+  push:
+    branches: ['build/reparto-windows-*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: reparto-windows-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Instalar la misma versión de Flutter que usa Reparto
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git clone --depth 1 --branch 3.47.4 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP/flutter"
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo obtener Flutter' }
+          "$env:RUNNER_TEMP/flutter/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Comprobar, compilar y empaquetar
+        run: ./deploy/windows/compilar.ps1
+      - name: Guardar instalador, paquete y huellas
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: reparto-windows-${{ github.sha }}
+          path: app/build/windows-distribucion/*
+          if-no-files-found: error
+          retention-days: 30

@@ -22,6 +22,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Analyze falló' }
     flutter test test/pantallas/ayuda --concurrency=3
     if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del tutorial fallaron en Windows' }
+    flutter test test/pantallas/tablero --concurrency=3
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del tablero con ratón fallaron en Windows' }
+    flutter test test/nucleo/base test/nucleo/cola test/pantallas/sincronizacion --concurrency=3
+    if ($LASTEXITCODE -ne 0) { throw 'Las pruebas del trabajo sin conexión fallaron en Windows' }
     flutter build windows --release
     if ($LASTEXITCODE -ne 0) { throw 'Compilación Windows falló' }
     $bundle = (Resolve-Path 'build/windows/x64/runner/Release').Path

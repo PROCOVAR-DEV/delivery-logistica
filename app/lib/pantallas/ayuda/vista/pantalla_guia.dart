@@ -325,11 +325,11 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
         // justamente el que explica por que.
         pie: (tarea.pasos.isEmpty && tarea.nombreDePantalla == null)
             ? null
-            : (_) => _PieDeLaTarea(
+            : (contextoCajon) => _PieDeLaTarea(
                 tarea: tarea,
                 forma: forma,
                 alLlevar: _llevarALaPantalla,
-                alGuiar: () => _guiar(tarea),
+                alGuiar: () => _guiar(tarea, contextoCajon),
               ),
       );
     } else {
@@ -389,23 +389,34 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
   ///     `Overlay` desde un contexto que se va es buscarlo desde ningun sitio;
   ///  2. **se navega**, si la tarea empieza en una pantalla. El cajon se cierra
   ///     solo con el cambio de camino (`AtrasDelCajon`);
-  ///  3. **y si NO se navega** —«la franja de arriba, desde cualquier pantalla»—
-  ///     hay que cerrar el cajon a mano: sin cambio de camino nadie lo cierra, y
-  ///     el recorrido saldria encima de un cajon tapando lo que senala;
+  ///  3. **si NO cambia el camino**, tambien al ensenar la propia Guia, hay que
+  ///     cerrar el cajon a mano. Vive en el navegador raiz, no en el del
+  ///     `ShellRoute` de esta pantalla: se cierra su ruta usando el contexto del
+  ///     pie, para no dejarlo tapando la lista ni sacar la pagina de debajo;
   ///  4. la capa se mete al terminar el fotograma, por lo mismo que el cajon de la
   ///     Guia: meter una ruta o una capa mientras se esta pintando lo corta
   ///     Flutter en seco.
-  void _guiar(TareaDelManual tarea) {
+  void _guiar(TareaDelManual tarea, BuildContext contextoCajon) {
     _nosVamos = true;
     _enElCajon = null;
 
     final capa = Overlay.of(context, rootOverlay: true);
     final ruta = tarea.rutaDePantalla;
+    final cambiaDePantalla =
+        ruta != null &&
+        Uri.parse(ruta).path != GoRouterState.of(context).uri.path;
+    if (!cambiaDePantalla) {
+      // El botón acaba de recibir el toque en este cajón: sigue siendo la ruta
+      // actual. No hay await ni callback diferido entre el toque y este pop.
+      Navigator.of(contextoCajon).pop();
+    }
     if (ruta != null) {
       context.go(ruta);
     } else {
-      final navegador = Navigator.of(context);
-      if (navegador.canPop()) navegador.pop();
+      _irA(GoRouterState.of(context).uri.queryParameters, {
+        PantallaGuia.deLaTarea: null,
+        PantallaGuia.deLaPagina: null,
+      });
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {

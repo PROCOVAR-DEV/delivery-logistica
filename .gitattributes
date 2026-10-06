@@ -1,0 +1,4 @@
+# El manual empaquetado se compara byte a byte y sus encabezados usan LF.
+# Conservarlos también al hacer checkout en Windows (core.autocrlf=true).
+docs/manual/** text eol=lf
+app/assets/manual/manual.txt text eol=lf

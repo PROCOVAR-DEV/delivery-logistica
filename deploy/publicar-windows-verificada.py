@@ -237,7 +237,10 @@ def main():
     require(android.api_version() == announcement and dokploy('/application.one' + query).get('env') == original,
             'producción cambió durante la descarga; no pisar cambios')
     installer = next(f for f in files if f['file'].endswith('.exe'))
-    replacement = android.update_env(original, {
+    # Los tres campos nuevos necesitan separar la última línea del entorno.
+    # La copia de seguridad conserva original exacto, incluso sin salto final.
+    separated = original if original.endswith('\n') else original + '\n'
+    replacement = android.update_env(separated, {
         'APP_DESCARGA_WINDOWS': PREFIX + installer['file'],
         'APP_DESCARGA_WINDOWS_BYTES': str(installer['bytes']),
         'APP_DESCARGA_WINDOWS_SHA256': installer['sha256'],

@@ -134,6 +134,10 @@ def main():
             headers={'x-api-key': key, 'Content-Type': 'application/json'}, method='POST' if body is not None else 'GET')
         with urllib.request.urlopen(request, timeout=30) as response:
             require(response.status == 200, 'Dokploy no aceptó la operación')
+            # Este POST puede contestar sin JSON. El 200 sólo acredita la petición;
+            # verify exige después un despliegue único done y el anuncio exacto.
+            if path == '/application.redeploy':
+                return None
             return json.load(response)
 
     query = '?' + urllib.parse.urlencode({'applicationId': android.APP})

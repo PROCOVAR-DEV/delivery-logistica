@@ -24,7 +24,7 @@ Dokploy no se caiga después.
 | **web** | el portátil Linux | Sólo para probar. La que se sirve la construye Dokploy con `deploy/Dockerfile.app`. |
 | **APK** | el portátil Linux | Tiene el SDK de Android puesto y funcionando. |
 | **escritorio de Linux** | el portátil Linux | |
-| **escritorio de Windows** | **el portátil Windows de Jose** | Flutter **no cruza de una plataforma a otra**: el `.exe` necesita MSVC y no hay forma de sacarlo desde Linux. |
+| **escritorio de Windows** | **GitHub Actions con Windows Server 2022 o el portátil Windows de Jose** | El `.exe` necesita MSVC en Windows; desde Linux se puede lanzar la compilación remota. |
 
 Y la versión de Flutter tiene que ser **la misma en las dos máquinas**, porque
 `app/pubspec.yaml` fija las dependencias sin `^` justo para que dos máquinas no produzcan
@@ -186,6 +186,12 @@ El artefacto del trabajo contiene:
 
 Antes de ofrecerlo en procovar.cloud hay que descargar ese artefacto, contrastar
 sus huellas, publicar el instalador sin sobrescribir versiones y comprobar su descarga.
+
+La versión **1.0.25+26** está en procovar.cloud como **Reparto para Windows**:
+el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.25-windows-setup.exe).
+La ejecución [37520112144 de GitHub Actions](https://github.com/jose22072000/delivery-logistica/actions/runs/37520112144)
+compiló e instaló la copia de prueba. Las descargas públicas se verificaron por tamaño
+y SHA256 antes de añadir la tarjeta; la prueba en el PC del usuario queda pendiente.
 
 Para hacerlo en el portátil en vez del ejecutor remoto:
 

@@ -62,6 +62,7 @@ import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart';
 import '../datos/manual.dart';
 import 'control_senalado.dart';
+import 'demostracion_del_gesto.dart';
 import 'pintar_markdown.dart';
 
 /// Los literales del recorrido, en un sitio: los usan la capa y sus pruebas.
@@ -175,9 +176,10 @@ class CapaDelRecorrido extends StatefulWidget {
 
 class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
   int _cual = 0;
+  int _repeticion = 0;
 
-  /// Donde esta el control de este paso, medido. `null` = no se puede senalar.
-  Rect? _foco;
+  /// Un arrastre necesita abiertos el origen y el destino en el mismo paso.
+  List<Rect> _focos = const [];
 
   PasoGuiado get _paso => widget.tarea.pasos[_cual];
 
@@ -194,9 +196,9 @@ class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
   /// reves —medir y luego desplazar— el anillo se queda en el sitio de antes y
   /// senala un hueco, que es el fallo que mas se nota de los dos.
   Future<void> _colocar() async {
-    final nombre = _paso.senala;
-    if (nombre == null) {
-      if (mounted) setState(() => _foco = null);
+    final nombres = _paso.controles;
+    if (nombres.isEmpty) {
+      if (mounted) setState(() => _focos = const []);
       return;
     }
 
@@ -210,46 +212,58 @@ class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
     //
     // El tope existe para que lo contrario tampoco pase: un control que de verdad
     // no esta no puede dejar la tarjeta esperando para siempre.
-    var puesto = RegistroDeControles.donde(nombre);
+    var puestos = [
+      for (final nombre in nombres) RegistroDeControles.donde(nombre),
+    ];
     for (
       var intento = 0;
-      puesto == null && intento < _fotogramasDeEspera;
+      puestos.any((p) => p == null) && intento < _fotogramasDeEspera;
       intento++
     ) {
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
-      puesto = RegistroDeControles.donde(nombre);
+      puestos = [
+        for (final nombre in nombres) RegistroDeControles.donde(nombre),
+      ];
     }
-    if (puesto == null) {
-      setState(() => _foco = null);
+    if (puestos.any((p) => p == null)) {
+      setState(() => _focos = const []);
       return;
     }
 
     // `ensureVisible` revienta si el contexto no esta dentro de un `Scrollable`,
     // y hay controles que no lo estan (la franja de arriba, la barra). Eso no es
     // un fallo: es que no hay nada que desplazar.
-    if (Scrollable.maybeOf(puesto.contexto) != null) {
-      await Scrollable.ensureVisible(
-        puesto.contexto,
-        // Centrado: un control pegado al borde de la vista queda debajo del
-        // anillo a medias, y entonces no se ve lo que se esta senalando.
-        alignment: 0.5,
-        duration: const Duration(milliseconds: 220),
-      );
-      if (!mounted) return;
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
+    for (final ubicado in puestos) {
+      final puesto = ubicado!;
+      if (Scrollable.maybeOf(puesto.contexto) != null) {
+        await Scrollable.ensureVisible(
+          puesto.contexto,
+          // Se mide todo después del último desplazamiento: mover el destino
+          // también puede mover el origen del arrastre.
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 220),
+        );
+        if (!mounted) return;
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+      }
     }
 
     // Se vuelve a preguntar: el desplazamiento movio el control, y la medida de
     // antes ya no vale.
-    setState(() => _foco = RegistroDeControles.donde(nombre)?.rect);
+    final medidos = [
+      for (final nombre in nombres) RegistroDeControles.donde(nombre)?.rect,
+    ];
+    setState(() {
+      _focos = medidos.any((r) => r == null) ? const [] : medidos.cast<Rect>();
+    });
   }
 
   void _ir(int aCual) {
     setState(() {
       _cual = aCual;
-      _foco = null;
+      _focos = const [];
     });
     _colocar();
   }
@@ -257,65 +271,74 @@ class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
   @override
   Widget build(BuildContext context) {
     final pantalla = MediaQuery.sizeOf(context);
-    final hueco = _foco == null
-        ? null
-        : _dentroDe(_foco!.inflate(_aireDelFoco), pantalla);
+    final huecos = [
+      for (final foco in _focos)
+        _dentroDe(foco.inflate(_aireDelFoco), pantalla),
+    ].where((r) => !r.isEmpty).toList();
+    final seVeCompleto =
+        huecos.length == _paso.controles.length && huecos.isNotEmpty;
 
     return Material(
       type: MaterialType.transparency,
       child: Stack(
         children: [
-          // EL VELO, EN CUATRO TROZOS ALREDEDOR DEL AGUJERO.
+          // EL VELO SE RECORTA ALREDEDOR DE TODOS LOS CONTROLES DEL GESTO.
           //
-          // Cuatro rectangulos y no un `CustomPainter` con un `Path` recortado, y
+          // Rectangulos y no un `CustomPainter` con un `Path` recortado, y
           // es la decision que hace que el dedo pase por el agujero: un pintor
           // dibuja el agujero pero **sigue recibiendo el toque**, asi que habria
-          // que escribir un `hitTest` a mano para dejarlo pasar. Con cuatro
-          // trozos, el agujero no es un sitio con una regla: es un sitio donde no
+          // que escribir un `hitTest` a mano para dejarlo pasar. Con los
+          // trozos, cada agujero es un sitio donde no
           // hay widget ninguno.
-          ..._velo(pantalla, hueco),
-          if (hueco != null) _anillo(hueco),
-          _tarjeta(pantalla, hueco),
+          ..._velo(pantalla, huecos),
+          for (final hueco in huecos) _anillo(hueco),
+          if (seVeCompleto)
+            DemostracionDelGesto(
+              key: ValueKey('gesto-$_cual-$_repeticion'),
+              focos: huecos,
+            ),
+          _tarjeta(pantalla, huecos, seVeCompleto),
         ],
       ),
     );
   }
 
-  /// El velo. Sin agujero, uno entero; con agujero, los cuatro de alrededor.
-  List<Widget> _velo(Size pantalla, Rect? hueco) {
-    Widget trozo({
-      double? left,
-      double? top,
-      double? right,
-      double? bottom,
-      double? width,
-      double? height,
-    }) => Positioned(
-      left: left,
-      top: top,
-      right: right,
-      bottom: bottom,
-      width: width,
-      height: height,
-      // Absorbe, no ignora: lo de debajo no se puede tocar mientras el recorrido
-      // esta puesto, y eso es lo que impide desplazar la lista y dejar el anillo
-      // senalando un hueco.
-      child: AbsorbPointer(child: ColoredBox(color: Colores.veloDelRecorrido)),
-    );
-
-    if (hueco == null) {
-      return [trozo(left: 0, top: 0, right: 0, bottom: 0)];
+  /// Se resta cada agujero del velo. El destino recibe el arrastre aunque el
+  /// ratón haya cruzado una parte cubierta; el resto sigue absorbiendo toques.
+  List<Widget> _velo(Size pantalla, List<Rect> huecos) {
+    var partes = [Offset.zero & pantalla];
+    for (final hueco in huecos) {
+      final siguientes = <Rect>[];
+      for (final parte in partes) {
+        final corte = parte.intersect(hueco);
+        if (corte.isEmpty) {
+          siguientes.add(parte);
+          continue;
+        }
+        siguientes.addAll(
+          [
+            Rect.fromLTRB(parte.left, parte.top, parte.right, corte.top),
+            Rect.fromLTRB(parte.left, corte.bottom, parte.right, parte.bottom),
+            Rect.fromLTRB(parte.left, corte.top, corte.left, corte.bottom),
+            Rect.fromLTRB(corte.right, corte.top, parte.right, corte.bottom),
+          ].where((r) => !r.isEmpty),
+        );
+      }
+      partes = siguientes;
     }
     return [
-      trozo(left: 0, top: 0, right: 0, height: hueco.top),
-      trozo(left: 0, top: hueco.bottom, right: 0, bottom: 0),
-      trozo(left: 0, top: hueco.top, width: hueco.left, height: hueco.height),
-      trozo(left: hueco.right, top: hueco.top, right: 0, height: hueco.height),
+      for (final parte in partes)
+        Positioned.fromRect(
+          rect: parte,
+          child: AbsorbPointer(
+            child: ColoredBox(color: Colores.veloDelRecorrido),
+          ),
+        ),
     ];
   }
 
-  /// EL ANILLO. Es lo unico que se dibuja encima del control, y va **fuera** de
-  /// su rectangulo: un borde pintado encima taparia la mitad del icono del boton
+  /// EL ANILLO va **fuera** del control. La mano sólo aparece durante el gesto.
+  /// Un borde pintado encima taparia la mitad del icono del boton
   /// que se esta senalando.
   Widget _anillo(Rect hueco) => Positioned.fromRect(
     rect: hueco,
@@ -331,11 +354,14 @@ class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
   );
 
   /// LA TARJETA DEL PASO, al otro lado del control.
-  Widget _tarjeta(Size pantalla, Rect? hueco) {
+  Widget _tarjeta(Size pantalla, List<Rect> huecos, bool seVeCompleto) {
     // Si el control esta en la mitad de arriba, la tarjeta abajo; si no, arriba.
     // Sin esto, la tarjeta tapa justo lo que esta senalando — que es el fallo que
     // hace inutil un recorrido entero.
-    final abajo = hueco == null || hueco.center.dy < pantalla.height / 2;
+    final conjunto = huecos.isEmpty
+        ? null
+        : huecos.reduce((a, b) => a.expandToInclude(b));
+    final abajo = conjunto == null || conjunto.center.dy < pantalla.height / 2;
 
     return Positioned(
       left: Aire.md,
@@ -349,8 +375,12 @@ class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
             child: _Tarjeta(
               tarea: widget.tarea,
               paso: _paso,
-              seSenala: hueco != null,
+              seSenala: seVeCompleto,
               alSalir: widget.alSalir,
+              alRepetir:
+                  !MediaQuery.disableAnimationsOf(context) && seVeCompleto
+                  ? () => setState(() => _repeticion++)
+                  : null,
               alAtras: _cual == 0 ? null : () => _ir(_cual - 1),
               alSiguiente: _cual + 1 >= widget.tarea.pasos.length
                   ? null
@@ -386,6 +416,7 @@ class _Tarjeta extends StatelessWidget {
     required this.paso,
     required this.seSenala,
     required this.alSalir,
+    required this.alRepetir,
     required this.alAtras,
     required this.alSiguiente,
   });
@@ -394,6 +425,7 @@ class _Tarjeta extends StatelessWidget {
   final PasoGuiado paso;
   final bool seSenala;
   final VoidCallback alSalir;
+  final VoidCallback? alRepetir;
   final VoidCallback? alAtras;
   final VoidCallback? alSiguiente;
 
@@ -466,6 +498,12 @@ class _Tarjeta extends StatelessWidget {
               ),
             ),
           const SizedBox(height: Aire.md),
+          if (alRepetir != null)
+            TextButton.icon(
+              onPressed: alRepetir,
+              icon: const Icon(Icons.replay, size: 17),
+              label: const Text('Ver el gesto otra vez'),
+            ),
           Row(
             children: [
               // «Salir» a la izquierda y sin peso: esta siempre, y no es lo que

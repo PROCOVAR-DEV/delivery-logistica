@@ -164,19 +164,19 @@ tarjeta: eso es el teléfono, que no tiene las dos mitades a la vez.
 2. O usa **el buscador**, que dice «Cliente, operación, dirección, artículo…» y
    **filtra mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
    - Si pone **«Se ven 200 de 308.»**, haz clic en **«Ver 108 más»**.
-3. **Agarra la tarjeta del pedido** en la mitad izquierda y arrástrala sin soltar.
+3. **Agarra la tarjeta del pedido** en la mitad izquierda, arrástrala hasta la zona
+   señalada de la derecha y **suéltala allí**, sin interrumpir el gesto.
    <!-- señala: tablero-tarjeta-de-pedido -->
-4. **Suéltala sobre la zona** de la derecha.
    <!-- señala: tablero-zona-donde-soltar -->
    - Suéltala **sobre otra tarjeta** para ponerla en ese sitio del orden.
    - Suéltala en **el hueco de abajo** o **sobre la cabecera** para ponerla la última.
    - Suéltala **en la mitad izquierda** para devolverla a «sin colocar».
    - Soltarla donde ya estaba **no hace nada**.
    - Si la zona está vacía, mientras arrastras encima verás **«Suelta aquí»**.
-5. **Si prefieres no arrastrar**, haz clic en la tarjeta.
+4. **Si prefieres no arrastrar**, haz clic en la tarjeta.
    <!-- señala: tablero-tarjeta-de-pedido -->
    - Se abre el mismo cajón del pedido que en el teléfono.
-6. En ese cajón, baja hasta la lista de zonas y **haz clic en «Colocar en «Centro»»**.
+5. En ese cajón, baja hasta la lista de zonas y **haz clic en «Colocar en «Centro»»**.
    <!-- señala: tablero-colocar-en-la-zona -->
    - Ahí mismo están **«Subir una posición»**, **«Bajar una posición»** y **«Devolver
      a sin colocar»**, que en el teléfono son la única vía.
@@ -215,10 +215,13 @@ Camión: F-350
 **Esto sólo se puede en pantalla grande**, aquí y en el escritorio. En el teléfono no
 hay forma: las zonas van una por página y no hay dónde soltar.
 
-1. **Agarra la cabecera de la zona** —donde está su nombre y su peso— y arrástrala sin
-   soltar. <!-- señala: tablero-cabecera-de-la-zona -->
-2. **Suéltala sobre la zona que quieres que ocupe su sitio**: se cambian de sitio.
-   <!-- señala: tablero-zona-donde-soltar -->
+Necesitas **al menos dos zonas**. Si sólo tienes una, crea otra antes de empezar.
+
+1. **Agarra la cabecera de la primera zona** —donde está su nombre y su peso—,
+   arrástrala hasta la **segunda zona** y **suéltala allí**, sin interrumpir el gesto.
+   La primera pasa a la posición de la segunda. Pulsa **«Ya está»** después de soltar.
+   <!-- señala: tablero-cabecera-de-la-zona -->
+   <!-- señala: tablero-segunda-zona-donde-soltar -->
 
 ---
 

@@ -350,6 +350,7 @@ class _Zona extends ConsumerWidget {
       // Sólo la primera zona se deja senalar por la Guia: ver
       // `ColumnaDelTablero.esLaPrimera`.
       esLaPrimera: cual == 0,
+      esLaSegunda: cual == 1,
       tarjetas: tablero.deColumna(columna.id),
       alSoltar: (datos, posicion) {
         // Soltar una tarjeta donde ya estaba no es una orden: es un dedo que se

@@ -25,6 +25,11 @@ pantalla y te va marcando el botón que toca en cada paso.
    <!-- señala: guia-guiarme -->
    - La aplicación te lleva a la pantalla de la tarea y **te marca el control** del
      primer paso, con la nota al lado.
+   - **La mano te enseña el gesto**: pulsa donde hay que tocar o se mueve del
+     origen al destino para enseñar el arrastre. Después se aparta y **lo haces
+     tú sobre los controles reales**. Puedes repetirlo con **«Ver el gesto otra
+     vez»**. Si tienes activado reducir movimiento, quedan las marcas y la
+     explicación sin animación.
    - **«Siguiente»** pasa al que viene, **«Atrás»** vuelve, y arriba pone por dónde
      vas: «3 de 7».
    - **«Salir»** lo deja donde quieras. No se queda nada a medias.

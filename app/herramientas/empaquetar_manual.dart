@@ -75,8 +75,9 @@ void main(List<String> argumentos) {
   final inventados = <String>{};
   for (final tarea in manual.tareas) {
     for (final paso in tarea.pasos) {
-      final cual = paso.senala;
-      if (cual != null && !Senalado.todos.contains(cual)) inventados.add(cual);
+      for (final cual in paso.controles) {
+        if (!Senalado.todos.contains(cual)) inventados.add(cual);
+      }
     }
   }
   if (inventados.isNotEmpty) {

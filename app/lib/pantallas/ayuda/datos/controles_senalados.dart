@@ -83,6 +83,11 @@ abstract final class Senalado {
   /// cubriria todo — y por eso ningun paso de `apk/` lo nombra.
   static const tableroZonaDondeSoltar = 'tablero-zona-donde-soltar';
 
+  /// Reordenar se practica entre dos zonas distintas: la cabecera de la primera
+  /// se lleva a la segunda. La primera sigue siendo el destino para un pedido.
+  static const tableroSegundaZonaDondeSoltar =
+      'tablero-segunda-zona-donde-soltar';
+
   /// LA CABECERA DE UNA ZONA, que es LO QUE SE AGARRA para reordenarlas.
   ///
   /// Reordenar zonas es arrastrar la cabecera, y **no hay ninguna otra via**: en
@@ -345,6 +350,7 @@ abstract final class Senalado {
     tableroDevolverASinColocar,
     tableroCarruselDeZonas,
     tableroZonaDondeSoltar,
+    tableroSegundaZonaDondeSoltar,
     tableroCabeceraDeLaZona,
     pedidosBuscar,
     pedidosFiltroEstado,

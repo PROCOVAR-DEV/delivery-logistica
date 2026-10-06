@@ -74,6 +74,7 @@ void main() {
                       columna: columna,
                       ancho: 300,
                       esLaPrimera: cual == 0,
+                      esLaSegunda: cual == 1,
                       tarjetas: const [],
                       alSoltar: (_, _) {},
                       alPulsarTarjeta: (_) {},
@@ -145,6 +146,26 @@ void main() {
     await pintarDos(tester);
     cae(tester, Senalado.tableroZonaDondeSoltar);
   });
+
+  testWidgets(
+    'reordenar señala como destino la segunda zona, distinta del origen',
+    (tester) async {
+      await pintarDos(tester);
+      final destino = RegistroDeControles.donde(
+        Senalado.tableroSegundaZonaDondeSoltar,
+      );
+      expect(destino, isNotNull);
+      final columnas = find.byType(ColumnaDelTablero);
+      expect(
+        tester.getRect(columnas.at(1)).contains(destino!.rect.center),
+        isTrue,
+      );
+      expect(
+        tester.getRect(columnas.at(0)).contains(destino.rect.center),
+        isFalse,
+      );
+    },
+  );
 
   /// Y LA CONTRAPARTE: con las dos marcadas no se señala ninguna.
   ///

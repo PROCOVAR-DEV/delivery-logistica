@@ -144,17 +144,18 @@ cada tarjeta y se elige la zona en el cajón.
 2. O usa **el buscador** («Cliente, operación, dirección, artículo…»), que **filtra
    mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
    - Si pone **«Se ven 200 de 308.»**, clic en **«Ver 108 más»**.
-3. **Agarra la tarjeta con el ratón** y arrástrala sin soltar.
+3. **Agarra la tarjeta con el ratón**, arrástrala hasta la zona señalada y
+   **suéltala allí**, sin interrumpir el gesto.
    <!-- señala: tablero-tarjeta-de-pedido -->
-4. **Suéltala sobre la zona.** <!-- señala: tablero-zona-donde-soltar -->
+   <!-- señala: tablero-zona-donde-soltar -->
    - Sobre otra tarjeta: la pone en ese sitio del orden.
    - En el hueco de abajo o **sobre la cabecera**: la pone la última.
    - En la mitad izquierda: la devuelve a «sin colocar».
    - Donde ya estaba: **no hace nada**.
    - Si la zona está vacía, mientras arrastras encima verás **«Suelta aquí»**.
-5. **Si prefieres no arrastrar**, clic en la tarjeta.
+4. **Si prefieres no arrastrar**, clic en la tarjeta.
    <!-- señala: tablero-tarjeta-de-pedido -->
-6. En el cajón, baja hasta la lista de zonas y **clic en «Colocar en «Centro»»**.
+5. En el cajón, baja hasta la lista de zonas y **clic en «Colocar en «Centro»»**.
    <!-- señala: tablero-colocar-en-la-zona -->
    - Ahí están también **«Subir una posición»**, **«Bajar una posición»** y
      **«Devolver a sin colocar»**.
@@ -189,10 +190,13 @@ Camión: F-350                       sin subir
 **Esto sólo se puede en pantalla grande**, aquí y en la web. En el teléfono no hay
 forma: las zonas van una por página y no hay dónde soltar.
 
-1. **Agarra la cabecera de la zona** —donde está su nombre y su peso— y arrástrala sin
-   soltar. <!-- señala: tablero-cabecera-de-la-zona -->
-2. **Suéltala sobre la zona que quieres que ocupe su sitio**: se cambian de sitio.
-   <!-- señala: tablero-zona-donde-soltar -->
+Necesitas **al menos dos zonas**. Si sólo tienes una, crea otra antes de empezar.
+
+1. **Agarra la cabecera de la primera zona** —donde está su nombre y su peso—,
+   arrástrala hasta la **segunda zona** y **suéltala allí**, sin interrumpir el gesto.
+   La primera pasa a la posición de la segunda. Pulsa **«Ya está»** después de soltar.
+   <!-- señala: tablero-cabecera-de-la-zona -->
+   <!-- señala: tablero-segunda-zona-donde-soltar -->
 
 ---
 

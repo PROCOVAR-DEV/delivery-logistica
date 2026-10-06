@@ -138,6 +138,8 @@ const marcaDeTarea = '<!-- tarea -->';
 /// `test/pantallas/ayuda/los_pasos_senalan_controles_que_existen_test.dart`: un
 /// nombre mal escrito dejaria un paso apuntando a nada, y **un recorrido que
 /// apunta al boton equivocado es peor que uno que no apunta**.
+/// Un gesto continuo puede llevar varias marcas: al arrastrar se señalan el
+/// origen y el destino en el mismo paso, sin pedir avanzar mientras se sostiene.
 final marcaDeSenal = RegExp(r'<!--\s*se[nñ]ala:\s*([a-z0-9-]+)\s*-->');
 
 /// UN PASO DEL RECORRIDO GUIADO: una cosa que tocar, y donde esta.
@@ -157,6 +159,7 @@ class PasoGuiado {
     required this.deCuantos,
     required this.texto,
     required this.senala,
+    this.senalaTambien = const <String>[],
     this.detalles = const <String>[],
   });
 
@@ -176,6 +179,12 @@ class PasoGuiado {
   /// dice con esas palabras (§4, nada se descarta en silencio). Lo que no hace
   /// nunca es apuntar a un sitio cualquiera.
   final String? senala;
+
+  /// Un arrastre es un solo gesto, con origen y destino abiertos a la vez.
+  /// Las marcas adicionales pertenecen al mismo paso, no al siguiente.
+  final List<String> senalaTambien;
+
+  List<String> get controles => [?senala, ...senalaTambien];
 
   /// Los sub-puntos sangrados debajo del paso, tal cual los escribio el manual.
   final List<String> detalles;
@@ -812,6 +821,9 @@ List<PasoGuiado> pasosDelCuerpo(String cuerpo) {
     }
   }
 
+  final senales = [
+    for (final crudo in crudos) _senalesDe([crudo.texto, ...crudo.detalles]),
+  ];
   return [
     for (var i = 0; i < crudos.length; i++)
       PasoGuiado(
@@ -825,19 +837,22 @@ List<PasoGuiado> pasosDelCuerpo(String cuerpo) {
         // ultima: buscandola solo en el renglon del paso, cuatro pasos de
         // `web/2-tareas.md` salian sin foco teniendo su control escrito. Medido el
         // 05/10/2026.
-        senala: _senalaDe([crudos[i].texto, ...crudos[i].detalles]),
+        senala: senales[i].firstOrNull,
+        senalaTambien: senales[i].skip(1).toList(),
         detalles: [for (final d in crudos[i].detalles) sinLaMarcaDeSenal(d)],
       ),
   ];
 }
 
-/// El primer control que nombran estos renglones, o `null`.
-String? _senalaDe(List<String> renglones) {
+/// Todos los controles del gesto, sin duplicar una marca repetida en las notas.
+List<String> _senalesDe(List<String> renglones) {
+  final nombres = <String>{};
   for (final renglon in renglones) {
-    final cual = marcaDeSenal.firstMatch(renglon);
-    if (cual != null) return cual.group(1);
+    for (final cual in marcaDeSenal.allMatches(renglon)) {
+      nombres.add(cual.group(1)!);
+    }
   }
-  return null;
+  return nombres.toList();
 }
 
 /// El texto de un paso sin su marca, y sin el hueco que deja al irse.

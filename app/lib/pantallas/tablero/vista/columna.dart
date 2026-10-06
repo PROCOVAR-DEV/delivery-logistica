@@ -26,6 +26,7 @@ class ColumnaDelTablero extends StatelessWidget {
     required this.alSoltarColumna,
     this.ancho,
     this.esLaPrimera = false,
+    this.esLaSegunda = false,
     super.key,
   });
 
@@ -36,6 +37,9 @@ class ColumnaDelTablero extends StatelessWidget {
   /// tiene que elegir entre doce
   /// (`pantallas/ayuda/vista/control_senalado.dart`).
   final bool esLaPrimera;
+
+  /// El destino de reordenar debe ser otra zona, no la propia cabecera.
+  final bool esLaSegunda;
 
   final ColumnaTablero columna;
   final List<TarjetaColocada> tarjetas;
@@ -60,7 +64,7 @@ class ColumnaDelTablero extends StatelessWidget {
     // sobre la zona» no tenia donde apuntar. Sólo la primera
     // (`esLaPrimera`): hay una por zona y dos con el mismo nombre no se
     // distinguen.
-    return ControlSenalado(
+    final zona = ControlSenalado(
       nombre: Senalado.tableroZonaDondeSoltar,
       senalable: esLaPrimera,
       child: DragTarget<ColumnaArrastrada>(
@@ -87,8 +91,8 @@ class ColumnaDelTablero extends StatelessWidget {
               // raton o lapiz, con pulsacion larga con el dedo, que es lo que
               // evita comerse el desplazamiento lateral de la tira en un
               // telefono. El porque esta en `ArrastrableSegunPuntero`
-              // (`kit.dart`). Quien no quiera arrastrar tiene «mover a la
-              // izquierda / derecha» en el menu.
+              // (`kit.dart`). Reordenar sólo se ofrece arrastrando en pantalla
+              // grande; el menú no tiene acciones de mover izquierda/derecha.
               ArrastrableSegunPuntero<ColumnaArrastrada>(
                 datos: ColumnaArrastrada(columna.id),
                 feedback: Material(
@@ -153,6 +157,11 @@ class ColumnaDelTablero extends StatelessWidget {
           ),
         ),
       ),
+    );
+    return ControlSenalado(
+      nombre: Senalado.tableroSegundaZonaDondeSoltar,
+      senalable: esLaSegunda,
+      child: zona,
     );
   }
 }

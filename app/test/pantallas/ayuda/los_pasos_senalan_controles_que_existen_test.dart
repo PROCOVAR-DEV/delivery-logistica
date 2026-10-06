@@ -47,11 +47,11 @@ void main() {
   final enElManual = <String, List<String>>{};
   for (final tarea in manual.tareas) {
     for (final paso in tarea.pasos) {
-      final cual = paso.senala;
-      if (cual == null) continue;
-      enElManual
-          .putIfAbsent(cual, () => <String>[])
-          .add('${tarea.camino} «${tarea.titulo}» paso ${paso.cual}');
+      for (final cual in paso.controles) {
+        enElManual
+            .putIfAbsent(cual, () => <String>[])
+            .add('${tarea.camino} «${tarea.titulo}» paso ${paso.cual}');
+      }
     }
   }
 

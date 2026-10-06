@@ -25,6 +25,8 @@ ANDROID_FILE = 'reparto-1.0.25-261006.apk'
 PREFIX = 'https://archivos.procovar.cloud/reparto/windows/'
 STORE = 'procovar/reparto/windows/'
 REPO = 'jose22072000/delivery-logistica'
+WINDOWS_RELEASES = {'1.0.25': 26, '1.0.26': 27}
+PREVIOUS_WINDOWS_SHA = '15b451e39a0bbaba2fa7e2b85bf0999fb10fa0cc9f0f7289f9d879efb986cade'
 ANDROID_SHA = '7b46b44c0ac82ca87bea1ec098b2a993bd89ea4510cc0bc613e08ca7c27ae714'
 spec = importlib.util.spec_from_file_location('android_publisher', Path(__file__).with_name('publicar-apk-verificada.py'))
 android = importlib.util.module_from_spec(spec)
@@ -40,13 +42,19 @@ def public_json(url):
         return json.load(response)
 
 
-def verify_baseline(value):
+def verify_baseline(value, windows_version):
     require(value.get('version') == '1.0.25' and value.get('compilacion') == 26,
             'la versión Android cambió; detenerse')
     require(value.get('ficheros', {}).get('android') == {'bytes': 78868528, 'sha256': ANDROID_SHA},
             'el artefacto Android cambió; detenerse')
     require(value.get('descargas', {}).get('android') == 'https://archivos.procovar.cloud/reparto/apk/reparto-1.0.25-261006.apk',
             'el enlace Android cambió; detenerse')
+    if windows_version == '1.0.26':
+        require(value.get('descargas', {}).get('windows') == PREFIX + 'reparto-1.0.25-windows-setup.exe'
+                and value.get('ficheros', {}).get('windows') == {'bytes': 16200848, 'sha256': PREVIOUS_WINDOWS_SHA},
+                'Windows anterior cambió; detenerse')
+    else:
+        require('windows' not in value.get('descargas', {}) and 'windows' not in value.get('ficheros', {}), 'Windows ya está anunciado; revisar antes de cambiarlo')
 
 
 def inventory():
@@ -104,7 +112,9 @@ def main():
     require(re.fullmatch('[a-f0-9]{40}', args.source) is not None and args.run > 0, 'fuente CI inválida')
     require(args.manifest.is_file() and not args.manifest.is_symlink(), 'manifiesto inválido')
     meta = json.loads(args.manifest.read_text(encoding='utf-8-sig'))
-    require(meta.get('version') == '1.0.25' and meta.get('compilation') == 26
+    version = meta.get('version')
+    require(version in WINDOWS_RELEASES and type(meta.get('compilation')) is int
+            and meta.get('compilation') == WINDOWS_RELEASES[version]
             and meta.get('source_commit') == args.source and meta.get('flutter_version') == '3.47.4'
             and meta.get('installer_files_verified') is True, 'Windows no tiene prueba de instalación CI')
     run = public_json(f'https://api.github.com/repos/{REPO}/actions/runs/{args.run}')
@@ -113,7 +123,7 @@ def main():
             and run.get('path') == '.github/workflows/reparto-windows.yml'
             and run.get('head_repository', {}).get('full_name') == REPO, 'el trabajo Windows no terminó correctamente')
     files = meta.get('files')
-    expected_names = {'reparto-1.0.25-windows-setup.exe', 'reparto-1.0.25-windows.zip'}
+    expected_names = {f'reparto-{version}-windows-setup.exe', f'reparto-{version}-windows.zip'}
     require(isinstance(files, list) and len(files) == 2
             and {f.get('file') for f in files} == expected_names, 'inventario Windows inesperado')
     for file in files:
@@ -124,7 +134,7 @@ def main():
         require(android.digest_file(path) == (file['bytes'], file['sha256']), 'fichero Windows distinto del manifiesto')
     lock = (HOST / '.publish.lock').open('a')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    journal = HOST / '.publish-windows-1.0.25.json'
+    journal = HOST / f'.publish-windows-{version}.json'
     require(SECRET.is_dir() and not SECRET.is_symlink(), 'directorio secretos inválido')
     key = (SECRET / 'dokploy.key').read_text().strip()
 
@@ -143,7 +153,7 @@ def main():
     query = '?' + urllib.parse.urlencode({'applicationId': android.APP})
     deployments = dokploy('/deployment.all' + query)
     require(isinstance(deployments, list), 'despliegues API inválidos')
-    title = 'Windows 1.0.25+26 verificado 2026-10-06'
+    title = f'Windows {version}+{WINDOWS_RELEASES[version]} verificado 2026-10-06'
 
     def record(evidence, phase):
         evidence['phase'] = phase
@@ -159,6 +169,7 @@ def main():
         require(evidence.get('phase') in ('redeploy_requested', 'production_verified')
                 and evidence.get('files') == files and evidence.get('source') == args.source
                 and evidence.get('run') == args.run, 'diario Windows distinto')
+        verify_baseline(evidence['old_announcement'], version)
         ours = [d for d in deployments if d.get('title') == title and d.get('deploymentId') not in evidence['old_deployment_ids']]
         require(len(ours) == 1 and ours[0].get('status') == 'done', 'despliegue Windows todavía no verificado')
         application = dokploy('/application.one' + query)
@@ -186,8 +197,7 @@ def main():
     original = application.get('env')
     require(isinstance(original, str), 'entorno API inválido')
     announcement = android.api_version()
-    verify_baseline(announcement)
-    require('windows' not in announcement.get('descargas', {}), 'Windows ya está anunciado; revisar antes de cambiarlo')
+    verify_baseline(announcement, version)
     android_expected = {
         'APP_ULTIMA_VERSION': '1.0.25', 'APP_ULTIMA_COMPILACION': '26',
         'APP_DESCARGA_ANDROID': announcement['descargas']['android'],
@@ -201,10 +211,22 @@ def main():
             require(separator and name not in android_actual, 'variables Android duplicadas o inválidas')
             android_actual[name] = value
         if name.startswith('APP_DESCARGA_WINDOWS'):
-            require(separator and name not in values and value in ('', '""', "''"), 'variables Windows ya configuradas o duplicadas')
+            require(separator and name not in values, 'variables Windows duplicadas o inválidas')
+            if version == '1.0.25':
+                require(value in ('', '""', "''"), 'variables Windows ya configuradas')
             values[name] = value
     require(android_actual == android_expected, 'entorno Android distinto del anunciado')
+    if version == '1.0.26':
+        require(values == {
+            'APP_DESCARGA_WINDOWS': PREFIX + 'reparto-1.0.25-windows-setup.exe',
+            'APP_DESCARGA_WINDOWS_BYTES': '16200848',
+            'APP_DESCARGA_WINDOWS_SHA256': PREVIOUS_WINDOWS_SHA,
+        }, 'entorno Windows anterior distinto del anunciado')
     before = inventory()
+    if version == '1.0.26':
+        require(all('windows/' + name in before
+                    for name in ('reparto-1.0.25-windows-setup.exe', 'reparto-1.0.25-windows.zip')),
+                'inventario no conserva ambos Windows anteriores')
     if args.mode == 'resume':
         require(journal.is_file() and not journal.is_symlink(), 'diario de subida Windows ausente o enlace')
         evidence = json.loads(journal.read_text())
@@ -241,19 +263,21 @@ def main():
     require(android.api_version() == announcement and dokploy('/application.one' + query).get('env') == original,
             'producción cambió durante la descarga; no pisar cambios')
     installer = next(f for f in files if f['file'].endswith('.exe'))
-    # Los tres campos nuevos necesitan separar la última línea del entorno.
-    # La copia de seguridad conserva original exacto, incluso sin salto final.
-    separated = original if original.endswith('\n') else original + '\n'
-    replacement = android.update_env(separated, {
+    # Sólo los campos ausentes necesitan separar una última línea sin salto.
+    # La copia de seguridad y las demás líneas conservan sus bytes originales.
+    windows_values = {
         'APP_DESCARGA_WINDOWS': PREFIX + installer['file'],
         'APP_DESCARGA_WINDOWS_BYTES': str(installer['bytes']),
         'APP_DESCARGA_WINDOWS_SHA256': installer['sha256'],
-    })
+    }
+    missing = any(name not in values for name in windows_values)
+    separated = original if original.endswith('\n') or not missing else original + '\n'
+    replacement = android.update_env(separated, windows_values)
     current = dokploy('/deployment.all' + query)
     require(isinstance(current, list) and [d['deploymentId'] for d in current] == evidence['old_deployment_ids']
             and all(d.get('status') not in ('running', 'queued') for d in current),
             'despliegues cambiaron; no modificar entorno')
-    backup = SECRET / 'reparto-api-before-windows-1.0.25-261006.env'
+    backup = SECRET / f'reparto-api-before-windows-{version}-261006.env'
     fd = os.open(backup, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     with os.fdopen(fd, 'w', newline='') as stream:
         stream.write(original)

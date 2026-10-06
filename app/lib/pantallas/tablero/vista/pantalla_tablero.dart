@@ -300,24 +300,132 @@ String _texto(Object fallo) => switch (fallo) {
 /// se empuja: van una por pagina y se pasa deslizando (`_paginaDelMovil`). En
 /// una tira, para llegar a la zona seis hay que arrastrar cinco veces sin que
 /// nada enganche; en paginas, cada deslizamiento cae en una zona entera.
-class _Tira extends ConsumerWidget {
+class _Tira extends StatefulWidget {
   const _Tira({required this.tablero});
 
   final Tablero tablero;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  State<_Tira> createState() => _TiraState();
+}
+
+class _TiraState extends State<_Tira> {
+  final _mando = ScrollController();
+  bool _antes = false;
+  bool _despues = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _mando.addListener(_limites);
+  }
+
+  void _limites() {
+    if (!mounted || !_mando.hasClients) return;
+    final antes = _mando.position.extentBefore > 0;
+    final despues = _mando.position.extentAfter > 0;
+    if (antes == _antes && despues == _despues) return;
+    setState(() {
+      _antes = antes;
+      _despues = despues;
+    });
+  }
+
+  @override
+  void dispose() {
+    _mando.dispose();
+    super.dispose();
+  }
+
+  void _ir(double Function(ScrollPosition) destino) {
+    if (!_mando.hasClients) return;
+    final posicion = _mando.position;
+    unawaited(
+      _mando.animateTo(
+        destino(posicion).clamp(0, posicion.maxScrollExtent),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tablero = widget.tablero;
     if (tablero.columnas.isEmpty) return const _SinColumnas();
 
-    return ListView.builder(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.all(4),
-      // Una mas: el «+» del final, que es como dice el pliego que se crea una
-      // columna.
-      itemCount: tablero.columnas.length + 1,
-      itemBuilder: (contexto, i) => i == tablero.columnas.length
-          ? const _BotonNuevaColumna(ancho: 140)
-          : _Zona(tablero: tablero, cual: i, ancho: 300),
+    // Amado usa ratón: la rueda vertical no sustituye al gesto horizontal del
+    // touchpad. Barra siempre visible y flechas propias, sin capturar el
+    // arrastre de las tarjetas ni la rueda vertical de cada lista de pedidos.
+    return Column(
+      children: [
+        Expanded(
+          child: NotificationListener<ScrollMetricsNotification>(
+            onNotification: (aviso) {
+              if (aviso.depth == 0) {
+                WidgetsBinding.instance.addPostFrameCallback((_) => _limites());
+              }
+              return false;
+            },
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context)
+                  .copyWith(scrollbars: false),
+              child: Scrollbar(
+                controller: _mando,
+                thumbVisibility: true,
+                trackVisibility: true,
+                interactive: true,
+                scrollbarOrientation: ScrollbarOrientation.bottom,
+                child: ListView.builder(
+                  controller: _mando,
+                  primary: false,
+                  scrollDirection: Axis.horizontal,
+                  // Dejar la barra fuera de las tarjetas y sus listas verticales.
+                  padding: const EdgeInsets.fromLTRB(4, 4, 4, 20),
+                  itemCount: tablero.columnas.length + 1,
+                  // Restaurar las barras verticales propias de cada zona: sólo
+                  // se sustituye la barra automática de la tira horizontal.
+                  itemBuilder: (contexto, i) => ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(context),
+                    child: i == tablero.columnas.length
+                        ? const _BotonNuevaColumna(ancho: 140)
+                        : _Zona(tablero: tablero, cual: i, ancho: 300),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Ver primeras zonas',
+              onPressed: _antes ? () => _ir((p) => 0) : null,
+              icon: const Icon(Icons.first_page_outlined),
+            ),
+            IconButton(
+              tooltip: 'Ver zonas anteriores',
+              onPressed: _antes
+                  ? () => _ir((p) => p.pixels - p.viewportDimension * .85)
+                  : null,
+              icon: const Icon(Icons.chevron_left),
+            ),
+            const Spacer(),
+            IconButton(
+              tooltip: 'Ver zonas siguientes',
+              onPressed: _despues
+                  ? () => _ir((p) => p.pixels + p.viewportDimension * .85)
+                  : null,
+              icon: const Icon(Icons.chevron_right),
+            ),
+            IconButton(
+              tooltip: 'Ver últimas zonas',
+              onPressed: _despues ? () => _ir((p) => p.maxScrollExtent) : null,
+              icon: const Icon(Icons.last_page_outlined),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

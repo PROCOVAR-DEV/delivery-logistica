@@ -172,7 +172,7 @@ tiene que estar encendido para esa compilación.
 El proceso está en `.github/workflows/reparto-windows.yml` y
 `deploy/windows/compilar.ps1`. Arranca al subir una rama `build/reparto-windows-*`;
 cuando el workflow esté en la rama principal, también se puede ejecutar manualmente.
-Antes de empaquetar corre `flutter analyze`, las pruebas de la Guía y del Tablero,
+Antes de empaquetar corre `flutter analyze`, las pruebas de la Guía, del Tablero y de Rutas,
 y las de base local, cola y sincronización; después hace la compilación nativa.
 Inno Setup genera `reparto-<version>-windows-setup.exe`, instala una copia de
 prueba sin abrir la aplicación y compara todos sus archivos con la compilación.
@@ -188,22 +188,24 @@ El artefacto del trabajo contiene:
 Antes de ofrecerlo en procovar.cloud hay que descargar ese artefacto, contrastar
 sus huellas, publicar el instalador sin sobrescribir versiones y comprobar su descarga.
 
-La versión **1.0.26+27** está en procovar.cloud como **Reparto para Windows**:
-el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.26-windows-setup.exe).
-La ejecución [37531990281 de GitHub Actions](https://github.com/jose22072000/delivery-logistica/actions/runs/37531990281)
-pasó 538 pruebas, compiló e instaló la copia de prueba. Las descargas públicas se
-verificaron por tamaño y SHA256 antes de actualizar la tarjeta; la prueba en el PC
-del usuario queda pendiente.
+La versión **1.0.27+28** está en procovar.cloud como **Reparto para Windows**:
+el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.27-windows-setup.exe).
+La ejecución [37537712382 de GitHub Actions](https://github.com/jose22072000/delivery-logistica/actions/runs/37537712382)
+compiló e instaló la copia de prueba y cotejó sus archivos. Las descargas públicas se
+verificaron por tamaño y SHA256 antes de actualizar la tarjeta. Abrir, iniciar sesión
+y trabajar sin conexión en el PC del usuario quedan pendientes de prueba física.
 
-Esta versión incluye la barra horizontal y las flechas del Tablero para usar ratón,
-con los mismos controles de la web y la base local propia del escritorio para trabajar
-sin conexión. La web sigue trabajando conectada al servidor.
+Incluye los controles con ratón del Tablero y la corrección de Rutas: se puede editar y
+eliminar mientras no esté completada; los estados de paradas se revisan al pulsar
+«Marcar como completada» y el histórico queda de sólo lectura. Una hoja rechazada
+retiene el cierre de esa ruta en la cola nativa. Windows conserva su base local para
+trabajar sin conexión; la web trabaja conectada al servidor.
 
-Para pasar de Windows 1.0.25 a 1.0.26, descargar e instalar el nuevo instalador del portal.
-El anuncio global `APP_ULTIMA_VERSION/COMPILACION` sigue en Android **1.0.25+26**: no se
-ha publicado una APK 1.0.26. Las variables `APP_DESCARGA_WINDOWS*` sí señalan el nuevo
-instalador; separar el aviso de versión por plataforma queda pendiente. No se afirma
-que Windows 1.0.25 ofrezca automáticamente esta actualización.
+Android y Windows están publicados como **1.0.27+28**, con el anuncio global y los
+enlaces del portal verificados. Se puede instalar Windows27 desde el portal sobre la
+versión anterior. La actualización automática en el PC del usuario no se ha probado;
+separar el aviso de versión por plataforma sigue siendo un pendiente de arquitectura.
+Las versiones anteriores se conservan.
 
 Para hacerlo en el portátil en vez del ejecutor remoto:
 

@@ -5,8 +5,8 @@ The root agent must first verify the Android manifest and signing certificate,
 then copy that exact APK under /var/lib/procovar/apk without replacing a file.
 This script does not compile, copy over SSH, delete APKs, or claim deployment done.
 Example (fill bytes and SHA from the verified new artifact):
-  python3 publish-verified-apk.py --publish --version 1.0.24 --compilation 25 \
-    --date 2026-10-06 --file reparto-1.0.24-261006.apk --bytes BYTES --sha256 SHA
+  python3 publish-verified-apk.py --publish --version 1.0.25 --compilation 26 \
+    --date 2026-10-06 --file reparto-1.0.25-261006.apk --bytes BYTES --sha256 SHA
 
 Every failed mutating attempt leaves a public journal. Never delete that journal
 and blindly retry: inspect the recorded phase, MinIO, env backup and deployment.
@@ -34,11 +34,11 @@ BASE = "http://127.0.0.1:3000/api"
 STORE = "procovar/reparto/apk/"
 HOST_DIR = Path("/var/lib/procovar/apk")
 SECRET_DIR = Path("/root/secretos")
-OLD_VERSION = "1.0.23"
-OLD_COMPILATION = 24
-OLD_BYTES = 78851736
-OLD_SHA = "630f58f7bc06c1573dbf630591b7ab97a7d4d6d2c4884eab0d325ba1352b7c49"
-OLD_FILE = "reparto-1.0.23-261005.apk"
+OLD_VERSION = "1.0.24"
+OLD_COMPILATION = 25
+OLD_BYTES = 78868528
+OLD_SHA = "413b235cb0d2b35850d6f7488ced8fa10f98dd53feaaa4e3e87e97c13dacca09"
+OLD_FILE = "reparto-1.0.24-261006.apk"
 PREFIX = "https://archivos.procovar.cloud/reparto/apk/"
 
 
@@ -95,7 +95,7 @@ def verify_old_announcement():
             and artifact.get("bytes") == OLD_BYTES
             and artifact.get("sha256") == OLD_SHA
             and (latest.get("descargas") or {}).get("android") == PREFIX + OLD_FILE,
-            "producción cambió respecto de 1.0.23+24 verificada; detenerse")
+            "producción cambió respecto de 1.0.24+25 verificada; detenerse")
 
 
 def digest_file(path):
@@ -220,8 +220,8 @@ def main():
     parser.add_argument("--sha256", required=True)
     parser.add_argument("--notes", help="optional new public release notes")
     args = parser.parse_args()
-    require(args.version == "1.0.24" and args.compilation == 25,
-            "este guion sólo publica la revisión deliberada 1.0.24+25")
+    require(args.version == "1.0.25" and args.compilation == 26,
+            "este guion sólo publica la revisión deliberada 1.0.25+26")
     date = datetime.date.fromisoformat(args.date)
     require(args.file == f"reparto-{args.version}-{date:%y%m%d}.apk", "nombre APK no coincide")
     require(re.fullmatch(r"[a-f0-9]{64}", args.sha256) is not None, "SHA256 inválido")

@@ -69,7 +69,9 @@ void main() {
   // manana aparece una tercera puerta y no se anade aqui, esta prueba se queda
   // ciega para ella. **Toda forma de marcar un control tiene que estar en esta
   // lista.**
-  final usoDe = RegExp(r'(?:nombre|senalado): Senalado\.(\w+)');
+  final usoDe = RegExp(
+    r'(?:nombre|senalado|senaladoDelCajon): Senalado\.(\w+)',
+  );
   // De la constante al literal: en las pantallas se escribe
   // `Senalado.vehiculosAgregar` y en el manual `vehiculos-agregar`. El puente es
   // el propio fichero del catalogo.

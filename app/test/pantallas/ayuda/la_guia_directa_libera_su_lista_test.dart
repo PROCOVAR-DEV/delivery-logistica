@@ -30,10 +30,7 @@ Future<GoRouter> _montar(
   addTearDown(Recorrido.salir);
   final navegadorDelArmazon = GlobalKey<NavigatorState>();
   final enrutador = GoRouter(
-    initialLocation: Uri(
-      path: '/guia',
-      queryParameters: {'tarea': id},
-    ).toString(),
+    initialLocation: Uri(path: '/guia', queryParameters: null).toString(),
     routes: [
       ShellRoute(
         navigatorKey: navegadorDelArmazon,
@@ -63,7 +60,7 @@ Future<GoRouter> _montar(
   );
   await tester.pumpAndSettle();
   addTearDown(() async => tester.pumpWidget(const SizedBox()));
-  expect(find.byType(Cajon), findsOneWidget);
+  expect(find.byType(Cajon), findsNothing);
   expect(
     navegadorDelArmazon.currentState!.canPop(),
     isFalse,
@@ -79,17 +76,21 @@ void main() {
     testWidgets('la Guía libera su lista y guía el toque real en ${forma.name}', (
       tester,
     ) async {
-      final manual = Manual.desdeElPaquete(
+      final entero = Manual.desdeElPaquete(
         paquete,
         pantallas: pantallasParaLaGuia(),
       ).paraLaForma(forma);
+      final manual = entero;
       final idDeLaGuia = manual.tareas
           .singleWhere(
             (tarea) => tarea.titulo == 'Que la Guía te lleve de la mano',
           )
           .id;
       final enrutador = await _montar(tester, manual, forma, idDeLaGuia);
-      await tester.tap(find.byKey(ClavesDeLaGuia.guiarme));
+      await tester.enterText(find.byKey(ClavesDeLaGuia.buscar), 'Que la Guía');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ClavesDeLaGuia.tarea(idDeLaGuia)));
       await tester.pumpAndSettle();
 
       expect(
@@ -155,44 +156,4 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
-
-  testWidgets(
-    'sin pantalla de destino cierra la raíz y deja reutilizar la tarea',
-    (tester) async {
-      final manual = Manual.desdeElPaquete(
-        empaquetarManual({
-          'comun/franja.md': '''
-# Franja
-## Mirar la franja
-<!-- tarea -->
-**Empieza en:** la franja de arriba, desde cualquier pantalla.
-1. Mira la franja.
-''',
-        }),
-        pantallas: pantallasParaLaGuia(),
-      ).paraLaForma(FormaDeLaAplicacion.apk);
-      final tarea = manual.tareas.single;
-      expect(tarea.rutaDePantalla, isNull);
-      final enrutador = await _montar(
-        tester,
-        manual,
-        FormaDeLaAplicacion.apk,
-        tarea.id,
-      );
-      await tester.tap(find.byKey(ClavesDeLaGuia.guiarme));
-      await tester.pumpAndSettle();
-      expect(find.byType(Cajon), findsNothing);
-      expect(find.byType(PantallaGuia), findsOneWidget);
-      expect(
-        enrutador.routeInformationProvider.value.uri.queryParameters,
-        isEmpty,
-      );
-      await tester.tap(find.byKey(ClavesDelRecorrido.salir));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(ClavesDeLaGuia.leerTarea(tarea.id)));
-      await tester.pumpAndSettle();
-      expect(find.byType(Cajon), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
 }

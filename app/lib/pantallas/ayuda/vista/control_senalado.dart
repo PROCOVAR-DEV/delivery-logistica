@@ -48,8 +48,45 @@ abstract final class RegistroDeControles {
   static final Map<String, Set<BuildContext>> _puestos =
       <String, Set<BuildContext>>{};
 
+  /// Los formularios y las listas pueden aparecer después de cargar los datos.
+  /// Se avisa tras el layout para medir controles que ya tienen tamaño.
+  static final cambios = ValueNotifier<int>(0);
+  static final toques = ValueNotifier<({String nombre, int numero})?>(null);
+  static final acciones = ValueNotifier<({String nombre, int numero})?>(null);
+  static int _numeroDeAccion = 0;
+
+  static String? nombreAlrededorDe(BuildContext contexto) {
+    String? nombre;
+    contexto.visitAncestorElements((elemento) {
+      final control = elemento.widget;
+      if (control is ControlSenalado && control.senalable) {
+        nombre = control.nombre;
+        return false;
+      }
+      return true;
+    });
+    return nombre;
+  }
+
+  /// Sólo después del resultado real; un intento rechazado no completa pasos.
+  static void completar(String nombre) {
+    acciones.value = (nombre: nombre, numero: ++_numeroDeAccion);
+  }
+
+  static bool _avisoPendiente = false;
+
+  static void _avisar() {
+    if (_avisoPendiente) return;
+    _avisoPendiente = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _avisoPendiente = false;
+      cambios.value++;
+    });
+  }
+
   static void poner(String nombre, BuildContext contexto) {
     _puestos.putIfAbsent(nombre, () => <BuildContext>{}).add(contexto);
+    _avisar();
   }
 
   static void quitar(String nombre, BuildContext contexto) {
@@ -57,6 +94,7 @@ abstract final class RegistroDeControles {
     if (cuales == null) return;
     cuales.remove(contexto);
     if (cuales.isEmpty) _puestos.remove(nombre);
+    _avisar();
   }
 
   /// Si esta puesto, y donde. `null` quiere decir **no se puede senalar**, y son
@@ -161,5 +199,13 @@ class _ControlSenaladoState extends State<ControlSenalado> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) => Listener(
+    onPointerUp: widget.senalable
+        ? (_) => RegistroDeControles.toques.value = (
+            nombre: widget.nombre,
+            numero: ++RegistroDeControles._numeroDeAccion,
+          )
+        : null,
+    child: widget.child,
+  );
 }

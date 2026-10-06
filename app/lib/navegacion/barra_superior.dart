@@ -304,6 +304,7 @@ class _Sucursal extends ConsumerWidget {
         child: Selector<String>(
           icono: Icons.store_outlined,
           tooltip: 'Sucursal que se está mirando',
+          senaladoDelCajon: Senalado.barraElegirSucursal,
           // `etiquetaVacia` NO basta, y esto costo una vuelta: el selector pinta
           // `elegida?.etiqueta ?? etiquetaVacia`, y aqui SI hay una opcion con
           // valor vacio —la de «todas»—, asi que la que manda es SU etiqueta. Con
@@ -315,9 +316,9 @@ class _Sucursal extends ConsumerWidget {
             OpcionSelector<String>(
               valor: '',
               etiqueta: _todas(sucursales.length, compacta),
+
               // «Elige de la lista. La primera opción es «Todas (8)».» El paso
               // habla de ESTA opcion, no de la caja que la abre.
-              senalado: Senalado.barraElegirSucursal,
             ),
             for (final s in sucursales)
               OpcionSelector<String>(

@@ -117,6 +117,8 @@ abstract final class ClavesDeLaGuia {
   static const guiarme = ValueKey('guia-guiarme');
 
   static ValueKey<String> tarea(String id) => ValueKey('guia-tarea-$id');
+  static ValueKey<String> leerTarea(String id) => ValueKey('guia-leer-$id');
+
   static ValueKey<String> pagina(String camino) =>
       ValueKey('guia-pagina-$camino');
 }
@@ -145,6 +147,14 @@ class PantallaGuia extends ConsumerStatefulWidget {
 }
 
 class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
+  final _listaDeTareas = ScrollController();
+
+  @override
+  void dispose() {
+    _listaDeTareas.dispose();
+    super.dispose();
+  }
+
   /// Lo que hay abierto en un cajon AHORA MISMO, con la misma forma que la
   /// direccion: `tarea:<id>`, `pagina:<camino>` o `null`.
   String? _enElCajon;
@@ -192,6 +202,7 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
             ),
           ),
           AsyncValue(:final value?) => _Contenido(
+            listaDeTareas: _listaDeTareas,
             manual: value,
             forma: forma,
             buscado: buscado,
@@ -204,10 +215,15 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
                   ? TextosDeLaGuia.documento
                   : null,
             }),
-            alAbrirTarea: (id) => _irA(parametros, {
-              PantallaGuia.deLaTarea: id,
-              PantallaGuia.deLaPagina: null,
-            }),
+            alAbrirTarea: (id) {
+              final tarea = value.tarea(id);
+              if (tarea != null && tarea.seAcompana && !Recorrido.enMarcha) {
+                _guiar(tarea, null);
+              } else {
+                _leerTarea(id);
+              }
+            },
+            alLeerTarea: _leerTarea,
             alAbrirPagina: (camino) => _irA(parametros, {
               PantallaGuia.deLaPagina: camino,
               PantallaGuia.deLaTarea: null,
@@ -396,7 +412,15 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
   ///  4. la capa se mete al terminar el fotograma, por lo mismo que el cajon de la
   ///     Guia: meter una ruta o una capa mientras se esta pintando lo corta
   ///     Flutter en seco.
-  void _guiar(TareaDelManual tarea, BuildContext contextoCajon) {
+  void _leerTarea(String id) => _irA(
+    GoRouterState.of(context).uri.queryParameters,
+    {PantallaGuia.deLaTarea: id, PantallaGuia.deLaPagina: null},
+  );
+
+  void _guiar(TareaDelManual tarea, BuildContext? contextoCajon) {
+    // El buscador puede seguir montado en la misma ruta: navegar no basta para
+    // soltar su foco. El tutorial empieza con la vista libre del teclado.
+    FocusManager.instance.primaryFocus?.unfocus();
     _nosVamos = true;
     _enElCajon = null;
 
@@ -405,7 +429,7 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
     final cambiaDePantalla =
         ruta != null &&
         Uri.parse(ruta).path != GoRouterState.of(context).uri.path;
-    if (!cambiaDePantalla) {
+    if (contextoCajon != null && !cambiaDePantalla) {
       // El botón acaba de recibir el toque en este cajón: sigue siendo la ruta
       // actual. No hay await ni callback diferido entre el toque y este pop.
       Navigator.of(contextoCajon).pop();
@@ -420,6 +444,17 @@ class _PantallaGuiaState extends ConsumerState<PantallaGuia> {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (contextoCajon == null && mounted) _nosVamos = false;
+      // La tarea que enseña la propia Guía puede haberse abierto al final de
+      // una lista larga. Su primer objetivo es la PRIMERA fila: se trae antes
+      // de medirla, aunque aún no estuviera montada por la lista perezosa.
+      if (mounted &&
+          _listaDeTareas.hasClients &&
+          tarea.pasos.any(
+            (p) => p.controles.contains(Senalado.guiaPrimeraTarea),
+          )) {
+        _listaDeTareas.jumpTo(0);
+      }
       Recorrido.empezarEn(capa, tarea);
     });
   }
@@ -550,6 +585,7 @@ class _PieDeLaTarea extends StatelessWidget {
 
 class _Contenido extends StatelessWidget {
   const _Contenido({
+    required this.listaDeTareas,
     required this.manual,
     required this.forma,
     required this.buscado,
@@ -557,9 +593,11 @@ class _Contenido extends StatelessWidget {
     required this.alBuscar,
     required this.alCambiarDePuerta,
     required this.alAbrirTarea,
+    required this.alLeerTarea,
     required this.alAbrirPagina,
   });
 
+  final ScrollController listaDeTareas;
   final Manual manual;
   final FormaDeLaAplicacion forma;
   final String buscado;
@@ -567,6 +605,7 @@ class _Contenido extends StatelessWidget {
   final ValueChanged<String> alBuscar;
   final ValueChanged<bool> alCambiarDePuerta;
   final ValueChanged<String> alAbrirTarea;
+  final ValueChanged<String> alLeerTarea;
   final ValueChanged<String> alAbrirPagina;
 
   @override
@@ -630,6 +669,7 @@ class _Contenido extends StatelessWidget {
                   manual: manual,
                   buscado: buscado,
                   alAbrirTarea: alAbrirTarea,
+                  alLeerTarea: alLeerTarea,
                   alAbrirPagina: alAbrirPagina,
                 )
               : (enElDocumento
@@ -638,8 +678,10 @@ class _Contenido extends StatelessWidget {
                         alAbrirPagina: alAbrirPagina,
                       )
                     : _ListaDeTareas(
+                        listaDeTareas: listaDeTareas,
                         manual: manual,
                         alAbrirTarea: alAbrirTarea,
+                        alLeerTarea: alLeerTarea,
                         alAbrirPagina: alAbrirPagina,
                       )),
         ),
@@ -734,13 +776,17 @@ class _Puerta extends StatelessWidget {
 /// tarea suya, y no solo desde la otra puerta.
 class _ListaDeTareas extends StatelessWidget {
   const _ListaDeTareas({
+    required this.listaDeTareas,
     required this.manual,
     required this.alAbrirTarea,
+    required this.alLeerTarea,
     required this.alAbrirPagina,
   });
 
+  final ScrollController listaDeTareas;
   final Manual manual;
   final ValueChanged<String> alAbrirTarea;
+  final ValueChanged<String> alLeerTarea;
   final ValueChanged<String> alAbrirPagina;
 
   @override
@@ -772,6 +818,8 @@ class _ListaDeTareas extends StatelessWidget {
                 ? Icons.touch_app_outlined
                 : Icons.description_outlined,
             alPulsar: () => alAbrirTarea(tarea.id),
+            alLeer: () => alLeerTarea(tarea.id),
+            claveDeLeer: ClavesDeLaGuia.leerTarea(tarea.id),
           ),
         );
       }
@@ -786,6 +834,7 @@ class _ListaDeTareas extends StatelessWidget {
     }
 
     return ListView(
+      controller: listaDeTareas,
       padding: const EdgeInsets.fromLTRB(Aire.lg, Aire.md, Aire.lg, Aire.xxl),
       children: filas,
     );
@@ -804,7 +853,7 @@ String? _debajoDe(TareaDelManual tarea) {
   if (!tarea.seAcompana) return TextosDeLaGuia.soloTexto;
   final cuantos = tarea.pasos.length;
   final donde = tarea.nombreDePantalla;
-  final pasos = '$cuantos paso${cuantos == 1 ? '' : 's'} guiados';
+  final pasos = 'Iniciar tutorial · $cuantos paso${cuantos == 1 ? '' : 's'}';
   return donde == null ? pasos : '$pasos · en $donde';
 }
 
@@ -837,12 +886,14 @@ class _Resultados extends StatelessWidget {
     required this.manual,
     required this.buscado,
     required this.alAbrirTarea,
+    required this.alLeerTarea,
     required this.alAbrirPagina,
   });
 
   final Manual manual;
   final String buscado;
   final ValueChanged<String> alAbrirTarea;
+  final ValueChanged<String> alLeerTarea;
   final ValueChanged<String> alAbrirPagina;
 
   @override
@@ -871,6 +922,10 @@ class _Resultados extends StatelessWidget {
             // nombre —la tarea «Poner o corregir un almacén» y la pagina
             // «Almacenes»— se leen como el mismo sitio.
             insignia: r.deDondeSale == DeDondeSale.tarea ? 'Tarea' : 'Página',
+            alLeer: r.deDondeSale == DeDondeSale.tarea
+                ? () => alLeerTarea(r.id)
+                : null,
+            claveDeLeer: ClavesDeLaGuia.leerTarea(r.id),
             alPulsar: () => r.deDondeSale == DeDondeSale.tarea
                 ? alAbrirTarea(r.id)
                 : alAbrirPagina(r.id),
@@ -943,7 +998,12 @@ class _Fila extends StatelessWidget {
     this.icono,
     this.insignia,
     this.senalable = false,
+    this.alLeer,
+    this.claveDeLeer,
   });
+
+  final VoidCallback? alLeer;
+  final Key? claveDeLeer;
 
   /// Si la Guia puede senalarse a si misma esta fila. Sólo la primera de la lista
   /// de tareas: hay una por tarea.
@@ -967,7 +1027,12 @@ class _Fila extends StatelessWidget {
         color: Colores.blanco,
         borderRadius: BorderRadius.circular(Radios.md),
         child: InkWell(
-          onTap: alPulsar,
+          onTap: () {
+            alPulsar();
+            if (senalable) {
+              RegistroDeControles.completar(Senalado.guiaPrimeraTarea);
+            }
+          },
           borderRadius: BorderRadius.circular(Radios.md),
           child: Container(
             padding: const EdgeInsets.symmetric(
@@ -1022,14 +1087,15 @@ class _Fila extends StatelessWidget {
                   Insignia(insignia!),
                 ],
                 const SizedBox(width: Aire.xs),
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Icon(
-                    Icons.chevron_right,
-                    size: 18,
-                    color: Colores.tintaSuave,
-                  ),
-                ),
+                if (alLeer != null)
+                  IconButton(
+                    key: claveDeLeer,
+                    tooltip: 'Leer los pasos',
+                    onPressed: alLeer,
+                    icon: const Icon(Icons.menu_book_outlined, size: 20),
+                  )
+                else
+                  const Icon(Icons.chevron_right, size: 18),
               ],
             ),
           ),

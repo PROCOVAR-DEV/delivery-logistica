@@ -74,15 +74,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Nueva columna'), findsOneWidget);
       expect(find.text('Nombre de la zona'), findsOneWidget);
-      await tester.tap(
-        find.byKey(ClavesDelRecorrido.siguiente),
-        warnIfMissed: false,
-      );
-      await tester.pumpAndSettle();
       expect(
         find.text('2 de 3'),
         findsOneWidget,
-        reason: 'Siguiente debe seguir accesible ENCIMA del DialogRoute del cajón real',
+        reason: 'Abrir Nueva columna debe avanzar solo y señalar el campo real',
       );
       expect(
         find.text('Nombre de la zona'),
@@ -118,12 +113,10 @@ void main() {
         reason: 'el nombre que escribió la persona debe salir del cajón real al notifier',
       );
       expect(find.text('Nueva columna'), findsNothing);
-      await tester.tap(find.byKey(ClavesDelRecorrido.siguiente));
-      await tester.pumpAndSettle();
       expect(
         Recorrido.enMarcha,
         isFalse,
-        reason: 'Ya está debe terminar el recorrido después de guardar',
+        reason: 'Guardar confirmado debe terminar el recorrido automáticamente',
       );
       await tester.pumpWidget(const SizedBox());
     },

@@ -57,6 +57,7 @@ class Selector<T> extends StatefulWidget {
     this.desdeCuantasBusca = 4,
     this.siempreConBuscador = false,
     this.tooltip,
+    this.senaladoDelCajon,
     super.key,
   });
 
@@ -74,6 +75,7 @@ class Selector<T> extends StatefulWidget {
   final int desdeCuantasBusca;
   final bool siempreConBuscador;
   final String? tooltip;
+  final String? senaladoDelCajon;
 
   @override
   State<Selector<T>> createState() => _SelectorState<T>();
@@ -151,21 +153,40 @@ class _SelectorState<T> extends State<Selector<T>> {
   Future<void> _abrirElCajon(
     BuildContext contexto, {
     required bool conBuscador,
-  }) => abrirCajon<void>(
-    contexto,
-    titulo: widget.tooltip ?? widget.etiquetaVacia,
-    // En un teléfono `Cajon` ignora este ancho y ocupa la pantalla entera. En un
-    // monitor sí manda, y se pone el más estrecho a propósito: una lista de
-    // opciones no necesita media pantalla, y con el cajón ancho el sitio donde
-    // se pulsa queda lejos del botón que lo abrió.
-    ancho: AnchoCajon.md,
-    cuerpo: (_) => _OpcionesEnCajon<T>(
-      opciones: widget.opciones,
-      conBuscador: conBuscador,
-      valor: widget.valor,
-      alElegir: widget.alElegir,
-    ),
-  );
+  }) {
+    final nombreDelBoton = RegistroDeControles.nombreAlrededorDe(contexto);
+    final resultado = abrirCajon<void>(
+      contexto,
+      titulo: widget.tooltip ?? widget.etiquetaVacia,
+      // En un teléfono `Cajon` ignora este ancho y ocupa la pantalla entera. En un
+      // monitor sí manda, y se pone el más estrecho a propósito: una lista de
+      // opciones no necesita media pantalla, y con el cajón ancho el sitio donde
+      // se pulsa queda lejos del botón que lo abrió.
+      ancho: AnchoCajon.md,
+      cuerpo: (_) => ControlSenalado(
+        nombre: widget.senaladoDelCajon ?? 'selector-sin-marca',
+        senalable: widget.senaladoDelCajon != null,
+        child: _OpcionesEnCajon<T>(
+          opciones: widget.opciones,
+          conBuscador: conBuscador,
+          valor: widget.valor,
+          alElegir: (valor) {
+            widget.alElegir(valor);
+            final nombre = widget.senaladoDelCajon;
+            if (nombre != null) RegistroDeControles.completar(nombre);
+          },
+        ),
+      ),
+    );
+    // El cajón ya se montó: también se confirma si se abrió por teclado o
+    // accesibilidad, que no generan un PointerUp sobre el control de Flutter.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && nombreDelBoton != null) {
+        RegistroDeControles.completar(nombreDelBoton);
+      }
+    });
+    return resultado;
+  }
 
   Widget _conTooltip(Widget boton) => widget.tooltip == null
       ? boton

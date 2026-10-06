@@ -56,11 +56,13 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../diseno/anchos.dart';
 import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart';
 import '../datos/manual.dart';
+import '../datos/controles_senalados.dart';
 import 'control_senalado.dart';
 import 'demostracion_del_gesto.dart';
 import 'pintar_markdown.dart';
@@ -88,8 +90,8 @@ abstract final class TextosDelRecorrido {
   /// puede poner el foco. **Lo que no se hace es ponerlo en otro sitio.**
   static const controlFueraDeEstaPantalla =
       'Esto no se puede señalar aquí: el control de este paso no está en esta '
-      'pantalla, o todavía no está marcado. Lo que hay que tocar está escrito '
-      'arriba.';
+      'pantalla, o todavía no está marcado. Puedes tocar la aplicación para '
+      'abrir lo que pide este paso; se señalará cuando aparezca.';
 
   /// Cuando la tarea entera no se puede guiar.
   static String noSePuedeGuiar(String titulo) =>
@@ -174,8 +176,13 @@ class CapaDelRecorrido extends StatefulWidget {
   State<CapaDelRecorrido> createState() => _CapaDelRecorridoState();
 }
 
-class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
+class _CapaDelRecorridoState extends State<CapaDelRecorrido>
+    with WidgetsBindingObserver {
+  int _medicion = 0;
+  bool _midiendo = false;
+  int? _menuPreparadoPara;
   int _cual = 0;
+  int? _esperandoElPaso;
   int _repeticion = 0;
 
   /// Un arrastre necesita abiertos el origen y el destino en el mismo paso.
@@ -186,7 +193,73 @@ class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
   @override
   void initState() {
     super.initState();
+    RegistroDeControles.cambios.addListener(_colocar);
+    RegistroDeControles.toques.addListener(_alTocar);
+    RegistroDeControles.acciones.addListener(_alCompletar);
+    WidgetsBinding.instance.addObserver(this);
     _colocar();
+    WidgetsBinding.instance.addPostFrameCallback(_vigilarGeometria);
+  }
+
+  @override
+  void dispose() {
+    RegistroDeControles.cambios.removeListener(_colocar);
+    RegistroDeControles.toques.removeListener(_alTocar);
+    RegistroDeControles.acciones.removeListener(_alCompletar);
+    WidgetsBinding.instance.removeObserver(this);
+    _medicion++;
+    super.dispose();
+  }
+
+  void _alTocar() {
+    final nombre = RegistroDeControles.toques.value?.nombre;
+    if (!_paso.controles.contains(nombre) ||
+        _cual + 1 >= widget.tarea.pasos.length) {
+      return;
+    }
+    final siguiente = widget.tarea.pasos[_cual + 1];
+    // Abrir un formulario se confirma cuando aparece su siguiente control.
+    // Tocar un campo o un botón rechazado no basta para darlo por completado.
+    if (siguiente.seSenala &&
+        siguiente.controles.any((n) => RegistroDeControles.donde(n) == null)) {
+      _esperandoElPaso = _cual + 1;
+    }
+  }
+
+  void _alCompletar() {
+    final nombre = RegistroDeControles.acciones.value?.nombre;
+    final pasos = widget.tarea.pasos;
+    for (var i = _cual; i < pasos.length; i++) {
+      if (!pasos[i].controles.contains(nombre)) continue;
+      if (i + 1 < pasos.length) {
+        _ir(i + 1);
+      } else {
+        widget.alSalir();
+      }
+      return;
+    }
+  }
+
+  @override
+  void didChangeMetrics() {
+    _colocar();
+  }
+
+  // Se observa cada fotograma que la aplicación ya pinta. Registrar el siguiente
+  // callback NO pide otro fotograma: en reposo no hay reloj ni animación infinita.
+  void _vigilarGeometria(Duration _) {
+    if (!mounted) return;
+    if (!_midiendo) {
+      final rectangulos = [
+        for (final nombre in _paso.controles)
+          RegistroDeControles.donde(nombre)?.rect,
+      ];
+      final actuales = rectangulos.any((r) => r == null)
+          ? const <Rect>[]
+          : rectangulos.cast<Rect>();
+      if (!listEquals(actuales, _focos)) _colocar();
+    }
+    WidgetsBinding.instance.addPostFrameCallback(_vigilarGeometria);
   }
 
   /// LLEVA EL CONTROL A LA VISTA Y LO MIDE, en ese orden.
@@ -195,74 +268,120 @@ class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
   /// dentro, y la medida se toma **despues** de que el desplazamiento acabe. Al
   /// reves —medir y luego desplazar— el anillo se queda en el sitio de antes y
   /// senala un hueco, que es el fallo que mas se nota de los dos.
+  Future<void> _siguienteFotograma() {
+    final fin = WidgetsBinding.instance.endOfFrame;
+    // Un cambio del registro llega DESPUÉS del layout. endOfFrame por sí solo
+    // no pide el fotograma siguiente cuando se llama desde un postFrame.
+    WidgetsBinding.instance.scheduleFrame();
+    return fin;
+  }
+
   Future<void> _colocar() async {
-    final nombres = _paso.controles;
-    if (nombres.isEmpty) {
-      if (mounted) setState(() => _focos = const []);
+    final esperando = _esperandoElPaso;
+    if (esperando != null &&
+        mounted &&
+        widget.tarea.pasos[esperando].controles.every(
+          (n) => RegistroDeControles.donde(n) != null,
+        )) {
+      _esperandoElPaso = null;
+      _ir(esperando);
       return;
     }
 
-    // SE LE DAN UNOS FOTOGRAMAS A LA PANTALLA ANTES DE DECIR QUE NO ESTA.
-    //
-    // El recorrido empieza justo despues del `context.go`: ese fotograma la
-    // pantalla nueva todavia no existe, y el siguiente la lista aun esta
-    // pintandose. Preguntar una sola vez daria «este paso no se puede senalar»
-    // sobre un boton que aparece dos fotogramas despues — un aviso falso, que es
-    // peor que no avisar.
-    //
-    // El tope existe para que lo contrario tampoco pase: un control que de verdad
-    // no esta no puede dejar la tarjeta esperando para siempre.
-    var puestos = [
-      for (final nombre in nombres) RegistroDeControles.donde(nombre),
-    ];
-    for (
-      var intento = 0;
-      puestos.any((p) => p == null) && intento < _fotogramasDeEspera;
-      intento++
-    ) {
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
-      puestos = [
+    final medicion = ++_medicion;
+    _midiendo = true;
+    try {
+      bool vigente() => mounted && medicion == _medicion;
+      final nombres = _paso.controles;
+      await _siguienteFotograma();
+      if (!vigente()) return;
+
+      // En el teléfono el menú lateral está cerrado. Si este paso enseña una
+      // entrada, se abre el menú real antes de medirla; no se inventa un foco.
+      if (_menuPreparadoPara != _cual &&
+          nombres.any((nombre) => nombre.startsWith('menu-'))) {
+        final avatar = RegistroDeControles.donde(Senalado.cuentaAvatar);
+        final armazon = avatar == null
+            ? null
+            : Scaffold.maybeOf(avatar.contexto);
+        if (armazon != null && armazon.hasDrawer) {
+          _menuPreparadoPara = _cual;
+          if (!armazon.isDrawerOpen) armazon.openDrawer();
+        }
+      }
+      if (nombres.isEmpty) {
+        if (mounted) setState(() => _focos = const []);
+        return;
+      }
+
+      // SE LE DAN UNOS FOTOGRAMAS A LA PANTALLA ANTES DE DECIR QUE NO ESTA.
+      //
+      // El recorrido empieza justo despues del `context.go`: ese fotograma la
+      // pantalla nueva todavia no existe, y el siguiente la lista aun esta
+      // pintandose. Preguntar una sola vez daria «este paso no se puede senalar»
+      // sobre un boton que aparece dos fotogramas despues — un aviso falso, que es
+      // peor que no avisar.
+      //
+      // El tope existe para que lo contrario tampoco pase: un control que de verdad
+      // no esta no puede dejar la tarjeta esperando para siempre.
+      var puestos = [
         for (final nombre in nombres) RegistroDeControles.donde(nombre),
       ];
-    }
-    if (puestos.any((p) => p == null)) {
-      setState(() => _focos = const []);
-      return;
-    }
-
-    // `ensureVisible` revienta si el contexto no esta dentro de un `Scrollable`,
-    // y hay controles que no lo estan (la franja de arriba, la barra). Eso no es
-    // un fallo: es que no hay nada que desplazar.
-    for (final ubicado in puestos) {
-      final puesto = ubicado!;
-      if (Scrollable.maybeOf(puesto.contexto) != null) {
-        await Scrollable.ensureVisible(
-          puesto.contexto,
-          // Se mide todo después del último desplazamiento: mover el destino
-          // también puede mover el origen del arrastre.
-          alignment: 0.5,
-          duration: const Duration(milliseconds: 220),
-        );
-        if (!mounted) return;
-        await WidgetsBinding.instance.endOfFrame;
-        if (!mounted) return;
+      for (
+        var intento = 0;
+        puestos.any((p) => p == null) && intento < _fotogramasDeEspera;
+        intento++
+      ) {
+        await _siguienteFotograma();
+        if (!vigente()) return;
+        puestos = [
+          for (final nombre in nombres) RegistroDeControles.donde(nombre),
+        ];
       }
-    }
+      if (puestos.any((p) => p == null)) {
+        setState(() => _focos = const []);
+        return;
+      }
 
-    // Se vuelve a preguntar: el desplazamiento movio el control, y la medida de
-    // antes ya no vale.
-    final medidos = [
-      for (final nombre in nombres) RegistroDeControles.donde(nombre)?.rect,
-    ];
-    setState(() {
-      _focos = medidos.any((r) => r == null) ? const [] : medidos.cast<Rect>();
-    });
+      // `ensureVisible` revienta si el contexto no esta dentro de un `Scrollable`,
+      // y hay controles que no lo estan (la franja de arriba, la barra). Eso no es
+      // un fallo: es que no hay nada que desplazar.
+      for (final ubicado in puestos) {
+        final puesto = ubicado!;
+        if (Scrollable.maybeOf(puesto.contexto) != null) {
+          await Scrollable.ensureVisible(
+            puesto.contexto,
+            // Se mide todo después del último desplazamiento: mover el destino
+            // también puede mover el origen del arrastre.
+            alignment: 0.5,
+            duration: const Duration(milliseconds: 220),
+          );
+          if (!vigente()) return;
+          await _siguienteFotograma();
+          if (!vigente()) return;
+        }
+      }
+
+      // Se vuelve a preguntar: el desplazamiento movio el control, y la medida de
+      // antes ya no vale.
+      final medidos = [
+        for (final nombre in nombres) RegistroDeControles.donde(nombre)?.rect,
+      ];
+      setState(() {
+        _focos = medidos.any((r) => r == null)
+            ? const []
+            : medidos.cast<Rect>();
+      });
+    } finally {
+      if (medicion == _medicion) _midiendo = false;
+    }
   }
 
   void _ir(int aCual) {
     setState(() {
       _cual = aCual;
+      _esperandoElPaso = null;
+      _menuPreparadoPara = null;
       _focos = const [];
     });
     _colocar();
@@ -306,6 +425,17 @@ class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
   /// Se resta cada agujero del velo. El destino recibe el arrastre aunque el
   /// ratón haya cruzado una parte cubierta; el resto sigue absorbiendo toques.
   List<Widget> _velo(Size pantalla, List<Rect> huecos) {
+    // Sin objetivo visible hay que poder abrir el formulario o vista que pide
+    // el paso. En cuanto aparece, el registro recupera la marca del control.
+    if (huecos.isEmpty) {
+      return [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ColoredBox(color: Colores.veloDelRecorrido),
+          ),
+        ),
+      ];
+    }
     var partes = [Offset.zero & pantalla];
     for (final hueco in huecos) {
       final siguientes = <Rect>[];
@@ -361,17 +491,38 @@ class _CapaDelRecorridoState extends State<CapaDelRecorrido> {
     final conjunto = huecos.isEmpty
         ? null
         : huecos.reduce((a, b) => a.expandToInclude(b));
-    final abajo = conjunto == null || conjunto.center.dy < pantalla.height / 2;
+    final teclado = MediaQuery.viewInsetsOf(context).bottom;
+    final alturaVisible = pantalla.height - teclado;
+    final abajo = conjunto == null || conjunto.center.dy < alturaVisible / 2;
+    final margenSeguro = MediaQuery.paddingOf(context).vertical;
+    final limite = (alturaVisible - margenSeguro - Aire.md * 2) * .65;
+    final espacioJuntoAlControl = conjunto == null
+        ? limite
+        : abajo
+        ? alturaVisible -
+              conjunto.bottom -
+              MediaQuery.paddingOf(context).bottom -
+              Aire.md * 2
+        : conjunto.top - MediaQuery.paddingOf(context).top - Aire.md * 2;
+    // Un campo deja sitio al otro lado; la explicación larga se desplaza allí.
+    // Si se señala una región que ocupa casi toda la pantalla, no cabe una
+    // tarjeta fuera de ella: se conservan los mandos para poder seguir o salir.
+    final altoMaximo = espacioJuntoAlControl >= 200
+        ? espacioJuntoAlControl.clamp(0.0, limite)
+        : limite;
 
     return Positioned(
       left: Aire.md,
       right: Aire.md,
       top: abajo ? null : Aire.md,
-      bottom: abajo ? Aire.md : null,
+      bottom: abajo ? Aire.md + teclado : null,
       child: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: Anchos.idioma),
+            constraints: BoxConstraints(
+              maxWidth: Anchos.idioma,
+              maxHeight: altoMaximo,
+            ),
             child: _Tarjeta(
               tarea: widget.tarea,
               paso: _paso,
@@ -471,32 +622,50 @@ class _Tarjeta extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Aire.sm),
-          // Sin enlaces: un enlace dentro de la tarjeta de un paso se lleva a
-          // otra pagina del manual y deja el recorrido a medias encima de una
-          // pantalla que ya no es la de la tarea.
-          RenglonDelManual(paso.texto, enlaces: EnlacesDelManual.sinEnlaces),
-          for (final detalle in paso.detalles)
-            Padding(
-              padding: const EdgeInsets.only(top: Aire.xs, left: Aire.md),
-              child: RenglonDelManual(
-                detalle,
-                enlaces: EnlacesDelManual.sinEnlaces,
+          // Los mandos quedan a la vista incluso al escribir. Sólo las
+          // explicaciones se desplazan cuando el teclado reduce el espacio.
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Sin enlaces: un enlace dentro de la tarjeta de un paso se lleva a
+                  // otra pagina del manual y deja el recorrido a medias encima de una
+                  // pantalla que ya no es la de la tarea.
+                  RenglonDelManual(
+                    paso.texto,
+                    enlaces: EnlacesDelManual.sinEnlaces,
+                  ),
+                  for (final detalle in paso.detalles)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        top: Aire.xs,
+                        left: Aire.md,
+                      ),
+                      child: RenglonDelManual(
+                        detalle,
+                        enlaces: EnlacesDelManual.sinEnlaces,
+                      ),
+                    ),
+                  if (!seSenala)
+                    Padding(
+                      padding: const EdgeInsets.only(top: Aire.sm),
+                      child: Text(
+                        paso.seSenala
+                            ? TextosDelRecorrido.controlFueraDeEstaPantalla
+                            : TextosDelRecorrido.sinControlMarcado,
+                        style: Tipos.texto(
+                          tamano: 12.5,
+                          color: Colores.tintaSuave,
+                          alto: 1.4,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-          if (!seSenala)
-            Padding(
-              padding: const EdgeInsets.only(top: Aire.sm),
-              child: Text(
-                paso.seSenala
-                    ? TextosDelRecorrido.controlFueraDeEstaPantalla
-                    : TextosDelRecorrido.sinControlMarcado,
-                style: Tipos.texto(
-                  tamano: 12.5,
-                  color: Colores.tintaSuave,
-                  alto: 1.4,
-                ),
-              ),
-            ),
+          ),
           const SizedBox(height: Aire.md),
           if (alRepetir != null)
             TextButton.icon(

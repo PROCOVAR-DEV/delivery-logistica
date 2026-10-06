@@ -23,6 +23,10 @@ import 'package:reparto/pantallas/ayuda/datos/empaquetado.dart';
 import 'package:reparto/pantallas/ayuda/datos/manual.dart';
 import 'package:reparto/pantallas/ayuda/datos/proveedores.dart';
 import 'package:reparto/pantallas/ayuda/vista/pantalla_guia.dart';
+import 'package:reparto/pantallas/ayuda/vista/control_senalado.dart';
+import 'package:reparto/pantallas/ayuda/vista/recorrido_guiado.dart';
+import 'package:reparto/pantallas/ayuda/vista/demostracion_del_gesto.dart';
+import 'package:reparto/diseno/cajon.dart';
 
 const telefono = Size(390, 800);
 
@@ -45,7 +49,7 @@ final _paginas = <String, String>{
 
 **Empieza en:** **Menú → «Vehículos»**. **Necesita señal.**
 
-1. Toca **«Nuevo vehículo»**.
+1. Toca **«Nuevo vehículo»**. <!-- señala: vehiculos-nuevo -->
 2. Escribe la matrícula.
 
 ## Mirar el canal con PEDIDO
@@ -103,6 +107,8 @@ Future<void> _montar(
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = telefono;
   addTearDown(tester.view.reset);
+  addTearDown(Recorrido.salir);
+  addTearDown(RegistroDeControles.vaciar);
 
   final enrutador = GoRouter(
     initialLocation: donde,
@@ -115,8 +121,14 @@ Future<void> _montar(
       ),
       GoRoute(
         path: '/vehicles',
-        builder: (_, _) =>
-            const Scaffold(body: Center(child: Text('AQUI ES VEHICULOS'))),
+        builder: (_, _) => const Scaffold(
+          body: Center(
+            child: ControlSenalado(
+              nombre: 'vehiculos-nuevo',
+              child: Text('AQUI ES VEHICULOS'),
+            ),
+          ),
+        ),
       ),
     ],
   );
@@ -137,6 +149,44 @@ Future<void> _montar(
 }
 
 void main() {
+  for (final buscando in [false, true]) {
+    testWidgets(
+      'tocar una tarea inicia el tutorial sin cajón (buscar=$buscando)',
+      (tester) async {
+        await _montar(tester);
+        if (buscando) {
+          await tester.enterText(find.byKey(ClavesDeLaGuia.buscar), 'camión');
+          await tester.pump(const Duration(milliseconds: 500));
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.byKey(ClavesDeLaGuia.tarea(_idDelCamion)));
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(Cajon),
+          findsNothing,
+          reason: 'el toque principal enseña dónde tocar; leer es otra acción',
+        );
+        expect(find.text('AQUI ES VEHICULOS'), findsOneWidget);
+        expect(find.text('1 de 2'), findsOneWidget);
+        expect(find.byKey(ClavesDelRecorrido.foco), findsOneWidget);
+        expect(find.byType(DemostracionDelGesto), findsOneWidget);
+        expect(
+          tester
+              .getRect(find.byKey(ClavesDelRecorrido.foco))
+              .contains(
+                RegistroDeControles.donde('vehiculos-nuevo')!.rect.center,
+              ),
+          isTrue,
+        );
+        expect(
+          tester.binding.hasScheduledFrame,
+          isFalse,
+          reason: 'el tutorial termina su demostración y queda en reposo',
+        );
+      },
+    );
+  }
+
   /// LO PRIMERO QUE SE VE SON LAS TAREAS. Es lo que se consulta noventa y nueve
   /// veces de cada cien: alguien con el telefono en la mano y una duda concreta.
   testWidgets('al abrir la guia, lo primero son las TAREAS', (tester) async {
@@ -234,7 +284,7 @@ void main() {
     testWidgets('se abre en un cajon con sus pasos numerados', (tester) async {
       await _montar(tester);
 
-      await tester.tap(find.byKey(ClavesDeLaGuia.tarea(_idDelCamion)));
+      await tester.tap(find.byKey(ClavesDeLaGuia.leerTarea(_idDelCamion)));
       await tester.pumpAndSettle();
 
       // El titulo del cajon, y los pasos dentro.
@@ -252,7 +302,7 @@ void main() {
     testWidgets('lleva a la pantalla de verdad', (tester) async {
       await _montar(tester);
 
-      await tester.tap(find.byKey(ClavesDeLaGuia.tarea(_idDelCamion)));
+      await tester.tap(find.byKey(ClavesDeLaGuia.leerTarea(_idDelCamion)));
       await tester.pumpAndSettle();
 
       expect(find.byKey(ClavesDeLaGuia.llevameAhi), findsOneWidget);
@@ -329,7 +379,7 @@ void main() {
     await _montar(tester);
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.byKey(ClavesDeLaGuia.tarea(_idDelCamion)));
+    await tester.tap(find.byKey(ClavesDeLaGuia.leerTarea(_idDelCamion)));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });

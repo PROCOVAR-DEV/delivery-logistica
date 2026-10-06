@@ -294,11 +294,10 @@ abstract final class AccionesTablero {
   static Future<void> crearColumna(BuildContext context, WidgetRef ref) async {
     final nombre = await _pedirNombre(context, '');
     if (nombre == null || !context.mounted) return;
-    await hacer(
-      context,
-      ref,
-      () => ref.read(tableroProvider.notifier).crearColumna(nombre),
-    );
+    await hacer(context, ref, () async {
+      await ref.read(tableroProvider.notifier).crearColumna(nombre);
+      RegistroDeControles.completar(Senalado.tableroGuardarLaZona);
+    });
   }
 
   /// EL CAJÓN DEL «CAMIÓN PREVISTO».
@@ -1227,6 +1226,16 @@ class _CampoDelNombreDeLaZonaState extends State<_CampoDelNombreDeLaZona> {
   late final TextEditingController _control = TextEditingController(
     text: widget.inicial,
   );
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.inicial.isEmpty) {
+        RegistroDeControles.completar(Senalado.tableroNuevaZona);
+      }
+    });
+  }
 
   @override
   void dispose() {

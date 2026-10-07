@@ -5,7 +5,7 @@ pegar en la interfaz de Dokploy.
 
 **Estado al 22/09/2026:**
 
-- [x] Repositorio: `github.com/PROCOVAR-DEV/delivery-logistica`, rama `main`
+- [x] Repositorio: `github.com/jose22072000/delivery-logistica`, rama `main`
 - [x] Bases creadas en el Postgres del VPS: `procovar_reparto` y `procovar_reparto_sync`
 - [x] Migraciones aplicadas: 16 tablas y 5 tablas — **y cada migración nueva hay que
       aplicarla a mano ANTES del Deploy**: el procedimiento entero está en

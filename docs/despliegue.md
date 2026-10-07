@@ -172,7 +172,7 @@ repositorio en el servidor:
 
 ```bash
 ssh vps 'cd /tmp && rm -rf m && git clone --depth 1 -b main \
-  https://github.com/jose22072000/delivery-logistica.git m && cd m && \
+  https://github.com/PROCOVAR-DEV/delivery-logistica.git m && cd m && \
   docker build -f deploy/Dockerfile.migraciones -t reparto-migraciones .'
 ```
 
@@ -1231,7 +1231,7 @@ Los valores, uno por uno:
 | Proyecto / entorno | `Procovar-dev` / `production` | Donde están las otras tres. |
 | Name | `reparto-espejo` | Dokploy le añade su sufijo (`reparto-espejo-isgzxg`); ése es el nombre por el que lo llaman los demás. |
 | Build Type | **Dockerfile** | No Nixpacks. |
-| Provider | Git · `github.com/jose22072000/delivery-logistica` · rama **`main`** | La misma que las otras tres. |
+| Provider | Git · `github.com/PROCOVAR-DEV/delivery-logistica` · rama **`main`** | La misma que las otras tres. |
 | **Dockerfile Path** | `deploy/Dockerfile.espejo` | |
 | **Docker Context Path** | **`.`** | **No se deja vacío.** El Dockerfile vive en `deploy/` pero hace `COPY api/`, así que el contexto es la raíz del repositorio. Con el campo vacío Dokploy usa la carpeta del Dockerfile y el build muere con `"/api": not found`. |
 | **Command** | **vacío** | Ver abajo: aquí es donde se rompe. |
@@ -1543,7 +1543,7 @@ que no se arreglan desde los ficheros de despliegue:
    según `git ls-files`. Queda escrito porque era el punto de la Parte 0 de
    `DOKPLOY-NUEVO-PROYECTO.md` y lo que hay que saber es que ese ya no frena el clone.
 2. ~~**El repositorio no tiene remoto** y la rama es `master`.~~ — **ya no (23/09/2026).**
-   El remoto es `github.com/jose22072000/delivery-logistica` y la rama es **`main`**, que es
+   El remoto es `github.com/PROCOVAR-DEV/delivery-logistica` y la rama es **`main`**, que es
    de la que tiran las cuatro Applications. Queda escrito porque el resto del documento
    decía `dev` y el proyecto `PROCOVAR-DEV`, y las dos cosas eran falsas.
 3. **`app/android/build/` está seguido en git** y no debería: son artefactos. `.gitignore`

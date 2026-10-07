@@ -190,7 +190,7 @@ sus huellas, publicar el instalador sin sobrescribir versiones y comprobar su de
 
 La versión **1.0.27+28** está en procovar.cloud como **Reparto para Windows**:
 el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.27-windows-setup.exe).
-La ejecución [37537712382 de GitHub Actions](https://github.com/jose22072000/delivery-logistica/actions/runs/37537712382)
+La ejecución [37537712382 de GitHub Actions](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37537712382)
 compiló e instaló la copia de prueba y cotejó sus archivos. Las descargas públicas se
 verificaron por tamaño y SHA256 antes de actualizar la tarjeta. Abrir, iniciar sesión
 y trabajar sin conexión en el PC del usuario quedan pendientes de prueba física.

@@ -3,6 +3,39 @@ Módulos involucrados: Rutas, Tableros, Facturas, Vehículos, Pedidos
 Fecha: [pendiente]
 Responsable: [pendiente]
 
+## Dónde implementar cada punto
+
+Los nombres de los módulos describen funciones; no son nombres de repositorio. El
+reparto actual vive principalmente en estos repositorios de GitHub:
+
+- [`PROCOVAR-DEV/delivery-logistica`](https://github.com/PROCOVAR-DEV/delivery-logistica):
+  aplicación actual de reparto, su API Go, base local/espejo y clientes Flutter (web,
+  Android y escritorio). Los puntos 1–6 se implementan aquí cuando se trate de reglas
+  del flujo de reparto.
+- [`PROCOVAR-DEV/PEDIDO`](https://github.com/PROCOVAR-DEV/PEDIDO): origen de pedidos,
+  facturas y datos/cobros del domicilio. Tocar este repositorio sólo si la regla o el
+  dato fuente pertenece a PEDIDO; el reparto debe validar también lo que recibe.
+- [`PROCOVAR-DEV/procovar-rutas`](https://github.com/PROCOVAR-DEV/procovar-rutas):
+  servicio de análisis y visualización de recorridos GPS. No es la aplicación que arma
+  las rutas de entrega ni el destino de estas incidencias.
+
+| Punto | Repositorio principal | Coordinación con |
+|---|---|---|
+| 1. Cierre y resultados de ruta | `delivery-logistica` | `PEDIDO` para confirmar el acuse de estados; el 409 documentado dice que PEDIDO sí aplicó el resultado recibido. |
+| 2. Cotización de domicilio en el tablero y quitar una factura planificada | `delivery-logistica` | `PEDIDO` si falta o es incorrecto el dato fuente de cotización/cobro. |
+| 3. Eliminar ruta y restaurar facturas al tablero/zona | `delivery-logistica` | Ninguno, salvo que se descubra que la relación de origen vive en PEDIDO. |
+| 4. Inactivar vehículos con historial | `delivery-logistica` | Ninguno. |
+| 5. Quitar `Vehiculo` de `orders` | `delivery-logistica`, sólo para su tabla/espejo local | No eliminar una columna del PEDIDO fuente como parte de este cambio sin verificar su uso y alcance por separado. |
+| 6. Elegibilidad de pedidos para crear rutas | `delivery-logistica` para filtros y validación al planificar | `PEDIDO` para corregir/documentar cómo se factura y registra el domicilio cobrado, incluido el caso “conduce”. |
+
+El repositorio legado [`PROCOVAR-DEV/procovar-delivery`](https://github.com/PROCOVAR-DEV/procovar-delivery)
+no es el destino de cambios nuevos de la aplicación actual. Tampoco se debe confundir
+con `procovar-delivery-apk` ni con `procovar-rutas`.
+
+Antes de cambiar una regla compartida, identificar cuál sistema es dueño del dato,
+implementar la validación en el servicio que toma la decisión y enlazar aquí el PR o
+commit correspondiente de cada repositorio involucrado.
+
 1. Cierre de ruta no se completa al guardar y completar
 Problema
 En el proceso de cierre de ruta, al guardar y completar, la ruta no se está cerrando.

@@ -115,13 +115,13 @@ void main() {
     return [for (final p in lista) p.id]..sort();
   }
 
-  test('sin ningun filtro salen los cuatro elegibles', () async {
-    expect(await ids(), ['d1', 'd2', 'd3', 'd4']);
+  test('sin ningun filtro salen los pedidos elegibles', () async {
+    expect(await ids(), ['d1', 'd3', 'd4']);
   });
 
   group('domicilio', () {
     test('`1` deja fuera al que no lleva domicilio', () async {
-      expect(await ids(domicilio: '1'), ['d1', 'd2', 'd3']);
+      expect(await ids(domicilio: '1'), ['d1', 'd3']);
     });
 
     test('`0` es «no lleva», y ahi entran tambien los NULOS', () async {
@@ -145,23 +145,26 @@ void main() {
       expect(await ids(cotizado: '1'), ['d1', 'd3', 'd4']);
     });
 
-    test('`0` es el NULO, no el cero', () async {
-      // Un cero es un precio —un domicilio gratis— y por eso no sale aqui.
-      await sembrarPedido(
-        base,
-        id: 'd6',
-        cliente: 'Fran',
-        pedidoCosto: 0,
-        endLat: 21.31,
-        endLng: -77.81,
-      );
-      expect(await ids(cotizado: '0'), ['d2']);
-    });
+    test(
+      'los elegibles ya tienen cotización; cero también cuenta como cotizado',
+      () async {
+        await sembrarPedido(
+          base,
+          id: 'd6',
+          cliente: 'Fran',
+          pedidoCosto: 0,
+          endLat: 21.31,
+          endLng: -77.81,
+        );
+        expect(await ids(cotizado: '0'), isEmpty);
+        expect(await ids(cotizado: '1'), contains('d6'));
+      },
+    );
   });
 
   group('estado en PEDIDO', () {
     test('`completada` es sólo la que lo dice', () async {
-      expect(await ids(estado: EstadoEnPedido.completada), ['d2']);
+      expect(await ids(estado: EstadoEnPedido.completada), isEmpty);
     });
 
     test('`en_proceso` cuenta los que no tienen estado', () async {
@@ -177,17 +180,17 @@ void main() {
     test('un valor que no conocemos NO esconde nada', () async {
       // Esconder por una cadena mal escrita es la peor de las dos opciones: la
       // persona ve una lista corta y no sabe por que.
-      expect(await ids(estado: 'lo_que_sea'), ['d1', 'd2', 'd3', 'd4']);
+      expect(await ids(estado: 'lo_que_sea'), ['d1', 'd3', 'd4']);
     });
   });
 
   test('municipio y vendedor son exactos', () async {
-    expect(await ids(municipio: 'Florida'), ['d2']);
+    expect(await ids(municipio: 'Florida'), isEmpty);
     expect(await ids(vendedor: 'Luis'), ['d1', 'd3']);
   });
 
   test('el dia acota el dia natural entero', () async {
-    expect(await ids(dia: DateTime(2026, 9, 13)), ['d2']);
+    expect(await ids(dia: DateTime(2026, 9, 13)), isEmpty);
   });
 
   test('`km máx.` y `costo mín.` recortan por arriba y por abajo', () async {
@@ -221,7 +224,7 @@ void main() {
       expect(await ids(), isNot(contains('d8')));
     });
 
-    test('la factura tiene que CUADRAR, no basta con tenerla', () async {
+    test('una factura con líneas cambiadas sigue estando facturada', () async {
       await sembrarPedido(
         base,
         id: 'd9',
@@ -230,7 +233,7 @@ void main() {
         endLat: 21.33,
         endLng: -77.83,
       );
-      expect(await ids(), isNot(contains('d9')));
+      expect(await ids(), contains('d9'));
     });
   });
 }

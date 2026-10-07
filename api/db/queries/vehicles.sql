@@ -16,7 +16,7 @@
 -- name: ListarVehiculos :many
 SELECT
     v.id, v.name, v.vehicle_type_id, v.plate, v.capacity, v.costo_km_usd,
-    v.usar_para_domicilio, v.status, v.notes, v.branch_id,
+    v.usar_para_domicilio, v.status, v.is_active, v.notes, v.branch_id,
     v.created_at, v.updated_at,
     vt.nombre       AS tipo_nombre,
     vt.costo_km_usd AS tipo_costo_km_usd,
@@ -25,14 +25,13 @@ SELECT
     -- porque tres JOIN a la vez multiplican las filas entre sí y los tres números salen
     -- inflados: el clásico de contar rutas y pedidos en la misma consulta.
     (SELECT count(*) FROM routes r         WHERE r.vehicle_id  = v.id) AS rutas,
-    -- LOS PEDIDOS QUE LLEVA ESTE CAMIÓN SALEN DE SUS RUTAS, no de `orders.vehicle_id`.
+    -- LOS PEDIDOS QUE LLEVA ESTE CAMIÓN SALEN DE SUS RUTAS.
     --
-    -- Aquí se contaba `orders.vehicle_id`, y esa columna la escribe SÓLO el tablero
-    -- (`tablero.sql`, `tocar_vehiculo`): armar una ruta nunca la toca, porque el camión de
-    -- un pedido es el de la ruta en la que viaja. Resultado, visto el 22/09/2026 en el
-    -- teléfono de Jose: la tarjeta decía «Rutas 7» y debajo «0 órdenes asignadas», con
-    -- 125,3 kg cargados. Dos números de la misma tarjeta contándose cosas distintas, y el
-    -- cero es el que se lee.
+    -- Antes de eliminarse `orders.vehicle_id`, aquí se contaba esa columna duplicada y el
+    -- tablero la escribía al colocar pedidos. Armar una ruta nunca la tocaba, porque el
+    -- camión de un pedido es el de la ruta en la que viaja. El 22/09/2026 la tarjeta decía
+    -- «Rutas 7» y «0 órdenes asignadas», con 125,3 kg cargados. Ahora la relación canónica
+    -- se consulta directamente en `routes.vehicle_id`.
     (SELECT count(*) FROM orders o
         JOIN routes r ON r.id = o.route_id
         WHERE r.vehicle_id = v.id) AS pedidos,
@@ -48,7 +47,7 @@ ORDER BY v.created_at DESC;
 -- name: ObtenerVehiculo :one
 SELECT
     v.id, v.name, v.vehicle_type_id, v.plate, v.capacity, v.costo_km_usd,
-    v.usar_para_domicilio, v.status, v.notes, v.branch_id,
+    v.usar_para_domicilio, v.status, v.is_active, v.notes, v.branch_id,
     v.created_at, v.updated_at,
     vt.nombre       AS tipo_nombre,
     vt.costo_km_usd AS tipo_costo_km_usd,
@@ -71,7 +70,7 @@ WHERE v.id = sqlc.arg('id')
 -- valida la capacidad en vez de negarse. Acotarlo por sucursal aquí haría que un camión
 -- compartido dejara de validar peso justo cuando más importa.
 -- name: ObtenerVehiculoParaCapacidad :one
-SELECT v.id, v.name, v.capacity, v.status, v.branch_id
+SELECT v.id, v.name, v.capacity, v.status, v.is_active, v.branch_id
 FROM vehicles v
 WHERE v.id = sqlc.arg('id');
 
@@ -87,14 +86,14 @@ WHERE v.id = sqlc.arg('id');
 -- name: CrearVehiculo :one
 INSERT INTO vehicles (
     name, vehicle_type_id, plate, capacity, costo_km_usd,
-    usar_para_domicilio, status, notes, branch_id
+    usar_para_domicilio, status, is_active, notes, branch_id
 ) VALUES (
     sqlc.arg('name'), sqlc.arg('vehicle_type_id'), sqlc.narg('plate'),
     sqlc.arg('capacity'), sqlc.narg('costo_km_usd'), sqlc.arg('usar_para_domicilio'),
-    sqlc.arg('status'), sqlc.narg('notes'), sqlc.narg('branch_id')
+    sqlc.arg('status'), sqlc.arg('is_active'), sqlc.narg('notes'), sqlc.narg('branch_id')
 )
 RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, notes, branch_id, created_at, updated_at;
+          usar_para_domicilio, status, is_active, notes, branch_id, created_at, updated_at;
 
 -- name: ActualizarVehiculo :one
 UPDATE vehicles SET
@@ -108,6 +107,7 @@ UPDATE vehicles SET
                                ELSE costo_km_usd END,
     usar_para_domicilio = coalesce(sqlc.narg('usar_para_domicilio')::boolean, usar_para_domicilio),
     status              = coalesce(sqlc.narg('status')::vehicle_status, status),
+    is_active           = coalesce(sqlc.narg('is_active')::boolean, is_active),
     notes               = CASE WHEN sqlc.arg('tocar_notes')::boolean
                                THEN sqlc.narg('notes')::text ELSE notes END
 WHERE id = sqlc.arg('id')
@@ -115,7 +115,7 @@ WHERE id = sqlc.arg('id')
        OR branch_id = sqlc.narg('sucursal')::uuid
        OR branch_id IS NULL)
 RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, notes, branch_id, created_at, updated_at;
+          usar_para_domicilio, status, is_active, notes, branch_id, created_at, updated_at;
 
 -- Sólo un vehículo de referencia por sucursal, y lo impide el índice único parcial
 -- `vehicles_una_referencia_por_sucursal`. Por eso hay que DESMARCAR a los demás antes de
@@ -141,6 +141,7 @@ SELECT
 FROM vehicles v
 JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
 WHERE v.usar_para_domicilio
+  AND v.is_active
   AND v.branch_id IS NOT DISTINCT FROM sqlc.narg('sucursal')::uuid;
 
 -- Ocupar y liberar el camión. El vehículo se marca `in_use` al DESPACHAR la ruta (pasarla
@@ -157,14 +158,9 @@ WHERE id = sqlc.arg('id')
 -- Borrado
 -- ---------------------------------------------------------------------------
 --
--- Antes de borrar hay que desasociar: rutas (`DesvincularVehiculoDeRutas`, en routes.sql),
--- pedidos y asignaciones. El histórico de lo que se repartió no se borra porque un camión
+-- Antes de borrar hay que desasociar: rutas (`DesvincularVehiculoDeRutas`, en routes.sql)
+-- y asignaciones. El histórico de lo que se repartió no se borra porque un camión
 -- se dé de baja.
-
--- name: DesvincularVehiculoDePedidos :execrows
-UPDATE orders SET vehicle_id = NULL
-WHERE vehicle_id = sqlc.arg('vehiculo_id')
-  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
 
 -- name: BorrarAsignacionesDeVehiculo :execrows
 DELETE FROM order_vehicles WHERE vehicle_id = sqlc.arg('vehiculo_id');
@@ -185,6 +181,8 @@ WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL
        OR branch_id = sqlc.narg('sucursal')::uuid
        OR branch_id IS NULL)
+  -- La flota con rutas históricas se conserva: borrar el camión rompería la trazabilidad.
+  AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.vehicle_id = vehicles.id)
 RETURNING branch_id;
 
 -- ---------------------------------------------------------------------------

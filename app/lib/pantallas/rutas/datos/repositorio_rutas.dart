@@ -301,7 +301,11 @@ class ConsultasRutas {
 
   Future<List<Pedido>> paradasDe(String rutaId) {
     final consulta = _base.select(_base.orders)
-      ..where((o) => o.ultimaRutaId.equals(rutaId))
+      ..where(
+        (o) =>
+            o.routeId.equals(rutaId) |
+            (o.routeId.isNull() & o.ultimaRutaId.equals(rutaId)),
+      )
       ..orderBy([
         (o) => OrderingTerm.asc(o.stopOrder),
         (o) => OrderingTerm.asc(o.customerName),
@@ -399,11 +403,15 @@ class ConsultasRutas {
     });
   }
 
-  /// Las paradas se miran en vivo para que el cierre se vea marcado en el
-  /// detalle sin esperar a nada.
+  /// Paradas actuales y las ya soltadas por devolución/cancelación que siguen
+  /// perteneciendo al historial de esta ruta.
   Stream<List<Pedido>> mirarParadasDe(String rutaId) {
     final consulta = _base.select(_base.orders)
-      ..where((o) => o.ultimaRutaId.equals(rutaId))
+      ..where(
+        (o) =>
+            o.routeId.equals(rutaId) |
+            (o.routeId.isNull() & o.ultimaRutaId.equals(rutaId)),
+      )
       ..orderBy([
         (o) => OrderingTerm.asc(o.stopOrder),
         (o) => OrderingTerm.asc(o.customerName),
@@ -453,10 +461,9 @@ class ConsultasRutas {
   /// Los pedidos que se pueden meter en una ruta.
   ///
   /// Las condiciones fijas son las del servidor y **no son negociables**:
-  /// `source='pedido'`, sin ruta, con coordenadas de entrega y facturado. El
-  /// filtro de factura de la pantalla NO es configurable: siempre `cuadra`
-  /// (`facturaEstado = 'igual'`), que es lo unico que el armado del servidor
-  /// acepta. Ofrecer aqui lo que alli se rechaza es fabricar rechazos tardios.
+  /// `source='pedido'`, sin ruta, con coordenadas de entrega, factura emitida
+  /// (`igual` o `cambiado`), importe positivo de domicilio y cotización de
+  /// Entrega. Ofrecer aquí lo que allí se rechaza fabrica rechazos tardíos.
   /// [estado], [domicilio] y [cotizado] llevan **los mismos valores que los
   /// query params del servidor** (`contratos-api.md`, «Filtros compartidos»):
   /// `''` es sin filtro. Se escriben asi, como texto, y no como enums propios,
@@ -484,7 +491,9 @@ class ConsultasRutas {
         o.routeId.isNull() &
         o.endLat.isNotNull() &
         o.endLng.isNotNull() &
-        o.facturaEstado.equals(EstadoFactura.igual);
+        o.facturaEstado.isIn([EstadoFactura.igual, EstadoFactura.cambiado]) &
+        o.facturaDomicilio.isBiggerThanValue(0) &
+        o.pedidoCosto.isNotNull();
 
     if (sucursalId != null && sucursalId.isNotEmpty) {
       donde = donde & o.branchId.equals(sucursalId);

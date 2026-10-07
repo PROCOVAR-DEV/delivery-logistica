@@ -41,6 +41,7 @@ Vehiculo _camion(String id, String nombre, {String? sucursal = 'stg'}) =>
       usarParaDomicilio: false,
       status: 'available',
       branchId: sucursal,
+      isActive: true,
     );
 
 TarjetaPedido _tarjeta(String id) => TarjetaPedido(

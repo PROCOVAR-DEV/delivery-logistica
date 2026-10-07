@@ -270,10 +270,6 @@ func (d *dobleAvisos) DesvincularVehiculoDeRutas(context.Context, sqlc.Desvincul
 	return 0, nil
 }
 
-func (d *dobleAvisos) DesvincularVehiculoDePedidos(context.Context, sqlc.DesvincularVehiculoDePedidosParams) (int64, error) {
-	return 0, nil
-}
-
 func (d *dobleAvisos) BorrarAsignacionesDeVehiculo(context.Context, uuid.UUID) (int64, error) {
 	return 0, nil
 }

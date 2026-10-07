@@ -78,6 +78,7 @@ class VehiculoDeLaApi {
     required this.nombre,
     required this.capacidad,
     required this.estado,
+    this.activo = true,
     this.tipo,
     this.placa,
     this.costoKmUsd,
@@ -96,6 +97,7 @@ class VehiculoDeLaApi {
       nombre: (j['name'] as String?) ?? '',
       capacidad: _numero(j['capacity']) ?? 1000,
       estado: (j['status'] as String?) ?? 'available',
+      activo: j['isActive'] != false,
       tipo: j['type'] as String?,
       placa: j['plate'] as String?,
       costoKmUsd: _numero(j['costoKmUsd']),
@@ -116,6 +118,7 @@ class VehiculoDeLaApi {
   final String nombre;
   final double capacidad;
   final String estado;
+  final bool activo;
   final String? tipo;
   final String? placa;
   final double? costoKmUsd;
@@ -331,6 +334,7 @@ class DatosVehiculo {
     this.placa,
     this.capacidad,
     this.estado,
+    this.activo,
     this.notas,
     this.costoKmUsd,
     this.usarParaDomicilio,
@@ -341,6 +345,7 @@ class DatosVehiculo {
   final String? placa;
   final double? capacidad;
   final String? estado;
+  final bool? activo;
   final String? notas;
   final double? costoKmUsd;
   final bool? usarParaDomicilio;
@@ -351,6 +356,7 @@ class DatosVehiculo {
     'plate': placa,
     'capacity': capacidad,
     'status': estado,
+    'isActive': activo,
     'notes': notas,
     'costoKmUsd': costoKmUsd,
     'usarParaDomicilio': usarParaDomicilio,

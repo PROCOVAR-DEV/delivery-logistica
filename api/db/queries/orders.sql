@@ -67,6 +67,8 @@ WHERE
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
+    AND o.factura_domicilio > 0
+    AND o.pedido_costo IS NOT NULL
     -- ARCHIVADO EN PEDIDO = NO SE REPARTE.
     --
     -- Faltaba, y con los datos reales del 15/09/2026 eso metia 1.348 pedidos archivados
@@ -200,6 +202,8 @@ WHERE
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
+    AND o.factura_domicilio > 0
+    AND o.pedido_costo IS NOT NULL
     -- ARCHIVADO EN PEDIDO = NO SE REPARTE. Ver el porqué en ListarPedidosDisponibles.
     -- Aquí importa el doble: este recuento es el `total` que la pantalla enseña encima de
     -- la lista, así que sin esto diría «2.771 disponibles» sobre una lista de 1.423.
@@ -475,7 +479,7 @@ WHERE
 SELECT
     o.id, o.operation_number, o.customer_name, o.customer_phone, o.address,
     o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.weight, o.status,
-    o.trip_leg, o.notes, o.route_id, o.ultima_ruta_id, o.vehicle_id, o.price,
+    o.trip_leg, o.notes, o.route_id, o.ultima_ruta_id, r.vehicle_id AS vehicle_id, o.price,
     o.segment_km, o.delivery_price, o.delivery_distance_km, o.branch_id,
     o.source, o.external_id, o.order_date, o.pedido_updated_at, o.estado,
     o.archivado, o.fecha_comprometida, o.requiere_domicilio, o.pedido_costo,
@@ -493,7 +497,7 @@ SELECT
     pp.peso_respaldado
 FROM orders o
 LEFT JOIN routes        r  ON r.id  = o.route_id
-LEFT JOIN vehicles      v  ON v.id  = o.vehicle_id
+LEFT JOIN vehicles      v  ON v.id  = r.vehicle_id
 LEFT JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
 LEFT JOIN peso_de_los_pedidos pp ON pp.id = o.id
 WHERE o.id = sqlc.arg('id')
@@ -1076,7 +1080,7 @@ marcados AS (
     SELECT
         o.id, o.operation_number, o.customer_name, o.customer_phone, o.address,
         o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.weight, o.status,
-        o.trip_leg, o.notes, o.route_id, o.ultima_ruta_id, o.vehicle_id, o.price,
+        o.trip_leg, o.notes, o.route_id, o.ultima_ruta_id, o.price,
         o.segment_km, o.delivery_price, o.delivery_distance_km, o.branch_id,
         o.source, o.external_id, o.order_date, o.pedido_updated_at, o.estado,
         o.archivado, o.fecha_comprometida, o.requiere_domicilio, o.pedido_costo,
@@ -1101,7 +1105,7 @@ marcados AS (
 SELECT
     id, operation_number, customer_name, customer_phone, address, end_address,
     end_lat, end_lng, lat, lng, weight, status, trip_leg, notes, route_id,
-    ultima_ruta_id, vehicle_id, price, segment_km, delivery_price,
+    ultima_ruta_id, price, segment_km, delivery_price,
     delivery_distance_km, branch_id, source, external_id, order_date,
     pedido_updated_at, estado, archivado, fecha_comprometida, requiere_domicilio,
     pedido_costo, municipio, vendedor, sucursal_codigo, factura_estado,

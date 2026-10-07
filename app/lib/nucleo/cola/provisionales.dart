@@ -33,7 +33,6 @@ class Provisionales {
     ('routes', 'vehicle_id'),
     ('orders', 'route_id'),
     ('orders', 'ultima_ruta_id'),
-    ('orders', 'vehicle_id'),
     ('vehicles', 'id'),
     ('warehouses', 'id'),
     // EL TABLERO, que faltaba y costo caro. Sus dos tablas NO son de Drift —las

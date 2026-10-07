@@ -204,6 +204,12 @@ func (a *Acotado) SoltarPedidosDeRuta(ctx context.Context, ruta uuid.UUID) (int6
 	})
 }
 
+func (a *Acotado) SoltarParadaPlanificada(ctx context.Context, ruta, pedido uuid.UUID) (uuid.UUID, error) {
+	return a.q.SoltarParadaPlanificada(ctx, sqlc.SoltarParadaPlanificadaParams{
+		RutaID: ruta, PedidoID: pedido, Sucursal: a.sucursalPg(),
+	})
+}
+
 func (a *Acotado) BorrarRuta(ctx context.Context, id uuid.UUID) (int64, error) {
 	return a.q.BorrarRuta(ctx, sqlc.BorrarRutaParams{ID: id, Sucursal: a.sucursalPg()})
 }

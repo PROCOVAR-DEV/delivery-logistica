@@ -134,6 +134,7 @@ Vehiculo _camion(String id, String nombre, String? sucursal) => Vehiculo(
   status: 'available',
   usarParaDomicilio: false,
   branchId: sucursal,
+  isActive: true,
 );
 
 void pruebasDelFiltroDeVehiculos() {

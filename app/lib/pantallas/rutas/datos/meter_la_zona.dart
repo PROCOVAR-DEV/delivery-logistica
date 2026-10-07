@@ -105,9 +105,9 @@ String parteDeLaZona(String nombre, int total, RepartoDeLaZona r) => <String>[
 /// Sin sucursal elegida se devuelven todos, que es lo unico honesto: todavia no
 /// hay por que filtrar.
 List<Vehiculo> vehiculosDeLaSucursal(List<Vehiculo> todos, String? sucursalId) {
-  if (sucursalId == null) return todos;
+  if (sucursalId == null) return todos.where((v) => v.isActive).toList();
   return [
     for (final v in todos)
-      if (v.branchId == sucursalId) v,
+      if (v.isActive && v.branchId == sucursalId) v,
   ];
 }

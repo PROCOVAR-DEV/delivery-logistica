@@ -134,6 +134,7 @@ type VehiculoSalida struct {
 	CostoKmUsd        *float64   `json:"costoKmUsd"`
 	TipoCostoKmUsd    *float64   `json:"tipoCostoKmUsd"`
 	UsarParaDomicilio bool       `json:"usarParaDomicilio"`
+	IsActive          bool       `json:"isActive"`
 	Status            string     `json:"status"`
 	Notes             *string    `json:"notes"`
 	BranchID          *uuid.UUID `json:"branchId"`
@@ -235,7 +236,7 @@ func (s *Servidor) listarVehiculos(w http.ResponseWriter, r *http.Request) {
 			ID: f.ID, Name: f.Name, Type: f.TipoNombre, VehicleTypeID: f.VehicleTypeID,
 			Plate: f.Plate, Capacity: f.Capacity, CostoKmUsd: f.CostoKmUsd,
 			TipoCostoKmUsd: f.TipoCostoKmUsd, UsarParaDomicilio: f.UsarParaDomicilio,
-			Status: string(f.Status), Notes: f.Notes, BranchID: idOpcional(f.BranchID),
+			Status: string(f.Status), IsActive: f.IsActive, Notes: f.Notes, BranchID: idOpcional(f.BranchID),
 			SucursalNombre: f.SucursalNombre,
 			CreatedAt:      hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
 			Count:  conteoVeh{Routes: f.Rutas, Orders: f.Pedidos, OrderAssignments: f.Asignaciones},
@@ -273,7 +274,7 @@ func (s *Servidor) obtenerVehiculo(w http.ResponseWriter, r *http.Request) {
 		ID: f.ID, Name: f.Name, Type: f.TipoNombre, VehicleTypeID: f.VehicleTypeID,
 		Plate: f.Plate, Capacity: f.Capacity, CostoKmUsd: f.CostoKmUsd,
 		TipoCostoKmUsd: f.TipoCostoKmUsd, UsarParaDomicilio: f.UsarParaDomicilio,
-		Status: string(f.Status), Notes: f.Notes, BranchID: idOpcional(f.BranchID),
+		Status: string(f.Status), IsActive: f.IsActive, Notes: f.Notes, BranchID: idOpcional(f.BranchID),
 		CreatedAt: hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
 		Count:  conteoVeh{Routes: f.Rutas, Orders: f.Pedidos, OrderAssignments: f.Asignaciones},
 		Routes: laSuya(rutasPorCamion(abiertas), f.ID),
@@ -286,6 +287,7 @@ type cuerpoVehiculo struct {
 	Plate             httpx.Opcional[string]  `json:"plate"`
 	Capacity          httpx.Opcional[float64] `json:"capacity"`
 	Status            httpx.Opcional[string]  `json:"status"`
+	IsActive          httpx.Opcional[bool]    `json:"isActive"`
 	Notes             httpx.Opcional[string]  `json:"notes"`
 	CostoKmUsd        httpx.Opcional[float64] `json:"costoKmUsd"`
 	UsarParaDomicilio httpx.Opcional[bool]    `json:"usarParaDomicilio"`
@@ -341,6 +343,7 @@ func (s *Servidor) crearVehiculo(w http.ResponseWriter, r *http.Request) {
 			Capacity:          c.Capacity.Con(CapacidadPorDefecto),
 			CostoKmUsd:        c.CostoKmUsd.Valor, // vacío = «usa el del tipo», NO cero
 			UsarParaDomicilio: referencia,
+			IsActive:          c.IsActive.Con(true),
 			Status:            estado,
 			Notes:             aTexto(c.Notes.Con("")),
 		})
@@ -396,6 +399,7 @@ func (s *Servidor) actualizarVehiculo(w http.ResponseWriter, r *http.Request) {
 		CostoKmUsd: c.CostoKmUsd.Valor,
 		TocarNotes: c.Notes.Presente,
 		Notes:      c.Notes.Valor,
+		IsActive:   c.IsActive.Puntero(),
 	}
 	nombreTipo := antes.TipoNombre
 	if c.Type.Presente && c.Type.Valor != nil {
@@ -477,6 +481,7 @@ func (s *Servidor) actualizarVehiculo(w http.ResponseWriter, r *http.Request) {
 // o no existe. Va como error y no como bandera porque tiene que DESHACER lo ya
 // desasociado: si no, un intento contra un id ajeno dejaría rutas y pedidos sueltos.
 var errNoEstaba = errors.New("vehículo no encontrado en el alcance")
+var errVehiculoConRutas = errors.New("vehículo con rutas históricas")
 
 // DELETE /api/vehicles/{id}
 func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
@@ -488,25 +493,53 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Las rutas históricas deben seguir apuntando al vehículo. Si tiene alguna, se
+	// conserva y se puede dejar fuera de servicio desde su estado; no se borran sus
+	// referencias para poder eliminar la fila.
+	actual, err := a.ObtenerVehiculo(r.Context(), id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
+		return
+	}
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	if actual.Rutas > 0 {
+		httpx.Error(w, r, http.StatusConflict,
+			"No se puede eliminar este vehículo porque tiene rutas asociadas, incluso históricas. Ponlo en mantenimiento para impedir que se use en nuevas rutas.")
+		return
+	}
 	// LA SUCURSAL DEL CAMIÓN QUE SE VA, para los tres avisos. La pone el propio DELETE
 	// (`BorrarVehiculo` devuelve `branch_id`): cuando se avisa, la fila ya no está, así que
 	// o la trae el borrado o no la trae nadie. Un camión compartido viene con nulo y entonces
 	// el aviso sale a las ocho, que es lo correcto.
 	var sucursalDelCamion pgtype.UUID
-	err := a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
-		// Desasociar primero. El histórico de lo que se repartió NO se borra porque un
-		// camión se dé de baja: las rutas y los pedidos se quedan, sin vehículo.
-		if _, err := tx.DesvincularVehiculoDeRutas(r.Context(), id); err != nil {
+	err = a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
+		// Repetir la guarda dentro de la transacción antes de borrar order_vehicles. Una ruta
+		// pudo aparecer después de la comprobación exterior; si ya hay historial, salimos sin
+		// tocar las asignaciones. BorrarVehiculo vuelve a comprobarlo en el propio DELETE.
+		actual, err := tx.ObtenerVehiculo(r.Context(), id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errNoEstaba
+		}
+		if err != nil {
 			return err
 		}
-		if _, err := tx.DesvincularVehiculoDePedidos(r.Context(), id); err != nil {
-			return err
+		if actual.Rutas > 0 {
+			return errVehiculoConRutas
 		}
 		if _, err := tx.BorrarAsignacionesDeVehiculo(r.Context(), id); err != nil {
 			return err
 		}
 		suc, err := tx.BorrarVehiculo(r.Context(), id)
 		if errors.Is(err, pgx.ErrNoRows) {
+			// Puede ser que una ruta se haya asociado después de la comprobación inicial.
+			// Distinguirlo del 404 sin permitir que el borrado rompa su historial.
+			actual, consultaErr := tx.ObtenerVehiculo(r.Context(), id)
+			if consultaErr == nil && actual.Rutas > 0 {
+				return errVehiculoConRutas
+			}
 			return errNoEstaba
 		}
 		if err != nil {
@@ -519,16 +552,19 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNotFound)
 		return
 	}
+	if errors.Is(err, errVehiculoConRutas) {
+		httpx.Error(w, r, http.StatusConflict,
+			"No se puede eliminar este vehículo porque tiene rutas asociadas, incluso históricas. Ponlo en mantenimiento para impedir que se use en nuevas rutas.")
+		return
+	}
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	// TRES AVISOS, y no es de más: este borrado desvincula el camión de sus rutas y de sus
-	// pedidos antes de quitarlo. Las tres listas cambiaron de verdad, y quien tenga Rutas
-	// delante vería el camión de una ruta que ya no lo tiene hasta el temporizador.
+	// TRES AVISOS: cambian las listas de flota, rutas y pedidos para quien tenga esas
+	// pantallas abiertas mientras se quita el vehículo.
 	//
-	// Y LAS TRES CON LA SUCURSAL DEL CAMIÓN: las rutas y los pedidos que se acaban de
-	// desvincular eran los suyos, y los suyos son de su sucursal.
+	// Y LAS TRES CON LA SUCURSAL DEL CAMIÓN, no con el alcance de quien lo borró.
 	avisarCambioDeVehiculos(r.Context(), deLaFilaPg(sucursalDelCamion))
 	avisarCambioDeRutas(r.Context(), deLaFilaPg(sucursalDelCamion))
 	avisarCambioDePedidos(r.Context(), deLaFilaPg(sucursalDelCamion))
@@ -539,7 +575,7 @@ func deVehiculo(v sqlc.Vehicle, nombreTipo string) VehiculoSalida {
 	return VehiculoSalida{
 		ID: v.ID, Name: v.Name, Type: nombreTipo, VehicleTypeID: v.VehicleTypeID,
 		Plate: v.Plate, Capacity: v.Capacity, CostoKmUsd: v.CostoKmUsd,
-		UsarParaDomicilio: v.UsarParaDomicilio, Status: string(v.Status), Notes: v.Notes,
+		UsarParaDomicilio: v.UsarParaDomicilio, Status: string(v.Status), IsActive: v.IsActive, Notes: v.Notes,
 		BranchID:  idOpcional(v.BranchID),
 		CreatedAt: hora(v.CreatedAt), UpdatedAt: hora(v.UpdatedAt),
 	}

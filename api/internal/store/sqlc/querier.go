@@ -454,10 +454,8 @@ type Querier interface {
 	// Borrado
 	// ---------------------------------------------------------------------------
 	//
-	// Antes de borrar hay que desasociar: rutas (`DesvincularVehiculoDeRutas`, en routes.sql),
-	// pedidos y asignaciones. El histórico de lo que se repartió no se borra porque un camión
-	// se dé de baja.
-	DesvincularVehiculoDePedidos(ctx context.Context, arg DesvincularVehiculoDePedidosParams) (int64, error)
+	// Las asignaciones adicionales se eliminan; las rutas históricas conservan su referencia
+	// al vehículo cuando se mantiene la unidad en la flota.
 	// Al borrar un camión, sus rutas se quedan sin él pero no se borran: el histórico de lo
 	// que se repartió no depende de que el camión siga en la flota.
 	DesvincularVehiculoDeRutas(ctx context.Context, arg DesvincularVehiculoDeRutasParams) (int64, error)
@@ -1259,10 +1257,8 @@ type Querier interface {
 	// rutas a la vez eso pasa de verdad — y de ahí sale el 409 con «N de los M ya están en
 	// otra ruta». Comprobarlo en Go sobre una lectura anterior es mirar una foto vieja.
 	//
-	// `factura_estado` se deja pasar `igual` y `cambiado` porque es el mismo listón de la
-	// lista de disponibles; el corte a sólo `igual` lo hace el handler DESPUÉS, para poder
-	// nombrar en el error cuál falla y por qué («cambió en la factura» / «sin cotejar»).
-	// Un WHERE que los descarte aquí deja el mismo 409 sin nada que decir.
+	// `factura_estado` deja pasar `igual` y `cambiado`, como la lista de disponibles.
+	// «cambiado» es una factura emitida con líneas distintas, no una factura inexistente.
 	PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmarRutaParams) ([]PedidosParaArmarRutaRow, error)
 	// LO QUE SE FUE DE LA SUCURSAL, para `quitados`.
 	//
@@ -1487,6 +1483,7 @@ type Querier interface {
 	// `ultima_ruta_id` se conserva — el pasado de un pedido no se reescribe porque alguien
 	// deshaga la ruta de hoy.
 	SoltarPedidosDeRuta(ctx context.Context, arg SoltarPedidosDeRutaParams) (int64, error)
+	SoltarParadaPlanificada(ctx context.Context, arg SoltarParadaPlanificadaParams) (uuid.UUID, error)
 	// Hasta cuándo se tiene facturación de una sucursal.
 	//
 	// Es lo que distingue «este pedido no está facturado» de «de ese día todavía no hemos

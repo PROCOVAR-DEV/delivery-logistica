@@ -153,6 +153,8 @@ class TablaPedidos extends StatelessWidget {
               codigoDeRuta: pedido.routeId == null
                   ? null
                   : rutas[pedido.routeId]?.routeCode,
+              tieneVehiculo: pedido.routeId != null &&
+                  rutas[pedido.routeId]?.vehicleId != null,
               marcado: seleccion.contains(pedido.id),
               alMarcar: () => alMarcar(pedido.id),
               alAbrir: () => alAbrir(pedido),
@@ -242,6 +244,7 @@ class _Fila extends StatelessWidget {
     required this.renglones,
     required this.estadoDeSuRuta,
     required this.codigoDeRuta,
+    required this.tieneVehiculo,
     required this.marcado,
     required this.alMarcar,
     required this.alAbrir,
@@ -262,6 +265,7 @@ class _Fila extends StatelessWidget {
   final List<RenglonConPeso> renglones;
   final String? estadoDeSuRuta;
   final String? codigoDeRuta;
+  final bool tieneVehiculo;
   final bool marcado;
   final VoidCallback alMarcar;
   final VoidCallback alAbrir;
@@ -333,7 +337,7 @@ class _Fila extends StatelessWidget {
               if (columnas.vehiculo)
                 _celda(
                   flex: 2,
-                  hijo: Text(pedido.vehicleId == null ? '—' : '·'),
+                  hijo: Text(tieneVehiculo ? '·' : '—'),
                 ),
               if (columnas.articulos)
                 _celda(flex: 2, hijo: _Articulos(renglones: renglones)),

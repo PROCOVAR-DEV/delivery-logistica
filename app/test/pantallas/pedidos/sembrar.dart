@@ -85,6 +85,7 @@ Future<void> sembrarPedido(
   String? facturaEstado = EstadoFactura.igual,
   bool archivado = false,
   double? pedidoCosto = 10,
+  double? facturaDomicilio = 1,
   DateTime? fecha,
   DateTime? creado,
   double peso = 10,
@@ -122,6 +123,7 @@ Future<void> sembrarPedido(
         facturaNumero: const Value('FA-1'),
         archivado: Value(archivado),
         pedidoCosto: Value(pedidoCosto),
+        facturaDomicilio: Value(facturaDomicilio),
         deliveryDistanceKm: Value(distancia),
         orderDate: Value(fecha),
         createdAt: Value(creado ?? fecha ?? hoy),
@@ -148,6 +150,7 @@ Future<void> sembrarRenglon(
   double? empaques,
   String? productoId,
   int linea = 1,
+
   /// **El peso de la LINEA ya resuelto por el servidor**, que es lo unico que el
   /// aparato lee (`_pesoDeLaLinea` y `RenglonConPeso.pesoLinea`).
   ///
@@ -156,6 +159,7 @@ Future<void> sembrarRenglon(
   /// nulo es sembrar «el servidor no supo pesar esta linea», que es un caso de
   /// verdad y se cuenta en «sin peso».
   double? pesoLinea,
+
   /// Lo que pesa UN EMPAQUE, tal como quedo constancia en la 00004.
   ///
   /// **El aparato NO calcula con esto**: es un dato guardado, no un escalon. La

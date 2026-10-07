@@ -656,7 +656,6 @@ type Order struct {
 	Notes              *string            `json:"notes"`
 	RouteID            pgtype.UUID        `json:"route_id"`
 	UltimaRutaID       pgtype.UUID        `json:"ultima_ruta_id"`
-	VehicleID          pgtype.UUID        `json:"vehicle_id"`
 	Price              *float64           `json:"price"`
 	SegmentKm          *float64           `json:"segment_km"`
 	DeliveryPrice      *float64           `json:"delivery_price"`
@@ -836,6 +835,7 @@ type Vehicle struct {
 	CostoKmUsd        *float64           `json:"costo_km_usd"`
 	UsarParaDomicilio bool               `json:"usar_para_domicilio"`
 	Status            VehicleStatus      `json:"status"`
+	IsActive          bool               `json:"is_active"`
 	Notes             *string            `json:"notes"`
 	BranchID          pgtype.UUID        `json:"branch_id"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`

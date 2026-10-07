@@ -671,7 +671,6 @@ class Bajada {
             notes: Value(_texto(j['notes'])),
             routeId: Value(_texto(j['routeId'])),
             ultimaRutaId: Value(_texto(j['ultimaRutaId'])),
-            vehicleId: Value(_texto(j['vehicleId'])),
             price: Value(_numero(j['price'])),
             segmentKm: Value(_numero(j['segmentKm'])),
             deliveryPrice: Value(_numero(j['deliveryPrice'])),

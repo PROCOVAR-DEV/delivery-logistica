@@ -110,17 +110,17 @@ ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC;
 
 -- Las paradas que VIAJARON en esta ruta, se hayan bajado del camión o no.
 --
--- Va por `ultima_ruta_id`, que no se libera nunca, y por eso son dos campos y no uno: un
--- devuelto suelta su `route_id` al cerrar la ruta para poder repartirse mañana, y con un
--- solo campo eso lo borraría de la hoja de lo que bajó del camión. Es el universo del
--- post-despacho y el de corregir el resultado de una parada ya cerrada.
+-- La ruta actual se reconoce por `route_id`; si la parada ya se devolvió o canceló,
+-- `route_id` está NULL y se usa `ultima_ruta_id` para corregir su resultado histórico.
+-- Si ambas columnas divergen, nunca se roba un pedido que ya pertenece a otra ruta.
 -- name: ListarParadasQueViajaronEnRuta :many
 SELECT
     o.id, o.operation_number, o.customer_name, o.address, o.end_address,
     o.weight, o.stop_order, o.resultado, o.resultado_at, o.resultado_nota,
     o.delivered_at, o.external_id, o.source, o.branch_id
 FROM orders o
-WHERE o.ultima_ruta_id = sqlc.arg('ruta_id')
+WHERE (o.route_id = sqlc.arg('ruta_id')
+       OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id')))
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC;
 
@@ -130,15 +130,15 @@ ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC;
 -- debería seguir arriba. Una sola consulta y no una por parada — con 40 paradas, lo
 -- segundo son 40 idas y vueltas por una pantalla que se abre veinte veces al día.
 --
--- Por `ultima_ruta_id` para que el post-despacho siga viendo los renglones de lo que se
--- devolvió: al cerrar, esos pedidos ya soltaron su `route_id`.
+-- Por la ruta actual o, para pedidos soltados, por `ultima_ruta_id`.
 -- name: ListarRenglonesDeRuta :many
 SELECT
     oi.order_id, oi.linea, oi.description, oi.quantity, oi.packs, oi.product_id,
     o.customer_name, o.stop_order, o.resultado
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
-WHERE o.ultima_ruta_id = sqlc.arg('ruta_id')
+WHERE (o.route_id = sqlc.arg('ruta_id')
+       OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id')))
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC;
 
@@ -189,10 +189,8 @@ ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC;
 -- rutas a la vez eso pasa de verdad — y de ahí sale el 409 con «N de los M ya están en
 -- otra ruta». Comprobarlo en Go sobre una lectura anterior es mirar una foto vieja.
 --
--- `factura_estado` se deja pasar `igual` y `cambiado` porque es el mismo listón de la
--- lista de disponibles; el corte a sólo `igual` lo hace el handler DESPUÉS, para poder
--- nombrar en el error cuál falla y por qué («cambió en la factura» / «sin cotejar»).
--- Un WHERE que los descarte aquí deja el mismo 409 sin nada que decir.
+-- `factura_estado` deja pasar `igual` y `cambiado`, como la lista de disponibles.
+-- «cambiado» es una factura emitida con líneas distintas, no una factura inexistente.
 -- name: PedidosParaArmarRuta :many
 SELECT
     o.id, o.operation_number, o.customer_name, o.end_lat, o.end_lng,
@@ -319,6 +317,9 @@ UPDATE orders SET
     price          = coalesce(sqlc.narg('price')::double precision, 0)
 WHERE id = sqlc.arg('pedido_id')
   AND route_id IS NULL
+  AND factura_estado IN ('igual', 'cambiado')
+  AND factura_domicilio > 0
+  AND pedido_costo IS NOT NULL
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
 
 -- El recorrido y la firma de quién ordenó, ya con las paradas puestas.
@@ -366,6 +367,7 @@ RETURNING id, name, route_code, status, origin_address, origin_lat, origin_lng,
 -- Ninguna de las dos se deduce de `created_at` —la ruta se arma la noche anterior— ni de
 -- `updated_at`, que se mueve al tocar cualquier cosa.
 -- name: ActualizarEstadoDeRuta :one
+WITH actualizada AS (
 UPDATE routes SET
     name   = coalesce(sqlc.narg('name')::text, name),
     status = coalesce(sqlc.narg('status')::route_status, status),
@@ -382,7 +384,14 @@ WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
 RETURNING id, name, route_code, status, vehicle_id, branch_id,
           started_at, finished_at, total_distance, total_weight, total_price,
-          delivery_date, created_at, updated_at;
+          delivery_date, created_at, updated_at
+), origenes_liberados AS (
+    DELETE FROM board_route_origins o
+    USING actualizada r
+    WHERE o.route_id = r.id AND r.status = 'completed'
+    RETURNING o.order_id
+)
+SELECT * FROM actualizada;
 
 -- Cambiar el camión. Va aparte del cambio de estado porque en el contrato tiene prioridad
 -- y retorna antes: liberar el camión viejo y ocupar el nuevo es lo único que hace.
@@ -422,6 +431,7 @@ RETURNING id, name, route_code, status, vehicle_id, branch_id,
 -- name: MarcarResultadoDeParada :execrows
 UPDATE orders SET
     resultado      = sqlc.arg('resultado')::stop_result,
+    ultima_ruta_id = sqlc.arg('ruta_id'),
     resultado_at   = now(),
     resultado_nota = sqlc.narg('nota'),
     delivered_at = CASE
@@ -433,11 +443,12 @@ UPDATE orders SET
         ELSE 'pending'::order_status
     END,
     route_id = CASE
-        WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN route_id
+        WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')
         ELSE NULL
     END
 WHERE id = sqlc.arg('pedido_id')
-  AND ultima_ruta_id = sqlc.arg('ruta_id')
+  AND (route_id = sqlc.arg('ruta_id')
+       OR (route_id IS NULL AND ultima_ruta_id = sqlc.arg('ruta_id')))
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
 
 -- QUITAR LA MARCA DE UNA PARADA — 28/09/2026.
@@ -472,13 +483,15 @@ WHERE id = sqlc.arg('pedido_id')
 -- name: LimpiarResultadoDeParada :execrows
 UPDATE orders SET
     resultado      = NULL,
+    ultima_ruta_id = sqlc.arg('ruta_id'),
     resultado_at   = NULL,
     resultado_nota = NULL,
     delivered_at   = NULL,
     status         = 'pending'::order_status,
-    route_id       = ultima_ruta_id
+    route_id       = sqlc.arg('ruta_id')
 WHERE id = sqlc.arg('pedido_id')
-  AND ultima_ruta_id = sqlc.arg('ruta_id')
+  AND (route_id = sqlc.arg('ruta_id')
+       OR (route_id IS NULL AND ultima_ruta_id = sqlc.arg('ruta_id')))
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
 
 -- ---------------------------------------------------------------------------
@@ -488,7 +501,68 @@ WHERE id = sqlc.arg('pedido_id')
 -- Los pedidos NO se borran: se sueltan y vuelven a la lista de disponibles.
 -- `ultima_ruta_id` se conserva — el pasado de un pedido no se reescribe porque alguien
 -- deshaga la ruta de hoy.
+-- name: SoltarParadaPlanificada :one
+WITH liberada AS (
+    UPDATE orders o SET
+        route_id = NULL, stop_order = NULL, segment_km = NULL, trip_leg = 'outbound'
+    FROM routes r
+    WHERE o.id = sqlc.arg('pedido_id')
+      AND o.route_id = sqlc.arg('ruta_id')
+      AND r.id = o.route_id
+      AND r.status = 'planned'
+      AND o.delivered_at IS NULL
+      AND o.resultado IS NULL
+      AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
+    RETURNING o.id
+), origen AS (
+    DELETE FROM board_route_origins o
+    USING liberada l
+    WHERE o.route_id = sqlc.arg('ruta_id') AND o.order_id = l.id
+    RETURNING o.order_id, o.column_id, o.posicion, o.colocado_por
+), corrimientos AS (
+    UPDATE board_placements p SET posicion = p.posicion + 1
+    FROM origen o
+    WHERE p.column_id = o.column_id AND p.posicion >= o.posicion
+    RETURNING p.order_id
+), restaurada AS (
+    INSERT INTO board_placements (order_id, column_id, posicion, colocado_por)
+    SELECT order_id, column_id, posicion, colocado_por FROM origen
+    ON CONFLICT (order_id) DO NOTHING
+    RETURNING order_id
+)
+SELECT id FROM liberada;
+
 -- name: SoltarPedidosDeRuta :execrows
+WITH origenes AS (
+    SELECT o.route_id, o.order_id, o.column_id, o.posicion, o.colocado_por
+    FROM board_route_origins o
+    JOIN routes r ON r.id = o.route_id
+    JOIN orders pedido ON pedido.id = o.order_id
+    WHERE o.route_id = sqlc.arg('ruta_id')
+      AND r.status <> 'completed'
+      AND pedido.route_id = o.route_id
+      AND pedido.delivered_at IS NULL
+      AND pedido.resultado IS NULL
+      AND (sqlc.narg('sucursal')::uuid IS NULL OR r.branch_id = sqlc.narg('sucursal')::uuid)
+), corrimientos AS (
+    UPDATE board_placements p SET
+        posicion = p.posicion + (
+            SELECT count(*)::integer FROM origenes o
+            WHERE o.column_id = p.column_id AND o.posicion <= p.posicion
+        )
+    WHERE EXISTS (SELECT 1 FROM origenes o
+                  WHERE o.column_id = p.column_id AND o.posicion <= p.posicion)
+    RETURNING p.order_id
+), restaurados AS (
+    INSERT INTO board_placements (order_id, column_id, posicion, colocado_por)
+    SELECT o.order_id, o.column_id,
+           o.posicion + (SELECT count(*)::integer FROM origenes prev
+                         WHERE prev.column_id = o.column_id AND prev.posicion < o.posicion),
+           o.colocado_por
+    FROM origenes o
+    ON CONFLICT (order_id) DO NOTHING
+    RETURNING order_id
+)
 UPDATE orders SET
     route_id   = NULL,
     stop_order = NULL,

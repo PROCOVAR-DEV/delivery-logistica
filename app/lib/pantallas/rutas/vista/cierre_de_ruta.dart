@@ -241,20 +241,26 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
     final navegador = Navigator.of(context);
     try {
       // En APK/escritorio escribe y encola; en web espera el servidor.
-      // Ambos deben aceptar la hoja antes de intentar completar.
+      // Un rechazo parcial se muestra, pero no impide completar lo que sí se guardó.
       final acciones = ref.read(accionesDeRutaProvider);
+      String? avisoDeParadasRechazadas;
+      ResultadoCierreDeRuta? resultadoDelCierre;
       if (marcas.isNotEmpty) {
-        await acciones.cerrar(widget.rutaId, marcas);
+        resultadoDelCierre = await acciones.cerrar(widget.rutaId, marcas);
+        avisoDeParadasRechazadas = resultadoDelCierre.aviso;
       }
-      // **Completar va DESPUES de guardar, y solo si guardar salio bien.** Al
-      // reves, un rechazo del cierre dejaria la ruta dada por cerrada con las
-      // paradas sin marcar.
+      // Completar va después de guardar. Un rechazo total sigue dejando la ruta
+      // abierta; un rechazo parcial trae los IDs válidos y un aviso para corregir.
       if (completando) await acciones.completar(widget.rutaId);
       RegistroDeControles.completar(Senalado.rutasGuardarElCierre);
       // LA FOTO DE «LO GUARDADO» SE MUEVE. Sin esto, tras guardar, el boton de
       // salir seguiria diciendo que hay cambios pendientes sobre algo que ya
       // esta escrito, y un aviso que sale siempre deja de leerse (§3-quinquies).
       for (final marca in marcas) {
+        if (resultadoDelCierre != null &&
+            !resultadoDelCierre.idsAplicados.contains(marca.pedidoId)) {
+          continue;
+        }
         _alAbrir[marca.pedidoId] = marca.resultado;
         _notaGuardada[marca.pedidoId] = marca.quitaLaMarca
             ? ''
@@ -262,8 +268,14 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
       }
       mensajero?.showSnackBar(
         SnackBar(
+          duration: avisoDeParadasRechazadas == null
+              ? const Duration(seconds: 4)
+              : const Duration(seconds: 8),
           content: Text(
-            completando ? CierreDeRuta.exitoAlCompletar : CierreDeRuta.exito,
+            avisoDeParadasRechazadas ??
+                (completando
+                    ? CierreDeRuta.exitoAlCompletar
+                    : CierreDeRuta.exito),
           ),
         ),
       );

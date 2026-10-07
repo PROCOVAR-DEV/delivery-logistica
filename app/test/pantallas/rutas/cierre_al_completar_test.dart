@@ -286,6 +286,8 @@ class _ElCierreRebotado extends AccionesDeRuta {
   _ElCierreRebotado(super.base, super.cola, {super.reloj});
 
   @override
-  Future<String> cerrar(String rutaId, List<MarcaDeParada> marcas) async =>
-      throw const RechazoLocal(_motivoDelRechazo);
+  Future<ResultadoCierreDeRuta> cerrar(
+    String rutaId,
+    List<MarcaDeParada> marcas,
+  ) async => throw const RechazoLocal(_motivoDelRechazo);
 }

@@ -1426,6 +1426,21 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehiculo> {
     requiredDuringInsert: false,
     defaultValue: const Constant('available'),
   );
+  static const VerificationMeta _isActiveMeta = const VerificationMeta(
+    'isActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+    'is_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _notesMeta = const VerificationMeta('notes');
   @override
   late final GeneratedColumn<String> notes = GeneratedColumn<String>(
@@ -1478,6 +1493,7 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehiculo> {
     costoKmUsd,
     usarParaDomicilio,
     status,
+    isActive,
     notes,
     branchId,
     createdAt,
@@ -1553,6 +1569,12 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehiculo> {
         status.isAcceptableOrUnknown(data['status']!, _statusMeta),
       );
     }
+    if (data.containsKey('is_active')) {
+      context.handle(
+        _isActiveMeta,
+        isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
+      );
+    }
     if (data.containsKey('notes')) {
       context.handle(
         _notesMeta,
@@ -1618,6 +1640,10 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehiculo> {
         DriftSqlType.string,
         data['${effectivePrefix}status'],
       )!,
+      isActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_active'],
+      )!,
       notes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
@@ -1657,6 +1683,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
   /// hasta la proxima bajada (PLAN.md §3.4).
   final bool usarParaDomicilio;
   final String status;
+  final bool isActive;
   final String? notes;
   final String? branchId;
   final DateTime? createdAt;
@@ -1670,6 +1697,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
     this.costoKmUsd,
     required this.usarParaDomicilio,
     required this.status,
+    required this.isActive,
     this.notes,
     this.branchId,
     this.createdAt,
@@ -1692,6 +1720,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
     }
     map['usar_para_domicilio'] = Variable<bool>(usarParaDomicilio);
     map['status'] = Variable<String>(status);
+    map['is_active'] = Variable<bool>(isActive);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
@@ -1723,6 +1752,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
           : Value(costoKmUsd),
       usarParaDomicilio: Value(usarParaDomicilio),
       status: Value(status),
+      isActive: Value(isActive),
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
@@ -1752,6 +1782,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
       costoKmUsd: serializer.fromJson<double?>(json['costoKmUsd']),
       usarParaDomicilio: serializer.fromJson<bool>(json['usarParaDomicilio']),
       status: serializer.fromJson<String>(json['status']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
       notes: serializer.fromJson<String?>(json['notes']),
       branchId: serializer.fromJson<String?>(json['branchId']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
@@ -1770,6 +1801,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
       'costoKmUsd': serializer.toJson<double?>(costoKmUsd),
       'usarParaDomicilio': serializer.toJson<bool>(usarParaDomicilio),
       'status': serializer.toJson<String>(status),
+      'isActive': serializer.toJson<bool>(isActive),
       'notes': serializer.toJson<String?>(notes),
       'branchId': serializer.toJson<String?>(branchId),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
@@ -1786,6 +1818,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
     Value<double?> costoKmUsd = const Value.absent(),
     bool? usarParaDomicilio,
     String? status,
+    bool? isActive,
     Value<String?> notes = const Value.absent(),
     Value<String?> branchId = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
@@ -1801,6 +1834,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
     costoKmUsd: costoKmUsd.present ? costoKmUsd.value : this.costoKmUsd,
     usarParaDomicilio: usarParaDomicilio ?? this.usarParaDomicilio,
     status: status ?? this.status,
+    isActive: isActive ?? this.isActive,
     notes: notes.present ? notes.value : this.notes,
     branchId: branchId.present ? branchId.value : this.branchId,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
@@ -1822,6 +1856,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
           ? data.usarParaDomicilio.value
           : this.usarParaDomicilio,
       status: data.status.present ? data.status.value : this.status,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
       notes: data.notes.present ? data.notes.value : this.notes,
       branchId: data.branchId.present ? data.branchId.value : this.branchId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -1840,6 +1875,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
           ..write('costoKmUsd: $costoKmUsd, ')
           ..write('usarParaDomicilio: $usarParaDomicilio, ')
           ..write('status: $status, ')
+          ..write('isActive: $isActive, ')
           ..write('notes: $notes, ')
           ..write('branchId: $branchId, ')
           ..write('createdAt: $createdAt, ')
@@ -1858,6 +1894,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
     costoKmUsd,
     usarParaDomicilio,
     status,
+    isActive,
     notes,
     branchId,
     createdAt,
@@ -1875,6 +1912,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
           other.costoKmUsd == this.costoKmUsd &&
           other.usarParaDomicilio == this.usarParaDomicilio &&
           other.status == this.status &&
+          other.isActive == this.isActive &&
           other.notes == this.notes &&
           other.branchId == this.branchId &&
           other.createdAt == this.createdAt &&
@@ -1890,6 +1928,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
   final Value<double?> costoKmUsd;
   final Value<bool> usarParaDomicilio;
   final Value<String> status;
+  final Value<bool> isActive;
   final Value<String?> notes;
   final Value<String?> branchId;
   final Value<DateTime?> createdAt;
@@ -1904,6 +1943,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
     this.costoKmUsd = const Value.absent(),
     this.usarParaDomicilio = const Value.absent(),
     this.status = const Value.absent(),
+    this.isActive = const Value.absent(),
     this.notes = const Value.absent(),
     this.branchId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1919,6 +1959,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
     this.costoKmUsd = const Value.absent(),
     this.usarParaDomicilio = const Value.absent(),
     this.status = const Value.absent(),
+    this.isActive = const Value.absent(),
     this.notes = const Value.absent(),
     this.branchId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1935,6 +1976,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
     Expression<double>? costoKmUsd,
     Expression<bool>? usarParaDomicilio,
     Expression<String>? status,
+    Expression<bool>? isActive,
     Expression<String>? notes,
     Expression<String>? branchId,
     Expression<DateTime>? createdAt,
@@ -1950,6 +1992,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
       if (costoKmUsd != null) 'costo_km_usd': costoKmUsd,
       if (usarParaDomicilio != null) 'usar_para_domicilio': usarParaDomicilio,
       if (status != null) 'status': status,
+      if (isActive != null) 'is_active': isActive,
       if (notes != null) 'notes': notes,
       if (branchId != null) 'branch_id': branchId,
       if (createdAt != null) 'created_at': createdAt,
@@ -1967,6 +2010,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
     Value<double?>? costoKmUsd,
     Value<bool>? usarParaDomicilio,
     Value<String>? status,
+    Value<bool>? isActive,
     Value<String?>? notes,
     Value<String?>? branchId,
     Value<DateTime?>? createdAt,
@@ -1982,6 +2026,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
       costoKmUsd: costoKmUsd ?? this.costoKmUsd,
       usarParaDomicilio: usarParaDomicilio ?? this.usarParaDomicilio,
       status: status ?? this.status,
+      isActive: isActive ?? this.isActive,
       notes: notes ?? this.notes,
       branchId: branchId ?? this.branchId,
       createdAt: createdAt ?? this.createdAt,
@@ -2017,6 +2062,9 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
@@ -2046,6 +2094,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
           ..write('costoKmUsd: $costoKmUsd, ')
           ..write('usarParaDomicilio: $usarParaDomicilio, ')
           ..write('status: $status, ')
+          ..write('isActive: $isActive, ')
           ..write('notes: $notes, ')
           ..write('branchId: $branchId, ')
           ..write('createdAt: $createdAt, ')
@@ -3923,17 +3972,6 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _vehicleIdMeta = const VerificationMeta(
-    'vehicleId',
-  );
-  @override
-  late final GeneratedColumn<String> vehicleId = GeneratedColumn<String>(
-    'vehicle_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _priceMeta = const VerificationMeta('price');
   @override
   late final GeneratedColumn<double> price = GeneratedColumn<double>(
@@ -4295,7 +4333,6 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
     notes,
     routeId,
     ultimaRutaId,
-    vehicleId,
     price,
     segmentKm,
     deliveryPrice,
@@ -4440,12 +4477,6 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
           data['ultima_ruta_id']!,
           _ultimaRutaIdMeta,
         ),
-      );
-    }
-    if (data.containsKey('vehicle_id')) {
-      context.handle(
-        _vehicleIdMeta,
-        vehicleId.isAcceptableOrUnknown(data['vehicle_id']!, _vehicleIdMeta),
       );
     }
     if (data.containsKey('price')) {
@@ -4751,10 +4782,6 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
         DriftSqlType.string,
         data['${effectivePrefix}ultima_ruta_id'],
       ),
-      vehicleId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}vehicle_id'],
-      ),
       price: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}price'],
@@ -4910,7 +4937,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
   /// pero CONSERVA `ultimaRutaId`, o desaparece de la hoja de lo que bajo del
   /// camion.
   final String? ultimaRutaId;
-  final String? vehicleId;
   final double? price;
   final double? segmentKm;
   final double? deliveryPrice;
@@ -4983,7 +5009,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     this.notes,
     this.routeId,
     this.ultimaRutaId,
-    this.vehicleId,
     this.price,
     this.segmentKm,
     this.deliveryPrice,
@@ -5051,9 +5076,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     }
     if (!nullToAbsent || ultimaRutaId != null) {
       map['ultima_ruta_id'] = Variable<String>(ultimaRutaId);
-    }
-    if (!nullToAbsent || vehicleId != null) {
-      map['vehicle_id'] = Variable<String>(vehicleId);
     }
     if (!nullToAbsent || price != null) {
       map['price'] = Variable<double>(price);
@@ -5180,9 +5202,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       ultimaRutaId: ultimaRutaId == null && nullToAbsent
           ? const Value.absent()
           : Value(ultimaRutaId),
-      vehicleId: vehicleId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(vehicleId),
       price: price == null && nullToAbsent
           ? const Value.absent()
           : Value(price),
@@ -5298,7 +5317,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       notes: serializer.fromJson<String?>(json['notes']),
       routeId: serializer.fromJson<String?>(json['routeId']),
       ultimaRutaId: serializer.fromJson<String?>(json['ultimaRutaId']),
-      vehicleId: serializer.fromJson<String?>(json['vehicleId']),
       price: serializer.fromJson<double?>(json['price']),
       segmentKm: serializer.fromJson<double?>(json['segmentKm']),
       deliveryPrice: serializer.fromJson<double?>(json['deliveryPrice']),
@@ -5357,7 +5375,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       'notes': serializer.toJson<String?>(notes),
       'routeId': serializer.toJson<String?>(routeId),
       'ultimaRutaId': serializer.toJson<String?>(ultimaRutaId),
-      'vehicleId': serializer.toJson<String?>(vehicleId),
       'price': serializer.toJson<double?>(price),
       'segmentKm': serializer.toJson<double?>(segmentKm),
       'deliveryPrice': serializer.toJson<double?>(deliveryPrice),
@@ -5408,7 +5425,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     Value<String?> notes = const Value.absent(),
     Value<String?> routeId = const Value.absent(),
     Value<String?> ultimaRutaId = const Value.absent(),
-    Value<String?> vehicleId = const Value.absent(),
     Value<double?> price = const Value.absent(),
     Value<double?> segmentKm = const Value.absent(),
     Value<double?> deliveryPrice = const Value.absent(),
@@ -5458,7 +5474,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     notes: notes.present ? notes.value : this.notes,
     routeId: routeId.present ? routeId.value : this.routeId,
     ultimaRutaId: ultimaRutaId.present ? ultimaRutaId.value : this.ultimaRutaId,
-    vehicleId: vehicleId.present ? vehicleId.value : this.vehicleId,
     price: price.present ? price.value : this.price,
     segmentKm: segmentKm.present ? segmentKm.value : this.segmentKm,
     deliveryPrice: deliveryPrice.present
@@ -5540,7 +5555,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       ultimaRutaId: data.ultimaRutaId.present
           ? data.ultimaRutaId.value
           : this.ultimaRutaId,
-      vehicleId: data.vehicleId.present ? data.vehicleId.value : this.vehicleId,
       price: data.price.present ? data.price.value : this.price,
       segmentKm: data.segmentKm.present ? data.segmentKm.value : this.segmentKm,
       deliveryPrice: data.deliveryPrice.present
@@ -5627,7 +5641,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           ..write('notes: $notes, ')
           ..write('routeId: $routeId, ')
           ..write('ultimaRutaId: $ultimaRutaId, ')
-          ..write('vehicleId: $vehicleId, ')
           ..write('price: $price, ')
           ..write('segmentKm: $segmentKm, ')
           ..write('deliveryPrice: $deliveryPrice, ')
@@ -5680,7 +5693,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     notes,
     routeId,
     ultimaRutaId,
-    vehicleId,
     price,
     segmentKm,
     deliveryPrice,
@@ -5732,7 +5744,6 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           other.notes == this.notes &&
           other.routeId == this.routeId &&
           other.ultimaRutaId == this.ultimaRutaId &&
-          other.vehicleId == this.vehicleId &&
           other.price == this.price &&
           other.segmentKm == this.segmentKm &&
           other.deliveryPrice == this.deliveryPrice &&
@@ -5782,7 +5793,6 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
   final Value<String?> notes;
   final Value<String?> routeId;
   final Value<String?> ultimaRutaId;
-  final Value<String?> vehicleId;
   final Value<double?> price;
   final Value<double?> segmentKm;
   final Value<double?> deliveryPrice;
@@ -5831,7 +5841,6 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     this.notes = const Value.absent(),
     this.routeId = const Value.absent(),
     this.ultimaRutaId = const Value.absent(),
-    this.vehicleId = const Value.absent(),
     this.price = const Value.absent(),
     this.segmentKm = const Value.absent(),
     this.deliveryPrice = const Value.absent(),
@@ -5881,7 +5890,6 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     this.notes = const Value.absent(),
     this.routeId = const Value.absent(),
     this.ultimaRutaId = const Value.absent(),
-    this.vehicleId = const Value.absent(),
     this.price = const Value.absent(),
     this.segmentKm = const Value.absent(),
     this.deliveryPrice = const Value.absent(),
@@ -5933,7 +5941,6 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     Expression<String>? notes,
     Expression<String>? routeId,
     Expression<String>? ultimaRutaId,
-    Expression<String>? vehicleId,
     Expression<double>? price,
     Expression<double>? segmentKm,
     Expression<double>? deliveryPrice,
@@ -5983,7 +5990,6 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
       if (notes != null) 'notes': notes,
       if (routeId != null) 'route_id': routeId,
       if (ultimaRutaId != null) 'ultima_ruta_id': ultimaRutaId,
-      if (vehicleId != null) 'vehicle_id': vehicleId,
       if (price != null) 'price': price,
       if (segmentKm != null) 'segment_km': segmentKm,
       if (deliveryPrice != null) 'delivery_price': deliveryPrice,
@@ -6037,7 +6043,6 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     Value<String?>? notes,
     Value<String?>? routeId,
     Value<String?>? ultimaRutaId,
-    Value<String?>? vehicleId,
     Value<double?>? price,
     Value<double?>? segmentKm,
     Value<double?>? deliveryPrice,
@@ -6087,7 +6092,6 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
       notes: notes ?? this.notes,
       routeId: routeId ?? this.routeId,
       ultimaRutaId: ultimaRutaId ?? this.ultimaRutaId,
-      vehicleId: vehicleId ?? this.vehicleId,
       price: price ?? this.price,
       segmentKm: segmentKm ?? this.segmentKm,
       deliveryPrice: deliveryPrice ?? this.deliveryPrice,
@@ -6170,9 +6174,6 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     }
     if (ultimaRutaId.present) {
       map['ultima_ruta_id'] = Variable<String>(ultimaRutaId.value);
-    }
-    if (vehicleId.present) {
-      map['vehicle_id'] = Variable<String>(vehicleId.value);
     }
     if (price.present) {
       map['price'] = Variable<double>(price.value);
@@ -6293,7 +6294,6 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
           ..write('notes: $notes, ')
           ..write('routeId: $routeId, ')
           ..write('ultimaRutaId: $ultimaRutaId, ')
-          ..write('vehicleId: $vehicleId, ')
           ..write('price: $price, ')
           ..write('segmentKm: $segmentKm, ')
           ..write('deliveryPrice: $deliveryPrice, ')
@@ -6630,6 +6630,13 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
   final double? packs;
 
   /// Lo que pesa UN empaque, tal como quedo cuando el pedido entro.
+  ///
+  /// **ES CONSTANCIA, NO UN ESCALON DEL PESO** — 28/09/2026. El aparato no
+  /// calcula con esto: la cascada del peso corre UNA vez, en el servidor
+  /// (`PesosDeRenglones`, `api/internal/cotizar/pesos.go`), y lo que se lee es
+  /// [pesoLineaKg]. Esta columna se guarda porque es el dato con el que se
+  /// facturo —para eso la puso la `00004_peso_por_renglon.sql`— y porque es lo
+  /// que permite comprobar despues de donde salio un kilo.
   ///
   /// SON DOS COLUMNAS Y CON NOMBRES DISTINTOS A PROPOSITO: esta es la de un
   /// empaque y [pesoLineaKg] la de la linea entera. Guardar solo la primera
@@ -11353,6 +11360,7 @@ typedef $$VehiclesTableCreateCompanionBuilder =
       Value<double?> costoKmUsd,
       Value<bool> usarParaDomicilio,
       Value<String> status,
+      Value<bool> isActive,
       Value<String?> notes,
       Value<String?> branchId,
       Value<DateTime?> createdAt,
@@ -11369,6 +11377,7 @@ typedef $$VehiclesTableUpdateCompanionBuilder =
       Value<double?> costoKmUsd,
       Value<bool> usarParaDomicilio,
       Value<String> status,
+      Value<bool> isActive,
       Value<String?> notes,
       Value<String?> branchId,
       Value<DateTime?> createdAt,
@@ -11422,6 +11431,11 @@ class $$VehiclesTableFilterComposer
 
   ColumnFilters<String> get status => $composableBuilder(
     column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11495,6 +11509,11 @@ class $$VehiclesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get notes => $composableBuilder(
     column: $table.notes,
     builder: (column) => ColumnOrderings(column),
@@ -11555,6 +11574,9 @@ class $$VehiclesTableAnnotationComposer
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
 
@@ -11604,6 +11626,7 @@ class $$VehiclesTableTableManager
                 Value<double?> costoKmUsd = const Value.absent(),
                 Value<bool> usarParaDomicilio = const Value.absent(),
                 Value<String> status = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> branchId = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
@@ -11618,6 +11641,7 @@ class $$VehiclesTableTableManager
                 costoKmUsd: costoKmUsd,
                 usarParaDomicilio: usarParaDomicilio,
                 status: status,
+                isActive: isActive,
                 notes: notes,
                 branchId: branchId,
                 createdAt: createdAt,
@@ -11634,6 +11658,7 @@ class $$VehiclesTableTableManager
                 Value<double?> costoKmUsd = const Value.absent(),
                 Value<bool> usarParaDomicilio = const Value.absent(),
                 Value<String> status = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<String?> branchId = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
@@ -11648,6 +11673,7 @@ class $$VehiclesTableTableManager
                 costoKmUsd: costoKmUsd,
                 usarParaDomicilio: usarParaDomicilio,
                 status: status,
+                isActive: isActive,
                 notes: notes,
                 branchId: branchId,
                 createdAt: createdAt,
@@ -12469,7 +12495,6 @@ typedef $$OrdersTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<String?> routeId,
       Value<String?> ultimaRutaId,
-      Value<String?> vehicleId,
       Value<double?> price,
       Value<double?> segmentKm,
       Value<double?> deliveryPrice,
@@ -12520,7 +12545,6 @@ typedef $$OrdersTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<String?> routeId,
       Value<String?> ultimaRutaId,
-      Value<String?> vehicleId,
       Value<double?> price,
       Value<double?> segmentKm,
       Value<double?> deliveryPrice,
@@ -12635,11 +12659,6 @@ class $$OrdersTableFilterComposer extends Composer<_$BaseLocal, $OrdersTable> {
 
   ColumnFilters<String> get ultimaRutaId => $composableBuilder(
     column: $table.ultimaRutaId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get vehicleId => $composableBuilder(
-    column: $table.vehicleId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12883,11 +12902,6 @@ class $$OrdersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get vehicleId => $composableBuilder(
-    column: $table.vehicleId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<double> get price => $composableBuilder(
     column: $table.price,
     builder: (column) => ColumnOrderings(column),
@@ -13106,9 +13120,6 @@ class $$OrdersTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get vehicleId =>
-      $composableBuilder(column: $table.vehicleId, builder: (column) => column);
-
   GeneratedColumn<double> get price =>
       $composableBuilder(column: $table.price, builder: (column) => column);
 
@@ -13280,7 +13291,6 @@ class $$OrdersTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> routeId = const Value.absent(),
                 Value<String?> ultimaRutaId = const Value.absent(),
-                Value<String?> vehicleId = const Value.absent(),
                 Value<double?> price = const Value.absent(),
                 Value<double?> segmentKm = const Value.absent(),
                 Value<double?> deliveryPrice = const Value.absent(),
@@ -13329,7 +13339,6 @@ class $$OrdersTableTableManager
                 notes: notes,
                 routeId: routeId,
                 ultimaRutaId: ultimaRutaId,
-                vehicleId: vehicleId,
                 price: price,
                 segmentKm: segmentKm,
                 deliveryPrice: deliveryPrice,
@@ -13380,7 +13389,6 @@ class $$OrdersTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String?> routeId = const Value.absent(),
                 Value<String?> ultimaRutaId = const Value.absent(),
-                Value<String?> vehicleId = const Value.absent(),
                 Value<double?> price = const Value.absent(),
                 Value<double?> segmentKm = const Value.absent(),
                 Value<double?> deliveryPrice = const Value.absent(),
@@ -13429,7 +13437,6 @@ class $$OrdersTableTableManager
                 notes: notes,
                 routeId: routeId,
                 ultimaRutaId: ultimaRutaId,
-                vehicleId: vehicleId,
                 price: price,
                 segmentKm: segmentKm,
                 deliveryPrice: deliveryPrice,

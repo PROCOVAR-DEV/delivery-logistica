@@ -100,6 +100,7 @@ class Vehicles extends Table {
   BoolColumn get usarParaDomicilio =>
       boolean().withDefault(const Constant(false))();
   TextColumn get status => text().withDefault(const Constant('available'))();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   TextColumn get notes => text().nullable()();
   TextColumn get branchId => text().nullable()();
   DateTimeColumn get createdAt => dateTime().nullable()();
@@ -179,8 +180,6 @@ class Orders extends Table {
   /// pero CONSERVA `ultimaRutaId`, o desaparece de la hoja de lo que bajo del
   /// camion.
   TextColumn get ultimaRutaId => text().nullable()();
-
-  TextColumn get vehicleId => text().nullable()();
 
   RealColumn get price => real().nullable()();
   RealColumn get segmentKm => real().nullable()();

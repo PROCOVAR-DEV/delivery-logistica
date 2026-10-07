@@ -481,6 +481,46 @@ class _Acciones extends ConsumerWidget {
                       lineas:
                           renglones[ruta.paradas[i].id] ??
                           const <RenglonConPeso>[],
+                      alQuitar: ruta.ruta.status == EstadoRuta.planificada
+                          ? () async {
+                              final confirmar = await showDialog<bool>(
+                                context: context,
+                                builder: (dialogo) => AlertDialog(
+                                  title: const Text('Quitar parada de la ruta'),
+                                  content: Text(
+                                    '¿Devolver ${ruta.paradas[i].customerName} a pedidos disponibles?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogo, false),
+                                      child: const Text('Cancelar'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogo, true),
+                                      child: const Text('Quitar de ruta'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmar != true || !context.mounted) return;
+                              try {
+                                await ref
+                                    .read(accionesDeRutaProvider)
+                                    .quitarParada(
+                                      ruta.ruta.id,
+                                      ruta.paradas[i].id,
+                                    );
+                              } on RechazoLocal catch (fallo) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.maybeOf(context)
+                                    ?.showSnackBar(
+                                      SnackBar(content: Text(fallo.mensaje)),
+                                    );
+                              }
+                            }
+                          : null,
                     ),
                 ],
               ),
@@ -705,6 +745,7 @@ class TarjetaDeParada extends StatelessWidget {
     required this.lineas,
     this.origenLat,
     this.origenLng,
+    this.alQuitar,
     super.key,
   });
 
@@ -723,6 +764,7 @@ class TarjetaDeParada extends StatelessWidget {
   /// Lo que se baja en esta parada. Vacío mientras no han llegado; entonces no
   /// se escribe «nada que bajar», que sería mentira.
   final List<RenglonConPeso> lineas;
+  final Future<void> Function()? alQuitar;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -821,6 +863,17 @@ class TarjetaDeParada extends StatelessWidget {
                       Insignia(parada.operationNumber!, color: Colores.enCurso),
                   ],
                 ),
+                if (alQuitar != null) ...[
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: alQuitar,
+                      icon: const Icon(Icons.remove_circle_outline),
+                      label: const Text('Quitar de ruta'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

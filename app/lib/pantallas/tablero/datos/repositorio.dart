@@ -914,7 +914,6 @@ class RepositorioTablero {
             // `routeId` pero conserva esta, o desaparece de la hoja de lo
             // que bajo del camion.
             ultimaRutaId: Value(rutaId),
-            vehicleId: Value(columna?.vehiculoId),
             stopOrder: Value(i + 1),
             // LA DISTANCIA DE CADA PARADA, QUE AQUI NO SE ESCRIBIA — 28/09/2026.
             //

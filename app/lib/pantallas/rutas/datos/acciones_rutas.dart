@@ -141,6 +141,13 @@ class MarcaDeParada {
   };
 }
 
+class ResultadoCierreDeRuta {
+  const ResultadoCierreDeRuta({required this.idsAplicados, this.aviso});
+
+  final Set<String> idsAplicados;
+  final String? aviso;
+}
+
 class AccionesDeRuta {
   AccionesDeRuta(
     this._base,
@@ -304,10 +311,26 @@ class AccionesDeRuta {
 
     final noFacturados = [
       for (final p in pedidos)
-        if (p.facturaEstado != EstadoFactura.igual) p,
+        if (p.facturaEstado != EstadoFactura.igual &&
+            p.facturaEstado != EstadoFactura.cambiado)
+          p,
     ];
     if (noFacturados.isNotEmpty) {
       throw RechazoLocal(_mensajeDeFactura(noFacturados));
+    }
+    final sinDomicilioCobrado = [
+      for (final p in pedidos)
+        if (p.facturaDomicilio == null || p.facturaDomicilio! <= 0) p,
+    ];
+    if (sinDomicilioCobrado.isNotEmpty) {
+      throw RechazoLocal(_mensajeDeDomicilioSinCobrar(sinDomicilioCobrado));
+    }
+    final sinCotizacion = [
+      for (final p in pedidos)
+        if (p.pedidoCosto == null) p,
+    ];
+    if (sinCotizacion.isNotEmpty) {
+      throw RechazoLocal(_mensajeSinCotizacion(sinCotizacion));
     }
 
     final pesoTotal = pedidos.fold<double>(0, (suma, p) => suma + p.weight);
@@ -466,7 +489,6 @@ class AccionesDeRuta {
             // `pedidoCosto` no es un precio, es ese `coalesce`—, y es lo que
             // hace `recorrido.dart`.
             price: Value(pedido.pedidoCosto),
-            vehicleId: Value(vehiculoId),
             updatedAt: Value(ahora),
           ),
         );
@@ -800,8 +822,28 @@ class AccionesDeRuta {
         .map((p) => '${p.operationNumber ?? p.customerName} (${motivo(p)})')
         .join(', ');
     final cola = n > 5 ? ' y ${n - 5} más.' : '.';
-    return 'En una ruta sólo entra lo facturado y que cuadre. '
+    return 'En una ruta sólo entra lo facturado. '
         '$n no cumplen: $detalle$cola';
+  }
+
+  String _mensajeDeDomicilioSinCobrar(List<Pedido> pedidos) {
+    final detalle = pedidos
+        .take(5)
+        .map((p) => p.operationNumber ?? p.customerName)
+        .join(', ');
+    final cola = pedidos.length > 5 ? ' y ${pedidos.length - 5} más.' : '.';
+    return 'En una ruta sólo entra lo facturado con domicilio cobrado. '
+        '${pedidos.length} no cumplen: $detalle$cola';
+  }
+
+  String _mensajeSinCotizacion(List<Pedido> pedidos) {
+    final detalle = pedidos
+        .take(5)
+        .map((p) => p.operationNumber ?? p.customerName)
+        .join(', ');
+    final cola = pedidos.length > 5 ? ' y ${pedidos.length - 5} más.' : '.';
+    return 'No se puede crear la ruta: ${pedidos.length} pedidos no tienen '
+        'cotizado el domicilio en Entrega: $detalle$cola';
   }
 
   /// `RT-YYYYMMDD-NNN-<aparato>`.
@@ -930,6 +972,43 @@ class AccionesDeRuta {
   Future<void> eliminar(String rutaId) =>
       _unaSola('eliminar:$rutaId', () => _eliminar(rutaId));
 
+  /// Quita una parada de una ruta planificada y devuelve el pedido a disponibles.
+  Future<void> quitarParada(String rutaId, String pedidoId) =>
+      _unaSola('quitar-parada:$rutaId:$pedidoId', () async {
+        final ruta = await _ruta(rutaId);
+        if (ruta == null) throw const RechazoLocal('No encontrada');
+        if (ruta.status != EstadoRuta.planificada) {
+          throw const RechazoLocal(
+            'Solo se pueden quitar paradas de una ruta planificada.',
+          );
+        }
+        final enVivo = _enVivo;
+        if (enVivo != null) {
+          await _mandar(
+            enVivo,
+            metodo: 'DELETE',
+            ruta: '/routes/$rutaId/stops/$pedidoId',
+          );
+        }
+        await (_base.update(
+          _base.orders,
+        )..where((o) => o.id.equals(pedidoId))).write(
+          const OrdersCompanion(
+            routeId: Value(null),
+            stopOrder: Value(null),
+            segmentKm: Value(null),
+            tripLeg: Value(Tramo.ida),
+          ),
+        );
+        if (enVivo == null) {
+          await _cola.encolar(
+            metodo: 'DELETE',
+            ruta: '/routes/$rutaId/stops/$pedidoId',
+            cuerpo: const <String, Object?>{},
+          );
+        }
+      });
+
   Future<void> _eliminar(String rutaId) async {
     final ruta = await _ruta(rutaId);
     if (ruta == null) throw const RechazoLocal('No encontrada');
@@ -994,18 +1073,24 @@ class AccionesDeRuta {
   /// ninguna ruta.
   ///
   /// Devuelve la `clave` del apunte, que es con lo que se le sigue la pista.
-  Future<String> cerrar(String rutaId, List<MarcaDeParada> marcas) async {
+  Future<ResultadoCierreDeRuta> cerrar(
+    String rutaId,
+    List<MarcaDeParada> marcas,
+  ) async {
     final ruta = await _ruta(rutaId);
     if (ruta == null) throw const RechazoLocal('No encontrada');
     _exigirRutaEditable(ruta);
     if (marcas.isEmpty) throw const RechazoLocal('No vino ningún resultado');
 
-    // El universo valido es `ultimaRutaId`, NO `routeId`: asi se puede corregir
-    // el resultado de un pedido que ya se marco como devuelto y por tanto solto
-    // su ruta.
-    final paradas = await (_base.select(
-      _base.orders,
-    )..where((o) => o.ultimaRutaId.equals(rutaId))).get();
+    // Una parada actual se reconoce por `routeId`; si ya se devolvió o canceló,
+    // usa `ultimaRutaId` para permitir corregir su cierre histórico.
+    final paradas =
+        await (_base.select(_base.orders)..where(
+              (o) =>
+                  o.routeId.equals(rutaId) |
+                  (o.routeId.isNull() & o.ultimaRutaId.equals(rutaId)),
+            ))
+            .get();
     final deLaRuta = {for (final p in paradas) p.id};
 
     final validas = <MarcaDeParada>[];
@@ -1061,19 +1146,29 @@ class AccionesDeRuta {
     // cierre perdido no lo desmiente ninguna pantalla hasta que no cuadra el
     // inventario.
     final enVivo = _enVivo;
+    var aplicadas = limpias;
+    String? avisoParcial;
     if (enVivo != null) {
-      await _mandar(
-        enVivo,
-        metodo: 'POST',
-        ruta: '/routes/$rutaId/results',
-        cuerpo: <String, Object?>{
-          'resultados': [for (final m in limpias) m.aJson()],
-        },
-      );
+      try {
+        await enVivo.mandar(
+          metodo: 'POST',
+          ruta: '/routes/$rutaId/results',
+          cuerpo: <String, Object?>{
+            'resultados': [for (final m in limpias) m.aJson()],
+          },
+        );
+      } on RechazoDelServidor catch (rechazo) {
+        final recibidos = _idsAplicadosEnRechazoParcial(rechazo);
+        if (rechazo.codigo != 409 || recibidos == null) rethrow;
+        aplicadas = limpias
+            .where((marca) => recibidos.contains(marca.pedidoId))
+            .toList();
+        avisoParcial = rechazo.motivo;
+      }
     }
 
     await _base.transaction(() async {
-      for (final marca in limpias) {
+      for (final marca in aplicadas) {
         final nota = marca.nota;
         // QUITAR LA MARCA DESHACE LO DE ABAJO, COLUMNA POR COLUMNA. Media vuelta
         // atras es peor que ninguna, y hay dos que no son obvias:
@@ -1094,6 +1189,7 @@ class AccionesDeRuta {
           marca.quitaLaMarca
               ? OrdersCompanion(
                   resultado: const Value(null),
+                  ultimaRutaId: Value(rutaId),
                   resultadoAt: const Value(null),
                   resultadoNota: const Value(null),
                   deliveredAt: const Value(null),
@@ -1103,6 +1199,7 @@ class AccionesDeRuta {
                 )
               : OrdersCompanion(
                   resultado: Value(marca.resultado),
+                  ultimaRutaId: Value(rutaId),
                   resultadoAt: Value(ahora),
                   resultadoNota: Value(nota),
                   deliveredAt: Value(marca.seEntrego ? ahora : null),
@@ -1115,9 +1212,7 @@ class AccionesDeRuta {
                   // de disponibles para la ruta de manana. `ultimaRutaId` y
                   // `stopOrder` no se tocan NUNCA: son lo que ata el pedido a la
                   // hoja de cierre.
-                  routeId: marca.seEntrego
-                      ? const Value.absent()
-                      : const Value(null),
+                  routeId: Value(marca.seEntrego ? rutaId : null),
                   updatedAt: Value(ahora),
                 ),
         );
@@ -1126,15 +1221,48 @@ class AccionesDeRuta {
 
     // En la web no hay apunte al que seguirle la pista porque no hay cola: el
     // cierre ya esta arriba. Quien llama no lo mira (`vista/cierre_de_ruta.dart`).
-    if (enVivo != null) return '';
+    if (enVivo != null) {
+      return ResultadoCierreDeRuta(
+        idsAplicados: {for (final marca in aplicadas) marca.pedidoId},
+        aviso: avisoParcial,
+      );
+    }
 
-    return _cola.encolar(
+    await _cola.encolar(
       metodo: 'POST',
       ruta: '/routes/$rutaId/results',
       cuerpo: <String, Object?>{
         'resultados': [for (final m in limpias) m.aJson()],
       },
     );
+    return ResultadoCierreDeRuta(
+      idsAplicados: {for (final marca in limpias) marca.pedidoId},
+    );
+  }
+
+  /// El servidor puede guardar las paradas válidas y responder 409 con las
+  /// rechazadas. En ese caso se actualizan localmente sólo las que aparecen
+  /// en `aplicados`, se informa el rechazo y la pantalla aún puede completar
+  /// la ruta. Un 409 sin ese contrato sigue siendo un rechazo total.
+  Set<String>? _idsAplicadosEnRechazoParcial(RechazoDelServidor rechazo) {
+    final cuerpo = rechazo.cuerpo;
+    if (cuerpo is! Map ||
+        cuerpo['aplicados'] is! List ||
+        cuerpo['rechazados'] is! List) {
+      return null;
+    }
+    final rechazados = cuerpo['rechazados'] as List;
+    if (rechazados.isEmpty) return null;
+    final aplicados = cuerpo['aplicados'] as List;
+    // Si no se guardó ninguna marca, no es un cierre parcial: dejar completar aquí
+    // ocultaría un rechazo total y perdería la oportunidad de corregir la ruta.
+    if (aplicados.isEmpty) return null;
+    final ids = <String>{};
+    for (final elemento in aplicados) {
+      if (elemento is! Map || elemento['orderId'] is! String) return null;
+      ids.add(elemento['orderId'] as String);
+    }
+    return ids;
   }
 
   /// La nota, recortada como la recorta el servidor: sin espacios sobrantes,

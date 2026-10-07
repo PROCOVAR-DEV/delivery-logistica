@@ -358,39 +358,41 @@ void main() {
         expect(rutaId, startsWith('local-'));
         // Y cada pedido entra UNA vez: si el repetido se colara como parada, la
         // hoja de ruta mandaría al camión dos veces a la misma puerta.
-        final paradas =
-            await (base.select(base.orders)
-                  ..where((o) => o.routeId.equals(rutaId)))
-                .get();
+        final paradas = await (base.select(
+          base.orders,
+        )..where((o) => o.routeId.equals(rutaId))).get();
         expect(paradas.map((p) => p.id).toList()..sort(), ['q1', 'q2']);
       });
     });
 
-    test('en una ruta sólo entra lo facturado y que cuadre', () async {
-      await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
-        const OrdersCompanion(facturaEstado: Value(EstadoFactura.cambiado)),
-      );
-      await (base.update(base.orders)..where((o) => o.id.equals('q3'))).write(
-        const OrdersCompanion(facturaEstado: Value(null)),
-      );
+    test(
+      'una factura cambiada es válida y la no cotejada se rechaza',
+      () async {
+        await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
+          const OrdersCompanion(facturaEstado: Value(EstadoFactura.cambiado)),
+        );
+        await (base.update(base.orders)..where((o) => o.id.equals('q3'))).write(
+          const OrdersCompanion(facturaEstado: Value(null)),
+        );
 
-      expect(
-        () => acciones.armar(
-          vehiculoId: 'V1',
-          pedidoIds: ['q1', 'q2', 'q3'],
-          origenLat: 0,
-          origenLng: 0,
-        ),
-        throwsA(
-          isA<RechazoLocal>().having(
-            (r) => r.mensaje,
-            'mensaje',
-            'En una ruta sólo entra lo facturado y que cuadre. 2 no cumplen: '
-                'F-002 (cambió en la factura), F-003 (sin cotejar).',
+        expect(
+          () => acciones.armar(
+            vehiculoId: 'V1',
+            pedidoIds: ['q1', 'q2', 'q3'],
+            origenLat: 0,
+            origenLng: 0,
           ),
-        ),
-      );
-    });
+          throwsA(
+            isA<RechazoLocal>().having(
+              (r) => r.mensaje,
+              'mensaje',
+              'En una ruta sólo entra lo facturado. 1 no cumplen: '
+                  'F-003 (sin cotejar).',
+            ),
+          ),
+        );
+      },
+    );
 
     test(
       'sobrepeso: el peso a un decimal y la capacidad sin formatear',

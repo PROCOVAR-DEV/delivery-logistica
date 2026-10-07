@@ -92,6 +92,8 @@ type pedidoFalso struct {
 	entregado bool
 }
 
+func tableroFloatPtr(v float64) *float64 { return &v }
+
 // entregadoEn: lo que el SQL devuelve en `delivered_at`.
 func (p pedidoFalso) entregadoEn() pgtype.Timestamptz {
 	if !p.entregado {
@@ -588,7 +590,7 @@ func (q *tableroFalso) ObtenerVehiculo(_ context.Context, arg sqlc.ObtenerVehicu
 	if arg.Sucursal.Valid && v.sucursal != uuid.Nil && v.sucursal != uuid.UUID(arg.Sucursal.Bytes) {
 		return sqlc.ObtenerVehiculoRow{}, pgx.ErrNoRows
 	}
-	fila := sqlc.ObtenerVehiculoRow{ID: v.id, Name: v.nombre}
+	fila := sqlc.ObtenerVehiculoRow{ID: v.id, Name: v.nombre, IsActive: true}
 	if v.sucursal != uuid.Nil {
 		fila.BranchID = pgtype.UUID{Bytes: [16]byte(v.sucursal), Valid: true}
 	}
@@ -598,7 +600,7 @@ func (q *tableroFalso) ObtenerVehiculo(_ context.Context, arg sqlc.ObtenerVehicu
 // ObtenerVehiculoParaCapacidad va SIN alcance —la consulta no lo admite— y por eso
 // devuelve `branch_id`: es el manejador quien lo coteja contra la sucursal de la columna.
 func (q *tableroFalso) ObtenerVehiculoParaCapacidad(_ context.Context, id uuid.UUID) (sqlc.ObtenerVehiculoParaCapacidadRow, error) {
-	fila := sqlc.ObtenerVehiculoParaCapacidadRow{ID: id, Name: "F-350", Capacity: q.capacidad}
+	fila := sqlc.ObtenerVehiculoParaCapacidadRow{ID: id, Name: "F-350", Capacity: q.capacidad, IsActive: true}
 	if v, hay := q.vehiculos[id]; hay && v.sucursal != uuid.Nil {
 		fila.Name = v.nombre
 		fila.BranchID = pgtype.UUID{Bytes: [16]byte(v.sucursal), Valid: true}
@@ -615,6 +617,7 @@ func (q *tableroFalso) ObtenerPedido(_ context.Context, arg sqlc.ObtenerPedidoPa
 		return sqlc.ObtenerPedidoRow{}, pgx.ErrNoRows
 	}
 	fila := sqlc.ObtenerPedidoRow{ID: p.id, CustomerName: p.nombre, Weight: p.peso,
+		FacturaEstado: p.factura, FacturaDomicilio: tableroFloatPtr(1), PedidoCosto: tableroFloatPtr(10),
 		DeliveredAt: p.entregadoEn(), Resultado: p.suResultado()}
 	if p.ruta != nil {
 		fila.RouteID = pgtype.UUID{Bytes: [16]byte(*p.ruta), Valid: true}
@@ -1355,6 +1358,7 @@ func (q *tableroFalso) PedidosDeColumnaParaArmarRuta(_ context.Context, arg sqlc
 		fila := sqlc.PedidosDeColumnaParaArmarRutaRow{
 			ID: p.id, CustomerName: p.nombre, Weight: p.peso,
 			EndLat: &lat, EndLng: &lng, FacturaEstado: p.factura, Posicion: c.posicion,
+			FacturaDomicilio: tableroFloatPtr(1), PedidoCosto: tableroFloatPtr(10),
 			// Como en el SQL: `delivered_at` y `resultado` salen como DATO y no
 			// filtran aquí. Quien corta y nombra la tarjeta es `armarRutaDeColumna`.
 			DeliveredAt: p.entregadoEn(), Resultado: p.suResultado(),

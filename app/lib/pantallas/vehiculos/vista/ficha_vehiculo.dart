@@ -56,6 +56,7 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
   late String _tipo;
   late String _estado;
   late bool _domicilio;
+  late bool _activo;
 
   bool _creandoTipo = false;
   bool _guardandoTipo = false;
@@ -83,6 +84,7 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
     _tipo = v?.tipo ?? 'truck';
     _estado = v?.estado ?? 'available';
     _domicilio = v?.usarParaDomicilio ?? false;
+    _activo = v?.activo ?? true;
   }
 
   @override
@@ -175,6 +177,7 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
       notas: _notas.text.trim().isEmpty ? null : _notas.text.trim(),
       costoKmUsd: double.tryParse(_costo.text.trim()),
       usarParaDomicilio: _domicilio,
+      activo: _activo,
     ),
   );
 
@@ -260,6 +263,18 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
               ),
             ),
             const SizedBox(height: 12),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Vehículo activo'),
+              subtitle: Text(
+                _activo
+                    ? 'Aparece en los selectores para crear rutas.'
+                    : 'Se oculta de los selectores de rutas nuevas.',
+              ),
+              value: _activo,
+              onChanged: (valor) => setState(() => _activo = valor),
+            ),
+            const SizedBox(height: 8),
             ControlSenalado(
               nombre: Senalado.vehiculosTipo,
               child: _desplegableDeTipo(),

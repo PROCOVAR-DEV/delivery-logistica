@@ -23,6 +23,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -61,31 +62,19 @@ func armarYLeer(t *testing.T, d *dobleDeRutas, h http.Handler, ids ...uuid.UUID)
 	return guardada, ruta, conAvisos.Avisos.SinCosto
 }
 
-// 1. CON ALGUNA SIN COTIZAR: el total sale corto y la columna lo dice.
-func TestLaRutaGuardaCuantasParadasEntraronSinCotizar(t *testing.T) {
+// 1. SIN COTIZACIÓN NO SE ARMA RUTA: ya no se permite guardar paradas con importe cero.
+func TestLaRutaNoAceptaParadasSinCotizar(t *testing.T) {
 	d, stg, _ := datosDeReparto()
-	// Dos de los tres se quedan sin `pedidoCosto`: es el caso real, con 657 de 686
-	// domicilios sin costo porque la APK de Entrega todavía no está encendida.
 	d.pedidos[stg[0]].costo = nil
 	d.pedidos[stg[1]].costo = nil
 	h := montarRutas(t, d)
-
-	guardada, ruta, _ := armarYLeer(t, d, h, stg[0], stg[1], stg[2])
-
-	if guardada.sinCotizar == nil {
-		t.Fatal("se guardó NULL en paradas_sin_cotizar teniendo dos paradas sin costo: " +
-			"ese nulo dice «no consta», y aquí sí consta")
+	w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
+		cuerpoDeArmado(camionStg.String(), stg[0], stg[1], stg[2]))
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "no tienen cotizado el domicilio") {
+		t.Fatalf("la ruta debe bloquear los pedidos sin cotización: %d %s", w.Code, w.Body.String())
 	}
-	if *guardada.sinCotizar != 2 {
-		t.Fatalf("entraron 2 paradas sin cotizar y se guardó %d", *guardada.sinCotizar)
-	}
-	// Y el total es el de la que SÍ estaba cotizada: 10. Los dos números van juntos o el
-	// de arriba vuelve a parecer completo.
-	if guardada.precio != 10 {
-		t.Fatalf("total_price tiene que sumar sólo lo cotizado (10) y sumó %v", guardada.precio)
-	}
-	if ruta.ParadasSinCotizar == nil || *ruta.ParadasSinCotizar != 2 {
-		t.Fatalf("la respuesta tiene que llevar paradasSinCotizar=2 y llevó %v", ruta.ParadasSinCotizar)
+	if len(d.rutas) != 0 {
+		t.Fatal("se guardó una ruta con pedidos sin cotización")
 	}
 }
 
@@ -111,43 +100,16 @@ func TestUnaRutaConTodoCotizadoGuardaCeroYNoUnNulo(t *testing.T) {
 	}
 }
 
-// 3. EL CONTADOR CUENTA LO MISMO QUE LA SUMA, no lo que cuenta el aviso.
-//
-// Hay DOS números parecidos y no son el mismo: `sinCosto` cuenta los que LLEVAN DOMICILIO
-// y no tienen costo —de eso avisa el armador— y `paradas_sin_cotizar` cuenta los que no
-// aportaron nada al total, lleven domicilio o no. Si se confundieran, el número de al lado
-// del total explicaría OTRA cosa y nadie lo notaría: las dos cifras salen creíbles.
-//
-// Es además el criterio de `ImporteDeRuta.deLasParadas` en el aparato, que cuenta toda
-// parada con `pedidoCosto == null`. Servidor y aparato tienen que decir lo mismo de la
-// misma ruta.
-func TestElContadorSigueALaSumaYNoAlAviso(t *testing.T) {
+// 3. La misma guarda se aplica cuando no hay cotización de domicilio en ninguno.
+func TestNoSeCreaUnaRutaSiNingunPedidoTieneCotizacion(t *testing.T) {
 	d, stg, _ := datosDeReparto()
-	si := true
-	// Uno CON domicilio y sin costo: cuenta para los dos números.
-	d.pedidos[stg[0]].costo, d.pedidos[stg[0]].requiereDomicilio = nil, &si
-	// Y otro SIN domicilio y sin costo: no dispara el aviso del armador, pero tampoco
-	// suma nada al total, así que tiene que contar aquí. Éste es el que separa las dos
-	// cuentas: con `sinCosto` saldría 1 en vez de 2.
+	d.pedidos[stg[0]].costo = nil
 	d.pedidos[stg[1]].costo = nil
+	d.pedidos[stg[2]].costo = nil
 	h := montarRutas(t, d)
-
-	guardada, _, avisoSinCosto := armarYLeer(t, d, h, stg[0], stg[1], stg[2])
-
-	if guardada.sinCotizar == nil || *guardada.sinCotizar != 2 {
-		t.Fatalf("dos paradas no sumaron al total y se contaron %v.\n"+
-			"Casi seguro que el contador se tomó de `sinCosto`, que sólo mira los que "+
-			"llevan domicilio y aquí daría 1; tiene que contar lo mismo que suma `total_price`",
-			guardada.sinCotizar)
-	}
-	if guardada.precio != 10 {
-		t.Fatalf("total_price tenía que ser 10 y fue %v", guardada.precio)
-	}
-	// Y el aviso sigue contando LO SUYO, que es 1. Los dos números conviven en la misma
-	// respuesta y dicen cosas distintas a propósito; si algún día salen iguales en este
-	// caso, es que uno de los dos se tomó del otro.
-	if avisoSinCosto != 1 {
-		t.Fatalf("el aviso cuenta los que llevan domicilio sin costo y tenía que ser 1, y fue %d",
-			avisoSinCosto)
+	w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
+		cuerpoDeArmado(camionStg.String(), stg[0], stg[1], stg[2]))
+	if w.Code != http.StatusConflict || len(d.rutas) != 0 {
+		t.Fatalf("no debió crearse la ruta sin ninguna cotización: %d %s", w.Code, w.Body.String())
 	}
 }

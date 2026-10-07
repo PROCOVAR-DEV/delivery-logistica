@@ -57,7 +57,6 @@ void main() {
     double peso = 10,
     double? costo,
     DateTime? entregadoEn,
-    String? vehiculo,
   }) => base
       .into(base.orders)
       .insert(
@@ -72,7 +71,6 @@ void main() {
           weight: Value(peso),
           pedidoCosto: Value(costo),
           deliveredAt: Value(entregadoEn),
-          vehicleId: Value(vehiculo),
         ),
       );
 
@@ -115,7 +113,7 @@ void main() {
       // 5. factura NULL: NULL no es «sin factura», es «no cotejado». Tampoco sale
       await pedido('p5', factura: null, peso: 999, costo: 5);
       // 6. ya tiene ruta: esta ocupado
-      await pedido('p6', rutaId: 'r1', peso: 999, costo: 5, vehiculo: 'v1');
+      await pedido('p6', rutaId: 'r1', peso: 999, costo: 5);
     });
 
     test('sinRuta cuenta 2, no 6', () async {
@@ -180,9 +178,8 @@ void main() {
 
     // EL CAMIÓN SALE DE LA RUTA, no del pedido.
     //
-    // `orders.vehicle_id` la escribe sólo el tablero; armar una ruta nunca la
-    // toca. Por eso el Panel decía «Vehículos 0 / 8 en ruta» con el camión
-    // marcado «En uso» en otras tres pantallas.
+    // El vehículo asociado al pedido se determina por su ruta, que es la relación
+    // canónica del reparto.
     test('vehiculosEnRuta: sale de la RUTA, aunque el pedido no lo traiga', () async {
       await vehiculo('v1');
       await vehiculo('v2');

@@ -295,22 +295,23 @@ type PedidoDisponibleSalida struct {
 // entero. Aquí sí van todos los campos, porque es UNA fila y la pantalla de detalle los
 // enseña.
 type PedidoDetalleSalida struct {
-	ID                 uuid.UUID  `json:"id"`
-	OperationNumber    *string    `json:"operationNumber"`
-	CustomerName       string     `json:"customerName"`
-	CustomerPhone      *string    `json:"customerPhone"`
-	Address            string     `json:"address"`
-	EndAddress         *string    `json:"endAddress"`
-	EndLat             *float64   `json:"endLat"`
-	EndLng             *float64   `json:"endLng"`
-	Lat                *float64   `json:"lat"`
-	Lng                *float64   `json:"lng"`
-	Weight             float64    `json:"weight"`
-	Status             string     `json:"status"`
-	TripLeg            string     `json:"tripLeg"`
-	Notes              *string    `json:"notes"`
-	RouteID            *uuid.UUID `json:"routeId"`
-	UltimaRutaID       *uuid.UUID `json:"ultimaRutaId"`
+	ID              uuid.UUID  `json:"id"`
+	OperationNumber *string    `json:"operationNumber"`
+	CustomerName    string     `json:"customerName"`
+	CustomerPhone   *string    `json:"customerPhone"`
+	Address         string     `json:"address"`
+	EndAddress      *string    `json:"endAddress"`
+	EndLat          *float64   `json:"endLat"`
+	EndLng          *float64   `json:"endLng"`
+	Lat             *float64   `json:"lat"`
+	Lng             *float64   `json:"lng"`
+	Weight          float64    `json:"weight"`
+	Status          string     `json:"status"`
+	TripLeg         string     `json:"tripLeg"`
+	Notes           *string    `json:"notes"`
+	RouteID         *uuid.UUID `json:"routeId"`
+	UltimaRutaID    *uuid.UUID `json:"ultimaRutaId"`
+	// Camión actual, derivado de routes.vehicle_id; no se guarda en orders.
 	VehicleID          *uuid.UUID `json:"vehicleId"`
 	Price              *float64   `json:"price"`
 	SegmentKm          *float64   `json:"segmentKm"`
@@ -768,7 +769,8 @@ func (s *Servidor) detalleDePedido(w http.ResponseWriter, r *http.Request, a *al
 		PesoRespaldado: x.PesoRespaldado,
 		Status:         string(x.Status), TripLeg: string(x.TripLeg), Notes: x.Notes,
 		RouteID: idOpcional(x.RouteID), UltimaRutaID: idOpcional(x.UltimaRutaID),
-		VehicleID: idOpcional(x.VehicleID), Price: x.Price, SegmentKm: x.SegmentKm,
+		VehicleID: idOpcional(x.VehicleID),
+		Price:     x.Price, SegmentKm: x.SegmentKm,
 		DeliveryPrice: x.DeliveryPrice, DeliveryDistanceKm: x.DeliveryDistanceKm,
 		BranchID: idOpcional(x.BranchID), Source: textoDe(x.Source), ExternalID: x.ExternalID,
 		OrderDate: hora(x.OrderDate), PedidoUpdatedAt: hora(x.PedidoUpdatedAt),

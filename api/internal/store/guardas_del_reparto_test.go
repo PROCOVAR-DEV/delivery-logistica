@@ -83,12 +83,12 @@ var guardasDelReparto = []guarda{
 		enElCuerpo: []string{
 			"FROM orders o JOIN routes r ON r.id = o.route_id WHERE r.vehicle_id = v.id",
 		},
-		porQue: "LOS PEDIDOS DE UN CAMIÓN SALEN DE SUS RUTAS. Aquí se contaba\n" +
-			"`orders.vehicle_id`, y esa columna la escribe SÓLO el tablero (tablero.sql,\n" +
-			"`tocar_vehiculo`): armar una ruta nunca la toca, porque el camión de un pedido\n" +
-			"es el de la ruta en la que viaja. El 22/09/2026 la tarjeta decía «Rutas 7» y\n" +
-			"debajo «0 órdenes asignadas», con 125,3 kg cargados: dos números de la misma\n" +
-			"tarjeta contando cosas distintas, y el cero es el que se lee.",
+		porQue: "LOS PEDIDOS QUE LLEVA ESTE CAMIÓN SALEN DE SUS RUTAS.\n" +
+			"Antes de eliminarse `orders.vehicle_id`, aquí se contaba esa columna duplicada y el\n" +
+			"tablero la escribía al colocar pedidos. Armar una ruta nunca la tocaba, porque el\n" +
+			"camión de un pedido es el de la ruta en la que viaja. El 22/09/2026 la tarjeta decía\n" +
+			"«Rutas 7» y «0 órdenes asignadas», con 125,3 kg cargados. Ahora la relación canónica\n" +
+			"se consulta directamente en `routes.vehicle_id`.",
 	},
 	{
 		fichero:  "vehicles.sql",
@@ -158,13 +158,12 @@ var guardasDelReparto = []guarda{
 	{
 		fichero:    "routes.sql",
 		consulta:   "MarcarResultadoDeParada",
-		enElWhere:  []string{"ultima_ruta_id = sqlc.arg('ruta_id')"},
-		enElCuerpo: []string{"WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN route_id"},
+		enElWhere:  []string{"(route_id = sqlc.arg('ruta_id')"},
+		enElCuerpo: []string{"OR (route_id IS NULL AND ultima_ruta_id = sqlc.arg('ruta_id'))", "WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')"},
 		porQue: "Las dos mitades del cierre.\n" +
-			"  · El `WHERE` por `ultima_ruta_id` es lo que rechaza un resultado de una parada\n" +
-			"    que no viajó en esta ruta (cero filas = «ese pedido no va en esta ruta») y a\n" +
-			"    la vez lo que deja CORREGIR un devuelto, que ya soltó su `route_id`.\n" +
-			"  · El `CASE` que CONSERVA el `route_id` del entregado es lo que impide que un\n" +
+			"  · El `WHERE` acepta la parada que sigue en `route_id` y la ya soltada cuya\n" +
+			"    `ultima_ruta_id` apunta a esta ruta; cualquier otra ruta queda excluida.\n" +
+			"  · El `CASE` que fija `route_id` del entregado es lo que impide que un\n" +
 			"    pedido ya repartido vuelva a la lista de disponibles esa misma tarde. Con\n" +
 			"    `route_id = NULL` a secas, cerrar la ruta devuelve TODO al montón.",
 	},

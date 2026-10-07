@@ -707,15 +707,16 @@ class _CamionesDeLaZona extends ConsumerWidget {
           // rompe sin uno, que es el §4 —una colección que no bajó se dice, y
           // se dice qué se rompe sin ella—. Sin camión previsto la ruta se
           // arma igual, y el coste por km de esa ruta no sale.
-          AsyncData(:final value) when value.isEmpty => [
-            const _NadaQueElegir(
-              'Esta sucursal no tiene ningún vehículo en este aparato.',
-              'Se puede armar la ruta igual, pero sin camión no hay capacidad '
-                  'contra la que medir el peso ni coste por km que calcular. '
-                  'Los vehículos se dan de alta en Flota y bajan con la '
-                  'siguiente sincronización.',
-            ),
-          ],
+          AsyncData(:final value) when value.where((v) => v.isActive).isEmpty =>
+            [
+              const _NadaQueElegir(
+                'Esta sucursal no tiene vehículos activos en este aparato.',
+                'Se puede armar la ruta igual, pero sin camión no hay capacidad '
+                    'contra la que medir el peso ni coste por km que calcular. '
+                    'Los vehículos se dan de alta en Flota y bajan con la '
+                    'siguiente sincronización.',
+              ),
+            ],
           AsyncData(:final value) => [
             // EL CAMION DEL TALLER SALE, Y SALE MARCADO — 28/09/2026.
             //
@@ -739,7 +740,7 @@ class _CamionesDeLaZona extends ConsumerWidget {
             // El aviso va en el subtítulo, que es donde ya están la capacidad y
             // la placa: en mayúsculas porque es lo único de esta lista que hace
             // que uno elija otro.
-            for (final (cual, camion) in value.indexed)
+            for (final (cual, camion) in value.where((v) => v.isActive).indexed)
               // Sólo el primero se deja senalar: hay una fila por camion.
               ControlSenalado(
                 nombre: Senalado.tableroElegirCamion,

@@ -196,6 +196,9 @@ WITH puesta AS (
       -- los entregados. Quien lo traduce a un 409 con su motivo es ` + "`" + `porQueNoSePudoColocar` + "`" + `.
       AND o.delivered_at IS NULL
       AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+      AND o.factura_estado = 'igual'
+      AND o.factura_domicilio > 0
+      AND o.pedido_costo IS NOT NULL
       AND ($5::uuid IS NULL OR c.branch_id = $5::uuid)
     ON CONFLICT (order_id) DO UPDATE SET
         column_id    = excluded.column_id,
@@ -1223,7 +1226,8 @@ const pedidosDeColumnaParaArmarRuta = `-- name: PedidosDeColumnaParaArmarRuta :m
 
 SELECT
     o.id, o.operation_number, o.customer_name, o.end_lat, o.end_lng,
-    o.weight, o.pedido_costo, o.factura_estado, o.branch_id,
+    o.weight, o.pedido_costo, o.factura_estado, o.factura_domicilio,
+    o.requiere_domicilio, o.branch_id,
     o.external_id, o.source, o.archivado,
     -- SE ENTREGA EL DATO, NO SE FILTRA AQUÍ, igual que ` + "`" + `factura_estado` + "`" + ` y por lo mismo:
     -- un ` + "`" + `WHERE` + "`" + ` que los descarte deja el descarte sin nada que decir, y el logístico se
@@ -1249,21 +1253,23 @@ type PedidosDeColumnaParaArmarRutaParams struct {
 }
 
 type PedidosDeColumnaParaArmarRutaRow struct {
-	ID              uuid.UUID          `json:"id"`
-	OperationNumber *string            `json:"operation_number"`
-	CustomerName    string             `json:"customer_name"`
-	EndLat          *float64           `json:"end_lat"`
-	EndLng          *float64           `json:"end_lng"`
-	Weight          float64            `json:"weight"`
-	PedidoCosto     *float64           `json:"pedido_costo"`
-	FacturaEstado   *FacturaEstado     `json:"factura_estado"`
-	BranchID        pgtype.UUID        `json:"branch_id"`
-	ExternalID      *string            `json:"external_id"`
-	Source          *Procedencia       `json:"source"`
-	Archivado       bool               `json:"archivado"`
-	DeliveredAt     pgtype.Timestamptz `json:"delivered_at"`
-	Resultado       *StopResult        `json:"resultado"`
-	Posicion        int32              `json:"posicion"`
+	ID                uuid.UUID          `json:"id"`
+	OperationNumber   *string            `json:"operation_number"`
+	CustomerName      string             `json:"customer_name"`
+	EndLat            *float64           `json:"end_lat"`
+	EndLng            *float64           `json:"end_lng"`
+	Weight            float64            `json:"weight"`
+	PedidoCosto       *float64           `json:"pedido_costo"`
+	FacturaEstado     *FacturaEstado     `json:"factura_estado"`
+	FacturaDomicilio  *float64           `json:"factura_domicilio"`
+	RequiereDomicilio *bool              `json:"requiere_domicilio"`
+	BranchID          pgtype.UUID        `json:"branch_id"`
+	ExternalID        *string            `json:"external_id"`
+	Source            *Procedencia       `json:"source"`
+	Archivado         bool               `json:"archivado"`
+	DeliveredAt       pgtype.Timestamptz `json:"delivered_at"`
+	Resultado         *StopResult        `json:"resultado"`
+	Posicion          int32              `json:"posicion"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1278,10 +1284,8 @@ type PedidosDeColumnaParaArmarRutaRow struct {
 // entre que se pintó el tablero y se pulsó el botón, y de ahí sale el «N de los M ya están
 // en otra ruta».
 //
-// `factura_estado` deja pasar `igual` y `cambiado` por lo mismo que en `routes.sql`: el
-// corte a sólo `igual` lo hace el handler DESPUÉS, para poder nombrar cuál falla y por qué.
-// Un WHERE que los descarte aquí deja el mismo rechazo sin nada que decir, y el logístico
-// se queda mirando una columna de doce que produce una ruta de nueve sin explicación.
+	// `factura_estado` deja pasar `igual` y `cambiado`, porque ambos representan una factura
+	// emitida. «cambiado» indica líneas distintas, no que falte factura.
 //
 // `posicion` sale para que el armador pueda RESPETAR el orden del logístico: él conoce las
 // calles de su distrito y el vecino más próximo no. Quién de los dos manda lo decide el
@@ -1304,6 +1308,8 @@ func (q *Queries) PedidosDeColumnaParaArmarRuta(ctx context.Context, arg Pedidos
 			&i.Weight,
 			&i.PedidoCosto,
 			&i.FacturaEstado,
+			&i.FacturaDomicilio,
+			&i.RequiereDomicilio,
 			&i.BranchID,
 			&i.ExternalID,
 			&i.Source,
@@ -1323,6 +1329,16 @@ func (q *Queries) PedidosDeColumnaParaArmarRuta(ctx context.Context, arg Pedidos
 }
 
 const quitarDelTableroLosDeRuta = `-- name: QuitarDelTableroLosDeRuta :execrows
+WITH guardados AS (
+    INSERT INTO board_route_origins (route_id, order_id, column_id, posicion, colocado_por)
+    SELECT o.route_id, p.order_id, p.column_id, p.posicion, p.colocado_por
+    FROM board_placements p
+    JOIN board_columns c ON c.id = p.column_id
+    JOIN orders o ON o.id = p.order_id
+    WHERE o.route_id = $1
+      AND ($2::uuid IS NULL OR c.branch_id = $2::uuid)
+    ON CONFLICT (order_id) DO NOTHING
+)
 DELETE FROM board_placements p
 USING orders o, board_columns c
 WHERE o.id = p.order_id

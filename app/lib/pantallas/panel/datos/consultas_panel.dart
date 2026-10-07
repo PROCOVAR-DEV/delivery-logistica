@@ -149,10 +149,9 @@ SELECT
      WHERE (?1 IS NULL OR v.branch_id = ?1)) AS total_vehiculos,
   -- EL CAMIÓN SALE DE LA RUTA, no del pedido.
   --
-  -- Aquí se contaba `orders.vehicle_id`, y esa columna la escribe sólo el
-  -- tablero: armar una ruta nunca la toca. Por eso el Panel decía «Vehículos
-  -- 0 / 8 en ruta» con el camión marcado «En uso» en otras tres pantallas. El
-  -- vehículo de un pedido ES el de la ruta en la que viaja, y ahí sí está.
+  -- El vehículo de cada pedido sale de la ruta en la que viaja; `orders.vehicle_id`
+  -- se eliminó porque duplicaba esa relación. Así el Panel cuenta las asignaciones
+  -- reales que viven en `routes.vehicle_id`.
   (SELECT COUNT(DISTINCT r.vehicle_id) FROM routes r
      WHERE r.vehicle_id IS NOT NULL
        AND (?1 IS NULL OR r.branch_id = ?1)

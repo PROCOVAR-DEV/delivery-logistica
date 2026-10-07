@@ -1102,6 +1102,34 @@ func (s *Servidor) colocarPedido(w http.ResponseWriter, r *http.Request) {
 	if c.Posicion != nil && *c.Posicion > 0 {
 		posicion = *c.Posicion
 	}
+	// No asociar una factura al tablero mientras no esté cotejada y con el domicilio
+	// cotizado. Se comprueba antes de mover la tarjeta para que el rechazo no deje el
+	// pedido fuera de su columna anterior. La segunda validación de elegibilidad ocurre
+	// al crear la ruta, porque la factura puede cambiar después de colocarse.
+	pedidoActual, err := a.TableroObtenerPedido(r.Context(), pedido)
+	if errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusNotFound, msgPedidoNoEsta)
+		return
+	}
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	if pedidoActual.FacturaEstado == nil || (*pedidoActual.FacturaEstado != sqlc.FacturaEstadoIgual && *pedidoActual.FacturaEstado != sqlc.FacturaEstadoCambiado) {
+		httpx.Error(w, r, http.StatusConflict,
+			"No se puede asociar al tablero: primero coteja la factura del pedido.")
+		return
+	}
+	if pedidoActual.FacturaDomicilio == nil || *pedidoActual.FacturaDomicilio <= 0 {
+		httpx.Error(w, r, http.StatusConflict,
+			"No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.")
+		return
+	}
+	if pedidoActual.PedidoCosto == nil {
+		httpx.Error(w, r, http.StatusConflict,
+			"No se puede asociar al tablero: primero cotiza el domicilio del pedido.")
+		return
+	}
 
 	var puesto sqlc.ColocarPedidoRow
 	err = a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
@@ -1232,6 +1260,21 @@ func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request,
 	}
 	if p.RouteID.Valid {
 		httpx.Error(w, r, http.StatusConflict, msgYaVaEnUnaRuta)
+		return
+	}
+	if p.FacturaEstado == nil || (*p.FacturaEstado != sqlc.FacturaEstadoIgual && *p.FacturaEstado != sqlc.FacturaEstadoCambiado) {
+		httpx.Error(w, r, http.StatusConflict,
+			"No se puede asociar al tablero: primero coteja la factura del pedido.")
+		return
+	}
+	if p.FacturaDomicilio == nil || *p.FacturaDomicilio <= 0 {
+		httpx.Error(w, r, http.StatusConflict,
+			"No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.")
+		return
+	}
+	if p.PedidoCosto == nil {
+		httpx.Error(w, r, http.StatusConflict,
+			"No se puede asociar al tablero: primero cotiza el domicilio del pedido.")
 		return
 	}
 	// El pedido existe y está libre: entonces lo que no cuadra es la columna.
@@ -1578,6 +1621,12 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		case *p.FacturaEstado == sqlc.FacturaEstadoCambiado:
 			motivo = "cambió en la factura"
 			queHacer = "La factura ya no es la que era: repásala antes de cargar."
+		case p.FacturaDomicilio == nil || *p.FacturaDomicilio <= 0:
+			motivo = "la factura no tiene domicilio cobrado"
+			queHacer = "Corrige o coteja la factura para registrar el cobro del domicilio antes de crear la ruta."
+		case p.PedidoCosto == nil:
+			motivo = "domicilio sin cotizar"
+			queHacer = "Cotiza el domicilio del pedido antes de crear la ruta."
 		}
 		if motivo == "" {
 			buenos = append(buenos, p)
@@ -2015,12 +2064,17 @@ func vehiculoDelCuerpo(w http.ResponseWriter, r *http.Request, a *alcance.Acotad
 			fmt.Sprintf("«%s» no es el id de un vehículo", crudo))
 		return pgtype.UUID{}, false
 	}
-	if _, err := a.ObtenerVehiculo(r.Context(), id); errors.Is(err, pgx.ErrNoRows) {
+	vehiculo, err := a.ObtenerVehiculo(r.Context(), id)
+	if errors.Is(err, pgx.ErrNoRows) {
 		httpx.Error(w, r, http.StatusBadRequest,
 			fmt.Sprintf("No existe el vehículo '%s'", crudo))
 		return pgtype.UUID{}, false
 	} else if err != nil {
 		httpx.ErrorInterno(w, r, err)
+		return pgtype.UUID{}, false
+	}
+	if !vehiculo.IsActive {
+		httpx.Error(w, r, http.StatusBadRequest, "El vehículo está inactivo y no se puede asignar a una ruta.")
 		return pgtype.UUID{}, false
 	}
 	return pgDe(id), true

@@ -24,14 +24,15 @@ UPDATE vehicles SET
                                ELSE costo_km_usd END,
     usar_para_domicilio = coalesce($8::boolean, usar_para_domicilio),
     status              = coalesce($9::vehicle_status, status),
-    notes               = CASE WHEN $10::boolean
-                               THEN $11::text ELSE notes END
-WHERE id = $12
-  AND ($13::uuid IS NULL
-       OR branch_id = $13::uuid
+    is_active           = coalesce($10::boolean, is_active),
+    notes               = CASE WHEN $11::boolean
+                               THEN $12::text ELSE notes END
+WHERE id = $13
+  AND ($14::uuid IS NULL
+       OR branch_id = $14::uuid
        OR branch_id IS NULL)
 RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, notes, branch_id, created_at, updated_at
+          usar_para_domicilio, status, is_active, notes, branch_id, created_at, updated_at
 `
 
 type ActualizarVehiculoParams struct {
@@ -44,6 +45,7 @@ type ActualizarVehiculoParams struct {
 	CostoKmUsd        *float64       `json:"costo_km_usd"`
 	UsarParaDomicilio *bool          `json:"usar_para_domicilio"`
 	Status            *VehicleStatus `json:"status"`
+	IsActive          *bool          `json:"is_active"`
 	TocarNotes        bool           `json:"tocar_notes"`
 	Notes             *string        `json:"notes"`
 	ID                uuid.UUID      `json:"id"`
@@ -61,6 +63,7 @@ func (q *Queries) ActualizarVehiculo(ctx context.Context, arg ActualizarVehiculo
 		arg.CostoKmUsd,
 		arg.UsarParaDomicilio,
 		arg.Status,
+		arg.IsActive,
 		arg.TocarNotes,
 		arg.Notes,
 		arg.ID,
@@ -76,6 +79,7 @@ func (q *Queries) ActualizarVehiculo(ctx context.Context, arg ActualizarVehiculo
 		&i.CostoKmUsd,
 		&i.UsarParaDomicilio,
 		&i.Status,
+		&i.IsActive,
 		&i.Notes,
 		&i.BranchID,
 		&i.CreatedAt,
@@ -151,6 +155,7 @@ WHERE id = $1
   AND ($2::uuid IS NULL
        OR branch_id = $2::uuid
        OR branch_id IS NULL)
+  AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.vehicle_id = vehicles.id)
 RETURNING branch_id
 `
 
@@ -240,14 +245,14 @@ const crearVehiculo = `-- name: CrearVehiculo :one
 
 INSERT INTO vehicles (
     name, vehicle_type_id, plate, capacity, costo_km_usd,
-    usar_para_domicilio, status, notes, branch_id
+    usar_para_domicilio, status, is_active, notes, branch_id
 ) VALUES (
     $1, $2, $3,
     $4, $5, $6,
-    $7, $8, $9
+    $7, $8, $9, $10
 )
 RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, notes, branch_id, created_at, updated_at
+          usar_para_domicilio, status, is_active, notes, branch_id, created_at, updated_at
 `
 
 type CrearVehiculoParams struct {
@@ -258,6 +263,7 @@ type CrearVehiculoParams struct {
 	CostoKmUsd        *float64      `json:"costo_km_usd"`
 	UsarParaDomicilio bool          `json:"usar_para_domicilio"`
 	Status            VehicleStatus `json:"status"`
+	IsActive          bool          `json:"is_active"`
 	Notes             *string       `json:"notes"`
 	BranchID          pgtype.UUID   `json:"branch_id"`
 }
@@ -279,6 +285,7 @@ func (q *Queries) CrearVehiculo(ctx context.Context, arg CrearVehiculoParams) (V
 		arg.CostoKmUsd,
 		arg.UsarParaDomicilio,
 		arg.Status,
+		arg.IsActive,
 		arg.Notes,
 		arg.BranchID,
 	)
@@ -292,6 +299,7 @@ func (q *Queries) CrearVehiculo(ctx context.Context, arg CrearVehiculoParams) (V
 		&i.CostoKmUsd,
 		&i.UsarParaDomicilio,
 		&i.Status,
+		&i.IsActive,
 		&i.Notes,
 		&i.BranchID,
 		&i.CreatedAt,
@@ -328,39 +336,12 @@ func (q *Queries) DesmarcarReferenciaDeDomicilio(ctx context.Context, arg Desmar
 	return result.RowsAffected(), nil
 }
 
-const desvincularVehiculoDePedidos = `-- name: DesvincularVehiculoDePedidos :execrows
-
-UPDATE orders SET vehicle_id = NULL
-WHERE vehicle_id = $1
-  AND ($2::uuid IS NULL OR branch_id = $2::uuid)
-`
-
-type DesvincularVehiculoDePedidosParams struct {
-	VehiculoID pgtype.UUID `json:"vehiculo_id"`
-	Sucursal   pgtype.UUID `json:"sucursal"`
-}
-
-// ---------------------------------------------------------------------------
-// Borrado
-// ---------------------------------------------------------------------------
-//
-// Antes de borrar hay que desasociar: rutas (`DesvincularVehiculoDeRutas`, en routes.sql),
-// pedidos y asignaciones. El histórico de lo que se repartió no se borra porque un camión
-// se dé de baja.
-func (q *Queries) DesvincularVehiculoDePedidos(ctx context.Context, arg DesvincularVehiculoDePedidosParams) (int64, error) {
-	result, err := q.db.Exec(ctx, desvincularVehiculoDePedidos, arg.VehiculoID, arg.Sucursal)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const listarVehiculos = `-- name: ListarVehiculos :many
 
 
 SELECT
     v.id, v.name, v.vehicle_type_id, v.plate, v.capacity, v.costo_km_usd,
-    v.usar_para_domicilio, v.status, v.notes, v.branch_id,
+    v.usar_para_domicilio, v.status, v.is_active, v.notes, v.branch_id,
     v.created_at, v.updated_at,
     vt.nombre       AS tipo_nombre,
     vt.costo_km_usd AS tipo_costo_km_usd,
@@ -369,14 +350,13 @@ SELECT
     -- porque tres JOIN a la vez multiplican las filas entre sí y los tres números salen
     -- inflados: el clásico de contar rutas y pedidos en la misma consulta.
     (SELECT count(*) FROM routes r         WHERE r.vehicle_id  = v.id) AS rutas,
-    -- LOS PEDIDOS QUE LLEVA ESTE CAMIÓN SALEN DE SUS RUTAS, no de ` + "`" + `orders.vehicle_id` + "`" + `.
+    -- LOS PEDIDOS QUE LLEVA ESTE CAMIÓN SALEN DE SUS RUTAS.
     --
-    -- Aquí se contaba ` + "`" + `orders.vehicle_id` + "`" + `, y esa columna la escribe SÓLO el tablero
-    -- (` + "`" + `tablero.sql` + "`" + `, ` + "`" + `tocar_vehiculo` + "`" + `): armar una ruta nunca la toca, porque el camión de
-    -- un pedido es el de la ruta en la que viaja. Resultado, visto el 22/09/2026 en el
-    -- teléfono de Jose: la tarjeta decía «Rutas 7» y debajo «0 órdenes asignadas», con
-    -- 125,3 kg cargados. Dos números de la misma tarjeta contándose cosas distintas, y el
-    -- cero es el que se lee.
+    -- Antes de eliminarse ` + "`" + `orders.vehicle_id` + "`" + `, aquí se contaba esa columna duplicada y el
+    -- tablero la escribía al colocar pedidos. Armar una ruta nunca la tocaba, porque el
+    -- camión de un pedido es el de la ruta en la que viaja. El 22/09/2026 la tarjeta decía
+    -- «Rutas 7» y «0 órdenes asignadas», con 125,3 kg cargados. Ahora la relación canónica
+    -- se consulta directamente en ` + "`" + `routes.vehicle_id` + "`" + `.
     (SELECT count(*) FROM orders o
         JOIN routes r ON r.id = o.route_id
         WHERE r.vehicle_id = v.id) AS pedidos,
@@ -399,6 +379,7 @@ type ListarVehiculosRow struct {
 	CostoKmUsd        *float64           `json:"costo_km_usd"`
 	UsarParaDomicilio bool               `json:"usar_para_domicilio"`
 	Status            VehicleStatus      `json:"status"`
+	IsActive          bool               `json:"is_active"`
 	Notes             *string            `json:"notes"`
 	BranchID          pgtype.UUID        `json:"branch_id"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
@@ -442,6 +423,7 @@ func (q *Queries) ListarVehiculos(ctx context.Context, sucursal pgtype.UUID) ([]
 			&i.CostoKmUsd,
 			&i.UsarParaDomicilio,
 			&i.Status,
+			&i.IsActive,
 			&i.Notes,
 			&i.BranchID,
 			&i.CreatedAt,
@@ -517,7 +499,7 @@ func (q *Queries) ListarVehiculosDePedido(ctx context.Context, arg ListarVehicul
 const obtenerVehiculo = `-- name: ObtenerVehiculo :one
 SELECT
     v.id, v.name, v.vehicle_type_id, v.plate, v.capacity, v.costo_km_usd,
-    v.usar_para_domicilio, v.status, v.notes, v.branch_id,
+    v.usar_para_domicilio, v.status, v.is_active, v.notes, v.branch_id,
     v.created_at, v.updated_at,
     vt.nombre       AS tipo_nombre,
     vt.costo_km_usd AS tipo_costo_km_usd,
@@ -549,6 +531,7 @@ type ObtenerVehiculoRow struct {
 	CostoKmUsd        *float64           `json:"costo_km_usd"`
 	UsarParaDomicilio bool               `json:"usar_para_domicilio"`
 	Status            VehicleStatus      `json:"status"`
+	IsActive          bool               `json:"is_active"`
 	Notes             *string            `json:"notes"`
 	BranchID          pgtype.UUID        `json:"branch_id"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
@@ -572,6 +555,7 @@ func (q *Queries) ObtenerVehiculo(ctx context.Context, arg ObtenerVehiculoParams
 		&i.CostoKmUsd,
 		&i.UsarParaDomicilio,
 		&i.Status,
+		&i.IsActive,
 		&i.Notes,
 		&i.BranchID,
 		&i.CreatedAt,
@@ -586,7 +570,7 @@ func (q *Queries) ObtenerVehiculo(ctx context.Context, arg ObtenerVehiculoParams
 }
 
 const obtenerVehiculoParaCapacidad = `-- name: ObtenerVehiculoParaCapacidad :one
-SELECT v.id, v.name, v.capacity, v.status, v.branch_id
+SELECT v.id, v.name, v.capacity, v.status, v.is_active, v.branch_id
 FROM vehicles v
 WHERE v.id = $1
 `
@@ -596,6 +580,7 @@ type ObtenerVehiculoParaCapacidadRow struct {
 	Name     string        `json:"name"`
 	Capacity float64       `json:"capacity"`
 	Status   VehicleStatus `json:"status"`
+	IsActive bool          `json:"is_active"`
 	BranchID pgtype.UUID   `json:"branch_id"`
 }
 
@@ -612,6 +597,7 @@ func (q *Queries) ObtenerVehiculoParaCapacidad(ctx context.Context, id uuid.UUID
 		&i.Name,
 		&i.Capacity,
 		&i.Status,
+		&i.IsActive,
 		&i.BranchID,
 	)
 	return i, err

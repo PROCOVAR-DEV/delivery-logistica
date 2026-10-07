@@ -153,28 +153,15 @@ void main() {
     expect(apunte.motivo, 'la ruta no existe');
   });
 
-  test('sustituir un vehiculo creado sin red arrastra sus pedidos', () async {
+  test('sustituir un vehiculo creado sin red', () async {
     const provisional = 'local-11223344';
     await base
         .into(base.vehicles)
         .insert(VehiclesCompanion.insert(id: provisional, name: 'Camión 3'));
-    await base
-        .into(base.orders)
-        .insert(
-          OrdersCompanion.insert(
-            id: 'p1',
-            customerName: 'X',
-            address: 'Y',
-            vehicleId: const Value(provisional),
-          ),
-        );
-
     await Provisionales(base).sustituir(provisional, 'veh-real');
 
     final vehiculo = await base.select(base.vehicles).getSingle();
     expect(vehiculo.id, 'veh-real');
-    final pedido = await base.select(base.orders).getSingle();
-    expect(pedido.vehicleId, 'veh-real');
   });
 
   test('sustituir por si mismo no hace nada', () async {

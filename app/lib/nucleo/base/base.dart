@@ -146,7 +146,7 @@ class BaseLocal extends _$BaseLocal {
   /// subir**. Un aparato que se quede sin poder abrir su base pierde el trabajo
   /// del dia, que es lo unico que esta aplicacion no puede permitirse.
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -179,6 +179,14 @@ class BaseLocal extends _$BaseLocal {
         // facturo, no el de hoy. Se llenan solas con la siguiente bajada.
         await m.addColumn(orderItems, orderItems.pesoKg);
         await m.addColumn(orderItems, orderItems.pesoLineaKg);
+      }
+      if (desde < 5) {
+        // `orders.vehicle_id` duplicaba una relación que pertenece a `routes`.
+        // DROP COLUMN conserva el resto de la copia local y su cola de trabajo.
+        await customStatement('ALTER TABLE orders DROP COLUMN vehicle_id');
+      }
+      if (desde < 6) {
+        await m.addColumn(vehicles, vehicles.isActive);
       }
     },
     beforeOpen: (detalles) async {

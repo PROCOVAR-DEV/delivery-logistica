@@ -65,7 +65,7 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO nuevo.orders (
     id, operation_number, customer_name, address, end_address, end_lat, end_lng, lat, lng,
-    weight, status, trip_leg, notes, vehicle_id, price, segment_km, delivery_price,
+    weight, status, trip_leg, notes, price, segment_km, delivery_price,
     delivery_distance_km, branch_id, source, external_id, order_date, pedido_updated_at,
     estado, archivado, fecha_comprometida, requiere_domicilio, pedido_costo, municipio,
     vendedor, sucursal_codigo, factura_estado, factura_numero, factura_at,
@@ -77,7 +77,6 @@ SELECT
     CASE WHEN o.status = 'delivered' THEN 'delivered' ELSE 'pending' END::nuevo.order_status,
     CASE WHEN o."tripLeg" = 'return' THEN 'return' ELSE 'outbound' END::nuevo.trip_leg,
     o.notes,
-    CASE WHEN o."vehicleId" IS NULL THEN NULL ELSE md5(o."vehicleId")::uuid END,
     o.price, o."segmentKm", o."deliveryPrice", o."deliveryDistanceKm",
     CASE WHEN o."branchId" IS NULL THEN NULL ELSE md5(o."branchId")::uuid END,
     CASE WHEN o.source = 'pedido' THEN 'pedido' END::nuevo.procedencia,

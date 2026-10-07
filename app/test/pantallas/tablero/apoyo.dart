@@ -87,6 +87,7 @@ Future<void> sembrarPedido(
   /// `null` es «todavia no se lo han puesto», que NO es lo mismo que cero: un
   /// domicilio de cero es una decision de alguien.
   double? costo = 5,
+  double? facturaDomicilio = 5,
   String? operacion,
   String? municipio = 'Santiago de Cuba',
   String? vendedor = 'Ana',
@@ -115,6 +116,7 @@ Future<void> sembrarPedido(
         endLng: Value(conCoordenadas ? almacenLng : null),
         weight: Value(peso),
         pedidoCosto: Value(costo),
+        facturaDomicilio: Value(facturaDomicilio),
         operationNumber: Value(operacion ?? id),
         municipio: Value(municipio),
         vendedor: Value(vendedor),

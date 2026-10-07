@@ -96,4 +96,5 @@ Vehiculo camionAMano({
   capacity: 1000,
   usarParaDomicilio: true,
   status: EstadoVehiculo.disponible,
+  isActive: true,
 );

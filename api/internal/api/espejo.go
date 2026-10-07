@@ -1474,7 +1474,6 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 			"notes":              f.Notes,
 			"routeId":            idOpcional(f.RouteID),
 			"ultimaRutaId":       idOpcional(f.UltimaRutaID),
-			"vehicleId":          idOpcional(f.VehicleID),
 			"price":              f.Price,
 			"segmentKm":          f.SegmentKm,
 			"deliveryPrice":      f.DeliveryPrice,

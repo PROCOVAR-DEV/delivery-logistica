@@ -221,7 +221,7 @@ void main() {
 
     expect(find.text('Camión previsto para «Centro»'), findsOneWidget);
     expect(
-      find.textContaining('no tiene ningún vehículo'),
+      find.textContaining('no tiene vehículos activos'),
       findsOneWidget,
       reason: 'no se puede dejar el cajón en blanco sin explicar nada',
     );

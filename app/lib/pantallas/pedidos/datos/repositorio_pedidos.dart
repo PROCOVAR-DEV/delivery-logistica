@@ -777,7 +777,7 @@ class ConsultasPedidos {
             _base.routes,
           )..where((r) => r.id.equals(rutaId))).getSingleOrNull();
 
-    final vehiculoId = pedido.vehicleId ?? ruta?.vehicleId;
+    final vehiculoId = ruta?.vehicleId;
     final vehiculo = vehiculoId == null
         ? null
         : await (_base.select(

@@ -13,7 +13,7 @@ import (
 )
 
 const actualizarEstadoDeRuta = `-- name: ActualizarEstadoDeRuta :one
-
+WITH actualizada AS (
 UPDATE routes SET
     name   = coalesce($1::text, name),
     status = coalesce($2::route_status, status),
@@ -31,6 +31,13 @@ WHERE id = $3
 RETURNING id, name, route_code, status, vehicle_id, branch_id,
           started_at, finished_at, total_distance, total_weight, total_price,
           delivery_date, created_at, updated_at
+), origenes_liberados AS (
+    DELETE FROM board_route_origins o
+    USING actualizada r
+    WHERE o.route_id = r.id AND r.status = 'completed'
+    RETURNING o.order_id
+)
+SELECT * FROM actualizada
 `
 
 type ActualizarEstadoDeRutaParams struct {
@@ -531,6 +538,9 @@ UPDATE orders SET
     price          = coalesce($4::double precision, 0)
 WHERE id = $5
   AND route_id IS NULL
+  AND factura_estado IN ('igual', 'cambiado')
+  AND factura_domicilio > 0
+  AND pedido_costo IS NOT NULL
   AND ($6::uuid IS NULL OR branch_id = $6::uuid)
 `
 
@@ -668,13 +678,14 @@ func (q *Queries) FijarTotalesDeRuta(ctx context.Context, arg FijarTotalesDeRuta
 const limpiarResultadoDeParada = `-- name: LimpiarResultadoDeParada :execrows
 UPDATE orders SET
     resultado      = NULL,
+    ultima_ruta_id = $2,
     resultado_at   = NULL,
     resultado_nota = NULL,
     delivered_at   = NULL,
     status         = 'pending'::order_status,
-    route_id       = ultima_ruta_id
+    route_id       = $2
 WHERE id = $1
-  AND ultima_ruta_id = $2
+  AND (route_id = $2 OR (route_id IS NULL AND ultima_ruta_id = $2))
   AND ($3::uuid IS NULL OR branch_id = $3::uuid)
 `
 
@@ -986,7 +997,7 @@ SELECT
     o.weight, o.stop_order, o.resultado, o.resultado_at, o.resultado_nota,
     o.delivered_at, o.external_id, o.source, o.branch_id
 FROM orders o
-WHERE o.ultima_ruta_id = $1
+WHERE (o.route_id = $1 OR (o.route_id IS NULL AND o.ultima_ruta_id = $1))
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC
 `
@@ -1060,7 +1071,7 @@ SELECT
     o.customer_name, o.stop_order, o.resultado
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
-WHERE o.ultima_ruta_id = $1
+WHERE (o.route_id = $1 OR (o.route_id IS NULL AND o.ultima_ruta_id = $1))
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC
 `
@@ -1314,6 +1325,7 @@ const marcarResultadoDeParada = `-- name: MarcarResultadoDeParada :execrows
 
 UPDATE orders SET
     resultado      = $1::stop_result,
+    ultima_ruta_id = $4,
     resultado_at   = now(),
     resultado_nota = $2,
     delivered_at = CASE
@@ -1325,11 +1337,11 @@ UPDATE orders SET
         ELSE 'pending'::order_status
     END,
     route_id = CASE
-        WHEN $1::stop_result = 'entregado' THEN route_id
+        WHEN $1::stop_result = 'entregado' THEN $4
         ELSE NULL
     END
 WHERE id = $3
-  AND ultima_ruta_id = $4
+  AND (route_id = $4 OR (route_id IS NULL AND ultima_ruta_id = $4))
   AND ($5::uuid IS NULL OR branch_id = $5::uuid)
 `
 
@@ -1564,10 +1576,8 @@ type PedidosParaArmarRutaRow struct {
 // rutas a la vez eso pasa de verdad — y de ahí sale el 409 con «N de los M ya están en
 // otra ruta». Comprobarlo en Go sobre una lectura anterior es mirar una foto vieja.
 //
-// `factura_estado` se deja pasar `igual` y `cambiado` porque es el mismo listón de la
-// lista de disponibles; el corte a sólo `igual` lo hace el handler DESPUÉS, para poder
-// nombrar en el error cuál falla y por qué («cambió en la factura» / «sin cotejar»).
-// Un WHERE que los descarte aquí deja el mismo 409 sin nada que decir.
+// `factura_estado` deja pasar `igual` y `cambiado`, como la lista de disponibles.
+// «cambiado» es una factura emitida con líneas distintas, no una factura inexistente.
 func (q *Queries) PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmarRutaParams) ([]PedidosParaArmarRutaRow, error) {
 	rows, err := q.db.Query(ctx, pedidosParaArmarRuta, arg.PedidoIds, arg.Sucursal)
 	if err != nil {
@@ -1730,7 +1740,36 @@ func (q *Queries) RutaActivaDeVehiculo(ctx context.Context, arg RutaActivaDeVehi
 }
 
 const soltarPedidosDeRuta = `-- name: SoltarPedidosDeRuta :execrows
-
+WITH origenes AS (
+    SELECT o.route_id, o.order_id, o.column_id, o.posicion, o.colocado_por
+    FROM board_route_origins o
+    JOIN routes r ON r.id = o.route_id
+    JOIN orders pedido ON pedido.id = o.order_id
+    WHERE o.route_id = $1
+      AND r.status <> 'completed'
+      AND pedido.route_id = o.route_id
+      AND pedido.delivered_at IS NULL
+      AND pedido.resultado IS NULL
+      AND ($2::uuid IS NULL OR r.branch_id = $2::uuid)
+), corrimientos AS (
+    UPDATE board_placements p SET
+        posicion = p.posicion + (
+            SELECT count(*)::integer FROM origenes o
+            WHERE o.column_id = p.column_id AND o.posicion <= p.posicion
+        )
+    WHERE EXISTS (SELECT 1 FROM origenes o
+                  WHERE o.column_id = p.column_id AND o.posicion <= p.posicion)
+    RETURNING p.order_id
+), restaurados AS (
+    INSERT INTO board_placements (order_id, column_id, posicion, colocado_por)
+    SELECT o.order_id, o.column_id,
+           o.posicion + (SELECT count(*)::integer FROM origenes prev
+                         WHERE prev.column_id = o.column_id AND prev.posicion < o.posicion),
+           o.colocado_por
+    FROM origenes o
+    ON CONFLICT (order_id) DO NOTHING
+    RETURNING order_id
+)
 UPDATE orders SET
     route_id   = NULL,
     stop_order = NULL,
@@ -1743,6 +1782,51 @@ WHERE route_id = $1
 type SoltarPedidosDeRutaParams struct {
 	RutaID   pgtype.UUID `json:"ruta_id"`
 	Sucursal pgtype.UUID `json:"sucursal"`
+}
+
+const soltarParadaPlanificada = `-- name: SoltarParadaPlanificada :one
+WITH liberada AS (
+    UPDATE orders o SET
+        route_id = NULL, stop_order = NULL, segment_km = NULL, trip_leg = 'outbound'
+    FROM routes r
+    WHERE o.id = $1
+      AND o.route_id = $2
+      AND r.id = o.route_id
+      AND r.status = 'planned'
+      AND o.delivered_at IS NULL
+      AND o.resultado IS NULL
+      AND ($3::uuid IS NULL OR o.branch_id = $3::uuid)
+    RETURNING o.id
+), origen AS (
+    DELETE FROM board_route_origins o
+    USING liberada l
+    WHERE o.route_id = $2 AND o.order_id = l.id
+    RETURNING o.order_id, o.column_id, o.posicion, o.colocado_por
+), corrimientos AS (
+    UPDATE board_placements p SET posicion = p.posicion + 1
+    FROM origen o
+    WHERE p.column_id = o.column_id AND p.posicion >= o.posicion
+    RETURNING p.order_id
+), restaurada AS (
+    INSERT INTO board_placements (order_id, column_id, posicion, colocado_por)
+    SELECT order_id, column_id, posicion, colocado_por FROM origen
+    ON CONFLICT (order_id) DO NOTHING
+    RETURNING order_id
+)
+SELECT id FROM liberada
+`
+
+type SoltarParadaPlanificadaParams struct {
+	PedidoID uuid.UUID   `json:"pedido_id"`
+	RutaID   uuid.UUID   `json:"ruta_id"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
+
+func (q *Queries) SoltarParadaPlanificada(ctx context.Context, arg SoltarParadaPlanificadaParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, soltarParadaPlanificada, arg.PedidoID, arg.RutaID, arg.Sucursal)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 // ---------------------------------------------------------------------------

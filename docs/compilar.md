@@ -198,16 +198,16 @@ El artefacto del trabajo contiene:
 Antes de ofrecerlo en procovar.cloud hay que descargar ese artefacto, contrastar
 sus huellas, publicar el instalador sin sobrescribir versiones y comprobar su descarga.
 
-La versión **1.0.28+29** (08/10/2026) está en procovar.cloud como **Reparto para Windows**:
-el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.28-windows-setup.exe)
-(16.232.798 bytes). La ejecución [37781825464 de GitHub Actions](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37781825464),
-sobre el commit `52003be` en la organización, compiló e instaló la copia de prueba y cotejó sus archivos.
-(La de la 1.0.27, [37537712382](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37537712382),
+La versión **1.0.29+30** (08/10/2026) está en procovar.cloud como **Reparto para Windows**:
+el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.29-windows-setup.exe)
+(16.238.008 bytes). La ejecución [37812597394 de GitHub Actions](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37812597394),
+sobre el commit `c27dbcc` en la organización, compiló e instaló la copia de prueba y cotejó sus archivos.
+(La de la 1.0.28 fue la [37781825464](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37781825464); la de la 1.0.27, [37537712382](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37537712382),
 bajo `jose22072000` da 404: ahora vive en la organización.) Las descargas públicas se
 verificaron por tamaño y SHA256 antes de actualizar la tarjeta. Abrir, iniciar sesión
 y trabajar sin conexión en el PC del usuario quedan pendientes de prueba física.
 
-La 1.0.28 trae las seis incidencias de Amado (`docs/incidencias-reparto.md`): quitar una parada de
+La 1.0.28 trajo las seis incidencias de Amado (`docs/incidencias-reparto.md`): quitar una parada de
 una ruta planificada, camiones inactivos, rutas nuevas sólo con factura que cuadre, domicilio cobrado y
 cotizado, y las facturas que vuelven a su zona del tablero al borrar una ruta. Incluye también los
 controles con ratón del Tablero y la corrección de Rutas: se puede editar y
@@ -216,10 +216,14 @@ eliminar mientras no esté completada; los estados de paradas se revisan al puls
 retiene el cierre de esa ruta en la cola nativa. Windows conserva su base local para
 trabajar sin conexión; la web trabaja conectada al servidor.
 
-Android y Windows están publicados como **1.0.28+29**, con el anuncio global y las dos
-tarjetas del portal actualizadas (los diarios `.publish-*-1.0.28*` están en `production_verified`).
+La 1.0.29 endurece lo que la revisión de la 1.0.28 dejó abierto (alcance que falla cerrado,
+`PATCH /api/orders`, camión de otra sucursal, armado local del Tablero como el servidor, cajón de
+acuse en el cierre parcial; ver `docs/reglas-negocio.md` §15.14).
+
+Android y Windows están publicados como **1.0.29+30**, con el anuncio global y las dos
+tarjetas del portal actualizadas (los diarios `.publish-*-1.0.29*` están en `production_verified`).
 **Falta la prueba física** en un teléfono con una base 1.0.27 llena (el esquema local pasa de la 4
-a la 6 con un `DROP COLUMN`) y en un PC. Se puede instalar Windows 1.0.28 desde el portal sobre la
+a la 6 con un `DROP COLUMN`) y en un PC. Se puede instalar Windows 1.0.29 desde el portal sobre la
 versión anterior. La actualización automática en el PC del usuario no se ha probado;
 separar el aviso de versión por plataforma sigue siendo un pendiente de arquitectura.
 Las versiones anteriores se conservan.

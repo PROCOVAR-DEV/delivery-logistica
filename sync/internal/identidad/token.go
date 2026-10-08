@@ -55,6 +55,13 @@ var algoritmos = map[string]func() hash.Hash{
 	"HS512": sha512.New,
 }
 
+// ErrSinPermisoDeReparto: el token es bueno y es de alguien, pero su rol no entra a Reparto.
+//
+// NO ES UN `ErrSinSesion` A PROPÓSITO. Un 401 que sobrevive a renovar mata la sesión en el
+// cliente y lo manda a la puerta; esto es un 403 con `codigo`, y lo que la app hace con él es
+// enseñar «no tienes permiso» y mandar a Accesos. Ver [Exigir].
+var ErrSinPermisoDeReparto = errors.New("el rol no entra a Reparto")
+
 // ErrTokenRoto: no es un JWT, o no se puede leer.
 var ErrTokenRoto = errors.New("token ilegible")
 
@@ -253,6 +260,17 @@ func verificar(token string, secreto []byte) (Identidad, string, error) {
 		return Identidad{}, "", ErrSinSesion
 	}
 
+	// QUIÉN ENTRA A REPARTO, antes de mirar la sucursal: a quien no entra no se le traduce
+	// ningún código (eso es una llamada al reparto) ni se le dice que le falta la sucursal.
+	// Es el MISMO control que `Exigir` de `reparto-api` y por lo mismo que aquí no se delega:
+	// este servicio sirve la bajada de su propia base, sin pasar por la API.
+	if !puedeEntrarAReparto(c) {
+		return Identidad{}, "", fmt.Errorf(
+			"%w: rol=%q roles=%v sucursal=%q",
+			ErrSinPermisoDeReparto, primero(c.Role, c.Rol), c.Roles,
+			strings.TrimSpace(primero(c.BranchID, c.BranchIDSnake, c.Sucursal)))
+	}
+
 	sucursal := strings.TrimSpace(primero(c.BranchID, c.BranchIDSnake, c.Sucursal))
 	if sucursal == "" {
 		// SIN SUCURSAL **NO** SIGNIFICA «TODAS». Sólo lo significa para un SUPER ADMIN.
@@ -306,16 +324,75 @@ func verificar(token string, secreto []byte) (Identidad, string, error) {
 // Se compara como texto porque así es como lo compara PEDIDO, que es la fuente.
 var rolesQueVenTodo = []string{"SUPER ADMIN", "DESARROLLADOR"}
 
+// rolAdminHeredado: el `admin` a secas de los tokens VIEJOS de la web. Es un puente y se va con
+// ella. Aquí hace EXACTAMENTE lo que en `api/internal/auth/auth.go`: entra a Reparto y, SIN
+// sucursal, ve todas (`EsSuperAdmin`). Antes (08/10/2026) entraba pero sin sucursal era un 401
+// aquí y super en la api: las dos mitades de Reparto decían cosas distintas de la misma persona.
+const rolAdminHeredado = "admin"
+
 func veTodo(c reclamos) bool {
-	candidatos := append([]string{c.Role, c.Rol}, c.Roles...)
-	for _, candidato := range candidatos {
-		for _, permitido := range rolesQueVenTodo {
-			if strings.EqualFold(strings.TrimSpace(candidato), permitido) {
+	return tieneAlguno(c, rolesQueVenTodo...) || tieneAlguno(c, rolAdminHeredado)
+}
+
+// LOS ÚNICOS ROLES QUE ENTRAN A REPARTO — Jose, 08/10/2026: «esos roles son los únicos que
+// pueden entrar a Reparto; a los otros, que Reparto les diga no tienes permiso y se dirijan a
+// Accesos». Misma lista que `auth.Usuario.PuedeEntrarAReparto` en `reparto-api`. Los dos
+// ficheros se cambian JUNTOS, y lo ata `docs/roles-de-reparto.casos.json`, que leen las
+// pruebas de los dos módulos: un rol que entra por el sincronizador y no por la API (o al
+// revés) es la misma persona dentro y fuera según por dónde pregunte.
+//
+// `LOGISTICO` va sin tilde, como lo firma Accesos. Es una lista de los que entran: un rol
+// nuevo en Accesos nace sin acceso.
+var rolesQueEntranAReparto = []string{
+	"SUPER ADMIN", "DESARROLLADOR", "ADMINISTRADOR", "LOGISTICO", rolAdminHeredado,
+}
+
+func puedeEntrarAReparto(c reclamos) bool { return tieneAlguno(c, rolesQueEntranAReparto...) }
+
+// rolesDelToken: LOS MISMOS CAMPOS Y EN EL MISMO ORDEN que `reparto-api` (`Verificar`): el
+// principal es `role` y, si viene vacío, `rol`; luego `roles`. Antes aquí se miraban `role`,
+// `rol` y `roles` A LA VEZ, y un token con `role=GESTOR` y `rol=LOGISTICO` pasaba por el
+// sincronizador y no por la API.
+func rolesDelToken(c reclamos) []string {
+	principal := c.Role
+	if principal == "" {
+		principal = c.Rol
+	}
+	return append([]string{principal}, c.Roles...)
+}
+
+func tieneAlguno(c reclamos, roles ...string) bool {
+	for _, candidato := range rolesDelToken(c) {
+		for _, r := range roles {
+			if mismoRol(candidato, r) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// mismoRol: sin espacios a los lados y sin distinguir mayúsculas, pero SOLO las ASCII.
+// `strings.EqualFold` pliega todo Unicode y casa 'ſ' (U+017F) con 's': «ſUPER ADMIN» pasaba
+// por SUPER ADMIN (auditoría, 08/10/2026). Se comparan los bytes. Gemela de `auth.MismoRol`.
+func mismoRol(a, b string) bool {
+	a, b = strings.TrimSpace(a), strings.TrimSpace(b)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if mayusculaASCII(a[i]) != mayusculaASCII(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func mayusculaASCII(c byte) byte {
+	if c >= 'a' && c <= 'z' {
+		return c - 'a' + 'A'
+	}
+	return c
 }
 
 func decodificar(s string) ([]byte, error) {

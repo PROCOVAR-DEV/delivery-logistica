@@ -88,7 +88,7 @@ func TestLasAccionesDeRutasDejanQuienFue(t *testing.T) {
 		if l == "" {
 			t.Fatalf("%s: no dejó la línea de quién:\n%s", c.mensaje, registro.String())
 		}
-		for _, quiero := range append([]string{"level=INFO", "actor=p-stg", "rol=OPERADOR"}, c.ids...) {
+		for _, quiero := range append([]string{"level=INFO", "actor=p-stg", "rol=LOGISTICO"}, c.ids...) {
 			if !strings.Contains(l, quiero) {
 				t.Errorf("%s: a la línea le falta %q:\n%s", c.mensaje, quiero, l)
 			}
@@ -130,7 +130,7 @@ func TestLasAccionesDeFlotaYAjustesDejanQuienFue(t *testing.T) {
 	destinoDelRegistroDePruebas = &registro
 	defer func() { destinoDelRegistroDePruebas = io.Discard }()
 	h := montarAvisos(t, &dobleAvisos{})
-	jwt := avOperadorStg(t)
+	jwt := avLogisticoStg(t)
 
 	casos := []struct {
 		mensaje, metodo, ruta, cuerpo, jwt string

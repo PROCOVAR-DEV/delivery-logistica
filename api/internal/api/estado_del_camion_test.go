@@ -38,7 +38,7 @@ import (
 func TestUnCamionSePuedeMandarAlTallerPorLasDosPuertas(t *testing.T) {
 	t.Run("al darlo de alta", func(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
-		w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avOperadorStg(t),
+		w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avLogisticoStg(t),
 			`{"name":"Camión #9","status":"maintenance"}`)
 		avCodigo(t, w, http.StatusCreated)
 		if estadoDelCamion(t, w) != "maintenance" {
@@ -48,7 +48,7 @@ func TestUnCamionSePuedeMandarAlTallerPorLasDosPuertas(t *testing.T) {
 
 	t.Run("y editándolo", func(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
-		w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t),
+		w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(), avLogisticoStg(t),
 			`{"status":"maintenance"}`)
 		avCodigo(t, w, http.StatusOK)
 		if estadoDelCamion(t, w) != "maintenance" {
@@ -64,7 +64,7 @@ func TestUnCamionSePuedeMandarAlTallerPorLasDosPuertas(t *testing.T) {
 	for _, estado := range []string{"available", "in_use"} {
 		t.Run("y sigue valiendo "+estado, func(t *testing.T) {
 			h := montarAvisos(t, &dobleAvisos{})
-			w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avOperadorStg(t),
+			w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avLogisticoStg(t),
 				`{"name":"C","status":"`+estado+`"}`)
 			avCodigo(t, w, http.StatusCreated)
 			if estadoDelCamion(t, w) != estado {
@@ -97,7 +97,7 @@ func TestUnEstadoQueNoExisteSigueSiendoUn400ConSuMotivo(t *testing.T) {
 		t.Run(caso.nombre, func(t *testing.T) {
 			h := montarAvisos(t, &dobleAvisos{})
 			cuerpo, _ := json.Marshal(map[string]any{"name": "C", "status": caso.valor})
-			w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avOperadorStg(t), string(cuerpo))
+			w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avLogisticoStg(t), string(cuerpo))
 			if w.Code != http.StatusBadRequest {
 				t.Fatalf("`status: %q` tiene que ser un 400 y fue %d: %s",
 					caso.valor, w.Code, w.Body.String())
@@ -119,7 +119,7 @@ func TestUnEstadoQueNoExisteSigueSiendoUn400ConSuMotivo(t *testing.T) {
 	// Y por la otra puerta, igual.
 	t.Run("y tampoco por un PATCH", func(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
-		w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t),
+		w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(), avLogisticoStg(t),
 			`{"status":"in_route"}`)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("código %d, se esperaba 400: %s", w.Code, w.Body.String())
@@ -148,7 +148,7 @@ func TestMandarUnCamionAlTallerNoCierraSuRuta(t *testing.T) {
 	avisos := contarAvisos(t)
 
 	w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(),
-		avOperadorStg(t), `{"status":"maintenance"}`)
+		avLogisticoStg(t), `{"status":"maintenance"}`)
 	avCodigo(t, w, http.StatusOK)
 
 	// LO PRIMERO, la consulta: ni se intenta. «No se cerró ninguna» y «no se intentó» se

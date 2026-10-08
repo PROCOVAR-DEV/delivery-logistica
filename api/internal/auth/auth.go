@@ -64,6 +64,8 @@ const (
 	rolSuperAdmin    = "SUPER ADMIN"
 	rolDesarrollador = "DESARROLLADOR"
 	rolAdministrador = "ADMINISTRADOR"
+	// Sin tilde, tal como lo firma Accesos (08/10/2026). Es el rol de quien arma las rutas.
+	rolLogistico = "LOGISTICO"
 	// `admin` a secas es lo que traían los tokens VIEJOS de la web de delivery. Se acepta
 	// mientras esa puerta siga abierta; el día que se cierre, se quita de aquí.
 	rolAdminHeredado = "admin"
@@ -71,14 +73,44 @@ const (
 
 func (u *Usuario) tieneAlguno(roles ...string) bool {
 	for _, candidato := range append([]string{u.Rol}, u.Roles...) {
-		c := strings.TrimSpace(candidato)
 		for _, r := range roles {
-			if strings.EqualFold(c, r) {
+			if MismoRol(candidato, r) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// MismoRol: la ÚNICA comparación de roles de la casa. Sin espacios a los lados y sin distinguir
+// mayúsculas de minúsculas, pero SOLO las ASCII (A-Z).
+//
+// Aquí se usaba `strings.EqualFold`, que pliega TODO Unicode, y una auditoría (08/10/2026)
+// demostró que casa 'ſ' (U+017F, «s larga») con 's': «ſUPER ADMIN» y «ADMINIſTRADOR» eran
+// SUPER ADMIN y ADMINISTRADOR, y entraban a Reparto. Con 'İ' (U+0130) pasa lo mismo en otros
+// lenguajes. Los roles los firma Accesos con un catálogo de nombres ASCII: lo que se sale de
+// ahí no es una variante del rol, es otro texto. Se comparan los BYTES.
+//
+// `sync/internal/identidad/token.go` tiene su gemela (`mismoRol`): otro módulo de Go. Las dos se
+// atan con `docs/roles-de-reparto.casos.json`, que leen las pruebas de los dos lados.
+func MismoRol(a, b string) bool {
+	a, b = strings.TrimSpace(a), strings.TrimSpace(b)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if mayusculaASCII(a[i]) != mayusculaASCII(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func mayusculaASCII(c byte) byte {
+	if c >= 'a' && c <= 'z' {
+		return c - 'a' + 'A'
+	}
+	return c
 }
 
 // EsAdmin: la comprobación de `/api/branches`, que exige administrador.
@@ -110,6 +142,26 @@ func (u *Usuario) EsSuperAdmin() bool {
 	//
 	// Es un puente, no la regla: el día que esa puerta se cierre, esto se va con ella.
 	return u.tieneAlguno(rolAdminHeredado) && u.Sucursal == ""
+}
+
+// PuedeEntrarAReparto: QUIÉN ENTRA A REPARTO, y nadie más.
+//
+// Jose, 08/10/2026: «esos roles son los únicos que pueden entrar a Reparto; a los otros, que
+// Reparto les diga no tienes permiso y se dirijan a Accesos, a su inicio». Son CUATRO:
+// SUPER ADMIN, DESARROLLADOR, ADMINISTRADOR y LOGISTICO. GERENTE, SUPERVISOR, GESTOR,
+// OPERADOR, ECONOMICA, ANALISTA… y cualquier rol que no conozcamos, fuera.
+//
+// ES UNA LISTA DE LOS QUE ENTRAN, no de los que no: un rol nuevo que se cree en Accesos
+// mañana nace SIN acceso a Reparto, y se le da añadiéndolo aquí. Al revés —lista de
+// excluidos— cada rol nuevo entraría solo, que es el fallo caro y el que no se ve.
+//
+// Texto exacto sobre `Rol` y sobre `Roles` (tieneAlguno): un token con dos roles entra si
+// CUALQUIERA de los dos está en la lista. Y el `admin` heredado de la web vieja entra, por
+// lo mismo que en [Usuario.EsAdmin]: es un puente, no una llave nueva. Las cuentas de
+// servicio (espejo, sync, n8n, webhook de PEDIDO) llevan `SUPER ADMIN` puesto a mano y
+// además NO pasan por [Verificador.Exigir]: no se tocan.
+func (u *Usuario) PuedeEntrarAReparto() bool {
+	return u.tieneAlguno(rolSuperAdmin, rolDesarrollador, rolAdministrador, rolLogistico, rolAdminHeredado)
 }
 
 // Verificador guarda el secreto. Se construye una vez al arrancar.
@@ -146,21 +198,59 @@ func NuevoVerificador(secreto []byte) *Verificador {
 // registro diga lo mismo que decía en el caso normal de una sola credencial. Cuántas
 // había se anota aparte, en [RastroDe] (`cookies_token`).
 func (v *Verificador) DelaPeticion(r *http.Request) (*Usuario, error) {
+	u, _, err := v.delaPeticion(r, nil)
+	return u, err
+}
+
+// DelaPeticionDeReparto es [Verificador.DelaPeticion] para las rutas que dejan entrar o no a
+// Reparto (`Exigir`, el canal en vivo y `/api/me`): entre las candidatas VÁLIDAS prefiere la
+// primera que puede entrar a Reparto, y si ninguna puede, devuelve la primera válida (la que
+// explica el 403).
+//
+// Es el caso de las dos cookies `token` del 29/09/2026, ahora con un rol de por medio: una
+// cookie vieja de la misma persona con el rol de antes (GERENTE) delante de la buena (LOGISTICO)
+// ganaba por orden y daba un 403 `sin_permiso_reparto` a quien sí tiene permiso. Todas las
+// candidatas pasan por la misma firma, así que elegir la que entra no abre nada que no pudiera
+// abrir ya la persona con la credencial que trajo.
+func (v *Verificador) DelaPeticionDeReparto(r *http.Request) (*Usuario, error) {
+	u, _, err := v.delaPeticion(r, (*Usuario).PuedeEntrarAReparto)
+	return u, err
+}
+
+// DelaPeticionDeRepartoConCredencial es lo mismo y además devuelve la credencial CRUDA que se
+// eligió, para que `/api/me` pueda devolver el token de la MISMA cookie que decidió quién es
+// la persona (y no el de la primera, que puede ser de otro rol).
+func (v *Verificador) DelaPeticionDeRepartoConCredencial(r *http.Request) (*Usuario, string, error) {
+	return v.delaPeticion(r, (*Usuario).PuedeEntrarAReparto)
+}
+
+func (v *Verificador) delaPeticion(r *http.Request, preferida func(*Usuario) bool) (*Usuario, string, error) {
 	candidatas, _, _ := Credenciales(r)
 	if len(candidatas) == 0 {
-		return nil, ErrSinToken
+		return nil, "", ErrSinToken
 	}
 	var primerFallo error
+	var primeraValida *Usuario
+	var suCredencial string
 	for _, crudo := range candidatas {
 		u, err := v.Verificar(crudo)
-		if err == nil {
-			return u, nil
+		if err != nil {
+			if primerFallo == nil {
+				primerFallo = err
+			}
+			continue
 		}
-		if primerFallo == nil {
-			primerFallo = err
+		if preferida == nil || preferida(u) {
+			return u, crudo, nil
+		}
+		if primeraValida == nil {
+			primeraValida, suCredencial = u, crudo
 		}
 	}
-	return nil, primerFallo
+	if primeraValida != nil {
+		return primeraValida, suCredencial, nil
+	}
+	return nil, "", primerFallo
 }
 
 // Verificar comprueba la firma y la vigencia, y devuelve la persona.

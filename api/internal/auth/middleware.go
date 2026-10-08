@@ -20,7 +20,7 @@ const claveUsuario claveCtx = iota
 // firma no cuadra" o "está caducado" es regalarle el mapa.
 func (v *Verificador) Exigir(siguiente http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		u, err := v.DelaPeticion(r)
+		u, err := v.DelaPeticionDeReparto(r)
 		if err != nil {
 			// EL MOTIVO SOLO NO BASTA, y costó una noche averiguarlo: ver `rastro.go`.
 			// «el token está caducado» no dice si el rechazado es el navegador o el
@@ -33,9 +33,45 @@ func (v *Verificador) Exigir(siguiente http.Handler) http.Handler {
 			httpx.NoAutorizado(w, r)
 			return
 		}
+		// DESPUÉS de la identidad y ANTES del alcance: quien no entra a Reparto no llega ni
+		// a que se le resuelva una sucursal.
+		if !PermitirReparto(w, r, u) {
+			return
+		}
 		ctx := context.WithValue(r.Context(), claveUsuario, u)
 		siguiente.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// El 403 de «tu rol no entra a Reparto». ES DISTINTO del 403 del alcance (`ErrSinAlcance`,
+// `ErrSucursalSinAlta`: «te falta la sucursal»), que NO lleva `codigo`: aquel se arregla en
+// la oficina y éste no se arregla — la app lo lee y manda a la persona a Accesos.
+const (
+	MsgSinPermisoReparto    = "No tienes permiso para entrar a Reparto."
+	CodigoSinPermisoReparto = "sin_permiso_reparto"
+)
+
+// PermitirReparto contesta el 403 y devuelve false si la persona no entra a Reparto.
+//
+// Lo llaman [Verificador.Exigir] y el canal en vivo (`/api/eventos`), que comprueba la
+// sesión por su cuenta porque su 401 es texto plano: sin esta llamada ahí, un GERENTE se
+// quedaría sin pantallas pero con los avisos de cambios en vivo de su sucursal.
+//
+// EL REGISTRO NUNCA LLEVA EL TOKEN —ni recortado, ni su firma—: rol(es), sucursal, quién
+// (correo o id, como el alcance) y ruta. Con eso basta para contestar «¿por qué no entra
+// Pedro?» sin abrir nada más.
+func PermitirReparto(w http.ResponseWriter, r *http.Request, u *Usuario) bool {
+	if u.PuedeEntrarAReparto() {
+		return true
+	}
+	quien := u.Email
+	if quien == "" {
+		quien = u.ID
+	}
+	httpx.Registro(r).Warn("sin permiso de reparto",
+		"rol", u.Rol, "roles", u.Roles, "sucursal", u.Sucursal, "persona", quien, "ruta", r.URL.Path)
+	httpx.ErrorConCodigo(w, r, http.StatusForbidden, MsgSinPermisoReparto, CodigoSinPermisoReparto)
+	return false
 }
 
 // ExigirAdmin se pone DESPUÉS de Exigir. Es el `403 {"error":"Admin access required"}`

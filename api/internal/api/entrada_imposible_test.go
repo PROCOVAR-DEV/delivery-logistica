@@ -307,7 +307,7 @@ func TestUnCamionConNumerosImposiblesNoSeDaDeAlta(t *testing.T) {
 	for _, caso := range casos {
 		t.Run(caso.nombre, func(t *testing.T) {
 			h := montarAvisos(t, &dobleAvisos{})
-			w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avOperadorStg(t), caso.cuerpo)
+			w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avLogisticoStg(t), caso.cuerpo)
 			if w.Code != http.StatusBadRequest {
 				t.Fatalf("código %d, se esperaba 400: %s", w.Code, w.Body.String())
 			}
@@ -319,7 +319,7 @@ func TestUnCamionConNumerosImposiblesNoSeDaDeAlta(t *testing.T) {
 	// Y por la otra puerta a la misma fila: el PATCH.
 	t.Run("y tampoco por un PATCH", func(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
-		w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t),
+		w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(), avLogisticoStg(t),
 			`{"capacity":-1}`)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("código %d, se esperaba 400: %s", w.Code, w.Body.String())
@@ -353,7 +353,7 @@ func TestUnCamionNormalSigueDandoseDeAlta(t *testing.T) {
 	for _, caso := range casos {
 		t.Run(caso.nombre, func(t *testing.T) {
 			h := montarAvisos(t, &dobleAvisos{})
-			w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avOperadorStg(t), caso.cuerpo)
+			w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avLogisticoStg(t), caso.cuerpo)
 			if w.Code != http.StatusCreated {
 				t.Fatalf("código %d, se esperaba 201: %s", w.Code, w.Body.String())
 			}

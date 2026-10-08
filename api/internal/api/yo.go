@@ -8,6 +8,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"procovar/reparto-api/internal/auth"
 	"procovar/reparto-api/internal/httpx"
@@ -81,7 +82,11 @@ func (s *Servidor) rutasYo(rt *httpx.Router, sesion, admin []httpx.Medio) {
 
 // GET /api/me
 func (s *Servidor) yo(w http.ResponseWriter, r *http.Request) {
-	u, err := s.verif.DelaPeticion(r)
+	// LA MISMA ELECCIÓN QUE `Exigir` y el canal en vivo (`DelaPeticionDeReparto`): con dos
+	// cookies `token` de la misma persona [GERENTE, LOGISTICO], `/api/vehicles` entra como
+	// LOGISTICO y `/api/me` decía GERENTE, o sea que la app enseñaba «sin permiso» a quien sí
+	// entra. Y el token que se devuelve es el de ESA cookie.
+	u, elegida, err := s.verif.DelaPeticionDeRepartoConCredencial(r)
 	if err != nil {
 		// 401 con `{"user":null}`, no con `{"error":...}`. El motivo va al registro: qué
 		// falló exactamente —no hay token, la firma no cuadra, está caducado— no se le
@@ -98,7 +103,7 @@ func (s *Servidor) yo(w http.ResponseWriter, r *http.Request) {
 			// `X-Sucursal-Id` como si fuera una sucursal elegida.
 			BranchID: aTexto(u.Sucursal),
 		},
-		Token: tokenDeLaCookie(r),
+		Token: tokenDeLaCookie(r, elegida),
 	})
 }
 
@@ -125,16 +130,17 @@ func (s *Servidor) apps(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, r, http.StatusOK, map[string]any{"apps": salida})
 }
 
-// tokenDeLaCookie devuelve el token de la cookie, o nil.
+// tokenDeLaCookie devuelve el token de la cookie que decidió quién es la persona, o nil.
 //
-// SÓLO el de la cookie: si la petición vino con `Authorization: Bearer`, quien pregunta ya
+// SÓLO el de una cookie: si la petición vino con `Authorization: Bearer`, quien pregunta ya
 // tiene su token y devolvérselo no añade nada. Es el contrato, y además deja esta ruta sin
-// ninguna forma de convertir una credencial de un sitio en otra.
-func tokenDeLaCookie(r *http.Request) *string {
-	c, err := r.Cookie("token")
-	if err != nil || c.Value == "" {
-		return nil
+// ninguna forma de convertir una credencial de un sitio en otra. Con varias cookies `token`
+// es la que [Verificador.DelaPeticionDeRepartoConCredencial] eligió, no la primera.
+func tokenDeLaCookie(r *http.Request, elegida string) *string {
+	for _, c := range r.CookiesNamed("token") {
+		if v := strings.TrimSpace(c.Value); v != "" && v == elegida {
+			return &v
+		}
 	}
-	v := c.Value
-	return &v
+	return nil
 }

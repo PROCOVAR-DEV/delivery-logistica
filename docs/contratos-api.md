@@ -14,6 +14,65 @@ reimplementarlas en Go sin abrir el repo de Next.
 - Sin usuario: `401` con cuerpo `{"error":"Unauthorized"}` (salvo `/api/eventos`, que
   devuelve texto plano `Unauthorized`, y `/api/me`, que devuelve `{"user":null}`).
 
+### Sin permiso para Reparto — `403` con `codigo` (Reparto Go, 08/10/2026)
+
+Sólo **`SUPER ADMIN`, `DESARROLLADOR`, `ADMINISTRADOR` y `LOGISTICO`** entran a Reparto (más el
+`admin` heredado de la web vieja). Cualquier otro rol —`GERENTE`, `SUPERVISOR`, `GESTOR`,
+`OPERADOR`, `ECONOMICA`, `ANALISTA`…, un rol que Reparto no conozca o una cuenta sin rol— tiene
+sesión válida en Accesos pero **no tiene esta aplicación**. Se comprueba en el servidor, justo
+después de resolver la identidad y **antes** del alcance de sucursal:
+
+```
+HTTP/1.1 403 Forbidden
+Content-Type: application/json; charset=utf-8
+
+{"error":"No tienes permiso para entrar a Reparto.","codigo":"sin_permiso_reparto"}
+```
+
+- **Quién lo recibe:** la cabecera `Authorization: Bearer` de la APK y el escritorio, la cookie
+  `token` de la web y el canal en vivo `GET /api/eventos` (que comprueba la sesión por su
+  cuenta). Las tres vías contestan **lo mismo, byte por byte**. También `GET /api/apps`.
+  El sincronizador (`/sync/*`) aplica la misma lista y contesta el mismo 403.
+- **Cómo se decide:** `Usuario.PuedeEntrarAReparto()` mira el rol principal (`role`, y si viene
+  vacío, `rol`) Y la lista `roles` del token. La comparación es `auth.MismoRol`: sin espacios a
+  los lados y sin distinguir mayúsculas **ASCII**, y NADA de plegado Unicode (`strings.EqualFold`
+  casaba «ſUPER ADMIN», con la s larga U+017F, con SUPER ADMIN). Una persona con
+  `[GESTOR, LOGISTICO]` **entra**; con `[GESTOR, OPERADOR]` no. Es una lista de los que entran:
+  un rol nuevo en Accesos nace SIN acceso a Reparto hasta que se añada en `auth.go` **y** en
+  `sync/internal/identidad/token.go`. Las dos listas las ata `docs/roles-de-reparto.casos.json`,
+  que leen las pruebas de los dos módulos (mismos campos del token, mismo orden).
+- **Dos credenciales a la vez** (dos cookies `token`, o cabecera y cookie): entre las VÁLIDAS
+  gana la primera que entra a Reparto; si ninguna entra, la primera válida (la del 403).
+- **`codigo` distingue este 403 del del alcance de sucursal.** `ErrSinAlcance` («esta cuenta no
+  está dada de alta en ninguna sucursal…») y `ErrSucursalSinAlta` («tu sucursal MOA no está dada
+  de alta en Reparto…») **no llevan `codigo`**: esos se arreglan en la oficina; éste no se
+  arregla aquí, y el cliente manda a la persona a Accesos. El resto de errores de la API siguen
+  siendo `{"error":"…"}` sin `codigo` (el campo se omite).
+- **No lo reciben** las rutas que no pasan por `Exigir`: `/health`, `/version`, `/api/version`,
+  `/mapa`, las cuatro de `/api/auth/*`, ni **`GET /api/me`** (que sigue diciendo quién es la
+  persona a cualquier sesión válida: es lo que la app necesita para enseñar «no tienes
+  permiso»). Tampoco las puertas de **servicio**: `x-api-key` (espejo, `products/sync`,
+  `recompute-weights`, `quote/batch`, `quote/home-delivery`, `service/sucursal`) y el webhook de
+  PEDIDO (firma). Llevan `Rol:"SUPER ADMIN"` puesto a mano y no son personas.
+- **Registro:** una línea `WARN sin permiso de reparto` con `rol`, `roles`, `sucursal`,
+  `persona` (correo o id) y `ruta`. **Nunca el token**, ni recortado.
+- **Web, `/api/auth/callback`:** los roles del token son los `role` y `roles` de **primer nivel**
+  que devuelve `/api/auth/exchange` de Accesos (rol por defecto + los de todas sus membresías,
+  sin repetir) y `SUPER ADMIN` si la cuenta es `isSystemAdmin`. Los de las membresías
+  (`memberships[].roles`, el `member.role` de better-auth: owner/admin/member…) **solo valen como
+  caída cuando el primer nivel viene vacío** (un Accesos viejo). **`admin` a secas nunca se
+  acuña** —es el puente de los tokens viejos de la web, Accesos no lo firma—, venga de donde
+  venga: un GERENTE con `member.role = 'admin'` NO entra. `role` (el principal que ve `/api/me`)
+  prefiere, por este orden, `DESARROLLADOR`, `SUPER ADMIN`, `ADMINISTRADOR`, `LOGISTICO`.
+  **Límite conocido:** la sucursal sale de la primera membresía y los roles son de la persona;
+  hoy nadie tiene dos membresías (medido el 08/10/2026), pero quien fuera GESTOR en una sucursal
+  y ADMINISTRADOR en otra entraría como ADMINISTRADOR en la primera. Hay que ligar el rol a la
+  sucursal ANTES de dar una segunda membresía (`TestLimiteConocido…`).
+- **Sincronizador, `POST /sync/subida`:** si el reparto contesta este 403 al aplicar un apunte,
+  **no es un rechazo del apunte**: la subida contesta `403` con este mismo cuerpo y **no anota
+  nada** (ni rechazo, ni apunte), así que la cola del aparato queda pendiente y sube sola cuando
+  se le dé el rol. Un 403 del alcance (sin `codigo`) sigue siendo un rechazo del apunte con `200`.
+
 ### Autenticación de servicio (`isValidServiceKey`)
 
 - Cabecera `x-api-key` comparada con `process.env.SERVICE_API_KEY`.

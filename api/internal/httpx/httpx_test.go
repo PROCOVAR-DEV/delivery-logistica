@@ -96,3 +96,19 @@ func leer(t *testing.T, json string, destino any) {
 		t.Fatalf("no se pudo leer %s", json)
 	}
 }
+
+// `codigo` es para los pocos errores donde el cliente tiene que distinguir; en el resto el
+// cuerpo sigue siendo `{"error":"..."}` byte por byte (los clientes en la calle lo leen así).
+func TestErrorConCodigoLlevaElCodigoYErrorNoLoInventa(t *testing.T) {
+	w := httptest.NewRecorder()
+	httpx.ErrorConCodigo(w, httptest.NewRequest(http.MethodGet, "/x", nil), http.StatusForbidden, "No.", "mi_codigo")
+	if w.Code != http.StatusForbidden || strings.TrimSpace(w.Body.String()) != `{"error":"No.","codigo":"mi_codigo"}` {
+		t.Fatalf("ErrorConCodigo: %d %q", w.Code, w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	httpx.Error(w, httptest.NewRequest(http.MethodGet, "/x", nil), http.StatusForbidden, "No.")
+	if strings.TrimSpace(w.Body.String()) != `{"error":"No."}` {
+		t.Fatalf("Error no debe llevar `codigo`: %q", w.Body.String())
+	}
+}

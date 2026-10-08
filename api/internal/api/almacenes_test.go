@@ -183,7 +183,7 @@ func almacenesDePrueba() *accesosFalso {
 // sale un recorrido con números y todo.
 func TestOrigenesNoSeVenLosDeOtraSucursal(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/origins", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/origins", logisticoDeSantiago(t), "", nil)
 
 	var lista []OrigenSalida
 	leerJSONDeDatos(t, w, &lista)
@@ -198,7 +198,7 @@ func TestOrigenesNoSeVenLosDeOtraSucursal(t *testing.T) {
 // El `branchId` de la query sólo vale cuando NO hay alcance; con alcance no lo amplía.
 func TestOrigenesElBranchIdDeLaQueryNoAmpliaElAlcance(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/origins?branchId="+datSucHol.String(), operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/origins?branchId="+datSucHol.String(), logisticoDeSantiago(t), "", nil)
 
 	var lista []OrigenSalida
 	leerJSONDeDatos(t, w, &lista)
@@ -212,7 +212,7 @@ func TestOrigenesElBranchIdDeLaQueryNoAmpliaElAlcance(t *testing.T) {
 func TestOrigenesElAltaComprubaLosCamposConLosLiteralesDelContrato(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
 
-	w := pedirDeDatos(t, h, http.MethodPost, "/api/origins", operadorDeSantiago(t), `{"name":"Patio"}`, nil)
+	w := pedirDeDatos(t, h, http.MethodPost, "/api/origins", logisticoDeSantiago(t), `{"name":"Patio"}`, nil)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
@@ -222,7 +222,7 @@ func TestOrigenesElAltaComprubaLosCamposConLosLiteralesDelContrato(t *testing.T)
 
 	// Una coordenada como TEXTO se rechaza en vez de convertirse: lo que llega como texto
 	// suele venir de un campo sin validar, y a veces trae una coma decimal.
-	w = pedirDeDatos(t, h, http.MethodPost, "/api/origins", operadorDeSantiago(t),
+	w = pedirDeDatos(t, h, http.MethodPost, "/api/origins", logisticoDeSantiago(t),
 		`{"name":"Patio","address":"Calle 1","lat":"20,0","lng":-75.8}`, nil)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
@@ -236,7 +236,7 @@ func TestOrigenesElAltaComprubaLosCamposConLosLiteralesDelContrato(t *testing.T)
 // un punto de partida en la sucursal de otro mandando su id en la petición.
 func TestOrigenesElAltaLoCuelgaDeLaSucursalDelAlcance(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
-	w := pedirDeDatos(t, h, http.MethodPost, "/api/origins", operadorDeSantiago(t),
+	w := pedirDeDatos(t, h, http.MethodPost, "/api/origins", logisticoDeSantiago(t),
 		`{"name":"Patio","address":"Calle 1","lat":20.0,"lng":-75.8,"branchId":"`+datSucHol.String()+`"}`, nil)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
@@ -278,7 +278,7 @@ func TestOrigenesCorregirYBorrarVanAcotados(t *testing.T) {
 		{http.MethodPatch, "/api/origins/" + datOrigHol.String(), `{"name":"Mío ahora"}`},
 		{http.MethodDelete, "/api/origins/" + datOrigHol.String(), ""},
 	} {
-		w := pedirDeDatos(t, h, caso.metodo, caso.ruta, operadorDeSantiago(t), caso.cuerpo, nil)
+		w := pedirDeDatos(t, h, caso.metodo, caso.ruta, logisticoDeSantiago(t), caso.cuerpo, nil)
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("%s: código %d %s", caso.metodo, w.Code, w.Body.String())
 		}
@@ -288,7 +288,7 @@ func TestOrigenesCorregirYBorrarVanAcotados(t *testing.T) {
 	}
 
 	// El suyo sí.
-	w := pedirDeDatos(t, h, http.MethodPatch, "/api/origins/"+datOrigStg.String(), operadorDeSantiago(t),
+	w := pedirDeDatos(t, h, http.MethodPatch, "/api/origins/"+datOrigStg.String(), logisticoDeSantiago(t),
 		`{"name":"Almacén nuevo","lat":20.5}`, nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
@@ -303,7 +303,7 @@ func TestOrigenesCorregirYBorrarVanAcotados(t *testing.T) {
 		t.Fatalf("un PATCH del nombre borró la dirección: %+v", o)
 	}
 
-	w = pedirDeDatos(t, h, http.MethodDelete, "/api/origins/"+datOrigStg.String(), operadorDeSantiago(t), "", nil)
+	w = pedirDeDatos(t, h, http.MethodDelete, "/api/origins/"+datOrigStg.String(), logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"success":true`) {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
@@ -313,7 +313,7 @@ func TestOrigenesCorregirYBorrarVanAcotados(t *testing.T) {
 // comprobación del alta y plantarlo en la sucursal de otro.
 func TestOrigenesElPatchNoMueveElOrigenDeSucursal(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
-	w := pedirDeDatos(t, h, http.MethodPatch, "/api/origins/"+datOrigStg.String(), operadorDeSantiago(t),
+	w := pedirDeDatos(t, h, http.MethodPatch, "/api/origins/"+datOrigStg.String(), logisticoDeSantiago(t),
 		`{"branchId":"`+datSucHol.String()+`"}`, nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
@@ -333,7 +333,7 @@ func TestAlmacenesSeFiltranPorLasSucursalesVisibles(t *testing.T) {
 	conAccesos(t, almacenesDePrueba())
 	h := montarDeDatos(t, datosDePrueba())
 
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/almacenes", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/almacenes", logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
@@ -392,7 +392,7 @@ func TestAlmacenesElDeUnaSucursalNoVeLasOtrasNiConLaCabecera(t *testing.T) {
 	conAccesos(t, almacenesDePrueba())
 	h := montarDeDatos(t, datosDePrueba())
 
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/almacenes", operadorDeSantiago(t), "",
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/almacenes", logisticoDeSantiago(t), "",
 		map[string]string{alcance.CabeceraSucursal: datSucHol.String()})
 	var salida struct {
 		Sucursales []SucursalConAlmacenes `json:"sucursales"`
@@ -410,7 +410,7 @@ func TestAlmacenesSiAccesosNoContestaEs502ConSuLiteral(t *testing.T) {
 	conAccesos(t, &accesosFalso{fallo: errAccesosCaido})
 	h := montarDeDatos(t, datosDePrueba())
 
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/almacenes", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/almacenes", logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
@@ -426,7 +426,7 @@ func TestAlmacenesElPutComprubaElCuerpoConElLiteralDelContrato(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
 
 	for _, cuerpo := range []string{`no es json`, `{}`, `{"codigo":"STG"}`, `{"codigo":"STG","almacenes":{}}`} {
-		w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", operadorDeSantiago(t), cuerpo, nil)
+		w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t), cuerpo, nil)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("%q: código %d %s", cuerpo, w.Code, w.Body.String())
 		}
@@ -443,7 +443,7 @@ func TestAlmacenesNoSeGuardanLosDeOtraSucursal(t *testing.T) {
 	falso := conAccesos(t, almacenesDePrueba())
 	h := montarDeDatos(t, datosDePrueba())
 
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", operadorDeSantiago(t),
+	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t),
 		`{"codigo":"HOL","almacenes":[]}`, nil)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
@@ -464,7 +464,7 @@ func TestAlmacenesAvisaDeLosQueNoTienenCoordenadas(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
 
 	cuerpo := `{"codigo":"STG","almacenes":[{"nombre":"Central","latitud":20.0,"longitud":-75.8},{"nombre":"Patio nuevo"}]}`
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", operadorDeSantiago(t), cuerpo, nil)
+	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t), cuerpo, nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
@@ -483,7 +483,7 @@ func TestAlmacenesAvisaDeLosQueNoTienenCoordenadas(t *testing.T) {
 
 	// Con todos puestos, el aviso es null: uno vacío en la pantalla se lee como que algo
 	// pasó.
-	w = pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", operadorDeSantiago(t),
+	w = pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t),
 		`{"codigo":"STG","almacenes":[{"nombre":"Central","latitud":20.0,"longitud":-75.8}]}`, nil)
 	leerJSONDeDatos(t, w, &salida)
 	if salida["aviso"] != nil {
@@ -497,7 +497,7 @@ func TestAlmacenesSiAccesosRechazaElCambioEs502ConSuLiteral(t *testing.T) {
 	conAccesos(t, &accesosFalso{fallo: errAccesosCaido})
 	h := montarDeDatos(t, datosDePrueba())
 
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", operadorDeSantiago(t),
+	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t),
 		`{"codigo":"STG","almacenes":[]}`, nil)
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())

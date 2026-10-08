@@ -859,3 +859,44 @@ func TestElIDDeLaRutaSolaYDeLaFormaAntiguaSeLeenAmbos(t *testing.T) {
 		})
 	}
 }
+
+// UN 403 CON `codigo: "sin_permiso_reparto"` NO ES UN RECHAZO DEL APUNTE (08/10/2026).
+//
+// Quien dice que no es el ROL de la persona. Convertirlo en `*Rechazo` marcaría `rechazado`
+// toda su cola y la retendría en la bandeja hasta que alguien decidiera, por algo que se
+// arregla en Accesos. Tiene que salir un error APARTE (`*sincro.SinPermiso`) para que la
+// subida conteste 403 sin anotar nada.
+//
+// LA PAREJA es la de arriba (`TestUn401EsCaidaYUn403EsRechazo` y la tabla de 4xx): el 403 del
+// alcance de sucursal NO lleva `codigo` y sigue siendo rechazo. Sin la pareja, «devolver
+// SinPermiso con cualquier 403» pasaría ésta con nota.
+func TestUn403ConCodigoDeSinPermisoNoEsRechazoPeroUnoSinCodigoSi(t *testing.T) {
+	for _, caso := range []struct {
+		nombre     string
+		cuerpo     string
+		sinPermiso bool
+	}{
+		{"403 del rol, con codigo",
+			`{"error":"No tienes permiso para entrar a Reparto.","codigo":"sin_permiso_reparto"}`, true},
+		{"403 del alcance de sucursal, sin codigo",
+			`{"error":"tu sucursal MOA no está dada de alta en Reparto: pide en la oficina que la den de alta"}`, false},
+		{"403 con OTRO codigo",
+			`{"error":"algo","codigo":"otra_cosa"}`, false},
+	} {
+		t.Run(caso.nombre, func(t *testing.T) {
+			servidor, _ := conRespuesta(t, http.StatusForbidden, caso.cuerpo)
+			_, err := cerrarHoja(t, servidor.URL)
+			if err == nil {
+				t.Fatal("un 403 no puede darse por aplicado")
+			}
+			var sin *sincro.SinPermiso
+			var rechazo *sincro.Rechazo
+			if got := errors.As(err, &sin); got != caso.sinPermiso {
+				t.Fatalf("SinPermiso = %v, se esperaba %v (%v)", got, caso.sinPermiso, err)
+			}
+			if got := errors.As(err, &rechazo); got == caso.sinPermiso {
+				t.Fatalf("Rechazo = %v: tiene que ser lo contrario de SinPermiso (%v)", got, err)
+			}
+		})
+	}
+}

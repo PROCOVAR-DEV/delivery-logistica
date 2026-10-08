@@ -190,7 +190,7 @@ func TestInformeVaAcotadoALaSucursal(t *testing.T) {
 	q := &dobleDePanel{}
 	h := montarDePanel(t, q)
 
-	pedirDePanel(t, h, "/api/reports", tokenDePanel(t, map[string]any{"sub": "u1", "branchId": stgDePanel.String()}))
+	pedirDePanel(t, h, "/api/reports", tokenDePanel(t, map[string]any{"sub": "u1", "role": "LOGISTICO", "branchId": stgDePanel.String()}))
 	if len(q.sucursalVista) != 1 {
 		t.Fatalf("el informe hizo %d consultas, se esperaba 1", len(q.sucursalVista))
 	}

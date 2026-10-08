@@ -125,7 +125,7 @@ func TestUnCamionDeSantiagoNoBajaLaFlotaDeLasOtrasSiete(t *testing.T) {
 
 	h := montarAvisos(t, &dobleAvisos{})
 	w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(),
-		avOperadorStg(t), `{"name":"Camión renombrado"}`)
+		avLogisticoStg(t), `{"name":"Camión renombrado"}`)
 	avCodigo(t, w, http.StatusOK)
 
 	c, hay := recibio(stg)

@@ -46,7 +46,7 @@ func TestQuienVeElEstadoDelWebhook(t *testing.T) {
 	// como texto y aquí también.
 	entran := []string{"DESARROLLADOR", "SUPER ADMIN"}
 	seQuedanFuera := []string{
-		"GERENTE", "ADMINISTRADOR", "SUPERVISOR", "GESTOR", "OPERADOR",
+		"GERENTE", "ADMINISTRADOR", "SUPERVISOR", "GESTOR", "OPERADOR", "LOGISTICO",
 	}
 
 	h, _ := montarRutasDelWebhook(t)

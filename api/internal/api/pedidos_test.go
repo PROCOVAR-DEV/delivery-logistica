@@ -387,7 +387,7 @@ func pedirPedidos(t *testing.T, h http.Handler, metodo, ruta, jwt, cuerpo string
 func tokenDeSantiagoPedidos(t *testing.T) string {
 	t.Helper()
 	return jwtDePedidos(t, map[string]any{
-		"sub": "p-stg", "email": "stg@procovar.cu", "role": "OPERADOR", "branchId": pedidosSucStg.String(),
+		"sub": "p-stg", "email": "stg@procovar.cu", "role": "LOGISTICO", "branchId": pedidosSucStg.String(),
 	})
 }
 

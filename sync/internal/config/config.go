@@ -98,10 +98,23 @@ func Cargar() (Config, error) {
 			fallos = append(fallos, "JWT_SECRET tiene menos de 32 caracteres")
 		}
 	case "cabeceras":
-		// Se deja, pero no es lo que hay que usar con el servicio publicado.
+		// NO SE ADMITE SIN UNA VARIABLE EXPLÍCITA — auditoría de seguridad, 08/10/2026.
+		//
+		// En este modo la identidad sale de `X-Persona`/`X-Sucursal`/`X-Super-Admin`, que
+		// puede escribir CUALQUIERA que llegue al puerto, y el token no existe: no hay roles
+		// que comprobar, así que el control de «quién entra a Reparto» (SUPER ADMIN,
+		// DESARROLLADOR, ADMINISTRADOR, LOGISTICO) NO se aplica. Un valor de entorno que
+		// alguien copia de un ejemplo viejo apagaría en silencio la regla de Jose.
+		// En producción es `SYNC_IDENTIDAD=token` (medido el 08/10/2026).
+		if os.Getenv("SYNC_PERMITIR_CABECERAS") != "1" {
+			fallos = append(fallos,
+				"SYNC_IDENTIDAD=cabeceras NO comprueba roles (cualquiera que llegue al puerto entra "+
+					"a Reparto sin control): usa SYNC_IDENTIDAD=token; sólo si de verdad hay un "+
+					"proxy que verifica el token delante, añade SYNC_PERMITIR_CABECERAS=1")
+		}
 	default:
 		fallos = append(fallos,
-			`falta SYNC_IDENTIDAD=token (o =cabeceras si hay un proxy delante; ver internal/identidad)`)
+			`falta SYNC_IDENTIDAD=token (=cabeceras sólo con SYNC_PERMITIR_CABECERAS=1 y un proxy que verifique el token delante; ver internal/identidad)`)
 	}
 	if c.TopeBajada <= 0 {
 		fallos = append(fallos, "SYNC_TOPE_BAJADA tiene que ser mayor que cero")

@@ -90,7 +90,7 @@ func TestAppsSoloEnseñaAccesosAlAdminGlobal(t *testing.T) {
 	}{
 		{"admin global", map[string]any{"sub": "s", "role": "SUPER ADMIN"}, true},
 		{"admin de sucursal", map[string]any{"sub": "a", "role": "ADMINISTRADOR", "branchId": holDePanel.String()}, false},
-		{"operador", map[string]any{"sub": "o", "role": "operador", "branchId": holDePanel.String()}, false},
+		{"logistico", map[string]any{"sub": "o", "role": "LOGISTICO", "branchId": holDePanel.String()}, false},
 	}
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestAppsSinSesionEs401(t *testing.T) {
 func TestAppsNoConsultaNada(t *testing.T) {
 	q := &dobleDePanel{}
 	h := montarDePanel(t, q)
-	pedirDePanel(t, h, "/api/apps", tokenDePanel(t, map[string]any{"sub": "u1", "branchId": holDePanel.String()}))
+	pedirDePanel(t, h, "/api/apps", tokenDePanel(t, map[string]any{"sub": "u1", "role": "LOGISTICO", "branchId": holDePanel.String()}))
 
 	if len(q.sucursalVista) != 0 {
 		t.Errorf("/api/apps hizo %d consultas acotadas: no tiene que hacer ninguna", len(q.sucursalVista))

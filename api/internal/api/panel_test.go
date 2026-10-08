@@ -202,7 +202,7 @@ func TestPanelDevuelveLosOchoNumerosDelContrato(t *testing.T) {
 	}
 	h := montarDePanel(t, q)
 
-	w := pedirDePanel(t, h, "/api/dashboard", tokenDePanel(t, map[string]any{"sub": "u1", "branchId": holDePanel.String()}))
+	w := pedirDePanel(t, h, "/api/dashboard", tokenDePanel(t, map[string]any{"sub": "u1", "role": "LOGISTICO", "branchId": holDePanel.String()}))
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
@@ -243,12 +243,12 @@ func TestPanelCuentaPorSucursalYNoPorCuenta(t *testing.T) {
 	q1 := nuevo()
 	h1 := montarDePanel(t, q1)
 	w1 := pedirDePanel(t, h1, "/api/dashboard",
-		tokenDePanel(t, map[string]any{"sub": "quien-importo-los-pedidos", "branchId": holDePanel.String()}))
+		tokenDePanel(t, map[string]any{"sub": "quien-importo-los-pedidos", "role": "LOGISTICO", "branchId": holDePanel.String()}))
 
 	q2 := nuevo()
 	h2 := montarDePanel(t, q2)
 	w2 := pedirDePanel(t, h2, "/api/dashboard",
-		tokenDePanel(t, map[string]any{"sub": "el-logistico-de-holguin", "branchId": holDePanel.String()}))
+		tokenDePanel(t, map[string]any{"sub": "el-logistico-de-holguin", "role": "LOGISTICO", "branchId": holDePanel.String()}))
 
 	if w1.Body.String() != w2.Body.String() {
 		t.Errorf("dos cuentas de la misma sucursal ven cosas distintas:\n%s\n%s", w1.Body, w2.Body)

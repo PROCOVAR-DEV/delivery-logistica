@@ -196,7 +196,7 @@ func TestSinTokenEs401ConElMensajeDelContrato(t *testing.T) {
 }
 
 func TestTokenConFirmaCambiadaEs401(t *testing.T) {
-	bueno := token(t, map[string]any{"sub": "p-1", "role": "OPERADOR", "branchId": stg.String()})
+	bueno := token(t, map[string]any{"sub": "p-1", "role": "LOGISTICO", "branchId": stg.String()})
 
 	// SE CAMBIA UN BIT DE LA FIRMA DECODIFICADA, no un carácter del base64.
 	//
@@ -236,7 +236,7 @@ func TestTokenSinFirmaEs401(t *testing.T) {
 }
 
 func TestTokenCaducadoEs401(t *testing.T) {
-	jwt := token(t, map[string]any{"sub": "p-1", "role": "OPERADOR", "branchId": stg.String(),
+	jwt := token(t, map[string]any{"sub": "p-1", "role": "LOGISTICO", "branchId": stg.String(),
 		"exp": time.Now().Add(-8 * 24 * time.Hour).Unix()})
 	w := pedir(t, servidor(t), http.MethodGet, "/api/vehicles", jwt, nil)
 	if w.Code != http.StatusUnauthorized {
@@ -248,7 +248,7 @@ func TestTokenCaducadoEs401(t *testing.T) {
 // pidiéndolo por cabecera.
 func TestPorHttpUnOperadorNoLlegaAOtraSucursal(t *testing.T) {
 	h := servidor(t)
-	jwt := token(t, map[string]any{"sub": "p-1", "email": "stg@procovar.cu", "role": "OPERADOR", "branchId": stg.String()})
+	jwt := token(t, map[string]any{"sub": "p-1", "email": "stg@procovar.cu", "role": "LOGISTICO", "branchId": stg.String()})
 
 	w := pedir(t, h, http.MethodGet, "/api/vehicles", jwt, map[string]string{"X-Sucursal-Id": hol.String()})
 	if w.Code != http.StatusOK {
@@ -297,7 +297,7 @@ func TestPorHttpUnaSucursalQueNoExisteNoDevuelveCero(t *testing.T) {
 // ocho sucursales. Y que la cabecera no lo rescate ni lo agrande.
 func TestPorHttpUnaSucursalQueRepartoNoConoceEsUn403QueLaNombra(t *testing.T) {
 	h := servidor(t)
-	jwt := token(t, map[string]any{"sub": "p-2", "email": "moa@procovar.cu", "role": "OPERADOR",
+	jwt := token(t, map[string]any{"sub": "p-2", "email": "moa@procovar.cu", "role": "LOGISTICO",
 		"branchId": "MOA"})
 
 	for _, cab := range []map[string]string{nil, {"X-Sucursal-Id": hol.String()}, {"X-Sucursal-Id": "basura"}} {
@@ -316,7 +316,7 @@ func TestPorHttpUnaSucursalQueRepartoNoConoceEsUn403QueLaNombra(t *testing.T) {
 // «no existe -> todas» y un id real le dejaba mirar esa sucursal.
 func TestPorHttpSinSucursalLaCabeceraNoAbreNada(t *testing.T) {
 	h := servidor(t)
-	jwt := token(t, map[string]any{"sub": "p-2", "email": "sin@procovar.cu", "role": "OPERADOR"})
+	jwt := token(t, map[string]any{"sub": "p-2", "email": "sin@procovar.cu", "role": "LOGISTICO"})
 
 	for _, cab := range []string{"basura", stg.String(), hol.String(), "STG"} {
 		w := pedir(t, h, http.MethodGet, "/api/vehicles", jwt, map[string]string{"X-Sucursal-Id": cab})
@@ -345,7 +345,7 @@ func TestSuperAdminEligeSucursalPorCabecera(t *testing.T) {
 
 // El rol se comprueba ANTES que nada en las rutas de administración.
 func TestCrearSucursalExigeAdmin(t *testing.T) {
-	jwt := token(t, map[string]any{"sub": "p-4", "role": "OPERADOR", "branchId": stg.String()})
+	jwt := token(t, map[string]any{"sub": "p-4", "role": "LOGISTICO", "branchId": stg.String()})
 	w := pedir(t, servidor(t), http.MethodPost, "/api/branches", jwt, nil)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("código %d", w.Code)

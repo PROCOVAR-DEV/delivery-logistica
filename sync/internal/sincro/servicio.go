@@ -140,6 +140,24 @@ type Rechazo struct {
 
 func (r *Rechazo) Error() string { return r.Motivo }
 
+// SinPermiso: el reparto contestó 403 con `codigo: "sin_permiso_reparto"`: el ROL de la
+// persona no entra a Reparto. NO ES UN RECHAZO Y NO SE ANOTA COMO TAL.
+//
+// Un [Rechazo] marca el apunte `rechazado` en la bandeja y lo retiene hasta que una persona
+// decida. Aquí no hay nada que decidir sobre el apunte: es la PERSONA la que no tiene permiso,
+// y marcarle rechazado todo lo que tenía en la cola sería destruirle el trabajo pendiente por
+// algo que se arregla en Accesos (dándole el rol). El apunte se queda como estaba, sin
+// anotar, y `/sync/subida` contesta 403 con el mismo cuerpo que el resto de Reparto.
+//
+// Distinto del 403 del alcance de sucursal (sin `codigo`), que sigue siendo un [Rechazo].
+type SinPermiso struct {
+	// Lo que dijo el reparto, para el registro. Al cliente no se le reenvía: el cuerpo del 403
+	// es siempre el mismo literal (`identidad.MsgSinPermisoReparto`).
+	Motivo string
+}
+
+func (e *SinPermiso) Error() string { return "sin permiso de reparto: " + e.Motivo }
+
 type Opciones struct {
 	Datos     store.Datos
 	Origen    Origen

@@ -17,6 +17,7 @@ package identidad
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -75,6 +76,13 @@ func (i Identidad) Ve(sucursal uuid.UUID) bool {
 }
 
 var ErrSinSesion = errors.New("sin sesión")
+
+// El 403 de «tu rol no entra a Reparto»: literales idénticos a los de `reparto-api`
+// (`auth.MsgSinPermisoReparto`, `auth.CodigoSinPermisoReparto`).
+const (
+	MsgSinPermisoReparto    = "No tienes permiso para entrar a Reparto."
+	CodigoSinPermisoReparto = "sin_permiso_reparto"
+)
 
 // Fuente saca la identidad de una petición. Se cambia entera el día que el token se
 // verifique aquí, sin tocar ningún handler.
@@ -139,6 +147,13 @@ func Exigir(fuente Fuente, siguiente http.Handler) http.Handler {
 		if errors.Is(err, ErrNoSePudoComprobar) {
 			httpx.Fallo(w, http.StatusServiceUnavailable,
 				"No se pudo comprobar tu sucursal ahora mismo. Tu sesión sigue valiendo: se reintenta solo.")
+			return
+		}
+		if errors.Is(err, ErrSinPermisoDeReparto) {
+			// El MISMO 403 y el mismo cuerpo que `reparto-api` (`auth.PermitirReparto`). El
+			// registro lleva rol(es), sucursal y ruta —viene en el error— y nunca el token.
+			slog.Warn("sin permiso de reparto", "motivo", err, "ruta", r.URL.Path)
+			httpx.FalloConCodigo(w, http.StatusForbidden, MsgSinPermisoReparto, CodigoSinPermisoReparto)
 			return
 		}
 		if err != nil {

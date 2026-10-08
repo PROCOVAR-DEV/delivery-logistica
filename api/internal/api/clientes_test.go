@@ -304,9 +304,9 @@ func b64DeDatos(t *testing.T, v any) string {
 
 // deSantiago: un operador que pertenece a Santiago. Es quien no puede ver Holguín ni
 // pidiéndolo.
-func operadorDeSantiago(t *testing.T) string {
+func logisticoDeSantiago(t *testing.T) string {
 	return tokenDeDatos(t, map[string]any{"sub": "p-stg", "email": "stg@procovar.cu",
-		"role": "operator", "branchId": datSucStg.String()})
+		"role": "LOGISTICO", "branchId": datSucStg.String()})
 }
 
 // superAdmin: administrador SIN sucursal. Es el único que ve las ocho y el único que toca
@@ -347,7 +347,7 @@ func leerJSONDeDatos(t *testing.T, w *httptest.ResponseRecorder, destino any) {
 func TestClientesNoSeVenLosDeOtraSucursalNiPidiendolaPorCabecera(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
 
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers", operadorDeSantiago(t), "",
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers", logisticoDeSantiago(t), "",
 		map[string]string{alcance.CabeceraSucursal: datSucHol.String()})
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
@@ -376,7 +376,7 @@ func TestClientesNoSeVenLosDeOtraSucursalNiPidiendolaPorCabecera(t *testing.T) {
 // esconderlo haría desaparecer clientes que sí se atienden, sin decir nada.
 func TestClientesElManualSinCodigoSeVeSiempre(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers", logisticoDeSantiago(t), "", nil)
 
 	var salida ClientesSalida
 	leerJSONDeDatos(t, w, &salida)
@@ -397,7 +397,7 @@ func TestClientesElFiltroDeLaQueryNoAmpliaElAlcance(t *testing.T) {
 	d := datosDePrueba()
 	h := montarDeDatos(t, d)
 
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers?sucursalCodigo=HOL", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers?sucursalCodigo=HOL", logisticoDeSantiago(t), "", nil)
 	var salida ClientesSalida
 	leerJSONDeDatos(t, w, &salida)
 	if len(salida.Customers) != 0 {
@@ -469,7 +469,7 @@ func TestClientesElFiltroPorKilometrosMideDesdeElAlmacen(t *testing.T) {
 	}}}
 
 	h := montarDeDatos(t, datosDePrueba())
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers?kmMax=5", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers?kmMax=5", logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
@@ -521,7 +521,7 @@ func TestClientesNoMideDesdeUnAlmacenDeBaja(t *testing.T) {
 	}}}
 
 	h := montarDeDatos(t, datosDePrueba())
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers?kmMax=5", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers?kmMax=5", logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
@@ -543,7 +543,7 @@ func TestClientesSiAccesosNoContestaSeListaSinMedir(t *testing.T) {
 	Accesos = &accesosFalso{fallo: errAccesosCaido}
 
 	h := montarDeDatos(t, datosDePrueba())
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers?kmMax=5", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/customers?kmMax=5", logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("Accesos caído no puede tumbar la lista de clientes: %d %s", w.Code, w.Body.String())
 	}

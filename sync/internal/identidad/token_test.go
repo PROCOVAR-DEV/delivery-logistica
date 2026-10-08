@@ -56,6 +56,7 @@ func TestUnTokenBuenoEntraConSuSucursal(t *testing.T) {
 	suc := uuid.New()
 	id, err := conToken(t, firmar(t, map[string]any{
 		"sub":      "persona-1",
+		"role":     "LOGISTICO",
 		"branchId": suc.String(),
 		"exp":      time.Now().Add(time.Hour).Unix(),
 	}, "HS256"))
@@ -102,7 +103,7 @@ func TestSinSucursalYSinSerSuperAdminNoSeVeNada(t *testing.T) {
 	// entonces un usuario sin sucursal ve todas eso esta malisimo».
 	// Los cinco roles de la tabla `role` de Accesos que pertenecen a UNA sucursal.
 	for _, rol := range []string{
-		"", "OPERADOR", "GESTOR", "SUPERVISOR", "ADMINISTRADOR", "GERENTE",
+		"", "OPERADOR", "GESTOR", "SUPERVISOR", "ADMINISTRADOR", "GERENTE", "LOGISTICO",
 	} {
 		cuerpo := map[string]any{
 			"sub":      "alguien",
@@ -207,6 +208,7 @@ func TestSinCabeceraNoHaySesion(t *testing.T) {
 func TestElTokenVerificadoSeGuardaParaReenviarlo(t *testing.T) {
 	token := firmar(t, map[string]any{
 		"sub":      "persona-1",
+		"role":     "LOGISTICO",
 		"branchId": uuid.New().String(),
 		"exp":      time.Now().Add(time.Hour).Unix(),
 	}, "HS256")
@@ -233,7 +235,7 @@ func TestUnTokenQueNoPasaNoDejaTokenQueReenviar(t *testing.T) {
 			"exp": time.Now().Add(-2 * time.Hour).Unix(),
 		}, "HS256"),
 		"sin sucursal y sin rol que vea todo": firmar(t, map[string]any{
-			"sub": "x", "role": "GESTOR",
+			"sub": "x", "role": "LOGISTICO",
 			"exp": time.Now().Add(time.Hour).Unix(),
 		}, "HS256"),
 	}

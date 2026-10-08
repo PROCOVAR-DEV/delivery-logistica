@@ -117,7 +117,7 @@ func TestEventosConUnaSucursalQueRepartoNoConoceEsUn403QueLaNombra(t *testing.T)
 		return w
 	}
 
-	w := pedirCon(map[string]any{"sub": "u-moa", "role": "OPERADOR", "branchId": fantasma})
+	w := pedirCon(map[string]any{"sub": "u-moa", "role": "LOGISTICO", "branchId": fantasma})
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("código %d, se esperaba 403", w.Code)
 	}
@@ -129,7 +129,7 @@ func TestEventosConUnaSucursalQueRepartoNoConoceEsUn403QueLaNombra(t *testing.T)
 	}
 
 	// Sin sucursal y sin rol que lo vea todo: el literal de siempre, intacto.
-	w = pedirCon(map[string]any{"sub": "u-sin", "role": "OPERADOR"})
+	w = pedirCon(map[string]any{"sub": "u-sin", "role": "LOGISTICO"})
 	if w.Code != http.StatusForbidden || w.Body.String() != alcance.ErrSinAlcance.Error() {
 		t.Fatalf("sin sucursal: %d %q", w.Code, w.Body.String())
 	}

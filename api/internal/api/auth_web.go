@@ -53,6 +53,7 @@ import (
 	"strings"
 	"time"
 
+	"procovar/reparto-api/internal/auth"
 	"procovar/reparto-api/internal/config"
 	"procovar/reparto-api/internal/httpx"
 )
@@ -449,7 +450,7 @@ func (p *personaDeAccesos) RolesDeVerdad() []string {
 	roles = append(roles, p.Roles...)
 	if p.EsSuperAdmin {
 		for _, r := range roles {
-			if strings.EqualFold(strings.TrimSpace(r), "SUPER ADMIN") {
+			if auth.MismoRol(r, "SUPER ADMIN") {
 				return roles
 			}
 		}
@@ -463,9 +464,11 @@ func (p *personaDeAccesos) RolesDeVerdad() []string {
 // por el orden en que Accesos devolvió su lista.
 func (p *personaDeAccesos) RolPrincipal() string {
 	roles := p.RolesDeVerdad()
-	for _, mandan := range []string{"DESARROLLADOR", "SUPER ADMIN", "ADMINISTRADOR"} {
+	// LOGISTICO va el último de los que mandan: quien es [GESTOR, LOGISTICO] entra a Reparto
+	// como LOGISTICO, y que `role` (y `/api/me`) diga GESTOR sería decirle a la app que no.
+	for _, mandan := range []string{"DESARROLLADOR", "SUPER ADMIN", "ADMINISTRADOR", "LOGISTICO"} {
 		for _, r := range roles {
-			if strings.EqualFold(strings.TrimSpace(r), mandan) {
+			if auth.MismoRol(r, mandan) {
 				return mandan
 			}
 		}
@@ -579,6 +582,14 @@ func (c *ssoDeAccesos) Canjear(ctx context.Context, codigo string) (*personaDeAc
 			Roles []string `json:"roles"`
 		} `json:"memberships"`
 		ReturnTo string `json:"returnTo"`
+		// LOS ROLES DE LA PERSONA, de primer nivel (Accesos, 08/10/2026): el rol por defecto y
+		// los de TODAS sus membresías sin repetir, más SUPER ADMIN si la cuenta es
+		// `isSystemAdmin`. Es lo que vale para decidir si entra a Reparto.
+		// `memberships[].roles` NO lo es: es el `member.role` de better-auth, uno por
+		// membresía y de otro vocabulario, así que una persona con [GESTOR, LOGISTICO]
+		// aparecía ahí sólo como GESTOR y se quedaba fuera de su propio sistema.
+		Role  string   `json:"role"`
+		Roles []string `json:"roles"`
 	}
 	if err := json.Unmarshal(crudo, &r); err != nil {
 		return nil, fmt.Errorf("Accesos contestó algo que no se entiende: %w", err)
@@ -601,14 +612,79 @@ func (c *ssoDeAccesos) Canjear(ctx context.Context, codigo string) (*personaDeAc
 	// toma la primera, que Accesos devuelve de la más reciente a la más antigua.
 	// Para quien lleve dos habrá que decidir cómo se elige; hoy no hay nadie así
 	// y adivinarlo ahora sería inventar la regla.
-	if len(r.Memberships) > 0 {
-		principal := r.Memberships[0]
-		persona.Roles = principal.Roles
-		if principal.Organization != nil {
-			persona.CodigoSucursal = strings.ToUpper(strings.TrimSpace(principal.Organization.Slug))
-		}
+	//
+	// LOS ROLES: los de PRIMER NIVEL del intercambio (`role` + `roles`) y, SOLO si vienen vacíos
+	// (un Accesos viejo), los de las membresías. En cualquier caso SIN el `admin` heredado.
+	//
+	// Por qué no la unión de todo, que es lo que había (auditoría, 08/10/2026): los roles de una
+	// membresía son el `member.role` de better-auth, otro vocabulario (owner, admin, member…).
+	// Un GERENTE con `member.role = 'admin'` salía con `admin` en el token, y `admin` a secas es
+	// el PUENTE de la web vieja (`rolAdminHeredado`): entraba a Reparto y además era `EsAdmin()`.
+	// Accesos nunca firma `admin` —sólo lo emitía la web vieja—, así que aquí no se acuña nunca,
+	// venga de donde venga.
+	//
+	// Datos medidos HOY en producción (08/10/2026): los `member.role` reales son GESTOR,
+	// OPERADOR, SUPERVISOR, ADMINISTRADOR y `member`; ninguno `admin`.
+	//
+	// ## EL LÍMITE QUE QUEDA (no se rediseña aquí; lo documenta `TestLimiteConocido…`)
+	//
+	// LA SUCURSAL sale de la PRIMERA membresía, y los roles son de LA PERSONA (el primer nivel
+	// de Accesos junta los de todas sus membresías). Con una sola membresía —que es lo que hay
+	// hoy: **ningún usuario tiene más de una**, medido el 08/10/2026— no se nota. Quien tuviera
+	// GESTOR en una sucursal y ADMINISTRADOR en otra entraría como ADMINISTRADOR **en la
+	// primera**. ANTES DE DARLE UNA SEGUNDA MEMBRESÍA A ALGUIEN HAY QUE LIGAR EL ROL A LA SUCURSAL
+	// (aquí y en el alcance), o el rol más alto de una se lo lleva a la otra.
+	var porMembresia [][]string
+	for _, m := range r.Memberships {
+		porMembresia = append(porMembresia, m.Roles)
+	}
+	persona.Roles = rolesDeLaPersona(r.Role, r.Roles, porMembresia)
+	if len(r.Memberships) > 0 && r.Memberships[0].Organization != nil {
+		persona.CodigoSucursal = strings.ToUpper(strings.TrimSpace(r.Memberships[0].Organization.Slug))
 	}
 	return persona, nil
+}
+
+// rolesDeLaPersona elige los roles que van al token. Ver [ssoDeAccesos.Canjear].
+func rolesDeLaPersona(role string, roles []string, porMembresia [][]string) []string {
+	salida := unirRoles([]string{role}, roles)
+	if len(salida) == 0 {
+		salida = unirRoles(porMembresia...)
+	}
+	// Se filtra al final y de TODO: `admin` es el puente de la web vieja y no se acuña.
+	filtrados := salida[:0:0]
+	for _, r := range salida {
+		if !auth.MismoRol(r, "admin") {
+			filtrados = append(filtrados, r)
+		}
+	}
+	return filtrados
+}
+
+// unirRoles junta listas de roles sin repetir, en el orden en que aparecen. Se repite por la
+// misma comparación que el resto de la casa ([auth.MismoRol]: sin espacios, mayúsculas ASCII).
+// Se queda con la primera forma escrita.
+func unirRoles(grupos ...[]string) []string {
+	var salida []string
+	for _, g := range grupos {
+		for _, r := range g {
+			r = strings.TrimSpace(r)
+			if r == "" {
+				continue
+			}
+			repetido := false
+			for _, ya := range salida {
+				if auth.MismoRol(ya, r) {
+					repetido = true
+					break
+				}
+			}
+			if !repetido {
+				salida = append(salida, r)
+			}
+		}
+	}
+	return salida
 }
 
 func (c *ssoDeAccesos) base() string {

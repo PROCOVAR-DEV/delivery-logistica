@@ -865,7 +865,7 @@ func (s *Servidor) eventos(w http.ResponseWriter, r *http.Request) {
 // lo que se queda viva cuando el navegador cierra la pestaña sin avisar, y con doscientas
 // pestañas al día eso es un proceso que crece hasta que alguien lo reinicia.
 func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Difusor) {
-	u, err := s.verif.DelaPeticion(r)
+	u, err := s.verif.DelaPeticionDeReparto(r)
 	if err != nil {
 		// EL 401 DE ESTA RUTA ES MUDO EN EL NAVEGADOR, Y POR ESO SE ESCRIBE ENTERO AQUÍ.
 		//
@@ -889,6 +889,13 @@ func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Di
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = io.WriteString(w, "Unauthorized")
+		return
+	}
+
+	// Quien no entra a Reparto tampoco recibe sus avisos en vivo: mismo 403, mismo cuerpo
+	// JSON que `Exigir` (esta ruta no pasa por él). `EventSource` no ve el código, pero un
+	// cliente que no sea el navegador sí, y el canal sin permiso no se abre en ningún caso.
+	if !auth.PermitirReparto(w, r, u) {
 		return
 	}
 

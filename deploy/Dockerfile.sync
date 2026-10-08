@@ -38,6 +38,16 @@ RUN go mod download
 
 COPY sync/ .
 
+# UN FICHERO DE docs/ QUE UNA PRUEBA LEE TIENE QUE VIAJAR — 08/10/2026
+#
+# `internal/identidad/roles_de_reparto_casos_test.go` lee `docs/roles-de-reparto.casos.json`, EL
+# MISMO fichero que lee la prueba gemela de `api/internal/auth`: es lo que ata la lista de quién
+# entra a Reparto del sincronizador con la de la API. Si falta, la prueba hace `Fatalf` y ESTA
+# IMAGEN NO CONSTRUYE (Dokploy dejaría corriendo el contenedor viejo).
+#
+# Desde `/src/internal/identidad`, `../../../docs/…` cae en `/docs/…`.
+COPY docs/roles-de-reparto.casos.json /docs/roles-de-reparto.casos.json
+
 ENV CGO_ENABLED=0
 # LAS PRUEBAS, ANTES DE CONSTRUIR. No es celo: es lo que faltaba el 16/09/2026.
 #

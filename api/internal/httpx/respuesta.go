@@ -12,10 +12,15 @@ import (
 	"net/http"
 )
 
-// CuerpoError es el contrato: {"error": "..."} y nada más. La APK y la web leen ese
-// campo y lo enseñan tal cual.
+// CuerpoError es el contrato: {"error": "..."}. La APK y la web leen ese campo y lo
+// enseñan tal cual.
+//
+// `codigo` va SÓLO en los pocos errores donde el cliente tiene que hacer algo distinto según
+// cuál sea (hoy: `sin_permiso_reparto`, ver [ErrorConCodigo]); en el resto se omite y el
+// cuerpo sigue siendo `{"error":"..."}` byte por byte.
 type CuerpoError struct {
-	Error string `json:"error"`
+	Error  string `json:"error"`
+	Codigo string `json:"codigo,omitempty"`
 }
 
 // Mensajes literales del contrato. Van aquí como constantes y no sueltos por los
@@ -98,6 +103,12 @@ func JSON(w http.ResponseWriter, r *http.Request, codigo int, cuerpo any) {
 // Error escribe {"error": mensaje} con el código dado.
 func Error(w http.ResponseWriter, r *http.Request, codigo int, mensaje string) {
 	JSON(w, r, codigo, CuerpoError{Error: mensaje})
+}
+
+// ErrorConCodigo es Error más la marca que lee una máquina: {"error": mensaje, "codigo": c}.
+// El mensaje sigue siendo la frase en español que lee la persona; el código NO la sustituye.
+func ErrorConCodigo(w http.ResponseWriter, r *http.Request, codigo int, mensaje, marca string) {
+	JSON(w, r, codigo, CuerpoError{Error: mensaje, Codigo: marca})
 }
 
 // ErrorInterno es el 500. El detalle va al REGISTRO, nunca al cliente: los errores de

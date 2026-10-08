@@ -897,7 +897,7 @@ func almacenesDelTablero() *accesosFalso {
 func tokenTab(t *testing.T, sucursal string) string {
 	t.Helper()
 	reclamos := map[string]any{
-		"sub": "p-logistico", "role": "OPERADOR",
+		"sub": "p-logistico", "role": "LOGISTICO",
 		"exp": time.Now().Add(time.Hour).Unix(),
 	}
 	if sucursal != "" {

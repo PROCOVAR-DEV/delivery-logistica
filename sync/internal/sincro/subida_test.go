@@ -614,3 +614,73 @@ func TestUnRepetidoSinDescartadosNoInventaNada(t *testing.T) {
 			string(segunda[0].Descartados))
 	}
 }
+
+// 7 · UN 403 DE «TU ROL NO ENTRA A REPARTO» NO DESTRUYE LA COLA (08/10/2026).
+//
+// Si el reparto contesta 403 con `codigo: "sin_permiso_reparto"`, la subida contesta 403 con
+// ese mismo cuerpo y NO ANOTA NADA: ni rechazo, ni apunte, ni la cuenta de la subida. El
+// apunte se queda pendiente en el aparato y sube solo el día que se le dé el rol en Accesos.
+// Marcarlo `rechazado` —lo que hacía cualquier 4xx— dejaría toda su cola retenida en la
+// bandeja, pidiendo a una persona que decida sobre algo que no es del apunte.
+func TestSinPermisoDeRepartoNoMarcaNadaRechazadoYContesta403(t *testing.T) {
+	b := montar(t)
+	b.aplicador.responde = func(p Peticion) (*uuid.UUID, error) {
+		return nil, &SinPermiso{Motivo: "No tienes permiso para entrar a Reparto."}
+	}
+
+	apuntes := []apunteEntrada{
+		{Clave: "01J8H001", Hecho: enPunto(t, "2026-09-14T10:00:00Z"),
+			Metodo: http.MethodPost, Ruta: "/api/routes", Cuerpo: json.RawMessage(`{"orderIds":["p1"]}`)},
+		{Clave: "01J8H002", Hecho: enPunto(t, "2026-09-14T10:01:00Z"),
+			Metodo: http.MethodPost, Ruta: "/api/routes", Cuerpo: json.RawMessage(`{"orderIds":["p2"]}`)},
+	}
+	w, _ := b.subir(apuntes, b.quien)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("código %d: %s", w.Code, w.Body.String())
+	}
+	if got := strings.TrimSpace(w.Body.String()); got !=
+		`{"error":"No tienes permiso para entrar a Reparto.","codigo":"sin_permiso_reparto"}` {
+		t.Fatalf("cuerpo %q", got)
+	}
+	// NADA anotado: ni apuntes, ni rechazos, ni la cuenta de la subida.
+	if len(b.base.apuntes) != 0 || len(b.base.rechazos) != 0 {
+		t.Fatalf("la cola tenía que quedar intacta: apuntes=%v rechazos=%v", b.base.apuntes, b.base.rechazos)
+	}
+	if len(b.base.subidas) != 0 {
+		t.Fatalf("no se anota la subida: %+v", b.base.subidas)
+	}
+	// Se cortó en el primero: el segundo ni se intentó (sería otro 403 igual).
+	if len(b.aplicador.llamadas) != 1 {
+		t.Fatalf("llamadas al reparto: %d", len(b.aplicador.llamadas))
+	}
+
+	// Y en cuanto la persona tiene el rol, la MISMA cola sube entera y sin marcas de antes.
+	creada := uuid.New()
+	b.aplicador.responde = func(p Peticion) (*uuid.UUID, error) { return &creada, nil }
+	_, res := b.subir(apuntes, b.quien)
+	if len(res) != 2 || res[0].Estado != EstadoAplicado || res[1].Estado != EstadoAplicado {
+		t.Fatalf("con el rol dado, la cola tenía que subir entera: %+v", res)
+	}
+}
+
+// LA PAREJA: el 403 del alcance (un `*Rechazo`, sin `codigo`) SIGUE marcando el apunte
+// rechazado y la subida sigue contestando 200. Sin ella, «cualquier error es SinPermiso»
+// pasaría la de arriba.
+func TestUnRechazoDeAlcanceSigueSiendoRechazoYContesta200(t *testing.T) {
+	b := montar(t)
+	b.aplicador.responde = func(p Peticion) (*uuid.UUID, error) {
+		return nil, &Rechazo{Motivo: "tu sucursal MOA no está dada de alta en Reparto"}
+	}
+	w, res := b.subir([]apunteEntrada{{
+		Clave: "01J8H010", Hecho: enPunto(t, "2026-09-14T10:00:00Z"),
+		Metodo: http.MethodPost, Ruta: "/api/routes",
+	}}, b.quien)
+
+	if w.Code != http.StatusOK || len(res) != 1 || res[0].Estado != EstadoRechazado {
+		t.Fatalf("tenía que salir 200 y rechazado: %d %+v", w.Code, res)
+	}
+	if _, hay := b.base.rechazos[llave(b.aparato.ID, "01J8H010")]; !hay {
+		t.Fatal("el rechazo del alcance tenía que quedar en la bandeja")
+	}
+}

@@ -98,6 +98,9 @@ func puertaDePrueba(t *testing.T, accesos string, llave string) http.Handler {
 	rt := httpx.NuevoRouter(httpx.IDDePeticion, httpx.ConRegistro(reg))
 	s.rutasAuthWeb(rt, nil, nil)
 	rt.ManejarFunc(http.MethodGet, "/api/me", s.yo)
+	// `/api/apps` pasa por `Exigir` como cualquier ruta de Reparto: es la que prueba si la
+	// cookie recién escrita ENTRA o recibe el 403 de «no tienes permiso».
+	rt.ManejarFunc(http.MethodGet, "/api/apps", s.apps, s.verif.Exigir)
 	return rt.Handler()
 }
 

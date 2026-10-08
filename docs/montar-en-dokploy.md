@@ -104,6 +104,13 @@ vacía y el servicio contesta **401 a todo**. El cliente lee un 401 que no se ar
 renovando como «se acabó la sesión» y echa al logístico a la pantalla de acceso justo
 cuando le vuelve la señal. El porqué entero, en `docs/despliegue.md` §3.3.
 
+**`SYNC_PERMITIR_CABECERAS` NO se pone** (08/10/2026). `SYNC_IDENTIDAD=cabeceras` ni siquiera
+arranca sin `SYNC_PERMITIR_CABECERAS=1`: en ese modo la identidad sale de cabeceras que escribe
+cualquiera que llegue al puerto y **no hay token, o sea que no hay roles que comprobar**: la
+regla «solo SUPER ADMIN, DESARROLLADOR, ADMINISTRADOR y LOGISTICO entran a Reparto» no se
+aplicaría. El `docker-compose.yml` no la pone y en Dokploy tampoco debe ponerse; la línea de
+error de arranque lo dice.
+
 Se llama **`REPARTO_URL`**, no `REPARTO_API_URL`. Y las tres de abajo son obligatorias: sin
 ellas el servicio **se niega a arrancar** y dice cuáles faltan, que es lo correcto.
 

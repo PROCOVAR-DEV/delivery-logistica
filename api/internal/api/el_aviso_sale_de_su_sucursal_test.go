@@ -15,7 +15,7 @@ package api
 //  2. **un aviso SIN sucursal le sigue llegando a TODOS** — el catálogo, los ajustes, la
 //     lista de sucursales y el canal con PEDIDO. Éste es el fallo peor de los dos, porque
 //     no falla: la pantalla se queda vieja, no hay error y no sale en ningún registro;
-//  3. a un OPERADOR de Holguín no le llega lo de Santiago, comprobado contra el canal HTTP
+//  3. a un LOGISTICO de Holguín no le llega lo de Santiago, comprobado contra el canal HTTP
 //     de verdad y no leyendo el código; y su gemela en positivo, que lo suyo SÍ le llega.
 //
 // Y la trampa que casi se cuela al escribir esto: **el freno de quince segundos era por
@@ -608,13 +608,13 @@ func TestAUnOperadorDeHolguinNoLeLlegaElAvisoDeSantiago(t *testing.T) {
 	// prueba que se cuelga en vez de fallar— en su versión de Go.
 	t.Cleanup(srv.Close)
 
-	hol := abrirElCanal(t, srv.URL, "OPERADOR", "HOL")
+	hol := abrirElCanal(t, srv.URL, "LOGISTICO", "HOL")
 	bus.AvisarDe(CambioTablero, idDeSucursal(t, "STG").String(), nil)
 
 	// El latido normal son veinte segundos, así que en medio segundo por este cable no
 	// puede salir nada si el corte está bien hecho.
 	nadaPorElCable(t, hol, 500*time.Millisecond,
-		"Es el tablero de Santiago, y quien escucha es un OPERADOR de Holguín. Saber que "+
+		"Es el tablero de Santiago, y quien escucha es un LOGISTICO de Holguín. Saber que "+
 			"«en Santiago pasó algo» ya es contar algo de Santiago, y además le cuesta "+
 			"una bajada del tablero entero por la conexión de allá.")
 }
@@ -635,7 +635,7 @@ func TestAlMismoOperadorSiLeLlegaLoDeSuSucursal(t *testing.T) {
 	// prueba que se cuelga en vez de fallar— en su versión de Go.
 	t.Cleanup(srv.Close)
 
-	hol := abrirElCanal(t, srv.URL, "OPERADOR", "HOL")
+	hol := abrirElCanal(t, srv.URL, "LOGISTICO", "HOL")
 	bus.AvisarDe(CambioTablero, idDeSucursal(t, "HOL").String(), nil)
 
 	linea := esperarLinea(t, hol, "data:", 2*time.Second)
@@ -652,7 +652,7 @@ func TestAlMismoOperadorSiLeLlegaLoDeSuSucursal(t *testing.T) {
 	}
 }
 
-// Y LO QUE NO ES DE NADIE LE LLEGA A ESE MISMO OPERADOR, por el mismo cable.
+// Y LO QUE NO ES DE NADIE LE LLEGA A ESE MISMO LOGISTICO, por el mismo cable.
 func TestAlOperadorLeLleganLosAvisosQueNoSonDeNingunaSucursal(t *testing.T) {
 	bus := NuevoDifusor()
 	srv := httptest.NewServer(manejadorDeEventosDeLasOcho(t, bus))
@@ -664,7 +664,7 @@ func TestAlOperadorLeLleganLosAvisosQueNoSonDeNingunaSucursal(t *testing.T) {
 	// prueba que se cuelga en vez de fallar— en su versión de Go.
 	t.Cleanup(srv.Close)
 
-	hol := abrirElCanal(t, srv.URL, "OPERADOR", "HOL")
+	hol := abrirElCanal(t, srv.URL, "LOGISTICO", "HOL")
 	bus.Avisar(CambioAjustes, nil)
 
 	linea := esperarLinea(t, hol, "data:", 2*time.Second)
@@ -739,7 +739,7 @@ func TestUnaCuentaSinSucursalNoAbreElCanal(t *testing.T) {
 
 	r, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/eventos", nil)
 	r.Header.Set("Authorization", "Bearer "+tokenDePanel(t, map[string]any{
-		"sub": "u-suelto", "role": "OPERADOR",
+		"sub": "u-suelto", "role": "LOGISTICO",
 	}))
 	resp, err := http.DefaultClient.Do(r)
 	if err != nil {

@@ -848,7 +848,7 @@ func b64DeRutas(t *testing.T, v any) string {
 
 func deSantiagoEnRutas(t *testing.T) string {
 	return tokenDeRutas(t, map[string]any{"sub": "p-stg", "email": "stg@procovar.cu",
-		"role": "OPERADOR", "branchId": stgDeRutas.String()})
+		"role": "LOGISTICO", "branchId": stgDeRutas.String()})
 }
 
 func superAdminEnRutas(t *testing.T) string {

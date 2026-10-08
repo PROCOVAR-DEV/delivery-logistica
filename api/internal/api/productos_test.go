@@ -115,7 +115,7 @@ func TestProductosNoSeVeElCatalogoDeOtraSucursalNiPidiendoloEnLaQuery(t *testing
 
 	// `?sucursal=HOL` es lo que en delivery TENÍA PRIORIDAD sobre el alcance: bastaba
 	// escribirlo en la barra del navegador.
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/products?sucursal=HOL", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/products?sucursal=HOL", logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
@@ -133,7 +133,7 @@ func TestProductosNoSeVeElCatalogoDeOtraSucursalNiPidiendoloEnLaQuery(t *testing
 	}
 	// Y la cabecera tampoco: la sucursal de la persona manda sobre lo que pida el
 	// navegador.
-	w = pedirDeDatos(t, h, http.MethodGet, "/api/products", operadorDeSantiago(t), "",
+	w = pedirDeDatos(t, h, http.MethodGet, "/api/products", logisticoDeSantiago(t), "",
 		map[string]string{alcance.CabeceraSucursal: datSucHol.String()})
 	if strings.Contains(w.Body.String(), `"price":250`) {
 		t.Fatalf("por cabecera se coló el catálogo de Holguín: %s", w.Body.String())
@@ -157,7 +157,7 @@ func TestProductosElSuperAdminSiPuedePedirUnaSucursal(t *testing.T) {
 // gente mueve de verdad.
 func TestProductosTraenCuantoSeHanPedido(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/products", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/products", logisticoDeSantiago(t), "", nil)
 
 	var lista []ProductoSalida
 	leerJSONDeDatos(t, w, &lista)
@@ -171,7 +171,7 @@ func TestProductosTraenCuantoSeHanPedido(t *testing.T) {
 func TestProductosLaFichaDeOtraSucursalEs404(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
 
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/products/"+datProdHol.String(), operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/products/"+datProdHol.String(), logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
@@ -180,7 +180,7 @@ func TestProductosLaFichaDeOtraSucursalEs404(t *testing.T) {
 	}
 
 	// Y el suyo sí se ve.
-	w = pedirDeDatos(t, h, http.MethodGet, "/api/products/"+datProdStg.String(), operadorDeSantiago(t), "", nil)
+	w = pedirDeDatos(t, h, http.MethodGet, "/api/products/"+datProdStg.String(), logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("no vio ni el suyo: %d %s", w.Code, w.Body.String())
 	}
@@ -190,7 +190,7 @@ func TestProductosLaFichaDeOtraSucursalEs404(t *testing.T) {
 // y «no está», y contar cuál de las dos es sólo sirve para que alguien pruebe formatos.
 func TestProductosUnIdQueNoEsUuidEs404(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
-	w := pedirDeDatos(t, h, http.MethodGet, "/api/products/no-es-un-uuid", operadorDeSantiago(t), "", nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/products/no-es-un-uuid", logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
@@ -206,7 +206,7 @@ func TestProductosSoloElSuperAdminToca(t *testing.T) {
 		"sub": "p-adm", "role": "ADMINISTRADOR", "branchId": datSucStg.String(),
 	})
 
-	for _, quien := range []string{operadorDeSantiago(t), adminDeSucursal} {
+	for _, quien := range []string{logisticoDeSantiago(t), adminDeSucursal} {
 		for _, metodo := range []string{http.MethodPatch, http.MethodDelete} {
 			w := pedirDeDatos(t, h, metodo, "/api/products/"+datProdStg.String(), quien, `{"weight":9}`, nil)
 			if w.Code != http.StatusForbidden {

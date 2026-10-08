@@ -439,10 +439,10 @@ func pedirAv(t *testing.T, h http.Handler, metodo, ruta, jwt, cuerpo string) *ht
 	return w
 }
 
-func avOperadorStg(t *testing.T) string {
+func avLogisticoStg(t *testing.T) string {
 	t.Helper()
 	return tokenDeDatos(t, map[string]any{"sub": "p-stg", "email": "stg@procovar.cu",
-		"role": "OPERADOR", "branchId": avSucStg.String()})
+		"role": "LOGISTICO", "branchId": avSucStg.String()})
 }
 
 // avAdmin: un SUPER ADMIN, que es quien pasa por `ExigirAdmin` y además no tiene sucursal,
@@ -481,7 +481,7 @@ func TestElCamionCompartidoSoloLoCambiaQuienVeTodas(t *testing.T) {
 	for _, p := range puertas {
 		t.Run(p.nombre+" de un operador sobre el compartido: 403", func(t *testing.T) {
 			d := &dobleAvisos{camionCompartido: true}
-			w := pedirAv(t, montarAvisos(t, d), p.metodo, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t), p.cuerpo)
+			w := pedirAv(t, montarAvisos(t, d), p.metodo, "/api/vehicles/"+avVehStg.String(), avLogisticoStg(t), p.cuerpo)
 			avCodigo(t, w, http.StatusForbidden)
 			if !strings.Contains(w.Body.String(), msgVehiculoCompartido) {
 				t.Fatalf("el 403 tiene que decir por qué: %s", w.Body.String())
@@ -502,7 +502,7 @@ func TestElCamionCompartidoSoloLoCambiaQuienVeTodas(t *testing.T) {
 		}
 		t.Run(p.nombre+" de un operador sobre el camión de SU sucursal: pasa", func(t *testing.T) {
 			d := &dobleAvisos{}
-			w := pedirAv(t, montarAvisos(t, d), p.metodo, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t), p.cuerpo)
+			w := pedirAv(t, montarAvisos(t, d), p.metodo, "/api/vehicles/"+avVehStg.String(), avLogisticoStg(t), p.cuerpo)
 			avCodigo(t, w, http.StatusOK)
 			if d.escritos != 1 {
 				t.Fatalf("tenía que escribir una vez: %d", d.escritos)
@@ -516,14 +516,14 @@ func TestElCamionCompartidoSoloLoCambiaQuienVeTodas(t *testing.T) {
 // base sigue siendo un 500 (el 409 no puede tragarse las averías).
 func TestBorrarUnCamionConUnaRutaCreadaAlMismoTiempoEsUn409(t *testing.T) {
 	d := &dobleAvisos{falloAlBorrar: &pgconn.PgError{Code: "23503", Message: "viola la llave foránea"}}
-	w := pedirAv(t, montarAvisos(t, d), http.MethodDelete, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t), "")
+	w := pedirAv(t, montarAvisos(t, d), http.MethodDelete, "/api/vehicles/"+avVehStg.String(), avLogisticoStg(t), "")
 	avCodigo(t, w, http.StatusConflict)
 	if !strings.Contains(w.Body.String(), msgVehiculoConRutas) {
 		t.Fatalf("el 409 tiene que llevar el literal de «tiene rutas asociadas»: %s", w.Body.String())
 	}
 
 	d = &dobleAvisos{falloAlBorrar: &pgconn.PgError{Code: "57P01", Message: "terminando la conexión"}}
-	w = pedirAv(t, montarAvisos(t, d), http.MethodDelete, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t), "")
+	w = pedirAv(t, montarAvisos(t, d), http.MethodDelete, "/api/vehicles/"+avVehStg.String(), avLogisticoStg(t), "")
 	avCodigo(t, w, http.StatusInternalServerError)
 }
 
@@ -537,20 +537,20 @@ func TestCadaEscrituraDeLaFlotaAvisa(t *testing.T) {
 		tipos  []string
 	}{
 		{"dar de alta un camión", func(t *testing.T, h http.Handler) {
-			w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avOperadorStg(t),
+			w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avLogisticoStg(t),
 				`{"name":"Camión nuevo","type":"truck"}`)
 			avCodigo(t, w, http.StatusCreated)
 		}, []string{CambioVehiculos}},
 
 		{"editarlo", func(t *testing.T, h http.Handler) {
 			w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(),
-				avOperadorStg(t), `{"name":"Camión renombrado"}`)
+				avLogisticoStg(t), `{"name":"Camión renombrado"}`)
 			avCodigo(t, w, http.StatusOK)
 		}, []string{CambioVehiculos}},
 
 		{"darlo de baja", func(t *testing.T, h http.Handler) {
 			w := pedirAv(t, h, http.MethodDelete, "/api/vehicles/"+avVehStg.String(),
-				avOperadorStg(t), "")
+				avLogisticoStg(t), "")
 			avCodigo(t, w, http.StatusOK)
 			// Este borrado desvincula el camión de sus rutas y de sus pedidos antes de
 			// quitarlo: las tres listas cambiaron y las tres se dicen.
@@ -594,7 +594,7 @@ func TestLiberarUnCamionAvisaTambienDeSuRuta(t *testing.T) {
 	avisos := contarAvisos(t)
 
 	w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(),
-		avOperadorStg(t), `{"status":"available"}`)
+		avLogisticoStg(t), `{"status":"available"}`)
 	avCodigo(t, w, http.StatusOK)
 
 	avisos.exige(t, "liberar un camión con ruta abierta", CambioVehiculos, CambioRutas)
@@ -607,7 +607,7 @@ func TestEditarUnCamionSinCerrarRutasNoAvisaDeRutas(t *testing.T) {
 	avisos := contarAvisos(t)
 
 	w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+avVehStg.String(),
-		avOperadorStg(t), `{"name":"Otro nombre"}`)
+		avLogisticoStg(t), `{"name":"Otro nombre"}`)
 	avCodigo(t, w, http.StatusOK)
 
 	avisos.exige(t, "editar un camión", CambioVehiculos)
@@ -672,7 +672,7 @@ func TestGuardarLosAlmacenesAvisa(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
 	avisos := contarAvisos(t)
 
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", operadorDeSantiago(t),
+	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t),
 		`{"codigo":"STG","almacenes":[{"nombre":"Central","latitud":20.0,"longitud":-75.8}]}`, nil)
 	avCodigo(t, w, http.StatusOK)
 
@@ -723,7 +723,7 @@ func TestSiAccesosRechazaLosAlmacenesNoSeAvisa(t *testing.T) {
 	h := montarDeDatos(t, datosDePrueba())
 	avisos := contarAvisos(t)
 
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", operadorDeSantiago(t),
+	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t),
 		`{"codigo":"STG","almacenes":[]}`, nil)
 	avCodigo(t, w, http.StatusBadGateway)
 
@@ -793,7 +793,7 @@ func TestUnaEscrituraRECHAZADANoAvisaEnNingunaPuerta(t *testing.T) {
 	t.Run("un camión con un tipo que no existe", func(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
 		avisos := contarAvisos(t)
-		w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avOperadorStg(t),
+		w := pedirAv(t, h, http.MethodPost, "/api/vehicles", avLogisticoStg(t),
 			`{"name":"Camión","type":"nave espacial"}`)
 		avCodigo(t, w, http.StatusBadRequest)
 		avisos.exigeSilencio(t, "dar de alta un camión con un tipo que no existe")
@@ -803,7 +803,7 @@ func TestUnaEscrituraRECHAZADANoAvisaEnNingunaPuerta(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
 		avisos := contarAvisos(t)
 		w := pedirAv(t, h, http.MethodPatch, "/api/vehicles/"+desconocido.String(),
-			avOperadorStg(t), `{"name":"x"}`)
+			avLogisticoStg(t), `{"name":"x"}`)
 		avCodigo(t, w, http.StatusNotFound)
 		avisos.exigeSilencio(t, "editar un camión que no está")
 	})
@@ -812,7 +812,7 @@ func TestUnaEscrituraRECHAZADANoAvisaEnNingunaPuerta(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
 		avisos := contarAvisos(t)
 		w := pedirAv(t, h, http.MethodDelete, "/api/vehicles/"+desconocido.String(),
-			avOperadorStg(t), "")
+			avLogisticoStg(t), "")
 		avCodigo(t, w, http.StatusNotFound)
 		avisos.exigeSilencio(t, "borrar un camión que no está")
 	})
@@ -921,7 +921,7 @@ func TestLeerNoAvisaEnNingunaPantalla(t *testing.T) {
 	h := montarAvisos(t, &dobleAvisos{})
 	avisos := contarAvisos(t)
 
-	pedirAv(t, h, http.MethodGet, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t), "")
+	pedirAv(t, h, http.MethodGet, "/api/vehicles/"+avVehStg.String(), avLogisticoStg(t), "")
 	pedirAv(t, h, http.MethodGet, "/api/settings", avAdmin(t), "")
 
 	avisos.exigeSilencio(t, "leer")

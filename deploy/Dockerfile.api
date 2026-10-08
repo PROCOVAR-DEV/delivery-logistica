@@ -121,6 +121,16 @@ COPY docs/almacen-de-origen.casos.json /docs/almacen-de-origen.casos.json
 # Misma ruta que los de arriba: desde `/src/internal/api`, `../../../docs/…` cae en `/docs/…`.
 COPY docs/armado-rechazado.casos.json /docs/armado-rechazado.casos.json
 
+# Y EL CUARTO — 08/10/2026
+#
+# `internal/auth/roles_de_reparto_casos_test.go` lee `docs/roles-de-reparto.casos.json`, que es
+# EL MISMO fichero que lee `sync/internal/identidad/roles_de_reparto_casos_test.go`: la lista de
+# quién entra a Reparto está escrita en dos módulos de Go y esto es lo que impide que se
+# separen. Si falta, la prueba hace `Fatalf` y ESTA IMAGEN NO CONSTRUYE.
+#
+# Misma ruta que los de arriba: desde `/src/internal/auth`, `../../../docs/…` cae en `/docs/…`.
+COPY docs/roles-de-reparto.casos.json /docs/roles-de-reparto.casos.json
+
 # Y EL COMPOSE, POR LA MISMA RAZÓN — 24/09/2026
 #
 # `internal/config/config_test.go` y `internal/api/version_test.go` leen las `APP_*` de

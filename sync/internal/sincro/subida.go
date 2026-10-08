@@ -100,7 +100,18 @@ func (s *Servicio) subida(w http.ResponseWriter, r *http.Request) {
 		s.log.Warn("no se pudo tocar el aparato", "aparato", aparato.ID, "err", err)
 	}
 
-	resultados, procesados, rechazadosDelLote := s.aplicarLote(ctx, aparato, quien, lote.Apuntes)
+	resultados, procesados, rechazadosDelLote, sinPermiso := s.aplicarLote(ctx, aparato, quien, lote.Apuntes)
+	if sinPermiso != nil {
+		// El reparto dijo «tu rol no entra a Reparto». Se contesta 403 con el MISMO cuerpo que
+		// `identidad.Exigir`, y NO se anota nada: ni rechazo, ni la cuenta de la subida. Los
+		// apuntes que quedaron sin procesar siguen en la cola del aparato, intactos, y suben
+		// solos el día que se le dé el rol en Accesos.
+		s.log.Warn("subida con un rol que no entra a Reparto: la cola se queda como estaba",
+			"aparato", aparato.ID, "persona", quien.Persona, "motivo", sinPermiso.Motivo)
+		httpx.FalloConCodigo(w, http.StatusForbidden,
+			identidad.MsgSinPermisoReparto, identidad.CodigoSinPermisoReparto)
+		return
+	}
 
 	// Lo que quedó sin procesar sigue en la cola del teléfono, así que cuenta como
 	// pendiente. Si no se sumara, el panel enseñaría a Palma en verde justo el día en que
@@ -151,7 +162,7 @@ func valido(a apunteEntrada) error {
 // corta ahí y el resto se queda en la cola del aparato, que lo reintentará. Contestar lo
 // que sí se hizo es lo que permite que el reintento sea barato: esas claves ya están en el
 // libro y volverán como `repetido`.
-func (s *Servicio) aplicarLote(ctx context.Context, aparato sqlc.Aparato, quien identidad.Identidad, apuntes []apunteEntrada) ([]resultado, int, int32) {
+func (s *Servicio) aplicarLote(ctx context.Context, aparato sqlc.Aparato, quien identidad.Identidad, apuntes []apunteEntrada) ([]resultado, int, int32, *SinPermiso) {
 	resultados := make([]resultado, 0, len(apuntes))
 	traduce := nuevoTraductor(s.datos, aparato.ID)
 	// Una misma clave repetida DENTRO del mismo lote: el aparato reenvió su cola sin
@@ -169,11 +180,15 @@ func (s *Servicio) aplicarLote(ctx context.Context, aparato sqlc.Aparato, quien 
 		}
 
 		r, err := s.unApunte(ctx, aparato, quien, a, traduce)
+		var sinPermiso *SinPermiso
+		if errors.As(err, &sinPermiso) {
+			return resultados, i, rechazados, sinPermiso
+		}
 		if err != nil {
 			// Caída, no rechazo. Se corta el lote aquí: seguir con los siguientes
 			// rompería el orden, que es lo único que no se puede romper.
 			s.log.Error("se corta el lote", "aparato", aparato.ID, "clave", a.Clave, "posicion", i, "err", err)
-			return resultados, i, rechazados
+			return resultados, i, rechazados, nil
 		}
 		if r.Estado == EstadoRechazado {
 			rechazados++
@@ -181,7 +196,7 @@ func (s *Servicio) aplicarLote(ctx context.Context, aparato sqlc.Aparato, quien 
 		yaEnEsteLote[a.Clave] = len(resultados)
 		resultados = append(resultados, r)
 	}
-	return resultados, len(apuntes), rechazados
+	return resultados, len(apuntes), rechazados, nil
 }
 
 // unApunte resuelve uno solo: ¿ya lo vi? ¿a qué se refiere ese `local-…`? ¿qué dice el

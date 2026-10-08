@@ -274,6 +274,16 @@ func (c *Cliente) Aplicar(ctx context.Context, p sincro.Peticion) (sincro.Aplica
 		// dijo que no puede. Reintentar eso para siempre es un bucle, no una defensa.
 		return sincro.Aplicado{}, fmt.Errorf("el reparto no reconoció la sesión al subir %q (401): la "+
 			"credencial no llegó o no vale — es fallo nuestro, no un rechazo", p.Ruta)
+	case res.StatusCode == http.StatusForbidden && esSinPermisoDeReparto(datos):
+		// UN 403 CON `codigo: "sin_permiso_reparto"` NO ES UN RECHAZO DEL APUNTE (08/10/2026).
+		//
+		// Quien dice que no es el ROL de la persona, no lo que pide el apunte: marcarlo
+		// `rechazado` dejaría TODA su cola retenida en la bandeja hasta que alguien decidiera
+		// (Reintentar/Descartar) por algo que se arregla en Accesos dándole el rol, y el
+		// trabajo pendiente se perdería. Se devuelve aparte para que `/sync/subida` conteste
+		// 403 con ese `codigo` SIN anotar nada. El 403 del alcance de sucursal NO lleva
+		// `codigo` y sigue siendo un rechazo de abajo: ahí el apunte sí es lo que sobra.
+		return sincro.Aplicado{}, &sincro.SinPermiso{Motivo: motivoDe(datos)}
 	case res.StatusCode >= 400 && res.StatusCode < 500:
 		return sincro.Aplicado{}, &sincro.Rechazo{Motivo: motivoDe(datos)}
 	default:
@@ -322,6 +332,15 @@ func esRespuestaDelReparto(datos []byte) bool {
 		Error string `json:"error"`
 	}
 	return json.Unmarshal(datos, &sobre) == nil && sobre.Error != ""
+}
+
+// esSinPermisoDeReparto: si el cuerpo es el `{"error":…,"codigo":"sin_permiso_reparto"}` del 403
+// de rol (`auth.PermitirReparto` en `reparto-api`).
+func esSinPermisoDeReparto(datos []byte) bool {
+	var sobre struct {
+		Codigo string `json:"codigo"`
+	}
+	return json.Unmarshal(datos, &sobre) == nil && sobre.Codigo == identidad.CodigoSinPermisoReparto
 }
 
 func motivoDe(datos []byte) string {

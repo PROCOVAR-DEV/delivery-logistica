@@ -233,10 +233,11 @@ final camionesProvider = StreamProvider<List<Vehiculo>>((ref) {
   Future<List<Vehiculo>> mirar() async {
     final sucursalId = await ref.read(sucursalDelTableroProvider.future);
     final todos = await base.select(base.vehicles).get();
-    // SOLO LOS QUE SE OFRECEN PARA RUTAS NUEVAS: activos y fuera del taller
-    // (`seOfreceParaRutasNuevas`). Este proveedor existe para ELEGIR camion en el
-    // cajon de «Camion previsto» y no lo lee nadie mas; las pantallas que miran
-    // rutas ya hechas usan `vehiculosProvider`, que ve la flota entera.
+    // SOLO LOS QUE SE OFRECEN PARA RUTAS NUEVAS: los activos
+    // (`seOfreceParaRutasNuevas`); el del taller SI sale, con su aviso. Este
+    // proveedor existe para ELEGIR camion en el cajon de «Camion previsto» y no
+    // lo lee nadie mas; las pantallas que miran rutas ya hechas usan
+    // `vehiculosProvider`, que ve la flota entera.
     return todos
         .where(
           (v) =>

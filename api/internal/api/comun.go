@@ -89,6 +89,13 @@ func pgDe(id uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: [16]byte(id), Valid: true}
 }
 
+// esClaveAjenaViolada reconoce el 23503 de Postgres (foreign_key_violation) por su CÓDIGO y
+// no por su texto, igual que `esClaveRepetida`.
+func esClaveAjenaViolada(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23503"
+}
+
 // esClaveRepetida reconoce el 23505 de Postgres (unique_violation).
 //
 // Se mira el CÓDIGO y no el texto del error: el texto lo traduce el servidor según su

@@ -143,6 +143,8 @@ type dobleDeRutas struct {
 
 	// Cuántas veces se preguntó dónde estaban los pedidos de un cierre rechazado.
 	dondeEstanLlamadas int
+	// Los ids que llegaron a `DondeEstanLosPedidos` (que va SIN alcance): se acotan.
+	dondeEstanIds []uuid.UUID
 }
 
 // alcanza repite el `($n::uuid IS NULL OR branch_id = $n::uuid)` del SQL.
@@ -418,9 +420,16 @@ func (d *dobleDeRutas) EngancharPedidoARuta(_ context.Context, arg sqlc.Engancha
 	if p.sinCobrarDomicilio || p.costo == nil {
 		return 0, nil
 	}
+	// UN ENTREGADO NO SE REASIGNA, también en el SQL (08/10/2026): lo repite la consulta de
+	// verdad (`resultado IS DISTINCT FROM 'entregado' AND delivered_at IS NULL`).
+	if (p.resultado != nil && *p.resultado == sqlc.StopResultEntregado) || p.entregadoEn != nil {
+		return 0, nil
+	}
 	ruta := uuid.UUID(arg.RutaID.Bytes)
 	p.rutaID = &ruta
 	p.ultimaRuta = &ruta // LOS DOS, y el segundo no se suelta nunca
+	// REASIGNAR ES UN INTENTO NUEVO: lo del intento anterior (devuelto/cancelado) se limpia.
+	p.resultado, p.resultadoAt, p.nota, p.entregadoEn = nil, nil, nil, nil
 	p.stopOrder = arg.StopOrder
 	p.segmentKm = arg.SegmentKm
 	p.tramo = sqlc.TripLegOutbound
@@ -647,6 +656,7 @@ func (d *dobleDeRutas) SoltarParadaPlanificada(_ context.Context, arg sqlc.Solta
 // veces que se llamó: sólo debe llamarse en el camino del rechazo.
 func (d *dobleDeRutas) DondeEstanLosPedidos(_ context.Context, ids []uuid.UUID) ([]sqlc.DondeEstanLosPedidosRow, error) {
 	d.dondeEstanLlamadas++
+	d.dondeEstanIds = append(d.dondeEstanIds, ids...)
 	var salida []sqlc.DondeEstanLosPedidosRow
 	for _, id := range ids {
 		if p, hay := d.pedidos[id]; hay {

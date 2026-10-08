@@ -23,6 +23,7 @@ import (
 	"os"
 	"testing"
 
+	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/store/sqlc"
 )
 
@@ -157,6 +158,11 @@ func TestLosMensajesNuevosDelServidorSonLosDelFichero(t *testing.T) {
 		"borrar-vehiculo-con-rutas":         msgVehiculoConRutas,
 		"quitar-parada-ruta-no-planificada": msgSoloRutaPlanificada,
 		"quitar-parada-que-no-esta":         msgParadaNoPertenece,
+		// 1.0.29: sólo se AÑADE; ninguno de los de arriba cambia de texto.
+		"camion-compartido-no-se-toca":    msgVehiculoCompartido,
+		"campo-no-se-cambia-en-el-pedido": msgCampoNoSeCambiaAqui,
+		"sin-alcance":                     alcance.ErrSinAlcance.Error(),
+		"sucursal-sin-alta-en-reparto":    alcance.ErrSucursalSinAlta{Codigo: "MOA"}.Error(),
 	}
 	for _, c := range m.Fijos {
 		t.Run("fijo/"+c.Nombre, func(t *testing.T) {

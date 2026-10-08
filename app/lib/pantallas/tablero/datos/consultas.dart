@@ -367,7 +367,9 @@ ORDER BY c.posicion ASC, c.created_at ASC''',
   ///
   /// Este `WHERE` **no lleva** las condiciones de «repartible» a proposito: la
   /// tarjeta que dejo de servir se marca, no se esconde. Por eso se leen
-  /// `factura_estado`, `archivado`, `route_id` y `resultado` crudos (§7.2).
+  /// `factura_estado`, `archivado`, `route_id` y `resultado` crudos (§7.2), mas
+  /// `factura_domicilio` y `delivered_at`, que `armarRuta` necesita para decidir
+  /// con la misma regla que el servidor (`TarjetaPedido.motivoDeNoSubir`).
   Future<List<TarjetaColocada>> colocados(
     String sucursalId,
     AlmacenOrigen origen,
@@ -380,7 +382,7 @@ SELECT p.order_id, p.column_id, p.posicion, p.colocado_at,
        o.operation_number, o.customer_name, o.customer_phone, o.address,
        o.end_address, o.end_lat, o.end_lng, o.weight, o.pedido_costo,
        o.municipio, o.vendedor, o.order_date, o.factura_estado, o.archivado,
-       o.route_id, o.resultado
+       o.route_id, o.resultado, o.factura_domicilio, o.delivered_at
 FROM ${EsquemaTablero.colocaciones} p
 JOIN ${EsquemaTablero.columnas} c ON c.id = p.column_id
 JOIN orders o ON o.id = p.order_id
@@ -417,9 +419,11 @@ ORDER BY c.posicion ASC, p.posicion ASC''',
               vendedor: f.readNullable<String>('vendedor'),
               orderDate: f.readNullable<DateTime>('order_date'),
               facturaEstado: f.readNullable<String>('factura_estado'),
+              facturaDomicilio: f.readNullable<double>('factura_domicilio'),
               archivado: f.read<int>('archivado') != 0,
               rutaId: f.readNullable<String>('route_id'),
               resultado: f.readNullable<String>('resultado'),
+              deliveredAt: f.readNullable<DateTime>('delivered_at'),
               kmAlAlmacen: _km(
                 origen,
                 f.readNullable<double>('end_lat'),
@@ -630,9 +634,11 @@ WHERE c.branch_id = ?1''',
             vendedor: p.vendedor,
             orderDate: p.orderDate ?? p.createdAt,
             facturaEstado: p.facturaEstado,
+            facturaDomicilio: p.facturaDomicilio,
             archivado: p.archivado,
             rutaId: p.routeId,
             resultado: p.resultado,
+            deliveredAt: p.deliveredAt,
             kmAlAlmacen: _km(origen, p.endLat, p.endLng),
             mismoCliente: repes[p.customerName.trim().toLowerCase()] ?? 1,
           ),

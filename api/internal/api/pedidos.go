@@ -804,6 +804,20 @@ func (s *Servidor) detalleDePedido(w http.ResponseWriter, r *http.Request, a *al
 // cuerpoPedido: sólo se aplica lo que VIENE. `httpx.Opcional` es lo que separa «no me
 // mandes esto» de «déjalo vacío»; sin esa distinción, un PATCH que sólo quería corregir
 // la dirección borra las coordenadas y el pedido desaparece del armador de rutas.
+//
+// LOS CINCO DE ABAJO (`Weight`, `Status`, `RouteID`, `Price`, `StopOrder`) SE DECLARAN
+// SÓLO PARA RECHAZARLOS — 08/10/2026. Hasta la 1.0.28 este PATCH los escribía sin ninguna
+// regla (ni sucursal de la ruta, ni estado de la ruta, ni facturado/domicilio/cotizado,
+// ni elegibilidad), de CUALQUIER rol: se podía meter un pedido en la ruta de otra
+// sucursal, o en una completada, o marcarlo `delivered`, o cambiarle el precio. Eran la
+// puerta de atrás de todo lo que el armador, el tablero y el cierre ya bloquean. Ningún
+// cliente los mandaba (`grep` en app/lib, sync/, herramientas/ y el contrato: la app no
+// llama a este endpoint), así que no se rompe a nadie.
+//
+// NO se descartan en silencio (CLAUDE.md §4): si llega uno, 400 con
+// [msgCampoNoSeCambiaAqui]. Quitarlos de verdad —como pide la regla de «quitar es quitar
+// entero»— es quitarlos también de la consulta: `ActualizarPedido` ya no tiene esas
+// columnas, de modo que ni un descuido futuro aquí puede volver a escribirlas.
 type cuerpoPedido struct {
 	OperationNumber httpx.Opcional[string]  `json:"operationNumber"`
 	CustomerName    httpx.Opcional[string]  `json:"customerName"`
@@ -813,13 +827,42 @@ type cuerpoPedido struct {
 	EndLng          httpx.Opcional[float64] `json:"endLng"`
 	Lat             httpx.Opcional[float64] `json:"lat"`
 	Lng             httpx.Opcional[float64] `json:"lng"`
-	Weight          httpx.Opcional[float64] `json:"weight"`
 	Notes           httpx.Opcional[string]  `json:"notes"`
-	Status          httpx.Opcional[string]  `json:"status"`
 	TripLeg         httpx.Opcional[string]  `json:"tripLeg"`
-	RouteID         httpx.Opcional[string]  `json:"routeId"`
-	Price           httpx.Opcional[float64] `json:"price"`
-	StopOrder       httpx.Opcional[int32]   `json:"stopOrder"`
+
+	// Rechazados: ver arriba. Se leen como `Opcional[any]` porque lo único que importa es
+	// SI VINIERON, también con `null` (es justo como se «bajaba un pedido de un camión»).
+	Weight    httpx.Opcional[any] `json:"weight"`
+	Status    httpx.Opcional[any] `json:"status"`
+	RouteID   httpx.Opcional[any] `json:"routeId"`
+	Price     httpx.Opcional[any] `json:"price"`
+	StopOrder httpx.Opcional[any] `json:"stopOrder"`
+}
+
+// msgCampoNoSeCambiaAqui es el 400 del PATCH de un pedido cuando llega un campo que ya no
+// se acepta ahí. Termina con los campos que sobraron, en el orden fijo de [camposVedados],
+// para que quien lo lee sepa CUÁL fue.
+const msgCampoNoSeCambiaAqui = "Ese campo no se cambia por aquí: usa las rutas o el tablero"
+
+// camposVedados devuelve, en orden fijo, los nombres de los campos que vinieron y que este
+// PATCH ya no admite.
+func (c *cuerpoPedido) camposVedados() []string {
+	var vinieron []string
+	for _, f := range []struct {
+		nombre   string
+		presente bool
+	}{
+		{"routeId", c.RouteID.Presente},
+		{"status", c.Status.Presente},
+		{"price", c.Price.Presente},
+		{"weight", c.Weight.Presente},
+		{"stopOrder", c.StopOrder.Presente},
+	} {
+		if f.presente {
+			vinieron = append(vinieron, f.nombre)
+		}
+	}
+	return vinieron
 }
 
 func (s *Servidor) actualizarPedido(w http.ResponseWriter, r *http.Request) {
@@ -835,6 +878,14 @@ func (s *Servidor) actualizarPedido(w http.ResponseWriter, r *http.Request) {
 	if !httpx.LeerJSON(w, r, &c) {
 		return
 	}
+	// ANTES que nada más: un cuerpo que trae un campo vedado se rechaza entero, sin aplicar
+	// ni siquiera los campos buenos que lo acompañen —medio PATCH aplicado es peor que
+	// ninguno: quien llama cree que la ruta cambió porque la dirección cambió—.
+	if vedados := c.camposVedados(); len(vedados) > 0 {
+		httpx.Error(w, r, http.StatusBadRequest,
+			msgCampoNoSeCambiaAqui+" ("+strings.Join(vedados, ", ")+")")
+		return
+	}
 
 	arg := sqlc.ActualizarPedidoParams{
 		ID:              id,
@@ -846,17 +897,7 @@ func (s *Servidor) actualizarPedido(w http.ResponseWriter, r *http.Request) {
 		EndLng:          c.EndLng.Puntero(),
 		Lat:             c.Lat.Puntero(),
 		Lng:             c.Lng.Puntero(),
-		Weight:          c.Weight.Puntero(),
 		Notes:           c.Notes.Puntero(),
-		Price:           c.Price.Puntero(),
-		StopOrder:       c.StopOrder.Puntero(),
-	}
-	if c.Status.Presente && c.Status.Valor != nil {
-		estado, ok := estadoDePedidoValido(w, r, *c.Status.Valor)
-		if !ok {
-			return
-		}
-		arg.Status = &estado
 	}
 	if c.TripLeg.Presente && c.TripLeg.Valor != nil {
 		tramo, ok := tramoValido(w, r, *c.TripLeg.Valor)
@@ -864,21 +905,6 @@ func (s *Servidor) actualizarPedido(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		arg.TripLeg = &tramo
-	}
-	// `routeId` va con interruptor y no con `coalesce`: mandarlo a null es la mitad de su
-	// utilidad —es como se baja un pedido de un camión a mano cuando alguien se equivocó—
-	// y con `coalesce` esa mitad no se puede expresar.
-	if c.RouteID.Presente {
-		arg.TocarRouteID = true
-		if c.RouteID.Valor != nil && strings.TrimSpace(*c.RouteID.Valor) != "" {
-			ruta, err := uuid.Parse(strings.TrimSpace(*c.RouteID.Valor))
-			if err != nil {
-				httpx.Error(w, r, http.StatusBadRequest,
-					fmt.Sprintf("El identificador de ruta '%s' no es válido", *c.RouteID.Valor))
-				return
-			}
-			arg.RouteID = pgDe(ruta)
-		}
 	}
 
 	// SE GUARDA LA FILA, aunque la respuesta se arme releyendo: de ella sale la sucursal
@@ -905,19 +931,6 @@ func (s *Servidor) actualizarPedido(w http.ResponseWriter, r *http.Request) {
 	}
 	avisarCambioDePedidos(r.Context(), deLaFilaPg(tocado.BranchID))
 	httpx.JSON(w, r, http.StatusOK, salida)
-}
-
-// estadoDePedidoValido comprueba el enum antes que Postgres. Dejarlo caer hasta la base
-// da un 500 con la jerga del motor dentro; esto da un 400 que se puede leer. Mismo trato
-// que el estado del vehículo, por la misma razón.
-func estadoDePedidoValido(w http.ResponseWriter, r *http.Request, v string) (sqlc.OrderStatus, bool) {
-	switch sqlc.OrderStatus(v) {
-	case sqlc.OrderStatusPending, sqlc.OrderStatusDelivered:
-		return sqlc.OrderStatus(v), true
-	}
-	httpx.Error(w, r, http.StatusBadRequest,
-		fmt.Sprintf("Estado de pedido no válido: '%s'. Sólo 'pending' o 'delivered'", v))
-	return "", false
 }
 
 func tramoValido(w http.ResponseWriter, r *http.Request, v string) (sqlc.TripLeg, bool) {

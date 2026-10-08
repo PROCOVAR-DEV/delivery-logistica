@@ -738,6 +738,23 @@ entran solos desde PEDIDO y son de la sucursal que los originó.*
   «no hay nada todavía».** Pasar a «todas» es lo correcto para quien administra y además deja ver el
   problema en vez de esconderlo.
 
+> **En el reparto (Go) desde la 1.0.29 el alcance FALLA CERRADO** — auditoría de la 1.0.28,
+> 08/10/2026. Donde difiere de lo de arriba (heredado de delivery), manda esto:
+> - **La cabecera `X-Sucursal-Id` sólo la lee quien ve todas las sucursales** (`SUPER ADMIN`,
+>   `DESARROLLADOR`) **y no tiene sucursal propia**. Para cualquier otro rol la cabecera ni se
+>   mira: antes, un OPERADOR cuyo token llegaba sin sucursal mandaba `X-Sucursal-Id: STG` y veía
+>   Santiago, o `basura` y —por el «no existe → todas»— las ocho.
+> - **Sin sucursal y sin esos dos roles: siempre 403** (`esta cuenta no está dada de alta en
+>   ninguna sucursal…`), mande la cabecera que mande.
+> - **Una sucursal del token que Reparto no conoce** (Accesos sabe de `MOA` y `PLS`; Reparto no)
+>   **es 403** para cualquier otro rol —`tu sucursal MOA no está dada de alta en Reparto: pide en
+>   la oficina que la den de alta`— y «todas + aviso» **sólo** para `SUPER ADMIN` y
+>   `DESARROLLADOR`. Hasta la 1.0.28 un OPERADOR de Moa veía las ocho sucursales con 200 y sin un
+>   error: la regla 1 de la casa fallando abierta.
+> - Un fallo de la base sigue sin abrir el alcance (500).
+> Lo ata `api/internal/alcance/alcance_test.go` (en pareja: lo que cierra, y lo que sigue abierto
+> para quien debe) y, por HTTP, `api/internal/api/api_test.go` y `eventos_test.go`.
+
 ### `scopeWhere(scope) -> {branchId?}`
 `{branchId}` si hay, `{}` si no.
 **Qué había antes y por qué estaba mal:** filtraba por `userId` usando como «dueño» al creador de la
@@ -1137,3 +1154,35 @@ recalcula `total_distance`. Si la ruta nació del tablero, la parada vuelve a su
 **Vehículos** (puntos 4 y 5): un vehículo con rutas, aunque sean históricas, no se borra: se marca
 `isActive = false` y deja de ofrecerse para rutas nuevas. `orders.vehicle_id` ya no existe: el
 camión de un pedido es el de su ruta.
+
+### 15.14 Lo que endurece la 1.0.29 (auditoría de la 1.0.28, 08/10/2026)
+
+Seis reglas nacidas de la auditoría. Cada una tiene su prueba **en pareja** (avisa cuando toca, no
+avisa cuando no) y la guarda de SQL, su prueba de motor real.
+
+1. **El alcance falla cerrado** (§ 11): la cabecera sólo la lee quien ve todas; una sucursal que
+   Reparto no conoce es un 403 que dice cuál, no «todas».
+2. **`PATCH /api/orders/{id}` ya no mueve pedidos entre rutas, ni de estado, ni de precio/peso/orden.**
+   `routeId`, `status`, `price`, `weight` y `stopOrder` se rechazan con `400 Ese campo no se cambia
+   por aquí: usa las rutas o el tablero (<campos>)`, y no se aplica nada del cuerpo. Antes se saltaba
+   TODAS las reglas del armado (sucursal de la ruta, estado de la ruta, facturado, domicilio
+   cobrado y cotizado). Se quitó también de la consulta: `ActualizarPedido` ya no tiene esas columnas.
+3. **El camión de otra sucursal no se asigna al armar** (`POST /api/routes`): `400 No existe el
+   vehículo '<id>'`, antes que `is_active`. Propio y compartido (`branch_id` NULL) valen. Es lo mismo
+   que ya hacían el cambio de camión de una ruta y el armado del tablero.
+4. **Un camión compartido sólo lo cambia, desactiva o borra quien ve todas las sucursales**
+   (`SUPER ADMIN`, `DESARROLLADOR`): `403` en `PATCH`/`DELETE`. Ver y usarlo sigue siendo de todas;
+   quién crea o edita un camión propio no cambia.
+5. **Reasignar un devuelto o cancelado es un intento nuevo**: al asignarlo a una ruta se limpian
+   `resultado`, `resultado_at`, `resultado_nota` y `delivered_at` (sólo hay una consulta que asigna
+   pedidos a rutas, `EngancharPedidoARuta`, y la usan el armado y el tablero). Un entregado no se
+   reasigna nunca. La app lo replica en su armado local.
+6. **Los rechazos del cierre nombran la parada por su número de operación** (el conduce), no por su
+   UUID: `rechazados[].numeroOperacion` y el `error`. Se lee con el alcance de quien cierra.
+
+**Rastro de quién.** Las acciones que cambian datos dejan una línea `Info` con `actor` (el `sub`,
+nunca el token) y los ids: ver «Rastro de quién» en `contratos-api.md`.
+
+**Decisión abierta de Jose.** `PUT /api/settings` y `POST /api/admin/recompute` no exigen
+`ExigirAdmin`: cualquier rol con sesión puede cambiar la tasa del día y lanzar un recosteo de
+hasta 5.000 pedidos. Esta entrega sólo les pone el rastro; si deben exigir admin lo decide él.

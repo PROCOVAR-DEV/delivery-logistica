@@ -14,6 +14,7 @@ import '../../pedidos/datos/formato.dart' show cantidad;
 import '../../rutas/datos/repositorio_rutas.dart' show PestanaRutas;
 import '../../rutas/estado/proveedores_rutas.dart'
     show pestanaRutasProvider, rutaElegidaProvider;
+import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 import '../datos/modelos.dart';
 import '../estado/proveedores.dart';
 import 'kit.dart';
@@ -708,29 +709,39 @@ class _CamionesDeLaZona extends ConsumerWidget {
           // arma igual, y el coste por km de esa ruta no sale.
           AsyncData(:final value) when value.isEmpty => [
             const _NadaQueElegir(
-              'Esta sucursal no tiene vehículos activos y fuera del taller en '
-                  'este aparato.',
-              'Los vehículos inactivos y los que están en el taller no se '
-                  'ofrecen para rutas nuevas. Se puede armar la ruta igual, '
-                  'pero sin camión no hay capacidad contra la que medir el peso '
-                  'ni coste por km que calcular. Los vehículos se dan de alta y '
-                  'se activan en Flota, y bajan con la siguiente '
-                  'sincronización.',
+              'Esta sucursal no tiene vehículos activos en este aparato.',
+              'Los vehículos inactivos no se ofrecen para rutas nuevas. Se '
+                  'puede armar la ruta igual, pero sin camión no hay capacidad '
+                  'contra la que medir el peso ni coste por km que calcular. '
+                  'Los vehículos se dan de alta y se activan en Vehículos, y '
+                  'bajan con la siguiente sincronización.',
             ),
           ],
           AsyncData(:final value) => [
-            // SOLO SALEN LOS QUE SE PUEDEN ASIGNAR A UNA RUTA NUEVA — 07/10/2026.
+            // EL CAMION DEL TALLER SALE, Y SALE MARCADO — 28/09/2026, y vuelve el
+            // 08/10/2026 (1.0.29).
             //
-            // `camionesProvider` ya trae solo los activos y fuera del taller
-            // (`seOfreceParaRutasNuevas`). El camion del taller se ofrecia aqui
-            // con un «EN EL TALLER» en ambar —«aviso, no bloqueo», 28/09/2026—,
-            // con un argumento que colgaba del `CLAUDE.md` §2 de entonces
-            // (bloquear con un dato que nadie mantiene deja sin armar a una
-            // sucursal de un solo camion). Ese §2 lo reemplazo Amado el
-            // 07/10/2026 y el servidor dice lo contrario: «Ponlo en
-            // mantenimiento para impedir que se use en nuevas rutas». Un camion
-            // de baja o en el taller no se ofrece; y si la zona ya lo tenia
-            // puesto, `armarRuta` lo rechaza con el literal del servidor.
+            // Se OFRECE igual, y es la misma decisión que el paso 3 del
+            // asistente de Rutas: aviso, no bloqueo. 1.0.28 lo quitó creyendo que
+            // Amado había reemplazado esa decisión; Amado pidió ocultar el
+            // INACTIVO (que sigue sin salir: `camionesProvider` filtra con
+            // `seOfreceParaRutasNuevas`), y el servidor sigue aceptando un camión
+            // en el taller. Un camión en el taller tiene su capacidad y su costo
+            // por km, así que el peso de la zona y el coste de su ruta siguen
+            // teniendo contra qué medirse — lo que falta es el camión, no el
+            // dato. Eso lo separa de la zona SIN camión, que sí se bloquea
+            // (`tablero/datos/repositorio.dart`, `armarRuta`).
+            //
+            // Y bloquear con `maintenance` sería bloquear con un campo que pone
+            // una persona y tiene que quitar otra: en producción hay sucursales
+            // con UN camión, y uno olvidado en el taller las dejaría sin poder
+            // armar ni una zona, con el arreglo en otra pantalla. Un camión de
+            // baja que la zona ya tenía puesto lo rechaza `armarRuta` con el
+            // literal del servidor.
+            //
+            // El aviso va en el subtítulo, que es donde ya están la capacidad y
+            // la placa: en mayúsculas porque es lo único de esta lista que hace
+            // que uno elija otro.
             for (final (cual, camion) in value.indexed)
               // Sólo el primero se deja senalar: hay una fila por camion.
               ControlSenalado(
@@ -738,11 +749,22 @@ class _CamionesDeLaZona extends ConsumerWidget {
                 senalable: cual == 0,
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.local_shipping_outlined),
+                  leading: Icon(
+                    camion.status == estadoEnMantenimiento
+                        ? Icons.build_outlined
+                        : Icons.local_shipping_outlined,
+                    color: camion.status == estadoEnMantenimiento
+                        ? Colores.ambar
+                        : null,
+                  ),
                   title: Text(camion.name),
                   subtitle: Text(
                     '${pesoBonito(camion.capacity)}'
-                    '${camion.plate == null ? '' : ' · ${camion.plate}'}',
+                    '${camion.plate == null ? '' : ' · ${camion.plate}'}'
+                    '${camion.status == estadoEnMantenimiento ? ' · EN EL TALLER' : ''}',
+                    style: camion.status == estadoEnMantenimiento
+                        ? TextStyle(color: Colores.ambar)
+                        : null,
                   ),
                   selected: columna.vehiculoId == camion.id,
                   onTap: () => _poner(context, camion.id),
@@ -1015,10 +1037,11 @@ class _ArmarLaRutaState extends ConsumerState<_ArmarLaRuta> {
       _no = null;
     });
     try {
-      // QUIÉN SE QUEDÓ FUERA, si es que se quedó alguien. En la web el gesto va
-      // al servidor y se espera, así que la respuesta trae quién no entró; en la
-      // APK esto no se llama, porque el apunte sube horas después y el aviso
-      // vive en el cajón de entregar el día. Ver `RepositorioTablero.armarRuta`.
+      // QUIÉN SE QUEDÓ FUERA, si es que se quedó alguien. El aparato aplica la
+      // misma regla que el servidor (`TarjetaPedido.motivoDeNoSubir`), así que lo
+      // sabe él mismo en la APK y en el escritorio; en la web se le suma lo que
+      // traiga la respuesta. Lo que el servidor cuente luego del apunte de una
+      // APK vive en el cajón de entregar el día. Ver `RepositorioTablero.armarRuta`.
       var seQuedaronFuera = const <String>[];
       final rutaId = await ref
           .read(tableroProvider.notifier)

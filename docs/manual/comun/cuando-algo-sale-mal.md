@@ -59,7 +59,8 @@ Por orden de probabilidad:
 | **«Las coordenadas del punto de partida son requeridas»** | La sucursal no tiene almacén con punto. Se arregla en Almacenes |
 | **«Esta sucursal no tiene ningún almacén con ubicación»** | Botón **«Poner el almacén»** |
 | **«Esta sucursal no tiene ningún vehículo dado de alta»** | Botón **«Agregar el primer vehículo»** |
-| **«Los vehículos de esta sucursal están inactivos o en el taller…»** | Hay camiones, pero ninguno se puede ofrecer: actívalo o sácalo del taller en Vehículos |
+| **«Los vehículos de esta sucursal están inactivos…»** | Hay camiones, pero ninguno se puede ofrecer: actívalo en Vehículos |
+| **«Camión 1 está marcado EN EL TALLER. La ruta se arma igual…»** | Es un aviso en ámbar, no un error: la ruta se arma. Si el camión ya volvió, sácalo del taller en Vehículos |
 
 Y si lo que echas en falta son **pedidos** en la lista del asistente: sólo trae lo
 facturado que cuadra, con el domicilio cobrado y cotizado. Lee
@@ -105,6 +106,24 @@ Un camión con rutas —aunque sean del histórico— no se borra. Abre su ficha
 **«Editar»**, apaga el interruptor **«Vehículo activo»** y guarda: la tarjeta pasa a
 llevar la insignia **«Inactivo»** y deja de ofrecerse en las rutas nuevas, sin perder su
 historial.
+
+Si es un camión **compartido por todas las sucursales** (sin sucursal) y no tienes un rol
+que las vea todas, el servidor contesta:
+
+> «Este vehículo es compartido por todas las sucursales: sólo un SUPER ADMIN o un
+> DESARROLLADOR puede modificarlo, darlo de baja o eliminarlo.»
+
+---
+
+## «Sólo veo un aviso con el nombre de mi sucursal»
+
+> «tu sucursal MOA no está dada de alta en Reparto: pide en la oficina que la den de
+> alta»
+
+Entras bien, pero cada pantalla se niega con este aviso. Es que en Accesos te
+asignaron una sucursal que Reparto no tiene (Moa, Palma Soriano…). **No es tu
+contraseña**: pide en la oficina que den de alta esa sucursal o que te asignen una de
+las ocho. Ver [Roles y sucursales](roles-y-sucursales.md#si-tu-sucursal-no-está-dada-de-alta-en-reparto).
 
 ---
 
@@ -160,9 +179,11 @@ Te lo dice ahí mismo, con el motivo de verdad: «Ese pedido ya va en otra ruta�
 lo que diga y repite el gesto.
 
 **Al cerrar una ruta, si el servidor guarda unas paradas y rechaza otras, lo guardado
-vale.** El aviso te dice cuántas se guardaron y por qué no las demás («Se guardaron 1
-de las 2 paradas de esta hoja. 1 no se pudieron guardar: … (ese pedido no va en esta
-ruta).»), y la ruta se puede completar. Si no se guardó **ninguna**, no se completa.
+vale y la ruta se completa.** Sale un cajón que **no se va hasta que pulsas
+«Entendido»**: «Ruta completada: 2 paradas no se guardaron», y por cada una, «Conduce
+PTB25-261005-1480: ese pedido no va en esta ruta». Apunta esos conduces y corrígelos en
+PEDIDO: esas paradas se quedaron sin resultado. Si no se guardó **ninguna**, no se
+completa.
 
 ### En la APK y el escritorio
 

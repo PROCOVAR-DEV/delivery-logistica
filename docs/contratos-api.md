@@ -33,9 +33,57 @@ reimplementarlas en Go sin abrir el repo de Next.
 `scopeWhere(scope)` → `{ branchId }` si hay alcance, `{}` si no. **Nunca filtra por
 usuario/creador.**
 
+#### Reparto (Go), desde la 1.0.29 — el alcance FALLA CERRADO
+
+Lo de arriba es el contrato heredado de delivery. En `api/internal/alcance` (`Resolver`) la
+regla es esta, y donde difiere manda ésta:
+
+1. `pedida` = la sucursal **del token** de la persona (el **código** de Accesos: `CAM`, `HOL`,
+   `STG`…, o un uuid). Sólo si **no tiene** sucursal **y su rol ve todas** (`SUPER ADMIN`,
+   `DESARROLLADOR`; ver `VeTodasLasSucursales`) se lee la cabecera `X-Sucursal-Id`. Para
+   cualquier otro rol **la cabecera ni se mira**, mande lo que mande.
+2. Sin `pedida`: todas **sólo** para esos dos roles. Cualquier otro rol →
+   `403 {"error":"esta cuenta no está dada de alta en ninguna sucursal: pide en la oficina que te asignen la tuya"}`.
+3. Con `pedida` se comprueba que Reparto la **conozca**. Si no la conoce (Accesos sabe de `MOA`
+   y `PLS`, Reparto no; o un uuid que no existe):
+   - `SUPER ADMIN` / `DESARROLLADOR` → «todas» + aviso en el registro (`[alcance] la sucursal
+     <id> … no existe: se le enseñan todas`).
+   - **cualquier otro rol** → `403 {"error":"tu sucursal MOA no está dada de alta en Reparto:
+     pide en la oficina que la den de alta"}` (el código es el que traiga su cuenta). Hasta la
+     1.0.28 esto era «todas»: un operador de una sucursal que Reparto no conoce veía las ocho.
+4. Un fallo de la base **nunca** abre el alcance: 500.
+
+Los dos 403 son `errors.Is(err, ErrSinAlcance)`: salen por el mismo middleware (`Exigir`) en
+cada ruta con datos, y por `GET /api/eventos` como **texto plano** con el mismo código. El
+literal de `ErrSinAlcance` es compartido con la app y **no cambia**; el de la sucursal
+desconocida es otro texto para otro caso.
+
 `sucursalDeLaPersona(user)`: sólo `user.branchId` (ignora `x-sucursal-id`), y `null` si esa
 sucursal no existe. Se usa donde la elección no debe comerse la lista con la que se elige
 (`/api/branches`, `/api/almacenes`, `/api/products`).
+
+### Rastro de quién (Reparto, 1.0.29)
+
+Las acciones que cambian datos de la casa dejan **una línea `Info`** en el registro del
+servidor con `actor` (el `sub` de la persona, `auth.Usuario.ID`), `rol` y los ids afectados.
+**Nunca el token, ni recortado, ni su firma, ni la cabecera** (`TestElRastroNoEnsenaElToken`;
+esa regla es la del 401, donde ni el `sub` sale porque quien pregunta aún no ha demostrado ser
+nadie: aquí la persona ya está verificada). No cambia ningún permiso. Sólo se escribe si la
+acción **se hizo**; un rechazo no deja «lo hizo».
+
+| Mensaje | Dónde | Campos |
+|---|---|---|
+| `parada quitada de una ruta planificada` | `DELETE /api/routes/{id}/stops/{orderId}` | `ruta`, `pedido` |
+| `ruta borrada` | `DELETE /api/routes/{id}` | `ruta`, `estado`, `vehiculo` |
+| `ruta: estado cambiado` | `PATCH /api/routes/{id}` con `status` (despachar / completar) | `ruta`, `de`, `a` |
+| `ruta: camión cambiado` | `PATCH /api/routes/{id}` con `vehicleId` | `ruta`, `vehiculo_antes`, `vehiculo_ahora` |
+| `cierre de ruta guardado` | `POST /api/routes/{id}/results` (si se guardó alguna parada) | `ruta`, `aplicados`, `rechazados` |
+| `vehículo creado` / `vehículo editado` / `vehículo borrado` | `/api/vehicles` | `vehiculo`, `sucursal` (+ `activo`, `estado` al editar) |
+| `ajustes guardados` | `PUT /api/settings` | `moneda`, `tasa_cup`, `monedas_tocadas` |
+| `recosteo lanzado` | `POST /api/admin/recompute` (antes de pedir nada a PEDIDO) | `dias`, `desde`, `sucursal` |
+
+`POST /api/admin/recompute` y `PUT /api/settings` siguen pasando por sesión **sin `ExigirAdmin`**:
+decidir si deben exigirlo es una DECISIÓN ABIERTA de Jose; esta entrega sólo deja el rastro.
 
 ### Geometría (compartida)
 
@@ -167,6 +215,13 @@ Todas las rutas son `dynamic = 'force-dynamic'` salvo indicación contraria.
    `400 {"error":"Una ruta se arma eligiendo pedidos ya existentes. Manda \`orderIds\`."}`
    (el literal incluye las comillas invertidas alrededor de `orderIds`).
 
+**El camión tiene que ser de la sucursal de la ruta o compartido** (1.0.29). El camión se lee
+sin alcance (el contrato dice que un id que no existe arma la ruta sin camión), pero si existe
+y su `branch_id` es **otra** sucursal distinta de la de la ruta → `400
+{"error":"No existe el vehículo '<id>'"}`, el mismo texto que al cambiar el camión de una ruta.
+Se mira **antes** de `is_active` y de la capacidad: decir «inactivo» de un camión ajeno sería
+confirmar que existe. Un camión compartido (`branch_id` NULL) vale.
+
 ### Con `orderIds` (único camino válido)
 
 Se buscan los pedidos con:
@@ -278,6 +333,15 @@ domicilio cobrado y cotizado).
   nada, y lo devuelve en la respuesta.
 - Actualiza cada `Order`: `routeId`, `ultimaRutaId` (ambos = id de la ruta), `stopOrder =
   i+1`, `tripLeg = 'outbound'`, `segmentKm`, `price = pedidoCosto || 0`.
+  - **Reasignar es un intento nuevo (1.0.29, I-2).** Además deja a `NULL` **`resultado`,
+    `resultadoAt`, `resultadoNota` y `deliveredAt`**: un pedido devuelto o cancelado conserva
+    esas columnas al soltar su ruta, y pegado a la ruta nueva hacía que «Quitar de ruta»
+    contestara un `409` engañoso y que, al borrar la ruta, no volviera a su zona. Lo que pasó en
+    el intento anterior consta en el registro y en PEDIDO; la parada nueva empieza limpia. Un
+    **entregado no se reasigna nunca** (`resultado = entregado` o `deliveredAt` no nulo, ya en el
+    `WHERE` del `UPDATE`, además del `409` del manejador). Es **la misma consulta** que usa el
+    armado del tablero (`POST /api/board/columns/{id}/route`): un solo sitio asigna pedidos a
+    rutas.
 - Actualiza la `Route`: `totalDistance`, `optimized = true`.
   - **Nos separamos aquí (21/09/2026):** el cuerpo acepta además `optimizar` (booleano,
     por defecto `true`, que es este mismo comportamiento y el que mandan las APK ya
@@ -426,11 +490,37 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
   APK y el escritorio dejan la hoja en la bandeja con el rechazo y retienen el completar
   hasta que una persona decida (Reintentar o Descartar).
 
-  **Para diagnosticar un rechazo sin ir al VPS**: por cada parada rechazada el servidor
-  escribe un renglón `parada rechazada en el cierre` con `ruta`, `pedido`, `route_id`,
-  `ultima_ruta_id` y `branch_id` del pedido (`NULL` si no tiene) y el `motivo`, más
-  `ruta_branch_id` en el resumen. Son ids de filas, nada de la sesión. Sólo se escribe en el
-  camino del rechazo (el cierre bueno no pregunta nada) y se detallan las 20 primeras.
+  **Cada parada se nombra por su número de operación — el CONDUCE (1.0.29, I-3).** El 07/10/2026
+  el `error` decía `8cb90608-76da-4fae-879d-126ff9ab4c3c (ese pedido no va en esta ruta)` y
+  nadie sabía de qué pedido hablaba. Ahora cada elemento de `rechazados[]` lleva
+  **`numeroOperacion`** (string, **siempre presente**, nunca `null`: el `operation_number` del
+  pedido, o `""` si no tiene o **no es visible para quien cierra**) y el `error` nombra cada
+  parada por él, con el `orderId` crudo —recortado a 64 caracteres— sólo como último recurso.
+  El número se lee **con el alcance de quien cierra**, dentro de la misma transacción: un id de
+  otra sucursal no revela su conduce (sale `""` y se nombra por el id que mandó el cliente).
+  `orderId` se mantiene tal como vino (el aparato lo compara con lo que mandó) y `motivo` sigue
+  siendo el texto corto, sin el conduce delante.
+
+```json
+{
+  "error": "Se guardaron 1 de las 2 paradas de esta hoja. 1 no se pudieron guardar: PTB25-261005-1480 (ese pedido no va en esta ruta).",
+  "aplicados":  [ { "orderId": "<uuid>", "resultado": "entregado" } ],
+  "rechazados": [ { "orderId": "<uuid>", "numeroOperacion": "PTB25-261005-1480", "motivo": "ese pedido no va en esta ruta" } ],
+  "aPedido": { "ok": true, "enviados": 1, "aplicados": 1 }
+}
+```
+
+  Con más de cinco rechazadas el texto nombra las cinco primeras y termina `… y <K-5> más.`.
+  Un servidor anterior a la 1.0.29 no manda la clave: el cliente cae al `orderId`.
+
+  **Para diagnosticar un rechazo sin ir al VPS**: el servidor escribe UN `Error` de resumen
+  (`un cierre llegó con paradas que no van en esa ruta`: `ruta`, `ruta_branch_id`, cuántas se
+  guardaron y cuántas no, y el `motivo`) y, por cada parada rechazada, un renglón **Warn**
+  `parada rechazada en el cierre` con `ruta`, `pedido`, `numero_operacion`, `route_id`,
+  `ultima_ruta_id` y `branch_id` del pedido (`NULL` si no tiene) y el `motivo`. Son ids de
+  filas, nada de la sesión. Sólo se escribe en el camino del rechazo (el cierre bueno no
+  pregunta nada) y se detallan las 20 primeras; la lectura que lo alimenta pregunta por 50 ids
+  como mucho, y el `orderId` que no es un uuid se recorta a 64 caracteres antes de escribirse.
   Motivo: el sincronizador marca `aplicado` cualquier 2xx **sin mirar el cuerpo**
   (`sync/internal/reparto/reparto.go`), así que un rechazo dentro de un 200 no llega a
   ninguna bandeja y el apunte se borra de la cola del aparato — una entrega de verdad
@@ -457,7 +547,7 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
 ```json
 {
   "aplicados": [ { "orderId": "...", "resultado": "entregado" } ],
-  "rechazados": [ { "orderId": "...", "motivo": "ese pedido no va en esta ruta" } ],
+  "rechazados": [ { "orderId": "...", "numeroOperacion": "PTB25-261005-1480", "motivo": "ese pedido no va en esta ruta" } ],
   "aPedido": { "ok": true, "enviados": 0, "aplicados": 0, "error": "..." }
 }
 ```
@@ -573,10 +663,22 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
 ## `PATCH /api/orders/[id]`
 
 - **Auth**: usuario. **Alcance**: sí. `404 {"error":"Not found"}`.
-- **Cuerpo** — sólo se aplican los campos presentes (`!== undefined`):
-  `operationNumber, customerName, address, endAddress, endLat, endLng, lat, lng, weight,
-  notes, status, tripLeg, routeId, price, stopOrder`.
-  Además, **si `status === 'delivered'`** se pone `deliveredAt = now`.
+- **Cuerpo** — sólo se aplican los campos presentes:
+  `operationNumber, customerName, address, endAddress, endLat, endLng, lat, lng, notes,
+  tripLeg`. Es el parche de una equivocación al teclear (dirección, coordenadas, nota…).
+- **`routeId`, `status`, `price`, `weight` y `stopOrder` YA NO SE ACEPTAN (1.0.29).** Hasta la
+  1.0.28 este PATCH los escribía sin pasar por ninguna regla —de cualquier rol, sin validar la
+  sucursal ni el estado de la ruta ni la facturación—: era la puerta de atrás de todo lo que
+  el armador, el tablero y el cierre ya bloquean (meter un pedido en la ruta de otra
+  sucursal o en una completada, marcarlo `delivered`, cambiarle el precio). Ningún cliente los
+  mandaba (se comprobó con `grep` en `app/lib`, `sync/`, `herramientas/` y este contrato: la
+  app no llama a este endpoint). Si llega **cualquiera** de ellos —también con `null`— →
+  `400 {"error":"Ese campo no se cambia por aquí: usa las rutas o el tablero (<campos>)"}`,
+  con los nombres de los campos que sobran en el orden `routeId, status, price, weight,
+  stopOrder`, **y no se aplica nada del cuerpo** (ni los campos buenos que lo acompañen).
+  Meter o sacar un pedido de una ruta es sólo de `/api/routes` y `/api/board`; el estado y la
+  hora de entrega los pone el cierre; el peso lo calcula el servidor. Tampoco se pone ya
+  `deliveredAt` desde aquí.
 - **200**: la `Order` actualizada con `route:{id,name}`.
 - **Modelos**: `Order`.
 
@@ -1106,11 +1208,20 @@ data: {}
   `in_use` → `Route.updateMany where { vehicleId: id, status: { not:'completed' } }
   → status:'completed'` (auto-completa su ruta activa).
 - **200**: el `Vehicle` actualizado.
+- **Un camión COMPARTIDO (`branch_id` NULL) sólo lo cambia quien ve todas las sucursales**
+  (`SUPER ADMIN`, `DESARROLLADOR`; 1.0.29): `403 {"error":"Este vehículo es compartido por todas
+  las sucursales: sólo un SUPER ADMIN o un DESARROLLADOR puede modificarlo, darlo de baja o
+  eliminarlo."}`, **antes** de escribir nada. Verlo y usarlo en una ruta sigue siendo de todas;
+  quién puede dar de alta o editar un camión **propio** no cambia.
 - **Modelos**: `Vehicle`, `Route`.
 
 ## `DELETE /api/vehicles/[id]`
 
 - **Auth**: usuario. **Alcance**: sí. `404 {"error":"Not found"}`.
+- **Compartido (`branch_id` NULL)**: el mismo `403` que el PATCH para quien no ve todas.
+- **La carrera con una ruta recién creada** (1.0.29): si entre la comprobación y el `DELETE`
+  otra petición crea una ruta con este camión, la clave ajena responde 23503 y eso se contesta
+  `409` con el mismo literal de «tiene rutas asociadas» (antes, `500 Error interno`).
 - **Un vehículo con rutas NO se borra, ni siquiera con las históricas** (07/10/2026,
   incidencia 4): `409 {"error":"No se puede eliminar este vehículo porque tiene rutas
   asociadas, incluso históricas. Márcalo como inactivo para impedir que se use en nuevas
@@ -1285,6 +1396,9 @@ data: {}
   `cupRateUpdatedAt = now`.
 - Si hay fila → `update`; si no → `create` con esos datos.
 - **200**: el `Settings` resultante. **Modelos**: `Settings`.
+- Deja la línea de rastro `ajustes guardados` (ver «Rastro de quién»). Que **no exija admin**
+  es una DECISIÓN ABIERTA de Jose (1.0.29): la tasa del día la pone quien esté, y también
+  puede cambiarla cualquiera con sesión.
 
 ## `GET /api/tasa`
 
@@ -1513,6 +1627,13 @@ ninguno, `409` con `descartados` dentro. Motivos de la factura y el domicilio, e
 `cambió en la factura` (**`cambiado` no sube**), **`la factura no tiene domicilio cobrado`** y
 **`domicilio sin cotizar`** (los dos últimos, Amado 07/10/2026).
 
+**Lo que el aparato no eligió se nombra con su motivo VERDADERO (1.0.29).** Cuando la APK manda
+`pedidoIds`/`orderIds` con las buenas solamente, una tarjeta de la zona que no se puede cargar
+(sin cotizar, sin domicilio cobrado…) tampoco viene en su lista. El servidor le decía «lo pusieron
+en la zona después de que armaras», que es falso; ahora dice su motivo de la lista de arriba (el
+mismo código decide ambos bucles). «Lo pusieron en la zona después…» queda sólo para las que
+sí serían buenas. No cambia ningún literal.
+
 Camión: `400 El vehículo está inactivo y no se puede asignar a una ruta.` tanto si viene en el
 cuerpo como si es el **previsto** de la zona (un camión que se dio de baja después de
 asignarlo a la zona). Se mira después de la comprobación de sucursal.
@@ -1552,8 +1673,13 @@ el `409` falso «tiene 0 pedidos puestos». Con tarjetas puestas la base sigue n
 | `/api/routes/[id]/results` | 400 | `No vino ningún resultado` |
 | `/api/routes/[id]/results` | 409 (rechazado) | `ese pedido no va en esta ruta` |
 | `/api/routes/[id]/results` | 409 (rechazado) | `resultado '<v>' desconocido` |
-| `/api/routes/[id]/results` | 409 | `Se guardaron <A> de las <T> paradas de esta hoja. <K> no se pudieron guardar: <orderId> (<motivo>)[, …][ y <K-5> más.\|.]` |
+| `/api/routes/[id]/results` | 409 | `Se guardaron <A> de las <T> paradas de esta hoja. <K> no se pudieron guardar: <conduce> (<motivo>)[, …][ y <K-5> más.\|.]` (`<conduce>` = `numeroOperacion`; el `orderId` recortado a 64 sólo si no hay) |
 | `/api/orders/[id]` | 404 | `Not found` |
+| `/api/orders/[id]` PATCH | 400 | `Ese campo no se cambia por aquí: usa las rutas o el tablero (<campos>)` |
+| `/api/routes` POST | 400 | `No existe el vehículo '<id>'` (camión de otra sucursal) |
+| `/api/vehicles/[id]` PATCH, DELETE | 403 | `Este vehículo es compartido por todas las sucursales: sólo un SUPER ADMIN o un DESARROLLADOR puede modificarlo, darlo de baja o eliminarlo.` |
+| todas con alcance | 403 | `esta cuenta no está dada de alta en ninguna sucursal: pide en la oficina que te asignen la tuya` |
+| todas con alcance | 403 | `tu sucursal <CÓDIGO> no está dada de alta en Reparto: pide en la oficina que la den de alta` |
 | `/api/orders/recompute-weights` | 502 | `No se pudo leer el catálogo del warehouse (¿VPN?): <msg>` |
 | `/api/quote` | 410 | `El cotizador individual se retiró. El costo del domicilio lo pone Entrega y lo escribe en PEDIDO. Para el reparto de carga de delivery, usa POST /api/quote/batch.` |
 | `/api/quote/batch` | 400 | `Se espera { orders: [...] }` |

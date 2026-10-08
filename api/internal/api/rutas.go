@@ -926,11 +926,31 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 	// Si el id del camión no es un uuid o no existe, NO se valida capacidad y la ruta se
 	// crea igual —así lo dice el contrato— pero se crea SIN camión: guardar un id que no
 	// está en `vehicles` reventaría contra la clave ajena con un 500 sin explicación.
+	//
+	// La ruta pertenece a la sucursal elegida o, si no hay ninguna, a la de sus pedidos. Se
+	// calcula AQUÍ y no justo antes de crearla porque el camión se comprueba contra ella.
+	sucursalRuta := pedidos[0].BranchID
+	if propia := ar.Sucursal(); propia != nil {
+		sucursalRuta = pgDe(*propia)
+	}
 	var vehiculo *sqlc.ObtenerVehiculoParaCapacidadRow
 	if id, err := uuid.Parse(vehiculoPedido); err == nil {
 		v, err := ar.ObtenerVehiculoParaCapacidad(r.Context(), id)
 		switch {
 		case err == nil:
+			// EL CAMIÓN DE OTRA SUCURSAL NO SE ASIGNA — 08/10/2026 (auditoría de la 1.0.28).
+			// `ObtenerVehiculoParaCapacidad` va SIN alcance a propósito (el contrato dice que
+			// un camión que no aparece no valida capacidad en vez de negarse), y de rebote
+			// cualquiera podía armar su ruta con el camión de Holguín sabiendo su id: la ruta
+			// nacía con un camión ajeno y, al salir, lo dejaba `en uso` para su dueño.
+			// Compartido (`branch_id` NULL) sí vale: para eso están. Se contesta LO MISMO que
+			// cuando el id no existe en un cambio de camión (`No existe el vehículo …`) y se
+			// mira ANTES que `is_active`: decir «está inactivo» de un camión ajeno sería
+			// confirmar que existe y contar algo de él.
+			if v.BranchID.Valid && v.BranchID.Bytes != sucursalRuta.Bytes {
+				httpx.Error(w, r, http.StatusBadRequest, fmt.Sprintf("No existe el vehículo '%s'", vehiculoPedido))
+				return
+			}
 			vehiculo = &v
 		case errors.Is(err, pgx.ErrNoRows):
 			httpx.Registro(r).Warn("la ruta se arma sin camión: el vehículo pedido no existe",
@@ -1039,12 +1059,6 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	codigo := fmt.Sprintf("%s%03d", prefijo, delDia+1)
-
-	// La ruta pertenece a la sucursal elegida o, si no hay ninguna, a la de sus pedidos.
-	sucursalRuta := pedidos[0].BranchID
-	if propia := ar.Sucursal(); propia != nil {
-		sucursalRuta = pgDe(*propia)
-	}
 
 	// --- La escritura, ENTERA O NADA ---------------------------------------
 	//
@@ -1322,6 +1336,11 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 	if estado != nil && *estado == sqlc.RouteStatusInProgress {
 		s.avisarDeFondo(r, s.avisosDeLasParadas(r, a, id, estadoEnTransito))
 	}
+	if estado != nil {
+		// Completar es la acción que fija el histórico (CLAUDE.md §1); despachar es la que
+		// ocupa el camión. Las dos dejan constancia de quién.
+		rastroDeQuien(r, "ruta: estado cambiado", "ruta", id, "de", string(antes.Status), "a", string(*estado))
+	}
 	// `antes` es la ruta leída al entrar, y la sucursal de una ruta no se cambia nunca: ni
 	// el estado ni el camión la mueven, así que es la misma antes y después.
 	avisarCambioDeRutas(r.Context(), deLaFilaPg(antes.BranchID))
@@ -1406,6 +1425,8 @@ func (s *Servidor) cambiarCamionDeRuta(w http.ResponseWriter, r *http.Request, a
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
+	rastroDeQuien(r, "ruta: camión cambiado", "ruta", antes.ID,
+		"vehiculo_antes", idParaElRegistro(antes.VehicleID), "vehiculo_ahora", idParaElRegistro(aPgOpcional(nuevo)))
 	avisarCambioDeRutas(r.Context(), deLaFilaPg(antes.BranchID))
 	s.responderConLaRuta(w, r, a, antes.ID, http.StatusOK)
 }
@@ -1480,6 +1501,7 @@ func (s *Servidor) quitarParadaPlanificada(w http.ResponseWriter, r *http.Reques
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
+	rastroDeQuien(r, "parada quitada de una ruta planificada", "ruta", rutaID, "pedido", pedidoID)
 	sucursal := deLaFilaPg(antes.BranchID)
 	avisarCambioDeRutas(r.Context(), sucursal)
 	avisarCambioDePedidos(r.Context(), sucursal)
@@ -1552,6 +1574,8 @@ func (s *Servidor) borrarRuta(w http.ResponseWriter, r *http.Request) {
 	}
 	// DE LA RUTA QUE SE FUE. `antes` se leyó al entrar —hace falta para saber si su camión
 	// estaba ocupado—, así que la sucursal está en la mano cuando la fila ya no existe.
+	rastroDeQuien(r, "ruta borrada", "ruta", id, "estado", string(antes.Status),
+		"vehiculo", idParaElRegistro(antes.VehicleID))
 	sucursal := deLaFilaPg(antes.BranchID)
 	avisarCambioDeRutas(r.Context(), sucursal)
 	avisarCambioDePedidos(r.Context(), sucursal)
@@ -1597,8 +1621,18 @@ type aplicadoDeCierre struct {
 }
 
 type rechazadoDeCierre struct {
+	// OrderID es lo que VINO, tal cual (el aparato lo compara con lo que mandó): un uuid o,
+	// si el cuerpo estaba mal formado, basura. No se toca.
 	OrderID string `json:"orderId"`
-	Motivo  string `json:"motivo"`
+	// NumeroOperacion es el `operation_number` del pedido —el CONDUCE (CLAUDE.md §2)—, o ""
+	// si el pedido no tiene, no existe o NO ES VISIBLE para quien cierra (otra sucursal): se
+	// lee con el alcance de la persona, así que un id sondeado a mano no cuenta el número de
+	// operación de otra sucursal. SIEMPRE presente y siempre texto, nunca `null`: quien lo
+	// lee no tiene que distinguir dos formas del mismo vacío. Es lo que la persona sabe
+	// reconocer; el UUID, no (07/10/2026: Amado recibió un 409 que nombraba
+	// `8cb90608-76da-…` y no había forma de saber de qué pedido hablaba).
+	NumeroOperacion string `json:"numeroOperacion"`
+	Motivo          string `json:"motivo"`
 }
 
 type salidaDeCierre struct {
@@ -1684,15 +1718,24 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 		// individuales no abortan la transacción: se guardan todas las marcas válidas.
 		// El bloqueo sólo serializa con completar/borrar; ante un error de base no se
 		// acusa un cierre parcial como guardado y el aparato conserva el apunte.
+		//
+		// El número de operación de cada rechazada sale de ESTA misma transacción: de la hoja
+		// (`universo`) si la parada viajaba en la ruta, y —para las que no— de una sola
+		// lectura CON ALCANCE al final de la vuelta (`ponerNumerosDeOperacion`).
+		rechazar := func(e entradaDeCierre, motivo string) {
+			salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{
+				OrderID: e.OrderID, NumeroOperacion: numeroDeLaHoja(universo, e.OrderID), Motivo: motivo,
+			})
+		}
 		for _, e := range c.Resultados {
 			pedidoID, err := uuid.Parse(strings.TrimSpace(e.OrderID))
 			if err != nil {
-				salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
+				rechazar(e, msgParadaAjena)
 				continue
 			}
 			parada, iba := universo[pedidoID]
 			if !iba {
-				salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
+				rechazar(e, msgParadaAjena)
 				continue
 			}
 			// QUITAR LA MARCA — 28/09/2026. Jose: «desmarco el estado de cierre y no se
@@ -1715,7 +1758,7 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 					return err
 				}
 				if filas == 0 {
-					salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
+					rechazar(e, msgParadaAjena)
 					continue
 				}
 				// En `aplicados` va con su `resultado: null`: el acuse dice lo que se hizo, y
@@ -1726,10 +1769,7 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 
 			resultado, ok := resultadoValido(e.Resultado.Valor)
 			if !ok {
-				salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{
-					OrderID: e.OrderID,
-					Motivo:  fmt.Sprintf("resultado '%s' desconocido", valorTalCual(e.Resultado)),
-				})
+				rechazar(e, fmt.Sprintf("resultado '%s' desconocido", valorTalCual(e.Resultado)))
 				continue
 			}
 
@@ -1749,7 +1789,7 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			if filas == 0 {
 				// El WHERE lleva `ultima_ruta_id` y el alcance: cero filas es el mismo
 				// rechazo, comprobado contra la base y no contra una lectura ya vieja.
-				salida.Rechazados = append(salida.Rechazados, rechazadoDeCierre{OrderID: e.OrderID, Motivo: msgParadaAjena})
+				rechazar(e, msgParadaAjena)
 				continue
 			}
 			aplicado := string(resultado)
@@ -1783,7 +1823,7 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		return nil
+		return ponerNumerosDeOperacion(r.Context(), tx, salida.Rechazados)
 	})
 	if errors.Is(err, errRutaCompletada) {
 		httpx.Error(w, r, http.StatusConflict, msgRutaCompletada)
@@ -1811,6 +1851,12 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 	// ni preguntar, se queda pendiente y lo drena el trabajador. Un rechazo y un «no se
 	// pudo hablar» NO son lo mismo y por eso no comparten estado.
 	encolados := s.encolarAvisos(r.Context(), a, ruta.ID, avisos)
+	// Sólo si algo se guardó: un cierre en que se rechazó TODO no cambió nada y no tiene a
+	// nadie a quien atribuirle un cambio (el rechazo ya deja su propio Error).
+	if len(salida.Aplicados) > 0 {
+		rastroDeQuien(r, "cierre de ruta guardado", "ruta", ruta.ID,
+			"aplicados", len(salida.Aplicados), "rechazados", len(salida.Rechazados))
+	}
 
 	salida.APedido = s.aPedido(r.Context(), avisos)
 	if !salida.APedido.Ok && len(avisos) > 0 {
@@ -1870,6 +1916,15 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 // equivocada, cuarenta renglones iguales no dicen más que los veinte primeros.
 const topeDeRenglonesDelRechazo = 20
 
+// topeDeIdsDelDiagnostico acota cuántos ids se le preguntan a `DondeEstanLosPedidos` (que va
+// SIN alcance). Sólo se detallan 20 en el registro, así que preguntar por 5.000 ids que no
+// se van a escribir es regalarle a un cuerpo de un mégabyte una lectura enorme sin alcance.
+const topeDeIdsDelDiagnostico = 50
+
+// topeDelOrderIDEnElRegistro: el `orderId` que no es un uuid es texto del cliente (el cuerpo
+// admite 1 MiB) y no tiene por qué entrar entero en un renglón del registro.
+const topeDelOrderIDEnElRegistro = 64
+
 // registrarDondeEstabanLosRechazados escribe, para cada pedido que el cierre rechazó, EN QUÉ
 // RUTA estaba de verdad: `route_id`, `ultima_ruta_id` y `branch_id` del pedido, al lado de la
 // ruta que se estaba cerrando.
@@ -1890,11 +1945,28 @@ const topeDeRenglonesDelRechazo = 20
 //
 // Lo que se escribe son tres ids de filas —no hay token, ni contraseña, ni nada de la
 // sesión—, y no vuelve al cliente: la consulta va sin alcance (ver `DondeEstanLosPedidos`).
+//
+// # NIVELES — 08/10/2026
+//
+// El detalle por parada va en WARN y hay UN SOLO ERROR de resumen por cierre (el de
+// `cerrarRuta`). Antes cada
+// parada rechazada era un Error: un cierre con cuarenta rechazadas, que es el aparato mandando
+// la hoja contra la ruta equivocada, escribía cuarenta Error y cualquier alerta que mire el
+// nivel Error disparaba cuarenta veces por UN suceso. El suceso es el cierre rechazado; las
+// paradas son su detalle.
 func (s *Servidor) registrarDondeEstabanLosRechazados(r *http.Request, a *alcance.Acotado, ruta uuid.UUID, rechazados []rechazadoDeCierre) {
 	reg := httpx.Registro(r)
-	ids := make([]uuid.UUID, 0, len(rechazados))
-	for _, rc := range rechazados {
-		if id, err := uuid.Parse(strings.TrimSpace(rc.OrderID)); err == nil {
+	// El UN Error de resumen ya lo escribió `cerrarRuta` justo antes de llamar aquí («un
+	// cierre llegó con paradas que no van en esa ruta», con cuántas se guardaron, cuántas no
+	// y el motivo): esto es sólo el detalle, en Warn.
+	ids := make([]uuid.UUID, 0, min(len(rechazados), topeDeIdsDelDiagnostico))
+	vistos := map[uuid.UUID]bool{}
+	for i, rc := range rechazados {
+		if i == topeDeRenglonesDelRechazo || len(ids) == topeDeIdsDelDiagnostico {
+			break // lo que no se va a detallar tampoco se pregunta
+		}
+		if id, err := uuid.Parse(strings.TrimSpace(rc.OrderID)); err == nil && !vistos[id] {
+			vistos[id] = true
 			ids = append(ids, id)
 		}
 	}
@@ -1911,7 +1983,7 @@ func (s *Servidor) registrarDondeEstabanLosRechazados(r *http.Request, a *alcanc
 	}
 	for i, rc := range rechazados {
 		if i == topeDeRenglonesDelRechazo {
-			reg.Error("el cierre rechazó más paradas de las que se detallan",
+			reg.Warn("el cierre rechazó más paradas de las que se detallan",
 				"ruta", ruta, "detalladas", topeDeRenglonesDelRechazo,
 				"sin_detallar", len(rechazados)-topeDeRenglonesDelRechazo)
 			break
@@ -1920,14 +1992,15 @@ func (s *Servidor) registrarDondeEstabanLosRechazados(r *http.Request, a *alcanc
 		fila, hay := donde[id]
 		switch {
 		case err != nil:
-			reg.Error("parada rechazada en el cierre: el orderId no es un id",
-				"ruta", ruta, "pedido", rc.OrderID, "motivo", rc.Motivo)
+			reg.Warn("parada rechazada en el cierre: el orderId no es un id",
+				"ruta", ruta, "pedido", recortarTexto(rc.OrderID, topeDelOrderIDEnElRegistro),
+				"motivo", rc.Motivo)
 		case !hay:
-			reg.Error("parada rechazada en el cierre: el pedido no existe",
-				"ruta", ruta, "pedido", id, "motivo", rc.Motivo)
+			reg.Warn("parada rechazada en el cierre: el pedido no existe",
+				"ruta", ruta, "pedido", id, "numero_operacion", rc.NumeroOperacion, "motivo", rc.Motivo)
 		default:
-			reg.Error("parada rechazada en el cierre",
-				"ruta", ruta, "pedido", id,
+			reg.Warn("parada rechazada en el cierre",
+				"ruta", ruta, "pedido", id, "numero_operacion", rc.NumeroOperacion,
 				"route_id", idParaElRegistro(fila.RouteID),
 				"ultima_ruta_id", idParaElRegistro(fila.UltimaRutaID),
 				"branch_id", idParaElRegistro(fila.BranchID),
@@ -1965,13 +2038,19 @@ func dondeEstaElAviso(avisos []AvisoDeParada, pedidoID string) (int, bool) {
 // Lleva las tres cosas que necesita quien lo lee tres horas después: CUÁNTAS entraron
 // —para que no crea que se perdió la hoja entera—, cuáles no y por qué. Se nombran las
 // cinco primeras y se cuenta el resto, como en los demás rechazos de este fichero.
+//
+// CADA PARADA SE NOMBRA POR SU NÚMERO DE OPERACIÓN (el conduce), no por su UUID — 08/10/2026.
+// El 07/10/2026 el texto decía «8cb90608-76da-4fae-879d-126ff9ab4c3c (ese pedido no va en
+// esta ruta)» y nadie podía saber de qué pedido hablaba; con el número, «PTB25-261005-1480
+// (…)», es el que la persona tiene en la factura. El UUID queda como ÚLTIMO recurso, para el
+// pedido que no tiene número o que no es visible para quien cierra (otra sucursal).
 func motivoDelCierreIncompleto(s salidaDeCierre) string {
 	detalle := make([]string, 0, 5)
 	for _, r := range s.Rechazados {
 		if len(detalle) == 5 {
 			break
 		}
-		detalle = append(detalle, fmt.Sprintf("%s (%s)", r.OrderID, r.Motivo))
+		detalle = append(detalle, fmt.Sprintf("%s (%s)", nombreDeLaParadaRechazada(r), r.Motivo))
 	}
 	mensaje := fmt.Sprintf("Se guardaron %d de las %d paradas de esta hoja. %d no se "+
 		"pudieron guardar: %s", len(s.Aplicados), len(s.Aplicados)+len(s.Rechazados),
@@ -1980,6 +2059,99 @@ func motivoDelCierreIncompleto(s salidaDeCierre) string {
 		return mensaje + fmt.Sprintf(" y %d más.", len(s.Rechazados)-5)
 	}
 	return mensaje + "."
+}
+
+// nombreDeLaParadaRechazada: el número de operación si lo hay y, si no, el `orderId` tal como
+// vino —RECORTADO, porque es texto del cliente y el cuerpo admite hasta 1 MiB—.
+func nombreDeLaParadaRechazada(r rechazadoDeCierre) string {
+	if r.NumeroOperacion != "" {
+		return r.NumeroOperacion
+	}
+	return recortarTexto(r.OrderID, topeDelIdEnTexto)
+}
+
+// topeDelIdEnTexto: lo que mide un uuid con guiones (36) con holgura. Un `orderId` más largo
+// no es un id, es basura que no tiene por qué volver entero en un texto que se pega en un chat.
+const topeDelIdEnTexto = 64
+
+// recortarTexto corta por caracteres (no por bytes: un corte a mitad de una tilde es texto roto).
+func recortarTexto(s string, max int) string {
+	if r := []rune(s); len(r) > max {
+		return string(r[:max]) + "…"
+	}
+	return s
+}
+
+// numeroDeLaHoja: el `operation_number` de una parada que VIAJA en la ruta, de las filas que la
+// propia transacción ya leyó. "" si el id no es uuid, no está en la hoja o no tiene número.
+func numeroDeLaHoja(hoja map[uuid.UUID]sqlc.ListarParadasQueViajaronEnRutaRow, orderID string) string {
+	id, err := uuid.Parse(strings.TrimSpace(orderID))
+	if err != nil {
+		return ""
+	}
+	if p, hay := hoja[id]; hay && p.OperationNumber != nil {
+		return strings.TrimSpace(*p.OperationNumber)
+	}
+	return ""
+}
+
+// topeDeNumerosDeOperacion acota cuántos pedidos se preguntan de una vez. Una hoja entera
+// rechazada son decenas; el tope sólo protege de un cuerpo de un mégabyte de ids.
+const topeDeNumerosDeOperacion = 200
+
+// ponerNumerosDeOperacion rellena `numeroOperacion` de las rechazadas que no viajaban en la
+// ruta (las que no están en su hoja): con UNA lectura, DENTRO de la transacción y CON EL
+// ALCANCE de quien cierra.
+//
+// POR QUÉ CON ALCANCE. Esta lectura sale en la RESPUESTA, no en el registro. Si fuera sin
+// acotar (como `DondeEstanLosPedidos`, que sólo escribe en el log), un cierre con ids de
+// otra sucursal contestaría su número de operación: la fuga de la regla 1 por la puerta del
+// mensaje de error. Con alcance, un pedido ajeno o inexistente no devuelve fila y se queda
+// en "" —desde fuera «no existe» y «no es tuyo» son lo mismo—, y el texto lo nombra por el
+// id que mandó el propio cliente.
+//
+// Reutiliza `PorQueNoSePuedeArmar` (por clave primaria, con el mismo alcance) en vez de una
+// consulta nueva: devuelve exactamente lo que hace falta —`operation_number`— y ya está
+// cubierta por su propia prueba de alcance.
+//
+// Sólo corre en el camino del rechazo. Si falla se devuelve el error, como cualquier otra
+// lectura de la transacción: un fallo de base no se acusa como cierre parcial guardado.
+func ponerNumerosDeOperacion(ctx context.Context, tx *alcance.Acotado, rechazados []rechazadoDeCierre) error {
+	vistos := map[uuid.UUID]bool{}
+	var ids []uuid.UUID
+	for _, rc := range rechazados {
+		if rc.NumeroOperacion != "" {
+			continue
+		}
+		id, err := uuid.Parse(strings.TrimSpace(rc.OrderID))
+		if err != nil || vistos[id] || len(ids) == topeDeNumerosDeOperacion {
+			continue
+		}
+		vistos[id] = true
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	filas, err := tx.PorQueNoSePuedeArmar(ctx, ids)
+	if err != nil {
+		return err
+	}
+	numeros := map[uuid.UUID]string{}
+	for _, f := range filas {
+		if f.OperationNumber != nil {
+			numeros[f.ID] = strings.TrimSpace(*f.OperationNumber)
+		}
+	}
+	for i := range rechazados {
+		if rechazados[i].NumeroOperacion != "" {
+			continue
+		}
+		if id, err := uuid.Parse(strings.TrimSpace(rechazados[i].OrderID)); err == nil {
+			rechazados[i].NumeroOperacion = numeros[id]
+		}
+	}
+	return nil
 }
 
 // topeCuerpoCierre: una hoja de cierre son decenas de paradas con su nota; 1 MiB sobra. Lo

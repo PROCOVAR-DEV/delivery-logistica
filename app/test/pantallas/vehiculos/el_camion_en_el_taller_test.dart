@@ -89,6 +89,39 @@ void main() {
     );
   });
 
+  testWidgets('la ficha del camión del taller dice que SE OFRECE, con aviso', (
+    tester,
+  ) async {
+    // Aviso, no bloqueo (Jose, 28/09/2026): la ficha decía «no se le puede dar
+    // ruta» y el asistente y «Camión previsto» lo ofrecen con un aviso ámbar.
+    const camion = VehiculoDeLaApi(
+      id: 'v1',
+      nombre: 'Camión #1',
+      capacidad: 1000,
+      estado: 'maintenance',
+      tipo: 'truck',
+    );
+    await abrirFicha(tester, camion, guardar: false);
+    expect(
+      find.textContaining('se puede elegir para una ruta nueva'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('no se le puede dar ruta'), findsNothing);
+  });
+
+  testWidgets('y la del camión disponible no habla del taller', (tester) async {
+    // La mitad que caza un texto que sale en todas las fichas.
+    const libre = VehiculoDeLaApi(
+      id: 'v1',
+      nombre: 'Camión #1',
+      capacidad: 1000,
+      estado: 'available',
+      tipo: 'truck',
+    );
+    await abrirFicha(tester, libre, guardar: false);
+    expect(find.textContaining('En el taller:'), findsNothing);
+  });
+
   testWidgets('lo elegido llega a `DatosVehiculo` como `maintenance`', (
     tester,
   ) async {

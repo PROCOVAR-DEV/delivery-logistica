@@ -23,25 +23,10 @@ UPDATE orders SET
     end_lng          = coalesce($6::double precision, end_lng),
     lat              = coalesce($7::double precision, lat),
     lng              = coalesce($8::double precision, lng),
-    weight           = coalesce($9::double precision, weight),
-    notes            = coalesce($10::text, notes),
-    status           = coalesce($11::order_status, status),
-    trip_leg         = coalesce($12::trip_leg, trip_leg),
-    price            = coalesce($13::double precision, price),
-    stop_order       = coalesce($14::integer, stop_order),
-    -- ` + "`" + `route_id` + "`" + ` va con interruptor y no con coalesce porque ponerlo a NULL es la mitad
-    -- de su utilidad: es como se baja un pedido de un camión a mano. Y NO toca
-    -- ` + "`" + `ultima_ruta_id` + "`" + `, igual que en delivery: en qué ruta viajó no se reescribe desde
-    -- una corrección suelta. Meter o sacar pedidos de una ruta de verdad es cosa de
-    -- /api/routes; esto es el parche de una equivocación.
-    route_id         = CASE WHEN $15::boolean
-                            THEN $16::uuid ELSE route_id END,
-    delivered_at     = CASE
-        WHEN $11::order_status = 'delivered' THEN now()
-        ELSE delivered_at
-    END
-WHERE id = $17
-  AND ($18::uuid IS NULL OR branch_id = $18::uuid)
+    notes            = coalesce($9::text, notes),
+    trip_leg         = coalesce($10::trip_leg, trip_leg)
+WHERE id = $11
+  AND ($12::uuid IS NULL OR branch_id = $12::uuid)
 RETURNING id, operation_number, customer_name, address, end_address, end_lat,
           end_lng, lat, lng, weight, status, trip_leg, notes, route_id,
           ultima_ruta_id, price, segment_km, stop_order, delivered_at,
@@ -49,24 +34,18 @@ RETURNING id, operation_number, customer_name, address, end_address, end_lat,
 `
 
 type ActualizarPedidoParams struct {
-	OperationNumber *string      `json:"operation_number"`
-	CustomerName    *string      `json:"customer_name"`
-	Address         *string      `json:"address"`
-	EndAddress      *string      `json:"end_address"`
-	EndLat          *float64     `json:"end_lat"`
-	EndLng          *float64     `json:"end_lng"`
-	Lat             *float64     `json:"lat"`
-	Lng             *float64     `json:"lng"`
-	Weight          *float64     `json:"weight"`
-	Notes           *string      `json:"notes"`
-	Status          *OrderStatus `json:"status"`
-	TripLeg         *TripLeg     `json:"trip_leg"`
-	Price           *float64     `json:"price"`
-	StopOrder       *int32       `json:"stop_order"`
-	TocarRouteID    bool         `json:"tocar_route_id"`
-	RouteID         pgtype.UUID  `json:"route_id"`
-	ID              uuid.UUID    `json:"id"`
-	Sucursal        pgtype.UUID  `json:"sucursal"`
+	OperationNumber *string     `json:"operation_number"`
+	CustomerName    *string     `json:"customer_name"`
+	Address         *string     `json:"address"`
+	EndAddress      *string     `json:"end_address"`
+	EndLat          *float64    `json:"end_lat"`
+	EndLng          *float64    `json:"end_lng"`
+	Lat             *float64    `json:"lat"`
+	Lng             *float64    `json:"lng"`
+	Notes           *string     `json:"notes"`
+	TripLeg         *TripLeg    `json:"trip_leg"`
+	ID              uuid.UUID   `json:"id"`
+	Sucursal        pgtype.UUID `json:"sucursal"`
 }
 
 type ActualizarPedidoRow struct {
@@ -97,8 +76,24 @@ type ActualizarPedidoRow struct {
 // Escrituras del catálogo
 // ---------------------------------------------------------------------------
 // PATCH de un pedido a mano. `coalesce` deja pasar sólo lo que viene: lo que no se manda
-// no se pisa con NULL. `delivered_at` se pone solo al marcar `delivered` — no se le pide
-// al cliente que lo mande, que es como acaban dos pedidos con la misma hora de entrega.
+// no se pisa con NULL.
+//
+// # LO QUE ESTA CONSULTA YA NO TOCA — 08/10/2026 (auditoría de la 1.0.28)
+//
+// Hasta la 1.0.28 también escribía `route_id`, `status`, `price`, `weight`, `stop_order` y
+// `delivered_at`, SIN pasar por ninguna regla: cualquier rol podía meter un pedido en la
+// ruta de OTRA sucursal, en una ruta ya completada, uno sin facturar o sin domicilio cobrado,
+// o marcarlo `delivered`, o cambiarle el precio. Todo lo que el armador, el tablero y el
+// cierre de ruta bloquean desde el 07/10 (incidencia 6 de Amado) se podía saltar con un
+// PATCH. Ningún cliente lo usaba (la app no llama a este endpoint; se comprobó con grep en
+// app/lib, sync/, herramientas/ y docs/contratos-api.md), así que se QUITAN de la consulta,
+// no sólo del manejador: no queda una columna que otro llamante pueda volver a abrir por
+// descuido.
+//
+// Meter o sacar un pedido de una ruta es SÓLO de /api/routes y /api/board; el estado y la
+// hora de entrega los pone el cierre (`MarcarResultadoDeParada`); el peso lo calcula el
+// servidor (`ActualizarPesoDePedido`, `peso_linea_kg`) y precio y orden de parada vienen de
+// PEDIDO / del armado. El manejador responde 400 si llega alguno de esos campos.
 func (q *Queries) ActualizarPedido(ctx context.Context, arg ActualizarPedidoParams) (ActualizarPedidoRow, error) {
 	row := q.db.QueryRow(ctx, actualizarPedido,
 		arg.OperationNumber,
@@ -109,14 +104,8 @@ func (q *Queries) ActualizarPedido(ctx context.Context, arg ActualizarPedidoPara
 		arg.EndLng,
 		arg.Lat,
 		arg.Lng,
-		arg.Weight,
 		arg.Notes,
-		arg.Status,
 		arg.TripLeg,
-		arg.Price,
-		arg.StopOrder,
-		arg.TocarRouteID,
-		arg.RouteID,
 		arg.ID,
 		arg.Sucursal,
 	)

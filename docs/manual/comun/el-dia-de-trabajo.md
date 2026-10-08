@@ -172,7 +172,9 @@ Al completarla:
 
 - La ruta pasa al **«Historial»**.
 - **El camión queda libre.**
-- Los pedidos no entregados **vuelven a estar disponibles** para mañana.
+- Los pedidos no entregados **vuelven a estar disponibles** para mañana. Si uno de
+  ellos (devuelto o cancelado) se mete en otra ruta, **empieza de cero**: no lleva el
+  resultado de la vez anterior, y se marca de nuevo al cerrar la ruta nueva.
 
 **Y saca el post-despacho** antes de descargar el camión: es la hoja de «Tiene que
 quedar en el camión», con una columna **«Bajó»** en blanco para contar a mano, y la

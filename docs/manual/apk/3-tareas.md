@@ -234,13 +234,15 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
      botón **«Poner el almacén»**.
 5. **Paso «Vehículo»** — elige en **«Vehículo de la ruta»** y toca **«Siguiente»**.
    **Es obligatorio.** <!-- señala: rutas-asistente-vehiculo -->
-   - Se ofrecen los camiones **activos y fuera del taller**, cada uno con su
-     capacidad: «1000 kg», «1000 kg · en ruta».
-   - **Un camión «Inactivo» o en mantenimiento no sale en la lista.** Si no ves el que
-     buscas, mira en **Menú → «Vehículos»** si está dado de baja o en el taller.
-   - Si no queda ninguno: «Los vehículos de esta sucursal están inactivos o en el
-     taller, y a una ruta nueva sólo se asigna un vehículo activo. Actívalo o sácalo
-     del taller en Vehículos.»
+   - Cada uno sale con su capacidad: «1000 kg», «1000 kg · en el taller», «1000 kg ·
+     en ruta». **Se pueden elegir todos los que están activos.**
+   - **Un camión «Inactivo» (dado de baja) no sale en la lista.** Si no ves el que
+     buscas, mira en **Menú → «Vehículos»** si está dado de baja.
+   - Si eliges uno del taller sale un **aviso en ámbar**, pero **se arma igual**: es
+     aviso, no bloqueo. Dice que el camión está marcado «EN EL TALLER» y que no puede
+     salir hoy; si ya volvió, sácalo del taller en Vehículos.
+   - Si no queda ninguno: «Los vehículos de esta sucursal están inactivos, y a una
+     ruta nueva sólo se asigna un vehículo activo. Actívalo en Vehículos.»
    - Puedes ponerle un nombre («Nombre (el código se genera solo)») y cambiar la
      **«Fecha de entrega»**, que **viene puesta en hoy**.
 6. **Paso «Pedidos»** — busca y **marca los que quieras**.
@@ -412,8 +414,8 @@ para eso, ni en la tarjeta ni dentro del cajón del detalle. Las dos salidas:
 3. Vete a **Menú → «Tablero»** y **desliza a la página de la zona**.
    <!-- señala: tablero-carrusel-de-zonas -->
 4. **Toca el ⋮** de la cabecera. <!-- señala: tablero-menu-de-la-zona -->
-5. **Toca «Camión previsto»** y elige el otro camión (**activo y fuera del taller**, o
-   no sale en la lista). <!-- señala: tablero-camion-previsto -->
+5. **Toca «Camión previsto»** y elige el otro camión (**activo**; si está en el taller
+   sale marcado en ámbar, y se puede elegir igual). <!-- señala: tablero-camion-previsto -->
 6. Otra vez **⋮** y, abajo del cajón, **«Armar la ruta de esta zona»**.
    <!-- señala: tablero-armar-la-ruta -->
 
@@ -495,9 +497,11 @@ toca **«Calcular»**. Te rellena el campo.
 **Marcarlo en el taller NO cierra la ruta que ya tuviera abierta.** Eso se arregla en
 la tarjeta del camión.
 
-**Mientras esté en mantenimiento no se ofrece para rutas nuevas**: no sale en el paso
-«Vehículo» de «Nueva Ruta» ni en el «Camión previsto» del Tablero. Cuando vuelva,
-pásalo otra vez a **«Disponible»**.
+**Mientras esté en mantenimiento se sigue ofreciendo para rutas nuevas, pero con un
+aviso en ámbar**: sale con «en el taller» en el paso «Vehículo» de «Nueva Ruta» y en el
+«Camión previsto» del Tablero. Es aviso, no bloqueo: así una sucursal con un solo camión
+olvidado en el taller no se queda sin poder armar rutas. Cuando vuelva, pásalo otra vez a
+**«Disponible»**.
 
 ## Liberar un camión que sale ocupado y no lo está
 <!-- tarea -->
@@ -592,13 +596,15 @@ nuevas y su historial se queda intacto.
    - Sale **«Vehículo actualizado.»** y la tarjeta lleva la insignia **«Inactivo»**.
 
 **Qué cambia:** el camión **ya no sale** en el paso «Vehículo» de «Nueva Ruta» ni en el
-«Camión previsto» de las zonas del Tablero. **Sigue viéndose** en el filtro «Rutas de un
-camión», en los informes y en las rutas que ya hizo.
+«Camión previsto» de las zonas del Tablero. (Con el taller no pasa: un camión en
+mantenimiento sí sale, con su aviso; el que nunca se ofrece es el inactivo.) **Sigue
+viéndose** en el filtro «Rutas de un camión», en los informes y en las rutas que ya hizo.
 
 **Para recuperarlo**, vuelve a **«Editar»** y enciende el interruptor.
 
 > **Ojo:** «Inactivo» no es lo mismo que «En mantenimiento». El mantenimiento es un
-> camión que va a volver; inactivo es una baja.
+> camión que va a volver y **se ofrece con un aviso**; inactivo es una baja y **no se
+> ofrece nunca**.
 
 ---
 

@@ -631,8 +631,24 @@ ORDER BY formatos DESC, producto ASC;
 -- ---------------------------------------------------------------------------
 
 -- PATCH de un pedido a mano. `coalesce` deja pasar sólo lo que viene: lo que no se manda
--- no se pisa con NULL. `delivered_at` se pone solo al marcar `delivered` — no se le pide
--- al cliente que lo mande, que es como acaban dos pedidos con la misma hora de entrega.
+-- no se pisa con NULL.
+--
+-- # LO QUE ESTA CONSULTA YA NO TOCA — 08/10/2026 (auditoría de la 1.0.28)
+--
+-- Hasta la 1.0.28 también escribía `route_id`, `status`, `price`, `weight`, `stop_order` y
+-- `delivered_at`, SIN pasar por ninguna regla: cualquier rol podía meter un pedido en la
+-- ruta de OTRA sucursal, en una ruta ya completada, uno sin facturar o sin domicilio cobrado,
+-- o marcarlo `delivered`, o cambiarle el precio. Todo lo que el armador, el tablero y el
+-- cierre de ruta bloquean desde el 07/10 (incidencia 6 de Amado) se podía saltar con un
+-- PATCH. Ningún cliente lo usaba (la app no llama a este endpoint; se comprobó con grep en
+-- app/lib, sync/, herramientas/ y docs/contratos-api.md), así que se QUITAN de la consulta,
+-- no sólo del manejador: no queda una columna que otro llamante pueda volver a abrir por
+-- descuido.
+--
+-- Meter o sacar un pedido de una ruta es SÓLO de /api/routes y /api/board; el estado y la
+-- hora de entrega los pone el cierre (`MarcarResultadoDeParada`); el peso lo calcula el
+-- servidor (`ActualizarPesoDePedido`, `peso_linea_kg`) y precio y orden de parada vienen de
+-- PEDIDO / del armado. El manejador responde 400 si llega alguno de esos campos.
 -- name: ActualizarPedido :one
 UPDATE orders SET
     operation_number = coalesce(sqlc.narg('operation_number')::text, operation_number),
@@ -643,23 +659,8 @@ UPDATE orders SET
     end_lng          = coalesce(sqlc.narg('end_lng')::double precision, end_lng),
     lat              = coalesce(sqlc.narg('lat')::double precision, lat),
     lng              = coalesce(sqlc.narg('lng')::double precision, lng),
-    weight           = coalesce(sqlc.narg('weight')::double precision, weight),
     notes            = coalesce(sqlc.narg('notes')::text, notes),
-    status           = coalesce(sqlc.narg('status')::order_status, status),
-    trip_leg         = coalesce(sqlc.narg('trip_leg')::trip_leg, trip_leg),
-    price            = coalesce(sqlc.narg('price')::double precision, price),
-    stop_order       = coalesce(sqlc.narg('stop_order')::integer, stop_order),
-    -- `route_id` va con interruptor y no con coalesce porque ponerlo a NULL es la mitad
-    -- de su utilidad: es como se baja un pedido de un camión a mano. Y NO toca
-    -- `ultima_ruta_id`, igual que en delivery: en qué ruta viajó no se reescribe desde
-    -- una corrección suelta. Meter o sacar pedidos de una ruta de verdad es cosa de
-    -- /api/routes; esto es el parche de una equivocación.
-    route_id         = CASE WHEN sqlc.arg('tocar_route_id')::boolean
-                            THEN sqlc.narg('route_id')::uuid ELSE route_id END,
-    delivered_at     = CASE
-        WHEN sqlc.narg('status')::order_status = 'delivered' THEN now()
-        ELSE delivered_at
-    END
+    trip_leg         = coalesce(sqlc.narg('trip_leg')::trip_leg, trip_leg)
 WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
 RETURNING id, operation_number, customer_name, address, end_address, end_lat,

@@ -218,16 +218,19 @@ enum MarcaTarjeta {
   /// No hay nada que llevar: hoy no sale.
   sinFactura('Sin factura', grave: true),
 
-  /// Se facturo distinto de como se pidio. Se reparte igual —lo que sube al
-  /// camion son las lineas de la factura— pero **el peso de la columna ya no es
-  /// el que era**, y ese es el aviso que importa.
-  cambiado('Cambió en la factura', grave: false);
+  /// Se facturo distinto de como se pidio. **Tampoco sale** —Jose, 07/10/2026:
+  /// «en el camion solo sube lo que cuadra con la factura»; el servidor lo
+  /// descarta en `armarRutaDeColumna` con «cambió en la factura»— y por eso es
+  /// grave: hasta 1.0.28 estaba en ambar, el armado local lo subia y la ruta
+  /// salia con una factura que ya no era la que se cargo.
+  cambiado('Cambió en la factura', grave: true);
 
   const MarcaTarjeta(this.texto, {required this.grave});
 
   final String texto;
 
-  /// En rojo lo que hoy NO sale; en ambar lo que sale distinto.
+  /// En rojo lo que hoy NO sale en un camion; en ambar, si algun dia hay algo
+  /// que se avisa pero sale (hoy no queda ninguna marca asi).
   final bool grave;
 }
 
@@ -247,9 +250,11 @@ class TarjetaPedido {
     this.vendedor,
     this.orderDate,
     this.facturaEstado,
+    this.facturaDomicilio,
     this.archivado = false,
     this.rutaId,
     this.resultado,
+    this.deliveredAt,
   });
 
   final String pedidoId;
@@ -263,9 +268,14 @@ class TarjetaPedido {
   final String? vendedor;
   final DateTime? orderDate;
   final String? facturaEstado;
+
+  /// Lo que la factura cobro de domicilio. `null` y cero son lo mismo aqui:
+  /// «no esta cobrado» (ver [motivoDeNoSubir]).
+  final double? facturaDomicilio;
   final bool archivado;
   final String? rutaId;
   final String? resultado;
+  final DateTime? deliveredAt;
   final double kmAlAlmacen;
 
   /// Cuantos pedidos hay hoy de este mismo cliente. **No se funden las
@@ -286,9 +296,41 @@ class TarjetaPedido {
     if (facturaEstado == EstadoFactura.cambiado) MarcaTarjeta.cambiado,
   ];
 
+  /// POR QUE ESTA TARJETA NO SUBE A UNA RUTA, o `null` si sube.
+  ///
+  /// Es la regla de entrada de `armarRutaDeColumna` (`api/internal/api/
+  /// tablero.go`), **la misma y con las mismas palabras**: sin senal el que dice
+  /// «no» es el telefono, y si dos lados discrepan la misma zona arma una ruta
+  /// con conexion y otra distinta sin ella. Hasta 1.0.28 el aparato solo miraba
+  /// las marcas graves y armaba con lo que el servidor descarta: domicilio sin
+  /// cobrar, sin cotizar y `cambiado` (Amado, 07/10/2026, incidencia 6).
+  ///
+  /// Solo entra lo facturado y que cuadre (`igual`; `cambiado` NO), con
+  /// `facturaDomicilio > 0` y `pedidoCosto` no nulo. Las marcas conservan su
+  /// texto de siempre; los dos de domicilio son los del servidor, letra por
+  /// letra (`docs/armado-rechazado.casos.json`, `descartadosDelTablero`).
+  ///
+  /// `ya se entregó` va aqui aunque el servidor lo pregunte primero: al armar,
+  /// el aparato deja a `null` el resultado del pedido (reasignar un devuelto es
+  /// un intento nuevo), y sin esta guarda borraria una entrega de verdad.
+  String? get motivoDeNoSubir {
+    for (final m in marcas) {
+      if (m.grave) return m.texto;
+    }
+    if (deliveredAt != null || resultado == ResultadoParada.entregado) {
+      return 'ya se entregó';
+    }
+    final domicilio = facturaDomicilio;
+    if (domicilio == null || domicilio <= 0) {
+      return 'la factura no tiene domicilio cobrado';
+    }
+    if (pedidoCosto == null) return 'domicilio sin cotizar';
+    return null;
+  }
+
   /// ¿Se puede repartir hoy? Es la pregunta del armador (§5.2), no la de si se
   /// ensena: lo que no se puede repartir se ensena igual, marcado.
-  bool get repartible => marcas.every((m) => !m.grave);
+  bool get repartible => motivoDeNoSubir == null;
 }
 
 /// Una tarjeta YA COLOCADA, con la columna y el sitio en el que esta.

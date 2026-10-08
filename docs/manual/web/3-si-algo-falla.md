@@ -45,6 +45,12 @@ pedido ya va en otra ruta», «3 de los 8 pedidos ya están en otra ruta».
 
 **Léelo y repite el gesto.** Casi siempre es que alguien se te adelantó.
 
+**Al cerrar una ruta** el aviso es más serio: si el servidor guarda unas paradas y
+rechaza otras, la ruta se completa con lo guardado y sale un cajón, «Ruta completada: 2
+paradas no se guardaron», con el **conduce** y el motivo de cada una. **No se va solo**:
+hay que pulsar **«Entendido»**. Apunta esos conduces: esas paradas se quedaron sin
+resultado y se corrigen en PEDIDO.
+
 **Y esto es importante:** en la web **ese cambio no se queda en ninguna cola**. Si
 cierras la pestaña o cierras sesión, **se pierde**. Arréglalo antes de irte.
 

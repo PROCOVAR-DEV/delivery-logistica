@@ -502,6 +502,57 @@ void main() {
     });
   });
 
+  // REASIGNAR UN DEVUELTO ES UN INTENTO NUEVO (1.0.29, parte local de I-2). El
+  // pedido que vuelve de una ruta con su «devuelto», su hora y su nota entra en
+  // la nueva SIN nada de eso; y la pareja: lo que no se arma conserva la marca
+  // de su ruta, porque la limpieza es de quien entra, no de toda la tabla.
+  test('un DEVUELTO que se reasigna entra limpio: sin resultado, hora ni nota',
+      () async {
+    final hora = DateTime.utc(2026, 9, 13, 18);
+    await base.customStatement(
+      "UPDATE orders SET resultado = 'devuelto', ultima_ruta_id = 'R0', "
+      "resultado_nota = 'el cliente había cerrado' WHERE id = 'q1'",
+    );
+    await (base.update(base.orders)..where((o) => o.id.equals('q1'))).write(
+      OrdersCompanion(resultadoAt: Value(hora)),
+    );
+    // Otro pedido, de otra ruta ya cerrada, que NO se arma.
+    await sembrarPedido(
+      base,
+      id: 'q9',
+      cliente: 'Zoe',
+      ultimaRutaId: 'R0',
+      resultado: ResultadoParada.entregado,
+      entregadoAt: hora,
+      endLat: 0,
+      endLng: 0.5,
+    );
+
+    final rutaId = await acciones.armar(
+      vehiculoId: 'V1',
+      pedidoIds: ['q1', 'q2'],
+      origenLat: 0,
+      origenLng: 0,
+    );
+
+    Future<Pedido> fila(String id) => (base.select(
+      base.orders,
+    )..where((o) => o.id.equals(id))).getSingle();
+
+    final q1 = await fila('q1');
+    expect(q1.routeId, rutaId);
+    expect(q1.ultimaRutaId, rutaId, reason: 'ya es de la ruta nueva');
+    expect(q1.resultado, isNull);
+    expect(q1.resultadoAt, isNull);
+    expect(q1.resultadoNota, isNull);
+    expect(q1.deliveredAt, isNull);
+
+    final q9 = await fila('q9');
+    expect(q9.resultado, ResultadoParada.entregado, reason: 'no se armó');
+    expect(q9.deliveredAt, hora);
+    expect(q9.ultimaRutaId, 'R0');
+  });
+
   test('los numeros de ruta se van sucediendo en el aparato', () async {
     await armarLasTres();
     await sembrarPedido(

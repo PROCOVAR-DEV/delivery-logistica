@@ -115,6 +115,12 @@ Si el pedido está archivado, esa insignia lleva el aviso «Archivado en PEDIDO�
 **Manda cómo acabó la parada, no el estado de la ruta.** Una ruta completada no
 convierte en entregado un pedido que volvió en el camión.
 
+**Un devuelto o cancelado que se mete en otra ruta empieza de cero.** El pedido que
+volvió ayer en el camión y hoy se mete en una ruta nueva sale como uno cualquiera
+(«En despacho», luego «En ruta»), **sin el resultado de la vez anterior**: no arrastra
+ni el «Devuelto» ni el «Cancelado». Su resultado se marca de nuevo al cerrar la ruta
+nueva.
+
 ### Columna «Factura»
 
 | Qué se ve | Qué significa |

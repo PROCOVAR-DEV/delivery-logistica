@@ -183,7 +183,17 @@ class BaseLocal extends _$BaseLocal {
       if (desde < 5) {
         // `orders.vehicle_id` duplicaba una relación que pertenece a `routes`.
         // DROP COLUMN conserva el resto de la copia local y su cola de trabajo.
-        await customStatement('ALTER TABLE orders DROP COLUMN vehicle_id');
+        //
+        // **Sólo si la columna está.** `DROP COLUMN` de una que no existe LANZA, y
+        // una migración que lanza deja la base sin abrir: lo único que esta
+        // aplicación no puede permitirse, porque ahí dentro está la cola sin
+        // subir. Pasa con una base que ya la perdió (un salto interrumpido, una
+        // copia creada con el esquema nuevo y el `user_version` atrás): no hay
+        // nada que quitar y no se hace nada.
+        final columnas = await customSelect('PRAGMA table_info(orders)').get();
+        if (columnas.any((f) => f.read<String>('name') == 'vehicle_id')) {
+          await customStatement('ALTER TABLE orders DROP COLUMN vehicle_id');
+        }
       }
       if (desde < 6) {
         await m.addColumn(vehicles, vehicles.isActive);

@@ -162,13 +162,15 @@ Es el camino largo, para cuando la ruta no sale de una zona entera.
 3. **«Salida»** — elige en **«Almacén del que sale el camión»** y **«Siguiente»**.
    Sólo salen los que tienen coordenadas. Si no hay ninguno: «Esta sucursal no tiene
    ningún almacén con ubicación…» y un botón **«Poner el almacén»**. <!-- señala: rutas-asistente-almacen -->
-4. **«Vehículo»** — **obligatorio**. Se ofrecen los camiones **activos y fuera del
-   taller**, con su capacidad de nota: «1000 kg», «1000 kg · en ruta».
-   - **Un camión «Inactivo» o en mantenimiento no sale en la lista.** Si no ves el que
-     buscas, mira en **Menú → «Vehículos»** si está dado de baja o en el taller.
-   - Si no queda ninguno: «Los vehículos de esta sucursal están inactivos o en el
-     taller, y a una ruta nueva sólo se asigna un vehículo activo. Actívalo o sácalo
-     del taller en Vehículos.»
+4. **«Vehículo»** — **obligatorio**. Se ofrecen los camiones **activos**, con su
+   capacidad de nota: «1000 kg», «1000 kg · en el taller», «1000 kg · en ruta».
+   - **Un camión «Inactivo» (dado de baja) no sale en la lista.** Si no ves el que
+     buscas, mira en **Menú → «Vehículos»** si está dado de baja.
+   - Si eliges uno del taller, sale un **aviso en ámbar** pero **se arma igual**: es
+     aviso, no bloqueo. Dice que el camión está marcado «EN EL TALLER» y que no puede
+     salir hoy; si ya volvió, sácalo del taller en Vehículos.
+   - Si no queda ninguno: «Los vehículos de esta sucursal están inactivos, y a una
+     ruta nueva sólo se asigna un vehículo activo. Actívalo en Vehículos.»
    - Opcionalmente, el nombre y la **«Fecha de entrega»**, que **viene puesta en
      hoy**. <!-- señala: rutas-asistente-vehiculo -->
 5. **«Pedidos»** — marca los que quieras.
@@ -430,10 +432,10 @@ calcular el domicilio»**. Debajo pone **«Solo un vehículo por TIPO.»**
 2. En el desplegable **«Estado del vehículo»**, elige **«En mantenimiento»**. <!-- señala: vehiculos-estado -->
    - **Lee la explicación que sale debajo del desplegable, en ámbar:**
 
-   > «En el taller: no se le puede dar ruta hasta que vuelva. Escribe el motivo en
-   > Notas, aquí abajo — es lo único que le dice al de al lado por qué no puede
-   > contar con él. Marcarlo NO cierra la ruta que ya tuviera abierta: eso se
-   > arregla en la tarjeta del camión.»
+   > «En el taller: se puede elegir para una ruta nueva, pero sale marcado con un
+   > aviso. Escribe el motivo en Notas, aquí abajo — es lo único que le dice al de al
+   > lado por qué no puede contar con él. Marcarlo NO cierra la ruta que ya tuviera
+   > abierta: eso se arregla en la tarjeta del camión.»
 
 3. **Escribe el motivo en «Notas (opcional)»**, más abajo.
    <!-- señala: vehiculos-notas -->
@@ -444,9 +446,11 @@ calcular el domicilio»**. Debajo pone **«Solo un vehículo por TIPO.»**
 > **«En ruta» no está, a propósito**: eso sale de las rutas del camión y no se
 > escribe a mano.
 
-**Mientras un camión esté en mantenimiento no se ofrece para rutas nuevas**: no sale en
-el tramo «Vehículo» de «Nueva Ruta» ni en el «Camión previsto» del Tablero. Cuando
-vuelva, pásalo otra vez a **«Disponible»**.
+**Mientras un camión esté en mantenimiento se sigue ofreciendo para rutas nuevas, pero
+con un aviso en ámbar**: sale con «en el taller» en el tramo «Vehículo» de «Nueva Ruta»
+y en el «Camión previsto» del Tablero. Es aviso, no bloqueo: así una sucursal con un solo
+camión olvidado en el taller no se queda sin poder armar rutas. Cuando vuelva, pásalo
+otra vez a **«Disponible»**.
 
 ### Si el camión llevaba una ruta abierta
 
@@ -522,13 +526,15 @@ nuevas y su historial se queda intacto.
    - Sale **«Vehículo actualizado.»** y la tarjeta lleva la insignia **«Inactivo»**.
 
 **Qué cambia:** el camión **ya no sale** en el tramo «Vehículo» de «Nueva Ruta» ni en el
-«Camión previsto» de las zonas del Tablero. **Sigue viéndose** en el filtro «Rutas de un
-camión», en los informes y en las rutas que ya hizo.
+«Camión previsto» de las zonas del Tablero. (Con el taller no pasa: un camión en
+mantenimiento sí sale, con su aviso; el que nunca se ofrece es el inactivo.) **Sigue
+viéndose** en el filtro «Rutas de un camión», en los informes y en las rutas que ya hizo.
 
 **Para recuperarlo**, vuelve a **«Editar»** y enciende el interruptor.
 
 > **Ojo:** «Inactivo» no es lo mismo que «En mantenimiento». El mantenimiento es un
-> camión que va a volver; inactivo es una baja.
+> camión que va a volver y **se ofrece con un aviso**; inactivo es una baja y **no se
+> ofrece nunca**.
 
 ---
 
@@ -583,8 +589,8 @@ botón para eso, ni en la tarjeta ni en el detalle. Las dos salidas:
    quedan disponibles; los entregados conservan su resultado. El camión queda libre.
    Si la ruta salió del tablero, **las facturas vuelven a su zona**. <!-- señala: rutas-eliminar -->
 2. **Menú → «Tablero»**, ve a la zona, **⋮ → «Camión previsto»**, elige el otro
-   camión (**activo y fuera del taller**, o no sale en la lista) y **⋮ → «Armar la
-   ruta de esta zona»**. <!-- señala: tablero-camion-previsto -->
+   camión (**activo**; si está en el taller sale marcado en ámbar, y se puede elegir
+   igual) y **⋮ → «Armar la ruta de esta zona»**. <!-- señala: tablero-camion-previsto -->
 
 **Si la ruta está «En curso»**, también se puede eliminar con confirmación y armar
 otra para los pedidos pendientes. Los resultados anteriores se conservan.

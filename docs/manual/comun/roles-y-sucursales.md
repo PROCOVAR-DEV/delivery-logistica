@@ -38,6 +38,32 @@ todas. Un administrador de Camagüey no ve Santiago y no debe verlo.
 Si tienes uno de los cinco roles de una sola sucursal, el selector de sucursal de
 arriba no te deja elegir otra. No es que esté roto: es que no te toca.
 
+### Si tu sucursal no está dada de alta en Reparto
+
+Accesos conoce más sucursales de las ocho que trabajan en Reparto (por ejemplo **Moa** o
+**Palma Soriano**). Si el administrador te asigna una de ésas, **el acceso a los datos se
+te niega**: entrar con tu usuario y contraseña funciona, pero **cada pantalla** de Reparto
+se niega con un mensaje que nombra tu sucursal (el código que traiga tu cuenta, aquí
+MOA):
+
+> «tu sucursal MOA no está dada de alta en Reparto: pide en la oficina que la den de
+> alta»
+
+**No es tu contraseña ni un fallo de la aplicación**: tu cuenta es buena, pero Reparto
+no tiene esa sucursal. Se arregla en la oficina, dando de alta la sucursal en Reparto o
+asignándote una de las ocho. **Ya no se te abren las ocho sucursales** como pasaba
+antes: abrir todas por una sucursal que no cuadra era enseñarle a un operador de una
+sucursal los pedidos y los precios de las otras siete.
+
+Si tu cuenta **no tiene ninguna sucursal**, el mensaje es otro y tampoco ha cambiado:
+«esta cuenta no está dada de alta en ninguna sucursal: pide en la oficina que te
+asignen la tuya». Y a quien no ve todas las sucursales ya no le vale pedir otra
+cambiando algo en la dirección: la sucursal sale de tu cuenta, no de lo que mande el
+navegador.
+
+**Las cuentas que ven todas las sucursales (`SUPER ADMIN` y `DESARROLLADOR`) no
+cambian**: siguen viendo las ocho y pudiendo elegir una.
+
 ### Por qué no se puede saltar
 
 El alcance sale de **quién pregunta**, no de lo que se le pida al servidor.

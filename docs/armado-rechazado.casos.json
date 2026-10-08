@@ -97,6 +97,26 @@
         "nombre": "quitar-parada-que-no-esta",
         "donde": "DELETE /api/routes/{id}/stops/{orderId}, 409",
         "literal": "El pedido no pertenece a una ruta planificada o ya fue retirado"
+      },
+      {
+        "nombre": "camion-compartido-no-se-toca",
+        "donde": "PATCH y DELETE /api/vehicles/{id} de un camión con branch_id NULL, 403, para quien no ve todas las sucursales (1.0.29)",
+        "literal": "Este vehículo es compartido por todas las sucursales: sólo un SUPER ADMIN o un DESARROLLADOR puede modificarlo, darlo de baja o eliminarlo."
+      },
+      {
+        "nombre": "campo-no-se-cambia-en-el-pedido",
+        "donde": "PATCH /api/orders/{id} con routeId, status, price, weight o stopOrder, 400. El servidor añade al final, entre paréntesis, los campos que sobran (1.0.29)",
+        "literal": "Ese campo no se cambia por aquí: usa las rutas o el tablero"
+      },
+      {
+        "nombre": "sin-alcance",
+        "donde": "Cualquier ruta con datos y GET /api/eventos (texto plano), 403, cuenta sin sucursal y sin rol que las vea todas. Literal COMPARTIDO con la app: no se cambia sin avisar",
+        "literal": "esta cuenta no está dada de alta en ninguna sucursal: pide en la oficina que te asignen la tuya"
+      },
+      {
+        "nombre": "sucursal-sin-alta-en-reparto",
+        "donde": "Cualquier ruta con datos y GET /api/eventos (texto plano), 403, cuenta cuya sucursal del token Reparto no conoce (1.0.29). Aquí con el código de ejemplo MOA: el servidor pone el que traiga la cuenta",
+        "literal": "tu sucursal MOA no está dada de alta en Reparto: pide en la oficina que la den de alta"
       }
     ],
     "descartadosDelTablero": [

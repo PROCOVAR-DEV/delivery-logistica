@@ -343,8 +343,13 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
    `Esta sucursal no tiene ningún almacén con ubicación. Se pone en Almacenes, y hasta entonces no hay desde dónde medir.`
    Botón `Continuar →`.
 3. **`Vehículo *`.** Selector `Vehículo de la ruta`, placeholder `Elige el vehículo…`;
-   cada opción con la nota `<capacidad> kg` o `<capacidad> kg · en ruta`. **Se ofrecen
-   todos los vehículos, también los ocupados.** Campo de nombre, placeholder
+   cada opción con la nota `<capacidad> kg`, `<capacidad> kg · en ruta` o `<capacidad> kg ·
+   en el taller`. **Se ofrecen los vehículos activos, también los ocupados y los del
+   taller** (los inactivos no). Al elegir uno del taller sale, en ámbar, `<nombre> está
+   marcado EN EL TALLER. La ruta se arma igual —tiene su capacidad y su costo por km— pero
+   ese camión no puede salir hoy. Si ya volvió, sácalo del taller en Vehículos.`: aviso, no
+   bloqueo. Sin ningún activo: `Los vehículos de esta sucursal están inactivos, y a una ruta
+   nueva sólo se asigna un vehículo activo. Actívalo en Vehículos.` Campo de nombre, placeholder
    `Nombre (el código se genera solo)`. Campo `Fecha de entrega (opcional)`.
    Sin vehículos: `No hay vehículos disponibles. Crea o libera uno en Vehículos para poder crear la ruta.`
 4. **`Pedidos de cliente (<n>)`.** Dos columnas: lista a la izquierda, pre-despacho fijo a
@@ -575,8 +580,11 @@ Vacío: `Sin tipos. Agrega el primero.` Botón `Agregar tipo`. Pie: `Cancelar` y
 | Guardar tipos | `PUT /api/settings` `{tiposVehiculo:[{nombre, costoKmUsd}]}` |
 
 Desde el 07/10/2026 **sólo se ofrecen para una ruta nueva** (paso `Vehículo` del asistente y
-`Camión previsto` de una zona) los vehículos **activos y fuera del taller**; los demás se
-siguen viendo en los filtros de rutas y en los informes.
+`Camión previsto` de una zona) los vehículos **activos**; los inactivos se siguen viendo en
+los filtros de rutas y en los informes. **Un vehículo en `maintenance` (en el taller) SÍ se
+ofrece, con un aviso en ámbar** («en el taller»): es aviso, no bloqueo (decisión de Jose del
+28/09/2026, restaurada en la 1.0.29: la 1.0.28 lo había quitado por error), porque una
+sucursal con un solo camión olvidado en el taller se quedaría sin poder armar rutas.
 
 Error del servidor al crear sin nombre: `Vehicle name is required` (400).
 `GET/PATCH/DELETE` de un id inexistente: `Not found` (404).
@@ -793,6 +801,23 @@ Además avisa a PEDIDO del estado de cada pedido espejado.
 Errores → `No vino ningún resultado` (400), `No encontrada` (404), respaldo
 `No se pudo guardar el cierre`. Rechazos por pedido: `ese pedido no va en esta ruta`,
 `resultado '<x>' desconocido`.
+
+**Cierre parcial (409 con `aplicados` y `rechazados`), sólo en la WEB** (1.0.29, antes era
+un aviso de 8 s que se iba solo). Se guarda lo bueno y se completa la ruta con eso, y se
+abre un cajón de acuse (`abrirCajon`, ancho `md`) que **obliga** a pulsar el único botón,
+`Entendido` (icono de doble visto): la ✕, el velo, `Escape` y el atrás no cuentan y el cajón
+vuelve a salir. Título al completar `Ruta completada: <n> paradas no se guardaron` (con una:
+`Ruta completada: 1 parada no se guardó`); si sólo se guardaba, sin el prefijo. Subtítulo
+`El resto del cierre sí quedó guardado.` (completando) o `El resto del cierre sí se guardó.`
+Texto: `Estas paradas se quedaron sin resultado. Apunta su conduce y corrígelas en PEDIDO.` o,
+si sólo se guardaba, `Estas paradas siguen marcadas aquí pero el servidor no las guardó.
+Corrige la marca y vuelve a guardar.` Una línea en negrita por parada:
+`Conduce <número de operación>: <motivo literal del servidor>` (si el pedido no trae número
+de operación, sale su id interno). Al acusar: completando, se cierra la hoja y se va al
+Historial; sólo guardando, la hoja se queda abierta con las rechazadas aún marcadas y
+contadas como sin guardar. Sin ninguna guardada no hay cierre parcial: es rechazo total y
+no se completa. En la APK y el escritorio no existe: el sincronizador rechaza el apunte
+entero (ver `sincronizacion.md`).
 
 ### 9.2 `Drawer.tsx` — el patrón cajón
 

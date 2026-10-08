@@ -200,11 +200,16 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
           'aquí: se quita cerrando o cambiando esa ruta, y si el camión no '
           'lleva ninguna abierta, la tarjeta lo enseña como disponible y ahí se '
           'puede limpiar.',
+    // AVISO, NO BLOQUEO (Jose, 28/09/2026; vuelto a fijar el 08/10/2026): el
+    // camión del taller SE OFRECE para una ruta nueva, con un aviso ámbar, y el
+    // servidor lo acepta. Esta línea decía «no se le puede dar ruta», que
+    // contradecía a las dos cosas.
     estadoEnMantenimiento =>
-      'En el taller: no se le puede dar ruta hasta que vuelva. Escribe el '
-          'motivo en Notas, aquí abajo — es lo único que le dice al de al lado '
-          'por qué no puede contar con él. Marcarlo NO cierra la ruta que ya '
-          'tuviera abierta: eso se arregla en la tarjeta del camión.',
+      'En el taller: se puede elegir para una ruta nueva, pero sale marcado con '
+          'un aviso. Escribe el motivo en Notas, aquí abajo — es lo único que '
+          'le dice al de al lado por qué no puede contar con él. Marcarlo NO '
+          'cierra la ruta que ya tuviera abierta: eso se arregla en la tarjeta '
+          'del camión.',
     _ =>
       'Disponible. En qué anda de verdad —libre, con ruta planificada o en '
           'ruta— sale de sus rutas y se ve en la tarjeta y en el resumen de la '

@@ -92,7 +92,9 @@ subiendo.
   Úsalo sólo si ese cierre ya no tiene sentido; si no, corrige la hoja desde la web.
 
 En la **web** es distinto: si el servidor guarda unas paradas y rechaza otras, lo
-guardado vale y la ruta se puede completar. En el teléfono, no.
+guardado vale, la ruta se completa y sale un cajón que obliga a pulsar «Entendido» con
+el conduce de cada parada rechazada. En el teléfono, no: aquí la parada rechazada queda
+en esta bandeja y la ruta espera a que decidas.
 
 ---
 

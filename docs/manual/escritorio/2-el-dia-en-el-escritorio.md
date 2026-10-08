@@ -122,13 +122,12 @@ da por malo**:
      matrícula: **«1.000 kg · P-123456»**.
    - La cabecera pasa a poner **«Camión: F-350»**.
 
-**Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» (dado de
-baja) o en mantenimiento no se ofrece para rutas nuevas; si no te sale, mira su
-tarjeta en **«Vehículos»**.
+Un camión con **«EN EL TALLER»** en ámbar **se puede elegir igual**: es aviso, no
+bloqueo. Lo que no sale nunca es un camión **«Inactivo»** (dado de baja); si no te sale
+el que buscas, mira su tarjeta en **«Vehículos»**.
 
-**Si dice «Esta sucursal no tiene vehículos activos y fuera del taller en este
-aparato»**, con conexión ve a **«Vehículos»** y da de alta uno o actívalo; baja con la
-siguiente sincronización.
+**Si dice «Esta sucursal no tiene vehículos activos en este aparato»**, con conexión ve
+a **«Vehículos»** y da de alta uno o actívalo; baja con la siguiente sincronización.
 
 ## 3.3 Repartir los pedidos — arrastrando
 <!-- tarea -->
@@ -179,9 +178,8 @@ Camión: F-350                       sin subir
 ### Las marcas de los pedidos
 
 - **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
-  factura»** — hoy **no salen**.
-- **«Cambió en la factura»** en ámbar — **tampoco sale**: en el camión sólo sube lo que
-  cuadra con la factura. La ruta lo descartará con «cambió en la factura».
+  factura»** y **«Cambió en la factura»** — las cinco **en rojo**: hoy **no salen**. En
+  el camión sólo sube lo que cuadra con la factura.
 - **Sin domicilio cobrado o sin cotizar** — **ni salen en «Sin colocar»**; si intentas
   colocarlos, te lo rechaza al momento con su motivo («No se puede asociar al tablero:
   la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el
@@ -232,10 +230,24 @@ Debajo te lista por qué se cayó cada uno:
 
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
-PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1502 · ANA MARTÍNEZ: Cambió en la factura
 PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
 PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
+
+### Qué entra y qué no
+
+**Sin conexión se arma con la misma regla que el servidor**: sólo entran los pedidos
+facturados que cuadran, con el domicilio cobrado y cotizado. Los demás se descartan, se
+quedan puestos en la zona y marcados, y se nombran por su **conduce** (el número de
+operación de la factura). **Si algunos entran y otros no**, la ruta se arma con los que
+entran y una franja roja dice quién se quedó fuera:
+
+> Ruta armada de «Centro», pero 2 pedidos no entraron:
+> PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+> PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
+
+**Si no entra ninguno, no se arma la ruta** y sale el recuadro rojo de arriba.
 
 ### El nombre de la ruta
 

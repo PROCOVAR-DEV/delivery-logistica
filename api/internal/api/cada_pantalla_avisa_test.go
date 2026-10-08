@@ -35,6 +35,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"procovar/reparto-api/internal/alcance"
@@ -201,6 +202,22 @@ type dobleAvisos struct {
 	// iguales desde fuera en cuanto el doble devuelve 0, y son dos cosas distintas:
 	// mandar un camión al taller no puede ni intentarlo (`estado_del_camion_test.go`).
 	cierresPedidos int
+	// camionCompartido hace que el camión de las pruebas NO tenga sucursal (`branch_id`
+	// NULL): el compartido, que ven y usan todas.
+	camionCompartido bool
+	// escritos cuenta las escrituras que de verdad llegaron a la base sobre el camión
+	// (PATCH y DELETE): lo que un 403 no puede dejar pasar.
+	escritos int
+	// falloAlBorrar se devuelve en `BorrarVehiculo` (la carrera del 23503 con una ruta recién creada).
+	falloAlBorrar error
+}
+
+// sucursalDelCamion: la de Santiago, o ninguna si es el compartido.
+func (d *dobleAvisos) sucursalDelCamion() pgtype.UUID {
+	if d.camionCompartido {
+		return pgtype.UUID{}
+	}
+	return avPg(avSucStg)
 }
 
 func (d *dobleAvisos) ResolverSucursal(_ context.Context, id uuid.UUID) (sqlc.ResolverSucursalRow, error) {
@@ -245,7 +262,7 @@ func (d *dobleAvisos) ObtenerVehiculo(_ context.Context, arg sqlc.ObtenerVehicul
 	}
 	return sqlc.ObtenerVehiculoRow{
 		ID: avVehStg, Name: "Camión de Santiago", TipoNombre: "truck",
-		Status: estado, BranchID: avPg(avSucStg),
+		Status: estado, BranchID: d.sucursalDelCamion(),
 	}, nil
 }
 
@@ -253,8 +270,9 @@ func (d *dobleAvisos) ActualizarVehiculo(_ context.Context, arg sqlc.ActualizarV
 	if arg.ID != avVehStg {
 		return sqlc.Vehicle{}, pgx.ErrNoRows
 	}
+	d.escritos++
 	v := sqlc.Vehicle{ID: avVehStg, Name: "Camión de Santiago", VehicleTypeID: avTipoCam,
-		Status: sqlc.VehicleStatusAvailable, BranchID: avPg(avSucStg)}
+		Status: sqlc.VehicleStatusAvailable, BranchID: d.sucursalDelCamion()}
 	if arg.Status != nil {
 		v.Status = *arg.Status
 	}
@@ -276,7 +294,11 @@ func (d *dobleAvisos) BorrarVehiculo(_ context.Context, arg sqlc.BorrarVehiculoP
 	if arg.ID != avVehStg {
 		return pgtype.UUID{}, pgx.ErrNoRows
 	}
-	return avPg(avSucStg), nil
+	if d.falloAlBorrar != nil {
+		return pgtype.UUID{}, d.falloAlBorrar
+	}
+	d.escritos++
+	return d.sucursalDelCamion(), nil
 }
 
 // --- tipos de vehículo
@@ -374,6 +396,11 @@ func (f fuenteDeAvisos) EnTx(_ context.Context, fn func(sqlc.Querier) error) err
 
 func avPg(id uuid.UUID) pgtype.UUID { return pgtype.UUID{Bytes: [16]byte(id), Valid: true} }
 
+// destinoDelRegistroDePruebas es a dónde escribe el registro de los montajes `montarAvisos` y
+// `montarTab`. Descarta por defecto; la prueba del rastro de quién (`rastro_de_quien_test.go`)
+// lo apunta a un búfer y lo restaura al acabar. Ninguna prueba de este paquete es paralela.
+var destinoDelRegistroDePruebas io.Writer = io.Discard
+
 // montarAvisos levanta el router ENTERO, que es como corre de verdad. Las rutas de la
 // flota, las sucursales y los ajustes se registran dentro de `Rutas()` y no en un
 // `rutasX`, así que no hay forma de montar sólo ésas sin copiar el montaje — y una prueba
@@ -386,7 +413,7 @@ func montarAvisos(t *testing.T, d *dobleAvisos) http.Handler {
 	if err != nil {
 		t.Fatalf("configuración: %v", err)
 	}
-	reg := slog.New(slog.NewTextHandler(io.Discard, nil))
+	reg := slog.New(slog.NewTextHandler(destinoDelRegistroDePruebas, nil))
 	return NuevoServidor(cfg, reg,
 		alcance.NuevaPorteria(fuenteDeAvisos{q: d}, reg),
 		auth.NuevoVerificador([]byte(secretoDeDatos)),
@@ -434,6 +461,71 @@ func avCodigo(t *testing.T, w *httptest.ResponseRecorder, esperado int) {
 }
 
 // --------------------------------------------------------------------------- vehículos
+
+// EL CAMIÓN COMPARTIDO (`branch_id` NULL) SE VE Y SE USA DESDE TODAS, PERO SÓLO LO CAMBIA
+// QUIEN VE TODAS — 08/10/2026 (auditoría de la 1.0.28). Hasta entonces el operador de
+// Camagüey podía darle de baja, cambiarle la capacidad o borrar el camión que usan las otras
+// siete, y a ellas les desaparecía de la lista sin un error.
+//
+// EN PAREJA: el compartido es 403 para un OPERADOR (y no escribe nada), SÍ para un SUPER ADMIN
+// y para un DESARROLLADOR; y el camión PROPIO sigue siendo del operador de su sucursal, que es
+// lo que esta regla no puede tocar.
+func TestElCamionCompartidoSoloLoCambiaQuienVeTodas(t *testing.T) {
+	desarrollador := tokenDeDatos(t, map[string]any{"sub": "p-dev", "role": "DESARROLLADOR"})
+	puertas := []struct {
+		nombre, metodo, cuerpo string
+	}{
+		{"PATCH", http.MethodPatch, `{"isActive":false}`},
+		{"DELETE", http.MethodDelete, ``},
+	}
+	for _, p := range puertas {
+		t.Run(p.nombre+" de un operador sobre el compartido: 403", func(t *testing.T) {
+			d := &dobleAvisos{camionCompartido: true}
+			w := pedirAv(t, montarAvisos(t, d), p.metodo, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t), p.cuerpo)
+			avCodigo(t, w, http.StatusForbidden)
+			if !strings.Contains(w.Body.String(), msgVehiculoCompartido) {
+				t.Fatalf("el 403 tiene que decir por qué: %s", w.Body.String())
+			}
+			if d.escritos != 0 {
+				t.Fatalf("el 403 llegó DESPUÉS de escribir: %d escrituras", d.escritos)
+			}
+		})
+		for nombre, jwt := range map[string]string{"SUPER ADMIN": avAdmin(t), "DESARROLLADOR": desarrollador} {
+			t.Run(p.nombre+" de un "+nombre+" sobre el compartido: pasa", func(t *testing.T) {
+				d := &dobleAvisos{camionCompartido: true}
+				w := pedirAv(t, montarAvisos(t, d), p.metodo, "/api/vehicles/"+avVehStg.String(), jwt, p.cuerpo)
+				avCodigo(t, w, http.StatusOK)
+				if d.escritos != 1 {
+					t.Fatalf("tenía que escribir una vez: %d", d.escritos)
+				}
+			})
+		}
+		t.Run(p.nombre+" de un operador sobre el camión de SU sucursal: pasa", func(t *testing.T) {
+			d := &dobleAvisos{}
+			w := pedirAv(t, montarAvisos(t, d), p.metodo, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t), p.cuerpo)
+			avCodigo(t, w, http.StatusOK)
+			if d.escritos != 1 {
+				t.Fatalf("tenía que escribir una vez: %d", d.escritos)
+			}
+		})
+	}
+}
+
+// LA CARRERA DEL BORRADO CON UNA RUTA RECIÉN CREADA: la clave ajena la rechaza con un 23503 y
+// eso es el 409 de «tiene rutas asociadas», no un 500. En PAREJA: cualquier OTRO fallo de la
+// base sigue siendo un 500 (el 409 no puede tragarse las averías).
+func TestBorrarUnCamionConUnaRutaCreadaAlMismoTiempoEsUn409(t *testing.T) {
+	d := &dobleAvisos{falloAlBorrar: &pgconn.PgError{Code: "23503", Message: "viola la llave foránea"}}
+	w := pedirAv(t, montarAvisos(t, d), http.MethodDelete, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t), "")
+	avCodigo(t, w, http.StatusConflict)
+	if !strings.Contains(w.Body.String(), msgVehiculoConRutas) {
+		t.Fatalf("el 409 tiene que llevar el literal de «tiene rutas asociadas»: %s", w.Body.String())
+	}
+
+	d = &dobleAvisos{falloAlBorrar: &pgconn.PgError{Code: "57P01", Message: "terminando la conexión"}}
+	w = pedirAv(t, montarAvisos(t, d), http.MethodDelete, "/api/vehicles/"+avVehStg.String(), avOperadorStg(t), "")
+	avCodigo(t, w, http.StatusInternalServerError)
+}
 
 // LA PANTALLA DE VEHÍCULOS es de las que más falta le hacía: no vive de la base local,
 // pide `GET /api/vehicles` a la red. El ciclo de sincronización no la repinta, así que sin

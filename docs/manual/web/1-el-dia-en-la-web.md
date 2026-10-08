@@ -145,9 +145,9 @@ Si ya existe: **«Ya hay una columna «Centro» en este tablero»**.
      matrícula: **«1.000 kg · P-123456»**.
    - La cabecera de la zona pasa a poner **«Camión: F-350»**.
 
-**Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» (dado de
-baja) o en mantenimiento no se ofrece para rutas nuevas; si no te sale, mira su
-tarjeta en **Menú → «Vehículos»**.
+Un camión en el taller sale con **«EN EL TALLER»** en ámbar. **Se puede elegir
+igual**: es aviso, no bloqueo. Lo que no sale nunca es un camión **«Inactivo»** (dado de
+baja); si no te sale el que buscas, mira su tarjeta en **Menú → «Vehículos»**.
 
 ## 4.3 Repartir los pedidos — arrastrando
 <!-- tarea -->
@@ -199,10 +199,9 @@ Camión: F-350
 ### Las marcas de los pedidos
 
 - **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
-  factura»** — hoy **no salen**. Los puedes dejar puestos: no entrarán en la ruta y te
-  lo dirá.
-- **«Cambió en la factura»** en ámbar — **tampoco sale**: en el camión sólo sube lo que
-  cuadra con la factura. La ruta lo descartará con «cambió en la factura».
+  factura»** y **«Cambió en la factura»** — las cinco **en rojo**: hoy **no salen**. En
+  el camión sólo sube lo que cuadra con la factura. Los puedes dejar puestos: no
+  entrarán en la ruta y te lo dirá.
 - **Sin domicilio cobrado o sin cotizar** — esos pedidos **ni salen en «Sin colocar»**, y
   si intentas colocarlos te lo rechaza con su motivo («No se puede asociar al tablero:
   la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el domicilio
@@ -260,7 +259,7 @@ Debajo te lista, uno a uno, por qué se cayó cada pedido:
 
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
-PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1502 · ANA MARTÍNEZ: Cambió en la factura
 PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
 PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
@@ -270,8 +269,16 @@ Cada pedido sale por su **conduce** (el número de operación de la factura).
 ### Qué entra y qué no
 
 **Sólo entran los pedidos repartibles** (facturados que cuadran, con el domicilio
-cobrado y cotizado). Los que no, **se quedan en la zona y marcados**. No desaparece
-nada.
+cobrado y cotizado). Los que no, **se descartan: se quedan en la zona y marcados**. No
+desaparece nada. **Si algunos entran y otros no**, la ruta se arma con los que entran y,
+al llegar a Rutas, una franja roja nombra a los que se quedaron fuera, cada uno por su
+conduce:
+
+> Ruta armada de «Centro», pero 2 pedidos no entraron:
+> PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+> PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
+
+**Si no entra ninguno, no se arma la ruta** y sale el recuadro rojo de arriba.
 
 **Si luego borras la ruta, las facturas vuelven a su zona** al instante (en la web no
 hay espera): no hay que volver a crear la zona ni repartir de nuevo.
@@ -382,11 +389,26 @@ Antes no hay un cierre editable. **Desde la web se hace igual que en el teléfon
 
 Al confirmar, la ruta pasa al Historial y el camión queda libre.
 
-**Si el servidor guarda unas paradas y rechaza otras**, lo guardado vale: el aviso, en
-la franja de abajo, dice el motivo («Se guardaron 1 de las 2 paradas de esta hoja. 1 no
-se pudieron guardar: … (ese pedido no va en esta ruta).») y la ruta se puede completar.
-Si no se guardó **ninguna**, no se completa. Cada parada lleva su **conduce**
-(«Conduce: PTB25-261005-1480»), el número de operación de la factura, para encontrarla.
+**Si el servidor guarda unas paradas y rechaza otras**, la ruta se completa con lo
+guardado, y la pantalla **no te deja pasar sin leerlo**: se abre un cajón titulado
+**«Ruta completada: 2 paradas no se guardaron»** (si fue una sola, «Ruta completada: 1
+parada no se guardó»). Dice «El resto del cierre sí quedó guardado.» y «Estas paradas
+se quedaron sin resultado. Apunta su conduce y corrígelas en PEDIDO.», y debajo, en
+negrita, una línea por parada:
+
+> **Conduce PTB25-261005-1480: ese pedido no va en esta ruta**
+
+El conduce es el número de operación de la factura; el motivo es el del servidor, tal
+cual. El cajón tiene un solo botón, **«Entendido»**, y **no se cierra de otra forma**:
+la ✕, tocar fuera, Escape o el atrás no valen, y vuelve a salir. Al pulsarlo, la hoja
+se cierra y vas al Historial. (Ya no es un aviso que se va solo: la ruta queda
+completada y no se puede reabrir, y lo único que queda de la entrega rechazada es que
+alguien haya leído su conduce.)
+
+Si no se guardó **ninguna** parada, es un rechazo total y la ruta no se completa: el
+aviso dice el motivo y la hoja se queda como estaba. Cada parada de la hoja lleva su
+**conduce** («Conduce: PTB25-261005-1480»), el número de operación de la factura, para
+encontrarla.
 
 ---
 

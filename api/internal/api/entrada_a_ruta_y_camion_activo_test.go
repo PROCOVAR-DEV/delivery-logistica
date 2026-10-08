@@ -216,6 +216,54 @@ func TestArmarUnaRutaConUnCamionInactivoSeRechaza(t *testing.T) {
 	}
 }
 
+// EL CAMIÓN DE OTRA SUCURSAL NO SE ASIGNA AL ARMAR — 08/10/2026 (auditoría de la 1.0.28).
+// `ObtenerVehiculoParaCapacidad` va sin alcance, y quien sabía el id de un camión de
+// Holguín armaba con él una ruta de Santiago. En PAREJA: el propio vale, el compartido
+// (`branch_id` NULL) vale, el ajeno es el mismo 400 que «no existe» y NO crea nada. Y el
+// ajeno INACTIVO contesta lo mismo que el ajeno activo —nunca «está inactivo», que
+// confirmaría que existe—.
+func TestArmarUnaRutaConElCamionDeOtraSucursalSeRechaza(t *testing.T) {
+	compartido := uuid.MustParse("aaaaaaaa-0000-0000-0000-00000000000c")
+	casos := []struct {
+		nombre   string
+		camion   uuid.UUID
+		inactivo bool
+		creada   bool
+	}{
+		{"el propio vale", camionStg, false, true},
+		{"el compartido vale", compartido, false, true},
+		{"el de otra sucursal, no", camionHol, false, false},
+		{"el de otra sucursal e inactivo, lo mismo (no se confirma que existe)", camionHol, true, false},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			d, stg, _ := datosDeReparto()
+			d.camiones[compartido] = &camionDeRutas{id: compartido, nombre: "Compartido", capacidad: 500,
+				estado: sqlc.VehicleStatusAvailable} // sucursal nil = de todas
+			d.camiones[camionHol].inactivo = c.inactivo
+			h := montarRutas(t, d)
+			w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
+				cuerpoDeArmado(c.camion.String(), stg[1]))
+			if c.creada {
+				if w.Code != http.StatusCreated {
+					t.Fatalf("tenía que armarse: %d %s", w.Code, w.Body.String())
+				}
+				return
+			}
+			if w.Code != http.StatusBadRequest ||
+				errorDeRutas(t, w) != fmt.Sprintf("No existe el vehículo '%s'", c.camion) {
+				t.Fatalf("tenía que ser el 400 de «no existe»: %d %s", w.Code, w.Body.String())
+			}
+			if len(d.rutas) != 0 {
+				t.Fatal("se armó una ruta con el camión de otra sucursal")
+			}
+			if d.camiones[camionHol].estado != sqlc.VehicleStatusAvailable {
+				t.Fatalf("el camión ajeno cambió de estado: %v", d.camiones[camionHol].estado)
+			}
+		})
+	}
+}
+
 func TestCambiarElCamionDeUnaRutaAUnoInactivoSeRechaza(t *testing.T) {
 	d, stg, _ := datosDeReparto()
 	otro := uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000009")
@@ -440,6 +488,82 @@ func TestUnCierreRechazadoDejaEscritoDondeEstabaCadaPedido(t *testing.T) {
 	// Y NADA que sea secreto: el renglón no lleva el token de la sesión.
 	if strings.Contains(log, jwt) || strings.Contains(strings.ToLower(log), "bearer") {
 		t.Errorf("el registro lleva el token o la cabecera de autorización:\n%s", log)
+	}
+}
+
+// NIVELES Y TOPES DEL REGISTRO DEL CIERRE RECHAZADO — 08/10/2026. Un aparato que manda la hoja
+// entera contra la ruta equivocada rechazaba cuarenta paradas y escribía cuarenta Error: una
+// alerta por nivel disparaba cuarenta veces por UN suceso. Ahora el detalle va en Warn y hay
+// UN solo Error de resumen. Además, a la lectura SIN alcance (`DondeEstanLosPedidos`) sólo
+// llegan los ids que se van a detallar (50 como mucho), y el `orderId` crudo se recorta.
+func TestUnCierreConMuchasRechazadasDejaUnSoloErrorYAcotaLoQueSePregunta(t *testing.T) {
+	d, stg, _ := datosDeReparto()
+	var registro bytes.Buffer
+	h, _ := montarRutasRegistrando(t, d, &registro)
+	jwt := deSantiagoEnRutas(t)
+	id := armarRutaDePrueba(t, h, jwt, stg[1])
+	registro.Reset()
+
+	// El kilométrico va PRIMERO: sólo se detallan los 20 primeros, y uno que quedara fuera del
+	// detalle no probaría el recorte.
+	kilometrico := strings.Repeat("z", 3000)
+	entradas := []string{fmt.Sprintf(`{"orderId":%q,"resultado":"entregado"}`, kilometrico)}
+	for i := 0; i < 120; i++ { // ciento veinte ids que no van en la ruta
+		entradas = append(entradas, fmt.Sprintf(`{"orderId":%q,"resultado":"entregado"}`, uuid.New()))
+	}
+	cuerpo := `{"resultados":[` + strings.Join(entradas, ",") + `]}`
+	w := llamarRutas(t, h, http.MethodPost, "/api/routes/"+id.String()+"/results", jwt, cuerpo)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("código %d", w.Code)
+	}
+
+	var errores, avisos int
+	for _, l := range strings.Split(registro.String(), "\n") {
+		switch {
+		// Se ignora el aviso a PEDIDO del ARMADO (sin canal en las pruebas): sale de fondo, y
+		// puede aterrizar en el registro después del cierre. No es del cierre.
+		case strings.Contains(l, "level=ERROR") && !strings.Contains(l, "no se pudo avisar a PEDIDO"):
+			errores++
+		case strings.Contains(l, "level=WARN") && strings.Contains(l, "parada rechazada en el cierre"):
+			avisos++
+		}
+	}
+	if errores != 1 {
+		t.Errorf("un cierre rechazado tiene que dejar UN Error de resumen y dejó %d:\n%s", errores, registro.String())
+	}
+	// Los topes se comparan con el NÚMERO, no con la constante: una prueba que lee el tope del
+	// código que prueba sube de 50 a 5.000 y sigue verde.
+	if avisos != 20 {
+		t.Errorf("el detalle por parada va en Warn y hasta 20; salieron %d", avisos)
+	}
+	if len(d.dondeEstanIds) > 50 {
+		t.Errorf("a la lectura sin alcance llegaron %d ids; el tope es 50", len(d.dondeEstanIds))
+	}
+	if strings.Contains(registro.String(), strings.Repeat("z", 100)) {
+		t.Error("el orderId crudo entró entero en el registro")
+	}
+}
+
+// La pareja del recorte: un id legible NO se recorta y un cierre con pocas rechazadas detalla
+// todas.
+func TestUnCierreConPocasRechazadasLasDetallaTodas(t *testing.T) {
+	d, stg, _ := datosDeReparto()
+	var registro bytes.Buffer
+	h, _ := montarRutasRegistrando(t, d, &registro)
+	jwt := deSantiagoEnRutas(t)
+	id := armarRutaDePrueba(t, h, jwt, stg[1])
+
+	cuerpo := fmt.Sprintf(`{"resultados":[{"orderId":%q,"resultado":"entregado"},{"orderId":"corto-no-id","resultado":"entregado"}]}`, stg[0])
+	w := llamarRutas(t, h, http.MethodPost, "/api/routes/"+id.String()+"/results", jwt, cuerpo)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("código %d", w.Code)
+	}
+	if !strings.Contains(registro.String(), "pedido="+stg[0].String()) ||
+		!strings.Contains(registro.String(), "pedido=corto-no-id") {
+		t.Fatalf("faltan renglones de detalle:\n%s", registro.String())
+	}
+	if len(d.dondeEstanIds) != 1 || d.dondeEstanIds[0] != stg[0] {
+		t.Fatalf("a la lectura sin alcance tenía que llegar sólo el uuid legible: %v", d.dondeEstanIds)
 	}
 }
 

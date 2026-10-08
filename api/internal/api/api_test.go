@@ -64,6 +64,21 @@ func (d *doble) ResolverSucursal(_ context.Context, id uuid.UUID) (sqlc.Resolver
 	return sqlc.ResolverSucursalRow{}, pgx.ErrNoRows
 }
 
+// BuscarSucursalPorCodigo es por donde entra un token de Accesos de verdad (`STG`, `HOL`…).
+// Sin él, un código que no es uuid reventaba el doble con un puntero nil y las pruebas del
+// «código que Reparto no conoce» (`MOA`) no podían escribirse por HTTP.
+func (d *doble) BuscarSucursalPorCodigo(_ context.Context, codigo *string) (sqlc.BuscarSucursalPorCodigoRow, error) {
+	if codigo != nil {
+		switch *codigo {
+		case "STG":
+			return sqlc.BuscarSucursalPorCodigoRow{ID: stg, Name: "Santiago", ExternalID: codigo}, nil
+		case "HOL":
+			return sqlc.BuscarSucursalPorCodigoRow{ID: hol, Name: "Holguín", ExternalID: codigo}, nil
+		}
+	}
+	return sqlc.BuscarSucursalPorCodigoRow{}, pgx.ErrNoRows
+}
+
 func (d *doble) ListarVehiculos(_ context.Context, sucursal pgtype.UUID) ([]sqlc.ListarVehiculosRow, error) {
 	var salida []sqlc.ListarVehiculosRow
 	for _, v := range d.vehiculos {
@@ -256,10 +271,12 @@ func TestPorHttpUnOperadorNoLlegaAOtraSucursal(t *testing.T) {
 	}
 }
 
-// El modo de fallo de producción, por HTTP: 200 con CERO filas y sin trazas.
+// El modo de fallo de producción, por HTTP: 200 con CERO filas y sin trazas. Para quien ve
+// todas (SUPER ADMIN, DESARROLLADOR) una sucursal que ya no está sigue siendo «todas» con
+// aviso; para cualquier otro rol es un 403 que nombra el código (ver la pareja de abajo).
 func TestPorHttpUnaSucursalQueNoExisteNoDevuelveCero(t *testing.T) {
 	h := servidor(t)
-	jwt := token(t, map[string]any{"sub": "p-2", "email": "vieja@procovar.cu", "role": "ADMINISTRADOR",
+	jwt := token(t, map[string]any{"sub": "p-2", "email": "vieja@procovar.cu", "role": "SUPER ADMIN",
 		"branchId": fantasma.String()})
 
 	w := pedir(t, h, http.MethodGet, "/api/vehicles", jwt, nil)
@@ -272,6 +289,43 @@ func TestPorHttpUnaSucursalQueNoExisteNoDevuelveCero(t *testing.T) {
 	}
 	if len(lista) != 3 {
 		t.Fatalf("una sucursal que ya no está acotó la lista a %d en vez de enseñarlas todas", len(lista))
+	}
+}
+
+// LA PAREJA (08/10/2026): el token de un OPERADOR de una sucursal que Reparto no conoce
+// —Accesos sabe de `MOA` y `PLS`, Reparto no— es un 403 CON EL CÓDIGO en el texto, no las
+// ocho sucursales. Y que la cabecera no lo rescate ni lo agrande.
+func TestPorHttpUnaSucursalQueRepartoNoConoceEsUn403QueLaNombra(t *testing.T) {
+	h := servidor(t)
+	jwt := token(t, map[string]any{"sub": "p-2", "email": "moa@procovar.cu", "role": "OPERADOR",
+		"branchId": "MOA"})
+
+	for _, cab := range []map[string]string{nil, {"X-Sucursal-Id": hol.String()}, {"X-Sucursal-Id": "basura"}} {
+		w := pedir(t, h, http.MethodGet, "/api/vehicles", jwt, cab)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("cabecera %v: tenía que ser 403 y fue %d: %s", cab, w.Code, w.Body.String())
+		}
+		if got := strings.TrimSpace(w.Body.String()); got !=
+			`{"error":"tu sucursal MOA no está dada de alta en Reparto: pide en la oficina que la den de alta"}` {
+			t.Fatalf("cabecera %v: el 403 tiene que nombrar el código: %s", cab, got)
+		}
+	}
+}
+
+// Sin sucursal y sin rol que lo ve todo, la cabecera no abre nada: antes `basura` caía en
+// «no existe -> todas» y un id real le dejaba mirar esa sucursal.
+func TestPorHttpSinSucursalLaCabeceraNoAbreNada(t *testing.T) {
+	h := servidor(t)
+	jwt := token(t, map[string]any{"sub": "p-2", "email": "sin@procovar.cu", "role": "OPERADOR"})
+
+	for _, cab := range []string{"basura", stg.String(), hol.String(), "STG"} {
+		w := pedir(t, h, http.MethodGet, "/api/vehicles", jwt, map[string]string{"X-Sucursal-Id": cab})
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("cabecera %q: tenía que ser 403 y fue %d: %s", cab, w.Code, w.Body.String())
+		}
+		if strings.Contains(w.Body.String(), "Santiago") || strings.Contains(w.Body.String(), "Holguín") {
+			t.Fatalf("cabecera %q: salieron datos: %s", cab, w.Body.String())
+		}
 	}
 }
 

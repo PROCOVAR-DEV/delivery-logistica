@@ -152,18 +152,23 @@ final.
    - El cajón se cierra. En la cabecera de la zona ahora pone **«Camión: F-350»** en
      vez de «Camión: —».
 
+### Si un camión pone «EN EL TALLER»
+
+Sale en ámbar. **Se puede elegir igual**: es aviso, no bloqueo. Pero ese camión no
+sale hoy: si ya volvió, sácalo del taller en **Menú → «Vehículos»**.
+
 ### Si el camión que buscas no sale en la lista
 
-**Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» (dado de
-baja) o en mantenimiento no se ofrece para una zona nueva. Con señal, ve al menú →
-**«Vehículos»** y mira cuál de las dos cosas es: la tarjeta lo dice.
+**Sólo faltan los camiones «Inactivos»** (dados de baja). Un camión en el taller **sí
+sale**, marcado en ámbar. Con señal, ve al menú → **«Vehículos»** y mira en qué estado
+está: la tarjeta lo dice.
 
-### Si dice «Esta sucursal no tiene vehículos activos y fuera del taller en este aparato»
+### Si dice «Esta sucursal no tiene vehículos activos en este aparato»
 
-> «Los vehículos inactivos y los que están en el taller no se ofrecen para rutas
-> nuevas. Se puede armar la ruta igual, pero sin camión no hay capacidad contra la que
-> medir el peso ni coste por km que calcular. Los vehículos se dan de alta y se
-> activan en Flota, y bajan con la siguiente sincronización.»
+> «Los vehículos inactivos no se ofrecen para rutas nuevas. Se puede armar la ruta
+> igual, pero sin camión no hay capacidad contra la que medir el peso ni coste por km
+> que calcular. Los vehículos se dan de alta y se activan en Vehículos, y bajan con la
+> siguiente sincronización.»
 
 Con señal, ve al menú → **«Vehículos»** y da de alta el camión, o actívalo.
 
@@ -229,11 +234,9 @@ Camión: F-350
 ### Si un pedido lleva una marca roja
 
 - **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
-  factura»** — ese pedido **hoy no sale**. Lo puedes dejar puesto: no entrará en la
-  ruta y te lo dirá.
-- **«Cambió en la factura»** en ámbar — **tampoco sale**: en el camión sólo sube lo
-  que cuadra con la factura. Se puede dejar puesto, y la ruta lo descartará con
-  «cambió en la factura».
+  factura»** y **«Cambió en la factura»** — las cinco **en rojo**: ese pedido **hoy no
+  sale**. En el camión sólo sube lo que cuadra con la factura. Lo puedes dejar puesto:
+  no entrará en la ruta y te lo dirá.
 
 ### Si un pedido no te deja colocarlo
 
@@ -309,7 +312,7 @@ Debajo te lista, uno a uno, por qué se cayó cada pedido:
 
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
-PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1502 · ANA MARTÍNEZ: Cambió en la factura
 PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
 PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
@@ -320,8 +323,22 @@ la zona (o resuélvelos en PEDIDO o en Entrega) y vuelve a armar.
 ### Qué entró y qué no
 
 **Sólo entran en la ruta los pedidos repartibles**: facturados y que cuadran, con el
-domicilio cobrado y cotizado. Los que no, **se quedan puestos en la zona y marcados**.
-No se pierde nada, y la zona no se te queda vacía sin explicación.
+domicilio cobrado y cotizado. **Sin señal se arma con la misma regla que el servidor**:
+el teléfono dice el mismo «no» que diría él, en el momento. Los que no cumplen **se
+descartan**: **se quedan puestos en la zona y marcados**. No se pierde nada, y la zona
+no se te queda vacía sin explicación.
+
+**Si algunos entran y otros no**, la ruta se arma con los que entran y, al llegar a
+Rutas, una franja roja nombra a los que se quedaron fuera, cada uno por su **conduce**:
+
+> Ruta armada de «Centro», pero 2 pedidos no entraron:
+> PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+> PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
+
+(Con uno solo: «pero 1 pedido no entró».) Arréglalos donde dice el motivo —cobrando o
+cotizando en Entrega, o en PEDIDO— y vuelve a armar. **Si no entra ninguno, no se arma
+la ruta** y sale el recuadro rojo de arriba: «La columna no tiene ningún pedido que se
+pueda repartir hoy», con la lista.
 
 ### Si borras o recortas la ruta, las facturas vuelven a su zona
 

@@ -88,9 +88,9 @@ De arriba abajo:
    `12 kg · 0,04 USD · Songo-La Maya · 3,7 km`
    Si el pedido no tiene costo, en su sitio no sale nada.
 5. **Las marcas**, si las tiene: «Archivado en PEDIDO», «Ya va en otra ruta»,
-   «Sin cotejar», «Sin factura» (las cuatro en rojo) y «Cambió en la factura» (en
-   ámbar). Ver [Las reglas del reparto](../las-reglas-del-reparto.md). **Ninguna de
-   las cinco entra en la ruta**: en el camión sólo sube lo que cuadra con la factura.
+   «Sin cotejar», «Sin factura» y «Cambió en la factura» (las cinco en rojo). Ver
+   [Las reglas del reparto](../las-reglas-del-reparto.md). **Ninguna de las cinco
+   entra en la ruta**: en el camión sólo sube lo que cuadra con la factura.
 6. **Si el cliente repite hoy**: «2 pedidos de este cliente hoy». **Las tarjetas
    no se juntan**: sólo se avisa, para que los metas en la misma zona a propósito.
 
@@ -178,8 +178,8 @@ el momento, antes de colocar, para que el «no» no te llegue horas después a l
 bandeja de rechazados con la zona ya preparada.
 
 **La factura que «Cambió» sí se puede colocar, pero no sube.** Sale en «Sin colocar» con
-su marca ámbar, y si la pones en una zona, **al armar la ruta se descarta** con el
-motivo «cambió en la factura» y se queda en la zona, marcada. En el camión sólo sube lo
+su marca roja, y si la pones en una zona, **al armar la ruta se descarta** con el
+motivo «Cambió en la factura» y se queda en la zona, marcada. En el camión sólo sube lo
 que cuadra con la factura.
 
 Si te falta un pedido que esperabas, probablemente es éste el motivo: **no se ha
@@ -210,11 +210,11 @@ ruta.
 
 - La primera opción siempre es **«Sin camión»**.
 - Cada camión sale con su capacidad y su matrícula: «1.000 kg · P-123456».
-- **Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» o en
-  mantenimiento no se ofrece para rutas nuevas (ver [Vehículos](vehiculos.md)). Si
-  un camión no te sale, mira allí por qué.
+- Un camión en el taller sale con **«EN EL TALLER»** en ámbar, y **se puede elegir
+  igual**: es aviso, no bloqueo (ver [Vehículos](vehiculos.md)).
+- **Un camión «Inactivo» no sale nunca.** Si un camión no te sale, mira allí por qué.
 - Si la sucursal no tiene ninguno que se pueda ofrecer, lo dice: «Esta sucursal no
-  tiene vehículos activos y fuera del taller en este aparato.»
+  tiene vehículos activos en este aparato.»
 - Si el camión que ya tenía la zona se dio de baja después, la zona lo sigue
   nombrando, pero **al armar la ruta el servidor no lo acepta**: «El vehículo está
   inactivo y no se puede asignar a una ruta.» Elige otro en «Camión previsto».
@@ -243,9 +243,13 @@ trabaja dice **«Armando…»**; si falló, el botón pasa a **«Volver a intent
 «Centro».» y **la aplicación salta sola a Rutas**, a la pestaña «Planificadas», con
 la ruta nueva ya elegida.
 
-**Lo que entra en la ruta:** sólo los pedidos repartibles de esa zona. Los que no
-se pueden repartir **se quedan puestos en la zona y marcados**. No desaparece el
-trabajo de nadie.
+**Lo que entra en la ruta:** sólo los pedidos de esa zona que se pueden repartir, con
+**la misma regla que usa el servidor**, **con señal y sin ella**: facturados y que
+cuadran (no «Cambió en la factura»), con el **domicilio cobrado** en la factura y
+**cotizado** en Entrega. Los demás se **descartan**: **se quedan puestos en la zona y
+marcados**, y la aplicación los nombra por su conduce (ver
+[Si la ruta sale con menos pedidos](#si-la-ruta-sale-con-menos-pedidos)). No
+desaparece el trabajo de nadie.
 
 **El orden que va en la ruta es el que dejaste en la zona.** La aplicación no lo
 reordena.
@@ -278,7 +282,8 @@ que le pongas el camión ahí mismo:
 >   el que cotizar el domicilio: la ruta saldría con su peso y su importe sin nada
 >   con que contrastarlos.
 
-**2. No hay nada repartible en la zona.**
+**2. No hay nada repartible en la zona.** Si **ningún** pedido de la zona cumple, **no se
+arma la ruta**, y se dice por qué:
 
 > «La columna no tiene ningún pedido que se pueda repartir hoy»
 
@@ -287,10 +292,36 @@ número de operación de la factura):
 
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
-PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1502 · ANA MARTÍNEZ: Cambió en la factura
 PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
 PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
+
+Los motivos posibles, por este orden de prioridad: «Archivado en PEDIDO», «Ya va en otra
+ruta», «Sin cotejar», «Sin factura», «Cambió en la factura» (las cinco son las marcas de
+la tarjeta), «ya se entregó», «la factura no tiene domicilio cobrado» y «domicilio sin
+cotizar». Son los mismos con señal y sin ella.
+
+### Si la ruta sale con menos pedidos
+
+Si **algunos** pedidos cumplen y otros no, la ruta **sí se arma**, con los que cumplen,
+y una franja roja lo dice en cuanto llegas a Rutas, con el conduce y el motivo de cada
+pedido que se quedó fuera:
+
+> Ruta armada de «Centro», pero 2 pedidos no entraron:
+> PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+> PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
+
+(Con uno solo dice «pero 1 pedido no entró». La franja se queda unos seis segundos:
+léela antes de que se vaya; los pedidos siguen marcados en la zona.) Esos pedidos **siguen en su zona**, marcados;
+se arreglan donde dice el motivo (cobrando o cotizando en Entrega, o en PEDIDO) y se
+vuelve a armar. Cuando no se cae ninguno, la franja es la de siempre: «Ruta armada con lo
+que se puede repartir de «Centro».»
+
+**Esto ya no depende de la señal.** Antes, sin señal, el aparato armaba con más
+pedidos de los que luego aceptaba el servidor, y la misma zona salía distinta con
+conexión que sin ella. Ahora el teléfono y el escritorio aplican la misma regla que el
+servidor, en el momento.
 
 ---
 

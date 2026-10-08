@@ -223,6 +223,7 @@ Avísalo en la oficina antes de irte al almacén.
 |---|---|
 | **«Usuario o contraseña incorrectos.»** | Pruébalo otra vez |
 | **«La cuenta no está dada de alta en ninguna sucursal, o la sucursal pedida no es suya.»** | «No es un fallo de la aplicación: tu cuenta entró bien. Pide en la oficina que te den de alta en tu sucursal y vuelve a entrar.» |
+| **«tu sucursal MOA no está dada de alta en Reparto: pide en la oficina que la den de alta»** | Entras, pero cada pantalla se niega con esto. Tu cuenta es buena: te asignaron una sucursal que Reparto no tiene (Moa, Palma Soriano…). Pide en la oficina que la den de alta o que te asignen una de las ocho. Ver [Roles y sucursales](../roles-y-sucursales.md#si-tu-sucursal-no-está-dada-de-alta-en-reparto) |
 | **«La cuenta está dada de baja.»** | «Pregunta en la oficina» |
 | **«Demasiados intentos seguidos. Espera un minuto y vuelve a probar.»** | Esperar un minuto |
 | **«Sin conexión con el servidor. Para entrar hace falta conexión; prueba otra vez cuando haya señal.»** | «Comprueba la señal. Lo que ya estaba descargado sigue en el aparato.» |

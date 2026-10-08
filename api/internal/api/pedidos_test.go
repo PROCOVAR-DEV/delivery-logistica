@@ -244,9 +244,6 @@ func (d *dobleDePedidos) ActualizarPedido(_ context.Context, arg sqlc.Actualizar
 		if arg.CustomerName != nil {
 			d.pedidos[i].CustomerName = *arg.CustomerName
 		}
-		if arg.TocarRouteID {
-			d.pedidos[i].RouteID = arg.RouteID
-		}
 		// CON SU `BranchID`: de la fila que vuelve del UPDATE sale la sucursal del aviso en
 		// vivo. Sin él, un aviso que saliera pelado pasaría por bueno aquí.
 		return sqlc.ActualizarPedidoRow{ID: p.ID, CustomerName: d.pedidos[i].CustomerName,
@@ -667,43 +664,76 @@ func TestPatchAplicaSoloLosCamposPresentes(t *testing.T) {
 	}
 	// Lo que no vino NO se toca: sin esto, un PATCH que sólo corregía el nombre borra
 	// las coordenadas y el pedido desaparece del armador de rutas.
-	if d.ultimoPatch.Address != nil || d.ultimoPatch.EndLat != nil || d.ultimoPatch.Weight != nil {
+	if d.ultimoPatch.Address != nil || d.ultimoPatch.EndLat != nil || d.ultimoPatch.Notes != nil {
 		t.Fatalf("un campo ausente llegó a la consulta: %+v", d.ultimoPatch)
-	}
-	if d.ultimoPatch.TocarRouteID {
-		t.Fatal("`routeId` ausente no puede levantar el interruptor: bajaría el pedido del camión")
 	}
 	if got := leerDePedidos[PedidoDetalleSalida](t, w); got.CustomerName != "Bar del Parque" {
 		t.Fatalf("la respuesta es la ficha releída: %s", w.Body.String())
 	}
 }
 
-// `routeId: null` es como se baja un pedido de un camión a mano. Con `coalesce` esa mitad
-// de la utilidad no se puede expresar, y por eso el SQL lleva interruptor.
-func TestPatchConRouteIdNuloBajaElPedidoDelCamion(t *testing.T) {
-	d := datosDePedidos()
-	d.pedidos[0].RouteID = pedidosPg(uuid.New())
-	h := servidorDePedidos(t, d)
-
-	w := pedirPedidos(t, h, http.MethodPatch, "/api/orders/"+pedidosStgA.String(),
-		tokenDeSantiagoPedidos(t), `{"routeId":null}`, nil)
-	if w.Code != http.StatusOK {
-		t.Fatalf("código %d: %s", w.Code, w.Body.String())
+// LOS CINCO CAMPOS QUE EL PATCH YA NO ACEPTA — 08/10/2026 (auditoría de la 1.0.28).
+// `routeId`, `status`, `price`, `weight` y `stopOrder` se saltaban TODAS las reglas del
+// armado: ruta de otra sucursal, ruta completada, pedido sin facturar… Ahora son un 400 con
+// el literal de la casa, NO se descartan en silencio, y no se aplica NADA del cuerpo (ni los
+// campos buenos que los acompañen: medio PATCH aplicado es peor que ninguno).
+func TestPatchConUnCampoVedadoEs400YNoToca(t *testing.T) {
+	casos := []struct{ campo, cuerpo string }{
+		{"routeId", `{"routeId":"` + "aaaaaaaa-0000-0000-0000-00000000000a" + `"}`},
+		{"routeId", `{"routeId":null}`}, // bajar un pedido de un camión a mano: ahora, por /api/routes
+		{"status", `{"status":"delivered"}`},
+		{"status", `{"status":"entregadisimo"}`}, // ya no es un 400 de enum: el campo entero está vedado
+		{"price", `{"price":1}`},
+		{"weight", `{"weight":99.5}`},
+		{"stopOrder", `{"stopOrder":3}`},
+		// Con un campo bueno al lado: el bueno tampoco se aplica.
+		{"routeId", `{"customerName":"Bar del Parque","routeId":"aaaaaaaa-0000-0000-0000-00000000000a"}`},
 	}
-	if !d.ultimoPatch.TocarRouteID || d.ultimoPatch.RouteID.Valid {
-		t.Fatalf("tenía que llegar el interruptor puesto y la ruta en NULL: %+v", d.ultimoPatch)
+	for _, c := range casos {
+		d := datosDePedidos()
+		h := servidorDePedidos(t, d)
+		w := pedirPedidos(t, h, http.MethodPatch, "/api/orders/"+pedidosStgA.String(),
+			tokenDeSantiagoPedidos(t), c.cuerpo, nil)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("%s: tenía que ser 400 y fue %d: %s", c.cuerpo, w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Body.String(), "Ese campo no se cambia por aquí: usa las rutas o el tablero") ||
+			!strings.Contains(w.Body.String(), c.campo) {
+			t.Fatalf("%s: el 400 tiene que traer el literal y nombrar «%s»: %s", c.cuerpo, c.campo, w.Body.String())
+		}
+		if d.ultimoPatch.ID != uuid.Nil {
+			t.Fatalf("%s: no se podía haber llegado a la consulta: %+v", c.cuerpo, d.ultimoPatch)
+		}
 	}
 }
 
-func TestPatchConEstadoDesconocidoEs400YNo500(t *testing.T) {
+// Con varios vedados a la vez, el texto los nombra todos y en orden fijo.
+func TestPatchConVariosCamposVedadosLosNombraTodos(t *testing.T) {
 	h := servidorDePedidos(t, datosDePedidos())
 	w := pedirPedidos(t, h, http.MethodPatch, "/api/orders/"+pedidosStgA.String(),
-		tokenDeSantiagoPedidos(t), `{"status":"entregadisimo"}`, nil)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("un enum desconocido tiene que pararse aquí y no en Postgres: %d %s", w.Code, w.Body.String())
+		tokenDeSantiagoPedidos(t), `{"stopOrder":1,"weight":2,"status":"delivered"}`, nil)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "(status, weight, stopOrder)") {
+		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), "entregadisimo") {
-		t.Fatalf("el mensaje tiene que decir qué valor no vale: %s", w.Body.String())
+}
+
+// LA PAREJA: lo que SÍ se corrige a mano sigue pasando, incluidos los datos de contacto y
+// las coordenadas (es para lo que sirve este PATCH), y llega entero a la consulta.
+func TestPatchSigueAceptandoLoQueSiSeCorrigeAMano(t *testing.T) {
+	d := datosDePedidos()
+	h := servidorDePedidos(t, d)
+	w := pedirPedidos(t, h, http.MethodPatch, "/api/orders/"+pedidosStgA.String(),
+		tokenDeSantiagoPedidos(t),
+		`{"operationNumber":"PTB25-1","customerName":"Bar","address":"Calle 1","endAddress":"Calle 2",`+
+			`"endLat":20.1,"endLng":-75.8,"lat":20.2,"lng":-75.9,"notes":"tocar timbre","tripLeg":"return"}`, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("código %d: %s", w.Code, w.Body.String())
+	}
+	p := d.ultimoPatch
+	if p.OperationNumber == nil || *p.OperationNumber != "PTB25-1" || p.Address == nil || p.EndAddress == nil ||
+		p.EndLat == nil || p.EndLng == nil || p.Lat == nil || p.Lng == nil || p.Notes == nil ||
+		p.TripLeg == nil || *p.TripLeg != sqlc.TripLegReturn {
+		t.Fatalf("algún campo bueno no llegó a la consulta: %+v", p)
 	}
 }
 

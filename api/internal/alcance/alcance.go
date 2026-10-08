@@ -27,9 +27,12 @@
 // entró; la cabecera sale de lo que el navegador guardó. Y las sucursales se recrearon en
 // algún momento —unas con id cuid y otras hexadecimal—.
 //
-// Por eso, si la sucursal pedida no existe: se comporta como «todas» y DEJA UN AVISO EN
-// EL REGISTRO. Abrir a todas es lo correcto para quien administra y, sobre todo, enseña
-// el problema en vez de esconderlo.
+// Por eso, si la sucursal pedida no existe: PARA QUIEN ADMINISTRA (SUPER ADMIN y
+// DESARROLLADOR) se comporta como «todas» y DEJA UN AVISO EN EL REGISTRO —abrir a todas es
+// lo correcto para quien ya lo ve todo y, sobre todo, enseña el problema en vez de
+// esconderlo—. Para CUALQUIER OTRO ROL es un 403 que dice cuál es el código que Reparto no
+// conoce (`ErrSucursalSinAlta`): «todas» para él sería el fallo de delivery —un operador
+// de Santiago viendo los precios de La Habana— disparado por un dato que no cuadra.
 package alcance
 
 import (
@@ -94,6 +97,51 @@ var ErrSinAlcance = errors.New(
 	"esta cuenta no está dada de alta en ninguna sucursal: pide en la oficina que te " +
 		"asignen la tuya")
 
+// ErrSucursalSinAlta: la persona SÍ trae una sucursal en su token, pero Reparto no la
+// conoce. Es un `ErrSinAlcance` (`errors.Is` lo reconoce y sale como 403), con un texto
+// propio que NOMBRA el código.
+//
+// POR QUÉ NO «TODAS». Hasta la entrega 1.0.28 una sucursal que no se resolvía abría el
+// alcance a las ocho para cualquier rol, con un aviso en el registro que nadie lee. El
+// caso real que lo hace explotar: Accesos conoce sucursales que Reparto no —`MOA`, `PLS`—
+// y firma su código en el token de quien trabaja allí. Ese OPERADOR de Moa entraba y veía
+// los pedidos, los precios y las rutas de las OCHO, con 200 y sin un error. Es la regla 1
+// de la casa («el alcance sale de quién pregunta») fallando abierta, y la auditoría del
+// 08/10/2026 la marcó como lo más grave del backlog.
+//
+// El fallo barato es dejarlo fuera con un mensaje que dice QUÉ falta («tu sucursal MOA no
+// está dada de alta en Reparto») y a quién pedírselo; el caro es enseñarle las ocho.
+//
+// El texto de `ErrSinAlcance` NO cambia —la app y el canal de eventos lo comparan—; éste
+// es otro caso con otro texto.
+type ErrSucursalSinAlta struct{ Codigo string }
+
+func (e ErrSucursalSinAlta) Error() string {
+	return "tu sucursal " + e.Codigo + " no está dada de alta en Reparto: pide en la " +
+		"oficina que la den de alta"
+}
+
+// Is hace que `errors.Is(err, ErrSinAlcance)` sea cierto: quien ya trata el 403 de «cuenta
+// sin sucursal» (el middleware, el canal de eventos) trata también éste, y sólo cambia el
+// texto que se escribe.
+func (e ErrSucursalSinAlta) Is(destino error) bool { return destino == ErrSinAlcance }
+
+// codigoParaElMensaje acota lo que viene del token antes de meterlo en un texto que sale
+// al cliente: un código de sucursal son tres letras, y un valor largo o con saltos de línea
+// es basura que no tiene por qué viajar.
+func codigoParaElMensaje(pedida string) string {
+	pedida = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, pedida)
+	if r := []rune(pedida); len(r) > 40 {
+		pedida = string(r[:40]) + "…"
+	}
+	return pedida
+}
+
 // LOS DOS ROLES QUE VEN LAS OCHO SUCURSALES, y no hay más.
 //
 // Salen de la tabla `role` de Accesos, leída el 16/09/2026, que tiene SIETE:
@@ -113,12 +161,14 @@ func VeTodasLasSucursales(u *auth.Usuario) bool { return u.EsSuperAdmin() }
 
 // Resolver aplica la regla, en el orden del contrato.
 //
-//  1. pedida = la sucursal de la persona; si no tiene, la cabecera `X-Sucursal-Id`.
-//     LA DE LA PERSONA MANDA SOBRE LA CABECERA: quien pertenece a una sucursal no puede
-//     pedir otra, y ésa es toda la seguridad del sistema. Si se leyera antes la cabecera,
-//     cualquiera vería cualquier sucursal cambiando una línea en el navegador.
-//  2. Sin pedida -> todas (Super Admin).
-//  3. Con pedida, SE COMPRUEBA QUE EXISTA. Si no existe -> aviso y todas.
+//  1. pedida = la sucursal de la persona. Sólo si NO tiene, y SÓLO si su rol ve todas
+//     (`VeTodasLasSucursales`), vale la cabecera `X-Sucursal-Id`. LA DE LA PERSONA MANDA
+//     SOBRE LA CABECERA: quien pertenece a una sucursal no puede pedir otra, y ésa es toda
+//     la seguridad del sistema. Si se leyera antes la cabecera, cualquiera vería cualquier
+//     sucursal cambiando una línea en el navegador.
+//  2. Sin pedida -> todas, pero sólo para quien ve todas; el resto, `ErrSinAlcance`.
+//  3. Con pedida, SE COMPRUEBA QUE EXISTA. Si no existe: quien ve todas -> aviso y todas;
+//     cualquier otro rol -> `ErrSucursalSinAlta` (403 que nombra el código).
 func (p *Porteria) Resolver(ctx context.Context, u *auth.Usuario, cabecera string) (*Acotado, error) {
 	a := &Acotado{fuente: p.fuente, q: p.fuente.Consultas()}
 	if u == nil {
@@ -128,9 +178,18 @@ func (p *Porteria) Resolver(ctx context.Context, u *auth.Usuario, cabecera strin
 	}
 	a.actor = u.ID
 
+	veTodas := VeTodasLasSucursales(u)
 	pedida := strings.TrimSpace(u.Sucursal)
 	deLaPersona := pedida != ""
-	if pedida == "" {
+	if pedida == "" && veTodas {
+		// LA CABECERA SÓLO LA LEE QUIEN PUEDE ELEGIR — 08/10/2026.
+		//
+		// Antes se leía para cualquiera sin sucursal: un OPERADOR cuyo token llegaba sin
+		// ella (todavía sin asignar, o mal dado de alta) mandaba `X-Sucursal-Id: STG` y
+		// pasaba a ver Santiago, o `X-Sucursal-Id: basura` y —por el «no existe -> todas»
+		// de abajo— las ocho. La cabecera es lo que manda el cliente, y el alcance sale de
+		// quién pregunta, no de lo que mande (CLAUDE.md §4). Elegir sucursal arriba es una
+		// prerrogativa de SUPER ADMIN y DESARROLLADOR; para el resto la cabecera ni se mira.
 		pedida = strings.TrimSpace(cabecera)
 	}
 	if pedida == "" {
@@ -146,7 +205,7 @@ func (p *Porteria) Resolver(ctx context.Context, u *auth.Usuario, cabecera strin
 		//
 		// El fallo barato es dejar fuera a quien no tiene sucursal: se arregla dándosela,
 		// y el mensaje lo dice. El caro es enseñarle las ocho, que no se ve.
-		if !VeTodasLasSucursales(u) {
+		if !veTodas {
 			return nil, ErrSinAlcance
 		}
 		return a, nil
@@ -189,8 +248,10 @@ func (p *Porteria) Resolver(ctx context.Context, u *auth.Usuario, cabecera strin
 			return a, nil
 		case errors.Is(errCodigo, pgx.ErrNoRows):
 			// Ni uuid ni código conocido. Es el mismo caso que un id que ya no
-			// está —los ids viejos de delivery eran cuid—: mismo trato, mismo aviso.
-			p.avisar(deLaPersona, pedida, u)
+			// está —los ids viejos de delivery eran cuid—: mismo trato.
+			if err := p.sucursalQueNoExiste(deLaPersona, veTodas, pedida, u); err != nil {
+				return nil, err
+			}
 			return a, nil
 		default:
 			// Igual que abajo: «no pude comprobarlo» NO es «no existe». Un fallo de
@@ -209,7 +270,9 @@ func (p *Porteria) Resolver(ctx context.Context, u *auth.Usuario, cabecera strin
 		}
 		return a, nil
 	case errors.Is(err, pgx.ErrNoRows):
-		p.avisar(deLaPersona, pedida, u)
+		if err := p.sucursalQueNoExiste(deLaPersona, veTodas, pedida, u); err != nil {
+			return nil, err
+		}
 		return a, nil
 	default:
 		// OJO: un fallo de la base NO abre el alcance. «No pude comprobarlo» no es «no
@@ -217,6 +280,28 @@ func (p *Porteria) Resolver(ctx context.Context, u *auth.Usuario, cabecera strin
 		// sucursales a un operador de una. Se responde 500.
 		return nil, err
 	}
+}
+
+// sucursalQueNoExiste decide qué pasa cuando la sucursal pedida no se resuelve: nil (el
+// alcance se queda en «todas», que es como nace) sólo para quien ve todas, y
+// `ErrSucursalSinAlta` para el resto. Quien lo llama devuelve entonces `nil, err`: un
+// alcance abierto NUNCA viaja junto a un error.
+func (p *Porteria) sucursalQueNoExiste(deLaPersona, veTodas bool, id string, u *auth.Usuario) error {
+	if !veTodas {
+		p.avisarRechazo(id, u)
+		return ErrSucursalSinAlta{Codigo: codigoParaElMensaje(id)}
+	}
+	p.avisar(deLaPersona, id, u)
+	return nil
+}
+
+func (p *Porteria) avisarRechazo(id string, u *auth.Usuario) {
+	quien := u.Email
+	if quien == "" {
+		quien = u.ID
+	}
+	p.reg.Warn("[alcance] la sucursal "+id+" de "+quien+" no existe en Reparto: se le niega el acceso (403)",
+		"sucursal", id, "persona", quien, "rol", u.Rol)
 }
 
 func (p *Porteria) avisar(deLaPersona bool, id string, u *auth.Usuario) {
@@ -254,7 +339,11 @@ func (p *Porteria) Exigir(siguiente http.Handler) http.Handler {
 		case errors.Is(err, ErrSinAlcance):
 			// 403 y no 500: no es una avería, es que a esta cuenta le falta algo que se
 			// arregla en la oficina. El texto lo dice y sale tal cual en la pantalla.
-			httpx.Error(w, r, http.StatusForbidden, ErrSinAlcance.Error())
+			//
+			// `err.Error()` y no `ErrSinAlcance.Error()`: el caso de la sucursal que Reparto
+			// no conoce (`ErrSucursalSinAlta`) es el mismo 403 con un texto que nombra el
+			// código — «tu sucursal MOA no está dada de alta en Reparto».
+			httpx.Error(w, r, http.StatusForbidden, err.Error())
 			return
 		case err != nil:
 			httpx.ErrorInterno(w, r, err)

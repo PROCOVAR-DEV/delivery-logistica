@@ -1,20 +1,15 @@
-// QUE CAMIONES SE OFRECEN PARA UNA RUTA NUEVA — el asistente, 07/10/2026.
+// QUE CAMIONES SE OFRECEN PARA UNA RUTA NUEVA — el asistente, 07/10/2026,
+// corregido el 08/10/2026 (1.0.29).
 //
 // Amado, incidencia 4: un camion con rutas no se borra, se INACTIVA, y los
-// inactivos no salen en la seleccion de rutas nuevas. Y el camion del taller
-// tampoco: el servidor, al negarse a borrar un camion con rutas, dice «Ponlo en
-// mantenimiento para impedir que se use en nuevas rutas».
+// inactivos no salen en la seleccion de rutas nuevas. El del taller (`maintenance`)
+// SI sale, con su aviso ambar: «aviso, no bloqueo», Jose, 28/09/2026
+// (`el_camion_del_taller_se_avisa_test.dart`). 1.0.28 lo ocultaba tambien, con un
+// argumento que no era de Amado, y el servidor sigue aceptandolo (`vehiculos.go`):
+// una sucursal con UN camion olvidado en `maintenance` se quedaba sin poder armar.
 //
-// ## Lo que esta prueba reemplaza
-//
-// Aqui estaba `el_camion_del_taller_se_avisa_test.dart` (28/09/2026), que fijaba
-// justo lo contrario: el camion del taller SE OFRECIA, con un aviso ambar, y «no
-// bloquea». Su argumento colgaba del `CLAUDE.md` §2 de entonces —los avisos del
-// armador son aviso, no bloqueo, por los 657 de 686 domicilios sin costo—, que
-// Amado reemplazo el 07/10/2026. Se quita ENTERA, aviso incluido, no a medias.
-//
-// EN PAREJA, como siempre: el inactivo y el del taller NO salen; el normal SI.
-// Sin la segunda, ocultar TODOS dejaria las dos primeras en verde.
+// EN PAREJA, como siempre: el inactivo NO sale; el normal y el del taller SI.
+// Sin la segunda, ocultar TODOS dejaria las primeras en verde.
 //
 // Las listas que miran rutas ya hechas siguen viendo TODA la flota: eso lo ata
 // `vehiculosQueVeLaListaDeRutas` abajo.
@@ -148,21 +143,27 @@ void main() {
     await desmontar(tester);
   });
 
-  testWidgets('el camión del taller tampoco sale: ya no se avisa, no se ofrece', (
+  testWidgets('el camión del taller SALE en la lista, marcado; el inactivo no', (
     tester,
   ) async {
     await pintar(tester);
     await sembrarLaSucursal();
     await sembrarCamion('V1', 'Camión sano');
     await sembrarCamion('V2', 'Camión del taller', estado: 'maintenance');
+    await sembrarCamion('V3', 'Camión de baja', activo: false);
     await asentar(tester);
 
     await abrirLaLista(tester);
     expect(find.text('Camión sano'), findsWidgets);
-    expect(find.text('Camión del taller'), findsNothing);
-    // Y el cartel del 28/09 se fue ENTERO con la decisión que lo sostenía.
-    expect(find.textContaining('en el taller'), findsNothing);
-    expect(find.textContaining('EN EL TALLER'), findsNothing);
+    expect(
+      find.text('Camión del taller'),
+      findsWidgets,
+      reason:
+          'el del taller se avisa, no se oculta: sacarlo deja sin armar a una '
+          'sucursal de un solo camion que alguien olvido en el taller',
+    );
+    expect(find.textContaining('en el taller'), findsOneWidget);
+    expect(find.text('Camión de baja'), findsNothing);
     await desmontar(tester);
   });
 
@@ -202,7 +203,11 @@ void main() {
       await asentar(tester);
 
       // No dice «no tiene ningún vehículo»: tiene uno, está de baja.
-      expect(find.textContaining('inactivos o en el taller'), findsOneWidget);
+      expect(
+        find.textContaining('Los vehículos de esta sucursal están inactivos'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('en el taller'), findsNothing);
       expect(find.textContaining('no tiene ningún vehículo'), findsNothing);
       await desmontar(tester);
     },

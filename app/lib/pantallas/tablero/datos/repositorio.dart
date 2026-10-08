@@ -67,13 +67,19 @@ import 'modelos.dart';
 /// Devuelve una línea por descartado, `folio · cliente: motivo`. Vacía cuando no
 /// se cayó nadie, que es lo normal y no se enseña — un aviso que sale siempre
 /// deja de leerse (§3-quinquies).
-List<String> descartadosDeLaRespuesta(Object? cuerpo) {
+///
+/// [salvo] son los pedidos que quien llama ya nombro por su cuenta.
+List<String> descartadosDeLaRespuesta(
+  Object? cuerpo, {
+  Set<String> salvo = const <String>{},
+}) {
   if (cuerpo is! Map<Object?, Object?>) return const [];
   final crudos = cuerpo['descartados'];
   if (crudos is! List) return const [];
   final detalles = <String>[];
   for (final d in crudos) {
     if (d is! Map<Object?, Object?>) continue;
+    if (salvo.contains(d['pedidoId'])) continue;
     final quien = d['operationNumber'] ?? d['pedidoId'];
     final cliente = d['customerName'];
     final motivo = d['motivo'];
@@ -719,12 +725,17 @@ class RepositorioTablero {
       );
     }
 
+    // LA REGLA DEL SERVIDOR, NO UNA MAS FLOJA — 1.0.29. Entra lo facturado y que
+    // cuadre, con domicilio cobrado y cotizado (`TarjetaPedido.motivoDeNoSubir`);
+    // lo demas se queda puesto y se NOMBRA, igual que lo nombra el servidor en
+    // `descartados`. Antes el aparato armaba con todo lo que no tuviera una marca
+    // grave y el servidor descartaba lo que el aparato ya habia subido al camion.
     final buenos = puestas.where((t) => t.pedido.repartible).toList();
     final descartados = <String>[
-      for (final t in puestas.where((t) => !t.pedido.repartible))
-        '${t.pedido.operationNumber ?? t.pedido.pedidoId} · '
-            '${t.pedido.customerName}: '
-            '${t.pedido.marcas.firstWhere((m) => m.grave).texto}',
+      for (final t in puestas)
+        if (t.pedido.motivoDeNoSubir case final motivo?)
+          '${t.pedido.operationNumber ?? t.pedido.pedidoId} · '
+              '${t.pedido.customerName}: $motivo',
     ];
     if (buenos.isEmpty) {
       // No se crea una ruta vacia, y se dice por que se cayo cada uno.
@@ -905,6 +916,9 @@ class RepositorioTablero {
     // el id del servidor no se puede ni empezar a escribir la fila.
     final enVivo = _enVivo;
     final String rutaId;
+    // QUIEN SE QUEDA FUERA: en la APK y el escritorio lo sabe ya el aparato; en
+    // la web se le suma lo que cuente el servidor.
+    var fuera = descartados;
     if (enVivo != null) {
       final respuesta = await _mandarOEncolar(
         metodo: 'POST',
@@ -914,8 +928,20 @@ class RepositorioTablero {
       // LOS DESCARTADOS DE UN «SÍ» TAMBIÉN SE DICEN. El 409 ya se leía; éste se
       // tiraba entero, así que en la web la ruta salía con menos pedidos de los
       // que se pusieron, con un «Ruta armada» verde encima. §4.
-      final fuera = descartadosDeLaRespuesta(respuesta);
-      if (fuera.isNotEmpty) alDejarFuera?.call(fuera);
+      //
+      // Los que este aparato ya nombro arriba NO se repiten con la voz del
+      // servidor: como el aparato no los manda en `pedidoIds`, el servidor los
+      // llama «lo pusieron en la zona después de que armaras», y no es verdad.
+      fuera = [
+        ...descartados,
+        ...descartadosDeLaRespuesta(
+          respuesta,
+          salvo: {
+            for (final t in puestas)
+              if (!t.pedido.repartible) t.pedido.pedidoId,
+          },
+        ),
+      ];
 
       final id = respuesta is Map<Object?, Object?> ? respuesta['id'] : null;
       if (id is! String || id.isEmpty) {
@@ -994,6 +1020,15 @@ class RepositorioTablero {
         )..where((o) => o.id.equals(pedido.pedidoId))).write(
           OrdersCompanion(
             routeId: Value(rutaId),
+            // REASIGNAR UN DEVUELTO ES UN INTENTO NUEVO — 1.0.29 (hallazgo I-2).
+            // Sin esto el pedido entra en la ruta nueva con el «devuelto» de la
+            // vuelta anterior puesto y la hoja lo enseña ya resuelto. El
+            // servidor hace lo mismo al engancharlo (`EngancharPedidoARuta`).
+            // Un entregado no llega aqui: `motivoDeNoSubir` lo deja fuera.
+            resultado: const Value<String?>(null),
+            resultadoAt: const Value<DateTime?>(null),
+            resultadoNota: const Value<String?>(null),
+            deliveredAt: const Value<DateTime?>(null),
             // `ultimaRutaId` NO se libera nunca: un devuelto suelta
             // `routeId` pero conserva esta, o desaparece de la hoja de lo
             // que bajo del camion.
@@ -1057,6 +1092,7 @@ class RepositorioTablero {
       }
     });
     EsquemaTablero.avisarDeCambio(_base);
+    if (fuera.isNotEmpty) alDejarFuera?.call(fuera);
     return rutaId;
   }
 

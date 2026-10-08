@@ -74,10 +74,12 @@ void main() {
     };
     expect(puestas.length, 4, reason: 'ninguna se esconde');
     expect(puestas['igual']!.marcas, isEmpty);
-    // `cambiado` se reparte igual —lo que sube al camion son las lineas de la
-    // factura— pero el peso de la columna ya no es el que era.
+    // `cambiado` TAMPOCO sube (Jose, 07/10/2026: «en el camion solo sube lo
+    // que cuadra con la factura»), y hasta 1.0.28 esta prueba decia lo
+    // contrario: el aparato armaba con lo que el servidor descarta.
     expect(puestas['cambiado']!.marcas, [MarcaTarjeta.cambiado]);
-    expect(puestas['cambiado']!.repartible, isTrue);
+    expect(puestas['cambiado']!.repartible, isFalse);
+    expect(puestas['igual']!.repartible, isTrue);
     expect(puestas['sin-factura']!.repartible, isFalse);
     // NULL NO ES «cuadra»: es «no se sabe». Con un NULL colado se armo una ruta
     // sin facturar el 2/09.

@@ -148,6 +148,8 @@ func (s *Servidor) guardarAjustes(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
+	rastroDeQuien(r, "ajustes guardados", "moneda", ajustes.Currency, "tasa_cup", ajustes.CupRate,
+		"monedas_tocadas", len(c.Currencies))
 	avisarCambioDeAjustes(r.Context())
 	httpx.JSON(w, r, http.StatusOK, deAjustes(ajustes, monedas))
 }

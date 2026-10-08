@@ -202,13 +202,13 @@ class CamionDeLaZona {
 ///   acaba de dejar de estar elegida.
 ///
 /// [vehiculosDeLaRuta] son los vehiculos que el paso 3 ofrece de verdad (los de
-/// **esta** sucursal, activos y fuera del taller). Un camion previsto que no este
+/// **esta** sucursal y activos). Un camion previsto que no este
 /// entre ellos no se trae: el selector no podria ensenarlo y quedaria un id
 /// puesto que nadie ve. Pasa con un camion de otra sucursal, y un camion de
 /// Granma en una ruta de La Habana es un camion que no esta donde sale la ruta.
 ///
 /// [noSeOfrecen] son los ids de los camiones que el paso 3 NO ofrece **aunque
-/// sean de esta sucursal**: los dados de baja y los del taller. Sirve para una
+/// sean de esta sucursal**: los dados de baja. Sirve para una
 /// sola cosa, decir el motivo de verdad: una zona con un camion inactivo no es
 /// una zona de «otra sucursal», y decirlo asi manda a buscar donde no es.
 CamionDeLaZona camionDeLaZona({
@@ -238,7 +238,7 @@ CamionDeLaZona camionDeLaZona({
       cambia: false,
       choca: false,
       parte: noSeOfrecen.contains(deLaZona)
-          ? 'El camión de «${zona.nombre}» está inactivo o en el taller y no '
+          ? 'El camión de «${zona.nombre}» está inactivo y no '
                 'se ofrece para rutas nuevas: se queda el que elegiste'
           : 'El camión de «${zona.nombre}» no es de esta sucursal: se queda el '
                 'que elegiste',

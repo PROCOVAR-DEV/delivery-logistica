@@ -20,6 +20,7 @@
 // en el escritorio no sale ni una petición y la cola sigue siendo la respuesta.
 
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
@@ -185,6 +186,33 @@ void main() {
       // 4. Y NO SE ENCOLA NADA. Con un apunte en la cola, el ciclo volvería a
       //    intentar `POST /sync/aparato` y a comerse su 401.
       expect(await cuantosApuntes(), 0);
+    });
+
+    // REASIGNAR UN DEVUELTO (1.0.29): el servidor engancha el pedido como un
+    // intento nuevo y la base de la web refleja lo que acaba de escribir, sin la
+    // marca de la ruta vieja. Su pareja es la de arriba: sin marca previa no
+    // cambia nada más que la ruta.
+    test('un DEVUELTO reasignado entra limpio también en el espejo de la web',
+        () async {
+      await base.customStatement(
+        "UPDATE orders SET resultado = 'devuelto', ultima_ruta_id = 'R0', "
+        "resultado_nota = 'el cliente había cerrado' WHERE id = 'q1'",
+      );
+      await (base.update(base.orders)..where((o) => o.id.equals('q1'))).write(
+        OrdersCompanion(resultadoAt: Value(DateTime.utc(2026, 9, 21, 18))),
+      );
+      contesta = (p) async => RespuestaFalsa(201, laRutaDelServidor());
+
+      final rutaId = await armar(enLaWeb);
+
+      final q1 = await (base.select(
+        base.orders,
+      )..where((o) => o.id.equals('q1'))).getSingle();
+      expect(q1.routeId, rutaId);
+      expect(q1.ultimaRutaId, rutaId);
+      expect(q1.resultado, isNull);
+      expect(q1.resultadoAt, isNull);
+      expect(q1.resultadoNota, isNull);
     });
 
     test('el aviso de los domicilios sin costear viene envuelto y el id '
@@ -412,7 +440,7 @@ void main() {
       ]);
       // En la web no hay apunte al que seguirle la pista: ya está arriba.
       expect(cierre.claveDelApunte, '');
-      expect(cierre.aviso, isNull, reason: 'aceptado entero: nada que avisar');
+      expect(cierre.rechazadas, isEmpty, reason: 'aceptado entero: nada que acusar');
       expect(cierre.idsAplicados, {'q1', 'q2'});
 
       final cuerpo = servidor.vistas.single.cuerpo! as Map<String, Object?>;
@@ -448,14 +476,18 @@ void main() {
     test('cerrar con 409 parcial: se marca lo guardado y el rechazo se dice',
         () async {
       const motivo = 'Se guardaron 1 de las 2 paradas de esta hoja. 1 no se '
-          'pudieron guardar: q2 (ese pedido no va en esta ruta).';
+          'pudieron guardar: PTB25-261005-1480 (ese pedido no va en esta ruta).';
       contesta = (p) async => RespuestaFalsa(409, const <String, Object?>{
         'error': motivo,
         'aplicados': [
           {'orderId': 'q1', 'resultado': 'entregado'},
         ],
         'rechazados': [
-          {'orderId': 'q2', 'motivo': 'ese pedido no va en esta ruta'},
+          {
+            'orderId': 'q2',
+            'numeroOperacion': 'PTB25-261005-1480',
+            'motivo': 'ese pedido no va en esta ruta',
+          },
         ],
       });
 
@@ -465,7 +497,12 @@ void main() {
       ]);
 
       expect(cierre.idsAplicados, {'q1'});
-      expect(cierre.aviso, motivo, reason: 'el motivo sale LITERAL');
+      // Cada rechazada con su conduce y su motivo LITERAL (sin el conduce delante).
+      expect(cierre.rechazadas.length, 1);
+      expect(cierre.rechazadas.single.pedidoId, 'q2');
+      expect(cierre.rechazadas.single.numeroOperacion, 'PTB25-261005-1480');
+      expect(cierre.rechazadas.single.conduce, 'PTB25-261005-1480');
+      expect(cierre.rechazadas.single.motivo, 'ese pedido no va en esta ruta');
       final q1 = await (base.select(
         base.orders,
       )..where((o) => o.id.equals('q1'))).getSingle();
@@ -503,6 +540,79 @@ void main() {
         base.orders,
       )..where((o) => o.id.equals('q1'))).getSingle();
       expect(q1.resultado, isNull);
+    });
+
+    // LA GUARDA `codigo != 409 || parcial == null` TIENE DOS MITADES, y cada una
+    // necesita SU prueba: la mutación `if (parcial == null)` (sin el 409) y la
+    // contraria sobrevivían a las dos de arriba (08/10/2026).
+    //
+    // Un 409 que NO trae `aplicados` y `rechazados` ni es parcial ni se puede
+    // tratar como tal: «La ruta ya está completada» es un rechazo total.
+    test('cerrar con 409 SIN aplicados/rechazados: rechazo total, ni una marca',
+        () async {
+      contesta = (p) async => RespuestaFalsa(409, const <String, Object?>{
+        'error': 'La ruta ya está completada',
+      });
+
+      await expectLater(
+        () => enLaWeb.cerrar('r-de-verdad', const [
+          MarcaDeParada(pedidoId: 'q1', resultado: ResultadoParada.entregado),
+          MarcaDeParada(pedidoId: 'q2', resultado: ResultadoParada.entregado),
+        ]),
+        throwsA(
+          isA<RechazoLocal>().having(
+            (r) => r.mensaje,
+            'mensaje',
+            'La ruta ya está completada',
+          ),
+        ),
+      );
+      for (final id in ['q1', 'q2']) {
+        final pedido = await (base.select(
+          base.orders,
+        )..where((o) => o.id.equals(id))).getSingle();
+        expect(pedido.resultado, isNull, reason: '$id: ni una sola marca');
+      }
+    });
+
+    // Y la pareja de esa: un 4xx que NO es 409 nunca es parcial, aunque el
+    // cuerpo se parezca. Sólo el 409 es el contrato de «guardé unas y rechacé
+    // otras»; un 400 con ese cuerpo es una petición mal hecha.
+    test('cerrar con 400 y cuerpo parcial: rechazo total, ni una marca',
+        () async {
+      contesta = (p) async => RespuestaFalsa(400, const <String, Object?>{
+        'error': 'La petición no se entiende',
+        'aplicados': [
+          {'orderId': 'q1', 'resultado': 'entregado'},
+        ],
+        'rechazados': [
+          {
+            'orderId': 'q2',
+            'numeroOperacion': 'PTB25-261005-1480',
+            'motivo': 'ese pedido no va en esta ruta',
+          },
+        ],
+      });
+
+      await expectLater(
+        () => enLaWeb.cerrar('r-de-verdad', const [
+          MarcaDeParada(pedidoId: 'q1', resultado: ResultadoParada.entregado),
+          MarcaDeParada(pedidoId: 'q2', resultado: ResultadoParada.entregado),
+        ]),
+        throwsA(
+          isA<RechazoLocal>().having(
+            (r) => r.mensaje,
+            'mensaje',
+            'La petición no se entiende',
+          ),
+        ),
+      );
+      for (final id in ['q1', 'q2']) {
+        final pedido = await (base.select(
+          base.orders,
+        )..where((o) => o.id.equals(id))).getSingle();
+        expect(pedido.resultado, isNull, reason: '$id: ni una sola marca');
+      }
     });
   });
 

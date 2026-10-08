@@ -21,7 +21,7 @@ Un pedido puede llevar una de estas marcas. **Las cinco impiden repartirlo hoy**
 | **«Ya va en otra ruta»** | Se lo llevó otra ruta, quizá desde otro aparato | **No** |
 | **«Sin cotejar»** | No se sabe si la factura cuadra. **No es «cuadra»: es «no se sabe»** | **No** |
 | **«Sin factura»** | No hay nada que llevar | **No** |
-| **«Cambió en la factura»** | Se facturó distinto de como se pidió | **No**: la ruta lo descarta con «cambió en la factura» |
+| **«Cambió en la factura»** | Se facturó distinto de como se pidió | **No**: al armar la ruta se descarta y se nombra por su conduce |
 
 Un pedido puede llevar **varias marcas a la vez**: archivado y sin facturar es las
 dos cosas.
@@ -78,10 +78,12 @@ ruta»**.
 Por qué se bloquea aquí: **este hueco se tapa con un gesto, en la misma pantalla donde
 sale el "no"**. Dos toques en «Camión previsto» y ya está.
 
-**Y el camión tiene que estar activo y fuera del taller.** Un camión «Inactivo» (dado
-de baja) o en mantenimiento no se ofrece para rutas nuevas, y si se intenta asignar a
-mano el servidor contesta **«El vehículo está inactivo y no se puede asignar a una
-ruta»**. Los camiones dados de baja se siguen viendo en filtros e informes, para que las
+**Y el camión tiene que estar activo.** Un camión «Inactivo» (dado de baja) no se
+ofrece para rutas nuevas, y si se intenta asignar a mano el servidor contesta **«El
+vehículo está inactivo y no se puede asignar a una ruta»**. **Un camión en el taller sí
+se ofrece, con un aviso en ámbar («en el taller»)**: es aviso, no bloqueo. Lo decidió
+Jose el 28/09/2026 porque una sucursal con un solo camión olvidado en el taller se
+quedaría sin poder armar rutas. Los camiones dados de baja se siguen viendo en filtros e informes, para que las
 rutas que ya hicieron sigan diciendo en qué camión fueron.
 
 Y el motivo de fondo: sin camión, la ruta sale con su `516.5 kg` y su `$2.99` y

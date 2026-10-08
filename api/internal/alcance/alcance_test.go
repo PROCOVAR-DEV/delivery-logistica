@@ -3,6 +3,7 @@ package alcance_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -143,13 +144,15 @@ func TestSucursalInexistenteNoAcotaACeroYDejaAviso(t *testing.T) {
 	q := base()
 	p, registro := porteria(q)
 
-	u := &auth.Usuario{ID: "p-3", Email: "vieja@procovar.cu", Rol: "ADMINISTRADOR", Sucursal: fantasma.String()}
+	// QUIEN VE TODAS (SUPER ADMIN, DESARROLLADOR): una sucursal que ya no está se comporta
+	// como «todas», con aviso. Es la mitad que se conserva de la regla vieja.
+	u := &auth.Usuario{ID: "p-3", Email: "vieja@procovar.cu", Rol: "SUPER ADMIN", Sucursal: fantasma.String()}
 	a, err := p.Resolver(context.Background(), u, "")
 	if err != nil {
 		t.Fatalf("resolver: %v", err)
 	}
 	if !a.Todas() {
-		t.Fatal("una sucursal que no existe tiene que comportarse como «todas», no acotar")
+		t.Fatal("una sucursal que no existe tiene que comportarse como «todas» para quien las ve todas, no acotar")
 	}
 
 	vs, err := a.ListarVehiculos(context.Background())
@@ -170,6 +173,37 @@ func TestSucursalInexistenteNoAcotaACeroYDejaAviso(t *testing.T) {
 	traza := registro.String()
 	if !strings.Contains(traza, "[alcance] la sucursal "+fantasma.String()+" de vieja@procovar.cu no existe: se le enseñan todas") {
 		t.Fatalf("falta el aviso en el registro; quedó: %q", traza)
+	}
+}
+
+// LA PAREJA, Y LA QUE IMPORTA (08/10/2026): el mismo token con una sucursal que Reparto no
+// resuelve, pero de un rol que NO ve todas, NO abre el alcance: 403, con el código en el
+// texto y sin entregar un alcance junto al error. Hasta la 1.0.28 esto era «todas».
+func TestSucursalInexistenteDeQuienNoVeTodasEsUn403QueNombraElCodigo(t *testing.T) {
+	for _, rol := range []string{"ADMINISTRADOR", "GERENTE", "SUPERVISOR", "GESTOR", "OPERADOR", ""} {
+		for _, pedida := range []string{fantasma.String(), "cmf3k2h9a000008l5abcd1234", "MOA", "PLS"} {
+			q := base()
+			p, registro := porteria(q)
+			u := &auth.Usuario{ID: "p-3", Email: "moa@procovar.cu", Rol: rol, Sucursal: pedida}
+			a, err := p.Resolver(context.Background(), u, "")
+			if err == nil || a != nil {
+				t.Fatalf("rol %q con la sucursal %q desconocida: tenía que ser error SIN alcance, y salió a=%v err=%v",
+					rol, pedida, a, err)
+			}
+			if !errors.Is(err, alcance.ErrSinAlcance) {
+				t.Fatalf("rol %q, %q: tiene que ser un ErrSinAlcance (el 403): %v", rol, pedida, err)
+			}
+			if !strings.Contains(err.Error(), "tu sucursal "+pedida+" no está dada de alta en Reparto") {
+				t.Fatalf("rol %q: el mensaje tiene que nombrar el código %q; dice: %q", rol, pedida, err.Error())
+			}
+			if len(q.sucursalPedida) != 0 {
+				t.Fatalf("no se podía haber consultado nada con ese alcance: %v", q.sucursalPedida)
+			}
+			// Y se deja constancia en el registro, como siempre que el alcance no cuadra.
+			if !strings.Contains(registro.String(), "[alcance] la sucursal "+pedida) {
+				t.Fatalf("falta la línea en el registro; quedó: %q", registro.String())
+			}
+		}
 	}
 }
 
@@ -196,16 +230,24 @@ func TestIdQueNiSiquieraEsUnUuidSeTrataIgual(t *testing.T) {
 	q := base()
 	p, registro := porteria(q)
 
-	u := &auth.Usuario{ID: "p-5", Rol: "ADMINISTRADOR", Sucursal: "cmf3k2h9a000008l5abcd1234"}
+	// Quien lo ve todo: ni revienta ni acota a cero; todas y aviso.
+	u := &auth.Usuario{ID: "p-5", Rol: "DESARROLLADOR", Sucursal: "cmf3k2h9a000008l5abcd1234"}
 	a, err := p.Resolver(context.Background(), u, "")
 	if err != nil {
 		t.Fatalf("resolver: %v", err)
 	}
 	if !a.Todas() {
-		t.Fatal("un id con formato viejo tiene que comportarse como «todas»")
+		t.Fatal("un id con formato viejo tiene que comportarse como «todas» para quien las ve todas")
 	}
 	if !strings.Contains(registro.String(), "no existe") {
 		t.Fatal("falta el aviso del id viejo")
+	}
+
+	// Cualquier otro rol: 403 (la pareja está en la prueba de arriba, con los cuid dentro).
+	_, err = p.Resolver(context.Background(),
+		&auth.Usuario{ID: "p-5b", Rol: "ADMINISTRADOR", Sucursal: "cmf3k2h9a000008l5abcd1234"}, "")
+	if !errors.Is(err, alcance.ErrSinAlcance) {
+		t.Fatalf("un ADMINISTRADOR con un id viejo no puede abrirse a las ocho: %v", err)
 	}
 }
 
@@ -432,16 +474,95 @@ func TestUnCodigoQueNoEsDeNadieAvisaYNoAcotaACero(t *testing.T) {
 	q := base()
 	p, registro := porteria(q)
 
-	u := &auth.Usuario{ID: "p-21", Email: "nadie@procovar.cu", Rol: "ADMINISTRADOR", Sucursal: "XXX"}
+	u := &auth.Usuario{ID: "p-21", Email: "nadie@procovar.cu", Rol: "SUPER ADMIN", Sucursal: "XXX"}
 	a, err := p.Resolver(context.Background(), u, "")
 	if err != nil {
 		t.Fatalf("resolver: %v", err)
 	}
 	if !a.Todas() {
-		t.Fatal("un código desconocido se trata como una sucursal que ya no está: todas y aviso, nunca cero")
+		t.Fatal("un código desconocido se trata, para quien las ve todas, como una sucursal que ya no está: todas y aviso, nunca cero")
 	}
 	if !strings.Contains(registro.String(), "[alcance] la sucursal XXX de nadie@procovar.cu no existe: se le enseñan todas") {
 		t.Fatalf("falta el aviso; quedó: %q", registro.String())
+	}
+}
+
+// La pareja de la de arriba, con el caso real: Accesos conoce `MOA` y Reparto no.
+func TestUnCodigoQueRepartoNoConoceNoAbreLasOchoAUnOperador(t *testing.T) {
+	q := base()
+	p, _ := porteria(q)
+
+	u := &auth.Usuario{ID: "p-21b", Email: "moa@procovar.cu", Rol: "OPERADOR", Sucursal: "MOA"}
+	a, err := p.Resolver(context.Background(), u, "")
+	if !errors.Is(err, alcance.ErrSinAlcance) || a != nil {
+		t.Fatalf("un OPERADOR de MOA (que Reparto no conoce) no puede ver nada: a=%v err=%v", a, err)
+	}
+	if got := err.Error(); got != "tu sucursal MOA no está dada de alta en Reparto: pide en la oficina que la den de alta" {
+		t.Fatalf("el mensaje cambió: %q", got)
+	}
+	// Y el texto del otro 403 NO se tocó: la app y el canal de eventos lo comparan.
+	if !strings.Contains(alcance.ErrSinAlcance.Error(), "no está dada de alta en ninguna sucursal") {
+		t.Fatalf("el literal de ErrSinAlcance es compartido y no se cambia: %q", alcance.ErrSinAlcance.Error())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// LA CABECERA SÓLO LA LEE QUIEN PUEDE ELEGIR — 08/10/2026
+// ---------------------------------------------------------------------------
+
+// Sin sucursal y sin un rol que vea todas, ninguna cabecera lo arregla: ni basura (que
+// antes caía en «no existe -> todas»), ni un id real (que antes lo dejaba ver esa sucursal).
+func TestLaCabeceraNoLeAbreNadaAQuienNoTieneSucursalNiVeTodas(t *testing.T) {
+	for _, rol := range []string{"OPERADOR", "ADMINISTRADOR", "GERENTE", "SUPERVISOR", "GESTOR", ""} {
+		for _, cab := range []string{"basura", fantasma.String(), stg.String(), "HOL", "  "} {
+			q := base()
+			p, _ := porteria(q)
+			a, err := p.Resolver(context.Background(), &auth.Usuario{ID: "x", Rol: rol}, cab)
+			if err != alcance.ErrSinAlcance || a != nil {
+				t.Fatalf("rol %q con la cabecera %q: tenía que ser ErrSinAlcance a secas, y salió a=%v err=%v",
+					rol, cab, a, err)
+			}
+			if len(q.sucursalPedida) != 0 {
+				t.Fatalf("no se podía haber consultado nada: %v", q.sucursalPedida)
+			}
+		}
+	}
+}
+
+// La pareja: quien SÍ puede elegir sigue eligiendo (id o código), y basura sigue siendo
+// «todas con aviso» para él.
+func TestLaCabeceraSigueValiendoParaQuienVeTodas(t *testing.T) {
+	for _, rol := range []string{"SUPER ADMIN", "DESARROLLADOR"} {
+		q := base()
+		p, registro := porteria(q)
+		a, err := p.Resolver(context.Background(), &auth.Usuario{ID: "s", Rol: rol}, hol.String())
+		if err != nil || a.Sucursal() == nil || *a.Sucursal() != hol {
+			t.Fatalf("%s tenía que poder elegir Holguín: a=%v err=%v", rol, a, err)
+		}
+		a, err = p.Resolver(context.Background(), &auth.Usuario{ID: "s", Rol: rol}, "basura")
+		if err != nil || !a.Todas() {
+			t.Fatalf("%s con una cabecera que no existe: todas y aviso, no error: a=%v err=%v", rol, a, err)
+		}
+		if !strings.Contains(registro.String(), "[alcance] la sucursal basura no existe") {
+			t.Fatalf("falta el aviso: %q", registro.String())
+		}
+	}
+}
+
+// Y quien tiene sucursal VÁLIDA sigue acotado a ella, mande la cabecera lo que mande (la
+// pareja de las dos de arriba: el cierre del hueco no puede dejar fuera a quien está bien).
+func TestUnOperadorConSuSucursalValidaSigueAcotado(t *testing.T) {
+	for _, cab := range []string{"", "basura", hol.String(), "HOL"} {
+		q := base()
+		p, _ := porteria(q)
+		a, err := p.Resolver(context.Background(),
+			&auth.Usuario{ID: "p-ok", Rol: "OPERADOR", Sucursal: "STG"}, cab)
+		if err != nil {
+			t.Fatalf("cabecera %q: %v", cab, err)
+		}
+		if a.Todas() || a.Sucursal() == nil || *a.Sucursal() != stg {
+			t.Fatalf("cabecera %q: tenía que seguir acotado a Santiago, y es %v", cab, a.Sucursal())
+		}
 	}
 }
 

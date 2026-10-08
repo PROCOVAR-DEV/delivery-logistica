@@ -859,7 +859,7 @@ func montarTab(t *testing.T, q sqlc.Querier) http.Handler {
 	if _, esElDeVerdad := Accesos.(*accesosHTTP); esElDeVerdad {
 		conAccesos(t, almacenesDelTablero())
 	}
-	reg := slog.New(slog.NewTextHandler(io.Discard, nil))
+	reg := slog.New(slog.NewTextHandler(destinoDelRegistroDePruebas, nil))
 	s := NuevoServidor(cfg, reg,
 		alcance.NuevaPorteria(fuenteTab{q: q}, reg),
 		auth.NuevoVerificador([]byte(secretoTab)),

@@ -340,7 +340,21 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
 - **El alcance sale de quién pregunta, no de lo que mande el cliente.** Si
   saliera del parámetro, el logístico de Camagüey vería las otras siete
   cambiándolo. Ya pasó en delivery: un operador de Santiago vio los precios de La
-  Habana.
+  Habana. **Y el alcance FALLA CERRADO** (08/10/2026): una auditoría de seguridad demostró que
+  una sucursal en el token que Reparto no resolvía (un código de Accesos que Reparto no
+  conoce, como `MOA` o `PLS`, o un uuid inexistente) caía en «no existe, así que todas», y
+  que `X-Sucursal-Id` con basura abría las ocho a quien no tenía sucursal. Ahora: la cabecera
+  sólo la lee SUPER ADMIN o DESARROLLADOR; quien trae una sucursal que no se resuelve recibe un
+  403 (`ErrSucursalSinAlta`) que dice cuál es; «todas» es sólo para esos dos roles. **Si se da de
+  alta una sucursal nueva en Accesos, hay que darla de alta TAMBIÉN en Reparto**
+  (`branches.external_id`), o su gente no entra. **Trampa del código:** la APK y el escritorio
+  llevan `organization.codigo` en el token, pero la web lo saca del `slug` en mayúsculas
+  (`auth_web.go`), y en Accesos son columnas distintas. Hoy coinciden en las diez menos `PLS`
+  (su slug es `palma-soriano`): antes de dar de alta `PLS` en Reparto hay que hacer que la web
+  lea `codigo` (el intercambio de Accesos, `auth/src/app/api/auth/exchange/route.ts`, sólo
+  manda `slug`). `PATCH /api/orders/{id}` ya no cambia
+  `routeId`, `status`, `price`, `weight` ni `stopOrder`: se entra y se sale de una ruta sólo
+  por `/api/routes` y `/api/board`, que son los que validan.
 - **La tasa es POR SUCURSAL** y sin la de esa sucursal no se convierte nada: no
   se cae a la de otra ni a un número por defecto. En PEDIDO está contado así:
   «Granma enseñaba los 685 de La Habana como si fueran suyos: un importe así se
@@ -348,6 +362,20 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   va a cobrar».
 - **Quitar algo es quitarlo ENTERO**: sus tipos, sus llamadas, sus enlaces, su
   entrada de menú y sus pruebas.
+- **El camión en el taller es AVISO, no bloqueo** (Jose, 28/09/2026; la 1.0.28 lo bloqueó por
+  error y se revirtió en la 1.0.29): una sucursal con UN camión olvidado en `maintenance` se
+  quedaría sin poder armar rutas. Se ofrece con un aviso ámbar «en el taller». Lo que NUNCA se
+  ofrece es un camión INACTIVO (`is_active`, el que pidió Amado), y el servidor lo rechaza.
+- **El armado local y el del servidor son la MISMA regla**: sólo entra a una ruta una factura
+  `igual` con domicilio cobrado y cotizado; las demás se descartan y se NOMBRAN por su conduce
+  (el número de operación). Los literales de lo que se descarta están en
+  `docs/armado-rechazado.casos.json`, que leen las pruebas de los dos lados.
+- **Reasignar un pedido devuelto o cancelado a otra ruta es un intento nuevo**: sin su
+  `resultado`, nota ni hora de entrega, en el servidor (`EngancharPedidoARuta`) y en los dos
+  armados locales. Un `entregado` no se puede reasignar nunca.
+- **Un cierre parcial en la web no se avisa con algo que se va solo**: cajón que obliga a acusar
+  recibo, con «Conduce <número>: <motivo>» de cada parada que no se guardó. La ruta se completa
+  con lo guardado y es histórico: lo rechazado no se puede dejar pasar en silencio.
 - **Cajón siempre**, también en escritorio (excepción aprobada para este
   proyecto el 05/09/2026). Sin emojis en la interfaz.
 - **Una decisión de una persona se ESCRIBE, no se borra.** Borrar no es decidir:

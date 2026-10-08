@@ -1006,10 +1006,10 @@ func (s *Servidor) sucursalDeQuienEscucha(w http.ResponseWriter, r *http.Request
 		// Texto plano y el literal de siempre, por lo mismo que el 401 de arriba: el
 		// `EventSource` del navegador no lee JSON. Un 403 lo cierra para siempre, que es lo
 		// correcto — esto no se arregla reintentando, se arregla en la oficina.
-		httpx.Registro(r).Warn("eventos: cuenta sin alcance", "persona", u.ID)
+		httpx.Registro(r).Warn("eventos: cuenta sin alcance", "persona", u.ID, "motivo", err.Error())
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusForbidden)
-		_, _ = io.WriteString(w, alcance.ErrSinAlcance.Error())
+		_, _ = io.WriteString(w, err.Error()) // `ErrSinAlcance` o `ErrSucursalSinAlta`: mismo 403, otro texto
 		return "", false
 	case err != nil:
 		// CUALQUIER OTRO FALLO ABRE A TODAS, y deja constancia. Aquí es al revés que en

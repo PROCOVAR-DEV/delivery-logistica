@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"procovar/reparto-api/internal/alcance"
+	"procovar/reparto-api/internal/auth"
 	"procovar/reparto-api/internal/httpx"
 	"procovar/reparto-api/internal/store/sqlc"
 )
@@ -353,8 +354,34 @@ func (s *Servidor) crearVehiculo(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
+	rastroDeQuien(r, "vehículo creado", "vehiculo", creado.ID, "sucursal", idParaElRegistro(creado.BranchID))
 	avisarCambioDeVehiculos(r.Context(), deLaFilaPg(creado.BranchID))
 	httpx.JSON(w, r, http.StatusCreated, deVehiculo(creado, c.Type.Con(TipoPorDefecto)))
+}
+
+// msgVehiculoCompartido es el 403 de modificar, dar de baja o borrar un camión COMPARTIDO
+// (`branch_id` NULL) sin ser de los roles que ven todas las sucursales.
+const msgVehiculoCompartido = "Este vehículo es compartido por todas las sucursales: " +
+	"sólo un SUPER ADMIN o un DESARROLLADOR puede modificarlo, darlo de baja o eliminarlo."
+
+// puedeTocarElCamion: un camión propio lo toca quien lo ve (el alcance ya lo filtró); uno
+// COMPARTIDO sólo quien ve todas las sucursales (`VeTodasLasSucursales`).
+//
+// POR QUÉ — 08/10/2026 (auditoría de la 1.0.28). El alcance deja VER los compartidos a
+// todas las sucursales (para eso están: ofrecerlos al armar una ruta), y eso mismo los hacía
+// ESCRIBIBLES por todas: el operador de Camagüey podía darle de baja, cambiarle la capacidad
+// o borrar el camión que usan las otras siete, y a ellas les desaparecía de la lista sin un
+// error. Ver y usar es de todos; cambiarlo o quitarlo es de quien administra todas.
+//
+// Se pregunta por el ROL (`VeTodasLasSucursales`) y no por `a.Todas()`: un SUPER ADMIN que
+// está mirando una sola sucursal con el selector tiene alcance acotado y sigue siendo quien
+// administra los compartidos.
+func puedeTocarElCamion(r *http.Request, sucursalDelCamion pgtype.UUID) bool {
+	if sucursalDelCamion.Valid {
+		return true
+	}
+	u := auth.De(r)
+	return u != nil && alcance.VeTodasLasSucursales(u)
 }
 
 // PATCH /api/vehicles/{id}
@@ -386,6 +413,10 @@ func (s *Servidor) actualizarVehiculo(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	if !puedeTocarElCamion(r, antes.BranchID) {
+		httpx.Error(w, r, http.StatusForbidden, msgVehiculoCompartido)
 		return
 	}
 
@@ -473,6 +504,8 @@ func (s *Servidor) actualizarVehiculo(w http.ResponseWriter, r *http.Request) {
 			avisarCambioDeRutas(r.Context(), deLaFilaPg(actualizado.BranchID))
 		}
 	}
+	rastroDeQuien(r, "vehículo editado", "vehiculo", id, "sucursal", idParaElRegistro(actualizado.BranchID),
+		"activo", actualizado.IsActive, "estado", string(actualizado.Status))
 	avisarCambioDeVehiculos(r.Context(), deLaFilaPg(actualizado.BranchID))
 	httpx.JSON(w, r, http.StatusOK, deVehiculo(actualizado, nombreTipo))
 }
@@ -511,6 +544,10 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	if !puedeTocarElCamion(r, actual.BranchID) {
+		httpx.Error(w, r, http.StatusForbidden, msgVehiculoCompartido)
 		return
 	}
 	if actual.Rutas > 0 {
@@ -565,6 +602,16 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 			msgVehiculoConRutas)
 		return
 	}
+	// LA CARRERA QUE LAS DOS GUARDAS DE ARRIBA NO CIERRAN — 08/10/2026. Entre la comprobación
+	// de `Rutas` y el DELETE otra petición puede crear una ruta con este camión: el `NOT
+	// EXISTS` de `BorrarVehiculo` va en la misma sentencia, pero con dos transacciones a la vez
+	// (READ COMMITTED) el INSERT de la ruta llega después de que el DELETE ya miró, y la clave
+	// ajena `routes.vehicle_id` lo rechaza con un 23503. Eso es EXACTAMENTE «tiene rutas
+	// asociadas», y no un 500 «Error interno» que no le dice a nadie qué hacer.
+	if esClaveAjenaViolada(err) {
+		httpx.Error(w, r, http.StatusConflict, msgVehiculoConRutas)
+		return
+	}
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
@@ -573,6 +620,7 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 	// pantallas abiertas mientras se quita el vehículo.
 	//
 	// Y LAS TRES CON LA SUCURSAL DEL CAMIÓN, no con el alcance de quien lo borró.
+	rastroDeQuien(r, "vehículo borrado", "vehiculo", id, "sucursal", idParaElRegistro(sucursalDelCamion))
 	avisarCambioDeVehiculos(r.Context(), deLaFilaPg(sucursalDelCamion))
 	avisarCambioDeRutas(r.Context(), deLaFilaPg(sucursalDelCamion))
 	avisarCambioDePedidos(r.Context(), deLaFilaPg(sucursalDelCamion))

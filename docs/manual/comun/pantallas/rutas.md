@@ -117,6 +117,12 @@ Borrar una ruta viva conserva los pedidos y sus resultados. Los pendientes y
 devueltos quedan disponibles; los entregados siguen entregados y no se reparten
 otra vez.
 
+**Un devuelto o cancelado que vuelve a meterse en otra ruta empieza de cero**: entra
+como un pedido cualquiera, **sin el resultado de la vez anterior** (ni el resultado, ni su
+nota, ni la hora de entrega), y se marca de nuevo al cerrar la ruta nueva. Es lo mismo
+si lo metes con el asistente «Nueva Ruta» que si lo armas desde una zona del Tablero. Un
+**entregado**, en cambio, no se puede volver a meter en una ruta.
+
 ---
 
 ## El detalle de una ruta
@@ -295,16 +301,24 @@ Con el botón **«Poner el almacén»**, que cierra el asistente y lleva a Almac
 ### Paso 3 — «Vehículo»
 
 **«Vehículo de la ruta»**, **obligatorio**. Se ofrecen los camiones de la sucursal que
-estén **activos y fuera del taller**, con su capacidad de nota: «1000 kg». Los que
-están en otra ruta salen igual, con la nota «1000 kg · en ruta», porque armar la ruta
-de mañana es justo lo que se hace mientras el camión está fuera.
+estén **activos**, con su capacidad de nota: «1000 kg». Los que están en otra ruta
+salen igual, con la nota «1000 kg · en ruta», porque armar la ruta de mañana es justo lo
+que se hace mientras el camión está fuera.
 
-**No se ofrecen los camiones «Inactivos»** (ver [Vehículos](vehiculos.md)) **ni los
-que están en mantenimiento.** Si un camión no te sale en la lista, mira primero en
-Vehículos si está inactivo o en el taller. Los camiones inactivos y los del taller
-**siguen viéndose** en el filtro «Rutas de un camión» de la lista de rutas y en los
-informes, porque las rutas que ya hicieron tienen que seguir diciendo en qué camión
-fueron.
+**Los que están en el taller también salen**, con la nota «1000 kg · en el taller», y
+al elegir uno aparece un **aviso en ámbar**:
+
+> «Camión 1 está marcado EN EL TALLER. La ruta se arma igual —tiene su capacidad y su
+> costo por km— pero ese camión no puede salir hoy. Si ya volvió, sácalo del taller en
+> Vehículos.»
+
+Es **aviso, no bloqueo**, y es a propósito: una sucursal con un solo camión olvidado en
+el taller se quedaría sin poder armar ni una ruta, y el arreglo está en otra pantalla.
+Lo que **no se ofrece nunca es un camión «Inactivo»** (ver [Vehículos](vehiculos.md)).
+Si un camión no te sale en la lista, mira primero en Vehículos si está inactivo. Los
+camiones inactivos **siguen viéndose** en el filtro «Rutas de un camión» de la lista de
+rutas y en los informes, porque las rutas que ya hicieron tienen que seguir diciendo en
+qué camión fueron.
 
 Si la ruta ya trae un camión que se dio de baja (por ejemplo, el «Camión previsto» de
 una zona), al armarla el servidor lo rechaza con:
@@ -320,10 +334,9 @@ Si no hay camiones:
   la ruta.»
 - «Esta sucursal no tiene ningún vehículo dado de alta. Los que hay son de otras
   sucursales, y un camión de otra sucursal no está donde sale esta ruta.»
-- «Los vehículos de esta sucursal están inactivos o en el taller, y a una ruta nueva
-  sólo se asigna un vehículo activo. Actívalo o sácalo del taller en Vehículos.»
-  Es el caso de una sucursal que **sí tiene camiones**, pero ninguno se puede
-  ofrecer.
+- «Los vehículos de esta sucursal están inactivos, y a una ruta nueva sólo se asigna
+  un vehículo activo. Actívalo en Vehículos.» Es el caso de una sucursal que **sí tiene
+  camiones**, pero ninguno se puede ofrecer.
 
 ### Paso 4 — «Pedidos de cliente (12)»
 
@@ -531,16 +544,34 @@ Pasa cuando una parada de la hoja ya no pertenece a la ruta para el servidor: po
 ejemplo, la hoja trae 2 paradas, una se guarda y de la otra el servidor dice «ese
 pedido no va en esta ruta». **Cada forma lo maneja distinto**, y a propósito:
 
-- **En la web, lo guardado vale.** El servidor guarda las paradas buenas y rechaza las
-  otras, y la pantalla te lo dice con el motivo tal cual, en la franja de abajo:
+- **En la web, lo guardado vale, y se te obliga a acusar recibo.** El servidor guarda
+  las paradas buenas y rechaza las otras, la ruta se completa con lo guardado, y sale un
+  cajón que no se va hasta que pulsas **«Entendido»**:
 
-  > «Se guardaron 1 de las 2 paradas de esta hoja. 1 no se pudieron guardar:
-  > 8cb90608-76da-4fae-879d-126ff9ab4c3c (ese pedido no va en esta ruta).»
+  > **Ruta completada: 2 paradas no se guardaron**
+  > El resto del cierre sí quedó guardado.
+  >
+  > Estas paradas se quedaron sin resultado. Apunta su conduce y corrígelas en PEDIDO.
+  >
+  > **Conduce PTB25-261005-1480: ese pedido no va en esta ruta**
+  > **Conduce PTB25-261005-1502: ese pedido no va en esta ruta**
 
-  **La ruta se puede completar.** Lee el aviso: la parada rechazada no quedó marcada, y
-  hay que mirarla (su conduce está en la hoja). **Si no se guardó NINGUNA parada, es un
-  rechazo total y la ruta no se completa**: el aviso dice el motivo y la hoja se queda
-  como estaba para corregirla.
+  Con una sola parada, el título es «Ruta completada: 1 parada no se guardó». Cada
+  línea es el **conduce** (el número de operación de la factura) y el motivo tal cual
+  lo dice el servidor. **La ✕, tocar fuera, Escape y el atrás no cuentan**: el cajón
+  vuelve a salir hasta que pulsas «Entendido». Al pulsarlo, la hoja se cierra y vas al
+  Historial. Ya no es un aviso que desaparece solo: la ruta completada es histórico y
+  no se puede reabrir, así que la parada rechazada se queda **sin resultado** y alguien
+  tiene que haber leído su conduce para corregirla en PEDIDO.
+
+  Si lo que hacías era sólo **guardar** (sin completar), el cajón dice «2 paradas no se
+  guardaron», «El resto del cierre sí se guardó.» y «Estas paradas siguen marcadas aquí
+  pero el servidor no las guardó. Corrige la marca y vuelve a guardar.». Al pulsar
+  «Entendido» la hoja **se queda abierta**, con esas paradas aún marcadas y contadas como
+  «sin guardar».
+
+  **Si no se guardó NINGUNA parada, es un rechazo total y la ruta no se completa**: el
+  aviso dice el motivo y la hoja se queda como estaba para corregirla.
 - **En la APK y el escritorio, la hoja sube entera o no sube.** Sin señal, la
   aplicación puede enseñar la ruta como completada mientras sus apuntes siguen
   pendientes de subir: eso todavía no confirma el cierre en el servidor. Al volver la

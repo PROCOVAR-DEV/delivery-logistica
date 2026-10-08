@@ -85,9 +85,16 @@ func TestElCierreDeUnaParadaQueNoVaEnLaRutaNoSaleConUn200(t *testing.T) {
 		t.Fatal("el 409 no lleva `error`: el aparato anotaría «El reparto no dijo por qué», " +
 			"que es un descarte en silencio con otro nombre")
 	}
-	if !strings.Contains(salida.Error, seLoEntregoIgual.String()) {
-		t.Errorf("el motivo no nombra el pedido que se quedó fuera, y ése es el dato con "+
-			"el que alguien puede ir a buscarlo: %q", salida.Error)
+	// SE NOMBRA POR SU NÚMERO DE OPERACIÓN (el conduce), no por el UUID: con el UUID nadie
+	// sabía de qué pedido hablaba el 409 (Amado, 07/10/2026). El del doble es «X-Lejos».
+	if !strings.Contains(salida.Error, "X-Lejos") || strings.Contains(salida.Error, seLoEntregoIgual.String()) {
+		t.Errorf("el motivo tiene que nombrar el pedido que se quedó fuera por su número de "+
+			"operación (X-Lejos) y no por el UUID, que es el dato con el que alguien puede ir "+
+			"a buscarlo: %q", salida.Error)
+	}
+	if len(salida.Rechazados) == 1 && (salida.Rechazados[0].NumeroOperacion != "X-Lejos" ||
+		salida.Rechazados[0].OrderID != seLoEntregoIgual.String()) {
+		t.Errorf("el detalle tiene que llevar numeroOperacion y conservar el orderId: %+v", salida.Rechazados)
 	}
 	if !strings.Contains(salida.Error, msgParadaAjena) {
 		t.Errorf("el motivo no dice POR QUÉ no entró: %q", salida.Error)
@@ -173,6 +180,44 @@ func TestArmarLaZonaRespetaLaListaDelAparatoYDiceLaDiferencia(t *testing.T) {
 	}
 	if !strings.Contains(fmt.Sprint(sobra["motivo"]), "después de que armaras") {
 		t.Errorf("motivo %q", sobra["motivo"])
+	}
+}
+
+// EL MOTIVO DE LO QUE EL APARATO NO ELIGIÓ TIENE QUE SER EL VERDADERO — 08/10/2026.
+// El aparato manda `pedidoIds` con las buenas solamente, así que una tarjeta de la zona que
+// no se puede cargar (aquí, sin cotizar) tampoco viene en su lista. El servidor le decía
+// «lo pusieron en la zona después de que armaras», que es FALSO: lleva ahí desde antes y lo
+// que le falta es la cotización. En PAREJA: la que sí sería buena y llegó después conserva su
+// motivo de siempre; la mala dice el suyo, y el literal es el del bucle que arma.
+func TestLoQueElAparatoNoEligioDiceSuMotivoDeVerdad(t *testing.T) {
+	q := nuevoTablero()
+	q.capacidad = 1000
+	q.tresPuestas() // ped1, ped2 y ped3 en Centro
+	p2 := q.pedidos[ped2]
+	p2.sinCotizar = true // mala: sin cotizar. Tampoco la eligió el aparato (que filtra igual).
+	q.pedidos[ped2] = p2
+	// ped3 es buena y NO la eligió el aparato: llegó después.
+	h := montarTab(t, q)
+
+	w := pedirTab(t, h, http.MethodPost, "/api/board/columns/"+colCentro.String()+"/route",
+		tokenTab(t, sucStg.String()), cuerpoConPedidos("pedidoIds", ped1))
+	if w.Code != http.StatusCreated {
+		t.Fatalf("código %d: %s", w.Code, w.Body.String())
+	}
+	m := leerTab(t, w)
+	porID := map[string]map[string]any{}
+	desc, _ := m["descartados"].([]any)
+	for _, cruda := range desc {
+		if d, _ := cruda.(map[string]any); d != nil {
+			porID[fmt.Sprint(d["pedidoId"])] = d
+		}
+	}
+	if mala := porID[ped2.String()]; mala == nil || mala["motivo"] != "domicilio sin cotizar" {
+		t.Errorf("la tarjeta sin cotizar tenía que decir su motivo de verdad (domicilio sin cotizar), y dice: %v", mala)
+	}
+	if buena := porID[ped3.String()]; buena == nil ||
+		!strings.Contains(fmt.Sprint(buena["motivo"]), "después de que armaras") {
+		t.Errorf("la buena que llegó después conserva «lo pusieron en la zona después de que armaras»: %v", buena)
 	}
 }
 

@@ -43,6 +43,12 @@ tiene ruta, igual que uno libre.
 Si el taller y una ruta abierta se contradicen, **gana el taller** en la insignia,
 y justo debajo se explica con el nombre de la ruta.
 
+**Un camión en el taller se sigue ofreciendo para rutas nuevas, con un aviso en ámbar**
+(«en el taller») en el asistente «Nueva Ruta» y en el «Camión previsto» del Tablero. Es
+aviso, no bloqueo, y es a propósito: una sucursal con un solo camión olvidado en el
+taller se quedaría sin poder armar ni una ruta. Lo que **nunca** se ofrece es un camión
+«Inactivo».
+
 ### «Inactivo» no es un quinto estado
 
 Un camión puede estar **«Disponible» e «Inactivo» a la vez**, y por eso la insignia
@@ -151,9 +157,15 @@ borrarlo está prohibido para que el histórico siga diciendo qué camión repar
 cosa. Al guardar («Actualizar»), la tarjeta pasa a llevar la insignia **«Inactivo»**.
 Para recuperarlo, vuelve a **«Editar»** y enciéndelo.
 
+**Un camión sin sucursal es de todas** y sólo lo modifican, dan de baja o eliminan un
+`SUPER ADMIN` o un `DESARROLLADOR`; los demás roles reciben: «Este vehículo es
+compartido por todas las sucursales: sólo un SUPER ADMIN o un DESARROLLADOR puede
+modificarlo, darlo de baja o eliminarlo.»
+
 **No confundir con «En mantenimiento».** El mantenimiento es un camión que **va a
-volver** (está en el taller): tampoco se ofrece para rutas nuevas mientras esté ahí, y
-al volver se pasa a «Disponible». «Inactivo» es una baja que no cuenta con él.
+volver** (está en el taller): **se ofrece para rutas nuevas, con su aviso en ámbar**, y
+al volver se pasa a «Disponible». «Inactivo» es una baja que no cuenta con él y **no se
+ofrece nunca**.
 
 ### El desplegable «Estado del vehículo» sólo tiene DOS opciones
 
@@ -168,9 +180,10 @@ marcado, con la pista «Ocupado por el despacho de una ruta», y esta explicaci�
 
 Y al marcarlo en mantenimiento:
 
-> «En el taller: no se le puede dar ruta hasta que vuelva. Escribe el motivo en
-> Notas, aquí abajo — es lo único que le dice al de al lado por qué no puede contar
-> con él. Marcarlo NO cierra la ruta que ya tuviera abierta.»
+> «En el taller: se puede elegir para una ruta nueva, pero sale marcado con un aviso.
+> Escribe el motivo en Notas, aquí abajo — es lo único que le dice al de al lado por qué
+> no puede contar con él. Marcarlo NO cierra la ruta que ya tuviera abierta: eso se
+> arregla en la tarjeta del camión.»
 
 ### El ayudante del costo por km
 

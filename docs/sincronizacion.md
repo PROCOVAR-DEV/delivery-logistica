@@ -262,8 +262,13 @@ saberlo leer:
    `rechazada` en la bandeja con el motivo y **retiene el `completed` de esa ruta** (las
    demás rutas siguen subiendo) hasta que una persona decida —*Reintentar* o *Descartar*—.
    Es deliberado de momento y está a la vista. **En la web, en cambio, un 409 parcial deja
-   lo guardado por bueno**: el aviso dice el motivo y la ruta se puede completar; si no se
-   guardó **ninguna** parada, es rechazo total y no se completa. La ruta local puede figurar
+   lo guardado por bueno**: la ruta se completa con lo guardado y sale un **cajón de acuse**
+   (no un aviso que se va solo) que no se va hasta pulsar «Entendido»: «Ruta completada: N
+   paradas no se guardaron» y, por cada una, «Conduce <número de operación>: <motivo
+   literal del servidor>». Cerrarlo por la ✕, el velo, Escape o el atrás no cuenta y vuelve
+   a salir. Si sólo se guardaba (sin completar), la hoja se queda abierta con las
+   rechazadas aún marcadas. Si no se guardó **ninguna** parada, es rechazo total y no se
+   completa. La ruta local puede figurar
    completada mientras el apunte sigue en cola: eso no acredita el cierre en el servidor.
 
 ---

@@ -76,7 +76,7 @@ Pedidos) se rechaza con un mensaje claro: `No se puede asociar al tablero: la fa
 tiene un cobro de domicilio registrado.` / `No se puede asociar al tablero: primero cotiza
 el domicilio del pedido.` (más `Ese pedido ya se entregó` y `Ese pedido ya está en una
 ruta`). Colocar **no mira** el estado de la factura: «Sin colocar» ofrece `igual` y
-`cambiado` (la `cambiado` con su marca ámbar), y la que no cuadra la descarta después
+`cambiado` (la `cambiado` con su marca roja desde la 1.0.29; hasta la 1.0.28 era ámbar), y la que no cuadra la descarta después
 **armar la zona** (`cambió en la factura`, igual que `la factura no tiene domicilio
 cobrado` y `domicilio sin cotizar`). El caso que lo motivó: sin las dos condiciones el
 tablero ofrecía tarjetas que el servidor devolvía con un 409, y con los datos reales del
@@ -164,6 +164,29 @@ una lista de casillas marcadas:
 
 Si la columna se queda sin ningún pedido repartible, no se crea una ruta vacía: `409` con la
 lista de por qué se cayó cada uno.
+
+**Armar sin señal (APK/escritorio), desde la 1.0.29: la misma regla que el servidor.** Hasta
+la 1.0.28 el aparato armaba con todo lo que no llevara una marca grave, y el servidor
+descartaba después lo que el aparato ya había subido al camión (domicilio sin cobrar, sin
+cotizar y `cambiado`). Ahora la tarjeta entra sólo si es `igual`, con `factura_domicilio > 0`
+y `pedido_costo` no nulo (y no entregada); lo demás se **descarta y se nombra** por su
+conduce (el número de operación de la factura) con el mismo motivo que daría el servidor:
+`Archivado en PEDIDO`, `Ya va en otra ruta`, `Sin cotejar`, `Sin factura`, `Cambió en la
+factura` (las cinco son las marcas de la tarjeta, con mayúscula inicial), `ya se entregó`,
+`la factura no tiene domicilio cobrado`, `domicilio sin cotizar` (las dos últimas, idénticas a
+`docs/armado-rechazado.casos.json`), por ese orden de prioridad (`TarjetaPedido.motivoDeNoSubir`).
+**Si ninguna cumple, no se arma la ruta** (`La columna no tiene ningún pedido que se pueda
+repartir hoy` y debajo la lista). Si algunas sí y otras no, la ruta se arma con las buenas, las
+descartadas se quedan puestas en la zona y marcadas, y una franja roja de 6 s —en la web,
+la APK y el escritorio— dice `Ruta armada de «<zona>», pero <n> pedidos no entraron:` y una
+línea `<conduce> · <cliente>: <motivo>` por cada una. En la web se le suman las que cuente
+el servidor en `descartados`, sin repetir las que el aparato ya nombró.
+
+**Reasignar un devuelto es un intento nuevo (1.0.29).** Un pedido devuelto o cancelado que se
+engancha a otra ruta entra **sin el resultado anterior**: el aparato deja a `NULL` `resultado`,
+`resultado_at`, `resultado_nota` y `delivered_at` (el servidor hace lo mismo al engancharlo,
+`EngancharPedidoARuta`); `ultima_ruta_id` se conserva, porque dice en qué camión viajó. Un
+entregado nunca llega ahí: se descarta con `ya se entregó`.
 
 ### 5-bis · La lista de pedidos del cuerpo (18/09/2026)
 
@@ -290,7 +313,7 @@ Los cuatro desenlaces:
 | Quedó en | Qué significa | Qué hace el tablero |
 |---|---|---|
 | `igual` | cuadra | nada, es lo normal |
-| `cambiado` | se facturó distinto de como se pidió | **se marca** en ámbar y se queda en la columna, pero **ya no sube a la ruta** (07/10/2026: «en el camión sólo sube lo que cuadra con la factura»). Al armar la zona sale en `descartados` con `cambió en la factura`. Antes se repartía con las líneas de la factura y se avisaba de que el peso ya no era el mismo |
+| `cambiado` | se facturó distinto de como se pidió | **se marca** en rojo (1.0.29; hasta la 1.0.28, ámbar) y se queda en la columna, pero **ya no sube a la ruta** (07/10/2026: «en el camión sólo sube lo que cuadra con la factura»). Al armar la zona sale en `descartados` con `cambió en la factura`. Antes se repartía con las líneas de la factura y se avisaba de que el peso ya no era el mismo |
 | `sin_factura` | no hay nada que llevar | se marca en rojo: hoy no sale |
 | `NULL` | **no se sabe** | se marca en rojo. No es «cuadra». Con un NULL colado se armó una ruta sin facturar el 2/09 |
 
@@ -319,6 +342,13 @@ No se impide por tres razones, en este orden:
 La salida natural es «partir la columna»: se crea «Vista Alegre 2» y se arrastra lo que
 sobra. Por eso mover en bloque de una columna a otra (`MoverPedidosDeColumna`) existe y
 respeta el orden relativo.
+
+**Qué camiones ofrece «Camión previsto» (1.0.29).** Los **activos**. El que está en el taller
+(`maintenance`) **sale, con `EN EL TALLER` en ámbar y un icono de llave, y se puede elegir**:
+aviso, no bloqueo (decisión de Jose del 28/09/2026; la 1.0.28 lo había quitado por error y
+se restauró, porque una sucursal con un solo camión olvidado en el taller se quedaría sin
+poder armar ni una zona). El **inactivo** no se ofrece nunca. Sin ninguno activo:
+`Esta sucursal no tiene vehículos activos en este aparato.`
 
 ### 7.4 · Al día siguiente, con lo que quedó sin repartir
 

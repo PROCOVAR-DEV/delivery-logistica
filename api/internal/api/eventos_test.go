@@ -102,6 +102,39 @@ func TestEventosSinSesionDevuelveTextoPlano(t *testing.T) {
 	}
 }
 
+// EL CANAL TAMBIÉN CIERRA LA PUERTA a quien trae una sucursal que Reparto no conoce
+// (08/10/2026): el mismo 403 en texto plano que ya se daba a quien no tiene sucursal, pero
+// con el texto que NOMBRA el código. Y la pareja: un SUPER ADMIN con esa misma sucursal
+// desconocida sigue entrando (ve todas).
+func TestEventosConUnaSucursalQueRepartoNoConoceEsUn403QueLaNombra(t *testing.T) {
+	const fantasma = "99999999-9999-9999-9999-999999999999" // ni uuid de una sucursal que exista
+	h := manejadorDeEventos(t, NuevoDifusor())
+	pedirCon := func(reclamos map[string]any) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodGet, "/api/eventos", nil)
+		r.Header.Set("Authorization", "Bearer "+tokenDePanel(t, reclamos))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+
+	w := pedirCon(map[string]any{"sub": "u-moa", "role": "OPERADOR", "branchId": fantasma})
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("código %d, se esperaba 403", w.Code)
+	}
+	if got, quiero := w.Body.String(), "tu sucursal "+fantasma+" no está dada de alta en Reparto"; !strings.Contains(got, quiero) {
+		t.Fatalf("el cuerpo es %q y tenía que nombrar el código (%q)", got, quiero)
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
+		t.Errorf("el tipo de contenido es %q, se esperaba texto plano", ct)
+	}
+
+	// Sin sucursal y sin rol que lo vea todo: el literal de siempre, intacto.
+	w = pedirCon(map[string]any{"sub": "u-sin", "role": "OPERADOR"})
+	if w.Code != http.StatusForbidden || w.Body.String() != alcance.ErrSinAlcance.Error() {
+		t.Fatalf("sin sucursal: %d %q", w.Code, w.Body.String())
+	}
+}
+
 // El flujo entero: cabeceras, el `listo` de apertura, un cambio y el latido.
 func TestEventosMandaListoCambioYLatido(t *testing.T) {
 	// El latido de verdad son veinte segundos; aquí se acorta para no esperarlos.

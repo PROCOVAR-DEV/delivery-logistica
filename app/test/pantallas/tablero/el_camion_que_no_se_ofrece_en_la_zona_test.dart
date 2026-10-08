@@ -1,22 +1,20 @@
-// QUE CAMIONES SE OFRECEN COMO «CAMION PREVISTO» DE UNA ZONA — 07/10/2026.
+// QUE CAMIONES NO SE OFRECEN COMO «CAMION PREVISTO» DE UNA ZONA: el INACTIVO.
+// 07/10/2026, corregido el 08/10/2026 (1.0.29).
 //
 // Segundo de los dos sitios donde se elige camion para una ruta nueva (el otro
 // es el paso 3 del asistente: `camiones_que_se_ofrecen_test.dart`). Amado,
-// incidencia 4: los camiones inactivos no salen en la seleccion de rutas nuevas;
-// y el del taller tampoco, que es lo que dice el servidor al negarse a borrar un
-// camion con rutas («…Márcalo como inactivo para impedir que se use en nuevas
-// rutas»).
+// incidencia 4: los camiones inactivos no salen en la seleccion de rutas nuevas
+// (el servidor los rechaza con 400: «El vehículo está inactivo y no se puede
+// asignar a una ruta.»).
 //
-// ## Lo que esta prueba reemplaza
+// ## Lo que NO hace esta prueba
 //
-// Aqui estaba `el_camion_del_taller_en_la_zona_test.dart` (28/09/2026), que
-// fijaba lo contrario: el del taller SALIA, marcado «EN EL TALLER», porque
-// «sacarlo de la lista seria bloquear con un campo que alguien pone y otro tiene
-// que quitar». Ese argumento colgaba del `CLAUDE.md` §2 de entonces, que Amado
-// reemplazo el 07/10/2026. Se quita ENTERA, marca incluida.
+// El camion del TALLER no se oculta: sale marcado «EN EL TALLER»
+// (`el_camion_del_taller_en_la_zona_test.dart`). 1.0.28 lo ocultaba tambien, con
+// un argumento que no era de Amado, y el servidor sigue aceptandolo.
 //
-// EN PAREJA, como siempre: el inactivo y el del taller NO salen, y el normal SI.
-// Sin la segunda, ocultar TODOS dejaria las dos primeras en verde.
+// EN PAREJA, como siempre: el inactivo NO sale, y el normal y el del taller SI.
+// Sin la segunda, ocultar TODOS dejaria la primera en verde.
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
@@ -111,9 +109,11 @@ void main() {
     await pasadasCortas(tester);
   }
 
-  testWidgets('el camión inactivo y el del taller NO salen; el normal SI', (
+  testWidgets('el camión inactivo NO sale; el normal y el del taller SI', (
     tester,
   ) async {
+    await abrirElCajonDelCamion(tester);
+    // Se siembra DESPUES de abrir el cajon: la flota baja con la pantalla delante.
     await sembrarCamion(base, id: 'v1', nombre: 'F-350', capacidad: 1500);
     await sembrarCamion(
       base,
@@ -129,14 +129,14 @@ void main() {
       capacidad: 2000,
       activo: false,
     );
-    await abrirElCajonDelCamion(tester);
+    await pasadasCortas(tester);
 
     expect(find.text('Camión previsto para «Centro»'), findsOneWidget);
     expect(find.text('F-350'), findsOneWidget);
     expect(
       find.text('Kamaz'),
-      findsNothing,
-      reason: 'un camión en el taller no se asigna a una ruta nueva',
+      findsOneWidget,
+      reason: 'el del taller se avisa, no se oculta (aviso, no bloqueo)',
     );
     expect(
       find.text('Zil de baja'),
@@ -145,24 +145,24 @@ void main() {
           'un camión inactivo lo rechaza el servidor con 400; la lista no '
           'debe ofrecer lo que luego se niega',
     );
-    // Y el cartel del 28/09 se fue ENTERO con la decisión que lo sostenía.
-    expect(find.textContaining('EN EL TALLER'), findsNothing);
     await desmontar(tester);
   });
 
-  testWidgets('sin ninguno que ofrecer se dice por qué, y «Sin camión» sigue', (
+  testWidgets('sin ninguno activo se dice por qué, y «Sin camión» sigue', (
     tester,
   ) async {
-    await sembrarCamion(base, id: 'v1', nombre: 'Kamaz', estado: 'maintenance');
-    await sembrarCamion(base, id: 'v2', nombre: 'Zil de baja', activo: false);
     await abrirElCajonDelCamion(tester);
+    await sembrarCamion(base, id: 'v2', nombre: 'Zil de baja', activo: false);
+    await pasadasCortas(tester);
 
     expect(find.text('Sin camión'), findsOneWidget);
     expect(
-      find.textContaining('no tiene vehículos activos y fuera del taller'),
+      find.text('Esta sucursal no tiene vehículos activos en este aparato.'),
       findsOneWidget,
     );
-    expect(find.text('Kamaz'), findsNothing);
+    // Un solo nombre para la pantalla: «Vehículos», no «Flota».
+    expect(find.textContaining('se activan en Vehículos'), findsOneWidget);
+    expect(find.textContaining('Flota'), findsNothing);
     expect(find.text('Zil de baja'), findsNothing);
     await desmontar(tester);
   });
@@ -172,9 +172,10 @@ void main() {
   ) async {
     // Lo que cambia con la pantalla delante va por Stream (§3-ter): la bajada
     // trae `isActive: true` y la lista tiene que enterarse sola.
+    await abrirElCajonDelCamion(tester);
     await sembrarCamion(base, id: 'v1', nombre: 'F-350');
     await sembrarCamion(base, id: 'v2', nombre: 'Zil de baja', activo: false);
-    await abrirElCajonDelCamion(tester);
+    await pasadasCortas(tester);
     expect(find.text('Zil de baja'), findsNothing);
 
     await (base.update(base.vehicles)..where((v) => v.id.equals('v2'))).write(

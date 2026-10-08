@@ -157,22 +157,50 @@ class MarcaDeParada {
   };
 }
 
+/// Una parada que el servidor NO guardó en un cierre parcial (409 con
+/// `aplicados` y `rechazados`).
+///
+/// [numeroOperacion] es el CONDUCE (`orders.operation_number`), que es como la
+/// persona reconoce una factura; el servidor lo manda en cada elemento de
+/// `rechazados[]`. Un servidor viejo no lo manda: [conduce] cae entonces al
+/// [pedidoId], feo pero honesto, antes que dejar la parada sin nombre.
+class ParadaRechazada {
+  const ParadaRechazada({
+    required this.pedidoId,
+    required this.motivo,
+    this.numeroOperacion,
+  });
+
+  final String pedidoId;
+  final String? numeroOperacion;
+
+  /// El motivo literal del servidor, sin envolver (§3-quinquies).
+  final String motivo;
+
+  /// Con qué se nombra la parada: su número de operación, o el id si no vino.
+  String get conduce {
+    final numero = numeroOperacion?.trim() ?? '';
+    return numero.isEmpty ? pedidoId : numero;
+  }
+}
+
 /// Lo que dejó guardar el cierre de una ruta.
 ///
 /// [claveDelApunte] es la del apunte de la cola con la que se le sigue la pista;
 /// va vacía en la web, que no tiene cola porque el cierre ya está arriba.
-/// [aviso] sólo viene cuando el servidor guardó unas paradas y rechazó otras
-/// (409 parcial): trae su motivo literal y [idsAplicados] dice cuáles sí.
+/// [rechazadas] sólo viene cuando el servidor guardó unas paradas y rechazó otras
+/// (409 parcial): cada una con su conduce y su motivo literal, y [idsAplicados]
+/// dice cuáles sí. La pantalla obliga a acusar recibo (`CierreDeRuta`).
 class ResultadoCierreDeRuta {
   const ResultadoCierreDeRuta({
     required this.idsAplicados,
     this.claveDelApunte = '',
-    this.aviso,
+    this.rechazadas = const <ParadaRechazada>[],
   });
 
   final Set<String> idsAplicados;
   final String claveDelApunte;
-  final String? aviso;
+  final List<ParadaRechazada> rechazadas;
 }
 
 class AccionesDeRuta {
@@ -528,6 +556,15 @@ class AccionesDeRuta {
             // `pedidoCosto` no es un precio, es ese `coalesce`—, y es lo que
             // hace `recorrido.dart`.
             price: Value(pedido.pedidoCosto),
+            // REASIGNAR UN DEVUELTO ES UN INTENTO NUEVO — 1.0.29. El pedido que
+            // vuelve a una ruta no arrastra el resultado del intento anterior:
+            // un «devuelto» con su nota colgando de la ruta nueva se leería como
+            // la hoja ya cerrada. El servidor hace lo mismo al engancharlo
+            // (`EngancharPedidoARuta`), y esto es lo que se ve hasta que sube.
+            resultado: const Value(null),
+            resultadoAt: const Value(null),
+            resultadoNota: const Value(null),
+            deliveredAt: const Value(null),
             updatedAt: Value(ahora),
           ),
         );
@@ -643,6 +680,13 @@ class AccionesDeRuta {
             tripLeg: Value(_texto(cruda['tripLeg']) ?? Tramo.ida),
             segmentKm: Value(_numero(cruda['segmentKm'])),
             price: Value(_numero(cruda['price'])),
+            // El servidor limpia el intento anterior al engancharlo (un
+            // devuelto reasignado empieza de cero): se refleja aquí también, o la
+            // ruta nueva enseñaría la marca de la vieja hasta la próxima bajada.
+            resultado: const Value(null),
+            resultadoAt: const Value(null),
+            resultadoNota: const Value(null),
+            deliveredAt: const Value(null),
             updatedAt: Value(ahora),
           ),
         );
@@ -1221,7 +1265,7 @@ class AccionesDeRuta {
     // inventario.
     final enVivo = _enVivo;
     var aplicadas = limpias;
-    String? avisoParcial;
+    var rechazadas = const <ParadaRechazada>[];
     if (enVivo != null) {
       try {
         await enVivo.mandar(
@@ -1232,18 +1276,18 @@ class AccionesDeRuta {
           },
         );
       } on RechazoDelServidor catch (rechazo) {
-        final recibidos = _idsAplicadosEnRechazoParcial(rechazo);
+        final parcial = _cierreParcialDe(rechazo);
         // Un rechazo TOTAL sale como `RechazoLocal` con el motivo literal del
         // servidor, igual que en las otras acciones (`_mandar`): es el tipo que
         // las pantallas saben enseñar. Dejar pasar el `RechazoDelServidor` tal
         // cual lo convertía en un error genérico sin motivo.
-        if (rechazo.codigo != 409 || recibidos == null) {
+        if (rechazo.codigo != 409 || parcial == null) {
           throw RechazoLocal(rechazo.motivo);
         }
         aplicadas = limpias
-            .where((marca) => recibidos.contains(marca.pedidoId))
+            .where((marca) => parcial.aplicados.contains(marca.pedidoId))
             .toList();
-        avisoParcial = rechazo.motivo;
+        rechazadas = parcial.rechazadas;
       }
     }
 
@@ -1304,7 +1348,7 @@ class AccionesDeRuta {
     if (enVivo != null) {
       return ResultadoCierreDeRuta(
         idsAplicados: {for (final marca in aplicadas) marca.pedidoId},
-        aviso: avisoParcial,
+        rechazadas: rechazadas,
       );
     }
 
@@ -1323,9 +1367,14 @@ class AccionesDeRuta {
 
   /// El servidor puede guardar las paradas válidas y responder 409 con las
   /// rechazadas. En ese caso se actualizan localmente sólo las que aparecen
-  /// en `aplicados`, se informa el rechazo y la pantalla aún puede completar
-  /// la ruta. Un 409 sin ese contrato sigue siendo un rechazo total.
-  Set<String>? _idsAplicadosEnRechazoParcial(RechazoDelServidor rechazo) {
+  /// en `aplicados`, se informa el rechazo (cada parada con su conduce y su
+  /// motivo) y la pantalla aún puede completar la ruta. Un 409 sin ese contrato
+  /// sigue siendo un rechazo total.
+  ///
+  /// `numeroOperacion` de cada rechazada lo añadió la 1.0.29; un servidor viejo
+  /// no lo manda y la parada se nombra por su `orderId` (`ParadaRechazada`).
+  ({Set<String> aplicados, List<ParadaRechazada> rechazadas})?
+  _cierreParcialDe(RechazoDelServidor rechazo) {
     final cuerpo = rechazo.cuerpo;
     if (cuerpo is! Map ||
         cuerpo['aplicados'] is! List ||
@@ -1343,7 +1392,20 @@ class AccionesDeRuta {
       if (elemento is! Map || elemento['orderId'] is! String) return null;
       ids.add(elemento['orderId'] as String);
     }
-    return ids;
+    return (
+      aplicados: ids,
+      rechazadas: [
+        for (final elemento in rechazados)
+          if (elemento is Map)
+            ParadaRechazada(
+              pedidoId: '${elemento['orderId'] ?? ''}',
+              numeroOperacion: elemento['numeroOperacion'] == null
+                  ? null
+                  : '${elemento['numeroOperacion']}',
+              motivo: '${elemento['motivo'] ?? rechazo.motivo}',
+            ),
+      ],
+    );
   }
 
   /// La nota, recortada como la recorta el servidor: sin espacios sobrantes,

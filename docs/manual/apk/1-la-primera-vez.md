@@ -46,6 +46,7 @@ Debajo del botón «Entrar» hay una de estas dos:
 |---|---|
 | **«Usuario o contraseña incorrectos.»** | Vuelve a escribirla. Usa el ojo para verla |
 | **«La cuenta no está dada de alta en ninguna sucursal…»** | No es la aplicación: tu cuenta entró bien. Pide en la oficina que te den de alta en tu sucursal |
+| **«tu sucursal MOA no está dada de alta en Reparto…»** | Entras, pero cada pantalla se niega con esto. Tu cuenta es buena: te asignaron una sucursal que Reparto no tiene (Moa, Palma Soriano…). Pide en la oficina que la den de alta o que te asignen una de las ocho |
 | **«La cuenta está dada de baja.»** | Pregunta en la oficina |
 | **«Demasiados intentos seguidos. Espera un minuto y vuelve a probar.»** | Espera un minuto de verdad |
 | **«Sin conexión con el servidor…»** | Busca señal. Para entrar hace falta |

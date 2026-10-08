@@ -1,5 +1,4 @@
 import '../../../nucleo/base/base.dart';
-import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 
 /// EL REPARTO DE UNA ZONA ENTRE «entra» Y «no entra», y por que no entra.
 ///
@@ -87,28 +86,25 @@ String parteDeLaZona(String nombre, int total, RepartoDeLaZona r) => <String>[
   if (r.noCaben > 0) '${r.noCaben} no caben en el vehículo',
 ].join(' · ');
 
-/// ¿SE OFRECE ESTE CAMION PARA UNA RUTA **NUEVA**?
-///
-/// Un camion se ofrece si esta **activo** y **fuera del taller**. Son dos cosas
-/// distintas con la misma consecuencia:
+/// ¿SE OFRECE ESTE CAMION PARA UNA RUTA **NUEVA**? Si esta **activo**, y nada mas.
 ///
 ///  * `isActive = false` es la baja: Amado, 07/10/2026 (incidencia 4) — un camion
 ///    con rutas no se borra, se inactiva, y desde ese momento no sale en la
 ///    seleccion de rutas nuevas. El servidor lo rechaza con 400 si se le manda a
 ///    mano («El vehículo está inactivo y no se puede asignar a una ruta.»).
-///  * `maintenance` es el camion en el taller. Antes se ofrecia con un aviso
-///    («aviso, no bloqueo»), con un argumento que colgaba del `CLAUDE.md` §2 de
-///    entonces —bloquear con un dato que nadie mantiene deja sin armar a una
-///    sucursal—. Ese §2 lo **reemplazo Amado el 07/10/2026**: un camion en el
-///    taller no es uno que se pueda mandar a una ruta nueva, y no se ofrece.
+///  * `maintenance` (el camion en el taller) SI se ofrece, con su aviso ambar:
+///    «aviso, no bloqueo», Jose, 28/09/2026. 1.0.28 lo quito creyendo que Amado
+///    habia reemplazado esa decision; no lo hizo — Amado pidio ocultar el
+///    inactivo —, y el servidor sigue aceptando un camion en el taller
+///    (`vehiculos.go`). Con UN solo camion en la sucursal, uno olvidado en
+///    `maintenance` la dejaria sin poder armar nada.
 ///
 /// **Esto vale SOLO para elegir camion de una ruta nueva** (el paso 3 del
 /// asistente y el «Camion previsto» de una zona). Las listas que miran rutas YA
 /// hechas —el filtro de camion de Rutas, los informes, la ficha de un pedido—
 /// siguen viendo TODA la flota: una ruta de ayer con un camion que hoy esta de
 /// baja tiene que seguir diciendo en que camion fue.
-bool seOfreceParaRutasNuevas(Vehiculo v) =>
-    v.isActive && v.status != estadoEnMantenimiento;
+bool seOfreceParaRutasNuevas(Vehiculo v) => v.isActive;
 
 /// LOS VEHICULOS DE UNA SUCURSAL, y sólo los de esa.
 ///

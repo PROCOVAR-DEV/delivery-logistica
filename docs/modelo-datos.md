@@ -440,12 +440,14 @@ Conjunto efectivo: **`admin`**. Cualquier otro valor equivale a «no admin».
 
 ### 3.2 `Order.status` — estado de reparto
 Escrituras reales: default `"pending"`; `/api/routes/[id]/results` escribe
-`entregado ? 'delivered' : 'pending'`; `/api/orders/[id]` PATCH detecta `'delivered'`.
+`entregado ? 'delivered' : 'pending'`. **Desde la 1.0.29 `PATCH /api/orders/[id]` ya NO acepta
+`status`** (ni `routeId`, `price`, `weight`, `stopOrder`): `400 Ese campo no se cambia por
+aquí: usa las rutas o el tablero`. Hasta la 1.0.28 aceptaba el `status` del cliente sin
+validar y `'delivered'` fijaba `deliveredAt = now()`; la consulta ya no tiene esas columnas.
 
 Conjunto cerrado: **`pending` | `delivered`**
 
-Cuidado: `PATCH /api/orders/[id]` acepta el `status` que venga del cliente sin validar; el
-único efecto especial es que `'delivered'` fija `deliveredAt = now()`. El estado que la UI
+Cuidado (histórico, de delivery): el estado que la UI
 muestra de verdad NO sale de aquí sino de `resultado`/`deliveredAt`/`route.status`
 (`deliveryStatus()` en `orders/page.tsx`: `devuelto`, `entregado`, `en_ruta`, `en_despacho`,
 `sin_entregar` — son etiquetas derivadas, no columnas).
@@ -499,6 +501,16 @@ const RESULTADOS = new Set(['entregado', 'devuelto', 'cancelado'])
 Conjunto cerrado: **`entregado` | `devuelto` | `cancelado` | `NULL`** (`NULL` = sin cerrar).
 Ni `devuelto` ni `cancelado` tocan inventario (el reintegro lo hace Ventra).
 
+**Reasignar es un intento nuevo (1.0.29, I-2).** Un `devuelto`/`cancelado` suelta su `routeId`
+pero conserva `resultado`, `resultadoAt`, `resultadoNota` (y `ultimaRutaId`): son la hoja de lo
+que bajó del camión. Al meterlo en otra ruta (`POST /api/routes` o el armado del tablero, que
+pasan por la misma consulta, `EngancharPedidoARuta`) esas tres columnas y `deliveredAt` se ponen
+a `NULL`; si se quedaran, «Quitar de ruta» daba un `409` engañoso (la guarda mira `resultado IS
+NULL`) y al borrar la ruta el pedido no volvía a su zona. Lo anterior consta en el registro y
+en PEDIDO. Un `entregado` no se reasigna nunca (`WHERE resultado IS DISTINCT FROM 'entregado'
+AND delivered_at IS NULL`): amanece sin `route_id` si se borra la ruta en la que viajó
+(`ON DELETE SET NULL`), y reasignarlo borraría la entrega.
+
 ### 3.10 Estados enviados a PEDIDO (no se almacenan aquí)
 `src/lib/avisarEstadoAPedido.ts:25`:
 ```
@@ -549,10 +561,10 @@ tocó la fila»).
 | `Order.segmentKm` | `POST /api/routes`: `haversineDistance(origin, order.end*)`; `null` al desasignar | km origen→parada (NO parada a parada) |
 | `Order.price` | `POST /api/routes`: `o.pedidoCosto || 0` | reparto de carga de la ruta; copia del costo de PEDIDO |
 | `Order.tripLeg` | `POST /api/routes` y desasignar: `'outbound'` | siempre ida |
-| `Order.deliveredAt` | `POST /api/routes/[id]/results`: `entregado ? new Date() : null`; y `PATCH /api/orders/[id]` cuando `status === 'delivered'` | momento de entrega; un devuelto lo pierde |
-| `Order.resultado` | `POST /api/routes/[id]/results`, validado contra `RESULTADOS` | cierre manual parada a parada |
-| `Order.resultadoAt` | `POST /api/routes/[id]/results`: `new Date()` | |
-| `Order.resultadoNota` | `POST /api/routes/[id]/results` | `nota.trim().slice(0, 500)` o `null` |
+| `Order.deliveredAt` | `POST /api/routes/[id]/results`: `entregado ? new Date() : null`; y `null` al **reasignar** el pedido a una ruta (1.0.29). Ya NO lo escribe `PATCH /api/orders/[id]` | momento de entrega; un devuelto lo pierde |
+| `Order.resultado` | `POST /api/routes/[id]/results`, validado contra `RESULTADOS`; `NULL` al **reasignar** el pedido a una ruta (1.0.29) | cierre manual parada a parada |
+| `Order.resultadoAt` | `POST /api/routes/[id]/results`: `new Date()`; `NULL` al reasignar | |
+| `Order.resultadoNota` | `POST /api/routes/[id]/results`; `NULL` al reasignar | `nota.trim().slice(0, 500)` o `null` |
 | `Order.status` | `results`: `entregado ? 'delivered' : 'pending'` | |
 | `Route.routeCode` | `generateRouteCode()` en `POST /api/routes` | `RT-{YYYYMMDD}-{count+1 pad 3}` |
 | `Route.totalDistance` | `POST /api/routes` (update posterior) | Σ `calculateRouteSegments(origin, stops)` + haversine última parada → origen (incluye el regreso) |

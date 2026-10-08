@@ -200,6 +200,136 @@ void main() {
       isTrue,
     );
   });
+
+  // EL FICHERO RICO, con la columna y SIN ella.
+  //
+  // Las dos pruebas de arriba llevan UN apunte y UN pedido. Un aparato de verdad en
+  // la 4 trae una cola de varios verbos, un camión con su ruta, pedidos con
+  // renglones y los índices de `beforeOpen` ya creados, y lo que se defiende es que
+  // TODO eso siga ahí y que la base abra. Se prueba por duplicado, y la segunda es
+  // el caso que protege la guarda de `desde < 5`: una base que YA no tiene
+  // `orders.vehicle_id` (un salto interrumpido, una copia nacida con el esquema nuevo
+  // y el `user_version` atrás). `DROP COLUMN` de una columna que no está LANZA, la
+  // migración no termina y la base no abre: el trabajo del día, secuestrado.
+  for (final conLaColumna in [true, false]) {
+    test(
+      'un aparato de la 4 con la cola, un camión, una ruta y un pedido con 2 '
+      'renglones ${conLaColumna ? 'CON' : 'SIN'} vehicle_id: abre y no pierde nada',
+      () async {
+        final fichero = await _ficheroDePrueba();
+        addTearDown(() async {
+          if (fichero.existsSync()) await fichero.delete();
+        });
+
+        final ayer = BaseLocal.con(NativeDatabase(fichero));
+        // Una cola de los tres verbos que sube la aplicación.
+        for (final (clave, metodo, ruta) in const [
+          ('01J8-a-post', 'POST', '/api/routes'),
+          ('01J8-b-patch', 'PATCH', '/api/routes/r-1'),
+          ('01J8-c-delete', 'DELETE', '/api/routes/r-1/stops/ped-1'),
+        ]) {
+          await ayer.into(ayer.apuntes).insert(
+            ApuntesCompanion.insert(
+              clave: clave,
+              hechoAt: DateTime(2026, 10, 7, 9),
+              metodo: metodo,
+              ruta: ruta,
+              cuerpo: '{"v":"$clave"}',
+            ),
+          );
+        }
+        await ayer.customStatement(
+          "INSERT INTO vehicles (id, name, capacity) VALUES ('v-1', 'Camión rico', 3000)",
+        );
+        await ayer.customStatement(
+          'INSERT INTO routes (id, route_code, status, vehicle_id) '
+          "VALUES ('r-1', 'RT-20261007-001', 'planned', 'v-1')",
+        );
+        await ayer.customStatement(
+          'INSERT INTO orders (id, customer_name, address, weight, archivado, route_id) '
+          "VALUES ('ped-1', 'Bodega La Rica', 'Calle 1', 75, 0, 'r-1')",
+        );
+        for (final (id, linea, descripcion) in const [
+          ('ri-1', 1, 'Arroz'),
+          ('ri-2', 2, 'Aceite'),
+        ]) {
+          await ayer.customStatement(
+            'INSERT INTO order_items (id, order_id, linea, description, quantity) '
+            "VALUES ('$id', 'ped-1', $linea, '$descripcion', 10)",
+          );
+        }
+        // Lo que el esquema 6 trae y el 4 no.
+        await ayer.customStatement('ALTER TABLE vehicles DROP COLUMN is_active');
+        if (conLaColumna) {
+          await ayer.customStatement('ALTER TABLE orders ADD COLUMN vehicle_id TEXT');
+          await ayer.customStatement("UPDATE orders SET vehicle_id = 'v-1'");
+        }
+        await ayer.customStatement('PRAGMA user_version = 4');
+        await ayer.close();
+
+        // --- Se abre con el de hoy ------------------------------------------------
+        final nueva = BaseLocal.con(NativeDatabase(fichero));
+        addTearDown(nueva.close);
+
+        expect(
+          (await nueva.select(nueva.apuntes).get()).map((a) => (a.metodo, a.clave)),
+          [
+            ('POST', '01J8-a-post'),
+            ('PATCH', '01J8-b-patch'),
+            ('DELETE', '01J8-c-delete'),
+          ],
+          reason: 'los tres verbos de la cola, en su orden y sin tocar',
+        );
+        final camion = (await nueva.select(nueva.vehicles).get()).single;
+        expect(camion.name, 'Camión rico');
+        expect(camion.isActive, isTrue);
+        final ruta = (await nueva.select(nueva.routes).get()).single;
+        expect((ruta.routeCode, ruta.vehicleId), ('RT-20261007-001', 'v-1'));
+        final pedido = (await nueva.select(nueva.orders).get()).single;
+        expect((pedido.customerName, pedido.routeId), ('Bodega La Rica', 'r-1'));
+        expect(
+          (await nueva.select(nueva.orderItems).get()).map((r) => r.description),
+          unorderedEquals(['Arroz', 'Aceite']),
+          reason: 'los renglones cuelgan del pedido y viajan con él',
+        );
+
+        // La columna se fue (o ya no estaba) y nadie lo notó.
+        expect(
+          (await nueva.customSelect('PRAGMA table_info(orders)').get()).map(
+            (f) => f.read<String>('name'),
+          ),
+          isNot(contains('vehicle_id')),
+        );
+
+        // `beforeOpen` sigue haciendo lo suyo sobre una base migrada: las claves
+        // ajenas encendidas y los índices de la copia presentes.
+        expect(
+          (await nueva.customSelect('PRAGMA foreign_keys').getSingle())
+              .read<int>('foreign_keys'),
+          1,
+        );
+        final indices = (await nueva
+                .customSelect("SELECT name FROM sqlite_master WHERE type = 'index'")
+                .get())
+            .map((f) => f.read<String>('name'))
+            .toSet();
+        expect(
+          indices,
+          containsAll([
+            'order_items_order_idx',
+            'orders_sucursal_fecha_idx',
+            'orders_ultima_ruta_idx',
+            'apuntes_estado_idx',
+          ]),
+        );
+        expect(
+          (await nueva.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          nueva.schemaVersion,
+        );
+      },
+    );
+  }
 }
 
 Future<File> _ficheroDePrueba() async {

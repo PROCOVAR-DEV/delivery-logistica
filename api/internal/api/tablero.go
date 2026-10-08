@@ -1565,16 +1565,31 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 		// Y lo que hay ahora y él no eligió: se queda, y se dice.
+		//
+		// PERO SÓLO SE DICE «LO PUSIERON DESPUÉS» DE LAS QUE SERÍAN BUENAS — 08/10/2026. El
+		// aparato manda `pedidoIds` con las buenas solamente (replica estas mismas reglas), así
+		// que una tarjeta de la zona sin cotizar o sin domicilio cobrado NO viene en su lista y
+		// caía aquí con un motivo FALSO: «lo pusieron después de que armaras», cuando lleva ahí
+		// desde antes y lo que le pasa es que no se puede cargar. Quien lo leía en el cajón de la
+		// APK iba a buscar quién la había puesto, y el arreglo es cotizarla. Ahora esas se
+		// nombran con SU motivo de verdad (`motivoDeCorteDelArmado`, el mismo del bucle de abajo).
+		porID := make(map[uuid.UUID]sqlc.PedidosDeColumnaParaArmarRutaRow, len(candidatos))
+		for _, p := range candidatos {
+			porID[p.ID] = p
+		}
 		for _, t := range puestas {
 			if t.ColumnID != id || elegidos[t.OrderID] || !esCandidato[t.OrderID] {
 				continue
 			}
+			motivo, queHacer := motivoDeCorteDelArmado(porID[t.OrderID])
+			if motivo == "" {
+				motivo = "lo pusieron en la zona después de que armaras"
+				queHacer = "No iba en tu camión, así que no ha subido. Se queda en la zona: " +
+					"arma otra vez si tiene que salir hoy."
+			}
 			descartados = append(descartados, DescartadoSalida{
 				PedidoID: t.OrderID, OperationNumber: t.OperationNumber,
-				CustomerName: t.CustomerName,
-				Motivo:       "lo pusieron en la zona después de que armaras",
-				QueHacer: "No iba en tu camión, así que no ha subido. Se queda en la zona: " +
-					"arma otra vez si tiene que salir hoy.",
+				CustomerName: t.CustomerName, Motivo: motivo, QueHacer: queHacer,
 			})
 		}
 	}
@@ -1589,41 +1604,7 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		if hayEleccion && !elegidos[p.ID] {
 			continue
 		}
-		motivo, queHacer := "", ""
-		switch {
-		// LO QUE YA SE ENTREGÓ NO VUELVE A SUBIR A UN CAMIÓN.
-		//
-		// Se corta AQUÍ y no en el `WHERE` de la consulta, igual que el corte por
-		// factura y por lo mismo: la tarjeta se nombra con su motivo y la zona sale
-		// igual con el resto. Y hace falta cortarlo: la consulta pide `route_id IS
-		// NULL`, y un entregado se queda sin `route_id` en cuanto alguien borra la ruta
-		// en la que viajó (`ON DELETE SET NULL`, `db/migrations/00001_init.sql:446`).
-		// Sin esto, la zona de ayer vuelve a parir la ruta de ayer.
-		case p.DeliveredAt.Valid || (p.Resultado != nil && *p.Resultado == sqlc.StopResultEntregado):
-			motivo = "ya se entregó"
-			queHacer = "Ese pedido ya se repartió. Quita la tarjeta de la zona: volver a " +
-				"subirlo a un camión lo entregaría dos veces."
-		case p.Archivado:
-			motivo = "archivado en PEDIDO"
-			queHacer = "PEDIDO le dio de baja. Quita la tarjeta de la zona."
-		case p.FacturaEstado == nil:
-			// NULL NO ES «cuadra». Con un NULL colado se armó una ruta sin facturar el
-			// 2/09; por eso se nombra distinto de `sin_factura`.
-			motivo = "sin cotejar"
-			queHacer = "Nadie ha cotejado su factura todavía. Se cotea y vuelve a armar."
-		case *p.FacturaEstado == sqlc.FacturaEstadoSinFactura:
-			motivo = "sin factura"
-			queHacer = "No tiene factura. Se le hace en PEDIDO y vuelve a armar."
-		case *p.FacturaEstado == sqlc.FacturaEstadoCambiado:
-			motivo = "cambió en la factura"
-			queHacer = "La factura ya no es la que era: repásala antes de cargar."
-		case p.FacturaDomicilio == nil || *p.FacturaDomicilio <= 0:
-			motivo = "la factura no tiene domicilio cobrado"
-			queHacer = "Corrige o coteja la factura para registrar el cobro del domicilio antes de crear la ruta."
-		case p.PedidoCosto == nil:
-			motivo = "domicilio sin cotizar"
-			queHacer = "Cotiza el domicilio del pedido antes de crear la ruta."
-		}
+		motivo, queHacer := motivoDeCorteDelArmado(p)
 		if motivo == "" {
 			buenos = append(buenos, p)
 			continue
@@ -2136,4 +2117,46 @@ func resultado(v *sqlc.StopResult) *string {
 	}
 	s := string(*v)
 	return &s
+}
+
+// motivoDeCorteDelArmado dice por qué una tarjeta de la zona NO puede subir a un camión, o ""
+// si puede. Es el corte por entregado, archivado, factura, domicilio cobrado y cotización, UNA
+// sola vez: lo usan el bucle que arma y el que nombra lo que el aparato no eligió, y si
+// tuvieran cada uno su copia, uno de los dos acabaría diciendo un motivo que no es.
+func motivoDeCorteDelArmado(p sqlc.PedidosDeColumnaParaArmarRutaRow) (motivo, queHacer string) {
+	switch {
+	// LO QUE YA SE ENTREGÓ NO VUELVE A SUBIR A UN CAMIÓN.
+	//
+	// Se corta AQUÍ y no en el `WHERE` de la consulta, igual que el corte por
+	// factura y por lo mismo: la tarjeta se nombra con su motivo y la zona sale
+	// igual con el resto. Y hace falta cortarlo: la consulta pide `route_id IS
+	// NULL`, y un entregado se queda sin `route_id` en cuanto alguien borra la ruta
+	// en la que viajó (`ON DELETE SET NULL`, `db/migrations/00001_init.sql:446`).
+	// Sin esto, la zona de ayer vuelve a parir la ruta de ayer.
+	case p.DeliveredAt.Valid || (p.Resultado != nil && *p.Resultado == sqlc.StopResultEntregado):
+		motivo = "ya se entregó"
+		queHacer = "Ese pedido ya se repartió. Quita la tarjeta de la zona: volver a " +
+			"subirlo a un camión lo entregaría dos veces."
+	case p.Archivado:
+		motivo = "archivado en PEDIDO"
+		queHacer = "PEDIDO le dio de baja. Quita la tarjeta de la zona."
+	case p.FacturaEstado == nil:
+		// NULL NO ES «cuadra». Con un NULL colado se armó una ruta sin facturar el
+		// 2/09; por eso se nombra distinto de `sin_factura`.
+		motivo = "sin cotejar"
+		queHacer = "Nadie ha cotejado su factura todavía. Se cotea y vuelve a armar."
+	case *p.FacturaEstado == sqlc.FacturaEstadoSinFactura:
+		motivo = "sin factura"
+		queHacer = "No tiene factura. Se le hace en PEDIDO y vuelve a armar."
+	case *p.FacturaEstado == sqlc.FacturaEstadoCambiado:
+		motivo = "cambió en la factura"
+		queHacer = "La factura ya no es la que era: repásala antes de cargar."
+	case p.FacturaDomicilio == nil || *p.FacturaDomicilio <= 0:
+		motivo = "la factura no tiene domicilio cobrado"
+		queHacer = "Corrige o coteja la factura para registrar el cobro del domicilio antes de crear la ruta."
+	case p.PedidoCosto == nil:
+		motivo = "domicilio sin cotizar"
+		queHacer = "Cotiza el domicilio del pedido antes de crear la ruta."
+	}
+	return motivo, queHacer
 }

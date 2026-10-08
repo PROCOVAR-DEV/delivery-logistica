@@ -565,7 +565,9 @@ Future<bool> preguntarAntesDeQuitar(
     contexto,
     (contextoCajon) => Cajon(
       titulo: 'Quitar de la ruta',
-      subtitulo: conduce == null ? cliente : '$cliente · Conduce: $conduce',
+      subtitulo: (conduce ?? '').trim().isEmpty
+          ? cliente
+          : '$cliente · Conduce: $conduce',
       cuerpo: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -929,7 +931,11 @@ class TarjetaDeParada extends StatelessWidget {
                     // EL NUMERO DE OPERACION DE LA FACTURA ES EL CONDUCE — Jose,
                     // 07/10/2026 (incidencia 6 de Amado). No hay dato nuevo: es
                     // `operation_number`, y se rotula como lo llama quien reparte.
-                    if (parada.operationNumber != null)
+                    //
+                    // Sin número no se escribe la etiqueta: «Conduce: » vacío
+                    // parece un dato que falta y es uno que no existe. Un texto
+                    // vacío cuenta igual que un nulo.
+                    if ((parada.operationNumber ?? '').trim().isNotEmpty)
                       Insignia(
                         'Conduce: ${parada.operationNumber!}',
                         color: Colores.enCurso,

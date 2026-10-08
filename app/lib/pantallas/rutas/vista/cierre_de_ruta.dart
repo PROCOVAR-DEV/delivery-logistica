@@ -241,14 +241,15 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
     final navegador = Navigator.of(context);
     try {
       // En APK/escritorio escribe y encola; en web espera el servidor.
-      // Un rechazo parcial se muestra, pero no impide completar lo que sí se guardó.
+      // Un rechazo parcial no impide completar lo que sí se guardó, pero se DICE
+      // en un cajón que obliga a acusar recibo (`_acusarRechazadas`).
       final acciones = ref.read(accionesDeRutaProvider);
-      String? avisoDeParadasRechazadas;
       ResultadoCierreDeRuta? resultadoDelCierre;
       if (marcas.isNotEmpty) {
         resultadoDelCierre = await acciones.cerrar(widget.rutaId, marcas);
-        avisoDeParadasRechazadas = resultadoDelCierre.aviso;
       }
+      final rechazadas =
+          resultadoDelCierre?.rechazadas ?? const <ParadaRechazada>[];
       // Completar va después de guardar. Un rechazo total sigue dejando la ruta
       // abierta; un rechazo parcial trae los IDs válidos y un aviso para corregir.
       if (completando) await acciones.completar(widget.rutaId);
@@ -266,19 +267,26 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
             ? ''
             : _nota(marca.pedidoId).text.trim();
       }
-      mensajero?.showSnackBar(
-        SnackBar(
-          duration: avisoDeParadasRechazadas == null
-              ? const Duration(seconds: 4)
-              : const Duration(seconds: 8),
-          content: Text(
-            avisoDeParadasRechazadas ??
-                (completando
-                    ? CierreDeRuta.exitoAlCompletar
-                    : CierreDeRuta.exito),
+      if (rechazadas.isEmpty) {
+        mensajero?.showSnackBar(
+          SnackBar(
+            content: Text(
+              completando ? CierreDeRuta.exitoAlCompletar : CierreDeRuta.exito,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        // UN SNACKBAR DE 8 s NO ERA UN ACUSE — 08/10/2026 (auditoría de la
+        // 1.0.28). El aviso sustituía a «Ruta completada», desaparecía solo, y
+        // la ruta se daba por completada (histórico inmutable) con una entrega
+        // sin registrar que nadie había visto. Ahora el cajón no se va hasta que
+        // se pulsa «Entendido».
+        await _acusarRechazadas(rechazadas, rutaCompletada: completando);
+        // Sin completar (sólo se guardaba) la hoja SE QUEDA: las rechazadas
+        // siguen marcadas y contadas como «sin guardar», para corregirlas o
+        // reintentar; irse ahora sería perderlas.
+        if (!completando) return;
+      }
       navegador.maybePop();
       if (completando) widget.alCompletar?.call();
     } on RechazoLocal catch (fallo) {
@@ -286,6 +294,71 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
       mensajero?.showSnackBar(SnackBar(content: Text(fallo.mensaje)));
     } finally {
       if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  /// EL ACUSE DE RECIBO DE UN CIERRE PARCIAL: el cajón no se va hasta «Entendido».
+  ///
+  /// Cerrarlo de cualquier otra forma —la ✕, el velo, Escape, el atrás— devuelve
+  /// `null` y NO cuenta: vuelve a salir. Con la ruta ya completada el histórico
+  /// es inmutable, y lo único que queda de la entrega rechazada es que alguien
+  /// haya leído su conduce. Cada parada sale como «Conduce `número`: `motivo`»,
+  /// con el motivo literal del servidor (§3-quinquies).
+  Future<void> _acusarRechazadas(
+    List<ParadaRechazada> rechazadas, {
+    required bool rutaCompletada,
+  }) async {
+    final cuantas = rechazadas.length;
+    final titulo =
+        '${rutaCompletada ? 'Ruta completada: ' : ''}'
+        '${cuantas == 1 ? '1 parada no se guardó' : '$cuantas paradas no se guardaron'}';
+    var acusado = false;
+    while (!acusado && mounted) {
+      acusado =
+          await abrirCajon<bool>(
+            context,
+            (contexto) => Cajon(
+              titulo: titulo,
+              subtitulo: rutaCompletada
+                  ? 'El resto del cierre sí quedó guardado.'
+                  : 'El resto del cierre sí se guardó.',
+              ancho: AnchoCajon.md,
+              cuerpo: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      rutaCompletada
+                          ? 'Estas paradas se quedaron sin resultado. Apunta su '
+                                'conduce y corrígelas en PEDIDO.'
+                          : 'Estas paradas siguen marcadas aquí pero el '
+                                'servidor no las guardó. Corrige la marca y '
+                                'vuelve a guardar.',
+                    ),
+                    const SizedBox(height: 12),
+                    for (final parada in rechazadas)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Conduce ${parada.conduce}: ${parada.motivo}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              pie: Align(
+                alignment: Alignment.centerRight,
+                child: BotonPrincipal(
+                  icono: Icons.done_all,
+                  texto: 'Entendido',
+                  alPulsar: () => Navigator.of(contexto).pop(true),
+                ),
+              ),
+            ),
+          ) ??
+          false;
     }
   }
 
@@ -688,7 +761,8 @@ class _Parada extends StatelessWidget {
                       // El numero de operacion de la factura ES el conduce
                       // (Jose, 07/10/2026): con el se cuadra lo que baja del
                       // camion contra el papel de quien lo recibe.
-                      if (pedido.operationNumber != null)
+                      // Sin número (nulo o vacío) no se escribe la etiqueta.
+                      if ((pedido.operationNumber ?? '').trim().isNotEmpty)
                         Text(
                           'Conduce: ${pedido.operationNumber}',
                           style: TextStyle(color: Colores.gris, fontSize: 12),

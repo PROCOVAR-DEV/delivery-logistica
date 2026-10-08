@@ -385,6 +385,10 @@ func (s *Servidor) recomputar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	desde := time.Now().AddDate(0, 0, -dias).Format("2006-01-02")
+	// Quién lanzó el recosteo, ANTES de pedir nada: es un trabajo largo que reescribe costos de
+	// hasta 5.000 pedidos, y si PEDIDO no contesta o se corta a mitad, esta línea es lo único
+	// que dice que alguien lo pidió.
+	rastroDeQuien(r, "recosteo lanzado", "dias", dias, "desde", desde, "sucursal", codigoParaElRegistro(codigo))
 	url := fmt.Sprintf("%s/integration/orders?desde=%s&limit=%d", pedidoURL, desde, TopeDelRecosteo)
 	if codigo != "" {
 		url += "&sucursalCodigo=" + codigo

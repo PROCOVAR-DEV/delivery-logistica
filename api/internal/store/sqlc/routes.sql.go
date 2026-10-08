@@ -566,9 +566,15 @@ UPDATE orders SET
     stop_order     = $2,
     trip_leg       = 'outbound',
     segment_km     = $3,
-    price          = coalesce($4::double precision, 0)
+    price          = coalesce($4::double precision, 0),
+    resultado      = NULL,
+    resultado_at   = NULL,
+    resultado_nota = NULL,
+    delivered_at   = NULL
 WHERE id = $5
   AND route_id IS NULL
+  AND resultado IS DISTINCT FROM 'entregado'::stop_result
+  AND delivered_at IS NULL
   AND factura_domicilio > 0
   AND pedido_costo IS NOT NULL
   AND ($6::uuid IS NULL OR branch_id = $6::uuid)
@@ -606,6 +612,34 @@ type EngancharPedidoARutaParams struct {
 // manejador (`mensajeNoFacturados`, `armarRutaDeColumna`) para poder nombrar cuál falla y
 // por qué. Aquí `cambiado` pasaría igual que antes, y por eso la regla «en el camión sólo
 // sube lo que cuadra» vive en esos dos manejadores y los vigilan sus pruebas.
+//
+// # REASIGNAR ES UN INTENTO NUEVO — 08/10/2026 (auditoría de la 1.0.28, I-2)
+//
+// Un pedido DEVUELTO o CANCELADO suelta su `route_id` pero conserva `resultado`,
+// `resultado_at`, `resultado_nota` y `ultima_ruta_id` (son la hoja de lo que bajó del camión,
+// ver `MarcarResultadoDeParada`). Al volver a meterlo en otra ruta, esas cuatro columnas se
+// quedaban: el pedido viajaba en la ruta nueva con el «devuelto» de la anterior pegado. Y
+// eso rompe dos cosas que no se ven hasta el día siguiente:
+//
+//	· «Quitar de ruta» (`SoltarParadaPlanificada`) lo da por una parada con resultado y
+//	  contesta un 409 engañoso, aunque la ruta nueva siga planificada y sin marcar nada.
+//	· Al borrar esa ruta, el pedido no vuelve a su zona del tablero, porque la guarda de
+//	  «este pedido ya tiene un resultado» lo trata como histórico.
+//
+// Por eso asignar un pedido a una ruta deja a NULL `resultado`, `resultado_at`,
+// `resultado_nota` y `delivered_at`: lo que pasó en el intento anterior consta en el
+// registro y en PEDIDO, pero esta parada empieza limpia. `delivered_at` ya estaba NULL en un
+// devuelto (lo limpia `MarcarResultadoDeParada`); se pone igual para que el estado limpio
+// no dependa de que nadie lo haya tocado en medio.
+//
+// Y UN ENTREGADO NO SE REASIGNA NUNCA: lo dice el `WHERE` (`resultado` distinto de
+// `entregado` y sin `delivered_at`), no sólo `mensajeYaEntregados` en el manejador. Un
+// entregado cuya ruta se borró amanece con `route_id` NULL, y sin esta guarda el UPDATE de
+// arriba le habría BORRADO la entrega: ahora que esta consulta limpia el resultado, dejarlo
+// pasar ya no sería un descuido que el manejador tapa, sería perder un hecho.
+//
+// LAS DOS PUERTAS pasan por aquí: `POST /api/routes` y `POST /api/board/columns/{id}/route`
+// (`TableroEngancharPedidoARuta` es la misma consulta con otro envoltorio).
 func (q *Queries) EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoARutaParams) (int64, error) {
 	result, err := q.db.Exec(ctx, engancharPedidoARuta,
 		arg.RutaID,

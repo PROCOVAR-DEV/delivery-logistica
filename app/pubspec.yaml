@@ -3,7 +3,7 @@ description: "reparto-app — la interfaz del reparto, web y APK del mismo codig
 # Privado: nunca sale a pub.dev.
 publish_to: 'none'
 
-version: 1.0.29+30
+version: 1.0.30+31
 
 environment:
   sdk: ^3.13.3

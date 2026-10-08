@@ -13,6 +13,18 @@
 /// calle eso es quedarse sin aplicacion.
 library;
 
+/// LA MARCA DEL 403 «ESTA PERSONA NO ENTRA A REPARTO» (`{"codigo": …}`).
+///
+/// Solo entran ADMINISTRADOR, SUPER ADMIN, DESARROLLADOR y LOGISTICO; al resto
+/// la API le contesta 403 en CUALQUIER llamada. Es DISTINTO de los otros 403
+/// (alcance de sucursal: sin `codigo`) y NO es un rechazo de un apunte: es la
+/// persona. Ver `docs/sin-permiso.md`.
+const marcaSinPermisoDeReparto = 'sin_permiso_reparto';
+
+/// La frase literal de ese 403. Solo la usa la segunda cerradura de
+/// `Subida._aplicar`; lo que manda es [marcaSinPermisoDeReparto].
+const textoSinPermisoDeReparto = 'No tienes permiso para entrar a Reparto.';
+
 sealed class FalloApi implements Exception {
   const FalloApi();
 

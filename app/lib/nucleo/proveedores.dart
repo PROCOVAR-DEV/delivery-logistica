@@ -312,6 +312,9 @@ ClienteApi _cliente(Ref ref, String baseUrl) => ClienteApi.montar(
   // Un 401 que sigue siendo 401 despues de renovar es lo UNICO que echa a
   // alguien a la pantalla de acceso. Un fallo de red, no.
   alMorirLaSesion: () => ref.read(porteroProvider).murio(),
+  // Un 403 `sin_permiso_reparto`: la PERSONA no entra a Reparto. A su pantalla,
+  // sin cerrar la sesion ni tocar la cola (`docs/sin-permiso.md`).
+  alFaltarPermiso: () => ref.read(porteroProvider).sinPermiso(),
 );
 
 final clienteApiProvider = Provider<ClienteApi>(
@@ -411,6 +414,7 @@ final subidaProvider = Provider<Subida>(
     // porque en un navegador no hay dos personas compartiendo una base.
     base: ref.watch(baseProvider),
     quienEsta: () async => (await ref.read(almacenSesionProvider).leer())?.sub,
+    alFaltarPermiso: () => ref.read(porteroProvider).sinPermiso(),
   ),
 );
 

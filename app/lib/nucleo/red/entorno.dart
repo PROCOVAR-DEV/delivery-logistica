@@ -14,10 +14,20 @@ abstract final class Entorno {
     defaultValue: 'https://reparto.procovar.cloud/sync',
   );
 
-  static const authUrl = String.fromEnvironment(
-    'AUTH_URL',
-    defaultValue: 'https://auth.procovar.cloud',
+  static const authUrlPorDefecto = 'https://auth.procovar.cloud';
+
+  /// `AUTH_URL`. **Vacío = el de producción**: `--dart-define=AUTH_URL=` explícitamente
+  /// vacío no usa el `defaultValue` (da `''`), y entonces «el inicio de Accesos» sería
+  /// `/`, o sea la propia Reparto: la pantalla de «no tienes permiso» se mandaría a sí
+  /// misma cada 3 s en la web.
+  static String get authUrl => authUrlDe(
+    const String.fromEnvironment('AUTH_URL', defaultValue: authUrlPorDefecto),
   );
+
+  /// La regla de [authUrl] sobre el valor suelto, para poder probarla (un
+  /// `String.fromEnvironment` es constante de compilación).
+  static String authUrlDe(String valor) =>
+      valor.trim().isEmpty ? authUrlPorDefecto : valor;
 
   /// `true` cuando las tres estan puestas a mano. Sirve para que el arranque
   /// avise en vez de intentar hablar con un dominio que no es.

@@ -30,6 +30,15 @@ enum EstadoDeAcceso {
 
   /// No hay sesión, o murió. A la pantalla de acceso.
   fuera,
+
+  /// Hay sesión, pero la API dijo 403 `sin_permiso_reparto`: esta PERSONA no
+  /// entra a Reparto. A `/sin-permiso`.
+  ///
+  /// NO es `fuera`: la sesión sigue viva, la base y la cola de esta persona
+  /// siguen abiertas e intactas, y no se sincroniza nada (no está en
+  /// [haySesionParaSincronizar]) hasta que alguien entre de nuevo. Ver
+  /// `docs/sin-permiso.md`.
+  sinPermiso,
 }
 
 /// ¿HAY SESIÓN CON LA QUE SINCRONIZAR? Son DOS estados, no uno.
@@ -157,7 +166,25 @@ class Portero extends ChangeNotifier {
         // a una señal que no hay es dejar a alguien mirando una barra que no se
         // mueve con su día dentro del aparato.
         await _entrar(sinComprobar: true);
+      case Arranque.sinPermiso:
+        _poner(EstadoDeAcceso.sinPermiso);
     }
+  }
+
+  /// La API dijo que esta persona no entra a Reparto (403 `sin_permiso_reparto`).
+  ///
+  /// **No toca nada más**: ni la sesión, ni la base, ni la cola. Pausa el envío
+  /// por el mismo camino que el 401 —sin sesión «sincronizable» el ciclo no
+  /// intenta nada— pero conservando todo, porque un apunte sin subir no es
+  /// culpa del apunte. Idempotente: se llama una vez por cada petición que lo ve.
+  ///
+  /// **Estando `fuera` se ignora**: un 403 tardío de una petición que iba en vuelo
+  /// cuando se hizo [salir] o [murio] no puede resucitar la pantalla de «no
+  /// tienes permiso» (sin sesión no hay permiso que negar: toca el acceso).
+  /// [comprobar] con `Arranque.sinPermiso` no pasa por aquí.
+  void sinPermiso() {
+    if (_estado == EstadoDeAcceso.fuera) return;
+    _poner(EstadoDeAcceso.sinPermiso);
   }
 
   /// Acaba de entrar con usuario y contraseña. El par ya está guardado.
@@ -266,6 +293,10 @@ class Portero extends ChangeNotifier {
         .read(cicloProvider)
         .ahora(motivo: 'configuración inicial', yaSeRenovo: true);
 
+    // El ciclo mismo pudo descubrir que la persona no entra a Reparto: la
+    // pantalla de «no tienes permiso» manda, no la de reintentar.
+    if (_estado == EstadoDeAcceso.sinPermiso) return;
+
     if (resumen.fallo != null) {
       _configuracion = ConfiguracionInicial.fallo(resumen.fallo!);
       _poner(EstadoDeAcceso.configurando, forzar: true);
@@ -368,6 +399,15 @@ class Portero extends ChangeNotifier {
     bool forzar = false,
   }) {
     if (!forzar && _estado == nuevo && _sinComprobar == sinComprobar) return;
+    // Del «no tienes permiso» no se sale a trabajar solo: ni `dentro` ni
+    // `configurando` (un ciclo que acaba tarde), y TAMPOCO con [entro]: se traga
+    // en silencio, por diseño. Solo se sale SALIENDO ([salir], y luego entrar
+    // desde el acceso) o recargando la página en la web.
+    if (_estado == EstadoDeAcceso.sinPermiso &&
+        (nuevo == EstadoDeAcceso.dentro ||
+            nuevo == EstadoDeAcceso.configurando)) {
+      return;
+    }
     _estado = nuevo;
     _sinComprobar = sinComprobar;
     notifyListeners();
@@ -394,6 +434,10 @@ const rutaDeArranque = '/arranque';
 /// «Configurando Reparto». La primera vez, y sólo la primera.
 const rutaDeConfiguracion = '/configurando';
 
+/// «No tienes permiso para entrar a Reparto». Se llega a ella desde CUALQUIER
+/// pantalla en cuanto la API dice 403 `sin_permiso_reparto`.
+const rutaDeSinPermiso = '/sin-permiso';
+
 /// EL REDIRECTOR. Una sola funcion, sin estado, para poder probarla suelta.
 ///
 /// **Se acuerda de a donde iba.** Quien recarga `/orders?municipio=Centro` pasa
@@ -411,7 +455,8 @@ String? redirigir({
   final enLaPuerta =
       rutaActual == rutaDeAcceso ||
       rutaActual == rutaDeArranque ||
-      rutaActual == rutaDeConfiguracion;
+      rutaActual == rutaDeConfiguracion ||
+      rutaActual == rutaDeSinPermiso;
 
   switch (estado) {
     case EstadoDeAcceso.comprobando:
@@ -433,6 +478,11 @@ String? redirigir({
       if (rutaActual == rutaDeAcceso) return null;
       return '$rutaDeAcceso${_conDestino(destino ?? '')}';
 
+    case EstadoDeAcceso.sinPermiso:
+      // A su pantalla desde donde sea, sin arrastrar destino: al volver a
+      // entrar se empieza por el inicio, no por la pantalla que dio el 403.
+      return rutaActual == rutaDeSinPermiso ? null : rutaDeSinPermiso;
+
     case EstadoDeAcceso.dentro:
       if (!enLaPuerta) return null;
       final destino = volverA;
@@ -441,7 +491,8 @@ String? redirigir({
       final soloRuta = Uri.tryParse(destino)?.path ?? destino;
       if (soloRuta == rutaDeAcceso ||
           soloRuta == rutaDeArranque ||
-          soloRuta == rutaDeConfiguracion) {
+          soloRuta == rutaDeConfiguracion ||
+          soloRuta == rutaDeSinPermiso) {
         return inicio;
       }
       return destino;
@@ -453,7 +504,8 @@ String _conDestino(String uri) {
   final soloRuta = Uri.tryParse(uri)?.path ?? uri;
   if (soloRuta == rutaDeAcceso ||
       soloRuta == rutaDeArranque ||
-      soloRuta == rutaDeConfiguracion) {
+      soloRuta == rutaDeConfiguracion ||
+      soloRuta == rutaDeSinPermiso) {
     return '';
   }
   return '?$claveDelDestino=${Uri.encodeQueryComponent(uri)}';

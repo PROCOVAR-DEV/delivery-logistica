@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../diseno/colores.dart';
+import '../pantallas/acceso/vista/pantalla_sin_permiso.dart';
 import '../pantallas/configuracion_inicial/vista/pantalla_configurando.dart';
 import 'armazon.dart';
 import 'pantalla_registrada.dart';
@@ -74,6 +75,15 @@ GoRouter crearEnrutador({
         path: rutaDeConfiguracion,
         builder: (contexto, estado) =>
             const Scaffold(body: PantallaConfigurando()),
+      ),
+
+      // «No tienes permiso para entrar a Reparto». Tampoco es del registro: no
+      // lleva armazon (la barra lateral y el selector de sucursal salen de una
+      // sesion que aqui no sirve) y no sale en el menu. `docs/sin-permiso.md`.
+      GoRoute(
+        path: rutaDeSinPermiso,
+        builder: (contexto, estado) =>
+            const Scaffold(body: PantallaSinPermiso()),
       ),
 
       // Las sueltas, FUERA del armazon pero con su `Scaffold`: la regla de «tu

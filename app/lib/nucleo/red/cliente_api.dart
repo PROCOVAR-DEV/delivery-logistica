@@ -71,6 +71,7 @@ class ClienteApi {
     required Renovador renovador,
     String? Function()? sucursalMirada,
     void Function()? alMorirLaSesion,
+    void Function()? alFaltarPermiso,
     List<Duration> esperas = esperasPorDefecto,
     Future<void> Function(Duration)? esperar,
     void Function({required bool llego})? alIntentar,
@@ -98,6 +99,7 @@ class ClienteApi {
         dio: dio,
         sucursalMirada: sucursalMirada,
         alMorirLaSesion: alMorirLaSesion,
+        alFaltarPermiso: alFaltarPermiso,
       ),
       const InterceptorFallos(),
     ]);

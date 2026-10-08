@@ -114,7 +114,9 @@ class Subida {
     required IdentidadDelAparato aparato,
     required BaseLocal base,
     required Future<String?> Function() quienEsta,
-  }) : _cliente = cliente,
+    void Function()? alFaltarPermiso,
+  }) : _alFaltarPermiso = alFaltarPermiso,
+       _cliente = cliente,
        _cola = cola,
        _aparato = aparato,
        _base = base,
@@ -129,6 +131,10 @@ class Subida {
   /// El `sub` de quien tiene la sesion abierta. Es lo que se compara con el
   /// dueno de la cola antes de mandar un solo apunte.
   final Future<String?> Function() _quienEsta;
+
+  /// Se avisa si el servidor devuelve, DENTRO de un 200, el rechazo de «no tienes
+  /// permiso para entrar a Reparto». Ver [_aplicar].
+  final void Function()? _alFaltarPermiso;
 
   /// Quien sabe el identificador de esta instalacion y sabe darla de alta.
   final IdentidadDelAparato _aparato;
@@ -294,6 +300,23 @@ class Subida {
         continue;
       }
       final resultado = ResultadoApunte.deJson(crudo);
+      // «NO TIENES PERMISO PARA ENTRAR A REPARTO» NO ES UN RECHAZO DE ESTE APUNTE.
+      //
+      // Es la PERSONA la que no entra, y resolver el apunte como rechazado
+      // convertiria su cola entera en rechazos: trabajo destruido por algo que
+      // arregla un administrador dandole el rol. Un 403 con ese `codigo` en la
+      // respuesta HTTP ya lo ataja el interceptor; esta es la SEGUNDA CERRADURA,
+      // para un sync que lo reenvie como rechazo dentro de un 200 (hoy lo hace:
+      // `sync/internal/reparto`, «cualquier 4xx es rechazo»). Como el 401: no se
+      // resuelve nada, el apunte sigue `pendiente` y el ciclo para.
+      if (resultado.motivo == textoSinPermisoDeReparto) {
+        _alFaltarPermiso?.call();
+        throw const Rechazo(
+          403,
+          textoSinPermisoDeReparto,
+          marca: marcaSinPermisoDeReparto,
+        );
+      }
       await _cola.resolver(clave, resultado);
       return resultado.seAplico;
     }

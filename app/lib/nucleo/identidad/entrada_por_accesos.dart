@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../plataforma.dart';
 import '../red/entorno.dart';
+import '../red/interceptor_sesion.dart' show esSinPermisoDeReparto;
 import '../registro/registro.dart';
 import 'navegador.dart';
 import 'sesion.dart';
@@ -103,6 +104,10 @@ class EntradaPorAccesos {
       return HaySesion(Sesion.deLaCookie(token: token, usuario: usuario));
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) return const NoHaySesion();
+      // HAY SESION, PERO LA PERSONA NO ENTRA A REPARTO. Ni «no hay sesion» —
+      // mandarla a Accesos para que vuelva con la cookie puesta es un bucle
+      // entre las dos paginas— ni «no contesta». Es su propia pantalla.
+      if (esSinPermisoDeReparto(e.response)) return const SinPermiso();
       // NI 401 NI 200: el servidor no esta. Se dice, y NO se manda a nadie a
       // Accesos — la vuelta de Accesos entra por esta misma API.
       final detalle = e.message ?? e.type.name;
@@ -193,7 +198,12 @@ class EntradaPorAccesos {
   /// una prueba que las ata.
   static const _claveDelDestino = 'volverA';
 
-  static const _puertas = <String>{'/acceso', '/arranque', '/configurando'};
+  static const _puertas = <String>{
+    '/acceso',
+    '/arranque',
+    '/configurando',
+    '/sin-permiso',
+  };
 
   static String? _siNoEsLaPuerta(String destino) {
     final ruta = Uri.tryParse(destino)?.path ?? destino;
@@ -218,6 +228,11 @@ class HaySesion extends QuienSoy {
 
 class NoHaySesion extends QuienSoy {
   const NoHaySesion();
+}
+
+/// Hay sesion en Accesos, pero la API dice 403 `sin_permiso_reparto`.
+class SinPermiso extends QuienSoy {
+  const SinPermiso();
 }
 
 class NoContesta extends QuienSoy {

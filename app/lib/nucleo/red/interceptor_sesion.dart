@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../identidad/almacen_sesion.dart';
 import '../identidad/renovador.dart';
+import 'de_quien_viene.dart';
 import 'fallos.dart';
 
 /// Pone la sesion en cada peticion y resuelve el 401.
@@ -16,6 +17,7 @@ class InterceptorSesion extends Interceptor {
     required Dio dio,
     this.sucursalMirada,
     this.alMorirLaSesion,
+    this.alFaltarPermiso,
   }) : _almacen = almacen,
        _renovador = renovador,
        _dio = dio;
@@ -38,6 +40,14 @@ class InterceptorSesion extends Interceptor {
   /// de red que mueve pantallas es un interceptor que hay que montar entero para
   /// probar cualquier peticion.
   final void Function()? alMorirLaSesion;
+
+  /// Se avisa cuando la API dice «esta PERSONA no entra a Reparto»: un 403 con
+  /// `codigo == sin_permiso_reparto` (ver [esSinPermisoDeReparto]). Lo lleva a la
+  /// pantalla `/sin-permiso`; ni borra la sesion ni toca la cola.
+  ///
+  /// Se avisa tantas veces como llegue: quien lo recibe (el portero) es
+  /// idempotente, y asi no hay estado aqui que olvidar de soltar.
+  final void Function()? alFaltarPermiso;
 
   /// Marca de «esta peticion ya se reintento». Sin ella, un 401 que sigue siendo
   /// 401 entra en un bucle de renovar-reintentar que no acaba.
@@ -68,6 +78,10 @@ class InterceptorSesion extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    // ANTES que el 401: es el mismo viaje, con otro destino. Sigue su camino
+    // normal (acaba siendo un `Rechazo` 403 con su marca) y la cola no se entera.
+    if (esSinPermisoDeReparto(err.response)) alFaltarPermiso?.call();
+
     final esUn401 = err.response?.statusCode == 401;
     final yaSeIntento = err.requestOptions.extra[_yaReintentada] == true;
 
@@ -122,4 +136,18 @@ class InterceptorSesion extends Interceptor {
     if (fallo is SesionMuerta) alMorirLaSesion?.call();
     return original.copyWith(error: fallo);
   }
+}
+
+/// ¿ES ESTE EL 403 DE «NO ENTRAS A REPARTO»? Las TRES cosas a la vez:
+///
+///  * el código es **403**, no 401 (un 401 es sesión caducada y se renueva);
+///  * lo firma **nuestra API** ([contestoLoNuestro]): el 403 de un proxy no vale;
+///  * el cuerpo trae `codigo == sin_permiso_reparto`. **Solo ese**: el 403 de
+///    alcance de sucursal no trae `codigo`, y otro `codigo` es otra cosa.
+bool esSinPermisoDeReparto(Response<dynamic>? respuesta) {
+  if (respuesta?.statusCode != 403 || !contestoLoNuestro(respuesta)) {
+    return false;
+  }
+  final cuerpo = respuesta?.data;
+  return cuerpo is Map && cuerpo['codigo'] == marcaSinPermisoDeReparto;
 }

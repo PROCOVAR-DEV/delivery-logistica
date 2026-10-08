@@ -23,6 +23,10 @@ enum Arranque {
   /// entra igual** (regla 1: para entrar hace falta conexion, una vez dentro
   /// no).
   dentroSinComprobar,
+
+  /// Hay sesion en Accesos y la API dice 403 `sin_permiso_reparto`: la persona
+  /// no entra a Reparto. A su pantalla, SIN pasar por el login (bucle).
+  sinPermiso,
 }
 
 /// Como quedo el arranque, con lo que hace falta para poder DECIRLO.
@@ -120,6 +124,9 @@ Future<ResultadoDelArranque> arrancar(Ref ref) async {
       'Accesos; manda la cookie y se borra el par guardado',
     );
     await almacen.borrar();
+  }
+  if (porAccesos is SinPermiso) {
+    return const ResultadoDelArranque(Arranque.sinPermiso);
   }
   final Sesion? quienEsta = porAccesos is HaySesion
       ? porAccesos.sesion

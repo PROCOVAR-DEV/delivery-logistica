@@ -344,18 +344,26 @@ final.
    - El cajón se cierra. En la cabecera de la zona ahora pone **«Camión: F-350»** en
      vez de «Camión: —».
 
-### Si un camión pone «EN EL TALLER»
+### Si el camión que buscas no sale en la lista
 
-Sale en ámbar. **Se puede elegir igual**: es aviso, no bloqueo. Pero ese camión no
-sale hoy.
+**Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» (dado de
+baja) o en mantenimiento no se ofrece para una zona nueva. Con señal, ve al menú →
+**«Vehículos»** y mira cuál de las dos cosas es: la tarjeta lo dice.
 
-### Si dice «Esta sucursal no tiene ningún vehículo en este aparato»
+### Si dice «Esta sucursal no tiene vehículos activos y fuera del taller en este aparato»
 
-> «Se puede armar la ruta igual, pero sin camión no hay capacidad contra la que medir
-> el peso ni coste por km que calcular. Los vehículos se dan de alta en Flota y bajan
-> con la siguiente sincronización.»
+> «Los vehículos inactivos y los que están en el taller no se ofrecen para rutas
+> nuevas. Se puede armar la ruta igual, pero sin camión no hay capacidad contra la que
+> medir el peso ni coste por km que calcular. Los vehículos se dan de alta y se
+> activan en Flota, y bajan con la siguiente sincronización.»
 
-Con señal, ve al menú → **«Vehículos»** y da de alta el camión.
+Con señal, ve al menú → **«Vehículos»** y da de alta el camión, o actívalo.
+
+### Si el camión de la zona se dio de baja después de elegirlo
+
+La zona lo sigue nombrando, pero **al armar la ruta el servidor no lo acepta**: «El
+vehículo está inactivo y no se puede asignar a una ruta.» Elige otro en «Camión
+previsto».
 
 ## 3.3 Repartir los pedidos por zonas
 <!-- tarea -->
@@ -415,8 +423,24 @@ Camión: F-350
 - **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
   factura»** — ese pedido **hoy no sale**. Lo puedes dejar puesto: no entrará en la
   ruta y te lo dirá.
-- **«Cambió en la factura»** en ámbar — **sí sale**, pero el peso de la zona ya no es
-  el que era.
+- **«Cambió en la factura»** en ámbar — **tampoco sale**: en el camión sólo sube lo
+  que cuadra con la factura. Se puede dejar puesto, y la ruta lo descartará con
+  «cambió en la factura».
+
+### Si un pedido no te deja colocarlo
+
+A una zona sólo se coloca lo que tiene **el domicilio cobrado en la factura y cotizado
+en Entrega**. Los que no cumplen **ni salen en «Sin colocar»**, y si llegas a
+intentarlo (por ejemplo, desde Pedidos con «Mandar a una zona») sale el motivo y la
+tarjeta se queda donde estaba:
+
+> «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
+> registrado.»
+>
+> «No se puede asociar al tablero: primero cotiza el domicilio del pedido.»
+
+Lo dice **al momento, aunque no haya señal**: no te llega horas después a la bandeja.
+Se arregla cobrando o cotizando en Entrega, no aquí.
 
 ### Si un pedido dice «2 pedidos de este cliente hoy»
 
@@ -476,17 +500,28 @@ después **«Volver a intentarlo»** (así se llama ahora el botón de armar).
 Debajo te lista, uno a uno, por qué se cayó cada pedido:
 
 ```
-SC06-1257 · DAYLIS PÉREZ: Ya va en otra ruta
-X-2992 · ANA MARTÍNEZ: Sin cotejar
+PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
+PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
 
-Saca esos de la zona (o resuélvelos en PEDIDO) y vuelve a armar.
+Cada uno sale por su **conduce** (el número de operación de la factura). Saca esos de
+la zona (o resuélvelos en PEDIDO o en Entrega) y vuelve a armar.
 
 ### Qué entró y qué no
 
-**Sólo entran en la ruta los pedidos repartibles.** Los que no, **se quedan puestos
-en la zona y marcados**. No se pierde nada, y la zona no se te queda vacía sin
-explicación.
+**Sólo entran en la ruta los pedidos repartibles**: facturados y que cuadran, con el
+domicilio cobrado y cotizado. Los que no, **se quedan puestos en la zona y marcados**.
+No se pierde nada, y la zona no se te queda vacía sin explicación.
+
+### Si borras o recortas la ruta, las facturas vuelven a su zona
+
+Una ruta armada desde una zona se acuerda de dónde salió. Si la **eliminas**, o le
+quitas **una parada** con «Quitar de ruta» (en Rutas, mientras no esté completada), **las
+facturas vuelven a su zona**: no hay que volver a crear la zona ni repartir de nuevo.
+Sin señal, hasta que suba el cambio y baje el tablero salen en **«Sin colocar»**; con
+señal, se colocan solas donde estaban.
 
 ### Cómo se va a llamar la ruta
 
@@ -550,6 +585,12 @@ almacén.
 
 2. **Toca «Ver paradas (3)»** si quieres repasar el orden antes de salir.
    <!-- señala: rutas-ver-paradas -->
+   - Cada parada lleva su **conduce** —**«Conduce: PTB25-261005-1480»**—, que es el
+     número de operación de la factura.
+   - Si sobra alguna, **«Quitar de ruta»** la saca sin borrar la ruta (pregunta antes;
+     el pedido vuelve a disponibles y, si la ruta nació del tablero, a su zona). Sólo
+     en una ruta **planificada**, y funciona sin señal: sube cuando vuelva. Paso a
+     paso en [Sacar un pedido de una ruta](3-tareas.md#sacar-un-pedido-de-una-ruta).
 3. **Toca «Iniciar ruta»**. <!-- señala: rutas-iniciar -->
    - La ruta pasa a **«En curso»**, **el camión queda ocupado**, y la vista **salta
      sola a la pestaña «En curso»** con la ruta abierta.
@@ -658,6 +699,25 @@ pero te lo dice.
 2. Márcalas y **toca «Guardar y completar»**. Revisa las marcas antes de confirmar. <!-- señala: rutas-guardar-el-cierre -->
    - **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
      entregados **vuelven a estar disponibles** para mañana.
+
+### Si el servidor rechaza una parada al subir el cierre
+
+Cada parada de la hoja lleva su **conduce** (**«Conduce: PTB25-261005-1480»**, el número
+de operación de la factura), que es lo que te ayuda a encontrarla. Pasa, por ejemplo,
+cuando la hoja trae una parada que para el servidor ya no es de esa ruta.
+
+**En el teléfono la hoja sube entera o no sube.** Si el servidor rechaza una parada, el
+cierre de esa ruta **queda en la bandeja «Rechazados, esperando a una persona»**, con el
+motivo literal («<id> (ese pedido no va en esta ruta)»), y **la ruta no se completa en
+el servidor hasta que decidas ahí**:
+
+- **«Reintentar»** vuelve a enviar el mismo cierre.
+- **«Descartar»** es una decisión expresa: deja el cierre como descartado.
+
+Las demás rutas siguen subiendo. Mira el motivo con señal y, si hace falta, corrige la
+hoja desde la web. Mientras no lo decidas, **no des la ruta por cerrada en el
+servidor**, aunque el teléfono ya la enseñe como completada. Ver
+[Si algo falla](5-si-algo-falla.md).
 
 ## Sacar el post-despacho antes de descargar el camión
 <!-- tarea -->
@@ -876,9 +936,14 @@ Mira en este orden:
 En ámbar: **«No se pudieron mandar 2, y siguen marcados:»** y debajo, uno a uno:
 
 ```
-F-2992 · Ana: Ya va en otra ruta
-X-3010 · Luis: Sin coordenadas de entrega
+PTB25-261005-1480 · Ana: Ese pedido ya está en una ruta
+PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.
 ```
+
+Cada pedido sale por su **conduce** (el número de operación de la factura). Los motivos
+son los mismos que daría el servidor: ya entregado, ya en una ruta, **sin domicilio
+cobrado en la factura** o **sin cotizar en Entrega**, además de «Archivado en PEDIDO»,
+«Sin cotejar», «Sin factura», «Sin coordenadas de entrega» o «Es de otra sucursal».
 
 **Los que sí fueron pierden la marca; los que no, se quedan marcados** para que
 puedas seguir con ellos.
@@ -974,15 +1039,22 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
      botón **«Poner el almacén»**.
 5. **Paso «Vehículo»** — elige en **«Vehículo de la ruta»** y toca **«Siguiente»**.
    **Es obligatorio.** <!-- señala: rutas-asistente-vehiculo -->
-   - Cada uno sale con su capacidad: «1000 kg», «1000 kg · en el taller», «1000 kg ·
-     en ruta». **Se pueden elegir todos.**
-   - Si eliges uno del taller sale un aviso en ámbar, pero **se arma igual**.
+   - Se ofrecen los camiones **activos y fuera del taller**, cada uno con su
+     capacidad: «1000 kg», «1000 kg · en ruta».
+   - **Un camión «Inactivo» o en mantenimiento no sale en la lista.** Si no ves el que
+     buscas, mira en **Menú → «Vehículos»** si está dado de baja o en el taller.
+   - Si no queda ninguno: «Los vehículos de esta sucursal están inactivos o en el
+     taller, y a una ruta nueva sólo se asigna un vehículo activo. Actívalo o sácalo
+     del taller en Vehículos.»
    - Puedes ponerle un nombre («Nombre (el código se genera solo)») y cambiar la
      **«Fecha de entrega»**, que **viene puesta en hoy**.
 6. **Paso «Pedidos»** — busca y **marca los que quieras**.
    <!-- señala: rutas-asistente-buscar -->
    - En el teléfono los filtros van **uno por línea**: sucursal, día, buscador,
      vendedor, municipio, «km máx.», «costo mín.», estado, domicilio y cotización.
+   - **Sólo salen los pedidos facturados que cuadran, con el domicilio cobrado y
+     cotizado en Entrega.** Si te falta alguno, es casi seguro por eso: se arregla
+     cobrando o cotizando en Entrega, no aquí.
    - **Mira la barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»**
      y **«Camión lleno — no cabe más»**.
    - **Las filas de los pedidos que ya no caben se apagan**, con el motivo: «No cabe
@@ -1000,13 +1072,19 @@ Falta algo: salida, camión, algún pedido, o te has pasado de peso.
 
 ### Si sale un aviso en ámbar encima del botón
 
-Te dice exactamente qué pasa. Los más comunes:
+Te dice exactamente qué pasa, y cada pedido sale por su **conduce** (el número de
+operación de la factura). **Sin señal sale igual**: la aplicación lo dice antes de
+guardar la ruta, para que no te llegue horas después a la bandeja de rechazados. Los
+más comunes:
 
 | Aviso | Qué hacer |
 |---|---|
 | **«Se requiere un vehículo para crear la ruta»** | Vuelve al paso «Vehículo» |
-| **«En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen: X-2992 (sin facturar)…»** | Desmarca esos tres |
-| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: X-2992 (ya va en la ruta RT-20260922-003)…»** | Desmarca ésos |
+| **«En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Desmarca esos tres |
+| **«En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen: PTB25-261005-1480…»** | La factura no cobró domicilio. Desmarca ésos |
+| **«No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1480…»** | Entrega no ha cotizado el domicilio. Desmarca ésos |
+| **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión está dado de baja. Elige otro |
+| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Desmarca ésos |
 | **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Quita pedidos o cambia de camión |
 
 Para volver a un tramo anterior, **toca su nombre** en la barra de arriba
@@ -1034,7 +1112,11 @@ anterior y no cierra el asistente**.
    >
    > Lo que NO se borra son los pedidos ni sus resultados: sueltan esta ruta. Los
    > pendientes vuelven a la lista de disponibles; los entregados siguen entregados y
-   > no se reparten otra vez. Y el camión se queda libre.»
+   > no se reparten otra vez. Y el camión se queda libre.
+   >
+   > Si la ruta se armó desde una zona del tablero, las facturas vuelven a esa zona
+   > cuando se sincronice el borrado (en la web, de inmediato). Mientras tanto, sin
+   > señal, salen en «Sin colocar».»
 
 3. **Toca «Sí, borrar «RT-20260928-004»»** para borrarla, o **«No, dejarla»**
    para salir. <!-- señala: confirmar-el-borrado -->
@@ -1056,6 +1138,21 @@ Al eliminar la ruta no se borra ningún pedido ni se cambia su resultado. Los
 pendientes y devueltos quedan disponibles; los ya entregados siguen entregados
 y no se vuelven a repartir.
 
+### Si la ruta se hizo desde el tablero
+
+**Las facturas vuelven a su zona del tablero**: no se pierde la relación y no hay que
+volver a crear la zona ni a repartir los pedidos.
+
+- **Con señal**, en cuanto sube el borrado y baja el tablero, cada factura aparece en su
+  zona.
+- **Sin señal**, el borrado queda en espera en el teléfono y **las facturas salen en
+  «Sin colocar»** hasta que suba y baje el tablero. No es que se hayan perdido: es que
+  el servidor todavía no se ha enterado. Cuando vuelva la señal (casi nunca hace falta
+  pulsar nada), se colocan solas donde estaban.
+- Si la ruta **no** salió del tablero, no hay zona a la que volver: los pedidos vuelven
+  sólo a la lista de disponibles.
+- **Una ruta completada es histórico y no se borra.**
+
 ---
 
 ## Sacar un pedido de una ruta
@@ -1063,11 +1160,40 @@ y no se vuelven a repartir.
 
 **Empieza en:** **Menú → «Rutas»**.
 
-**No hay ningún botón para quitar una parada.** Las dos formas:
+En una ruta **planificada** (que todavía no ha salido) se puede quitar **una sola
+parada**, sin borrar la ruta.
 
-- **Eliminar la ruta entera** y volver a armarla sin ese pedido.
-- **Marcarlo en el cierre como devuelto o cancelado**: al completar la ruta, ese
-  pedido queda libre para mañana.
+1. **Desliza a «Planificadas»** y **toca la tarjeta de la ruta**.
+   <!-- señala: rutas-tarjeta-de-ruta -->
+2. En el detalle, **toca «Ver paradas»**. <!-- señala: rutas-ver-paradas -->
+3. En la tarjeta de la parada que sobra, **toca «Quitar de ruta»**.
+   - Se abre un cajón, **«Quitar de la ruta»**, con el cliente y su conduce debajo
+     («Casa Pérez · Conduce: PTB25-261005-1480»), que dice qué pasa:
+
+   > «Casa Pérez sale de esta ruta y vuelve a pedidos disponibles. La ruta se queda
+   > con las demás paradas y su peso y su importe se recalculan sin él.
+   >
+   > Si la ruta se armó desde una zona del tablero, la factura regresa a esa zona
+   > cuando se sincronice (en la web, de inmediato).»
+
+4. **Toca «Sí, quitar «Casa Pérez» de la ruta»**, o **«No, dejarlo en la ruta»**.
+   **Cerrar el cajón sin contestar es No.**
+
+La parada desaparece de la hoja, y el peso y el importe de la ruta se recalculan sin
+ella. El pedido **vuelve a la lista de disponibles** y, si la ruta nació del tablero,
+**a su zona del tablero**.
+
+**Funciona sin señal**: el cambio se guarda en el teléfono, queda en espera y **sube
+cuando vuelve la señal**. Hasta entonces la factura puede verse en «Sin colocar» y no
+en su zona.
+
+**Sólo en una ruta planificada.** En una ruta **en curso** no hay botón: marca ese
+pedido como devuelto o cancelado al completar la ruta, y queda libre para mañana. Una
+ruta **completada** es histórico y no se toca. Si el servidor lo rechaza al subir,
+dice el motivo en la bandeja: «Sólo se pueden retirar paradas de una ruta planificada»
+o «El pedido no pertenece a una ruta planificada o ya fue retirado».
+
+(Y si lo que sobra es la ruta entera, [elimínala](#eliminar-una-ruta).)
 
 ---
 
@@ -1085,12 +1211,14 @@ para eso, ni en la tarjeta ni dentro del cajón del detalle. Las dos salidas:
    <!-- señala: rutas-tarjeta-de-ruta -->
 2. **Toca «Eliminar»** al final de su tarjeta y confirma — ver [Eliminar una
    ruta](#eliminar-una-ruta). Los pedidos pendientes quedan disponibles; los entregados conservan su
-   resultado. El camión queda libre. <!-- señala: rutas-eliminar -->
+   resultado. El camión queda libre. Si la ruta salió del tablero, **las facturas
+   vuelven a su zona** (sin señal, salen en «Sin colocar» hasta que suba el borrado).
+   <!-- señala: rutas-eliminar -->
 3. Vete a **Menú → «Tablero»** y **desliza a la página de la zona**.
    <!-- señala: tablero-carrusel-de-zonas -->
 4. **Toca el ⋮** de la cabecera. <!-- señala: tablero-menu-de-la-zona -->
-5. **Toca «Camión previsto»** y elige el otro camión.
-   <!-- señala: tablero-camion-previsto -->
+5. **Toca «Camión previsto»** y elige el otro camión (**activo y fuera del taller**, o
+   no sale en la lista). <!-- señala: tablero-camion-previsto -->
 6. Otra vez **⋮** y, abajo del cajón, **«Armar la ruta de esta zona»**.
    <!-- señala: tablero-armar-la-ruta -->
 
@@ -1144,6 +1272,10 @@ Y sólo aparecen los que **tienen geolocalización**.
 8. **Toca «Agregar Vehículo»** abajo. Vas a ver **«Vehículo agregado.»**
    <!-- señala: vehiculos-guardar -->
 
+**El interruptor «Vehículo activo»** viene encendido: un camión nuevo se ofrece en las
+rutas nuevas. Se apaga más adelante si hay que darlo de baja (ver [Dejar un camión
+inactivo](#dejar-un-camión-inactivo)).
+
 ### Si no sabes el costo por km
 
 **Déjalo vacío, nunca en cero.** Un cero se lee como «el kilómetro es gratis» y se
@@ -1167,6 +1299,10 @@ toca **«Calcular»**. Te rellena el campo.
 
 **Marcarlo en el taller NO cierra la ruta que ya tuviera abierta.** Eso se arregla en
 la tarjeta del camión.
+
+**Mientras esté en mantenimiento no se ofrece para rutas nuevas**: no sale en el paso
+«Vehículo» de «Nueva Ruta» ni en el «Camión previsto» del Tablero. Cuando vuelva,
+pásalo otra vez a **«Disponible»**.
 
 ## Liberar un camión que sale ocupado y no lo está
 <!-- tarea -->
@@ -1213,24 +1349,61 @@ domicilio**. No está en el paso a paso del Panel, pero decide dinero.
 
 **Empieza en:** **Menú → «Vehículos»**. **Necesita señal.**
 
+**Si el camión ya tiene rutas, aunque sean del histórico, NO se puede borrar: se deja
+«Inactivo»** ([cómo, aquí abajo](#dejar-un-camión-inactivo)). Borrar sólo sirve para un
+camión que nunca se usó (uno dado de alta por error, por ejemplo).
+
 1. Busca la tarjeta del camión y **comprueba el nombre y la placa** antes de nada.
    Al final de la tarjeta, **toca «Eliminar»** (rojo, con contorno y papelera, sin
    relleno). <!-- señala: vehiculos-eliminar -->
    - **Se abre un cajón que pregunta antes**, titulado **«Borrar «Camión 1»»**,
      y dice lo que se pierde:
 
-   > «El camión se va de la flota. Las rutas y los pedidos que lo llevaban puesto NO
-   > se borran —el histórico de lo repartido se queda— pero se quedan sin camión, y
-   > hay que ponerles otro. Y el camión hay que volver a darlo de alta a mano, con su
-   > placa, su capacidad y su costo por km.»
+   > «El camión se va de la flota y hay que volver a darlo de alta a mano, con su
+   > placa, su capacidad y su costo por km.
+   >
+   > Un camión que ya tiene rutas —aunque sean del histórico— NO se puede borrar: el
+   > servidor lo rechaza para no perder qué camión hizo cada reparto. Si ese es el
+   > caso, no lo borres: ábrelo con «Editar» y márcalo como inactivo. Así deja de
+   > ofrecerse en las rutas nuevas y su historial se queda intacto.»
 
 2. **Toca «Sí, borrar «Camión 1»»**, o **«No, dejarlo»** para salir. Sale
    **«Vehículo eliminado.»** y la tarjeta desaparece.
    <!-- señala: confirmar-el-borrado -->
 
+Si el camión tenía rutas y tocaste «Sí», el servidor no lo borra y lo dice:
+
+> «No se puede eliminar este vehículo porque tiene rutas asociadas, incluso
+> históricas. Márcalo como inactivo para impedir que se use en nuevas rutas.»
+
 > **Ojo:** **cerrar el cajón sin contestar es NO** — la ✕, tocar fuera, Escape. Y si
 > era el camión del **«Cálculo domicilio»**, elige otro antes de irte: sin ninguno,
 > los domicilios salen sin precio.
+
+---
+
+## Dejar un camión inactivo
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Vehículos»**. **Necesita señal.**
+
+Es la forma de dar de baja un camión que **ya se usó**: deja de ofrecerse para rutas
+nuevas y su historial se queda intacto.
+
+1. En su tarjeta, **toca «Editar»**. <!-- señala: vehiculos-editar -->
+2. **Apaga el interruptor «Vehículo activo»**, justo debajo del nombre. Debajo pone:
+   «Se oculta de los selectores de rutas nuevas.»
+3. **Toca «Actualizar»** abajo. <!-- señala: vehiculos-guardar -->
+   - Sale **«Vehículo actualizado.»** y la tarjeta lleva la insignia **«Inactivo»**.
+
+**Qué cambia:** el camión **ya no sale** en el paso «Vehículo» de «Nueva Ruta» ni en el
+«Camión previsto» de las zonas del Tablero. **Sigue viéndose** en el filtro «Rutas de un
+camión», en los informes y en las rutas que ya hizo.
+
+**Para recuperarlo**, vuelve a **«Editar»** y enciende el interruptor.
+
+> **Ojo:** «Inactivo» no es lo mismo que «En mantenimiento». El mantenimiento es un
+> camión que va a volver; inactivo es una baja.
 
 ---
 
@@ -1479,7 +1652,8 @@ paquete: eso la aplicación lo detecta.
 - **Iniciar una ruta**
 - **Marcar las entregas, con su motivo**
 - **Completar la ruta**
-- **Eliminar una ruta**
+- **Eliminar una ruta** (planificada o en curso; una completada es histórico)
+- **Quitar una parada de una ruta planificada**, con «Quitar de ruta»
 - Ver el pre-despacho y el post-despacho, y sacar sus PDF
 - Ver Pedidos, filtrarlos, abrir su detalle
 - Ver Clientes, incluidos **los kilómetros**, que se calculan en el propio teléfono
@@ -1495,7 +1669,7 @@ paquete: eso la aplicación lo detecta.
 |---|---|
 | **Entrar** | «Para entrar hace falta conexión. Una vez dentro, no.» Es a propósito: si no, dar de baja a alguien no serviría de nada |
 | **«Abrir en Google Maps»** y mandar el enlace por WhatsApp | Necesita el navegador y la red |
-| **Vehículos**: dar de alta, editar, borrar, marcar disponible | Se configuran con conexión. No hay cola para esto |
+| **Vehículos**: dar de alta, editar, dejar inactivo, borrar, marcar disponible | Se configuran con conexión. No hay cola para esto |
 | **Almacenes**: crear, editar, borrar | Viven en Accesos |
 | **Buscar una dirección** en Almacenes | Pregunta a un servicio de mapas. Pero **tocar en el mapa y escribir las coordenadas sí funcionan** |
 | **Sincronización** | Se lee del servidor cada vez, no guarda copia |
@@ -1525,6 +1699,28 @@ servidor le da su código de verdad al recibirla.
 
 Aparte de eso, la aplicación **se pone al día sola cada 5 minutos** cuando hay
 señal.
+
+---
+
+## Lo que queda en espera mientras no hay señal
+
+Hay tres cosas que **se hacen en el teléfono al momento pero que el servidor todavía no
+sabe**. Mientras no suban, el teléfono te enseña lo que tú hiciste, no lo que el
+servidor tiene:
+
+1. **Borrar una ruta que salió del tablero.** Las facturas vuelven a su zona del
+   tablero, pero **hasta que suba el borrado y baje el tablero salen en «Sin colocar»**,
+   no en su zona. No se han perdido. Con señal, se colocan solas donde estaban.
+2. **Quitar una parada de una ruta planificada** («Quitar de ruta»). El pedido sale de
+   la hoja y vuelve a disponibles al momento; si la ruta venía del tablero, su factura
+   regresa a la zona **cuando suba el cambio**. Hasta entonces puede verse en «Sin
+   colocar».
+3. **Completar una ruta.** El teléfono la enseña como completada, pero eso todavía no
+   confirma el cierre en el servidor: los estados de las paradas suben primero y el
+   cierre después. Si el servidor rechaza una parada, **el cierre queda en la bandeja
+   «Rechazados, esperando a una persona»** con su motivo, y la ruta no se completa en
+   el servidor hasta que decidas con **«Reintentar»** o **«Descartar»** (en la web, en
+   cambio, lo que se guardó vale). Ver [Si algo falla](5-si-algo-falla.md).
 
 ---
 
@@ -1677,6 +1873,21 @@ Esa parte no bajó. **No es que no haya datos: es que no están aquí.**
 
 Casi siempre el motivo de fondo es **haber trabajado con datos viejos**. Trae el día
 más a menudo.
+
+### Si el rechazado es el cierre de una ruta
+
+Cuando completas una ruta, la hoja de paradas sube **entera**. Si el servidor rechaza
+una sola parada, el cierre de esa ruta aparece aquí con el motivo literal («<id> (ese
+pedido no va en esta ruta)») y **la ruta no se completa en el servidor hasta que
+decidas**, aunque el teléfono ya te la enseñe como completada. Las demás rutas siguen
+subiendo.
+
+- **«Reintentar»** manda el mismo cierre otra vez. Sirve si el motivo ya no se da.
+- **«Descartar»** es una decisión expresa: el cierre queda como descartado y no vuelve.
+  Úsalo sólo si ese cierre ya no tiene sentido; si no, corrige la hoja desde la web.
+
+En la **web** es distinto: si el servidor guarda unas paradas y rechaza otras, lo
+guardado vale y la ruta se puede completar. En el teléfono, no.
 
 ---
 
@@ -1867,6 +2078,13 @@ Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
    trae el día.
 6. **Si no tiene coordenadas de entrega**, no entra en el Tablero ni en «Pedidos
    sin ruta». Se ve en Pedidos, marcado.
+7. **Si no tiene el domicilio cobrado o cotizado.** A las rutas nuevas, al Tablero
+   («Sin colocar») y al recuento de «Pedidos sin ruta» del Panel sólo llega la factura
+   que **cuadra**, con el **domicilio cobrado** (importe mayor que cero en la factura)
+   y **cotizado en Entrega**. Un pedido al que le falte una de las tres sigue
+   existiendo —se ve en Pedidos— pero no se ofrece para repartir. No es un fallo: se
+   arregla cobrando o cotizando en Entrega. Ver
+   [Las reglas del reparto](las-reglas-del-reparto.md).
 
 ---
 
@@ -1890,12 +2108,61 @@ Por orden de probabilidad:
 | **«La zona «Centro» no tiene camión previsto, y sin camión no se arma su ruta»** | El cajón se queda abierto. Toca **«Camión previsto»** y elige uno. Vuelve a armar |
 | **«Se requiere un vehículo para crear la ruta»** | Lo mismo, pero en el asistente: paso 3 |
 | **«La columna no tiene ningún pedido que se pueda repartir hoy»** | Debajo te dice por qué se cayó cada uno. Casi siempre es factura |
-| **«En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen…»** | Esos pedidos no van hoy. Quítalos y arma con el resto |
-| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: X-2992 (ya va en la ruta RT-20260922-003)…»** | Alguien se te adelantó, o el pedido cambió. Quítalo y vuelve |
+| **«En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Esos pedidos no van hoy: la factura no existe, no está cotejada o cambió. Quítalos y arma con el resto |
+| **«En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen: PTB25-261005-1480…»** | La factura de esos pedidos no trae importe de domicilio. No van hoy. Quítalos |
+| **«No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1480…»** | Entrega todavía no le puso costo a ese domicilio. Hay que cotizarlo allí; mientras tanto, quítalos |
+| **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión se dio de baja. Elige otro, o actívalo en Vehículos si ha vuelto |
+| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Alguien se te adelantó, o el pedido cambió. Quítalo y vuelve |
 | **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Saca pedidos o cambia de camión |
 | **«Las coordenadas del punto de partida son requeridas»** | La sucursal no tiene almacén con punto. Se arregla en Almacenes |
 | **«Esta sucursal no tiene ningún almacén con ubicación»** | Botón **«Poner el almacén»** |
 | **«Esta sucursal no tiene ningún vehículo dado de alta»** | Botón **«Agregar el primer vehículo»** |
+| **«Los vehículos de esta sucursal están inactivos o en el taller…»** | Hay camiones, pero ninguno se puede ofrecer: actívalo o sácalo del taller en Vehículos |
+
+Y si lo que echas en falta son **pedidos** en la lista del asistente: sólo trae lo
+facturado que cuadra, con el domicilio cobrado y cotizado. Lee
+[Un pedido no aparece](#un-pedido-no-aparece) antes de buscar un error.
+
+---
+
+## «No me deja colocar un pedido en una zona»
+
+Al arrastrar una tarjeta (o con «Mandar a una zona»), la tarjeta se queda donde estaba y
+sale uno de estos motivos:
+
+| El aviso | Qué significa |
+|---|---|
+| **«No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.»** | La factura no cobró domicilio. No se coloca |
+| **«No se puede asociar al tablero: primero cotiza el domicilio del pedido.»** | Falta el costo de Entrega. Cotízalo allí y vuelve |
+| **«Ese pedido ya se entregó»** | Ya se repartió |
+| **«Ese pedido ya está en una ruta»** | Se lo llevó otra ruta |
+
+En la APK y el escritorio sale **al momento**, no horas después: el aparato lo dice
+antes de colocar.
+
+---
+
+## «No me deja quitar una parada de la ruta»
+
+El botón **«Quitar de ruta»** sólo sale en una ruta **planificada**. Si el servidor lo
+rechaza, lo dice con su motivo:
+
+| El aviso | Qué hacer |
+|---|---|
+| **«Sólo se pueden retirar paradas de una ruta planificada»** | La ruta ya salió o ya está completada. En una en curso, marca esa parada como devuelta o cancelada al completarla |
+| **«El pedido no pertenece a una ruta planificada o ya fue retirado»** | Alguien (o tú mismo desde otro aparato) ya la quitó. Mira la ruta otra vez |
+
+---
+
+## «No me deja borrar un camión»
+
+> «No se puede eliminar este vehículo porque tiene rutas asociadas, incluso
+> históricas. Márcalo como inactivo para impedir que se use en nuevas rutas.»
+
+Un camión con rutas —aunque sean del histórico— no se borra. Abre su ficha con
+**«Editar»**, apaga el interruptor **«Vehículo activo»** y guarda: la tarjeta pasa a
+llevar la insignia **«Inactivo»** y deja de ofrecerse en las rutas nuevas, sin perder su
+historial.
 
 ---
 
@@ -1950,6 +2217,11 @@ que una persona decida.
 Te lo dice ahí mismo, con el motivo de verdad: «Ese pedido ya va en otra ruta». Haz
 lo que diga y repite el gesto.
 
+**Al cerrar una ruta, si el servidor guarda unas paradas y rechaza otras, lo guardado
+vale.** El aviso te dice cuántas se guardaron y por qué no las demás («Se guardaron 1
+de las 2 paradas de esta hoja. 1 no se pudieron guardar: … (ese pedido no va en esta
+ruta).»), y la ruta se puede completar. Si no se guardó **ninguna**, no se completa.
+
 ### En la APK y el escritorio
 
 Van a la bandeja **«Rechazados, esperando a una persona»**, dentro del cajón de
@@ -1959,6 +2231,11 @@ Van a la bandeja **«Rechazados, esperando a una persona»**, dentro del cajón 
 > aquí con su motivo hasta que alguien decida.»
 
 Ahí tienes **«Reintentar»** y **«Descartar»**.
+
+**Al cerrar una ruta es distinto que en la web:** la hoja sube entera. Si el servidor
+rechaza una parada, el cierre de esa ruta queda aquí, con su motivo, y **la ruta no se
+completa hasta que decidas** con «Reintentar» o «Descartar». Las demás rutas siguen
+subiendo.
 
 La pantalla de **Sincronización** enseña los rechazos de **todos** los aparatos,
 pero desde ahí sólo se miran: los botones están en el cajón del aparato.
@@ -2473,8 +2750,10 @@ ahorra la mitad de los «no me deja».
 Un pedido que no está facturado **no entra en una ruta**. No es un capricho de la
 aplicación: lo que se carga tiene que ser lo que se cobró.
 
-Un pedido puede llevar una de estas marcas. Las cuatro primeras **impiden**
-repartirlo hoy; la quinta no:
+Y no basta con que haya factura: tiene que **cuadrar** con ella. Si la factura cambió
+respecto a lo pedido, ese pedido tampoco sube hoy.
+
+Un pedido puede llevar una de estas marcas. **Las cinco impiden repartirlo hoy**:
 
 | Marca | Qué quiere decir | ¿Se puede repartir? |
 |---|---|---|
@@ -2482,10 +2761,35 @@ repartirlo hoy; la quinta no:
 | **«Ya va en otra ruta»** | Se lo llevó otra ruta, quizá desde otro aparato | **No** |
 | **«Sin cotejar»** | No se sabe si la factura cuadra. **No es «cuadra»: es «no se sabe»** | **No** |
 | **«Sin factura»** | No hay nada que llevar | **No** |
-| **«Cambió en la factura»** | Se facturó distinto de como se pidió | **Sí**, pero el peso ya no es el que era |
+| **«Cambió en la factura»** | Se facturó distinto de como se pidió | **No**: la ruta lo descarta con «cambió en la factura» |
 
 Un pedido puede llevar **varias marcas a la vez**: archivado y sin facturar es las
 dos cosas.
+
+### Y además: el domicilio tiene que estar cobrado y cotizado
+
+El domicilio ahora es un servicio que se cobra, y dejar entrar cualquier pedido sería
+repartir sin cobrar. Por eso, **para entrar en una ruta nueva, y para colocarse en una
+zona del Tablero, un pedido tiene que cumplir las tres a la vez**:
+
+1. **Facturado y que cuadre** con la factura (lo de arriba).
+2. **Con el domicilio cobrado**: el importe de domicilio de la factura es **mayor que
+   cero**.
+3. **Cotizado en Entrega**: el repartidor ya le puso el costo del domicilio.
+
+Lo que no cumple **no se ofrece** en la lista de disponibles de Rutas, y si se intenta
+meter igualmente **se rechaza diciendo cuál es**, por su conduce. Los mensajes están en
+[Cuando algo sale mal](cuando-algo-sale-mal.md#no-me-deja-armar-la-ruta).
+
+**Un pedido sin cotizar o sin cobro de domicilio no está «mal»: está pendiente.** Se
+arregla cobrando o cotizando donde toca (Entrega), y entonces aparece solo.
+
+### El conduce
+
+El **conduce** es el **número de operación de la factura**. No es un dato aparte: es el
+mismo número con el que ya se busca un pedido. Con él se identifica cada parada de una
+ruta, y también cada rechazo («Conduce: PTB25-261005-1480»). Un cobro a domicilio que
+sale como conduce se identifica con ese número.
 
 **Lo que no se puede repartir no se esconde: se marca.** Sigue viéndose en la
 pantalla, con el motivo escrito. Así nadie pierde de vista un pedido sin saber por
@@ -2511,10 +2815,14 @@ Desde el Tablero, el aviso es literalmente éste:
 Desde el asistente, el servidor contesta: **«Se requiere un vehículo para crear la
 ruta»**.
 
-Por qué se bloquea aquí y en cambio otros avisos dejan seguir: **este hueco se
-tapa con un gesto, en la misma pantalla donde sale el "no"**. Dos toques en
-«Camión previsto» y ya está. Los avisos que no bloquean son los que habría que ir
-a arreglar cliente a cliente en otro sitio.
+Por qué se bloquea aquí: **este hueco se tapa con un gesto, en la misma pantalla donde
+sale el "no"**. Dos toques en «Camión previsto» y ya está.
+
+**Y el camión tiene que estar activo y fuera del taller.** Un camión «Inactivo» (dado
+de baja) o en mantenimiento no se ofrece para rutas nuevas, y si se intenta asignar a
+mano el servidor contesta **«El vehículo está inactivo y no se puede asignar a una
+ruta»**. Los camiones dados de baja se siguen viendo en filtros e informes, para que las
+rutas que ya hicieron sigan diciendo en qué camión fueron.
 
 Y el motivo de fondo: sin camión, la ruta sale con su `516.5 kg` y su `$2.99` y
 **no hay nada contra lo que contrastar esos números**. Un número creíble que no
@@ -2611,6 +2919,27 @@ se pudo guardar».
 
 Y un apunte rechazado **no se reintenta solo y no se borra**: se queda a la vista
 con su motivo hasta que una persona decida.
+
+---
+
+## 11. Un camión con rutas no se borra: se pone «Inactivo»
+
+Un camión que tiene rutas —**aunque sean del histórico**— no se puede eliminar: el
+servidor lo rechaza para no perder qué camión hizo cada reparto. Para dejar de usarlo
+se apaga el interruptor **«Vehículo activo»** de su ficha, y la tarjeta pasa a llevar la
+insignia **«Inactivo»**. Sólo se borra de verdad un camión que nunca se usó.
+
+---
+
+## 12. Una ruta se puede deshacer entera o parada a parada, mientras no salga
+
+- **Una parada** se saca de una ruta **planificada** con **«Quitar de ruta»** (con una
+  pregunta antes). Una ruta en curso o completada no lo permite.
+- **La ruta entera** se borra mientras no esté completada. Una completada es histórico.
+
+En los dos casos el pedido vuelve a la lista de disponibles y, **si la ruta nació del
+Tablero, la factura vuelve a su zona**: no se pierde la relación, y se puede volver a
+planificar sin recrear nada.
 #@ FICHERO comun/las-tres-formas.md
 # Las tres formas de la aplicación
 
@@ -3368,8 +3697,12 @@ queda por repartir, cuántos camiones están fuera y si falta algo por configura
 
 Detalles que hay que saber:
 
-- **«Pedidos sin ruta»** cuenta los pedidos que tienen coordenadas de entrega y
-  están facturados (cuadre o haya cambiado). Un pedido sin coordenadas no entra.
+- **«Pedidos sin ruta»** cuenta los pedidos que **hoy se pueden meter en una ruta**: de
+  PEDIDO, sin ruta, con coordenadas de entrega, con la factura **que cuadra**, con el
+  **domicilio cobrado** (importe mayor que cero en la factura) y **cotizado en
+  Entrega**. Es la misma cuenta que la lista de disponibles al armar una ruta, así que
+  los dos números coinciden. Un pedido sin coordenadas, con la factura cambiada, sin
+  cobro de domicilio o sin cotizar no entra.
 - **«Entregados hoy»** usa el **reloj del aparato**, no el del servidor. Si el
   reloj del teléfono está mal, este número está mal.
 - **«Vehículos»** saca el camión de la **ruta**, no del pedido.
@@ -3381,8 +3714,9 @@ Los kilos de esta pantalla van **redondeados y sin decimales**: «860 kg».
 ### «Pedidos sin ruta» del Panel no es «Sin colocar» del Tablero
 
 Son dos preguntas parecidas con dos respuestas distintas, y **no tienen por qué
-coincidir**. El Tablero pide además que el pedido venga de PEDIDO, que requiera
-domicilio y que **no esté ya puesto en ninguna zona**.
+coincidir**. El Tablero pide además que el pedido requiera domicilio y que **no esté
+ya puesto en ninguna zona**; y «Sin colocar» enseña también los que «Cambió en la
+factura» (con su marca), que el Panel no cuenta.
 
 Con los datos del 25/09/2026 la diferencia en Santiago era de 183 pedidos. No es
 un fallo.
@@ -3527,6 +3861,12 @@ Al entrar, la pantalla **viene acotada a propósito** y lo dice:
 Debajo, el botón **«Ver todos los pedidos»**, que quita ese acotado.
 
 Si no encuentras un pedido, esto es lo primero que hay que probar.
+
+**Ojo con la última frase de la franja** («Lo que cambió también sube»): es del
+catálogo, y ya no vale para las rutas. Esta lista enseña lo que tiene factura; **a una
+ruta nueva o a una zona sólo entra lo que además cuadra con la factura, con el
+domicilio cobrado y cotizado**. Un pedido que cambió en la factura se ve aquí, pero la
+ruta lo descarta con «cambió en la factura».
 
 ---
 
@@ -3706,9 +4046,11 @@ Lleva, en este orden:
 3. **La banda de la factura**:
    - Verde: «Cuadra con la factura F-2992 de Ventra: se puede repartir tal cual.»
    - Ámbar: «Se facturó algo distinto de lo pedido (factura F-2992). Lo que va en
-     el camión es lo facturado.»
+     el camión es lo facturado.» **Pero un pedido que no cuadra no sube a una ruta**:
+     la ruta lo descarta con «cambió en la factura».
    - Gris: «Todavía no aparece facturado en Ventra.»
    - Y si la factura cobró domicilio: «La factura cobró 15.00 USD de domicilio.»
+     **Sin ese cobro, el pedido no se ofrece para una ruta ni para una zona.**
 4. **El bloque del domicilio** — «Distancia 4.35 km · Peso total 128.0 kg» y, a la
    derecha, el importe o **«Sin calcular todavía»**. Debajo:
    - Con precio: «El costo lo puso el repartidor desde Entrega. La distancia es
@@ -3748,12 +4090,23 @@ una.
 Y si alguno se quedó, en ámbar:
 
 > «No se pudieron mandar 2, y siguen marcados:»
-> `F-2992 · Ana: Ya va en otra ruta`
-> `X-3010 · Luis: Sin coordenadas de entrega`
+> `PTB25-261005-1480 · Ana: Ese pedido ya está en una ruta`
+> `PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.`
+
+Cada pedido sale por su **conduce**, que es el número de operación de la factura.
 
 Los motivos posibles: «No está en este aparato», «Es de otra sucursal», «Sin
-coordenadas de entrega», «Archivado en PEDIDO», «Ya va en otra ruta», «Sin
-cotejar», «Sin factura».
+coordenadas de entrega», «Archivado en PEDIDO», «Sin cotejar», «Sin factura», y los
+mismos «no» que da el servidor al colocar una tarjeta:
+
+- «Ese pedido ya se entregó»
+- «Ese pedido ya está en una ruta»
+- «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
+  registrado.»
+- «No se puede asociar al tablero: primero cotiza el domicilio del pedido.»
+
+**A una zona sólo se coloca lo que tiene el domicilio cobrado y cotizado.** Es la misma
+regla que para armar una ruta: ver [Tablero](tablero.md).
 
 **Los que sí fueron pierden la marca; los que no, se quedan marcados** para poder
 seguir trabajando con ellos.
@@ -4030,10 +4383,32 @@ dice qué se pierde:
 >
 > Lo que NO se borra son los pedidos ni sus resultados: sueltan esta ruta. Los
 > pendientes vuelven a la lista de disponibles; los entregados siguen entregados y
-> no se reparten otra vez. Y el camión se queda libre.»
+> no se reparten otra vez. Y el camión se queda libre.
+>
+> Si la ruta se armó desde una zona del tablero, las facturas vuelven a esa zona
+> cuando se sincronice el borrado (en la web, de inmediato). Mientras tanto, sin
+> señal, salen en «Sin colocar».»
 
 Con **«Sí, borrar «RT-20260928-004»»** y **«No, dejarla»**. **Cerrar el cajón sin
 contestar —la ✕, tocar fuera, Escape— es No.**
+
+#### Borrar una ruta que salió del tablero no deshace el tablero
+
+Una ruta que se armó con **«Armar la ruta de esta zona»** se acuerda de la zona de la
+que salió. Si la borras, **las facturas vuelven a esa zona** del tablero: no se pierde
+la relación y no hay que volver a crear la zona ni a repartir los pedidos a mano.
+Se pueden volver a planificar desde donde estaban.
+
+- **En la web** pasa en el acto: al volver al tablero, las facturas ya están en su
+  zona.
+- **En la APK y el escritorio, sin señal**, el borrado queda en espera y hasta que
+  suba **las facturas salen en «Sin colocar»**, no en su zona. En cuanto vuelve la
+  señal sube el borrado, baja el tablero y cada factura aparece donde estaba. No hay
+  que hacer nada para que vuelvan.
+- Si la ruta **no** salió del tablero, no hay zona a la que volver: sus pedidos
+  vuelven sólo a la lista de disponibles.
+- **Una ruta completada es histórico y no se borra**: el botón «Eliminar» ni
+  aparece.
 
 **Planificadas y en curso se pueden editar y eliminar**, incluso con cero
 paradas cargadas o con resultados provisionales. Una marca no completa la ruta.
@@ -4107,8 +4482,55 @@ almacén de salida, **«sin punto de partida»**.
 
 Se abre un cajón titulado **«Paradas y precio por cliente (3)»**. Por cada parada:
 su número, el cliente, la dirección de entrega, los renglones que se bajan ahí
-(«12× MALTA GUAJIRA»), el peso, los km en recta, el número de operación, y a la
-derecha **el importe en grande**: `$12.00` o **«sin cotizar»**.
+(«12× MALTA GUAJIRA»), el peso, los km en recta, el conduce (**«Conduce:
+PTB25-261005-1480»**), y a la derecha **el importe en grande**: `$12.00` o **«sin
+cotizar»**.
+
+**El conduce es el número de operación de la factura.** No hay otro dato aparte: con
+ese número se identifica cada parada aquí, en la hoja del cierre y en cualquier
+rechazo («Conduce: PTB25-261005-1480»). Si un cobro a domicilio te llega como
+conduce, ése es el número que buscas.
+
+En una ruta **planificada**, cada parada lleva además el botón **«Quitar de ruta»**
+(ver abajo). En una ruta en curso o completada ese botón no sale.
+
+### «Quitar de ruta» — sacar UNA parada sin borrar la ruta
+
+Sirve para cuando sobra un pedido en una ruta que todavía no ha salido: ya no hace
+falta eliminar la ruta entera y volver a armarla.
+
+1. En «Ver paradas», en la tarjeta de la parada, **«Quitar de ruta»**.
+2. **Pregunta antes**, en un cajón titulado **«Quitar de la ruta»**, con el cliente y su
+   conduce debajo («Casa Pérez · Conduce: PTB25-261005-1480»):
+
+   > «Casa Pérez sale de esta ruta y vuelve a pedidos disponibles. La ruta se queda
+   > con las demás paradas y su peso y su importe se recalculan sin él.
+   >
+   > Si la ruta se armó desde una zona del tablero, la factura regresa a esa zona
+   > cuando se sincronice (en la web, de inmediato).»
+
+3. **«Sí, quitar «Casa Pérez» de la ruta»** o **«No, dejarlo en la ruta»**. **Cerrar el
+   cajón sin contestar es No.**
+
+Lo que pasa al decir que sí:
+
+- La parada desaparece de la hoja, y el peso y el importe de la ruta se recalculan
+  sin ella.
+- **Los kilómetros de la ruta no se recalculan** («68.0 km (incl. regreso)» sigue siendo
+  el circuito que se midió al armarla) **y las demás paradas no se renumeran** (puede
+  quedar un hueco en la numeración). Lo que sí se recalcula es el peso y el importe.
+- **El pedido vuelve a la lista de pedidos disponibles** y puede ir en otra ruta.
+- **Si la ruta nació del tablero, la factura vuelve a su zona del tablero**, igual
+  que al borrar la ruta entera.
+- **En la web** se hace al instante. **En la APK y el escritorio, sin señal**, el
+  cambio se guarda en el aparato, queda en espera y **sube cuando vuelve la señal**;
+  hasta entonces la factura puede verse en «Sin colocar» y no en su zona.
+
+**Sólo en una ruta planificada.** Una ruta en curso o completada no lo permite. Si
+llega a pedirse (otro aparato la había iniciado ya), el servidor lo dice con su motivo:
+«Sólo se pueden retirar paradas de una ruta planificada» o «El pedido no pertenece a
+una ruta planificada o ya fue retirado». Para sacar un pedido de una ruta en curso, se
+marca como devuelto o cancelado en el cierre.
 
 ### «Recorrido» — el mapa
 
@@ -4174,15 +4596,22 @@ Con el botón **«Poner el almacén»**, que cierra el asistente y lleva a Almac
 
 ### Paso 3 — «Vehículo»
 
-**«Vehículo de la ruta»**, **obligatorio**. Se ofrecen **todos**, también los
-ocupados y los del taller, con su capacidad de nota: «1000 kg · en el taller»,
-«1000 kg · en ruta».
+**«Vehículo de la ruta»**, **obligatorio**. Se ofrecen los camiones de la sucursal que
+estén **activos y fuera del taller**, con su capacidad de nota: «1000 kg». Los que
+están en otra ruta salen igual, con la nota «1000 kg · en ruta», porque armar la ruta
+de mañana es justo lo que se hace mientras el camión está fuera.
 
-Si eliges uno del taller sale un **aviso, no un bloqueo**:
+**No se ofrecen los camiones «Inactivos»** (ver [Vehículos](vehiculos.md)) **ni los
+que están en mantenimiento.** Si un camión no te sale en la lista, mira primero en
+Vehículos si está inactivo o en el taller. Los camiones inactivos y los del taller
+**siguen viéndose** en el filtro «Rutas de un camión» de la lista de rutas y en los
+informes, porque las rutas que ya hicieron tienen que seguir diciendo en qué camión
+fueron.
 
-> «Camión 1 está marcado EN EL TALLER. La ruta se arma igual —tiene su capacidad y
-> su costo por km— pero ese camión no puede salir hoy. Si ya volvió, sácalo del
-> taller en Vehículos.»
+Si la ruta ya trae un camión que se dio de baja (por ejemplo, el «Camión previsto» de
+una zona), al armarla el servidor lo rechaza con:
+
+> «El vehículo está inactivo y no se puede asignar a una ruta.»
 
 Además: un nombre opcional («Nombre (el código se genera solo)») y la **«Fecha de
 entrega»**, que **arranca en hoy**.
@@ -4193,6 +4622,10 @@ Si no hay camiones:
   la ruta.»
 - «Esta sucursal no tiene ningún vehículo dado de alta. Los que hay son de otras
   sucursales, y un camión de otra sucursal no está donde sale esta ruta.»
+- «Los vehículos de esta sucursal están inactivos o en el taller, y a una ruta nueva
+  sólo se asigna un vehículo activo. Actívalo o sácalo del taller en Vehículos.»
+  Es el caso de una sucursal que **sí tiene camiones**, pero ninguno se puede
+  ofrecer.
 
 ### Paso 4 — «Pedidos de cliente (12)»
 
@@ -4216,8 +4649,31 @@ Los filtros:
 **Cuidado con «costo mín.»:** un pedido sin cotizar cuenta como cero, así que
 cualquier «costo mín.» mayor que cero lo deja fuera.
 
-**El cuadre con la factura no se puede cambiar**: siempre entra sólo lo que
-cuadra.
+#### Qué pedidos se ofrecen: lo facturado, cobrado y cotizado
+
+Esta lista **sólo trae pedidos que cumplen las tres cosas a la vez**. Los demás no se
+ofrecen, y no hay filtro que los haga salir:
+
+1. **Facturados y que CUADREN con la factura.** No basta con que haya factura: si la
+   factura cambió respecto a lo pedido («Cambió en la factura»), ese pedido tampoco
+   entra. En el camión sólo sube lo que cuadra con la factura.
+2. **Con el domicilio cobrado**: la factura trae un importe de domicilio **mayor que
+   cero**. El domicilio es un servicio que se cobra; sin cobro no se reparte.
+3. **Cotizados en Entrega**: el repartidor ya puso el costo del domicilio. (Un costo
+   de cero **sí** es un precio puesto; lo que no vale es que esté vacío.)
+
+El cuadre con la factura no se puede cambiar: siempre entra sólo lo que cuadra. Y los
+dos filtros del final («Si el pedido lleva entrega a domicilio» y «Si Entrega ya le
+puso costo de domicilio») siguen ahí, pero **sólo recortan lo que ya cumple las
+tres**: por ejemplo, «Sin cotizar» siempre deja la lista vacía, porque un pedido sin
+cotizar nunca se ofrece.
+
+**Por eso la lista puede salir corta**, sobre todo mientras Entrega no haya cotizado
+más domicilios. Con los datos del 07/10/2026, de 1.914 pedidos repartibles sólo 29
+cumplían las tres cosas. No es un fallo: lo que falta no se ha cobrado o no se ha
+cotizado, y se arregla cobrando o cotizando en Entrega, no en esta pantalla. El Panel
+(«Pedidos sin ruta») cuenta con este mismo criterio, y la mitad «Sin colocar» del
+Tablero pide también el domicilio cobrado y cotizado (ver [Tablero](tablero.md)).
 
 ### La barra de capacidad
 
@@ -4273,21 +4729,40 @@ comprueban en este orden:
 3. **«Una ruta se arma eligiendo pedidos ya existentes.»**
 4. **Pedidos que no pueden ir**, con el motivo de cada uno:
 
-   > «2 de los 12 pedidos elegidos no pueden ir en esta ruta: X-2992 (ya va en la
-   > ruta RT-20260922-003), X-3010 (sin coordenadas de entrega).»
+   > «2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya
+   > va en la ruta RT-20260922-003), PTB25-261005-1502 (sin coordenadas de entrega).»
 
    Los motivos posibles: «ya se entregó y no puede volver a un camión», «ya va en
    la ruta RT-…», «PEDIDO lo archivó», «sin coordenadas de entrega», «no vino de
    PEDIDO».
-5. **Facturación**:
+5. **Facturación** — lo que no cuadra con la factura. Cada pedido sale por su
+   conduce, con su motivo:
 
-   > «En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen: X-2992 (sin
-   > facturar), X-3010 (cambió en la factura), X-3011 (sin cotejar).»
-6. **Capacidad**:
+   > «En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen:
+   > PTB25-261005-1480 (sin facturar), PTB25-261005-1502 (cambió en la factura),
+   > PTB25-261005-1511 (sin cotejar).»
+6. **Domicilio cobrado** — la factura no trae importe de domicilio:
+
+   > «En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen:
+   > PTB25-261005-1480, PTB25-261005-1502.»
+7. **Domicilio cotizado** — Entrega todavía no le puso costo:
+
+   > «No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en
+   > Entrega: PTB25-261005-1480, PTB25-261005-1502.»
+
+   En los tres, **salen como mucho cinco pedidos** y, si hay más, acaba en «y 4
+   más.». Se nombran por el conduce (el número de operación de la factura).
+8. **Camión de baja**:
+
+   > «El vehículo está inactivo y no se puede asignar a una ruta.»
+9. **Capacidad**:
 
    > «Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»
 
    Igualar la capacidad exacta **sí** pasa.
+
+Son los mismos «no» con y sin señal: la APK y el escritorio los dicen antes de
+guardar la ruta, para que no te lleguen horas después a la bandeja de rechazados.
 
 ---
 
@@ -4304,6 +4779,10 @@ parada(s)».
 | **Solo lectura** | Ruta completada, botón «Ver cierre» | «La ruta ya está completada: así acabó cada parada. **Para corregir algo, hay que hacerlo en PEDIDO.**» |
 
 ### Qué se pregunta en cada parada
+
+Cada parada trae el cliente, su dirección y, debajo, su conduce (**«Conduce:
+PTB25-261005-1480»**), que es el número de operación de la factura: con él se cuadra
+lo que baja del camión contra el papel de quien lo recibe.
 
 Tres botones, y sólo uno a la vez:
 
@@ -4341,11 +4820,39 @@ Se recalcula con cada marca, en vivo:
 - **«Cerrar»**, o **«Salir sin guardar (3 sin guardar)»** si dejaste algo. **Se
   dice, no se bloquea.**
 - **«Guardar y completar»** guarda los resultados y después completa la ruta.
-  Mientras trabaja dice **«Guardando…»**. Si hay un rechazo, no la completa.
+  Mientras trabaja dice **«Guardando…»**. Si el servidor rechaza el cierre, no la
+  completa (ver [abajo](#si-el-servidor-guarda-unas-paradas-y-rechaza-otras)).
 
 Al guardar bien:
 
 Al guardar, los resultados de las paradas quedan registrados. Después la ruta pasa al Historial.
+
+### Si el servidor guarda unas paradas y rechaza otras
+
+Pasa cuando una parada de la hoja ya no pertenece a la ruta para el servidor: por
+ejemplo, la hoja trae 2 paradas, una se guarda y de la otra el servidor dice «ese
+pedido no va en esta ruta». **Cada forma lo maneja distinto**, y a propósito:
+
+- **En la web, lo guardado vale.** El servidor guarda las paradas buenas y rechaza las
+  otras, y la pantalla te lo dice con el motivo tal cual, en la franja de abajo:
+
+  > «Se guardaron 1 de las 2 paradas de esta hoja. 1 no se pudieron guardar:
+  > 8cb90608-76da-4fae-879d-126ff9ab4c3c (ese pedido no va en esta ruta).»
+
+  **La ruta se puede completar.** Lee el aviso: la parada rechazada no quedó marcada, y
+  hay que mirarla (su conduce está en la hoja). **Si no se guardó NINGUNA parada, es un
+  rechazo total y la ruta no se completa**: el aviso dice el motivo y la hoja se queda
+  como estaba para corregirla.
+- **En la APK y el escritorio, la hoja sube entera o no sube.** Sin señal, la
+  aplicación puede enseñar la ruta como completada mientras sus apuntes siguen
+  pendientes de subir: eso todavía no confirma el cierre en el servidor. Al volver la
+  conexión, los estados de las paradas se entregan antes que el cierre. Si el servidor
+  rechaza una parada, el cierre de esa ruta **queda en la bandeja «Rechazados, esperando a una
+  persona»** (dentro de «Entregar el día»), con su motivo, y **la ruta no se completa
+  en el servidor hasta que alguien decida ahí**: **«Reintentar»** vuelve a enviar el
+  mismo apunte, y **«Descartar»** es una decisión expresa que deja la fila como
+  descartada. Las demás rutas siguen subiendo. Revisa el motivo con conexión y, si
+  hace falta, corrige la hoja desde la web.
 
 ### En una ruta ya completada
 
@@ -4370,19 +4877,6 @@ Lleva: sucursal y vehículo, el día, cuántos pedidos, el peso, y una tabla de
 para ir marcando a mano—, con su fila de **«Total»**, los dos pesos («Peso de los
 productos» y «Peso de los pedidos») con su explicación, y las dos firmas: **«Sacó
 del almacén»** y **«Recibió (chofer)»**.
-
-#### Si un cierre de Android o Windows queda rechazado
-
-Sin señal, la aplicación puede mostrar la ruta completada mientras sus apuntes
-siguen pendientes de subir. Eso todavía no confirma el cierre en el servidor.
-Al volver la conexión, los estados se entregan antes que el cierre: si el servidor
-rechaza la hoja, se retiene el cierre de esa ruta y se conserva el motivo en la
-bandeja. Las demás rutas pueden seguir subiendo.
-
-Revisa el rechazo con conexión y corrige la hoja desde la web si hace falta. En la
-bandeja, **Reintentar** vuelve a enviar el mismo apunte; **Descartar** es una decisión
-expresa y conserva la fila como descartada. No des por cerrado el servidor mientras
-esa revisión siga pendiente.
 
 ## Post-despacho — al volver
 
@@ -4420,16 +4914,19 @@ El tope es de **25 paradas**, y lo que se queda fuera se dice en el propio mensa
 
 ## Lo que Rutas NO hace
 
-- **No se puede quitar una parada de una ruta.** No hay ese botón. Para sacar un
-  pedido de una ruta hay que **eliminar la ruta entera** o **marcarlo como no
-  entregado en el cierre**; en los dos casos el pedido vuelve a estar disponible.
+- **Una parada sólo se quita de una ruta planificada.** Con **«Quitar de ruta»**, en
+  «Ver paradas». En una ruta en curso no hay ese botón: para sacar un pedido hay que
+  **marcarlo como devuelto o cancelado en el cierre** o **eliminar la ruta entera**;
+  en una completada no se toca nada (es histórico). En todos los casos el pedido
+  vuelve a estar disponible.
 - **No se pueden reordenar las paradas a mano** desde esta pantalla.
 - **No se le puede cambiar el camión a una ruta ya armada.** No hay ese botón, ni
   aquí ni en Vehículos. Si todavía no ha salido: elimínala, cámbiale el **«Camión
   previsto»** a la zona en el Tablero y vuelve a armarla. Si ya está «En curso», se
   termina con el camión que lleva.
 - **No se puede eliminar una ruta completada.** El botón «Eliminar» ni siquiera
-  aparece. Y las que sí se pueden, **preguntan antes**: no se borra de un toque.
+  aparece: es histórico. Y las que sí se pueden, **preguntan antes**: no se borra de
+  un toque.
 - **No se puede corregir el cierre de una ruta completada.** Hay que hacerlo en
   PEDIDO.
 - **No se teclean paradas a mano.**
@@ -4562,7 +5059,9 @@ tablero de «todas».
 ## Las dos mitades
 
 - **Izquierda: «Sin colocar (308)»** — los pedidos que todavía no están en ninguna
-  zona. El número cuenta **pedidos**.
+  zona. El número cuenta **pedidos**. Sólo salen los que **llevan domicilio, con el
+  domicilio cobrado en la factura y ya cotizado en Entrega** (ver
+  [Qué se puede colocar](#qué-se-puede-colocar-en-una-zona)).
 - **Derecha: las zonas** — «Centro», «Vista Alegre», «Carretera»… Las pones tú,
   con los nombres que se usen en tu sucursal.
 
@@ -4634,7 +5133,8 @@ De arriba abajo:
    Si el pedido no tiene costo, en su sitio no sale nada.
 5. **Las marcas**, si las tiene: «Archivado en PEDIDO», «Ya va en otra ruta»,
    «Sin cotejar», «Sin factura» (las cuatro en rojo) y «Cambió en la factura» (en
-   ámbar). Ver [Las reglas del reparto](../las-reglas-del-reparto.md).
+   ámbar). Ver [Las reglas del reparto](../las-reglas-del-reparto.md). **Ninguna de
+   las cinco entra en la ruta**: en el camión sólo sube lo que cuadra con la factura.
 6. **Si el cliente repite hoy**: «2 pedidos de este cliente hoy». **Las tarjetas
    no se juntan**: sólo se avisa, para que los metas en la misma zona a propósito.
 
@@ -4695,6 +5195,44 @@ Si todavía no hay zonas:
 
 ---
 
+## Qué se puede colocar en una zona
+
+A una zona sólo se coloca una factura **con el domicilio cobrado y cotizado**. Son las
+mismas condiciones de la lista de disponibles de Rutas, y se piden por una razón: el
+domicilio es un servicio que se cobra, y una zona entera no se debe preparar con
+facturas que luego la ruta no va a aceptar.
+
+1. **Domicilio cobrado**: la factura trae un importe de domicilio **mayor que cero**.
+2. **Domicilio cotizado**: Entrega ya le puso el costo.
+3. **Que no se haya entregado ya ni vaya en otra ruta.**
+
+Lo que no cumple **no sale en «Sin colocar»**. Y si se intenta colocar igualmente
+—arrastrándolo, o desde «Mandar a una zona» en Pedidos—, **se rechaza con un mensaje
+claro** y la tarjeta se queda donde estaba:
+
+| Mensaje | Qué pasa |
+|---|---|
+| «No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.» | La factura no cobró domicilio |
+| «No se puede asociar al tablero: primero cotiza el domicilio del pedido.» | Entrega todavía no le puso costo |
+| «Ese pedido ya se entregó» | Ya se repartió |
+| «Ese pedido ya está en una ruta» | Se lo llevó otra ruta |
+
+**Es lo mismo con señal y sin ella.** En la APK y el escritorio el aparato lo dice en
+el momento, antes de colocar, para que el «no» no te llegue horas después a la
+bandeja de rechazados con la zona ya preparada.
+
+**La factura que «Cambió» sí se puede colocar, pero no sube.** Sale en «Sin colocar» con
+su marca ámbar, y si la pones en una zona, **al armar la ruta se descarta** con el
+motivo «cambió en la factura» y se queda en la zona, marcada. En el camión sólo sube lo
+que cuadra con la factura.
+
+Si te falta un pedido que esperabas, probablemente es éste el motivo: **no se ha
+cobrado o no se ha cotizado el domicilio**. Se arregla cobrando o cotizando en
+Entrega, no aquí. (Con los datos del 07/10/2026, de 1.914 pedidos repartibles sólo 29
+cumplían las tres condiciones.)
+
+---
+
 ## Crear y gestionar una zona
 
 - **Crearla**: el recuadro con el `+` al final de la tira dice **«Columna»**; en el
@@ -4716,10 +5254,14 @@ ruta.
 
 - La primera opción siempre es **«Sin camión»**.
 - Cada camión sale con su capacidad y su matrícula: «1.000 kg · P-123456».
-- Un camión en el taller sale con **«EN EL TALLER»** en ámbar, y **se puede elegir
-  igual**: es aviso, no bloqueo.
-- Si la sucursal no tiene ningún camión bajado en el aparato, lo dice: «Esta
-  sucursal no tiene ningún vehículo en este aparato.»
+- **Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» o en
+  mantenimiento no se ofrece para rutas nuevas (ver [Vehículos](vehiculos.md)). Si
+  un camión no te sale, mira allí por qué.
+- Si la sucursal no tiene ninguno que se pueda ofrecer, lo dice: «Esta sucursal no
+  tiene vehículos activos y fuera del taller en este aparato.»
+- Si el camión que ya tenía la zona se dio de baja después, la zona lo sigue
+  nombrando, pero **al armar la ruta el servidor no lo acepta**: «El vehículo está
+  inactivo y no se puede asignar a una ruta.» Elige otro en «Camión previsto».
 
 ### Borrar una zona
 
@@ -4752,6 +5294,21 @@ trabajo de nadie.
 **El orden que va en la ruta es el que dejaste en la zona.** La aplicación no lo
 reordena.
 
+### Si borras la ruta, las facturas vuelven a su zona
+
+Una ruta armada desde una zona se acuerda de dónde salió. Si la **eliminas** (en
+Rutas, sólo mientras no esté completada), **las facturas vuelven a la zona** del
+tablero: no se pierde la relación y no hay que volver a crear la zona ni a repartir los
+pedidos. Lo mismo si quitas **una sola parada** con «Quitar de ruta»: esa factura
+vuelve a su zona.
+
+- **En la web** pasa al instante.
+- **En la APK y el escritorio, sin señal**, hasta que suba el borrado y baje el
+  tablero esas facturas **salen en «Sin colocar»** y no en su zona. Con señal se
+  colocan solas donde estaban.
+
+Una ruta **completada** es histórico y no se borra, así que sus facturas no vuelven.
+
 ### Los dos «no» del armado
 
 **1. La zona no tiene camión.** No se arma, y el cajón **se queda abierto** para
@@ -4769,11 +5326,14 @@ que le pongas el camión ahí mismo:
 
 > «La columna no tiene ningún pedido que se pueda repartir hoy»
 
-Y debajo, uno por uno, por qué se cayó cada pedido:
+Y debajo, uno por uno, por qué se cayó cada pedido. Cada uno sale por su conduce (el
+número de operación de la factura):
 
 ```
-SC06-1257 · DAYLIS PÉREZ: Ya va en otra ruta
-X-2992 · ANA MARTÍNEZ: Sin cotejar
+PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
+PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
 
 ---
@@ -4861,12 +5421,31 @@ tiene ruta, igual que uno libre.
 Si el taller y una ruta abierta se contradicen, **gana el taller** en la insignia,
 y justo debajo se explica con el nombre de la ruta.
 
+### «Inactivo» no es un quinto estado
+
+Un camión puede estar **«Disponible» e «Inactivo» a la vez**, y por eso la insignia
+**«Inactivo»** sale **aparte**, debajo del nombre y de la insignia de estado (con un
+borde y un icono de prohibido, sin relleno). Los estados de arriba dicen **en qué anda
+el camión** (libre, con ruta, fuera, en el taller); «Inactivo» dice que **se dio de
+baja sin borrarlo**:
+
+- **No se ofrece en rutas nuevas**: ni en el paso «Vehículo» del asistente «Nueva
+  Ruta», ni en el «Camión previsto» de una zona del Tablero.
+- **Sigue viéndose donde ya tiene historia**: en el filtro «Rutas de un camión», en
+  los informes y en las rutas que ya hizo, que siguen diciendo en qué camión fueron.
+- **Se puede volver a activar** cuando haga falta, en su ficha (interruptor «Vehículo
+  activo»).
+
+Es la salida para un camión que ya se usó: **un camión con rutas —aunque sean del
+histórico— no se puede borrar**, se inactiva.
+
 ---
 
 ## Qué se ve en cada tarjeta
 
 - El **nombre** y debajo la **placa**.
 - La **insignia de estado** a la derecha.
+- Si el camión está dado de baja, la insignia **«Inactivo»**, debajo.
 - El **tipo** del camión.
 - **«Cálculo domicilio · $1.65/km»** si es el que se usa para calcular el
   domicilio. Si no lo es, en su sitio sale el botón **«Usar para domicilio»**.
@@ -4902,13 +5481,22 @@ Se arregla con el botón **«Marcar disponible»**.
 Se abre un cajón titulado **«Borrar «Camión 1»»**, igual que al borrar una zona del
 tablero o un almacén, y dice **qué se pierde**:
 
-> «El camión se va de la flota. Las rutas y los pedidos que lo llevaban puesto NO se
-> borran —el histórico de lo repartido se queda— pero se quedan sin camión, y hay que
-> ponerles otro. Y el camión hay que volver a darlo de alta a mano, con su placa, su
-> capacidad y su costo por km.»
+> «El camión se va de la flota y hay que volver a darlo de alta a mano, con su placa,
+> su capacidad y su costo por km.
+>
+> Un camión que ya tiene rutas —aunque sean del histórico— NO se puede borrar: el
+> servidor lo rechaza para no perder qué camión hizo cada reparto. Si ese es el caso,
+> no lo borres: ábrelo con «Editar» y márcalo como inactivo. Así deja de ofrecerse en
+> las rutas nuevas y su historial se queda intacto.»
 
 Con **«Sí, borrar «Camión 1»»** y **«No, dejarlo»**. **Cerrar el cajón sin
 contestar —la ✕, tocar fuera, Escape— es No.**
+
+**Sólo se borra un camión que nunca se usó** (sin ninguna ruta, ni siquiera de las
+completadas). Si tiene rutas y le das a «Sí», el servidor no lo borra y lo dice:
+
+> «No se puede eliminar este vehículo porque tiene rutas asociadas, incluso
+> históricas. Márcalo como inactivo para impedir que se use en nuevas rutas.»
 
 ---
 
@@ -4919,6 +5507,7 @@ Se abre con **«Agregar Vehículo»** o con **«Editar»**.
 | Campo | Ejemplo o valor por defecto |
 |---|---|
 | **«Nombre del Vehículo *»** | «Ej: Camión #1, Furgoneta Azul». Obligatorio |
+| **«Vehículo activo»** | Interruptor, **encendido** por defecto. Ver abajo |
 | **«Tipo»** | Desplegable. Al elegir uno, **hereda su costo por km** |
 | **«Placa (opcional)»** | «ABC-1234». Se pasa a mayúsculas solo |
 | **«Capacidad Máx. (kg)»** | 1000 |
@@ -4926,6 +5515,23 @@ Se abre con **«Agregar Vehículo»** o con **«Editar»**.
 | **«Costo por km (USD)»** | «1.65» |
 | **«Usar este vehículo para calcular el domicilio»** | Desmarcada. «Solo un vehículo por TIPO.» |
 | **«Notas (opcional)»** | Texto libre |
+
+### El interruptor «Vehículo activo»
+
+Está justo debajo del nombre. Dice, según esté:
+
+- Encendido: «Aparece en los selectores para crear rutas.»
+- Apagado: «Se oculta de los selectores de rutas nuevas.»
+
+**Apagarlo es dar el camión de baja sin borrarlo.** Es lo que hay que hacer con un
+camión que se vende, se rompe del todo o ya no se usa, pero que **tiene rutas hechas**:
+borrarlo está prohibido para que el histórico siga diciendo qué camión repartió cada
+cosa. Al guardar («Actualizar»), la tarjeta pasa a llevar la insignia **«Inactivo»**.
+Para recuperarlo, vuelve a **«Editar»** y enciéndelo.
+
+**No confundir con «En mantenimiento».** El mantenimiento es un camión que **va a
+volver** (está en el taller): tampoco se ofrece para rutas nuevas mientras esté ahí, y
+al volver se pasa a «Disponible». «Inactivo» es una baja que no cuenta con él.
 
 ### El desplegable «Estado del vehículo» sólo tiene DOS opciones
 
@@ -5058,6 +5664,8 @@ pág.»** o **«100 / pág.»**, y las flechas «Primera», «Anterior», «Sigu
 
 - **No funciona sin conexión.** Es la diferencia con Pedidos, Clientes o Rutas.
 - **No se marca «En ruta» a mano.**
+- **No se borra un camión que tiene rutas**, ni siquiera históricas: se pone
+  «Inactivo».
 - **No se le cambia el camión a una ruta ya armada.** Eso no está aquí ni en Rutas:
   hay que eliminar la ruta y volver a armarla.
 - **El costo por kilómetro no se pone en la ficha del camión**: sale del **tipo**
@@ -6047,7 +6655,7 @@ arrastra.
 | Armar una ruta sin usar el Tablero | **Rutas** | [ir](../apk/3-tareas.md#armar-una-ruta-sin-usar-el-tablero) | [ir](../web/2-tareas.md#armar-una-ruta-sin-usar-el-tablero) |
 | Filtrar la lista de rutas | **Rutas** | — | [ir](../web/2-tareas.md#filtrar-la-lista-de-rutas) |
 | Eliminar una ruta | **Rutas** | [ir](../apk/3-tareas.md#eliminar-una-ruta) | [ir](../web/2-tareas.md#eliminar-una-ruta) |
-| Sacar un pedido de una ruta | **Rutas** | [ir](../apk/3-tareas.md#sacar-un-pedido-de-una-ruta) | [ir](../web/2-tareas.md#sacar-un-pedido-de-una-ruta) |
+| Sacar un pedido de una ruta planificada («Quitar de ruta») | **Rutas** | [ir](../apk/3-tareas.md#sacar-un-pedido-de-una-ruta) | [ir](../web/2-tareas.md#sacar-un-pedido-de-una-ruta) |
 | **Cambiar el camión de una ruta** | **Rutas** | [no se puede: así se hace](../apk/3-tareas.md#cambiar-el-camión-de-una-ruta) | [no se puede: así se hace](../web/2-tareas.md#cambiar-el-camión-de-una-ruta) |
 
 ### Vehículos — **necesita conexión siempre, también en el teléfono**
@@ -6057,7 +6665,8 @@ arrastra.
 | Dar de alta un camión | **Vehículos** | [ir](../apk/3-tareas.md#dar-de-alta-un-camión) | [ir](../web/2-tareas.md#dar-de-alta-un-camión) |
 | Decir qué camión calcula el domicilio | **Vehículos** | [ir](../apk/3-tareas.md#decir-qué-camión-calcula-el-domicilio) | [ir](../web/2-tareas.md#decir-qué-camión-calcula-el-domicilio) |
 | Marcar un camión en el taller | **Vehículos** | [ir](../apk/3-tareas.md#marcar-un-camión-en-el-taller) | [ir](../web/2-tareas.md#marcar-un-camión-en-el-taller) |
-| Dar de baja un camión | **Vehículos** | [ir](../apk/3-tareas.md#dar-de-baja-un-camión) | [ir](../web/2-tareas.md#dar-de-baja-un-camión) |
+| Dar de baja un camión (si nunca se usó) | **Vehículos** | [ir](../apk/3-tareas.md#dar-de-baja-un-camión) | [ir](../web/2-tareas.md#dar-de-baja-un-camión) |
+| Dejar un camión inactivo (si ya tiene rutas) | **Vehículos** | [ir](../apk/3-tareas.md#dejar-un-camión-inactivo) | [ir](../web/2-tareas.md#dejar-un-camión-inactivo) |
 | Definir los tipos de camión y su costo por km | **Vehículos** | [ir](../apk/3-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km) | [ir](../web/2-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km) |
 
 ### Almacenes — **necesita conexión siempre, y se guarda en Accesos**
@@ -6126,7 +6735,8 @@ de las preguntas.**
 | Clientes | **PEDIDO** |
 | Pedidos, sus productos y sus importes | **PEDIDO** |
 | Corregir una ruta ya completada | **PEDIDO.** Aquí el cierre pasa a sólo lectura |
-| Quitar una parada de una ruta | No hay botón: [las dos formas](../web/2-tareas.md#sacar-un-pedido-de-una-ruta) |
+| Quitar una parada de una ruta en curso | No hay botón: [las dos formas](../web/2-tareas.md#sacar-un-pedido-de-una-ruta). En una **planificada** sí: «Quitar de ruta» |
+| Borrar un camión que ya tiene rutas | No se puede: se deja «Inactivo» ([cómo](../web/2-tareas.md#dejar-un-camión-inactivo)) |
 | Cambiar el camión de una ruta armada | No hay botón: [las dos formas](../web/2-tareas.md#cambiar-el-camión-de-una-ruta) |
 | Reordenar las zonas desde el teléfono | Sólo en pantalla grande |
 
@@ -6378,11 +6988,13 @@ da por malo**:
      matrícula: **«1.000 kg · P-123456»**.
    - La cabecera pasa a poner **«Camión: F-350»**.
 
-Un camión con **«EN EL TALLER»** en ámbar **se puede elegir igual**: es aviso, no
-bloqueo.
+**Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» (dado de
+baja) o en mantenimiento no se ofrece para rutas nuevas; si no te sale, mira su
+tarjeta en **«Vehículos»**.
 
-**Si dice «Esta sucursal no tiene ningún vehículo en este aparato»**, con conexión ve
-a **«Vehículos»** y dalo de alta; baja con la siguiente sincronización.
+**Si dice «Esta sucursal no tiene vehículos activos y fuera del taller en este
+aparato»**, con conexión ve a **«Vehículos»** y da de alta uno o actívalo; baja con la
+siguiente sincronización.
 
 ## 3.3 Repartir los pedidos — arrastrando
 <!-- tarea -->
@@ -6434,7 +7046,12 @@ Camión: F-350                       sin subir
 
 - **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
   factura»** — hoy **no salen**.
-- **«Cambió en la factura»** en ámbar — **sí sale**, pero el peso ya no es el que era.
+- **«Cambió en la factura»** en ámbar — **tampoco sale**: en el camión sólo sube lo que
+  cuadra con la factura. La ruta lo descartará con «cambió en la factura».
+- **Sin domicilio cobrado o sin cotizar** — **ni salen en «Sin colocar»**; si intentas
+  colocarlos, te lo rechaza al momento con su motivo («No se puede asociar al tablero:
+  la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el
+  domicilio del pedido.»), aunque no haya conexión.
 - **«sin ubicar»** — sin coordenadas de entrega: **no puede ir en una ruta**.
 - **«2 pedidos de este cliente hoy»** — son dos de verdad. **No se juntan.**
 
@@ -6480,8 +7097,10 @@ Necesitas **al menos dos zonas**. Si sólo tienes una, crea otra antes de empeza
 Debajo te lista por qué se cayó cada uno:
 
 ```
-SC06-1257 · DAYLIS PÉREZ: Ya va en otra ruta
-X-2992 · ANA MARTÍNEZ: Sin cotejar
+PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
+PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
 
 ### El nombre de la ruta
@@ -6607,6 +7226,14 @@ te bloquea, pero te lo dice.
    - **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
      entregados **vuelven a estar disponibles**.
 
+**Si el servidor rechaza una parada al subir el cierre**: cada parada lleva su
+**conduce** («Conduce: PTB25-261005-1480», el número de operación de la factura). En el
+escritorio la hoja sube entera o no sube: el cierre queda en la bandeja **«Rechazados,
+esperando a una persona»** (franja → «Entregar el día») con su motivo, y **la ruta no se
+completa en el servidor hasta que decidas** con **«Reintentar»** o **«Descartar»**. En la
+web, en cambio, lo que se guardó vale. Ver
+[Si algo falla](5-si-algo-falla.md).
+
 ## Sacar el post-despacho
 <!-- tarea -->
 
@@ -6710,6 +7337,7 @@ manual de la web:
 - [Decir qué camión calcula el domicilio](../web/2-tareas.md#decir-qué-camión-calcula-el-domicilio)
 - [Marcar un camión en el taller](../web/2-tareas.md#marcar-un-camión-en-el-taller)
 - [Dar de baja un camión](../web/2-tareas.md#dar-de-baja-un-camión)
+- [Dejar un camión inactivo](../web/2-tareas.md#dejar-un-camión-inactivo)
 - [Definir los tipos de camión y su costo por km](../web/2-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km)
 - [Cambiar el camión de una ruta](../web/2-tareas.md#cambiar-el-camión-de-una-ruta)
 - [Poner o corregir un almacén](../web/2-tareas.md#poner-o-corregir-un-almacén)
@@ -6897,8 +7525,9 @@ Y el Panel:
 
 El camino entero del día: ver el Panel, armar zonas, ponerles camión, colocar
 pedidos, **armar la ruta**, **iniciarla**, **marcar las entregas con su motivo**,
-**completarla**, eliminarla, ver y sacar los PDF del pre-despacho y el
-post-despacho, consultar Pedidos, Clientes y Reportes.
+**completarla**, eliminarla (si no está completada), quitarle una parada con «Quitar de
+ruta» (si está planificada), ver y sacar los PDF del pre-despacho y el post-despacho,
+consultar Pedidos, Clientes y Reportes.
 
 El mapa de la ruta se dibuja igual: **las paradas, su orden y el recorrido**. Si
 descargaste el mapa de Cuba, además con calles de fondo.
@@ -6911,7 +7540,7 @@ descargaste el mapa de Cuba, además con calles de fondo.
 |---|---|
 | **Entrar** | «Para entrar hace falta conexión. Una vez dentro, no.» |
 | **«Abrir en Google Maps»** y mandar el enlace | Necesita la red |
-| **Vehículos**: dar de alta, editar, borrar | Se configuran con conexión |
+| **Vehículos**: dar de alta, editar, dejar inactivo, borrar | Se configuran con conexión |
 | **Almacenes**: crear, editar, borrar | Viven en Accesos |
 | **Buscar una dirección** en Almacenes | Pero **hacer clic en el mapa y escribir las coordenadas sí funcionan** |
 | **Sincronización** | Se lee del servidor cada vez |
@@ -6931,6 +7560,24 @@ Y con red, la aplicación **se pone al día sola cada 5 minutos**.
 El orden en que lo hace es siempre: **comprobar la sesión → subir lo tuyo → bajar lo
 nuevo.** Primero sube y después baja, para que lo de allá no pise lo que acabas de
 hacer.
+
+---
+
+## Lo que queda en espera mientras no hay conexión
+
+Son tres cosas que **se hacen aquí al momento y el servidor todavía no sabe**:
+
+1. **Borrar una ruta que salió del tablero.** Las facturas vuelven a su zona, pero
+   **hasta que suba el borrado y baje el tablero salen en «Sin colocar»**. No se han
+   perdido; con conexión se colocan solas donde estaban.
+2. **Quitar una parada de una ruta planificada** («Quitar de ruta»). Sale de la hoja y
+   vuelve a disponibles al momento; si la ruta venía del tablero, su factura regresa a
+   la zona **cuando suba el cambio**.
+3. **Completar una ruta.** Se enseña como completada, pero eso todavía no confirma el
+   cierre en el servidor. Si el servidor rechaza una parada, **el cierre queda en la
+   bandeja «Rechazados, esperando a una persona»** con su motivo, y la ruta no se
+   completa en el servidor hasta que decidas con **«Reintentar»** o **«Descartar»**. En
+   la web, en cambio, lo que se guardó vale.
 
 ---
 
@@ -7418,8 +8065,9 @@ Si ya existe: **«Ya hay una columna «Centro» en este tablero»**.
      matrícula: **«1.000 kg · P-123456»**.
    - La cabecera de la zona pasa a poner **«Camión: F-350»**.
 
-Un camión en el taller sale con **«EN EL TALLER»** en ámbar. **Se puede elegir
-igual**: es aviso, no bloqueo.
+**Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» (dado de
+baja) o en mantenimiento no se ofrece para rutas nuevas; si no te sale, mira su
+tarjeta en **Menú → «Vehículos»**.
 
 ## 4.3 Repartir los pedidos — arrastrando
 <!-- tarea -->
@@ -7473,8 +8121,12 @@ Camión: F-350
 - **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
   factura»** — hoy **no salen**. Los puedes dejar puestos: no entrarán en la ruta y te
   lo dirá.
-- **«Cambió en la factura»** en ámbar — **sí sale**, pero el peso de la zona ya no es
-  el que era.
+- **«Cambió en la factura»** en ámbar — **tampoco sale**: en el camión sólo sube lo que
+  cuadra con la factura. La ruta lo descartará con «cambió en la factura».
+- **Sin domicilio cobrado o sin cotizar** — esos pedidos **ni salen en «Sin colocar»**, y
+  si intentas colocarlos te lo rechaza con su motivo («No se puede asociar al tablero:
+  la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el domicilio
+  del pedido.»). Ver [Tablero](../comun/pantallas/tablero.md#qué-se-puede-colocar-en-una-zona).
 - **«sin ubicar»** en vez de los kilómetros — ese pedido no tiene coordenadas de
   entrega y **no puede ir en una ruta**.
 - **«2 pedidos de este cliente hoy»** — son dos pedidos de verdad. **La aplicación no
@@ -7527,14 +8179,22 @@ camión, y después en **«Volver a intentarlo»**.
 Debajo te lista, uno a uno, por qué se cayó cada pedido:
 
 ```
-SC06-1257 · DAYLIS PÉREZ: Ya va en otra ruta
-X-2992 · ANA MARTÍNEZ: Sin cotejar
+PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
+PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
+
+Cada pedido sale por su **conduce** (el número de operación de la factura).
 
 ### Qué entra y qué no
 
-**Sólo entran los pedidos repartibles.** Los que no, **se quedan en la zona y
-marcados**. No desaparece nada.
+**Sólo entran los pedidos repartibles** (facturados que cuadran, con el domicilio
+cobrado y cotizado). Los que no, **se quedan en la zona y marcados**. No desaparece
+nada.
+
+**Si luego borras la ruta, las facturas vuelven a su zona** al instante (en la web no
+hay espera): no hay que volver a crear la zona ni repartir de nuevo.
 
 **El orden que dejaste es el que va.** La aplicación no lo reordena.
 
@@ -7641,6 +8301,12 @@ Antes no hay un cierre editable. **Desde la web se hace igual que en el teléfon
 4. **Clic en «Guardar y completar»**. <!-- señala: rutas-guardar-el-cierre -->
 
 Al confirmar, la ruta pasa al Historial y el camión queda libre.
+
+**Si el servidor guarda unas paradas y rechaza otras**, lo guardado vale: el aviso, en
+la franja de abajo, dice el motivo («Se guardaron 1 de las 2 paradas de esta hoja. 1 no
+se pudieron guardar: … (ese pedido no va en esta ruta).») y la ruta se puede completar.
+Si no se guardó **ninguna**, no se completa. Cada parada lleva su **conduce**
+(«Conduce: PTB25-261005-1480»), el número de operación de la factura, para encontrarla.
 
 ---
 
@@ -7807,9 +8473,14 @@ Cualquier cambio te devuelve a la página 1.
 
 ```
 No se pudieron mandar 2, y siguen marcados:
-F-2992 · Ana: Ya va en otra ruta
-X-3010 · Luis: Sin coordenadas de entrega
+PTB25-261005-1480 · Ana: Ese pedido ya está en una ruta
+PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.
 ```
+
+Cada pedido sale por su **conduce** (el número de operación de la factura). Los motivos
+son los mismos que daría el servidor: ya entregado, ya en una ruta, **sin domicilio
+cobrado en la factura** o **sin cotizar en Entrega**, además de «Archivado en PEDIDO»,
+«Sin cotejar», «Sin factura», «Sin coordenadas de entrega» o «Es de otra sucursal».
 
 **Los que sí fueron pierden la marca; los que no, se quedan marcados.**
 
@@ -7881,14 +8552,21 @@ Es el camino largo, para cuando la ruta no sale de una zona entera.
 3. **«Salida»** — elige en **«Almacén del que sale el camión»** y **«Siguiente»**.
    Sólo salen los que tienen coordenadas. Si no hay ninguno: «Esta sucursal no tiene
    ningún almacén con ubicación…» y un botón **«Poner el almacén»**. <!-- señala: rutas-asistente-almacen -->
-4. **«Vehículo»** — **obligatorio**. Se ofrecen todos, con su capacidad de nota: «1000
-   kg», «1000 kg · en el taller», «1000 kg · en ruta».
-   - Si eliges uno del taller, sale un aviso en ámbar pero **se arma igual**.
+4. **«Vehículo»** — **obligatorio**. Se ofrecen los camiones **activos y fuera del
+   taller**, con su capacidad de nota: «1000 kg», «1000 kg · en ruta».
+   - **Un camión «Inactivo» o en mantenimiento no sale en la lista.** Si no ves el que
+     buscas, mira en **Menú → «Vehículos»** si está dado de baja o en el taller.
+   - Si no queda ninguno: «Los vehículos de esta sucursal están inactivos o en el
+     taller, y a una ruta nueva sólo se asigna un vehículo activo. Actívalo o sácalo
+     del taller en Vehículos.»
    - Opcionalmente, el nombre y la **«Fecha de entrega»**, que **viene puesta en
      hoy**. <!-- señala: rutas-asistente-vehiculo -->
 5. **«Pedidos»** — marca los que quieras.
    - **La barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»** y
      **«Camión lleno — no cabe más»**.
+   - **Sólo salen los pedidos facturados que cuadran, con el domicilio cobrado y
+     cotizado en Entrega.** Si te falta alguno, es casi seguro por eso: se arregla
+     cobrando o cotizando en Entrega, no aquí.
    - **Las filas que ya no caben se apagan**, con el motivo «No cabe en el camión».
    - Puedes marcar **una zona entera del tablero** con su casilla. Te dirá qué entró:
      **«9 de 12 de «Vista» · 1 ya estaban · 1 ya no se pueden repartir hoy · 1 no caben
@@ -7908,11 +8586,17 @@ Falta salida, camión o pedidos, o te has pasado de peso.
 
 ### Si sale un aviso en ámbar encima del botón
 
+Los pedidos se nombran por su **conduce**, que es el número de operación de la
+factura (el mismo que ves en «Conduce: PTB25-…» en las paradas).
+
 | Aviso | Qué hacer |
 |---|---|
 | **«Se requiere un vehículo para crear la ruta»** | Vuelve al tramo «Vehículo» |
-| **«En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen: X-2992 (sin facturar)…»** | Desmarca ésos |
-| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: X-2992 (ya va en la ruta RT-20260922-003)…»** | Desmarca ésos |
+| **«En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Desmarca ésos |
+| **«En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen: PTB25-261005-1480…»** | La factura no cobró domicilio. Desmarca ésos |
+| **«No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1480…»** | Entrega no ha cotizado el domicilio. Desmarca ésos |
+| **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión está dado de baja. Elige otro |
+| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Desmarca ésos |
 | **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Quita pedidos o cambia de camión |
 
 ---
@@ -7960,7 +8644,11 @@ pantalla abierta, y recargar los borra.
    >
    > Lo que NO se borra son los pedidos ni sus resultados: sueltan esta ruta. Los
    > pendientes vuelven a la lista de disponibles; los entregados siguen entregados y
-   > no se reparten otra vez. Y el camión se queda libre.»
+   > no se reparten otra vez. Y el camión se queda libre.
+   >
+   > Si la ruta se armó desde una zona del tablero, las facturas vuelven a esa zona
+   > cuando se sincronice el borrado (en la web, de inmediato). Mientras tanto, sin
+   > señal, salen en «Sin colocar».»
 
 3. **Clic en «Sí, borrar «RT-20260928-004»»**, o en **«No, dejarla»** para salir.
    <!-- señala: confirmar-el-borrado -->
@@ -7981,6 +8669,14 @@ Al eliminar la ruta no se borra ningún pedido ni se cambia su resultado. Los
 pendientes y devueltos quedan disponibles; los ya entregados siguen entregados
 y no se vuelven a repartir.
 
+### Si la ruta se hizo desde el tablero
+
+**Las facturas vuelven a su zona del tablero**: no se pierde la relación y no hay que
+volver a crear la zona ni a repartir los pedidos. **En la web es inmediato**: al
+volver a **Menú → «Tablero»** las facturas ya están en su zona, listas para planificar
+otra vez. Si la ruta se hizo con el asistente «Nueva Ruta» y no salió del tablero, los
+pedidos vuelven sólo a la lista de disponibles.
+
 ---
 
 ## Sacar un pedido de una ruta
@@ -7988,11 +8684,36 @@ y no se vuelven a repartir.
 
 **Empieza en:** **Menú → «Rutas»**.
 
-**No hay ningún botón para quitar una parada.** Las dos formas:
+En una ruta **planificada** (que todavía no ha salido) se puede quitar **una sola
+parada**, sin borrar la ruta.
 
-- **Eliminar la ruta entera** y volver a armarla sin ese pedido.
-- **Marcarlo en el cierre como devuelto o cancelado**: al completar la ruta, ese
-  pedido queda libre.
+1. Busca la ruta en la pestaña **«Planificadas»** y **haz clic en su tarjeta**.
+   <!-- señala: rutas-tarjeta-de-ruta -->
+2. En el detalle, **clic en «Ver paradas»**. <!-- señala: rutas-ver-paradas -->
+3. En la tarjeta de la parada que sobra, **clic en «Quitar de ruta»**.
+   - Se abre un cajón, **«Quitar de la ruta»**, con el cliente y su conduce debajo
+     («Casa Pérez · Conduce: PTB25-261005-1480»), que dice qué pasa:
+
+   > «Casa Pérez sale de esta ruta y vuelve a pedidos disponibles. La ruta se queda
+   > con las demás paradas y su peso y su importe se recalculan sin él.
+   >
+   > Si la ruta se armó desde una zona del tablero, la factura regresa a esa zona
+   > cuando se sincronice (en la web, de inmediato).»
+
+4. **Clic en «Sí, quitar «Casa Pérez» de la ruta»**, o en **«No, dejarlo en la
+   ruta»**. **Cerrar el cajón sin contestar es No.**
+
+La parada desaparece de la hoja, y el peso y el importe de la ruta se recalculan sin
+ella. El pedido **vuelve a la lista de disponibles** y, si la ruta nació del tablero,
+**a su zona del tablero**. **En la web es al instante.**
+
+**Sólo en una ruta planificada.** En una ruta **en curso** no hay botón: marca ese
+pedido como devuelto o cancelado al completar la ruta, y queda libre. Una ruta
+**completada** es histórico y no se toca. Si el servidor lo rechaza, dice el motivo:
+«Sólo se pueden retirar paradas de una ruta planificada» o «El pedido no pertenece a
+una ruta planificada o ya fue retirado».
+
+(Y si lo que sobra es la ruta entera, [elimínala](#eliminar-una-ruta).)
 
 ---
 
@@ -8034,6 +8755,10 @@ almacén»**: sólo entonces sale la columna de km.
 7. Pon el **«Costo por km (USD)»**. <!-- señala: vehiculos-costo-por-km -->
 8. **Clic en «Agregar Vehículo»**. Verás **«Vehículo agregado.»**
    <!-- señala: vehiculos-guardar -->
+
+**El interruptor «Vehículo activo»** viene encendido: un camión nuevo se ofrece en las
+rutas nuevas. Se apaga más adelante si hay que darlo de baja (ver [Dejar un camión
+inactivo](#dejar-un-camión-inactivo)).
 
 ### Si no sabes el costo por km
 
@@ -8109,6 +8834,10 @@ calcular el domicilio»**. Debajo pone **«Solo un vehículo por TIPO.»**
 > **«En ruta» no está, a propósito**: eso sale de las rutas del camión y no se
 > escribe a mano.
 
+**Mientras un camión esté en mantenimiento no se ofrece para rutas nuevas**: no sale en
+el tramo «Vehículo» de «Nueva Ruta» ni en el «Camión previsto» del Tablero. Cuando
+vuelva, pásalo otra vez a **«Disponible»**.
+
 ### Si el camión llevaba una ruta abierta
 
 **Mandarlo al taller no la cierra.** La tarjeta te lo dice:
@@ -8135,24 +8864,61 @@ disponible.»**
 
 **Empieza en:** **Menú → «Vehículos»**.
 
+**Si el camión ya tiene rutas, aunque sean del histórico, NO se puede borrar: se deja
+«Inactivo»** ([cómo, aquí abajo](#dejar-un-camión-inactivo)). Borrar sólo sirve para un
+camión que nunca se usó (uno dado de alta por error, por ejemplo).
+
 1. Busca la tarjeta del camión, **comprueba el nombre y la placa** y, al final de la
    tarjeta, **clic en «Eliminar»** (rojo, con papelera, sin relleno).
    <!-- señala: vehiculos-eliminar -->
    - **Se abre un cajón que pregunta antes**, titulado **«Borrar «Camión 1»»**, y dice
      lo que se pierde:
 
-   > «El camión se va de la flota. Las rutas y los pedidos que lo llevaban puesto NO
-   > se borran —el histórico de lo repartido se queda— pero se quedan sin camión, y
-   > hay que ponerles otro. Y el camión hay que volver a darlo de alta a mano, con su
-   > placa, su capacidad y su costo por km.»
+   > «El camión se va de la flota y hay que volver a darlo de alta a mano, con su
+   > placa, su capacidad y su costo por km.
+   >
+   > Un camión que ya tiene rutas —aunque sean del histórico— NO se puede borrar: el
+   > servidor lo rechaza para no perder qué camión hizo cada reparto. Si ese es el
+   > caso, no lo borres: ábrelo con «Editar» y márcalo como inactivo. Así deja de
+   > ofrecerse en las rutas nuevas y su historial se queda intacto.»
 
 2. **Clic en «Sí, borrar «Camión 1»»**, o en **«No, dejarlo»**. Sale **«Vehículo
    eliminado.»** y la tarjeta desaparece de la lista.
    <!-- señala: confirmar-el-borrado -->
 
+Si el camión tenía rutas y le diste a «Sí», el servidor no lo borra y lo dice:
+
+> «No se puede eliminar este vehículo porque tiene rutas asociadas, incluso
+> históricas. Márcalo como inactivo para impedir que se use en nuevas rutas.»
+
 > **Ojo:** **cerrar sin contestar es NO.** Y si era el camión del **«Cálculo
 > domicilio»**, elige otro antes de irte: sin ninguno, los domicilios salen sin
 > precio.
+
+---
+
+## Dejar un camión inactivo
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Vehículos»**.
+
+Es la forma de dar de baja un camión que **ya se usó**: deja de ofrecerse para rutas
+nuevas y su historial se queda intacto.
+
+1. En la tarjeta del camión, **clic en «Editar»**. <!-- señala: vehiculos-editar -->
+2. **Apaga el interruptor «Vehículo activo»**, justo debajo del nombre. Debajo pone:
+   «Se oculta de los selectores de rutas nuevas.»
+3. **Clic en «Actualizar»**. <!-- señala: vehiculos-guardar -->
+   - Sale **«Vehículo actualizado.»** y la tarjeta lleva la insignia **«Inactivo»**.
+
+**Qué cambia:** el camión **ya no sale** en el tramo «Vehículo» de «Nueva Ruta» ni en el
+«Camión previsto» de las zonas del Tablero. **Sigue viéndose** en el filtro «Rutas de un
+camión», en los informes y en las rutas que ya hizo.
+
+**Para recuperarlo**, vuelve a **«Editar»** y enciende el interruptor.
+
+> **Ojo:** «Inactivo» no es lo mismo que «En mantenimiento». El mantenimiento es un
+> camión que va a volver; inactivo es una baja.
 
 ---
 
@@ -8204,9 +8970,11 @@ botón para eso, ni en la tarjeta ni en el detalle. Las dos salidas:
 
 1. En la pestaña **«Planificadas»**, **elimina la ruta** — ver [Eliminar una
    ruta](#eliminar-una-ruta). Los pedidos pendientes
-   quedan disponibles; los entregados conservan su resultado. El camión queda libre. <!-- señala: rutas-eliminar -->
+   quedan disponibles; los entregados conservan su resultado. El camión queda libre.
+   Si la ruta salió del tablero, **las facturas vuelven a su zona**. <!-- señala: rutas-eliminar -->
 2. **Menú → «Tablero»**, ve a la zona, **⋮ → «Camión previsto»**, elige el otro
-   camión y **⋮ → «Armar la ruta de esta zona»**. <!-- señala: tablero-camion-previsto -->
+   camión (**activo y fuera del taller**, o no sale en la lista) y **⋮ → «Armar la
+   ruta de esta zona»**. <!-- señala: tablero-camion-previsto -->
 
 **Si la ruta está «En curso»**, también se puede eliminar con confirmación y armar
 otra para los pedidos pendientes. Los resultados anteriores se conservan.

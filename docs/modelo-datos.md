@@ -166,6 +166,7 @@ También se usa como `sucursalCodigo` de facto: en el sync de catálogo el códi
 | `costoKmUsd` | Float? | sí | — | USD/km declarado por el camionero |
 | `usarParaDomicilio` | Boolean | no | `false` | vehículo de referencia de la sucursal (debería ser uno solo; **no está forzado**) |
 | `status` | String | no | `"available"` | pseudo-enum, §3.3 |
+| `isActive` | Boolean | no | `true` | **propio del reparto** (`vehicles.is_active`, migración `00017`, 07/10/2026, incidencia 4 de Amado). Distinto de `status`: `status` dice en qué anda hoy un camión; `isActive = false` lo deja fuera de la selección para rutas NUEVAS conservando su historial. **Un vehículo con rutas (aunque sean históricas) no se borra: se marca inactivo.** Un inactivo no se asigna a una ruta (`El vehículo está inactivo y no se puede asignar a una ruta.`). Baja a los aparatos en `cambios.vehicles[].isActive` |
 | `notes` | String? | sí | — | |
 | `userId` | String | no | — | FK → `User.id` |
 | `branchId` | String? | sí | — | FK → `Branch.id` (`BranchVehicles`); `null` = de todas |
@@ -200,7 +201,7 @@ de delivery, y resultado del cierre de ruta.
 | `notes` | String? | sí | — | |
 | `routeId` | String? | sí | — | FK → `Route.id`, relación **`RutaActual`**. Ocupación actual; se libera |
 | `ultimaRutaId` | String? | sí | — | FK → `Route.id`, relación **`RutaViajada`**. Histórico; NO se libera nunca |
-| `vehicleId` | String? | sí | — | FK → `Vehicle.id` |
+| ~~`vehicleId`~~ | — | — | — | **YA NO EXISTE en el reparto** (migración `00015`, 07/10/2026, incidencia 5 de Amado): duplicaba `Route.vehicleId` y se quedaba desactualizada cuando el pedido cambiaba de ruta. **El vehículo de un pedido se deriva de su ruta** (`orders.route_id → routes.vehicle_id`); la API sigue sirviendo `vehicleId` en el detalle del pedido, calculado así, y ya no lo manda la bajada. En delivery (Next) sí existía |
 | `userId` | String | no | — | FK → `User.id` (= `branch.creatorId` al importar) |
 | `price` | Float? | sí | — | reparto de ruta (§5) |
 | `segmentKm` | Float? | sí | — | km origen→parada (§5) |
@@ -266,8 +267,9 @@ Tabla puente (asignación múltiple de vehículos a un pedido).
 
 Restricciones: PK `id`; `@@unique([orderId, vehicleId])`. **No hay `updatedAt`.**
 
-Convive con `Order.vehicleId` (asignación simple). Dos mecanismos para lo mismo; nada
-garantiza que concuerden.
+En delivery convivía con `Order.vehicleId` (asignación simple), dos mecanismos para lo
+mismo. **En el reparto ya no**: `orders.vehicle_id` se eliminó (`00015`) y el camión de un
+pedido es el de su ruta.
 
 ---
 
@@ -301,6 +303,40 @@ con concurrencia; en Go usar secuencia o UNIQUE + reintento.
 
 Colecciones: `orders Order[]` (`RutaViajada`, por `ultimaRutaId`),
 `paradas Order[]` (`RutaActual`, por `routeId`).
+
+**`ultimaRutaId` y la parada fantasma (07/10/2026).** `ultimaRutaId` es «en qué ruta VIAJÓ»,
+y el trigger de totales (`00014`) suma por esa columna. Quitar una parada de una ruta
+planificada (`DELETE /api/routes/{id}/stops/{orderId}`) pone a `NULL` **`routeId` y
+`ultimaRutaId`**: el pedido no viajó, y conservarla lo dejaba contando en el peso y el
+importe de una ruta que ya no lo lleva. Las consultas «¿viajó en R?» son por eso
+`routeId = R OR (routeId IS NULL AND ultimaRutaId = R AND resultado IS NOT NULL)`: un
+devuelto o cancelado tiene resultado, un pedido simplemente quitado no. Los `stopOrder` de
+las demás paradas no se renumeran y `totalDistance` no se recalcula.
+
+### 1.9-bis `board_route_origins` (propio del reparto, `00016`, 07/10/2026)
+
+De dónde salió cada parada de una ruta armada desde el tablero, para devolverla a su zona y
+a su posición si se borra la ruta o se quita esa parada (incidencias 2 y 3 de Amado: antes,
+borrar la ruta dejaba el tablero limpio).
+
+| Campo | Tipo | Opcional | Notas |
+|---|---|---|---|
+| `route_id` | uuid | no | FK → `routes.id`, **`ON DELETE CASCADE`**. PK con `order_id` |
+| `order_id` | uuid | no | FK → `orders.id`, **`ON DELETE CASCADE`**. **UNIQUE**: un origen por pedido |
+| `column_id` | uuid | no | FK → `board_columns.id`, **`ON DELETE CASCADE`** (antes `RESTRICT`) |
+| `posicion` | integer | no | la que tenía en la zona |
+| `colocado_por` | text | sí | |
+
+- Lo escribe `QuitarDelTableroLosDeRuta` al armar la ruta, con **`ON CONFLICT (order_id) DO
+  UPDATE`**: un origen viejo (el de un devuelto de una ruta en curso, que sigue ahí hasta
+  que ésta se complete) no puede bloquear el nuevo.
+- Lo borran: completar la ruta (el histórico se fija), quitar la parada, borrar la ruta (por
+  cascada) y **borrar la zona**.
+- **`column_id` es `CASCADE`** para que una zona vacía de tarjetas, con una ruta planificada
+  nacida de ella, se pueda borrar: con `RESTRICT` contestaba el `409` falso «tiene 0 pedidos
+  puestos». Al borrarse la zona se pierde el origen y borrar la ruta después no restaura
+  nada en una zona que ya no existe. Las colocaciones (`board_placements.column_id`) siguen
+  en `RESTRICT`: ésas sí son trabajo de una persona.
 
 ---
 
@@ -369,7 +405,7 @@ eliminaron el 03/09/2026 (migración `20260903130000_fuera_los_precios`).
 | `Vehicle` | `branchId?` | `Branch` | N:1 opcional | `BranchVehicles` | `Branch.vehicles Vehicle[]` |
 | `Order` | `userId` | `User` | N:1 obligatoria | — | `User.orders Order[]` |
 | `Order` | `branchId?` | `Branch` | N:1 opcional | — | `Branch.orders Order[]` |
-| `Order` | `vehicleId?` | `Vehicle` | N:1 opcional | — | `Vehicle.orders Order[]` |
+| ~~`Order`~~ | ~~`vehicleId?`~~ | ~~`Vehicle`~~ | eliminada en el reparto (`00015`): el vehículo de un pedido se deriva de `Route.vehicleId` | — | — |
 | `Order` | `routeId?` | `Route` | N:1 opcional | **`RutaActual`** | `Route.paradas Order[]` |
 | `Order` | `ultimaRutaId?` | `Route` | N:1 opcional | **`RutaViajada`** | `Route.orders Order[]` |
 | `Route` | `userId` | `User` | N:1 obligatoria | — | `User.routes Route[]` |
@@ -379,7 +415,8 @@ eliminaron el 03/09/2026 (migración `20260903130000_fuera_los_precios`).
 | `OrderVehicle` | `vehicleId` | `Vehicle` | N:1, Cascade | — | `Vehicle.orderAssignments` |
 
 `Order` ↔ `Vehicle` es **N:M** a través de `OrderVehicle` (UNIQUE `[orderId, vehicleId]`),
-y además **N:1** directa por `Order.vehicleId`.
+y, en delivery (Next), además **N:1** directa por `Order.vehicleId`. **En el reparto esa
+directa ya no existe** (`00015`): el camión de un pedido es el de su ruta.
 
 `Customer` y `VentaFacturada` **no tienen ninguna relación declarada**. La correspondencia
 `Customer` ↔ `Order` es lógica, por `codigo`/`meta`, no por FK.
@@ -593,7 +630,8 @@ implementado en aplicación (`findFirst` + `update`/`create`) y respaldado sólo
 4. `Route.routeCode` sin UNIQUE y generado por conteo → colisión bajo concurrencia.
 5. `Settings` es singleton por convención, no por constraint.
 6. `Vehicle.usarParaDomicilio` debería ser único por `branchId` y no lo es.
-7. Doble camino `Order.vehicleId` vs `OrderVehicle` sin garantía de coherencia.
+7. Doble camino `Order.vehicleId` vs `OrderVehicle` sin garantía de coherencia. *(Resuelto en el
+   reparto el 07/10/2026: `orders.vehicle_id` se eliminó, `00015`.)*
 8. `Product` UNIQUE `[sucursalCodigo, sku]` no dedupica filas con `sucursalCodigo NULL`.
 9. `Settings.tiposVehiculo` se lee y escribe desde la UI pero no existe en el esquema.
 10. `Order.lat/lng` duplican `endLat/endLng` al importar; sólo `endLat/endLng` se usan para rutear.

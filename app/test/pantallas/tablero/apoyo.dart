@@ -53,13 +53,14 @@ Future<void> sembrarAlmacen(
 /// [estado] es `vehicles.status` tal cual. Por defecto `available`, que es lo
 /// que trae todo camion nuevo; se pasa `maintenance` para sembrar uno en el
 /// taller, que es el unico estado de la flota que se guarda (los demas se
-/// deducen de las rutas).
+/// deducen de las rutas). [activo] `false` es el camion dado de baja.
 Future<void> sembrarCamion(
   BaseLocal base, {
   required String id,
   String nombre = 'F-350',
   double capacidad = 1000,
   String estado = 'available',
+  bool activo = true,
 }) => base
     .into(base.vehicles)
     .insert(
@@ -68,6 +69,7 @@ Future<void> sembrarCamion(
         name: nombre,
         capacity: Value(capacidad),
         status: Value(estado),
+        isActive: Value(activo),
         branchId: const Value(sucursalStg),
       ),
     );

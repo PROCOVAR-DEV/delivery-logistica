@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/apunte.dart';
@@ -303,6 +304,10 @@ void main() {
               id: 'p7',
               customerName: 'Cliente',
               address: 'Calle 1',
+              // Con domicilio cobrado y cotizado: sin ellos `colocar` lo rechaza
+              // como el servidor, y aqui se prueba el pestillo, no eso.
+              facturaDomicilio: const Value(1),
+              pedidoCosto: const Value(1),
             ),
           );
       await repo.colocar(pedidoId: 'p7', columnaId: id);
@@ -508,6 +513,10 @@ void main() {
               id: 'p5',
               customerName: 'Cliente',
               address: 'Calle 1',
+              // Con domicilio cobrado y cotizado: sin ellos `colocar` lo rechaza
+              // como el servidor, y aqui se prueba el pestillo, no eso.
+              facturaDomicilio: const Value(1),
+              pedidoCosto: const Value(1),
             ),
           );
       await repo.colocar(pedidoId: 'p5', columnaId: id);

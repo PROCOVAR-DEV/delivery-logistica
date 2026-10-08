@@ -1,4 +1,5 @@
 import '../../../nucleo/base/base.dart';
+import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 
 /// EL REPARTO DE UNA ZONA ENTRE «entra» Y «no entra», y por que no entra.
 ///
@@ -86,6 +87,29 @@ String parteDeLaZona(String nombre, int total, RepartoDeLaZona r) => <String>[
   if (r.noCaben > 0) '${r.noCaben} no caben en el vehículo',
 ].join(' · ');
 
+/// ¿SE OFRECE ESTE CAMION PARA UNA RUTA **NUEVA**?
+///
+/// Un camion se ofrece si esta **activo** y **fuera del taller**. Son dos cosas
+/// distintas con la misma consecuencia:
+///
+///  * `isActive = false` es la baja: Amado, 07/10/2026 (incidencia 4) — un camion
+///    con rutas no se borra, se inactiva, y desde ese momento no sale en la
+///    seleccion de rutas nuevas. El servidor lo rechaza con 400 si se le manda a
+///    mano («El vehículo está inactivo y no se puede asignar a una ruta.»).
+///  * `maintenance` es el camion en el taller. Antes se ofrecia con un aviso
+///    («aviso, no bloqueo»), con un argumento que colgaba del `CLAUDE.md` §2 de
+///    entonces —bloquear con un dato que nadie mantiene deja sin armar a una
+///    sucursal—. Ese §2 lo **reemplazo Amado el 07/10/2026**: un camion en el
+///    taller no es uno que se pueda mandar a una ruta nueva, y no se ofrece.
+///
+/// **Esto vale SOLO para elegir camion de una ruta nueva** (el paso 3 del
+/// asistente y el «Camion previsto» de una zona). Las listas que miran rutas YA
+/// hechas —el filtro de camion de Rutas, los informes, la ficha de un pedido—
+/// siguen viendo TODA la flota: una ruta de ayer con un camion que hoy esta de
+/// baja tiene que seguir diciendo en que camion fue.
+bool seOfreceParaRutasNuevas(Vehiculo v) =>
+    v.isActive && v.status != estadoEnMantenimiento;
+
 /// LOS VEHICULOS DE UNA SUCURSAL, y sólo los de esa.
 ///
 /// El paso 1 del asistente lo promete con todas las letras —«los pedidos, los
@@ -102,12 +126,13 @@ String parteDeLaZona(String nombre, int total, RepartoDeLaZona r) => <String>[
 /// Un camion de Granma en una ruta de La Habana no es un detalle estetico: es un
 /// camion que no esta donde sale la ruta.
 ///
-/// Sin sucursal elegida se devuelven todos, que es lo unico honesto: todavia no
-/// hay por que filtrar.
-List<Vehiculo> vehiculosDeLaSucursal(List<Vehiculo> todos, String? sucursalId) {
-  if (sucursalId == null) return todos.where((v) => v.isActive).toList();
-  return [
-    for (final v in todos)
-      if (v.isActive && v.branchId == sucursalId) v,
-  ];
-}
+/// Sin sucursal elegida se devuelven todos los que se ofrecen, que es lo unico
+/// honesto: todavia no hay por que filtrar por sucursal. **Y solo los que se
+/// ofrecen** ([seOfreceParaRutasNuevas]): esta lista es para ELEGIR camion.
+List<Vehiculo> vehiculosDeLaSucursal(List<Vehiculo> todos, String? sucursalId) =>
+    [
+      for (final v in todos)
+        if (seOfreceParaRutasNuevas(v) &&
+            (sucursalId == null || v.branchId == sucursalId))
+          v,
+    ];

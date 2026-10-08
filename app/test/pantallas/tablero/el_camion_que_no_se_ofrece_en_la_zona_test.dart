@@ -1,24 +1,25 @@
-// EL CAMIÓN DEL TALLER EN EL «CAMIÓN PREVISTO» DE UNA ZONA — 28/09/2026.
+// QUE CAMIONES SE OFRECEN COMO «CAMION PREVISTO» DE UNA ZONA — 07/10/2026.
 //
-// Desde hoy un camión se puede marcar «en mantenimiento» (migración 00013), y
-// este cajón es el segundo de los dos sitios donde se elige camión. La decisión
-// es la misma que en el paso 3 del asistente de Rutas: **se ofrece y se marca,
-// no se bloquea**.
+// Segundo de los dos sitios donde se elige camion para una ruta nueva (el otro
+// es el paso 3 del asistente: `camiones_que_se_ofrecen_test.dart`). Amado,
+// incidencia 4: los camiones inactivos no salen en la seleccion de rutas nuevas;
+// y el del taller tampoco, que es lo que dice el servidor al negarse a borrar un
+// camion con rutas («…Márcalo como inactivo para impedir que se use en nuevas
+// rutas»).
 //
-// Por qué, y hoy mismo se decidió lo contrario para el caso de al lado: una zona
-// SIN camión sí se bloquea (`repositorio.dart`, `armarRuta`), porque sin camión
-// la capacidad y el coste por km se quedan sin denominador y la ruta sale con un
-// peso y un importe que no significan nada. Un camión en el taller tiene su
-// capacidad y su costo por km: lo que falta es el camión, no el dato. Y
-// `maintenance` lo pone una persona y lo tiene que quitar otra — en producción
-// hay sucursales con UN camión, y uno que alguien se olvidó de sacar del taller
-// las dejaría sin poder armar ni una zona, con el arreglo en otra pantalla.
+// ## Lo que esta prueba reemplaza
 //
-// EN PAREJA, como siempre: el del taller sale marcado, y el normal NO sale
-// marcado. Sin la segunda, pintar «EN EL TALLER» en todos dejaría la primera en
-// verde y el aviso dejaría de leerse.
+// Aqui estaba `el_camion_del_taller_en_la_zona_test.dart` (28/09/2026), que
+// fijaba lo contrario: el del taller SALIA, marcado «EN EL TALLER», porque
+// «sacarlo de la lista seria bloquear con un campo que alguien pone y otro tiene
+// que quitar». Ese argumento colgaba del `CLAUDE.md` §2 de entonces, que Amado
+// reemplazo el 07/10/2026. Se quita ENTERA, marca incluida.
+//
+// EN PAREJA, como siempre: el inactivo y el del taller NO salen, y el normal SI.
+// Sin la segunda, ocultar TODOS dejaria las dos primeras en verde.
 
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -110,7 +111,7 @@ void main() {
     await pasadasCortas(tester);
   }
 
-  testWidgets('el camión del taller sale en la lista, MARCADO, y se puede elegir', (
+  testWidgets('el camión inactivo y el del taller NO salen; el normal SI', (
     tester,
   ) async {
     await sembrarCamion(base, id: 'v1', nombre: 'F-350', capacidad: 1500);
@@ -121,44 +122,66 @@ void main() {
       capacidad: 3000,
       estado: 'maintenance',
     );
+    await sembrarCamion(
+      base,
+      id: 'v3',
+      nombre: 'Zil de baja',
+      capacidad: 2000,
+      activo: false,
+    );
     await abrirElCajonDelCamion(tester);
 
     expect(find.text('Camión previsto para «Centro»'), findsOneWidget);
+    expect(find.text('F-350'), findsOneWidget);
     expect(
       find.text('Kamaz'),
-      findsOneWidget,
-      reason:
-          'sacarlo de la lista sería bloquear con un campo que alguien pone y '
-          'otro tiene que quitar: una sucursal de un camión se quedaría sin '
-          'poder armar nada y el arreglo está en otra pantalla',
+      findsNothing,
+      reason: 'un camión en el taller no se asigna a una ruta nueva',
     );
     expect(
-      find.textContaining('EN EL TALLER'),
-      findsOneWidget,
+      find.text('Zil de baja'),
+      findsNothing,
       reason:
-          'y si no se marca, el camión roto se elige igual que los demás: la '
-          'zona se arma con un camión que no puede salir',
+          'un camión inactivo lo rechaza el servidor con 400; la lista no '
+          'debe ofrecer lo que luego se niega',
     );
-
-    // Y SE PUEDE ELEGIR de verdad: aviso, no bloqueo.
-    await tester.tap(find.text('Kamaz'));
-    await asentar(tester);
-    expect(find.text('Camión: Kamaz'), findsOneWidget);
+    // Y el cartel del 28/09 se fue ENTERO con la decisión que lo sostenía.
+    expect(find.textContaining('EN EL TALLER'), findsNothing);
     await desmontar(tester);
   });
 
-  testWidgets('y un camión normal NO sale marcado', (tester) async {
-    await sembrarCamion(base, id: 'v1', nombre: 'F-350', capacidad: 1500);
+  testWidgets('sin ninguno que ofrecer se dice por qué, y «Sin camión» sigue', (
+    tester,
+  ) async {
+    await sembrarCamion(base, id: 'v1', nombre: 'Kamaz', estado: 'maintenance');
+    await sembrarCamion(base, id: 'v2', nombre: 'Zil de baja', activo: false);
     await abrirElCajonDelCamion(tester);
 
-    expect(find.text('F-350'), findsOneWidget);
+    expect(find.text('Sin camión'), findsOneWidget);
     expect(
-      find.textContaining('EN EL TALLER'),
-      findsNothing,
-      reason:
-          'un cartel que sale en todos los camiones deja de leerse, y entonces '
-          'tampoco se lee el día que uno sí está roto',
+      find.textContaining('no tiene vehículos activos y fuera del taller'),
+      findsOneWidget,
     );
+    expect(find.text('Kamaz'), findsNothing);
+    expect(find.text('Zil de baja'), findsNothing);
+    await desmontar(tester);
+  });
+
+  testWidgets('el que se reactiva con el cajón abierto aparece sin remontar', (
+    tester,
+  ) async {
+    // Lo que cambia con la pantalla delante va por Stream (§3-ter): la bajada
+    // trae `isActive: true` y la lista tiene que enterarse sola.
+    await sembrarCamion(base, id: 'v1', nombre: 'F-350');
+    await sembrarCamion(base, id: 'v2', nombre: 'Zil de baja', activo: false);
+    await abrirElCajonDelCamion(tester);
+    expect(find.text('Zil de baja'), findsNothing);
+
+    await (base.update(base.vehicles)..where((v) => v.id.equals('v2'))).write(
+      const VehiclesCompanion(isActive: Value(true)),
+    );
+    await pasadasCortas(tester);
+    expect(find.text('Zil de baja'), findsOneWidget);
     await desmontar(tester);
   });
 }

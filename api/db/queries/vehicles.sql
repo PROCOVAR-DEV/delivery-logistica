@@ -93,7 +93,7 @@ INSERT INTO vehicles (
     sqlc.arg('status'), sqlc.arg('is_active'), sqlc.narg('notes'), sqlc.narg('branch_id')
 )
 RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, is_active, notes, branch_id, created_at, updated_at;
+          usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active;
 
 -- name: ActualizarVehiculo :one
 UPDATE vehicles SET
@@ -115,7 +115,7 @@ WHERE id = sqlc.arg('id')
        OR branch_id = sqlc.narg('sucursal')::uuid
        OR branch_id IS NULL)
 RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, is_active, notes, branch_id, created_at, updated_at;
+          usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active;
 
 -- Sólo un vehículo de referencia por sucursal, y lo impide el índice único parcial
 -- `vehicles_una_referencia_por_sucursal`. Por eso hay que DESMARCAR a los demás antes de
@@ -158,9 +158,12 @@ WHERE id = sqlc.arg('id')
 -- Borrado
 -- ---------------------------------------------------------------------------
 --
--- Antes de borrar hay que desasociar: rutas (`DesvincularVehiculoDeRutas`, en routes.sql)
--- y asignaciones. El histórico de lo que se repartió no se borra porque un camión
--- se dé de baja.
+-- Un camión con rutas NO se borra, ni siquiera con las históricas (incidencia 4 de Amado,
+-- 07/10/2026): borrarlo rompería la trazabilidad de lo que se repartió. Antes se le
+-- soltaba de sus rutas con `DesvincularVehiculoDeRutas` y se borraba. Esa consulta se fue
+-- porque el borrado ya no llega a ejecutarse con rutas por medio. Lo que sí hay que
+-- desasociar antes de borrar son las asignaciones. Para dejar de usar un camión con
+-- historial existe `is_active`: inactivo no sale en la selección de rutas nuevas.
 
 -- name: BorrarAsignacionesDeVehiculo :execrows
 DELETE FROM order_vehicles WHERE vehicle_id = sqlc.arg('vehiculo_id');
@@ -176,14 +179,14 @@ DELETE FROM order_vehicles WHERE vehicle_id = sqlc.arg('vehiculo_id');
 -- `:one` y no `:execrows`: cero filas es «no existe O no es de tu sucursal», o sea el 404, y
 -- ése es ahora `pgx.ErrNoRows`.
 -- name: BorrarVehiculo :one
-DELETE FROM vehicles
-WHERE id = sqlc.arg('id')
+DELETE FROM vehicles v
+WHERE v.id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL
-       OR branch_id = sqlc.narg('sucursal')::uuid
-       OR branch_id IS NULL)
+       OR v.branch_id = sqlc.narg('sucursal')::uuid
+       OR v.branch_id IS NULL)
   -- La flota con rutas históricas se conserva: borrar el camión rompería la trazabilidad.
-  AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.vehicle_id = vehicles.id)
-RETURNING branch_id;
+  AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.vehicle_id = v.id)
+RETURNING v.branch_id;
 
 -- ---------------------------------------------------------------------------
 -- Panel

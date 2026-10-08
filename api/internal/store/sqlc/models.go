@@ -582,6 +582,14 @@ type BoardPlacement struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type BoardRouteOrigin struct {
+	RouteID     uuid.UUID `json:"route_id"`
+	OrderID     uuid.UUID `json:"order_id"`
+	ColumnID    uuid.UUID `json:"column_id"`
+	Posicion    int32     `json:"posicion"`
+	ColocadoPor *string   `json:"colocado_por"`
+}
+
 type Branch struct {
 	ID               uuid.UUID          `json:"id"`
 	Name             string             `json:"name"`
@@ -835,11 +843,11 @@ type Vehicle struct {
 	CostoKmUsd        *float64           `json:"costo_km_usd"`
 	UsarParaDomicilio bool               `json:"usar_para_domicilio"`
 	Status            VehicleStatus      `json:"status"`
-	IsActive          bool               `json:"is_active"`
 	Notes             *string            `json:"notes"`
 	BranchID          pgtype.UUID        `json:"branch_id"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	IsActive          bool               `json:"is_active"`
 }
 
 type VehicleType struct {

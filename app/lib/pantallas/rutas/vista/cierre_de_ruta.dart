@@ -685,6 +685,14 @@ class _Parada extends StatelessWidget {
                         pedido.endAddress ?? pedido.address,
                         style: TextStyle(color: Colores.gris),
                       ),
+                      // El numero de operacion de la factura ES el conduce
+                      // (Jose, 07/10/2026): con el se cuadra lo que baja del
+                      // camion contra el papel de quien lo recibe.
+                      if (pedido.operationNumber != null)
+                        Text(
+                          'Conduce: ${pedido.operationNumber}',
+                          style: TextStyle(color: Colores.gris, fontSize: 12),
+                        ),
                     ],
                   ),
                 ),

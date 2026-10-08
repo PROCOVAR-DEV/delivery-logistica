@@ -90,9 +90,24 @@ type pedidoFalso struct {
 	// un pedido ya repartido aparezca suelto y sin una sola marca en el `WHERE` de
 	// siempre. Ver `db/migrations/00001_init.sql:446`.
 	entregado bool
+	// `sinCobrar` deja `factura_domicilio` en NULL y `sinCotizar` deja `pedido_costo` en NULL:
+	// las dos condiciones que Amado añadió el 07/10/2026. Al revés a propósito: el valor cero
+	// es «cobrado y cotizado», que es lo que necesitan casi todas las pruebas.
+	sinCobrar, sinCotizar bool
 }
 
 func tableroFloatPtr(v float64) *float64 { return &v }
+
+// domicilioYCosto: lo que el SQL devuelve en `factura_domicilio` y `pedido_costo`.
+func (p pedidoFalso) domicilioYCosto() (domicilio, costo *float64) {
+	if !p.sinCobrar {
+		domicilio = tableroFloatPtr(1)
+	}
+	if !p.sinCotizar {
+		costo = tableroFloatPtr(10)
+	}
+	return domicilio, costo
+}
 
 // entregadoEn: lo que el SQL devuelve en `delivered_at`.
 func (p pedidoFalso) entregadoEn() pgtype.Timestamptz {
@@ -125,6 +140,8 @@ type vehiculoFalso struct {
 	id       uuid.UUID
 	nombre   string
 	sucursal uuid.UUID
+	// `inactivo` es `is_active = false`; el cero es «activo».
+	inactivo bool
 }
 
 type tableroFalso struct {
@@ -513,6 +530,11 @@ func (q *tableroFalso) ColocarPedido(_ context.Context, arg sqlc.ColocarPedidoPa
 	if !ok || !ok2 || p.sucursal != c.BranchID || p.ruta != nil || p.entregado {
 		return sqlc.ColocarPedidoRow{}, pgx.ErrNoRows
 	}
+	// LAS DOS DE AMADO (`factura_domicilio > 0` y `pedido_costo IS NOT NULL`). `factura_estado`
+	// NO está en el `WHERE` de `ColocarPedido` y no puede estar aquí.
+	if p.sinCobrar || p.sinCotizar {
+		return sqlc.ColocarPedidoRow{}, pgx.ErrNoRows
+	}
 	if arg.Sucursal.Valid && c.BranchID != uuid.UUID(arg.Sucursal.Bytes) {
 		return sqlc.ColocarPedidoRow{}, pgx.ErrNoRows
 	}
@@ -590,7 +612,7 @@ func (q *tableroFalso) ObtenerVehiculo(_ context.Context, arg sqlc.ObtenerVehicu
 	if arg.Sucursal.Valid && v.sucursal != uuid.Nil && v.sucursal != uuid.UUID(arg.Sucursal.Bytes) {
 		return sqlc.ObtenerVehiculoRow{}, pgx.ErrNoRows
 	}
-	fila := sqlc.ObtenerVehiculoRow{ID: v.id, Name: v.nombre, IsActive: true}
+	fila := sqlc.ObtenerVehiculoRow{ID: v.id, Name: v.nombre, IsActive: !v.inactivo}
 	if v.sucursal != uuid.Nil {
 		fila.BranchID = pgtype.UUID{Bytes: [16]byte(v.sucursal), Valid: true}
 	}
@@ -601,9 +623,12 @@ func (q *tableroFalso) ObtenerVehiculo(_ context.Context, arg sqlc.ObtenerVehicu
 // devuelve `branch_id`: es el manejador quien lo coteja contra la sucursal de la columna.
 func (q *tableroFalso) ObtenerVehiculoParaCapacidad(_ context.Context, id uuid.UUID) (sqlc.ObtenerVehiculoParaCapacidadRow, error) {
 	fila := sqlc.ObtenerVehiculoParaCapacidadRow{ID: id, Name: "F-350", Capacity: q.capacidad, IsActive: true}
-	if v, hay := q.vehiculos[id]; hay && v.sucursal != uuid.Nil {
-		fila.Name = v.nombre
-		fila.BranchID = pgtype.UUID{Bytes: [16]byte(v.sucursal), Valid: true}
+	if v, hay := q.vehiculos[id]; hay {
+		fila.IsActive = !v.inactivo
+		if v.sucursal != uuid.Nil {
+			fila.Name = v.nombre
+			fila.BranchID = pgtype.UUID{Bytes: [16]byte(v.sucursal), Valid: true}
+		}
 	}
 	return fila, nil
 }
@@ -616,8 +641,9 @@ func (q *tableroFalso) ObtenerPedido(_ context.Context, arg sqlc.ObtenerPedidoPa
 	if arg.Sucursal.Valid && p.sucursal != uuid.UUID(arg.Sucursal.Bytes) {
 		return sqlc.ObtenerPedidoRow{}, pgx.ErrNoRows
 	}
+	domicilio, costo := p.domicilioYCosto()
 	fila := sqlc.ObtenerPedidoRow{ID: p.id, CustomerName: p.nombre, Weight: p.peso,
-		FacturaEstado: p.factura, FacturaDomicilio: tableroFloatPtr(1), PedidoCosto: tableroFloatPtr(10),
+		FacturaEstado: p.factura, FacturaDomicilio: domicilio, PedidoCosto: costo,
 		DeliveredAt: p.entregadoEn(), Resultado: p.suResultado()}
 	if p.ruta != nil {
 		fila.RouteID = pgtype.UUID{Bytes: [16]byte(*p.ruta), Valid: true}
@@ -684,7 +710,7 @@ func (q *tableroFalso) AvisosDelTablero(_ context.Context, arg sqlc.AvisosDelTab
 func (q *tableroFalso) ListarPedidosSinColocar(_ context.Context, arg sqlc.ListarPedidosSinColocarParams) ([]sqlc.ListarPedidosSinColocarRow, error) {
 	var salida []sqlc.ListarPedidosSinColocarRow
 	for _, p := range q.pedidos {
-		if p.sucursal != arg.BranchID || p.ruta != nil || p.entregado {
+		if p.sucursal != arg.BranchID || p.ruta != nil || p.entregado || p.sinCobrar || p.sinCotizar {
 			continue
 		}
 		if !deLaSucursal(p.sucursal, arg.Sucursal) {
@@ -770,7 +796,7 @@ func (q *tableroFalso) ContarPedidosSinColocar(_ context.Context, arg sqlc.Conta
 	for _, p := range q.pedidos {
 		// EL MISMO FILTRO QUE LA LISTA, entregados incluidos: si aquí se olvidara,
 		// el doble reproduciría el «Sin colocar (722) encima de una lista de 293».
-		if p.sucursal != arg.BranchID || p.ruta != nil || p.entregado {
+		if p.sucursal != arg.BranchID || p.ruta != nil || p.entregado || p.sinCobrar || p.sinCotizar {
 			continue
 		}
 		if !deLaSucursal(p.sucursal, arg.Sucursal) {
@@ -790,10 +816,24 @@ type fuenteTab struct{ q sqlc.Querier }
 
 func (f fuenteTab) Consultas() sqlc.Querier { return f.q }
 
-// EnTx corre la función tal cual. El doble no deshace nada: lo que se prueba aquí es el
-// manejador, no el aislamiento de Postgres.
+// EnTx corre la función y, si falla, DESHACE LAS TARJETAS COLOCADAS, que es lo único del
+// doble que una transacción de verdad revierte y que importa a una prueba: colocar una
+// tarjeta saca primero la que estaba y, si `ColocarPedido` no coloca nada, Postgres deja el
+// pedido en la columna de la que venía. Sin esto, la prueba de que un rechazo no mueve la
+// tarjeta se pasaría sólo porque el manejador comprobaba ANTES, y no por lo que hace la base.
+// El aislamiento de Postgres sigue sin probarse aquí: lo que se prueba es el manejador.
 func (f fuenteTab) EnTx(_ context.Context, fn func(sqlc.Querier) error) error {
+	var antes map[uuid.UUID]colocacion
+	if t, ok := f.q.(*tableroFalso); ok {
+		antes = make(map[uuid.UUID]colocacion, len(t.colocadas))
+		for k, v := range t.colocadas {
+			antes[k] = v
+		}
+	}
 	if err := fn(f.q); err != nil {
+		if t, ok := f.q.(*tableroFalso); ok {
+			t.colocadas = antes
+		}
 		return err
 	}
 	// EL COMMIT. Las dos únicas diferidas del tablero saltan aquí y no antes, y lo que las
@@ -1355,10 +1395,11 @@ func (q *tableroFalso) PedidosDeColumnaParaArmarRuta(_ context.Context, arg sqlc
 			continue
 		}
 		lat, lng := p.lat, p.lng
+		domicilio, costo := p.domicilioYCosto()
 		fila := sqlc.PedidosDeColumnaParaArmarRutaRow{
 			ID: p.id, CustomerName: p.nombre, Weight: p.peso,
 			EndLat: &lat, EndLng: &lng, FacturaEstado: p.factura, Posicion: c.posicion,
-			FacturaDomicilio: tableroFloatPtr(1), PedidoCosto: tableroFloatPtr(10),
+			FacturaDomicilio: domicilio, PedidoCosto: costo,
 			// Como en el SQL: `delivered_at` y `resultado` salen como DATO y no
 			// filtran aquí. Quien corta y nombra la tarjeta es `armarRutaDeColumna`.
 			DeliveredAt: p.entregadoEn(), Resultado: p.suResultado(),

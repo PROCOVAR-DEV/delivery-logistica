@@ -50,5 +50,66 @@
       "seEligieron": 15,
       "encabezado": "12 de los 15 pedidos elegidos no pueden ir en esta ruta: "
     }
-  ]
+  ],
+  "mensajesDelServidor": {
+    "queEsEsto": "Los «no» NUEVOS del 07/10/2026 (Amado: domicilio cobrado y cotizado, camión inactivo, quitar una parada). La cabecera de arriba se redacta dos veces (servidor y aparato). Estos mensajes los escribe SÓLO el servidor, y el aparato, cuando tiene que mostrarlos, los COPIA TAL CUAL de la respuesta (`error` o `descartados[].motivo`): no los redacta. Se guardan aquí para que el texto que ve la persona no cambie sin que una prueba se ponga en rojo. Dos lados los leen o pueden leerlos: `api/internal/api/armado_rechazado_casos_compartidos_test.go` (los comprueba contra el servidor) y, si la app los quiere espejar sin red, `app/test/...` puede leer la misma clave. Ningún literal ya existente cambia de texto, con UNA excepción decidida por Amado (incidencia 4) y señalada en su caso: el de borrar un vehículo con rutas, que dejó de decir «Ponlo en mantenimiento» y dice «Márcalo como inactivo». Todo lo demás sólo se añade.",
+    "armadoDeRuta": [
+      {
+        "nombre": "sin-domicilio-cobrado-uno",
+        "nota": "El conduce es el número de operación de la factura: el pedido se nombra por él.",
+        "operationNumber": "PTB25-261005-1479",
+        "mensaje": "En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: PTB25-261005-1479."
+      },
+      {
+        "nombre": "sin-cotizar-uno",
+        "nota": "Bloquea, no avisa: antes era un aviso y el pedido entraba valiendo cero.",
+        "operationNumber": "PTB25-261005-1479",
+        "mensaje": "No se puede crear la ruta: 1 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1479."
+      }
+    ],
+    "literalesFijos": [
+      {
+        "nombre": "camion-inactivo",
+        "donde": "POST /api/routes, PATCH /api/routes/{id} con vehicleId, POST /api/board/columns/{id}/route, PUT/PATCH de la zona con vehiculoId",
+        "literal": "El vehículo está inactivo y no se puede asignar a una ruta."
+      },
+      {
+        "nombre": "colocar-sin-domicilio-cobrado",
+        "donde": "PUT /api/board/placements/{id}, 409",
+        "literal": "No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado."
+      },
+      {
+        "nombre": "colocar-sin-cotizar",
+        "donde": "PUT /api/board/placements/{id}, 409",
+        "literal": "No se puede asociar al tablero: primero cotiza el domicilio del pedido."
+      },
+      {
+        "nombre": "borrar-vehiculo-con-rutas",
+        "donde": "DELETE /api/vehicles/{id}, 409. Antes decía «Ponlo en mantenimiento»: cambio decidido por Amado (incidencia 4), no hay otra copia en app ni en sync.",
+        "literal": "No se puede eliminar este vehículo porque tiene rutas asociadas, incluso históricas. Márcalo como inactivo para impedir que se use en nuevas rutas."
+      },
+      {
+        "nombre": "quitar-parada-ruta-no-planificada",
+        "donde": "DELETE /api/routes/{id}/stops/{orderId}, 409",
+        "literal": "Sólo se pueden retirar paradas de una ruta planificada"
+      },
+      {
+        "nombre": "quitar-parada-que-no-esta",
+        "donde": "DELETE /api/routes/{id}/stops/{orderId}, 409",
+        "literal": "El pedido no pertenece a una ruta planificada o ya fue retirado"
+      }
+    ],
+    "descartadosDelTablero": [
+      {
+        "nombre": "zona-sin-domicilio-cobrado",
+        "motivo": "la factura no tiene domicilio cobrado",
+        "queHacer": "Corrige o coteja la factura para registrar el cobro del domicilio antes de crear la ruta."
+      },
+      {
+        "nombre": "zona-sin-cotizar",
+        "motivo": "domicilio sin cotizar",
+        "queHacer": "Cotiza el domicilio del pedido antes de crear la ruta."
+      }
+    ]
+  }
 }

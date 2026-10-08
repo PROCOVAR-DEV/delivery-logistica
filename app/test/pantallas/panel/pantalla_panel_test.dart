@@ -48,7 +48,10 @@ void main() {
     await tester.pump(Duration.zero);
   }
 
-  Future<void> pedido(String id, {double peso = 10, double? costo}) => base
+  // Repartible = lo que ofrece la lista de disponibles de Rutas: de PEDIDO, con
+  // punto de entrega, factura que cuadra, domicilio cobrado y cotizado (cero
+  // cuenta como cotizado).
+  Future<void> pedido(String id, {double peso = 10, double? costo = 0}) => base
       .into(base.orders)
       .insert(
         OrdersCompanion.insert(
@@ -57,7 +60,10 @@ void main() {
           address: 'Calle $id',
           branchId: const Value('stg'),
           endLat: const Value(20.0),
+          endLng: const Value(-75.0),
+          source: const Value('pedido'),
           facturaEstado: const Value('igual'),
+          facturaDomicilio: const Value(1),
           weight: Value(peso),
           pedidoCosto: Value(costo),
         ),

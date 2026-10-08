@@ -12,10 +12,11 @@ construye **Dokploy** él solo: clona el repositorio y corre los Dockerfile de `
 subir una imagen sería hacer dos veces lo mismo y tener dos cosas que se pueden
 desincronizar.
 
-GitHub Actions comprueba que `api/` y `sync/` compilan, pasan `vet`, pasan las pruebas
-y tienen el código de sqlc al día (`.github/workflows/go.yml`). Ese workflow no despliega.
-El workflow `.github/workflows/reparto-windows.yml` sí construye el instalador y el ZIP
-de Windows; su publicación verificada se hace aparte, como explica el apartado 4.
+El único workflow de GitHub Actions es `.github/workflows/reparto-windows.yml`, que construye
+el instalador y el ZIP de Windows; su publicación verificada se hace aparte, como explica el
+apartado 4. **No hay `go.yml`**: se borró (commit `310bf2b`, «las mismas comprobaciones en
+un script») y `api/` y `sync/` se comprueban con `./comprobar.sh`. Aquí decía que había un
+workflow que comprobaba Go; ya no existe, y ninguno despliega.
 
 ## Quién compila qué
 
@@ -23,7 +24,7 @@ de Windows; su publicación verificada se hace aparte, como explica el apartado 
 |---|---|---|
 | **web** | el portátil Linux | Sólo para probar. La que se sirve la construye Dokploy con `deploy/Dockerfile.app`. |
 | **APK** | el portátil Linux | Tiene el SDK de Android puesto y funcionando. |
-| **escritorio de Linux** | el portátil Linux | |
+| **escritorio de Linux** | el portátil Linux | Sólo para probar (`docs/entorno-local.md`). **No hay canal de escritorio Linux**: ni workflow, ni script de publicación, ni anuncio. |
 | **escritorio de Windows** | **GitHub Actions con Windows Server 2022 o el portátil Windows de Jose** | El `.exe` necesita MSVC en Windows; desde Linux se puede lanzar la compilación remota. |
 
 Y la versión de Flutter tiene que ser **la misma en las dos máquinas**, porque
@@ -137,10 +138,16 @@ flutter build apk --release \
   build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Si contesta **`CN=Android Debug`**, como contesta hoy, **ese APK no se reparte**. La clave
-de depuración se regenera sola, y Android **rechaza** como actualización un APK firmado con
-otra clave: obliga a desinstalar, y desinstalar **borra la base local**, o sea el trabajo
-del día sin subir.
+Si contesta **`CN=Android Debug`**, **ese APK no se reparte**. La clave de depuración se
+regenera sola, y Android **rechaza** como actualización un APK firmado con otra clave:
+obliga a desinstalar, y desinstalar **borra la base local**, o sea el trabajo del día sin
+subir.
+
+Eso era lo que contestaba siempre hasta el 21/09/2026. Hoy el APK se firma con el almacén
+de `app/android/key.properties` (ignorado por git, apunta a un `.jks` de
+`procovar/.secretos/`), y el firmante que tiene que salir es el de la huella SHA-256
+`01529f5a6fb1a238985745aff13cdcf7e8e85b624992f4e328bde9898fd80b21` (dato público). Cualquier
+otra, o `CN=Android Debug`, y no se publica.
 
 > No te fíes de que no haya salido ningún aviso al compilar. Gradle sí avisa, pero
 > **`flutter build apk --release` se traga esa salida** (comprobado el 15/09/2026): el aviso
@@ -172,6 +179,9 @@ tiene que estar encendido para esa compilación.
 El proceso está en `.github/workflows/reparto-windows.yml` y
 `deploy/windows/compilar.ps1`. Arranca al subir una rama `build/reparto-windows-*`;
 cuando el workflow esté en la rama principal, también se puede ejecutar manualmente.
+**La rama `build/reparto-windows-<versión>` se empuja al remoto `upstream`** (la organización
+`PROCOVAR-DEV`), **no a `origin`** (el fork `jose22072000/…`, que desde el 07/10/2026 no es el
+original): la ejecución de CI que se publica tiene que ser de `PROCOVAR-DEV/delivery-logistica`.
 Antes de empaquetar corre `flutter analyze`, las pruebas de la Guía, del Tablero y de Rutas,
 y las de base local, cola y sincronización; después hace la compilación nativa.
 Inno Setup genera `reparto-<version>-windows-setup.exe`, instala una copia de
@@ -190,8 +200,8 @@ sus huellas, publicar el instalador sin sobrescribir versiones y comprobar su de
 
 La versión **1.0.27+28** está en procovar.cloud como **Reparto para Windows**:
 el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.27-windows-setup.exe).
-La ejecución [37537712382 de GitHub Actions](https://github.com/jose22072000/delivery-logistica/actions/runs/37537712382)
-compiló e instaló la copia de prueba y cotejó sus archivos. Las descargas públicas se
+La ejecución [37537712382 de GitHub Actions](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37537712382)
+(bajo `jose22072000` ese enlace da 404: ahora vive en la organización) compiló e instaló la copia de prueba y cotejó sus archivos. Las descargas públicas se
 verificaron por tamaño y SHA256 antes de actualizar la tarjeta. Abrir, iniciar sesión
 y trabajar sin conexión en el PC del usuario quedan pendientes de prueba física.
 
@@ -252,6 +262,10 @@ flutter build windows --release `
 ---
 
 ## 5. El escritorio de Linux (desde el portátil Linux)
+
+Sólo para probar: **no hay canal de escritorio Linux** (ni workflow, ni script de
+publicación, ni anuncio; las variables `APP_DESCARGA_LINUX*` de la api existen y se quedan
+vacías).
 
 ```bash
 cd ~/Work/procovar/delivery-logistica/app
@@ -314,6 +328,16 @@ variables de golpe —`APP_ULTIMA_VERSION`, `APP_ULTIMA_COMPILACION`, `APP_DESCA
 y sus `_BYTES` y `_SHA256`— y volviéndola a desplegar. Los pasos numerados están en
 **`docs/despliegue.md` §3.1**, y el detalle de MinIO (cómo se sube, el `Cache-Control` que
 no es cosmética y las cuatro comprobaciones) en **`docs/actualizaciones.md` §3-bis**.
+
+**Y se publica con el publicador de ESA versión, no con el de `deploy/`.** Los de `deploy/`
+están fijados por versión y desfasados (el de APK sólo acepta la 1.0.25+26 y el de Windows
+la 1.0.25 y la 1.0.26); cada versión se copia de
+`app/build/codex-retoma-20261006/rutas-historico/publicacion-<versión anterior>/` (ignorada
+por git) y se adapta. `deploy/publicar-apk.sh` no se usa: poda y no verifica. El orden es
+**Windows primero, Android después**, y cada versión de Windows necesita su permiso de MinIO
+(`allow-windows<N>.py`) o la descarga da 403. Todo, con el detalle de los diarios y los
+redespliegues, en `docs/despliegue.md` §3.1 («Cómo se publica de verdad»). No hay canal de
+Linux que publicar.
 
 **Y la firma se mira SIEMPRE, en el APK ya hecho**, porque `android/key.properties` no está
 en el repositorio y una máquina sin él vuelve a firmar con la de depuración sin que se vea:

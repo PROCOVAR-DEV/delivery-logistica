@@ -196,6 +196,13 @@ WHERE p.column_id = origen.id
 -- Con `ON DELETE RESTRICT` en las colocaciones, esto falla si la columna tiene algo dentro.
 -- Es lo que se quiere: borrar una columna con pedidos puestos no puede ser silencioso, y
 -- quien llama ya sabe —por `ContarPedidosEnColumna`— qué tiene que decirle a la persona.
+--
+-- Los ORÍGENES de las rutas planificadas (`board_route_origins.column_id`) NO bloquean: son
+-- `ON DELETE CASCADE` desde el 07/10/2026. Con `RESTRICT`, borrar una zona ya vacía que
+-- tenía una ruta planificada contestaba el 409 «tiene 0 pedidos puestos», que es falso: no
+-- hay nada puesto, hay un recuerdo de dónde estuvo. Al borrarse la zona se pierde ese
+-- recuerdo y borrar la ruta después sencillamente no restaura nada en una zona que ya no
+-- existe: el pedido vuelve a la lista de «sin colocar», que es donde tiene que estar.
 -- name: BorrarColumna :execrows
 DELETE FROM board_columns
 WHERE id = sqlc.arg('id')
@@ -288,9 +295,16 @@ WHERE c.branch_id = sqlc.arg('branch_id')
 -- pasa aquí. Sin almacén con coordenadas no hay tablero: se dice que no se puede, no se
 -- ordena por un punto inventado.
 --
--- Las condiciones de «repartible» son LAS MISMAS CINCO de `ListarPedidosDisponibles`, ni
--- una más ni una menos. Si el tablero ofreciera algo que el armador luego rechaza, el
--- logístico prepararía una columna entera para que la ruta le diga que no al final del día.
+-- Las condiciones de «repartible» son LAS MISMAS de `ListarPedidosDisponibles`, ni una más
+-- ni una menos: sin ruta, sin entregar, con coordenadas, facturado (`igual` o `cambiado`),
+-- no archivado, y desde el 07/10/2026 (Amado) con el domicilio COBRADO en la factura
+-- (`factura_domicilio > 0`) y COTIZADO en Entrega (`pedido_costo` no nulo). Si el tablero
+-- ofreciera algo que `ColocarPedido` o el armador luego rechazan, el logístico prepararía
+-- una columna entera para que la ruta le diga que no al final del día. Y eso fue
+-- exactamente lo que pasó con las dos últimas: se añadieron a `ColocarPedido` y no aquí,
+-- y la mitad izquierda ofrecía tarjetas que el 409 devolvía. Lo ata
+-- `consultas_motor_real_test.go` (todo lo que se ofrece se puede colocar) y el contador lo
+-- ata a la lista `internal/store/contador_y_lista_test.go`.
 -- name: ListarPedidosSinColocar :many
 SELECT
     o.id, o.order_date, o.created_at, o.operation_number, o.customer_name,
@@ -320,6 +334,8 @@ WHERE
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
+    AND o.factura_domicilio > 0
+    AND o.pedido_costo IS NOT NULL
     -- Sin colocar = no está en ninguna columna. Del tablero de NADIE: un pedido es de una
     -- sucursal y sólo puede estar en el suyo, así que si aparece puesto, puesto está.
     -- ARCHIVADO EN PEDIDO = NO SE REPARTE.
@@ -388,7 +404,7 @@ WHERE
     -- aplica después de la consulta para no descuadrar `total` y `truncated`. Aquí el
     -- número que se enseña es el de esta misma consulta, así que bajarlo al SQL no
     -- descuadra nada y evita traerse los 40 km de más por la conexión de allá.
-    -- Un pedido sin distancia no existe: los cinco filtros de arriba ya exigen coordenadas.
+    -- Un pedido sin distancia no existe: los filtros de arriba ya exigen coordenadas.
     AND (
         sqlc.narg('km_max')::double precision IS NULL
         OR km_haversine(sqlc.arg('origen_lat'), sqlc.arg('origen_lng'), o.end_lat, o.end_lng)
@@ -499,6 +515,8 @@ WHERE
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
+    AND o.factura_domicilio > 0
+    AND o.pedido_costo IS NOT NULL
     -- La misma línea que la lista, y en el mismo sitio para que se vean juntas al
     -- compararlas a ojo.
     AND NOT o.archivado
@@ -627,7 +645,15 @@ WHERE
 --
 -- La condición de `factura_estado` NO está: un pedido colocado que deja de ser repartible
 -- se queda puesto y marcado (ver `ListarPedidosColocados`), así que volver a colocarlo
--- tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador.
+-- tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador. Se llegó
+-- a añadir el 07/10/2026 y se quitó ese mismo día: `cambiado` no entra a una ruta, pero sí
+-- se puede preparar en una zona, y el corte a `igual` se hace al armar, con su motivo.
+--
+-- SÍ están las dos que pidió Amado el 07/10/2026: `factura_domicilio > 0` y
+-- `pedido_costo IS NOT NULL`. El domicilio ya es un servicio que se cobra, y sin cobrarse y
+-- sin cotizarse no hay nada que preparar. Tienen que ser las mismas de
+-- `ListarPedidosSinColocar`, que es la que ofrece las tarjetas: lo que esa lista ofrece,
+-- esta sentencia lo tiene que aceptar. Cero filas lo traduce `porQueNoSePudoColocar`.
 --
 -- # Y DEVUELVE LA SUCURSAL DE LA COLUMNA, QUE NO ES UN ADORNO — 01/10/2026
 --
@@ -664,7 +690,6 @@ WITH puesta AS (
       -- los entregados. Quien lo traduce a un 409 con su motivo es `porQueNoSePudoColocar`.
       AND o.delivered_at IS NULL
       AND (o.resultado IS NULL OR o.resultado <> 'entregado')
-      AND o.factura_estado IN ('igual', 'cambiado')
       AND o.factura_domicilio > 0
       AND o.pedido_costo IS NOT NULL
       AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)
@@ -743,8 +768,14 @@ JOIN board_columns c ON c.id = q.column_id;
 -- entre que se pintó el tablero y se pulsó el botón, y de ahí sale el «N de los M ya están
 -- en otra ruta».
 --
--- `factura_estado` deja pasar `igual` y `cambiado`, porque ambos representan una factura
--- emitida. «cambiado» indica líneas distintas, no que falte factura.
+-- `factura_estado` deja pasar `igual` y `cambiado` por lo mismo que en `routes.sql`: el
+-- corte a sólo `igual` lo hace el handler DESPUÉS, para poder nombrar cuál falla y por qué.
+-- Un WHERE que los descarte aquí deja el mismo rechazo sin nada que decir, y el logístico
+-- se queda mirando una columna de doce que produce una ruta de nueve sin explicación.
+-- `cambiado` NO entra a una ruta (en el camión sólo sube lo que cuadra con la factura).
+-- Lo de Amado del 07/10/2026 se suma: `factura_domicilio` y `pedido_costo` salen como DATO
+-- y `armarRutaDeColumna` los nombra en `descartados` si el domicilio no está cobrado o no
+-- está cotizado.
 --
 -- `posicion` sale para que el armador pueda RESPETAR el orden del logístico: él conoce las
 -- calles de su distrito y el vecino más próximo no. Quién de los dos manda lo decide el
@@ -752,8 +783,7 @@ JOIN board_columns c ON c.id = q.column_id;
 -- name: PedidosDeColumnaParaArmarRuta :many
 SELECT
     o.id, o.operation_number, o.customer_name, o.end_lat, o.end_lng,
-    o.weight, o.pedido_costo, o.factura_estado, o.factura_domicilio,
-    o.requiere_domicilio, o.branch_id,
+    o.weight, o.pedido_costo, o.factura_estado, o.factura_domicilio, o.branch_id,
     o.external_id, o.source, o.archivado,
     -- SE ENTREGA EL DATO, NO SE FILTRA AQUÍ, igual que `factura_estado` y por lo mismo:
     -- un `WHERE` que los descarte deja el descarte sin nada que decir, y el logístico se
@@ -781,6 +811,20 @@ ORDER BY p.posicion ASC;
 --
 -- No se borra la COLUMNA: el distrito sigue existiendo mañana. Lo que se vacía es lo que
 -- lleva dentro hoy.
+--
+-- # DE DÓNDE SALIÓ CADA PARADA SE GUARDA EN `board_route_origins` — incidencia 3 de Amado
+--
+-- Antes de vaciar la tarjeta se apunta, para cada pedido, de qué ruta, zona y posición vino,
+-- y así `SoltarPedidosDeRuta` (borrar la ruta) y `SoltarParadaPlanificada` (quitar una sola
+-- parada) pueden devolverlo a su sitio en vez de dejar el tablero limpio.
+--
+-- `ON CONFLICT (order_id) DO UPDATE` y NO `DO NOTHING`: `board_route_origins` tiene UNIQUE
+-- por pedido, y un origen VIEJO bloquearía el nuevo. Pasa con un devuelto: se marca
+-- «devuelto» en una ruta en curso, suelta su `route_id` y queda libre para mañana, pero el
+-- origen de aquella ruta sigue ahí hasta que la ruta se complete o se borre. Si mañana lo
+-- colocan en otra zona y arman otra ruta, el `DO NOTHING` se tragaba el origen nuevo EN
+-- SILENCIO, y al borrar esta ruta el pedido volvía a la zona de la de ayer, o a ninguna.
+-- Lo vigente es siempre lo último: el pedido está ahora en ESTA ruta y salió de ESTA zona.
 -- name: QuitarDelTableroLosDeRuta :execrows
 WITH guardados AS (
     INSERT INTO board_route_origins (route_id, order_id, column_id, posicion, colocado_por)
@@ -790,7 +834,11 @@ WITH guardados AS (
     JOIN orders o ON o.id = p.order_id
     WHERE o.route_id = sqlc.arg('ruta_id')
       AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)
-    ON CONFLICT (order_id) DO NOTHING
+    ON CONFLICT (order_id) DO UPDATE SET
+        route_id     = excluded.route_id,
+        column_id    = excluded.column_id,
+        posicion     = excluded.posicion,
+        colocado_por = excluded.colocado_por
 )
 DELETE FROM board_placements p
 USING orders o, board_columns c

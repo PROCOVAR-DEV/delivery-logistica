@@ -15,7 +15,9 @@ Esto es lo que hay que hacer, de cero, para dejarlo todo levantado y entrar.
 
 - Docker y `docker compose`.
 - Flutter (para la aplicación de escritorio).
-- Los dos repos al lado: `procovar/delivery-logistica` y `procovar/auth`.
+- Los dos repos al lado: `procovar/delivery-logistica` y `procovar/auth`. Se clonan de la
+  organización `PROCOVAR-DEV` (`PROCOVAR-DEV/delivery-logistica`): desde el 07/10/2026
+  `jose22072000/…` es un fork personal que no se actualiza solo.
 - Para pulsar sin molestar a nadie: `Xvfb`, `openbox`, `xdotool`, `imagemagick`.
 
 **Nada de esto llama a un dominio de Procovar.** Es la regla del `CLAUDE.md` de
@@ -28,6 +30,13 @@ el canal de actualización se deja callado (§2) y Accesos es el de esta máquin
 cd delivery-logistica
 docker compose up -d --build postgres migraciones api sync
 ```
+
+> **Aviso del 07/10/2026: hoy esto no arranca.** `docker-compose.yml` no es YAML válido
+> desde el commit `ebc3480` (29/09): en la línea 117 la nota `APP_ULTIMA_NOTAS` va sin
+> comillas y lleva un «: » dentro, y `docker compose` contesta «mapping values are not
+> allowed in this context». Es un fichero de código; hasta que se ponga entre comillas
+> dobles, este paso falla antes de levantar nada. (La jornada de abajo se hizo el 24/09,
+> con el compose anterior.)
 
 Deja:
 
@@ -53,6 +62,13 @@ PROCOVAR_AUTH_SIGNING_KEY=de-juguete-para-el-portatil
 
 ORIGENES_PERMITIDOS=http://localhost:8082,http://127.0.0.1:8082
 ```
+
+(Sobre «el canal de actualización se deja callado»: el `.env` de esta máquina trae las
+`APP_*` en blanco, pero el compose las lee como `${APP_ULTIMA_VERSION:-1.0.15}`, y en
+Compose `:-` también cae al valor por defecto cuando la variable está **vacía**. Por
+construcción, un `.env` en blanco no calla el anuncio: la api local anunciaría la 1.0.15 con
+su enlace a `archivos.procovar.cloud`. No se ha podido comprobar corriéndolo, porque hoy el
+compose no parsea.)
 
 **`http://accesos:3500`, por el nombre del servicio y no por `127.0.0.1`.** Desde
 un contenedor no se llega al `localhost` del portátil: el cortafuegos del equipo
@@ -117,6 +133,10 @@ La contraseña de las dos está escrita en ese fichero.
 > escritorio. Arreglado; la semilla repone el código si falta.
 
 ## 5. La aplicación de escritorio, apuntando aquí
+
+(Es el escritorio de **Linux**, y es sólo para probar: **no hay canal de escritorio
+Linux** —ni workflow, ni script de publicación, ni anuncio—. Lo que se publica es Android y
+Windows: `docs/despliegue.md` §3.1.)
 
 `lib/nucleo/red/entorno.dart` tiene las URL de **producción** como `defaultValue`,
 así que un build sin `--dart-define` llama a `reparto.procovar.cloud` en cuanto

@@ -78,9 +78,11 @@ func (a *Acotado) RenglonesDeRutas(ctx context.Context, rutas []uuid.UUID) ([]sq
 	})
 }
 
-// ParadasQueViajaronEnRuta es el universo del CIERRE: va por `ultima_ruta_id`, así que
-// incluye a los que ya soltaron su `route_id` por haberse devuelto. Con `route_id` no se
-// podría corregir el resultado de un devuelto, que es media hoja de cierre.
+// ParadasQueViajaronEnRuta es el universo del CIERRE: las que siguen en la ruta
+// (`route_id`) y las que la soltaron CON UN RESULTADO por `ultima_ruta_id`, o sea los
+// devueltos y cancelados. Con `route_id` solo no se podría corregir el resultado de un
+// devuelto, que es media hoja de cierre. Un pedido simplemente quitado de la ruta no
+// entra: no viajó (ver la consulta, «la parada fantasma»).
 func (a *Acotado) ParadasQueViajaronEnRuta(ctx context.Context, ruta uuid.UUID) ([]sqlc.ListarParadasQueViajaronEnRutaRow, error) {
 	return a.q.ListarParadasQueViajaronEnRuta(ctx, sqlc.ListarParadasQueViajaronEnRutaParams{
 		RutaID: aPg(&ruta), Sucursal: a.sucursalPg(),
@@ -174,9 +176,10 @@ func (a *Acotado) ObtenerVehiculoParaCapacidad(ctx context.Context, id uuid.UUID
 // Cierre y borrado
 // ---------------------------------------------------------------------------
 
-// MarcarResultadoDeParada lleva la ruta en el WHERE por `ultima_ruta_id`: cero filas es
-// «ese pedido no va en esta ruta», que es el rechazo del contrato. Comprobarlo antes en Go
-// sobre una lectura anterior es mirar una foto vieja.
+// MarcarResultadoDeParada lleva la ruta en el WHERE (`route_id`, o `ultima_ruta_id` si la
+// parada la soltó con un resultado): cero filas es «ese pedido no va en esta ruta», que es
+// el rechazo del contrato. Comprobarlo antes en Go sobre una lectura anterior es mirar una
+// foto vieja.
 func (a *Acotado) MarcarResultadoDeParada(ctx context.Context, ruta, pedido uuid.UUID, resultado sqlc.StopResult, nota *string) (int64, error) {
 	return a.q.MarcarResultadoDeParada(ctx, sqlc.MarcarResultadoDeParadaParams{
 		Resultado: resultado,
@@ -196,6 +199,16 @@ func (a *Acotado) LimpiarResultadoDeParada(ctx context.Context, ruta, pedido uui
 		RutaID:   aPg(&ruta),
 		Sucursal: a.sucursalPg(),
 	})
+}
+
+// DondeEstanLosPedidos NO lleva alcance a propósito, igual que `ContarRutasDelDia` y
+// `ObtenerVehiculoParaCapacidad`, y por una razón más estrecha que las suyas: es el
+// diagnóstico del REGISTRO del servidor cuando un cierre rechaza paradas, y su resultado
+// no sale nunca en la respuesta. Con alcance, el pedido de otra sucursal —que es una de las
+// causas posibles del rechazo— saldría como «no existe». Quien la llame no puede devolver
+// lo que lea al cliente. Ver la consulta.
+func (a *Acotado) DondeEstanLosPedidos(ctx context.Context, pedidos []uuid.UUID) ([]sqlc.DondeEstanLosPedidosRow, error) {
+	return a.q.DondeEstanLosPedidos(ctx, pedidos)
 }
 
 func (a *Acotado) SoltarPedidosDeRuta(ctx context.Context, ruta uuid.UUID) (int64, error) {

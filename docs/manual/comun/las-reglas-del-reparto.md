@@ -10,8 +10,10 @@ ahorra la mitad de los «no me deja».
 Un pedido que no está facturado **no entra en una ruta**. No es un capricho de la
 aplicación: lo que se carga tiene que ser lo que se cobró.
 
-Un pedido puede llevar una de estas marcas. Las cuatro primeras **impiden**
-repartirlo hoy; la quinta no:
+Y no basta con que haya factura: tiene que **cuadrar** con ella. Si la factura cambió
+respecto a lo pedido, ese pedido tampoco sube hoy.
+
+Un pedido puede llevar una de estas marcas. **Las cinco impiden repartirlo hoy**:
 
 | Marca | Qué quiere decir | ¿Se puede repartir? |
 |---|---|---|
@@ -19,10 +21,35 @@ repartirlo hoy; la quinta no:
 | **«Ya va en otra ruta»** | Se lo llevó otra ruta, quizá desde otro aparato | **No** |
 | **«Sin cotejar»** | No se sabe si la factura cuadra. **No es «cuadra»: es «no se sabe»** | **No** |
 | **«Sin factura»** | No hay nada que llevar | **No** |
-| **«Cambió en la factura»** | Se facturó distinto de como se pidió | **Sí**, pero el peso ya no es el que era |
+| **«Cambió en la factura»** | Se facturó distinto de como se pidió | **No**: la ruta lo descarta con «cambió en la factura» |
 
 Un pedido puede llevar **varias marcas a la vez**: archivado y sin facturar es las
 dos cosas.
+
+### Y además: el domicilio tiene que estar cobrado y cotizado
+
+El domicilio ahora es un servicio que se cobra, y dejar entrar cualquier pedido sería
+repartir sin cobrar. Por eso, **para entrar en una ruta nueva, y para colocarse en una
+zona del Tablero, un pedido tiene que cumplir las tres a la vez**:
+
+1. **Facturado y que cuadre** con la factura (lo de arriba).
+2. **Con el domicilio cobrado**: el importe de domicilio de la factura es **mayor que
+   cero**.
+3. **Cotizado en Entrega**: el repartidor ya le puso el costo del domicilio.
+
+Lo que no cumple **no se ofrece** en la lista de disponibles de Rutas, y si se intenta
+meter igualmente **se rechaza diciendo cuál es**, por su conduce. Los mensajes están en
+[Cuando algo sale mal](cuando-algo-sale-mal.md#no-me-deja-armar-la-ruta).
+
+**Un pedido sin cotizar o sin cobro de domicilio no está «mal»: está pendiente.** Se
+arregla cobrando o cotizando donde toca (Entrega), y entonces aparece solo.
+
+### El conduce
+
+El **conduce** es el **número de operación de la factura**. No es un dato aparte: es el
+mismo número con el que ya se busca un pedido. Con él se identifica cada parada de una
+ruta, y también cada rechazo («Conduce: PTB25-261005-1480»). Un cobro a domicilio que
+sale como conduce se identifica con ese número.
 
 **Lo que no se puede repartir no se esconde: se marca.** Sigue viéndose en la
 pantalla, con el motivo escrito. Así nadie pierde de vista un pedido sin saber por
@@ -48,10 +75,14 @@ Desde el Tablero, el aviso es literalmente éste:
 Desde el asistente, el servidor contesta: **«Se requiere un vehículo para crear la
 ruta»**.
 
-Por qué se bloquea aquí y en cambio otros avisos dejan seguir: **este hueco se
-tapa con un gesto, en la misma pantalla donde sale el "no"**. Dos toques en
-«Camión previsto» y ya está. Los avisos que no bloquean son los que habría que ir
-a arreglar cliente a cliente en otro sitio.
+Por qué se bloquea aquí: **este hueco se tapa con un gesto, en la misma pantalla donde
+sale el "no"**. Dos toques en «Camión previsto» y ya está.
+
+**Y el camión tiene que estar activo y fuera del taller.** Un camión «Inactivo» (dado
+de baja) o en mantenimiento no se ofrece para rutas nuevas, y si se intenta asignar a
+mano el servidor contesta **«El vehículo está inactivo y no se puede asignar a una
+ruta»**. Los camiones dados de baja se siguen viendo en filtros e informes, para que las
+rutas que ya hicieron sigan diciendo en qué camión fueron.
 
 Y el motivo de fondo: sin camión, la ruta sale con su `516.5 kg` y su `$2.99` y
 **no hay nada contra lo que contrastar esos números**. Un número creíble que no
@@ -148,3 +179,24 @@ se pudo guardar».
 
 Y un apunte rechazado **no se reintenta solo y no se borra**: se queda a la vista
 con su motivo hasta que una persona decida.
+
+---
+
+## 11. Un camión con rutas no se borra: se pone «Inactivo»
+
+Un camión que tiene rutas —**aunque sean del histórico**— no se puede eliminar: el
+servidor lo rechaza para no perder qué camión hizo cada reparto. Para dejar de usarlo
+se apaga el interruptor **«Vehículo activo»** de su ficha, y la tarjeta pasa a llevar la
+insignia **«Inactivo»**. Sólo se borra de verdad un camión que nunca se usó.
+
+---
+
+## 12. Una ruta se puede deshacer entera o parada a parada, mientras no salga
+
+- **Una parada** se saca de una ruta **planificada** con **«Quitar de ruta»** (con una
+  pregunta antes). Una ruta en curso o completada no lo permite.
+- **La ruta entera** se borra mientras no esté completada. Una completada es histórico.
+
+En los dos casos el pedido vuelve a la lista de disponibles y, **si la ruta nació del
+Tablero, la factura vuelve a su zona**: no se pierde la relación, y se puede volver a
+planificar sin recrear nada.

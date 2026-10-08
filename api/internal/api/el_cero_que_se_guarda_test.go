@@ -31,35 +31,23 @@ import (
 
 // armarYLeer arma la ruta con los tres pedidos de Santiago y devuelve lo guardado y lo
 // devuelto, que tienen que decir lo mismo.
-func armarYLeer(t *testing.T, d *dobleDeRutas, h http.Handler, ids ...uuid.UUID) (*rutaDeRutas, RutaSalida, int) {
+func armarYLeer(t *testing.T, d *dobleDeRutas, h http.Handler, ids ...uuid.UUID) (*rutaDeRutas, RutaSalida) {
 	t.Helper()
 	w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
 		cuerpoDeArmado(camionStg.String(), ids...))
 	if w.Code != http.StatusCreated {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
-	// El armado contesta de DOS formas: la ruta pelada, o `{ruta, avisos}` cuando hay
-	// domicilios sin costear. Las dos llevan la misma ruta dentro.
-	var conAvisos struct {
-		Ruta   *RutaSalida `json:"ruta"`
-		Avisos struct {
-			SinCosto int `json:"sinCosto"`
-		} `json:"avisos"`
-	}
-	if err := json.Unmarshal(w.Body.Bytes(), &conAvisos); err != nil {
-		t.Fatalf("respuesta ilegible: %v", err)
-	}
+	// El armado contesta la ruta pelada: desde el 07/10/2026 ya no hay `{ruta, avisos}`.
 	var ruta RutaSalida
-	if conAvisos.Ruta != nil {
-		ruta = *conAvisos.Ruta
-	} else if err := json.Unmarshal(w.Body.Bytes(), &ruta); err != nil {
+	if err := json.Unmarshal(w.Body.Bytes(), &ruta); err != nil {
 		t.Fatalf("respuesta ilegible: %v", err)
 	}
 	guardada, hay := d.rutas[ruta.ID]
 	if !hay {
 		t.Fatal("la ruta no quedó guardada")
 	}
-	return guardada, ruta, conAvisos.Avisos.SinCosto
+	return guardada, ruta
 }
 
 // 1. SIN COTIZACIÓN NO SE ARMA RUTA: ya no se permite guardar paradas con importe cero.
@@ -83,7 +71,7 @@ func TestUnaRutaConTodoCotizadoGuardaCeroYNoUnNulo(t *testing.T) {
 	d, stg, _ := datosDeReparto()
 	h := montarRutas(t, d) // los tres traen costo 10
 
-	guardada, ruta, _ := armarYLeer(t, d, h, stg[0], stg[1], stg[2])
+	guardada, ruta := armarYLeer(t, d, h, stg[0], stg[1], stg[2])
 
 	if guardada.sinCotizar == nil {
 		t.Fatal("con las tres paradas cotizadas se guardó NULL: «no consta» y «ninguna» no " +

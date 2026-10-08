@@ -136,9 +136,16 @@ const (
 	msgPedidoNoEsta   = "Ese pedido no existe o no es de tu sucursal"
 	msgSucursalNoEsta = "Esa sucursal no existe o no es tuya"
 
-	msgYaSeEntrego     = "Ese pedido ya se entregó"
-	msgColumnaSinNada  = "La columna no tiene ningún pedido que se pueda repartir hoy"
-	msgNombreRequerido = "La columna necesita un nombre"
+	msgYaSeEntrego = "Ese pedido ya se entregó"
+	// LOS DOS 409 QUE AÑADIÓ AMADO EL 07/10/2026 a colocar una tarjeta (incidencia 2): el
+	// domicilio ya es un servicio que se cobra, así que no se prepara en una zona lo que no
+	// se ha cobrado ni cotizado. Son los dos únicos motivos de `ColocarPedido` que dependen
+	// del dato del pedido y no del tablero. El de la factura sin cotejar NO está aquí: se
+	// añadió y se quitó el mismo día (ver el comentario de `ColocarPedido`).
+	msgTableroSinDomicilioCobrado = "No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado."
+	msgTableroSinCotizar          = "No se puede asociar al tablero: primero cotiza el domicilio del pedido."
+	msgColumnaSinNada             = "La columna no tiene ningún pedido que se pueda repartir hoy"
+	msgNombreRequerido            = "La columna necesita un nombre"
 	// La lista de pedidos vino VACÍA. No es lo mismo que no mandarla: mandarla vacía es
 	// un aparato diciendo que no eligió nada, y armar entonces con todo lo que haya
 	// puesto es exactamente el fallo que la lista viene a tapar.
@@ -1102,34 +1109,22 @@ func (s *Servidor) colocarPedido(w http.ResponseWriter, r *http.Request) {
 	if c.Posicion != nil && *c.Posicion > 0 {
 		posicion = *c.Posicion
 	}
-	// No asociar una factura al tablero mientras no esté cotejada y con el domicilio
-	// cotizado. Se comprueba antes de mover la tarjeta para que el rechazo no deje el
-	// pedido fuera de su columna anterior. La segunda validación de elegibilidad ocurre
-	// al crear la ruta, porque la factura puede cambiar después de colocarse.
-	pedidoActual, err := a.TableroObtenerPedido(r.Context(), pedido)
-	if errors.Is(err, pgx.ErrNoRows) {
-		httpx.Error(w, r, http.StatusNotFound, msgPedidoNoEsta)
-		return
-	}
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	if pedidoActual.FacturaEstado == nil || (*pedidoActual.FacturaEstado != sqlc.FacturaEstadoIgual && *pedidoActual.FacturaEstado != sqlc.FacturaEstadoCambiado) {
-		httpx.Error(w, r, http.StatusConflict,
-			"No se puede asociar al tablero: primero coteja la factura del pedido.")
-		return
-	}
-	if pedidoActual.FacturaDomicilio == nil || *pedidoActual.FacturaDomicilio <= 0 {
-		httpx.Error(w, r, http.StatusConflict,
-			"No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.")
-		return
-	}
-	if pedidoActual.PedidoCosto == nil {
-		httpx.Error(w, r, http.StatusConflict,
-			"No se puede asociar al tablero: primero cotiza el domicilio del pedido.")
-		return
-	}
+	// NO HAY COMPROBACIÓN PREVIA DEL PEDIDO, y es a propósito. Aquí hubo una —leer el pedido
+	// y rechazar por factura, domicilio o cotización ANTES de abrir la transacción— y
+	// estaba mal por dos razones:
+	//
+	//  · EL ORDEN DE LOS MOTIVOS. Un pedido ya entregado al que además le faltaba la
+	//    cotización contestaba «primero cotiza el domicilio», un consejo imposible de
+	//    seguir: el pedido está en casa del cliente. La prioridad de los mensajes está
+	//    escrita en UN sitio, `porQueNoSePudoColocar` (entregado, ruta, domicilio, cotización,
+	//    zona), y una segunda lista de comprobaciones antes de ella es una segunda prioridad.
+	//  · LA REGLA ESTABA TRES VECES: en el `WHERE` de `ColocarPedido`, en esta lectura y en
+	//    `porQueNoSePudoColocar`. La que manda es la sentencia, que comprueba y escribe en el
+	//    mismo instante. Lo demás son una foto vieja.
+	//
+	// Y no hace falta para «no dejar el pedido fuera de su columna anterior»: si
+	// `ColocarPedido` no coloca nada (cero filas), la transacción entera se deshace —el
+	// pedido sigue en la columna de la que venía— y sólo después se pregunta el porqué.
 
 	var puesto sqlc.ColocarPedidoRow
 	err = a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
@@ -1235,10 +1230,11 @@ func paramsDelContador(arg sqlc.ListarPedidosSinColocarParams) sqlc.ContarPedido
 
 // porQueNoSePudoColocar traduce el «cero filas» del INSERT.
 //
-// Cero filas puede ser cuatro cosas —el pedido no existe, es de otra sucursal, la columna
-// no es suya, o el pedido ya va en un camión— y las cuatro no se responden igual: que ya
-// vaya en una ruta es un 409 que la persona puede arreglar; que sea de otra sucursal es
-// un 404 y NO se dice que existe, porque decirlo ya es contar algo.
+// Cero filas puede ser seis cosas —el pedido no existe, es de otra sucursal, la columna no
+// es suya, el pedido ya va en un camión o ya se entregó, o su domicilio no está cobrado ni
+// cotizado— y no se responden igual: que ya vaya en una ruta es un 409 que la persona puede
+// arreglar; que sea de otra sucursal es un 404 y NO se dice que existe, porque decirlo ya es
+// contar algo.
 func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, pedido uuid.UUID) {
 	p, err := a.TableroObtenerPedido(r.Context(), pedido)
 	if err != nil {
@@ -1262,19 +1258,16 @@ func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request,
 		httpx.Error(w, r, http.StatusConflict, msgYaVaEnUnaRuta)
 		return
 	}
-	if p.FacturaEstado == nil || (*p.FacturaEstado != sqlc.FacturaEstadoIgual && *p.FacturaEstado != sqlc.FacturaEstadoCambiado) {
-		httpx.Error(w, r, http.StatusConflict,
-			"No se puede asociar al tablero: primero coteja la factura del pedido.")
-		return
-	}
+	// LAS DOS DE AMADO (07/10/2026), en el orden en que se arreglan: primero se cobra el
+	// domicilio en la factura y después se cotiza en Entrega. Son las dos condiciones de
+	// `ColocarPedido` que dependen del dato del pedido, y la tercera sin factura no está: lo
+	// que `ColocarPedido` no exige no se puede explicar aquí.
 	if p.FacturaDomicilio == nil || *p.FacturaDomicilio <= 0 {
-		httpx.Error(w, r, http.StatusConflict,
-			"No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.")
+		httpx.Error(w, r, http.StatusConflict, msgTableroSinDomicilioCobrado)
 		return
 	}
 	if p.PedidoCosto == nil {
-		httpx.Error(w, r, http.StatusConflict,
-			"No se puede asociar al tablero: primero cotiza el domicilio del pedido.")
+		httpx.Error(w, r, http.StatusConflict, msgTableroSinCotizar)
 		return
 	}
 	// El pedido existe y está libre: entonces lo que no cuadra es la columna.
@@ -1496,8 +1489,10 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	//
 	// Ahora se leen las tarjetas puestas y se compara con los candidatos: los que faltan se
 	// nombran con su motivo de verdad y la ruta se arma con el resto. Es la regla de la
-	// casa —«los avisos del armador son aviso, no bloqueo»— y la otra —«nada se descarta en
-	// silencio»— al mismo tiempo.
+	// casa —«nada se descarta en silencio»—: la zona se arma con lo que SÍ puede ir y cada
+	// tarjeta que se cae sale en `descartados`, nombrada por su número de operación y con
+	// qué hacer. Lo que se cae lo decide la regla de entrada a una ruta (facturado y que
+	// cuadre, domicilio cobrado y cotizado): ahí NO hay aviso que deje pasar, bloquea.
 	//
 	// La carrera de verdad sigue cubierta, y en el único sitio donde se puede cubrir: el
 	// `EngancharPedidoARuta` de la transacción devuelve cero filas si alguien se llevó el
@@ -1584,9 +1579,10 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// El corte por factura se hace AQUÍ y no en el SQL, para poder nombrar cuál falla y
-	// por qué. Un WHERE que los descartara en la consulta deja el mismo rechazo sin nada
-	// que decir.
+	// El corte por factura, domicilio y cotización se hace AQUÍ y no en el SQL, para poder
+	// nombrar cuál falla y por qué. Un WHERE que los descartara en la consulta deja el mismo
+	// rechazo sin nada que decir. `cambiado` NO sube (en el camión sólo va lo que cuadra con
+	// la factura) y las dos últimas son de Amado, 07/10/2026.
 	var buenos []sqlc.PedidosDeColumnaParaArmarRutaRow
 	for _, p := range candidatos {
 		// Si el aparato dijo qué iba, lo que él no eligió NO sube: ya se nombró arriba.
@@ -1717,6 +1713,16 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		if err == nil && v.BranchID.Valid && uuid.UUID(v.BranchID.Bytes) != columna.BranchID {
 			httpx.Error(w, r, http.StatusBadRequest,
 				fmt.Sprintf("No existe el vehículo '%s'", uuid.UUID(vehiculo.Bytes)))
+			return
+		}
+		// UN CAMIÓN INACTIVO NO SE ASIGNA (incidencia 4 de Amado), venga del cuerpo o sea el
+		// PREVISTO de la zona. `vehiculoDelCuerpo` sólo cubre el primero: el previsto es un
+		// id que se guardó en la columna cuando el camión estaba activo, y el día que se da
+		// de baja la zona sigue apuntando a él. Sin esto, esa zona seguía pariendo rutas con
+		// el camión inactivo. Va DESPUÉS de la comprobación de sucursal de arriba: decir
+		// «inactivo» de un camión ajeno sería contar algo de él.
+		if err == nil && !v.IsActive {
+			httpx.Error(w, r, http.StatusBadRequest, msgVehiculoInactivo)
 			return
 		}
 		if err == nil && v.Capacity > 0 && pesoTotal > v.Capacity {
@@ -2074,7 +2080,7 @@ func vehiculoDelCuerpo(w http.ResponseWriter, r *http.Request, a *alcance.Acotad
 		return pgtype.UUID{}, false
 	}
 	if !vehiculo.IsActive {
-		httpx.Error(w, r, http.StatusBadRequest, "El vehículo está inactivo y no se puede asignar a una ruta.")
+		httpx.Error(w, r, http.StatusBadRequest, msgVehiculoInactivo)
 		return pgtype.UUID{}, false
 	}
 	return pgDe(id), true

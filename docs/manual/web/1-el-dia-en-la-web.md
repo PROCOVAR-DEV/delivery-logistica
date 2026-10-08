@@ -145,8 +145,9 @@ Si ya existe: **«Ya hay una columna «Centro» en este tablero»**.
      matrícula: **«1.000 kg · P-123456»**.
    - La cabecera de la zona pasa a poner **«Camión: F-350»**.
 
-Un camión en el taller sale con **«EN EL TALLER»** en ámbar. **Se puede elegir
-igual**: es aviso, no bloqueo.
+**Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» (dado de
+baja) o en mantenimiento no se ofrece para rutas nuevas; si no te sale, mira su
+tarjeta en **Menú → «Vehículos»**.
 
 ## 4.3 Repartir los pedidos — arrastrando
 <!-- tarea -->
@@ -200,8 +201,12 @@ Camión: F-350
 - **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
   factura»** — hoy **no salen**. Los puedes dejar puestos: no entrarán en la ruta y te
   lo dirá.
-- **«Cambió en la factura»** en ámbar — **sí sale**, pero el peso de la zona ya no es
-  el que era.
+- **«Cambió en la factura»** en ámbar — **tampoco sale**: en el camión sólo sube lo que
+  cuadra con la factura. La ruta lo descartará con «cambió en la factura».
+- **Sin domicilio cobrado o sin cotizar** — esos pedidos **ni salen en «Sin colocar»**, y
+  si intentas colocarlos te lo rechaza con su motivo («No se puede asociar al tablero:
+  la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el domicilio
+  del pedido.»). Ver [Tablero](../comun/pantallas/tablero.md#qué-se-puede-colocar-en-una-zona).
 - **«sin ubicar»** en vez de los kilómetros — ese pedido no tiene coordenadas de
   entrega y **no puede ir en una ruta**.
 - **«2 pedidos de este cliente hoy»** — son dos pedidos de verdad. **La aplicación no
@@ -254,14 +259,22 @@ camión, y después en **«Volver a intentarlo»**.
 Debajo te lista, uno a uno, por qué se cayó cada pedido:
 
 ```
-SC06-1257 · DAYLIS PÉREZ: Ya va en otra ruta
-X-2992 · ANA MARTÍNEZ: Sin cotejar
+PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
+PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
+
+Cada pedido sale por su **conduce** (el número de operación de la factura).
 
 ### Qué entra y qué no
 
-**Sólo entran los pedidos repartibles.** Los que no, **se quedan en la zona y
-marcados**. No desaparece nada.
+**Sólo entran los pedidos repartibles** (facturados que cuadran, con el domicilio
+cobrado y cotizado). Los que no, **se quedan en la zona y marcados**. No desaparece
+nada.
+
+**Si luego borras la ruta, las facturas vuelven a su zona** al instante (en la web no
+hay espera): no hay que volver a crear la zona ni repartir de nuevo.
 
 **El orden que dejaste es el que va.** La aplicación no lo reordena.
 
@@ -368,6 +381,12 @@ Antes no hay un cierre editable. **Desde la web se hace igual que en el teléfon
 4. **Clic en «Guardar y completar»**. <!-- señala: rutas-guardar-el-cierre -->
 
 Al confirmar, la ruta pasa al Historial y el camión queda libre.
+
+**Si el servidor guarda unas paradas y rechaza otras**, lo guardado vale: el aviso, en
+la franja de abajo, dice el motivo («Se guardaron 1 de las 2 paradas de esta hoja. 1 no
+se pudieron guardar: … (ese pedido no va en esta ruta).») y la ruta se puede completar.
+Si no se guardó **ninguna**, no se completa. Cada parada lleva su **conduce**
+(«Conduce: PTB25-261005-1480»), el número de operación de la factura, para encontrarla.
 
 ---
 

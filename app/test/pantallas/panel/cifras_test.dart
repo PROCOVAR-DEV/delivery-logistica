@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/pantallas/panel/datos/consultas_panel.dart';
+import 'package:reparto/pantallas/rutas/datos/repositorio_rutas.dart';
 
 import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/reloj_falso.dart';
@@ -55,7 +56,12 @@ void main() {
     double? endLat = 20.0,
     String? factura = 'igual',
     double peso = 10,
-    double? costo,
+    // Por defecto COTIZADO (en cero): desde el 07/10/2026 lo repartible exige
+    // `pedido_costo` no nulo, y un cero no suma en `totalDomicilios` ni en nada.
+    double? costo = 0,
+    double? domicilioCobrado = 1,
+    double? endLng = -75.0,
+    String? origen = 'pedido',
     DateTime? entregadoEn,
   }) => base
       .into(base.orders)
@@ -67,7 +73,10 @@ void main() {
           branchId: Value(sucursal),
           routeId: Value(rutaId),
           endLat: Value(endLat),
+          endLng: Value(endLng),
+          source: Value(origen),
           facturaEstado: Value(factura),
+          facturaDomicilio: Value(domicilioCobrado),
           weight: Value(peso),
           pedidoCosto: Value(costo),
           deliveredAt: Value(entregadoEn),
@@ -100,11 +109,12 @@ void main() {
         ),
       );
 
-  group('los seis casos limite de REPARTIBLE', () {
+  group('los casos limite de REPARTIBLE', () {
     setUp(() async {
       // 1. repartible de verdad
       await pedido('p1', peso: 100, costo: 5);
-      // 2. factura `cambiado` TAMBIEN es repartible
+      // 2. factura `cambiado`: NO entra a una ruta («en el camion solo sube lo
+      //    que cuadra con la factura», Jose 07/10/2026), asi que tampoco cuenta
       await pedido('p2', factura: 'cambiado', peso: 50, costo: 5);
       // 3. sin ruta pero SIN endLat: no se puede repartir lo que no se sabe donde va
       await pedido('p3', endLat: null, peso: 999, costo: 5);
@@ -114,23 +124,46 @@ void main() {
       await pedido('p5', factura: null, peso: 999, costo: 5);
       // 6. ya tiene ruta: esta ocupado
       await pedido('p6', rutaId: 'r1', peso: 999, costo: 5);
+      // 7. SIN DOMICILIO COBRADO en la factura (Amado, 07/10/2026)
+      await pedido('p7', domicilioCobrado: 0, peso: 999, costo: 5);
+      // 8. SIN COTIZAR el domicilio en Entrega (Amado, 07/10/2026)
+      await pedido('p8', peso: 999, costo: null);
+      // 9. no vino de PEDIDO, y 10. sin punto de entrega completo: la lista de
+      //    disponibles de Rutas tampoco los ofrece
+      await pedido('p9', origen: null, peso: 999, costo: 5);
+      await pedido('p10', endLng: null, peso: 999, costo: 5);
     });
 
-    test('sinRuta cuenta 2, no 6', () async {
+    test('sinRuta cuenta 1, no 10', () async {
       final c = await panel.cifras().first;
-      expect(c.sinRuta, 2);
-      expect(c.totalPedidos, 6);
+      expect(c.sinRuta, 1);
+      expect(c.totalPedidos, 10);
     });
 
     test('pesoPendiente suma SOLO lo repartible', () async {
       final c = await panel.cifras().first;
-      expect(c.pesoPendiente, 150);
+      expect(c.pesoPendiente, 100);
     });
 
     test('totalDomicilios suma TODO el alcance, repartible o no', () async {
       // Es lo cobrado en PEDIDO, no lo que queda por mover.
       final c = await panel.cifras().first;
-      expect(c.totalDomicilios, 30);
+      // p1..p6 a 5, p7 a 5, p9 a 5 y p10 a 5; p8 no esta cotizado y no suma.
+      expect(c.totalDomicilios, 45);
+    });
+
+    // §3-bis: DOS PREGUNTAS SOBRE LO MISMO SE ATAN CON UNA PRUEBA. El Panel dice
+    // «N pedidos sin ruta» y la lista de disponibles del asistente ofrece M: si
+    // N != M, el Panel dice «40 por repartir» y el armador ofrece 12.
+    test('el Panel cuenta EXACTAMENTE lo que ofrece la lista de disponibles', () async {
+      final c = await panel.cifras(sucursalId: 'stg').first;
+      final lista = await ConsultasRutas(base).disponibles(sucursalId: 'stg');
+      expect(lista.map((p) => p.id).toList(), ['p1']);
+      expect(c.sinRuta, lista.length);
+      expect(
+        c.pesoPendiente,
+        lista.fold<double>(0, (suma, p) => suma + p.weight),
+      );
     });
   });
 

@@ -15,7 +15,9 @@ tablero de «todas».
 ## Las dos mitades
 
 - **Izquierda: «Sin colocar (308)»** — los pedidos que todavía no están en ninguna
-  zona. El número cuenta **pedidos**.
+  zona. El número cuenta **pedidos**. Sólo salen los que **llevan domicilio, con el
+  domicilio cobrado en la factura y ya cotizado en Entrega** (ver
+  [Qué se puede colocar](#qué-se-puede-colocar-en-una-zona)).
 - **Derecha: las zonas** — «Centro», «Vista Alegre», «Carretera»… Las pones tú,
   con los nombres que se usen en tu sucursal.
 
@@ -87,7 +89,8 @@ De arriba abajo:
    Si el pedido no tiene costo, en su sitio no sale nada.
 5. **Las marcas**, si las tiene: «Archivado en PEDIDO», «Ya va en otra ruta»,
    «Sin cotejar», «Sin factura» (las cuatro en rojo) y «Cambió en la factura» (en
-   ámbar). Ver [Las reglas del reparto](../las-reglas-del-reparto.md).
+   ámbar). Ver [Las reglas del reparto](../las-reglas-del-reparto.md). **Ninguna de
+   las cinco entra en la ruta**: en el camión sólo sube lo que cuadra con la factura.
 6. **Si el cliente repite hoy**: «2 pedidos de este cliente hoy». **Las tarjetas
    no se juntan**: sólo se avisa, para que los metas en la misma zona a propósito.
 
@@ -148,6 +151,44 @@ Si todavía no hay zonas:
 
 ---
 
+## Qué se puede colocar en una zona
+
+A una zona sólo se coloca una factura **con el domicilio cobrado y cotizado**. Son las
+mismas condiciones de la lista de disponibles de Rutas, y se piden por una razón: el
+domicilio es un servicio que se cobra, y una zona entera no se debe preparar con
+facturas que luego la ruta no va a aceptar.
+
+1. **Domicilio cobrado**: la factura trae un importe de domicilio **mayor que cero**.
+2. **Domicilio cotizado**: Entrega ya le puso el costo.
+3. **Que no se haya entregado ya ni vaya en otra ruta.**
+
+Lo que no cumple **no sale en «Sin colocar»**. Y si se intenta colocar igualmente
+—arrastrándolo, o desde «Mandar a una zona» en Pedidos—, **se rechaza con un mensaje
+claro** y la tarjeta se queda donde estaba:
+
+| Mensaje | Qué pasa |
+|---|---|
+| «No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.» | La factura no cobró domicilio |
+| «No se puede asociar al tablero: primero cotiza el domicilio del pedido.» | Entrega todavía no le puso costo |
+| «Ese pedido ya se entregó» | Ya se repartió |
+| «Ese pedido ya está en una ruta» | Se lo llevó otra ruta |
+
+**Es lo mismo con señal y sin ella.** En la APK y el escritorio el aparato lo dice en
+el momento, antes de colocar, para que el «no» no te llegue horas después a la
+bandeja de rechazados con la zona ya preparada.
+
+**La factura que «Cambió» sí se puede colocar, pero no sube.** Sale en «Sin colocar» con
+su marca ámbar, y si la pones en una zona, **al armar la ruta se descarta** con el
+motivo «cambió en la factura» y se queda en la zona, marcada. En el camión sólo sube lo
+que cuadra con la factura.
+
+Si te falta un pedido que esperabas, probablemente es éste el motivo: **no se ha
+cobrado o no se ha cotizado el domicilio**. Se arregla cobrando o cotizando en
+Entrega, no aquí. (Con los datos del 07/10/2026, de 1.914 pedidos repartibles sólo 29
+cumplían las tres condiciones.)
+
+---
+
 ## Crear y gestionar una zona
 
 - **Crearla**: el recuadro con el `+` al final de la tira dice **«Columna»**; en el
@@ -169,10 +210,14 @@ ruta.
 
 - La primera opción siempre es **«Sin camión»**.
 - Cada camión sale con su capacidad y su matrícula: «1.000 kg · P-123456».
-- Un camión en el taller sale con **«EN EL TALLER»** en ámbar, y **se puede elegir
-  igual**: es aviso, no bloqueo.
-- Si la sucursal no tiene ningún camión bajado en el aparato, lo dice: «Esta
-  sucursal no tiene ningún vehículo en este aparato.»
+- **Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» o en
+  mantenimiento no se ofrece para rutas nuevas (ver [Vehículos](vehiculos.md)). Si
+  un camión no te sale, mira allí por qué.
+- Si la sucursal no tiene ninguno que se pueda ofrecer, lo dice: «Esta sucursal no
+  tiene vehículos activos y fuera del taller en este aparato.»
+- Si el camión que ya tenía la zona se dio de baja después, la zona lo sigue
+  nombrando, pero **al armar la ruta el servidor no lo acepta**: «El vehículo está
+  inactivo y no se puede asignar a una ruta.» Elige otro en «Camión previsto».
 
 ### Borrar una zona
 
@@ -205,6 +250,21 @@ trabajo de nadie.
 **El orden que va en la ruta es el que dejaste en la zona.** La aplicación no lo
 reordena.
 
+### Si borras la ruta, las facturas vuelven a su zona
+
+Una ruta armada desde una zona se acuerda de dónde salió. Si la **eliminas** (en
+Rutas, sólo mientras no esté completada), **las facturas vuelven a la zona** del
+tablero: no se pierde la relación y no hay que volver a crear la zona ni a repartir los
+pedidos. Lo mismo si quitas **una sola parada** con «Quitar de ruta»: esa factura
+vuelve a su zona.
+
+- **En la web** pasa al instante.
+- **En la APK y el escritorio, sin señal**, hasta que suba el borrado y baje el
+  tablero esas facturas **salen en «Sin colocar»** y no en su zona. Con señal se
+  colocan solas donde estaban.
+
+Una ruta **completada** es histórico y no se borra, así que sus facturas no vuelven.
+
 ### Los dos «no» del armado
 
 **1. La zona no tiene camión.** No se arma, y el cajón **se queda abierto** para
@@ -222,11 +282,14 @@ que le pongas el camión ahí mismo:
 
 > «La columna no tiene ningún pedido que se pueda repartir hoy»
 
-Y debajo, uno por uno, por qué se cayó cada pedido:
+Y debajo, uno por uno, por qué se cayó cada pedido. Cada uno sale por su conduce (el
+número de operación de la factura):
 
 ```
-SC06-1257 · DAYLIS PÉREZ: Ya va en otra ruta
-X-2992 · ANA MARTÍNEZ: Sin cotejar
+PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
+PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
 
 ---

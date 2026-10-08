@@ -297,6 +297,16 @@ Cabecera: código, nombre y etiqueta con la sucursal. Botones:
   `Paradas y precio por cliente (<n>)` y una tarjeta por parada con número de orden,
   cliente, dirección, municipio, `<peso> kg · <km> km desde partida`, importe y chips de
   artículos (o `Sin artículos detallados`).
+  **Nuevo 07/10/2026 (reparto, no existe en Next):** la tarjeta lleva la insignia
+  `Conduce: <número de operación>` (el conduce ES el número de operación de la factura) y,
+  **sólo en una ruta `planned`**, el botón `Quitar de ruta`. Éste abre un cajón titulado
+  `Quitar de la ruta` (subtítulo `<cliente> · Conduce: <número>`) con el texto `«<cliente>»
+  sale de esta ruta y vuelve a pedidos disponibles. La ruta se queda con las demás paradas y
+  su peso y su importe se recalculan sin él.` + `Si la ruta se armó desde una zona del
+  tablero, la factura regresa a esa zona cuando se sincronice (en la web, de inmediato).`,
+  y los botones `Sí, quitar «<cliente>» de la ruta` / `No, dejarlo en la ruta` (cerrar sin
+  contestar = no). Sin señal (APK/escritorio) se encola y sube al volver; la web lo hace al
+  instante. Ni renumera las demás paradas ni recalcula los km de la ruta.
 - `Iniciar ruta` (sólo en `planned`; mientras guarda: `Iniciando...`).
 - `Cierre` + contador de paradas sin marcar (visible en `in_progress` **y** en
   `completed`, porque el camión vuelve después de que alguien la dé por completada).
@@ -390,7 +400,8 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
 | Crear ruta | `POST /api/routes` con `{name?, branchId, vehicleId, deliveryDate?, originAddress, originLat, originLng, orderIds[]}` | 201 con la ruta creada; se selecciona sola. |
 | Iniciar | `PATCH /api/routes/<id>` `{status:'in_progress'}` | Pasa a la pestaña `En curso`; marca el vehículo `in_use`. |
 | Completar | `PATCH /api/routes/<id>` `{status:'completed'}` | Libera el vehículo, pasa a `Historial`. |
-| Eliminar | `DELETE /api/routes/<id>` | Sólo rutas no completadas; libera el vehículo. |
+| Eliminar | `DELETE /api/routes/<id>` | Sólo rutas no completadas; libera el vehículo. El cajón de confirmación (`Borrar «RT-…»`) añade, desde el 07/10/2026: `Si la ruta se armó desde una zona del tablero, las facturas vuelven a esa zona cuando se sincronice el borrado (en la web, de inmediato). Mientras tanto, sin señal, salen en «Sin colocar».` |
+| Quitar una parada | `DELETE /api/routes/<id>/stops/<orderId>` | Sólo rutas `planned`. 409 `Sólo se pueden retirar paradas de una ruta planificada` / `El pedido no pertenece a una ruta planificada o ya fue retirado`. |
 | Cerrar parada por parada | `POST /api/routes/<id>/results` | Ver §9.1. |
 
 **Errores del servidor, literales (salen como aviso emergente, no dentro del cajón):**
@@ -403,7 +414,10 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
   los dos números serían el mismo y no informan de nada. La escriben igual el
   servidor y el aparato —la ruta se arma sin señal—, y lo que las ata es
   `docs/armado-rechazado.casos.json`.
-- `En una ruta sólo entra lo facturado y que cuadre. <n> no cumplen: <folio> (cambió en la factura|sin facturar|sin cotejar), … y <n> más.` (409)
+- `En una ruta sólo entra lo facturado y que cuadre. <n> no cumplen: <conduce> (cambió en la factura|sin facturar|sin cotejar), … y <n> más.` (409)
+- `En una ruta sólo entra lo facturado con domicilio cobrado. <n> no cumplen: <conduce>, … y <k> más.` (409)
+- `No se puede crear la ruta: <n> pedidos no tienen cotizado el domicilio en Entrega: <conduce>, … y <k> más.` (409)
+- `El vehículo está inactivo y no se puede asignar a una ruta.` (400)
 - `Peso total (<w> kg) supera la capacidad del vehículo (<c> kg)` (400)
 - `Una ruta se arma eligiendo pedidos ya existentes. Manda \`orderIds\`.`
 - Respaldos del cliente: `Error al crear la ruta`, `Error al iniciar la ruta`,
@@ -490,6 +504,9 @@ flota.
 
 - Icono por tipo, nombre, placa en mono, insignia de estado: `Disponible` (verde) /
   `En uso` (azul) / `Mantenimiento` (ámbar).
+- **Si el vehículo está dado de baja (`isActive = false`), insignia `Inactivo`** debajo
+  (borde e icono de prohibido, sin relleno), aparte de la de estado: un camión puede estar
+  libre y de baja (07/10/2026).
 - Chip con el tipo.
 - Si es el del cálculo del domicilio: chip `Cálculo domicilio` + `<importe>/km`.
   Si no: botón `Usar para domicilio`.
@@ -517,6 +534,7 @@ Título `Nuevo Vehículo` o `Editar Vehículo`. Campos:
 | Etiqueta (literal) | Tipo | Defecto |
 |---|---|---|
 | `Nombre del Vehículo *` | texto, obligatorio, placeholder `Ej: Camión #1, Furgoneta Azul` | vacío |
+| `Vehículo activo` | interruptor; subtítulo `Aparece en los selectores para crear rutas.` / `Se oculta de los selectores de rutas nuevas.` (07/10/2026) | encendido |
 | `Tipo` | desplegable de tipos configurados (`nombre · $<costo>/km`) + `+ Crear tipo nuevo…` | `truck` |
 | `Placa (opcional)` | texto en mayúsculas, placeholder `ABC-1234` | vacío |
 | `Capacidad Máx. (kg)` | número ≥1 | `1000` |
@@ -551,10 +569,14 @@ Vacío: `Sin tipos. Agrega el primero.` Botón `Agregar tipo`. Pie: `Cancelar` y
 | Ajustes / tipos / tasa | `GET /api/settings` |
 | Crear | `POST /api/vehicles` `{name, type, plate, capacity, status, notes, costoKmUsd, usarParaDomicilio}` |
 | Editar | `PATCH /api/vehicles/<id>` con los mismos campos |
-| Eliminar | `DELETE /api/vehicles/<id>` (**sin confirmación**) |
+| Eliminar | `DELETE /api/vehicles/<id>` (en el reparto **pregunta antes**, en un cajón). Un vehículo con rutas, aunque sean históricas, **no se borra**: 409 `No se puede eliminar este vehículo porque tiene rutas asociadas, incluso históricas. Márcalo como inactivo para impedir que se use en nuevas rutas.` Se desactiva con el interruptor `Vehículo activo`. |
 | `Usar para domicilio` | `PATCH /api/vehicles/<id>` `{usarParaDomicilio:true}` |
 | `Marcar disponible` | `PATCH /api/vehicles/<id>` `{status:'available'}` (refresca también rutas) |
 | Guardar tipos | `PUT /api/settings` `{tiposVehiculo:[{nombre, costoKmUsd}]}` |
+
+Desde el 07/10/2026 **sólo se ofrecen para una ruta nueva** (paso `Vehículo` del asistente y
+`Camión previsto` de una zona) los vehículos **activos y fuera del taller**; los demás se
+siguen viendo en los filtros de rutas y en los informes.
 
 Error del servidor al crear sin nombre: `Vehicle name is required` (400).
 `GET/PATCH/DELETE` de un id inexistente: `Not found` (404).

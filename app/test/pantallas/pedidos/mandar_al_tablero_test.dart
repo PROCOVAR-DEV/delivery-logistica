@@ -263,9 +263,80 @@ void main() {
       // el logístico deje de fiarse.
       expect(resultado.noFueron.map((q) => q.linea).toList(), [
         'F-ARCH · Eva: ${MarcaTarjeta.archivado.texto}',
-        'F-RUTA · Fito: ${MarcaTarjeta.enOtraRuta.texto}',
+        // El de la ruta es EL DEL SERVIDOR (`porQueNoSePudoColocar`), no la
+        // marca de la tarjeta: en la web un 409 y aqui tienen que leerse igual.
+        'F-RUTA · Fito: Ese pedido ya está en una ruta',
         'F-SF · Carla: ${MarcaTarjeta.sinFactura.texto}',
         'F-SC · Hugo: ${MotivoDeQuedarse.sinCoordenadas}',
+      ]);
+    },
+  );
+
+  test(
+    'sin domicilio cobrado, sin cotizar o ya entregado: se quedan con el '
+    'literal del servidor y los demás van',
+    () async {
+      await sembrarPedido(
+        base,
+        id: 'bueno',
+        cliente: 'Ana',
+        folio: 'F-OK',
+        endLat: 21.38,
+        endLng: -77.91,
+      );
+      await sembrarPedido(
+        base,
+        id: 'sindom',
+        cliente: 'Dora',
+        folio: 'F-DOM',
+        facturaDomicilio: 0,
+        endLat: 21.38,
+        endLng: -77.91,
+      );
+      await sembrarPedido(
+        base,
+        id: 'sincot',
+        cliente: 'Cira',
+        folio: 'F-COT',
+        pedidoCosto: null,
+        endLat: 21.38,
+        endLng: -77.91,
+      );
+      // Un entregado cuya ruta se borro: sin `route_id`, solo le queda el
+      // resultado. No es «ya esta en una ruta»: ya se repartio.
+      await sembrarPedido(
+        base,
+        id: 'entregado',
+        cliente: 'Eli',
+        folio: 'F-ENT',
+        resultado: 'entregado',
+        endLat: 21.38,
+        endLng: -77.91,
+      );
+
+      montar();
+      final zona = await contenedor
+          .read(envioAlTableroProvider.notifier)
+          .crearZona('Centro');
+      contenedor.read(seleccionPedidosProvider.notifier).marcarPagina(const [
+        'bueno',
+        'sindom',
+        'sincot',
+        'entregado',
+      ], marcar: true);
+
+      final resultado = await contenedor
+          .read(envioAlTableroProvider.notifier)
+          .mandarLoMarcado(zona);
+
+      expect(resultado.fueron, ['bueno']);
+      expect(await enLaZona(zona), ['bueno']);
+      expect(resultado.noFueron.map((q) => q.linea).toList(), [
+        'F-DOM · Dora: No se puede asociar al tablero: la factura no tiene un '
+            'cobro de domicilio registrado.',
+        'F-COT · Cira: No se puede asociar al tablero: primero cotiza el '
+            'domicilio del pedido.',
+        'F-ENT · Eli: Ese pedido ya se entregó',
       ]);
     },
   );

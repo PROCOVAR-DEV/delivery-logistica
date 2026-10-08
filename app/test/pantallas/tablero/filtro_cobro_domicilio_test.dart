@@ -51,8 +51,15 @@ void main() {
     return mitad.pedidos.map((p) => p.pedidoId).toList()..sort();
   }
 
-  test('sin el filtro salen los tres', () async {
-    expect(await conFiltro(null), ['con-cobro', 'de-cero', 'sin-poner']);
+  // DESDE EL 07/10/2026 (Amado, incidencias 2 y 6) UN PEDIDO SIN COTIZAR NO SE
+  // COLOCA, asi que ya no sale en «Sin colocar»: la lista y el servidor exigen
+  // `pedido_costo` no nulo. Lo que esta prueba vigilaba como «la lista de
+  // trabajo para otra persona» —lo que espera a que le pongan el costo— ahora
+  // vive FUERA de esta lista; el filtro «Con cobro / Sin cobro» queda en la
+  // pantalla (retirarlo es una mejora futura, anotada) pero «sin cobro» solo
+  // puede contestar vacio.
+  test('sin el filtro salen los dos cotizados; el sin poner YA NO', () async {
+    expect(await conFiltro(null), ['con-cobro', 'de-cero']);
   });
 
   test('«con cobro» incluye el de CERO, que no es un hueco', () async {
@@ -62,8 +69,8 @@ void main() {
     expect(await conFiltro(true), ['con-cobro', 'de-cero']);
   });
 
-  test('«sin cobro» es exactamente lo que espera a que se lo pongan', () async {
-    expect(await conFiltro(false), ['sin-poner']);
+  test('«sin cobro» solo puede contestar vacio: lo sin cotizar no se coloca', () async {
+    expect(await conFiltro(false), isEmpty);
   });
 
   test('el filtro viaja en la dirección, para poder mandar el enlace', () {

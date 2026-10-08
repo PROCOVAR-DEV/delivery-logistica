@@ -79,6 +79,21 @@ Esa parte no bajó. **No es que no haya datos: es que no están aquí.**
 Casi siempre el motivo de fondo es **haber trabajado con datos viejos**. Trae el día
 más a menudo.
 
+### Si el rechazado es el cierre de una ruta
+
+Cuando completas una ruta, la hoja de paradas sube **entera**. Si el servidor rechaza
+una sola parada, el cierre de esa ruta aparece aquí con el motivo literal («<id> (ese
+pedido no va en esta ruta)») y **la ruta no se completa en el servidor hasta que
+decidas**, aunque el teléfono ya te la enseñe como completada. Las demás rutas siguen
+subiendo.
+
+- **«Reintentar»** manda el mismo cierre otra vez. Sirve si el motivo ya no se da.
+- **«Descartar»** es una decisión expresa: el cierre queda como descartado y no vuelve.
+  Úsalo sólo si ese cierre ya no tiene sentido; si no, corrige la hoja desde la web.
+
+En la **web** es distinto: si el servidor guarda unas paradas y rechaza otras, lo
+guardado vale y la ruta se puede completar. En el teléfono, no.
+
 ---
 
 ## «Tu sesión se perdió»

@@ -13,6 +13,7 @@ import (
 )
 
 const actualizarEstadoDeRuta = `-- name: ActualizarEstadoDeRuta :one
+
 WITH actualizada AS (
 UPDATE routes SET
     name   = coalesce($1::text, name),
@@ -37,7 +38,7 @@ RETURNING id, name, route_code, status, vehicle_id, branch_id,
     WHERE o.route_id = r.id AND r.status = 'completed'
     RETURNING o.order_id
 )
-SELECT * FROM actualizada
+SELECT id, name, route_code, status, vehicle_id, branch_id, started_at, finished_at, total_distance, total_weight, total_price, delivery_date, created_at, updated_at FROM actualizada
 `
 
 type ActualizarEstadoDeRutaParams struct {
@@ -473,25 +474,55 @@ func (q *Queries) CrearRuta(ctx context.Context, arg CrearRutaParams) (CrearRuta
 	return i, err
 }
 
-const desvincularVehiculoDeRutas = `-- name: DesvincularVehiculoDeRutas :execrows
-UPDATE routes SET vehicle_id = NULL
-WHERE vehicle_id = $1
-  AND ($2::uuid IS NULL OR branch_id = $2::uuid)
+const dondeEstanLosPedidos = `-- name: DondeEstanLosPedidos :many
+SELECT o.id, o.route_id, o.ultima_ruta_id, o.branch_id
+FROM orders o
+WHERE o.id = ANY($1::uuid[])
 `
 
-type DesvincularVehiculoDeRutasParams struct {
-	VehiculoID pgtype.UUID `json:"vehiculo_id"`
-	Sucursal   pgtype.UUID `json:"sucursal"`
+type DondeEstanLosPedidosRow struct {
+	ID           uuid.UUID   `json:"id"`
+	RouteID      pgtype.UUID `json:"route_id"`
+	UltimaRutaID pgtype.UUID `json:"ultima_ruta_id"`
+	BranchID     pgtype.UUID `json:"branch_id"`
 }
 
-// Al borrar un camión, sus rutas se quedan sin él pero no se borran: el histórico de lo
-// que se repartió no depende de que el camión siga en la flota.
-func (q *Queries) DesvincularVehiculoDeRutas(ctx context.Context, arg DesvincularVehiculoDeRutasParams) (int64, error) {
-	result, err := q.db.Exec(ctx, desvincularVehiculoDeRutas, arg.VehiculoID, arg.Sucursal)
+// DÓNDE ESTÁN ESTOS PEDIDOS, para el renglón del servidor cuando un cierre rechaza paradas.
+//
+// Un «ese pedido no va en esta ruta» llegó a Amado con 409 y sin que el servidor dijera POR
+// QUÉ: si el pedido iba en otra ruta, si nunca tuvo ruta, si es de otra sucursal… Quien lo
+// diagnostica tiene delante sólo el registro, y tenía que ir al VPS a preguntárselo a la
+// base. Esta consulta le da al registro las tres cosas que hacen falta: `route_id`,
+// `ultima_ruta_id` y `branch_id` del pedido (no hay nada secreto en ellas).
+//
+// NO LLEVA ALCANCE, A PROPÓSITO, y sólo es seguro por lo que es: la usa únicamente
+// `cerrarRuta` en el camino del rechazo, y su resultado va al REGISTRO del servidor, nunca
+// a la respuesta. Acotarla por sucursal borraría justo la causa más sutil —el pedido es de
+// otra sucursal— y dejaría la línea diciendo «no está» sobre un pedido que sí existe. Es
+// por ids (clave primaria), así que cuesta lo mismo que cualquier lectura de una fila.
+func (q *Queries) DondeEstanLosPedidos(ctx context.Context, pedidoIds []uuid.UUID) ([]DondeEstanLosPedidosRow, error) {
+	rows, err := q.db.Query(ctx, dondeEstanLosPedidos, pedidoIds)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	var items []DondeEstanLosPedidosRow
+	for rows.Next() {
+		var i DondeEstanLosPedidosRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RouteID,
+			&i.UltimaRutaID,
+			&i.BranchID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const encolarAvisoAPedido = `-- name: EncolarAvisoAPedido :exec
@@ -538,7 +569,6 @@ UPDATE orders SET
     price          = coalesce($4::double precision, 0)
 WHERE id = $5
   AND route_id IS NULL
-  AND factura_estado IN ('igual', 'cambiado')
   AND factura_domicilio > 0
   AND pedido_costo IS NOT NULL
   AND ($6::uuid IS NULL OR branch_id = $6::uuid)
@@ -565,6 +595,17 @@ type EngancharPedidoARutaParams struct {
 //
 // El alcance va aquí también: sin él, mandar el id de un pedido de otra sucursal en
 // `orderIds` lo subiría a tu camión.
+//
+// LA SEGUNDA LLAVE DEL DOMICILIO Y LA COTIZACIÓN. `factura_domicilio > 0` y
+// `pedido_costo IS NOT NULL` se comprueban también aquí (07/10/2026, Amado) porque la
+// validación de `PedidosParaArmarRuta` se hizo hace unos milisegundos, y el espejo repasa
+// `pedido_costo` cada minuto: un pedido que perdió su cotización entre medias no puede
+// entrar con el importe a cero. Cero filas lo devuelve el manejador como 409.
+//
+// `factura_estado` NO está aquí, y es a propósito: el corte a sólo `igual` lo hace el
+// manejador (`mensajeNoFacturados`, `armarRutaDeColumna`) para poder nombrar cuál falla y
+// por qué. Aquí `cambiado` pasaría igual que antes, y por eso la regla «en el camión sólo
+// sube lo que cuadra» vive en esos dos manejadores y los vigilan sus pruebas.
 func (q *Queries) EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoARutaParams) (int64, error) {
 	result, err := q.db.Exec(ctx, engancharPedidoARuta,
 		arg.RutaID,
@@ -678,20 +719,21 @@ func (q *Queries) FijarTotalesDeRuta(ctx context.Context, arg FijarTotalesDeRuta
 const limpiarResultadoDeParada = `-- name: LimpiarResultadoDeParada :execrows
 UPDATE orders SET
     resultado      = NULL,
-    ultima_ruta_id = $2,
+    ultima_ruta_id = $1,
     resultado_at   = NULL,
     resultado_nota = NULL,
     delivered_at   = NULL,
     status         = 'pending'::order_status,
-    route_id       = $2
-WHERE id = $1
-  AND (route_id = $2 OR (route_id IS NULL AND ultima_ruta_id = $2))
+    route_id       = $1
+WHERE id = $2
+  AND (route_id = $1
+       OR (route_id IS NULL AND ultima_ruta_id = $1 AND resultado IS NOT NULL))
   AND ($3::uuid IS NULL OR branch_id = $3::uuid)
 `
 
 type LimpiarResultadoDeParadaParams struct {
-	PedidoID uuid.UUID   `json:"pedido_id"`
 	RutaID   pgtype.UUID `json:"ruta_id"`
+	PedidoID uuid.UUID   `json:"pedido_id"`
 	Sucursal pgtype.UUID `json:"sucursal"`
 }
 
@@ -721,11 +763,11 @@ type LimpiarResultadoDeParadaParams struct {
 //     ruta todavía abierta, y entonces sale en DOS camiones. `ultima_ruta_id` es la hoja de
 //     lo que subió, así que es de ahí de donde se recupera.
 //
-// El `WHERE` es el mismo que el de marcar, y por lo mismo: por `ultima_ruta_id`, para poder
-// desmarcar un devuelto que ya soltó su `route_id`. Cero filas es «ese pedido no va en esta
-// ruta», el rechazo del contrato.
+// El `WHERE` es el mismo que el de marcar, y por lo mismo: también por `ultima_ruta_id`
+// cuando la parada ya soltó su `route_id` CON UN RESULTADO, para poder desmarcar un
+// devuelto. Cero filas es «ese pedido no va en esta ruta», el rechazo del contrato.
 func (q *Queries) LimpiarResultadoDeParada(ctx context.Context, arg LimpiarResultadoDeParadaParams) (int64, error) {
-	result, err := q.db.Exec(ctx, limpiarResultadoDeParada, arg.PedidoID, arg.RutaID, arg.Sucursal)
+	result, err := q.db.Exec(ctx, limpiarResultadoDeParada, arg.RutaID, arg.PedidoID, arg.Sucursal)
 	if err != nil {
 		return 0, err
 	}
@@ -997,7 +1039,8 @@ SELECT
     o.weight, o.stop_order, o.resultado, o.resultado_at, o.resultado_nota,
     o.delivered_at, o.external_id, o.source, o.branch_id
 FROM orders o
-WHERE (o.route_id = $1 OR (o.route_id IS NULL AND o.ultima_ruta_id = $1))
+WHERE (o.route_id = $1
+       OR (o.route_id IS NULL AND o.ultima_ruta_id = $1 AND o.resultado IS NOT NULL))
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC
 `
@@ -1026,10 +1069,25 @@ type ListarParadasQueViajaronEnRutaRow struct {
 
 // Las paradas que VIAJARON en esta ruta, se hayan bajado del camión o no.
 //
-// Va por `ultima_ruta_id`, que no se libera nunca, y por eso son dos campos y no uno: un
-// devuelto suelta su `route_id` al cerrar la ruta para poder repartirse mañana, y con un
-// solo campo eso lo borraría de la hoja de lo que bajó del camión. Es el universo del
-// post-despacho y el de corregir el resultado de una parada ya cerrada.
+// La ruta actual se reconoce por `route_id`. Si la parada ya se devolvió o canceló, su
+// `route_id` está NULL y se reconoce por `ultima_ruta_id`, que es lo que deja corregir su
+// resultado histórico. Si las dos columnas divergen, nunca se roba un pedido que ya
+// pertenece a otra ruta.
+//
+// # LA RAMA DE `route_id IS NULL` EXIGE `resultado IS NOT NULL` — LA PARADA FANTASMA
+//
+// Un devuelto o un cancelado SIEMPRE tiene resultado: es lo que lo suelta de la ruta. Un
+// pedido que simplemente se QUITÓ de una ruta planificada (`SoltarParadaPlanificada`, el
+// «Quitar de ruta» de Amado) no lo tiene, y no viajó nunca. Sin esta condición, un pedido
+// quitado que conservara `ultima_ruta_id = R` seguía saliendo en la hoja de cierre de R:
+// se podía marcar «entregado» desde ahí, y esa marca le devuelve el `route_id = R` a un
+// pedido que quizá ya iba en OTRA ruta, y que el total de R seguía contando como suyo.
+// `SoltarParadaPlanificada` ya no deja ese rastro, pero esta condición es la segunda llave
+// por si la fila viene de antes o la deja otro camino.
+//
+// Esta misma condición va en `ListarRenglonesDeRuta`, `MarcarResultadoDeParada` y
+// `LimpiarResultadoDeParada`: las cuatro tienen que contestar lo mismo a «¿viajó este
+// pedido en esta ruta?», y lo ata `consultas_motor_real_test.go`.
 func (q *Queries) ListarParadasQueViajaronEnRuta(ctx context.Context, arg ListarParadasQueViajaronEnRutaParams) ([]ListarParadasQueViajaronEnRutaRow, error) {
 	rows, err := q.db.Query(ctx, listarParadasQueViajaronEnRuta, arg.RutaID, arg.Sucursal)
 	if err != nil {
@@ -1071,7 +1129,8 @@ SELECT
     o.customer_name, o.stop_order, o.resultado
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
-WHERE (o.route_id = $1 OR (o.route_id IS NULL AND o.ultima_ruta_id = $1))
+WHERE (o.route_id = $1
+       OR (o.route_id IS NULL AND o.ultima_ruta_id = $1 AND o.resultado IS NOT NULL))
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC
 `
@@ -1099,8 +1158,10 @@ type ListarRenglonesDeRutaRow struct {
 // debería seguir arriba. Una sola consulta y no una por parada — con 40 paradas, lo
 // segundo son 40 idas y vueltas por una pantalla que se abre veinte veces al día.
 //
-// Por `ultima_ruta_id` para que el post-despacho siga viendo los renglones de lo que se
-// devolvió: al cerrar, esos pedidos ya soltaron su `route_id`.
+// Por la ruta actual o, para pedidos soltados con resultado (un devuelto o un cancelado),
+// por `ultima_ruta_id`. La condición de `resultado IS NOT NULL` es la de
+// `ListarParadasQueViajaronEnRuta`, que explica por qué: sin ella, los renglones de un
+// pedido quitado de la ruta seguirían en la hoja de carga de una ruta que no lo lleva.
 func (q *Queries) ListarRenglonesDeRuta(ctx context.Context, arg ListarRenglonesDeRutaParams) ([]ListarRenglonesDeRutaRow, error) {
 	rows, err := q.db.Query(ctx, listarRenglonesDeRuta, arg.RutaID, arg.Sucursal)
 	if err != nil {
@@ -1325,9 +1386,9 @@ const marcarResultadoDeParada = `-- name: MarcarResultadoDeParada :execrows
 
 UPDATE orders SET
     resultado      = $1::stop_result,
-    ultima_ruta_id = $4,
+    ultima_ruta_id = $2,
     resultado_at   = now(),
-    resultado_nota = $2,
+    resultado_nota = $3,
     delivered_at = CASE
         WHEN $1::stop_result = 'entregado' THEN now()
         ELSE NULL
@@ -1337,19 +1398,20 @@ UPDATE orders SET
         ELSE 'pending'::order_status
     END,
     route_id = CASE
-        WHEN $1::stop_result = 'entregado' THEN $4
+        WHEN $1::stop_result = 'entregado' THEN $2
         ELSE NULL
     END
-WHERE id = $3
-  AND (route_id = $4 OR (route_id IS NULL AND ultima_ruta_id = $4))
+WHERE id = $4
+  AND (route_id = $2
+       OR (route_id IS NULL AND ultima_ruta_id = $2 AND resultado IS NOT NULL))
   AND ($5::uuid IS NULL OR branch_id = $5::uuid)
 `
 
 type MarcarResultadoDeParadaParams struct {
 	Resultado StopResult  `json:"resultado"`
+	RutaID    pgtype.UUID `json:"ruta_id"`
 	Nota      *string     `json:"nota"`
 	PedidoID  uuid.UUID   `json:"pedido_id"`
-	RutaID    pgtype.UUID `json:"ruta_id"`
 	Sucursal  pgtype.UUID `json:"sucursal"`
 }
 
@@ -1361,10 +1423,14 @@ type MarcarResultadoDeParadaParams struct {
 //
 // Cuatro cosas van juntas a propósito y en una sola sentencia:
 //
-//  1. `WHERE ultima_ruta_id = ...` y NO `route_id`: así se puede corregir el resultado de
-//     un devuelto que ya soltó su `route_id` al cerrar. Y sirve de validación — cero filas
-//     significa «ese pedido no va en esta ruta», que es el rechazo del contrato, sin tener
-//     que comprobarlo antes en Go sobre una lectura que ya puede estar vieja.
+//  1. El `WHERE` acepta la parada que sigue en la ruta (`route_id`) y, además, la que ya
+//     la soltó con un resultado (`route_id` NULL, `ultima_ruta_id` = esta y `resultado` no
+//     nulo): así se puede corregir el resultado de un devuelto al cerrar. Y sirve de
+//     validación — cero filas significa «ese pedido no va en esta ruta», que es el
+//     rechazo del contrato, sin tener que comprobarlo antes en Go sobre una lectura que
+//     ya puede estar vieja. El `resultado IS NOT NULL` es el de
+//     `ListarParadasQueViajaronEnRuta` (la parada fantasma): un pedido quitado de la ruta
+//     no se puede marcar desde su hoja de cierre.
 //  2. `route_id = NULL` SÓLO si no se entregó: el pedido baja del camión y vuelve a la
 //     lista de disponibles para la ruta de mañana. `ultima_ruta_id` y `stop_order` no se
 //     tocan NUNCA: son la hoja de lo que bajó del camión.
@@ -1378,9 +1444,9 @@ type MarcarResultadoDeParadaParams struct {
 func (q *Queries) MarcarResultadoDeParada(ctx context.Context, arg MarcarResultadoDeParadaParams) (int64, error) {
 	result, err := q.db.Exec(ctx, marcarResultadoDeParada,
 		arg.Resultado,
+		arg.RutaID,
 		arg.Nota,
 		arg.PedidoID,
-		arg.RutaID,
 		arg.Sucursal,
 	)
 	if err != nil {
@@ -1515,13 +1581,12 @@ SELECT
     -- que sería FALSO —no están en ninguna ruta, se entregaron— y no se arregla volviendo
     -- a elegirlos. Los nombra ` + "`" + `mensajeYaEntregados` + "`" + ` en el manejador.
     o.delivered_at, o.resultado,
-    -- Las dos señales de que el pedido VA A DOMICILIO, y hacen falta las dos.
-    --
-    -- ` + "`" + `requiere_domicilio` + "`" + ` es una casilla que se marca al tomar el pedido;
-    -- ` + "`" + `factura_domicilio` + "`" + ` es lo que se cobró de verdad en el mostrador, y por eso es la
-    -- más fiable de las dos. Con una sola se escapan casos por los dos lados: pedidos que
-    -- se marcaron y no se cobraron, y pedidos que se cobraron sin marcar.
-    o.requiere_domicilio, o.factura_domicilio
+    -- LO QUE SE COBRÓ DE DOMICILIO EN EL MOSTRADOR, y desde el 07/10/2026 sin ello mayor
+    -- que cero el pedido no entra en una ruta (Amado: el domicilio ya es un servicio que
+    -- se cobra). Sale como DATO y no como filtro, igual que ` + "`" + `factura_estado` + "`" + `: lo nombra
+    -- ` + "`" + `mensajeDomicilioSinCobrar` + "`" + ` en el manejador. ` + "`" + `requiere_domicilio` + "`" + `, la casilla que se
+    -- marca al tomar el pedido, ya no se lee aquí: no manda nada sobre lo que se cobró.
+    o.factura_domicilio
 FROM orders o
 WHERE o.id = ANY($1::uuid[])
   AND o.source = 'pedido'
@@ -1548,21 +1613,20 @@ type PedidosParaArmarRutaParams struct {
 }
 
 type PedidosParaArmarRutaRow struct {
-	ID                uuid.UUID          `json:"id"`
-	OperationNumber   *string            `json:"operation_number"`
-	CustomerName      string             `json:"customer_name"`
-	EndLat            *float64           `json:"end_lat"`
-	EndLng            *float64           `json:"end_lng"`
-	Weight            float64            `json:"weight"`
-	PedidoCosto       *float64           `json:"pedido_costo"`
-	FacturaEstado     *FacturaEstado     `json:"factura_estado"`
-	BranchID          pgtype.UUID        `json:"branch_id"`
-	ExternalID        *string            `json:"external_id"`
-	Source            *Procedencia       `json:"source"`
-	DeliveredAt       pgtype.Timestamptz `json:"delivered_at"`
-	Resultado         *StopResult        `json:"resultado"`
-	RequiereDomicilio *bool              `json:"requiere_domicilio"`
-	FacturaDomicilio  *float64           `json:"factura_domicilio"`
+	ID               uuid.UUID          `json:"id"`
+	OperationNumber  *string            `json:"operation_number"`
+	CustomerName     string             `json:"customer_name"`
+	EndLat           *float64           `json:"end_lat"`
+	EndLng           *float64           `json:"end_lng"`
+	Weight           float64            `json:"weight"`
+	PedidoCosto      *float64           `json:"pedido_costo"`
+	FacturaEstado    *FacturaEstado     `json:"factura_estado"`
+	BranchID         pgtype.UUID        `json:"branch_id"`
+	ExternalID       *string            `json:"external_id"`
+	Source           *Procedencia       `json:"source"`
+	DeliveredAt      pgtype.Timestamptz `json:"delivered_at"`
+	Resultado        *StopResult        `json:"resultado"`
+	FacturaDomicilio *float64           `json:"factura_domicilio"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1576,8 +1640,15 @@ type PedidosParaArmarRutaRow struct {
 // rutas a la vez eso pasa de verdad — y de ahí sale el 409 con «N de los M ya están en
 // otra ruta». Comprobarlo en Go sobre una lectura anterior es mirar una foto vieja.
 //
-// `factura_estado` deja pasar `igual` y `cambiado`, como la lista de disponibles.
-// «cambiado» es una factura emitida con líneas distintas, no una factura inexistente.
+// `factura_estado` se deja pasar `igual` y `cambiado` porque es el mismo listón de la
+// lista de disponibles. El corte a sólo `igual` lo hace el handler DESPUÉS, para poder
+// nombrar en el error cuál falla y por qué («cambió en la factura» / «sin cotejar»).
+// Un WHERE que los descarte aquí deja el mismo 409 sin nada que decir.
+//
+// `cambiado` NO entra a una ruta (Jose, reglas-negocio.md): en el camión sólo sube lo que
+// cuadra con la factura. Lo que se añadió el 07/10/2026 (Amado) es aparte y se SUMA: el
+// domicilio cobrado (`factura_domicilio > 0`) y cotizado en Entrega (`pedido_costo` no
+// nulo). Esos dos salen también como DATO y los corta el handler, por la misma razón.
 func (q *Queries) PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmarRutaParams) ([]PedidosParaArmarRutaRow, error) {
 	rows, err := q.db.Query(ctx, pedidosParaArmarRuta, arg.PedidoIds, arg.Sucursal)
 	if err != nil {
@@ -1601,7 +1672,6 @@ func (q *Queries) PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmar
 			&i.Source,
 			&i.DeliveredAt,
 			&i.Resultado,
-			&i.RequiereDomicilio,
 			&i.FacturaDomicilio,
 		); err != nil {
 			return nil, err
@@ -1739,6 +1809,87 @@ func (q *Queries) RutaActivaDeVehiculo(ctx context.Context, arg RutaActivaDeVehi
 	return i, err
 }
 
+const soltarParadaPlanificada = `-- name: SoltarParadaPlanificada :one
+
+WITH liberada AS (
+    UPDATE orders o SET
+        route_id = NULL, ultima_ruta_id = NULL, stop_order = NULL, segment_km = NULL,
+        trip_leg = 'outbound'
+    FROM routes r
+    WHERE o.id = $1
+      AND o.route_id = $2
+      AND r.id = o.route_id
+      AND r.status = 'planned'
+      AND o.delivered_at IS NULL
+      AND o.resultado IS NULL
+      AND ($3::uuid IS NULL OR o.branch_id = $3::uuid)
+    RETURNING o.id AS id
+), origen AS (
+    DELETE FROM board_route_origins o
+    WHERE o.route_id = $2
+      AND o.order_id = $1
+      AND EXISTS (SELECT 1 FROM liberada)
+    RETURNING o.order_id, o.column_id, o.posicion, o.colocado_por
+), corrimientos AS (
+    UPDATE board_placements p SET posicion = p.posicion + 1
+    FROM origen o
+    WHERE p.column_id = o.column_id AND p.posicion >= o.posicion
+    RETURNING p.order_id
+), restaurada AS (
+    INSERT INTO board_placements (order_id, column_id, posicion, colocado_por)
+    SELECT order_id, column_id, posicion, colocado_por FROM origen
+    ON CONFLICT (order_id) DO NOTHING
+    RETURNING order_id
+)
+SELECT $1::uuid AS id FROM liberada
+`
+
+type SoltarParadaPlanificadaParams struct {
+	PedidoID uuid.UUID   `json:"pedido_id"`
+	RutaID   uuid.UUID   `json:"ruta_id"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
+
+// ---------------------------------------------------------------------------
+// Borrar una ruta  (DELETE /api/routes/[id])
+// ---------------------------------------------------------------------------
+// QUITAR UNA SOLA PARADA DE UNA RUTA PLANIFICADA (`DELETE /api/routes/{id}/stops/{orderId}`,
+// incidencia 2 de Amado). El pedido NO se borra: se suelta y vuelve a la lista de
+// disponibles, y si la ruta nació del tablero vuelve además a su zona y a su posición.
+//
+// # `ultima_ruta_id` TAMBIÉN SE PONE A NULL — LA PARADA FANTASMA, 07/10/2026
+//
+// Aquí se conservaba, por el mismo motivo que en `SoltarPedidosDeRuta` («el pasado de un
+// pedido no se reescribe»), y es un error: esa regla es para un pedido que VIAJÓ. Éste no
+// viajó nunca, porque la ruta sigue `planned` y sin resultado. Con `ultima_ruta_id = R`
+// puesto, el pedido seguía siendo «parada de R» para todo lo que pregunta por esa columna:
+//
+//	· el trigger de totales (`00014`) lo contaba en `total_weight`, `total_price` y
+//	  `paradas_sin_cotizar` de R, así que la cabecera decía 516 kg sobre una ruta que ya
+//	  sólo cargaba 420, y la capacidad del camión se medía contra ese número;
+//	· salía en la hoja de cierre de R (`ListarParadasQueViajaronEnRuta`) y se podía marcar
+//	  «entregado» desde ahí, devolviéndole el `route_id` de R a un pedido que quizá ya
+//	  iba en otra ruta.
+//
+// Al ponerla a NULL el trigger recalcula los totales de R en esta misma sentencia, y el
+// pedido deja de ser parada de R. Las otras cuatro consultas que preguntan «¿viajó en R?»
+// llevan además `resultado IS NOT NULL` en la rama de `route_id IS NULL`, por si la fila
+// viene de antes.
+//
+// LO QUE NO SE HACE, y queda dicho para que nadie lo busque aquí:
+//
+//	· los `stop_order` de las demás paradas NO se renumeran: el orden relativo no cambia,
+//	  sólo queda un hueco (1, 3, 4…) que ninguna pantalla lee como posición absoluta.
+//	· `total_distance` NO se recalcula: es el circuito que midió quien armó la ruta y no
+//	  una suma de paradas (00014 lo deja fuera a propósito). Tras quitar una parada
+//	  seguirá diciendo los km del recorrido original hasta que se vuelva a optimizar.
+func (q *Queries) SoltarParadaPlanificada(ctx context.Context, arg SoltarParadaPlanificadaParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, soltarParadaPlanificada, arg.PedidoID, arg.RutaID, arg.Sucursal)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const soltarPedidosDeRuta = `-- name: SoltarPedidosDeRuta :execrows
 WITH origenes AS (
     SELECT o.route_id, o.order_id, o.column_id, o.posicion, o.colocado_por
@@ -1775,8 +1926,12 @@ UPDATE orders SET
     stop_order = NULL,
     segment_km = NULL,
     trip_leg   = 'outbound'
-WHERE route_id = $1
-  AND ($2::uuid IS NULL OR branch_id = $2::uuid)
+WHERE orders.route_id = $1
+  -- El histórico se fija al completar: ni aquí se desengancha una parada de una ruta
+  -- ` + "`" + `completed` + "`" + `. El manejador ya lo impide (` + "`" + `rutaEditableEnTx` + "`" + `); esto es la segunda llave.
+  AND NOT EXISTS (SELECT 1 FROM routes cerrada
+                  WHERE cerrada.id = orders.route_id AND cerrada.status = 'completed')
+  AND ($2::uuid IS NULL OR orders.branch_id = $2::uuid)
 `
 
 type SoltarPedidosDeRutaParams struct {
@@ -1784,57 +1939,12 @@ type SoltarPedidosDeRutaParams struct {
 	Sucursal pgtype.UUID `json:"sucursal"`
 }
 
-const soltarParadaPlanificada = `-- name: SoltarParadaPlanificada :one
-WITH liberada AS (
-    UPDATE orders o SET
-        route_id = NULL, stop_order = NULL, segment_km = NULL, trip_leg = 'outbound'
-    FROM routes r
-    WHERE o.id = $1
-      AND o.route_id = $2
-      AND r.id = o.route_id
-      AND r.status = 'planned'
-      AND o.delivered_at IS NULL
-      AND o.resultado IS NULL
-      AND ($3::uuid IS NULL OR o.branch_id = $3::uuid)
-    RETURNING o.id
-), origen AS (
-    DELETE FROM board_route_origins o
-    USING liberada l
-    WHERE o.route_id = $2 AND o.order_id = l.id
-    RETURNING o.order_id, o.column_id, o.posicion, o.colocado_por
-), corrimientos AS (
-    UPDATE board_placements p SET posicion = p.posicion + 1
-    FROM origen o
-    WHERE p.column_id = o.column_id AND p.posicion >= o.posicion
-    RETURNING p.order_id
-), restaurada AS (
-    INSERT INTO board_placements (order_id, column_id, posicion, colocado_por)
-    SELECT order_id, column_id, posicion, colocado_por FROM origen
-    ON CONFLICT (order_id) DO NOTHING
-    RETURNING order_id
-)
-SELECT id FROM liberada
-`
-
-type SoltarParadaPlanificadaParams struct {
-	PedidoID uuid.UUID   `json:"pedido_id"`
-	RutaID   uuid.UUID   `json:"ruta_id"`
-	Sucursal pgtype.UUID `json:"sucursal"`
-}
-
-func (q *Queries) SoltarParadaPlanificada(ctx context.Context, arg SoltarParadaPlanificadaParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, soltarParadaPlanificada, arg.PedidoID, arg.RutaID, arg.Sucursal)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
-}
-
-// ---------------------------------------------------------------------------
-// Borrar una ruta  (DELETE /api/routes/[id])
-// ---------------------------------------------------------------------------
-// Los pedidos NO se borran: se sueltan y vuelven a la lista de disponibles.
-// `ultima_ruta_id` se conserva — el pasado de un pedido no se reescribe porque alguien
-// deshaga la ruta de hoy.
+// Borrar la ruta entera: los pedidos NO se borran, se sueltan y vuelven a la lista de
+// disponibles. Si la ruta nació del tablero, vuelven además a su zona y a su posición
+// (`board_route_origins`). `ultima_ruta_id` se conserva — el pasado de un pedido no se
+// reescribe porque alguien deshaga la ruta de hoy — y la clave ajena
+// `orders_ultima_ruta_fk` (`ON DELETE SET NULL`) la suelta sola cuando `BorrarRuta`
+// elimina la fila.
 func (q *Queries) SoltarPedidosDeRuta(ctx context.Context, arg SoltarPedidosDeRutaParams) (int64, error) {
 	result, err := q.db.Exec(ctx, soltarPedidosDeRuta, arg.RutaID, arg.Sucursal)
 	if err != nil {

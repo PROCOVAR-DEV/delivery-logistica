@@ -770,7 +770,13 @@ class ConsultasPedidos {
 
     final renglones = (await renglonesDe([pedidoId]))[pedidoId] ?? const [];
 
-    final rutaId = pedido.routeId ?? pedido.ultimaRutaId;
+    // La ruta del pedido: la que lo lleva, o la que lo solto CON resultado
+    // (devuelto o cancelado). Sin resultado, un `ultimaRutaId` suelto es una
+    // parada QUITADA, y no es de ninguna ruta (la misma condicion que
+    // `ConsultasRutas.paradasDe`).
+    final rutaId =
+        pedido.routeId ??
+        (pedido.resultado != null ? pedido.ultimaRutaId : null);
     final ruta = rutaId == null
         ? null
         : await (_base.select(

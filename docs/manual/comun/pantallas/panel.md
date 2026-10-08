@@ -30,8 +30,12 @@ queda por repartir, cuántos camiones están fuera y si falta algo por configura
 
 Detalles que hay que saber:
 
-- **«Pedidos sin ruta»** cuenta los pedidos que tienen coordenadas de entrega y
-  están facturados (cuadre o haya cambiado). Un pedido sin coordenadas no entra.
+- **«Pedidos sin ruta»** cuenta los pedidos que **hoy se pueden meter en una ruta**: de
+  PEDIDO, sin ruta, con coordenadas de entrega, con la factura **que cuadra**, con el
+  **domicilio cobrado** (importe mayor que cero en la factura) y **cotizado en
+  Entrega**. Es la misma cuenta que la lista de disponibles al armar una ruta, así que
+  los dos números coinciden. Un pedido sin coordenadas, con la factura cambiada, sin
+  cobro de domicilio o sin cotizar no entra.
 - **«Entregados hoy»** usa el **reloj del aparato**, no el del servidor. Si el
   reloj del teléfono está mal, este número está mal.
 - **«Vehículos»** saca el camión de la **ruta**, no del pedido.
@@ -43,8 +47,9 @@ Los kilos de esta pantalla van **redondeados y sin decimales**: «860 kg».
 ### «Pedidos sin ruta» del Panel no es «Sin colocar» del Tablero
 
 Son dos preguntas parecidas con dos respuestas distintas, y **no tienen por qué
-coincidir**. El Tablero pide además que el pedido venga de PEDIDO, que requiera
-domicilio y que **no esté ya puesto en ninguna zona**.
+coincidir**. El Tablero pide además que el pedido requiera domicilio y que **no esté
+ya puesto en ninguna zona**; y «Sin colocar» enseña también los que «Cambió en la
+factura» (con su marca), que el Panel no cuenta.
 
 Con los datos del 25/09/2026 la diferencia en Santiago era de 183 pedidos. No es
 un fallo.

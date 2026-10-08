@@ -56,6 +56,15 @@ const (
 	msgRutaNoEncontrada = "No encontrada"
 	msgSinResultados    = "No vino ningún resultado"
 	msgParadaAjena      = "ese pedido no va en esta ruta"
+	// UN CAMIÓN INACTIVO NO SE ASIGNA A UNA RUTA (incidencia 4 de Amado, 07/10/2026). Es el
+	// mismo literal en los cuatro sitios que asignan camión —armar una ruta, cambiarle el
+	// camión, armar una zona y fijar el camión previsto de una zona—, para que quien lo lea
+	// en una bandeja de rechazos no tenga que adivinar de cuál venía.
+	msgVehiculoInactivo = "El vehículo está inactivo y no se puede asignar a una ruta."
+	// LOS DOS 409 DE QUITAR UNA PARADA (`DELETE /api/routes/{id}/stops/{orderId}`). Constantes
+	// para que `docs/armado-rechazado.casos.json` los pueda atar con una prueba.
+	msgSoloRutaPlanificada = "Sólo se pueden retirar paradas de una ruta planificada"
+	msgParadaNoPertenece   = "El pedido no pertenece a una ruta planificada o ya fue retirado"
 	// Sólo completar fija el histórico. Una marca de parada no cierra la ruta.
 	msgRutaCompletada = "La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico."
 	// EL PUNTO DE PARTIDA TIENE QUE CAER EN EL PLANETA. Ver `puntoDelPlaneta`.
@@ -865,11 +874,26 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Sólo entra lo facturado y que cuadre ------------------------------
+	// --- Sólo entra lo facturado, que cuadre, con domicilio cobrado y cotizado -------
 	//
 	// Se comprueba aquí aunque la pantalla ya filtre: basta con que alguien mande los ids
 	// a mano, o con que un pedido se coteje otra vez entre que se eligió y se armó la
 	// ruta. Lo que se carga tiene que ser lo que se cobró.
+	//
+	// SON TRES CORTES Y BLOQUEAN, NO AVISAN (Amado, 07/10/2026: el domicilio ya es un
+	// servicio que se cobra, y dejar entrar cualquier pedido es una vulnerabilidad). Hasta
+	// el 07/10/2026 el tercero era un aviso con el total de la ruta más bajo, y con él
+	// salían rutas con importes a cero que nadie veía hasta cuadrar la caja.
+	//
+	//  1. Facturado Y QUE CUADRE: `igual`. `cambiado` NO entra: en el camión sólo sube lo
+	//     que cuadra con la factura (Jose, `reglas-negocio.md`), y Amado no pidió cambiarlo.
+	//  2. Domicilio COBRADO en la factura (`factura_domicilio > 0`).
+	//  3. Domicilio COTIZADO en Entrega (`pedido_costo` no nulo): la factura puede estar
+	//     pagada y aun así faltar la cotización propia de Entrega, y sin ella no hay importe
+	//     fiable que asignar a la parada.
+	//
+	// Cada rechazo identifica a los pedidos por su número de operación, que es el que
+	// aparece también en la hoja de ruta.
 	if mensaje := mensajeNoFacturados(pedidos); mensaje != "" {
 		httpx.Error(w, r, http.StatusConflict, mensaje)
 		return
@@ -878,10 +902,6 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusConflict, mensaje)
 		return
 	}
-
-	// La factura puede estar pagada y aun así faltar la cotización propia de Entrega.
-	// En ese caso no hay importe fiable que asignar a la parada: se rechaza y se identifica
-	// por el número de operación que aparece también en la hoja de ruta.
 	if mensaje := mensajeSinCalcular(pedidos); mensaje != "" {
 		httpx.Error(w, r, http.StatusConflict, mensaje)
 		return
@@ -903,8 +923,6 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 	for _, p := range pedidos {
 		pesoTotal += p.Weight // un peso sin resolver cuenta 0 kg, como en delivery
 	}
-	avisoSinCosto := ""
-	sinCosto := 0
 	// Si el id del camión no es un uuid o no existe, NO se valida capacidad y la ruta se
 	// crea igual —así lo dice el contrato— pero se crea SIN camión: guardar un id que no
 	// está en `vehicles` reventaría contra la clave ajena con un 500 sin explicación.
@@ -925,12 +943,15 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		httpx.Registro(r).Warn("la ruta se arma sin camión: el vehículo pedido no es un id",
 			"vehiculo", vehiculoPedido)
 	}
-	// Estrictamente mayor: igualar la capacidad exacta SÍ pasa. El peso se enseña con un
-	// decimal y la capacidad tal cual está guardada, como en delivery.
+	// UN CAMIÓN INACTIVO NO SE ASIGNA (incidencia 4 de Amado). Se mira antes que la capacidad:
+	// si el camión no sirve, decir además que no cabe sólo manda a la persona a cambiar la
+	// carga cuando lo que tiene que cambiar es el camión.
 	if vehiculo != nil && !vehiculo.IsActive {
-		httpx.Error(w, r, http.StatusBadRequest, "El vehículo está inactivo y no se puede asignar a una ruta.")
+		httpx.Error(w, r, http.StatusBadRequest, msgVehiculoInactivo)
 		return
 	}
+	// Estrictamente mayor: igualar la capacidad exacta SÍ pasa. El peso se enseña con un
+	// decimal y la capacidad tal cual está guardada, como en delivery.
 	if vehiculo != nil && pesoTotal > vehiculo.Capacity {
 		httpx.Error(w, r, http.StatusBadRequest, fmt.Sprintf(
 			"Peso total (%.1f kg) supera la capacidad del vehículo (%s kg)",
@@ -1134,15 +1155,13 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 	// DE LA RUTA QUE SE ACABA DE CREAR, no del alcance de quien la creó.
 	avisarCambioDeRutas(r.Context(), deLaFilaPg(creada.BranchID))
 
-	// El aviso viaja CON la ruta creada, no en su lugar.
-	//
-	// Si hay pedidos con domicilio sin costear, la pantalla tiene que poder decirlo encima
-	// del total: «no incluye N pedidos». Un total a secas parece completo y no lo es.
-	if sinCosto > 0 {
-		s.reg.WarnContext(r.Context(), "ruta armada con domicilios sin costear",
-			"ruta", creada.ID, "sin_costo", sinCosto, "de", len(pedidos))
-	}
-	s.responderConLaRutaYAvisos(w, r, ar, creada.ID, http.StatusCreated, avisoSinCosto, sinCosto)
+	// La ruta sola, sin `avisos`. Hasta el 07/10/2026 la respuesta podía llevar
+	// `{"ruta": …, "avisos": {"sinCosto": N}}` para decir «el total no incluye N pedidos
+	// sin costo de domicilio». Ya no existe ese caso: un pedido sin cotizar no entra en una
+	// ruta (`mensajeSinCalcular`), así que todas las paradas aportan su importe y el total
+	// está completo. La clave `avisos` se fue con él; los clientes leen el id de la ruta en
+	// la raíz o dentro de `ruta`, y la raíz es la que se contesta.
+	s.responderConLaRuta(w, r, ar, creada.ID, http.StatusCreated)
 }
 
 // ---------------------------------------------------------------------------
@@ -1164,41 +1183,6 @@ func (s *Servidor) obtenerRuta(w http.ResponseWriter, r *http.Request) {
 // responderConLaRuta relee la ruta entera —cabecera, sucursal, camión y paradas— y la
 // escribe. Se relee después de escribir a propósito: así el cliente ve lo que quedó
 // guardado y no lo que creíamos haber guardado.
-// responderConLaRutaYAvisos es responderConLaRuta más lo que hay que decir de ella.
-//
-// Se separa en vez de meterle dos parámetros a la de siempre porque la mayoría de las
-// respuestas no tienen nada que avisar, y un `"", 0` repetido por todo el fichero se acaba
-// copiando mal.
-func (s *Servidor) responderConLaRutaYAvisos(w http.ResponseWriter, r *http.Request, ar *alcance.Acotado, id uuid.UUID, codigo int, aviso string, sinCosto int) {
-	if aviso == "" {
-		s.responderConLaRuta(w, r, ar, id, codigo)
-		return
-	}
-	fila, err := ar.ObtenerRuta(r.Context(), id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNoEncontrado)
-		return
-	}
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	porRuta, err := s.paradasPorRuta(r, ar, []uuid.UUID{id})
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	cuerpo := map[string]any{
-		"ruta": deFilaDeDetalle(fila, porRuta[id]),
-		"avisos": map[string]any{
-			"sinCosto":  sinCosto,
-			"detalle":   aviso,
-			"elTotalNo": "incluye los pedidos sin costo de domicilio",
-		},
-	}
-	httpx.JSON(w, r, codigo, cuerpo)
-}
-
 func (s *Servidor) responderConLaRuta(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, id uuid.UUID, codigo int) {
 	fila, err := a.ObtenerRuta(r.Context(), id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1362,13 +1346,21 @@ func (s *Servidor) cambiarCamionDeRuta(w http.ResponseWriter, r *http.Request, a
 		// Se comprueba CON ALCANCE: el camión de Holguín no se engancha a una ruta de
 		// Santiago ni sabiendo su id. Los compartidos (`branch_id` NULL) sí pasan, que
 		// para eso están.
-		_, err = a.ObtenerVehiculo(r.Context(), id)
+		vehiculo, err := a.ObtenerVehiculo(r.Context(), id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			httpx.Error(w, r, http.StatusBadRequest, fmt.Sprintf("No existe el vehículo '%s'", pedido))
 			return
 		}
 		if err != nil {
 			httpx.ErrorInterno(w, r, err)
+			return
+		}
+		// UN CAMIÓN INACTIVO NO SE ASIGNA (incidencia 4 de Amado), tampoco cambiándoselo a
+		// una ruta que ya existe. Se mira DESPUÉS del alcance: decir «está inactivo» de un
+		// camión de otra sucursal sería contar algo de él. Quitar el camión (`vehicleId`
+		// vacío) no pasa por aquí, y debe poder: es la salida de un camión que se da de baja.
+		if !vehiculo.IsActive {
+			httpx.Error(w, r, http.StatusBadRequest, msgVehiculoInactivo)
 			return
 		}
 		nuevo = &id
@@ -1455,7 +1447,7 @@ func (s *Servidor) quitarParadaPlanificada(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if antes.Status != sqlc.RouteStatusPlanned {
-		httpx.Error(w, r, http.StatusConflict, "Sólo se pueden retirar paradas de una ruta planificada")
+		httpx.Error(w, r, http.StatusConflict, msgSoloRutaPlanificada)
 		return
 	}
 	err = a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
@@ -1477,7 +1469,7 @@ func (s *Servidor) quitarParadaPlanificada(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if errors.Is(err, errParadaNoPertenece) {
-		httpx.Error(w, r, http.StatusConflict, "El pedido no pertenece a una ruta planificada o ya fue retirado")
+		httpx.Error(w, r, http.StatusConflict, msgParadaNoPertenece)
 		return
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1863,12 +1855,95 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 	if len(salida.Rechazados) > 0 {
 		salida.Error = motivoDelCierreIncompleto(salida)
 		httpx.Registro(r).Error("un cierre llegó con paradas que no van en esa ruta",
-			"ruta", ruta.ID, "aplicados", len(salida.Aplicados),
+			"ruta", ruta.ID, "ruta_branch_id", idParaElRegistro(ruta.BranchID),
+			"aplicados", len(salida.Aplicados),
 			"rechazados", len(salida.Rechazados), "motivo", salida.Error)
+		s.registrarDondeEstabanLosRechazados(r, a, ruta.ID, salida.Rechazados)
 		httpx.JSON(w, r, http.StatusConflict, salida)
 		return
 	}
 	httpx.JSON(w, r, http.StatusOK, salida)
+}
+
+// topeDeRenglonesDelRechazo acota cuántos pedidos rechazados se detallan en el registro. Una
+// hoja de cierre son decenas de paradas, y si el aparato mandó TODAS contra la ruta
+// equivocada, cuarenta renglones iguales no dicen más que los veinte primeros.
+const topeDeRenglonesDelRechazo = 20
+
+// registrarDondeEstabanLosRechazados escribe, para cada pedido que el cierre rechazó, EN QUÉ
+// RUTA estaba de verdad: `route_id`, `ultima_ruta_id` y `branch_id` del pedido, al lado de la
+// ruta que se estaba cerrando.
+//
+// POR QUÉ. El 07/10/2026 a Amado le contestó el cierre `409 … 8cb90608-… (ese pedido no va
+// en esta ruta)` y el servidor sólo dejó escrito eso mismo, el motivo. Pero «no va en esta
+// ruta» son cuatro cosas distintas y se arreglan de cuatro maneras: el pedido va en OTRA
+// ruta (`route_id` distinto), nunca tuvo ruta (`route_id` y `ultima_ruta_id` nulos), la
+// perdió al quitarlo alguien de una ruta planificada, o es de otra sucursal (`branch_id`
+// distinto del de la ruta). Quien diagnostica tiene delante sólo el registro, y para
+// contestar tenía que ir al VPS a preguntárselo a la base (CLAUDE.md §3-septies: cuando el
+// cliente no puede ver el porqué, el renglón del servidor tiene que bastarse solo).
+//
+// SÓLO EN EL CAMINO DEL RECHAZO, y barato: una lectura por clave primaria de los pedidos
+// rechazados, que son pocos. El cierre que sale bien no pregunta nada. Y NUNCA ROMPE LA
+// RESPUESTA: si la lectura falla, se dice en el registro y el 409 sale igual, porque el
+// diagnóstico no puede ser la causa de que el aparato no se entere de su rechazo.
+//
+// Lo que se escribe son tres ids de filas —no hay token, ni contraseña, ni nada de la
+// sesión—, y no vuelve al cliente: la consulta va sin alcance (ver `DondeEstanLosPedidos`).
+func (s *Servidor) registrarDondeEstabanLosRechazados(r *http.Request, a *alcance.Acotado, ruta uuid.UUID, rechazados []rechazadoDeCierre) {
+	reg := httpx.Registro(r)
+	ids := make([]uuid.UUID, 0, len(rechazados))
+	for _, rc := range rechazados {
+		if id, err := uuid.Parse(strings.TrimSpace(rc.OrderID)); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	donde := map[uuid.UUID]sqlc.DondeEstanLosPedidosRow{}
+	if len(ids) > 0 {
+		filas, err := a.DondeEstanLosPedidos(r.Context(), ids)
+		if err != nil {
+			reg.Warn("no se pudo leer dónde estaban los pedidos que el cierre rechazó",
+				"ruta", ruta, "err", err)
+		}
+		for _, f := range filas {
+			donde[f.ID] = f
+		}
+	}
+	for i, rc := range rechazados {
+		if i == topeDeRenglonesDelRechazo {
+			reg.Error("el cierre rechazó más paradas de las que se detallan",
+				"ruta", ruta, "detalladas", topeDeRenglonesDelRechazo,
+				"sin_detallar", len(rechazados)-topeDeRenglonesDelRechazo)
+			break
+		}
+		id, err := uuid.Parse(strings.TrimSpace(rc.OrderID))
+		fila, hay := donde[id]
+		switch {
+		case err != nil:
+			reg.Error("parada rechazada en el cierre: el orderId no es un id",
+				"ruta", ruta, "pedido", rc.OrderID, "motivo", rc.Motivo)
+		case !hay:
+			reg.Error("parada rechazada en el cierre: el pedido no existe",
+				"ruta", ruta, "pedido", id, "motivo", rc.Motivo)
+		default:
+			reg.Error("parada rechazada en el cierre",
+				"ruta", ruta, "pedido", id,
+				"route_id", idParaElRegistro(fila.RouteID),
+				"ultima_ruta_id", idParaElRegistro(fila.UltimaRutaID),
+				"branch_id", idParaElRegistro(fila.BranchID),
+				"motivo", rc.Motivo)
+		}
+	}
+}
+
+// idParaElRegistro escribe un id que puede ser nulo. «NULL» y no una cadena vacía: en un
+// renglón, `route_id=` a secas se lee como un campo que se olvidó, y `route_id=NULL` como un
+// dato —que es justo lo que distingue un pedido sin ruta de uno que va en otra—.
+func idParaElRegistro(id pgtype.UUID) string {
+	if !id.Valid {
+		return "NULL"
+	}
+	return uuid.UUID(id.Bytes).String()
 }
 
 // dondeEstaElAviso busca un aviso ya puesto para ese pedido de PEDIDO.
@@ -2224,9 +2299,12 @@ func valorO(v *float64) float64 {
 func mensajeNoFacturados(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 	var malos []sqlc.PedidosParaArmarRutaRow
 	for _, p := range pedidos {
-		// `cambiado` también es una factura válida: las líneas facturadas pueden diferir
-		// de lo pedido y el número de operación sigue identificando esa factura.
-		if p.FacturaEstado == nil || (*p.FacturaEstado != sqlc.FacturaEstadoIgual && *p.FacturaEstado != sqlc.FacturaEstadoCambiado) {
+		// ESTRICTAMENTE `igual`: más duro que el filtro `con_factura` de la lista de
+		// disponibles, que admite también `cambiado`. En el camión sólo sube lo que
+		// cuadra con la factura (Jose, `reglas-negocio.md`). El 07/10/2026 se llegó a
+		// aceptar `cambiado` aquí «porque también es una factura» y se volvió a `igual` el
+		// mismo día: Amado pidió el domicilio cobrado y cotizado, no aflojar esto.
+		if p.FacturaEstado == nil || *p.FacturaEstado != sqlc.FacturaEstadoIgual {
 			malos = append(malos, p)
 		}
 	}
@@ -2244,7 +2322,7 @@ func mensajeNoFacturados(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 		}
 		detalle = append(detalle, fmt.Sprintf("%s (%s)", quien, motivoDeFactura(p.FacturaEstado)))
 	}
-	mensaje := fmt.Sprintf("En una ruta sólo entra lo facturado. %d no cumplen: %s",
+	mensaje := fmt.Sprintf("En una ruta sólo entra lo facturado y que cuadre. %d no cumplen: %s",
 		len(malos), strings.Join(detalle, ", "))
 	if len(malos) > 5 {
 		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
@@ -2252,21 +2330,16 @@ func mensajeNoFacturados(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 	return mensaje + "."
 }
 
-// llevaDomicilio dice si este pedido va a casa del cliente.
+// mensajeDomicilioSinCobrar arma el 409 de los pedidos cuya factura no registra un importe
+// positivo de domicilio (`factura_domicilio` nulo, cero o negativo), nombrados por su número
+// de operación. Es la regla de Amado del 07/10/2026: el domicilio ya es un servicio que se
+// cobra, y un pedido en cuya factura no consta el cobro no se carga.
 //
-// Se miran las DOS señales. `requiere_domicilio` es la casilla que alguien marcó al tomar
-// el pedido; `factura_domicilio` es lo que se cobró en el mostrador, que es más fiable
-// porque ya pasó por caja. Con una sola se escapan casos por los dos lados.
-func llevaDomicilio(p sqlc.PedidosParaArmarRutaRow) bool {
-	if p.FacturaDomicilio != nil && *p.FacturaDomicilio > 0 {
-		return true
-	}
-	return p.RequiereDomicilio != nil && *p.RequiereDomicilio
-}
-
-// mensajeDomicilioSinCobrar identifica pedidos cuya factura no registra un importe
-// positivo de domicilio. La operación visible también permite localizar el caso llamado
-// «conduce» en la factura, sin introducir un estado paralelo.
+// EL «CONDUCE» (aclaración de Jose, 07/10/2026, sobre el punto 6 de Amado): el conduce ES el
+// número de operación de la factura (`orders.operation_number`, p. ej. PTB25-261005-1479).
+// No hay dato ni columna aparte que lo distinga, y no hace falta: la identificación ya
+// existe. Por eso este rechazo, como los demás del armado, nombra cada pedido por su número
+// de operación: es el conduce que la persona tiene en el papel.
 func mensajeDomicilioSinCobrar(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 	var malos []sqlc.PedidosParaArmarRutaRow
 	for _, p := range pedidos {
@@ -2294,21 +2367,6 @@ func mensajeDomicilioSinCobrar(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
 	}
 	return mensaje + "."
-}
-
-// cuantosSinCosto cuenta los que llevan domicilio y no traen su costo.
-//
-// Va aparte del mensaje porque el número viaja en la respuesta y el texto es para leerlo:
-// la pantalla necesita poder decir «el total no incluye 12 pedidos» sin tener que parsear
-// una frase.
-func cuantosSinCosto(pedidos []sqlc.PedidosParaArmarRutaRow) int {
-	n := 0
-	for _, p := range pedidos {
-		if llevaDomicilio(p) && p.PedidoCosto == nil {
-			n++
-		}
-	}
-	return n
 }
 
 // mensajeSinCalcular bloquea pedidos sin la cotización de domicilio de Entrega e

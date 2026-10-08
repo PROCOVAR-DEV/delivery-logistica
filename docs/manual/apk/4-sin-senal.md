@@ -42,7 +42,8 @@ paquete: eso la aplicación lo detecta.
 - **Iniciar una ruta**
 - **Marcar las entregas, con su motivo**
 - **Completar la ruta**
-- **Eliminar una ruta**
+- **Eliminar una ruta** (planificada o en curso; una completada es histórico)
+- **Quitar una parada de una ruta planificada**, con «Quitar de ruta»
 - Ver el pre-despacho y el post-despacho, y sacar sus PDF
 - Ver Pedidos, filtrarlos, abrir su detalle
 - Ver Clientes, incluidos **los kilómetros**, que se calculan en el propio teléfono
@@ -58,7 +59,7 @@ paquete: eso la aplicación lo detecta.
 |---|---|
 | **Entrar** | «Para entrar hace falta conexión. Una vez dentro, no.» Es a propósito: si no, dar de baja a alguien no serviría de nada |
 | **«Abrir en Google Maps»** y mandar el enlace por WhatsApp | Necesita el navegador y la red |
-| **Vehículos**: dar de alta, editar, borrar, marcar disponible | Se configuran con conexión. No hay cola para esto |
+| **Vehículos**: dar de alta, editar, dejar inactivo, borrar, marcar disponible | Se configuran con conexión. No hay cola para esto |
 | **Almacenes**: crear, editar, borrar | Viven en Accesos |
 | **Buscar una dirección** en Almacenes | Pregunta a un servicio de mapas. Pero **tocar en el mapa y escribir las coordenadas sí funcionan** |
 | **Sincronización** | Se lee del servidor cada vez, no guarda copia |
@@ -88,6 +89,28 @@ servidor le da su código de verdad al recibirla.
 
 Aparte de eso, la aplicación **se pone al día sola cada 5 minutos** cuando hay
 señal.
+
+---
+
+## Lo que queda en espera mientras no hay señal
+
+Hay tres cosas que **se hacen en el teléfono al momento pero que el servidor todavía no
+sabe**. Mientras no suban, el teléfono te enseña lo que tú hiciste, no lo que el
+servidor tiene:
+
+1. **Borrar una ruta que salió del tablero.** Las facturas vuelven a su zona del
+   tablero, pero **hasta que suba el borrado y baje el tablero salen en «Sin colocar»**,
+   no en su zona. No se han perdido. Con señal, se colocan solas donde estaban.
+2. **Quitar una parada de una ruta planificada** («Quitar de ruta»). El pedido sale de
+   la hoja y vuelve a disponibles al momento; si la ruta venía del tablero, su factura
+   regresa a la zona **cuando suba el cambio**. Hasta entonces puede verse en «Sin
+   colocar».
+3. **Completar una ruta.** El teléfono la enseña como completada, pero eso todavía no
+   confirma el cierre en el servidor: los estados de las paradas suben primero y el
+   cierre después. Si el servidor rechaza una parada, **el cierre queda en la bandeja
+   «Rechazados, esperando a una persona»** con su motivo, y la ruta no se completa en
+   el servidor hasta que decidas con **«Reintentar»** o **«Descartar»** (en la web, en
+   cambio, lo que se guardó vale). Ver [Si algo falla](5-si-algo-falla.md).
 
 ---
 

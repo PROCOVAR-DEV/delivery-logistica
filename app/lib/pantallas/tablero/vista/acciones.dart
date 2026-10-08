@@ -14,7 +14,6 @@ import '../../pedidos/datos/formato.dart' show cantidad;
 import '../../rutas/datos/repositorio_rutas.dart' show PestanaRutas;
 import '../../rutas/estado/proveedores_rutas.dart'
     show pestanaRutasProvider, rutaElegidaProvider;
-import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 import '../datos/modelos.dart';
 import '../estado/proveedores.dart';
 import 'kit.dart';
@@ -707,62 +706,43 @@ class _CamionesDeLaZona extends ConsumerWidget {
           // rompe sin uno, que es el §4 —una colección que no bajó se dice, y
           // se dice qué se rompe sin ella—. Sin camión previsto la ruta se
           // arma igual, y el coste por km de esa ruta no sale.
-          AsyncData(:final value) when value.where((v) => v.isActive).isEmpty =>
-            [
-              const _NadaQueElegir(
-                'Esta sucursal no tiene vehículos activos en este aparato.',
-                'Se puede armar la ruta igual, pero sin camión no hay capacidad '
-                    'contra la que medir el peso ni coste por km que calcular. '
-                    'Los vehículos se dan de alta en Flota y bajan con la '
-                    'siguiente sincronización.',
-              ),
-            ],
+          AsyncData(:final value) when value.isEmpty => [
+            const _NadaQueElegir(
+              'Esta sucursal no tiene vehículos activos y fuera del taller en '
+                  'este aparato.',
+              'Los vehículos inactivos y los que están en el taller no se '
+                  'ofrecen para rutas nuevas. Se puede armar la ruta igual, '
+                  'pero sin camión no hay capacidad contra la que medir el peso '
+                  'ni coste por km que calcular. Los vehículos se dan de alta y '
+                  'se activan en Flota, y bajan con la siguiente '
+                  'sincronización.',
+            ),
+          ],
           AsyncData(:final value) => [
-            // EL CAMION DEL TALLER SALE, Y SALE MARCADO — 28/09/2026.
+            // SOLO SALEN LOS QUE SE PUEDEN ASIGNAR A UNA RUTA NUEVA — 07/10/2026.
             //
-            // Se OFRECE igual, y es la misma decisión que el paso 3 del
-            // asistente de Rutas: aviso, no bloqueo. Un camión en el taller
-            // tiene su capacidad y su costo por km, así que el peso de la zona y
-            // el coste de su ruta siguen teniendo contra qué medirse — lo que
-            // falta es el camión, no el dato. Eso lo separa de la zona SIN
-            // camión, que sí se bloquea desde hoy (`tablero/datos/
-            // repositorio.dart`, `armarRuta`): allí las dos cuentas se quedan
-            // sin denominador y la ruta sale con un peso y un importe que no
-            // significan nada.
-            //
-            // Y bloquear con `maintenance` sería bloquear con un campo que pone
-            // una persona y tiene que quitar otra. En producción hay sucursales
-            // con UN camión: uno que alguien se olvidó de sacar del taller
-            // dejaría esa sucursal sin poder armar ni una zona, y el arreglo
-            // está en otra pantalla. Es el caso de los 657 de 686 domicilios sin
-            // costo del `CLAUDE.md` §2, con otro nombre.
-            //
-            // El aviso va en el subtítulo, que es donde ya están la capacidad y
-            // la placa: en mayúsculas porque es lo único de esta lista que hace
-            // que uno elija otro.
-            for (final (cual, camion) in value.where((v) => v.isActive).indexed)
+            // `camionesProvider` ya trae solo los activos y fuera del taller
+            // (`seOfreceParaRutasNuevas`). El camion del taller se ofrecia aqui
+            // con un «EN EL TALLER» en ambar —«aviso, no bloqueo», 28/09/2026—,
+            // con un argumento que colgaba del `CLAUDE.md` §2 de entonces
+            // (bloquear con un dato que nadie mantiene deja sin armar a una
+            // sucursal de un solo camion). Ese §2 lo reemplazo Amado el
+            // 07/10/2026 y el servidor dice lo contrario: «Ponlo en
+            // mantenimiento para impedir que se use en nuevas rutas». Un camion
+            // de baja o en el taller no se ofrece; y si la zona ya lo tenia
+            // puesto, `armarRuta` lo rechaza con el literal del servidor.
+            for (final (cual, camion) in value.indexed)
               // Sólo el primero se deja senalar: hay una fila por camion.
               ControlSenalado(
                 nombre: Senalado.tableroElegirCamion,
                 senalable: cual == 0,
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    camion.status == estadoEnMantenimiento
-                        ? Icons.build_outlined
-                        : Icons.local_shipping_outlined,
-                    color: camion.status == estadoEnMantenimiento
-                        ? Colores.ambar
-                        : null,
-                  ),
+                  leading: const Icon(Icons.local_shipping_outlined),
                   title: Text(camion.name),
                   subtitle: Text(
                     '${pesoBonito(camion.capacity)}'
-                    '${camion.plate == null ? '' : ' · ${camion.plate}'}'
-                    '${camion.status == estadoEnMantenimiento ? ' · EN EL TALLER' : ''}',
-                    style: camion.status == estadoEnMantenimiento
-                        ? TextStyle(color: Colores.ambar)
-                        : null,
+                    '${camion.plate == null ? '' : ' · ${camion.plate}'}',
                   ),
                   selected: columna.vehiculoId == camion.id,
                   onTap: () => _poner(context, camion.id),

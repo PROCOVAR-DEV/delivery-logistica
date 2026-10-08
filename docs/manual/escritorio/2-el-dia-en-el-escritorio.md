@@ -122,11 +122,13 @@ da por malo**:
      matrícula: **«1.000 kg · P-123456»**.
    - La cabecera pasa a poner **«Camión: F-350»**.
 
-Un camión con **«EN EL TALLER»** en ámbar **se puede elegir igual**: es aviso, no
-bloqueo.
+**Sólo salen los camiones activos y fuera del taller.** Un camión «Inactivo» (dado de
+baja) o en mantenimiento no se ofrece para rutas nuevas; si no te sale, mira su
+tarjeta en **«Vehículos»**.
 
-**Si dice «Esta sucursal no tiene ningún vehículo en este aparato»**, con conexión ve
-a **«Vehículos»** y dalo de alta; baja con la siguiente sincronización.
+**Si dice «Esta sucursal no tiene vehículos activos y fuera del taller en este
+aparato»**, con conexión ve a **«Vehículos»** y da de alta uno o actívalo; baja con la
+siguiente sincronización.
 
 ## 3.3 Repartir los pedidos — arrastrando
 <!-- tarea -->
@@ -178,7 +180,12 @@ Camión: F-350                       sin subir
 
 - **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
   factura»** — hoy **no salen**.
-- **«Cambió en la factura»** en ámbar — **sí sale**, pero el peso ya no es el que era.
+- **«Cambió en la factura»** en ámbar — **tampoco sale**: en el camión sólo sube lo que
+  cuadra con la factura. La ruta lo descartará con «cambió en la factura».
+- **Sin domicilio cobrado o sin cotizar** — **ni salen en «Sin colocar»**; si intentas
+  colocarlos, te lo rechaza al momento con su motivo («No se puede asociar al tablero:
+  la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el
+  domicilio del pedido.»), aunque no haya conexión.
 - **«sin ubicar»** — sin coordenadas de entrega: **no puede ir en una ruta**.
 - **«2 pedidos de este cliente hoy»** — son dos de verdad. **No se juntan.**
 
@@ -224,8 +231,10 @@ Necesitas **al menos dos zonas**. Si sólo tienes una, crea otra antes de empeza
 Debajo te lista por qué se cayó cada uno:
 
 ```
-SC06-1257 · DAYLIS PÉREZ: Ya va en otra ruta
-X-2992 · ANA MARTÍNEZ: Sin cotejar
+PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
+PTB25-261005-1502 · ANA MARTÍNEZ: cambió en la factura
+PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
+PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
 
 ### El nombre de la ruta
@@ -350,6 +359,14 @@ te bloquea, pero te lo dice.
 2. Márcalas y **clic en «Guardar y completar»**. Revisa las marcas antes de confirmar. <!-- señala: rutas-guardar-el-cierre -->
    - **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
      entregados **vuelven a estar disponibles**.
+
+**Si el servidor rechaza una parada al subir el cierre**: cada parada lleva su
+**conduce** («Conduce: PTB25-261005-1480», el número de operación de la factura). En el
+escritorio la hoja sube entera o no sube: el cierre queda en la bandeja **«Rechazados,
+esperando a una persona»** (franja → «Entregar el día») con su motivo, y **la ruta no se
+completa en el servidor hasta que decidas** con **«Reintentar»** o **«Descartar»**. En la
+web, en cambio, lo que se guardó vale. Ver
+[Si algo falla](5-si-algo-falla.md).
 
 ## Sacar el post-despacho
 <!-- tarea -->

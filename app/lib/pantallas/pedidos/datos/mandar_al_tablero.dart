@@ -12,9 +12,10 @@
 //    la colocacion y encola su apunte EN LA MISMA transaccion. Un segundo camino
 //    para lo mismo es un sitio mas donde la colocacion y el apunte se pueden
 //    separar, y esa es la averia que el repositorio existe para que no pase.
-//  * **No afloja ni duplica las reglas de «repartible».** Se pregunta a
-//    `TarjetaPedido.marcas`, que es la misma pieza que usa `armarRuta`. Si
-//    manana cambia lo que es repartible, cambia aqui sin que nadie se acuerde.
+//  * **No afloja ni duplica las reglas de «colocable».** Se pregunta a
+//    `porQueNoSePuedeColocar`, la misma pieza que usa `RepositorioTablero.colocar`
+//    y que repite palabra por palabra el «no» del servidor. Si manana cambia lo
+//    que se puede colocar, cambia aqui sin que nadie se acuerde.
 //  * **No descarta nada en silencio** (`CLAUDE.md` §4). Lo que no puede ir sale
 //    NOMBRADO y con su motivo, con la misma forma que los descartes de
 //    `armarRuta`: «F-2992 · Ana: Ya va en otra ruta».
@@ -179,32 +180,33 @@ class MandarAlTablero {
   }
 
   /// `null` = puede ir.
+  ///
+  /// # LO MISMO QUE DIRIA EL SERVIDOR, con sus mismas palabras — 07/10/2026
+  ///
+  /// Esto mira lo que mira `porQueNoSePudoColocar` del servidor
+  /// (`api/internal/api/tablero.go`), **a traves de la misma pieza que usa el
+  /// arrastre** ([porQueNoSePuedeColocar]): ya entregado, ya en una ruta, domicilio
+  /// cobrado y domicilio cotizado. Antes miraba solo las marcas de la tarjeta,
+  /// que no saben de domicilio ni de entregado: en la web un lote de cincuenta
+  /// abortaba a medias en el primer 409 —el servidor si lo mira— y en la APK se
+  /// mandaba al tablero lo que el servidor iba a rechazar horas despues.
+  ///
+  /// Lo propio de aqui, que el servidor no dice en ese «no»: que el pedido sea de
+  /// otra sucursal, que este archivado en PEDIDO, que no tenga punto de entrega y
+  /// las dos marcas graves de factura (sin cotejar, sin factura). Estas ultimas
+  /// el servidor al colocar no las mira, pero la ruta de la zona las descartaria
+  /// y la lista de «Sin colocar» tampoco las ofrece: mandarlas seria fabricar el
+  /// descarte.
   String? _porQueNoPuedeIr(Pedido pedido, String sucursalId) {
     if (pedido.branchId != sucursalId) return MotivoDeQuedarse.deOtraSucursal;
+    if (pedido.archivado) return MarcaTarjeta.archivado.texto;
 
-    // LAS MARCAS, preguntadas a la misma pieza que usa el armador. Se construye
-    // una tarjeta solo para eso: `kmAlAlmacen` y `mismoCliente` no se miran
-    // aqui —son cosas de como se PINTA el tablero— y por eso van con lo minimo.
-    final tarjeta = TarjetaPedido(
-      pedidoId: pedido.id,
-      operationNumber: pedido.operationNumber,
-      customerName: pedido.customerName,
-      address: pedido.endAddress ?? pedido.address,
-      weight: pedido.weight,
-      pedidoCosto: pedido.pedidoCosto,
-      municipio: pedido.municipio,
-      vendedor: pedido.vendedor,
-      orderDate: pedido.orderDate ?? pedido.createdAt,
-      facturaEstado: pedido.facturaEstado,
-      archivado: pedido.archivado,
-      rutaId: pedido.routeId,
-      resultado: pedido.resultado,
-      kmAlAlmacen: 0,
-      mismoCliente: 1,
-    );
-    if (!tarjeta.repartible) {
-      // La mas grave primero, que es el orden en el que `marcas` las da.
-      return tarjeta.marcas.firstWhere((m) => m.grave).texto;
+    final delServidor = porQueNoSePuedeColocar(pedido);
+    if (delServidor != null) return delServidor;
+
+    if (pedido.facturaEstado == null) return MarcaTarjeta.sinCotejar.texto;
+    if (pedido.facturaEstado == EstadoFactura.sinFactura) {
+      return MarcaTarjeta.sinFactura.texto;
     }
 
     if (pedido.endLat == null || pedido.endLng == null) {

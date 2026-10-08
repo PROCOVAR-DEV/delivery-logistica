@@ -101,6 +101,22 @@ class RechazoLocal implements Exception {
 const msgRutaCompletada =
     'La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico.';
 
+/// Los dos «no» de «Quitar de ruta», LETRA POR LETRA los del servidor
+/// (`quitarParadaPlanificada`, `api/internal/api/rutas.go`), sin punto final.
+/// Sin señal los dice el aparato y con ella la nube: si no se leen igual, el
+/// mismo rechazo enseña dos idiomas (`CLAUDE.md` §3-quinquies).
+const msgSoloSeRetiranDeRutaPlanificada =
+    'Sólo se pueden retirar paradas de una ruta planificada';
+const msgParadaNoPerteneceAPlanificada =
+    'El pedido no pertenece a una ruta planificada o ya fue retirado';
+
+/// El «no» de armar con un camión dado de baja, el literal del servidor
+/// (`api/internal/api/rutas.go`, `armarRuta`). Con el camión en `isActive =
+/// false` el servidor contesta 400 con esto; el aparato lo dice antes para que
+/// no llegue horas después a la bandeja de rechazados.
+const msgVehiculoInactivo =
+    'El vehículo está inactivo y no se puede asignar a una ruta.';
+
 /// Como acabo una parada, tal y como sale del cierre.
 class MarcaDeParada {
   const MarcaDeParada({
@@ -141,10 +157,21 @@ class MarcaDeParada {
   };
 }
 
+/// Lo que dejó guardar el cierre de una ruta.
+///
+/// [claveDelApunte] es la del apunte de la cola con la que se le sigue la pista;
+/// va vacía en la web, que no tiene cola porque el cierre ya está arriba.
+/// [aviso] sólo viene cuando el servidor guardó unas paradas y rechazó otras
+/// (409 parcial): trae su motivo literal y [idsAplicados] dice cuáles sí.
 class ResultadoCierreDeRuta {
-  const ResultadoCierreDeRuta({required this.idsAplicados, this.aviso});
+  const ResultadoCierreDeRuta({
+    required this.idsAplicados,
+    this.claveDelApunte = '',
+    this.aviso,
+  });
 
   final Set<String> idsAplicados;
+  final String claveDelApunte;
   final String? aviso;
 }
 
@@ -309,11 +336,14 @@ class AccionesDeRuta {
       );
     }
 
+    // SOLO LO QUE CUADRA CON LA FACTURA, `igual`, y `cambiado` NO entra —
+    // 07/10/2026, Jose: «en el camión sólo sube lo que cuadra con la factura».
+    // Es la regla de siempre y el servidor la sigue diciendo (`mensajeNoFacturados`
+    // en `api/internal/api/rutas.go`); lo nuevo de Amado (domicilio cobrado y
+    // cotización) se suma debajo, no sustituye a esto.
     final noFacturados = [
       for (final p in pedidos)
-        if (p.facturaEstado != EstadoFactura.igual &&
-            p.facturaEstado != EstadoFactura.cambiado)
-          p,
+        if (p.facturaEstado != EstadoFactura.igual) p,
     ];
     if (noFacturados.isNotEmpty) {
       throw RechazoLocal(_mensajeDeFactura(noFacturados));
@@ -340,6 +370,15 @@ class AccionesDeRuta {
     // Si el vehiculo no esta en el aparato NO se valida capacidad y la ruta se
     // crea igual: es lo que hace el servidor, y negarla aqui dejaria sin armar
     // rutas a quien todavia no ha bajado su flota.
+    //
+    // UN CAMION DADO DE BAJA NO SALE — 07/10/2026, Amado. El servidor lo
+    // rechaza con un 400 y este literal, ANTES de medir la capacidad; el aparato
+    // lo dice en el mismo orden para que el «no» no llegue horas despues a la
+    // bandeja. Una bajada vieja trae `isActive` ausente = activo (`bajada.dart`),
+    // asi que esto solo salta cuando alguien lo dio de baja de verdad.
+    if (vehiculo != null && !vehiculo.isActive) {
+      throw const RechazoLocal(msgVehiculoInactivo);
+    }
     if (vehiculo != null && pesoTotal > vehiculo.capacity) {
       throw RechazoLocal(
         'Peso total (${pesoTotal.toStringAsFixed(1)} kg) supera la capacidad '
@@ -538,11 +577,12 @@ class AccionesDeRuta {
 
   /// La ruta dentro de la respuesta.
   ///
-  /// Son DOS formas y las dos las manda el mismo endpoint: el objeto de la ruta
-  /// a secas, o `{"ruta": …, "avisos": …}` cuando hay domicilios sin costear
-  /// (`api/internal/api/rutas.go`, `responderConLaRutaYAvisos`). Leer solo la
-  /// primera dejaria sin id justo las rutas que llevan aviso, que son casi
-  /// todas: 657 de 686 domicilios no tienen el costo puesto.
+  /// Hoy el servidor manda el objeto de la ruta a secas, con el `id` en la
+  /// raiz. Se sigue leyendo tambien `{"ruta": …, "avisos": …}`, que era la otra
+  /// forma mientras se dejaban armar rutas con domicilios sin costear: desde el
+  /// 07/10/2026 (Amado) eso ya no se arma —el armador exige domicilio cobrado y
+  /// cotizado— y el servidor no lo manda, pero un servidor que aun no se haya
+  /// actualizado si, y dejarlo sin leer dejaria la ruta sin id.
   static Map<Object?, Object?>? _laRutaDe(Object? respuesta) {
     if (respuesta is! Map<Object?, Object?>) return null;
     final dentro = respuesta['ruta'];
@@ -822,7 +862,7 @@ class AccionesDeRuta {
         .map((p) => '${p.operationNumber ?? p.customerName} (${motivo(p)})')
         .join(', ');
     final cola = n > 5 ? ' y ${n - 5} más.' : '.';
-    return 'En una ruta sólo entra lo facturado. '
+    return 'En una ruta sólo entra lo facturado y que cuadre. '
         '$n no cumplen: $detalle$cola';
   }
 
@@ -973,14 +1013,42 @@ class AccionesDeRuta {
       _unaSola('eliminar:$rutaId', () => _eliminar(rutaId));
 
   /// Quita una parada de una ruta planificada y devuelve el pedido a disponibles.
+  ///
+  /// # LA PARADA FANTASMA — 07/10/2026
+  ///
+  /// Aqui se soltaba `routeId` y se dejaba `ultimaRutaId`, que es lo que hace
+  /// bien el devuelto (la hoja de lo que bajo del camion tiene que seguir
+  /// teniendolo). Pero un pedido que se QUITA no bajo de ningun camion: con la
+  /// ruta todavia a medias, `ultimaRutaId` lo seguia atando a ella y la parada
+  /// quitada seguia saliendo en su hoja y sumando en su peso y su importe —que
+  /// agrupan por esa columna— mientras ya estaba en disponibles: en dos sitios a
+  /// la vez. Por eso se suelta TAMBIEN `ultimaRutaId`.
+  ///
+  /// Es reflejo exacto de lo que hace el servidor (`SoltarParadaPlanificada`), y
+  /// de ahi las dos condiciones de las lecturas de paradas: un pedido sin
+  /// `routeId` es parada de una ruta solo si lo solto con un resultado puesto
+  /// (devuelto o cancelado).
+  ///
+  /// Los dos «no» son los LITERALES del servidor, en su orden.
   Future<void> quitarParada(String rutaId, String pedidoId) =>
       _unaSola('quitar-parada:$rutaId:$pedidoId', () async {
         final ruta = await _ruta(rutaId);
         if (ruta == null) throw const RechazoLocal('No encontrada');
         if (ruta.status != EstadoRuta.planificada) {
-          throw const RechazoLocal(
-            'Solo se pueden quitar paradas de una ruta planificada.',
-          );
+          throw const RechazoLocal(msgSoloSeRetiranDeRutaPlanificada);
+        }
+        // La parada tiene que estar en ESTA ruta y sin resultado ni entrega: lo
+        // que el servidor exige en el `WHERE` de `SoltarParadaPlanificada`. Sin
+        // esta guarda la APK soltaria algo que luego el servidor rechaza con un
+        // 409 que llega horas despues a la bandeja.
+        final parada = await (_base.select(
+          _base.orders,
+        )..where((o) => o.id.equals(pedidoId))).getSingleOrNull();
+        if (parada == null ||
+            parada.routeId != rutaId ||
+            parada.resultado != null ||
+            parada.deliveredAt != null) {
+          throw const RechazoLocal(msgParadaNoPerteneceAPlanificada);
         }
         final enVivo = _enVivo;
         if (enVivo != null) {
@@ -995,6 +1063,7 @@ class AccionesDeRuta {
         )..where((o) => o.id.equals(pedidoId))).write(
           const OrdersCompanion(
             routeId: Value(null),
+            ultimaRutaId: Value(null),
             stopOrder: Value(null),
             segmentKm: Value(null),
             tripLeg: Value(Tramo.ida),
@@ -1072,7 +1141,8 @@ class AccionesDeRuta {
   /// almacen, donde no hay senal: esperar una respuesta seria no poder cerrar
   /// ninguna ruta.
   ///
-  /// Devuelve la `clave` del apunte, que es con lo que se le sigue la pista.
+  /// Devuelve qué paradas quedaron guardadas y la `clave` del apunte, que es con
+  /// lo que se le sigue la pista (`ResultadoCierreDeRuta`).
   Future<ResultadoCierreDeRuta> cerrar(
     String rutaId,
     List<MarcaDeParada> marcas,
@@ -1083,12 +1153,16 @@ class AccionesDeRuta {
     if (marcas.isEmpty) throw const RechazoLocal('No vino ningún resultado');
 
     // Una parada actual se reconoce por `routeId`; si ya se devolvió o canceló,
-    // usa `ultimaRutaId` para permitir corregir su cierre histórico.
+    // usa `ultimaRutaId` para permitir corregir su cierre histórico. Y SOLO si
+    // trae resultado: sin `routeId` y sin resultado es un pedido que se QUITÓ de
+    // la ruta, no una parada suya (`paradasDe` lleva la misma condición).
     final paradas =
         await (_base.select(_base.orders)..where(
               (o) =>
                   o.routeId.equals(rutaId) |
-                  (o.routeId.isNull() & o.ultimaRutaId.equals(rutaId)),
+                  (o.routeId.isNull() &
+                      o.ultimaRutaId.equals(rutaId) &
+                      o.resultado.isNotNull()),
             ))
             .get();
     final deLaRuta = {for (final p in paradas) p.id};
@@ -1159,7 +1233,13 @@ class AccionesDeRuta {
         );
       } on RechazoDelServidor catch (rechazo) {
         final recibidos = _idsAplicadosEnRechazoParcial(rechazo);
-        if (rechazo.codigo != 409 || recibidos == null) rethrow;
+        // Un rechazo TOTAL sale como `RechazoLocal` con el motivo literal del
+        // servidor, igual que en las otras acciones (`_mandar`): es el tipo que
+        // las pantallas saben enseñar. Dejar pasar el `RechazoDelServidor` tal
+        // cual lo convertía en un error genérico sin motivo.
+        if (rechazo.codigo != 409 || recibidos == null) {
+          throw RechazoLocal(rechazo.motivo);
+        }
         aplicadas = limpias
             .where((marca) => recibidos.contains(marca.pedidoId))
             .toList();
@@ -1228,7 +1308,7 @@ class AccionesDeRuta {
       );
     }
 
-    await _cola.encolar(
+    final clave = await _cola.encolar(
       metodo: 'POST',
       ruta: '/routes/$rutaId/results',
       cuerpo: <String, Object?>{
@@ -1237,6 +1317,7 @@ class AccionesDeRuta {
     );
     return ResultadoCierreDeRuta(
       idsAplicados: {for (final marca in limpias) marca.pedidoId},
+      claveDelApunte: clave,
     );
   }
 

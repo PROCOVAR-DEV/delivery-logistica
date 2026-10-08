@@ -473,10 +473,14 @@ WHERE c.branch_id = ?1''',
   /// pantalla tiene que dar el mismo orden sin conexion: es la hora a la que se
   /// usa. Son los pedidos de UNA sucursal, no del pais.
   ///
-  /// Las condiciones de «repartible» son LAS MISMAS CINCO del armador, ni una
-  /// mas ni una menos: si el tablero ofreciera algo que la ruta luego rechaza,
+  /// Las condiciones son LAS DE LA LISTA DEL SERVIDOR (`ListarPedidosSinColocar`
+  /// y su contador `ContarPedidosSinColocar`), ni una mas ni una menos: si el
+  /// tablero ofreciera algo que luego no se puede colocar o que la ruta rechaza,
   /// el logistico prepararia una columna entera para que al final del dia le
-  /// digan que no.
+  /// digan que no. Desde el 07/10/2026 (Amado) entran **tambien** el domicilio
+  /// cobrado (`facturaDomicilio > 0`) y el domicilio cotizado (`pedidoCosto` no
+  /// nulo): sin ellos la tarjeta se ofrecia aqui y `colocar` la rechazaba
+  /// (`porQueNoSePuedeColocar`), o se colocaba y fallaba al armar la zona.
   Future<MitadIzquierda> sinColocar(
     String sucursalId,
     AlmacenOrigen origen, {
@@ -513,7 +517,15 @@ WHERE c.branch_id = ?1''',
             // Arreglarlo solo en `db/queries/tablero.sql` dejaba el numero
             // exactamente igual, y se comprobo desplegando: la api ya filtraba
             // y la pantalla seguia diciendo 243.
-            t.requiereDomicilio.equals(true),
+            t.requiereDomicilio.equals(true) &
+            // LAS DOS CONDICIONES DE AMADO (07/10/2026, incidencias 2 y 6): la
+            // factura trae un cobro de domicilio positivo y Entrega ya cotizo el
+            // domicilio. Son las mismas que aplica el servidor en su lista y en su
+            // contador, y las mismas que la lista de disponibles de Rutas
+            // (`ConsultasRutas.disponibles`). Un `pedidoCosto` de cero SI cuenta
+            // como cotizado: cero es un precio puesto, nulo es que falta.
+            t.facturaDomicilio.isBiggerThanValue(0) &
+            t.pedidoCosto.isNotNull(),
       );
     // «Sin colocar» = no esta en ninguna columna. Del tablero de NADIE: un
     // pedido es de una sucursal y sólo puede estar en el suyo.

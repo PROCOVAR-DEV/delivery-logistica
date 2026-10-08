@@ -43,12 +43,31 @@ tiene ruta, igual que uno libre.
 Si el taller y una ruta abierta se contradicen, **gana el taller** en la insignia,
 y justo debajo se explica con el nombre de la ruta.
 
+### «Inactivo» no es un quinto estado
+
+Un camión puede estar **«Disponible» e «Inactivo» a la vez**, y por eso la insignia
+**«Inactivo»** sale **aparte**, debajo del nombre y de la insignia de estado (con un
+borde y un icono de prohibido, sin relleno). Los estados de arriba dicen **en qué anda
+el camión** (libre, con ruta, fuera, en el taller); «Inactivo» dice que **se dio de
+baja sin borrarlo**:
+
+- **No se ofrece en rutas nuevas**: ni en el paso «Vehículo» del asistente «Nueva
+  Ruta», ni en el «Camión previsto» de una zona del Tablero.
+- **Sigue viéndose donde ya tiene historia**: en el filtro «Rutas de un camión», en
+  los informes y en las rutas que ya hizo, que siguen diciendo en qué camión fueron.
+- **Se puede volver a activar** cuando haga falta, en su ficha (interruptor «Vehículo
+  activo»).
+
+Es la salida para un camión que ya se usó: **un camión con rutas —aunque sean del
+histórico— no se puede borrar**, se inactiva.
+
 ---
 
 ## Qué se ve en cada tarjeta
 
 - El **nombre** y debajo la **placa**.
 - La **insignia de estado** a la derecha.
+- Si el camión está dado de baja, la insignia **«Inactivo»**, debajo.
 - El **tipo** del camión.
 - **«Cálculo domicilio · $1.65/km»** si es el que se usa para calcular el
   domicilio. Si no lo es, en su sitio sale el botón **«Usar para domicilio»**.
@@ -84,13 +103,22 @@ Se arregla con el botón **«Marcar disponible»**.
 Se abre un cajón titulado **«Borrar «Camión 1»»**, igual que al borrar una zona del
 tablero o un almacén, y dice **qué se pierde**:
 
-> «El camión se va de la flota. Las rutas y los pedidos que lo llevaban puesto NO se
-> borran —el histórico de lo repartido se queda— pero se quedan sin camión, y hay que
-> ponerles otro. Y el camión hay que volver a darlo de alta a mano, con su placa, su
-> capacidad y su costo por km.»
+> «El camión se va de la flota y hay que volver a darlo de alta a mano, con su placa,
+> su capacidad y su costo por km.
+>
+> Un camión que ya tiene rutas —aunque sean del histórico— NO se puede borrar: el
+> servidor lo rechaza para no perder qué camión hizo cada reparto. Si ese es el caso,
+> no lo borres: ábrelo con «Editar» y márcalo como inactivo. Así deja de ofrecerse en
+> las rutas nuevas y su historial se queda intacto.»
 
 Con **«Sí, borrar «Camión 1»»** y **«No, dejarlo»**. **Cerrar el cajón sin
 contestar —la ✕, tocar fuera, Escape— es No.**
+
+**Sólo se borra un camión que nunca se usó** (sin ninguna ruta, ni siquiera de las
+completadas). Si tiene rutas y le das a «Sí», el servidor no lo borra y lo dice:
+
+> «No se puede eliminar este vehículo porque tiene rutas asociadas, incluso
+> históricas. Márcalo como inactivo para impedir que se use en nuevas rutas.»
 
 ---
 
@@ -101,6 +129,7 @@ Se abre con **«Agregar Vehículo»** o con **«Editar»**.
 | Campo | Ejemplo o valor por defecto |
 |---|---|
 | **«Nombre del Vehículo *»** | «Ej: Camión #1, Furgoneta Azul». Obligatorio |
+| **«Vehículo activo»** | Interruptor, **encendido** por defecto. Ver abajo |
 | **«Tipo»** | Desplegable. Al elegir uno, **hereda su costo por km** |
 | **«Placa (opcional)»** | «ABC-1234». Se pasa a mayúsculas solo |
 | **«Capacidad Máx. (kg)»** | 1000 |
@@ -108,6 +137,23 @@ Se abre con **«Agregar Vehículo»** o con **«Editar»**.
 | **«Costo por km (USD)»** | «1.65» |
 | **«Usar este vehículo para calcular el domicilio»** | Desmarcada. «Solo un vehículo por TIPO.» |
 | **«Notas (opcional)»** | Texto libre |
+
+### El interruptor «Vehículo activo»
+
+Está justo debajo del nombre. Dice, según esté:
+
+- Encendido: «Aparece en los selectores para crear rutas.»
+- Apagado: «Se oculta de los selectores de rutas nuevas.»
+
+**Apagarlo es dar el camión de baja sin borrarlo.** Es lo que hay que hacer con un
+camión que se vende, se rompe del todo o ya no se usa, pero que **tiene rutas hechas**:
+borrarlo está prohibido para que el histórico siga diciendo qué camión repartió cada
+cosa. Al guardar («Actualizar»), la tarjeta pasa a llevar la insignia **«Inactivo»**.
+Para recuperarlo, vuelve a **«Editar»** y enciéndelo.
+
+**No confundir con «En mantenimiento».** El mantenimiento es un camión que **va a
+volver** (está en el taller): tampoco se ofrece para rutas nuevas mientras esté ahí, y
+al volver se pasa a «Disponible». «Inactivo» es una baja que no cuenta con él.
 
 ### El desplegable «Estado del vehículo» sólo tiene DOS opciones
 
@@ -240,6 +286,8 @@ pág.»** o **«100 / pág.»**, y las flechas «Primera», «Anterior», «Sigu
 
 - **No funciona sin conexión.** Es la diferencia con Pedidos, Clientes o Rutas.
 - **No se marca «En ruta» a mano.**
+- **No se borra un camión que tiene rutas**, ni siquiera históricas: se pone
+  «Inactivo».
 - **No se le cambia el camión a una ruta ya armada.** Eso no está aquí ni en Rutas:
   hay que eliminar la ruta y volver a armarla.
 - **El costo por kilómetro no se pone en la ficha del camión**: sale del **tipo**

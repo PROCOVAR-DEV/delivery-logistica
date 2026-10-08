@@ -137,13 +137,6 @@ func (a *Acotado) DesmarcarReferenciaDeDomicilio(ctx context.Context, exceptoID 
 	})
 }
 
-func (a *Acotado) DesvincularVehiculoDeRutas(ctx context.Context, vehiculo uuid.UUID) (int64, error) {
-	return a.q.DesvincularVehiculoDeRutas(ctx, sqlc.DesvincularVehiculoDeRutasParams{
-		VehiculoID: aPg(&vehiculo),
-		Sucursal:   a.sucursalPg(),
-	})
-}
-
 func (a *Acotado) CompletarRutasDeVehiculo(ctx context.Context, vehiculo uuid.UUID) (int64, error) {
 	return a.q.CompletarRutasDeVehiculo(ctx, sqlc.CompletarRutasDeVehiculoParams{
 		VehiculoID: aPg(&vehiculo),

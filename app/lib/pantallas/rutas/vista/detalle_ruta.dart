@@ -255,12 +255,11 @@ class _NoEsta extends ConsumerWidget {
         children: [
           Text(motivo, textAlign: TextAlign.center),
           const SizedBox(height: 16),
-          FilledButton.icon(
+          BotonPrincipal(
             key: claveDeVolverDeLaQueNoEsta,
-            onPressed: () =>
-                ref.read(rutaElegidaProvider.notifier).elegir(null),
-            icon: const Icon(Icons.arrow_back, size: 18),
-            label: const Text('Volver a la lista'),
+            icono: Icons.arrow_back,
+            texto: 'Volver a la lista',
+            alPulsar: () => ref.read(rutaElegidaProvider.notifier).elegir(null),
           ),
         ],
       ),
@@ -451,85 +450,153 @@ class _Acciones extends ConsumerWidget {
   void _verParadas(BuildContext context, RutaConTodo ruta) {
     abrirCajon<void>(
       context,
-      (_) => Cajon(
-        titulo: 'Paradas y precio por cliente (${ruta.paradas.length})',
-        subtitulo: ruta.ruta.routeCode ?? ruta.ruta.id,
-        cuerpo: Consumer(
-          builder: (context, ref, _) {
-            // LO QUE HAY QUE BAJAR EN CADA PARADA.
-            //
-            // Jose, 17/09/2026: «el chofer debe saber qué es lo que se tiene
-            // que bajar en cada parada, ahí no se ve nada de lo que se va a
-            // bajar». Tenía razón y era el agujero grande de esta hoja: decía
-            // cuánto pesa y cuánto se cobra, o sea lo que le importa a la
-            // oficina, y **no decía qué es**, que es lo único que le sirve a
-            // quien descarga el camión delante del cliente.
-            final renglones =
-                ref.watch(renglonesDeParadasProvider(ruta.ruta.id)).value ??
-                const <String, List<RenglonConPeso>>{};
-            return Padding(
+      // EL CAJON ENTERO va dentro del `Consumer`, titulo incluido: lo que se ve
+      // aqui CAMBIA con el cajon delante (§3-ter). Con las paradas capturadas al
+      // abrirlo, quitar una dejaba su tarjeta puesta —y el «(3)» del titulo en
+      // 3— hasta cerrar y volver a abrir: la parada fantasma, vista desde la
+      // hoja. `paradasDeRutaProvider` es el `Stream` sobre `orders`.
+      (_) => Consumer(
+        builder: (context, ref, _) {
+          final paradas =
+              ref.watch(paradasDeRutaProvider(ruta.ruta.id)).value ??
+              ruta.paradas;
+          // LO QUE HAY QUE BAJAR EN CADA PARADA.
+          //
+          // Jose, 17/09/2026: «el chofer debe saber qué es lo que se tiene
+          // que bajar en cada parada, ahí no se ve nada de lo que se va a
+          // bajar». Tenía razón y era el agujero grande de esta hoja: decía
+          // cuánto pesa y cuánto se cobra, o sea lo que le importa a la
+          // oficina, y **no decía qué es**, que es lo único que le sirve a
+          // quien descarga el camión delante del cliente.
+          final renglones =
+              ref.watch(renglonesDeParadasProvider(ruta.ruta.id)).value ??
+              const <String, List<RenglonConPeso>>{};
+          return Cajon(
+            titulo: 'Paradas y precio por cliente (${paradas.length})',
+            subtitulo: ruta.ruta.routeCode ?? ruta.ruta.id,
+            cuerpo: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (var i = 0; i < ruta.paradas.length; i++)
+                  for (var i = 0; i < paradas.length; i++)
                     TarjetaDeParada(
-                      numero: ruta.paradas[i].stopOrder ?? i + 1,
-                      parada: ruta.paradas[i],
+                      numero: paradas[i].stopOrder ?? i + 1,
+                      parada: paradas[i],
                       origenLat: ruta.ruta.originLat,
                       origenLng: ruta.ruta.originLng,
                       lineas:
-                          renglones[ruta.paradas[i].id] ??
-                          const <RenglonConPeso>[],
+                          renglones[paradas[i].id] ?? const <RenglonConPeso>[],
                       alQuitar: ruta.ruta.status == EstadoRuta.planificada
-                          ? () async {
-                              final confirmar = await showDialog<bool>(
-                                context: context,
-                                builder: (dialogo) => AlertDialog(
-                                  title: const Text('Quitar parada de la ruta'),
-                                  content: Text(
-                                    '¿Devolver ${ruta.paradas[i].customerName} a pedidos disponibles?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogo, false),
-                                      child: const Text('Cancelar'),
-                                    ),
-                                    FilledButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogo, true),
-                                      child: const Text('Quitar de ruta'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (confirmar != true || !context.mounted) return;
-                              try {
-                                await ref
-                                    .read(accionesDeRutaProvider)
-                                    .quitarParada(
-                                      ruta.ruta.id,
-                                      ruta.paradas[i].id,
-                                    );
-                              } on RechazoLocal catch (fallo) {
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.maybeOf(context)
-                                    ?.showSnackBar(
-                                      SnackBar(content: Text(fallo.mensaje)),
-                                    );
-                              }
-                            }
+                          ? () => _quitarDeLaRuta(
+                              context,
+                              ref,
+                              ruta.ruta.id,
+                              paradas[i],
+                            )
                           : null,
                     ),
                 ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }
+
+  /// «QUITAR DE RUTA»: pregunta EN UN CAJON, y solo si se contesta que si se quita.
+  ///
+  /// Era un `AlertDialog` centrado, que es lo que la casa no hace: **cajon
+  /// siempre, tambien en escritorio** (`CLAUDE.md` §4, excepcion aprobada el
+  /// 05/09/2026). La forma es la de [preguntarAntesDeBorrar] —titulo, lo que
+  /// pasa, el boton que NOMBRA lo que se hace y un «No» al lado— y cerrar sin
+  /// contestar es NO: sacar a alguien de un camion no se hace por un descuido.
+  ///
+  /// Cogerlo del [context] de la pantalla y no del cajon de las paradas: el
+  /// segundo cajon se abre ENCIMA del primero y el primero tiene que seguir
+  /// ahi, repintandose cuando la parada se va.
+  Future<void> _quitarDeLaRuta(
+    BuildContext context,
+    WidgetRef ref,
+    String rutaId,
+    Pedido parada,
+  ) async {
+    // El mensajero y las acciones se cogen ANTES de cualquier `await`: despues el
+    // cajon que pregunta ya se cerro.
+    final mensajero = ScaffoldMessenger.maybeOf(context);
+    final acciones = ref.read(accionesDeRutaProvider);
+    final seguro = await preguntarAntesDeQuitar(
+      context,
+      cliente: parada.customerName,
+      conduce: parada.operationNumber,
+    );
+    if (!seguro) return;
+    try {
+      await acciones.quitarParada(rutaId, parada.id);
+    } on RechazoLocal catch (fallo) {
+      mensajero?.showSnackBar(SnackBar(content: Text(fallo.mensaje)));
+    }
+  }
+}
+
+/// LA PREGUNTA DE ANTES DE QUITAR UNA PARADA DE SU RUTA.
+///
+/// **Es publica para poder probarla suelta**, igual que [TarjetaDeParada]: el
+/// gesto completo pasa por el cajon de las paradas y su `Stream`, y lo que hay
+/// que atar aqui es la pregunta —cajon, nombra a quien sale, dice a donde vuelve
+/// y contestar «No» o cerrar no quita nada—.
+///
+/// ## A donde vuelve, y lo que NO se sabe desde aqui
+///
+/// Una factura que salio de una zona del tablero vuelve a esa zona cuando el
+/// servidor procesa el «quitar» (en la web, en el acto; en la APK y el
+/// escritorio, al sincronizar). Pero **el aparato no sabe de que zona salio**: ese
+/// origen vive en el servidor (`board_route_origins`) y la bajada no lo trae.
+/// Asi que la pregunta dice lo que SI es verdad en todos los casos —vuelve a
+/// pedidos disponibles— y lo que pasa si ademas venia del tablero, sin inventar
+/// un nombre de zona que no se tiene.
+Future<bool> preguntarAntesDeQuitar(
+  BuildContext contexto, {
+  required String cliente,
+  String? conduce,
+}) async {
+  final seguro = await abrirCajon<bool>(
+    contexto,
+    (contextoCajon) => Cajon(
+      titulo: 'Quitar de la ruta',
+      subtitulo: conduce == null ? cliente : '$cliente · Conduce: $conduce',
+      cuerpo: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '«$cliente» sale de esta ruta y vuelve a pedidos disponibles. '
+              'La ruta se queda con las demás paradas y su peso y su importe '
+              'se recalculan sin él.\n\n'
+              'Si la ruta se armó desde una zona del tablero, la factura '
+              'regresa a esa zona cuando se sincronice (en la web, de '
+              'inmediato).',
+            ),
+            const SizedBox(height: 20),
+            BotonPrincipal(
+              icono: Icons.remove_circle_outline,
+              texto: 'Sí, quitar «$cliente» de la ruta',
+              alPulsar: () => Navigator.of(contextoCajon).pop(true),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.of(contextoCajon).pop(false),
+              child: const Text('No, dejarlo en la ruta'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  return seguro ?? false;
 }
 
 /// LA CABECERA DEL DETALLE: el renglon de datos de la ruta, y lo que le falta.
@@ -859,8 +926,14 @@ class TarjetaDeParada extends StatelessWidget {
                       ),
                       color: Colores.gris,
                     ),
+                    // EL NUMERO DE OPERACION DE LA FACTURA ES EL CONDUCE — Jose,
+                    // 07/10/2026 (incidencia 6 de Amado). No hay dato nuevo: es
+                    // `operation_number`, y se rotula como lo llama quien reparte.
                     if (parada.operationNumber != null)
-                      Insignia(parada.operationNumber!, color: Colores.enCurso),
+                      Insignia(
+                        'Conduce: ${parada.operationNumber!}',
+                        color: Colores.enCurso,
+                      ),
                   ],
                 ),
                 if (alQuitar != null) ...[

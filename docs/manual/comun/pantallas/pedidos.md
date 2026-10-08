@@ -22,6 +22,12 @@ Debajo, el botón **«Ver todos los pedidos»**, que quita ese acotado.
 
 Si no encuentras un pedido, esto es lo primero que hay que probar.
 
+**Ojo con la última frase de la franja** («Lo que cambió también sube»): es del
+catálogo, y ya no vale para las rutas. Esta lista enseña lo que tiene factura; **a una
+ruta nueva o a una zona sólo entra lo que además cuadra con la factura, con el
+domicilio cobrado y cotizado**. Un pedido que cambió en la factura se ve aquí, pero la
+ruta lo descarta con «cambió en la factura».
+
 ---
 
 ## Los filtros
@@ -200,9 +206,11 @@ Lleva, en este orden:
 3. **La banda de la factura**:
    - Verde: «Cuadra con la factura F-2992 de Ventra: se puede repartir tal cual.»
    - Ámbar: «Se facturó algo distinto de lo pedido (factura F-2992). Lo que va en
-     el camión es lo facturado.»
+     el camión es lo facturado.» **Pero un pedido que no cuadra no sube a una ruta**:
+     la ruta lo descarta con «cambió en la factura».
    - Gris: «Todavía no aparece facturado en Ventra.»
    - Y si la factura cobró domicilio: «La factura cobró 15.00 USD de domicilio.»
+     **Sin ese cobro, el pedido no se ofrece para una ruta ni para una zona.**
 4. **El bloque del domicilio** — «Distancia 4.35 km · Peso total 128.0 kg» y, a la
    derecha, el importe o **«Sin calcular todavía»**. Debajo:
    - Con precio: «El costo lo puso el repartidor desde Entrega. La distancia es
@@ -242,12 +250,23 @@ una.
 Y si alguno se quedó, en ámbar:
 
 > «No se pudieron mandar 2, y siguen marcados:»
-> `F-2992 · Ana: Ya va en otra ruta`
-> `X-3010 · Luis: Sin coordenadas de entrega`
+> `PTB25-261005-1480 · Ana: Ese pedido ya está en una ruta`
+> `PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.`
+
+Cada pedido sale por su **conduce**, que es el número de operación de la factura.
 
 Los motivos posibles: «No está en este aparato», «Es de otra sucursal», «Sin
-coordenadas de entrega», «Archivado en PEDIDO», «Ya va en otra ruta», «Sin
-cotejar», «Sin factura».
+coordenadas de entrega», «Archivado en PEDIDO», «Sin cotejar», «Sin factura», y los
+mismos «no» que da el servidor al colocar una tarjeta:
+
+- «Ese pedido ya se entregó»
+- «Ese pedido ya está en una ruta»
+- «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
+  registrado.»
+- «No se puede asociar al tablero: primero cotiza el domicilio del pedido.»
+
+**A una zona sólo se coloca lo que tiene el domicilio cobrado y cotizado.** Es la misma
+regla que para armar una ruta: ver [Tablero](tablero.md).
 
 **Los que sí fueron pierden la marca; los que no, se quedan marcados** para poder
 seguir trabajando con ellos.

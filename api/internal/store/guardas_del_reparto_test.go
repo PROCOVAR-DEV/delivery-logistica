@@ -59,6 +59,13 @@ func TestLasGuardasSiguenEnElSQL(t *testing.T) {
 						g.consulta, g.fichero, quiere, g.porQue)
 				}
 			}
+			for _, noQuiere := range g.noEnElCuerpo {
+				if strings.Contains(espacios.ReplaceAllString(cuerpo, " "), noQuiere) {
+					t.Errorf(
+						"%s (%s) lleva «%s», que NO tiene que llevar.\n\n%s",
+						g.consulta, g.fichero, noQuiere, g.porQue)
+				}
+			}
 		})
 	}
 }
@@ -73,7 +80,11 @@ type guarda struct {
 	// enElCuerpo: trozos que tienen que estar en algún sitio de la consulta, para las que
 	// no son un `AND` suelto (una columna del `SELECT`, un `CASE`).
 	enElCuerpo []string
-	porQue     string
+	// noEnElCuerpo: trozos que NO pueden estar. Una decisión de «esto no se filtra aquí» es
+	// tan fácil de deshacer sin querer como una guarda de quitar, y hasta que existió esto no
+	// la vigilaba nadie.
+	noEnElCuerpo []string
+	porQue       string
 }
 
 var guardasDelReparto = []guarda{
@@ -159,13 +170,110 @@ var guardasDelReparto = []guarda{
 		fichero:    "routes.sql",
 		consulta:   "MarcarResultadoDeParada",
 		enElWhere:  []string{"(route_id = sqlc.arg('ruta_id')"},
-		enElCuerpo: []string{"OR (route_id IS NULL AND ultima_ruta_id = sqlc.arg('ruta_id'))", "WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')"},
+		enElCuerpo: []string{"OR (route_id IS NULL AND ultima_ruta_id = sqlc.arg('ruta_id') AND resultado IS NOT NULL)", "WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')"},
 		porQue: "Las dos mitades del cierre.\n" +
 			"  · El `WHERE` acepta la parada que sigue en `route_id` y la ya soltada cuya\n" +
 			"    `ultima_ruta_id` apunta a esta ruta; cualquier otra ruta queda excluida.\n" +
 			"  · El `CASE` que fija `route_id` del entregado es lo que impide que un\n" +
 			"    pedido ya repartido vuelva a la lista de disponibles esa misma tarde. Con\n" +
 			"    `route_id = NULL` a secas, cerrar la ruta devuelve TODO al montón.",
+	},
+	// ---- LA PARADA FANTASMA (07/10/2026): las cuatro preguntas «¿viajó este pedido en esta
+	// ruta?» tienen que contestar lo mismo, y un pedido quitado de la ruta no viajó. ----
+	{
+		fichero:    "routes.sql",
+		consulta:   "ListarParadasQueViajaronEnRuta",
+		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL)"},
+		porQue: "LA HOJA DE CIERRE. Sin `resultado IS NOT NULL` en la rama de `route_id IS NULL`, un\n" +
+			"pedido que se QUITÓ de una ruta planificada seguía saliendo como parada suya, se podía\n" +
+			"marcar «entregado» desde ahí y esa marca le devolvía el `route_id` de una ruta que ya\n" +
+			"no lo lleva. Un devuelto o un cancelado siempre tiene resultado, así que no se pierde.",
+	},
+	{
+		fichero:    "routes.sql",
+		consulta:   "ListarRenglonesDeRuta",
+		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL)"},
+		porQue:     "Los renglones de la hoja de carga tienen que ser los de las paradas de la hoja de cierre.",
+	},
+	{
+		fichero:    "routes.sql",
+		consulta:   "LimpiarResultadoDeParada",
+		enElCuerpo: []string{"OR (route_id IS NULL AND ultima_ruta_id = sqlc.arg('ruta_id') AND resultado IS NOT NULL)"},
+		porQue:     "Desmarcar una parada que no viajó le pondría `route_id` a un pedido quitado de la ruta.",
+	},
+	{
+		fichero:    "routes.sql",
+		consulta:   "SoltarParadaPlanificada",
+		enElCuerpo: []string{"route_id = NULL, ultima_ruta_id = NULL, stop_order = NULL, segment_km = NULL"},
+		porQue: "QUITAR UNA PARADA SUELTA TAMBIÉN `ultima_ruta_id`. Si se conserva, el pedido sigue\n" +
+			"contando en los totales de la ruta (el trigger de 00014 suma por `ultima_ruta_id`): la\n" +
+			"cabecera dice 516 kg sobre una ruta que ya sólo carga 420.",
+	},
+	{
+		fichero:      "tablero.sql",
+		consulta:     "QuitarDelTableroLosDeRuta",
+		enElCuerpo:   []string{"ON CONFLICT (order_id) DO UPDATE SET route_id = excluded.route_id"},
+		noEnElCuerpo: []string{"DO NOTHING"},
+		porQue: "UN ORIGEN VIEJO NO PUEDE BLOQUEAR AL NUEVO. Con `DO NOTHING`, un devuelto que se\n" +
+			"vuelve a colocar y a armar conserva el origen de la ruta de ayer, y al borrar la ruta de\n" +
+			"hoy vuelve a una zona que no es la suya.",
+	},
+
+	// ---- LA REGLA DE AMADO (07/10/2026): domicilio cobrado Y cotizado. Las mismas dos
+	// condiciones en TODOS los sitios que ofrecen o aceptan un pedido para una ruta. ----
+	{
+		fichero:   "orders.sql",
+		consulta:  "ListarPedidosDisponibles",
+		enElWhere: []string{"o.factura_domicilio > 0", "o.pedido_costo IS NOT NULL"},
+		porQue:    "La lista del armador no puede ofrecer lo que el armador rechaza. Ver ColocarPedido.",
+	},
+	{
+		fichero:   "orders.sql",
+		consulta:  "ContarPedidosDisponibles",
+		enElWhere: []string{"o.factura_domicilio > 0", "o.pedido_costo IS NOT NULL"},
+		porQue:    "El total de arriba de la lista de disponibles, que tiene que ser el de la lista.",
+	},
+	{
+		fichero:   "tablero.sql",
+		consulta:  "ListarPedidosSinColocar",
+		enElWhere: []string{"o.factura_domicilio > 0", "o.pedido_costo IS NOT NULL"},
+		porQue: "LA MITAD IZQUIERDA DEL TABLERO. Se añadieron a `ColocarPedido` y no aquí, y ofrecía\n" +
+			"tarjetas que el 409 devolvía: el logístico preparaba una zona para nada.",
+	},
+	{
+		fichero:   "tablero.sql",
+		consulta:  "ContarPedidosSinColocar",
+		enElWhere: []string{"o.factura_domicilio > 0", "o.pedido_costo IS NOT NULL"},
+		porQue:    "El número de encima de esa lista. Ver contador_y_lista_test.go.",
+	},
+	{
+		fichero:      "tablero.sql",
+		consulta:     "ColocarPedido",
+		enElWhere:    []string{"o.factura_domicilio > 0", "o.pedido_costo IS NOT NULL"},
+		noEnElCuerpo: []string{"factura_estado"},
+		porQue: "Colocar exige el domicilio cobrado y cotizado y NO mira `factura_estado`: un pedido\n" +
+			"`cambiado` se puede preparar en una zona, y lo corta el armador con su motivo. Se llegó a\n" +
+			"añadir el 07/10/2026 y se quitó ese mismo día (D1).",
+	},
+	{
+		fichero:      "routes.sql",
+		consulta:     "EngancharPedidoARuta",
+		enElWhere:    []string{"factura_domicilio > 0", "pedido_costo IS NOT NULL"},
+		noEnElCuerpo: []string{"factura_estado"},
+		porQue: "LA SEGUNDA LLAVE de la regla de Amado al enganchar. `factura_estado` NO está: el corte a\n" +
+			"`igual` lo hacen `mensajeNoFacturados` y `armarRutaDeColumna`, para poder nombrar cuál falla.",
+	},
+	{
+		fichero:   "orders.sql",
+		consulta:  "PanelPorSucursal",
+		enElWhere: []string{"o.factura_domicilio > 0", "o.pedido_costo IS NOT NULL"},
+		porQue:    "El panel cuenta lo repartible con el mismo listón que el armador, o dice «40 por repartir» y el armador ofrece 12.",
+	},
+	{
+		fichero:    "orders.sql",
+		consulta:   "PanelResumen",
+		enElCuerpo: []string{"AND o.factura_domicilio > 0 AND o.pedido_costo IS NOT NULL) AS sin_ruta"},
+		porQue:     "`sin_ruta` del panel: mismo listón. `peso_pendiente` lo ata el motor real.",
 	},
 	{
 		fichero:   "orders.sql",

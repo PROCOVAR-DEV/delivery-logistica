@@ -66,14 +66,12 @@ type pedidoDeRutas struct {
 	peso      float64
 	costo     *float64
 	factura   *sqlc.FacturaEstado
-	// LLEVA DOMICILIO O NO, que es lo que decide si el armador avisa de su falta de costo.
-	// No es lo mismo que «no aportó importe al total»: hay pedidos sin domicilio que
-	// tampoco traen costo, y ésos no se avisan pero sí bajan el total. Sin este campo en el
-	// doble, las dos cuentas parecen la misma desde aquí.
-	requiereDomicilio *bool
-	sucursal          uuid.UUID
-	externalID        *string
-	fuente            *sqlc.Procedencia
+	// `sinCobrarDomicilio` deja `factura_domicilio` en NULL. Al revés a propósito: el valor
+	// cero es «el domicilio está cobrado», que es lo que necesitan casi todas las pruebas.
+	sinCobrarDomicilio bool
+	sucursal           uuid.UUID
+	externalID         *string
+	fuente             *sqlc.Procedencia
 	// `archivado` es el borrado blando de PEDIDO y SÍ filtra en `PedidosParaArmarRuta`.
 	// Faltaba en el doble, así que la condición existía en el SQL y no se podía ejercitar
 	// desde aquí — que es como el 409 llegó a decir «ya está en otra ruta» de un archivado.
@@ -124,6 +122,10 @@ type camionDeRutas struct {
 	capacidad float64
 	estado    sqlc.VehicleStatus
 	sucursal  *uuid.UUID
+	// `inactivo` es `vehicles.is_active = false`. Al revés que la columna a propósito: el
+	// valor cero tiene que ser «activo», que es lo que es todo camión que no se declara de
+	// otra manera.
+	inactivo bool
 }
 
 type dobleDeRutas struct {
@@ -138,6 +140,9 @@ type dobleDeRutas struct {
 
 	// Lo que se apuntó en el buzón hacia PEDIDO.
 	avisosEncolados []sqlc.EncolarAvisoAPedidoParams
+
+	// Cuántas veces se preguntó dónde estaban los pedidos de un cierre rechazado.
+	dondeEstanLlamadas int
 }
 
 // alcanza repite el `($n::uuid IS NULL OR branch_id = $n::uuid)` del SQL.
@@ -266,11 +271,23 @@ func (d *dobleDeRutas) ListarRenglonesDeRutas(_ context.Context, arg sqlc.Listar
 	return salida, nil
 }
 
-// ListarParadasQueViajaronEnRuta va por `ultima_ruta_id`: el devuelto sigue estando.
+// viajoEnLaRuta repite la condición que comparten `ListarParadasQueViajaronEnRuta`,
+// `MarcarResultadoDeParada` y `LimpiarResultadoDeParada`: la parada sigue en la ruta
+// (`route_id`) o la soltó CON UN RESULTADO (`route_id` nulo, `ultima_ruta_id` = ésta y
+// `resultado` no nulo). El `resultado IS NOT NULL` es el que deja fuera la parada fantasma,
+// el pedido que se quitó de una ruta planificada.
+func viajoEnLaRuta(p *pedidoDeRutas, ruta [16]byte) bool {
+	if p.rutaID != nil && [16]byte(*p.rutaID) == ruta {
+		return true
+	}
+	return p.rutaID == nil && p.ultimaRuta != nil && [16]byte(*p.ultimaRuta) == ruta && p.resultado != nil
+}
+
+// ListarParadasQueViajaronEnRuta: el devuelto sigue estando, el quitado de la ruta no.
 func (d *dobleDeRutas) ListarParadasQueViajaronEnRuta(_ context.Context, arg sqlc.ListarParadasQueViajaronEnRutaParams) ([]sqlc.ListarParadasQueViajaronEnRutaRow, error) {
 	var salida []sqlc.ListarParadasQueViajaronEnRutaRow
 	for _, p := range d.pedidos {
-		if p.ultimaRuta == nil || [16]byte(*p.ultimaRuta) != arg.RutaID.Bytes {
+		if !viajoEnLaRuta(p, arg.RutaID.Bytes) {
 			continue
 		}
 		if !alcanza(arg.Sucursal, &p.sucursal) {
@@ -284,6 +301,13 @@ func (d *dobleDeRutas) ListarParadasQueViajaronEnRuta(_ context.Context, arg sql
 		})
 	}
 	return salida, nil
+}
+
+func domicilioDelDoble(p *pedidoDeRutas) *float64 {
+	if p.sinCobrarDomicilio {
+		return nil
+	}
+	return decimalDeRutas(1)
 }
 
 // PedidosParaArmarRuta repite las condiciones de elegibilidad del SQL. Facturas `igual` y
@@ -304,9 +328,8 @@ func (d *dobleDeRutas) PedidosParaArmarRuta(_ context.Context, arg sqlc.PedidosP
 		salida = append(salida, sqlc.PedidosParaArmarRutaRow{
 			ID: p.id, OperationNumber: p.operacion, CustomerName: p.cliente,
 			EndLat: p.endLat, EndLng: p.endLng, Weight: p.peso, PedidoCosto: p.costo,
-			FacturaDomicilio:  decimalDeRutas(1),
-			RequiereDomicilio: p.requiereDomicilio,
-			FacturaEstado:     p.factura, BranchID: pgDeRutas(p.sucursal),
+			FacturaDomicilio: domicilioDelDoble(p),
+			FacturaEstado:    p.factura, BranchID: pgDeRutas(p.sucursal),
 			ExternalID: p.externalID, Source: p.fuente,
 			// `delivered_at` y `resultado` salen como DATO, no filtran en el `WHERE`:
 			// igual que `factura_estado`, para que el manejador pueda nombrar cuál se
@@ -388,6 +411,11 @@ func (d *dobleDeRutas) CrearRuta(_ context.Context, arg sqlc.CrearRutaParams) (s
 func (d *dobleDeRutas) EngancharPedidoARuta(_ context.Context, arg sqlc.EngancharPedidoARutaParams) (int64, error) {
 	p, hay := d.pedidos[arg.PedidoID]
 	if !hay || p.rutaID != nil || !alcanza(arg.Sucursal, &p.sucursal) {
+		return 0, nil
+	}
+	// LAS DOS DE AMADO (`factura_domicilio > 0` y `pedido_costo IS NOT NULL`). `factura_estado`
+	// NO está en el SQL y no puede estar aquí: lo corta el manejador.
+	if p.sinCobrarDomicilio || p.costo == nil {
 		return 0, nil
 	}
 	ruta := uuid.UUID(arg.RutaID.Bytes)
@@ -521,7 +549,7 @@ func (d *dobleDeRutas) ObtenerVehiculoParaCapacidad(_ context.Context, id uuid.U
 		return sqlc.ObtenerVehiculoParaCapacidadRow{}, pgx.ErrNoRows
 	}
 	return sqlc.ObtenerVehiculoParaCapacidadRow{
-		ID: v.id, Name: v.nombre, Capacity: v.capacidad, Status: v.estado, IsActive: true,
+		ID: v.id, Name: v.nombre, Capacity: v.capacidad, Status: v.estado, IsActive: !v.inactivo,
 		BranchID: pgOpcionalDeRutas(v.sucursal),
 	}, nil
 }
@@ -531,18 +559,20 @@ func (d *dobleDeRutas) ObtenerVehiculo(_ context.Context, arg sqlc.ObtenerVehicu
 	if !hay || !alcanzaCamion(arg.Sucursal, v.sucursal) {
 		return sqlc.ObtenerVehiculoRow{}, pgx.ErrNoRows
 	}
-	return sqlc.ObtenerVehiculoRow{ID: v.id, Name: v.nombre, Capacity: v.capacidad, Status: v.estado}, nil
+	return sqlc.ObtenerVehiculoRow{ID: v.id, Name: v.nombre, Capacity: v.capacidad, Status: v.estado, IsActive: !v.inactivo}, nil
 }
 
 // MarcarResultadoDeParada: la consulta más delicada del reparto, copiada tal cual.
 func (d *dobleDeRutas) MarcarResultadoDeParada(_ context.Context, arg sqlc.MarcarResultadoDeParadaParams) (int64, error) {
 	p, hay := d.pedidos[arg.PedidoID]
-	if !hay || p.ultimaRuta == nil || [16]byte(*p.ultimaRuta) != arg.RutaID.Bytes {
+	if !hay || !viajoEnLaRuta(p, arg.RutaID.Bytes) {
 		return 0, nil
 	}
 	if !alcanza(arg.Sucursal, &p.sucursal) {
 		return 0, nil
 	}
+	ruta := uuid.UUID(arg.RutaID.Bytes)
+	p.ultimaRuta = &ruta
 	ahora := time.Now()
 	p.resultado = &arg.Resultado
 	p.resultadoAt = &ahora
@@ -550,6 +580,7 @@ func (d *dobleDeRutas) MarcarResultadoDeParada(_ context.Context, arg sqlc.Marca
 	if arg.Resultado == sqlc.StopResultEntregado {
 		p.entregadoEn = &ahora
 		p.estado = sqlc.OrderStatusDelivered
+		p.rutaID = &ruta
 	} else {
 		p.entregadoEn = nil
 		p.estado = sqlc.OrderStatusPending
@@ -563,18 +594,20 @@ func (d *dobleDeRutas) MarcarResultadoDeParada(_ context.Context, arg sqlc.Marca
 // devuelve al camión un devuelto que se desmarca.
 func (d *dobleDeRutas) LimpiarResultadoDeParada(_ context.Context, arg sqlc.LimpiarResultadoDeParadaParams) (int64, error) {
 	p, hay := d.pedidos[arg.PedidoID]
-	if !hay || p.ultimaRuta == nil || [16]byte(*p.ultimaRuta) != arg.RutaID.Bytes {
+	if !hay || !viajoEnLaRuta(p, arg.RutaID.Bytes) {
 		return 0, nil
 	}
 	if !alcanza(arg.Sucursal, &p.sucursal) {
 		return 0, nil
 	}
+	ruta := uuid.UUID(arg.RutaID.Bytes)
+	p.ultimaRuta = &ruta
 	p.resultado = nil
 	p.resultadoAt = nil
 	p.nota = nil
 	p.entregadoEn = nil
 	p.estado = sqlc.OrderStatusPending
-	p.rutaID = p.ultimaRuta
+	p.rutaID = &ruta
 	return 1, nil
 }
 
@@ -591,6 +624,39 @@ func (d *dobleDeRutas) SoltarPedidosDeRuta(_ context.Context, arg sqlc.SoltarPed
 		n++
 	}
 	return n, nil
+}
+
+// SoltarParadaPlanificada repite la guarda y el efecto del SQL, incluido lo que importa a
+// esta prueba: `ultima_ruta_id` también se suelta (la parada fantasma) y los totales de la
+// ruta se vuelven a sumar, como hace el trigger.
+func (d *dobleDeRutas) SoltarParadaPlanificada(_ context.Context, arg sqlc.SoltarParadaPlanificadaParams) (uuid.UUID, error) {
+	p, hay := d.pedidos[arg.PedidoID]
+	r, hayRuta := d.rutas[arg.RutaID]
+	if !hay || !hayRuta || p.rutaID == nil || *p.rutaID != arg.RutaID ||
+		r.estado != sqlc.RouteStatusPlanned || p.entregadoEn != nil || p.resultado != nil ||
+		!alcanza(arg.Sucursal, &p.sucursal) {
+		return uuid.Nil, pgx.ErrNoRows
+	}
+	p.rutaID, p.ultimaRuta, p.stopOrder, p.segmentKm = nil, nil, nil, nil
+	p.tramo = sqlc.TripLegOutbound
+	d.refrescarEspejoDeTotales(arg.RutaID)
+	return p.id, nil
+}
+
+// DondeEstanLosPedidos es el diagnóstico del registro del cierre rechazado. Cuenta las
+// veces que se llamó: sólo debe llamarse en el camino del rechazo.
+func (d *dobleDeRutas) DondeEstanLosPedidos(_ context.Context, ids []uuid.UUID) ([]sqlc.DondeEstanLosPedidosRow, error) {
+	d.dondeEstanLlamadas++
+	var salida []sqlc.DondeEstanLosPedidosRow
+	for _, id := range ids {
+		if p, hay := d.pedidos[id]; hay {
+			salida = append(salida, sqlc.DondeEstanLosPedidosRow{
+				ID: p.id, RouteID: pgOpcionalDeRutas(p.rutaID),
+				UltimaRutaID: pgOpcionalDeRutas(p.ultimaRuta), BranchID: pgDeRutas(p.sucursal),
+			})
+		}
+	}
+	return salida, nil
 }
 
 func (d *dobleDeRutas) BorrarRuta(_ context.Context, arg sqlc.BorrarRutaParams) (int64, error) {
@@ -1269,14 +1335,17 @@ func TestArmarRutaConMasDeCincoQueNoEntranCuentaElResto(t *testing.T) {
 	}
 }
 
-// En un camión sólo sube lo facturado, y se dice CUÁL falla y por qué: un
+// En un camión sólo sube lo facturado Y QUE CUADRE, y se dice CUÁL falla y por qué: un
 // «no se pudo» a secas obliga a adivinar cuál de los quince pedidos sobra.
-func TestArmarRutaPermiteFacturaCambiadaYRechazaNoCotejada(t *testing.T) {
+//
+// `cambiado` NO entra. El 07/10/2026 se aceptó «porque también es una factura» y se volvió
+// atrás el mismo día: la regla de Jose es que en el camión sólo sube lo que cuadra con la
+// factura, y Amado pidió sumar el domicilio cobrado y cotizado, no aflojar ésta.
+func TestArmarRutaSoloEntraLoFacturadoYDiceCualFalla(t *testing.T) {
 	d, stg, _ := datosDeReparto()
 	cambiado := sqlc.FacturaEstadoCambiado
-	sinFactura := sqlc.FacturaEstadoSinFactura
 	d.pedidos[stg[0]].factura = &cambiado
-	d.pedidos[stg[1]].factura = &sinFactura
+	d.pedidos[stg[1]].factura = nil // sin cotejar
 	h := montarRutas(t, d)
 
 	w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
@@ -1285,13 +1354,72 @@ func TestArmarRutaPermiteFacturaCambiadaYRechazaNoCotejada(t *testing.T) {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
 	mensaje := errorDeRutas(t, w)
-	const esperado = "En una ruta sólo entra lo facturado. 1 no cumplen: " +
-		"X-Cerca (sin facturar)."
+	const esperado = "En una ruta sólo entra lo facturado y que cuadre. 2 no cumplen: " +
+		"X-Lejos (cambió en la factura), X-Cerca (sin cotejar)."
 	if mensaje != esperado {
 		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", mensaje, esperado)
 	}
 	if len(d.rutas) != 0 {
 		t.Fatal("se armó la ruta a pesar del rechazo")
+	}
+}
+
+// La otra mitad de la pareja: con `igual` (y el domicilio cobrado y cotizado) la ruta SÍ
+// sale. Sin ella, la prueba de arriba también pasaría con un armador que rechaza todo.
+func TestArmarRutaConTodoIgualYCobradoSale(t *testing.T) {
+	d, stg, _ := datosDeReparto()
+	h := montarRutas(t, d)
+	w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
+		cuerpoDeArmado(camionStg.String(), stg[0], stg[1], stg[2]))
+	if w.Code != http.StatusCreated {
+		t.Fatalf("código %d: %s", w.Code, w.Body.String())
+	}
+	if len(d.rutas) != 1 {
+		t.Fatalf("tenía que haber una ruta y hay %d", len(d.rutas))
+	}
+	// La respuesta es la ruta sola: ya no hay `avisos` (ver el final de `crearRuta`).
+	var cuerpo map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &cuerpo); err != nil {
+		t.Fatal(err)
+	}
+	if _, hay := cuerpo["avisos"]; hay {
+		t.Fatalf("la respuesta de armar no lleva `avisos` desde el 07/10/2026: %s", w.Body.String())
+	}
+	if _, hay := cuerpo["id"]; !hay {
+		t.Fatalf("el id de la ruta va en la raíz: %s", w.Body.String())
+	}
+}
+
+// DOMICILIO SIN COBRAR Y SIN COTIZAR BLOQUEAN (Amado, 07/10/2026) y nombran al pedido por su
+// número de operación, que es el conduce que la persona tiene en el papel.
+func TestArmarRutaBloqueaElDomicilioSinCobrarYSinCotizar(t *testing.T) {
+	casos := []struct {
+		nombre   string
+		prepara  func(p *pedidoDeRutas)
+		esperado string
+	}{
+		{"sin cobrar", func(p *pedidoDeRutas) { p.sinCobrarDomicilio = true },
+			"En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: X-Lejos."},
+		{"sin cotizar", func(p *pedidoDeRutas) { p.costo = nil },
+			"No se puede crear la ruta: 1 pedidos no tienen cotizado el domicilio en Entrega: X-Lejos."},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			d, stg, _ := datosDeReparto()
+			c.prepara(d.pedidos[stg[0]])
+			h := montarRutas(t, d)
+			w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
+				cuerpoDeArmado(camionStg.String(), stg[0], stg[1], stg[2]))
+			if w.Code != http.StatusConflict {
+				t.Fatalf("código %d: %s", w.Code, w.Body.String())
+			}
+			if mensaje := errorDeRutas(t, w); mensaje != c.esperado {
+				t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", mensaje, c.esperado)
+			}
+			if len(d.rutas) != 0 {
+				t.Fatal("se armó la ruta a pesar del rechazo")
+			}
+		})
 	}
 }
 
@@ -1315,7 +1443,7 @@ func TestArmarRutaConMasDeCincoSinFacturaCuentaElResto(t *testing.T) {
 		t.Fatalf("código %d", w.Code)
 	}
 	mensaje := errorDeRutas(t, w)
-	if !strings.HasPrefix(mensaje, "En una ruta sólo entra lo facturado. 7 no cumplen: ") {
+	if !strings.HasPrefix(mensaje, "En una ruta sólo entra lo facturado y que cuadre. 7 no cumplen: ") {
 		t.Fatalf("mensaje %q", mensaje)
 	}
 	if !strings.HasSuffix(mensaje, " y 2 más.") {
@@ -1942,33 +2070,29 @@ func TestLasSeisRutasExigenSesion(t *testing.T) {
 
 // --- La guarda de la cotización y del cobro de domicilio ----------------------
 
-func filaParaGuarda(nombre string, costo *float64, requiere *bool, facturaDom *float64) sqlc.PedidosParaArmarRutaRow {
+func filaParaGuarda(nombre string, costo *float64, facturaDom *float64) sqlc.PedidosParaArmarRutaRow {
 	return sqlc.PedidosParaArmarRutaRow{
-		CustomerName:      nombre,
-		PedidoCosto:       costo,
-		RequiereDomicilio: requiere,
-		FacturaDomicilio:  facturaDom,
+		CustomerName:     nombre,
+		PedidoCosto:      costo,
+		FacturaDomicilio: facturaDom,
 	}
 }
 
-func TestDomicilioSinCalcularNoSubeAlCamion(t *testing.T) {
-	si, no := true, false
+// Sin cotización no se arma, tenga o no tenga el domicilio cobrado: sin importe fiable no hay
+// nada que asignar a la parada.
+func TestSinCotizacionBloqueaElArmado(t *testing.T) {
 	precio := 12.5
 	cobrado := 9.0
-
 	casos := []struct {
 		nombre string
 		fila   sqlc.PedidosParaArmarRutaRow
 		pasa   bool
 	}{
-		{"con domicilio marcado y calculado", filaParaGuarda("A", &precio, &si, &cobrado), true},
-		{"con domicilio marcado y SIN calcular", filaParaGuarda("B", nil, &si, &cobrado), false},
-		{"cobrado en factura y SIN calcular", filaParaGuarda("C", nil, nil, &cobrado), false},
-		{"cobrado en factura y calculado", filaParaGuarda("D", &precio, nil, &cobrado), true},
-		{"sin cobro en factura", filaParaGuarda("E", &precio, &no, nil), true},
-		{"sin señal ninguna", filaParaGuarda("F", &precio, nil, nil), true},
+		{"cobrado y calculado", filaParaGuarda("A", &precio, &cobrado), true},
+		{"cobrado y SIN calcular", filaParaGuarda("B", nil, &cobrado), false},
+		{"sin cobrar y SIN calcular", filaParaGuarda("C", nil, nil), false},
+		{"sin cobrar pero calculado: esta guarda sólo mira la cotización", filaParaGuarda("D", &precio, nil), true},
 	}
-
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
 			msg := mensajeSinCalcular([]sqlc.PedidosParaArmarRutaRow{c.fila})
@@ -1982,49 +2106,39 @@ func TestDomicilioSinCalcularNoSubeAlCamion(t *testing.T) {
 	}
 }
 
-func TestSinCotizacionBloqueaElArmado(t *testing.T) {
-	si := true
-	fila := filaParaGuarda("A", nil, &si, nil)
-
-	if msg := mensajeSinCalcular([]sqlc.PedidosParaArmarRutaRow{fila}); msg == "" {
-		t.Fatal("tiene que impedir armar: el importe de la ruta no fue cotizado")
-	}
-	if n := cuantosSinCosto([]sqlc.PedidosParaArmarRutaRow{fila}); n != 1 {
-		t.Fatalf("el recuento tiene que ser 1 para que la pantalla pueda decirlo, fue %d", n)
-	}
-}
-
+// Y sin domicilio cobrado tampoco, tenga o no cotización: la otra mitad de la regla de Amado.
 func TestSinDomicilioCobradoBloqueaElArmado(t *testing.T) {
 	precio := 12.5
-	fila := filaParaGuarda("A", &precio, nil, nil)
-	if msg := mensajeDomicilioSinCobrar([]sqlc.PedidosParaArmarRutaRow{fila}); msg == "" {
-		t.Fatal("sin importe positivo de domicilio en la factura, el pedido no puede ir en ruta")
+	cobrado := 9.0
+	cero := 0.0
+	negativo := -1.0
+	casos := []struct {
+		nombre string
+		fila   sqlc.PedidosParaArmarRutaRow
+		pasa   bool
+	}{
+		{"cobrado", filaParaGuarda("A", &precio, &cobrado), true},
+		{"sin dato", filaParaGuarda("B", &precio, nil), false},
+		{"en cero: el cero no demuestra que se cobró", filaParaGuarda("C", &precio, &cero), false},
+		{"negativo", filaParaGuarda("D", &precio, &negativo), false},
 	}
-	importe := 0.0
-	fila.FacturaDomicilio = &importe
-	if msg := mensajeDomicilioSinCobrar([]sqlc.PedidosParaArmarRutaRow{fila}); msg == "" {
-		t.Fatal("el domicilio en cero no demuestra que se cobró")
-	}
-}
-
-func TestElRecuentoNoCuentaLosQueNoLlevanDomicilio(t *testing.T) {
-	no := false
-	precio := 5.0
-	pedidos := []sqlc.PedidosParaArmarRutaRow{
-		filaParaGuarda("recoge en almacén", nil, &no, nil),
-		filaParaGuarda("sin señal ninguna", nil, nil, nil),
-		filaParaGuarda("con domicilio y costeado", &precio, nil, &precio),
-	}
-	if n := cuantosSinCosto(pedidos); n != 0 {
-		t.Fatalf("ninguno de estos falta: el que no lleva domicilio no se cobra reparto. Contó %d", n)
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			msg := mensajeDomicilioSinCobrar([]sqlc.PedidosParaArmarRutaRow{c.fila})
+			if c.pasa && msg != "" {
+				t.Fatalf("debería pasar y se rechazó: %q", msg)
+			}
+			if !c.pasa && msg == "" {
+				t.Fatal("debería rechazarse y pasó")
+			}
+		})
 	}
 }
 
 func TestLaGuardaDiceCualesYCuantos(t *testing.T) {
-	si := true
 	var malos []sqlc.PedidosParaArmarRutaRow
 	for _, n := range []string{"A", "B", "C", "D", "E", "F", "G"} {
-		malos = append(malos, filaParaGuarda(n, nil, &si, nil))
+		malos = append(malos, filaParaGuarda(n, nil, nil))
 	}
 	msg := mensajeSinCalcular(malos)
 	if !strings.Contains(msg, "7 pedidos") {

@@ -246,10 +246,18 @@ class RutaConTodo {
 
   final Ruta ruta;
 
-  /// Las paradas son los pedidos con `ultimaRutaId = ruta.id`, **no**
-  /// `routeId`: lo que no se entrega suelta su `routeId` para poder ir en la
-  /// ruta de manana, y si se mirara esa columna desapareceria de su propia hoja
-  /// de cierre en cuanto se marcara como devuelto.
+  /// Las paradas son los pedidos con `routeId = ruta.id` **o** los que la
+  /// soltaron CON un resultado (`routeId` nulo, `ultimaRutaId = ruta.id` y
+  /// `resultado` puesto). Lo que no se entrega suelta su `routeId` para poder ir
+  /// en la ruta de manana, y si solo se mirara esa columna desapareceria de su
+  /// propia hoja de cierre en cuanto se marcara como devuelto.
+  ///
+  /// **Y el `resultado` no es un adorno**: un pedido QUITADO de la ruta tambien
+  /// tiene `routeId` nulo, y lo unico que lo distingue de un devuelto es que
+  /// nunca bajo del camion y por eso no tiene resultado. Sin esa condicion la
+  /// parada quitada seguia saliendo en la hoja (la parada fantasma de Amado,
+  /// 07/10/2026). Lo repiten `paradasDe`, `mirarParadasDe` y el `cerrar` de
+  /// `AccionesDeRuta`; las tres se atan con una prueba.
   final List<Pedido> paradas;
 
   final Vehiculo? vehiculo;
@@ -304,7 +312,9 @@ class ConsultasRutas {
       ..where(
         (o) =>
             o.routeId.equals(rutaId) |
-            (o.routeId.isNull() & o.ultimaRutaId.equals(rutaId)),
+            (o.routeId.isNull() &
+                o.ultimaRutaId.equals(rutaId) &
+                o.resultado.isNotNull()),
       )
       ..orderBy([
         (o) => OrderingTerm.asc(o.stopOrder),
@@ -404,13 +414,16 @@ class ConsultasRutas {
   }
 
   /// Paradas actuales y las ya soltadas por devolución/cancelación que siguen
-  /// perteneciendo al historial de esta ruta.
+  /// perteneciendo al historial de esta ruta. Las QUITADAS no: ver
+  /// [RutaConTodo.paradas].
   Stream<List<Pedido>> mirarParadasDe(String rutaId) {
     final consulta = _base.select(_base.orders)
       ..where(
         (o) =>
             o.routeId.equals(rutaId) |
-            (o.routeId.isNull() & o.ultimaRutaId.equals(rutaId)),
+            (o.routeId.isNull() &
+                o.ultimaRutaId.equals(rutaId) &
+                o.resultado.isNotNull()),
       )
       ..orderBy([
         (o) => OrderingTerm.asc(o.stopOrder),
@@ -461,9 +474,14 @@ class ConsultasRutas {
   /// Los pedidos que se pueden meter en una ruta.
   ///
   /// Las condiciones fijas son las del servidor y **no son negociables**:
-  /// `source='pedido'`, sin ruta, con coordenadas de entrega, factura emitida
-  /// (`igual` o `cambiado`), importe positivo de domicilio y cotización de
-  /// Entrega. Ofrecer aquí lo que allí se rechaza fabrica rechazos tardíos.
+  /// `source='pedido'`, sin ruta, con coordenadas de entrega y facturado. El
+  /// filtro de factura de la pantalla NO es configurable: siempre `cuadra`
+  /// (`facturaEstado = 'igual'`), que es lo unico que el armado del servidor
+  /// acepta —`cambiado` no entra: «en el camion solo sube lo que cuadra con la
+  /// factura», Jose, 07/10/2026—. Y desde el 07/10/2026 (Amado, incidencias 2 y
+  /// 6) tambien el domicilio cobrado (`facturaDomicilio > 0`) y cotizado en
+  /// Entrega (`pedidoCosto` no nulo). Ofrecer aqui lo que alli se rechaza es
+  /// fabricar rechazos tardios.
   /// [estado], [domicilio] y [cotizado] llevan **los mismos valores que los
   /// query params del servidor** (`contratos-api.md`, «Filtros compartidos»):
   /// `''` es sin filtro. Se escriben asi, como texto, y no como enums propios,
@@ -491,7 +509,7 @@ class ConsultasRutas {
         o.routeId.isNull() &
         o.endLat.isNotNull() &
         o.endLng.isNotNull() &
-        o.facturaEstado.isIn([EstadoFactura.igual, EstadoFactura.cambiado]) &
+        o.facturaEstado.equals(EstadoFactura.igual) &
         o.facturaDomicilio.isBiggerThanValue(0) &
         o.pedidoCosto.isNotNull();
 

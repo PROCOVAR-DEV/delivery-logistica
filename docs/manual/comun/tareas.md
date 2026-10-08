@@ -117,7 +117,7 @@ arrastra.
 | Armar una ruta sin usar el Tablero | **Rutas** | [ir](../apk/3-tareas.md#armar-una-ruta-sin-usar-el-tablero) | [ir](../web/2-tareas.md#armar-una-ruta-sin-usar-el-tablero) |
 | Filtrar la lista de rutas | **Rutas** | — | [ir](../web/2-tareas.md#filtrar-la-lista-de-rutas) |
 | Eliminar una ruta | **Rutas** | [ir](../apk/3-tareas.md#eliminar-una-ruta) | [ir](../web/2-tareas.md#eliminar-una-ruta) |
-| Sacar un pedido de una ruta | **Rutas** | [ir](../apk/3-tareas.md#sacar-un-pedido-de-una-ruta) | [ir](../web/2-tareas.md#sacar-un-pedido-de-una-ruta) |
+| Sacar un pedido de una ruta planificada («Quitar de ruta») | **Rutas** | [ir](../apk/3-tareas.md#sacar-un-pedido-de-una-ruta) | [ir](../web/2-tareas.md#sacar-un-pedido-de-una-ruta) |
 | **Cambiar el camión de una ruta** | **Rutas** | [no se puede: así se hace](../apk/3-tareas.md#cambiar-el-camión-de-una-ruta) | [no se puede: así se hace](../web/2-tareas.md#cambiar-el-camión-de-una-ruta) |
 
 ### Vehículos — **necesita conexión siempre, también en el teléfono**
@@ -127,7 +127,8 @@ arrastra.
 | Dar de alta un camión | **Vehículos** | [ir](../apk/3-tareas.md#dar-de-alta-un-camión) | [ir](../web/2-tareas.md#dar-de-alta-un-camión) |
 | Decir qué camión calcula el domicilio | **Vehículos** | [ir](../apk/3-tareas.md#decir-qué-camión-calcula-el-domicilio) | [ir](../web/2-tareas.md#decir-qué-camión-calcula-el-domicilio) |
 | Marcar un camión en el taller | **Vehículos** | [ir](../apk/3-tareas.md#marcar-un-camión-en-el-taller) | [ir](../web/2-tareas.md#marcar-un-camión-en-el-taller) |
-| Dar de baja un camión | **Vehículos** | [ir](../apk/3-tareas.md#dar-de-baja-un-camión) | [ir](../web/2-tareas.md#dar-de-baja-un-camión) |
+| Dar de baja un camión (si nunca se usó) | **Vehículos** | [ir](../apk/3-tareas.md#dar-de-baja-un-camión) | [ir](../web/2-tareas.md#dar-de-baja-un-camión) |
+| Dejar un camión inactivo (si ya tiene rutas) | **Vehículos** | [ir](../apk/3-tareas.md#dejar-un-camión-inactivo) | [ir](../web/2-tareas.md#dejar-un-camión-inactivo) |
 | Definir los tipos de camión y su costo por km | **Vehículos** | [ir](../apk/3-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km) | [ir](../web/2-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km) |
 
 ### Almacenes — **necesita conexión siempre, y se guarda en Accesos**
@@ -196,7 +197,8 @@ de las preguntas.**
 | Clientes | **PEDIDO** |
 | Pedidos, sus productos y sus importes | **PEDIDO** |
 | Corregir una ruta ya completada | **PEDIDO.** Aquí el cierre pasa a sólo lectura |
-| Quitar una parada de una ruta | No hay botón: [las dos formas](../web/2-tareas.md#sacar-un-pedido-de-una-ruta) |
+| Quitar una parada de una ruta en curso | No hay botón: [las dos formas](../web/2-tareas.md#sacar-un-pedido-de-una-ruta). En una **planificada** sí: «Quitar de ruta» |
+| Borrar un camión que ya tiene rutas | No se puede: se deja «Inactivo» ([cómo](../web/2-tareas.md#dejar-un-camión-inactivo)) |
 | Cambiar el camión de una ruta armada | No hay botón: [las dos formas](../web/2-tareas.md#cambiar-el-camión-de-una-ruta) |
 | Reordenar las zonas desde el teléfono | Sólo en pantalla grande |
 

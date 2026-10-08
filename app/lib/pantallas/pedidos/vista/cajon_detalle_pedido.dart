@@ -199,7 +199,7 @@ class _BandaFactura extends StatelessWidget {
       ),
       EstadoFactura.cambiado => (
         'Se facturó algo distinto de lo pedido (factura $numero). '
-            'Lo que va en el camión es lo facturado.',
+            'No cuadra con la factura, así que no entra a una ruta.',
         Colores.ambar,
       ),
       _ => ('Todavía no aparece facturado en Ventra.', Colores.gris),

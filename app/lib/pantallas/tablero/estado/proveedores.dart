@@ -14,6 +14,7 @@ import '../datos/modelos.dart';
 import '../datos/repositorio.dart';
 import '../datos/servicio.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
+import '../../rutas/datos/meter_la_zona.dart' show seOfreceParaRutasNuevas;
 import '../../pedidos/estado/proveedores_pedidos.dart';
 import '../../../nucleo/red/eventos.dart' show avisoDeQueVolvimos;
 
@@ -232,8 +233,16 @@ final camionesProvider = StreamProvider<List<Vehiculo>>((ref) {
   Future<List<Vehiculo>> mirar() async {
     final sucursalId = await ref.read(sucursalDelTableroProvider.future);
     final todos = await base.select(base.vehicles).get();
+    // SOLO LOS QUE SE OFRECEN PARA RUTAS NUEVAS: activos y fuera del taller
+    // (`seOfreceParaRutasNuevas`). Este proveedor existe para ELEGIR camion en el
+    // cajon de «Camion previsto» y no lo lee nadie mas; las pantallas que miran
+    // rutas ya hechas usan `vehiculosProvider`, que ve la flota entera.
     return todos
-        .where((v) => sucursalId == null || v.branchId == sucursalId)
+        .where(
+          (v) =>
+              seOfreceParaRutasNuevas(v) &&
+              (sucursalId == null || v.branchId == sucursalId),
+        )
         .toList(growable: false);
   }
 

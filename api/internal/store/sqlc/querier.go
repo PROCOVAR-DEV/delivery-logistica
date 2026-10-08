@@ -152,6 +152,16 @@ type Querier interface {
 	// Serializa completar, editar, borrar y marcar sobre la MISMA fila.
 	// Debe llamarse dentro de EnTx y conservar el bloqueo hasta terminar la escritura.
 	BloquearRuta(ctx context.Context, arg BloquearRutaParams) (RouteStatus, error)
+	// ---------------------------------------------------------------------------
+	// Borrado
+	// ---------------------------------------------------------------------------
+	//
+	// Un camión con rutas NO se borra, ni siquiera con las históricas (incidencia 4 de Amado,
+	// 07/10/2026): borrarlo rompería la trazabilidad de lo que se repartió. Antes se le
+	// soltaba de sus rutas con `DesvincularVehiculoDeRutas` y se borraba. Esa consulta se fue
+	// porque el borrado ya no llega a ejecutarse con rutas por medio. Lo que sí hay que
+	// desasociar antes de borrar son las asignaciones. Para dejar de usar un camión con
+	// historial existe `is_active`: inactivo no sale en la selección de rutas nuevas.
 	BorrarAsignacionesDeVehiculo(ctx context.Context, vehiculoID uuid.UUID) (int64, error)
 	// Los que ya no vienen de PEDIDO: borrados allá, o dejaron de tener coordenadas.
 	//
@@ -166,6 +176,13 @@ type Querier interface {
 	// Con `ON DELETE RESTRICT` en las colocaciones, esto falla si la columna tiene algo dentro.
 	// Es lo que se quiere: borrar una columna con pedidos puestos no puede ser silencioso, y
 	// quien llama ya sabe —por `ContarPedidosEnColumna`— qué tiene que decirle a la persona.
+	//
+	// Los ORÍGENES de las rutas planificadas (`board_route_origins.column_id`) NO bloquean: son
+	// `ON DELETE CASCADE` desde el 07/10/2026. Con `RESTRICT`, borrar una zona ya vacía que
+	// tenía una ruta planificada contestaba el 409 «tiene 0 pedidos puestos», que es falso: no
+	// hay nada puesto, hay un recuerdo de dónde estuvo. Al borrarse la zona se pierde ese
+	// recuerdo y borrar la ruta después sencillamente no restaura nada en una zona que ya no
+	// existe: el pedido vuelve a la lista de «sin colocar», que es donde tiene que estar.
 	BorrarColumna(ctx context.Context, arg BorrarColumnaParams) (int64, error)
 	BorrarOrigen(ctx context.Context, arg BorrarOrigenParams) (int64, error)
 	// :one y no :exec: «no existe O no es de tu sucursal» es el 404, y con :exec no hay forma
@@ -261,7 +278,15 @@ type Querier interface {
 	//
 	// La condición de `factura_estado` NO está: un pedido colocado que deja de ser repartible
 	// se queda puesto y marcado (ver `ListarPedidosColocados`), así que volver a colocarlo
-	// tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador.
+	// tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador. Se llegó
+	// a añadir el 07/10/2026 y se quitó ese mismo día: `cambiado` no entra a una ruta, pero sí
+	// se puede preparar en una zona, y el corte a `igual` se hace al armar, con su motivo.
+	//
+	// SÍ están las dos que pidió Amado el 07/10/2026: `factura_domicilio > 0` y
+	// `pedido_costo IS NOT NULL`. El domicilio ya es un servicio que se cobra, y sin cobrarse y
+	// sin cotizarse no hay nada que preparar. Tienen que ser las mismas de
+	// `ListarPedidosSinColocar`, que es la que ofrece las tarjetas: lo que esa lista ofrece,
+	// esta sentencia lo tiene que aceptar. Cero filas lo traduce `porQueNoSePudoColocar`.
 	//
 	// # Y DEVUELVE LA SUCURSAL DE LA COLUMNA, QUE NO ES UN ADORNO — 01/10/2026
 	//
@@ -450,15 +475,6 @@ type Querier interface {
 	// porque en un índice único los NULL son distintos entre sí. Puede haber dos de referencia
 	// «de todas». Se cierra con `NULLS NOT DISTINCT` el día que estorbe.
 	DesmarcarReferenciaDeDomicilio(ctx context.Context, arg DesmarcarReferenciaDeDomicilioParams) (int64, error)
-	// ---------------------------------------------------------------------------
-	// Borrado
-	// ---------------------------------------------------------------------------
-	//
-	// Las asignaciones adicionales se eliminan; las rutas históricas conservan su referencia
-	// al vehículo cuando se mantiene la unidad en la flota.
-	// Al borrar un camión, sus rutas se quedan sin él pero no se borran: el histórico de lo
-	// que se repartió no depende de que el camión siga en la flota.
-	DesvincularVehiculoDeRutas(ctx context.Context, arg DesvincularVehiculoDeRutasParams) (int64, error)
 	// Cuántas líneas hay por día, para ver de un vistazo qué días están bajados y cuáles no.
 	// Un día que falta no sale como cero: sale como que no está, y eso es lo correcto — un
 	// cero inventado se lee como «ese día no se vendió nada».
@@ -549,6 +565,20 @@ type Querier interface {
 	// «ENTREGA A DOMICILIO» que no sale en la pantalla pero sí baja al teléfono es el mismo
 	// cobro duplicado, en el aparato que trabaja sin conexión y sin nadie que lo desmienta.
 	DiferenciasDeProductos(ctx context.Context, arg DiferenciasDeProductosParams) ([]Product, error)
+	// DÓNDE ESTÁN ESTOS PEDIDOS, para el renglón del servidor cuando un cierre rechaza paradas.
+	//
+	// Un «ese pedido no va en esta ruta» llegó a Amado con 409 y sin que el servidor dijera POR
+	// QUÉ: si el pedido iba en otra ruta, si nunca tuvo ruta, si es de otra sucursal… Quien lo
+	// diagnostica tiene delante sólo el registro, y tenía que ir al VPS a preguntárselo a la
+	// base. Esta consulta le da al registro las tres cosas que hacen falta: `route_id`,
+	// `ultima_ruta_id` y `branch_id` del pedido (no hay nada secreto en ellas).
+	//
+	// NO LLEVA ALCANCE, A PROPÓSITO, y sólo es seguro por lo que es: la usa únicamente
+	// `cerrarRuta` en el camino del rechazo, y su resultado va al REGISTRO del servidor, nunca
+	// a la respuesta. Acotarla por sucursal borraría justo la causa más sutil —el pedido es de
+	// otra sucursal— y dejaría la línea diciendo «no está» sobre un pedido que sí existe. Es
+	// por ids (clave primaria), así que cuesta lo mismo que cualquier lectura de una fila.
+	DondeEstanLosPedidos(ctx context.Context, pedidoIds []uuid.UUID) ([]DondeEstanLosPedidosRow, error)
 	// ---------------------------------------------------------------------------
 	// El buzón de salida hacia PEDIDO
 	// ---------------------------------------------------------------------------
@@ -568,6 +598,17 @@ type Querier interface {
 	//
 	// El alcance va aquí también: sin él, mandar el id de un pedido de otra sucursal en
 	// `orderIds` lo subiría a tu camión.
+	//
+	// LA SEGUNDA LLAVE DEL DOMICILIO Y LA COTIZACIÓN. `factura_domicilio > 0` y
+	// `pedido_costo IS NOT NULL` se comprueban también aquí (07/10/2026, Amado) porque la
+	// validación de `PedidosParaArmarRuta` se hizo hace unos milisegundos, y el espejo repasa
+	// `pedido_costo` cada minuto: un pedido que perdió su cotización entre medias no puede
+	// entrar con el importe a cero. Cero filas lo devuelve el manejador como 409.
+	//
+	// `factura_estado` NO está aquí, y es a propósito: el corte a sólo `igual` lo hace el
+	// manejador (`mensajeNoFacturados`, `armarRutaDeColumna`) para poder nombrar cuál falla y
+	// por qué. Aquí `cambiado` pasaría igual que antes, y por eso la regla «en el camión sólo
+	// sube lo que cuadra» vive en esos dos manejadores y los vigilan sus pruebas.
 	EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoARutaParams) (int64, error)
 	// ---------------------------------------------------------------------------
 	// Facetas de clientes
@@ -771,9 +812,9 @@ type Querier interface {
 	//     ruta todavía abierta, y entonces sale en DOS camiones. `ultima_ruta_id` es la hoja de
 	//     lo que subió, así que es de ahí de donde se recupera.
 	//
-	// El `WHERE` es el mismo que el de marcar, y por lo mismo: por `ultima_ruta_id`, para poder
-	// desmarcar un devuelto que ya soltó su `route_id`. Cero filas es «ese pedido no va en esta
-	// ruta», el rechazo del contrato.
+	// El `WHERE` es el mismo que el de marcar, y por lo mismo: también por `ultima_ruta_id`
+	// cuando la parada ya soltó su `route_id` CON UN RESULTADO, para poder desmarcar un
+	// devuelto. Cero filas es «ese pedido no va en esta ruta», el rechazo del contrato.
 	LimpiarResultadoDeParada(ctx context.Context, arg LimpiarResultadoDeParadaParams) (int64, error)
 	// La pantalla de administración: los últimos avisos, con lo que pasó con cada uno.
 	ListarAvisosAPedido(ctx context.Context, arg ListarAvisosAPedidoParams) ([]ListarAvisosAPedidoRow, error)
@@ -868,10 +909,25 @@ type Querier interface {
 	ListarParadasDeRutas(ctx context.Context, arg ListarParadasDeRutasParams) ([]ListarParadasDeRutasRow, error)
 	// Las paradas que VIAJARON en esta ruta, se hayan bajado del camión o no.
 	//
-	// Va por `ultima_ruta_id`, que no se libera nunca, y por eso son dos campos y no uno: un
-	// devuelto suelta su `route_id` al cerrar la ruta para poder repartirse mañana, y con un
-	// solo campo eso lo borraría de la hoja de lo que bajó del camión. Es el universo del
-	// post-despacho y el de corregir el resultado de una parada ya cerrada.
+	// La ruta actual se reconoce por `route_id`. Si la parada ya se devolvió o canceló, su
+	// `route_id` está NULL y se reconoce por `ultima_ruta_id`, que es lo que deja corregir su
+	// resultado histórico. Si las dos columnas divergen, nunca se roba un pedido que ya
+	// pertenece a otra ruta.
+	//
+	// # LA RAMA DE `route_id IS NULL` EXIGE `resultado IS NOT NULL` — LA PARADA FANTASMA
+	//
+	// Un devuelto o un cancelado SIEMPRE tiene resultado: es lo que lo suelta de la ruta. Un
+	// pedido que simplemente se QUITÓ de una ruta planificada (`SoltarParadaPlanificada`, el
+	// «Quitar de ruta» de Amado) no lo tiene, y no viajó nunca. Sin esta condición, un pedido
+	// quitado que conservara `ultima_ruta_id = R` seguía saliendo en la hoja de cierre de R:
+	// se podía marcar «entregado» desde ahí, y esa marca le devuelve el `route_id = R` a un
+	// pedido que quizá ya iba en OTRA ruta, y que el total de R seguía contando como suyo.
+	// `SoltarParadaPlanificada` ya no deja ese rastro, pero esta condición es la segunda llave
+	// por si la fila viene de antes o la deja otro camino.
+	//
+	// Esta misma condición va en `ListarRenglonesDeRuta`, `MarcarResultadoDeParada` y
+	// `LimpiarResultadoDeParada`: las cuatro tienen que contestar lo mismo a «¿viajó este
+	// pedido en esta ruta?», y lo ata `consultas_motor_real_test.go`.
 	ListarParadasQueViajaronEnRuta(ctx context.Context, arg ListarParadasQueViajaronEnRutaParams) ([]ListarParadasQueViajaronEnRutaRow, error)
 	// ---------------------------------------------------------------------------
 	// El catálogo de pedidos  (GET /api/orders)
@@ -923,14 +979,25 @@ type Querier interface {
 	// ---------------------------------------------------------------------------
 	// ¿Qué pedidos puedo meter HOY en una ruta, de los que yo puedo ver?
 	//
-	// Las cinco condiciones de arriba del WHERE no son filtros de pantalla y no se negocian:
+	// Las condiciones de arriba del WHERE no son filtros de pantalla y no se negocian:
 	//   * `source = 'pedido'`      — lo que no vino de PEDIDO no se reparte.
 	//   * `route_id IS NULL`       — si ya va en una ruta, está ocupado.
 	//   * `end_lat/end_lng`        — sin coordenadas no hay parada que visitar.
-	//   * `factura_estado IN ('igual','cambiado')` — LO REPARTIBLE. `cambiado` no es un pedido
+	//   * `factura_estado IN ('igual','cambiado')` — LO FACTURADO. `cambiado` no es un pedido
 	//     roto: se facturó distinto de como se pidió y lo que sube al camión son las líneas de
 	//     la factura. Fuera quedan `sin_factura` (no hay nada que llevar) y el NULL, que
 	//     significa NO SE SABE: con un NULL colado se armó una ruta sin facturar el 2/09.
+	//   * `factura_domicilio > 0`  — EL DOMICILIO COBRADO (07/10/2026, Amado: el domicilio ya
+	//     es un servicio que se cobra, y dejar entrar cualquier pedido es una vulnerabilidad).
+	//   * `pedido_costo IS NOT NULL` — EL DOMICILIO COTIZADO en Entrega: sin importe fiable que
+	//     asignar a la parada no se ofrece.
+	//
+	// OJO, QUE ESTA LISTA OFRECE MÁS QUE LO QUE UNA RUTA ACEPTA: ofrece `cambiado` y el armador
+	// sólo deja subir lo que cuadra (`igual`). Se ofrece a propósito, para que el logístico lo
+	// vea y lo revise, y el armador lo rechaza nombrándolo. Lo que NO puede pasar es lo
+	// contrario: que se ofrezca algo que el armador rechaza por domicilio o por cotización.
+	// Estas MISMAS dos condiciones están en `ListarPedidosSinColocar`, en `ColocarPedido`, en
+	// `EngancharPedidoARuta` y en los recuentos del Panel, y las ata `consultas_motor_real_test.go`.
 	//
 	// `km_max` y `costo_min` NO están aquí a propósito: el contrato los aplica después de la
 	// consulta, y `total`/`truncated` se calculan ANTES que ellos. Bajarlos al SQL cambiaría
@@ -960,9 +1027,16 @@ type Querier interface {
 	// pasa aquí. Sin almacén con coordenadas no hay tablero: se dice que no se puede, no se
 	// ordena por un punto inventado.
 	//
-	// Las condiciones de «repartible» son LAS MISMAS CINCO de `ListarPedidosDisponibles`, ni
-	// una más ni una menos. Si el tablero ofreciera algo que el armador luego rechaza, el
-	// logístico prepararía una columna entera para que la ruta le diga que no al final del día.
+	// Las condiciones de «repartible» son LAS MISMAS de `ListarPedidosDisponibles`, ni una más
+	// ni una menos: sin ruta, sin entregar, con coordenadas, facturado (`igual` o `cambiado`),
+	// no archivado, y desde el 07/10/2026 (Amado) con el domicilio COBRADO en la factura
+	// (`factura_domicilio > 0`) y COTIZADO en Entrega (`pedido_costo` no nulo). Si el tablero
+	// ofreciera algo que `ColocarPedido` o el armador luego rechazan, el logístico prepararía
+	// una columna entera para que la ruta le diga que no al final del día. Y eso fue
+	// exactamente lo que pasó con las dos últimas: se añadieron a `ColocarPedido` y no aquí,
+	// y la mitad izquierda ofrecía tarjetas que el 409 devolvía. Lo ata
+	// `consultas_motor_real_test.go` (todo lo que se ofrece se puede colocar) y el contador lo
+	// ata a la lista `internal/store/contador_y_lista_test.go`.
 	// El desempate por fecha no es adorno: dos clientes en el mismo edificio dan exactamente
 	// los mismos kilómetros, y sin un segundo criterio el orden cambia entre dos llamadas y las
 	// tarjetas bailan solas delante de quien las está arrastrando.
@@ -1017,8 +1091,10 @@ type Querier interface {
 	// debería seguir arriba. Una sola consulta y no una por parada — con 40 paradas, lo
 	// segundo son 40 idas y vueltas por una pantalla que se abre veinte veces al día.
 	//
-	// Por `ultima_ruta_id` para que el post-despacho siga viendo los renglones de lo que se
-	// devolvió: al cerrar, esos pedidos ya soltaron su `route_id`.
+	// Por la ruta actual o, para pedidos soltados con resultado (un devuelto o un cancelado),
+	// por `ultima_ruta_id`. La condición de `resultado IS NOT NULL` es la de
+	// `ListarParadasQueViajaronEnRuta`, que explica por qué: sin ella, los renglones de un
+	// pedido quitado de la ruta seguirían en la hoja de carga de una ruta que no lo lleva.
 	ListarRenglonesDeRuta(ctx context.Context, arg ListarRenglonesDeRutaParams) ([]ListarRenglonesDeRutaRow, error)
 	// Los renglones de las paradas de VARIAS rutas, de una vez.
 	//
@@ -1134,10 +1210,14 @@ type Querier interface {
 	//
 	// Cuatro cosas van juntas a propósito y en una sola sentencia:
 	//
-	//  1. `WHERE ultima_ruta_id = ...` y NO `route_id`: así se puede corregir el resultado de
-	//     un devuelto que ya soltó su `route_id` al cerrar. Y sirve de validación — cero filas
-	//     significa «ese pedido no va en esta ruta», que es el rechazo del contrato, sin tener
-	//     que comprobarlo antes en Go sobre una lectura que ya puede estar vieja.
+	//  1. El `WHERE` acepta la parada que sigue en la ruta (`route_id`) y, además, la que ya
+	//     la soltó con un resultado (`route_id` NULL, `ultima_ruta_id` = esta y `resultado` no
+	//     nulo): así se puede corregir el resultado de un devuelto al cerrar. Y sirve de
+	//     validación — cero filas significa «ese pedido no va en esta ruta», que es el
+	//     rechazo del contrato, sin tener que comprobarlo antes en Go sobre una lectura que
+	//     ya puede estar vieja. El `resultado IS NOT NULL` es el de
+	//     `ListarParadasQueViajaronEnRuta` (la parada fantasma): un pedido quitado de la ruta
+	//     no se puede marcar desde su hoja de cierre.
 	//  2. `route_id = NULL` SÓLO si no se entregó: el pedido baja del camión y vuelve a la
 	//     lista de disponibles para la ruta de mañana. `ultima_ruta_id` y `stop_order` no se
 	//     tocan NUNCA: son la hoja de lo que bajó del camión.
@@ -1221,9 +1301,12 @@ type Querier interface {
 	// ---------------------------------------------------------------------------
 	// Los siete números del panel en UNA consulta.
 	//
-	// REPARTIBLE es el mismo listón del armador de rutas —sin ruta, con coordenadas y con
-	// factura que se puede llevar—: si el panel contara otra cosa, diría «40 por repartir» y
-	// el armador ofrecería 12, y la respuesta correcta sería «ninguno de los dos».
+	// REPARTIBLE es el mismo listón del armador de rutas —sin ruta, con coordenadas, con
+	// factura que se puede llevar y, desde el 07/10/2026, con el domicilio cobrado y cotizado
+	// (`factura_domicilio > 0` y `pedido_costo` no nulo, Amado)—: si el panel contara otra
+	// cosa, diría «40 por repartir» y el armador ofrecería 12, y la respuesta correcta sería
+	// «ninguno de los dos». `sin_ruta` y `peso_pendiente` llevan las mismas condiciones que
+	// `PanelPorSucursal` y que `ContarPedidosDisponibles`.
 	PanelResumen(ctx context.Context, arg PanelResumenParams) (PanelResumenRow, error)
 	// ---------------------------------------------------------------------------
 	// De una columna sale una ruta  (POST /api/board/columns/[id]/route)
@@ -1241,6 +1324,10 @@ type Querier interface {
 	// corte a sólo `igual` lo hace el handler DESPUÉS, para poder nombrar cuál falla y por qué.
 	// Un WHERE que los descarte aquí deja el mismo rechazo sin nada que decir, y el logístico
 	// se queda mirando una columna de doce que produce una ruta de nueve sin explicación.
+	// `cambiado` NO entra a una ruta (en el camión sólo sube lo que cuadra con la factura).
+	// Lo de Amado del 07/10/2026 se suma: `factura_domicilio` y `pedido_costo` salen como DATO
+	// y `armarRutaDeColumna` los nombra en `descartados` si el domicilio no está cobrado o no
+	// está cotizado.
 	//
 	// `posicion` sale para que el armador pueda RESPETAR el orden del logístico: él conoce las
 	// calles de su distrito y el vecino más próximo no. Quién de los dos manda lo decide el
@@ -1257,8 +1344,15 @@ type Querier interface {
 	// rutas a la vez eso pasa de verdad — y de ahí sale el 409 con «N de los M ya están en
 	// otra ruta». Comprobarlo en Go sobre una lectura anterior es mirar una foto vieja.
 	//
-	// `factura_estado` deja pasar `igual` y `cambiado`, como la lista de disponibles.
-	// «cambiado» es una factura emitida con líneas distintas, no una factura inexistente.
+	// `factura_estado` se deja pasar `igual` y `cambiado` porque es el mismo listón de la
+	// lista de disponibles. El corte a sólo `igual` lo hace el handler DESPUÉS, para poder
+	// nombrar en el error cuál falla y por qué («cambió en la factura» / «sin cotejar»).
+	// Un WHERE que los descarte aquí deja el mismo 409 sin nada que decir.
+	//
+	// `cambiado` NO entra a una ruta (Jose, reglas-negocio.md): en el camión sólo sube lo que
+	// cuadra con la factura. Lo que se añadió el 07/10/2026 (Amado) es aparte y se SUMA: el
+	// domicilio cobrado (`factura_domicilio > 0`) y cotizado en Entrega (`pedido_costo` no
+	// nulo). Esos dos salen también como DATO y los corta el handler, por la misma razón.
 	PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmarRutaParams) ([]PedidosParaArmarRutaRow, error)
 	// LO QUE SE FUE DE LA SUCURSAL, para `quitados`.
 	//
@@ -1343,6 +1437,20 @@ type Querier interface {
 	//
 	// No se borra la COLUMNA: el distrito sigue existiendo mañana. Lo que se vacía es lo que
 	// lleva dentro hoy.
+	//
+	// # DE DÓNDE SALIÓ CADA PARADA SE GUARDA EN `board_route_origins` — incidencia 3 de Amado
+	//
+	// Antes de vaciar la tarjeta se apunta, para cada pedido, de qué ruta, zona y posición vino,
+	// y así `SoltarPedidosDeRuta` (borrar la ruta) y `SoltarParadaPlanificada` (quitar una sola
+	// parada) pueden devolverlo a su sitio en vez de dejar el tablero limpio.
+	//
+	// `ON CONFLICT (order_id) DO UPDATE` y NO `DO NOTHING`: `board_route_origins` tiene UNIQUE
+	// por pedido, y un origen VIEJO bloquearía el nuevo. Pasa con un devuelto: se marca
+	// «devuelto» en una ruta en curso, suelta su `route_id` y queda libre para mañana, pero el
+	// origen de aquella ruta sigue ahí hasta que la ruta se complete o se borre. Si mañana lo
+	// colocan en otra zona y arman otra ruta, el `DO NOTHING` se tragaba el origen nuevo EN
+	// SILENCIO, y al borrar esta ruta el pedido volvía a la zona de la de ayer, o a ninguna.
+	// Lo vigente es siempre lo último: el pedido está ahora en ESTA ruta y salió de ESTA zona.
 	QuitarDelTableroLosDeRuta(ctx context.Context, arg QuitarDelTableroLosDeRutaParams) (int64, error)
 	// Sacar una tarjeta del tablero: vuelve a «sin colocar», donde la lista la pondrá otra vez
 	// en su sitio por cercanía. Devuelve la columna y la posición que tenía para poder cerrar
@@ -1479,11 +1587,43 @@ type Querier interface {
 	// ---------------------------------------------------------------------------
 	// Borrar una ruta  (DELETE /api/routes/[id])
 	// ---------------------------------------------------------------------------
-	// Los pedidos NO se borran: se sueltan y vuelven a la lista de disponibles.
-	// `ultima_ruta_id` se conserva — el pasado de un pedido no se reescribe porque alguien
-	// deshaga la ruta de hoy.
-	SoltarPedidosDeRuta(ctx context.Context, arg SoltarPedidosDeRutaParams) (int64, error)
+	// QUITAR UNA SOLA PARADA DE UNA RUTA PLANIFICADA (`DELETE /api/routes/{id}/stops/{orderId}`,
+	// incidencia 2 de Amado). El pedido NO se borra: se suelta y vuelve a la lista de
+	// disponibles, y si la ruta nació del tablero vuelve además a su zona y a su posición.
+	//
+	// # `ultima_ruta_id` TAMBIÉN SE PONE A NULL — LA PARADA FANTASMA, 07/10/2026
+	//
+	// Aquí se conservaba, por el mismo motivo que en `SoltarPedidosDeRuta` («el pasado de un
+	// pedido no se reescribe»), y es un error: esa regla es para un pedido que VIAJÓ. Éste no
+	// viajó nunca, porque la ruta sigue `planned` y sin resultado. Con `ultima_ruta_id = R`
+	// puesto, el pedido seguía siendo «parada de R» para todo lo que pregunta por esa columna:
+	//
+	//   · el trigger de totales (`00014`) lo contaba en `total_weight`, `total_price` y
+	//     `paradas_sin_cotizar` de R, así que la cabecera decía 516 kg sobre una ruta que ya
+	//     sólo cargaba 420, y la capacidad del camión se medía contra ese número;
+	//   · salía en la hoja de cierre de R (`ListarParadasQueViajaronEnRuta`) y se podía marcar
+	//     «entregado» desde ahí, devolviéndole el `route_id` de R a un pedido que quizá ya
+	//     iba en otra ruta.
+	//
+	// Al ponerla a NULL el trigger recalcula los totales de R en esta misma sentencia, y el
+	// pedido deja de ser parada de R. Las otras cuatro consultas que preguntan «¿viajó en R?»
+	// llevan además `resultado IS NOT NULL` en la rama de `route_id IS NULL`, por si la fila
+	// viene de antes.
+	//
+	// LO QUE NO SE HACE, y queda dicho para que nadie lo busque aquí:
+	//   · los `stop_order` de las demás paradas NO se renumeran: el orden relativo no cambia,
+	//     sólo queda un hueco (1, 3, 4…) que ninguna pantalla lee como posición absoluta.
+	//   · `total_distance` NO se recalcula: es el circuito que midió quien armó la ruta y no
+	//     una suma de paradas (00014 lo deja fuera a propósito). Tras quitar una parada
+	//     seguirá diciendo los km del recorrido original hasta que se vuelva a optimizar.
 	SoltarParadaPlanificada(ctx context.Context, arg SoltarParadaPlanificadaParams) (uuid.UUID, error)
+	// Borrar la ruta entera: los pedidos NO se borran, se sueltan y vuelven a la lista de
+	// disponibles. Si la ruta nació del tablero, vuelven además a su zona y a su posición
+	// (`board_route_origins`). `ultima_ruta_id` se conserva — el pasado de un pedido no se
+	// reescribe porque alguien deshaga la ruta de hoy — y la clave ajena
+	// `orders_ultima_ruta_fk` (`ON DELETE SET NULL`) la suelta sola cuando `BorrarRuta`
+	// elimina la fila.
+	SoltarPedidosDeRuta(ctx context.Context, arg SoltarPedidosDeRutaParams) (int64, error)
 	// Hasta cuándo se tiene facturación de una sucursal.
 	//
 	// Es lo que distingue «este pedido no está facturado» de «de ese día todavía no hemos

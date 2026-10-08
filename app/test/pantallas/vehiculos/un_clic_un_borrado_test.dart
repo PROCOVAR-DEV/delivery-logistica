@@ -210,10 +210,16 @@ void main() {
       expect(find.text('Sí, borrar «Camión #1»'), findsOneWidget);
       expect(find.text('No, dejarlo'), findsOneWidget);
       // Y dice qué se pierde, que es la mitad que sirve.
+      // Desde el 07/10/2026 (Amado, incidencia 4) un camión con rutas NO se
+      // borra, y la pregunta lo dice y apunta a la salida: marcarlo inactivo.
+      // Lo que decía antes («se quedan sin camión») ya no es verdad.
+      expect(find.textContaining('se quedan sin camión'), findsNothing);
       expect(
-        find.textContaining('se quedan sin camión'),
+        find.textContaining('NO se puede borrar'),
         findsOneWidget,
+        reason: 'un camión con rutas, aunque sean históricas, no se borra',
       );
+      expect(find.textContaining('márcalo como inactivo'), findsOneWidget);
 
       await desmontar(tester);
     });

@@ -67,6 +67,25 @@ mitad del encargo y no es un adorno:
 Cada tarjeta trae: kilómetros al almacén, número de operación, cliente, dirección de
 entrega, peso, costo del domicilio (`pedido_costo`, el que puso Entrega) y municipio.
 
+**Qué entra en «Sin colocar» — 07/10/2026 (Amado, incidencias 2 y 6).** Además de lo de
+siempre (de PEDIDO, sin ruta, con punto de entrega, con domicilio), el pedido tiene que
+traer **el domicilio cobrado** (`factura_domicilio > 0` en la factura) y **cotizado en
+Entrega** (`pedido_costo` no nulo; un cero **sí** es un precio puesto). Sin eso la tarjeta
+**ni se ofrece**, y si se intenta colocar igualmente (arrastrar, o «Mandar a una zona» desde
+Pedidos) se rechaza con un mensaje claro: `No se puede asociar al tablero: la factura no
+tiene un cobro de domicilio registrado.` / `No se puede asociar al tablero: primero cotiza
+el domicilio del pedido.` (más `Ese pedido ya se entregó` y `Ese pedido ya está en una
+ruta`). Colocar **no mira** el estado de la factura: «Sin colocar» ofrece `igual` y
+`cambiado` (la `cambiado` con su marca ámbar), y la que no cuadra la descarta después
+**armar la zona** (`cambió en la factura`, igual que `la factura no tiene domicilio
+cobrado` y `domicilio sin cotizar`). El caso que lo motivó: sin las dos condiciones el
+tablero ofrecía tarjetas que el servidor devolvía con un 409, y con los datos reales del
+07/10/2026 de 1.914 pedidos repartibles sólo 29 cumplían las tres cosas (64 con domicilio
+cobrado, 33 cotizados). Sin señal el aparato dice el mismo «no» **al momento** (con las
+mismas palabras que el servidor) y no horas después, desde la bandeja de rechazados. El
+contador y la lista tienen que decir lo mismo: lo ata una prueba (CLAUDE.md §3-bis), no
+este párrafo.
+
 Filtros de la mitad izquierda: día del pedido, búsqueda libre (la misma caja de la lista de
 pedidos: cliente, operación, dirección, municipio, vendedor y el **contenido de los
 renglones** — «¿qué pedidos llevan malta?»), municipio, vendedor y un corte por kilómetros.
@@ -271,7 +290,7 @@ Los cuatro desenlaces:
 | Quedó en | Qué significa | Qué hace el tablero |
 |---|---|---|
 | `igual` | cuadra | nada, es lo normal |
-| `cambiado` | se facturó distinto de como se pidió | **se marca**. Se reparte igual —lo que sube al camión son las líneas de la factura— pero **el peso de la columna ya no es el que era**, y ése es el aviso que importa |
+| `cambiado` | se facturó distinto de como se pidió | **se marca** en ámbar y se queda en la columna, pero **ya no sube a la ruta** (07/10/2026: «en el camión sólo sube lo que cuadra con la factura»). Al armar la zona sale en `descartados` con `cambió en la factura`. Antes se repartía con las líneas de la factura y se avisaba de que el peso ya no era el mismo |
 | `sin_factura` | no hay nada que llevar | se marca en rojo: hoy no sale |
 | `NULL` | **no se sabe** | se marca en rojo. No es «cuadra». Con un NULL colado se armó una ruta sin facturar el 2/09 |
 
@@ -366,6 +385,25 @@ DELETE /api/board/columns/<id>?destino=<id> → las tarjetas se van a la otra co
 
 Se pregunta con `ContarPedidosEnColumna` para poder decir «tiene 8 pedidos puestos» en vez
 de devolverle a la persona el error de clave ajena de Postgres, que no entiende nadie.
+
+### 7.6-bis · Borrar la ruta que salió de una columna — 07/10/2026 (Amado, incidencia 3)
+
+Antes, borrar una ruta hecha con «Armar la ruta de esta zona» soltaba los pedidos y **el
+tablero quedaba limpio**: la relación factura–columna se perdía y había que volver a
+crear y repartir todo. Ahora **cada factura vuelve a su columna y a su posición**: al armar
+la zona el servidor guarda de dónde salió cada parada (`board_route_origins`) y al borrar
+la ruta —o al quitar **una sola parada** de una ruta planificada con «Quitar de ruta»— las
+devuelve. Si la columna ya no existe, el pedido queda en «sin colocar». Una ruta armada a
+mano no restaura nada, y una **completada** es histórico y no se borra.
+
+**El límite sin señal (APK/escritorio).** Ese origen vive en el servidor y la bajada no lo
+trae, así que el aparato **no sabe de qué columna salió** cada factura. Mientras el borrado
+no ha subido (o ha subido y el tablero no ha bajado), esas facturas salen en **«Sin
+colocar»** y no en su columna; la pregunta de borrado lo dice («Mientras tanto, sin señal,
+salen en «Sin colocar»») y no nombra ninguna zona que no tiene. En la web el borrado es
+inmediato y el tablero ya las enseña en su columna. Cuando suba el borrado y baje el
+tablero, cada una aparece donde estaba. Quitar de ruta, borrar ruta y el tablero se avisan
+en vivo (`rutas`, `pedidos`, `tablero`).
 
 ### 7.7 · Dos aparatos sobre el mismo tablero
 

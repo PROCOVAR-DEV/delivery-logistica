@@ -224,7 +224,10 @@ void main() {
       expect(await ids(), isNot(contains('d8')));
     });
 
-    test('una factura con líneas cambiadas sigue estando facturada', () async {
+    test('la factura tiene que CUADRAR, no basta con tenerla', () async {
+      // `cambiado` no se ofrece: lo que el armado del servidor rechaza no se
+      // puede ofrecer aqui (Jose, 07/10/2026: «en el camión sólo sube lo que
+      // cuadra con la factura»). Codex lo había dejado pasar en 968679f.
       await sembrarPedido(
         base,
         id: 'd9',
@@ -233,7 +236,53 @@ void main() {
         endLat: 21.33,
         endLng: -77.83,
       );
-      expect(await ids(), contains('d9'));
+      expect(await ids(), isNot(contains('d9')));
+    });
+
+    test('sin cotejar tampoco: NULL no es «cuadra»', () async {
+      await sembrarPedido(
+        base,
+        id: 'd10',
+        cliente: 'Juan',
+        facturaEstado: null,
+        endLat: 21.34,
+        endLng: -77.84,
+      );
+      expect(await ids(), isNot(contains('d10')));
+    });
+
+    // LO NUEVO DE AMADO SE CONSERVA (07/10/2026): domicilio cobrado y cotizado.
+    test('sin domicilio cobrado en la factura no se ofrece', () async {
+      await sembrarPedido(
+        base,
+        id: 'd11',
+        cliente: 'Kira',
+        facturaDomicilio: 0,
+        endLat: 21.35,
+        endLng: -77.85,
+      );
+      await sembrarPedido(
+        base,
+        id: 'd12',
+        cliente: 'Lola',
+        facturaDomicilio: null,
+        endLat: 21.36,
+        endLng: -77.86,
+      );
+      expect(await ids(), isNot(contains('d11')));
+      expect(await ids(), isNot(contains('d12')));
+    });
+
+    test('sin cotizar el domicilio no se ofrece', () async {
+      await sembrarPedido(
+        base,
+        id: 'd13',
+        cliente: 'Mario',
+        pedidoCosto: null,
+        endLat: 21.37,
+        endLng: -77.87,
+      );
+      expect(await ids(), isNot(contains('d13')));
     });
   });
 }

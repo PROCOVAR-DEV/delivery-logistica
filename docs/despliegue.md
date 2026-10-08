@@ -8,6 +8,12 @@ que están vivas de verdad — no que el desplegador las haya pintado de verde.
 > migraciones.** Va **antes** de pulsar Deploy, se corre a mano, y no está automatizado a
 > propósito (§2.9). Saltárselo no rompe nada desde el 21/09/2026 —los servicios se niegan a
 > arrancar con la base atrasada— pero deja el despliegue sin hacer.
+>
+> Y dos cosas que el diagrama no enseña, comprobadas el 07/10/2026: **las dos bases del
+> reparto NO están en el respaldo diario del servidor**, así que se vuelcan a mano antes de
+> migrar (§2.2); y **una migración que QUITA algo rompe a la api vieja** mientras dura el
+> intervalo entre migrar y que arranque la nueva (§2.5). «Primero migrar, después Deploy» no
+> basta para esas.
 
 Los ficheros viven en `deploy/` y el de pruebas en la raíz:
 
@@ -128,16 +134,20 @@ escribe alguien que ya lo hizo para que lo haga alguien que no estuvo.
 
 ```
 1. mirar        qué migraciones hay en el árbol y que la conexión al VPS está abierta
-2. subir        los .sql al servidor
-3. status       ACCION=status — no escribe nada, sólo dice qué falta
-4. leer         lo que dijo status; si dice algo que no esperabas, PARAR (§2.7)
-5. up           ACCION=up
-6. comprobar    que las dos series quedaron sin Pending (§2.6)
-7. y AHORA sí   Deploy de reparto-api y reparto-sync en Dokploy
+2. respaldar    pg_dump de las DOS bases, a mano: el respaldo diario no las incluye (§2.2)
+3. subir        los .sql al servidor
+4. status       ACCION=status — no escribe nada, sólo dice qué falta
+5. leer         lo que dijo status; si dice algo que no esperabas, PARAR (§2.7)
+6. up           ACCION=up
+7. comprobar    que las dos series quedaron sin Pending (§2.6)
+8. y AHORA sí   Deploy de reparto-api y reparto-sync en Dokploy
 ```
 
-Los pasos 3 y 5 son **el mismo `docker run`** cambiando una variable. El 3 no se salta
+Los pasos 4 y 6 son **el mismo `docker run`** cambiando una variable. El 4 no se salta
 nunca: es la única oportunidad de ver lo que va a pasar antes de que pase.
+
+Si entre las que faltan hay una que **quita** algo (una columna, una tabla), los pasos 6 y 8
+dejan de ser «cuando uno pueda» y se encadenan, en hora de poca carga: §2.5.
 
 ---
 
@@ -158,8 +168,12 @@ ls api/db/migrations/ sync/db/migrations/
 ```
 
 Apunta el número más alto de cada carpeta. Al terminar, `status` tiene que decir
-exactamente ése. Hoy (26/09/2026) son `00008_indices_medidos.sql` en la serie del
-reparto y `00001_sync.sql` en la del sincronizador.
+exactamente ése. En la copia de trabajo del 07/10/2026 son `00017_vehiculos_activos.sql`
+en la serie del reparto y `00002_los_descartados_del_repetido.sql` en la del
+sincronizador: no te fíes de estos números —el 26/09/2026 eran la 00008 y la 00001—, mira
+el árbol, y lo que ya está aplicado en el servidor lo dice `status`, no este párrafo.
+Cuáles de las que faltan **añaden** y cuáles **quitan** algo se lee en los `.sql`, y
+cambia el procedimiento (§2.5).
 
 **Que la imagen está en el servidor.** Se construyó allí y se queda:
 
@@ -172,9 +186,14 @@ repositorio en el servidor:
 
 ```bash
 ssh vps 'cd /tmp && rm -rf m && git clone --depth 1 -b main \
-  https://github.com/jose22072000/delivery-logistica.git m && cd m && \
+  https://github.com/PROCOVAR-DEV/delivery-logistica.git m && cd m && \
   docker build -f deploy/Dockerfile.migraciones -t reparto-migraciones .'
 ```
+
+(Desde el 07/10/2026 el original es el de la organización, `PROCOVAR-DEV`.
+`jose22072000/delivery-logistica` es ahora un **fork personal** que no se actualiza solo:
+clonar de ahí trae el código del día en que se hizo el fork, y sus `.sql` no son los de
+`main`. Esta imagen sólo lleva goose, pero el mismo cuidado vale para cualquier clon.)
 
 **Cómo se llaman las dos bases.** Son `procovar_reparto` y `procovar_reparto_sync`
 (`docs/montar-en-dokploy.md`, comprobado el 22/09/2026). Cuesta una línea confirmarlo y
@@ -184,6 +203,38 @@ evita migrar la base de otro:
 ssh vps 'C=$(docker ps -qf name=procovar-postgres-nlfols | head -1); \
          docker exec "$C" psql -U procovar -lqt | cut -d"|" -f1 | grep reparto'
 ```
+
+**Una copia de las dos bases, hecha a mano ANTES de migrar.** El respaldo diario del
+servidor (`/usr/local/bin/procovar-backup-db`) recorre una lista fija —`BASES="procovar_pedidos
+procovar_delivery analitics n8n"`, con retención de 14 días en `/var/backups/procovar`— y
+**ni `procovar_reparto` ni `procovar_reparto_sync` están en ella** (leído del servidor el
+07/10/2026; el porqué, en §2.10). O sea que, si una migración sale mal, **no hay de dónde
+volver**, y el `Down` de goose no devuelve lo que un `DROP COLUMN` se llevó. Se vuelcan las
+dos en formato custom (`-Fc`) dentro del contenedor de Postgres y se comprueba que el
+fichero se deja leer:
+
+```bash
+ssh vps '
+set -eu
+umask 077        # son clientes con sus direcciones y los pedidos de verdad
+C=$(docker ps -qf name=procovar-postgres-nlfols | head -1)
+S=$(date +%Y%m%d-%H%M)
+for B in procovar_reparto procovar_reparto_sync; do
+  F=/var/backups/procovar/${B}_antes-<version>_$S.dump
+  docker exec "$C" pg_dump -U procovar -Fc "$B" > "$F"
+  ls -l "$F"
+  docker exec -i "$C" pg_restore -l < "$F" | wc -l      # un número grande, nunca 0
+done
+'
+```
+
+Es el patrón del volcado del 07/10/2026 (`procovar_reparto_antes-1.0.28_20261007-2204.dump`
+y el de sync): `<base>_antes-<versión>_<AAAAMMDD-HHMM>.dump`. Dos cosas que no están
+comprobadas y conviene mirar antes de fiarse: que **queda sitio** (el disco del VPS es
+corto: `df -h /var/backups/procovar`) y que **la poda de 14 días del respaldo diario no se
+lleve este fichero** (no se ha leído el script para saber si borra por carpeta o sólo sus
+propios ficheros). Si el volcado tiene que durar más que eso, se copia a otro sitio.
+Mientras `procovar_reparto` no esté en `BASES`, este paso es el único respaldo que tiene.
 
 **Y nadie desplegando a la vez.** No se despliega con agentes vivos escribiendo el árbol
 (`CLAUDE.md` §4-bis). Aquí importa más que en ningún sitio: los `.sql` que se suben son
@@ -336,12 +387,46 @@ TRANSACTION`). Dos cosas que cambian respecto a las demás:
   Tiene que dar **0**.
 
 Y como siempre: **primero la migración, después Deploy de `reparto-api`**. La api se
-niega a arrancar con la base atrasada (§2.8). Al revés no pasa nada: la api de antes
-funciona igual sobre la base con la 00008, que sólo añade y quita índices.
+niega a arrancar con la base atrasada (§2.8). Al revés no pasa nada **con la 00008**: la
+api de antes funciona igual sobre la base con ella, que sólo añade y quita índices. Esa
+frase vale para las migraciones **aditivas** y para ninguna más: la que quita algo, justo
+debajo.
 
 Las dos series van en **una sola pasada y en orden** (primero reparto, después
 sincronizador). Si la primera falla, `set -eu` corta y la segunda ni se intenta: es a
 propósito, porque lo que hay que arreglar es lo primero que se rompió.
+
+#### Las que QUITAN algo rompen a la api vieja: la 00015 (07/10/2026)
+
+«Al revés no pasa nada» es verdad cuando la migración **añade**: una tabla nueva, una
+columna con valor por defecto, un índice. La api vieja no sabe que existe y sigue igual. La
+`00016_origenes_ruta_tablero.sql` (tabla `board_route_origins`) y la
+`00017_vehiculos_activos.sql` (`vehicles.is_active`, con valor por defecto) son de ésas.
+
+La `00015_orders_sin_camion.sql` **no**: borra el índice `orders_vehiculo_idx` y la columna
+`orders.vehicle_id`, porque el camión de un pedido ya se lee de su ruta
+(`routes.vehicle_id`). El orden de siempre se mantiene —la api nueva se niega a arrancar
+con la base atrasada, así que hay que migrar antes—, pero **la api VIEJA sigue leyendo
+`orders.vehicle_id`**, y desde que `up` termina hasta que arranca el contenedor nuevo se
+rompe: **la bajada por diferencias y `ObtenerPedido` contestan 500**. Y ese intervalo no son
+segundos: Dokploy construye la imagen primero —minutos— y sólo entonces releva el
+contenedor, y durante todo ese rato sigue sirviendo la vieja contra la base ya migrada.
+
+Lo que se hace, y las tres cosas:
+
+1. **El volcado de §2.2, sin saltárselo.** El `Down` de la 00015 recrea la columna y la
+   rellena a partir de las rutas, pero lo que valía en un pedido sin ruta no vuelve.
+2. **Encadenar el paso 6 y el paso 8**, sin dejar una noche en medio, **en hora de poca
+   carga** (no con los logísticos armando rutas) y con el Deploy de `reparto-api` ya
+   preparado para pulsarlo nada más terminar el `up`. Migrar hoy y desplegar mañana es
+   dejar un día entero la api vieja contra una base que ya no es la suya.
+3. **Vigilar los 500** en el registro de la api mientras dura: los de ese intervalo son
+   esperados; los que siguen cuando la nueva ya sirve, no.
+
+La forma de que no haya intervalo es otra y es para la próxima: **quitar en dos versiones**.
+Primero se despliega el código que ya no usa la columna, y la migración que la borra va en
+la siguiente, cuando ninguna api viva la lee. La 00015 ya está escrita junta con el código
+que la deja de usar, así que a ella le toca el procedimiento de arriba.
 
 ---
 
@@ -361,7 +446,8 @@ Tres cosas, y las tres:
      "SELECT max(version_id) FROM goose_db_version WHERE is_applied;"'
    ```
 
-   Tiene que dar el número más alto de `api/db/migrations/` (hoy, **8**). El `WHERE is_applied` importa: goose apunta también las vueltas
+   Tiene que dar el número más alto de `api/db/migrations/` (el que se apuntó en §2.2; el
+   26/09/2026 era 8). El `WHERE is_applied` importa: goose apunta también las vueltas
    atrás, con `is_applied = false`, y contarlas daría por aplicada una migración que se
    deshizo (`api/internal/store/migraciones.go`).
 3. **Y la prueba de verdad: que la api arranca.** Desde el 21/09/2026 la api y el
@@ -565,6 +651,14 @@ Y hay un paso que se olvida y no avisa: **añadir las dos a la lista `BASES` de
 `/usr/local/bin/procovar-backup-db`**. Una base que no está en esa lista no se respalda, y
 eso no se descubre hasta el día en que hace falta el respaldo.
 
+**Y se olvidó: comprobado el 07/10/2026**, la lista es `BASES="procovar_pedidos
+procovar_delivery analitics n8n"` (retención de 14 días en `/var/backups/procovar`). Las
+dos del reparto no tienen ninguna copia automática, y tienen dentro los pedidos, las rutas
+y el trabajo del tablero. El script es del servidor, no de este
+repositorio, y no se ha tocado: **queda pendiente de Jose añadir `procovar_reparto` y
+`procovar_reparto_sync` a `BASES`**. Hasta entonces, el volcado a mano de §2.2 antes de
+cada migración es lo único que hay.
+
 Las dos ya estaban creadas y migradas el 22/09/2026 (`docs/montar-en-dokploy.md`): 16
 tablas en la del reparto y 5 en la del sincronizador.
 
@@ -751,6 +845,11 @@ Con valor por defecto:
 | `ALMACENES_CACHE_MS` | `300000` (5 min) | **En milisegundos**. Sin recuerdo, cotizar 200 pedidos son 200 llamadas a Accesos. |
 | `PROCOVAR_AUTH_URL` | `https://auth.procovar.cloud` | |
 | `PROCOVAR_AUTH_CLIENT_ID` | `delivery` | |
+| `PROCOVAR_AUTH_SIGNING_KEY` | vacía | La llave con la que se firma hacia Accesos (HMAC). Sin ella no se pueden pedir los almacenes ni las tasas, así que **no se puede cotizar ningún domicilio**. Arranca, pero lo avisa. |
+
+Las tres URL se comprueban al arrancar aunque sean opcionales: una `PEDIDO_API_URL` sin
+esquema no falla al concatenar, falla dentro de una gorutina de fondo, y lo único que se
+ve es un aviso que no llegó.
 
 Y las del **anuncio de versión de la aplicación**, que es lo que leen los aparatos para
 saber si tienen que actualizarse. **A medias no arranca**: con una URL puesta y sin
@@ -764,8 +863,8 @@ se avisaría sin decir de dónde bajarla. El documento entero es `docs/actualiza
 | `APP_DESCARGA_ANDROID` | vacía | URL del `.apk`. |
 | `APP_DESCARGA_ANDROID_BYTES` | vacía | Lo que dice `stat -c%s` del fichero. **Obligatoria en cuanto hay URL.** Sin ella, quien baja por datos móviles ve «30 MB/?»: Cloudflare quita el `Content-Length` de la respuesta completa. |
 | `APP_DESCARGA_ANDROID_SHA256` | vacía | Lo que dice `sha256sum`, 64 hexadecimales. **Obligatoria en cuanto hay URL.** Sin ella una descarga cortada pasa por buena. |
-| `APP_DESCARGA_WINDOWS` · `_BYTES` · `_SHA256` | vacías | Igual que Android. Hoy sin colgar. |
-| `APP_DESCARGA_LINUX` · `_BYTES` · `_SHA256` | vacías | Igual que Android. Hoy sin colgar. |
+| `APP_DESCARGA_WINDOWS` · `_BYTES` · `_SHA256` | vacías | Igual que Android, con la URL del **instalador** (`reparto-<versión>-windows-setup.exe`). Colgado desde la 1.0.25; lo escribe el publicador de Windows (más abajo). |
+| `APP_DESCARGA_LINUX` · `_BYTES` · `_SHA256` | vacías | Existen y se leen, pero **NO hay canal de escritorio Linux**: ni workflow, ni script de publicación, ni anuncio. Se quedan vacías, y el escritorio de Linux se compila sólo para probar (`docs/compilar.md` §5). |
 | `APP_ULTIMA_NOTAS` | vacía | Una línea de qué trae. |
 | `APP_ULTIMA_PUBLICADA` | vacía | `2026-09-15` o RFC3339. Se guarda normalizada. |
 | `APP_SIN_ANUNCIO` | vacía | La ÚNICA forma de desplegar en producción sin anunciar ninguna versión. Sólo se admite `si` (o vacía); cualquier otra cosa no arranca. |
@@ -816,6 +915,14 @@ ahí y exigen que el anuncio salga entero —versión, enlace, bytes y huella—
 de esas líneas deja la suite en rojo y **el `Dockerfile.api` no construye**, en vez de dejar
 el canal muerto en silencio. Por eso ese Dockerfile copia `docker-compose.yml` dentro.
 
+**Pero ese fichero NO está al día, y las pruebas no lo notan** (07/10/2026): el compose
+sigue anunciando la 1.0.15+16 (`APP_ULTIMA_VERSION`, el APK `reparto-1.0.15-260929.apk`)
+y producción anuncia la 1.0.27+28. Desde la 1.0.16 el paso 5 de abajo se dejó de hacer, y
+nada se puso rojo, porque las dos pruebas comprueban que el anuncio salga **entero**, no que
+sea **el último**. Así que lo que dice qué está colgado hoy no es el compose: es el
+Environment de `reparto-api` en Dokploy y, de cara a fuera, `/api/version`. El compose es
+un fichero de código y no se arregla desde este documento.
+
 #### Qué hay que hacer al publicar una versión nueva de la aplicación
 
 Los pasos completos, con los comandos de MinIO, están en `docs/actualizaciones.md` §3-bis.
@@ -839,12 +946,16 @@ Resumido, y **en este orden**, que importa:
    0iQ8gLv5ZIHD1n_DRlzOa`) las cinco de golpe, **las cinco o ninguna** —
    `APP_ULTIMA_VERSION`, `APP_ULTIMA_COMPILACION`, `APP_DESCARGA_ANDROID`,
    `APP_DESCARGA_ANDROID_BYTES`, `APP_DESCARGA_ANDROID_SHA256` — y volver a desplegar la
-   api. (`application.saveEnvironment` de la API de Dokploy quiere además `buildArgs`,
-   `buildSecrets` y `createEnvFile` o contesta 400: se releen de `application.one` y se
-   devuelven tal cual.)
+   api. **Cuál de los dos botones** —`application.deploy` o `application.redeploy`— decide si
+   se arrastra `main` o no, y se elige a propósito (ver «Deploy contra redeploy», más
+   abajo; los publicadores usan `redeploy`). (`application.saveEnvironment` de la
+   API de Dokploy quiere además `buildArgs`, `buildSecrets` y `createEnvFile` o contesta
+   400: se releen de `application.one` y se devuelven tal cual.)
 5. **Escribir esos mismos valores en `docker-compose.yml`** y dejarlos en el repositorio.
    No es duplicar por gusto: es lo que hace que las dos pruebas de arriba sigan mirando algo
-   de verdad, y lo que deja a la vista qué hay colgado sin entrar a Dokploy.
+   de verdad, y lo que deja a la vista qué hay colgado sin entrar a Dokploy. *(Hoy no se
+   hace: el compose se quedó en la 1.0.15, ver arriba. Decidir si se retoma o se quita este
+   paso es cosa de quien lleve el compose.)*
 6. **Comprobar el anuncio tomando la URL de lo que contesta `/api/version`**, no de lo que
    uno cree haber puesto, y bajarla:
 
@@ -859,11 +970,84 @@ Resumido, y **en este orden**, que importa:
    y el antiabuso de Hostinger ya bloqueó una IP por eso.
 7. **El APK viejo no se borra** hasta que Jose confirme que el nuevo se descarga y se
    instala. Con el nombre distinto los dos conviven y siempre hay a qué volver.
-| `PROCOVAR_AUTH_SIGNING_KEY` | vacía | La llave con la que se firma hacia Accesos (HMAC). Sin ella no se pueden pedir los almacenes ni las tasas, así que **no se puede cotizar ningún domicilio**. Arranca, pero lo avisa. |
 
-Las tres URL se comprueban al arrancar aunque sean opcionales: una `PEDIDO_API_URL` sin
-esquema no falla al concatenar, falla dentro de una gorutina de fondo, y lo único que se
-ve es un aviso que no llegó.
+#### Deploy contra redeploy: la trampa de Dokploy que se come el código nuevo (07/10/2026)
+
+Son dos botones distintos y se parecen:
+
+- **`application.deploy` CLONA el origen configurado y construye.** Lleva el código que haya
+  en `main` de `PROCOVAR-DEV/delivery-logistica` en ese instante. Es el que se usa para
+  desplegar código nuevo, y por eso el commit tiene que estar **ya subido a la
+  organización** (remoto `upstream`): empujar al fork (`origin`) no cambia nada de lo que
+  Dokploy va a clonar (§6).
+- **`application.redeploy` reconstruye el checkout que ya está en el servidor**
+  (`/etc/dokploy/applications/<appName>/code`) **sin hacer `pull`**. No lleva nada nuevo
+  de `main`. Sirve para lo contrario: republicar **sólo el anuncio** de versión (las
+  variables nuevas) sin arrastrar el código que haya llegado a `main` desde el último
+  despliegue y que nadie ha auditado. Es lo que llaman los publicadores.
+
+Y la comprobación que va con los dos: **hay que esperar a un despliegue NUEVO en `done`**,
+es decir, uno cuyo `createdAt` sea posterior al anterior. Mirar sólo «el último estado es
+`done`» engaña: el `done` de la vez anterior sigue ahí mientras el nuevo todavía no ha
+empezado o se está construyendo, y se da por bueno un despliegue que no ha ocurrido.
+(Reapuntar el origen git de una aplicación, como se hizo el 07/10/2026, la deja en `idle`
+hasta el siguiente despliegue; los contenedores siguen vivos, §6.)
+
+#### Cómo se publica de verdad desde el 06/10/2026: un publicador por VERSIÓN
+
+Los siete pasos de arriba son lo que hay que conseguir, no la orden que se escribe. Desde la
+1.0.25 se hace con unos publicadores que **verifican cada paso y no se repiten a ciegas**, y
+con ellos hay seis cosas que saber:
+
+1. **Los de `deploy/` están desfasados, y es a propósito que cada versión tenga el suyo.**
+   `deploy/publicar-apk-verificada.py` sólo acepta la 1.0.25+26 y
+   `deploy/publicar-windows-verificada.py` sólo las 1.0.25 y 1.0.26: llevan fijada **por
+   versión** la línea base que exigen en producción («antes de publicar, producción tiene
+   que anunciar exactamente esto»). Para cada versión nueva se copian los de la anterior
+   desde `app/build/codex-retoma-20261006/rutas-historico/publicacion-<versión anterior>/`
+   a `publicacion-<versión nueva>/` y se adaptan —las constantes de versión, el repo, los
+   nombres y la línea base—. Al 07/10/2026 hay una preparada, `publicacion-1.0.28/`, con un
+   `LEEME.md` que da el orden y lista lo que cambia respecto a la anterior; sus guiones
+   estaban sin ejecutar ni auditar (el auditor los pasa antes, `CLAUDE.md` §4-bis). Esas
+   carpetas están **ignoradas por git** (`**/build/`): no viajan con el repositorio, y son
+   lo único que sabe cómo se publicó la versión anterior.
+2. **`deploy/publicar-apk.sh` no se usa.** Poda versiones viejas y no verifica; la
+   publicación de la 1.0.23 terminó con `EXIT=1` y un cuerpo vacío sin que se pudiera saber
+   en qué estado quedó el servidor (`AGENTS.md`).
+3. **El orden es Windows primero y Android después.** La línea base de cada publicador lo
+   obliga: el de Android exige el Windows nuevo ya verificado en producción. Windows se
+   compila en el ejecutor de GitHub: se empuja una rama `build/reparto-windows-<versión>`
+   **al remoto `upstream` (la organización), no al fork** (`docs/compilar.md` §4). El
+   publicador de Windows comprueba de qué repositorio es la ejecución de CI (`REPO`, y el
+   `head_repository` que devuelve GitHub): al adaptarlo hay que ponerle
+   `PROCOVAR-DEV/delivery-logistica`, porque los de `deploy/` aún dicen
+   `jose22072000/delivery-logistica`, que ahora es un fork.
+4. **Los diarios no se repiten ni se borran.** Cada intento deja un
+   `/var/lib/procovar/apk/.publish-*.json` creado con `O_EXCL`: si algo falla, se lee el
+   diario y se mira MinIO, la copia del entorno y el despliegue antes de tocar nada. Si se
+   quedó en `uploaded`, se retoma con `--resume-uploaded` (APK) o `--mode resume`
+   (Windows); en cualquier otro estado, no se reintenta.
+5. **Cada versión de Windows necesita su permiso de MinIO** (`allow-windows<N>.py`, que va
+   **antes** de publicar) o la descarga de comprobación da **403**. El permiso es por
+   versión porque la política anónima del almacén enumera los ficheros exactos de cada una.
+6. **Tres redespliegues de la api por versión, y uno de la web**: el del código, el del
+   anuncio de Windows y el del anuncio de Android; y el de `reparto-web` aparte. Cada uno es
+   una ventana en la que la api se reinicia (§6-ter), y los publicadores se niegan a
+   arrancar con un despliegue de la api en marcha: se espera a que el anterior esté en
+   `done` (arriba) antes de lanzar el siguiente.
+
+Y la clave de la API de Dokploy que usan: **ya no está en `.secretos/vps-nuevo`** (se rotó
+porque se expuso). Es `.secretos/dokploy-clave-nueva.txt` en este equipo y
+`/root/secretos/dokploy.key` en el VPS, que es la que leen los publicadores. En los
+comandos se lee dentro del servidor (`K=$(cat /root/secretos/dokploy.key)`) y **su valor
+no se pega nunca en un documento, un chat ni un registro**.
+
+La APK que se publica se firma con el almacén de `app/android/key.properties` (ignorado por
+git; apunta a un `.jks` de `.secretos`). El firmante tiene que ser el de la huella
+`01529f5a6fb1a238985745aff13cdcf7e8e85b624992f4e328bde9898fd80b21` (SHA-256; es un dato
+público). Con cualquier otra —la de depuración, `CN=Android Debug`, la primera— Android no
+acepta el APK como actualización de la instalada y obliga a desinstalar, que borra la base
+local (`docs/compilar.md` §3).
 
 ### 3.2 espejo (`api/cmd/espejo`)
 
@@ -967,7 +1151,7 @@ del front de notify.
 | `SYNC_URL` | `https://reparto.procovar.cloud/sync` | La base del sincronizador **con `/sync` incluido**. |
 | `AUTH_URL` | `https://auth.procovar.cloud` | Accesos, que es de toda Procovar y puede mudarse sin las otras dos. |
 | `BASE_HREF` | `/` | Sólo si la web cuelga de un subdirectorio. |
-| `FLUTTER_VERSION` | `3.44.0` | `app/pubspec.lock` pide flutter `>=3.44.0` y dart `>=3.13.3`. |
+| `FLUTTER_VERSION` | `3.47.4` | La etiqueta del SDK que clona `Dockerfile.app` (`ARG FLUTTER_VERSION` de `deploy/Dockerfile.app`) y la misma que usan el portátil y el ejecutor de Windows. `app/pubspec.lock` sólo pide flutter `>=3.44.0` y dart `>=3.13.3`: es el mínimo, no la versión que se construye. Hasta el 07/10/2026 este documento decía 3.44.0. |
 | `GO_VERSION` (los tres de Go) | `1.27` | `go.mod` dice `go 1.27.0`. |
 | `GOPROXY` (los cuatro de Go) | `https://proxy.golang.org,direct` | Por si la red del servidor lo bloquea. |
 | `VERSION` (sólo api) | `dev` | Lo que devuelve `/version`. **No** vale `git describe`: un Build Arg de Dokploy es una cadena literal y `.dockerignore` excluye `.git`. Qué se le pone y por qué, en **§6-ter**. |
@@ -1124,7 +1308,7 @@ Además, al arrancar registra lo que tiene, y eso es lo que hay que cotejar con 
 puso en el Environment (§3.3):
 
 ```
-sincronizador escuchando  config=direccion=:8081 reparto=http://api:8080 identidad=cabeceras tope_bajada=500
+sincronizador escuchando  config=direccion=:8081 reparto=http://api:8080 identidad=token tope_bajada=500
 ```
 
 ### espejo — aquí no hay curl que valga
@@ -1194,6 +1378,28 @@ Cuatro Applications en el proyecto **Procovar-dev** (`Fpt1-2Miy6SpzwoGDBEVB`), e
 `production` (`hgKnOJXZWZU8el7I7T4tR`), todas con Build Type **Dockerfile**, Provider Git,
 rama **`main`**, y **Docker Context Path `.`** (el contexto es la raíz).
 
+**De dónde clonan, desde el 07/10/2026:** `https://github.com/PROCOVAR-DEV/delivery-logistica.git`,
+rama `main`, con el Provider **Git por URL** (no la GitHub App). Los repositorios se mudaron
+a la organización `PROCOVAR-DEV`; `jose22072000/delivery-logistica` es ahora un **fork
+personal** (creado el 07/10/2026 a las 18:15Z) que **no se actualiza solo**, y un Deploy
+que lo clonara construiría el código del día del fork. Las cuatro Applications se
+reapuntaron ese día con `application.saveGitProvider` (los campos son `customGitUrl`,
+`customGitBranch`, `customGitBuildPath`, `watchPaths` y `enableSubmodules`). Mismo cambio en
+`pedido-*`, `auth`, `rutas-*` y el Compose de notify.
+
+Tres consecuencias que hay que tener presentes:
+
+- **En el clon local hay dos remotos y sólo uno despliega**: `upstream` es la organización
+  (donde se sube lo que se quiere desplegar) y `origin` es el fork. Empujar a `origin` no
+  cambia nada de lo que Dokploy va a clonar. Un push, además, tampoco despliega solo
+  (`procovar/CLAUDE.md` §3): hay que lanzar el Deploy, y la diferencia entre `deploy` y
+  `redeploy` está en §3.1.
+- **Reapuntar el origen deja la aplicación en `idle`** hasta el siguiente despliegue, aunque
+  su contenedor siga vivo y sirviendo. `idle` ahí no es «caída»: se mira el contenedor
+  (`docker service ls`) antes de asustarse.
+- **Tras reapuntar, se coteja la tabla de abajo** (Dockerfile Path, Context Path `.`,
+  Container Port, dominio) con `application.one`: el origen es lo único que debía cambiar.
+
 > El nombre del proyecto engaña: **`Procovar-dev` ES producción**
 > (`procovar/docs/VPS-179.198.107.1.md`). Ahí viven pedidos, auth, delivery y rutas con sus
 > dominios públicos.
@@ -1220,9 +1426,13 @@ PEDIDO a la vez**, y eso no da ningún error: da el doble de carga sobre PEDIDO 
 procesos escribiendo las mismas filas.
 
 ```bash
-ssh vps 'K=<la clave de .secretos/vps-nuevo>; curl -s -H "x-api-key: $K" \
+ssh vps 'K=$(cat /root/secretos/dokploy.key); curl -s -H "x-api-key: $K" \
   "http://127.0.0.1:3000/api/application.one?applicationId=X0mtoCkFtThgp15BOYqpn" | head -c 400'
 ```
+
+(La clave se lee dentro del servidor. Ya **no** está en `.secretos/vps-nuevo`: se rotó
+porque se expuso. En este equipo es `.secretos/dokploy-clave-nueva.txt`. Su valor no se
+pega en ningún documento.)
 
 Los valores, uno por uno:
 
@@ -1231,7 +1441,7 @@ Los valores, uno por uno:
 | Proyecto / entorno | `Procovar-dev` / `production` | Donde están las otras tres. |
 | Name | `reparto-espejo` | Dokploy le añade su sufijo (`reparto-espejo-isgzxg`); ése es el nombre por el que lo llaman los demás. |
 | Build Type | **Dockerfile** | No Nixpacks. |
-| Provider | Git · `github.com/jose22072000/delivery-logistica` · rama **`main`** | La misma que las otras tres. |
+| Provider | Git por URL · `https://github.com/PROCOVAR-DEV/delivery-logistica.git` · rama **`main`** | La misma que las otras tres. Desde el 07/10/2026 la organización, no el fork `jose22072000/…`. |
 | **Dockerfile Path** | `deploy/Dockerfile.espejo` | |
 | **Docker Context Path** | **`.`** | **No se deja vacío.** El Dockerfile vive en `deploy/` pero hace `COPY api/`, así que el contexto es la raíz del repositorio. Con el campo vacío Dokploy usa la carpeta del Dockerfile y el build muere con `"/api": not found`. |
 | **Command** | **vacío** | Ver abajo: aquí es donde se rompe. |
@@ -1543,19 +1753,23 @@ que no se arreglan desde los ficheros de despliegue:
    según `git ls-files`. Queda escrito porque era el punto de la Parte 0 de
    `DOKPLOY-NUEVO-PROYECTO.md` y lo que hay que saber es que ese ya no frena el clone.
 2. ~~**El repositorio no tiene remoto** y la rama es `master`.~~ — **ya no (23/09/2026).**
-   El remoto es `github.com/jose22072000/delivery-logistica` y la rama es **`main`**, que es
+   El remoto era `github.com/jose22072000/delivery-logistica` y la rama es **`main`**, que es
    de la que tiran las cuatro Applications. Queda escrito porque el resto del documento
-   decía `dev` y el proyecto `PROCOVAR-DEV`, y las dos cosas eran falsas.
+   decía `dev` y el proyecto `PROCOVAR-DEV`, y las dos cosas eran falsas. **Y desde el
+   07/10/2026 el original es `PROCOVAR-DEV/delivery-logistica`** (remoto `upstream`);
+   `jose22072000/…` (`origin`) es un fork personal que no se actualiza solo (§6).
 3. **`app/android/build/` está seguido en git** y no debería: son artefactos. `.gitignore`
    ignora `/app/build/` pero no ése.
 4. **`GET /api/sync/cambios` todavía no existe en la api.** Es lo que le pide la bajada
    del sincronizador, así que **`GET /sync/bajada` contesta 502** hasta que esté. El
    servicio arranca y está sano: es una ruta que falta, no un fallo de despliegue. Está
    documentado en `sync/README.md`.
-5. **La etiqueta de la imagen de Flutter hay que confirmarla.** `Dockerfile.app` pincha
-   `ghcr.io/cirruslabs/flutter:3.44.0` porque `pubspec.lock` pide `>=3.44.0`. Si esa
-   etiqueta no existe, se ajusta con `--build-arg FLUTTER_VERSION=…` y se deja escrita la
-   que sea.
+5. **La etiqueta de Flutter hay que confirmarla.** `Dockerfile.app` ya no usa la imagen
+   `ghcr.io/cirruslabs/flutter` (de esa familia sólo existían `3.44.0` y `stable`): clona el
+   SDK por etiqueta, `FLUTTER_VERSION=3.47.4`, la misma del portátil. `pubspec.lock` sólo
+   pide `>=3.44.0`. Si la etiqueta no existiera, se ajusta con `--build-arg
+   FLUTTER_VERSION=…` y se deja escrita la que sea. (Aquí decía 3.44.0 y la imagen de
+   cirruslabs hasta el 07/10/2026.)
 
 ## 8. Lo que no se ha podido comprobar aquí
 
@@ -1583,7 +1797,7 @@ Lo que sí se comprobó, y con qué:
 | La versión de Go que pincha el Dockerfile es la del código | `GO_VERSION=1.27`, y `api/go.mod` y `sync/go.mod` piden `go 1.27.0` |
 | La línea de goose de `Dockerfile.migraciones` | `go install github.com/pressly/goose/v3/cmd/goose@v3.28.0` → `goose version: v3.28.0` |
 | Las dos series de migraciones las entiende goose | `goose -dir api/db/migrations validate` y `goose -dir sync/db/migrations validate` |
-| `docker-compose.yml` es válido y las variables resuelven | `docker compose config` (no necesita el demonio) |
+| `docker-compose.yml` es válido y las variables resuelven | `docker compose config` (no necesita el demonio). **Ya no es verdad (comprobado el 07/10/2026):** desde el commit `ebc3480` (1.0.15, 29/09) la línea 117 —la nota `APP_ULTIMA_NOTAS`, sin comillas y con un «: » dentro— rompe el YAML y `docker compose config` contesta «mapping values are not allowed in this context». Es un fichero de código: lo arregla quien lo lleve (comillas dobles en esa nota) |
 | `deploy/migrar.sh` no tiene errores de sintaxis | `sh -n` |
 | Todas las rutas que copian los Dockerfile existen | `api/cmd/api`, `api/cmd/espejo`, `sync/cmd/sync`, `api/db/migrations`, `sync/db/migrations`, `deploy/migrar.sh` y los dos `go.sum` |
 | **`flutter build web` TERMINA** | las mismas banderas del `Dockerfile.app` (`--release --no-web-resources-cdn --base-href / --dart-define=…`); 90 s y `✓ Built build/web` |
@@ -1596,7 +1810,8 @@ Lo que sí se comprobó, y con qué:
 
 1. **Que las etiquetas de las imágenes base existan y se puedan bajar**: `golang:1.27-alpine`,
    `gcr.io/distroless/static-debian12:nonroot`, `alpine:3.20`, `nginx:1.27-alpine` y sobre
-   todo **`ghcr.io/cirruslabs/flutter:3.44.0`**, que ya estaba en duda en §7.5.
+   todo la etiqueta **`3.47.4`** del repositorio de Flutter que clona `Dockerfile.app`
+   (§7.5).
 2. **Que el `.dockerignore` no deje fuera nada que el build necesite.**
 3. **Que el binario arranque dentro de `distroless:nonroot`** — que compile estático no
    dice que `/app/api` corra como `nonroot`.
@@ -1612,8 +1827,9 @@ el servidor en cada Deploy— y los cuatro servicios están corriendo. Lo que si
 poderse hacer es construirlas **en este portátil**, por lo del grupo `docker`.
 
 Un matiz del de Flutter: el build de aquí salió con **Flutter 3.47.4**, que es el de este
-portátil, y el `Dockerfile.app` pincha **3.44.0**. Prueba que el código compila para web;
-**no** prueba que esa etiqueta concreta compile.
+portátil, y desde el 07/10/2026 el `Dockerfile.app` pincha **la misma, 3.47.4** (hasta
+entonces ponía 3.44.0 y esto era un desajuste). Lo que no prueba es el resto de la imagen
+(Debian, `libsqlite3-dev`, nginx), que sólo se ve construyéndola.
 
 Lo primero que hay que hacer en una máquina con Docker es esto, y en este orden:
 

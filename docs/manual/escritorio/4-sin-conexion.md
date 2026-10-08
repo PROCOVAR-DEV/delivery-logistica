@@ -30,8 +30,9 @@ Y el Panel:
 
 El camino entero del día: ver el Panel, armar zonas, ponerles camión, colocar
 pedidos, **armar la ruta**, **iniciarla**, **marcar las entregas con su motivo**,
-**completarla**, eliminarla, ver y sacar los PDF del pre-despacho y el
-post-despacho, consultar Pedidos, Clientes y Reportes.
+**completarla**, eliminarla (si no está completada), quitarle una parada con «Quitar de
+ruta» (si está planificada), ver y sacar los PDF del pre-despacho y el post-despacho,
+consultar Pedidos, Clientes y Reportes.
 
 El mapa de la ruta se dibuja igual: **las paradas, su orden y el recorrido**. Si
 descargaste el mapa de Cuba, además con calles de fondo.
@@ -44,7 +45,7 @@ descargaste el mapa de Cuba, además con calles de fondo.
 |---|---|
 | **Entrar** | «Para entrar hace falta conexión. Una vez dentro, no.» |
 | **«Abrir en Google Maps»** y mandar el enlace | Necesita la red |
-| **Vehículos**: dar de alta, editar, borrar | Se configuran con conexión |
+| **Vehículos**: dar de alta, editar, dejar inactivo, borrar | Se configuran con conexión |
 | **Almacenes**: crear, editar, borrar | Viven en Accesos |
 | **Buscar una dirección** en Almacenes | Pero **hacer clic en el mapa y escribir las coordenadas sí funcionan** |
 | **Sincronización** | Se lee del servidor cada vez |
@@ -64,6 +65,24 @@ Y con red, la aplicación **se pone al día sola cada 5 minutos**.
 El orden en que lo hace es siempre: **comprobar la sesión → subir lo tuyo → bajar lo
 nuevo.** Primero sube y después baja, para que lo de allá no pise lo que acabas de
 hacer.
+
+---
+
+## Lo que queda en espera mientras no hay conexión
+
+Son tres cosas que **se hacen aquí al momento y el servidor todavía no sabe**:
+
+1. **Borrar una ruta que salió del tablero.** Las facturas vuelven a su zona, pero
+   **hasta que suba el borrado y baje el tablero salen en «Sin colocar»**. No se han
+   perdido; con conexión se colocan solas donde estaban.
+2. **Quitar una parada de una ruta planificada** («Quitar de ruta»). Sale de la hoja y
+   vuelve a disponibles al momento; si la ruta venía del tablero, su factura regresa a
+   la zona **cuando suba el cambio**.
+3. **Completar una ruta.** Se enseña como completada, pero eso todavía no confirma el
+   cierre en el servidor. Si el servidor rechaza una parada, **el cierre queda en la
+   bandeja «Rechazados, esperando a una persona»** con su motivo, y la ruta no se
+   completa en el servidor hasta que decidas con **«Reintentar»** o **«Descartar»**. En
+   la web, en cambio, lo que se guardó vale.
 
 ---
 

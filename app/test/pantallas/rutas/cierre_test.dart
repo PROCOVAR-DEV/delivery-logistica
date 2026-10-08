@@ -92,7 +92,7 @@ void main() {
   test(
     'sin conexion: el cierre queda en la cola con la hora del aparato',
     () async {
-      final clave = await acciones.cerrar('R1', const [
+      final cierre = await acciones.cerrar('R1', const [
         MarcaDeParada(pedidoId: 'p1', resultado: ResultadoParada.entregado),
         MarcaDeParada(
           pedidoId: 'p2',
@@ -111,7 +111,7 @@ void main() {
       );
 
       final apunte = pendientes.single;
-      expect(apunte.clave, clave);
+      expect(apunte.clave, cierre.claveDelApunte);
       expect(apunte.metodo, 'POST');
       expect(apunte.ruta, '/routes/R1/results');
       expect(apunte.estado, EstadoApunte.pendiente);

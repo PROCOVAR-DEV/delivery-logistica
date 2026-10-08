@@ -32,7 +32,7 @@ WHERE id = $13
        OR branch_id = $14::uuid
        OR branch_id IS NULL)
 RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, is_active, notes, branch_id, created_at, updated_at
+          usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
 `
 
 type ActualizarVehiculoParams struct {
@@ -79,11 +79,11 @@ func (q *Queries) ActualizarVehiculo(ctx context.Context, arg ActualizarVehiculo
 		&i.CostoKmUsd,
 		&i.UsarParaDomicilio,
 		&i.Status,
-		&i.IsActive,
 		&i.Notes,
 		&i.BranchID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsActive,
 	)
 	return i, err
 }
@@ -138,9 +138,20 @@ func (q *Queries) AsignarVehiculoAPedido(ctx context.Context, arg AsignarVehicul
 }
 
 const borrarAsignacionesDeVehiculo = `-- name: BorrarAsignacionesDeVehiculo :execrows
+
 DELETE FROM order_vehicles WHERE vehicle_id = $1
 `
 
+// ---------------------------------------------------------------------------
+// Borrado
+// ---------------------------------------------------------------------------
+//
+// Un camión con rutas NO se borra, ni siquiera con las históricas (incidencia 4 de Amado,
+// 07/10/2026): borrarlo rompería la trazabilidad de lo que se repartió. Antes se le
+// soltaba de sus rutas con `DesvincularVehiculoDeRutas` y se borraba. Esa consulta se fue
+// porque el borrado ya no llega a ejecutarse con rutas por medio. Lo que sí hay que
+// desasociar antes de borrar son las asignaciones. Para dejar de usar un camión con
+// historial existe `is_active`: inactivo no sale en la selección de rutas nuevas.
 func (q *Queries) BorrarAsignacionesDeVehiculo(ctx context.Context, vehiculoID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, borrarAsignacionesDeVehiculo, vehiculoID)
 	if err != nil {
@@ -150,13 +161,14 @@ func (q *Queries) BorrarAsignacionesDeVehiculo(ctx context.Context, vehiculoID u
 }
 
 const borrarVehiculo = `-- name: BorrarVehiculo :one
-DELETE FROM vehicles
-WHERE id = $1
+DELETE FROM vehicles v
+WHERE v.id = $1
   AND ($2::uuid IS NULL
-       OR branch_id = $2::uuid
-       OR branch_id IS NULL)
-  AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.vehicle_id = vehicles.id)
-RETURNING branch_id
+       OR v.branch_id = $2::uuid
+       OR v.branch_id IS NULL)
+  -- La flota con rutas históricas se conserva: borrar el camión rompería la trazabilidad.
+  AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.vehicle_id = v.id)
+RETURNING v.branch_id
 `
 
 type BorrarVehiculoParams struct {
@@ -252,7 +264,7 @@ INSERT INTO vehicles (
     $7, $8, $9, $10
 )
 RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, is_active, notes, branch_id, created_at, updated_at
+          usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
 `
 
 type CrearVehiculoParams struct {
@@ -299,11 +311,11 @@ func (q *Queries) CrearVehiculo(ctx context.Context, arg CrearVehiculoParams) (V
 		&i.CostoKmUsd,
 		&i.UsarParaDomicilio,
 		&i.Status,
-		&i.IsActive,
 		&i.Notes,
 		&i.BranchID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsActive,
 	)
 	return i, err
 }
@@ -692,6 +704,7 @@ SELECT
 FROM vehicles v
 JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
 WHERE v.usar_para_domicilio
+  AND v.is_active
   AND v.branch_id IS NOT DISTINCT FROM $1::uuid
 `
 

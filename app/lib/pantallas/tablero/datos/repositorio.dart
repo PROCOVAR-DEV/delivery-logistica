@@ -5,6 +5,7 @@ import '../../../nucleo/cola/cola_salida.dart';
 import '../../../nucleo/cola/provisionales.dart';
 import '../../../nucleo/red/escritura_en_vivo.dart';
 import '../../../nucleo/reloj.dart';
+import '../../rutas/datos/acciones_rutas.dart' show msgVehiculoInactivo;
 import '../../rutas/datos/geo.dart';
 import '../../rutas/datos/importe_de_la_ruta.dart';
 import 'consultas.dart';
@@ -85,6 +86,55 @@ List<String> descartadosDeLaRespuesta(Object? cuerpo) {
     );
   }
   return detalles;
+}
+
+/// LOS CUATRO «NO» DE COLOCAR UNA TARJETA, **LETRA POR LETRA los del servidor**
+/// (`porQueNoSePudoColocar`, `api/internal/api/tablero.go`).
+///
+/// Sin senal los dice el aparato y con ella la nube; si no se leen igual, el
+/// mismo rechazo enseña dos idiomas (`CLAUDE.md` §3-quinquies).
+const msgYaSeEntrego = 'Ese pedido ya se entregó';
+const msgYaVaEnUnaRuta = 'Ese pedido ya está en una ruta';
+const msgSinDomicilioCobrado =
+    'No se puede asociar al tablero: la factura no tiene un cobro de '
+    'domicilio registrado.';
+const msgSinCotizarElDomicilio =
+    'No se puede asociar al tablero: primero cotiza el domicilio del pedido.';
+
+/// POR QUE ESTE PEDIDO NO SE PUEDE PONER EN UNA ZONA, o `null` si se puede.
+///
+/// Es el espejo de `porQueNoSePudoColocar` del servidor, **en su mismo orden**:
+/// primero el entregado y despues la ruta —un entregado conserva su `route_id`
+/// mientras la ruta exista, y decir «ya esta en una ruta» de algo que ya se
+/// repartio manda a esperar un cierre que no hace falta—, y despues el domicilio
+/// cobrado y su cotizacion.
+///
+/// ## Por que existe aqui y no solo en el servidor — 07/10/2026
+///
+/// Amado, incidencia 2: no se asocia al tablero una factura sin domicilio
+/// cotizado. El servidor lo rechaza con un 409, y eso en la web esta bien: el
+/// gesto espera la respuesta y la tarjeta no se mueve. Pero en la APK y en el
+/// escritorio arrastrar **no llama a nadie**: la tarjeta se colocaba, el apunte
+/// se encolaba, y el 409 llegaba horas despues a la bandeja de rechazados, con la
+/// zona ya preparada para un camion al que esa factura no puede subir. Por eso
+/// el aparato lo dice ANTES de colocar. Lo usan `RepositorioTablero.colocar` y
+/// `MandarAlTablero`, y los dos tienen que decir lo mismo.
+///
+/// **NO mira `factura_estado`, y es a proposito**: `ColocarPedido` del servidor
+/// tampoco lo mira (la lista de «Sin colocar» ya ofrece `igual` y `cambiado`, y
+/// la ruta que sale de la zona descarta con su motivo —«cambió en la factura»—
+/// lo que no cuadre). Espejar aqui un corte que el servidor no hace seria el
+/// rechazo inventado al reves: la APK negaria lo que la nube permite.
+String? porQueNoSePuedeColocar(Pedido pedido) {
+  if (pedido.deliveredAt != null ||
+      pedido.resultado == ResultadoParada.entregado) {
+    return msgYaSeEntrego;
+  }
+  if (pedido.routeId != null) return msgYaVaEnUnaRuta;
+  final domicilio = pedido.facturaDomicilio;
+  if (domicilio == null || domicilio <= 0) return msgSinDomicilioCobrado;
+  if (pedido.pedidoCosto == null) return msgSinCotizarElDomicilio;
+  return null;
 }
 
 class RepositorioTablero {
@@ -219,6 +269,14 @@ class RepositorioTablero {
     int? posicion,
   }) async {
     await _listo();
+    // LA MISMA NEGATIVA QUE DA EL SERVIDOR, ANTES DE TOCAR NADA. Ver
+    // [porQueNoSePuedeColocar]. Si el pedido no esta en este aparato no se
+    // inventa un rechazo: lo dira el servidor, que es quien lo sabe.
+    final pedido = await (_base.select(
+      _base.orders,
+    )..where((o) => o.id.equals(pedidoId))).getSingleOrNull();
+    final motivo = pedido == null ? null : porQueNoSePuedeColocar(pedido);
+    if (motivo != null) throw RechazoDelTablero(motivo);
     await _base.transaction(() async {
       final anterior = await _base
           .customSelect(
@@ -441,6 +499,18 @@ class RepositorioTablero {
   /// lo que hay puesto cabe.
   Future<void> elegirCamion(String columnaId, String? vehiculoId) async {
     await _listo();
+    // UN CAMION DE BAJA NO SE PONE: el servidor lo rechaza con este literal
+    // (`vehiculoDelCuerpo`). El cajon ya no lo ofrece; esto cubre la carrera de
+    // que se de de baja con el cajon abierto, y que la APK no lo encole para que
+    // el «no» llegue horas despues. Quitar el camion (`null`) siempre se puede.
+    if (vehiculoId != null) {
+      final camion = await (_base.select(
+        _base.vehicles,
+      )..where((v) => v.id.equals(vehiculoId))).getSingleOrNull();
+      if (camion != null && !camion.isActive) {
+        throw const RechazoDelTablero(msgVehiculoInactivo);
+      }
+    }
     await _base.transaction(() async {
       await _base.customStatement(
         // Igual que el renombrado: elegir camion sin senal es un cambio de
@@ -681,15 +751,15 @@ class RepositorioTablero {
     // número que se pinta es creíble y no significa nada — que es el fallo que
     // más caro sale en este proyecto.
     //
-    // ## POR QUÉ ESTO SÍ SE BLOQUEA, y el aviso del §5.2 no
+    // ## POR QUÉ ESTO SE BLOQUEA
     //
-    // El CLAUDE.md dice que «los avisos del armador son aviso, no bloqueo»,
-    // porque los datos reales tenían 657 de 686 domicilios sin costo y bloquear
-    // habría dejado la aplicación inservible. Aquí es al revés, y la diferencia
-    // es la que importa: **este hueco se tapa con un gesto, en la propia
-    // pantalla donde sale el «no»** —«Camión previsto» en las opciones de la
-    // zona—, mientras el del costo por km hay que rellenarlo cliente a cliente
-    // en otro sitio.
+    // Este hueco se tapa con un gesto, **en la propia pantalla donde sale el
+    // «no»** —«Camión previsto» en las opciones de la zona—, y sin camión las
+    // dos cuentas se quedan sin denominador. (Aquí se contrastaba con «los
+    // avisos del armador son aviso, no bloqueo» del §2 viejo, por los 657 de 686
+    // domicilios sin costo; ese §2 lo reemplazó Amado el 07/10/2026: ahora el
+    // armador bloquea también lo que no está cobrado ni cotizado, y la salida a
+    // un domicilio sin costo es cotizarlo en Entrega, no abrir la puerta.)
     //
     // Y los otros DOS caminos que crean rutas ya se niegan igual desde siempre:
     // el asistente de Rutas (`rutas/datos/acciones_rutas.dart`, `armar`: «Se
@@ -720,6 +790,20 @@ class RepositorioTablero {
     // Si la columna ya no existe no se habla del camión: eso lo cuenta el
     // `puestas.isEmpty` de arriba, y decir «no tiene camión previsto» de una
     // zona borrada manda a arreglar donde no es.
+    //
+    // UN CAMIÓN DE BAJA NO SALE — 07/10/2026. La zona pudo ponerlo cuando estaba
+    // activo; si luego se dio de baja, el servidor rechaza armar con el literal de
+    // `msgVehiculoInactivo` (el cuerpo siempre manda el `vehiculoId` de la zona),
+    // y el aparato lo dice antes para que el «no» no llegue horas después.
+    final camionPrevisto = columna?.vehiculoId;
+    if (camionPrevisto != null && camionPrevisto.isNotEmpty) {
+      final camion = await (_base.select(
+        _base.vehicles,
+      )..where((v) => v.id.equals(camionPrevisto))).getSingleOrNull();
+      if (camion != null && !camion.isActive) {
+        throw const RechazoDelTablero(msgVehiculoInactivo);
+      }
+    }
     if (columna != null && (columna.vehiculoId?.isEmpty ?? true)) {
       throw RechazoDelTablero(
         'La zona «${columna.nombre}» no tiene camión previsto, y sin camión no '

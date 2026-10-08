@@ -885,6 +885,13 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 		puestos = append(puestos, map[string]any{
 			"id": v.ID, "name": v.Name, "type": v.TipoNombre, "plate": v.Plate,
 			"capacity": v.Capacity, "status": string(v.Status),
+			// `isActive` BAJA CON EL CAMIÓN (incidencia 4 de Amado, 07/10/2026). Es lo que deja
+			// al aparato filtrar la selección de camiones de una ruta NUEVA sin preguntarle
+			// al servidor, también sin señal: sin este campo la APK no distingue un camión
+			// activo de uno dado de baja, y los ofrece todos. Es otra cosa que `status`
+			// (`available`, `in_use`, `maintenance`), que dice en qué anda hoy un camión
+			// activo: un camión inactivo conserva su historial y no se asigna a nada nuevo.
+			"isActive": v.IsActive,
 			"branchId": idOpcional(v.BranchID), "updatedAt": hora(v.UpdatedAt),
 		})
 	}

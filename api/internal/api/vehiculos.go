@@ -483,6 +483,14 @@ func (s *Servidor) actualizarVehiculo(w http.ResponseWriter, r *http.Request) {
 var errNoEstaba = errors.New("vehículo no encontrado en el alcance")
 var errVehiculoConRutas = errors.New("vehículo con rutas históricas")
 
+// msgVehiculoConRutas es el 409 de borrar un camión con rutas, y sale por DOS caminos: la
+// comprobación de antes de la transacción y la carrera de dentro. Es UN literal para que no
+// puedan diverger. Dice «Márcalo como inactivo» y no «Ponlo en mantenimiento»: el
+// mantenimiento es un estado pasajero (`status`) que no impide asignarlo a una ruta nueva,
+// y lo que Amado pidió (incidencia 4) es el estado activo/inactivo (`isActive`).
+const msgVehiculoConRutas = "No se puede eliminar este vehículo porque tiene rutas asociadas, incluso históricas. " +
+	"Márcalo como inactivo para impedir que se use en nuevas rutas."
+
 // DELETE /api/vehicles/{id}
 func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 	a, ok := acotado(w, r)
@@ -494,7 +502,7 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Las rutas históricas deben seguir apuntando al vehículo. Si tiene alguna, se
-	// conserva y se puede dejar fuera de servicio desde su estado; no se borran sus
+	// conserva y se deja de usar marcándolo INACTIVO (`isActive: false`); no se borran sus
 	// referencias para poder eliminar la fila.
 	actual, err := a.ObtenerVehiculo(r.Context(), id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -507,7 +515,7 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 	}
 	if actual.Rutas > 0 {
 		httpx.Error(w, r, http.StatusConflict,
-			"No se puede eliminar este vehículo porque tiene rutas asociadas, incluso históricas. Ponlo en mantenimiento para impedir que se use en nuevas rutas.")
+			msgVehiculoConRutas)
 		return
 	}
 	// LA SUCURSAL DEL CAMIÓN QUE SE VA, para los tres avisos. La pone el propio DELETE
@@ -554,7 +562,7 @@ func (s *Servidor) borrarVehiculo(w http.ResponseWriter, r *http.Request) {
 	}
 	if errors.Is(err, errVehiculoConRutas) {
 		httpx.Error(w, r, http.StatusConflict,
-			"No se puede eliminar este vehículo porque tiene rutas asociadas, incluso históricas. Ponlo en mantenimiento para impedir que se use en nuevas rutas.")
+			msgVehiculoConRutas)
 		return
 	}
 	if err != nil {

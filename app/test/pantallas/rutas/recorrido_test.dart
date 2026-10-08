@@ -42,7 +42,9 @@ void main() {
         base,
         id: 'o3',
         cliente: 'Ana',
-        ultimaRutaId: 'R1',
+        // Van EN la ruta (`routeId`): solo con `ultimaRutaId` y sin resultado
+        // un pedido es una parada QUITADA, y no sale en la hoja.
+        rutaId: 'R1',
         orden: 3,
         endLat: 21.3,
         endLng: -77.3,
@@ -51,7 +53,9 @@ void main() {
         base,
         id: 'o1',
         cliente: 'Zoe',
-        ultimaRutaId: 'R1',
+        // Van EN la ruta (`routeId`): solo con `ultimaRutaId` y sin resultado
+        // un pedido es una parada QUITADA, y no sale en la hoja.
+        rutaId: 'R1',
         orden: 1,
         endLat: 21.1,
         endLng: -77.1,
@@ -60,7 +64,9 @@ void main() {
         base,
         id: 'o2',
         cliente: 'Beto',
-        ultimaRutaId: 'R1',
+        // Van EN la ruta (`routeId`): solo con `ultimaRutaId` y sin resultado
+        // un pedido es una parada QUITADA, y no sale en la hoja.
+        rutaId: 'R1',
         orden: 2,
         endLat: 21.2,
         endLng: -77.2,

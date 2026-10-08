@@ -365,34 +365,104 @@ void main() {
       });
     });
 
-    test(
-      'una factura cambiada es válida y la no cotejada se rechaza',
-      () async {
-        await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
-          const OrdersCompanion(facturaEstado: Value(EstadoFactura.cambiado)),
-        );
-        await (base.update(base.orders)..where((o) => o.id.equals('q3'))).write(
-          const OrdersCompanion(facturaEstado: Value(null)),
-        );
+    // `cambiado` NO ENTRA — Jose, 07/10/2026: «en el camión sólo sube lo que
+    // cuadra con la factura». Codex lo había dejado pasar (968679f) y esta
+    // prueba se reescribió para darle la razón; aquí vuelve la de siempre, con
+    // el literal del servidor (`mensajeNoFacturados`, `api/internal/api/
+    // rutas.go`). Los textos van escritos a mano, no copiados del código.
+    test('en una ruta sólo entra lo facturado y que cuadre', () async {
+      await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
+        const OrdersCompanion(facturaEstado: Value(EstadoFactura.cambiado)),
+      );
+      await (base.update(base.orders)..where((o) => o.id.equals('q3'))).write(
+        const OrdersCompanion(facturaEstado: Value(null)),
+      );
 
-        expect(
-          () => acciones.armar(
-            vehiculoId: 'V1',
-            pedidoIds: ['q1', 'q2', 'q3'],
-            origenLat: 0,
-            origenLng: 0,
-          ),
-          throwsA(
-            isA<RechazoLocal>().having(
-              (r) => r.mensaje,
-              'mensaje',
-              'En una ruta sólo entra lo facturado. 1 no cumplen: '
-                  'F-003 (sin cotejar).',
-            ),
-          ),
-        );
-      },
-    );
+      await esperaRechazo(
+        ['q1', 'q2', 'q3'],
+        'En una ruta sólo entra lo facturado y que cuadre. 2 no cumplen: '
+        'F-002 (cambió en la factura), F-003 (sin cotejar).',
+      );
+    });
+
+    test('UNA factura cambiada sola tampoco entra', () async {
+      // La pareja de la de arriba: sin ella, un `cambiado` que dejara pasar a
+      // todos menos al no cotejado seguiria en verde.
+      await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
+        const OrdersCompanion(facturaEstado: Value(EstadoFactura.cambiado)),
+      );
+      await esperaRechazo(
+        ['q1', 'q2', 'q3'],
+        'En una ruta sólo entra lo facturado y que cuadre. 1 no cumplen: '
+        'F-002 (cambió en la factura).',
+      );
+      expect(
+        await base.select(base.routes).get(),
+        isEmpty,
+        reason: 'un rechazo no deja una ruta a medias',
+      );
+    });
+
+    // LO NUEVO DE AMADO SE CONSERVA (07/10/2026, incidencias 2 y 6): factura con
+    // domicilio cobrado y domicilio cotizado en Entrega.
+    test('sin domicilio cobrado en la factura no entra', () async {
+      await (base.update(base.orders)..where((o) => o.id.equals('q1'))).write(
+        const OrdersCompanion(facturaDomicilio: Value(0)),
+      );
+      await (base.update(base.orders)..where((o) => o.id.equals('q3'))).write(
+        const OrdersCompanion(facturaDomicilio: Value(null)),
+      );
+      await esperaRechazo(
+        ['q1', 'q2', 'q3'],
+        'En una ruta sólo entra lo facturado con domicilio cobrado. '
+        '2 no cumplen: F-001, F-003.',
+      );
+    });
+
+    test('sin cotizar el domicilio en Entrega no entra', () async {
+      await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
+        const OrdersCompanion(pedidoCosto: Value(null)),
+      );
+      await esperaRechazo(
+        ['q1', 'q2', 'q3'],
+        'No se puede crear la ruta: 1 pedidos no tienen cotizado el '
+        'domicilio en Entrega: F-002.',
+      );
+    });
+
+    test('un domicilio cotizado en CERO si entra: cero es un precio', () async {
+      await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
+        const OrdersCompanion(pedidoCosto: Value(0)),
+      );
+      expect(await armarLasTres(), startsWith('local-'));
+    });
+
+    // UN CAMION DE BAJA NO SALE — Amado, 07/10/2026 (incidencia 4).
+    test('un camión inactivo se rechaza con el literal del servidor', () async {
+      await (base.update(base.vehicles)..where((v) => v.id.equals('V1'))).write(
+        const VehiclesCompanion(isActive: Value(false)),
+      );
+      await esperaRechazo([
+        'q1',
+        'q2',
+        'q3',
+      ], 'El vehículo está inactivo y no se puede asignar a una ruta.');
+      // Nada a medias: ni ruta, ni pedidos enganchados, ni apunte en la cola.
+      expect(await base.select(base.routes).get(), isEmpty);
+      final q1 = await (base.select(
+        base.orders,
+      )..where((o) => o.id.equals('q1'))).getSingle();
+      expect(q1.routeId, isNull);
+      expect(await cola.lote(), isEmpty);
+    });
+
+    test('y con el camión activo se arma: la pareja de la anterior', () async {
+      // Sin esta, rechazar SIEMPRE dejaria la de arriba en verde.
+      await (base.update(base.vehicles)..where((v) => v.id.equals('V1'))).write(
+        const VehiclesCompanion(isActive: Value(true)),
+      );
+      expect(await armarLasTres(), startsWith('local-'));
+    });
 
     test(
       'sobrepeso: el peso a un decimal y la capacidad sin formatear',

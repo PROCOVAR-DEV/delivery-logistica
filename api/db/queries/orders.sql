@@ -25,14 +25,25 @@
 
 -- ¿Qué pedidos puedo meter HOY en una ruta, de los que yo puedo ver?
 --
--- Las cinco condiciones de arriba del WHERE no son filtros de pantalla y no se negocian:
+-- Las condiciones de arriba del WHERE no son filtros de pantalla y no se negocian:
 --   * `source = 'pedido'`      — lo que no vino de PEDIDO no se reparte.
 --   * `route_id IS NULL`       — si ya va en una ruta, está ocupado.
 --   * `end_lat/end_lng`        — sin coordenadas no hay parada que visitar.
---   * `factura_estado IN ('igual','cambiado')` — LO REPARTIBLE. `cambiado` no es un pedido
+--   * `factura_estado IN ('igual','cambiado')` — LO FACTURADO. `cambiado` no es un pedido
 --     roto: se facturó distinto de como se pidió y lo que sube al camión son las líneas de
 --     la factura. Fuera quedan `sin_factura` (no hay nada que llevar) y el NULL, que
 --     significa NO SE SABE: con un NULL colado se armó una ruta sin facturar el 2/09.
+--   * `factura_domicilio > 0`  — EL DOMICILIO COBRADO (07/10/2026, Amado: el domicilio ya
+--     es un servicio que se cobra, y dejar entrar cualquier pedido es una vulnerabilidad).
+--   * `pedido_costo IS NOT NULL` — EL DOMICILIO COTIZADO en Entrega: sin importe fiable que
+--     asignar a la parada no se ofrece.
+--
+-- OJO, QUE ESTA LISTA OFRECE MÁS QUE LO QUE UNA RUTA ACEPTA: ofrece `cambiado` y el armador
+-- sólo deja subir lo que cuadra (`igual`). Se ofrece a propósito, para que el logístico lo
+-- vea y lo revise, y el armador lo rechaza nombrándolo. Lo que NO puede pasar es lo
+-- contrario: que se ofrezca algo que el armador rechaza por domicilio o por cotización.
+-- Estas MISMAS dos condiciones están en `ListarPedidosSinColocar`, en `ColocarPedido`, en
+-- `EngancharPedidoARuta` y en los recuentos del Panel, y las ata `consultas_motor_real_test.go`.
 --
 -- `km_max` y `costo_min` NO están aquí a propósito: el contrato los aplica después de la
 -- consulta, y `total`/`truncated` se calculan ANTES que ellos. Bajarlos al SQL cambiaría
@@ -967,19 +978,26 @@ WHERE o.source = 'pedido'
 
 -- Los siete números del panel en UNA consulta.
 --
--- REPARTIBLE es el mismo listón del armador de rutas —sin ruta, con coordenadas y con
--- factura que se puede llevar—: si el panel contara otra cosa, diría «40 por repartir» y
--- el armador ofrecería 12, y la respuesta correcta sería «ninguno de los dos».
+-- REPARTIBLE es el mismo listón del armador de rutas —sin ruta, con coordenadas, con
+-- factura que se puede llevar y, desde el 07/10/2026, con el domicilio cobrado y cotizado
+-- (`factura_domicilio > 0` y `pedido_costo` no nulo, Amado)—: si el panel contara otra
+-- cosa, diría «40 por repartir» y el armador ofrecería 12, y la respuesta correcta sería
+-- «ninguno de los dos». `sin_ruta` y `peso_pendiente` llevan las mismas condiciones que
+-- `PanelPorSucursal` y que `ContarPedidosDisponibles`.
 -- name: PanelResumen :one
 SELECT
     count(*)                                                        AS total_pedidos,
     count(*) FILTER (WHERE o.route_id IS NULL
                        AND o.end_lat IS NOT NULL
-                       AND o.factura_estado IN ('igual','cambiado')) AS sin_ruta,
+                       AND o.factura_estado IN ('igual','cambiado')
+                       AND o.factura_domicilio > 0
+                       AND o.pedido_costo IS NOT NULL)               AS sin_ruta,
     count(*) FILTER (WHERE o.delivered_at >= sqlc.arg('hoy')::timestamptz) AS entregados_hoy,
     coalesce(sum(o.weight) FILTER (WHERE o.route_id IS NULL
                        AND o.end_lat IS NOT NULL
-                       AND o.factura_estado IN ('igual','cambiado')), 0)::double precision AS peso_pendiente,
+                       AND o.factura_estado IN ('igual','cambiado')
+                       AND o.factura_domicilio > 0
+                       AND o.pedido_costo IS NOT NULL), 0)::double precision AS peso_pendiente,
     coalesce(sum(o.pedido_costo), 0)::double precision              AS total_domicilios
 FROM orders o
 WHERE (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid);
@@ -997,6 +1015,8 @@ LEFT JOIN branches b ON b.id = o.branch_id
 WHERE o.route_id IS NULL
   AND o.end_lat IS NOT NULL
   AND o.factura_estado IN ('igual','cambiado')
+  AND o.factura_domicilio > 0
+  AND o.pedido_costo IS NOT NULL
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
 GROUP BY o.branch_id, b.name
 ORDER BY pedidos DESC;

@@ -23,6 +23,28 @@ Los estados de las paradas se marcan **sólo al pulsar «Marcar como completada�
 Antes de ese gesto no hay cierre editable; siempre se revisan las paradas en su
 hoja antes de confirmar (incluidas marcas anteriores).
 
+**Cerrar con rechazo parcial (07/10/2026, incidencia 1 de Amado).** EN LA WEB, si el
+servidor guarda unas paradas y rechaza otras (409 con `aplicados` y `rechazados`), lo
+guardado vale, el rechazo se dice con su motivo literal y se puede completar. Un 409 en
+que no se guardó NINGUNA es rechazo total y no deja completar. **En la APK y el
+escritorio NO**: el sincronizador (`sync/internal/reparto`) convierte cualquier 4xx en
+un rechazo del apunte entero sin leer `aplicados`, así que una hoja con una parada
+rechazada queda `rechazada` en la bandeja y retiene el `completed` hasta que una
+persona decida (Reintentar/Descartar). Es deliberado de momento y está a la vista.
+
+**La causa de aquel 409 NO está demostrada.** El 07/10/2026 el pedido rechazado
+(`PTB25-261005-1480`) tenía `route_id` y `ultima_ruta_id` NULOS en el servidor, o sea
+que nunca estuvo en esa ruta allí; el servidor decía la verdad y la hoja del cliente
+tenía una parada que el servidor no conocía. Qué la metió en la hoja queda sin explicar.
+Por eso el cierre ahora, además, reconoce las paradas por `route_id` y por
+`ultima_ruta_id` sólo si ya soltaron su ruta con un resultado (devueltos y cancelados),
+y el renglón de log del cierre rechazado dice `route_id`, `ultima_ruta_id` y
+`branch_id` del pedido: la próxima vez habrá con qué diagnosticarlo.
+
+**Quitar una parada de una ruta planificada** (`DELETE /api/routes/{id}/stops/{orderId}`)
+pone `route_id` Y `ultima_ruta_id` a NULL. Dejar `ultima_ruta_id` la convertía en
+«parada fantasma»: seguía en la hoja, en los totales y con su botón de quitar.
+
 Sólo `completed` impide modificar o borrar: incluye nombre, vehículo, estado y cierre.
 Se conserva como histórico. Los resultados de la cola nativa se mandan **antes** de
 completar; un cierre que llegue después se rechaza con su motivo visible, sin borrar
@@ -113,8 +135,22 @@ concreto. Ya hay tres así:
 - **Un tipo de vehículo sin costo por km se deja VACÍO, no en cero.** El Next
   escribe `0`, y un cero guardado se lee como «el kilómetro es gratis»: un número
   creíble y equivocado. Un hueco se ve y se rellena.
-- **Los avisos del armador son aviso, no bloqueo.** Los datos reales tenían 657
-  de 686 domicilios sin costo: bloquear habría dejado la aplicación inservible.
+- ~~**Los avisos del armador son aviso, no bloqueo.**~~ **REEMPLAZADO el 07/10/2026
+  por Amado** (`docs/incidencias-reparto.md`, punto 6): el domicilio ya es un servicio
+  que se cobra y dejar entrar cualquier pedido es una vulnerabilidad. Ahora el armador
+  BLOQUEA, y lo mismo la lista de disponibles y el tablero: sólo entra lo **facturado y
+  que cuadre** (`factura_estado = 'igual'`; `cambiado` NO entra —es la regla vieja de
+  Jose, «en el camión sólo sube lo que cuadra con la factura», y Amado no pidió
+  cambiarla—), con **domicilio cobrado** (`factura_domicilio > 0`) y **cotizado en
+  Entrega** (`pedido_costo` no nulo). Lo que se rechaza se nombra por su número de
+  operación. Con los datos reales del 07/10/2026, de 1.914 pedidos repartibles sólo 29
+  cumplían las tres cosas (64 con domicilio cobrado, 33 cotizados): la lista de
+  disponibles se queda corta hasta que Entrega cotice más, y es lo que Amado pidió. El argumento de antes (657 de 686 sin costo el 14/09) era cierto
+  mientras la APK de Entrega no estaba encendida; si vuelve a haber pedidos sin costo
+  en masa, la respuesta es cotizarlos en Entrega, no abrir la puerta. **El «conduce» de Amado
+  es el NÚMERO DE OPERACIÓN de la factura** (`orders.operation_number`; aclarado por
+  Jose el 07/10/2026): no hay dato ni columna aparte, y por eso todo rechazo nombra al
+  pedido por ese número. Un cobro a domicilio que sale como conduce se identifica con él.
 - **El estado de cada parada se pregunta AL COMPLETAR la ruta, no después.** El
   Next deja el botón `Cierre` vivo sobre una ruta ya completada, y ahí se
   equivoca: cerrar una ruta *es* cuadrar lo que bajó del camión, así que la
@@ -518,6 +554,15 @@ Dos reglas que salieron de ese día:
 `sync/`, y `analyze` + `test` en `app/`. Tiene que decir **«Todo en verde»**.
 
 - `sqlc` está en `~/go/bin/sqlc`. **El código generado no se escribe a mano.**
+- **Las consultas se prueban contra Postgres de verdad, y sólo si lo pides.** Los dobles de
+  `internal/api` reimplementan el SQL y NO lo ven: el 08/10/2026 una auditoría mutó 14
+  guardas del SQL generado y sólo `api/internal/store/sqlc/consultas_motor_real_test.go` las
+  cazó. Sin `REPARTO_MOTOR_REAL_DSN` esa prueba se salta **en silencio** (también en el
+  `Dockerfile.api`, que no tiene Postgres). `./comprobar.sh` ahora dice «SALTADO» en vez de
+  callarlo. Para correrla: base local aislada `verif_reparto` en el contenedor
+  `reparto-postgres-1` (rol `verif`, ver `docs/entorno-local.md`), migrada con `goose` hasta
+  la última, y `REPARTO_MOTOR_REAL_DSN=postgres://verif:verif@127.0.0.1:5433/verif_reparto?sslmode=disable ./comprobar.sh`.
+  **Antes de cada despliegue con cambios de SQL, hay que correrla.**
 - **Pruebas colgadas**, y son DOS trampas hermanas, las dos de lo mismo: dentro
   de un widget test el tiempo lo manda el `tester` y no avanza solo.
   1. Nada de `await` sobre el primer valor de un stream de Drift ahí dentro: la

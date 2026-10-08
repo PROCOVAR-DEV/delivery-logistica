@@ -5,20 +5,31 @@ El reparto de Procovar, reconstruido. Tres piezas en un solo repositorio:
 ```
 api/    Go       — las 35 rutas, los 11 modelos y la lógica de negocio
 sync/   Go       — bajada por diferencias, subida por lotes, registro de aparatos
-app/    Flutter  — la interfaz, única: se compila a web y a APK
+app/    Flutter  — la interfaz, única: se compila a web, APK y escritorio (Windows y Linux)
 docs/   el pliego, sacado del código de delivery
 deploy/ los cinco Dockerfile y el nginx de la web
-.github/workflows/  go.yml: comprueba que api/ y sync/ compilan y pasan las pruebas
+.github/workflows/  reparto-windows.yml: compila el instalador de Windows (no despliega nada)
 ```
 
-**Los servicios los despliega Dokploy**, que clona y construye él con los Dockerfile de
-`deploy/`. Aquí no se construye ninguna imagen: `go.yml` sólo comprueba, para que el Deploy
-no se caiga después.
+**Dónde vive el código:** `https://github.com/PROCOVAR-DEV/delivery-logistica` (la
+organización). `jose22072000/delivery-logistica` es, desde el 07/10/2026, un **fork
+personal** que no se actualiza solo. En el clon local, `upstream` es la organización (donde
+se sube lo que se quiere desplegar) y `origin` es el fork.
 
-La aplicación se compila a mano: web y APK desde el portátil Linux, el `.exe` desde el
-portátil Windows de Jose —Flutter no cruza de una plataforma a otra—. Las órdenes exactas
-están en `docs/compilar.md`, y cómo le llega después una versión nueva a los diez aparatos
-(con **la clave de firma del APK**, que hoy está mal) en `docs/actualizaciones.md`.
+**Los servicios los despliega Dokploy**, que clona la organización y construye él con los
+Dockerfile de `deploy/`. Aquí no se construye ninguna imagen. Ya no hay un workflow que
+compruebe Go: `./comprobar.sh` hace esa comprobación en local. Las migraciones **no** las
+aplica la api al arrancar —se aplican a mano antes de desplegar y la api nueva se niega a
+arrancar con la base atrasada—, y las dos bases del reparto **no están en el respaldo diario**
+del servidor: `docs/despliegue.md` §2.1 y §2.2.
+
+La aplicación se compila a mano: web y APK desde el portátil Linux, y el `.exe` de Windows
+en el ejecutor de GitHub Actions (`reparto-windows.yml`) o en el portátil Windows de Jose
+—Flutter no cruza de una plataforma a otra—. El escritorio de Linux es sólo para probar: no
+hay canal de Linux. Las órdenes exactas están en `docs/compilar.md`, y cómo le llega después
+una versión nueva a los diez aparatos (con la clave de firma del APK, ya resuelta desde el
+21/09/2026) en `docs/actualizaciones.md`; cómo se publica cada versión, en
+`docs/despliegue.md` §3.1.
 
 ## Para qué
 
@@ -72,8 +83,9 @@ Cada una está explicada en el README de la pieza a la que le toca.
 ```
 
 gofmt, vet, test, build y `sqlc diff` de los dos módulos de Go, más `analyze` y `test` de
-Flutter. No hay GitHub Actions a propósito: despliega Dokploy, que clona y construye él, y
-el token de Jose no tiene permiso `workflow`.
+Flutter. No hay GitHub Actions para eso a propósito (el único workflow, `reparto-windows.yml`,
+compila el instalador de Windows y no comprueba Go): despliega Dokploy, que clona y
+construye él, y la comprobación es ésta, en local.
 
 ## Pruebas
 

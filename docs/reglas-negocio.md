@@ -343,6 +343,11 @@ anteriores en silencio**. Si no hay ninguna condición → `{}`.
      un pedido roto**: se facturó distinto de como se pidió, y lo que sube al camión son las líneas
      de la FACTURA (PEDIDO ya las manda así, con `itemsOrigen: 'factura'`), así que se reparte igual
      de bien. Quedan fuera `sin_factura` (no hay nada que llevar) y el NULL.
+   - **Pero `cambiado` NO entra a una ruta** (Jose: «en el camión sólo sube lo que cuadra con la
+     factura»): esta lista lo OFRECE para que se vea y se revise, y el armado lo rechaza
+     nombrándolo (§15.3). Y desde el **07/10/2026 (Amado)** la lista de disponibles, «Sin colocar»
+     del tablero, su contador, `ColocarPedido` y los recuentos del panel exigen además **domicilio
+     cobrado** (`factura_domicilio > 0`) y **cotizado** (`pedido_costo` no nulo): ver §15.13.
    - `cuadra` → `facturaEstado = 'igual'` (sólo lo comprobado y coincidente).
    - `sin_cotejar` → `facturaEstado IS NULL`.
    - cualquier otro valor no vacío → `facturaEstado = <valor>`.
@@ -935,6 +940,23 @@ recién elegidos. **Es el mismo fallo ya corregido para LEER (`scopeWhere`) que 
    *un «no se pudo» a secas obliga a adivinar cuál de los quince pedidos es el que sobra.*
    > Nota de coherencia: el armado exige **estrictamente `facturaEstado === 'igual'`**, más duro que
    > el filtro `con_factura` de `filtrosPedido.ts`, que admite también `cambiado`.
+   > **`cambiado` NO entra a una ruta, y se confirmó el 07/10/2026**: ese día se llegó a aceptar
+   > «porque también es una factura» y se volvió a `igual` el mismo día. La regla es de Jose y
+   > Amado no pidió cambiarla.
+3-bis. **Domicilio cobrado — 409** (Amado, 07/10/2026). Todo pedido tiene que traer
+   `facturaDomicilio > 0`. Mensaje:
+   `` `En una ruta sólo entra lo facturado con domicilio cobrado. ${n} no cumplen: ` + detalle + (n > 5 ? ` y ${n-5} más.` : '.') ``
+   con el `detalle` de siempre (5 primeros por número de operación). Nulo, cero y negativo no
+   cuentan como cobrado.
+3-ter. **Domicilio cotizado — 409** (Amado, 07/10/2026). Todo pedido tiene que traer `pedidoCosto`
+   no nulo (el cero SÍ es una cotización; el nulo no). Mensaje:
+   `` `No se puede crear la ruta: ${n} pedidos no tienen cotizado el domicilio en Entrega: ` + detalle + (n > 5 ? ` y ${n-5} más.` : '.') ``
+   **BLOQUEA, NO AVISA.** Hasta el 07/10/2026 esto era «aviso, no portazo» (decisión de Jose del
+   14/09/2026, con los datos delante: 657 de 686 sin costo porque la APK de Entrega no estaba
+   encendida) y el pedido entraba valiendo cero con el total de la ruta más bajo. Amado lo
+   cambió: el domicilio ya es un servicio que se cobra y dejar entrar cualquier pedido es una
+   vulnerabilidad. **Si vuelve a haber pedidos sin costo en masa, la respuesta es cotizarlos en
+   Entrega, no abrir la puerta.** Ver §15.13.
 4. **Capacidad por peso:** `totalW = Σ (o.weight || 0)` (un peso sin resolver cuenta **0 kg**).
    `vehicle = vehicleId ? Vehicle.findFirst({id}) : null`.
    **Si `vehicle` existe y `totalW > vehicle.capacity` → 400**
@@ -942,6 +964,10 @@ recién elegidos. **Es el mismo fallo ya corregido para LEER (`scopeWhere`) que 
    Casos límite deliberados: **comparación estricta `>` (igualar la capacidad exacta SÍ pasa)**; si
    el `vehicleId` no corresponde a ningún vehículo, **no se valida capacidad y la ruta se crea igual**;
    el peso del mensaje va a **1 decimal** y la capacidad sin formatear.
+   **Antes de la capacidad** (07/10/2026, incidencia 4 de Amado): si el vehículo existe y está
+   **inactivo** (`isActive = false`) → **400 «El vehículo está inactivo y no se puede asignar a una
+   ruta.»** Lo mismo al cambiarle el camión a una ruta y al armar una zona del tablero (camión del
+   cuerpo o previsto). Quitar el camión de una ruta no pasa por la comprobación.
 
 ### 15.4 Sucursal de la ruta
 `routeBranchId = opts.branchId ?? orders[0].branchId ?? null`.
@@ -1054,3 +1080,60 @@ pasa a **EN CURSO** y se libera al **completarla**.
 | Fuzzy de producto | Damerau ≤ 1, token ≥ 4 chars, candidata **única** | `productMatch.ts` |
 | Clave de Ventra en el match por contención | longitud ≥ 4 | `emparejarVentra.ts` |
 | Formato de código de ruta | `RT-YYYYMMDD-NNN` (UTC, `count+1`) | `routes/route.ts` |
+
+### 15.13 La regla de entrada a una ruta — Amado, 07/10/2026 (`docs/incidencias-reparto.md`, puntos 2 y 6)
+
+> «Al crear una nueva ruta, solo deben considerarse los pedidos "facturados" que tengan
+> domicilio, ya que el domicilio ahora es un servicio que se cobra. Si se permite cualquier
+> pedido, es una vulnerabilidad.»
+
+**Entra a una ruta, o a una zona del tablero, el pedido que cumple LAS TRES:**
+
+1. **Facturado y que cuadre**: `facturaEstado = 'igual'`. (La lista de disponibles y «Sin
+   colocar» también ofrecen `cambiado` para que se revise; **una ruta no lo acepta**.)
+2. **Domicilio cobrado**: `facturaDomicilio > 0`.
+3. **Domicilio cotizado en Entrega**: `pedidoCosto` no nulo.
+
+**Bloquea, no avisa.** Sustituye a «los avisos del armador son aviso, no bloqueo» (Jose,
+14/09/2026), que se escribió con el 96 % de los pedidos sin costo porque la APK de Entrega no
+estaba encendida. Lo que se rechaza **se nombra por su número de operación** (§ «El conduce»).
+
+**Dónde se aplica, y tiene que ser lo MISMO en todos** (`CLAUDE.md` §3-bis: dos preguntas sobre lo
+mismo se atan con una prueba, no con un comentario; el 07/10/2026 las dos condiciones se añadieron
+a `ColocarPedido` y no a «Sin colocar», y el tablero ofrecía tarjetas que el `409` devolvía):
+
+| Sitio | Condiciones |
+|---|---|
+| `GET /api/orders/available` y su contador | `igual`/`cambiado` + las dos |
+| «Sin colocar» del tablero y su contador | `igual`/`cambiado` + las dos |
+| `PUT /api/board/placements/{id}` (`ColocarPedido`) | **sólo las dos** (no mira `facturaEstado`) |
+| Armar una zona (`descartados`) | `igual` + las dos |
+| `POST /api/routes` (validación y `UPDATE` que engancha) | `igual` + las dos (el `UPDATE` sólo las dos) |
+| Panel: `sin_ruta`, `peso_pendiente`, por sucursal | `igual`/`cambiado` + las dos |
+
+> **Divergencia conocida, PENDIENTE de decidir (07/10/2026):** el Panel del SERVIDOR cuenta
+> `igual`/`cambiado` + las dos (decisión D2: no se tocó su criterio de `factura_estado`), pero el
+> Panel de la APLICACIÓN lo calcula en local (`consultas_panel.dart`, `_repartible`) y cuenta
+> sólo `igual`. Las dos cifras pueden diferir en los pedidos `cambiado`. Antes de que se noten
+> hay que elegir un criterio para las dos; no se resolvió aquí.
+
+Lo ata `api/internal/store/sqlc/consultas_motor_real_test.go` contra Postgres de verdad y
+`api/internal/store/guardas_del_reparto_test.go` por su texto.
+
+**El conduce.** Jose, 07/10/2026: el *conduce* **es el número de operación de la factura**
+(`orders.operation_number`, p. ej. `PTB25-261005-1479`). No hay dato ni columna nueva: la
+identificación ya existe y ese número se puede usar y mostrar como conduce. «El cobro a
+domicilio que sale como conduce» (punto 6 de Amado) no es un caso aparte: es un pedido más.
+Todos los rechazos de armado nombran cada pedido por ese número.
+
+**Quitar UNA parada de una ruta planificada** (punto 2): `DELETE /api/routes/{id}/stops/{orderId}`.
+Suelta `route_id` **y `ultima_ruta_id`** (si no, el pedido seguiría contando en los totales de la
+ruta y saldría en su hoja de cierre: la «parada fantasma»); no renumera los `stop_order` ni
+recalcula `total_distance`. Si la ruta nació del tablero, la parada vuelve a su zona y su posición.
+
+**Borrar una ruta armada desde el tablero** (punto 3): las paradas vuelven a su zona
+(`board_route_origins`); si la zona ya no existe, quedan en «sin colocar».
+
+**Vehículos** (puntos 4 y 5): un vehículo con rutas, aunque sean históricas, no se borra: se marca
+`isActive = false` y deja de ofrecerse para rutas nuevas. `orders.vehicle_id` ya no existe: el
+camión de un pedido es el de su ruta.

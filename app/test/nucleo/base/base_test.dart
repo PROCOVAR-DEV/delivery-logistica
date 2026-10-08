@@ -11,8 +11,8 @@ void main() {
   setUp(() => base = baseDePrueba());
   tearDown(() => base.close());
 
-  test('la base arranca en el esquema 4 con todas las tablas', () async {
-    expect(base.schemaVersion, 4);
+  test('la base arranca en el esquema 6 con todas las tablas', () async {
+    expect(base.schemaVersion, 6);
     final nombres = base.allTables.map((t) => t.actualTableName).toSet();
     expect(
       nombres,

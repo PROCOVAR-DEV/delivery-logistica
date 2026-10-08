@@ -213,12 +213,47 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
    - Mensaje: `"En una ruta sólo entra lo facturado y que cuadre. <N> no cumplen: <detalle>"`
      seguido de `" y <N-5> más."` si `N > 5`, o de `"."` si `N <= 5`.
    - Nota: el filtro previo de disponibles permite `igual` y `cambiado` en
-     `/api/orders/available`, pero **aquí sólo pasa `igual`**.
+     `/api/orders/available`, pero **aquí sólo pasa `igual`**. **`cambiado` NO entra a una
+     ruta** (Jose: «en el camión sólo sube lo que cuadra con la factura»). El 07/10/2026 se
+     aceptó `cambiado` aquí «porque también es una factura» y se volvió a `igual` el mismo
+     día: Amado pidió sumar lo de abajo, no aflojar esto.
+6-bis. **Domicilio cobrado** (Amado, 07/10/2026, incidencia 6): todo pedido tiene que traer
+   `facturaDomicilio > 0` (lo cobrado en el mostrador). Si alguno no → `409`
+   `"En una ruta sólo entra lo facturado con domicilio cobrado. <N> no cumplen: <detalle>"`,
+   con el mismo formato de cinco nombrados + `" y <N-5> más."` / `"."`. El cero y los
+   negativos no demuestran que se cobró.
+6-ter. **Domicilio cotizado** (Amado, 07/10/2026): todo pedido tiene que traer `pedidoCosto`
+   no nulo (el cero SÍ vale; nulo no). Si alguno no → `409`
+   `"No se puede crear la ruta: <N> pedidos no tienen cotizado el domicilio en Entrega: <detalle>"`
+   (mismo formato). **Bloquea, no avisa**: hasta el 07/10/2026 esto era un aviso («AVISO, no
+   portazo») y la respuesta del `201` podía llevar `{"ruta":…,"avisos":{"sinCosto":N}}`. Esa
+   forma **ya no existe**: la respuesta es siempre la ruta sola, con el id en la raíz.
+   Los tres cortes (6, 6-bis, 6-ter) van en ese orden y cada pedido sale **por su número de
+   operación** (ver «El conduce» más abajo).
+   La misma condición se repite, como segunda llave, en el `UPDATE` que engancha cada
+   pedido (`factura_domicilio > 0 AND pedido_costo IS NOT NULL`); si un pedido la perdió
+   entre la validación y el enganche, la ruta entera se deshace con el `409` de siempre.
 7. Capacidad: `totalW = Σ orders.weight (|| 0)`. Si hay `vehicleId` y el vehículo existe y
    `totalW > vehicle.capacity` →
    `400 {"error":"Peso total (<totalW.toFixed(1)> kg) supera la capacidad del vehículo (<vehicle.capacity> kg)"}`
    (el vehículo se busca sin alcance: `findFirst({ id: vehicleId })`; si no existe, no se
    valida capacidad).
+7-bis. **Vehículo inactivo** (Amado, 07/10/2026, incidencia 4): si el vehículo existe y
+   `isActive = false` →
+   `400 {"error":"El vehículo está inactivo y no se puede asignar a una ruta."}`. Se comprueba
+   **justo antes** que la capacidad: si el camión no sirve, decir además que no cabe manda a
+   cambiar la carga cuando lo que hay que cambiar es el camión. El mismo literal sale al
+   cambiarle el camión a una ruta (`PATCH`) y al armar una zona del tablero.
+
+### El conduce (aclaración de Jose, 07/10/2026, punto 6 de Amado)
+
+**El conduce ES el número de operación de la factura** (`orders.operation_number`, p. ej.
+`PTB25-261005-1479`). No hay dato, columna ni estado aparte: la identificación ya existe y
+ese número se puede usar y mostrar como conduce. Todos los rechazos del armado de una ruta
+(`409` de arriba, `descartados` del tablero) **nombran cada pedido por ese número** y sólo
+caen al nombre del cliente si falta. Un cobro a domicilio «que sale como conduce» no es un
+caso aparte: es un pedido más, y entra o no según la regla de arriba (facturado `igual`,
+domicilio cobrado y cotizado).
 
 ### Cálculo y escritura
 
@@ -274,6 +309,10 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
 - **Camino A — si `vehicleId !== undefined`** (tiene prioridad y **retorna antes**):
   - Si la ruta ya tenía otro vehículo y su `status === 'in_use'` → se pone `available`.
   - Si el nuevo `vehicleId` es truthy → ese vehículo pasa a `in_use`.
+  - **Vehículo inactivo** (07/10/2026): si el nuevo `vehicleId` existe en el alcance pero
+    `isActive = false` → `400 {"error":"El vehículo está inactivo y no se puede asignar a una ruta."}`
+    y no se toca nada. Se mira **después** del alcance (decir «inactivo» de un camión de otra
+    sucursal es contar algo suyo). Quitar el camión (`vehicleId` vacío) no pasa por aquí.
   - Se actualiza la ruta con `vehicleId: data.vehicleId || null` y, si vienen, `name` y `status`.
   - **200**: la ruta actualizada con `vehicle:{id,name,type,plate,capacity}`.
   - *(En este camino no se tocan `startedAt`/`finishedAt` ni se avisa a PEDIDO.)*
@@ -306,6 +345,38 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
 - Borra la `Route`.
 - **200**: `{"success":true}`.
 - **Modelos**: `Vehicle`, `Order`, `Route`.
+- **Si la ruta nació del tablero** (07/10/2026, incidencia 3 de Amado): cada parada vuelve a
+  su zona y a su posición de origen (`board_route_origins`), no se pierde la relación
+  factura–tablero. Si la zona ya no existe, sus orígenes se fueron con ella
+  (`ON DELETE CASCADE`) y el pedido queda en «sin colocar». Una ruta armada a mano no
+  restaura nada en el tablero.
+
+## `DELETE /api/routes/{id}/stops/{orderId}` — quitar UNA parada (07/10/2026)
+
+Incidencia 2 de Amado: antes, para sacar una factura de una ruta planificada había que borrar
+la ruta entera. **No existe en delivery (Next): es propio del reparto.**
+
+- **Auth**: usuario. **Alcance**: sí.
+- **200** `{"success":true}`. El pedido NO se borra: vuelve a la lista de disponibles y, si la
+  ruta nació del tablero, a su zona y su posición. En la misma sentencia pasa lo que importa:
+  `route_id`, **`ultima_ruta_id`**, `stop_order` y `segment_km` a `NULL`. Poner también
+  `ultima_ruta_id` a `NULL` es lo que hace que el trigger de totales (`00014`) recalcule
+  `total_weight`, `total_price` y `paradas_sin_cotizar` de la ruta y que el pedido deje de
+  ser parada suya (la «parada fantasma»: antes seguía contando en la cabecera y salía en su
+  hoja de cierre, donde se podía marcar «entregado»).
+  **No se renumeran** los `stop_order` de las demás (queda un hueco) y **`total_distance` no se
+  recalcula** (es el circuito que midió quien armó la ruta, no una suma de paradas).
+- **Errores**:
+
+| Código | Mensaje | Cuándo |
+|---|---|---|
+| 400 | `Identificador de pedido no válido` | `orderId` no es un uuid |
+| 404 | `No encontrado` | la ruta no existe o no es de tu sucursal |
+| 409 | `Sólo se pueden retirar paradas de una ruta planificada` | la ruta está `in_progress`, `completed` o `cancelled` |
+| 409 | `La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico.` | se completó entre la lectura y la escritura |
+| 409 | `El pedido no pertenece a una ruta planificada o ya fue retirado` | el pedido no va en esa ruta, ya tiene resultado o ya se entregó. Quitar dos veces la misma parada da este `409` |
+
+- Avisa en vivo a `rutas`, `pedidos` y `tablero` de la sucursal de la ruta.
 
 ## `POST /api/routes/[id]/results` — cierre de ruta (detallado)
 
@@ -333,13 +404,33 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
 
   Si el JSON no parsea → `{}`. Si `resultados` no es array → `[]`.
 - Si no hay entradas → `400 {"error":"No vino ningún resultado"}`.
-- **Universo de pedidos válidos**: `Order where ultimaRutaId = id` (**no** `routeId`, para
-  poder corregir el resultado de uno ya devuelto que soltó su `routeId`). Se seleccionan
-  `id, externalId, source, customerName`.
+- **Universo de pedidos válidos**: los que **viajaron** en la ruta: `routeId = id`, o bien
+  (`routeId IS NULL AND ultimaRutaId = id AND resultado IS NOT NULL`). La segunda rama deja
+  corregir el resultado de un devuelto o cancelado, que soltó su `routeId`; el
+  `resultado IS NOT NULL` deja **fuera** al pedido simplemente quitado de la ruta
+  (`DELETE …/stops/{orderId}`), que no viajó. Antes era `ultimaRutaId = id` a secas, y una
+  ruta armada desde el tablero (con `routeId` y a veces sin `ultimaRutaId`) rechazaba sus
+  propias paradas como «no va en esta ruta» (incidencia 1 de Amado). Las mismas tres
+  condiciones valen para marcar, desmarcar y para los renglones de la hoja de carga. Se
+  seleccionan `id, externalId, source, customerName`.
 - **Respuesta (18/09/2026): `200` sólo si NO hubo ningún rechazo.** Con una sola parada
   rechazada la respuesta es `409`, con el mismo cuerpo más un campo `error` que resume
   «Se guardaron N de las M paradas de esta hoja. K no se pudieron guardar: …».
   Lo aplicado **sigue aplicado**: el 409 no deshace nada y `aplicados` viaja entero.
+
+  **El 409 PARCIAL y el TOTAL se distinguen por `aplicados` (07/10/2026, incidencia 1).**
+  Si el `409` trae `aplicados` **no vacío**, es PARCIAL: lo guardado vale, cada rechazo trae su
+  motivo literal en `rechazados[]` y la ruta **se puede completar**. Si `aplicados` viene
+  **vacío**, es TOTAL: no se guardó ninguna parada y no hay nada que completar. Quien cierra
+  (la web) enseña el motivo de cada rechazo y deja completar sólo en el caso parcial; la
+  APK y el escritorio dejan la hoja en la bandeja con el rechazo y retienen el completar
+  hasta que una persona decida (Reintentar o Descartar).
+
+  **Para diagnosticar un rechazo sin ir al VPS**: por cada parada rechazada el servidor
+  escribe un renglón `parada rechazada en el cierre` con `ruta`, `pedido`, `route_id`,
+  `ultima_ruta_id` y `branch_id` del pedido (`NULL` si no tiene) y el `motivo`, más
+  `ruta_branch_id` en el resumen. Son ids de filas, nada de la sesión. Sólo se escribe en el
+  camino del rechazo (el cierre bueno no pregunta nada) y se detallan las 20 primeras.
   Motivo: el sincronizador marca `aplicado` cualquier 2xx **sin mirar el cuerpo**
   (`sync/internal/reparto/reparto.go`), así que un rechazo dentro de un 200 no llega a
   ninguna bandeja y el apunte se borra de la cola del aparato — una entrega de verdad
@@ -438,7 +529,13 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
   - `costoMin`: número, opcional. Descarta si `(pedidoCosto ?? 0) < costoMin`.
   - Para ambos: cadena vacía o no numérica → se ignora el filtro.
 - **Condiciones fijas, no negociables**: `source = 'pedido'`, `routeId IS NULL`,
-  `endLat IS NOT NULL`, `endLng IS NOT NULL`, `facturaEstado IN ('igual','cambiado')`.
+  `endLat IS NOT NULL`, `endLng IS NOT NULL`, `facturaEstado IN ('igual','cambiado')` y, desde
+  el 07/10/2026 (Amado), **`facturaDomicilio > 0`** (domicilio cobrado) y **`pedidoCosto IS NOT
+  NULL`** (domicilio cotizado). La lista ofrece `cambiado` (para que se vea y se revise) pero
+  una ruta **no** lo acepta; lo que no puede pasar es lo contrario: que se ofrezca algo que
+  el armador rechaza por domicilio o cotización. Por eso `cotizado=false` ya sólo puede dar
+  una lista vacía. **El mismo listón** lo aplican «Sin colocar» del tablero, su contador, el
+  `ColocarPedido` y los recuentos del panel (`sin_ruta`, `peso_pendiente`, por sucursal).
 - **Orden**: `orderDate desc nulls last`, luego `createdAt desc`. **`take = 2000`** (TOPE).
 - **Campos por fila**: `id, orderDate, createdAt, operationNumber, customerName, address,
   endAddress, endLat, endLng, weight, deliveryPrice, deliveryDistanceKm, items, estado,
@@ -957,6 +1054,16 @@ data: {}
 
 # 7. Vehículos (`/api/vehicles`)
 
+> **`isActive` (Amado, 07/10/2026, incidencia 4).** Todo vehículo lleva `isActive: boolean`
+> (default `true`; columna `vehicles.is_active`, migración `00017`). Es distinto de `status`:
+> `status` (`available`, `in_use`, `maintenance`) dice en qué anda hoy un camión activo;
+> `isActive = false` lo deja fuera de la selección para rutas **nuevas** conservando su
+> historial. Sale en `GET /api/vehicles`, `GET /api/vehicles/[id]`, en el cuerpo de `POST` y
+> `PATCH` y **en la bajada del espejo** (`cambios.vehicles[].isActive`; ausente = activo).
+> Un vehículo inactivo no se puede asignar a una ruta: `400 El vehículo está inactivo y no se
+> puede asignar a una ruta.` (armar ruta, `PATCH` de la ruta, armar zona y fijar el camión
+> previsto de una zona).
+
 ## `GET /api/vehicles`
 
 - **Auth**: usuario. **Alcance**: sí.
@@ -968,7 +1075,7 @@ data: {}
 ## `POST /api/vehicles`
 
 - **Auth**: usuario. **Alcance**: sí (el vehículo nace en `scope.branchId`, si lo hay).
-- **Cuerpo**: `{ name, type?, plate?, capacity?, status?, notes?, costoKmUsd?, usarParaDomicilio? }`.
+- **Cuerpo**: `{ name, type?, plate?, capacity?, status?, isActive?, notes?, costoKmUsd?, usarParaDomicilio? }`.
 - `!name` → `400 {"error":"Vehicle name is required"}` (en inglés).
 - Defaults: `type || 'truck'`, `plate || null`, `capacity ?? 1000`, `status || 'available'`,
   `notes || null`, `costoKmUsd`: `undefined → null`, en otro caso el valor;
@@ -989,8 +1096,9 @@ data: {}
 ## `PATCH /api/vehicles/[id]`
 
 - **Auth**: usuario. **Alcance**: sí. `404 {"error":"Not found"}`.
-- **Cuerpo** (sólo los presentes): `name`, `type`, `plate`, `capacity`, `status`, `notes`,
-  `costoKmUsd`, `usarParaDomicilio` (se normaliza a `=== true`).
+- **Cuerpo** (sólo los presentes): `name`, `type`, `plate`, `capacity`, `status`, `isActive`,
+  `notes`, `costoKmUsd`, `usarParaDomicilio` (se normaliza a `=== true`). `isActive` ausente
+  no cambia nada.
 - Si `usarParaDomicilio === true`: dentro de la transacción se desmarcan los demás del
   `targetType` (`data.type` si viene, si no el actual) dentro del alcance, excluyendo el
   propio id.
@@ -1003,11 +1111,18 @@ data: {}
 ## `DELETE /api/vehicles/[id]`
 
 - **Auth**: usuario. **Alcance**: sí. `404 {"error":"Not found"}`.
-- Desasocia antes de borrar: `Route.updateMany({vehicleId:id} → vehicleId:null)`,
-  `Order.updateMany({vehicleId:id} → vehicleId:null)`,
-  `OrderVehicle.deleteMany({vehicleId:id})`. Luego borra el `Vehicle`.
+- **Un vehículo con rutas NO se borra, ni siquiera con las históricas** (07/10/2026,
+  incidencia 4): `409 {"error":"No se puede eliminar este vehículo porque tiene rutas
+  asociadas, incluso históricas. Márcalo como inactivo para impedir que se use en nuevas
+  rutas."}`. Se comprueba antes de la transacción y otra vez dentro (una ruta pudo
+  aparecer entre medias) y el `DELETE` lleva su propia guarda. Antes se soltaba el camión de
+  sus rutas y se borraba; esa consulta se eliminó. El texto antes decía «Ponlo en
+  mantenimiento»: el mantenimiento es un `status` pasajero que no impide asignarlo, y lo que
+  se pidió es el estado activo/inactivo.
+- Sin rutas: borra sus asignaciones (`OrderVehicle.deleteMany({vehicleId:id})`) y el `Vehicle`.
+  Ya no existe `Order.vehicleId` que desasociar (ver `modelo-datos.md`).
 - **200**: `{"success":true}`.
-- **Modelos**: `Route`, `Order`, `OrderVehicle`, `Vehicle`.
+- **Modelos**: `OrderVehicle`, `Vehicle`.
 
 ---
 
@@ -1358,6 +1473,58 @@ data: {}
 
 ---
 
+# 11. Tablero: colocar una tarjeta y armar una zona (propio del reparto, 07/10/2026)
+
+Esto **no existe en delivery (Next)**. El tablero entero está especificado en `tablero.md`; aquí
+sólo lo que cambió el 07/10/2026 y que otros clientes copian.
+
+## `PUT /api/board/placements/{pedidoId}` — colocar o mover una tarjeta
+
+Cuerpo `{ "columnaId": "uuid", "posicion": 1 }`. La validación es el `WHERE` de la propia
+sentencia que escribe (sin lectura previa que se quede vieja); cero filas se traduce a **un
+solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
+
+| Código | Mensaje | Cuándo |
+|---|---|---|
+| 409 | `Ese pedido ya se entregó` | `deliveredAt` o `resultado = 'entregado'`. Va **primero**: un entregado no está esperando a nada. |
+| 409 | `Ese pedido ya está en una ruta` | `routeId` puesto |
+| 409 | `No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.` | `facturaDomicilio` nulo o `<= 0` (Amado, 07/10/2026) |
+| 409 | `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` | `pedidoCosto` nulo (Amado, 07/10/2026) |
+| 404 | `Esa zona del tablero ya no existe` | el pedido existe y está libre: lo que no cuadra es la columna |
+| 404 | `Ese pedido no existe o no es de tu sucursal` | no existe **o** es de otra sucursal (no se distingue) |
+| 409 | `Otro aparato puso una tarjeta en ese mismo sitio en el mismo momento. Vuelve a intentarlo.` | choque de posición al confirmar |
+
+- **`facturaEstado` NO es condición de colocar.** Se llegó a exigir `igual`/`cambiado`
+  («primero coteja la factura del pedido») y se quitó el mismo día: un pedido `cambiado` o sin
+  cotejar se puede preparar en una zona. **Lo corta el armado**, con su motivo. Y `cambiado`
+  **no entra a una ruta**.
+- Un rechazo **no mueve la tarjeta**: la transacción se deshace y el pedido sigue en la
+  columna de la que venía.
+- «Sin colocar» (`GET /api/board`, mitad izquierda) y su contador sólo ofrecen lo que esto
+  acepta por las dos condiciones de Amado, y por eso nunca ofrecen una tarjeta que acabe en
+  el `409` de arriba.
+
+## `POST /api/board/columns/{id}/route` — armar una zona
+
+Lo que no puede subir se cae **nombrado** en `descartados[]` (`pedidoId`, `operationNumber`
+—el conduce—, `customerName`, `motivo`, `queHacer`) y la ruta sale con el resto; si no queda
+ninguno, `409` con `descartados` dentro. Motivos de la factura y el domicilio, en este orden
+(tras `ya se entregó` y `archivado en PEDIDO`): `sin cotejar` (nulo), `sin factura`,
+`cambió en la factura` (**`cambiado` no sube**), **`la factura no tiene domicilio cobrado`** y
+**`domicilio sin cotizar`** (los dos últimos, Amado 07/10/2026).
+
+Camión: `400 El vehículo está inactivo y no se puede asignar a una ruta.` tanto si viene en el
+cuerpo como si es el **previsto** de la zona (un camión que se dio de baja después de
+asignarlo a la zona). Se mira después de la comprobación de sucursal.
+
+## Borrar una zona
+
+Una zona vacía de tarjetas se borra aunque tenga una ruta planificada nacida de ella
+(`board_route_origins.column_id` es `ON DELETE CASCADE` desde el 07/10/2026): antes contestaba
+el `409` falso «tiene 0 pedidos puestos». Con tarjetas puestas la base sigue negándose.
+
+---
+
 # Apéndice: inventario de mensajes de error literales
 
 | Ruta | Código | Mensaje exacto |
@@ -1371,12 +1538,21 @@ data: {}
 | `/api/routes` POST | 400 | `Los pedidos seleccionados ya no están disponibles: <detalle>` |
 | `/api/routes` POST | 409 | `<N> de los <M> pedidos elegidos no pueden ir en esta ruta: <detalle>[ y <K> más.\|.]` |
 | `/api/routes` POST | 409 | `En una ruta sólo entra lo facturado y que cuadre. <N> no cumplen: <detalle>[ y <K> más.|.]` |
+| `/api/routes` POST | 409 | `En una ruta sólo entra lo facturado con domicilio cobrado. <N> no cumplen: <detalle>[ y <K> más.\|.]` |
+| `/api/routes` POST | 409 | `No se puede crear la ruta: <N> pedidos no tienen cotizado el domicilio en Entrega: <detalle>[ y <K> más.\|.]` |
+| `/api/routes` POST, `/api/routes/[id]` PATCH, `/api/board/columns/[id]/route` | 400 | `El vehículo está inactivo y no se puede asignar a una ruta.` |
 | `/api/routes` POST | 400 | `Peso total (<X.X> kg) supera la capacidad del vehículo (<C> kg)` |
+| `/api/routes/{id}/stops/{orderId}` DELETE | 400 | `Identificador de pedido no válido` |
+| `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `Sólo se pueden retirar paradas de una ruta planificada` |
+| `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `El pedido no pertenece a una ruta planificada o ya fue retirado` |
+| `/api/board/placements/[id]` PUT | 409 | `No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.` |
+| `/api/board/placements/[id]` PUT | 409 | `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` |
 | `/api/routes/[id]` GET/PATCH/DELETE | 404 | `No encontrado` |
 | `/api/routes/[id]/results` | 404 | `No encontrada` |
 | `/api/routes/[id]/results` | 400 | `No vino ningún resultado` |
-| `/api/routes/[id]/results` | 200 (rechazado) | `ese pedido no va en esta ruta` |
-| `/api/routes/[id]/results` | 200 (rechazado) | `resultado '<v>' desconocido` |
+| `/api/routes/[id]/results` | 409 (rechazado) | `ese pedido no va en esta ruta` |
+| `/api/routes/[id]/results` | 409 (rechazado) | `resultado '<v>' desconocido` |
+| `/api/routes/[id]/results` | 409 | `Se guardaron <A> de las <T> paradas de esta hoja. <K> no se pudieron guardar: <orderId> (<motivo>)[, …][ y <K-5> más.\|.]` |
 | `/api/orders/[id]` | 404 | `Not found` |
 | `/api/orders/recompute-weights` | 502 | `No se pudo leer el catálogo del warehouse (¿VPN?): <msg>` |
 | `/api/quote` | 410 | `El cotizador individual se retiró. El costo del domicilio lo pone Entrega y lo escribe en PEDIDO. Para el reparto de carga de delivery, usa POST /api/quote/batch.` |
@@ -1402,6 +1578,7 @@ data: {}
 | `/api/almacenes` PUT | 502 | `Accesos no aceptó el cambio: <msg>` |
 | `/api/almacenes` PUT | 200 (aviso) | `<N> almacén(es) sin coordenadas: desde ésos no se puede medir el domicilio.` |
 | `/api/vehicles` POST | 400 | `Vehicle name is required` |
+| `/api/vehicles/[id]` DELETE | 409 | `No se puede eliminar este vehículo porque tiene rutas asociadas, incluso históricas. Márcalo como inactivo para impedir que se use en nuevas rutas.` |
 | `/api/vehicles/[id]` | 404 | `Not found` |
 | `/api/products` POST | 410 | `El catálogo se trae solo de Ventra (a través de PEDIDO). No hay alta manual de productos.` |
 | `/api/products/[id]` | 403 | `Solo el Super Admin puede tocar el catálogo` |
@@ -1417,7 +1594,7 @@ data: {}
 | `/api/tasa` | 200 (aviso) | `<Sucursal> no tiene tasa de cambio todavía: los importes sólo se pueden ver en USD.` |
 | `/api/tasa` | 200 (aviso) | `La tasa es del <fecha> y puede estar desfasada.` |
 
-# Apéndice: tabla resumen de las 35 rutas
+# Apéndice: tabla resumen de las 35 rutas de delivery (más las propias del reparto, anotadas «-bis»)
 
 | # | Ruta | Métodos | Auth | Alcance | Escribe |
 |---|---|---|---|---|---|
@@ -1450,6 +1627,7 @@ data: {}
 | 27 | `/api/reports` | GET | usuario | sí | no |
 | 28 | `/api/routes` | GET, POST | usuario | sí | Route, Order |
 | 29 | `/api/routes/[id]` | GET, PATCH, DELETE | usuario | sí | Route, Vehicle, Order |
+| 29-bis | `/api/routes/{id}/stops/{orderId}` | DELETE (propia del reparto, 07/10/2026) | usuario | sí | Order, board_placements, board_route_origins |
 | 30 | `/api/routes/[id]/results` | POST | usuario | sí | Order |
 | 31 | `/api/settings` | GET, PUT | usuario | no | Settings |
 | 32 | `/api/tasa` | GET | usuario | sí | no |

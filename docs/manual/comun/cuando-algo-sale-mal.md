@@ -20,6 +20,13 @@ Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
    trae el día.
 6. **Si no tiene coordenadas de entrega**, no entra en el Tablero ni en «Pedidos
    sin ruta». Se ve en Pedidos, marcado.
+7. **Si no tiene el domicilio cobrado o cotizado.** A las rutas nuevas, al Tablero
+   («Sin colocar») y al recuento de «Pedidos sin ruta» del Panel sólo llega la factura
+   que **cuadra**, con el **domicilio cobrado** (importe mayor que cero en la factura)
+   y **cotizado en Entrega**. Un pedido al que le falte una de las tres sigue
+   existiendo —se ve en Pedidos— pero no se ofrece para repartir. No es un fallo: se
+   arregla cobrando o cotizando en Entrega. Ver
+   [Las reglas del reparto](las-reglas-del-reparto.md).
 
 ---
 
@@ -43,12 +50,61 @@ Por orden de probabilidad:
 | **«La zona «Centro» no tiene camión previsto, y sin camión no se arma su ruta»** | El cajón se queda abierto. Toca **«Camión previsto»** y elige uno. Vuelve a armar |
 | **«Se requiere un vehículo para crear la ruta»** | Lo mismo, pero en el asistente: paso 3 |
 | **«La columna no tiene ningún pedido que se pueda repartir hoy»** | Debajo te dice por qué se cayó cada uno. Casi siempre es factura |
-| **«En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen…»** | Esos pedidos no van hoy. Quítalos y arma con el resto |
-| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: X-2992 (ya va en la ruta RT-20260922-003)…»** | Alguien se te adelantó, o el pedido cambió. Quítalo y vuelve |
+| **«En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Esos pedidos no van hoy: la factura no existe, no está cotejada o cambió. Quítalos y arma con el resto |
+| **«En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen: PTB25-261005-1480…»** | La factura de esos pedidos no trae importe de domicilio. No van hoy. Quítalos |
+| **«No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1480…»** | Entrega todavía no le puso costo a ese domicilio. Hay que cotizarlo allí; mientras tanto, quítalos |
+| **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión se dio de baja. Elige otro, o actívalo en Vehículos si ha vuelto |
+| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Alguien se te adelantó, o el pedido cambió. Quítalo y vuelve |
 | **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Saca pedidos o cambia de camión |
 | **«Las coordenadas del punto de partida son requeridas»** | La sucursal no tiene almacén con punto. Se arregla en Almacenes |
 | **«Esta sucursal no tiene ningún almacén con ubicación»** | Botón **«Poner el almacén»** |
 | **«Esta sucursal no tiene ningún vehículo dado de alta»** | Botón **«Agregar el primer vehículo»** |
+| **«Los vehículos de esta sucursal están inactivos o en el taller…»** | Hay camiones, pero ninguno se puede ofrecer: actívalo o sácalo del taller en Vehículos |
+
+Y si lo que echas en falta son **pedidos** en la lista del asistente: sólo trae lo
+facturado que cuadra, con el domicilio cobrado y cotizado. Lee
+[Un pedido no aparece](#un-pedido-no-aparece) antes de buscar un error.
+
+---
+
+## «No me deja colocar un pedido en una zona»
+
+Al arrastrar una tarjeta (o con «Mandar a una zona»), la tarjeta se queda donde estaba y
+sale uno de estos motivos:
+
+| El aviso | Qué significa |
+|---|---|
+| **«No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.»** | La factura no cobró domicilio. No se coloca |
+| **«No se puede asociar al tablero: primero cotiza el domicilio del pedido.»** | Falta el costo de Entrega. Cotízalo allí y vuelve |
+| **«Ese pedido ya se entregó»** | Ya se repartió |
+| **«Ese pedido ya está en una ruta»** | Se lo llevó otra ruta |
+
+En la APK y el escritorio sale **al momento**, no horas después: el aparato lo dice
+antes de colocar.
+
+---
+
+## «No me deja quitar una parada de la ruta»
+
+El botón **«Quitar de ruta»** sólo sale en una ruta **planificada**. Si el servidor lo
+rechaza, lo dice con su motivo:
+
+| El aviso | Qué hacer |
+|---|---|
+| **«Sólo se pueden retirar paradas de una ruta planificada»** | La ruta ya salió o ya está completada. En una en curso, marca esa parada como devuelta o cancelada al completarla |
+| **«El pedido no pertenece a una ruta planificada o ya fue retirado»** | Alguien (o tú mismo desde otro aparato) ya la quitó. Mira la ruta otra vez |
+
+---
+
+## «No me deja borrar un camión»
+
+> «No se puede eliminar este vehículo porque tiene rutas asociadas, incluso
+> históricas. Márcalo como inactivo para impedir que se use en nuevas rutas.»
+
+Un camión con rutas —aunque sean del histórico— no se borra. Abre su ficha con
+**«Editar»**, apaga el interruptor **«Vehículo activo»** y guarda: la tarjeta pasa a
+llevar la insignia **«Inactivo»** y deja de ofrecerse en las rutas nuevas, sin perder su
+historial.
 
 ---
 
@@ -103,6 +159,11 @@ que una persona decida.
 Te lo dice ahí mismo, con el motivo de verdad: «Ese pedido ya va en otra ruta». Haz
 lo que diga y repite el gesto.
 
+**Al cerrar una ruta, si el servidor guarda unas paradas y rechaza otras, lo guardado
+vale.** El aviso te dice cuántas se guardaron y por qué no las demás («Se guardaron 1
+de las 2 paradas de esta hoja. 1 no se pudieron guardar: … (ese pedido no va en esta
+ruta).»), y la ruta se puede completar. Si no se guardó **ninguna**, no se completa.
+
 ### En la APK y el escritorio
 
 Van a la bandeja **«Rechazados, esperando a una persona»**, dentro del cajón de
@@ -112,6 +173,11 @@ Van a la bandeja **«Rechazados, esperando a una persona»**, dentro del cajón 
 > aquí con su motivo hasta que alguien decida.»
 
 Ahí tienes **«Reintentar»** y **«Descartar»**.
+
+**Al cerrar una ruta es distinto que en la web:** la hoja sube entera. Si el servidor
+rechaza una parada, el cierre de esa ruta queda aquí, con su motivo, y **la ruta no se
+completa hasta que decidas** con «Reintentar» o «Descartar». Las demás rutas siguen
+subiendo.
 
 La pantalla de **Sincronización** enseña los rechazos de **todos** los aparatos,
 pero desde ahí sólo se miran: los botones están en el cajón del aparato.

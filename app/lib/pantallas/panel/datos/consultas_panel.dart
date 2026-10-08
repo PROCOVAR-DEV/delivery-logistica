@@ -75,10 +75,16 @@ class PendienteDeSucursal {
 /// senal.
 ///
 /// La definicion de REPARTIBLE esta escrita **una sola vez**, en [_repartible],
-/// y es literalmente la del servidor (`contratos-api.md` §9): `route_id IS NULL`
-/// **y** `end_lat` no nulo **y** `factura_estado IN ('igual','cambiado')`.
-/// Tenerla dos veces es como se acaba con dos numeros distintos para la misma
-/// pregunta, y el que sobra siempre es el que alguien mira.
+/// y es la de la lista de disponibles de Rutas (`ConsultasRutas.disponibles`):
+/// de PEDIDO, sin ruta, con punto de entrega, factura que CUADRE (`igual`),
+/// domicilio cobrado (`factura_domicilio > 0`) y domicilio cotizado
+/// (`pedido_costo` no nulo). Tenerla dos veces es como se acaba con dos numeros
+/// distintos para la misma pregunta, y el que sobra siempre es el que alguien
+/// mira: el Panel decia «40 por repartir» y el armador ofrecia 12.
+///
+/// **Lo ata una prueba, no este comentario** (`CLAUDE.md` §3-bis):
+/// `test/pantallas/panel/el_panel_cuenta_lo_que_ofrece_rutas_test.dart` siembra
+/// un caso por condicion y compara el Panel con la lista.
 class ConsultasPanel {
   ConsultasPanel(this._base, {Reloj reloj = relojDelAparato}) : _reloj = reloj;
 
@@ -86,8 +92,10 @@ class ConsultasPanel {
   final Reloj _reloj;
 
   static const _repartible =
-      "route_id IS NULL AND end_lat IS NOT NULL "
-      "AND factura_estado IN ('igual','cambiado')";
+      "o.source = 'pedido' AND o.route_id IS NULL "
+      "AND o.end_lat IS NOT NULL AND o.end_lng IS NOT NULL "
+      "AND o.factura_estado = 'igual' "
+      "AND o.factura_domicilio > 0 AND o.pedido_costo IS NOT NULL";
 
   // «EN MARCHA» ES LA QUE SALIÓ, y una planificada no ha salido — 22/09/2026.
   //

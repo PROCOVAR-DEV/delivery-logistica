@@ -236,6 +236,38 @@ de perderse.
 
 ---
 
+## Lo que el aparato dice antes y lo que el servidor confirma después — 07/10/2026
+
+Tres gestos de la jornada se aplican **en el aparato al momento** y el servidor los
+conoce al subir. Mientras tanto la pantalla enseña lo hecho en el aparato, y eso hay que
+saberlo leer:
+
+1. **Borrar una ruta que salió del tablero** (y **quitar una parada** de una ruta
+   planificada). El apunte sube con la cola. Mientras no suba —y hasta que baje el tablero
+   después— **las facturas salen en «Sin colocar»** y no en su zona, porque el origen de
+   cada una (`board_route_origins`) vive sólo en el servidor y la bajada no lo trae.
+   No se pierde nada: al subir el borrado el servidor las devuelve a su zona y a su
+   posición, y la bajada siguiente las coloca. En la web no hay cola y es inmediato. Ver
+   `tablero.md` §7.6-bis. Tampoco hay que renumerar ni recalcular nada a mano: quitar una
+   parada deja el hueco en `stop_order` y no toca `total_distance`.
+2. **Colocar una tarjeta sin domicilio cobrado o sin cotizar.** El servidor lo rechaza con
+   un 409. Como arrastrar en la APK no llama a nadie, **el aparato dice el mismo «no» antes
+   de colocar** (las mismas palabras que el servidor, para que no haya dos idiomas) y no
+   encola el apunte: si se encolara, el rechazo llegaría horas después a la bandeja con la
+   zona ya preparada. Lo mismo vale para armar con un camión inactivo
+   (`El vehículo está inactivo y no se puede asignar a una ruta.`) y para los tres «no» de
+   armar (`facturado y que cuadre`, `domicilio cobrado`, `domicilio cotizado`).
+3. **Cerrar una ruta con una parada que el servidor rechaza.** El sincronizador convierte
+   cualquier 4xx en un rechazo del apunte **entero**, sin leer `aplicados`: la hoja queda
+   `rechazada` en la bandeja con el motivo y **retiene el `completed` de esa ruta** (las
+   demás rutas siguen subiendo) hasta que una persona decida —*Reintentar* o *Descartar*—.
+   Es deliberado de momento y está a la vista. **En la web, en cambio, un 409 parcial deja
+   lo guardado por bueno**: el aviso dice el motivo y la ruta se puede completar; si no se
+   guardó **ninguna** parada, es rechazo total y no se completa. La ruta local puede figurar
+   completada mientras el apunte sigue en cola: eso no acredita el cierre en el servidor.
+
+---
+
 ## Orden al recuperar la señal
 
 ```

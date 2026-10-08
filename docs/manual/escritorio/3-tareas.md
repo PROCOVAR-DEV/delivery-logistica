@@ -25,6 +25,7 @@ manual de la web:
 - [Decir qué camión calcula el domicilio](../web/2-tareas.md#decir-qué-camión-calcula-el-domicilio)
 - [Marcar un camión en el taller](../web/2-tareas.md#marcar-un-camión-en-el-taller)
 - [Dar de baja un camión](../web/2-tareas.md#dar-de-baja-un-camión)
+- [Dejar un camión inactivo](../web/2-tareas.md#dejar-un-camión-inactivo)
 - [Definir los tipos de camión y su costo por km](../web/2-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km)
 - [Cambiar el camión de una ruta](../web/2-tareas.md#cambiar-el-camión-de-una-ruta)
 - [Poner o corregir un almacén](../web/2-tareas.md#poner-o-corregir-un-almacén)

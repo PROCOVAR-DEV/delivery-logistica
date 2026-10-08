@@ -5,7 +5,12 @@ pegar en la interfaz de Dokploy.
 
 **Estado al 22/09/2026:**
 
-- [x] Repositorio: `github.com/jose22072000/delivery-logistica`, rama `main`
+- [x] Repositorio: `github.com/PROCOVAR-DEV/delivery-logistica`, rama `main` — **desde el
+      07/10/2026**; hasta entonces era `jose22072000/delivery-logistica`, que ahora es un
+      fork personal y no se actualiza solo. Las cuatro Applications clonan por **Git por
+      URL** (no la GitHub App): `https://github.com/PROCOVAR-DEV/delivery-logistica.git`.
+      Reapuntarlas las dejó en `idle` hasta el siguiente despliegue (los contenedores
+      siguen vivos): `docs/despliegue.md` §6
 - [x] Bases creadas en el Postgres del VPS: `procovar_reparto` y `procovar_reparto_sync`
 - [x] Migraciones aplicadas: 16 tablas y 5 tablas — **y cada migración nueva hay que
       aplicarla a mano ANTES del Deploy**: el procedimiento entero está en
@@ -37,14 +42,20 @@ No es capricho de nombre: **la URL va horneada dentro de la web y del APK** (es 
 
 ## Los cuatro servicios
 
-Todos del mismo repositorio, rama `main`, con su Dockerfile y **el contexto en la raíz**.
+Todos del mismo repositorio (`PROCOVAR-DEV/delivery-logistica`, no el fork), rama `main`, con
+su Dockerfile y **el contexto en la raíz**.
 
 | Servicio | Dockerfile | Puerto | Dominio |
 |---|---|---|---|
 | `reparto-api` | `deploy/Dockerfile.api` | 8080 | `reparto.procovar.cloud/api` |
-| `reparto-sync` | `deploy/Dockerfile.sync` | 8080 | `reparto.procovar.cloud/sync` |
+| `reparto-sync` | `deploy/Dockerfile.sync` | **8081** | `reparto.procovar.cloud/sync` |
 | `reparto-espejo` | `deploy/Dockerfile.espejo` | — | **ninguno** |
 | `reparto-web` | `deploy/Dockerfile.app` | 8080 | `reparto.procovar.cloud` |
+
+**El sync va en el 8081, no en el 8080** (corregido el 07/10/2026; aquí ponía 8080): el
+sincronizador escucha donde diga `SYNC_ADDR`, que por defecto es `:8081`
+(`sync/internal/config/config.go`) y es el `EXPOSE` de `Dockerfile.sync`. El Container Port
+de su dominio tiene que ser **8081**. Sólo la api y la web van en el 8080.
 
 **El espejo no lleva dominio ni puerto**: es un proceso de fondo, no un servidor. Su salud
 no se mide con `/health` sino por si sigue trayendo pedidos.
@@ -79,8 +90,12 @@ REPARTO_URL=http://reparto-api-xzlmhw:8080
 REPARTO_API_KEY=<la de PEDIDO, ver abajo>
 SYNC_IDENTIDAD=token
 JWT_SECRET=<el mismo>
-PUERTO=8080
 ```
+
+**Aquí no va `PUERTO`.** Antes figuraba `PUERTO=8080` y el sincronizador **no lo lee**
+(la api sí; él usa `SYNC_ADDR`, por defecto `:8081`). Si el Environment de
+`reparto-sync` en Dokploy todavía lo lleva, no hace nada, pero no sirve de aviso: el puerto
+real es el 8081 (no se ha comprobado en el servidor cuál tiene puesto el dominio).
 
 **`SYNC_IDENTIDAD=token`, no `cabeceras`** (corregido el 21/09/2026; aquí ponía el otro).
 `cabeceras` espera que un proxy delante haya verificado el token y ponga `X-Persona`, y
@@ -187,6 +202,21 @@ ese punto del final.
   fuera de Dokploy), después la api, después el sync y el espejo (los dos la necesitan), y
   la web al final. Desde el 21/09/2026 la api y el sync **no arrancan con la base
   atrasada**, así que ese primer paso ya no es una recomendación.
+- **Antes de migrar, un `pg_dump -Fc` a mano de `procovar_reparto` y
+  `procovar_reparto_sync`**: el respaldo diario del servidor **no las incluye** (su lista
+  `BASES` es `procovar_pedidos procovar_delivery analitics n8n`; comprobado el 07/10/2026).
+  El comando, en `docs/despliegue.md` §2.2.
+- **Una migración que QUITA algo (la 00015 borra `orders.vehicle_id`) rompe a la api vieja**
+  entre el `up` y el arranque de la nueva: se encadenan migración y Deploy en hora de poca
+  carga y se vigilan los 500 (`docs/despliegue.md` §2.5). «Primero migrar y después
+  desplegar» no basta para ésas.
+- **`deploy` clona `main` y `redeploy` no**: `application.deploy` clona el origen y
+  construye (lleva código nuevo, que tiene que estar ya en la organización);
+  `application.redeploy` reconstruye el checkout que hay en el servidor sin `pull` (sólo
+  republica el anuncio de versión). Se espera un despliegue NUEVO en `done`, no el `done`
+  anterior (`docs/despliegue.md` §3.1).
+- **La clave de la API de Dokploy ya no está en `.secretos/vps-nuevo`**: `.secretos/
+  dokploy-clave-nueva.txt` aquí y `/root/secretos/dokploy.key` en el VPS.
 
 ## Lo último, y con cuidado
 

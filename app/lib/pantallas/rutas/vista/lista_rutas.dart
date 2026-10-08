@@ -322,7 +322,10 @@ class _TarjetaDeRuta extends ConsumerWidget {
           'Lo que NO se borra son los pedidos ni sus resultados: sueltan esta '
           'ruta. Los pendientes vuelven a la lista de disponibles; los '
           'entregados siguen entregados y no se reparten otra vez. Y '
-          'el camión se queda libre.',
+          'el camión se queda libre.\n\n'
+          'Si la ruta se armó desde una zona del tablero, las facturas vuelven '
+          'a esa zona cuando se sincronice el borrado (en la web, de '
+          'inmediato). Mientras tanto, sin señal, salen en «Sin colocar».',
     );
     if (!seguro) return;
     try {

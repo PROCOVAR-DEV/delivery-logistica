@@ -36,7 +36,6 @@ import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/estado/proveedores_pedidos.dart';
 import '../../pedidos/vista/kit.dart';
 import '../../pedidos/vista/vista_pre_despacho.dart';
-import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 import '../datos/acciones_rutas.dart';
 import '../datos/meter_la_zona.dart';
 import '../datos/repositorio_rutas.dart';
@@ -635,9 +634,20 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       // lo primero se arregla dando de alta uno EN ESA sucursal, y lo segundo
       // dando de alta el primero. Decir lo mismo en los dos casos manda a
       // buscar donde no es.
+      // Y un tercer caso desde que hay bajas: la sucursal TIENE camiones pero
+      // ninguno se ofrece (inactivos o en el taller). Decir «no tiene ninguno»
+      // seria falso y mandaria a dar de alta uno que ya existe.
+      final deEstaSucursal = [
+        for (final v in todos)
+          if (_sucursalId == null || v.branchId == _sucursalId) v,
+      ];
       return _SinSalida(
         texto: todos.isEmpty
             ? AsistenteNuevaRuta.sinVehiculos
+            : deEstaSucursal.isNotEmpty
+            ? 'Los vehículos de esta sucursal están inactivos o en el taller, '
+                  'y a una ruta nueva sólo se asigna un vehículo activo. '
+                  'Actívalo o sácalo del taller en Vehículos.'
             : 'Esta sucursal no tiene ningún vehículo dado de alta. Los que '
                   'hay son de otras sucursales, y un camión de otra sucursal no '
                   'está donde sale esta ruta.',
@@ -656,17 +666,15 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
             valor: _vehiculoId ?? '',
             opciones: [
               const OpcionSelector('', 'Elige el vehículo…'),
-              // **Se ofrecen todos los vehiculos, tambien los ocupados y los que
-              // estan en el taller**: la pantalla no decide por nadie, sólo avisa
-              // de como anda cada uno. El porque de NO bloquear el del taller esta
-              // abajo, en el aviso ambar.
+              // Se ofrecen los activos y fuera del taller (`seOfreceParaRutasNuevas`).
+              // Los ocupados SI salen, con su nota: un camion en ruta puede tener
+              // otra ruta planificada para otro dia, y la pantalla no decide por
+              // nadie, solo avisa de como anda cada uno.
               for (final v in vehiculos)
                 OpcionSelector(
                   v.id,
                   v.name,
                   nota: switch (v.status) {
-                    estadoEnMantenimiento =>
-                      '${v.capacity.toStringAsFixed(0)} kg · en el taller',
                     EstadoVehiculo.enUso =>
                       '${v.capacity.toStringAsFixed(0)} kg · en ruta',
                     _ => '${v.capacity.toStringAsFixed(0)} kg',
@@ -681,45 +689,6 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
             }),
           ),
         ),
-        // EL CAMION DEL TALLER SE AVISA, NO SE BLOQUEA — 28/09/2026.
-        //
-        // La nota de la lista («· en el taller») se ve al elegir y desaparece en
-        // cuanto el desplegable se cierra, asi que sola no basta: esto se queda
-        // delante mientras ese camion siga puesto.
-        //
-        // ## Por que aviso y no bloqueo, que hoy mismo se bloqueo lo de al lado
-        //
-        // Hoy se bloqueo armar una ruta SIN camion, y esto se parece y no es lo
-        // mismo. Sin camion no hay **con que contrastar** el peso ni el importe:
-        // la capacidad se mide contra la del camion y el costo por km sale de su
-        // `costo_km_usd`, asi que la ruta sale con su `516.5 kg` y su `$2.99` y
-        // los dos numeros no significan nada. Con un camion en el taller **las
-        // dos cuentas salen bien**: tiene su capacidad y su costo, y lo unico
-        // que pasa es que esta roto — un hecho del patio, no un hueco del dato.
-        //
-        // Y el que decide bloquear tiene que mirar quien paga el «no». El
-        // CLAUDE.md §2 lo tiene escrito con los 657 de 686 domicilios sin costo:
-        // bloquear con un dato que nadie mantiene deja la aplicacion inservible.
-        // `maintenance` es exactamente uno de esos — lo escribe una persona y
-        // otra tiene que acordarse de quitarlo—, y en produccion hay sucursales
-        // con UN camion («Vehiculos 0 / 1», el telefono de Jose el 28/09/2026):
-        // un `maintenance` que alguien se olvido de quitar dejaria a esa
-        // sucursal sin poder armar NADA, y el arreglo esta en otra pantalla.
-        //
-        // La otra diferencia, la que decidio lo del camion vacio: alli el hueco
-        // se tapa con un gesto **en la propia pantalla donde sale el no**. Aqui
-        // no: hay que ir a Vehiculos, sacarlo del taller, y volver.
-        if (_vehiculo?.status == estadoEnMantenimiento)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              '${_vehiculo!.name} está marcado EN EL TALLER. La ruta se arma '
-              'igual —tiene su capacidad y su costo por km— pero ese camión no '
-              'puede salir hoy. Si ya volvió, sácalo del taller en Vehículos.',
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: Colores.ambar),
-            ),
-          ),
         const SizedBox(height: 8),
         TextField(
           controller: _nombre,
@@ -1100,15 +1069,17 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
 
   /// El camion previsto de la zona, si lo tiene y no se eligio otro a mano.
   void _traerElCamionDeLaZona(ZonaParaArmar zona) {
+    final todos = ref.read(vehiculosProvider).value ?? const <Vehiculo>[];
     final camion = camionDeLaZona(
       zona: zona,
       elegidoId: _vehiculoId,
       elegidoNombre: _vehiculo?.name,
       elegidoAMano: _camionAMano,
-      vehiculosDeLaRuta: vehiculosDeLaSucursal(
-        ref.read(vehiculosProvider).value ?? const <Vehiculo>[],
-        _sucursalId,
-      ),
+      vehiculosDeLaRuta: vehiculosDeLaSucursal(todos, _sucursalId),
+      noSeOfrecen: {
+        for (final v in todos)
+          if (!seOfreceParaRutasNuevas(v)) v.id,
+      },
     );
     if (camion.vehiculoId != null && camion.vehiculoId != _vehiculoId) {
       _vehiculoId = camion.vehiculoId;

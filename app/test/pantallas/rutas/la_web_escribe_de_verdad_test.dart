@@ -398,7 +398,7 @@ void main() {
     test('cerrar: aceptado, se marca aquí y la nota va recortada', () async {
       contesta = (p) async => RespuestaFalsa(200, const <String, Object?>{});
 
-      final clave = await enLaWeb.cerrar('r-de-verdad', const [
+      final cierre = await enLaWeb.cerrar('r-de-verdad', const [
         MarcaDeParada(
           pedidoId: 'q1',
           resultado: ResultadoParada.entregado,
@@ -411,7 +411,9 @@ void main() {
         ),
       ]);
       // En la web no hay apunte al que seguirle la pista: ya está arriba.
-      expect(clave, '');
+      expect(cierre.claveDelApunte, '');
+      expect(cierre.aviso, isNull, reason: 'aceptado entero: nada que avisar');
+      expect(cierre.idsAplicados, {'q1', 'q2'});
 
       final cuerpo = servidor.vistas.single.cuerpo! as Map<String, Object?>;
       expect(servidor.vistas.single.ruta, '/routes/r-de-verdad/results');
@@ -436,6 +438,71 @@ void main() {
       expect(q2.routeId, isNull);
       expect(q2.ultimaRutaId, 'r-de-verdad');
       expect(await cuantosApuntes(), 0);
+    });
+
+    // INCIDENCIA 1 DE AMADO (07/10/2026): `POST /routes/<id>/results` contestó
+    // 409 «Se guardaron 1 de las 2 paradas… (ese pedido no va en esta ruta)» y la
+    // ruta no se cerraba. Lo guardado vale; el rechazo se DICE con su motivo
+    // literal y no impide completar. Y la pareja: un 409 en que NO se guardó
+    // ninguna es un rechazo total y no deja completar nada.
+    test('cerrar con 409 parcial: se marca lo guardado y el rechazo se dice',
+        () async {
+      const motivo = 'Se guardaron 1 de las 2 paradas de esta hoja. 1 no se '
+          'pudieron guardar: q2 (ese pedido no va en esta ruta).';
+      contesta = (p) async => RespuestaFalsa(409, const <String, Object?>{
+        'error': motivo,
+        'aplicados': [
+          {'orderId': 'q1', 'resultado': 'entregado'},
+        ],
+        'rechazados': [
+          {'orderId': 'q2', 'motivo': 'ese pedido no va en esta ruta'},
+        ],
+      });
+
+      final cierre = await enLaWeb.cerrar('r-de-verdad', const [
+        MarcaDeParada(pedidoId: 'q1', resultado: ResultadoParada.entregado),
+        MarcaDeParada(pedidoId: 'q2', resultado: ResultadoParada.entregado),
+      ]);
+
+      expect(cierre.idsAplicados, {'q1'});
+      expect(cierre.aviso, motivo, reason: 'el motivo sale LITERAL');
+      final q1 = await (base.select(
+        base.orders,
+      )..where((o) => o.id.equals('q1'))).getSingle();
+      expect(q1.resultado, ResultadoParada.entregado);
+      final q2 = await (base.select(
+        base.orders,
+      )..where((o) => o.id.equals('q2'))).getSingle();
+      expect(q2.resultado, isNull, reason: 'lo rechazado no se marca aquí');
+      expect(await cuantosApuntes(), 0);
+    });
+
+    test('cerrar con 409 sin NADA guardado: rechazo total, ni una marca',
+        () async {
+      contesta = (p) async => RespuestaFalsa(409, const <String, Object?>{
+        'error': 'ese pedido no va en esta ruta',
+        'aplicados': <Object?>[],
+        'rechazados': [
+          {'orderId': 'q1', 'motivo': 'ese pedido no va en esta ruta'},
+        ],
+      });
+
+      await expectLater(
+        () => enLaWeb.cerrar('r-de-verdad', const [
+          MarcaDeParada(pedidoId: 'q1', resultado: ResultadoParada.entregado),
+        ]),
+        throwsA(
+          isA<RechazoLocal>().having(
+            (r) => r.mensaje,
+            'mensaje',
+            'ese pedido no va en esta ruta',
+          ),
+        ),
+      );
+      final q1 = await (base.select(
+        base.orders,
+      )..where((o) => o.id.equals('q1'))).getSingle();
+      expect(q1.resultado, isNull);
     });
   });
 

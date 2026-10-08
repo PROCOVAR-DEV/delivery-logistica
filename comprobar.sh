@@ -46,6 +46,20 @@ for m in api sync herramientas/mapa-cuba; do
   cd "$raiz"
 done
 
+# LAS CONSULTAS NUEVAS CONTRA UN POSTGRES DE VERDAD. Las pruebas de `internal/api` usan
+# dobles que reimplementan el SQL, y `go test` salta `consultas_motor_real_test.go` EN
+# SILENCIO si no hay base: la auditoria del 08/10/2026 mutó 14 guardas del SQL y sólo esa
+# prueba las cazó, así que sin ella una regresion pasaria en verde. Aqui se dice a gritos.
+# La base ha de ser AISLADA y llamarse `verif…`/`…test…`/`…prueba…` (la prueba se niega si no),
+# migrada con goose hasta la ultima: ver CLAUDE.md §5.
+echo "== api: consultas contra Postgres real =="
+if [ -n "${REPARTO_MOTOR_REAL_DSN:-}" ]; then
+  paso "motor real"
+  (cd "$raiz/api" && go test -count=1 -run MotorReal ./internal/store/sqlc/ >/dev/null 2>&1) && bien || mal
+else
+  paso "motor real"; echo "SALTADO (exporta REPARTO_MOTOR_REAL_DSN: CLAUDE.md §5)"
+fi
+
 echo "== app (Flutter) =="
 cd "$raiz/app"
 paso "analyze"; flutter analyze >/dev/null 2>&1 && bien || mal

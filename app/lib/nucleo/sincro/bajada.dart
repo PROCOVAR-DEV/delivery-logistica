@@ -563,6 +563,13 @@ class Bajada {
                 plate: Value(_texto(j['plate'])),
                 capacity: Value(_numero(j['capacity']) ?? 1000),
                 status: Value(_texto(j['status']) ?? EstadoVehiculo.disponible),
+                // `isActive` AUSENTE ES ACTIVO. Un servidor viejo no manda el
+                // campo, y leerlo con `== true` dejaria TODA la flota dada de
+                // baja de golpe: ningun selector ofreceria un camion y no se
+                // podria armar una ruta. Solo un `false` explicito es una baja
+                // (Amado, 07/10/2026: un camion con rutas se inactiva, no se
+                // borra). Lo vigila `la_bajada_no_pierde_campos_test.dart`.
+                isActive: Value(j['isActive'] != false),
                 branchId: Value(_texto(j['branchId'])),
                 updatedAt: Value(_fecha(j['updatedAt'])),
               ),

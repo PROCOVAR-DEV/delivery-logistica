@@ -160,4 +160,44 @@ void main() {
           '«manual». Una lista creíble y del revés.',
     );
   });
+
+  // `isActive` — Amado, 07/10/2026 (incidencia 4). El servidor lo manda en la
+  // bajada de vehiculos; si la bajada no lo lee, TODOS quedan activos y la baja
+  // de un camion no sirve de nada. Y un servidor viejo no lo manda: ausente es
+  // ACTIVO, o toda la flota desapareceria de los selectores de golpe.
+  test('el vehículo llega con `isActive`, y ausente es ACTIVO', () async {
+    await conEsto(<String, Object?>{
+      'vehicles': conjunto([
+        <String, Object?>{
+          'id': 'v-baja',
+          'name': 'Camión de baja',
+          'isActive': false,
+          'status': 'available',
+        },
+        <String, Object?>{
+          'id': 'v-alta',
+          'name': 'Camión activo',
+          'isActive': true,
+          'status': 'available',
+        },
+        <String, Object?>{
+          'id': 'v-viejo',
+          'name': 'Camión de un servidor viejo',
+          'status': 'available',
+        },
+      ]),
+    }).ciclo();
+
+    Future<bool> activo(String id) async => (await (base.select(
+      base.vehicles,
+    )..where((v) => v.id.equals(id))).getSingle()).isActive;
+
+    expect(await activo('v-baja'), isFalse, reason: 'la baja se pierde al bajar');
+    expect(await activo('v-alta'), isTrue);
+    expect(
+      await activo('v-viejo'),
+      isTrue,
+      reason: 'sin el campo es activo: leerlo con `== true` da de baja la flota',
+    );
+  });
 }

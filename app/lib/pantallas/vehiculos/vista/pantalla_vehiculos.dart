@@ -579,10 +579,18 @@ class _Rejilla extends ConsumerWidget {
   /// camión borrado por error ahí es una llamada de teléfono y una tarde perdida.
   ///
   /// La pieza es la misma y el literal es el mismo —[preguntarAntesDeBorrar]—,
-  /// no uno inventado. Lo único propio es **qué se pierde**, y sale del servidor:
-  /// `borrarVehiculo` desvincula el camión de sus rutas y de sus pedidos dentro
-  /// de la transacción antes de quitarlo, así que el histórico de lo repartido se
-  /// queda, pero sin camión.
+  /// no uno inventado. Lo único propio es **qué se pierde**, y sale del servidor.
+  ///
+  /// # LO QUE DECÍA ESTO YA NO ES VERDAD — 07/10/2026 (Amado, incidencia 4)
+  ///
+  /// Decía que las rutas «se quedan sin camión». Ya no: `borrarVehiculo` se
+  /// niega con un 409 si el camión tiene rutas, **incluso históricas**, para no
+  /// romper la trazabilidad («No se puede eliminar este vehículo porque tiene
+  /// rutas asociadas, incluso históricas. Márcalo como inactivo para impedir que
+  /// se use en nuevas rutas.»). Lo que se puede borrar es el que nunca se usó. La
+  /// pregunta lo dice antes de que el servidor tenga que decirlo, y apunta a la
+  /// salida: **marcarlo inactivo** (en «Editar»), que es lo que quita un camión
+  /// de la selección de rutas nuevas sin perder su historia.
   Future<void> _borrarPreguntando(
     BuildContext contexto,
     ControlVehiculos control,
@@ -592,11 +600,13 @@ class _Rejilla extends ConsumerWidget {
       contexto,
       queSeVa: vehiculo.nombre,
       loQuePasa:
-          'El camión se va de la flota. Las rutas y los pedidos que lo '
-          'llevaban puesto NO se borran —el histórico de lo repartido se '
-          'queda— pero se quedan sin camión, y hay que ponerles otro. Y el '
-          'camión hay que volver a darlo de alta a mano, con su placa, su '
-          'capacidad y su costo por km.',
+          'El camión se va de la flota y hay que volver a darlo de alta a '
+          'mano, con su placa, su capacidad y su costo por km.\n\n'
+          'Un camión que ya tiene rutas —aunque sean del histórico— NO se '
+          'puede borrar: el servidor lo rechaza para no perder qué camión hizo '
+          'cada reparto. Si ese es el caso, no lo borres: ábrelo con «Editar» y '
+          'márcalo como inactivo. Así deja de ofrecerse en las rutas nuevas y su '
+          'historial se queda intacto.',
       // «dejarla» es el de la zona; aquí es un camión.
       noLoBorres: 'No, dejarlo',
     );

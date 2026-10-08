@@ -122,6 +122,15 @@ class TarjetaVehiculo extends StatelessWidget {
               ),
             ],
           ),
+          // DADO DE BAJA — Amado, 07/10/2026 (incidencia 4). Un camion con rutas
+          // no se borra, se inactiva, y desde entonces no sale en la seleccion
+          // de rutas nuevas. Se dice AQUI porque `etiquetaEstado` habla de en
+          // que anda el camion (libre, con ruta, en el taller) y esto es otra
+          // cosa: un camion puede estar libre Y de baja.
+          if (!vehiculo.activo) ...[
+            const SizedBox(height: Aire.xs),
+            const InsigniaInactivo(),
+          ],
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -315,6 +324,40 @@ class TarjetaVehiculo extends StatelessWidget {
       ),
     );
   }
+}
+
+/// «Inactivo»: color, borde y icono, SIN fondo relleno.
+///
+/// No es [Insignia] a proposito: aquella es una pastilla con el fondo tintado, y
+/// la regla de la casa es que lo que se distingue lo hace por **color, borde e
+/// icono** (`CLAUDE.md` §4). Publica para poder probarla suelta.
+class InsigniaInactivo extends StatelessWidget {
+  const InsigniaInactivo({super.key});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+    decoration: BoxDecoration(
+      border: Border.all(color: Colores.tintaSuave),
+      borderRadius: BorderRadius.circular(Radios.pastilla),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.block, size: 13, color: Colores.tintaSuave),
+        const SizedBox(width: 4),
+        Text(
+          'Inactivo',
+          style: Tipos.texto(
+            tamano: 11,
+            peso: FontWeight.w600,
+            color: Colores.tintaSuave,
+            interletra: 0.1,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _Caja extends StatelessWidget {

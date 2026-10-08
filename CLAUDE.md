@@ -376,6 +376,54 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
 - **Un cierre parcial en la web no se avisa con algo que se va solo**: cajón que obliga a acusar
   recibo, con «Conduce <número>: <motivo>» de cada parada que no se guardó. La ruta se completa
   con lo guardado y es histórico: lo rechazado no se puede dejar pasar en silencio.
+- **El cierre de ruta no pregunta «¿salir sin guardar?» cuando ya no hay nada que perder, y SÍ
+  pregunta cuando lo hay** (issue 2 de Amado, 08/10/2026: «Tienes 0 sin guardar»). `PopScope.canPop`
+  es el valor del ÚLTIMO dibujo y `_guardar` mueve la foto de lo guardado sin redibujar: la
+  decisión se toma de nuevo en `onPopInvokedWithResult` con `_cambios` y `_soloLectura` de AHORA.
+  Y escribir en la nota de una parada redibuja el cajón (`alEscribirLaNota`): sin eso, editar sólo
+  la nota y dar atrás salía sin preguntar y la nota se perdía en silencio.
+- **Solo cuatro roles entran a Reparto** (Jose, 08/10/2026: «esos roles son los únicos que pueden
+  entrar a Reparto; a los otros, que Reparto les diga no tienes permiso y se dirijan a Accesos, a su
+  inicio»): `SUPER ADMIN`, `DESARROLLADOR`, `ADMINISTRADOR` y `LOGISTICO` (sin tilde, como lo firma
+  Accesos; más el `admin` de los tokens viejos de la web, que el login único NUNCA acuña).
+  GERENTE, SUPERVISOR, GESTOR, OPERADOR, ECONOMICA, ANALISTA, un rol desconocido o ninguno reciben
+  **403** `{"error":"No tienes permiso para entrar a Reparto.","codigo":"sin_permiso_reparto"}`,
+  tras la identidad y ANTES del alcance de sucursal. Está en TRES sitios que se cambian juntos:
+  `auth.Usuario.PuedeEntrarAReparto` (`api/internal/auth/auth.go`; lo aplican `Verificador.Exigir` y
+  el canal `/api/eventos`, que NO pasa por Exigir), `puedeEntrarAReparto` en
+  `sync/internal/identidad/token.go` (el sincronizador verifica el token por su cuenta y sirve la
+  bajada de su propia base) y los roles de la web en `auth_web.go` (primer nivel del exchange de
+  Accesos; las membresías sólo como caída; nunca `admin`). Las dos listas las ata
+  `docs/roles-de-reparto.casos.json`, que leen las pruebas de los dos módulos y viaja en las
+  imágenes: **si lo cambias, cambia las dos**. La comparación es `auth.MismoRol` (ASCII, SIN
+  plegado Unicode: `strings.EqualFold` casaba «ſUPER ADMIN»). Es una lista de los que ENTRAN: un rol
+  nuevo en Accesos nace sin acceso. Un logístico se da de alta poniéndole el rol LOGISTICO en
+  Accesos; Reparto no guarda personas ni roles. `GET /api/me` NO da 403 (contesta quién es). Las
+  cuentas de servicio no pasan por Exigir y llevan SUPER ADMIN. `SYNC_IDENTIDAD=cabeceras` no
+  arranca sin `SYNC_PERMITIR_CABECERAS=1` (no tiene roles que comprobar); en producción es `token`.
+  **TRAMPA: antes de dar una SEGUNDA MEMBRESÍA a alguien hay que ligar el rol a la sucursal**: hoy
+  nadie tiene más de una (medido el 08/10/2026), pero los roles son de la persona y la sucursal es la
+  de la primera membresía (`TestLimiteConocido…` lo documenta). **TRAMPA del despliegue:** Accesos
+  primero (crea LOGISTICO), luego asignar LOGISTICO a quien trabaje en Reparto, luego `sync` y `api`;
+  en la web el rol se refresca al volver a entrar (la cookie dura 7 días).
+- **Un 403 `sin_permiso_reparto` NO es un rechazo del apunte** (es la PERSONA, no el apunte): en el
+  sincronizador `/sync/subida` contesta 403 sin anotar nada, y en la app el interceptor pasa el
+  portero a `EstadoDeAcceso.sinPermiso` (pantalla `/sin-permiso`, ciclo y vigía parados; sesión, base
+  y cola intactas). Si se convirtiera en `rechazado`, se destruiría la cola de quien sólo necesita
+  que le den el rol. Web: va sola al inicio de Accesos (`AUTH_URL/`) a los 3 s, con contador y «Ir
+  ahora»; APK y escritorio: «Ir a Accesos» y «Cerrar sesión» (que pregunta si hay cola). De
+  `sinPermiso` sólo se sale con `salir()` y entrando de nuevo. Detalle en `docs/sin-permiso.md`.
+- **La tabla de Pedidos enseña SI EL DOMICILIO ESTÁ COBRADO y ya no tiene columna «Vehículo»**
+  (Amado, 08/10/2026, incidencias 3 y 4). «No se puede asociar al tablero: la factura no tiene un
+  cobro de domicilio registrado» era CORRECTO: la factura cuadraba pero no traía la línea «ENTREGA A
+  DOMICILIO» (`factura_domicilio` nulo, también en PEDIDO; ~9 de cada 10 pedidos a domicilio con
+  factura que cuadra están así). La celda «Factura» (`tabla_pedidos.dart`) añade, con factura `igual`
+  o `cambiado`, «Dom. $0.46» (verde, `facturaDomicilio > 0`) o «Sin cobro de domicilio» (ámbar), con
+  el tooltip que explica la consecuencia; el ámbar sólo sale si ese es lo que frena al pedido
+  (`frenaElDomicilioSinCobrar`, que pregunta a `porQueNoSePuedeColocar` y no repite la regla; con
+  ruta, entregado o archivado va sólo el número o el verde). La regla NO cambió: la marca la hace
+  visible. La columna «Vehículo» se quitó entera (desde la 1.0.28 `orders.vehicle_id` no existe); el
+  camión sigue en el detalle. Trampa: la columna Factura se esconde bajo 1024 px.
 - **Cajón siempre**, también en escritorio (excepción aprobada para este
   proyecto el 05/09/2026). Sin emojis en la interfaz.
 - **Una decisión de una persona se ESCRIBE, no se borra.** Borrar no es decidir:

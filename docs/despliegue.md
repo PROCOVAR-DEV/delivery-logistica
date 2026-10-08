@@ -1006,11 +1006,12 @@ con ellos hay seis cosas que saber:
    que anunciar exactamente esto»). Para cada versión nueva se copian los de la anterior
    desde `app/build/codex-retoma-20261006/rutas-historico/publicacion-<versión anterior>/`
    a `publicacion-<versión nueva>/` y se adaptan —las constantes de versión, el repo, los
-   nombres y la línea base—. La 1.0.29 se publicó el 08/10/2026 con `publicacion-1.0.29/` (copia de la 1.0.28 un escalón más; auditada
+   nombres y la línea base—. La 1.0.30 se publicó el 08/10/2026 con `publicacion-1.0.30/` (copia de la 1.0.29 un escalón más; auditada
+   sin fallos graves). La 1.0.29 se publicó antes ese día con `publicacion-1.0.29/` (copia de la 1.0.28 un escalón más; auditada
    sin fallos, con una guarda añadida en `update-portal-apk.py` que exige el mismo commit en Windows y Android).
    La 1.0.28 se publicó antes ese día con `publicacion-1.0.28/`, que tiene un
    `LEEME.md` con el orden y lo que cambia respecto a la anterior: **para la siguiente versión se
-   copia de la última (`publicacion-1.0.29/`)**. La 1.0.28 pasó por el auditor (`CLAUDE.md` §4-bis), que obligó a cambiar la fecha (el nombre
+   copia de la última (`publicacion-1.0.30/`)**. La 1.0.28 pasó por el auditor (`CLAUDE.md` §4-bis), que obligó a cambiar la fecha (el nombre
    del APK en MinIO es permanente: `261008`, no `261007`) y a exigir en `stage-windows28.py` que se
    haya pasado antes `verify-ci-artifact.py`. Tras subir, la comprobación de rango de MinIO falló
    la primera vez (200 en vez de 206) y fue bien al repetirla, como en la 1.0.26 y la 1.0.27: se

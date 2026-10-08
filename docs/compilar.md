@@ -198,11 +198,11 @@ El artefacto del trabajo contiene:
 Antes de ofrecerlo en procovar.cloud hay que descargar ese artefacto, contrastar
 sus huellas, publicar el instalador sin sobrescribir versiones y comprobar su descarga.
 
-La versión **1.0.29+30** (08/10/2026) está en procovar.cloud como **Reparto para Windows**:
-el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.29-windows-setup.exe)
-(16.238.008 bytes). La ejecución [37812597394 de GitHub Actions](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37812597394),
-sobre el commit `c27dbcc` en la organización, compiló e instaló la copia de prueba y cotejó sus archivos.
-(La de la 1.0.28 fue la [37781825464](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37781825464); la de la 1.0.27, [37537712382](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37537712382),
+La versión **1.0.30+31** (08/10/2026) está en procovar.cloud como **Reparto para Windows**:
+el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.30-windows-setup.exe)
+(16.241.371 bytes). La ejecución [37834921676 de GitHub Actions](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37834921676),
+sobre el commit `66fb15b` en la organización, compiló e instaló la copia de prueba y cotejó sus archivos.
+(La de la 1.0.29 fue la [37812597394](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37812597394); la de la 1.0.28 la [37781825464](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37781825464); la de la 1.0.27, [37537712382](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37537712382),
 bajo `jose22072000` da 404: ahora vive en la organización.) Las descargas públicas se
 verificaron por tamaño y SHA256 antes de actualizar la tarjeta. Abrir, iniciar sesión
 y trabajar sin conexión en el PC del usuario quedan pendientes de prueba física.
@@ -216,14 +216,16 @@ eliminar mientras no esté completada; los estados de paradas se revisan al puls
 retiene el cierre de esa ruta en la cola nativa. Windows conserva su base local para
 trabajar sin conexión; la web trabaja conectada al servidor.
 
-La 1.0.29 endurece lo que la revisión de la 1.0.28 dejó abierto (alcance que falla cerrado,
+La 1.0.30 trae la pantalla «No tienes permiso para entrar a Reparto» (y su salida a Accesos, sin perder
+la cola), las marcas de domicilio cobrado de Pedidos sin la columna Vehículo, y el login y el refresco de
+la APK que reconocen el `sin_permiso` de Accesos (`docs/sin-permiso.md`). La 1.0.29 endurece lo que la revisión de la 1.0.28 dejó abierto (alcance que falla cerrado,
 `PATCH /api/orders`, camión de otra sucursal, armado local del Tablero como el servidor, cajón de
 acuse en el cierre parcial; ver `docs/reglas-negocio.md` §15.14).
 
-Android y Windows están publicados como **1.0.29+30**, con el anuncio global y las dos
-tarjetas del portal actualizadas (los diarios `.publish-*-1.0.29*` están en `production_verified`).
+Android y Windows están publicados como **1.0.30+31**, con el anuncio global y las dos
+tarjetas del portal actualizadas (los diarios `.publish-*-1.0.30*` están en `production_verified`).
 **Falta la prueba física** en un teléfono con una base 1.0.27 llena (el esquema local pasa de la 4
-a la 6 con un `DROP COLUMN`) y en un PC. Se puede instalar Windows 1.0.29 desde el portal sobre la
+a la 6 con un `DROP COLUMN`) y en un PC. Se puede instalar Windows 1.0.30 desde el portal sobre la
 versión anterior. La actualización automática en el PC del usuario no se ha probado;
 separar el aviso de versión por plataforma sigue siendo un pendiente de arquitectura.
 Las versiones anteriores se conservan.

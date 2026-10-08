@@ -1801,7 +1801,7 @@ Lo que sí se comprobó, y con qué:
 | La versión de Go que pincha el Dockerfile es la del código | `GO_VERSION=1.27`, y `api/go.mod` y `sync/go.mod` piden `go 1.27.0` |
 | La línea de goose de `Dockerfile.migraciones` | `go install github.com/pressly/goose/v3/cmd/goose@v3.28.0` → `goose version: v3.28.0` |
 | Las dos series de migraciones las entiende goose | `goose -dir api/db/migrations validate` y `goose -dir sync/db/migrations validate` |
-| `docker-compose.yml` es válido y las variables resuelven | `docker compose config` (no necesita el demonio). **Ya no es verdad (comprobado el 07/10/2026):** desde el commit `ebc3480` (1.0.15, 29/09) la línea 117 —la nota `APP_ULTIMA_NOTAS`, sin comillas y con un «: » dentro— rompe el YAML y `docker compose config` contesta «mapping values are not allowed in this context». Es un fichero de código: lo arregla quien lo lleve (comillas dobles en esa nota) |
+| `docker-compose.yml` es válido y las variables resuelven | `docker compose config` (no necesita el demonio). **Estuvo roto del 29/09 al 08/10/2026** (la nota `APP_ULTIMA_NOTAS` llevaba un «: » dentro, desde el commit `ebc3480`) y se arregló el 08/10: `docker compose config` vuelve a salir limpio. Los valores por defecto `APP_*` siguen anunciando la 1.0.15 (el paso 5 de §3.1 dejó de hacerse); es sólo el entorno local |
 | `deploy/migrar.sh` no tiene errores de sintaxis | `sh -n` |
 | Todas las rutas que copian los Dockerfile existen | `api/cmd/api`, `api/cmd/espejo`, `sync/cmd/sync`, `api/db/migrations`, `sync/db/migrations`, `deploy/migrar.sh` y los dos `go.sum` |
 | **`flutter build web` TERMINA** | las mismas banderas del `Dockerfile.app` (`--release --no-web-resources-cdn --base-href / --dart-define=…`); 90 s y `✓ Built build/web` |

@@ -31,12 +31,12 @@ cd delivery-logistica
 docker compose up -d --build postgres migraciones api sync
 ```
 
-> **Aviso del 07/10/2026: hoy esto no arranca.** `docker-compose.yml` no es YAML válido
-> desde el commit `ebc3480` (29/09): en la línea 117 la nota `APP_ULTIMA_NOTAS` va sin
-> comillas y lleva un «: » dentro, y `docker compose` contesta «mapping values are not
-> allowed in this context». Es un fichero de código; hasta que se ponga entre comillas
-> dobles, este paso falla antes de levantar nada. (La jornada de abajo se hizo el 24/09,
-> con el compose anterior.)
+> **Arreglado el 08/10/2026.** Entre el 29/09 (commit `ebc3480`) y el 08/10, `docker-compose.yml` no
+> era YAML válido: la nota `APP_ULTIMA_NOTAS` llevaba un «: » dentro y `docker compose` contestaba
+> «mapping values are not allowed in this context». Se quitaron los «: » de esa nota (no se puso entre
+> comillas: la prueba `composeApp` de `api/internal/api/version_test.go` lee ese valor con una expresión
+> que espera `${VAR:-…}` sin comillas delante). Si vuelve a salir ese error, es la misma causa: un «: »
+> o un `#` dentro de un valor por defecto. (La jornada de abajo se hizo el 24/09, con el compose anterior.)
 
 Deja:
 
@@ -67,8 +67,7 @@ ORIGENES_PERMITIDOS=http://localhost:8082,http://127.0.0.1:8082
 `APP_*` en blanco, pero el compose las lee como `${APP_ULTIMA_VERSION:-1.0.15}`, y en
 Compose `:-` también cae al valor por defecto cuando la variable está **vacía**. Por
 construcción, un `.env` en blanco no calla el anuncio: la api local anunciaría la 1.0.15 con
-su enlace a `archivos.procovar.cloud`. No se ha podido comprobar corriéndolo, porque hoy el
-compose no parsea.)
+su enlace a `archivos.procovar.cloud`. Sin comprobar corriéndolo.)
 
 **`http://accesos:3500`, por el nombre del servicio y no por `127.0.0.1`.** Desde
 un contenedor no se llega al `localhost` del portátil: el cortafuegos del equipo

@@ -114,7 +114,7 @@ services:
       # nueva — y la aplicación se usa sin señal la mayor parte del día.
       APP_ULTIMA_VERSION: ${APP_ULTIMA_VERSION:-1.0.15}
       APP_ULTIMA_COMPILACION: ${APP_ULTIMA_COMPILACION:-16}
-      APP_ULTIMA_NOTAS: ${APP_ULTIMA_NOTAS:-Los errores de «Entregar el día» ya se pueden quitar de verdad: hasta ahora, al descartar uno, volvía a salir solo a los pocos minutos. Lo que quedaba colgado en el aparato y no tenía forma de cerrarse ahora se puede dar por perdido, sin borrar nada. Al volver la señal el día sube solo, sin esperar los cinco minutos del reloj. Los motivos por los que el servidor dice que no salen en español y dicen qué falta. Y en el teléfono ya no se corta la barra de arriba, que se comía el menú de la cuenta.}
+      APP_ULTIMA_NOTAS: ${APP_ULTIMA_NOTAS:-Los errores de «Entregar el día» ya se pueden quitar de verdad; hasta ahora, al descartar uno, volvía a salir solo a los pocos minutos. Lo que quedaba colgado en el aparato y no tenía forma de cerrarse ahora se puede dar por perdido, sin borrar nada. Al volver la señal el día sube solo, sin esperar los cinco minutos del reloj. Los motivos por los que el servidor dice que no salen en español y dicen qué falta. Y en el teléfono ya no se corta la barra de arriba, que se comía el menú de la cuenta.}
       APP_ULTIMA_PUBLICADA: ${APP_ULTIMA_PUBLICADA:-2026-09-29}
       # Los TRES juntos o ninguno: URL, BYTES y SHA256. Sin BYTES quien la baja por datos
       # móviles ve «30 MB/?» —Cloudflare quita el Content-Length— y sin SHA256 una descarga

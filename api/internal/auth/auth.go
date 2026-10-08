@@ -45,6 +45,14 @@ type Usuario struct {
 	Rol      string   // el principal, para las comprobaciones que ya existen
 	Roles    []string // todos, para lo que venga
 	Sucursal string   // "" = no pertenece a ninguna (Super Admin)
+
+	// ENTRADAS: las llaves `<app>.entrar` que AUTH firma en el token (`delivery.entrar`,
+	// `pedido.entrar`…). Es lo que decide si la persona entra a Reparto (ver
+	// [Usuario.PuedeEntrarAReparto]). `HayEntradas` distingue «el token no traía el campo»
+	// (un token anterior al cambio: se cae a la lista de roles) de «traía `entradas: []`»
+	// (Auth dice que no entra a nada). NO son lo mismo y una prueba lo ata.
+	Entradas    []string
+	HayEntradas bool
 }
 
 // LOS ROLES DE VERDAD, escritos como los escribe PEDIDO, que es de donde salen.
@@ -144,24 +152,70 @@ func (u *Usuario) EsSuperAdmin() bool {
 	return u.tieneAlguno(rolAdminHeredado) && u.Sucursal == ""
 }
 
-// PuedeEntrarAReparto: QUIÉN ENTRA A REPARTO, y nadie más.
+// LlaveEntrarReparto: la llave que Auth firma en `entradas` a quien puede entrar a Reparto.
+// Texto EXACTO —sin recortar, sin mayúsculas, sin plegado Unicode—: es un identificador de
+// máquina que escribe Auth, no un rol que alguien teclea.
+const LlaveEntrarReparto = "delivery.entrar"
+
+// CaidaPorRolesDeTransicion: mientras valga `true`, un token SIN el campo `entradas` (emitido
+// antes de que Auth lo firmara) se decide por la lista de roles de abajo.
 //
-// Jose, 08/10/2026: «esos roles son los únicos que pueden entrar a Reparto; a los otros, que
-// Reparto les diga no tienes permiso y se dirijan a Accesos, a su inicio». Son CUATRO:
-// SUPER ADMIN, DESARROLLADOR, ADMINISTRADOR y LOGISTICO. GERENTE, SUPERVISOR, GESTOR,
-// OPERADOR, ECONOMICA, ANALISTA… y cualquier rol que no conozcamos, fuera.
+// QUITAR cuando caduquen los tokens/cookies anteriores al 08/10/2026 (la cookie web dura 7 días
+// -> 15/10/2026; el access token de la APK, 15 minutos): después Reparto decide SOLO por
+// `entradas`, y esta constante y la lista de roles de `PuedeEntrarAReparto`
+// se borran. `TestLaCaidaPorRolesEsDeTransicion` la nombra para que no se olvide.
 //
-// ES UNA LISTA DE LOS QUE ENTRAN, no de los que no: un rol nuevo que se cree en Accesos
-// mañana nace SIN acceso a Reparto, y se le da añadiéndolo aquí. Al revés —lista de
-// excluidos— cada rol nuevo entraría solo, que es el fallo caro y el que no se ve.
+// Jose, 08/10/2026: «Reparto no decide quién entra; eso lo maneja Auth (Accesos); Reparto es un
+// microservicio y el login es de Auth». Antes (mismo día) la lista de roles ERA la regla.
+const CaidaPorRolesDeTransicion = true
+
+// PuedeEntrarAReparto: QUIÉN ENTRA A REPARTO.
 //
-// Texto exacto sobre `Rol` y sobre `Roles` (tieneAlguno): un token con dos roles entra si
-// CUALQUIERA de los dos está en la lista. Y el `admin` heredado de la web vieja entra, por
-// lo mismo que en [Usuario.EsAdmin]: es un puente, no una llave nueva. Las cuentas de
-// servicio (espejo, sync, n8n, webhook de PEDIDO) llevan `SUPER ADMIN` puesto a mano y
-// además NO pasan por [Verificador.Exigir]: no se tocan.
+//  1. Si el token trae `entradas` (aunque sea `[]`) decide SOLO ella: entra si y solo si trae
+//     `delivery.entrar`. Con la llave entra AUNQUE su rol no esté en la lista de abajo (así Auth
+//     puede darle acceso a otro rol sin tocar Reparto), y un rol de la lista SIN la llave NO entra.
+//  2. Si el token NO trae el campo (anterior al cambio) y la caída está activa
+//     ([CaidaPorRolesDeTransicion]), se decide por los roles de ayer: SUPER ADMIN, DESARROLLADOR,
+//     ADMINISTRADOR y LOGISTICO (+ el `admin` heredado). Lista de los que ENTRAN: un rol nuevo
+//     nace sin acceso; `MismoRol`, sin plegado Unicode.
+//
+// «Ausente» y «vacío» NO son lo mismo: ausente = «Auth todavía no lo decía» (caída), vacío =
+// «Auth dice que no» (403). Las cuentas de servicio (espejo, sync, n8n, webhook de PEDIDO)
+// llevan `SUPER ADMIN` puesto a mano y NO pasan por [Verificador.Exigir]: no se tocan.
 func (u *Usuario) PuedeEntrarAReparto() bool {
+	if u.HayEntradas {
+		for _, e := range u.Entradas {
+			if e == LlaveEntrarReparto {
+				return true
+			}
+		}
+		return false
+	}
+	if !CaidaPorRolesDeTransicion {
+		return false
+	}
 	return u.tieneAlguno(rolSuperAdmin, rolDesarrollador, rolAdministrador, rolLogistico, rolAdminHeredado)
+}
+
+// LeerEntradas interpreta el campo `entradas` tal como llegó. `hay` es false SOLO si el campo no
+// venía. Presente pero que no es un array de textos (`null`, un texto, un objeto) cuenta como
+// PRESENTE Y VACÍO: ante un campo roto se falla cerrado, no se cae a los roles. Los elementos
+// que no son texto se ignoran.
+func LeerEntradas(crudo json.RawMessage) (llaves []string, hay bool) {
+	if len(crudo) == 0 {
+		return nil, false
+	}
+	llaves = []string{}
+	var v []any
+	if err := json.Unmarshal(crudo, &v); err != nil {
+		return llaves, true
+	}
+	for _, e := range v {
+		if t, ok := e.(string); ok {
+			llaves = append(llaves, t)
+		}
+	}
+	return llaves, true
 }
 
 // Verificador guarda el secreto. Se construye una vez al arrancar.
@@ -327,6 +381,7 @@ func (v *Verificador) Verificar(token string) (*Usuario, error) {
 	if u.Rol == "" && len(u.Roles) > 0 {
 		u.Rol = u.Roles[0]
 	}
+	u.Entradas, u.HayEntradas = LeerEntradas(c.Entradas)
 	return u, nil
 }
 
@@ -355,6 +410,9 @@ type reclamos struct {
 	// la web (7 días) de la de la APK (15 minutos) sin tener que creerse el token. Ver
 	// `rastro.go`.
 	Iat *float64 `json:"iat"`
+	// `entradas`: en crudo para poder distinguir «no vino» (len 0) de `[]` y de `null`. Ver
+	// [LeerEntradas].
+	Entradas json.RawMessage `json:"entradas"`
 }
 
 // UnmarshalJSON tolera que los campos de texto vengan como null o como número. El
@@ -389,6 +447,13 @@ func (c *reclamos) UnmarshalJSON(b []byte) error {
 			Iat:           numero(suelto, "iat"),
 		}
 	}
+	// `entradas` se lee APARTE y en crudo, salga por el camino que salga lo demás: un campo suelto
+	// con otro tipo no puede tumbar el token, y «presente» no puede perderse por el camino.
+	var solo struct {
+		Entradas json.RawMessage `json:"entradas"`
+	}
+	_ = json.Unmarshal(b, &solo)
+	a.Entradas = solo.Entradas
 	*c = reclamos(a)
 	return nil
 }

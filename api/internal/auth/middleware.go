@@ -69,7 +69,8 @@ func PermitirReparto(w http.ResponseWriter, r *http.Request, u *Usuario) bool {
 		quien = u.ID
 	}
 	httpx.Registro(r).Warn("sin permiso de reparto",
-		"rol", u.Rol, "roles", u.Roles, "sucursal", u.Sucursal, "persona", quien, "ruta", r.URL.Path)
+		"rol", u.Rol, "roles", u.Roles, "sucursal", u.Sucursal, "persona", quien, "ruta", r.URL.Path,
+		"entradas", u.Entradas, "trae_entradas", u.HayEntradas)
 	httpx.ErrorConCodigo(w, r, http.StatusForbidden, MsgSinPermisoReparto, CodigoSinPermisoReparto)
 	return false
 }

@@ -27,10 +27,12 @@ func TestLaListaDeRolesDeRepartoEsLaDeLosCasosCompartidos(t *testing.T) {
 			Role   *string   `json:"role"`
 			Rol    *string   `json:"rol"`
 			Roles  *[]string `json:"roles"`
-			Entra  bool      `json:"entra"`
+			// En crudo: ausente, `[]`, `null` y «no es un array» son cosas distintas.
+			Entradas json.RawMessage `json:"entradas"`
+			Entra    bool            `json:"entra"`
 		} `json:"casos"`
 	}
-	if err := json.Unmarshal(crudo, &f); err != nil || len(f.Casos) < 20 {
+	if err := json.Unmarshal(crudo, &f); err != nil || len(f.Casos) < 50 {
 		t.Fatalf("el fichero de casos no se entiende o está casi vacío (%d): %v", len(f.Casos), err)
 	}
 
@@ -48,6 +50,9 @@ func TestLaListaDeRolesDeRepartoEsLaDeLosCasosCompartidos(t *testing.T) {
 			}
 			if c.Roles != nil {
 				rec["roles"] = *c.Roles
+			}
+			if len(c.Entradas) > 0 {
+				rec["entradas"] = c.Entradas
 			}
 			_, err := conToken(t, firmar(t, rec, "HS256"))
 			switch {

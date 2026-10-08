@@ -143,6 +143,9 @@ type reclamos struct {
 	Roles         []string `json:"roles"`
 	Exp           *float64 `json:"exp"`
 	Nbf           *float64 `json:"nbf"`
+	// `entradas` EN CRUDO: las llaves `<app>.entrar` que firma Auth. Ausente (len 0), `[]`,
+	// `null` y «no es un array» son cosas distintas. Ver [entradasDelToken].
+	Entradas json.RawMessage `json:"entradas"`
 }
 
 // UnmarshalJSON tolera que los campos de texto vengan como `null` o como número.
@@ -188,6 +191,9 @@ func (c *reclamos) UnmarshalJSON(b []byte) error {
 	c.Sucursal = texto("sucursal")
 	c.Exp = numero("exp")
 	c.Nbf = numero("nbf")
+	if v, hay := suelto["entradas"]; hay {
+		c.Entradas = v
+	}
 	return nil
 }
 
@@ -266,9 +272,9 @@ func verificar(token string, secreto []byte) (Identidad, string, error) {
 	// este servicio sirve la bajada de su propia base, sin pasar por la API.
 	if !puedeEntrarAReparto(c) {
 		return Identidad{}, "", fmt.Errorf(
-			"%w: rol=%q roles=%v sucursal=%q",
+			"%w: rol=%q roles=%v sucursal=%q entradas=%v",
 			ErrSinPermisoDeReparto, primero(c.Role, c.Rol), c.Roles,
-			strings.TrimSpace(primero(c.BranchID, c.BranchIDSnake, c.Sucursal)))
+			strings.TrimSpace(primero(c.BranchID, c.BranchIDSnake, c.Sucursal)), string(c.Entradas))
 	}
 
 	sucursal := strings.TrimSpace(primero(c.BranchID, c.BranchIDSnake, c.Sucursal))
@@ -334,20 +340,71 @@ func veTodo(c reclamos) bool {
 	return tieneAlguno(c, rolesQueVenTodo...) || tieneAlguno(c, rolAdminHeredado)
 }
 
-// LOS ÚNICOS ROLES QUE ENTRAN A REPARTO — Jose, 08/10/2026: «esos roles son los únicos que
-// pueden entrar a Reparto; a los otros, que Reparto les diga no tienes permiso y se dirijan a
-// Accesos». Misma lista que `auth.Usuario.PuedeEntrarAReparto` en `reparto-api`. Los dos
-// ficheros se cambian JUNTOS, y lo ata `docs/roles-de-reparto.casos.json`, que leen las
-// pruebas de los dos módulos: un rol que entra por el sincronizador y no por la API (o al
-// revés) es la misma persona dentro y fuera según por dónde pregunte.
+// QUIÉN ENTRA A REPARTO LO DECIDE AUTH — Jose, 08/10/2026: «Reparto no decide quién entra; eso lo
+// maneja Auth (Accesos); Reparto es un microservicio y el login es de Auth». Auth firma en el
+// token `entradas`, las llaves `<app>.entrar` de la persona, y Reparto entra si y solo si trae
+// [llaveEntrarReparto]. Misma regla que `auth.Usuario.PuedeEntrarAReparto` en `reparto-api`, y los
+// dos ficheros se cambian JUNTOS: lo ata `docs/roles-de-reparto.casos.json`, que leen las pruebas
+// de los dos módulos.
 //
-// `LOGISTICO` va sin tilde, como lo firma Accesos. Es una lista de los que entran: un rol
-// nuevo en Accesos nace sin acceso.
+//  1. Con `entradas` PRESENTE (aunque sea `[]`) decide SOLO ella: con la llave entra AUNQUE su
+//     rol no esté en la lista de abajo, y un rol de la lista SIN la llave NO entra.
+//  2. AUSENTE (token anterior al cambio) y con la caída activa, se decide por los roles de ayer.
+//
+// «Ausente» y «vacío» NO son lo mismo: ausente = «Auth todavía no lo decía» (caída), vacío = «Auth
+// dice que no» (403). Presente pero roto (`null`, un texto…) falla cerrado: cuenta como vacío.
+const llaveEntrarReparto = "delivery.entrar"
+
+// caidaPorRolesDeTransicion: ver `auth.CaidaPorRolesDeTransicion`.
+//
+// QUITAR cuando caduquen los tokens/cookies anteriores al 08/10/2026 (cookie web 7 días ->
+// 15/10/2026; access token de la APK, 15 minutos): después Reparto decide SOLO por `entradas`, y
+// esta constante y `rolesQueEntranAReparto` se borran. `TestLaCaidaPorRolesEsDeTransicion` la
+// nombra para que no se olvide.
+const caidaPorRolesDeTransicion = true
+
+// LOS ROLES DE LA CAÍDA — los que entraban a Reparto ANTES de que Auth firmara `entradas`
+// (Jose, 08/10/2026: «esos roles son los únicos que pueden entrar a Reparto»). `LOGISTICO` va sin
+// tilde, como lo firma Accesos; `admin` a secas es el de los tokens viejos de la web. Es una lista
+// de los que entran: un rol nuevo en Accesos nace sin acceso.
 var rolesQueEntranAReparto = []string{
 	"SUPER ADMIN", "DESARROLLADOR", "ADMINISTRADOR", "LOGISTICO", rolAdminHeredado,
 }
 
-func puedeEntrarAReparto(c reclamos) bool { return tieneAlguno(c, rolesQueEntranAReparto...) }
+func puedeEntrarAReparto(c reclamos) bool {
+	if llaves, hay := entradasDelToken(c); hay {
+		for _, l := range llaves {
+			if l == llaveEntrarReparto {
+				return true
+			}
+		}
+		return false
+	}
+	if !caidaPorRolesDeTransicion {
+		return false
+	}
+	return tieneAlguno(c, rolesQueEntranAReparto...)
+}
+
+// entradasDelToken: `hay` es false SOLO si el campo no venía. Presente pero que no es un array de
+// textos cuenta como PRESENTE Y VACÍO (falla cerrado, no cae a los roles); los elementos que no
+// son texto se ignoran. Gemela de `auth.LeerEntradas`.
+func entradasDelToken(c reclamos) (llaves []string, hay bool) {
+	if len(c.Entradas) == 0 {
+		return nil, false
+	}
+	llaves = []string{}
+	var v []any
+	if err := json.Unmarshal(c.Entradas, &v); err != nil {
+		return llaves, true
+	}
+	for _, e := range v {
+		if t, ok := e.(string); ok {
+			llaves = append(llaves, t)
+		}
+	}
+	return llaves, true
+}
 
 // rolesDelToken: LOS MISMOS CAMPOS Y EN EL MISMO ORDEN que `reparto-api` (`Verificar`): el
 // principal es `role` y, si viene vacío, `rol`; luego `roles`. Antes aquí se miraban `role`,

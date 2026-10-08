@@ -16,11 +16,14 @@ reimplementarlas en Go sin abrir el repo de Next.
 
 ### Sin permiso para Reparto — `403` con `codigo` (Reparto Go, 08/10/2026)
 
-Sólo **`SUPER ADMIN`, `DESARROLLADOR`, `ADMINISTRADOR` y `LOGISTICO`** entran a Reparto (más el
-`admin` heredado de la web vieja). Cualquier otro rol —`GERENTE`, `SUPERVISOR`, `GESTOR`,
-`OPERADOR`, `ECONOMICA`, `ANALISTA`…, un rol que Reparto no conozca o una cuenta sin rol— tiene
-sesión válida en Accesos pero **no tiene esta aplicación**. Se comprueba en el servidor, justo
-después de resolver la identidad y **antes** del alcance de sucursal:
+**Quién entra a Reparto lo decide Auth (Accesos), no Reparto** (Jose, 08/10/2026: «Reparto no
+decide quién entra; eso lo maneja Auth; Reparto es un microservicio y el login es de Auth»).
+Auth firma en el token de acceso (APK y escritorio) y en la respuesta de `/api/auth/exchange`
+(web) el campo **`entradas`**: las llaves `<app>.entrar` que la persona tiene
+(`["pedido.entrar","delivery.entrar"]`; a un `isSystemAdmin` le van todas las conocidas).
+**Reparto entra si y solo si `delivery.entrar` ∈ `entradas`.** Quien no la tiene —sea cual sea su
+rol— tiene sesión válida en Accesos pero **no tiene esta aplicación**. Se comprueba en el
+servidor, justo después de resolver la identidad y **antes** del alcance de sucursal:
 
 ```
 HTTP/1.1 403 Forbidden
@@ -33,14 +36,23 @@ Content-Type: application/json; charset=utf-8
   `token` de la web y el canal en vivo `GET /api/eventos` (que comprueba la sesión por su
   cuenta). Las tres vías contestan **lo mismo, byte por byte**. También `GET /api/apps`.
   El sincronizador (`/sync/*`) aplica la misma lista y contesta el mismo 403.
-- **Cómo se decide:** `Usuario.PuedeEntrarAReparto()` mira el rol principal (`role`, y si viene
-  vacío, `rol`) Y la lista `roles` del token. La comparación es `auth.MismoRol`: sin espacios a
-  los lados y sin distinguir mayúsculas **ASCII**, y NADA de plegado Unicode (`strings.EqualFold`
-  casaba «ſUPER ADMIN», con la s larga U+017F, con SUPER ADMIN). Una persona con
-  `[GESTOR, LOGISTICO]` **entra**; con `[GESTOR, OPERADOR]` no. Es una lista de los que entran:
-  un rol nuevo en Accesos nace SIN acceso a Reparto hasta que se añada en `auth.go` **y** en
-  `sync/internal/identidad/token.go`. Las dos listas las ata `docs/roles-de-reparto.casos.json`,
-  que leen las pruebas de los dos módulos (mismos campos del token, mismo orden).
+- **Cómo se decide** (`Usuario.PuedeEntrarAReparto()`, en la API; `puedeEntrarAReparto`, en el
+  sincronizador; atadas por `docs/roles-de-reparto.casos.json`):
+  1. **`entradas` PRESENTE** (aunque sea `[]`) **decide SOLO ella**: con `delivery.entrar` entra
+     **aunque su rol no esté en la lista vieja** (Auth puede dar acceso a otro rol sin tocar
+     Reparto), y un rol de la lista vieja **sin** esa llave **no entra**. La llave se compara como
+     texto EXACTO (`delivery.entrar`: sin mayúsculas, sin espacios, sin plegado Unicode).
+     Presente pero roto (`null`, un texto, un objeto) cuenta como presente y vacío: falla cerrado.
+  2. **`entradas` AUSENTE** (token o cookie emitidos antes del cambio) → **caída a la lista de
+     roles de ayer**, para que nadie quede fuera durante la transición: SUPER ADMIN,
+     DESARROLLADOR, ADMINISTRADOR y LOGISTICO (+ el `admin` heredado), mirando el rol principal
+     (`role`, y si viene vacío, `rol`) y la lista `roles`, con `auth.MismoRol` (sin espacios, sin
+     distinguir mayúsculas **ASCII**, NADA de plegado Unicode). **«Ausente» y «vacío» NO son lo
+     mismo**: ausente = «Auth todavía no lo decía»; `[]` = «Auth dice que no».
+  3. **La caída es de transición**: `auth.CaidaPorRolesDeTransicion` (y su gemela en sync).
+     **QUITAR cuando caduquen los tokens/cookies anteriores al 08/10/2026** (cookie web 7 días ->
+     15/10/2026; access token de la APK, 15 minutos): después Reparto decide solo por `entradas`.
+     `TestLaCaidaPorRolesEsDeTransicion` (api y sync) la nombra para que no se olvide.
 - **Dos credenciales a la vez** (dos cookies `token`, o cabecera y cookie): entre las VÁLIDAS
   gana la primera que entra a Reparto; si ninguna entra, la primera válida (la del 403).
 - **`codigo` distingue este 403 del del alcance de sucursal.** `ErrSinAlcance` («esta cuenta no
@@ -55,8 +67,11 @@ Content-Type: application/json; charset=utf-8
   `recompute-weights`, `quote/batch`, `quote/home-delivery`, `service/sucursal`) y el webhook de
   PEDIDO (firma). Llevan `Rol:"SUPER ADMIN"` puesto a mano y no son personas.
 - **Registro:** una línea `WARN sin permiso de reparto` con `rol`, `roles`, `sucursal`,
-  `persona` (correo o id) y `ruta`. **Nunca el token**, ni recortado.
-- **Web, `/api/auth/callback`:** los roles del token son los `role` y `roles` de **primer nivel**
+  `persona` (correo o id), `ruta`, `entradas` y `trae_entradas`. **Nunca el token**, ni recortado.
+- **Web, `/api/auth/callback`:** el `entradas` del intercambio se conserva **tal cual** en la
+  cookie que firma Reparto: ausente se queda ausente (la API cae a los roles), `[]` se queda `[]`
+  (no entra), y un `null` o algo que no es un array se escribe como `[]`. `/api/me` no expone
+  `entradas`. Los roles del token son los `role` y `roles` de **primer nivel**
   que devuelve `/api/auth/exchange` de Accesos (rol por defecto + los de todas sus membresías,
   sin repetir) y `SUPER ADMIN` si la cuenta es `isSystemAdmin`. Los de las membresías
   (`memberships[].roles`, el `member.role` de better-auth: owner/admin/member…) **solo valen como

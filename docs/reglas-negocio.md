@@ -757,42 +757,46 @@ entran solos desde PEDIDO y son de la sucursal que los originó.*
 
 ### Quién entra a Reparto (Reparto Go, 08/10/2026)
 
-Jose, 08/10/2026: «esos roles son los únicos que pueden entrar a Reparto; a los otros, que
-Reparto les diga no tienes permiso y se dirijan a Accesos, a su inicio».
+Jose, 08/10/2026, primero: «esos roles son los únicos que pueden entrar a Reparto; a los otros, que
+Reparto les diga no tienes permiso y se dirijan a Accesos, a su inicio». Y después, cambiando el
+diseño: «**Reparto no decide quién entra; eso lo maneja Auth (Accesos); Reparto es un
+microservicio y el login es de Auth**».
 
-**Entran cuatro roles: `SUPER ADMIN`, `DESARROLLADOR`, `ADMINISTRADOR` y `LOGISTICO`** (y el
-`admin` de los tokens viejos de la web, que es un puente y se irá con ella). El resto —`GERENTE`,
-`SUPERVISOR`, `GESTOR`, `OPERADOR`, `ECONOMICA`, `ANALISTA`…— tiene cuenta en Accesos pero no
-esta aplicación: 403 `No tienes permiso para entrar a Reparto.` con `codigo`
+**Quién entra lo decide Auth por la llave `delivery.entrar`**: Auth firma en el token `entradas`
+(las llaves `<app>.entrar` de la persona) y Reparto entra si y solo si trae `delivery.entrar`. La
+lista de roles de ayer —`SUPER ADMIN`, `DESARROLLADOR`, `ADMINISTRADOR`, `LOGISTICO` y el `admin` de
+los tokens viejos de la web— **es solo la caída de transición**: se usa únicamente cuando el token
+no trae el campo (emitido antes del cambio) y se quita cuando caduquen (cookie web 7 días ->
+15/10/2026). Quien no entra recibe 403 `No tienes permiso para entrar a Reparto.` con `codigo`
 `sin_permiso_reparto` (contrato en `contratos-api.md`, «Sin permiso para Reparto»).
 
-- **Por qué una lista de los que entran y no de los que no:** un rol nuevo en Accesos tiene que
-  nacer SIN acceso. Al revés, cada rol que alguien cree mañana entraría solo, que es el fallo
-  caro: no se ve hasta que alguien mira lo que no debía.
-- **Cómo se compara:** texto del rol, como PEDIDO, sobre el rol principal Y sobre la lista de
-  roles (`tieneAlguno`). Una persona con dos roles entra si **uno** es de la lista. Nada de
-  «¿contiene admin?».
-- **Cómo se da de alta a un logístico:** en **Accesos** se le pone el rol **`LOGISTICO`** (sin
-  tilde, así lo firma Accesos en el token de la APK, el escritorio y el intercambio de la web).
-  **Reparto no guarda personas ni roles**: no hay nada que tocar aquí. La persona vuelve a entrar
-  y el token ya lleva el rol. Si además va a trabajar una sucursal, esa sucursal tiene que estar
-  dada de alta en Reparto (`branches.external_id`), aparte.
-- **La comparación** es `auth.MismoRol` (y su gemela del sincronizador): sin espacios, mayúsculas
-  ASCII, **sin plegado Unicode** —«ſUPER ADMIN» con la s larga no es SUPER ADMIN—. El `admin`
-  heredado solo existe en tokens VIEJOS de la web: el login único de hoy **no lo acuña nunca**,
-  ni aunque el `member.role` de better-auth valga `admin`.
+- **Con `entradas` presente decide solo ella**: con la llave entra cualquier rol (GERENTE, GESTOR,
+  uno que Reparto no conozca…); sin ella no entra nadie, tampoco un SUPER ADMIN o un ADMINISTRADOR.
+  `entradas: []` es «Auth dice que no», no «Auth no lo decía»: **ausente y vacío NO son lo mismo**.
+- **Cómo se da acceso a Reparto (y se quita): en Auth**, dándole a la persona (o a su rol) la
+  llave `delivery.entrar`. **Reparto no guarda personas, roles ni permisos**: no hay nada que tocar
+  aquí. La persona vuelve a entrar y el token ya lleva la llave. Si además va a trabajar una
+  sucursal, esa sucursal tiene que estar dada de alta en Reparto (`branches.external_id`), aparte.
+- **Por qué la caída es una lista de los que entran y no de los que no:** mientras dure, un rol
+  nuevo tiene que nacer SIN acceso (al revés, cada rol que alguien cree mañana entraría solo).
+  La comparación de la caída es `auth.MismoRol`: sin espacios, mayúsculas ASCII, **sin plegado
+  Unicode** —«ſUPER ADMIN» con la s larga no es SUPER ADMIN—. El `admin` heredado solo existe en
+  tokens VIEJOS de la web: el login único de hoy **no lo acuña nunca**, ni aunque el `member.role`
+  de better-auth valga `admin`.
 - **Trampa antes de dar una segunda membresía:** los roles son de la PERSONA (el primer nivel de
   Accesos junta los de todas sus membresías) y la sucursal es la de la PRIMERA. Hoy ningún usuario
   tiene más de una (medido el 08/10/2026); **antes de dar una segunda hay que ligar el rol a la
-  sucursal**, o el rol más alto de una se lleva la otra.
+  sucursal**, o el rol más alto de una se lleva la otra. (`entradas` no cambia esto: decide si
+  entra, no a qué sucursal.)
 - **Dónde se aplica:** en `Verificador.Exigir` (APK, escritorio y web), en el canal en vivo y en
-  el sincronizador (`sync/internal/identidad`). **Las dos listas se cambian JUNTAS** y las ata
+  el sincronizador (`sync/internal/identidad`). **Las dos reglas se cambian JUNTAS** y las ata
   `docs/roles-de-reparto.casos.json` (lo leen las pruebas de `api/internal/auth` y de
-  `sync/internal/identidad`; viaja en las tres imágenes): dos copias de una regla de permisos
-  acaban diciendo cosas distintas. Las cuentas de servicio (espejo,
-  sync, n8n, webhook de PEDIDO) no son personas, no pasan por `Exigir` y llevan `SUPER ADMIN`.
+  `sync/internal/identidad`; viaja en las tres imágenes; incluye `entradas` presente, vacío,
+  roto y ausente): dos copias de una regla de permisos acaban diciendo cosas distintas. Las cuentas
+  de servicio (espejo, sync, n8n, webhook de PEDIDO) no son personas, no pasan por `Exigir` y
+  llevan `SUPER ADMIN`.
 - **Qué NO es:** no es el alcance de sucursal. Quien entra a Reparto sigue acotado a su sucursal
-  por la regla de arriba; el control de rol va **antes** y no mira la sucursal.
+  por la regla de arriba; el control de entrada va **antes** y no mira la sucursal.
 
 ### `scopeWhere(scope) -> {branchId?}`
 `{branchId}` si hay, `{}` si no.

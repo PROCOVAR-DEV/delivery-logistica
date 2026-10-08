@@ -491,3 +491,127 @@ func TestApiMeDiceLoMismoQueExigirConDosCookies(t *testing.T) {
 		t.Fatalf("una cookie: rol %q", rol)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// QUIÉN ENTRA LO DECIDE AUTH: `entradas` (Jose, 08/10/2026)
+//
+//	«Reparto no decide quién entra; eso lo maneja Auth (Accesos); Reparto es un microservicio
+//	y el login es de Auth»
+//
+// Auth firma en el token `entradas`, las llaves `<app>.entrar`. Con el campo PRESENTE (aunque
+// sea `[]`) decide sólo él; AUSENTE (token anterior al cambio) se cae a la lista de roles de
+// transición, que son todas las pruebas de arriba, sin tocar.
+// ---------------------------------------------------------------------------
+
+func conEntradas(t *testing.T, entradas any, rol string, sucursal any) string {
+	t.Helper()
+	rec := map[string]any{"sub": "p-1", "role": rol, "branchId": sucursal}
+	if entradas != nil {
+		rec["entradas"] = entradas
+	}
+	return token(t, rec)
+}
+
+func TestLaLlaveDeAuthManda(t *testing.T) {
+	h, _ := montarConRegistro(t)
+	casos := []struct {
+		nombre   string
+		entradas any // nil = el token no trae el campo
+		rol      string
+		sucursal any
+		entra    bool
+	}{
+		// Con la llave entra QUIEN SEA: Auth puede dar acceso a otro rol sin tocar Reparto.
+		{"delivery.entrar: GERENTE", []string{"delivery.entrar"}, "GERENTE", stg.String(), true},
+		{"delivery.entrar: GESTOR", []string{"delivery.entrar"}, "GESTOR", stg.String(), true},
+		{"delivery.entrar: un rol que no conocemos", []string{"delivery.entrar"}, "INVENTADO", stg.String(), true},
+		{"delivery.entrar entre otras llaves", []string{"pedido.entrar", "delivery.entrar"}, "OPERADOR", stg.String(), true},
+		// Sin la llave NO entra NADIE, tampoco los de la lista de ayer.
+		{"pedido.entrar: ADMINISTRADOR NO", []string{"pedido.entrar"}, "ADMINISTRADOR", stg.String(), false},
+		{"pedido.entrar: SUPER ADMIN NO", []string{"pedido.entrar"}, "SUPER ADMIN", nil, false},
+		{"pedido.entrar: DESARROLLADOR NO", []string{"pedido.entrar"}, "DESARROLLADOR", nil, false},
+		{"pedido.entrar: LOGISTICO NO", []string{"pedido.entrar"}, "LOGISTICO", stg.String(), false},
+		// Vacío NO es ausente.
+		{"entradas []: LOGISTICO NO", []string{}, "LOGISTICO", stg.String(), false},
+		{"entradas []: SUPER ADMIN NO", []string{}, "SUPER ADMIN", nil, false},
+		// Texto exacto.
+		{"DELIVERY.ENTRAR NO vale", []string{"DELIVERY.ENTRAR"}, "LOGISTICO", stg.String(), false},
+		// Presente pero roto: falla cerrado.
+		{"entradas que no es un array: NO", "delivery.entrar", "SUPER ADMIN", nil, false},
+		// AUSENTE: la tabla de roles de ayer (todo lo de arriba, sin tocar).
+		{"ausente: LOGISTICO entra", nil, "LOGISTICO", stg.String(), true},
+		{"ausente: SUPER ADMIN entra", nil, "SUPER ADMIN", nil, true},
+		{"ausente: GERENTE NO", nil, "GERENTE", stg.String(), false},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			jwt := conEntradas(t, c.entradas, c.rol, c.sucursal)
+			// Las dos vías que no necesitan abrir un canal: cabecera y cookie.
+			for via, r := range map[string]*http.Request{
+				"bearer": conBearer(http.MethodGet, "/api/vehicles", jwt),
+				"cookie": conCookie(http.MethodGet, "/api/vehicles", jwt),
+			} {
+				w := servir(h, r)
+				if c.entra && w.Code != http.StatusOK {
+					t.Fatalf("%s: tenía que entrar: %d %s", via, w.Code, w.Body.String())
+				}
+				if !c.entra && (w.Code != http.StatusForbidden || strings.TrimSpace(w.Body.String()) != cuerpoSinPermiso) {
+					t.Fatalf("%s: tenía que dar el 403 de siempre: %d %s", via, w.Code, w.Body.String())
+				}
+			}
+		})
+	}
+}
+
+// El canal en vivo decide IGUAL que `Exigir` (no pasa por él).
+func TestElCanalEnVivoDecidePorLaLlaveDeAuth(t *testing.T) {
+	h, _ := montarConRegistro(t)
+	con := func(jwt string) *httptest.ResponseRecorder {
+		ctx, cancelar := context.WithTimeout(context.Background(), 300*time.Millisecond)
+		defer cancelar()
+		return servir(h, conBearer(http.MethodGet, "/api/eventos", jwt).WithContext(ctx))
+	}
+	// GERENTE con la llave: el canal se abre.
+	w := con(conEntradas(t, []string{"delivery.entrar"}, "GERENTE", stg.String()))
+	if w.Code != http.StatusOK || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/event-stream") {
+		t.Fatalf("GERENTE con delivery.entrar: el canal tenía que abrirse: %d %s", w.Code, w.Body.String())
+	}
+	// ADMINISTRADOR sin la llave: el mismo 403 JSON.
+	w = con(conEntradas(t, []string{"pedido.entrar"}, "ADMINISTRADOR", stg.String()))
+	if w.Code != http.StatusForbidden || strings.TrimSpace(w.Body.String()) != cuerpoSinPermiso {
+		t.Fatalf("ADMINISTRADOR sin delivery.entrar: %d %s", w.Code, w.Body.String())
+	}
+	// Vacío NO es ausente, tampoco aquí.
+	w = con(conEntradas(t, []string{}, "SUPER ADMIN", nil))
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("entradas [] y SUPER ADMIN: %d", w.Code)
+	}
+}
+
+// Con `entradas` el 403 es el mismo, `/api/me` sigue diciendo quién es, y ni el cuerpo ni el
+// registro llevan el token (que ahora lleva además las llaves).
+func TestElSinPermisoPorEntradasNoFiltraNiCambia(t *testing.T) {
+	h, registro := montarConRegistro(t)
+	jwt := token(t, map[string]any{
+		"sub": "p-adm", "email": "adm@procovar.cu", "role": "ADMINISTRADOR", "branchId": stg.String(),
+		"entradas": []string{"pedido.entrar"},
+	})
+	w := servir(h, conBearer(http.MethodGet, "/api/vehicles", jwt))
+	if w.Code != http.StatusForbidden || strings.TrimSpace(w.Body.String()) != cuerpoSinPermiso {
+		t.Fatalf("%d %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(registro.String(), "sin permiso de reparto") ||
+		!strings.Contains(registro.String(), "pedido.entrar") {
+		t.Errorf("el registro tiene que decir por qué (qué llaves traía):\n%s", registro.String())
+	}
+	for _, trozo := range append(strings.Split(jwt, "."), jwt) {
+		if strings.Contains(registro.String(), trozo) || strings.Contains(w.Body.String(), trozo) {
+			t.Errorf("el token se filtró (%.12s…)", trozo)
+		}
+	}
+	// `/api/me` no es de Reparto: sigue contestando quién es.
+	if m := servir(h, conBearer(http.MethodGet, "/api/me", jwt)); m.Code != http.StatusOK ||
+		!strings.Contains(m.Body.String(), `"role":"ADMINISTRADOR"`) {
+		t.Errorf("/api/me: %d %s", m.Code, m.Body.String())
+	}
+}

@@ -395,6 +395,17 @@ func (s *Servidor) firmarTokenDeLaWeb(p *personaDeAccesos, ahora time.Time) (str
 		"exp":      ahora.Add(duracionDeLaSesionWeb).Unix(),
 	}
 
+	// `entradas` va en la cookie SÓLO si Auth la mandó: ausente se queda ausente (y la API cae a
+	// los roles), y `[]` se queda `[]` (y no entra). Un slice nil saldría `null`, por eso el
+	// vacío se escribe a mano.
+	if p.HayEntradas {
+		entradas := p.Entradas
+		if entradas == nil {
+			entradas = []string{}
+		}
+		reclamos["entradas"] = entradas
+	}
+
 	cabecera, err := json.Marshal(map[string]string{"alg": "HS256", "typ": "JWT"})
 	if err != nil {
 		return "", err
@@ -430,6 +441,12 @@ type personaDeAccesos struct {
 	CodigoSucursal string
 	// EsSuperAdmin es el `isSystemAdmin` de Accesos.
 	EsSuperAdmin bool
+	// Entradas son las llaves `<app>.entrar` que Auth firma en el intercambio (`delivery.entrar`…)
+	// y deciden si la persona entra a Reparto. HayEntradas distingue «el intercambio no traía el
+	// campo» (un Accesos anterior al cambio: la cookie sale SIN `entradas` y se decide por roles)
+	// de «traía `[]`» (la cookie sale con `entradas: []` y no entra).
+	Entradas    []string
+	HayEntradas bool
 	// VolverA es la dirección que se le dio a Accesos al empezar y que devuelve
 	// al terminar. **Se vuelve a comprobar**: fue y vino por fuera.
 	VolverA string
@@ -590,6 +607,8 @@ func (c *ssoDeAccesos) Canjear(ctx context.Context, codigo string) (*personaDeAc
 		// aparecía ahí sólo como GESTOR y se quedaba fuera de su propio sistema.
 		Role  string   `json:"role"`
 		Roles []string `json:"roles"`
+		// `entradas` en crudo: «no vino» y `[]` no son lo mismo. Ver [auth.LeerEntradas].
+		Entradas json.RawMessage `json:"entradas"`
 	}
 	if err := json.Unmarshal(crudo, &r); err != nil {
 		return nil, fmt.Errorf("Accesos contestó algo que no se entiende: %w", err)
@@ -639,6 +658,9 @@ func (c *ssoDeAccesos) Canjear(ctx context.Context, codigo string) (*personaDeAc
 		porMembresia = append(porMembresia, m.Roles)
 	}
 	persona.Roles = rolesDeLaPersona(r.Role, r.Roles, porMembresia)
+	// QUIÉN ENTRA A REPARTO lo decide Auth con `entradas` (ver [auth.Usuario.PuedeEntrarAReparto]);
+	// aquí sólo se conserva tal cual para firmarlo en la cookie. Ausente se queda ausente.
+	persona.Entradas, persona.HayEntradas = auth.LeerEntradas(r.Entradas)
 	if len(r.Memberships) > 0 && r.Memberships[0].Organization != nil {
 		persona.CodigoSucursal = strings.ToUpper(strings.TrimSpace(r.Memberships[0].Organization.Slug))
 	}

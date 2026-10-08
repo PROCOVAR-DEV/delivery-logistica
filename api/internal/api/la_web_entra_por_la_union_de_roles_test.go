@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -191,5 +192,89 @@ func TestLimiteConocidoElRolMasAltoDeUnaSucursalSeLlevaLaOtra(t *testing.T) {
 	if apps.Code != http.StatusOK || u.Rol != "ADMINISTRADOR" || u.Sucursal != "HAB" {
 		t.Fatalf("el límite documentado cambió: código %d, rol %q, sucursal %q (hoy: entra como "+
 			"ADMINISTRADOR en la PRIMERA membresía, HAB)", apps.Code, u.Rol, u.Sucursal)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// QUIÉN ENTRA LO DECIDE AUTH: `entradas` en el intercambio y en la cookie (08/10/2026)
+//
+// `Canjear` lee `entradas` del intercambio de Accesos y la cookie que firma Reparto la CONSERVA
+// tal cual: ausente se queda ausente (y la API cae a los roles), `[]` se queda `[]` (y no entra).
+// ---------------------------------------------------------------------------
+
+// cargaDelToken lee el cuerpo del JWT SIN comprobar la firma: aquí interesa qué claves lleva.
+func cargaDelToken(t *testing.T, jwt string) map[string]json.RawMessage {
+	t.Helper()
+	partes := strings.Split(jwt, ".")
+	if len(partes) != 3 {
+		t.Fatalf("no es un JWT: %q", jwt)
+	}
+	crudo, err := base64.RawURLEncoding.DecodeString(partes[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var carga map[string]json.RawMessage
+	if err := json.Unmarshal(crudo, &carga); err != nil {
+		t.Fatal(err)
+	}
+	return carga
+}
+
+func TestLaCookieConservaLasEntradasDeAuthYLoAusenteSeQuedaAusente(t *testing.T) {
+	casos := []struct {
+		nombre string
+		campo  any // lo que pone Accesos en `entradas` (nil = no lo manda)
+		manda  bool
+		rol    string
+		// lo que tiene que haber en la cookie
+		clave     bool
+		contenido string
+		entra     bool
+	}{
+		{"delivery.entrar y un GERENTE: entra y la cookie lo lleva", []string{"delivery.entrar"}, true, "GERENTE", true, `["delivery.entrar"]`, true},
+		{"pedido.entrar y un ADMINISTRADOR: NO entra", []string{"pedido.entrar"}, true, "ADMINISTRADOR", true, `["pedido.entrar"]`, false},
+		{"[] y un LOGISTICO: NO entra y la cookie lleva [] (no null)", []string{}, true, "LOGISTICO", true, `[]`, false},
+		{"null (roto): la cookie lleva [] y NO entra", nil, true, "LOGISTICO", true, `[]`, false},
+		{"AUSENTE: la cookie NO lleva la clave y el LOGISTICO entra por la caída", nil, false, "LOGISTICO", false, "", true},
+		{"AUSENTE y un GERENTE: no entra", nil, false, "GERENTE", false, "", false},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			persona := personaConRoles(false, c.rol, []string{c.rol}, membresia("hab", c.rol))
+			if c.manda {
+				persona["entradas"] = c.campo // nil -> `null` en el JSON
+			}
+			galleta, apps, _ := entrarPorLaWeb(t, persona)
+
+			carga := cargaDelToken(t, galleta.Value)
+			crudo, hay := carga["entradas"]
+			if hay != c.clave {
+				t.Fatalf("la cookie tiene `entradas`=%v, se esperaba %v (carga: %v)", hay, c.clave, carga)
+			}
+			if hay && string(crudo) != c.contenido {
+				t.Fatalf("`entradas` en la cookie = %s, se esperaba %s", crudo, c.contenido)
+			}
+			if c.entra && apps.Code != http.StatusOK {
+				t.Fatalf("tenía que entrar: %d %s", apps.Code, apps.Body.String())
+			}
+			if !c.entra && (apps.Code != http.StatusForbidden || !strings.Contains(apps.Body.String(), `"codigo":"sin_permiso_reparto"`)) {
+				t.Fatalf("tenía que dar el 403 con `codigo`: %d %s", apps.Code, apps.Body.String())
+			}
+		})
+	}
+}
+
+// El administrador de sistema: Auth le manda TODAS las llaves de entrada y entra; si por lo que
+// sea la de Reparto no viniera, NO entra aunque sea `isSystemAdmin` (la llave manda).
+func TestElAdministradorDeSistemaEntraPorLaLlaveYNoPorSerlo(t *testing.T) {
+	con := personaConRoles(true, "", nil)
+	con["entradas"] = []string{"pedido.entrar", "delivery.entrar"}
+	if _, apps, _ := entrarPorLaWeb(t, con); apps.Code != http.StatusOK {
+		t.Fatalf("isSystemAdmin con todas las llaves: %d %s", apps.Code, apps.Body.String())
+	}
+	sin := personaConRoles(true, "", nil)
+	sin["entradas"] = []string{"pedido.entrar"}
+	if _, apps, _ := entrarPorLaWeb(t, sin); apps.Code != http.StatusForbidden {
+		t.Fatalf("isSystemAdmin SIN delivery.entrar: %d %s", apps.Code, apps.Body.String())
 	}
 }

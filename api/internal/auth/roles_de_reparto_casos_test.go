@@ -22,7 +22,10 @@ type casoDeRol struct {
 	Role   *string   `json:"role"`
 	Rol    *string   `json:"rol"`
 	Roles  *[]string `json:"roles"`
-	Entra  bool      `json:"entra"`
+	// `entradas` EN CRUDO: ausente (len 0), `[]`, `null` y «no es un array» son cuatro cosas
+	// distintas y el token tiene que llevarlas tal cual.
+	Entradas json.RawMessage `json:"entradas"`
+	Entra    bool            `json:"entra"`
 }
 
 func casosDeRoles(t *testing.T) []casoDeRol {
@@ -35,7 +38,7 @@ func casosDeRoles(t *testing.T) []casoDeRol {
 	var f struct {
 		Casos []casoDeRol `json:"casos"`
 	}
-	if err := json.Unmarshal(crudo, &f); err != nil || len(f.Casos) < 20 {
+	if err := json.Unmarshal(crudo, &f); err != nil || len(f.Casos) < 50 {
 		t.Fatalf("el fichero de casos no se entiende o está casi vacío (%d): %v", len(f.Casos), err)
 	}
 	return f.Casos
@@ -55,13 +58,16 @@ func TestLaListaDeRolesDeRepartoEsLaDeLosCasosCompartidos(t *testing.T) {
 			if c.Roles != nil {
 				rec["roles"] = *c.Roles
 			}
+			if len(c.Entradas) > 0 {
+				rec["entradas"] = c.Entradas
+			}
 			u, err := v.Verificar(firmar(t, "HS256", rec))
 			if err != nil {
 				t.Fatal(err)
 			}
 			if got := u.PuedeEntrarAReparto(); got != c.Entra {
-				t.Fatalf("PuedeEntrarAReparto() = %v, los casos compartidos dicen %v (rol %q, roles %v)",
-					got, c.Entra, u.Rol, u.Roles)
+				t.Fatalf("PuedeEntrarAReparto() = %v, los casos compartidos dicen %v (rol %q, roles %v, "+
+					"entradas %v, trae entradas %v)", got, c.Entra, u.Rol, u.Roles, u.Entradas, u.HayEntradas)
 			}
 		})
 	}

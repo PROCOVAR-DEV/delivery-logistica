@@ -1,36 +1,363 @@
 {
-  "comentario": "QUIEN ENTRA A REPARTO (Jose, 08/10/2026). Lo leen las pruebas de api/internal/auth y de sync/internal/identidad, que son DOS módulos de Go con DOS copias de la lista de roles. Si una cambia sin la otra, un caso de aquí se pone rojo en la que se quedó atrás. Cada caso es lo que trae el token: `role`, `rol` y `roles` (los tres opcionales). El principal es `role`, y si viene vacío, `rol`; después `roles`. Los roles se comparan sin espacios y sin distinguir mayúsculas ASCII, y NADA de plegado Unicode. `entra` es lo que tienen que decir LAS DOS mitades.",
+  "comentario": "QUIEN ENTRA A REPARTO. Lo leen las pruebas de api/internal/auth y de sync/internal/identidad, que son DOS módulos de Go con DOS copias de la regla. Si una cambia sin la otra, un caso de aquí se pone rojo en la que se quedó atrás. Cada caso es lo que trae el token: `entradas` (lo que firma Auth: las llaves `<app>.entrar`) y `role`, `rol`, `roles` (todos opcionales). REGLA (Jose, 08/10/2026: «Reparto no decide quién entra; eso lo maneja Auth»): si el token TRAE `entradas` (aunque sea `[]`, aunque sea `null` o no sea un array) decide SOLO ella: entra si y solo si trae EXACTAMENTE `delivery.entrar`, sea cual sea el rol. Si NO la trae (token anterior al cambio) se cae a la lista de roles de transición (CaidaPorRolesDeTransicion; QUITAR cuando caduquen los tokens/cookies anteriores al 08/10/2026, cookie web 7 días -> 15/10/2026): SUPER ADMIN, DESARROLLADOR, ADMINISTRADOR, LOGISTICO y el `admin` heredado. En la caída el principal es `role` y, si viene vacío, `rol`; después `roles`; los roles se comparan sin espacios y sin distinguir mayúsculas ASCII, y NADA de plegado Unicode. `entra` es lo que tienen que decir LAS DOS mitades. Los casos SIN `entradas` son la tabla de roles de ayer y no se tocan.",
   "casos": [
-    { "nombre": "SUPER ADMIN", "role": "SUPER ADMIN", "entra": true },
-    { "nombre": "DESARROLLADOR", "role": "DESARROLLADOR", "entra": true },
-    { "nombre": "ADMINISTRADOR", "role": "ADMINISTRADOR", "entra": true },
-    { "nombre": "LOGISTICO", "role": "LOGISTICO", "entra": true },
-    { "nombre": "el admin heredado de la web vieja", "role": "admin", "entra": true },
-    { "nombre": "en minúsculas", "role": "logistico", "entra": true },
-    { "nombre": "con espacios a los lados", "role": "  Logistico ", "entra": true },
-    { "nombre": "sólo en roles, con otro delante", "roles": ["GERENTE", "LOGISTICO"], "entra": true },
-    { "nombre": "role de otra cosa y LOGISTICO en roles", "role": "GESTOR", "roles": ["LOGISTICO"], "entra": true },
-    { "nombre": "role vacío: manda rol", "role": "", "rol": "LOGISTICO", "entra": true },
-    { "nombre": "sólo rol", "rol": "ADMINISTRADOR", "entra": true },
-    { "nombre": "role lleno manda sobre rol (el divergente de la auditoría)", "role": "GESTOR", "rol": "LOGISTICO", "entra": false },
-    { "nombre": "role de sólo espacios tapa a rol", "role": "   ", "rol": "LOGISTICO", "entra": false },
-    { "nombre": "GERENTE", "role": "GERENTE", "entra": false },
-    { "nombre": "SUPERVISOR", "role": "SUPERVISOR", "entra": false },
-    { "nombre": "GESTOR", "role": "GESTOR", "entra": false },
-    { "nombre": "OPERADOR", "role": "OPERADOR", "entra": false },
-    { "nombre": "ECONOMICA", "role": "ECONOMICA", "entra": false },
-    { "nombre": "ANALISTA", "role": "ANALISTA", "entra": false },
-    { "nombre": "un rol que no conocemos", "role": "INVENTADO", "entra": false },
-    { "nombre": "sin ningún rol", "entra": false },
-    { "nombre": "roles vacío", "roles": [], "entra": false },
-    { "nombre": "dos roles y ninguno entra", "role": "GERENTE", "roles": ["GERENTE", "OPERADOR"], "entra": false },
-    { "nombre": "la errata LOGISTICA", "role": "LOGISTICA", "entra": false },
-    { "nombre": "LOGISTICO con tilde no es el que firma Accesos", "role": "LOGÍSTICO", "entra": false },
-    { "nombre": "«contiene admin» no vale", "role": "SUBADMINISTRADOR", "entra": false },
-    { "nombre": "s larga (U+017F) en SUPER ADMIN", "role": "ſUPER ADMIN", "entra": false },
-    { "nombre": "s larga (U+017F) en ADMINISTRADOR", "role": "ADMINIſTRADOR", "entra": false },
-    { "nombre": "I con punto (U+0130) en ADMINISTRADOR", "role": "ADMİNİSTRADOR", "entra": false },
-    { "nombre": "I con punto (U+0130) en LOGISTICO", "role": "LOGİSTICO", "entra": false },
-    { "nombre": "s larga en roles", "role": "GERENTE", "roles": ["ſuper admin"], "entra": false }
+    {
+      "nombre": "SUPER ADMIN",
+      "role": "SUPER ADMIN",
+      "entra": true
+    },
+    {
+      "nombre": "DESARROLLADOR",
+      "role": "DESARROLLADOR",
+      "entra": true
+    },
+    {
+      "nombre": "ADMINISTRADOR",
+      "role": "ADMINISTRADOR",
+      "entra": true
+    },
+    {
+      "nombre": "LOGISTICO",
+      "role": "LOGISTICO",
+      "entra": true
+    },
+    {
+      "nombre": "el admin heredado de la web vieja",
+      "role": "admin",
+      "entra": true
+    },
+    {
+      "nombre": "en minúsculas",
+      "role": "logistico",
+      "entra": true
+    },
+    {
+      "nombre": "con espacios a los lados",
+      "role": "  Logistico ",
+      "entra": true
+    },
+    {
+      "nombre": "sólo en roles, con otro delante",
+      "roles": [
+        "GERENTE",
+        "LOGISTICO"
+      ],
+      "entra": true
+    },
+    {
+      "nombre": "role de otra cosa y LOGISTICO en roles",
+      "role": "GESTOR",
+      "roles": [
+        "LOGISTICO"
+      ],
+      "entra": true
+    },
+    {
+      "nombre": "role vacío: manda rol",
+      "role": "",
+      "rol": "LOGISTICO",
+      "entra": true
+    },
+    {
+      "nombre": "sólo rol",
+      "rol": "ADMINISTRADOR",
+      "entra": true
+    },
+    {
+      "nombre": "role lleno manda sobre rol (el divergente de la auditoría)",
+      "role": "GESTOR",
+      "rol": "LOGISTICO",
+      "entra": false
+    },
+    {
+      "nombre": "role de sólo espacios tapa a rol",
+      "role": "   ",
+      "rol": "LOGISTICO",
+      "entra": false
+    },
+    {
+      "nombre": "GERENTE",
+      "role": "GERENTE",
+      "entra": false
+    },
+    {
+      "nombre": "SUPERVISOR",
+      "role": "SUPERVISOR",
+      "entra": false
+    },
+    {
+      "nombre": "GESTOR",
+      "role": "GESTOR",
+      "entra": false
+    },
+    {
+      "nombre": "OPERADOR",
+      "role": "OPERADOR",
+      "entra": false
+    },
+    {
+      "nombre": "ECONOMICA",
+      "role": "ECONOMICA",
+      "entra": false
+    },
+    {
+      "nombre": "ANALISTA",
+      "role": "ANALISTA",
+      "entra": false
+    },
+    {
+      "nombre": "un rol que no conocemos",
+      "role": "INVENTADO",
+      "entra": false
+    },
+    {
+      "nombre": "sin ningún rol",
+      "entra": false
+    },
+    {
+      "nombre": "roles vacío",
+      "roles": [],
+      "entra": false
+    },
+    {
+      "nombre": "dos roles y ninguno entra",
+      "role": "GERENTE",
+      "roles": [
+        "GERENTE",
+        "OPERADOR"
+      ],
+      "entra": false
+    },
+    {
+      "nombre": "la errata LOGISTICA",
+      "role": "LOGISTICA",
+      "entra": false
+    },
+    {
+      "nombre": "LOGISTICO con tilde no es el que firma Accesos",
+      "role": "LOGÍSTICO",
+      "entra": false
+    },
+    {
+      "nombre": "«contiene admin» no vale",
+      "role": "SUBADMINISTRADOR",
+      "entra": false
+    },
+    {
+      "nombre": "s larga (U+017F) en SUPER ADMIN",
+      "role": "ſUPER ADMIN",
+      "entra": false
+    },
+    {
+      "nombre": "s larga (U+017F) en ADMINISTRADOR",
+      "role": "ADMINIſTRADOR",
+      "entra": false
+    },
+    {
+      "nombre": "I con punto (U+0130) en ADMINISTRADOR",
+      "role": "ADMİNİSTRADOR",
+      "entra": false
+    },
+    {
+      "nombre": "I con punto (U+0130) en LOGISTICO",
+      "role": "LOGİSTICO",
+      "entra": false
+    },
+    {
+      "nombre": "s larga en roles",
+      "role": "GERENTE",
+      "roles": [
+        "ſuper admin"
+      ],
+      "entra": false
+    },
+    {
+      "nombre": "entradas con delivery.entrar: entra un GERENTE (la llave manda)",
+      "entradas": [
+        "delivery.entrar"
+      ],
+      "role": "GERENTE",
+      "entra": true
+    },
+    {
+      "nombre": "entradas con delivery.entrar: entra un GESTOR",
+      "entradas": [
+        "delivery.entrar"
+      ],
+      "role": "GESTOR",
+      "entra": true
+    },
+    {
+      "nombre": "entradas con delivery.entrar: entra un rol que no conocemos",
+      "entradas": [
+        "delivery.entrar"
+      ],
+      "role": "INVENTADO",
+      "entra": true
+    },
+    {
+      "nombre": "entradas con delivery.entrar: entra aunque no traiga ningún rol",
+      "entradas": [
+        "delivery.entrar"
+      ],
+      "entra": true
+    },
+    {
+      "nombre": "entradas con varias llaves: entra",
+      "entradas": [
+        "pedido.entrar",
+        "delivery.entrar"
+      ],
+      "role": "OPERADOR",
+      "entra": true
+    },
+    {
+      "nombre": "entradas con delivery.entrar y un elemento que no es texto: entra",
+      "entradas": [
+        "delivery.entrar",
+        5,
+        null
+      ],
+      "role": "OPERADOR",
+      "entra": true
+    },
+    {
+      "nombre": "entradas con delivery.entrar: entra un LOGISTICO",
+      "entradas": [
+        "delivery.entrar"
+      ],
+      "role": "LOGISTICO",
+      "entra": true
+    },
+    {
+      "nombre": "entradas sin delivery.entrar: NO entra un ADMINISTRADOR",
+      "entradas": [
+        "pedido.entrar"
+      ],
+      "role": "ADMINISTRADOR",
+      "entra": false
+    },
+    {
+      "nombre": "entradas sin delivery.entrar: NO entra un SUPER ADMIN",
+      "entradas": [
+        "pedido.entrar"
+      ],
+      "role": "SUPER ADMIN",
+      "entra": false
+    },
+    {
+      "nombre": "entradas sin delivery.entrar: NO entra un DESARROLLADOR",
+      "entradas": [
+        "pedido.entrar"
+      ],
+      "role": "DESARROLLADOR",
+      "entra": false
+    },
+    {
+      "nombre": "entradas sin delivery.entrar: NO entra un LOGISTICO",
+      "entradas": [
+        "pedido.entrar"
+      ],
+      "role": "LOGISTICO",
+      "entra": false
+    },
+    {
+      "nombre": "entradas sin delivery.entrar: NO entra el admin heredado",
+      "entradas": [
+        "pedido.entrar"
+      ],
+      "role": "admin",
+      "entra": false
+    },
+    {
+      "nombre": "entradas sin delivery.entrar: NO entra ni con LOGISTICO en roles",
+      "entradas": [
+        "pedido.entrar"
+      ],
+      "role": "GESTOR",
+      "roles": [
+        "LOGISTICO"
+      ],
+      "entra": false
+    },
+    {
+      "nombre": "entradas vacío []: NO entra un ADMINISTRADOR (vacío NO es ausente)",
+      "entradas": [],
+      "role": "ADMINISTRADOR",
+      "entra": false
+    },
+    {
+      "nombre": "entradas vacío []: NO entra un SUPER ADMIN",
+      "entradas": [],
+      "role": "SUPER ADMIN",
+      "entra": false
+    },
+    {
+      "nombre": "entradas vacío []: NO entra un LOGISTICO",
+      "entradas": [],
+      "roles": [
+        "LOGISTICO"
+      ],
+      "entra": false
+    },
+    {
+      "nombre": "entradas vacío []: NO entra nadie sin rol",
+      "entradas": [],
+      "entra": false
+    },
+    {
+      "nombre": "entradas null: presente y roto, falla cerrado (NO cae a los roles)",
+      "entradas": null,
+      "role": "LOGISTICO",
+      "entra": false
+    },
+    {
+      "nombre": "entradas que no es un array (un texto): falla cerrado",
+      "entradas": "delivery.entrar",
+      "role": "LOGISTICO",
+      "entra": false
+    },
+    {
+      "nombre": "entradas que no es un array (un objeto): falla cerrado",
+      "entradas": {
+        "delivery.entrar": true
+      },
+      "role": "SUPER ADMIN",
+      "entra": false
+    },
+    {
+      "nombre": "la llave en mayúsculas NO vale (texto exacto)",
+      "entradas": [
+        "DELIVERY.ENTRAR"
+      ],
+      "role": "LOGISTICO",
+      "entra": false
+    },
+    {
+      "nombre": "la llave con un espacio al final NO vale",
+      "entradas": [
+        "delivery.entrar "
+      ],
+      "role": "LOGISTICO",
+      "entra": false
+    },
+    {
+      "nombre": "la llave con una letra cirílica parecida NO vale",
+      "entradas": [
+        "delivery.entrаr"
+      ],
+      "role": "LOGISTICO",
+      "entra": false
+    },
+    {
+      "nombre": "otra app con otra llave NO vale",
+      "entradas": [
+        "delivery.ver",
+        "entregas.entrar",
+        "delivery"
+      ],
+      "role": "ADMINISTRADOR",
+      "entra": false
+    }
   ]
 }

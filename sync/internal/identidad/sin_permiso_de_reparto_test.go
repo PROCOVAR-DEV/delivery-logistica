@@ -166,3 +166,108 @@ func TestUnGerenteSinSucursalRecibeSinPermisoYNoSinSesion(t *testing.T) {
 		t.Fatalf("LOGISTICO sin sucursal: %v, se esperaba ErrSinSesion", err)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// QUIÉN ENTRA LO DECIDE AUTH: `entradas` (Jose, 08/10/2026: «Reparto no decide quién entra; eso
+// lo maneja Auth»). Misma regla que `auth.Usuario.PuedeEntrarAReparto` en la API, atada por
+// `docs/roles-de-reparto.casos.json`. Con el campo PRESENTE (aunque sea `[]`) decide sólo él;
+// AUSENTE se cae a la lista de roles de transición.
+// ---------------------------------------------------------------------------
+
+func TestElSincronizadorDecidePorLaLlaveDeAuth(t *testing.T) {
+	con := func(entradas any, rol string) error {
+		rec := map[string]any{"role": rol}
+		if entradas != nil {
+			rec["entradas"] = entradas
+		}
+		_, err := conToken(t, tokenDeRol(t, rec))
+		return err
+	}
+	// Con la llave entra QUIEN SEA.
+	for _, rol := range []string{"GERENTE", "GESTOR", "INVENTADO", ""} {
+		if err := con([]string{"delivery.entrar"}, rol); err != nil {
+			t.Errorf("delivery.entrar + rol %q tenía que entrar: %v", rol, err)
+		}
+	}
+	// Sin la llave NO entra nadie, tampoco los de la lista de ayer.
+	for _, rol := range []string{"ADMINISTRADOR", "SUPER ADMIN", "DESARROLLADOR", "LOGISTICO", "admin"} {
+		if err := con([]string{"pedido.entrar"}, rol); !errors.Is(err, ErrSinPermisoDeReparto) {
+			t.Errorf("pedido.entrar + rol %q: %v, se esperaba ErrSinPermisoDeReparto", rol, err)
+		}
+	}
+	// Vacío NO es ausente.
+	if err := con([]string{}, "LOGISTICO"); !errors.Is(err, ErrSinPermisoDeReparto) {
+		t.Errorf("entradas [] + LOGISTICO: %v, tenía que ser ErrSinPermisoDeReparto", err)
+	}
+	if err := con(nil, "LOGISTICO"); err != nil {
+		t.Errorf("AUSENTE + LOGISTICO tenía que entrar por la caída: %v", err)
+	}
+	// Presente pero roto, y texto exacto.
+	for nombre, v := range map[string]any{"un texto": "delivery.entrar", "mayúsculas": []string{"DELIVERY.ENTRAR"}} {
+		if err := con(v, "LOGISTICO"); !errors.Is(err, ErrSinPermisoDeReparto) {
+			t.Errorf("entradas %s: %v, tenía que ser ErrSinPermisoDeReparto", nombre, err)
+		}
+	}
+}
+
+// Con `entradas` el control sigue yendo ANTES que la regla de la sucursal: un GERENTE sin
+// sucursal y sin la llave recibe 403 (a Accesos), NO el 401 que mata la sesión.
+func TestSinLaLlaveElPermisoVaAntesQueLaSucursal(t *testing.T) {
+	_, err := conToken(t, firmar(t, map[string]any{
+		"sub": "p-1", "role": "GERENTE", "branchId": nil, "entradas": []string{"pedido.entrar"},
+		"exp": time.Now().Add(time.Hour).Unix(),
+	}, "HS256"))
+	if !errors.Is(err, ErrSinPermisoDeReparto) || errors.Is(err, ErrSinSesion) {
+		t.Fatalf("%v, se esperaba ErrSinPermisoDeReparto y NO ErrSinSesion", err)
+	}
+}
+
+// `Exigir`: el mismo 403 con `entradas`, y ni el cuerpo ni el registro llevan el token.
+func TestExigirPorEntradasContestaElMismo403SinFiltrarElToken(t *testing.T) {
+	var registro bytes.Buffer
+	anterior := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&registro, nil)))
+	t.Cleanup(func() { slog.SetDefault(anterior) })
+
+	llegó := 0
+	h := Exigir(DeToken([]byte(secreto), nil), http.HandlerFunc(func(http.ResponseWriter, *http.Request) { llegó++ }))
+	pedir := func(jwt string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/sync/aparato", nil)
+		r.Header.Set("Authorization", "Bearer "+jwt)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+
+	jwt := tokenDeRol(t, map[string]any{"role": "ADMINISTRADOR", "entradas": []string{"pedido.entrar"}})
+	w := pedir(jwt)
+	if llegó != 0 || w.Code != http.StatusForbidden || strings.TrimSpace(w.Body.String()) != cuerpoSinPermiso {
+		t.Fatalf("ADMINISTRADOR sin la llave: llegó=%d %d %s", llegó, w.Code, w.Body.String())
+	}
+	for _, trozo := range append(strings.Split(jwt, "."), jwt) {
+		if strings.Contains(registro.String(), trozo) || strings.Contains(w.Body.String(), trozo) {
+			t.Errorf("el token se filtró (%.12s…)", trozo)
+		}
+	}
+	// Y un GERENTE con la llave llega al manejador.
+	w = pedir(tokenDeRol(t, map[string]any{"role": "GERENTE", "entradas": []string{"delivery.entrar"}}))
+	if llegó != 1 || w.Code != http.StatusOK {
+		t.Fatalf("GERENTE con la llave: llegó=%d %d %s", llegó, w.Code, w.Body.String())
+	}
+}
+
+// LA CAÍDA POR ROLES ES DE TRANSICIÓN, y esta prueba la NOMBRA para que no se olvide: QUITAR
+// `caidaPorRolesDeTransicion` (y `rolesQueEntranAReparto`) cuando caduquen los tokens anteriores
+// al 08/10/2026 (cookie web 7 días -> 15/10/2026; access token de la APK, 15 minutos). Gemela de
+// `TestLaCaidaPorRolesEsDeTransicion` de la API. No falla pasada la fecha a propósito: rompería la
+// construcción de la imagen el día del despliegue.
+func TestLaCaidaPorRolesEsDeTransicion(t *testing.T) {
+	if !caidaPorRolesDeTransicion {
+		t.Fatal("la caída por roles está apagada: si es a propósito (ya caducaron los tokens " +
+			"anteriores al 08/10/2026), borra esta prueba y la lista; si no, enciéndela")
+	}
+	if time.Now().After(time.Date(2026, 10, 16, 0, 0, 0, 0, time.UTC)) {
+		t.Log("YA PUEDE QUITARSE la caída por roles (caidaPorRolesDeTransicion): caducaron las " +
+			"cookies web anteriores al 08/10/2026. Reparto debe decidir SOLO por `entradas`.")
+	}
+}

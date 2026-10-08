@@ -377,4 +377,106 @@ void main() {
       await cerrar(tester);
     },
   );
+  // ---------------------------------------------------------------------------
+  // LA PISTA HACIA LA MARCA DE «FACTURA» (Amado, 08/10/2026, incidencia 4)
+  // ---------------------------------------------------------------------------
+  //
+  // Mandar tres pedidos y que el «no» diga «la factura no tiene un cobro de
+  // domicilio registrado» no explica DÓNDE se ve eso. La marca de Factura en
+  // Pedidos ya lo enseña; el cajón lo dice con una línea. Va en pareja: sale cuando
+  // el motivo es ése, y NO sale cuando el motivo es otro (la pista mandaría a
+  // mirar una marca que no tiene la respuesta).
+
+  const ayudaFactura =
+      'Mira la marca de Factura en Pedidos: ahí se ve si el domicilio está '
+      'cobrado.';
+
+  testWidgets(
+    'si alguien se queda por el domicilio sin cobrar, el cajón manda a mirar '
+    'la marca de Factura',
+    (tester) async {
+      await preparar();
+      await sembrarPedido(
+        base,
+        id: 'o1',
+        cliente: 'Ana',
+        folio: 'F-1',
+        endLat: 21.38,
+        endLng: -77.91,
+      );
+      // La factura cuadra pero NO trae la línea «ENTREGA A DOMICILIO».
+      await sembrarPedido(
+        base,
+        id: 'o2',
+        cliente: 'Beto',
+        folio: 'F-SIN',
+        facturaDomicilio: null,
+        endLat: 21.38,
+        endLng: -77.91,
+      );
+      await sembrarZona('z-cam', 'Centro', 'B1');
+      await pintar(
+        tester,
+        const CajonMandarAlTablero(),
+        marcados: const ['o1', 'o2'],
+      );
+
+      await tester.tap(find.text('Centro'));
+      await asentar(tester);
+      await tester.tap(find.text(CajonMandarAlTablero.mandar));
+      await asentar(tester);
+
+      expect(find.text('1 pedido(s) en «Centro»'), findsOneWidget);
+      // El motivo del servidor, literal y sin tocar.
+      expect(
+        find.text(
+          'F-SIN · Beto: No se puede asociar al tablero: la factura no tiene '
+          'un cobro de domicilio registrado.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text(ayudaFactura), findsOneWidget);
+
+      await cerrar(tester);
+    },
+  );
+
+  testWidgets(
+    'si se quedan por OTRO motivo, la pista de la marca de Factura no sale',
+    (tester) async {
+      await preparar();
+      await sembrarPedido(
+        base,
+        id: 'o1',
+        cliente: 'Ana',
+        endLat: 21.38,
+        endLng: -77.91,
+      );
+      await sembrarPedido(
+        base,
+        id: 'o5',
+        cliente: 'Eva',
+        folio: 'F-ARCH',
+        archivado: true,
+        endLat: 21.38,
+        endLng: -77.91,
+      );
+      await sembrarZona('z-cam', 'Centro', 'B1');
+      await pintar(
+        tester,
+        const CajonMandarAlTablero(),
+        marcados: const ['o1', 'o5'],
+      );
+
+      await tester.tap(find.text('Centro'));
+      await asentar(tester);
+      await tester.tap(find.text(CajonMandarAlTablero.mandar));
+      await asentar(tester);
+
+      expect(find.text('F-ARCH · Eva: Archivado en PEDIDO'), findsOneWidget);
+      expect(find.text(ayudaFactura), findsNothing);
+
+      await cerrar(tester);
+    },
+  );
 }

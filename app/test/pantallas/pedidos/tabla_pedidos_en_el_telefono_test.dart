@@ -15,7 +15,7 @@
 //
 // Y van EN PAREJA: a 390 px tarjetas, a 1440 px la tabla de siempre. Una prueba
 // que sólo mira el teléfono se queda tan verde con una aplicación que ha perdido
-// sus trece columnas en el escritorio.
+// sus doce columnas en el escritorio.
 //
 // NADA DE DRIFT AQUÍ. Estas pruebas construyen los `Pedido` a mano y no abren
 // ninguna base: dentro de un `testWidgets` una consulta de Drift **cuelga la

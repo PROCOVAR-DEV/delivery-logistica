@@ -19,7 +19,6 @@ abstract final class Anchos {
   static const idioma = 640.0;
 
   /// Tabla de Pedidos, por orden de prescindibilidad (§11).
-  static const sucursalYVehiculo = 1536.0;
   static const ruta = 1280.0;
   static const articulosYFactura = 1024.0;
   static const entrega = 768.0;

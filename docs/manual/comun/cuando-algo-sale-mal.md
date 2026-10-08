@@ -24,7 +24,9 @@ Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
    («Sin colocar») y al recuento de «Pedidos sin ruta» del Panel sólo llega la factura
    que **cuadra**, con el **domicilio cobrado** (importe mayor que cero en la factura)
    y **cotizado en Entrega**. Un pedido al que le falte una de las tres sigue
-   existiendo —se ve en Pedidos— pero no se ofrece para repartir. No es un fallo: se
+   existiendo —se ve en Pedidos— pero no se ofrece para repartir. En la marca de
+   «Factura» de Pedidos se ve si falta el cobro: «Sin cobro de domicilio» en ámbar, o
+   «Dom. $0.46» en verde si está cobrado. No es un fallo: se
    arregla cobrando o cotizando en Entrega. Ver
    [Las reglas del reparto](las-reglas-del-reparto.md).
 
@@ -75,7 +77,7 @@ sale uno de estos motivos:
 
 | El aviso | Qué significa |
 |---|---|
-| **«No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.»** | La factura no cobró domicilio. No se coloca |
+| **«No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.»** | La factura no cobró domicilio. No se coloca. En **Pedidos**, la marca de «Factura» lo enseña antes de marcar: «Sin cobro de domicilio» en ámbar |
 | **«No se puede asociar al tablero: primero cotiza el domicilio del pedido.»** | Falta el costo de Entrega. Cotízalo allí y vuelve |
 | **«Ese pedido ya se entregó»** | Ya se repartió |
 | **«Ese pedido ya está en una ruta»** | Se lo llevó otra ruta |

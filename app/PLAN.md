@@ -545,7 +545,7 @@ paginación y **los mismos números** con la misma base.
 
 ### 3.1 · Pedidos — `/orders` · `pantallas/pedidos/`
 
-**Qué muestra.** El catálogo espejado de PEDIDO con los 9 filtros, la tabla de 13 columnas,
+**Qué muestra.** El catálogo espejado de PEDIDO con los 9 filtros, la tabla de 12 columnas,
 el detalle en cajón y los dos pre-despachos (el de lo marcado y el de lo filtrado).
 Pliego: `pantallas.md` §2.
 

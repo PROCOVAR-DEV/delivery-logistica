@@ -191,22 +191,37 @@ Columnas por orden (la etiqueta literal es la que se pinta):
    `Archivado en PEDIDO` si procede; y debajo `sin domicilio` si `requiereDomicilio=false`.
 5. `Cliente` — nombre + nº de operación (folio) en mono.
 6. `Ruta` — código de ruta en insignia azul o `—`. Oculta bajo 1280 px.
-7. `Vehículo` — nombre o `—`. Oculta bajo 1536 px.
-8. `Artículos` — primer producto `×<empaques>` y `+<n>` con desplegable al pasar el ratón
+7. `Artículos` — primer producto `×<empaques>` y `+<n>` con desplegable al pasar el ratón
    (en Flutter: tocar para abrir). Oculta bajo 1024 px.
-9. `Dirección` — `endAddress` o `address`.
-10. `Peso` — `<n> kg`, alineada a la derecha.
-11. `Precio` — **`pedidoCosto`** (lo que cobró Entrega), no el precio interno. Si no hay:
+8. `Dirección` — `endAddress` o `address`.
+9. `Peso` — `<n> kg`, alineada a la derecha.
+10. `Precio` — **`pedidoCosto`** (lo que cobró Entrega), no el precio interno. Si no hay:
     `sin cotizar` en gris.
-12. `Factura` — `igual` → nº de factura en verde, tooltip
+11. `Factura` — `igual` → nº de factura en verde, tooltip
     `Cuadra con lo pedido: se puede repartir tal cual.`; `cambiado` → nº + `⚠` en ámbar,
     tooltip `Se facturó algo distinto de lo pedido. No puede ir en una ruta hasta que se corrija.`;
     `sin_factura` → `sin facturar`; nulo → `sin cotejar` con tooltip
     `El cotejo contra Ventra no ha pasado por este pedido todavía.` Oculta bajo 1024 px.
-13. `Entrega` — estado de reparto calculado: `Devuelto` / `Cancelado` (ámbar),
+    **Con factura `igual` o `cambiado`, junto al número, una segunda marca con el cobro del
+    domicilio** (Amado, 08/10/2026: «en la tabla no está claro qué pedidos han sido facturados
+    y cobrados»): `Dom. $0.46` en verde, con el importe, cuando `facturaDomicilio > 0`; y
+    `Sin cobro de domicilio` en ámbar cuando es nulo o 0, con el tooltip `La factura no trae la
+    línea ENTREGA A DOMICILIO: este pedido no puede ir a una ruta ni a una zona del tablero
+    hasta que el domicilio se cobre en la factura.` Con `sin_factura` o nulo no se añade nada.
+    Es la regla del 07/10 hecha visible: sin esa línea el pedido no entra en una ruta ni en
+    una zona. **El ámbar sólo sale si ése es lo que frena al pedido** (se le pregunta a
+    `porQueNoSePuedeColocar`, no se repite la regla): con ruta, entregado o archivado
+    lleva sólo el número, o el `Dom.` verde si hay cobro; un devuelto o cancelado sí lleva el
+    ámbar, porque se puede reasignar. En el móvil (tarjeta) la marca va dentro de la
+    tarjeta, junto al número.
+12. `Entrega` — estado de reparto calculado: `Devuelto` / `Cancelado` (ámbar),
     `Entregado` (verde), `En ruta` (azul), `En despacho` (índigo), `Sin entregar` (gris).
     Oculta bajo 768 px.
-14. Chevron. La fila entera abre el detalle.
+13. Chevron. La fila entera abre el detalle.
+
+**Sin columna `Vehículo`** (Amado, 08/10/2026, «elimínala para más espacio»): desde la 1.0.28
+`orders.vehicle_id` no existe y la celda era un marcador mudo. El camión de un pedido sigue
+viéndose en el **detalle**, en la sección `Ruta`, porque sale de su ruta.
 
 **Regla de estado de reparto:** manda `resultado` de la parada, **no** el estado de la
 ruta. Una ruta completada no convierte en «entregado» un pedido devuelto.
@@ -1010,7 +1025,7 @@ paradas **no entregadas** con su cliente, resultado, nota y productos.
 | Idioma en la barra | Visible | **Oculto** (<640 px); sucursal y moneda se quedan |
 | Rutas (armazón) | Alto fijo a la ventana, sin desplazamiento de página; la lista y el detalle se desplazan por dentro; 3 columnas (1 lista + 2 detalle) | La página se desplaza como cualquier otra; una sola columna; **sin** desplazamiento interno (evita el doble scroll) |
 | Rutas, paso 4 | Dos columnas: pedidos + pre-despacho pegajoso a la derecha | Una columna, pre-despacho debajo |
-| Tabla de Pedidos | 13 columnas | Se esconden por orden de prescindibilidad: `Sucursal` y `Vehículo` bajo 1536 px; `Ruta` bajo 1280 px; `Artículos` y `Factura` bajo 1024 px; `Entrega` bajo 768 px. **Nunca se van:** cliente, dirección, peso, precio y estado |
+| Tabla de Pedidos | 12 columnas | Se esconden por orden de prescindibilidad: `Sucursal` bajo 1536 px; `Ruta` bajo 1280 px; `Artículos` y `Factura` bajo 1024 px; `Entrega` bajo 768 px. **Nunca se van:** cliente, dirección, peso, precio y estado |
 | Tabla de Clientes | Completa | Se desplaza **la tabla**, no la página (ancho mínimo 736 px) |
 | Vehículos | Rejilla de 3 columnas (2 en tabletas) | 1 columna; el grupo buscador + 2 botones **envuelve** en vez de salirse |
 | Rutas, cabecera | Título, 3 pestañas y botón en una fila | Envuelve; las pestañas se desplazan de lado sin partir palabras |

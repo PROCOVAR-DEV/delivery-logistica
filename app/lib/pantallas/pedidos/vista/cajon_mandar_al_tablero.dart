@@ -344,6 +344,17 @@ class _ResumenDeLoQuePaso extends StatelessWidget {
   static String seQuedaron(ResultadoDeMandar r) =>
       'No se pudieron mandar ${r.noFueron.length}, y siguen marcados:';
 
+  /// Sale solo cuando alguien se quedo por el domicilio sin cobrar: en los demas
+  /// motivos (archivado, otra sucursal) la marca de Factura no tiene nada que
+  /// ensenar y la frase mandaria a mirar donde no hay respuesta.
+  ///
+  /// Dice «la marca» y no «la columna»: en el telefono la tabla es una tarjeta
+  /// y no tiene columnas. OJO, sigue sin cubrir de 768 a 1023 px: ahi la tabla
+  /// esconde Factura (`pantallas.md` §11) y la pista no lleva a nada.
+  static const ayudaFactura =
+      'Mira la marca de Factura en Pedidos: ahí se ve si el domicilio está '
+      'cobrado.';
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,6 +370,17 @@ class _ResumenDeLoQuePaso extends StatelessWidget {
       if (resultado.alguienSeQuedo) ...[
         const SizedBox(height: Aire.lg),
         _Aviso(seQuedaron(resultado)),
+        if (resultado.alguienSinDomicilioCobrado) ...[
+          const SizedBox(height: Aire.sm),
+          Text(
+            ayudaFactura,
+            style: Tipos.texto(
+              tamano: 13,
+              color: Colores.tintaSuave,
+              alto: 1.4,
+            ),
+          ),
+        ],
         const SizedBox(height: Aire.sm),
         for (final quedado in resultado.noFueron)
           Padding(

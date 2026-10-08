@@ -74,7 +74,6 @@ Cambia según las fechas que tengas puestas: «· del 28/9/2026», «· desde el
 | **«Pedido»** | El estado **en PEDIDO** |
 | **«Cliente»** | El nombre y debajo el folio |
 | **«Ruta»** | El código de ruta, o «—» |
-| **«Vehículo»** | Un punto si tiene, «—» si no |
 | **«Artículos»** | El primer producto y cuántos más («+3»). Todo en el tooltip |
 | **«Dirección»** | La de entrega |
 | **«Peso»** | «128.0 kg» o «—» |
@@ -129,6 +128,26 @@ nueva.
 | El número con un `!` en ámbar | «Se facturó algo distinto de lo pedido. No puede ir en una ruta hasta que se corrija.» |
 | «sin facturar» en gris | No hay factura |
 | «sin cotejar» en gris | «El cotejo contra Ventra no ha pasado por este pedido todavía.» |
+
+**Y, junto al número, si el domicilio está cobrado.** Sólo cuando hay factura (el número
+en verde o con el `!`):
+
+| Qué se ve | Qué significa |
+|---|---|
+| **«Dom. $0.46»** en verde | La factura trae la línea «ENTREGA A DOMICILIO» y cobra ese importe: el domicilio está cobrado |
+| **«Sin cobro de domicilio»** en ámbar | «La factura no trae la línea ENTREGA A DOMICILIO: este pedido no puede ir a una ruta ni a una zona del tablero hasta que el domicilio se cobre en la factura.» |
+
+Así se ve **antes de marcar** por qué un pedido facturado no va a entrar en una ruta ni en
+una zona: la factura cuadra, pero no cobró el domicilio. Con «sin facturar» o «sin cotejar»
+no sale esta marca, porque ya está dicho que falta la factura.
+
+**El ámbar sólo sale si ése es el motivo.** Un pedido que ya va en una ruta, que ya se
+entregó o que está archivado no tiene nada que colocar, así que lleva sólo el número de
+factura (o el «Dom.» verde, si la factura sí cobró el domicilio). Un devuelto o cancelado
+sí lo lleva, porque se puede volver a meter en otra ruta.
+
+La columna «Factura» no sale en pantallas de menos de 1024 px de ancho; en el teléfono la
+marca va dentro de la tarjeta.
 
 ---
 
@@ -260,6 +279,14 @@ Y si alguno se quedó, en ámbar:
 > `PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.`
 
 Cada pedido sale por su **conduce**, que es el número de operación de la factura.
+
+Si alguno se quedó por el domicilio sin cobrar, el cajón añade debajo del aviso una
+línea de ayuda:
+
+> «Mira la marca de Factura en Pedidos: ahí se ve si el domicilio está cobrado.»
+
+Sólo sale con ese motivo: con los demás (archivado, otra sucursal…) la marca de «Factura»
+no tiene la respuesta.
 
 Los motivos posibles: «No está en este aparato», «Es de otra sucursal», «Sin
 coordenadas de entrega», «Archivado en PEDIDO», «Sin cotejar», «Sin factura», y los

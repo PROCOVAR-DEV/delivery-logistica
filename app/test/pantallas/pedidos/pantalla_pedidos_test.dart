@@ -48,7 +48,7 @@ void main() {
   tearDown(() => base.close());
 
   Future<void> pintar(WidgetTester tester) async {
-    // Una pantalla ancha: asi salen las 13 columnas y se comprueba lo que de
+    // Una pantalla ancha: asi salen las 12 columnas y se comprueba lo que de
     // verdad se ve en el escritorio del despacho.
     tester.view.physicalSize = const Size(1600, 1200);
     tester.view.devicePixelRatio = 1;

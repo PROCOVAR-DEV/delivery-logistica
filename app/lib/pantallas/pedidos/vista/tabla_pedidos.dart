@@ -1,4 +1,4 @@
-// La tabla de Pedidos: 13 columnas que se esconden por anchura — y **por debajo
+// La tabla de Pedidos: 12 columnas que se esconden por anchura — y **por debajo
 // de 768 px deja de ser una tabla**.
 //
 // EN UN TELEFONO NO CABE NINGUNA TABLA, por muchas columnas que se escondan.
@@ -16,7 +16,7 @@
 // de linea ENTERO cuando no cabe.
 //
 // **El escondite es por orden de prescindibilidad, no por hueco disponible**
-// (`pantallas.md` §11): `Sucursal` y `Vehículo` bajo 1536, `Ruta` bajo 1280,
+// (`pantallas.md` §11): `Sucursal` bajo 1536, `Ruta` bajo 1280,
 // `Artículos` y `Factura` bajo 1024, `Entrega` bajo 768. **Nunca se van:**
 // cliente, direccion, peso, precio y estado. Escrito con umbrales fijos y no con
 // un `Flexible` que se encoja, porque una columna de 12 px no se lee y ademas
@@ -30,6 +30,7 @@ import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
 import '../datos/estado_reparto.dart';
 import '../datos/formato.dart';
+import '../datos/mandar_al_tablero.dart' show frenaElDomicilioSinCobrar;
 import '../datos/repositorio_pedidos.dart';
 import 'kit.dart';
 
@@ -55,7 +56,6 @@ class ColumnasVisibles {
   bool get enTarjetas => ancho < enTarjetasBajo;
 
   bool get sucursal => conSucursal && ancho >= 1536;
-  bool get vehiculo => ancho >= 1536;
   bool get ruta => ancho >= 1280;
   bool get articulos => ancho >= 1024;
   bool get factura => ancho >= 1024;
@@ -153,8 +153,6 @@ class TablaPedidos extends StatelessWidget {
               codigoDeRuta: pedido.routeId == null
                   ? null
                   : rutas[pedido.routeId]?.routeCode,
-              tieneVehiculo: pedido.routeId != null &&
-                  rutas[pedido.routeId]?.vehicleId != null,
               marcado: seleccion.contains(pedido.id),
               alMarcar: () => alMarcar(pedido.id),
               alAbrir: () => alAbrir(pedido),
@@ -208,8 +206,6 @@ class _Cabecera extends StatelessWidget {
           _celda(flex: 2, hijo: Text('Pedido', style: estilo)),
           _celda(flex: 3, hijo: Text('Cliente', style: estilo)),
           if (columnas.ruta) _celda(flex: 2, hijo: Text('Ruta', style: estilo)),
-          if (columnas.vehiculo)
-            _celda(flex: 2, hijo: Text('Vehículo', style: estilo)),
           if (columnas.articulos)
             _celda(flex: 2, hijo: Text('Artículos', style: estilo)),
           _celda(flex: 4, hijo: Text('Dirección', style: estilo)),
@@ -219,7 +215,7 @@ class _Cabecera extends StatelessWidget {
           ),
           _celda(flex: 2, hijo: Text('Precio', style: estilo)),
           if (columnas.factura)
-            _celda(flex: 2, hijo: Text('Factura', style: estilo)),
+            _celda(flex: 3, hijo: Text('Factura', style: estilo)),
           if (columnas.entrega)
             _celda(flex: 2, hijo: Text('Entrega', style: estilo)),
           const SizedBox(width: 32),
@@ -244,7 +240,6 @@ class _Fila extends StatelessWidget {
     required this.renglones,
     required this.estadoDeSuRuta,
     required this.codigoDeRuta,
-    required this.tieneVehiculo,
     required this.marcado,
     required this.alMarcar,
     required this.alAbrir,
@@ -265,7 +260,6 @@ class _Fila extends StatelessWidget {
   final List<RenglonConPeso> renglones;
   final String? estadoDeSuRuta;
   final String? codigoDeRuta;
-  final bool tieneVehiculo;
   final bool marcado;
   final VoidCallback alMarcar;
   final VoidCallback alAbrir;
@@ -334,11 +328,6 @@ class _Fila extends StatelessWidget {
                       ? const Text('—')
                       : Insignia(codigoDeRuta!, color: Colores.enCurso),
                 ),
-              if (columnas.vehiculo)
-                _celda(
-                  flex: 2,
-                  hijo: Text(tieneVehiculo ? '·' : '—'),
-                ),
               if (columnas.articulos)
                 _celda(flex: 2, hijo: _Articulos(renglones: renglones)),
               _celda(
@@ -370,8 +359,10 @@ class _Fila extends StatelessWidget {
                   ),
                 ),
               ),
+              // Flex 3 y no 2: la celda lleva DOS marcas, el numero y el cobro
+              // del domicilio, y con 2 la segunda bajaba de linea hasta a 1440.
               if (columnas.factura)
-                _celda(flex: 2, hijo: _Factura(pedido: pedido)),
+                _celda(flex: 3, hijo: _Factura(pedido: pedido)),
               if (columnas.entrega)
                 _celda(
                   flex: 2,
@@ -680,18 +671,24 @@ class _Factura extends StatelessWidget {
     final numero = pedido.facturaNumero ?? '';
     switch (pedido.facturaEstado) {
       case EstadoFactura.igual:
-        return Insignia(
-          numero,
-          color: Colores.verde,
-          tooltip: 'Cuadra con lo pedido: se puede repartir tal cual.',
+        return _ConCobro(
+          pedido: pedido,
+          numero: Insignia(
+            numero,
+            color: Colores.verde,
+            tooltip: 'Cuadra con lo pedido: se puede repartir tal cual.',
+          ),
         );
       case EstadoFactura.cambiado:
-        return Insignia(
-          '$numero !',
-          color: Colores.ambar,
-          tooltip:
-              'Se facturó algo distinto de lo pedido. '
-              'No puede ir en una ruta hasta que se corrija.',
+        return _ConCobro(
+          pedido: pedido,
+          numero: Insignia(
+            '$numero !',
+            color: Colores.ambar,
+            tooltip:
+                'Se facturó algo distinto de lo pedido. '
+                'No puede ir en una ruta hasta que se corrija.',
+          ),
         );
       case EstadoFactura.sinFactura:
         return Text(
@@ -709,5 +706,66 @@ class _Factura extends StatelessWidget {
           ),
         );
     }
+  }
+}
+
+/// EL NUMERO DE FACTURA Y, DEBAJO O AL LADO, SI EL DOMICILIO ESTA COBRADO.
+///
+/// Amado, 08/10/2026: «en la tabla no está claro qué pedidos han sido facturados
+/// y cobrados». Un pedido con la factura cotejada puede NO traer la linea
+/// «ENTREGA A DOMICILIO» (`factura_domicilio` nulo, tambien en PEDIDO), y la
+/// regla del 07/10 no lo deja entrar en una ruta ni en una zona del tablero:
+/// «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
+/// registrado». El rechazo era correcto pero la causa no se veia en ninguna
+/// parte; ahora se ve aqui, ANTES de marcar el pedido.
+///
+/// **El ambar sale solo si ESE es lo que frena al pedido**
+/// ([frenaElDomicilioSinCobrar], que pregunta a la misma pieza que el arrastre
+/// y no repite la regla). Un entregado, uno que ya va en una ruta o uno
+/// archivado no tienen nada que colocar, y decirles «no puede ir a una ruta» es
+/// falso: un aviso que sale siempre deja de leerse. Esos llevan solo el numero,
+/// o el verde si la factura SI cobro (el importe es un dato, no la regla).
+///
+/// Es un `Wrap` y no una `Column` para que lo mismo valga en la celda de la
+/// tabla y dentro del `Wrap` de la tarjeta del telefono: si no cabe al lado, baja
+/// entero. Solo se pinta con factura `igual` o `cambiado`; `sin facturar` y
+/// `sin cotejar` ya lo dicen todo.
+class _ConCobro extends StatelessWidget {
+  const _ConCobro({required this.numero, required this.pedido});
+
+  final Widget numero;
+  final Pedido pedido;
+
+  @override
+  Widget build(BuildContext context) {
+    final importe = pedido.facturaDomicilio;
+    final Widget? marca;
+    if (frenaElDomicilioSinCobrar(pedido)) {
+      marca = Insignia(
+        'Sin cobro de domicilio',
+        color: Colores.ambar,
+        tooltip:
+            'La factura no trae la línea ENTREGA A DOMICILIO: este pedido '
+            'no puede ir a una ruta ni a una zona del tablero hasta que el '
+            'domicilio se cobre en la factura.',
+      );
+    } else if (importe != null && importe > 0) {
+      marca = Insignia(
+        'Dom. ${usd(importe)}',
+        color: Colores.verde,
+        tooltip:
+            'La factura trae la línea ENTREGA A DOMICILIO: '
+            'el domicilio está cobrado.',
+      );
+    } else {
+      marca = null;
+    }
+    if (marca == null) return numero;
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [numero, marca],
+    );
   }
 }

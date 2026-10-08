@@ -65,6 +65,15 @@ class ResultadoDeMandar {
 
   int get cuantos => fueron.length;
   bool get alguienSeQuedo => noFueron.isNotEmpty;
+
+  /// ¿Alguno se quedo porque su factura no trae el domicilio cobrado?
+  ///
+  /// Es el unico motivo que la columna `Factura` de la tabla ya enseña
+  /// (Amado, 08/10/2026), y por eso es el unico que lleva la linea de ayuda que
+  /// apunta alli. Se compara con la constante del propio «no», no con un trozo de
+  /// su texto: si el servidor lo reescribe, cambia en un sitio.
+  bool get alguienSinDomicilioCobrado =>
+      noFueron.any((p) => p.motivo == msgSinDomicilioCobrado);
 }
 
 /// Los motivos que NO salen de `MarcaTarjeta` porque no son marcas de la
@@ -86,6 +95,26 @@ abstract final class MotivoDeQuedarse {
   /// condicion de `sinColocar`, y la unica que no vive en `MarcaTarjeta`.
   static const sinCoordenadas = 'Sin coordenadas de entrega';
 }
+
+/// ¿Lo que frena a este pedido es que su factura no cobra el domicilio?
+///
+/// **No repite la regla: la pregunta.** El «no» sale de
+/// [porQueNoSePuedeColocar] (la pieza del arrastre y del servidor), asi que si
+/// el orden o las condiciones cambian alla, cambia aqui sin tocar nada. Es lo
+/// que decide la marca ambar «Sin cobro de domicilio» de la tabla: solo sale
+/// cuando ESE es el motivo (Amado, 08/10/2026). Un entregado o uno que ya va en
+/// una ruta tendrian otro motivo primero, y decirles «no puede ir a una ruta»
+/// seria falso; un aviso que sale siempre deja de leerse (`CLAUDE.md`
+/// §3-quinquies).
+///
+/// Una excepcion que `porQueNoSePuedeColocar` no conoce porque no es suya:
+/// **archivado** (`MandarAlTablero` ya lo rechaza antes por otro motivo).
+/// **Un devuelto o cancelado NO es excepcion**: se reasigna igual que cualquier
+/// otro (`EngancharPedidoARuta` solo excluye `entregado`), asi que si su factura
+/// no cobra el domicilio el ambar es verdad para el.
+bool frenaElDomicilioSinCobrar(Pedido pedido) =>
+    !pedido.archivado &&
+    porQueNoSePuedeColocar(pedido) == msgSinDomicilioCobrado;
 
 /// El gesto, sin pantalla.
 class MandarAlTablero {

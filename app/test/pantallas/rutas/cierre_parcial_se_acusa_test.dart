@@ -168,9 +168,35 @@ void main() {
     expect(servidor.cuantas('POST', '/routes/R1/results'), 1);
     expect(elAcuse, findsNothing);
     expect(find.textContaining('no se guard'), findsNothing);
+    // Issue 2 de Amado, 08/10/2026: tras guardar bien salía «Tienes 0 sin
+    // guardar». `PopScope.canPop` seguía con el valor del dibujo anterior al
+    // guardado, y la pregunta salía con la hoja ya sin nada que perder.
+    expect(find.textContaining('sin guardar'), findsNothing);
+    expect(find.text('Salir y perderlas'), findsNothing);
     expect(find.text(CierreDeRuta.exitoAlCompletar), findsOneWidget);
     expect(await estadoDeLaRuta(), EstadoRuta.completada);
     expect(volvioALaLista, isTrue);
+
+    await desmontar(tester);
+  });
+
+  testWidgets('guardar SIN completar tampoco pregunta «¿salir sin guardar?»', (
+    tester,
+  ) async {
+    await sembrar();
+    await pintar(
+      tester,
+      modo: ModoDelCierre.marcar,
+      servidorDice: (p) async => RespuestaFalsa(200),
+    );
+
+    await marcarDosYGuardar(tester, 'Guardar 2 marcada(s)');
+
+    expect(servidor.cuantas('POST', '/routes/R1/results'), 1);
+    expect(find.textContaining('sin guardar'), findsNothing);
+    expect(find.text('Salir y perderlas'), findsNothing);
+    expect(find.text(CierreDeRuta.exito), findsOneWidget);
+    expect(await estadoDeLaRuta(), EstadoRuta.enCurso);
 
     await desmontar(tester);
   });

@@ -466,6 +466,16 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
         // la puerta— y buscar el contexto al volver es buscarlo en un arbol que
         // ya no es el mismo.
         final volver = Navigator.of(context);
+        // «TIENES 0 SIN GUARDAR» — issue 2 de Amado, 08/10/2026. `canPop` es el
+        // valor del ÚLTIMO dibujo, y `_guardar` mueve la foto de lo guardado y
+        // llama a `maybePop()` sin dibujar entre medias: el `PopScope` seguía
+        // diciendo «hay cambios» sobre una hoja que ya los había escrito, y la
+        // pregunta salía con la cuenta a cero. Se vuelve a mirar AHORA: si no hay
+        // nada que perder, se sale sin preguntar (§3-quinquies).
+        if (_soloLectura || _cambios == 0) {
+          volver.pop();
+          return;
+        }
         if (await _seVaSinGuardar() && mounted) volver.pop();
       },
       child: Cajon(
@@ -609,6 +619,7 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
                   nota: _nota(paradas[i].id),
                   soloLectura: _soloLectura,
                   alMarcar: (cual) => _marcar(paradas[i].id, cual),
+                  alEscribirLaNota: () => setState(() {}),
                 ),
               const SizedBox(height: 16),
               _QuedaEnElCamion(hoja: hoja),
@@ -702,6 +713,7 @@ class _Parada extends StatelessWidget {
     required this.nota,
     required this.soloLectura,
     required this.alMarcar,
+    required this.alEscribirLaNota,
   });
 
   final int numero;
@@ -712,6 +724,12 @@ class _Parada extends StatelessWidget {
   /// La ruta ya esta completada: como acabo esta parada se mira, no se toca.
   final bool soloLectura;
   final void Function(String) alMarcar;
+
+  /// ESCRIBIR EN LA NOTA REDIBUJA EL CAJÓN — 08/10/2026 (auditoría del issue 2). La
+  /// nota es un cambio (`_cambios` la cuenta), pero escribir en un `TextField` no
+  /// redibujaba a quien calcula `PopScope.canPop`: editar SÓLO la nota de una marca
+  /// ya guardada y dar atrás salía sin preguntar y la nota se perdía en silencio (§4).
+  final VoidCallback alEscribirLaNota;
 
   /// Si la Guia puede senalar los botones de resultado de ESTA parada.
   final bool esLaPrimera;
@@ -820,6 +838,7 @@ class _Parada extends StatelessWidget {
               const SizedBox(height: 8),
               TextField(
                 controller: nota,
+                onChanged: (_) => alEscribirLaNota(),
                 maxLength: AccionesDeRuta.topeDeNota,
                 decoration: const InputDecoration(
                   isDense: true,

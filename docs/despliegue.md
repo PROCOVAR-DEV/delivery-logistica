@@ -1006,9 +1006,13 @@ con ellos hay seis cosas que saber:
    que anunciar exactamente esto»). Para cada versión nueva se copian los de la anterior
    desde `app/build/codex-retoma-20261006/rutas-historico/publicacion-<versión anterior>/`
    a `publicacion-<versión nueva>/` y se adaptan —las constantes de versión, el repo, los
-   nombres y la línea base—. Al 07/10/2026 hay una preparada, `publicacion-1.0.28/`, con un
-   `LEEME.md` que da el orden y lista lo que cambia respecto a la anterior; sus guiones
-   estaban sin ejecutar ni auditar (el auditor los pasa antes, `CLAUDE.md` §4-bis). Esas
+   nombres y la línea base—. La 1.0.28 se publicó el 08/10/2026 con `publicacion-1.0.28/`, que tiene un
+   `LEEME.md` con el orden y lo que cambia respecto a la anterior: **para la siguiente versión se
+   copia de ahí**. Pasó por el auditor (`CLAUDE.md` §4-bis), que obligó a cambiar la fecha (el nombre
+   del APK en MinIO es permanente: `261008`, no `261007`) y a exigir en `stage-windows28.py` que se
+   haya pasado antes `verify-ci-artifact.py`. Tras subir, la comprobación de rango de MinIO falló
+   la primera vez (200 en vez de 206) y fue bien al repetirla, como en la 1.0.26 y la 1.0.27: se
+   comprueba a mano y se reanuda con `--mode resume` / `--resume-uploaded`, sin volver a subir. Esas
    carpetas están **ignoradas por git** (`**/build/`): no viajan con el repositorio, y son
    lo único que sabe cómo se publicó la versión anterior.
 2. **`deploy/publicar-apk.sh` no se usa.** Poda versiones viejas y no verifica; la

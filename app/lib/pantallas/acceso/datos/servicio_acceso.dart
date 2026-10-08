@@ -2,9 +2,11 @@ import 'package:dio/dio.dart';
 
 import '../../../nucleo/identidad/almacen_sesion.dart';
 import '../../../nucleo/identidad/entrada_por_accesos.dart';
+import '../../../nucleo/identidad/renovador.dart' show esSinPermisoDeAccesos;
 import '../../../nucleo/identidad/sesion.dart';
 import '../../../nucleo/registro/registro.dart';
 import '../../../nucleo/plataforma.dart';
+import '../../../nucleo/red/fallos.dart' show textoSinPermisoDeReparto;
 
 /// Por que no se pudo entrar, en cristiano.
 ///
@@ -23,6 +25,12 @@ enum MotivoDeAcceso {
   /// el reparto un token sin sucursal no es un token limitado — es el que abre
   /// las ocho. Por eso auth prefiere no emitirlo.
   sinSucursal,
+
+  /// 403 `sin_permiso`. La contraseña era buena y la cuenta existe: es que NO
+  /// tiene `delivery.entrar`, o sea que no es de uno de los roles que entran a
+  /// Reparto. No se guarda nada y no hay nada que reintentar: se pide acceso a un
+  /// administrador y, mientras, se ofrece la salida a Accesos.
+  sinPermiso,
 
   /// 403 con la cuenta dada de baja.
   cuentaDeBaja,
@@ -191,6 +199,16 @@ class ServicioDeAcceso {
         MotivoDeAcceso.sinConexion,
         TextosDeCaida.titular(sinConexion: Destino.trabajaSinConexion),
         detalle: e.message ?? e.type.name,
+      );
+    }
+
+    // ANTES que el `switch`: la marca puede venir en `error` o en `codigo`, y los
+    // otros 403 de la puerta (`sin_sucursal`, `revoked`) no la traen.
+    if (esSinPermisoDeAccesos(e.response)) {
+      return FalloDeAcceso(
+        MotivoDeAcceso.sinPermiso,
+        mensaje ?? textoSinPermisoDeReparto,
+        detalle: error,
       );
     }
 

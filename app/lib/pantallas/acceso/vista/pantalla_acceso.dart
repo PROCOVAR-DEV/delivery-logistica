@@ -13,6 +13,7 @@ import '../../../nucleo/identidad/entrada_por_accesos.dart';
 import '../../../nucleo/plataforma.dart';
 import '../datos/oferta_de_la_puerta.dart';
 import '../datos/servicio_acceso.dart';
+import 'pantalla_sin_permiso.dart' show inicioDeAccesos;
 import '../estado/estado_acceso.dart';
 
 /// LA PANTALLA DE ACCESO.
@@ -614,6 +615,7 @@ class _Aviso extends ConsumerWidget {
     // otro lado sin compilar para web.
     final sinConexion = ref.watch(trabajaSinConexionProvider);
     final esAviso =
+        fallo.motivo == MotivoDeAcceso.sinPermiso ||
         fallo.motivo == MotivoDeAcceso.sinSucursal ||
         fallo.motivo == MotivoDeAcceso.cuentaDeBaja ||
         fallo.motivo == MotivoDeAcceso.sinConexion;
@@ -639,6 +641,7 @@ class _Aviso extends ConsumerWidget {
                 Icons.cloud_off_outlined,
               MotivoDeAcceso.sinConexion => Icons.wifi_off_outlined,
               MotivoDeAcceso.sinSucursal => Icons.store_outlined,
+              MotivoDeAcceso.sinPermiso => Icons.lock_outline,
               MotivoDeAcceso.cuentaDeBaja => Icons.no_accounts_outlined,
               _ => Icons.error_outline,
             },
@@ -665,6 +668,21 @@ class _Aviso extends ConsumerWidget {
                     style: Tipos.texto(tamano: 12, color: Colores.tintaSuave),
                   ),
                 ],
+                // LA MISMA SALIDA que la pantalla de «no tienes permiso»: el
+                // inicio de Accesos, donde ve las aplicaciones a las que SI
+                // entra. Sin el, el aviso diria «pide acceso» y dejaria a la
+                // persona sin un sitio al que ir. El formulario se queda: puede
+                // probar con otra cuenta.
+                if (fallo.motivo == MotivoDeAcceso.sinPermiso) ...[
+                  const SizedBox(height: Aire.sm),
+                  TextButton.icon(
+                    onPressed: () => unawaited(
+                      ref.read(abridorDeLaDescargaProvider)(inicioDeAccesos),
+                    ),
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('Ir a Accesos'),
+                  ),
+                ],
               ],
             ),
           ),
@@ -677,6 +695,9 @@ class _Aviso extends ConsumerWidget {
     MotivoDeAcceso motivo,
     bool sinConexion,
   ) => switch (motivo) {
+    MotivoDeAcceso.sinPermiso =>
+      'Reparto es para el personal de logística y la administración. Si '
+          'crees que es un error, pídele acceso a un administrador.',
     MotivoDeAcceso.sinSucursal =>
       'No es un fallo de la aplicación: tu cuenta entró bien. Pide en la '
           'oficina que te den de alta en tu sucursal y vuelve a entrar.',

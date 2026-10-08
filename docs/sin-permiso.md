@@ -92,6 +92,30 @@ dejan de coincidir con `fallos.dart`.
 PRIMERA llamada protegida (la bajada del sync o cualquier `/api/*`). El camino
 `quienSoy()` → `SinPermiso` es defensivo.
 
+## Accesos también lo dice: en el login y en el refresco
+
+Accesos (`/api/auth/token` y `/api/auth/refresh`) contesta
+`403 {"error":"sin_permiso","codigo":"sin_permiso","message":"No tienes permiso para entrar a
+Reparto."}` si la cuenta no tiene `delivery.entrar` (`esSinPermisoDeAccesos`,
+`nucleo/identidad/renovador.dart`; la marca vale en `error` o en `codigo`). No es la de la API
+(`sin_permiso_reparto`) y no se confunden.
+
+* **Login (APK y escritorio).** `MotivoDeAcceso.sinPermiso`, como `sin_sucursal`: aviso ámbar
+  con el mensaje, «Reparto es para el personal de logística y la administración…» y el botón
+  **«Ir a Accesos»** (el inicio de Accesos, en el navegador del sistema). **No se deja nada**:
+  ninguna sesión guardada, el portero no se mueve, la cola de nadie se toca. El formulario se
+  queda, para probar con otra cuenta.
+* **Refresco (el token se renueva al sincronizar).** La persona perdió el permiso a media
+  jornada. `Renovador` avisa al portero (`sinPermiso`) y lanza un `Rechazo` con la marca de
+  «sin permiso», **no** `SesionMuerta`: la sesión no se tira, el par se queda (con él se revoca
+  al cerrar sesión), y **la cola y la base se conservan**. Lo ven igual el interceptor
+  (peticiones), el ciclo (sincronizar) y el arranque (`Arranque.sinPermiso`, con la sesión).
+  «Cerrar sesión» sigue preguntando si hay apuntes sin subir. Un 401 al renovar sigue siendo
+  sesión muerta. (Un 403 al renovar SIN la marca sigue como hasta hoy: `FalloDeRed`.)
+* Pruebas: `test/nucleo/identidad/sin_permiso_al_renovar_test.dart` y
+  `test/pantallas/acceso/sin_permiso_en_el_login_test.dart`, las dos con dos apuntes pendientes
+  en la cola.
+
 ## De dónde se sale
 
 * `Portero.sinPermiso()` estando `fuera` **se ignora**: un 403 tardío de una petición que iba en

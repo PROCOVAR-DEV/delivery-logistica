@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:synchronized/synchronized.dart';
 
+import '../red/de_quien_viene.dart';
 import '../red/fallos.dart';
 import '../registro/registro.dart';
 import 'almacen_sesion.dart';
@@ -30,7 +31,13 @@ import 'sesion.dart';
 /// renovacion fallida que dejara el candado puesto impediria cualquier intento
 /// posterior, y eso es el aparato muerto hasta reinstalar.
 class Renovador {
-  Renovador(this._crudo, this._almacen);
+  Renovador(this._crudo, this._almacen, {void Function()? alFaltarPermiso})
+    : _alFaltarPermiso = alFaltarPermiso;
+
+  /// Se avisa cuando Accesos contesta al refresco con 403 `sin_permiso`: la
+  /// persona PERDIÓ el permiso de Reparto (a media jornada, por ejemplo). Lleva
+  /// al portero a `sinPermiso`; ni borra los tokens ni toca la cola o la base.
+  final void Function()? _alFaltarPermiso;
 
   /// Dio **SIN** `InterceptorSesion`: renovar no se renueva a si mismo. Con el
   /// interceptor puesto, un 401 del propio `/refresh` dispararia otra
@@ -89,6 +96,22 @@ class Renovador {
       }
       return nueva;
     } on DioException catch (e) {
+      if (esSinPermisoDeAccesos(e.response)) {
+        // LA PERSONA PERDIÓ EL PERMISO — no es una sesión muerta ni una caída.
+        //
+        // **Los tokens y todo lo local se quedan**: con apuntes por subir, borrar
+        // el par (como en un 401) o dejarlo caer en `FalloDeRed` (como un 403
+        // cualquiera, que se reintenta para siempre en silencio) pierde o
+        // esconde trabajo. Sale como `Rechazo` con la marca de «sin permiso de
+        // Reparto», que es lo que ya entienden el ciclo y el interceptor, y el
+        // portero se entera por aquí, que es el único sitio que lo ve todo.
+        _alFaltarPermiso?.call();
+        throw Rechazo(
+          403,
+          _mensajeDe(e) ?? textoSinPermisoDeReparto,
+          marca: marcaSinPermisoDeReparto,
+        );
+      }
       if (e.response?.statusCode == 401) {
         // El servidor no acepta el refresh: la sesion murio de verdad.
         await _almacen.borrar();
@@ -108,9 +131,33 @@ class Renovador {
     if (datos is Map && datos['mensaje'] is String) {
       return datos['mensaje'] as String;
     }
+    if (datos is Map && datos['message'] is String) {
+      return datos['message'] as String;
+    }
     if (datos is Map && datos['error'] is String) {
       return datos['error'] as String;
     }
     return e.message;
   }
+}
+
+/// La marca de Accesos para «esta persona no tiene `delivery.entrar`»
+/// (`{"error":"sin_permiso","codigo":"sin_permiso","message":…}`), en el login
+/// (`/api/auth/token`) y en el refresco (`/api/auth/refresh`). No es la de la API
+/// de Reparto (`sin_permiso_reparto`, `fallos.dart`): aquella sale de las llamadas
+/// de trabajo; esta, de la puerta.
+const marcaSinPermisoDeAccesos = 'sin_permiso';
+
+/// ¿ES ESTA LA RESPUESTA DE ACCESOS «NO TIENES PERMISO PARA ENTRAR A REPARTO»?
+/// Las tres cosas a la vez, como [esSinPermisoDeReparto]: **403**, JSON de
+/// nuestro servidor (el 403 de un filtro no vale) y la marca en `codigo` o en
+/// `error`. Los otros 403 de la puerta (`sin_sucursal`, `revoked`) no la traen.
+bool esSinPermisoDeAccesos(Response<dynamic>? respuesta) {
+  if (respuesta?.statusCode != 403 || !contestoLoNuestro(respuesta)) {
+    return false;
+  }
+  final cuerpo = respuesta?.data;
+  return cuerpo is Map &&
+      (cuerpo['codigo'] == marcaSinPermisoDeAccesos ||
+          cuerpo['error'] == marcaSinPermisoDeAccesos);
 }

@@ -170,6 +170,15 @@ Future<ResultadoDelArranque> arrancar(Ref ref) async {
     final perdida = await _elAparatoTieneDatos(ref);
     ref.read(duenoDeLaBaseProvider.notifier).es(null);
     return ResultadoDelArranque(Arranque.fuera, sesionPerdida: perdida);
+  } on Rechazo catch (r) {
+    // Cualquier otro 4xx al renovar sigue sin tener cerradura propia: sube tal
+    // cual y `Portero.comprobar` lo trata como un arranque que falla.
+    if (r.marca != marcaSinPermisoDeReparto) rethrow;
+    // LA PERSONA PERDIO EL PERMISO de Reparto (403 `sin_permiso` al renovar).
+    // Ni `fuera` ni se borra nada: la sesion, la base y la cola se quedan tal
+    // cual y el portero la manda a su pantalla. `guardada` va en el resultado
+    // para que «Cerrar sesion» pueda revocar el refresh.
+    return ResultadoDelArranque(Arranque.sinPermiso, sesion: guardada);
   } on FalloDeRed {
     // EN LA WEB NO SE ENTRA A CIEGAS. NUNCA. (§1)
     //

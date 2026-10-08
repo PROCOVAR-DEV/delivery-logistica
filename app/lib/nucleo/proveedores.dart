@@ -210,8 +210,13 @@ class InterceptorDeSalud extends Interceptor {
 /// EL CANDADO. Uno solo en toda la aplicacion — dos instancias son dos candados
 /// distintos, y dos candados no son ningun candado.
 final renovadorProvider = Provider<Renovador>(
-  (ref) =>
-      Renovador(ref.watch(dioAuthProvider), ref.watch(almacenSesionProvider)),
+  (ref) => Renovador(
+    ref.watch(dioAuthProvider),
+    ref.watch(almacenSesionProvider),
+    // 403 `sin_permiso` al renovar: la persona perdio el permiso de Reparto.
+    // Al portero, sin borrar tokens ni cola (`docs/sin-permiso.md`).
+    alFaltarPermiso: () => ref.read(porteroProvider).sinPermiso(),
+  ),
 );
 
 /// La sucursal que el Super Admin esta mirando. `null` = la suya.

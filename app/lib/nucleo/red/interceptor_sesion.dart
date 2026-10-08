@@ -112,6 +112,12 @@ class InterceptorSesion extends Interceptor {
       // luego con los tokens intactos.
       handler.reject(_comoFallo(err, red));
       return;
+    } on Rechazo catch (sinPermiso) {
+      // Accesos dijo 403 `sin_permiso` al renovar: la persona perdio el permiso
+      // de Reparto. El `Renovador` ya aviso al portero; aqui solo se corta esta
+      // peticion, con su `Rechazo` y SIN `SesionMuerta`: nada se borra.
+      handler.reject(_comoFallo(err, sinPermiso));
+      return;
     }
 
     // Y se reenvia UNA vez. El `onRequest` de arriba volvera a leer el almacen,

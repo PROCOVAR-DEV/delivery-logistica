@@ -734,8 +734,7 @@ Escrito el 09/10/2026 leyendo el código y los cuadernos de cada agente
 (`~/Notas/Procovar/Pendiente/sesion-unica/`: `A1-ACCESOS`, `FIXES-A1`, `HARDENING-ACCESOS`,
 `G-SYNC1`, `G-SYNC2`, `G-API`, `G-APP1`, `G-APP2`, y las tres pasadas de control: `AUDITOR-SEG-BANDEJA`, `QA-E2E` y
 `AUDITORIA-FINAL-1032`). **Lo de arriba es el diseño; esto es lo que hay.**
-Donde difieren, manda esto. Nada de la ronda está desplegado salvo Accesos (`8ba2642`, 09/10/2026);
-el resto está en el árbol sin commitear en el momento de escribir esto. Orden de despliegue y estado de
+Donde difieren, manda esto. Al escribir esto nada estaba desplegado salvo Accesos (`8ba2642`) ni commiteado; el 09/10/2026 por la tarde se commiteó (`fa0295a`) y se desplegó todo, y se publicó la APK/Windows 1.0.32+33 (`c92aca6`). Orden de despliegue y estado de
 los riesgos 2, 9 y 10: `docs/despliegue.md` §4-bis.
 
 ### Qué se hizo, por paquete
@@ -988,11 +987,12 @@ arreglos.** Dos carreras de datos bajo `-race` con mucha carga (`TestArmarConUnO
 
 La lista honesta, a 09/10/2026:
 
-* **Sin re-auditoría tras los arreglos de la tanda final**: la auditoría final dijo NO LISTO a las 14:55 y los cuadernos no recogen una
-  segunda pasada. La prueba de punta a punta (`QA-E2E.md`) se hizo **antes** de esos arreglos, con la ronda de entonces, y la pantalla
-  del revisor (N4) nunca se ha probado contra el `sync` real ni en un navegador real.
-* **Nada de esta ronda está desplegado salvo Accesos** (`8ba2642`), ni commiteado: orden y ritual en `docs/despliegue.md` §4-bis.
-  La APK/Windows 1.0.32 no existe (`app/pubspec.yaml` sigue en 1.0.31+32).
+* **Re-auditoría tras los arreglos de la tanda final: HECHA, LISTO** (09/10/2026 ~15:30 Cuba, `AUDITORIA-FINAL-1032.md`: los tres SERIOS
+  arreglados, 38 mutaciones rojas de 39). La prueba de punta a punta (`QA-E2E.md`) se hizo **antes** de esos arreglos, y la pantalla
+  del revisor (N4) nunca se ha probado contra el `sync` real ni en un navegador real de producción: que un ADMINISTRADOR abra
+  `/revision` con una entrega real sigue pendiente.
+* **Desplegado el 09/10/2026**: Accesos `8ba2642`; migraciones 00003 y 00004, sync, API y web de `fa0295a`; APK y Windows 1.0.32+33
+  (`c92aca6`). Orden y ritual en `docs/despliegue.md` §4-bis. Falta la prueba física en un teléfono y un PC.
 * **Sin aviso en vivo (SSE) de revisión**: no hay `CambioEnVivo.revision` ni evento alguno; el revisor se entera al pulsar
   «Actualizar», al volver de una desconexión y tras cada decisión propia, y la persona con «Actualizar estados» o en el ciclo.
 * **Sin correo de notify (fase 2)**: `sync` no tiene cliente de notify; no hay aviso por sucursal y día ni a los 7 días.

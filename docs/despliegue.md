@@ -1256,7 +1256,7 @@ ya son prefijos del reparto).
 | 3 | **Deploy de `reparto-sync`** | Trae la entrega, `mias`, el revisor, el paso 0 de la subida, `en_revision` en `/sync/estado`, el corte `web` de sesión y el recorte del nombre del aparato | **HECHO el 09/10/2026** (`fa0295a`; arrancó 19:42 UTC, «sincronizador escuchando», empuje de sesiones activo; las 4 rutas nuevas dan 401 sin token) |
 | 4 | **Deploy de `reparto-api`** | Trae el rechazo de `ambito` (401), el rastro `autor`/`revision` y que la web lea `organization.codigo` | **HECHO el 09/10/2026** (19:45 UTC) |
 | 5 | **Deploy de `reparto-web`** | Trae la ruta `/revision` y `bearerExplicito`; necesita el paso 3 ya servido | **HECHO el 09/10/2026** (19:49 UTC; bundle con `/revision`, «Entregar a revisión» y «Aplicar todo») |
-| 6 | **APK y Windows 1.0.32** | Es lo último: antes de esto nadie puede entregar | Pendiente |
+| 6 | **APK y Windows 1.0.32** | Es lo último: antes de esto nadie puede entregar | **HECHO el 09/10/2026** (`c92aca6`; CI 37982973531; `publicacion-1.0.32/`; los dos diarios en `production_verified`; tarjetas 12 y 13 con navegador real) |
 
 ### Paso 2, el ritual con `reparto_sync` (tal cual se hace; no se salta nada)
 
@@ -1341,7 +1341,7 @@ adelantada deja arrancar»). El `Down` de la 00004 solo quita la restricción.
 
 ### Paso 6, la APK y Windows 1.0.32
 
-`app/pubspec.yaml` sigue en `1.0.31+32`: la versión nueva (1.0.32+33 en los cuadernos) se pone al compilar. Se publica como
+**Hecho el 09/10/2026** (`app/pubspec.yaml` en `1.0.32+33`, commit `c92aca6`). Se publicó como
 dice §3.1 («un publicador por VERSIÓN»): **copiar `publicacion-1.0.31/` a `publicacion-1.0.32/`** y adaptar versión, fecha del
 día, repo (`PROCOVAR-DEV/delivery-logistica`) y línea base —que pasa a ser la 1.0.31—; **Windows primero y Android después**;
 el APK viejo no se borra hasta que Jose confirme. **No se publica antes de los pasos 3 y 4**: la APK 1.0.32 es la única que
@@ -1378,8 +1378,7 @@ Para devolverle el acceso, el camino inverso: darle el rol (p. ej. LOGISTICO) en
   (lanzaría `FormatException`), nunca lo recibe: el riesgo es cero salvo que alguien entregue **a mano** (con un refresh vivo y `curl`) una clave que
   coincida con una real del aparato, o que una instalación entregue y luego se **baje de versión**. No se endurece más.
 * **Riesgo 10 — «quien cerró sesión antes de entregar queda varado».** **Abierto, y es verdad que no se resuelve.** Cerrar
-  sesión revoca el refresh y sin él `POST /api/auth/entrega` da 401. La mitigación está **escrita y probada, y sin desplegar** hasta que salga la
-  APK 1.0.32: el «Cerrar sesión» con cola pregunta con tres opciones (entregar y salir, salir sin entregar avisando de que queda
+  sesión revoca el refresh y sin él `POST /api/auth/entrega` da 401. La mitigación está **escrita, probada y publicada** (APK/Windows 1.0.32+33, 09/10/2026): el «Cerrar sesión» con cola pregunta con tres opciones (entregar y salir, salir sin entregar avisando de que queda
   varada, me quedo; N3). Quien elija «Salir sin entregar», o ya hubiera cerrado sesión con la 1.0.31, sigue varado. Entregar desde el
   login (opción 4 de B.1) queda fuera de esta ronda. Detalle en `docs/sin-permiso.md`.
 

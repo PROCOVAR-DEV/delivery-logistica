@@ -198,11 +198,11 @@ El artefacto del trabajo contiene:
 Antes de ofrecerlo en procovar.cloud hay que descargar ese artefacto, contrastar
 sus huellas, publicar el instalador sin sobrescribir versiones y comprobar su descarga.
 
-La versión **1.0.31+32** (09/10/2026) está en procovar.cloud como **Reparto para Windows**:
-el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.31-windows-setup.exe)
-(16.249.430 bytes). La ejecución [37949743642 de GitHub Actions](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37949743642),
-sobre el commit `5838ce8` en la organización, compiló e instaló la copia de prueba y cotejó sus archivos.
-(La de la 1.0.30 fue la [37834921676](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37834921676); la de la 1.0.29 fue la [37812597394](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37812597394); la de la 1.0.28 la [37781825464](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37781825464); la de la 1.0.27, [37537712382](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37537712382),
+La versión **1.0.32+33** (09/10/2026) está en procovar.cloud como **Reparto para Windows**:
+el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.32-windows-setup.exe)
+(16.299.762 bytes, sha256 `d9627cff…28843e`). La ejecución [37982973531 de GitHub Actions](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37982973531),
+sobre el commit `c92aca6` en la organización, compiló e instaló la copia de prueba y cotejó sus archivos.
+(La de la 1.0.31 fue la [37949743642](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37949743642), sobre `5838ce8`; la de la 1.0.30 fue la [37834921676](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37834921676); la de la 1.0.29 fue la [37812597394](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37812597394); la de la 1.0.28 la [37781825464](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37781825464); la de la 1.0.27, [37537712382](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37537712382),
 bajo `jose22072000` da 404: ahora vive en la organización.) Las descargas públicas se
 verificaron por tamaño y SHA256 antes de actualizar la tarjeta. Abrir, iniciar sesión
 y trabajar sin conexión en el PC del usuario quedan pendientes de prueba física.
@@ -215,6 +215,17 @@ eliminar mientras no esté completada; los estados de paradas se revisan al puls
 «Marcar como completada» y el histórico queda de sólo lectura. Una hoja rechazada
 retiene el cierre de esa ruta en la cola nativa. Windows conserva su base local para
 trabajar sin conexión; la web trabaja conectada al servidor.
+
+La 1.0.32 trae la **bandeja de revisión** (`docs/bandeja-de-revision.md`): quien conserva la sesión pero pierde
+`delivery.entrar` entrega a revisión lo que tenía sin subir (pantalla `/sin-permiso`, solo APK y escritorio), y el
+administrador de la sucursal, el super administrador o el desarrollador lo aplica o lo descarta en `/revision`
+(también en la web). Se publicó el 09/10/2026 con `publicacion-1.0.32/` (APK `reparto-1.0.32-261009.apk`, 79.871.400
+bytes, sha256 `58295cfa…65e30c`, commit `c92aca6`; Windows y Android en `production_verified`, tarjetas 12 y 13 del
+portal verificadas con navegador real, 5/5 cada una). El servidor (migraciones 00003 y 00004 de `procovar_reparto_sync`,
+sync, API y web) se desplegó antes, el mismo día. En las dos subidas la comprobación de rango falló a la primera
+(`descarga Windows no permite rango exacto` / `APK no permite reanudar por rango`, y a los segundos ya daba 206) y se
+reanudó a mano (`--mode resume` y `--resume-uploaded`), como en la 1.0.31. **Falta la prueba física** en un teléfono y un PC,
+y que un ADMINISTRADOR abra `/revision` en la web de producción con una entrega real.
 
 La 1.0.31 trae la **sesión única** en la APK y el escritorio (`docs/sin-permiso.md`, sección final): cuando
 Accesos corta la sesión o cambia los permisos, la aplicación renueva al instante (y al volver la red); cerrar
@@ -232,10 +243,10 @@ la APK que reconocen el `sin_permiso` de Accesos (`docs/sin-permiso.md`). La 1.0
 `PATCH /api/orders`, camión de otra sucursal, armado local del Tablero como el servidor, cajón de
 acuse en el cierre parcial; ver `docs/reglas-negocio.md` §15.14).
 
-Android y Windows están publicados como **1.0.31+32**, con el anuncio global y las dos
-tarjetas del portal actualizadas (los diarios `.publish-*-1.0.31*` están en `production_verified`).
+Android y Windows están publicados como **1.0.32+33**, con el anuncio global y las dos
+tarjetas del portal actualizadas (los diarios `.publish-*-1.0.32*` están en `production_verified`).
 **Falta la prueba física** en un teléfono con una base 1.0.27 llena (el esquema local pasa de la 4
-a la 6 con un `DROP COLUMN`) y en un PC. Se puede instalar Windows 1.0.31 desde el portal sobre la
+a la 6 con un `DROP COLUMN`) y en un PC. Se puede instalar Windows 1.0.32 desde el portal sobre la
 versión anterior. La actualización automática en el PC del usuario no se ha probado;
 separar el aviso de versión por plataforma sigue siendo un pendiente de arquitectura.
 Las versiones anteriores se conservan.

@@ -145,8 +145,15 @@ class BaseLocal extends _$BaseLocal {
   /// un servidor: vive en el aparato de alguien, y ahi dentro esta **la cola sin
   /// subir**. Un aparato que se quede sin poder abrir su base pierde el trabajo
   /// del dia, que es lo unico que esta aplicacion no puede permitirse.
+  ///
+  /// ## 7 — la bandeja de revisión (09/10/2026)
+  ///
+  /// `apuntes` gana cuatro columnas nulas (`revision`, `revisado_por`, `revisado_at`,
+  /// `motivo_revision`) y el enum, dos estados (`tablas/aparato.dart`). Es la tabla
+  /// donde vive **la cola sin subir**: por eso la migración sólo AÑADE, y sólo lo que
+  /// falta (ver el `desde < 7`).
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -197,6 +204,27 @@ class BaseLocal extends _$BaseLocal {
       }
       if (desde < 6) {
         await m.addColumn(vehicles, vehicles.isActive);
+      }
+      if (desde < 7) {
+        // LA BANDEJA DE REVISIÓN. Ver `Apuntes.revision`.
+        //
+        // Vacías las cuatro: nulo es «nunca se entregó», que es la verdad de todo
+        // lo que ya hay. **Sólo las que faltan**, por lo mismo que la 5: un
+        // `ADD COLUMN` de una que ya está LANZA («duplicate column name»), y una
+        // migración que lanza deja la base sin abrir, o sea la cola del día
+        // secuestrada. Pasa con una copia nacida con el esquema nuevo y el
+        // `user_version` atrás.
+        final hay = (await customSelect('PRAGMA table_info(apuntes)').get())
+            .map((f) => f.read<String>('name'))
+            .toSet();
+        for (final columna in [
+          apuntes.revision,
+          apuntes.revisadoPor,
+          apuntes.revisadoAt,
+          apuntes.motivoRevision,
+        ]) {
+          if (!hay.contains(columna.name)) await m.addColumn(apuntes, columna);
+        }
       }
     },
     beforeOpen: (detalles) async {
@@ -430,7 +458,8 @@ class BaseLocal extends _$BaseLocal {
     );
   }
 
-  /// TRABAJO QUE NO ESTA ARRIBA, contando **tambien los rechazados**.
+  /// TRABAJO QUE NO ESTA ARRIBA, contando **tambien los rechazados** y NO los
+  /// entregados a revision (esos estan arriba: [cuantosEnRevision]).
   ///
   /// `cuantosPendientes()` contesta «¿queda algo EN LA COLA esperando a subir?»,
   /// y hay sitios donde esa es justo la pregunta (cuanto falta de un lote, que
@@ -459,6 +488,24 @@ class BaseLocal extends _$BaseLocal {
                 apuntes.estado.equalsValue(EstadoApunte.pendiente) |
                     apuntes.estado.equalsValue(EstadoApunte.rechazado),
               ))
+            .getSingle();
+    return fila.read(cuenta) ?? 0;
+  }
+
+  /// LO QUE ESTA ENTREGADO A REVISION y todavia no tiene decision.
+  ///
+  /// **No esta en [cuantosSinSubir] y no debe estar**: ya esta arriba, en la
+  /// bandeja de un administrador, y decir «7 sin subir» de algo que no sube
+  /// solo es el aviso que nunca se va. Pero SI cuenta antes de borrar a una
+  /// persona —`PersonaEnElAparato`, `_elAparatoTieneDatos`—: es trabajo que solo
+  /// existe en el aparato y en esa bandeja, y olvidar la copia se lleva lo unico
+  /// que dice que se entrego (`bandeja-de-revision.md`, B.5).
+  Future<int> cuantosEnRevision() async {
+    final cuenta = apuntes.orden.count();
+    final fila =
+        await (selectOnly(apuntes)
+              ..addColumns([cuenta])
+              ..where(apuntes.estado.equalsValue(EstadoApunte.enRevision)))
             .getSingle();
     return fila.read(cuenta) ?? 0;
   }

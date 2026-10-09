@@ -1,0 +1,337 @@
+{
+  "comentario": "EL TOKEN DE ENTREGA A REVISION (docs/bandeja-de-revision.md, B.1, paquete V). Lo leen las pruebas de api/internal/auth y de sync/internal/identidad, que son DOS modulos de Go con DOS copias de la regla (no se pueden importar el uno al otro). Si una cambia sin la otra, un caso de aqui se pone rojo en la que se quedo atras. Accesos firma, con el mismo JWT_SECRET, un token de 10 minutos para quien conserva sesion pero NO tiene `delivery.entrar`: lleva `ambito:\"reparto.entrega\"`, `purpose:\"apk:entrega\"`, `entradas:[]`, sin roles, `jti` y `name`. Solo abre DOS rutas de `sync` (POST /sync/revision/entrega y GET /sync/revision/mias). REGLAS: (1) RUTAS NORMALES (`Verificar`+`PuedeEntrarAReparto` en api, `DeToken` en sync): todo token que TRAIGA la clave `ambito` se rechaza, sea cual sea su valor (vacio, null, otro texto, array, numero, false, objeto), tambien si lleva `delivery.entrar` en `entradas` y/o un rol que entra, y tambien si la clave viene con otras mayusculas (`Ambito`, `AMBITO`: el decodificador de Go casa las claves sin distinguir mayusculas). Lo que cada modulo contesta (api 401, sync 403 sin_permiso_reparto) NO se compara aqui: solo que NO entra. (2) `DeTokenDeEntrega` (solo sync): firma, `exp` obligatorio, `iat` presente y `exp` <= iat + 600 s (+ 60 s de holgura), `purpose` EXACTAMENTE `apk:entrega`, `ambito` EXACTAMENTE `reparto.entrega`, `sub` presente, `jti` presente, `entradas` PRESENTE como array y SIN `delivery.entrar`, ningun rol (`role`/`rol` vacios y `roles` vacio o ausente) y sucursal presente (el codigo `STG`, que se traduce). `name`, `sid`, `email`, `iss` e `iatms` son opcionales (el verificador NO decide nada con `iss`). `base.<nombre>` son los claims de partida; `con` es clave -> valor (un `null` JSON es la clave PRESENTE con null). La prueba parte de `base`, pone `iat` = ahora, `iatms` = iat * 1000 (ms de emision, como en el token de acceso: el corte `todo` de Accesos lo compara con ese valor y, sin el, con iat * 1000) y `exp` = iat + 600 s, DESPUES aplica `con` y `sin` (asi `sin:[\"exp\"]` o `sin:[\"iat\"]` los quitan), y el caso puede cambiar `exp` con estos marcadores en `con.exp`: \"$caducado\" (ahora - 2 h) y \"$larga\" (iat + 1 h). `normal` y `entrega` son opcionales: sin `normal` no se comprueba la ruta normal; sin `entrega` no se comprueba DeTokenDeEntrega (api no lo lee nunca). `normal`: \"entra\" (el verificador lo acepta Y entra a Reparto) o \"rechaza\" (no entra: o no se verifica o no tiene permiso). `entrega`: \"acepta\" o \"rechaza\".",
+  "constantes": {
+    "ambito": "reparto.entrega",
+    "proposito": "apk:entrega",
+    "llave": "delivery.entrar"
+  },
+  "base": {
+    "entrega": {
+      "sub": "p-yasmani",
+      "name": "Yasmani",
+      "email": "yasmani@procovar.cu",
+      "sid": "ses-1",
+      "sucursal": "STG",
+      "branch_id": "STG",
+      "purpose": "apk:entrega",
+      "ambito": "reparto.entrega",
+      "entradas": [],
+      "roles": [],
+      "role": "",
+      "iss": "https://auth.procovar.cloud",
+      "jti": "j-entrega-1"
+    },
+    "normal": {
+      "sub": "p-ana",
+      "name": "Ana",
+      "email": "ana@procovar.cu",
+      "sid": "ses-2",
+      "sucursal": "STG",
+      "branch_id": "STG",
+      "role": "LOGISTICO",
+      "roles": ["LOGISTICO"],
+      "entradas": ["delivery.entrar"],
+      "iss": "https://auth.procovar.cloud",
+      "jti": "j-normal-1"
+    }
+  },
+  "casos": [
+    {
+      "nombre": "el token normal de siempre, con la llave y sin ambito",
+      "base": "normal",
+      "normal": "entra",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "el normal con la llave y un rol que no estaba en la lista de ayer",
+      "base": "normal",
+      "con": { "role": "GERENTE", "roles": ["GERENTE"] },
+      "normal": "entra",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "el token de entrega legitimo, tal como lo firma Accesos",
+      "base": "entrega",
+      "normal": "rechaza",
+      "entrega": "acepta"
+    },
+    {
+      "nombre": "entrega: sin name (opcional)",
+      "base": "entrega",
+      "sin": ["name"],
+      "normal": "rechaza",
+      "entrega": "acepta"
+    },
+    {
+      "nombre": "entrega: name que no es texto (opcional, se ignora)",
+      "base": "entrega",
+      "con": { "name": 7 },
+      "normal": "rechaza",
+      "entrega": "acepta"
+    },
+    {
+      "nombre": "entrega: sin sid ni email (opcionales)",
+      "base": "entrega",
+      "sin": ["sid", "email"],
+      "normal": "rechaza",
+      "entrega": "acepta"
+    },
+    {
+      "nombre": "entrega: entradas [] (Accesos lo firma SIEMPRE vacio)",
+      "base": "entrega",
+      "con": { "entradas": [] },
+      "normal": "rechaza",
+      "entrega": "acepta"
+    },
+    {
+      "nombre": "entrega: con iatms (ms de emision, extra respecto al diseno B.1)",
+      "base": "entrega",
+      "normal": "rechaza",
+      "entrega": "acepta"
+    },
+    {
+      "nombre": "entrega: sin iatms (se cae a iat)",
+      "base": "entrega",
+      "sin": ["iatms"],
+      "normal": "rechaza",
+      "entrega": "acepta"
+    },
+    {
+      "nombre": "entrega: sin iss (no se decide nada con el)",
+      "base": "entrega",
+      "sin": ["iss"],
+      "normal": "rechaza",
+      "entrega": "acepta"
+    },
+    {
+      "nombre": "entrega: entradas con la llave de OTRA app (sin delivery.entrar)",
+      "base": "entrega",
+      "con": { "entradas": ["pms.entrar"] },
+      "normal": "rechaza",
+      "entrega": "acepta"
+    },
+    {
+      "nombre": "LA PAREJA CENTRAL: entrega con delivery.entrar metido en entradas",
+      "base": "entrega",
+      "con": { "entradas": ["delivery.entrar"] },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega con la llave y el rol SUPER ADMIN",
+      "base": "entrega",
+      "con": { "entradas": ["delivery.entrar"], "role": "SUPER ADMIN" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega con la llave y roles que entran",
+      "base": "entrega",
+      "con": { "entradas": ["pedido.entrar", "delivery.entrar"], "roles": ["ADMINISTRADOR", "LOGISTICO"] },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega SIN entradas y con un rol que entra (la caida por roles de ayer)",
+      "base": "entrega",
+      "con": { "role": "LOGISTICO" },
+      "sin": ["entradas"],
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "ambito vacio, con la llave",
+      "base": "normal",
+      "con": { "ambito": "" },
+      "normal": "rechaza"
+    },
+    {
+      "nombre": "ambito null, con la llave",
+      "base": "normal",
+      "con": { "ambito": null },
+      "normal": "rechaza"
+    },
+    {
+      "nombre": "ambito otro texto, con la llave",
+      "base": "normal",
+      "con": { "ambito": "reparto.otra-cosa" },
+      "normal": "rechaza"
+    },
+    {
+      "nombre": "ambito un array, con la llave",
+      "base": "normal",
+      "con": { "ambito": ["reparto.entrega"] },
+      "normal": "rechaza"
+    },
+    {
+      "nombre": "ambito un numero, con la llave",
+      "base": "normal",
+      "con": { "ambito": 0 },
+      "normal": "rechaza"
+    },
+    {
+      "nombre": "ambito false, con la llave",
+      "base": "normal",
+      "con": { "ambito": false },
+      "normal": "rechaza"
+    },
+    {
+      "nombre": "ambito un objeto, con la llave",
+      "base": "normal",
+      "con": { "ambito": {} },
+      "normal": "rechaza"
+    },
+    {
+      "nombre": "la clave escrita Ambito (el decodificador de Go la casa con ambito), con la llave",
+      "base": "normal",
+      "con": { "Ambito": "reparto.entrega" },
+      "normal": "rechaza"
+    },
+    {
+      "nombre": "la clave escrita AMBITO, con la llave",
+      "base": "normal",
+      "con": { "AMBITO": "reparto.entrega" },
+      "normal": "rechaza"
+    },
+    {
+      "nombre": "entrega: el valor del ambito en mayusculas (se compara exacto)",
+      "base": "entrega",
+      "con": { "ambito": "REPARTO.ENTREGA" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: purpose de otro token",
+      "base": "entrega",
+      "con": { "purpose": "apk:access" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: purpose en mayusculas (se compara exacto)",
+      "base": "entrega",
+      "con": { "purpose": "APK:ENTREGA" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: sin purpose",
+      "base": "entrega",
+      "sin": ["purpose"],
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: entradas AUSENTE (ausente no es vacio)",
+      "base": "entrega",
+      "sin": ["entradas"],
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: entradas null",
+      "base": "entrega",
+      "con": { "entradas": null },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: entradas es un texto y no un array",
+      "base": "entrega",
+      "con": { "entradas": "delivery.entrar" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: sin jti",
+      "base": "entrega",
+      "sin": ["jti"],
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: jti vacio",
+      "base": "entrega",
+      "con": { "jti": "" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: sin sub",
+      "base": "entrega",
+      "sin": ["sub"],
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: sub vacio",
+      "base": "entrega",
+      "con": { "sub": "" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: sin sucursal (ni sucursal ni branch_id)",
+      "base": "entrega",
+      "sin": ["sucursal", "branch_id"],
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: con un role (un token de entrega no lleva roles)",
+      "base": "entrega",
+      "con": { "role": "GERENTE" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: con roles",
+      "base": "entrega",
+      "con": { "roles": ["LOGISTICO"] },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: sin exp",
+      "base": "entrega",
+      "sin": ["exp"],
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: caducado",
+      "base": "entrega",
+      "con": { "exp": "$caducado" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: con una vida de 12 minutos (Accesos firma 10; el tope es 10 + 1 de holgura)",
+      "base": "entrega",
+      "con": { "exp": "$doce_minutos" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: con una vida de una hora (Accesos firma 10 minutos)",
+      "base": "entrega",
+      "con": { "exp": "$larga" },
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "entrega: sin iat (no se puede acotar su vida)",
+      "base": "entrega",
+      "sin": ["iat"],
+      "normal": "rechaza",
+      "entrega": "rechaza"
+    },
+    {
+      "nombre": "un normal SIN la llave y sin ambito no es un token de entrega",
+      "base": "normal",
+      "con": { "entradas": [] },
+      "sin": ["roles", "role"],
+      "entrega": "rechaza"
+    }
+  ]
+}

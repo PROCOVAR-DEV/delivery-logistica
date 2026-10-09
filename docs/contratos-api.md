@@ -83,6 +83,11 @@ Content-Type: application/json; charset=utf-8
   hoy nadie tiene dos membresías (medido el 08/10/2026), pero quien fuera GESTOR en una sucursal
   y ADMINISTRADOR en otra entraría como ADMINISTRADOR en la primera. Hay que ligar el rol a la
   sucursal ANTES de dar una segunda membresía (`TestLimiteConocido…`).
+- **El token de ENTREGA a revisión (09/10/2026) no entra por aquí, y no es un permiso.** Lo firma Accesos a quien
+  conserva la sesión pero no tiene `delivery.entrar` (`ambito:"reparto.entrega"`, `entradas:[]`, sin roles, 10 minutos)
+  y solo abre dos rutas de `sync` (§12). Todo token que traiga `ambito`, **con cualquier valor y aunque lleve la llave**,
+  se rechaza en las rutas normales: **401 en la API** (`auth.ErrAmbito`, también en `GET /api/me` y en `/api/eventos`) y
+  **403 `sin_permiso_reparto` en `sync`**. La regla vive en DOS módulos, atados por `docs/ambito-de-entrega.casos.json`.
 - **Sincronizador, `POST /sync/subida`:** si el reparto contesta este 403 al aplicar un apunte,
   **no es un rechazo del apunte**: la subida contesta `403` con este mismo cuerpo y **no anota
   nada** (ni rechazo, ni apunte), así que la cola del aparato queda pendiente y sube sola cuando
@@ -227,6 +232,17 @@ acción **se hizo**; un rechazo no deja «lo hizo».
 | `vehículo creado` / `vehículo editado` / `vehículo borrado` | `/api/vehicles` | `vehiculo`, `sucursal` (+ `activo`, `estado` al editar) |
 | `ajustes guardados` | `PUT /api/settings` | `moneda`, `tasa_cup`, `monedas_tocadas` |
 | `recosteo lanzado` | `POST /api/admin/recompute` (antes de pedir nada a PEDIDO) | `dias`, `desde`, `sucursal` |
+
+**Autoría de la bandeja de revisión (09/10/2026).** Cuando `sync` aplica lo que otra persona entregó, llama a esta API con el
+token del REVISOR y añade `X-Autor` (el `sub` de quien hizo el gesto) y `X-Revision` (el id de la entrega). **No se escriben en
+las líneas de arriba sino en la línea `peticion`** de `RegistrarPeticiones` (`api/internal/httpx/middleware.go`), que sale para
+**toda escritura** (POST, PUT, PATCH y DELETE; un GET no) y por eso cubre también rutas que no llaman a `rastroDeQuien`, como
+`/board/columns`: la prueba de punta a punta vio que aplicar el tablero por revisión no dejaba ni rastro de las dos personas
+(`autor=` y `revision=`). `rastroDeQuien` ya NO las escribe; la línea de quién y la de la petición comparten el id `peticion=`.
+`actor` y `rol` siguen siendo los del token verificado, las cabeceras **no autorizan nada**, se recortan a 64 caracteres (con
+`…`) y una vacía no se anota. **Riesgo aceptado:** `RegistrarPeticiones` está por fuera de la sesión, así que `autor=`/`revision=`
+salen aunque la petición se rechace (también un 401) y las puede escribir cualquiera que llegue a la API: son texto para leer el
+registro, nunca prueba de nada (B1 de `AUDITOR-SEG-BANDEJA.md`). Detalle en §12.5.
 
 `POST /api/admin/recompute` y `PUT /api/settings` siguen pasando por sesión **sin `ExigirAdmin`**:
 decidir si deben exigirlo es una DECISIÓN ABIERTA de Jose; esta entrega sólo deja el rastro.
@@ -1805,6 +1821,271 @@ asignarlo a la zona). Se mira después de la comprobación de sucursal.
 Una zona vacía de tarjetas se borra aunque tenga una ruta planificada nacida de ella
 (`board_route_origins.column_id` es `ON DELETE CASCADE` desde el 07/10/2026): antes contestaba
 el `409` falso «tiene 0 pedidos puestos». Con tarjetas puestas la base sigue negándose.
+
+---
+
+# 12. La bandeja de revisión: entregar lo que no se pudo subir y decidir (Accesos + `sync`, 09/10/2026)
+
+Quien pierde `delivery.entrar` conserva su cola en el aparato pero no tiene token con el que subirla. Accesos le
+da, **solo si conserva la sesión viva**, un token de 10 minutos y un solo ámbito; con él el aparato deja cada apunte
+en una tabla de `sync`, **tal como vino y sin aplicarlo**; y una persona que sí tiene permiso lo **aplica** o lo
+**descarta con motivo**. El diseño y la lista de lo que cambió respecto a él están en
+`docs/bandeja-de-revision.md` («Estado real (09/10/2026)»); lo que sigue es el contrato **tal como está en el código**.
+
+Formato de error: Accesos contesta `{"error":"<marca>"}`; `sync` contesta `{"error":"<frase>","codigo":"<marca>"}` y
+el `codigo` se omite cuando no hay marca (`sync/internal/httpx`). La frase es la que lee la persona.
+
+## 12.1 Accesos: `POST /api/auth/entrega`
+
+`auth/src/app/api/auth/entrega/route.ts` y `emitirEntrega` en `auth/src/lib/apk-tokens.ts`. CORS y `Cache-Control:
+no-store` como las otras tres puertas de la APK.
+
+- **Cuerpo:** `{"refresh_token":"…"}` (`refresh` vale como alias), de 1 a 256 caracteres. **No gasta el refresh y no
+  devuelve refresh**: el par de la persona queda como estaba.
+- **Qué comprueba, en este orden y sin firmar nada hasta el final:** límite de tasa (por IP y por huella del refresh;
+  **si Redis no contesta en 800 ms se CIERRA**: es una puerta nueva) → el refresh existe → no está revocado → no está
+  gastado (solo vale la cabeza de la cadena; uno ya gastado es 401 **sin** revocar la cuenta: castigar robos es cosa
+  de `/refresh`) → no está caducado → es de Reparto → la **sesión** de better-auth existe, no está revocada ni caducada
+  → la persona está **activa** y tiene sucursal (`resolverIdentidad`) → y **la llave la última**: si SÍ tiene
+  `delivery.entrar`, no se firma.
+- **Límites de tasa:** por IP, cubo de 60 con reposición de 1 por segundo; por huella del refresh, cubo de 10 con 1 cada
+  10 segundos. La huella (sha256) es lo único que va a Redis; el refresh no.
+
+| Respuesta | Cuándo |
+|---|---|
+| `200 {"token","token_type":"Bearer","expires_in":600,"ambito":"reparto.entrega"}` | Sesión viva, persona activa con sucursal y **sin** la llave |
+| `400 {"error":"invalid_json"}` / `{"error":"invalid_body"}` | Cuerpo que no es JSON / sin refresh o de más de 256 caracteres |
+| `401 {"error":"invalid_refresh"}` | Refresh inexistente, revocado, gastado, caducado o de otra aplicación; **sesión revocada o caducada; persona de baja**. Mismo cuerpo para todos (distinguirlos solo le cuenta a quien prueba tokens en qué estado están las filas); el motivo real queda en la auditoría |
+| `403 {"error":"sin_sucursal","message":"La cuenta no está dada de alta en ninguna sucursal, o la sucursal pedida no es suya."}` | Entró bien pero no hay alcance que firmarle |
+| `409 {"error":"tiene_permiso","codigo":"tiene_permiso"}` | **SÍ** tiene `delivery.entrar`: que renueve con `/refresh`. Si no, podría usar la revisión para que otro aplique sus gestos con más autoridad |
+| `429 {"error":"rate_limited"}` | Tasa por IP o por huella |
+| `503 {"error":"comprobacion_no_disponible"}` | El limitador (Redis) no contestó, o la base falló. **Nunca un 500**, y nunca un 401/403: la app conserva toda su cola y reintenta |
+
+- **Auditoría en Accesos:** `auth.apk.entrega` y `auth.apk.entrega_denegada` (con el motivo interno: `refresh_revocado`,
+  `refresh_gastado`, `refresh_caducado`, `otro_cliente`, `sesion_revocada`, `baja`, `sin_sucursal`, `tiene_permiso`).
+  Sin el token ni el refresh.
+- **`/api/auth/refresh` ya no contesta lo mismo.** Desde `8ba2642`, `renovar` mira la sesión revocada y la baja
+  **antes** de la llave (`puertaDeRenovar`), en el camino normal y en la gracia: una sesión revocada sin llave da
+  **401** (y cierra la familia), no 403. Con esto, el `403 {"error":"sin_permiso","codigo":"sin_permiso"}` de
+  `/refresh` quiere decir de verdad «tienes sesión y no tienes llave». **A esa misma persona `/refresh` le da 403 y
+  `/entrega` le da 200: la entrega NO sustituye a la renovación** (no rota el refresh ni devuelve un token normal).
+  Si la base cae después de gastar el refresh, `/refresh` da 503 (`RenovacionNoDisponible`) y no un 500.
+
+## 12.2 El token de entrega
+
+HS256 con el `JWT_SECRET` de siempre (el mismo que firma el acceso), `purpose:"apk:entrega"`.
+
+| Claim | Valor |
+|---|---|
+| `sub`, `name`, `email`, `sid` | La persona (el `name` sale de aquí, **no** del cuerpo de la entrega) y su sesión |
+| `sucursal`, `branch_id` | El **código** de la sucursal (`STG`), como el acceso normal |
+| `ambito` | `"reparto.entrega"` |
+| `entradas`, `roles`, `role` | `[]`, `[]`, `""`: nada que un verificador pueda tomar por un permiso |
+| `iatms` | La hora, en milisegundos, de **leer la sesión** (igual que el acceso; para las marcas de invalidación de Accesos). Extra respecto al diseño |
+| `jti`, `iat`, `exp`, `iss` | `exp = iat + 600` |
+
+- **Qué abre:** solo `POST /sync/revision/entrega` y `GET /sync/revision/mias` (12.3). En **cualquier otra ruta**
+  es una credencial que no vale: **la API contesta `401`** (`auth.ErrAmbito`: se rechaza por **presencia** de `ambito`,
+  con cualquier valor y aunque traiga `delivery.entrar`) y **`sync` contesta `403 sin_permiso_reparto`**
+  (`identidad.verificar`; lo mismo con `Ambito` o `AMBITO`). `GET /api/me` con él da `401 {"user":null}`. Las dos mitades
+  se atan con `docs/ambito-de-entrega.casos.json` (44 casos), que solo compara «entra / no entra», no el código.
+- **El corte `web` también llega a `sync` (tanda final, 09/10/2026).** La bandeja del revisor en la web llama a `sync` con el token de
+  la cookie (siete días, `web:true`) como Bearer. `sync` guarda ahora **dos mapas de marcas, `web` y `todo`** (`sync/internal/sesiones`,
+  gemelo de la API; el SCAN de Redis recoge las dos familias, también al recargar): un token `web:true` no vale si `max(web, todo) >=
+  iatms`, o sea que **tras cerrar sesión SOLO en el navegador, ese Bearer da 401 en `/sync/*`** (antes seguía aplicando y descartando
+  hasta 7 días). La APK, el escritorio y el token de entrega siguen con solo `todo`: un cierre del navegador no los toca.
+- **Qué exige `sync` para aceptarlo** (`identidad.DeTokenDeEntrega`): firma, `exp` obligatorio, `nbf`, `sub`, el
+  corte de sesiones de Accesos (un cierre `todo` posterior lo mata: 401), `ambito` y `purpose` **exactos**, `entradas`
+  **presente, array y sin `delivery.entrar`**, ningún rol, `jti` e `iat` presentes, vida ≤ 11 minutos (los 10 y un
+  minuto de holgura) y sucursal resoluble. Nunca guarda el token en `Identidad.Token`: lo que se reenvíe al reparto
+  tiene que ser un token de persona con llave, y este jamás.
+
+## 12.3 `sync`: lo que entrega quien perdió el permiso (token de ENTREGA)
+
+Montadas en el mux público de `sync/cmd/sync/main.go` (`RutasDeRevision`), cada una con su fuente de identidad:
+`entrega` acepta **solo** el token de entrega; `mias`, ese **o** el normal de la misma persona. Todas las demás rutas
+`/sync/*` siguen detrás del `Exigir` normal, que rechaza el token de entrega.
+
+### `POST /sync/revision/entrega`
+
+```jsonc
+{
+  "aparato": "<uuid del aparato>",
+  "version_app": "1.0.32",              // opcional; constancia
+  "apuntes": [                           // 1 a 25 por petición; la app manda 1, en orden
+    { "clave": "01J8…", "hecho": "2026-10-09T14:02:11Z",
+      "metodo": "POST", "ruta": "/routes/local-9f3a/results",
+      "cuerpo": { … },                   // se guarda TAL CUAL, los bytes; nunca se re-serializa
+      "provisional": "local-9f3a",       // opcional; `local-` + 1 a 94 letras/números, o un UUID (hasta 100 caracteres)
+      "resumen": "Marcar parada" }       // opcional; ayuda de lectura, ≤200, no vale como dato
+  ]
+}
+```
+
+**Comprobaciones, en este orden** (`revision_entrega.go`): (1) token de entrega, sin ser Super Admin y sin
+`Token`; (2) tasa, 60 peticiones por minuto **por persona**; (3) el aparato **existe** (nunca se da de alta en modo
+entrega) y es de **esta persona y de esta sucursal**; (4) **cada** apunte, entero, antes de guardar ninguno (una
+entrega con un solo apunte malo no guarda ninguno): `clave` `^[A-Za-z0-9_.:-]{1,100}$` y no repetida en el envío,
+método `POST|PUT|PATCH|DELETE`, **ruta de la lista blanca POR FORMA**: solo las ocho que la API tiene de escritura —`/routes`,
+`/routes/{id}`, `/routes/{id}/stops/{pedido}`, `/routes/{id}/results`, `/board/columns`, `/board/columns/{id}`,
+`/board/columns/{id}/route` y `/board/placements/{pedido}`—, con `{id}` = letras, números, `_` y `-` (un uuid, un `local-…`,
+`orden`; **nunca un punto**) y, a continuación, una query opcional de pares simples. La forma es la profundidad exacta: `POST /board`
+suelto, `/routes/.` o `/routes/a/b/c/d` dan 422 (antes valía «lo que venga detrás» y esas rutas entraban, el reparto contestaba 404
+y `Aplicar` lo tomaba por una caída que paraba «aplicar todo» en un apunte que jamás iba a entrar). Sin `..` ni `//`, ≤300 caracteres, `hecho` presente, no más de 24 h en el futuro ni más de 60 días en el pasado,
+cuerpo ≤128 KiB y JSON válido en UTF-8; (5) idempotencia por `(aparato, clave)`; (6) cupos de lo **vivo**
+(`en_revision`, `aplicando`, `rechazado`), con la sucursal bloqueada para que contar y escribir sean una cosa.
+La petición entera no puede pasar de 512 KiB.
+
+**200:**
+
+```jsonc
+{ "resultados": [
+  { "clave": "01J8…", "estado": "en_revision",      // lo acabo de guardar
+    "estadoActual": "en_revision", "revision": "<uuid de la entrega>" },
+  { "clave": "01J9…", "estado": "repetido",          // ya lo tenía
+    "estadoActual": "aplicado|rechazado|descartado|aplicando|en_revision",
+    "revision": "<uuid>",                             // ausente si lo resolvió antes la subida normal
+    "motivo": "…",                                    // el literal del reparto (rechazado) o la FRASE «Descartado en la revisión por X: motivo»
+    "id": "<uuid>", "descartados": [ … ],             // si ya se aplicó (bandeja o libro `apuntes`): lo que creó y quién se cayó
+    "decididoPorNombre": "Marta Pérez", "decididoAt": "…",   // si lo decidió una persona (aplicado o descartado)
+    "motivoDelDescarte": "…" }                        // solo descartado: el texto que escribió quien descartó, SIN montar
+] }
+```
+
+- **Lo que lleva un `repetido`** (ajuste del 09/10 pedido por la app, aditivo; todo `omitempty`): `id` y `descartados` cuando el apunte
+  ya está aplicado —sin el `id` la app no puede sustituir su `local-…` por el de verdad y el apunte se queda con el aviso de
+  huérfano—, tanto si salió del libro `apuntes` como de una revisión (las filas anteriores a la 00002 tienen `descartados` nulo y no
+  se inventa una lista vacía); `decididoPorNombre` y `decididoAt` cuando lo decidió una persona; `motivoDelDescarte` en un
+  descartado. `motivo` **no cambia**: sigue llevando la frase ya montada (no puede repetirse como clave). La subida normal
+  (`POST /sync/subida`, paso 0) añade a su `repetido` de un descartado `decididoPorNombre` y `motivoDelDescarte` (sin `decididoAt`).
+- **Idempotencia y huella.** Reentregar la misma clave con **el mismo contenido** → `repetido` con el estado de ahora;
+  con **otro contenido** (la huella sha256 de `aparato|clave|método|ruta|cuerpo|provisional|hecho` no cuadra) →
+  `409 huella_distinta` y **no se sobrescribe nada**. Una clave que la subida normal ya había aplicado o rechazado
+  (libro `apuntes`) vuelve `repetido` **sin** `revision`, para no dejar que un revisor la aplique otra vez.
+- **El `Aplicador` no se llama nunca aquí.** Entregar no toca pedidos, rutas ni tablero; solo escribe `revision_*`.
+- **La subida normal también lo sabe** (`POST /sync/subida`, paso 0 de `unApunte`): una clave que está en la bandeja
+  **no se aplica**; contesta `en_revision` si espera (o `aplicando`), `repetido` con el `id` si se aplicó, y `repetido`
+  **con motivo** si está rechazada o descartada. `en_revision` es un estado nuevo del protocolo: la APK que lo entiende
+  (`ResultadoApunte.deJson`, esquema 7 de la app) tiene que estar antes de que pueda contestarlo.
+
+| Código | `codigo` | Cuándo y qué dice |
+|---|---|---|
+| 400 | — | `El cuerpo de la petición no es JSON válido` · `Falta el aparato` · `El aparato no es un identificador válido` |
+| 401 | — | `Unauthorized`: token roto, caducado, cortado por Accesos, o de entrega pero con la llave / roles / otro `purpose` |
+| 403 | `sin_permiso_reparto` | Token que **no es de entrega** (uno normal): `No tienes permiso para entrar a Reparto.` |
+| 403 | `aparato_ajeno` | `Ese aparato no es tuyo.` (la persona o la sucursal del aparato no son las del token) |
+| 404 | `aparato_no_registrado` | `Ese aparato no está registrado. Vuelve a darlo de alta.` Con la marca de siempre; **no** se da de alta |
+| 409 | `huella_distinta` | `El apunte <clave> ya se entregó con otro contenido. No se ha guardado nada: avisa a quien mantiene la aplicación.` Queda un WARN en el registro |
+| 422 | `entrega_no_admitida` | Sin apuntes · más de 25 · clave inválida o repetida · método o ruta fuera de la lista blanca por forma · `provisional` que no es `local-…` (1 a 94 letras o números) ni un UUID · sin `hecho` o con hora implausible · cuerpo de más de 128 KiB o que no es JSON · petición de más de 512 KiB. Cada una con su frase y el número del apunte |
+| 429 | `tasa_de_revision` | `Demasiadas peticiones seguidas. Espera un minuto y vuelve a intentarlo: tu trabajo sigue en el aparato.` + cabecera `Retry-After` |
+| 429 | `cupo_de_revision` | Tres frases: más de **500** cambios vivos por persona, más de **8 MiB** de cuerpos vivos por persona, más de **3.000** vivos por sucursal. Todas dicen «No se ha entregado nada» y qué hacer |
+| 500 | — | `No se pudo guardar la entrega. Tu trabajo sigue en el aparato: vuelve a intentarlo.` |
+| 503 | — | `No se pudo comprobar tu sucursal ahora mismo. Tu sesión sigue valiendo: se reintenta solo.` (el reparto no tradujo el código de sucursal) |
+
+**El nombre del aparato tiene tope** (auditoría de seguridad, M3). `POST /sync/aparato` limpia y recorta `nombre` a **80** letras, la
+migración `00004_nombre_de_aparato_acotado.sql` pone debajo `CHECK (char_length(nombre) <= 200) NOT VALID` (solo exige a las filas
+nuevas o modificadas; antes recorta a 200 los nombres que ya hubiera, porque uno más largo haría fallar todo `UPDATE` de su fila), y la bandeja del revisor lo recorta a 200 al
+leerlo (`left()` en las tres consultas y en Go). En la bandeja, `aparatoNombre` es un texto: `""` quiere decir «sin nombre».
+
+### `GET /sync/revision/mias?aparato=<uuid>`
+
+Qué ha pasado con lo que este aparato entregó. Acepta el token de entrega **o** el normal, **siempre de la misma
+persona del aparato** (`403 aparato_ajeno` si no: ni un Super Admin lee lo de otra persona por aquí) y dentro de su
+alcance. Mismos 400, 404 `aparato_no_registrado` y 429 `tasa_de_revision` que arriba; 500 `No se pudo leer el estado de
+tus entregas`.
+
+```jsonc
+{ "entregas": [ { "clave":"01J8…", "estado":"en_revision|aplicando|aplicado|rechazado|descartado",
+                  "revision":"<uuid>", "decididoPorNombre":"Marta Pérez", "decididoAt":"…",
+                  "motivo":"…", "idCreado":"<uuid>", "descartados":[…] } ],
+  "truncado": false }
+```
+
+Lo vivo primero y, dentro, lo más reciente; **tope de 1.000** (`truncado:true` si se alcanzó: lo que se queda fuera es
+lo más viejo ya decidido). `motivo` es el motivo escrito del descarte, o el literal del reparto si no pudo aplicarlo.
+Sin sondeo automático en la app: lo consulta el ciclo (solo si hay algo en revisión) o «Actualizar estados».
+
+## 12.4 `sync`: la bandeja del revisor (token NORMAL)
+
+Cinco rutas, montadas en `Servicio.Rutas` (`RutasDelRevisor`), o sea detrás del `Exigir` normal: **el token de entrega no
+entra**.
+
+**Quién revisa** (`identidad.RolDeRevisor`): el rol **por nombre**, exacto en ASCII (sin plegado Unicode), entre
+`ADMINISTRADOR`, `SUPER ADMIN` y `DESARROLLADOR`, y **con token** y sin `ambito`. LOGISTICO entra a Reparto pero no
+revisa; el `admin` heredado tampoco; en modo cabeceras (`SYNC_IDENTIDAD=cabeceras`, sin token) nunca se aplica.
+**Nadie revisa lo suyo** (`persona <> revisor`). El **alcance** es el de siempre (`Identidad.Alcance()`): el
+ADMINISTRADOR de CAM no lista ni aplica lo de HOL, ni por lista ni por id; un SUPER ADMIN o DESARROLLADOR sin sucursal
+ve las ocho. Ambas cosas las decide **el SQL, en la misma sentencia que escribe**; `porQueNo` solo pone la frase con una
+segunda lectura que no concede nada.
+
+| Ruta | Qué hace |
+|---|---|
+| `GET /sync/revision[?sucursal=<uuid>]` | `{"entregas":[{"id","aparato","aparatoNombre","persona","personaNombre","sucursal","entregadaAt","versionApp","enRevision","aplicando","rechazados","aplicados","descartados"}],"truncado"}`. Una fila **por entrega** con algo esperando; las cuentas son de **toda** la entrega. FIFO, **tope 500** (`truncado`). `?sucursal` solo estrecha y solo a quien ve todas; a un administrador se le ignora. Sin nombre de sucursal (solo el uuid) |
+| `GET /sync/revision/{entrega}` | `{"entrega":{…igual…},"apuntes":[{"aparato","clave","orden","metodo","ruta","cuerpo","provisional?","hechoAt","estado","motivo","decididoPorNombre","decididoAt","intentos","idCreado","descartados?","resumenDelAparato?","interrumpido?"}]}`. `cuerpo` es **un texto con el original exacto**, no un objeto |
+| `POST /sync/revision/{aparato}/{clave}/aplicar` | Cuerpo opcional `{"reintentarInterrumpido":true}`. `200 {"resultados":[{"clave","estado":"aplicado"\|"rechazado","motivo?","id?","descartados?"}]}` |
+| `POST /sync/revision/{entrega}/aplicar` | «Aplicar todo en orden». `200 {"resultados":[…],"detenido?","detenidoEn?","detenidoPorque?","sinProcesar?"}`. **Se detiene** en el primer apunte que no queda `aplicado`. Salta lo `aplicado` y lo `descartado`; reintenta lo `rechazado` (gesto explícito) una sola vez |
+| `POST /sync/revision/{aparato}/{clave}/descartar` | `{"motivo":"…"}` de **≥5 caracteres** (contados en letras, tras recortar). `200 {"resultados":[{"clave","estado":"descartado","motivo","decididoPorNombre","decididoAt"}]}`. **No borra**: marca `descartado` con quién y cuándo, y lo anota en el libro |
+
+**Aplicar, en orden** (`revision_aplicar.go`): (1) el candado: `UPDATE … WHERE estado IN ('en_revision','rechazado') AND
+persona <> revisor AND <alcance>` a `aplicando` — dos revisores o un doble clic, un solo ganador; (2) se vuelve a
+validar lo de la subida normal y **la lista blanca de método y ruta** (entre entregar y aplicar pueden pasar días);
+(3) **la misma tubería** que la subida normal (`reenviar`: mismo traductor de `local-…`, mismo `Aplicador`) con el
+**token del revisor** y las tres cabeceras de 12.5; (4) el resultado:
+
+* **Antes de reenviar**, tras reclamar la fila, `aplicar` mira el libro `apuntes` (B6 de la auditoría): si la subida normal ya había
+  **aplicado** esa clave (p. ej. con un `sync` viejo), cierra el apunte como `aplicado` **sin reenviar**, con el `id` y los
+  `descartados` del libro y una nota en el libro de decisiones; si la había **rechazado**, lo deja `rechazado` con ese motivo literal.
+  Así no se aplica dos veces.
+* 2xx → `aplicado`, y en **una transacción**: el cierre, el libro `apuntes` —copiado con `ON CONFLICT DO NOTHING` (`CopiarApunteAplicadoAlLibro`); si ya estaba, un aviso «DOS VECES» en el registro— (para que la reentrega normal dé `repetido`
+  pasados los 30 días de la bandeja), el `local-…` traducido y el libro de decisiones.
+* 4xx del reparto (o un rechazo propio: lista blanca, validación, un `local-…` que no llegó) → `rechazado` con el
+  **motivo literal**; sigue vivo y a la vista; **no se reintenta solo**.
+* 5xx o red → **no es un rechazo**: vuelve a `en_revision` con un intento más y `502 reparto_no_disponible`.
+* El reparto dice `403 sin_permiso_reparto` → el que no tiene permiso es el **revisor**: el apunte vuelve a `en_revision`.
+* Si el proceso muere con la fila en `aplicando`, pasados 10 minutos sale con `"interrumpido":true`; reintentarla exige
+  `reintentarInterrumpido:true` (la API no lee `X-Apunte`: no hay otra red) y deja `interrumpido` en el libro.
+* Todo lo posterior al candado va con `context.WithoutCancel`: cerrar la pestaña no deja el reparto a medias.
+
+| Código | `codigo` | Cuándo |
+|---|---|---|
+| 400 | — | `La sucursal no es un identificador válido` · `La entrega no es un identificador válido` · `El aparato no es un identificador válido` · `La clave del apunte no es válida` · `El cuerpo de la petición no es JSON válido` |
+| 401 | — | `Unauthorized`; con el token de entrega, **403 `sin_permiso_reparto`** |
+| 403 | `no_revisa` | `No tienes permiso para revisar. Revisan el administrador de la sucursal, el super administrador y el desarrollador.` |
+| 403 | `es_lo_tuyo` | `Lo entregaste tú. Nadie revisa lo suyo: tiene que decidirlo otra persona.` |
+| 403 | `sucursal_ajena` | `Esa entrega es de una sucursal que no ves.` / `Ese apunte es de una sucursal que no ves.` |
+| 403 | `sin_permiso_reparto` | Al aplicar: el **revisor** no tiene permiso en Reparto. El apunte vuelve a `en_revision` |
+| 404 | `no_encontrado` | `Esa entrega no existe.` / `Ese apunte no existe.` |
+| 409 | `ya_se_esta_aplicando` | `Ya lo está aplicando <quién>. Espera a que termine y actualiza la bandeja.` / `Otro revisor acaba de tomarlo. Actualiza la bandeja.` |
+| 409 | `ya_decidido` | `Ya está aplicado (lo aplicó <quién>).` / `Ya está descartado (lo descartó <quién>).` |
+| 422 | `motivo_obligatorio` | `Descartar exige un motivo escrito de al menos 5 caracteres: queda anotado con tu nombre y la hora.` (y el `CHECK` de la base por debajo) |
+| 502 | `reparto_no_disponible` | `El reparto no contestó. El apunte sigue en revisión: vuelve a intentarlo en un momento.` |
+| 500 | `no_se_pudo_anotar` | El reparto aplicó (o rechazó) y la base no lo pudo anotar: el apunte queda `aplicando`. `comprueba a mano la ruta … ANTES de reintentarlo, o se aplicará dos veces` |
+| 500 | — | `No se pudo leer la bandeja de revisión` · `No se pudo leer la entrega` · `No se pudo leer el apunte` · `No se pudo aplicar. Actualiza la bandeja para ver cómo quedó antes de repetir.` · `No se pudo descartar. Nada cambió: vuelve a intentarlo.` |
+
+En «aplicar todo», si **ni el primero** se pudo tomar, la respuesta es el error de ese apunte (no un `200` con
+`detenido`); si se detiene después de al menos un resultado, es un `200` con `detenido:true`.
+
+## 12.5 Cabeceras que `sync` añade al aplicar: `X-Autor`, `X-Revision`, `X-Sucursal-Id`
+
+Solo las pone la revisión (`sync/internal/reparto/reparto.go`, solo si vienen; la subida normal no las manda).
+
+| Cabecera | Valor | Qué hace la API con ella |
+|---|---|---|
+| `X-Autor` | El `sub` de quien hizo el gesto | **Solo rastro**: sale como `autor` en la línea `peticion` de **toda escritura** (POST/PUT/PATCH/DELETE) |
+| `X-Revision` | El id de la entrega | **Solo rastro**: sale como `revision`, en la misma línea |
+| `X-Sucursal-Id` | La sucursal del apunte, **forzada** | La API ya la leía, y **solo para SUPER ADMIN y DESARROLLADOR sin sucursal en el token**: acota a UNA sucursal a un revisor que ve las ocho |
+
+`X-Autor` y `X-Revision` **no autorizan nada, no cambian `actor` ni `rol`** (siempre salen del token verificado), se
+recortan a 64 caracteres (con `…`) y un valor vacío no se anota (`api/internal/httpx/middleware.go`, `autoriaDe`; ya no en
+`api/internal/api/rastro_de_quien.go`). Como son
+cabeceras de quien llama, **cualquiera que llegue a la API puede escribirlas** (la línea sale aunque no haya sesión): sirven para leer el registro, nunca para
+decidir. La API **no lee `X-Apunte`** (solo lo escribe `sync`).
+
+## 12.6 `GET /sync/estado` suma `en_revision`
+
+`{"aparatos":[…],"bandeja":[…],"sin_atender":[…],"en_revision":[{"sucursal":"<uuid>","en_revision":N}]}`: lo vivo
+(`en_revision`, `aplicando`, `rechazado`) por sucursal, con el alcance de siempre (`RevisionSinDecidirPorSucursal`). Es el
+segundo «número rojo». Ninguna pantalla lo enseña todavía.
 
 ---
 

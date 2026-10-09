@@ -48,7 +48,7 @@ func TestRealScanSuscripcionYPing(t *testing.T) {
 	ctx, cancelar := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancelar()
 
-	accesos.Set(ctx, "procovar:auth:invalida:web:ana", "100", VidaDeUnaMarca) // la familia `web` NO se carga
+	accesos.Set(ctx, PrefijoDeMarcaWeb+"ana", "100", VidaDeUnaMarca) // la familia `web` SÍ se carga (la bandeja web), pero aparte
 	accesos.Set(ctx, PrefijoDeMarcaTodo+"beto", "200", VidaDeUnaMarca)
 	accesos.Set(ctx, PrefijoDeMarcaTodo+"roto", "no-es-un-numero", VidaDeUnaMarca)
 	accesos.Set(ctx, "procovar:auth:invalida:antigua", "300", VidaDeUnaMarca) // familia que ya no existe
@@ -60,14 +60,18 @@ func TestRealScanSuscripcionYPing(t *testing.T) {
 	f := DeRedis(cfg)
 	defer f.Cerrar()
 
-	m, err := f.Marcas(ctx)
+	marcas, err := f.Marcas(ctx)
 	if err != nil {
 		t.Fatal(err)
+	}
+	m := marcas.Todo
+	if marcas.Web["ana"] != 100 || len(marcas.Web) != 1 {
+		t.Errorf("el SCAN no trajo la marca WEB de Ana (y sólo ella): %v", marcas.Web)
 	}
 	if m["beto"] != 200 {
 		t.Errorf("el SCAN no trajo la marca todo de Beto: %v", m["beto"])
 	}
-	for _, intrusa := range []string{"ana", "antigua", "roto"} {
+	for _, intrusa := range []string{"ana", "antigua", "roto"} { // la `web` NO se mezcla con la `todo`
 		if _, hay := m[intrusa]; hay {
 			t.Errorf("se coló %q: ni la familia `web`, ni la vieja, ni un valor que no es número", intrusa)
 		}
@@ -124,4 +128,32 @@ func TestRealCorrerSobrevivePerderLaConexion(t *testing.T) {
 	// Y tras reconectar el canal vuelve a funcionar.
 	accesos.Publish(ctx, Canal, mensaje("todo", tipoSesionCerrada, 1_000_000, "dani"))
 	esperarA(t, func() bool { return r.ElBearerNoVale("dani", 999, 0) }, "reconectó pero no oye el canal")
+}
+
+// LA FAMILIA `web` CON UN REDIS DE VERDAD (SERIO 2, 09/10/2026): la marca ya escrita se carga con el SCAN, un
+// cierre solo-web publicado corta al token web y NO al bearer de la APK, y tras perder la conexión el SCAN
+// recarga un cierre solo-web escrito mientras no se oía.
+func TestRealUnCierreSoloWebCortaAlTokenWebYSeRecargaAlReconectar(t *testing.T) {
+	cfg, accesos := redisReal(t)
+	ctx := context.Background()
+	accesos.Set(ctx, PrefijoDeMarcaWeb+"ana", "100000", VidaDeUnaMarca)
+
+	r, _, _, _ := arrancar(t, DeRedis(cfg))
+	esperarA(t, func() bool { return r.Activo() && r.LaCookieNoVale("ana", 50_000) }, "no cargó la marca WEB de Ana con el SCAN")
+	if r.ElBearerNoVale("ana", 50, 0) {
+		t.Error("una marca web de Redis cortó al bearer de la APK")
+	}
+
+	accesos.Publish(ctx, Canal, mensaje("web", tipoSesionCerrada, 500_000, "beto"))
+	esperarA(t, func() bool { return r.LaCookieNoVale("beto", 400_000) }, "el cierre solo-web publicado no llegó")
+	if r.ElBearerNoVale("beto", 100, 0) {
+		t.Error("un cierre solo-web publicado cortó al bearer de la APK")
+	}
+
+	if err := accesos.Do(ctx, "CLIENT", "KILL", "TYPE", "pubsub").Err(); err != nil {
+		t.Fatal(err)
+	}
+	accesos.Set(ctx, PrefijoDeMarcaWeb+"carla", "900000", VidaDeUnaMarca)
+	esperarA(t, func() bool { return r.LaCookieNoVale("carla", 800_000) },
+		"tras perder la conexión no se recargó la familia web con el SCAN")
 }

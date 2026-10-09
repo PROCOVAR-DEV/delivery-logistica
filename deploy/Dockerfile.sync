@@ -48,6 +48,12 @@ COPY sync/ .
 # Desde `/src/internal/identidad`, `../../../docs/…` cae en `/docs/…`.
 COPY docs/roles-de-reparto.casos.json /docs/roles-de-reparto.casos.json
 
+# Y EL DEL TOKEN DE ENTREGA A REVISION — 09/10/2026 (`docs/bandeja-de-revision.md`, paquete V).
+# `internal/identidad/entrega_test.go` lee `docs/ambito-de-entrega.casos.json`, EL MISMO fichero que
+# lee `api/internal/auth`: ata la regla «un token con `ambito` no entra por las rutas normales» en
+# los dos modulos. Sin esta linea la prueba hace `Fatalf` y la imagen no construye.
+COPY docs/ambito-de-entrega.casos.json /docs/ambito-de-entrega.casos.json
+
 ENV CGO_ENABLED=0
 # LAS PRUEBAS, ANTES DE CONSTRUIR. No es celo: es lo que faltaba el 16/09/2026.
 #

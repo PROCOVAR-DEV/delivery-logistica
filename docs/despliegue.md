@@ -170,7 +170,8 @@ ls api/db/migrations/ sync/db/migrations/
 Apunta el número más alto de cada carpeta. Al terminar, `status` tiene que decir
 exactamente ése. En la copia de trabajo del 07/10/2026 son `00017_vehiculos_activos.sql`
 en la serie del reparto y `00002_los_descartados_del_repetido.sql` en la del
-sincronizador: no te fíes de estos números —el 26/09/2026 eran la 00008 y la 00001—, mira
+sincronizador (el 09/10/2026, con la bandeja de revisión, la del sincronizador sube a
+`00003_la_bandeja_de_revision.sql` y `00004_nombre_de_aparato_acotado.sql`, y la del reparto sigue en la 00017): no te fíes de estos números —el 26/09/2026 eran la 00008 y la 00001—, mira
 el árbol, y lo que ya está aplicado en el servidor lo dice `status`, no este párrafo.
 Cuáles de las que faltan **añaden** y cuáles **quitan** algo se lee en los `.sql`, y
 cambia el procedimiento (§2.5).
@@ -234,7 +235,7 @@ comprobadas y conviene mirar antes de fiarse: que **queda sitio** (el disco del 
 corto: `df -h /var/backups/procovar`) y que **la poda de 14 días del respaldo diario no se
 lleve este fichero** (no se ha leído el script para saber si borra por carpeta o sólo sus
 propios ficheros). Si el volcado tiene que durar más que eso, se copia a otro sitio.
-Mientras `procovar_reparto` no esté en `BASES`, este paso es el único respaldo que tiene.
+(Actualizado el 09/10/2026: el registro de la copia nocturna, `/var/log/procovar-backup.log`, ya muestra `OK - procovar_reparto` y `OK - procovar_reparto_sync` a las 03:30 UTC, o sea que YA están en `BASES`; el volcado a mano de este paso sigue siendo obligatorio antes de cada migración, porque es el que se puede restaurar al instante.)
 
 **Y nadie desplegando a la vez.** No se despliega con agentes vivos escribiendo el árbol
 (`CLAUDE.md` §4-bis). Aquí importa más que en ningún sitio: los `.sql` que se suben son
@@ -651,7 +652,7 @@ Y hay un paso que se olvida y no avisa: **añadir las dos a la lista `BASES` de
 `/usr/local/bin/procovar-backup-db`**. Una base que no está en esa lista no se respalda, y
 eso no se descubre hasta el día en que hace falta el respaldo.
 
-**Y se olvidó: comprobado el 07/10/2026**, la lista es `BASES="procovar_pedidos
+**Y se olvidó: comprobado el 07/10/2026 —y corregido después: el 09/10/2026 el registro del respaldo nocturno ya trae las dos—**, la lista es `BASES="procovar_pedidos
 procovar_delivery analitics n8n"` (retención de 14 días en `/var/backups/procovar`). Las
 dos del reparto no tienen ninguna copia automática, y tienen dentro los pedidos, las rutas
 y el trabajo del tablero. El script es del servidor, no de este
@@ -1212,6 +1213,175 @@ docker compose up --build        # levanta todo en ese orden
 En Dokploy no hay `depends_on` y **no hay nada que encadene esto**: el orden lo pone quien
 despliega, a mano. Migraciones con el procedimiento de **§2.1**, luego Deploy de la api,
 luego los otros tres. Por qué no se puede automatizar con lo que Dokploy ofrece, en §2.9.
+
+**La ronda de la bandeja de revisión (1.0.32) tiene su propio orden, que no es este de arriba:** §4-bis.
+
+---
+
+## 4-bis. La ronda de la bandeja de revisión (1.0.32): el orden, concreto — 09/10/2026
+
+Lo que se despliega y por qué en este orden. El diseño y lo que cambió respecto a él, en
+`docs/bandeja-de-revision.md`; los contratos, en `docs/contratos-api.md` §12.
+
+**De dónde se parte** (leído de `~/Notas/Procovar/Pendiente/Sesion-unica.md`, 09/10/2026): Reparto api, sync y web en
+`9b74be2`, APK y Windows en 1.0.31+32, y Accesos en `8ba2642` desde el 09/10/2026. **El cambio de `6a803ff`**
+(«apagado rápido con Redis colgado» en `api/internal/sesiones/redis.go` y su gemela de `sync/`) **tampoco está
+desplegado**: entra con el primer despliegue de api y de sync de esta ronda, así que ese despliegue lleva dos cosas, no una.
+**No hay ninguna variable de entorno nueva** en ningún servicio (`sync/internal/config` no cambió;
+`SYNC_MOTOR_REAL_DSN` es solo de pruebas, `docs/entorno-local.md` §7-quater) ni nada nuevo en Traefik (`/sync` y `/api`
+ya son prefijos del reparto).
+
+**Antes de pulsar nada** (`CLAUDE.md` §4-bis, §5):
+
+1. Que lo nuevo esté **commiteado y en `upstream/main`** (`application.deploy` clona `main` de `PROCOVAR-DEV`, ver «Deploy
+   contra redeploy»). Los ficheros que **no pueden faltar**, porque las imágenes corren sus pruebas antes de construir y
+   sin ellos **no construyen**: `docs/ambito-de-entrega.casos.json` (lo copian `Dockerfile.api`, `.espejo` y `.sync`),
+   `sync/db/migrations/00003_la_bandeja_de_revision.sql`, **`00004_nombre_de_aparato_acotado.sql`** (sin ella el binario de
+   `sync`, que espera la 4, no arranca), `sync/db/queries/revision.sql` y
+   `sync/internal/store/sqlc/revision.sql.go` (generado, no a mano). Y en `app/`, todo lo nuevo, porque la imagen de la web corre
+   `flutter analyze` y `flutter test`: `lib/nucleo/sincro/entrega_a_revision.dart`, `lib/pantallas/revision/`,
+   `lib/pantallas/acceso/vista/panel_de_entrega.dart`, `lib/pantallas/acceso/datos/textos_de_entrega.dart` y sus pruebas.
+   Regla corta: `git status` sin ningún `??` en `api/`, `sync/`, `app/` ni `docs/`, y nunca `git add -A` con agentes vivos.
+2. `./comprobar.sh` **una vez, con los agentes quietos** y con **las dos variables puestas**: `REPARTO_MOTOR_REAL_DSN` y
+   `SYNC_MOTOR_REAL_DSN`. Sin la segunda, los triggers que impiden borrar y el `CHECK` del descarte —que hace la BASE— no
+   se ejecutan y el guion dice «SALTADO» (`docs/entorno-local.md` §7-quater).
+3. Pasada del `auditor-del-reparto` sobre el conjunto, que rompa guardas que no escribió quien las audita.
+
+**El orden:**
+
+| # | Qué | Por qué en este sitio | Estado |
+|---|---|---|---|
+| 1 | **Accesos** (`8ba2642`) | La app 1.0.32 llama a `POST /api/auth/entrega` y los verificadores nuevos solo tienen sentido con el token que firma. Además `/refresh` pasa a mirar la sesión y la baja **antes** de la llave | **HECHO el 09/10/2026** |
+| 2 | **Migraciones `00003` Y `00004` de `procovar_reparto_sync`**, las dos, con el ritual de §2.1 | `sync` nuevo **espera la 4** y se niega a arrancar con la base en la 3 o antes (§2.8; `ExigirMigraciones` lo deriva de los ficheros incrustados). Son **aditivas**: la sync vieja sigue sirviendo igual encima (§2.5, «al revés no pasa nada») | Pendiente |
+| 3 | **Deploy de `reparto-sync`** | Trae la entrega, `mias`, el revisor, el paso 0 de la subida, `en_revision` en `/sync/estado`, el corte `web` de sesión y el recorte del nombre del aparato | Pendiente |
+| 4 | **Deploy de `reparto-api`** | Trae el rechazo de `ambito` (401), el rastro `autor`/`revision` y que la web lea `organization.codigo` | Pendiente |
+| 5 | **Deploy de `reparto-web`** | Trae la ruta `/revision` y `bearerExplicito`; necesita el paso 3 ya servido | Pendiente |
+| 6 | **APK y Windows 1.0.32** | Es lo último: antes de esto nadie puede entregar | Pendiente |
+
+### Paso 2, el ritual con `reparto_sync` (tal cual se hace; no se salta nada)
+
+Todo con la **conexión única** (`ssh -O check vps` → `Master running`) y las claves leídas **dentro** del servidor.
+
+**a. Mirar.** `ls api/db/migrations/ sync/db/migrations/`: tiene que haber `00017` y `00004`. `status` tiene que decir, de
+las dos series, **solo** `Pending -- 00003_la_bandeja_de_revision.sql` y `Pending -- 00004_nombre_de_aparato_acotado.sql`, y
+solo en la del sincronizador.
+
+**b. Respaldar** (§2.2: el volcado a mano es del instante y no depende de ningún cron; el nombre lleva la versión):
+
+```bash
+ssh vps '
+set -eu
+umask 077
+C=$(docker ps -qf name=procovar-postgres-nlfols | head -1)
+S=$(date +%Y%m%d-%H%M)
+for B in procovar_reparto procovar_reparto_sync; do
+  F=/var/backups/procovar/${B}_antes-1.0.32_$S.dump
+  docker exec "$C" pg_dump -U procovar -Fc "$B" > "$F"
+  ls -l "$F"
+  docker exec -i "$C" pg_restore -l < "$F" | wc -l      # un número grande, nunca 0
+done
+'
+```
+
+(La 00003 solo toca `procovar_reparto_sync`; se vuelcan las dos por el procedimiento y porque la del reparto sigue
+cargando los pedidos y las rutas. **Resuelto el 09/10/2026:** el registro `/var/log/procovar-backup.log` de las 03:30 UTC muestra `OK - procovar_reparto (4.4M)` y
+`OK - procovar_reparto_sync (32K)`: ya están en `BASES`. El volcado a mano sigue valiendo igual; mirar `df -h /var/backups/procovar` antes.)
+
+**c. Subir los `.sql`** (§2.3): `scp api/db/migrations/*.sql` y `scp sync/db/migrations/*.sql`, y el `ls` de comprobación
+(un directorio vacío se lee como «no hay nada que hacer»).
+
+**d. `ACCION=status` PRIMERO** (§2.4, el `docker run` con `lock_timeout=5s` en la URL). Se lee: la serie del reparto sin
+`Pending`; la del sincronizador con **dos** `Pending`, la 00003 y la 00004. **Cualquier otra cosa → §2.7 y no se escribe nada.**
+
+**e. `ACCION=up`** (§2.5, el mismo `docker run`). Si sale distinto de cero, no se pulsa Deploy. La 00003 crea 3 tablas
+(`revision_entregas`, `revision_apuntes`, `revision_decisiones`), 1 tipo (`revision_estado`), 4 funciones y 11 triggers, en
+una transacción; lo único que toca de lo existente es la clave ajena hacia `aparatos`. La 00004 son dos sentencias: `UPDATE aparatos SET nombre = left(nombre, 200) WHERE char_length(nombre) > 200`
+(recorta los nombres largos que ya hubiera; **no se deshace con el `down`**; la tabla tiene pocas filas) y
+`ALTER TABLE aparatos ADD CONSTRAINT aparatos_nombre_acotado CHECK (char_length(nombre) <= 200) NOT VALID`: **no recorre las filas**
+(solo exige a las nuevas o modificadas) y toma un candado breve sobre `aparatos`. El `lock_timeout=5s` de la URL protege las dos como a las demás. No hay `CREATE INDEX CONCURRENTLY` ni nada que
+tarde. Una consecuencia a saber: la sync **vieja** no recorta el nombre, así que, mientras dure el intervalo hasta el paso 3, un
+alta con un nombre de más de 200 letras daría error (no se conoce ninguno).
+
+**f. Qué se mira DESPUÉS** (§2.6, con la base del sincronizador):
+
+1. Las dos series sin un solo `Pending`; el número más alto de la del sincronizador es **4**.
+2. La tabla de goose en la base:
+   `ssh vps 'C=$(docker ps -qf name=procovar-postgres-nlfols | head -1); docker exec "$C" psql -U procovar -d procovar_reparto_sync -c "SELECT max(version_id) FROM goose_db_version WHERE is_applied;"'` → **4**
+   (el `WHERE is_applied` importa, §2.6).
+3. Que las tres tablas están: `… psql -U procovar -d procovar_reparto_sync -tAc "SELECT count(*) FROM information_schema.tables WHERE table_name LIKE 'revision_%';"` → **3**
+   (la serie pasa de 5 tablas a 8, sin contar la de goose) y que existe `aparatos_nombre_acotado`:
+   `… psql -U procovar -d procovar_reparto_sync -tAc "SELECT convalidated FROM pg_constraint WHERE conname = 'aparatos_nombre_acotado';"` → **f**
+   (`NOT VALID`: es lo esperado; `ALTER TABLE aparatos VALIDATE CONSTRAINT aparatos_nombre_acotado` —no hace falta: tras el recorte ya no queda ningún nombre largo—).
+4. La prueba de verdad: **que `reparto-sync` arranca** con la imagen nueva (paso 3). Y que la vieja siguió sirviendo mientras tanto.
+
+**Volver atrás — y un AVISO que contradice la regla de la casa.** `ACCION=down` **no se usa en producción**: el `Down` de la
+00003 hace `DROP TABLE` de las tres tablas **con lo que haya dentro** —lo que la gente entregó y lo que los revisores decidieron—,
+y los triggers que impiden el `DELETE` no saltan en un `DROP`. Es lo contrario de «una decisión de una persona se ESCRIBE, no se
+borra» (`CLAUDE.md` §4): la auditoría final lo midió (`AUDITORIA-FINAL-1032.md`: con datos en `revision_*`, el `down` los destruye;
+`up → down → up` sin datos sí es limpio) y lo dejó como aviso, sin cambiarlo. Una vez que alguien entregue, **la única vuelta atrás
+es desplegar la imagen anterior** de `sync`: la base con la 00003 y la 00004 aplicadas no le estorba (§2.8, «una base más
+adelantada deja arrancar»). El `Down` de la 00004 solo quita la restricción.
+
+### Pasos 3 a 5
+
+* **3 · `reparto-sync`** (`application.deploy`). **Solo después de los dos `up`**: este binario espera la migración 4. Esperar a un despliegue **nuevo** en `done` (§3.1, «Deploy contra
+  redeploy») y que arranque: la línea `sincronizador escuchando` y, desde dentro del servidor, `GET /salud`. Con la APK 1.0.31
+  en la calle **no cambia nada** para nadie: la subida normal solo añade una consulta por clave a `revision_apuntes` (por la
+  primaria) y nadie puede haber entregado aún. El corte `web` usa las mismas `REDIS_*` de la sesión única (ya puestas en `reparto-sync`); sin
+  Redis no hay corte y nada se cae (WARN al arrancar).
+* **4 · `reparto-api`.** No hay dependencia dura entre este paso y el 3: la API nueva solo añade un rechazo (el token de
+  entrega ya fallaba cerrado por `entradas:[]`, ahora además por `ambito`), lee dos cabeceras que la sync vieja no manda y
+  lee `organization.codigo`. Va **antes** de la web y la APK para que, cuando alguien pueda aplicar, el registro ya lleve
+  `autor` y `revision`. Tras este paso la web de Palma Soriano pedirá `PLS` y no `PALMA-SORIANO` (Accesos ya manda
+  `organization.codigo` desde `8ba2642`); **comprobarlo antes de dar de alta `PLS` en Reparto** (`CLAUDE.md` §4, «Trampa del código»).
+* **5 · `reparto-web`.** La imagen corre `flutter analyze` y `flutter test` antes de construir. Comprobar el bundle
+  siguiendo `index.html` → `flutter_bootstrap.js?v=…` → `main.dart.js` (Cloudflare cachea sin `?v=` durante un año:
+  `Sesion-unica.md`, 09/10), y que `/revision` no empieza por `/sync` ni por `/api` (lo vigila
+  `test/navegacion/contrato_registro_test.dart`).
+
+### Paso 6, la APK y Windows 1.0.32
+
+`app/pubspec.yaml` sigue en `1.0.31+32`: la versión nueva (1.0.32+33 en los cuadernos) se pone al compilar. Se publica como
+dice §3.1 («un publicador por VERSIÓN»): **copiar `publicacion-1.0.31/` a `publicacion-1.0.32/`** y adaptar versión, fecha del
+día, repo (`PROCOVAR-DEV/delivery-logistica`) y línea base —que pasa a ser la 1.0.31—; **Windows primero y Android después**;
+el APK viejo no se borra hasta que Jose confirme. **No se publica antes de los pasos 3 y 4**: la APK 1.0.32 es la única que
+entrega, y contra un `sync` que no tiene `/sync/revision/entrega`, el token de entrega no abre nada (`403 sin_permiso_reparto`, que la app lee como «El servidor no aceptó la entrega»).
+
+### Runbook: cómo se le QUITA `delivery.entrar` a una persona (hallazgo F1 de la prueba de punta a punta)
+
+**Se cambia el ROL de la persona en Personas de Accesos (`cambiarRol`, `auth/src/app/(user)/dashboard/_actions.ts`), no se le vacía la
+membresía.** `PUT /api/rbac/orgs/<org>/members/<miembro>/roles {"roleIds":[]}` **no quita la llave** si el rol por defecto de la
+persona (`defaultRoleId`) la trae: la prueba de punta a punta lo vio —su token siguió con `roles:["LOGISTICO"]` y `entradas` con
+`delivery.entrar`, y `/api/auth/refresh` seguía dando 200 en vez de 403 `sin_permiso`—. `cambiarRol` cambia `defaultRoleId` (y
+`isSystemAdmin` si el rol es SUPER ADMIN), y **si el rol nuevo pierde llaves publica `permisos-cambiados`**, que es lo que corta
+los tokens viejos (401 en `sync` y en la API). Para que el caso de la bandeja ocurra de verdad hace falta además que la persona
+**conserve la sesión**: no la revoques ni la des de baja (con cualquiera de las dos no entrega nada, y es lo correcto).
+Comprobación: tras el cambio, `/api/auth/refresh` de esa persona tiene que dar `403 sin_permiso` y `POST /api/auth/entrega`, 200.
+Para devolverle el acceso, el camino inverso: darle el rol (p. ej. LOGISTICO) en Accesos, y que cierre sesión y entre de nuevo.
+
+### Los riesgos 2, 9 y 10 del diseño, con su estado real
+
+* **Riesgo 2 — «quien revoca la sesión sigue recibiendo un 403 de buena fe; hasta que A1 no esté desplegado no se puede
+  abrir la entrega».** **Cerrado en el servidor y desplegado** (Accesos `8ba2642`, 09/10/2026): `puertaDeRenovar` mira la
+  sesión revocada y la baja antes de la llave (401, no 403) y `emitirEntrega` mira sesión, `activo` y refresh por su cuenta
+  y deja la llave la última. Quien tiene la APK 1.0.31 y la sesión revocada pasa ya de «sin permiso» a «sesión muerta»,
+  que es lo correcto. Probado con mutaciones en copia (24 de A1 y 18 de los arreglos, todas rojas: `A1-ACCESOS.md`,
+  `FIXES-A1.md`). La prueba de punta a punta (`QA-E2E.md`, Accesos `8ba2642` real con Redis y centinela, contra el
+  `sync` y la API de esta ronda) lo confirmó: con la llave quitada y la sesión viva, `/refresh` 403 y `/entrega` 200; **sesión
+  revocada → `/entrega` 401 y `/refresh` 401 (antes 403)**; el token de entrega que ya tenía en la mano, tras revocar, 401 en `sync`;
+  **baja → 401** y no puede volver a iniciar sesión; cierre de sesión → `/entrega` 401 (varada). El 401 es idéntico al de un refresh
+  inventado. Falta verlo en producción con una cuenta real: hasta que haya APK 1.0.32 no hay quien llame a `/entrega`.
+* **Riesgo 9 — «si `sync` contesta `en_revision` a una APK vieja, lanza `FormatException` en cada ciclo».** **Mitigado por el
+  orden, no eliminado.** La APK 1.0.32 lo entiende (`EstadoResultado.enRevision` en `app/lib/nucleo/cola/apunte.dart`, que
+  además evita que `resolver` lo deje `rechazado`). `sync` solo contesta `en_revision` a una clave que está en
+  `revision_apuntes`, y solo la APK 1.0.32 puede haberla puesto ahí: con el orden de arriba (APK la última), y aunque la 1.0.31 no lo entiende
+  (lanzaría `FormatException`), nunca lo recibe: el riesgo es cero salvo que alguien entregue **a mano** (con un refresh vivo y `curl`) una clave que
+  coincida con una real del aparato, o que una instalación entregue y luego se **baje de versión**. No se endurece más.
+* **Riesgo 10 — «quien cerró sesión antes de entregar queda varado».** **Abierto, y es verdad que no se resuelve.** Cerrar
+  sesión revoca el refresh y sin él `POST /api/auth/entrega` da 401. La mitigación está **escrita y probada, y sin desplegar** hasta que salga la
+  APK 1.0.32: el «Cerrar sesión» con cola pregunta con tres opciones (entregar y salir, salir sin entregar avisando de que queda
+  varada, me quedo; N3). Quien elija «Salir sin entregar», o ya hubiera cerrado sesión con la 1.0.31, sigue varado. Entregar desde el
+  login (opción 4 de B.1) queda fuera de esta ronda. Detalle en `docs/sin-permiso.md`.
 
 ---
 

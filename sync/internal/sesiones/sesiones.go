@@ -19,8 +19,13 @@
 //   - La regla del bearer: ya no vale si `todo[persona] >= emitido` ([invalidaAlBearer]), donde
 //     `emitido` es el claim `iatms` (milisegundos, que Accesos firma en el token de acceso) y, si
 //     falta, `iat*1000` (segundos: se compara por arriba, conservador). Sin `iatms`, un token pedido
-//     250 ms DESPUÉS del evento se rechazaba en ~75 % de los casos. **Un evento `web` no le llega**:
-//     por eso aquí ni se carga la familia `web`.
+//     250 ms DESPUÉS del evento se rechazaba en ~75 % de los casos. **Un evento `web` no le llega.**
+//   - LA EXCEPCIÓN, y es una puerta: la bandeja del revisor también se usa desde la WEB, con el token de
+//     `/api/me` (el de la cookie, 7 días, que lleva `web:true`) como Bearer. A ése sí le toca un cierre de
+//     sesión SOLO-web: ya no vale si `max(web, todo) >= emitido` ([invalidaALaCookie], la misma regla que
+//     la cookie en `reparto-api`). Sin esto, quien cerró sesión en el navegador seguía pasando la puerta
+//     del revisor con 200 hasta los siete días (auditoría de seguridad, 09/10/2026, SERIO 2). Por eso se
+//     cargan las DOS familias, también al recargar con SCAN.
 //
 // # Redis caído o sin configurar NO TUMBA NADA
 //
@@ -45,6 +50,8 @@ const (
 	Canal = "procovar:auth:eventos"
 	// PrefijoDeMarcaTodo precede al id de la persona en la marca de alcance `todo`. Literal del contrato.
 	PrefijoDeMarcaTodo = "procovar:auth:invalida:todo:"
+	// PrefijoDeMarcaWeb: la de alcance `web` (un cierre de sesión del navegador). Literal del contrato.
+	PrefijoDeMarcaWeb = "procovar:auth:invalida:web:"
 	// BaseDeLasMarcas: la DB 6 de Redis, la de las sesiones de Accesos. FIJA por contrato.
 	BaseDeLasMarcas = 6
 	// VidaDeUnaMarca: el TTL que les pone Accesos.
@@ -89,10 +96,13 @@ type Evento struct {
 type Fuente interface {
 	// Suscribir abre la suscripción y VUELVE cuando Redis ya la confirmó (las marcas se cargan DESPUÉS).
 	Suscribir(ctx context.Context) (Suscripcion, error)
-	// Marcas hace el SCAN de las marcas `todo`: persona -> tms.
-	Marcas(ctx context.Context) (map[string]int64, error)
+	// Marcas hace el SCAN de las dos familias de marcas: persona -> tms, una por alcance.
+	Marcas(ctx context.Context) (Marcas, error)
 	Cerrar() error
 }
+
+// Marcas es lo que devuelve el SCAN: persona -> tms, una por alcance.
+type Marcas struct{ Web, Todo map[string]int64 }
 
 // Suscripcion es una suscripción abierta.
 type Suscripcion interface {
@@ -102,13 +112,14 @@ type Suscripcion interface {
 	Cerrar() error
 }
 
-// Registro es el mapa en memoria de las marcas `todo` y el bucle que lo mantiene.
+// Registro es el mapa en memoria de las marcas (`web` y `todo`) y el bucle que lo mantiene.
 type Registro struct {
 	fuente Fuente
 	log    *slog.Logger
 
 	mu   sync.RWMutex
-	todo map[string]int64
+	web  map[string]int64 // persona -> tms del último cierre de sesión en Accesos
+	todo map[string]int64 // persona -> tms de la última invalidación TOTAL
 
 	activo atomic.Bool
 
@@ -127,12 +138,23 @@ func Nuevo(fuente Fuente, log *slog.Logger) *Registro {
 	return &Registro{
 		fuente:      fuente,
 		log:         log,
+		web:         map[string]int64{},
 		todo:        map[string]int64{},
 		ahora:       time.Now,
 		esperaMin:   time.Second,
 		esperaMax:   30 * time.Second,
 		cadaLimpiar: time.Hour,
 	}
+}
+
+// invalidaALaCookie es la regla del token de una SESIÓN WEB (el que lleva `web:true`), pura: no vale si hay
+// marca `web` o `todo` de esa persona (>0 es "hay") y la mayor es de después o del mismo instante.
+// `iatMs == 0` (sin `iatms`) cuenta como emitido en el instante 0: cualquier marca lo invalida.
+//
+// GEMELA de `sesiones.invalidaALaCookie` en `reparto-api`: se cambian JUNTAS.
+func invalidaALaCookie(web, todo, iatMs int64) bool {
+	m := max(web, todo)
+	return m > 0 && m >= iatMs
 }
 
 // invalidaAlBearer es la regla: sólo cuenta la marca `todo`, contra el instante en que se emitió el
@@ -169,19 +191,32 @@ func (r *Registro) ElBearerNoVale(persona string, iatSeg, iatMs int64) bool {
 	return invalidaAlBearer(todo, iatSeg, iatMs)
 }
 
+// LaCookieNoVale es la pregunta para el token de una sesión WEB (`web:true`): emitido en `iatMs` (milisegundos),
+// ya no vale si Accesos marcó su sesión después, con CUALQUIER alcance. SIN RED. Ver [invalidaALaCookie].
+func (r *Registro) LaCookieNoVale(persona string, iatMs int64) bool {
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	web, todo := r.web[persona], r.todo[persona]
+	r.mu.RUnlock()
+	return invalidaALaCookie(web, todo, iatMs)
+}
+
 // Activo: hay una suscripción viva. Falso = el sincronizador sirve, pero sin el empuje.
 func (r *Registro) Activo() bool { return r != nil && r.activo.Load() }
 
-// NumMarcas: cuántas marcas hay en memoria.
+// NumMarcas: cuántas marcas hay en memoria (las `web` más las `todo`).
 func (r *Registro) NumMarcas() int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return len(r.todo)
+	return len(r.web) + len(r.todo)
 }
 
 // Aplicar procesa un mensaje del canal tal cual llegó. Los que no se entienden se IGNORAN con un
-// WARN: un mensaje malo no puede parar el bucle. Los de alcance `web` se ignoran sin ruido: no
-// tocan al bearer. Un mensaje sin alcance se lee como `todo` (fallar cerrado).
+// WARN: un mensaje malo no puede parar el bucle. Los de alcance `web` van a su propio mapa: no tocan al
+// bearer de la APK pero SÍ a los tokens de sesión web (`web:true`). Un mensaje sin alcance se lee como
+// `todo` (fallar cerrado).
 func (r *Registro) Aplicar(crudo string) {
 	var ev Evento
 	if err := json.Unmarshal([]byte(crudo), &ev); err != nil {
@@ -211,8 +246,9 @@ func (r *Registro) Aplicar(crudo string) {
 			"tipo", ev.Tipo, "tms", ev.Tms, "ahora_ms", r.ahora().UnixMilli())
 		return
 	}
-	if ev.Alcance == AlcanceWeb {
-		return // un cierre de sesión del navegador no echa a la APK
+	destino := ev.Alcance
+	if destino == "" {
+		destino = AlcanceTodo
 	}
 	if n := len(ev.UserIDs); n > maxIdsPorMensaje {
 		r.log.Warn("sesiones: mensaje de Accesos con demasiadas personas; sólo se leen las primeras",
@@ -222,23 +258,27 @@ func (r *Registro) Aplicar(crudo string) {
 
 	personas := 0
 	r.mu.Lock()
+	mapa := r.todo
+	if destino == AlcanceWeb { // un cierre de sesión del navegador: sólo cuenta para los tokens web
+		mapa = r.web
+	}
 	for _, id := range ev.UserIDs {
 		if id == "" {
 			continue
 		}
 		personas++
 		// El tms MAYOR: un mensaje atrasado no puede rebajar una marca más nueva.
-		if r.todo[id] < ev.Tms {
-			r.todo[id] = ev.Tms
+		if mapa[id] < ev.Tms {
+			mapa[id] = ev.Tms
 		}
 	}
-	acotar(r.todo)
+	acotar(mapa)
 	r.mu.Unlock()
 	if personas == 0 {
 		r.log.Warn("sesiones: mensaje de Accesos sin personas; se ignora", "tipo", ev.Tipo)
 		return
 	}
-	r.log.Info("sesiones: Accesos cortó sesiones", "tipo", ev.Tipo, "personas", personas,
+	r.log.Info("sesiones: Accesos cortó sesiones", "tipo", ev.Tipo, "alcance", destino, "personas", personas,
 		"motivo", recortar(ev.Motivo, 80))
 }
 
@@ -248,26 +288,31 @@ func (r *Registro) enElFuturo(tms int64) bool {
 	return tms > r.ahora().Add(margenDelFuturo).UnixMilli()
 }
 
-// fusionar mete las marcas leídas con SCAN, quedándose con el tms mayor de cada persona. Las que
-// están en el futuro se ignoran (y se cuentan en el registro), igual que en [Registro.Aplicar], y el
-// mapa queda acotado a [maxMarcas].
-func (r *Registro) fusionar(marcas map[string]int64) {
+// fusionar mete las marcas leídas con SCAN (las dos familias), quedándose con el tms mayor de cada persona.
+// Las que están en el futuro se ignoran (y se cuentan en el registro), igual que en [Registro.Aplicar], y
+// cada mapa queda acotado a [maxMarcas].
+func (r *Registro) fusionar(m Marcas) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	futuras := 0
-	for id, tms := range marcas {
-		if r.enElFuturo(tms) {
-			futuras++
-			continue
-		}
-		if r.todo[id] < tms {
-			r.todo[id] = tms
-		}
-	}
+	futuras := fundir(r.web, m.Web, r.enElFuturo) + fundir(r.todo, m.Todo, r.enElFuturo)
+	acotar(r.web)
 	acotar(r.todo)
 	if futuras > 0 {
 		r.log.Warn("sesiones: marcas de Accesos con un tms en el futuro; se ignoran", "marcas", futuras)
 	}
+}
+
+func fundir(destino, origen map[string]int64, descartar func(int64) bool) (descartadas int) {
+	for id, tms := range origen {
+		if descartar(tms) {
+			descartadas++
+			continue
+		}
+		if destino[id] < tms {
+			destino[id] = tms
+		}
+	}
+	return descartadas
 }
 
 // acotar deja el mapa en [maxMarcas] como mucho, descartando las MÁS VIEJAS y nunca las recientes.
@@ -300,13 +345,15 @@ func (r *Registro) limpiar() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	quitadas := 0
-	for id, tms := range r.todo {
-		switch {
-		case tms < corte:
-			delete(r.todo, id)
-			quitadas++
-		case tms > techo:
-			r.todo[id] = ahora.UnixMilli()
+	for _, mapa := range []map[string]int64{r.web, r.todo} {
+		for id, tms := range mapa {
+			switch {
+			case tms < corte:
+				delete(mapa, id)
+				quitadas++
+			case tms > techo:
+				mapa[id] = ahora.UnixMilli()
+			}
 		}
 	}
 	return quitadas

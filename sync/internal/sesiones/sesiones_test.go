@@ -22,8 +22,10 @@ import (
 
 type fuenteFalsa struct {
 	mu sync.Mutex
-	// marcas[n] es lo que devuelve el n-ésimo SCAN (el último se repite).
+	// marcas[n] es lo que devuelve el n-ésimo SCAN (el último se repite): las marcas `todo`.
 	marcas []map[string]int64
+	// marcasWeb[n], igual, para la familia `web` (vacía si no se pone).
+	marcasWeb []map[string]int64
 	// falloAlSuscribir: las primeras N suscripciones fallan (Redis caído).
 	falloAlSuscribir int
 	errMarcas        error
@@ -54,17 +56,21 @@ func (f *fuenteFalsa) Suscribir(ctx context.Context) (Suscripcion, error) {
 	return s, nil
 }
 
-func (f *fuenteFalsa) Marcas(context.Context) (map[string]int64, error) {
+func (f *fuenteFalsa) Marcas(context.Context) (Marcas, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.llamadasMarcas++
 	if f.errMarcas != nil {
-		return nil, f.errMarcas
+		return Marcas{}, f.errMarcas
 	}
-	if len(f.marcas) == 0 {
-		return nil, nil
+	var m Marcas
+	if len(f.marcas) > 0 {
+		m.Todo = f.marcas[min(f.llamadasMarcas-1, len(f.marcas)-1)]
 	}
-	return f.marcas[min(f.llamadasMarcas-1, len(f.marcas)-1)], nil
+	if len(f.marcasWeb) > 0 {
+		m.Web = f.marcasWeb[min(f.llamadasMarcas-1, len(f.marcasWeb)-1)]
+	}
+	return m, nil
 }
 
 func (f *fuenteFalsa) Cerrar() error { f.cerrada.Store(true); return nil }
@@ -277,7 +283,7 @@ func TestSeQuedaConElTmsMayor(t *testing.T) {
 		t.Error("un mensaje atrasado rebajó la marca: el token de 8500 s volvió a valer")
 	}
 	// Y la carga con SCAN tampoco rebaja lo que ya se supo por el canal.
-	r.fusionar(map[string]int64{"u1": 100})
+	r.fusionar(Marcas{Todo: map[string]int64{"u1": 100}})
 	if !r.ElBearerNoVale("u1", 8500, 0) {
 		t.Error("el SCAN rebajó una marca más nueva que ya estaba en memoria")
 	}
@@ -408,7 +414,7 @@ func TestLaLimpiezaOlvidaLasMarcasDeMasDeOchoDias(t *testing.T) {
 	r.ahora = func() time.Time { return ahora }
 	vieja := ahora.Add(-VidaDeUnaMarca - time.Hour).UnixMilli()
 	reciente := ahora.Add(-VidaDeUnaMarca + time.Hour).UnixMilli()
-	r.fusionar(map[string]int64{"vieja": vieja, "reciente": reciente})
+	r.fusionar(Marcas{Todo: map[string]int64{"vieja": vieja, "reciente": reciente}})
 
 	if n := r.limpiar(); n != 1 {
 		t.Errorf("la limpieza quitó %d marcas, se esperaba 1", n)
@@ -481,7 +487,7 @@ func TestUnTmsEnElFuturoSeIgnoraYNoBloqueaANadie(t *testing.T) {
 func TestLasMarcasDelFuturoQueTraeElScanSeIgnoran(t *testing.T) {
 	ahora := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
 	r, salida := registroConReloj(ahora)
-	r.fusionar(map[string]int64{"futura": 4102444800000, "buena": ahora.Add(-time.Hour).UnixMilli()})
+	r.fusionar(Marcas{Todo: map[string]int64{"futura": 4102444800000, "buena": ahora.Add(-time.Hour).UnixMilli()}})
 
 	if r.ElBearerNoVale("futura", 0, ahora.UnixMilli()) {
 		t.Error("una marca del futuro cargada con SCAN bloquea a su persona")
@@ -582,4 +588,106 @@ func TestUnMensajeEnormeNoParaNada(t *testing.T) {
 		t.Errorf("200.000 ids dejaron %d marcas", n)
 	}
 	r.Aplicar(strings.Repeat("{", 1<<20))
+}
+
+// ------------------------------------------------------------------ la familia `web` (SERIO 2, 09/10/2026)
+
+// La regla de un token de SESIÓN WEB (`web:true`), gemela de `invalidaALaCookie` de `reparto-api`: vale
+// max(web, todo) contra el instante en que se emitió.
+func TestInvalidaALaCookie(t *testing.T) {
+	casos := []struct {
+		nombre           string
+		web, todo, iatMs int64
+		invalida         bool
+	}{
+		{"sin marcas", 0, 0, 1000, false},
+		{"marca web posterior", 2000, 0, 1000, true},
+		{"marca todo posterior", 0, 2000, 1000, true},
+		{"gana la mayor de las dos", 500, 2000, 1000, true},
+		{"las dos anteriores al token", 500, 800, 1000, false},
+		{"el mismo instante invalida", 1000, 0, 1000, true},
+		{"token nuevo, después del cierre", 1000, 0, 1001, false},
+		{"sin iatms cualquier marca lo invalida", 5, 0, 0, true},
+		{"sin marcas y sin iatms no invalida", 0, 0, 0, false},
+	}
+	for _, c := range casos {
+		if got := invalidaALaCookie(c.web, c.todo, c.iatMs); got != c.invalida {
+			t.Errorf("%s: invalidaALaCookie(web=%d, todo=%d, iatms=%d) = %v, se esperaba %v", c.nombre, c.web, c.todo, c.iatMs, got, c.invalida)
+		}
+	}
+}
+
+// UN CIERRE DE SESIÓN SOLO-WEB corta al token de la web (el de `/api/me` que la bandeja web manda de Bearer) y
+// NO a la APK; uno `todo` corta a los dos; el token que la web pidió DESPUÉS del cierre vale.
+func TestUnCierreSoloWebCortaAlTokenWebYNoAlBearerDeLaAPK(t *testing.T) {
+	r := Nuevo(nil, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
+	r.Aplicar(mensaje("web", tipoSesionCerrada, 5_000_000, "soloweb"))
+	r.Aplicar(mensaje("todo", tipoPermisosCambiados, 5_000_000, "todo"))
+
+	if !r.LaCookieNoVale("soloweb", 4_000_000) {
+		t.Error("EL CIERRE DE SESIÓN SOLO-WEB NO CORTÓ AL TOKEN WEB: la bandeja web seguiría abierta siete días")
+	}
+	if r.LaCookieNoVale("soloweb", 5_000_001) {
+		t.Error("el token que la web pidió DESPUÉS del cierre no puede salir cortado")
+	}
+	if r.ElBearerNoVale("soloweb", 4000, 0) {
+		t.Error("un cierre solo-web echó al bearer de la APK")
+	}
+	if !r.LaCookieNoVale("todo", 4_000_000) || !r.ElBearerNoVale("todo", 4000, 0) {
+		t.Error("un evento `todo` tenía que cortar al token web y al de la APK")
+	}
+	if r.LaCookieNoVale("nadie", 0) {
+		t.Error("una persona sin marcas salió cortada")
+	}
+	if r.NumMarcas() != 2 {
+		t.Errorf("marcas en memoria: %d (una web y una todo)", r.NumMarcas())
+	}
+}
+
+// El SCAN carga las DOS familias, también al reconectar: un cierre solo-web ocurrido mientras el sincronizador
+// estaba sin Redis tiene que cortar igual al volver.
+func TestElScanCargaLaFamiliaWebAlArrancarYAlReconectar(t *testing.T) {
+	f := nuevaFuente(map[string]int64{"beto": 2_000_000})
+	f.marcasWeb = []map[string]int64{{"ana": 3_000_000}, {"ana": 3_000_000, "carla": 4_000_000}}
+	r, _, _, _ := arrancar(t, f)
+	sus := esperarSuscripcion(t, f)
+	esperarA(t, r.Activo, "el empuje no se activó")
+
+	if !r.LaCookieNoVale("ana", 2_999_999) || r.LaCookieNoVale("ana", 3_000_001) {
+		t.Error("la marca WEB de Ana no se cargó con el SCAN")
+	}
+	if r.ElBearerNoVale("ana", 1000, 0) {
+		t.Error("una marca web cargada con el SCAN cortó al bearer de la APK")
+	}
+	if !r.ElBearerNoVale("beto", 1000, 0) {
+		t.Error("la marca todo de Beto no se cargó")
+	}
+	// Se cae la conexión y, al volver, el SCAN trae un cierre solo-web nuevo (el de Carla).
+	sus.matar()
+	esperarA(t, func() bool { return r.LaCookieNoVale("carla", 3_999_999) }, "tras reconectar no se recargó la familia web")
+}
+
+// La limpieza toca las DOS familias: olvida las marcas web de más de ocho días y rebaja las que quedaron por
+// delante del reloj, igual que las `todo`.
+func TestLaLimpiezaTocaTambienLasMarcasWeb(t *testing.T) {
+	r := Nuevo(nil, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
+	ahora := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	r.ahora = func() time.Time { return ahora }
+	vieja := ahora.Add(-VidaDeUnaMarca - time.Hour).UnixMilli()
+	reciente := ahora.Add(-VidaDeUnaMarca + time.Hour).UnixMilli()
+	r.fusionar(Marcas{Web: map[string]int64{"vieja": vieja, "reciente": reciente}, Todo: map[string]int64{"viejaTodo": vieja}})
+	r.web["futura"] = ahora.Add(2 * time.Hour).UnixMilli() // se coló con el reloj atrasado
+
+	if n := r.limpiar(); n != 2 {
+		t.Errorf("la limpieza quitó %d marcas, se esperaban 2 (la web y la todo viejas)", n)
+	}
+	if r.LaCookieNoVale("vieja", 0) {
+		t.Error("una marca WEB de más de ocho días sigue en memoria")
+	}
+	if !r.LaCookieNoVale("reciente", 0) {
+		t.Error("la limpieza se llevó una marca web que todavía vale")
+	}
+	if got := r.web["futura"]; got != ahora.UnixMilli() {
+		t.Errorf("una marca web por delante del reloj tenía que rebajarse a «ahora» y está en %d", got)
+	}
 }

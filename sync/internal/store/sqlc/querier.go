@@ -51,6 +51,27 @@ type Querier interface {
 	// El alta de una instalación: `POST /sync/aparato`. El uuid lo pone la base y es lo que el
 	// aparato guarda; nunca se lo inventa él.
 	AltaAparato(ctx context.Context, arg AltaAparatoParams) (Aparato, error)
+	// Las consultas de LA BANDEJA DE REVISIÓN (`docs/bandeja-de-revision.md`, B.2), para sqlc.
+	//
+	// Sólo contabilidad de la sincronización: nada de aquí toca pedidos, rutas ni tablero.
+	//
+	// Mismas convenciones que `sync.sql`: el alcance por sucursal es SEGURIDAD y va en el SQL, nunca en
+	// Go (`sqlc.narg('sucursal')::uuid IS NULL OR e.branch_id = …`: NULL es «todas», el Super Admin);
+	// y lo que se decide va en la propia sentencia (`WHERE estado IN (…)`), no en un «leer y luego
+	// escribir».
+	//
+	// «Vivo» = `en_revision`, `aplicando`, `rechazado`: lo que sigue esperando a una persona. Es lo que
+	// cuentan los cupos y el número rojo de `/sync/estado`.
+	//
+	// QUÉ ES DE S1 Y QUÉ DE S2. La entrega (lo primero) la usa S1. Lo de «El revisor» y «El libro» lo
+	// usará S2 (listar, aplicar, descartar); está aquí para que S2 empiece con migración, consultas y
+	// dobles ya entregados, y está probado contra Postgres de verdad (`revision_motor_real_test.go`).
+	// ===========================================================================
+	// 1 · La entrega
+	// ===========================================================================
+	// Una fila por token de entrega: la app manda los apuntes de uno en uno, y todos los que llegan con el
+	// mismo `jti` caen en la MISMA entrega. El `DO UPDATE` no cambia nada: devuelve la fila que manda.
+	AltaRevisionEntrega(ctx context.Context, arg AltaRevisionEntregaParams) (RevisionEntrega, error)
 	// Se anota DESPUÉS de aplicarlo y en la misma transacción que el cambio en el reparto. Al
 	// revés —anotar y luego aplicar— un corte en medio dejaría la clave marcada como hecha con
 	// el trabajo sin hacer, y el reintento contestaría `repetido` sobre algo que no existe.
@@ -81,6 +102,10 @@ type Querier interface {
 	// entran juntos o no entra ninguno. Un apunte marcado rechazado sin motivo en la bandeja
 	// es exactamente el descarte en silencio que esto viene a impedir.
 	AnotarRechazo(ctx context.Context, arg AnotarRechazoParams) (ApuntesRechazado, error)
+	// ===========================================================================
+	// 3 · El libro de decisiones (sólo se añade)
+	// ===========================================================================
+	AnotarRevisionDecision(ctx context.Context, arg AnotarRevisionDecisionParams) (RevisionDecisione, error)
 	// Tras procesar un lote de `POST /sync/subida`. Los `pendientes` los dice el aparato (la
 	// cola vive en el teléfono); los rechazos del lote se SUMAN al contador, no lo sustituyen.
 	AnotarSubida(ctx context.Context, arg AnotarSubidaParams) error
@@ -98,6 +123,10 @@ type Querier interface {
 	// Una persona lo dio por visto. No se borra nunca: queda con quién lo atendió y cuándo.
 	// Si no devuelve fila es que ya estaba atendido —otro llegó antes—, no que no exista.
 	AtenderRechazo(ctx context.Context, arg AtenderRechazoParams) (ApuntesRechazado, error)
+	// Serializa las entregas de una sucursal para que contar el cupo y escribir sean UNA sola cosa: sin
+	// esto, N peticiones en paralelo pasarían todas por debajo del tope a la vez. Se suelta sola al acabar
+	// la transacción.
+	BloquearRevisionDeSucursal(ctx context.Context, sucursal uuid.UUID) error
 	// ===========================================================================
 	// 3 · Idempotencia
 	// ===========================================================================
@@ -111,8 +140,42 @@ type Querier interface {
 	// cuya respuesta se perdió vuelve como `repetido` sobre una ruta que salió con nueve de
 	// doce y nadie se entera de los tres.
 	BuscarApunte(ctx context.Context, arg BuscarApunteParams) (BuscarApunteRow, error)
+	// El reparto dijo que sí. SÓLO cierra quien lo reclamó (`decidido_por`), y SÓLO desde `aplicando`.
+	CerrarRevisionComoAplicado(ctx context.Context, arg CerrarRevisionComoAplicadoParams) (RevisionApunte, error)
+	// El reparto dijo que no (un 4xx): se queda VIVO y a la vista, con el motivo LITERAL, esperando decisión.
+	// No se reintenta solo.
+	CerrarRevisionComoRechazado(ctx context.Context, arg CerrarRevisionComoRechazadoParams) (RevisionApunte, error)
+	// Al aplicar por revisión, el apunte se copia al libro `apuntes` (para que la reentrega normal dé `repetido`).
+	// SIN fallar si la clave YA estaba (auditoría final, B6): `aplicar` mira el libro antes de reenviar y no
+	// reenvía lo que ya está; esto es la red por si la subida normal de un sync viejo se coló entre mirar y
+	// escribir —la transacción no se cae por una fila que ya cuenta lo mismo—. Devuelve cuántas filas escribió.
+	CopiarApunteAplicadoAlLibro(ctx context.Context, arg CopiarApunteAplicadoAlLibroParams) (int64, error)
+	// Los cupos de una persona y de una sucursal, sólo de lo VIVO. Una sola pasada.
+	CupoDeRevision(ctx context.Context, arg CupoDeRevisionParams) (CupoDeRevisionRow, error)
+	// DESCARTAR: SÓLO lo que sigue esperando, SÓLO de otra persona, SÓLO dentro del alcance, y con un motivo
+	// escrito (la base lo exige: ≥ 5 caracteres). No borra: marca `descartado` con quién y cuándo.
+	DescartarRevisionApunte(ctx context.Context, arg DescartarRevisionApunteParams) (DescartarRevisionApunteRow, error)
+	// Una caída (5xx o red), no un rechazo: vuelve a `en_revision` con un intento más, sin dueño.
+	DevolverRevisionAEnRevision(ctx context.Context, arg DevolverRevisionAEnRevisionParams) (RevisionApunte, error)
 	// «¿Qué le queda a este aparato?», de un tirón.
 	EstadoDeAparato(ctx context.Context, id uuid.UUID) (EstadoDeAparatoRow, error)
+	// «¿He visto ya esta clave?», SIN el cuerpo (que puede pesar 128 KiB): se pregunta una vez por cada
+	// apunte de CADA subida normal y de cada entrega. Va por la primaria.
+	EstadoDeRevisionDeApunte(ctx context.Context, arg EstadoDeRevisionDeApunteParams) (EstadoDeRevisionDeApunteRow, error)
+	// La idempotencia: reentregar la misma clave NO inserta (y no devuelve fila). Quien llama ya miró
+	// `EstadoDeRevisionDeApunte`; esto es la red contra dos peticiones a la vez. El orden FIFO lo pone el
+	// servidor, por orden de llegada dentro del aparato.
+	InsertarRevisionApunte(ctx context.Context, arg InsertarRevisionApunteParams) (RevisionApunte, error)
+	// La bandeja del revisor, UNA FILA POR ENTREGA con sus cuentas por estado (exactas: se cuenta TODO lo de la
+	// entrega, no sólo lo vivo) y sólo las que aún tienen algo esperando. Con el alcance dentro; el tope lo
+	// comprueba quien llama (pide uno más de lo que va a enseñar).
+	ListarEntregasParaRevisor(ctx context.Context, arg ListarEntregasParaRevisorParams) ([]ListarEntregasParaRevisorRow, error)
+	// ===========================================================================
+	// 2 · El revisor (S2)
+	// ===========================================================================
+	// La lista: lo de las sucursales que este revisor ve, lo más antiguo primero (FIFO), sin el cuerpo.
+	// `solo_vivos` deja fuera lo decidido; `estado` (opcional) estrecha a uno.
+	ListarRevisionParaRevisor(ctx context.Context, arg ListarRevisionParaRevisorParams) ([]ListarRevisionParaRevisorRow, error)
 	// EL PANEL: `GET /sync/estado`. Todo lo que hay que ver de todos los aparatos, con el que
 	// peor está arriba.
 	//
@@ -133,10 +196,33 @@ type Querier interface {
 	RechazosSinAtender(ctx context.Context, sucursal pgtype.UUID) ([]RechazosSinAtenderRow, error)
 	// Cuántos quedan sin atender por sucursal. Es el número rojo de la cabecera del panel.
 	RechazosSinAtenderPorSucursal(ctx context.Context, sucursal pgtype.UUID) ([]RechazosSinAtenderPorSucursalRow, error)
+	// EL CANDADO. Pasa a `aplicando` SÓLO lo que sigue esperando (`en_revision`, o `rechazado` para
+	// reintentar), SÓLO si lo entregó otra persona (nadie revisa lo suyo) y SÓLO dentro del alcance del
+	// revisor. Devuelve la fila o ninguna: dos revisores a la vez, un solo ganador.
+	ReclamarRevisionApunte(ctx context.Context, arg ReclamarRevisionApunteParams) (ReclamarRevisionApunteRow, error)
+	// Un apunte que se quedó en `aplicando` porque el proceso murió: SÓLO pasa a manos de un revisor si lleva
+	// más de `antiguedad_segundos` así, y quien llama ya confirmó a mano que la ruta no se aplicó (la API no
+	// lee `X-Apunte`: no hay otra red). Mismas condiciones de alcance y de autor que `ReclamarRevisionApunte`.
+	ReclamarRevisionInterrumpida(ctx context.Context, arg ReclamarRevisionInterrumpidaParams) (ReclamarRevisionInterrumpidaRow, error)
 	// «¿De qué era este local-…?» Se pregunta cuando llega un apunte que todavía trae el
 	// provisional en la ruta: el aparato se cortó antes de sustituirlo en el resto de su cola.
 	// Traducirlo aquí es lo que evita el 404 sobre el trabajo de toda la tarde.
 	ResolverProvisional(ctx context.Context, arg ResolverProvisionalParams) (uuid.UUID, error)
+	// Un apunte entero (con el cuerpo, que es lo que el revisor tiene que ver antes de pulsar), CON EL
+	// ALCANCE DENTRO: el administrador de CAM no lee ni aplica lo de HOL, ni por lista ni por id.
+	RevisionApunteDeRevisor(ctx context.Context, arg RevisionApunteDeRevisorParams) (RevisionApunteDeRevisorRow, error)
+	// `GET /sync/revision/mias`: qué ha pasado con lo de este aparato. Lo vivo primero y, dentro, lo más
+	// reciente. Sin el cuerpo. El tope lo comprueba quien llama (pide uno más de lo que va a enseñar).
+	RevisionDeAparato(ctx context.Context, arg RevisionDeAparatoParams) ([]RevisionDeAparatoRow, error)
+	// Una entrega entera, en orden, con el alcance dentro. Es lo que recorre «Aplicar todo en orden».
+	RevisionDeEntrega(ctx context.Context, arg RevisionDeEntregaParams) ([]RevisionDeEntregaRow, error)
+	RevisionDecisionesDeApunte(ctx context.Context, arg RevisionDecisionesDeApunteParams) ([]RevisionDecisione, error)
+	// SIN alcance, a propósito, y SIN cuerpo: sólo para decidir CÓMO se dice «no» cuando la consulta con
+	// alcance no encontró nada (404 si no existe; 403 si existe en una sucursal que el revisor no ve). Nunca
+	// decide un permiso: la decisión es la consulta con alcance, esta sólo pone la frase.
+	RevisionEntregaPorId(ctx context.Context, id uuid.UUID) (RevisionEntregaPorIdRow, error)
+	// El segundo «número rojo» de `/sync/estado`, por sucursal.
+	RevisionSinDecidirPorSucursal(ctx context.Context, sucursal pgtype.UUID) ([]RevisionSinDecidirPorSucursalRow, error)
 	// La señal de vida. Se llama en CADA petición del aparato, baje o suba: es lo que
 	// distingue «el teléfono está apagado en un cajón» de «el teléfono trabaja pero no sube».
 	TocarAparato(ctx context.Context, id uuid.UUID) error

@@ -33,6 +33,7 @@ class PersonaEnElAparato {
     required this.nombre,
     required this.pendientes,
     this.rechazados = 0,
+    this.enRevision = 0,
     this.colgado = const <TrabajoHuerfano>[],
   });
 
@@ -52,15 +53,43 @@ class PersonaEnElAparato {
   /// decida. Borrarlos es borrar la única constancia de lo que no llegó.
   final int rechazados;
 
+  /// Apuntes suyos **entregados a revisión** que nadie ha decidido todavía
+  /// (`EstadoApunte.enRevision`, `docs/bandeja-de-revision.md`).
+  ///
+  /// No están en [pendientes] —no suben— ni en [rechazados], pero **olvidar la
+  /// copia se los lleva igual**: el apunte local es lo único que le dice a esa
+  /// persona qué entregó, y que fue «Aplicado» o «Descartado» el día que lo
+  /// mire. Un aparato que se «olvida» con trabajo en revisión sin avisar es el
+  /// mismo agujero de los rechazados (24/09/2026).
+  final int enRevision;
+
   /// Lo que está en su copia, no está arriba y **no lo va a subir nadie**: una
   /// ruta armada sin señal que se quedó sin su apunte, por ejemplo.
   final List<TrabajoHuerfano> colgado;
+
+  /// LO QUE LLEVA UNA COPIA, contado en un solo sitio: las cuatro preguntas que se
+  /// hacen antes de borrarla. Las usan [Personas.listar] y [Personas.olvidar]; que
+  /// cada una las escribiera a mano es como se olvido una la ultima vez.
+  static Future<PersonaEnElAparato> deLaBase(
+    BaseLocal base, {
+    String sub = '',
+    String nombre = '',
+  }) async => PersonaEnElAparato(
+    sub: sub,
+    nombre: nombre,
+    pendientes: await base.cuantosPendientes(),
+    // Las otras, que son las que no contaba nadie. Sin ellas, la pantalla que
+    // ofrece el gesto ensena «no le queda nada» encima de un cierre rechazado.
+    rechazados: await base.cuantosRechazados(),
+    enRevision: await base.cuantosEnRevision(),
+    colgado: await Huerfanos(base).mirar(),
+  );
 
   String get nombreParaVer =>
       nombre.isNotEmpty ? nombre : 'Una cuenta anterior';
 
   bool get tieneTrabajoSinSubir =>
-      pendientes > 0 || rechazados > 0 || colgado.hayAlguno;
+      pendientes > 0 || rechazados > 0 || enRevision > 0 || colgado.hayAlguno;
 
   /// **QUÉ SE PIERDE SI SE BORRA ESTA COPIA**, nombrado cosa por cosa.
   ///
@@ -79,6 +108,9 @@ class PersonaEnElAparato {
       if (rechazados > 0)
         '$rechazados ${rechazados == 1 ? 'rechazado esperando a que alguien '
                   'decida' : 'rechazados esperando a que alguien decida'}',
+      if (enRevision > 0)
+        '$enRevision ${enRevision == 1 ? 'entregado a revisión que nadie ha '
+                  'decidido' : 'entregados a revisión que nadie ha decidido'}',
       if (colgado.hayAlguno) '${colgado.texto} que sólo existe en este aparato',
     ];
     if (partes.isEmpty) return '';
@@ -90,7 +122,7 @@ class PersonaEnElAparato {
   @override
   String toString() =>
       'PersonaEnElAparato($nombreParaVer, pendientes: $pendientes, '
-      'rechazados: $rechazados, colgado: ${colgado.hayAlguno ? colgado.texto : "nada"})';
+      'rechazados: $rechazados, enRevision: $enRevision, colgado: ${colgado.hayAlguno ? colgado.texto : "nada"})';
 }
 
 /// LAS COPIAS DEL APARATO: listarlas y **olvidar** una.
@@ -162,13 +194,7 @@ class Personas {
   /// Lo que se va a llevar por delante, ya escrito. Vacío = no se pierde nada.
   Future<String> _queHayDentro(BaseLocal base) async {
     try {
-      return PersonaEnElAparato(
-        sub: '',
-        nombre: '',
-        pendientes: await base.cuantosPendientes(),
-        rechazados: await base.cuantosRechazados(),
-        colgado: await Huerfanos(base).mirar(),
-      ).queSePierde;
+      return (await PersonaEnElAparato.deLaBase(base)).queSePierde;
     } on Object catch (e) {
       // Que no se pueda contar NO puede impedir el gesto, pero tampoco puede
       // pasar callando: se anota que se borró sin saber qué había.
@@ -185,15 +211,12 @@ class Personas {
     try {
       final sub = await base.duenoGuardado();
       if (sub == null) return null;
-      return PersonaEnElAparato(
+      // `await` ANTES del `finally`: el `finally` cierra la base, y devolver el
+      // Future a secas la cerraria antes de contar.
+      return await PersonaEnElAparato.deLaBase(
+        base,
         sub: sub,
         nombre: await base.nombreDelDueno() ?? '',
-        pendientes: await base.cuantosPendientes(),
-        // Las otras dos, que son las que no contaba nadie. Sin ellas, la
-        // pantalla que ofrece el gesto enseña «no le queda nada» encima de un
-        // cierre rechazado.
-        rechazados: await base.cuantosRechazados(),
-        colgado: await Huerfanos(base).mirar(),
       );
     } on Object catch (e) {
       Registro.aviso('no se pudo mirar la copia $fichero: $e');

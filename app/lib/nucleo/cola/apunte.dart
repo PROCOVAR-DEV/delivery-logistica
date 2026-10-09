@@ -14,6 +14,16 @@ enum EstadoResultado {
 
   /// El servidor dijo que no. Final: ni se reintenta ni se borra.
   rechazado,
+
+  /// **Esa clave ya esta en la bandeja de revision** (`en_revision`): el
+  /// servidor la tiene, tal cual, esperando a que un administrador decida. No
+  /// es un rechazo —ni se reintenta ni se descarta— y tampoco un aplicado.
+  ///
+  /// Solo puede llegar a una instalacion que ya entrego ese apunte y no se
+  /// entero (se perdio la respuesta) y que despues recupero el permiso. Sin
+  /// este caso, `deJson` lanzaba `FormatException` en cada ciclo, o peor: el
+  /// `else` de `ColaDeSalida.resolver` lo habria dejado `rechazado`.
+  enRevision,
 }
 
 /// La respuesta del servidor para un apunte.
@@ -23,6 +33,7 @@ class ResultadoApunte {
     this.id,
     this.motivo,
     this.descartados = const <DescartadoDelServidor>[],
+    this.revision,
   });
 
   ResultadoApunte.deJson(Map<String, Object?> json)
@@ -30,13 +41,18 @@ class ResultadoApunte {
         'aplicado' => EstadoResultado.aplicado,
         'repetido' => EstadoResultado.repetido,
         'rechazado' => EstadoResultado.rechazado,
+        'en_revision' => EstadoResultado.enRevision,
         final otro => throw FormatException('estado desconocido: $otro'),
       },
       id = json['id'] as String?,
       motivo = json['motivo'] as String?,
+      revision = json['revision'] as String?,
       descartados = DescartadoDelServidor.deLista(json['descartados']);
 
   final EstadoResultado estado;
+
+  /// El id de la entrega a revision, cuando el estado es `en_revision`.
+  final String? revision;
 
   /// El id de verdad de lo que este apunte creo. Es lo que sustituye al
   /// `local-…`.
@@ -83,6 +99,67 @@ class ResultadoApunte {
   bool get seAplico =>
       estado == EstadoResultado.aplicado ||
       (estado == EstadoResultado.repetido && motivo == null);
+}
+
+/// En que esta, PARA EL SERVIDOR, un apunte entregado a revision
+/// (`GET /sync/revision/mias`, `docs/bandeja-de-revision.md` B.2).
+///
+/// No es [EstadoApunte]: el aparato guarda menos estados que el servidor
+/// (`aplicando` es «alguien lo esta aplicando ahora» y `rechazado` es «el
+/// reparto no pudo», y ninguno de los dos es una decision firme).
+enum EstadoEnRevision { enRevision, aplicando, aplicado, rechazado, descartado }
+
+/// Lo que el servidor dice de UN apunte entregado: lo que lee la persona.
+class DecisionDeRevision {
+  const DecisionDeRevision({
+    required this.estado,
+    this.por,
+    this.cuando,
+    this.motivo,
+    this.idCreado,
+    this.entrega,
+    this.descartados = const <DescartadoDelServidor>[],
+  });
+
+  /// Una entrada de `mias` (o de la respuesta de la entrega). Un estado que no
+  /// conoce LANZA, igual que [ResultadoApunte.deJson]: quien llama lo atrapa
+  /// por apunte y deja ese como esta, sin tumbar el resto.
+  DecisionDeRevision.deJson(Map<String, Object?> json)
+    : estado = switch (json['estado']) {
+        'en_revision' => EstadoEnRevision.enRevision,
+        'aplicando' => EstadoEnRevision.aplicando,
+        'aplicado' => EstadoEnRevision.aplicado,
+        'rechazado' => EstadoEnRevision.rechazado,
+        'descartado' => EstadoEnRevision.descartado,
+        final otro => throw FormatException('estado de revision desconocido: $otro'),
+      },
+      por = json['decididoPorNombre'] as String?,
+      cuando = json['decididoAt'] is String
+          ? DateTime.tryParse(json['decididoAt']! as String)?.toLocal()
+          : null,
+      motivo = json['motivo'] as String?,
+      idCreado = json['idCreado'] as String?,
+      entrega = json['revision'] as String?,
+      descartados = DescartadoDelServidor.deLista(json['descartados']);
+
+  final EstadoEnRevision estado;
+
+  /// El NOMBRE de quien decidio (o intento aplicar), tal como lo da el servidor.
+  final String? por;
+  final DateTime? cuando;
+
+  /// El motivo escrito del descarte, o el literal del reparto si no pudo aplicar.
+  final String? motivo;
+
+  /// El id de verdad de lo que ese apunte creo, si creaba algo.
+  final String? idCreado;
+
+  /// El id de la entrega, si el servidor lo manda.
+  final String? entrega;
+
+  /// Quien se cayo de lo que este apunte mandaba aunque se APLICARA (el mismo
+  /// aviso que la subida normal: «salio con menos de lo que pusiste»).
+  final List<DescartadoDelServidor> descartados;
 }
 
 /// Un apunte, tal y como sale hacia `POST /sync/subida`.

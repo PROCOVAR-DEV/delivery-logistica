@@ -26,7 +26,37 @@ import 'package:drift/drift.dart';
 /// no sale en la bandeja, no cuenta como sin subir, y lo huerfano lo ve como
 /// «esto ya se decidio» y no lo vuelve a encolar. Sigue siendo, ademas, la unica
 /// constancia de algo que no llego a pasar, que es lo que pide la regla 6.
-enum EstadoApunte { pendiente, aplicado, rechazado, descartado }
+///
+/// ## La bandeja de revision (09/10/2026, `docs/bandeja-de-revision.md`)
+///
+/// Quien pierde `delivery.entrar` no puede subir su cola, pero SI entregarla a
+/// una persona que decida: queda en `sync/` tal cual y no se aplica sola. Eso
+/// anade DOS estados, y cada uno es una decision distinta de un tercero:
+///
+///  * `enRevision` — entregado, **todavia no aplicado**. El trabajo solo existe
+///    en este aparato y en la bandeja del revisor, asi que conserva `nacio_aqui`
+///    y cuenta como vivo para lo huerfano; pero NO sube (no es `pendiente`), NO
+///    cuenta en «N sin subir» (ya esta arriba) y SI cuenta antes de olvidar a
+///    una persona. Si el reparto rechaza al aplicar, **sigue siendo `enRevision`**
+///    con `motivoRevision` puesto: dejarlo como `rechazado` ofreceria
+///    «Reintentar» y «Descartar» locales sobre algo que el revisor aun puede
+///    aplicar, o sea una decision de la persona que el revisor nunca veria.
+///  * `descartadoPorRevisor` — el revisor lo descarto con motivo escrito. Como
+///    `descartado`: queda a la vista, no se reencola, y suelta `nacio_aqui`.
+///
+/// Un `aplicado` por el revisor es `aplicado` con `revisadoPor`.
+///
+/// **Cada estado nuevo rompe cualquier lista de estados escrita a mano**; ya ha
+/// costado incidentes. `test/nucleo/sincro/huerfanos_test.dart` clasifica TODOS
+/// los valores de este enum y falla si se anade uno sin clasificar.
+enum EstadoApunte {
+  pendiente,
+  aplicado,
+  rechazado,
+  descartado,
+  enRevision,
+  descartadoPorRevisor,
+}
 
 /// LA COLA DE SALIDA.
 ///
@@ -62,6 +92,25 @@ class Apuntes extends Table {
   TextColumn get motivo => text().nullable()();
   DateTimeColumn get resueltoAt => dateTime().nullable()();
   IntColumn get intentos => integer().withDefault(const Constant(0))();
+
+  // --- LA BANDEJA DE REVISION (esquema 7). Las cuatro nulas hasta que se entrega.
+  //
+  // **`motivo` NO se reutiliza.** En un `aplicado`, `motivo` ya significa «salio
+  // con menos de lo que pusiste» (`ColaDeSalida.descartesSinLeer`): ponerle ahi
+  // «Aplicado por …» llenaria ese aviso de cosas que no lo son.
+
+  /// El id de la ENTREGA (una pulsacion del boton) en la que se mando.
+  TextColumn get revision => text().nullable()();
+
+  /// El NOMBRE de quien decidio (el revisor), para pintarlo; no un uuid.
+  TextColumn get revisadoPor => text().nullable()();
+
+  /// Cuando decidio, segun el servidor.
+  DateTimeColumn get revisadoAt => dateTime().nullable()();
+
+  /// Lo que dice la bandeja de este apunte: el motivo escrito del descarte o el
+  /// literal del reparto cuando no pudo aplicarlo.
+  TextColumn get motivoRevision => text().nullable()();
 }
 
 /// `local-9f3a` → `cm2x…`. Queda como rastro: sirve para entender un registro

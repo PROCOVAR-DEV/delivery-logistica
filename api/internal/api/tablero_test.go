@@ -869,7 +869,8 @@ func montarTab(t *testing.T, q sqlc.Querier) http.Handler {
 	// y contesta 502.
 	s.PonerLectorDeVentra(ventraDePrueba)
 
-	rt := httpx.NuevoRouter(httpx.IDDePeticion, httpx.ConRegistro(reg), httpx.RecuperarPanico, httpx.SinCache)
+	// RegistrarPeticiones también aquí, como en `Rutas()`: es la línea que lleva `autor`/`revision`.
+	rt := httpx.NuevoRouter(httpx.IDDePeticion, httpx.ConRegistro(reg), httpx.RecuperarPanico, httpx.RegistrarPeticiones, httpx.SinCache)
 	sesion := []httpx.Medio{s.verif.Exigir, s.porteria.Exigir}
 	admin := []httpx.Medio{s.verif.Exigir, auth.ExigirAdmin, s.porteria.Exigir}
 	s.rutasTablero(rt, sesion, admin)

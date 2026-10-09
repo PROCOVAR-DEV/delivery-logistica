@@ -1,7 +1,10 @@
 # La bandeja de revisión — qué pasa con la cola de quien pierde `delivery.entrar`
 
-Diseño, 08/10/2026. **Nada de esto está construido.** Está escrito leyendo el código tal como
-está hoy; cada afirmación de la sección A lleva su fichero y su línea para poder comprobarla.
+Diseño, 08/10/2026. **Actualización del 09/10/2026: está construido todo salvo la prueba de punta a
+punta** (Accesos, `sync`, `api` y la app, pantalla `/sin-permiso` incluida); lo que de verdad se hizo, con sus ficheros y
+**en qué se desvió de lo que sigue**, está en «Estado real (09/10/2026)» al final de este
+documento. Lo de arriba es el diseño tal como se aprobó, escrito leyendo el código del 08/10;
+cada afirmación de la sección A lleva su fichero y su línea para poder comprobarla.
 
 Jose, dueño: «esto de cerrar los datos no sé si se le revoca los datos que se suban, pero que
 pasen por un chequeo; así los tenemos, y si mando cosas mal se quitan manual y si no, pues
@@ -722,3 +725,300 @@ Jose aprobó las tres recomendaciones de este documento («las decisiones tuyas 
 3. **Plazos y avisos:** nada se aplica ni se borra solo; un correo por sucursal y día (lo manda notify, no un script suelto).
 
 Se implementa en una ronda aparte (1.0.32), después de desplegar la ronda de sesión única, para no mezclar los dos despliegues.
+
+---
+
+## Estado real (09/10/2026)
+
+Escrito el 09/10/2026 leyendo el código y los cuadernos de cada agente
+(`~/Notas/Procovar/Pendiente/sesion-unica/`: `A1-ACCESOS`, `FIXES-A1`, `HARDENING-ACCESOS`,
+`G-SYNC1`, `G-SYNC2`, `G-API`, `G-APP1`, `G-APP2`, y las tres pasadas de control: `AUDITOR-SEG-BANDEJA`, `QA-E2E` y
+`AUDITORIA-FINAL-1032`). **Lo de arriba es el diseño; esto es lo que hay.**
+Donde difieren, manda esto. Nada de la ronda está desplegado salvo Accesos (`8ba2642`, 09/10/2026);
+el resto está en el árbol sin commitear en el momento de escribir esto. Orden de despliegue y estado de
+los riesgos 2, 9 y 10: `docs/despliegue.md` §4-bis.
+
+### Qué se hizo, por paquete
+
+**A1 — Accesos (HECHO y DESPLEGADO, commit `8ba2642` de `PROCOVAR-DEV/procovar-auth`).**
+`POST /api/auth/entrega` (`src/app/api/auth/entrega/route.ts`, nuevo): token de 10 minutos y ámbito
+`reparto.entrega`, sin gastar ni devolver el refresh. La regla vive en `emitirEntrega`
+(`src/lib/apk-tokens.ts`; `PROPOSITO_ENTREGA`, `AMBITO_ENTREGA`, `SEGUNDOS_ENTREGA`) y comprueba en este orden:
+refresh existe → no revocado → no gastado → no caducado → es de Reparto → sesión viva → persona activa y con
+sucursal → **la llave la última** (409 si la tiene). En `renovar`, `puertaDeRenovar`/`sesionOPersonaMuerta` miran
+la sesión revocada y la baja **antes** de la llave, en el camino normal y en la gracia (una sesión revocada sin
+llave pasa de 403 a 401), y `RenovacionNoDisponible` da 503 si la base cae a mitad. Auditoría:
+`auth.apk.entrega` y `auth.apk.entrega_denegada` (`src/lib/acciones-auditoria.ts`). Endurecimientos del mismo
+commit que tocan este camino (`FIXES-A1.md`): `src/lib/con-tope.ts` (tope de 800 ms a Redis en `/entrega`, `/token`,
+`/refresh`), `commandTimeout` de 1,5 s en el cliente `locks` (`src/lib/redis.ts`), `Cache-Control: no-store` en las
+cuatro rutas de la APK (`src/lib/cors-apk.ts`), `.max(256)` al refresh, la baja antes del atajo de los clientes sin
+llave (`src/lib/puerta-de-entrada.ts`), `iatms` = la lectura de la sesión. Y `exchange` manda `organization.codigo`
+(`HARDENING-ACCESOS.md`). Pruebas: `src/app/api/auth/__tests__/apk-entrega.test.ts` (32), más lo añadido en
+`apk-puerta.test.ts`, `apk-tokens.test.ts`, `limitador-colgado.test.ts`; 24 mutaciones de A1 y 18 de los arreglos,
+todas rojas (cuadernos). **Contrato real:** `200 {token, token_type:"Bearer", expires_in:600, ambito:"reparto.entrega"}`; `400`
+(`invalid_json`, `invalid_body`); `401 invalid_refresh` (mismo cuerpo para refresh inexistente, revocado, gastado, caducado, de otra
+aplicación, sesión revocada o caducada y baja); `403 sin_sucursal`; `409 tiene_permiso`; `429 rate_limited`; `503
+comprobacion_no_disponible` (limitador sin contestar a los 800 ms —aquí SÍ se cierra— o la base caída). Límites: por IP, cubo de 60
+con 1/s; por huella del refresh, cubo de 10 con 1 cada 10 s. Detalle en `docs/contratos-api.md` §12.1.
+
+**V — verificadores Go (HECHO).**
+`sync/internal/identidad/entrega.go` (`DeTokenDeEntrega`, `FuentesDeEntrega`) y `token.go` (`bearerDe`, `abrir`,
+`verificar` rechaza todo token con `ambito`); `api/internal/auth/auth.go` (`ErrAmbito`, rechazo por presencia).
+Compartido por los dos módulos: `docs/ambito-de-entrega.casos.json` (44 casos; `deploy/Dockerfile.api`,
+`.espejo` y `.sync` lo copian, y sin él la imagen no construye). Pruebas: `sync/internal/identidad/entrega_test.go`,
+`api/internal/auth/ambito_test.go`, `ambito_casos_test.go`, `api/internal/api/ambito_de_entrega_test.go`.
+
+**S1 — `sync`: datos y entrega (HECHO).**
+Migración `sync/db/migrations/00003_la_bandeja_de_revision.sql` (3 tablas, el tipo `revision_estado`, 4 funciones y
+11 triggers: ni `DELETE` ni `TRUNCATE`, el original de un apunte inmutable, el libro de decisiones solo se añade),
+consultas `sync/db/queries/revision.sql` (+ `sync/internal/store/sqlc/revision.sql.go`, generado), entrega y `mias`
+en `sync/internal/sincro/revision_entrega.go`, límites en `revision_limites.go`, montaje en `revision_rutas.go` y
+`sync/cmd/sync/main.go`; el paso 0 de `unApunte` (`subida.go`) y `en_revision` en `/sync/estado` (`estado.go`).
+**El `Aplicador` no se llama nunca en la entrega** (el doble del reparto tiene que acabar con cero llamadas; lo ata
+`revision_entrega_test.go`). Con Postgres de verdad: `revision_motor_real_test.go`, solo con `SYNC_MOTOR_REAL_DSN`
+(`docs/entorno-local.md` §7-quater; `./comprobar.sh` dice «SALTADO» sin ella).
+
+**S2 — `sync`: el revisor (HECHO).**
+`sync/internal/sincro/revision_revisor.go` (lista, detalle, descartar, el «por qué no» de cada 4xx),
+`revision_aplicar.go` (aplicar uno, aplicar en orden), `sync/internal/identidad/revisor.go` (`RolDeRevisor`),
+`sync/internal/reparto/reparto.go` (`X-Autor`, `X-Revision`, `X-Sucursal-Id` solo si vienen), `subida.go`
+(`reenviar` y `origenDeRevision`: la subida normal y la revisión comparten tubería), `servicio.go` (`Peticion` gana
+`Autor`, `Revision`, `SucursalPedida`; `Rutas` monta `RutasDelRevisor`). Contrato en `docs/contratos-api.md` §12.
+
+**Tanda final de `sync` (auditoría de seguridad y auditoría final, 09/10/2026, `G-SYNC2.md`).**
+(1) **El corte `web`**: `sync/internal/sesiones` guarda dos mapas (`web`, `todo`) y recoge las dos familias de marcas de Redis; un
+token `web:true` (el de la cookie que la bandeja web usa como Bearer) no vale si `max(web, todo) >= iatms`: tras cerrar sesión solo
+en el navegador, 401 en `/sync/*` (`identidad/token.go`). (2) **Migración nueva `00004_nombre_de_aparato_acotado.sql`**
+(recorta a 200 los nombres que ya hubiera y añade `CHECK (char_length(nombre) <= 200) NOT VALID`); `POST /sync/aparato` limpia y recorta el nombre a 80 (`aparato.go`,
+`topeNombreDeAparato`) y la bandeja del revisor lo recorta a 200 al leerlo; **`ExigirMigraciones` espera ya la 4**. (3) **Lista blanca
+de ruta POR FORMA** (`revision_limites.go`): las ocho rutas de escritura que la API tiene de rutas y tablero, con `{id}` sin puntos;
+`POST /board` suelto ya no entra (422). (4) **`aplicar` mira el libro `apuntes`** tras reclamar (B6): si la subida normal ya había
+aplicado la clave, cierra `aplicado` sin reenviar; si la rechazó, `rechazado`; y copia lo que aplica al libro con
+`CopiarApunteAplicadoAlLibro` (`ON CONFLICT DO NOTHING`). (5) Pruebas nuevas: `TestReclamarUnAplicandoInterrumpidoTambienExigeOtraPersonaYElAlcance`,
+`TestMainSeNiegaAArrancarConLaBaseAtrasada` (AST de `main`) y `TestUnTokenDeEntregaSinSucursalSeRechazaAntesDelResolutor`. 27
+mutaciones: 26 rojas y 1 equivalente (quitar el `left()` del SQL no cambia lo que sale porque Go recorta igual).
+
+**P — `api`: autoría (HECHO, y movido de sitio por la prueba de punta a punta).** `X-Autor` y `X-Revision` salen como `autor` y
+`revision` en la línea `peticion` de **toda escritura** (POST, PUT, PATCH, DELETE) en `api/internal/httpx/middleware.go`
+(`RegistrarPeticiones`, `autoriaDe`, `TopeDeLaAutoria` = 64); **ya no** en `rastroDeQuien` (`api/internal/api/rastro_de_quien.go`),
+que solo cubre diez sitios y dejaba sin autoría `/board/*` (hallazgo F2 de `QA-E2E.md`). No autorizan nada ni cambian `actor` ni
+`rol`. Pruebas: `api/internal/httpx/autoria_test.go` (los 7 métodos) y las de `rastro_de_quien_test.go`; 10 mutaciones rojas
+(`G-API.md`, ronda 2). De paso, `Reset` con candado en `registroSeguro` y esperas más holgadas para que las pruebas pasen con
+`-race`.
+
+**Web leyendo `codigo` (HECHO, no estaba en el diseño).** `api/internal/api/auth_web.go` (`codigoDeSucursal`): manda
+`organization.codigo` y, si falta, cae al `slug` en mayúsculas; sirve para que el `PLS` de Palma Soriano no pida
+`PALMA-SORIANO`. Accesos ya lo manda desde `8ba2642`.
+
+**N1 — app: estados y acoplamientos locales (HECHO).** `app/lib/nucleo/base/tablas/aparato.dart` (`EstadoApunte`
+gana `enRevision` y `descartadoPorRevisor`; columnas `revision`, `revisadoPor`, `revisadoAt`, `motivoRevision`),
+`base/base.dart` (`schemaVersion` 7, la migración solo añade las columnas que faltan, `cuantosEnRevision`),
+`base/base.g.dart` (generado), `cola/apunte.dart` (`EstadoResultado.enRevision`, `DecisionDeRevision`),
+`cola/cola_salida.dart` (`marcarEnRevision`, `resolverRevision`, `enRevision()`, `decididosPorRevision()`),
+`sincro/huerfanos.dart` (los tres SQL salen de UNA lista), `sincro/subida.dart` (`_cierreSinAceptar` también retiene
+el `completed` si la hoja está `enRevision`; fuera de la lista de N1), `base/personas.dart` y `arranque/arranque.dart`.
+Pruebas: `test/nucleo/cola/revision_test.dart`, `huerfanos_test.dart`, `la_migracion_no_se_lleva_el_trabajo_test.dart`,
+`base_test.dart` (48 mutaciones rojas, cuaderno G-APP1).
+
+**N2 — app: servicio de entrega (HECHO).** `app/lib/nucleo/sincro/entrega_a_revision.dart` (`EntregaARevision`:
+`entregar()`, `actualizarEstados()`, `consultarConSesion()`), `sincro/ciclo.dart` (`_preguntarPorLaRevision`, entre
+subir y bajar, solo si hay algo `enRevision`), `nucleo/proveedores.dart` (`entregaARevisionProvider`). Su propio
+`Dio` sin `InterceptorSesion`; manda un apunte por petición y en orden; marca `enRevision` con la respuesta en la
+mano; renueva el token de entrega una sola vez; nunca da de alta el aparato. Prueba:
+`test/nucleo/sincro/entrega_a_revision_test.dart`. **Rondas 3 y 4 (G-APP1):** el `provisional` viaja siempre; el `repetido` trae lo que
+hace falta (`id`, `descartados`, `decididoPorNombre`, `motivoDelDescarte`) y no hace falta ir a `mias`; y, por el hallazgo SERIO 1 de la
+auditoría final (R3: si se pierde la respuesta de una entrega, un revisor aplica el apunte 1 y la reentrega sustituía el `local-…` en el
+apunte 2 pendiente, que llegaba con otro cuerpo → `409 huella_distinta` para siempre), **`resolverRevision(aplicado)` ya NO reescribe los
+apuntes pendientes dependientes** (`Provisionales.sustituir(…, reescribirApuntes: false)`: la equivalencia y las filas locales sí se
+sustituyen, la ruta y el cuerpo de los pendientes no, porque `sync` guarda el original con `local-…` y traduce él al aplicar). El `repetido`
+del LIBRO (sin `revision`) sigue sustituyendo como antes. 5 mutaciones nuevas rojas.
+
+**N4 — app: la bandeja del revisor (HECHO y reconciliado con el contrato real de S2, `G-APP2.md`).** `app/lib/pantallas/revision/**`
+(ruta `/revision`, en el menú solo para ADMINISTRADOR, SUPER ADMIN y DESARROLLADOR), `nucleo/red/interceptor_sesion.dart` y
+`cliente_api.dart` (`bearerExplicito`: en la web `sync` se llama con Bearer a mano y nunca con cookie; `mandar(reintentar: false)`),
+`navegacion/pantallas.dart` (una línea). Reconciliación con S2: «aplicar todo» se detiene y la tarjeta lo dice («Aplicar todo se
+detuvo en <método ruta>. Quedan N apuntes sin procesar. Motivo: …»); un 502 `reparto_no_disponible` se dice como «El reparto no
+contestó; el apunte sigue en revisión, no está rechazado» y **nunca se pinta rechazado**; un `aplicando` marcado `interrumpido`
+solo se reintenta tras `vista/confirmar_reintento.dart` (`{"reintentarInterrumpido":true}`); las órdenes de aplicar y descartar
+**no se repiten solas** (un 5xx se reintentaba 3 veces por defecto); sin conexión dice «no se sabe si la orden llegó»; nada se pinta
+«Aplicado» antes de la respuesta. Pruebas: `test/pantallas/revision/`, `test/nucleo/red/bearer_explicito_test.dart`,
+`mandar_sin_reintento_test.dart`, `test/navegacion/contrato_registro_test.dart` (31 mutaciones en copia, todas rojas). **Confirmaciones
+(M2 de la auditoría de seguridad, `G-APP2.md`):** «Aplicar todo en orden» abre un cajón «Confirma antes de aplicar» con el recuento por
+método y por qué hace cada ruta en palabras (`datos/que_hace.dart`, `vista/confirmar_aplicar.dart`); si hay algún `DELETE` o más de 25
+apuntes, hay que **escribir el número**; un `DELETE` o `PATCH` suelto pide una confirmación corta; cerrar el cajón con Escape es «no»; y
+la fila enseña el texto legible además del crudo. 15 mutaciones más, todas rojas. **La pantalla no se ha probado contra el `sync` real
+ni en un navegador real**; el contrato del revisor sí, con scripts, en `QA-E2E.md`.
+
+**N3 — app: `/sin-permiso` con «Entregar a revisión» y el «Cerrar sesión» de tres opciones (HECHO, `G-APP1.md`).**
+`app/lib/pantallas/acceso/vista/panel_de_entrega.dart` (nuevo: `PanelDeEntrega`, `ControlDeEntrega`),
+`acceso/datos/textos_de_entrega.dart` (nuevo: `TextosDelPanel`, los literales de B.5) y `pantalla_sin_permiso.dart` (monta el panel
+solo en APK y escritorio; «Cerrar sesión» con cola = **Entregar a revisión y salir** —solo sale si todo quedó entregado— / **Salir
+sin entregar** / **Me quedo**, y cerrar el cartel sin contestar es quedarse). El panel **no sale sin cola ni en la web**. `enRevision` no
+cuenta como «sin subir» (por eso `menu_de_cuenta.dart` y `salir_con_el_gesto.dart` no se tocaron) pero sí avisa antes de olvidar una
+copia. Pruebas: `test/pantallas/acceso/sin_permiso_test.dart` (+22), `test/nucleo/cola/cerrar_sesion_con_trabajo_sin_subir_test.dart`
+(+1); 67 mutaciones en copia, todas rojas. Los textos y los estados, en `docs/sin-permiso.md`.
+
+**Ajustes de `sync` pedidos por la app (S2, 09/10/2026, `G-SYNC2.md`).** `reProvisionalDeRevision` acepta `local-` + 1 a 94
+letras o números **o un UUID** (el UUIDv7 con el que el Tablero crea una zona tumbaba la entrega con un 422); lo ata
+`TestElProvisionalDeLaRevisionEsComoElDeLaSubida`. El `repetido` de la entrega lleva ahora `id`, `descartados`, `decididoPorNombre`,
+`decididoAt` y `motivoDelDescarte` (aditivo; `motivo` no cambia). 13 mutaciones, todas rojas. **La app ya los consume**
+(G-APP1, ronda 3, 09/10/2026): un `repetido` ya decidido se anota sin ir a `GET /sync/revision/mias` cuando la respuesta basta (si falta
+algo, conserva la ida a `mias`), el `id` y los `descartados` sustituyen al `local-…`, y el apaño que omitía el `provisional` se quitó:
+ahora viaja siempre que el apunte lo tenga.
+
+**D — documentos (este paquete).** `docs/sin-permiso.md`, `contratos-api.md` §12, `sincronizacion.md` §4,
+`despliegue.md` §4-bis, `entorno-local.md` §7-quater, `docs/README.md` (índice), `CLAUDE.md` §4 y §5, y este apartado. La prueba de punta a punta, más abajo.
+
+### Desviaciones del diseño, verificadas
+
+1. **El token de entrega lleva `iatms` y `entradas:[]`.** Claims reales: `sub`, `name`, `email`, `sid`, `sucursal`,
+   `branch_id`, `ambito`, `entradas:[]`, `roles:[]`, `role:""`, `iatms` (extra: igual que el acceso, para las marcas
+   de invalidación de Accesos; es la hora de LEER la sesión), `jti`, `iat`, `exp` (+600 s), `iss`,
+   `purpose:"apk:entrega"` (`apk-tokens.ts`, `emitirEntrega`; `A1-ACCESOS.md`).
+2. **`/refresh` da 403 y `/entrega` da 200 a la misma persona.** Quien perdió la llave y conserva sesión recibe en
+   `/api/auth/refresh` `403 sin_permiso` (no gasta el refresh, no rota nada) y en `/api/auth/entrega` el token de
+   entrega. **La entrega no sustituye a la renovación**: sigue sin haber token normal.
+3. **Un token de entrega en una ruta normal da 401 en la API y 403 `sin_permiso_reparto` en `sync`.** El diseño decía
+   «403» para las dos; `api/internal/auth/auth.go` (`ErrAmbito` → el 401 de siempre) y `sync/internal/identidad/token.go`
+   (`ErrSinPermisoDeReparto`) difieren, y `docs/ambito-de-entrega.casos.json` solo ata «no entra», no el código.
+4. **«Aplicar todo en orden» SE DETIENE en el primer apunte que no queda aplicado.** B.4 decía que un rechazo no
+   detiene al resto; la tarea de S2 mandó lo contrario (lo de detrás puede depender de lo que no entró). La respuesta
+   dice dónde (`detenidoEn`), por qué (`detenidoPorque`) y cuántos quedaron sin tocar (`sinProcesar`)
+   (`revision_aplicar.go`, `aplicarEntrega`).
+5. **`aplicando` interrumpido.** Una fila en `aplicando` de hace 10 minutos o más sale con `interrumpido:true`;
+   reintentarla exige `{"reintentarInterrumpido":true}` y deja `interrumpido` en el libro (`ReclamarRevisionInterrumpida`).
+   Además el libro admite `resultado = caida` (5xx o red al aplicar), que el diseño no listaba.
+6. **No hay `sucursalNombre`.** La bandeja del revisor trae `sucursal` (uuid) y no su nombre; la app lo saca de su copia
+   de sucursales o, si aún no bajó, enseña el principio del uuid (`pantalla_revision.dart`, `nombreDe`). La lista es una
+   fila por entrega con sus cuentas por estado (`ListarEntregasParaRevisor`), no una fila por apunte.
+7. **El rechazo del reparto al aplicar NO deja el apunte local `rechazado`**: sigue `enRevision` con `motivoRevision`
+   puesto («No se pudo aplicar: …. Sigue en revisión.»). Un `rechazado` local ofrecería «Reintentar» y «Descartar» a la
+   persona sobre algo que el revisor aún puede aplicar (`aparato.dart`, `cola_salida.dart`, `resolverRevision`).
+8. **No hay aviso en vivo.** Ni `CambioEnVivo.revision` ni ningún evento SSE de revisión: el revisor se entera al pulsar
+   «Actualizar», al volver de una desconexión y tras cada decisión propia (`G-APP2.md`). Lo único «en vivo» es el
+   contador `en_revision` de `GET /sync/estado`, y ninguna pantalla lo enseña todavía.
+9. **Sin correo de notify (fase 2).** `sync` no tiene cliente de notify; no hay aviso por sucursal y día ni a los 7 días.
+10. **La API no lee `X-Apunte`** (solo lo escribe `reparto.go`), así que no hay red contra la doble aplicación: la única
+    es el estado `aplicando` y la confirmación a mano. `X-Autor` y `X-Revision` son solo rastro, y **no van en las líneas de
+    «rastro de quién» como decía el diseño (P) sino en la línea `peticion` de toda escritura** (`RegistrarPeticiones`): el rastro
+    solo cubría diez rutas y dejaba sin autoría `/board/*`.
+11. **Límites de Accesos distintos de los del diseño.** Real: por IP, cubo de 60 con reposición de 1 por segundo; por
+    huella del refresh, cubo de 10 con 1 cada 10 s (`entrega/route.ts`). El diseño decía 20/hora por IP y 6/hora por
+    sesión. `sync` sí cumple: 60 peticiones por minuto por persona, en memoria (se vacía al reiniciar).
+12. **La entrega agrupa por token, no por pulsación.** `revision_entregas` tiene `UNIQUE (aparato_id, token_jti)`: la
+    app manda los apuntes de uno en uno y todos los del mismo token caen en la misma entrega. `orden` lo pone el servidor
+    por orden de llegada dentro del aparato (`MAX(orden)+1`), no la posición en la cola local.
+13. **La base impone más que el esbozo:** `CHECK` de `aplicando` con dueño y de `rechazado` con motivo, lista blanca de
+    columnas que se pueden mover, y un apunte `aplicado` o `descartado` no se reescribe en nada
+    (`00003_la_bandeja_de_revision.sql`).
+14. **Todo lo posterior al candado `aplicando` va con `context.WithoutCancel`**: que el revisor cierre la pestaña no deja
+    el reparto a medias. Y si el reparto aplicó y la base no lo pudo anotar, el apunte se queda `aplicando` y la
+    respuesta es `500 no_se_pudo_anotar` (`revision_aplicar.go`).
+15. **El `provisional` de la entrega no es el de la subida normal, aunque se alineó.** La subida normal no valida su forma
+    (`valido()` no lo mira; solo traduce los `local-[A-Za-z0-9]+`); la entrega admite `local-` + 1 a 94 letras o números o un
+    UUID, y el diseño decía solo `local-…`. No cabe «exactamente lo mismo» en una regex: la prueba ata que todo lo que la subida
+    traduce entero cabe en la entrega (`revision_limites.go`).
+16. **La lista blanca de ruta es POR FORMA, no «lo que venga detrás».** El diseño decía `^/(routes|board)(/…)?`; ahora son las ocho
+    rutas de escritura reales de la API, con `{id}` sin puntos. **Cambio de significado:** `POST /board` suelto estaba entre las
+    «buenas» de `TestLaListaBlancaDeMetodoYRuta` y no es una ruta de escritura de la API: ahora da 422. Se mantiene
+    `/board/columns/orden`. Antes, `/routes/.` o `/routes/a/b/c/d` entraban, el reparto contestaba 404 con una página que no era
+    suya y `Aplicar` lo tomaba por una caída (502) que paraba «aplicar todo» en un apunte que jamás iba a entrar (B3).
+17. **`sync` aplica el corte `web` de Accesos**, cosa que el diseño no previó: la bandeja web usa como Bearer el token de la cookie
+    de 7 días, y sin esto seguía aplicando y descartando tras cerrar sesión solo en el navegador (hallazgo SERIO 2 de la auditoría
+    final y MEDIO 1 de la de seguridad).
+18. **`aplicar` mira el libro `apuntes` antes de reenviar** (B6): con un `sync` viejo desplegado por medio, la subida normal pudo
+    haber aplicado ya la clave; el diseño solo miraba `revision_apuntes`.
+19. **El nombre del aparato tiene tope** (80 al darse de alta, `CHECK ≤ 200` en la 00004, 200 al leerlo en la bandeja): el diseño no
+    decía nada y la auditoría de seguridad llegó a pasar 5 MiB de nombre al revisor (M3).
+20. **«Aplicar todo» y los `DELETE`/`PATCH` sueltos piden confirmación con recuento** en la app (M2); el diseño solo hablaba de
+    «ver el original antes de pulsar».
+
+### Las dos auditorías finales y la prueba de punta a punta
+
+Tres pasadas de control, todas sobre el árbol sin commitear de la ronda, en copias y con bases propias (nunca contra el servidor);
+sus cuadernos están en `~/Notas/Procovar/Pendiente/sesion-unica/`.
+
+**`AUDITOR-SEG-BANDEJA.md` (seguridad): sin CRÍTICO ni ALTO; 3 MEDIO y 6 BAJO.** Lo comprobado OK, ejecutando (doble y Postgres real): alcance
+de sucursal por lista, por `?sucursal=`, por detalle, por aplicar uno y por entrega, por descartar y por estado; roles parecidos y
+Unicode; `ambito`/`Token`; nadie revisa lo suyo; `X-Sucursal-Id` forzada; lista blanca; cupos; triggers, `CHECK` y `TRUNCATE CASCADE`;
+migración `up/down/up`. Qué pasó con cada hallazgo:
+
+| Hallazgo | Estado |
+|---|---|
+| MEDIO 1: `sync` no aplicaba el corte `web` a los tokens web que ahora sirven de Bearer en `/sync/revision/*` | **Arreglado** (desviación 17) |
+| MEDIO 2: «Aplicar todo» sin confirmación y con rutas UUID crudas | **Arreglado** en la app (M2, desviación 20) |
+| MEDIO 3: `aparato.nombre` sin tope llegaba entero al revisor (5 MiB probado) | **Arreglado** (desviación 19, migración 00004) |
+| BAJO B3: apunte hostil disfrazado de caída (404 sin JSON) | **Arreglado** con la lista blanca por forma (desviación 16) |
+| BAJO B6: `aplicar` no miraba el libro `apuntes` (doble aplicación con un `sync` viejo) | **Arreglado** (desviación 18) |
+| BAJO **B1**: `X-Autor`/`X-Revision` forjables | **ACEPTADO, no arreglado.** Son cabeceras de quien llama y la línea `peticion` sale aunque no haya sesión: cualquiera que llegue a la API puede escribir `autor=`/`revision=`. Sirven para leer el registro, no para decidir nada |
+| BAJO **B2**: el literal del reparto vuelve al autor | **ACEPTADO.** Un rechazo al aplicar se guarda con el motivo literal del reparto y `mias` se lo devuelve a la persona que entregó; si ese literal dijera algo que no debería saber, lo sabría |
+| BAJO **B4**: los triggers no protegen frente al rol dueño de la base | **ACEPTADO.** El rol con el que corre la app es dueño de las tablas y podría hacer `DISABLE TRIGGER`; los triggers frenan al Go y a la mano torpe, no a quien tiene la base |
+| BAJO **B5**: revisión por NOMBRE de rol sin ligarla a la sucursal (la trampa de las dos membresías) | **ACEPTADO.** Es el límite conocido de `CLAUDE.md` §4 («ligar el rol a la sucursal ANTES de dar una segunda membresía»); `RolDeRevisor` mira los roles del token, que son los de la persona entera |
+
+**`QA-E2E.md` y `QA-E2E-evidencia.md` (punta a punta, 13:25 a 14:25):** Accesos `8ba2642` real (copia, con Redis y centinela), el reparto
+`9f97400` más la ronda sin commitear, `sync` y API reales, todo en 127.0.0.1; dos sucursales (CAM y HOL), un LOGISTICO, dos
+ADMINISTRADOR, un SUPER ADMIN. Once pasos: quitar la llave a alguien con 3 apuntes, entregar desde dos aparatos, el token de entrega
+no abre nada más, quién ve y quién aplica, aplicar 2 y descartar 1, doble clic y rechazo y reparto apagado, sesión revocada, baja y cierre
+de sesión, sesión única. El cuaderno cuenta **65 comprobaciones: 64 PASA y 1 FALLA (7.c)**. Cuatro hallazgos:
+
+* **F1 (medio, preexistente de Accesos; NO arreglado, documentado):** para quitarle `delivery.entrar` a alguien hay que cambiar su ROL
+  (`cambiarRol`), no vaciar su membresía (`PUT …/roles {"roleIds":[]}` no la quita si el rol por defecto trae la llave). Runbook en
+  `docs/despliegue.md` §4-bis y `docs/sin-permiso.md`.
+* **F2 (bajo; ARREGLADO):** aplicar `/board/*` no dejaba `autor=`/`revision=` en el log de la API (era el 7.c). Ver P.
+* **F3 (info):** una ADMINISTRADOR ve su propia entrega pero no puede decidirla (`403 es_lo_tuyo`).
+* **F4 (entorno; documentado):** el reparto local necesita `PROCOVAR_AUTH_SIGNING_KEY` derivada de `SERVICE_AUTH_SECRET` y un `Almacen`
+  con coordenadas en Accesos para aplicar `POST /board/columns` (`docs/entorno-local.md` §2).
+
+Dos incoherencias dentro de la propia evidencia, que conviene saber: el fichero trae **68 PASA y 6 FALLA** (cuenta el primer intento del
+paso 3, descartado, y dos líneas que el cuaderno reclasifica: 6.f como F3 y 7.i, donde los cinco intentos de borrar o reescribir dieron
+error de Postgres y el «4/5» es del guion), y **termina en el paso 10**: el cuaderno dice que el 11 pasa, sin evidencia escrita.
+
+**`AUDITORIA-FINAL-1032.md` (final): veredicto NO LISTO a las 14:55**, con 148 de 160 mutaciones rojas, 134 en Go/SQL/migración y 26 en
+Dart. Tres hallazgos graves, **todos arreglados después por los autores** (cuadernos): **H1** (app, R3: la reentrega tras perder una
+respuesta chocaba con `huella_distinta` para siempre) → G-APP1 ronda 4; **H2** (`sync` ignoraba el corte `web`) → desviación 17; **H3**
+(la guarda `persona <>` de `ReclamarRevisionInterrumpida` no tenía prueba) → `TestReclamarUnAplicandoInterrumpidoTambienExigeOtraPersonaYElAlcance`.
+También encontró dos guardas sin prueba (`main` sin `ExigirMigraciones` y la sucursal vacía en `DeTokenDeEntrega`), que G-SYNC2 cerró
+con `TestMainSeNiegaAArrancarConLaBaseAtrasada` y `TestUnTokenDeEntregaSinSucursalSeRechazaAntesDelResolutor`, y dejó dos avisos menores:
+el `Down` de la 00003 destruye lo entregado (más abajo) y un token de entrega caducado hace menos de un minuto todavía se acepta (la
+holgura `margen` de 1 minuto, igual que el token normal). **En los cuadernos no consta una re-auditoría posterior que confirme los
+arreglos.** Dos carreras de datos bajo `-race` con mucha carga (`TestArmarConUnOrigenFueraDelPlaneta…` y
+`TestLosMensajesQueNoSeEntiendenSeIgnoran…`) no se reprodujeron en más de 80 pasadas aisladas.
+
+### Lo que NO se hizo / seguimiento
+
+La lista honesta, a 09/10/2026:
+
+* **Sin re-auditoría tras los arreglos de la tanda final**: la auditoría final dijo NO LISTO a las 14:55 y los cuadernos no recogen una
+  segunda pasada. La prueba de punta a punta (`QA-E2E.md`) se hizo **antes** de esos arreglos, con la ronda de entonces, y la pantalla
+  del revisor (N4) nunca se ha probado contra el `sync` real ni en un navegador real.
+* **Nada de esta ronda está desplegado salvo Accesos** (`8ba2642`), ni commiteado: orden y ritual en `docs/despliegue.md` §4-bis.
+  La APK/Windows 1.0.32 no existe (`app/pubspec.yaml` sigue en 1.0.31+32).
+* **Sin aviso en vivo (SSE) de revisión**: no hay `CambioEnVivo.revision` ni evento alguno; el revisor se entera al pulsar
+  «Actualizar», al volver de una desconexión y tras cada decisión propia, y la persona con «Actualizar estados» o en el ciclo.
+* **Sin correo de notify (fase 2)**: `sync` no tiene cliente de notify; no hay aviso por sucursal y día ni a los 7 días.
+* **Sin badge del contador «en revisión» en el menú ni en el panel de Sincronización.** `GET /sync/estado` ya trae `en_revision` por
+  sucursal, y ninguna pantalla lo enseña (hoy el contador está solo en la cabecera de `/revision`).
+* **`app/lib/pantallas/tablero/datos/consultas.dart` no distingue `enRevision`** en la insignia de zona (`sin_subir`/`rechazada`):
+  no rompe, pero no lo dice (`G-APP1.md`).
+* **La API no lee `X-Apunte`** (solo lo escribe `reparto.go`): no hay red contra la doble aplicación más que el estado `aplicando`
+  y la confirmación a mano. `X-Autor` y `X-Revision` son solo rastro.
+* **Tres cosas de `sync` escritas y sin manejador:** la consulta `RevisionDecisionesDeApunte` (**el libro `revision_decisiones` se
+  escribe pero ningún endpoint lo lee**), la consulta `ListarRevisionParaRevisor` (la lista usa `ListarEntregasParaRevisor`) y la
+  constante `CodigoSigueEnCurso` de `revision_revisor.go`.
+* **Riesgos aceptados de la auditoría de seguridad, sin arreglar** (tabla de arriba): **B1** `X-Autor`/`X-Revision` forjables, **B2** el
+  literal del reparto vuelve al autor, **B4** el rol de la app es dueño de las tablas y puede hacer `DISABLE TRIGGER`, **B5** la revisión
+  por nombre de rol no se liga a la sucursal (la trampa de las dos membresías).
+* **El `Down` de la 00003 BORRA las tres tablas con los datos dentro**, lo que contradice «una decisión se escribe»: aviso en
+  `docs/despliegue.md` §4-bis; en producción solo se vuelve atrás desplegando la imagen anterior.
+* **F1 de Accesos, preexistente y sin arreglar**: `PUT …/members/…/roles {"roleIds":[]}` no quita `delivery.entrar` si el rol por
+  defecto de la persona la trae. Hoy es un runbook (cambiar el ROL en Personas), no un arreglo.
+* **Retirar una entrega** y **entregar desde el login o con la sesión ya cerrada** (opción 4 de B.1): siguen fuera; quien cierra sesión
+  sin entregar queda varado (riesgo 10).
+* **Quién revisa sigue siendo por NOMBRE de rol** (`identidad/revisor.go`), no por una llave `delivery.revisar` de Accesos (riesgo 8
+  del diseño, decisión de Jose del 08/10/2026).
+* **Riesgo conocido de A1** (`A1-ACCESOS.md`): si la base cae DESPUÉS de reclamar la gracia, el reintento da `gracia_gastada` (401); y
+  si la caída dura más de 2 minutos tras gastar el refresh, el reintento ya es «robo». Es el diseño previo de la gracia; el 503 solo
+  mejora lo que ve la app.
+* **Límites sin cerrar de los arreglos de Accesos** (`FIXES-A1.md`): con Redis caído mucho rato la cola offline de `ioredis` crece hasta
+  reconectar; el cliente `sessions` sigue sin tope; un `clientId` que no es ni de `LLAVE_DEL_CLIENTE` ni de `SIN_LLAVE` pasa sin mirar
+  la baja. Decididos por Jose y no hechos: MEDIO-2 (IP del limitador), BAJO-6 a BAJO-9.

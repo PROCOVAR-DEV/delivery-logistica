@@ -107,7 +107,18 @@ class Provisionales {
       .watch()
       .map((filas) => {for (final f in filas) f.provisional: f.idReal});
 
-  Future<void> sustituir(String provisional, String real) async {
+  ///
+  /// [reescribirApuntes] es `false` para lo que decide un REVISOR: lo entregado a
+  /// revision guarda el original con el `local-…` y es `sync` quien lo traduce al
+  /// aplicar (`ids_provisionales`). Reescribir aqui los apuntes que aun esperan
+  /// cambiaria su cuerpo, y al entregarlos —o reentregarlos— el servidor vería otro
+  /// contenido con la misma clave: `409 huella_distinta`, y ese apunte se quedaria
+  /// pendiente para siempre. La equivalencia y las filas locales SI se sustituyen.
+  Future<void> sustituir(
+    String provisional,
+    String real, {
+    bool reescribirApuntes = true,
+  }) async {
     if (provisional == real) return;
 
     await _base.transaction(() async {
@@ -138,17 +149,19 @@ class Provisionales {
       // 2. Los apuntes que AUN NO HAN SUBIDO. Sólo los pendientes: reescribir un
       //    apunte ya aplicado o rechazado seria falsear lo que de verdad se
       //    mando, y esa es la unica prueba que queda de lo que paso.
-      await _base.customUpdate(
-        'UPDATE apuntes SET ruta = replace(ruta, ?1, ?2), '
-        'cuerpo = replace(cuerpo, ?1, ?2) '
-        "WHERE estado = 'pendiente' AND (ruta LIKE ?3 OR cuerpo LIKE ?3)",
-        variables: [
-          Variable<String>(provisional),
-          Variable<String>(real),
-          Variable<String>('%$provisional%'),
-        ],
-        updates: {_base.apuntes},
-      );
+      if (reescribirApuntes) {
+        await _base.customUpdate(
+          'UPDATE apuntes SET ruta = replace(ruta, ?1, ?2), '
+          'cuerpo = replace(cuerpo, ?1, ?2) '
+          "WHERE estado = 'pendiente' AND (ruta LIKE ?3 OR cuerpo LIKE ?3)",
+          variables: [
+            Variable<String>(provisional),
+            Variable<String>(real),
+            Variable<String>('%$provisional%'),
+          ],
+          updates: {_base.apuntes},
+        );
+      }
 
       // 3. Las filas locales, para que la pantalla deje de ensenar el `local-…`
       //    sin esperar a la proxima bajada.

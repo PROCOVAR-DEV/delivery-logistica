@@ -117,7 +117,7 @@ func arrancar(t *testing.T, f Fuente) (*Registro, *bufferSeguro, context.CancelF
 		cancelar()
 		select {
 		case <-hecho:
-		case <-time.After(2 * time.Second):
+		case <-time.After(plazoDeEsperaDePruebas):
 			t.Error("Correr no volvió al cancelar el contexto: queda una gorutina colgada")
 		}
 	})
@@ -142,9 +142,15 @@ func (s *bufferSeguro) String() string {
 	return s.b.String()
 }
 
+// plazoDeEsperaDePruebas: cuánto espera una prueba a que algo ASÍNCRONO ocurra antes de darlo por
+// perdido. Solo corre cuando algo ya falló o se colgó, así que alargarlo no cuesta nada con la
+// prueba en verde; con 2 s, una máquina cargada (`go test -race` con otro `go test` en paralelo)
+// daba un fallo sin que el código estuviera mal (auditoría final, 09/10/2026).
+const plazoDeEsperaDePruebas = 15 * time.Second
+
 func esperarA(t *testing.T, cond func() bool, msg string) {
 	t.Helper()
-	limite := time.Now().Add(2 * time.Second)
+	limite := time.Now().Add(plazoDeEsperaDePruebas)
 	for !cond() {
 		if time.Now().After(limite) {
 			t.Fatal(msg)
@@ -158,7 +164,7 @@ func esperarSuscripcion(t *testing.T, f *fuenteFalsa) *suscripcionFalsa {
 	select {
 	case s := <-f.nuevaSuscripcion:
 		return s
-	case <-time.After(2 * time.Second):
+	case <-time.After(plazoDeEsperaDePruebas):
 		t.Fatal("no se abrió la suscripción")
 		return nil
 	}
@@ -399,7 +405,7 @@ func TestSinRedisConfiguradoNoImpideArrancarNiServir(t *testing.T) {
 	_, salida, _, hecho := arrancar(t, nil)
 	select {
 	case <-hecho:
-	case <-time.After(time.Second):
+	case <-time.After(plazoDeEsperaDePruebas):
 		t.Fatal("sin Redis, Correr se quedó esperando: tenía que avisar y volver")
 	}
 	r := Nuevo(nil, nil)
@@ -515,7 +521,7 @@ func TestCancelarElContextoNoDejaNadaColgado(t *testing.T) {
 	cancelar()
 	select {
 	case <-hecho:
-	case <-time.After(time.Second):
+	case <-time.After(plazoDeEsperaDePruebas):
 		t.Fatal("Correr no volvió tras cancelar el contexto")
 	}
 	if !f.cerrada.Load() {

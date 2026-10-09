@@ -443,9 +443,10 @@ type personaDeAccesos struct {
 	// traducen a `admin`/`operator` como hace el patrón de Next, porque esta API
 	// compara contra los siete de verdad (`internal/auth/auth.go`).
 	Roles []string
-	// CodigoSucursal es el `slug` de la organización en mayúsculas (CAM, HOL…),
-	// o vacío. Es lo único que ata a esta persona con una sucursal de aquí: los
-	// identificadores internos de cada aplicación no se parecen en nada.
+	// CodigoSucursal es el `codigo` de la organización (CAM, HOL, PLS…) y, si Accesos no lo manda,
+	// su `slug` en mayúsculas; o vacío. Ver [codigoDeSucursal]. Es lo único que ata a esta
+	// persona con una sucursal de aquí: los identificadores internos de cada aplicación no se
+	// parecen en nada.
 	CodigoSucursal string
 	// EsSuperAdmin es el `isSystemAdmin` de Accesos.
 	EsSuperAdmin bool
@@ -602,7 +603,11 @@ func (c *ssoDeAccesos) Canjear(ctx context.Context, codigo string) (*personaDeAc
 		Memberships []struct {
 			Organization *struct {
 				Slug string `json:"slug"`
-				Name string `json:"name"`
+				// `codigo` (CAM, HOL, PLS…) es `organization.codigo` de Accesos: el MISMO código que
+				// la APK y el escritorio llevan en su token. `any` y no `string` a propósito: un
+				// tipo raro ahí no puede tumbar el intercambio entero (el login de toda la web).
+				Codigo any    `json:"codigo"`
+				Name   string `json:"name"`
 			} `json:"organization"`
 			Roles []string `json:"roles"`
 		} `json:"memberships"`
@@ -670,9 +675,23 @@ func (c *ssoDeAccesos) Canjear(ctx context.Context, codigo string) (*personaDeAc
 	// aquí sólo se conserva tal cual para firmarlo en la cookie. Ausente se queda ausente.
 	persona.Entradas, persona.HayEntradas = auth.LeerEntradas(r.Entradas)
 	if len(r.Memberships) > 0 && r.Memberships[0].Organization != nil {
-		persona.CodigoSucursal = strings.ToUpper(strings.TrimSpace(r.Memberships[0].Organization.Slug))
+		org := r.Memberships[0].Organization
+		codigo, _ := org.Codigo.(string)
+		persona.CodigoSucursal = codigoDeSucursal(codigo, org.Slug)
 	}
 	return persona, nil
+}
+
+// codigoDeSucursal: el código de sucursal de la web. Manda `organization.codigo` y SOLO si falta
+// (un Accesos anterior al cambio, o una organización sin código) se cae al `slug` en mayúsculas,
+// que es lo que se hacía antes; así Accesos y Reparto se pueden desplegar en cualquier orden.
+// Son columnas distintas y coinciden en las diez sucursales menos `PLS` (slug `palma-soriano`):
+// con el slug, la web de Palma Soriano habría pedido «PALMA-SORIANO» mientras su APK pide `PLS`.
+func codigoDeSucursal(codigo, slug string) string {
+	if c := strings.ToUpper(strings.TrimSpace(codigo)); c != "" {
+		return c
+	}
+	return strings.ToUpper(strings.TrimSpace(slug))
 }
 
 // rolesDeLaPersona elige los roles que van al token. Ver [ssoDeAccesos.Canjear].

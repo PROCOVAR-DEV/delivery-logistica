@@ -18,6 +18,8 @@ class InterceptorSesion extends Interceptor {
     this.sucursalMirada,
     this.alMorirLaSesion,
     this.alFaltarPermiso,
+    this.bearerExplicito,
+    this.esWeb = kIsWeb,
   }) : _almacen = almacen,
        _renovador = renovador,
        _dio = dio;
@@ -49,6 +51,24 @@ class InterceptorSesion extends Interceptor {
   /// idempotente, y asi no hay estado aqui que olvidar de soltar.
   final void Function()? alFaltarPermiso;
 
+  /// EL BEARER SE DICE EXPLICITAMENTE Y LA COOKIE NO VIAJA — N4, 09/10/2026.
+  ///
+  /// Para quien habla con `sync` desde un navegador (la bandeja del revisor,
+  /// `docs/bandeja-de-revision.md` B.6): `sync` solo lee `Authorization: Bearer`
+  /// (`DeToken`), nunca la cookie, y el token que le vale es el que `GET /api/me`
+  /// devuelve en el cuerpo. Con esto puesto la peticion sale con ESE token y
+  /// **sin `withCredentials`**: ni cookie ni CSRF. Es una funcion y no un
+  /// `String` porque el token cambia (la puerta de respaldo renueva el suyo).
+  ///
+  /// `null` = el comportamiento de siempre. Es lo que usan las demas pantallas.
+  final Future<String?> Function()? bearerExplicito;
+
+  /// Si estamos en un navegador. `kIsWeb` en la aplicacion; parametro SOLO para
+  /// poder ejercitar en la maquina virtual la rama web (donde `kIsWeb` es falso
+  /// siempre y quitar la guarda salia en verde). Mismo motivo que
+  /// `plataformaDelAgente(esWeb: …)`.
+  final bool esWeb;
+
   /// Marca de «esta peticion ya se reintento». Sin ella, un 401 que sigue siendo
   /// 401 entra en un bucle de renovar-reintentar que no acaba.
   static const _yaReintentada = 'reparto.reintentada';
@@ -58,13 +78,20 @@ class InterceptorSesion extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    // Web: la sesion la lleva la cookie del login unico de auth. Hace falta que
-    // la aplicacion y la API salgan bajo `*.procovar.cloud` para que valga.
-    if (kIsWeb) options.extra['withCredentials'] = true;
+    final explicito = bearerExplicito;
+    if (explicito != null) {
+      // Bearer dicho a mano y NUNCA cookie: ver [bearerExplicito].
+      final token = await explicito();
+      if (token != null) options.headers['Authorization'] = 'Bearer $token';
+    } else {
+      // Web: la sesion la lleva la cookie del login unico de auth. Hace falta que
+      // la aplicacion y la API salgan bajo `*.procovar.cloud` para que valga.
+      if (esWeb) options.extra['withCredentials'] = true;
 
-    final sesion = await _almacen.leer();
-    if (sesion != null) {
-      options.headers['Authorization'] = 'Bearer ${sesion.token}';
+      final sesion = await _almacen.leer();
+      if (sesion != null) {
+        options.headers['Authorization'] = 'Bearer ${sesion.token}';
+      }
     }
 
     final sucursal = sucursalMirada?.call();

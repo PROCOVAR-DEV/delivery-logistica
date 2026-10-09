@@ -263,8 +263,13 @@ class Subida {
                 (a) =>
                     a.orden.isSmallerThanValue(apunte.orden) &
                     a.ruta.equals('${apunte.ruta}/results') &
+                    // `enRevision` TAMBIEN retiene el cierre: sus resultados
+                    // estan entregados pero NO aplicados, y completar la ruta la
+                    // congela como historico — el revisor aplicaria despues
+                    // unos resultados sobre una ruta que ya no admite cambios.
                     (a.estado.equalsValue(EstadoApunte.pendiente) |
-                        a.estado.equalsValue(EstadoApunte.rechazado)),
+                        a.estado.equalsValue(EstadoApunte.rechazado) |
+                        a.estado.equalsValue(EstadoApunte.enRevision)),
               )
               ..limit(1))
             .get();

@@ -214,6 +214,17 @@ func (c *Cliente) Aplicar(ctx context.Context, p sincro.Peticion) (sincro.Aplica
 		req.Header.Set("Authorization", "Bearer "+p.Token)
 	}
 	req.Header.Set("X-Apunte", p.Clave)
+	// SÓLO LA REVISIÓN LAS PONE (en la subida normal van vacías y no viajan). `X-Autor` y `X-Revision` son
+	// para el registro del reparto; `X-Sucursal-Id` acota a UNA sucursal a un revisor que ve varias.
+	if p.Autor != "" {
+		req.Header.Set("X-Autor", p.Autor)
+	}
+	if p.Revision != "" {
+		req.Header.Set("X-Revision", p.Revision)
+	}
+	if p.SucursalPedida != uuid.Nil {
+		req.Header.Set("X-Sucursal-Id", p.SucursalPedida.String())
+	}
 
 	res, err := c.http.Do(req)
 	if err != nil {

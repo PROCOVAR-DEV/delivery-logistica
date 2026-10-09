@@ -54,6 +54,51 @@ func (ns NullApunteEstado) Value() (driver.Value, error) {
 	return string(ns.ApunteEstado), nil
 }
 
+type RevisionEstado string
+
+const (
+	RevisionEstadoEnRevision RevisionEstado = "en_revision"
+	RevisionEstadoAplicando  RevisionEstado = "aplicando"
+	RevisionEstadoAplicado   RevisionEstado = "aplicado"
+	RevisionEstadoRechazado  RevisionEstado = "rechazado"
+	RevisionEstadoDescartado RevisionEstado = "descartado"
+)
+
+func (e *RevisionEstado) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RevisionEstado(s)
+	case string:
+		*e = RevisionEstado(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RevisionEstado: %T", src)
+	}
+	return nil
+}
+
+type NullRevisionEstado struct {
+	RevisionEstado RevisionEstado `json:"revision_estado"`
+	Valid          bool           `json:"valid"` // Valid is true if RevisionEstado is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRevisionEstado) Scan(value interface{}) error {
+	if value == nil {
+		ns.RevisionEstado, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RevisionEstado.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRevisionEstado) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RevisionEstado), nil
+}
+
 type Aparato struct {
 	ID        uuid.UUID          `json:"id"`
 	Persona   string             `json:"persona"`
@@ -108,4 +153,57 @@ type IdsProvisionale struct {
 	IDReal      uuid.UUID          `json:"id_real"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RevisionApunte struct {
+	AparatoID         uuid.UUID          `json:"aparato_id"`
+	Clave             string             `json:"clave"`
+	EntregaID         uuid.UUID          `json:"entrega_id"`
+	Orden             int32              `json:"orden"`
+	Metodo            string             `json:"metodo"`
+	Ruta              string             `json:"ruta"`
+	Cuerpo            *string            `json:"cuerpo"`
+	Provisional       *string            `json:"provisional"`
+	HechoAt           pgtype.Timestamptz `json:"hecho_at"`
+	Huella            string             `json:"huella"`
+	ResumenDelAparato *string            `json:"resumen_del_aparato"`
+	Estado            RevisionEstado     `json:"estado"`
+	DecididoPor       *string            `json:"decidido_por"`
+	DecididoPorNombre *string            `json:"decidido_por_nombre"`
+	DecididoAt        pgtype.Timestamptz `json:"decidido_at"`
+	Motivo            *string            `json:"motivo"`
+	IDCreado          pgtype.UUID        `json:"id_creado"`
+	Descartados       []byte             `json:"descartados"`
+	Intentos          int32              `json:"intentos"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RevisionDecisione struct {
+	ID         uuid.UUID          `json:"id"`
+	AparatoID  uuid.UUID          `json:"aparato_id"`
+	Clave      string             `json:"clave"`
+	Accion     string             `json:"accion"`
+	Por        string             `json:"por"`
+	PorNombre  *string            `json:"por_nombre"`
+	Rol        *string            `json:"rol"`
+	Resultado  string             `json:"resultado"`
+	HttpEstado *int32             `json:"http_estado"`
+	Motivo     *string            `json:"motivo"`
+	Cuando     pgtype.Timestamptz `json:"cuando"`
+}
+
+type RevisionEntrega struct {
+	ID            uuid.UUID          `json:"id"`
+	AparatoID     uuid.UUID          `json:"aparato_id"`
+	Persona       string             `json:"persona"`
+	PersonaNombre *string            `json:"persona_nombre"`
+	BranchID      uuid.UUID          `json:"branch_id"`
+	TokenJti      string             `json:"token_jti"`
+	DesdeIp       *string            `json:"desde_ip"`
+	Agente        *string            `json:"agente"`
+	VersionApp    *string            `json:"version_app"`
+	EntregadaAt   pgtype.Timestamptz `json:"entregada_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }

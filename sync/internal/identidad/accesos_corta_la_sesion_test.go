@@ -183,6 +183,7 @@ func TestSinInvalidacionesElTokenEntraComoSiempre(t *testing.T) {
 type contador struct{ n atomic.Int32 }
 
 func (c *contador) ElBearerNoVale(string, int64, int64) bool { c.n.Add(1); return false }
+func (c *contador) LaCookieNoVale(string, int64) bool        { c.n.Add(1); return false }
 
 func TestUnaConsultaDeMemoriaPorPeticion(t *testing.T) {
 	c := &contador{}
@@ -193,5 +194,39 @@ func TestUnaConsultaDeMemoriaPorPeticion(t *testing.T) {
 	}
 	if n := c.n.Load(); n != 5 {
 		t.Errorf("5 peticiones hicieron %d consultas, se esperaba 1 por petición", n)
+	}
+}
+
+// UN TOKEN WEB (`web:true`) SE CORTA CON UN CIERRE SOLO-WEB Y UNO DE LA APK NO. Es la misma persona y el mismo
+// instante: lo que decide es la marca `web` del token, no su `iatms` (Accesos también lo firma en la APK).
+func TestUnCierreSoloWebCortaAlTokenWebYNoAlDeLaAPK(t *testing.T) {
+	inv := registroDePrueba()
+	ahora := time.Now()
+	token := func(web bool) string {
+		return firmar(t, map[string]any{
+			"sub": "u-ana", "role": "ADMINISTRADOR", "branchId": uuid.New().String(), "web": web,
+			"iat": ahora.Unix(), "iatms": ahora.UnixMilli(), "exp": ahora.Add(time.Hour).Unix(),
+			"entradas": []string{llaveEntrarReparto},
+		}, "HS256")
+	}
+	corte(inv, "web", ahora.UnixMilli()+1000, "u-ana")
+	if _, err := conInvalidaciones(t, token(true), inv); !errors.Is(err, ErrSesionInvalidada) {
+		t.Errorf("el token web anterior al cierre solo-web dio %v, se esperaba ErrSesionInvalidada", err)
+	}
+	if _, err := conInvalidaciones(t, token(false), inv); err != nil {
+		t.Errorf("el cierre solo-web echó al token de la APK: %v", err)
+	}
+	// `web` que no es un booleano `true` no vale como marca web (la firma es de Accesos; esto es sólo parseo).
+	for _, raro := range []any{"true", 1, nil} {
+		tk := firmar(t, map[string]any{"sub": "u-ana", "role": "ADMINISTRADOR", "branchId": uuid.New().String(), "web": raro,
+			"iat": ahora.Unix(), "iatms": ahora.UnixMilli(), "exp": ahora.Add(time.Hour).Unix(), "entradas": []string{llaveEntrarReparto}}, "HS256")
+		if _, err := conInvalidaciones(t, tk, inv); err != nil {
+			t.Errorf("web=%v se tomó por sesión web: %v", raro, err)
+		}
+	}
+	// Un corte `todo` los corta a los dos.
+	corte(inv, "todo", ahora.UnixMilli()+2000, "u-ana")
+	if _, err := conInvalidaciones(t, token(false), inv); !errors.Is(err, ErrSesionInvalidada) {
+		t.Errorf("el corte todo no cortó al token de la APK: %v", err)
 	}
 }

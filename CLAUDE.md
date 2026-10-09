@@ -348,11 +348,14 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   403 (`ErrSucursalSinAlta`) que dice cuál es; «todas» es sólo para esos dos roles. **Si se da de
   alta una sucursal nueva en Accesos, hay que darla de alta TAMBIÉN en Reparto**
   (`branches.external_id`), o su gente no entra. **Trampa del código:** la APK y el escritorio
-  llevan `organization.codigo` en el token, pero la web lo saca del `slug` en mayúsculas
-  (`auth_web.go`), y en Accesos son columnas distintas. Hoy coinciden en las diez menos `PLS`
-  (su slug es `palma-soriano`): antes de dar de alta `PLS` en Reparto hay que hacer que la web
-  lea `codigo` (el intercambio de Accesos, `auth/src/app/api/auth/exchange/route.ts`, sólo
-  manda `slug`). `PATCH /api/orders/{id}` ya no cambia
+  llevan `organization.codigo` en el token; la web lo lee del intercambio (`auth_web.go`,
+  `codigoDeSucursal`, 09/10/2026): **manda `codigo` y, si falta, cae al `slug` en mayúsculas**, y
+  Accesos YA lo manda desde `8ba2642` (`auth/src/app/api/auth/exchange/route.ts`, desplegado el
+  09/10/2026). En Accesos son columnas distintas y coinciden en las diez menos `PLS` (su slug es
+  `palma-soriano`). Lo que queda es **dar de alta `PLS` en Reparto** (`branches.external_id`) cuando
+  se quiera que entre su gente, y comprobar antes que la web ya pide `PLS`: la lectura de `codigo`
+  entra con el próximo despliegue de la API, y hasta entonces la web de `PLS` sigue pidiendo
+  `PALMA-SORIANO`. `PATCH /api/orders/{id}` ya no cambia
   `routeId`, `status`, `price`, `weight` ni `stopOrder`: se entra y se sale de una ruta sólo
   por `/api/routes` y `/api/board`, que son los que validan.
 - **La tasa es POR SUCURSAL** y sin la de esa sucursal no se convierte nada: no
@@ -436,8 +439,8 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   SIN red deja el refresco en un hueco aparte (`reparto.por_revocar`, por persona) que `RevocadorDeCierres` presenta a
   `/logout` al arrancar, al entrar y al volver la red; sólo se borra con 200 o 401 de nuestro servidor y **NUNCA se usa
   para entrar**. La app manda `User-Agent: ProcovarReparto/<versión> (<plataforma>)` a Accesos (no en la web) para que
-  la lista de dispositivos distinga Android de Windows. **Qué NO está hecho todavía:** una persona que pierde el rol
-  con cola sin subir la conserva pero no puede entregarla — diseño aprobado en `docs/bandeja-de-revision.md` (1.0.32).
+  la lista de dispositivos distinga Android de Windows. **La persona que pierde el rol con cola sin subir:**
+  la conserva y puede entregarla a revisión — ver «LA BANDEJA DE REVISIÓN» más abajo.
 - **Un 403 `sin_permiso_reparto` NO es un rechazo del apunte** (es la PERSONA, no el apunte): en el
   sincronizador `/sync/subida` contesta 403 sin anotar nada, y en la app el interceptor pasa el
   portero a `EstadoDeAcceso.sinPermiso` (pantalla `/sin-permiso`, ciclo y vigía parados; sesión, base
@@ -445,6 +448,33 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   que le den el rol. Web: va sola al inicio de Accesos (`AUTH_URL/`) a los 3 s, con contador y «Ir
   ahora»; APK y escritorio: «Ir a Accesos» y «Cerrar sesión» (que pregunta si hay cola). De
   `sinPermiso` sólo se sale con `salir()` y entrando de nuevo. Detalle en `docs/sin-permiso.md`.
+- **LA BANDEJA DE REVISIÓN: quien pierde el rol conserva su cola y la ENTREGA a revisión; nada se aplica ni se borra solo**
+  (Jose, 08/10/2026: «que pasen por un chequeo; así los tenemos, y si mando cosas mal se quitan manual y si no, pues
+  entran correctamente… no que se suban, se conserven»). Quien pierde `delivery.entrar` y conserva la sesión pide a Accesos `POST /api/auth/entrega` y recibe un
+  token de **10 minutos y un solo ámbito** (`ambito:"reparto.entrega"`, `entradas:[]`, sin roles; **no gasta el refresh**); con él el
+  aparato deja cada apunte en `sync` (`revision_apuntes`, migraciones 00003 y 00004) **tal como vino, byte a byte y con su huella, SIN
+  aplicarlo**. **LA INVARIANTE CENTRAL: el `Aplicador` no se llama NUNCA al entregar** (la prueba cuenta las llamadas del doble del
+  reparto y tienen que ser cero): el payload de alguien sin permiso no se ejecuta con la autoridad de nadie hasta que una persona
+  lo decide. **Quién revisa: ADMINISTRADOR de esa sucursal, SUPER ADMIN y DESARROLLADOR, y nadie revisa lo suyo** (Jose, 08/10/2026;
+  por nombre de rol, `identidad.RolDeRevisor`; LOGISTICO no revisa). Aplicar reenvía por la misma tubería que la subida, con el token
+  **del revisor** (jamás uno de servicio), la lista blanca de ruta POR FORMA (las ocho rutas de escritura de `/routes` y `/board`) y `X-Sucursal-Id` forzada; un 4xx del reparto
+  deja el apunte `rechazado` con el motivo LITERAL y a la vista, un 5xx o la red no es un rechazo; «aplicar todo en orden» **se
+  detiene** en el primer fallo; un `aplicando` de más de 10 minutos sale `interrumpido` y se reintenta solo confirmándolo a mano (la
+  API no lee `X-Apunte`). **Descartar se ESCRIBE, no se borra** —motivo de ≥5 letras con nombre y hora; lo exigen el `CHECK` y los
+  triggers de la base, y el libro `revision_decisiones` solo se añade—: es el principio de «una decisión de una persona se ESCRIBE»
+  de más abajo. **La web no tiene cola ni entrega** (§1), pero SÍ la bandeja del revisor (`/revision`, Bearer de `/api/me`, nunca
+  cookie; cerrar sesión solo en el navegador la corta: 401 en `sync`). **TRAMPAS:** el token de entrega no es un permiso (todo token con `ambito` se rechaza en las rutas normales: **401 en la
+  API, 403 en `sync`**; `docs/ambito-de-entrega.casos.json`), **no sustituye a la renovación** (`/refresh` sigue dando 403 a quien no
+  tiene la llave), quien **cierra sesión antes de entregar queda varado** (el refresh se revoca), **para quitarle `delivery.entrar` a alguien se le cambia el
+  ROL en Personas, no se le vacía la membresía** (no quita la llave si el rol por defecto la trae: `docs/despliegue.md` §4-bis), el `Down` de
+  la 00003 **borra las tablas con lo entregado** (en producción no se usa) y `X-Autor`/`X-Revision` son forjables y solo rastro (riesgos
+  aceptados B1, B2, B4 y B5 en `bandeja-de-revision.md`). La pantalla `/sin-permiso` (solo APK y
+  escritorio, y solo si hay algo que contar; sin cola o en la web no sale) ofrece «Entregar a revisión» con un toque, dice en qué
+  está cada apunte, y el «Cerrar sesión» con cola trae tres opciones (entregar y salir, salir sin entregar —queda varado—, me
+  quedo). `enRevision` no cuenta como «sin subir», pero sí avisa antes de olvidar una copia. A 09/10/2026 solo está desplegado
+  Accesos; no hay aviso en vivo ni correo de notify. Estado real,
+  desviaciones y qué no se hizo: `docs/bandeja-de-revision.md` («Estado real (09/10/2026)»); contratos: `docs/contratos-api.md` §12;
+  servidor: `docs/sincronizacion.md` §4; orden de despliegue: `docs/despliegue.md` §4-bis; la persona: `docs/sin-permiso.md`.
 - **La tabla de Pedidos enseña SI EL DOMICILIO ESTÁ COBRADO y ya no tiene columna «Vehículo»**
   (Amado, 08/10/2026, incidencias 3 y 4). «No se puede asociar al tablero: la factura no tiene un
   cobro de domicilio registrado» era CORRECTO: la factura cuadraba pero no traía la línea «ENTREGA A
@@ -671,6 +701,14 @@ Dos reglas que salieron de ese día:
   `reparto-postgres-1` (rol `verif`, ver `docs/entorno-local.md`), migrada con `goose` hasta
   la última, y `REPARTO_MOTOR_REAL_DSN=postgres://verif:verif@127.0.0.1:5433/verif_reparto?sslmode=disable ./comprobar.sh`.
   **Antes de cada despliegue con cambios de SQL, hay que correrla.**
+- **Y la bandeja de revisión de `sync` (09/10/2026).** Los triggers que impiden borrar y cambiar el original, el `CHECK` del
+  descarte sin motivo, el `ON CONFLICT` de la idempotencia y el alcance de sucursal los hace la BASE, y un doble no los ve:
+  `sync/internal/sincro/revision_motor_real_test.go` se salta **en silencio** sin `SYNC_MOTOR_REAL_DSN`, y `./comprobar.sh` dice
+  «SALTADO» en vez de callarlo. Se crea la base aislada `verif_sync` en el mismo `reparto-postgres-1` (rol `verif`), se migra con
+  `goose -dir sync/db/migrations` hasta la 00004 y se corre con
+  `SYNC_MOTOR_REAL_DSN=postgres://verif:verif@127.0.0.1:5433/verif_sync?sslmode=disable ./comprobar.sh`. Los pasos, y el de
+  `verif_reparto`, en `docs/entorno-local.md` §7-quater. La misma regla: **antes de cada despliegue con cambios de SQL, hay
+  que correrlas** (`docs/despliegue.md` §4-bis).
 - **Lo mismo con Redis (sesión única).** `api/internal/sesiones/redis_real_test.go` y su gemela de
   `sync/` se saltan en silencio sin `REPARTO_REDIS_REAL_ADDR`; `./comprobar.sh` las corre si está
   puesta y dice «SALTADO» si no. Un Redis local de usar y tirar (`docker run --rm -d --name

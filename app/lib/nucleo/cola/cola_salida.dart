@@ -9,6 +9,11 @@ import '../reloj.dart';
 import 'apunte.dart';
 import 'provisionales.dart';
 
+/// Si el servidor no explica un descarte o un rechazo de la revision, no se deja
+/// el campo vacio: un `motivoRevision` nulo en un `enRevision` es «todavia sin
+/// intentar», y vacio no distingue «no pudo aplicarlo».
+const textoSinMotivoDeRevision = 'El servidor no dio el motivo.';
+
 /// LA COLA DE SALIDA. Es la pieza que hace verdad la regla 2: toda accion se
 /// guarda en el aparato y se pinta como hecha; la subida va por detras.
 ///
@@ -117,6 +122,30 @@ class ColaDeSalida {
             ..orderBy([(a) => OrderingTerm.desc(a.orden)]))
           .watch();
 
+  /// LO QUE ESTA ENTREGADO A REVISION y espera decision, el ultimo primero.
+  ///
+  /// Incluye el que el reparto no pudo aplicar (`motivoRevision` puesto): sigue
+  /// en revision y el revisor aun puede decidir. Ver [EstadoApunte.enRevision].
+  Stream<List<Apunte>> enRevision() =>
+      (_base.select(_base.apuntes)
+            ..where((a) => a.estado.equalsValue(EstadoApunte.enRevision))
+            ..orderBy([(a) => OrderingTerm.desc(a.orden)]))
+          .watch();
+
+  /// LO QUE EL REVISOR YA DECIDIO: lo aplicado por el (`revisadoPor`) y lo
+  /// descartado por el, el ultimo primero. Es lo que la persona lee como
+  /// «Aplicado por Marta…» y «Descartado por Marta…: motivo».
+  Stream<List<Apunte>> decididosPorRevision() =>
+      (_base.select(_base.apuntes)
+            ..where(
+              (a) =>
+                  a.estado.equalsValue(EstadoApunte.descartadoPorRevisor) |
+                  (a.estado.equalsValue(EstadoApunte.aplicado) &
+                      a.revisadoPor.isNotNull()),
+            )
+            ..orderBy([(a) => OrderingTerm.desc(a.orden)]))
+          .watch();
+
   /// LO QUE SALE EN LA PROXIMA VUELTA, en el orden en que se hizo.
   ///
   /// Se llama «lote» por historia y **ya no es una peticion**: desde el
@@ -132,6 +161,10 @@ class ColaDeSalida {
   ///
   /// El orden es lo que hace que esto se pueda partir en peticiones sueltas sin
   /// perder nada: sale por `orden` ascendente y se manda en ese mismo orden.
+  ///
+  /// **Solo `pendiente`.** Lo entregado a revision ya esta arriba: volver a
+  /// mandarlo por la subida normal, el dia que la persona recupere el permiso,
+  /// lo aplicaria por encima de la decision del revisor.
   Future<List<Apunte>> lote({int maximo = 200}) =>
       (_base.select(_base.apuntes)
             ..where((a) => a.estado.equalsValue(EstadoApunte.pendiente))
@@ -166,18 +199,16 @@ class ColaDeSalida {
         return;
       }
 
+      if (resultado.estado == EstadoResultado.enRevision) {
+        // El servidor ya la tiene en la bandeja de revision: ni aplicada ni
+        // rechazada. Caer en el `else` de abajo la dejaria `rechazada`, con
+        // «Reintentar» y «Descartar» sobre algo que decide otra persona.
+        await marcarEnRevision(clave, entrega: resultado.revision);
+        return;
+      }
+
       if (resultado.seAplico) {
-        final provisional = apunte.provisional;
-        final real = resultado.id;
-        if (provisional != null && real != null) {
-          await _provisionales.sustituir(provisional, real);
-        } else if (provisional != null) {
-          // Un apunte que CREA algo y vuelve sin id deja el `local-…` puesto
-          // para siempre. No se calla.
-          Registro.fallo(
-            'el servidor aplico $clave pero no devolvio id para $provisional',
-          );
-        }
+        await _sustituirProvisional(apunte, resultado.id);
         // LO QUE ACABA DE SUBIR YA NO «NACIO AQUI».
         //
         // `nacio_aqui` es lo que impide que «actualizar» borre trabajo que solo
@@ -245,6 +276,161 @@ class ColaDeSalida {
             resueltoAt: Value(_reloj()),
           ),
         );
+      }
+    });
+  }
+
+  /// El `local-…` de lo que este apunte creo pasa a ser el id de verdad.
+  ///
+  /// [reescribirApuntes] = `false` cuando lo decide un REVISOR: lo entregado a
+  /// revision lleva el `local-…` en su original y `sync` lo traduce al aplicar; los
+  /// apuntes que aun esperan en el aparato NO se reescriben, o su cuerpo cambia y la
+  /// entrega siguiente choca con `409 huella_distinta` para siempre.
+  Future<void> _sustituirProvisional(
+    Apunte apunte,
+    String? real, {
+    bool reescribirApuntes = true,
+  }) async {
+    final provisional = apunte.provisional;
+    if (provisional != null && real != null) {
+      await _provisionales.sustituir(
+        provisional,
+        real,
+        reescribirApuntes: reescribirApuntes,
+      );
+    } else if (provisional != null) {
+      // Un apunte que CREA algo y vuelve sin id deja el `local-…` puesto
+      // para siempre. No se calla.
+      Registro.fallo(
+        'el servidor aplico ${apunte.clave} pero no devolvio id para $provisional',
+      );
+    }
+  }
+
+  /// ENTREGADO A REVISION: el servidor lo guardo tal cual y lo decidira otra
+  /// persona. Devuelve `false` si el apunte no estaba `pendiente`.
+  ///
+  /// Se llama **con la respuesta del servidor delante** —`en_revision`, o
+  /// `repetido` de una entrega anterior— y nunca antes: marcarlo al mandar
+  /// perderia el apunte de la cola si la respuesta no llega (queda en un estado
+  /// que ni sube ni esta arriba).
+  ///
+  /// Lo que NO hace, y cada cosa costo o costaria un incidente:
+  ///
+  ///  * **no toca el cuerpo ni la ruta**: la huella del servidor es la del
+  ///    original, y reescribirlo daria `409 huella_distinta` en la reentrega;
+  ///  * **no suelta `nacio_aqui`**: el trabajo solo existe aqui y en la bandeja;
+  ///    soltarlo deja que la bajada lo borre de la pantalla de la persona;
+  ///  * **no borra nada**: es un cambio de estado, no de sitio.
+  Future<bool> marcarEnRevision(String clave, {String? entrega}) async {
+    final tocadas =
+        await (_base.update(_base.apuntes)..where(
+              (a) =>
+                  a.clave.equals(clave) &
+                  a.estado.equalsValue(EstadoApunte.pendiente),
+            ))
+            .write(
+              ApuntesCompanion(
+                estado: const Value(EstadoApunte.enRevision),
+                revision: Value(entrega),
+                // Cuando se entrego: «Entregado a revision el 8/10, 14:32».
+                resueltoAt: Value(_reloj()),
+              ),
+            );
+    if (tocadas > 0) {
+      Registro.aviso('apunte entregado a revision: $clave (entrega $entrega)');
+    }
+    return tocadas > 0;
+  }
+
+  /// LO QUE EL SERVIDOR DICE DESPUES de entregar: aplicado, descartado, o
+  /// «sigue en revision». Solo mueve apuntes que estan `enRevision`.
+  ///
+  ///  * `aplicado` → `aplicado` con quien y cuando, el `local-…` pasa a ser el
+  ///    id de verdad y se suelta `nacio_aqui` (ya esta arriba).
+  ///  * `descartado` → `descartadoPorRevisor` con el motivo escrito de quien lo
+  ///    descarto; tambien suelta `nacio_aqui` —ya no sube nunca—, y se queda
+  ///    ahi a la vista: no es un borrado (CLAUDE.md §4).
+  ///  * `rechazado` (el reparto no pudo aplicarlo) → **sigue `enRevision`**, con
+  ///    el literal en `motivoRevision`. Ver [EstadoApunte.enRevision].
+  ///  * `en_revision` → sigue, y se limpia lo que hubiera de un intento anterior.
+  ///  * `aplicando` → no se toca nada: alguien lo esta aplicando ahora mismo.
+  ///
+  /// **Escribe en `motivoRevision`, jamas en `motivo`**: en un `aplicado`,
+  /// `motivo` es «salio con menos de lo que pusiste» y ponerle aqui «Aplicado
+  /// por …» llenaria ese aviso (`descartesSinLeer`).
+  Future<void> resolverRevision(String clave, DecisionDeRevision decision) async {
+    await _base.transaction(() async {
+      final apunte = await (_base.select(
+        _base.apuntes,
+      )..where((a) => a.clave.equals(clave))).getSingleOrNull();
+      if (apunte == null) {
+        Registro.aviso('decision de revision de un apunte que no esta: $clave');
+        return;
+      }
+      // Ya decidido en otra vuelta: reescribirlo falsearia lo que se leyo.
+      if (apunte.estado != EstadoApunte.enRevision) return;
+
+      switch (decision.estado) {
+        case EstadoEnRevision.aplicando:
+          return;
+        case EstadoEnRevision.enRevision:
+          await (_base.update(
+            _base.apuntes,
+          )..where((a) => a.clave.equals(clave))).write(
+            const ApuntesCompanion(
+              revisadoPor: Value(null),
+              revisadoAt: Value(null),
+              motivoRevision: Value(null),
+            ),
+          );
+        case EstadoEnRevision.rechazado:
+          await (_base.update(
+            _base.apuntes,
+          )..where((a) => a.clave.equals(clave))).write(
+            ApuntesCompanion(
+              revisadoPor: Value(decision.por),
+              revisadoAt: Value(decision.cuando),
+              motivoRevision: Value(decision.motivo ?? textoSinMotivoDeRevision),
+            ),
+          );
+        case EstadoEnRevision.aplicado:
+          // Primero soltar y luego sustituir: la sustitucion cambia el id de la
+          // fila y `_yaNoNacioAqui` la busca por el provisional.
+          await _yaNoNacioAqui(apunte);
+          await _sustituirProvisional(
+            apunte,
+            decision.idCreado,
+            reescribirApuntes: false,
+          );
+          // LO QUE SE CAYO AUNQUE ENTRARA: el mismo aviso que la subida normal
+          // (`descartesSinLeer`). Es la unica cosa que se escribe en `motivo`.
+          final aviso = textoDeLosDescartados(decision.descartados);
+          await (_base.update(
+            _base.apuntes,
+          )..where((a) => a.clave.equals(clave))).write(
+            ApuntesCompanion(
+              estado: const Value(EstadoApunte.aplicado),
+              motivo: aviso.isEmpty ? const Value.absent() : Value(aviso),
+              revisadoPor: Value(decision.por),
+              revisadoAt: Value(decision.cuando ?? _reloj()),
+              motivoRevision: const Value(null),
+              resueltoAt: Value(_reloj()),
+            ),
+          );
+        case EstadoEnRevision.descartado:
+          await _yaNoNacioAqui(apunte);
+          await (_base.update(
+            _base.apuntes,
+          )..where((a) => a.clave.equals(clave))).write(
+            ApuntesCompanion(
+              estado: const Value(EstadoApunte.descartadoPorRevisor),
+              revisadoPor: Value(decision.por),
+              revisadoAt: Value(decision.cuando ?? _reloj()),
+              motivoRevision: Value(decision.motivo ?? textoSinMotivoDeRevision),
+              resueltoAt: Value(_reloj()),
+            ),
+          );
       }
     });
   }

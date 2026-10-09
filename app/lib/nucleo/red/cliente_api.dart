@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../identidad/almacen_sesion.dart';
 import '../identidad/renovador.dart';
@@ -72,6 +73,8 @@ class ClienteApi {
     String? Function()? sucursalMirada,
     void Function()? alMorirLaSesion,
     void Function()? alFaltarPermiso,
+    Future<String?> Function()? bearerExplicito,
+    bool esWeb = kIsWeb,
     List<Duration> esperas = esperasPorDefecto,
     Future<void> Function(Duration)? esperar,
     void Function({required bool llego})? alIntentar,
@@ -100,6 +103,8 @@ class ClienteApi {
         sucursalMirada: sucursalMirada,
         alMorirLaSesion: alMorirLaSesion,
         alFaltarPermiso: alFaltarPermiso,
+        bearerExplicito: bearerExplicito,
+        esWeb: esWeb,
       ),
       const InterceptorFallos(),
     ]);
@@ -138,15 +143,25 @@ class ClienteApi {
         '$ruta GET',
       );
 
-  Future<T> mandar<T>(String metodo, String ruta, Object? cuerpo) =>
-      _conReintento(
-        () => _dio.request<T>(
-          ruta,
-          data: cuerpo,
-          options: Options(method: metodo),
-        ),
-        '$ruta $metodo',
-      );
+  /// [reintentar] en `false` para las ORDENES de una persona que el servidor no
+  /// puede repetir sin consecuencias (aplicar un apunte ajeno en la bandeja del
+  /// revisor): un 5xx o un corte NO se vuelve a mandar solo. Ahi un 502 es "el
+  /// reparto no contesto, vuelve a intentarlo TU", y repetirlo a escondidas es
+  /// aplicar otra vez sin que nadie lo decida.
+  Future<T> mandar<T>(
+    String metodo,
+    String ruta,
+    Object? cuerpo, {
+    bool reintentar = true,
+  }) => _conReintento(
+    () => _dio.request<T>(
+      ruta,
+      data: cuerpo,
+      options: Options(method: metodo),
+    ),
+    '$ruta $metodo',
+    reintentar: reintentar,
+  );
 
   /// Reintenta **sólo** lo que es red o 5xx.
   ///
@@ -155,8 +170,9 @@ class ClienteApi {
   /// una tanda de renovaciones.
   Future<T> _conReintento<T>(
     Future<Response<T>> Function() intento,
-    String que,
-  ) async {
+    String que, {
+    bool reintentar = true,
+  }) async {
     var vuelta = 0;
     while (true) {
       // No es `final` porque se le asigna desde las dos ramas del `try`, y ahi
@@ -211,7 +227,9 @@ class ClienteApi {
         fallo = traducido;
       }
 
-      if (fallo is! FalloDeRed || vuelta >= _esperas.length) throw fallo;
+      if (fallo is! FalloDeRed || !reintentar || vuelta >= _esperas.length) {
+        throw fallo;
+      }
 
       Registro.aviso(
         'reintento ${vuelta + 1} de $que en ${_esperas[vuelta].inSeconds}s',

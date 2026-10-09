@@ -72,3 +72,23 @@ func TestUnNombreRaroEsUnErrorYNoUnSalto(t *testing.T) {
 		t.Error("un fichero con nombre raro tiene que dar ERROR: saltárselo daría por buena una base a la que le falta")
 	}
 }
+
+// La bandeja de revisión (00003) y el tope del nombre del aparato (00004, auditoría M3) van incrustadas: el
+// binario las exige al arrancar (`ExigirMigraciones`). Quitar la 00004 dejaría la base sin la restricción y el
+// binario arrancando tan tranquilo.
+func TestLasMigracionesDeLaBandejaYDelNombreDeAparatoEstanIncrustadas(t *testing.T) {
+	esperadas, err := Esperadas()
+	if err != nil {
+		t.Fatal(err)
+	}
+	quiere := map[int64]string{3: "00003_la_bandeja_de_revision.sql", 4: "00004_nombre_de_aparato_acotado.sql"}
+	for _, m := range esperadas {
+		delete(quiere, m.Version)
+	}
+	if len(quiere) != 0 {
+		t.Errorf("faltan migraciones incrustadas: %v", quiere)
+	}
+	if ultima := esperadas[len(esperadas)-1]; ultima.Version < 4 {
+		t.Errorf("la última migración incrustada es la %d y el binario necesita al menos la 4", ultima.Version)
+	}
+}

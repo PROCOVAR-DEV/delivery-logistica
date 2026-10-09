@@ -202,6 +202,37 @@ void main() {
     await desmontar(tester);
   });
 
+  testWidgets('lo ENTREGADO A REVISIÓN no es «sin subir»: no pregunta, se sale', (
+    tester,
+  ) async {
+    // Ya está arriba, en la bandeja de un administrador: decir «queda trabajo sin subir»
+    // de algo que no sube solo es el aviso que nunca se va (`bandeja-de-revision.md`,
+    // B.5). Lo que SÍ avisa de ello es olvidar la copia de la persona
+    // (`nucleo/cola/revision_test.dart`).
+    await montar(tester);
+    final cola = ColaDeSalida(base);
+    final clave = await cola.encolar(
+      metodo: 'POST',
+      ruta: '/routes/r-1/results',
+      cuerpo: const <String, Object?>{'n': 1},
+    );
+    await cola.marcarEnRevision(clave, entrega: 'ent-1');
+    expect(await base.cuantosPendientes(), 0);
+    expect(await base.cuantosEnRevision(), 1);
+
+    await pulsarCerrarSesion(tester);
+
+    expect(find.text('Queda trabajo sin subir'), findsNothing);
+    expect(await almacen.leer(), isNull, reason: 'se cerró la sesión');
+    expect(
+      (await cola.porClave(clave))!.estado,
+      EstadoApunte.enRevision,
+      reason: 'y lo entregado sigue en el aparato, con su estado',
+    );
+
+    await desmontar(tester);
+  });
+
   testWidgets(
     'un apunte RECHAZADO no cuenta como pendiente, pero sigue en su bandeja '
     'después de salir',

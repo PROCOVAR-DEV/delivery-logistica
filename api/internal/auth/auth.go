@@ -36,6 +36,9 @@ var (
 	ErrFirma      = errors.New("la firma no cuadra")
 	ErrCaducado   = errors.New("el token está caducado")
 	ErrSinPersona = errors.New("el token no dice de quién es")
+	// ErrAmbito: el token trae `ambito`, o sea que es un token RESTRINGIDO (hoy, el de entrega a
+	// revisión: `reparto.entrega`). Ver [Verificador.Verificar].
+	ErrAmbito = errors.New("el token es de un ámbito restringido y no abre esta ruta")
 )
 
 // Usuario es lo que el token dice de quien pide. Nada de esto se consulta en la base:
@@ -401,6 +404,24 @@ func (v *Verificador) Verificar(token string) (*Usuario, error) {
 		return nil, ErrTokenRoto
 	}
 
+	// UN TOKEN CON `ambito` NO ENTRA POR AQUÍ, NUNCA — bandeja de revisión, paquete V
+	// (`docs/bandeja-de-revision.md`, B.1). Accesos firma, con el MISMO secreto, un token
+	// restringido «solo-entrega-a-revisión» (`ambito:"reparto.entrega"`, `entradas:[]`, sin
+	// roles) para que quien perdió `delivery.entrar` pueda dejar su cola en cuarentena. Solo
+	// abre las dos rutas de entrega de `sync`; en cada ruta normal de esta API es una credencial
+	// que no vale, y es la misma regla que `sync/internal/identidad` (las ata
+	// `docs/ambito-de-entrega.casos.json`).
+	//
+	// Se rechaza por PRESENCIA —cualquier valor: `""`, `null`, `[]`— y aquí, en `Verificar`, no en
+	// `PuedeEntrarAReparto`: por `Verificar` pasan `Exigir`, el canal en vivo y `/api/me` (que no
+	// da 403 y contesta quién es). Y vale aunque el token traiga `delivery.entrar` en `entradas`:
+	// la llave NO lo rescata, que es justo el agujero que esto cierra (un token de entrega al que
+	// alguien consiguiera meterle la llave aplicaría gestos «con autoridad» sin pasar por revisión).
+	// El 401 es el de siempre y su motivo queda en el registro.
+	if len(c.Ambito) > 0 {
+		return nil, ErrAmbito
+	}
+
 	ahora := time.Now()
 	// Sin `exp` no hay sesión que muera nunca. Se exige.
 	if c.Exp == nil {
@@ -474,6 +495,9 @@ type reclamos struct {
 	// `entradas`: en crudo para poder distinguir «no vino» (len 0) de `[]` y de `null`. Ver
 	// [LeerEntradas].
 	Entradas json.RawMessage `json:"entradas"`
+	// `ambito`: también en crudo; solo importa si VIENE (len > 0), sea cual sea su valor. Ver
+	// [Verificador.Verificar].
+	Ambito json.RawMessage `json:"ambito"`
 }
 
 // UnmarshalJSON tolera que los campos de texto vengan como null o como número. El
@@ -514,9 +538,11 @@ func (c *reclamos) UnmarshalJSON(b []byte) error {
 	// con otro tipo no puede tumbar el token, y «presente» no puede perderse por el camino.
 	var solo struct {
 		Entradas json.RawMessage `json:"entradas"`
+		Ambito   json.RawMessage `json:"ambito"`
 	}
 	_ = json.Unmarshal(b, &solo)
 	a.Entradas = solo.Entradas
+	a.Ambito = solo.Ambito
 	*c = reclamos(a)
 	return nil
 }

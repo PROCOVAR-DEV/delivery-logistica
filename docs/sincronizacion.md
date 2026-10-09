@@ -223,6 +223,124 @@ llamar.
 
 ---
 
+## 4 · Revisión: lo que entrega quien perdió el permiso — 09/10/2026
+
+Quien pierde `delivery.entrar` conserva su cola en el aparato, pero **no puede subirla**: no hay token normal con el que
+hacerlo (`/refresh` le da 403) y `sync` contesta `403 sin_permiso_reparto` sin anotar nada. La revisión es la salida:
+con un token de **solo entrega** (Accesos, 10 minutos, un ámbito) el aparato deja cada apunte en una tabla aparte, **tal
+como vino y sin aplicarlo**, y una persona con permiso lo **aplica** o lo **descarta con motivo**. Es contabilidad de la
+sincronización —«lo que llegó y quién decidió»—, no un dato del negocio: vive en `sync/` (base `reparto_sync`) y no toca
+pedidos, rutas ni tablero, que son de la API. Los contratos exactos, con todos sus códigos, en `contratos-api.md` §12; el
+diseño y en qué se desvió, en `bandeja-de-revision.md`.
+
+**La regla que manda sobre todo esto: una decisión de una persona se ESCRIBE, no se borra** (`CLAUDE.md` §4). Por eso es
+la **base** —no solo el Go— la que lo impide (`sync/db/migrations/00003_la_bandeja_de_revision.sql`).
+
+### Estados
+
+```
+entregar            en_revision ──aplicar (candado)──▶ aplicando ──el reparto dice 2xx──▶ aplicado        (final)
+(desde el aparato)  en_revision ──descartar──────────▶ descartado                                          (final)
+                    aplicando ──el reparto dice 4xx──▶ rechazado   (vivo, motivo LITERAL del reparto)
+                    aplicando ──5xx o red────────────▶ en_revision (una caída no es un rechazo; +1 intento)
+                    rechazado ──aplicar (reintentar)─▶ aplicando
+                    rechazado ──descartar────────────▶ descartado
+```
+
+* `en_revision`: entregado, esperando a una persona. `aplicando`: un revisor lo reclamó y se está reenviando al reparto
+  (el candado: dos revisores o un doble clic, un solo ganador). `aplicado` y `descartado` son finales y **no se
+  reescriben**. `rechazado`: el reparto dijo que no al aplicar; **sigue vivo** con su motivo literal.
+* **Vivo** = `en_revision`, `aplicando`, `rechazado`: lo que sigue esperando a una persona. Es lo que cuentan los cupos y el
+  segundo «número rojo» de `GET /sync/estado` (`en_revision` por sucursal).
+* **Nada se aplica ni se borra solo, por antigüedad ni por nada.** Un `aplicando` de hace 10 minutos o más sale como
+  `interrumpido` y solo se reintenta con confirmación a mano (la API no lee `X-Apunte`: si el proceso murió después de
+  que el reparto aplicara, reintentar sin mirar lo aplicaría dos veces).
+
+### Las tres tablas
+
+| Tabla | Qué es | Qué impide la base |
+|---|---|---|
+| `revision_entregas` | Quién entregó (el `sub` y el `name` del token **verificado**, nunca del cuerpo), desde qué aparato, con qué token (su `jti`; el token **jamás** se guarda), IP y agente recortados. `UNIQUE (aparato_id, token_jti)`: varias peticiones del mismo token caen en la misma entrega | `DELETE`, `TRUNCATE` y cualquier cambio de lo que ya consta |
+| `revision_apuntes` | Una fila por apunte: `(aparato_id, clave)` es la primaria; `metodo`, `ruta`, `cuerpo` (**los bytes tal cual llegaron**), `hecho_at` (la hora del APARATO), `huella`, y la decisión (estado, quién, cuándo, motivo, `id_creado`, `descartados`, `intentos`) | `DELETE`/`TRUNCATE`; **cambiar el original** (lista blanca de las columnas que sí se mueven: una columna nueva nace inmutable); reescribir un `aplicado` o `descartado`; un descarte sin quién, cuándo y motivo de ≥5 letras; un `aplicando` o `aplicado` sin dueño; un `rechazado` sin motivo |
+| `revision_decisiones` | **El libro: solo se añade.** Cada intento de aplicar y cada descarte, con quién, su rol, cuándo (`clock_timestamp()`, para que un «aplicar todo» no empate) y el resultado: `aplicado`, `rechazado`, `descartado`, `caida` o `interrumpido` | `UPDATE`, `DELETE`, `TRUNCATE` |
+
+El libro **se escribe y ningún endpoint lo lee todavía.**
+
+**Migraciones de la bandeja: dos.** La `00003` crea todo lo de arriba; la `00004_nombre_de_aparato_acotado.sql` (tanda final, M3) solo
+añade `aparatos_nombre_acotado`. `ExigirMigraciones` espera ya la **4** (se deriva de los ficheros incrustados), así que `sync` se
+niega a arrancar con la base en la 3. **El `Down` de la 00003 BORRA las tres tablas con lo que haya dentro** (`DROP TABLE`: los
+triggers de `DELETE` no saltan), lo que contradice «una decisión se escribe»; la auditoría final lo midió y lo dejó como aviso:
+**en producción no se usa** (`despliegue.md` §4-bis). Volver atrás es desplegar la imagen anterior, que no sufre por las tablas sobrantes.
+
+### Idempotencia y huella
+
+* La primaria `(aparato_id, clave)` es la idempotencia, igual que en `apuntes`. Reentregar la misma clave **con el mismo
+  contenido** contesta `repetido` con el estado de ahora; con **otro contenido** —la **huella** sha256 de
+  `aparato|clave|método|ruta|cuerpo|provisional|hecho` no cuadra— contesta `409 huella_distinta` y **no se sobrescribe
+  nada**: o es un fallo de la app o es alguien manipulando, y queda un WARN en el registro. La inserción lleva
+  `ON CONFLICT DO NOTHING` como red contra dos peticiones a la vez.
+* El cuerpo se guarda como `json.RawMessage` y se hashea **tal cual**: re-serializarlo cambiaría la huella y el original.
+* **La subida normal también la mira** (paso 0 de `unApunte`): una clave que está en la bandeja **no se aplica**. Así, quien
+  entregó, recupera el rol y reenvía su cola no duplica nada: `en_revision`/`aplicando` → `en_revision`; `aplicado` →
+  `repetido` con el `id`; `rechazado`/`descartado` → `repetido` **con motivo** (la app ya lo lee como «no subió»).
+* Y al revés: una clave que la subida normal ya había aplicado o rechazado (tabla `apuntes`) **no se entrega**: contesta
+  `repetido` sin `revision`, para que un revisor no la aplique otra vez.
+* **Aplicar escribe TAMBIÉN en el libro `apuntes`** (con su `id_creado`, `descartados` y la traducción del `local-…`) en la
+  misma transacción que el cierre: la idempotencia sobrevive a los 30 días de `expira_at` de la bandeja.
+
+### Quién y qué se comprueba al entregar
+
+En este orden (`revision_entrega.go`): solo el token de **entrega** → tasa (60 peticiones/min por persona, en memoria) →
+el aparato **existe** y es **de esta persona y de esta sucursal** (la subida normal no compara `aparato.Persona`; aquí es
+obligatorio) → cada apunte **entero** antes de guardar ninguno → idempotencia → **cupos** de lo vivo. Límites, todos con
+una frase que dice qué hacer:
+
+| Límite | Valor |
+|---|---|
+| Método y ruta | `POST/PUT/PATCH/DELETE` sobre las ocho rutas de escritura que la API tiene de rutas y tablero, **por forma** (`/routes`, `/routes/{id}`, `…/stops/{pedido}`, `…/results`, `/board/columns`, `/board/columns/{id}`, `…/route`, `/board/placements/{pedido}`; `{id}` sin puntos; `POST /board` suelto da 422; ni `..` ni `//` ni `%`; ≤300 caracteres). **Es la defensa contra la autoridad prestada** y se vuelve a pasar al aplicar |
+| Un apunte | `cuerpo` ≤128 KiB y JSON válido; petición ≤512 KiB; ≤25 apuntes por petición (la app manda 1) |
+| Hora del aparato | `hecho` ≤ ahora+24 h y ≥ ahora−60 días |
+| `provisional` | Opcional: `local-` y de 1 a 94 letras o números, o un UUID (el id definitivo que pone el aparato al crear una zona del Tablero). La subida normal no valida su forma, solo traduce los `local-…` |
+| Lo vivo | ≤500 apuntes y ≤8 MiB de cuerpos **por persona**; ≤3.000 **por sucursal** (`429 cupo_de_revision`) |
+| La bandeja | 500 entregas por lista del revisor y 1.000 apuntes en `mias`, con `truncado` si se alcanzó |
+| Nombre del aparato | `POST /sync/aparato` lo limpia y lo recorta a **80** letras; `00004_nombre_de_aparato_acotado.sql` recorta a 200 los nombres que ya hubiera y pone `CHECK (char_length(nombre) <= 200) NOT VALID` debajo; la bandeja del revisor lo recorta a 200 al leerlo |
+
+Contar el cupo y escribir son una sola cosa: la sucursal se bloquea (`pg_advisory_xact_lock`) hasta el fin de la transacción.
+
+### **El `Aplicador` no se llama NUNCA en la entrega**
+
+Entregar no es aplicar: el payload de alguien **sin permiso** nunca se ejecuta con la autoridad de nadie al entregarlo.
+`entregar` ni siquiera toca `s.aplicador`, y la prueba lo cuenta (`revision_entrega_test.go`: el doble del reparto tiene
+que acabar con **cero llamadas**, entregue lo que entregue). Solo **aplicar**, que hace una persona, llama al reparto (y antes mira el libro `apuntes`: si la subida normal ya había aplicado esa clave la cierra como `aplicado` sin reenviar, y si la había rechazado la deja `rechazado`; lo que aplica lo copia al libro con `ON CONFLICT DO NOTHING`), y
+lo hace con **el token del REVISOR** —nunca uno de servicio— por la misma tubería que la subida normal (`reenviar`),
+con `X-Sucursal-Id` forzada a la sucursal del apunte y `X-Autor`/`X-Revision` para el rastro de la API.
+
+### Cerrar sesión en el navegador también corta la bandeja web
+
+El revisor de la web llama a `sync` con el token de la cookie (siete días, `web:true`) como Bearer. Hasta la tanda final de S2 `sync`
+solo conocía el corte `todo`: tras un cierre de sesión SOLO del navegador ese Bearer seguía aplicando y descartando. Ahora `sync`
+guarda dos mapas (`web`, `todo`), recoge las dos familias de marcas de Redis (también al recargar) y a un token `web:true` le aplica
+`max(web, todo)`; resultado: **401 en `/sync/*`**, igual que la API. La APK y el escritorio siguen con solo `todo`.
+
+### Quién revisa
+
+**ADMINISTRADOR de esa sucursal, SUPER ADMIN y DESARROLLADOR, y nadie revisa lo suyo** (Jose, 08/10/2026). Por **nombre
+de rol** (`identidad.RolDeRevisor`) y con token; el alcance y «no lo tuyo» los decide el SQL en la misma sentencia que
+escribe. LOGISTICO entra a Reparto pero no revisa.
+
+### Lo que hace la app
+
+Cuando el aparato ve el 403 `sin_permiso_reparto` conserva la cola y la pantalla `/sin-permiso` (solo en APK y escritorio, y solo
+con algo que contar) ofrece **«Entregar a revisión»** con un toque (`docs/sin-permiso.md`). `EntregaARevision`
+(`app/lib/nucleo/sincro/entrega_a_revision.dart`) pide el token a Accesos y manda **un apunte por petición, en orden**,
+marcando `enRevision` solo con la respuesta en la mano; si el token (10 min) caduca a mitad pide otro **una vez**. Un fallo
+de red lo deja todo `pendiente`, intacto. Después, el ciclo normal consulta `GET /sync/revision/mias` **solo si hay algo
+`enRevision`**, entre subir y bajar, y un fallo de esa consulta no tumba la bajada. Un `enRevision` no sube ni cuenta en
+«N sin subir» (ya está arriba), pero sí retiene el `completed` de su ruta y cuenta antes de olvidar a una persona. No hay
+sondeo ni aviso en vivo.
+
+---
+
 ## Conflictos: casi no hay
 
 El alcance ya está cerrado por sucursal: quien pertenece a una ve sólo la suya. Con un

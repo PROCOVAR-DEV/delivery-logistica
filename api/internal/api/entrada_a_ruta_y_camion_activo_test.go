@@ -18,7 +18,6 @@ package api
 // en `internal/store/sqlc/consultas_motor_real_test.go`.
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -440,7 +439,7 @@ func TestQuitarUnaParadaSoloEnUnaRutaPlanificada(t *testing.T) {
 
 func TestUnCierreRechazadoDejaEscritoDondeEstabaCadaPedido(t *testing.T) {
 	d, stg, _ := datosDeReparto()
-	var registro bytes.Buffer
+	var registro registroSeguro
 	h, _ := montarRutasRegistrando(t, d, &registro)
 	jwt := deSantiagoEnRutas(t)
 	rutaA := armarRutaDePrueba(t, h, jwt, stg[1])
@@ -498,7 +497,7 @@ func TestUnCierreRechazadoDejaEscritoDondeEstabaCadaPedido(t *testing.T) {
 // llegan los ids que se van a detallar (50 como mucho), y el `orderId` crudo se recorta.
 func TestUnCierreConMuchasRechazadasDejaUnSoloErrorYAcotaLoQueSePregunta(t *testing.T) {
 	d, stg, _ := datosDeReparto()
-	var registro bytes.Buffer
+	var registro registroSeguro
 	h, _ := montarRutasRegistrando(t, d, &registro)
 	jwt := deSantiagoEnRutas(t)
 	id := armarRutaDePrueba(t, h, jwt, stg[1])
@@ -548,7 +547,7 @@ func TestUnCierreConMuchasRechazadasDejaUnSoloErrorYAcotaLoQueSePregunta(t *test
 // todas.
 func TestUnCierreConPocasRechazadasLasDetallaTodas(t *testing.T) {
 	d, stg, _ := datosDeReparto()
-	var registro bytes.Buffer
+	var registro registroSeguro
 	h, _ := montarRutasRegistrando(t, d, &registro)
 	jwt := deSantiagoEnRutas(t)
 	id := armarRutaDePrueba(t, h, jwt, stg[1])
@@ -570,7 +569,7 @@ func TestUnCierreConPocasRechazadasLasDetallaTodas(t *testing.T) {
 // La pareja: un cierre que sale bien NO pregunta nada ni escribe renglones de rechazo.
 func TestUnCierreBuenoNoPreguntaDondeEstanLosPedidos(t *testing.T) {
 	d, stg, _ := datosDeReparto()
-	var registro bytes.Buffer
+	var registro registroSeguro
 	h, _ := montarRutasRegistrando(t, d, &registro)
 	jwt := deSantiagoEnRutas(t)
 	id := armarRutaDePrueba(t, h, jwt, stg[1])

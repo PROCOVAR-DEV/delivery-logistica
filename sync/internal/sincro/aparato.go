@@ -63,10 +63,17 @@ func (s *Servicio) alta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// EL NOMBRE LO MANDA EL APARATO, o sea que se limpia y se recorta (auditoría M3, 09/10/2026): sin tope
+	// llegaba entero —hasta los 32 MiB del cuerpo— al panel y a la bandeja del revisor. La base lo acota
+	// también (00004). Vacío después de limpiar es «sin nombre».
+	var nombre *string
+	if entrada.Nombre != nil {
+		nombre = textoOpcional(*entrada.Nombre, topeNombreDeAparato)
+	}
 	aparato, err := s.datos.AltaAparato(ctx, sqlc.AltaAparatoParams{
 		Persona:  quien.Persona,
 		BranchID: sucursal,
-		Nombre:   entrada.Nombre,
+		Nombre:   nombre,
 	})
 	if err != nil {
 		s.log.Error("no se pudo dar de alta el aparato", "persona", quien.Persona, "err", err)

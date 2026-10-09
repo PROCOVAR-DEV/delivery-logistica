@@ -10,6 +10,9 @@
 // COLUMN`, la operación más barata que hay, y aun así se prueba: lo barato es el cambio,
 // no la consecuencia de equivocarse.
 //
+// El 09/10/2026 se subió a la 7 (la bandeja de revisión: cuatro columnas nuevas en `apuntes`, la
+// tabla de la cola sin subir): ver el final de este fichero.
+//
 // El 07/10/2026 se subió a la 6: la 5 quita `orders.vehicle_id` (el camión de un pedido es el
 // de su ruta, y la copia se desactualizaba) con `DROP COLUMN`, y la 6 añade
 // `vehicles.is_active`. Es la primera migración que QUITA algo y por eso la prueba mira dos
@@ -24,6 +27,7 @@
 
 import 'dart:io';
 
+import 'package:drift/drift.dart' show OrderingTerm;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
@@ -330,6 +334,110 @@ void main() {
       },
     );
   }
+
+  // LA 7: LA BANDEJA DE REVISIÓN (09/10/2026).
+  //
+  // `apuntes` —la tabla donde vive LA COLA SIN SUBIR— gana cuatro columnas nulas
+  // (`revision`, `revisado_por`, `revisado_at`, `motivo_revision`). Es la primera vez que la
+  // migración toca esa tabla, así que se prueba con la cola real dentro: un apunte pendiente,
+  // uno rechazado con su motivo y otro descartado. Las dos pruebas son el mismo salto con y
+  // sin las columnas ya puestas: el segundo caso es una copia nacida con el esquema nuevo y el
+  // `user_version` atrás, y un `ADD COLUMN` de una columna que ya está LANZA, la migración no
+  // termina y la base no abre.
+  const columnasDeLaRevision = [
+    'revision',
+    'revisado_por',
+    'revisado_at',
+    'motivo_revision',
+  ];
+  
+  for (final yaEstaban in [false, true]) {
+    test(
+      'desde la 6: la bandeja de revisión ${yaEstaban ? 'CON' : 'SIN'} las columnas ya puestas '
+      'abre y conserva la cola',
+      () async {
+        final fichero = await _ficheroDePrueba();
+        addTearDown(() async {
+          if (fichero.existsSync()) await fichero.delete();
+        });
+  
+        final ayer = BaseLocal.con(NativeDatabase(fichero));
+        for (final (clave, estado, motivo) in const [
+          ('01J8-pendiente', 'pendiente', null),
+          ('01J8-rechazado', 'rechazado', 'Ese pedido ya va en otra ruta'),
+          ('01J8-descartado', 'descartado', 'Se rehízo en la web'),
+        ]) {
+          await ayer.into(ayer.apuntes).insert(
+            ApuntesCompanion.insert(
+              clave: clave,
+              hechoAt: DateTime(2026, 10, 8, 9),
+              metodo: 'POST',
+              ruta: '/routes/r-1/results',
+              cuerpo: '{"v":"$clave"}',
+            ),
+          );
+          await ayer.customStatement(
+            'UPDATE apuntes SET estado = ?1, motivo = ?2 WHERE clave = ?3',
+            [estado, motivo, clave],
+          );
+        }
+        if (!yaEstaban) {
+          for (final columna in columnasDeLaRevision) {
+            await ayer.customStatement('ALTER TABLE apuntes DROP COLUMN $columna');
+          }
+        }
+        await ayer.customStatement('PRAGMA user_version = 6');
+        await ayer.close();
+  
+        final nueva = BaseLocal.con(NativeDatabase(fichero));
+        addTearDown(nueva.close);
+  
+        final cola = await (nueva.select(nueva.apuntes)
+              ..orderBy([(a) => OrderingTerm.asc(a.orden)]))
+            .get();
+        expect(
+          cola.map((a) => (a.clave, a.estado, a.motivo, a.cuerpo)),
+          [
+            ('01J8-pendiente', EstadoApunte.pendiente, null, '{"v":"01J8-pendiente"}'),
+            (
+              '01J8-rechazado',
+              EstadoApunte.rechazado,
+              'Ese pedido ya va en otra ruta',
+              '{"v":"01J8-rechazado"}',
+            ),
+            (
+              '01J8-descartado',
+              EstadoApunte.descartado,
+              'Se rehízo en la web',
+              '{"v":"01J8-descartado"}',
+            ),
+          ],
+          reason: 'la cola sin subir sobrevive al salto, con su estado, motivo y cuerpo',
+        );
+        // Y las cuatro columnas existen, preguntándoselo a SQLite (un nulo y una columna
+        // que no está se leen igual desde Dart).
+        final hay = (await nueva.customSelect('PRAGMA table_info(apuntes)').get())
+            .map((f) => f.read<String>('name'));
+        expect(hay, containsAll(columnasDeLaRevision));
+        expect(cola.every((a) => a.revision == null && a.revisadoPor == null), isTrue);
+  
+        // Y SE PUEDE ESCRIBIR LO NUEVO: el estado nuevo y las columnas nuevas viajan.
+        await nueva.customStatement(
+          "UPDATE apuntes SET estado = 'enRevision', revision = 'ent-1', "
+          "revisado_por = 'Marta Pérez', motivo_revision = 'x' "
+          "WHERE clave = '01J8-pendiente'",
+        );
+        expect(await nueva.cuantosEnRevision(), 1);
+        expect(
+          (await nueva.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          7,
+        );
+        expect(nueva.schemaVersion, 7);
+      },
+    );
+  }
+  
 }
 
 Future<File> _ficheroDePrueba() async {

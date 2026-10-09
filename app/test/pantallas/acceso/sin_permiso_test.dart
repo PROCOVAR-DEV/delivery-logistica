@@ -14,11 +14,13 @@ import 'package:reparto/navegacion/aviso_de_version_nueva.dart'
 import 'package:reparto/navegacion/pantalla_registrada.dart';
 import 'package:reparto/navegacion/portero.dart';
 import 'package:reparto/navegacion/rutas.dart';
+import 'package:reparto/nucleo/cola/apunte.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/nucleo/frescura/colecciones_de_cada_pantalla.dart';
 import 'package:reparto/nucleo/identidad/entrada_por_accesos.dart';
 import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/proveedores.dart';
+import 'package:reparto/nucleo/sincro/entrega_a_revision.dart';
 import 'package:reparto/pantallas/acceso/vista/pantalla_sin_permiso.dart';
 
 import '../../apoyo/apoyo_accesos.dart';
@@ -44,6 +46,37 @@ class _PorteroFalso extends Portero {
   Future<void> salir() async => salidas++;
 }
 
+/// La entrega, sin red: cuenta cuántas veces se la llamó y deja el estado en la cola
+/// como lo haría la de verdad.
+class _EntregaFalsa extends Fake implements EntregaARevision {
+  _EntregaFalsa(this.cola);
+
+  final ColaDeSalida cola;
+  int entregas = 0;
+  int consultas = 0;
+  ResumenDeEntrega respuesta = const ResumenDeEntrega(
+    ResultadoDeEntrega.entregado,
+    entregados: 3,
+  );
+
+  @override
+  Future<ResumenDeEntrega> entregar() async {
+    entregas++;
+    if (respuesta.resultado == ResultadoDeEntrega.entregado) {
+      for (final a in await cola.lote()) {
+        await cola.marcarEnRevision(a.clave, entrega: 'ent-1');
+      }
+    }
+    return respuesta;
+  }
+
+  @override
+  Future<ResumenDeConsulta> actualizarEstados() async {
+    consultas++;
+    return const ResumenDeConsulta(ResultadoDeEntrega.entregado);
+  }
+}
+
 void main() {
   // El inicio de Accesos, ESCRITO a mano: una prueba que copia la dirección del código
   // que prueba no comprueba la dirección (CLAUDE.md §5). Es `AUTH_URL` por defecto + `/`.
@@ -52,12 +85,15 @@ void main() {
   late NavegadorFalso navegador;
   late List<String> abiertos;
   late _PorteroFalso portero;
+  late _EntregaFalsa entrega;
+  late ColaDeSalida colaDeLaPrueba;
 
   Future<void> montar(
     WidgetTester tester, {
     required bool enWeb,
     EstadoDeAcceso estado = EstadoDeAcceso.sinPermiso,
     int pendientes = 0,
+    Future<void> Function(ColaDeSalida cola)? sembrar,
     bool conRouter = false,
   }) async {
     // Teléfono de 390 px: el caso que importa.
@@ -72,8 +108,10 @@ void main() {
     // Sembrado DENTRO del cuerpo (CLAUDE.md §5).
     final cola = ColaDeSalida(
       base,
-      reloj: RelojFalso(DateTime(2026, 10, 8)).leer,
+      reloj: RelojFalso(DateTime(2026, 10, 8, 14, 32)).leer,
     );
+    colaDeLaPrueba = cola;
+    entrega = _EntregaFalsa(cola);
     for (var i = 0; i < pendientes; i++) {
       await cola.encolar(
         metodo: 'PATCH',
@@ -81,6 +119,7 @@ void main() {
         cuerpo: <String, Object?>{'status': 'completed'},
       );
     }
+    if (sembrar != null) await sembrar(cola);
 
     final contenedor = ProviderContainer(
       overrides: [
@@ -91,6 +130,7 @@ void main() {
           (enlace) async => abiertos.add(enlace),
         ),
         porteroProvider.overrideWith((ref) => _PorteroFalso(ref, estado)),
+        entregaARevisionProvider.overrideWithValue(entrega),
       ],
     );
     addTearDown(contenedor.dispose);
@@ -282,27 +322,403 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Queda trabajo sin subir'), findsOneWidget);
       expect(find.textContaining('Hay 2 apuntes sin subir'), findsOneWidget);
-      expect(find.textContaining('Salir NO los borra'), findsOneWidget);
+      expect(find.textContaining('Salir NO los borra: se quedan en este aparato'), findsOneWidget);
+      // Lo que sustituye al viejo «Suben cuando te den acceso a Reparto y vuelvas a
+      // entrar»: la misma verdad, dicha con la salida nueva delante. Sin entregar, nadie
+      // ve ese trabajo y solo sube si devuelven el permiso.
       expect(
-        find.textContaining(
-          'Suben cuando te den acceso a Reparto y vuelvas a entrar.',
-        ),
+        find.textContaining('solo subirán si te devuelven el acceso a Reparto y vuelves a entrar'),
         findsOneWidget,
         reason: 'la cola es de ESTA persona: suben cuando le den acceso',
       );
-      expect(find.textContaining('con esta no'), findsNothing);
+      expect(find.textContaining('nadie los ve'), findsOneWidget);
       expect(portero.salidas, 0);
 
       await tester.tap(find.text('Me quedo'));
       await tester.pumpAndSettle();
       expect(portero.salidas, 0, reason: 'se quedó');
-
-      await tester.tap(find.text('Cerrar sesión'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Salir de todos modos'));
-      await tester.pumpAndSettle();
-      expect(portero.salidas, 1);
+      expect(entrega.entregas, 0);
       await desmontar(tester);
+    });
+  });
+
+  // LA BANDEJA DE REVISIÓN (`docs/bandeja-de-revision.md`, B.5 y N3).
+  //
+  // Quien pierde el permiso con cola ve su trabajo y puede ENTREGARLO a revisión; después
+  // ve en qué está cada cosa. Todo en pareja (CLAUDE.md §3-quinquies): con cola sale, sin
+  // cola NO; en el aparato sale, en la web NUNCA; entrega al pulsar, NUNCA antes.
+  group('la bandeja de revisión', () {
+    final entregar = find.text('Entregar a revisión');
+
+    testWidgets('con cola: «Tienes N cambios sin enviar» y el botón; no entrega sola', (
+      tester,
+    ) async {
+      await montar(tester, enWeb: false, pendientes: 3);
+      await tester.pump(const Duration(seconds: 5));
+
+      expect(
+        find.textContaining('Tienes 3 cambios sin enviar. No se han perdido ni se han aplicado.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('un administrador de tu sucursal los mirará'),
+        findsOneWidget,
+      );
+      expect(entregar, findsOneWidget);
+      expect(
+        entrega.entregas,
+        0,
+        reason: 'es una entrega MANUAL: son datos de alguien sin permiso y puede ser un error',
+      );
+      await desmontar(tester);
+    });
+
+    testWidgets('el botón es el principal, con su icono propio', (tester) async {
+      await montar(tester, enWeb: false, pendientes: 1);
+      expect(find.widgetWithText(FilledButton, 'Entregar a revisión'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.widgetWithText(FilledButton, 'Entregar a revisión'),
+          matching: find.byIcon(Icons.outbox),
+        ),
+        findsOneWidget,
+      );
+      await desmontar(tester);
+    });
+
+    testWidgets('SIN cola no sale nada: ni panel, ni botón, ni estados', (tester) async {
+      await montar(tester, enWeb: false);
+
+      expect(entregar, findsNothing);
+      expect(find.textContaining('sin enviar'), findsNothing);
+      expect(find.text('Actualizar estados'), findsNothing);
+      expect(find.text('Ir a Accesos'), findsOneWidget, reason: 'lo de siempre sigue');
+      await desmontar(tester);
+    });
+
+    testWidgets('en la WEB no sale NUNCA, aunque hubiera cola', (tester) async {
+      await montar(
+        tester,
+        enWeb: true,
+        pendientes: 3,
+        sembrar: (cola) async {
+          final clave = await cola.encolar(metodo: 'POST', ruta: '/routes', cuerpo: const {});
+          await cola.marcarEnRevision(clave);
+        },
+      );
+
+      expect(entregar, findsNothing);
+      expect(find.textContaining('sin enviar'), findsNothing);
+      expect(find.text('Actualizar estados'), findsNothing);
+      expect(find.textContaining('Entregado a revisión'), findsNothing);
+      await desmontar(tester);
+    });
+
+    testWidgets('pulsar entrega UNA vez, dice cuántos y NO se va de /sin-permiso', (
+      tester,
+    ) async {
+      await montar(tester, enWeb: false, pendientes: 3, conRouter: true);
+      await tester.pumpAndSettle();
+
+      await tester.tap(entregar);
+      await tester.pumpAndSettle();
+
+      expect(entrega.entregas, 1);
+      expect(
+        find.text('Entregado: 3 cambios están en revisión. Todavía no se ha aplicado nada.'),
+        findsOneWidget,
+      );
+      expect(entregar, findsNothing, reason: 'ya no queda nada por entregar');
+      expect(find.textContaining('Entregado a revisión el 8/10, 14:32.'), findsNWidgets(3));
+      expect(titulo, findsOneWidget, reason: 'la pantalla no se movió');
+      expect(find.text('PANEL DE MENTIRA'), findsNothing);
+      expect(portero.salidas, 0);
+      expect(navegador.visitados, isEmpty);
+      expect(abiertos, isEmpty);
+      await desmontar(tester);
+    });
+
+    testWidgets('lo que dice cada estado, con el literal de B.5', (tester) async {
+      await montar(
+        tester,
+        enWeb: false,
+        sembrar: (cola) async {
+          Future<String> uno(String ruta) =>
+              cola.encolar(metodo: 'POST', ruta: ruta, cuerpo: const {'a': 1});
+          final espera = await uno('/routes/r-1/results');
+          final fallida = await uno('/routes/r-2/results');
+          final aplicada = await uno('/routes/r-3/results');
+          final descartada = await uno('/routes');
+          for (final c in [espera, fallida, aplicada, descartada]) {
+            await cola.marcarEnRevision(c, entrega: 'ent-1');
+          }
+          await cola.resolverRevision(
+            fallida,
+            const DecisionDeRevision(
+              estado: EstadoEnRevision.rechazado,
+              motivo: 'Ese pedido ya va en otra ruta',
+            ),
+          );
+          await cola.resolverRevision(
+            aplicada,
+            DecisionDeRevision(
+              estado: EstadoEnRevision.aplicado,
+              por: 'Marta Pérez',
+              cuando: DateTime(2026, 10, 9, 9, 10),
+            ),
+          );
+          await cola.resolverRevision(
+            descartada,
+            DecisionDeRevision(
+              estado: EstadoEnRevision.descartado,
+              por: 'Marta Pérez',
+              cuando: DateTime(2026, 10, 9, 9, 12),
+              motivo: 'Se rehízo en la web',
+            ),
+          );
+        },
+      );
+      await tester.pump();
+
+      expect(
+        find.text(
+          'Entregado a revisión el 8/10, 14:32. Todavía no está aplicado: un '
+          'administrador de tu sucursal tiene que revisarlo.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('No se pudo aplicar: Ese pedido ya va en otra ruta. Sigue en revisión.'),
+        findsOneWidget,
+      );
+      expect(find.text('Aplicado por Marta Pérez el 9/10, 9:10.'), findsOneWidget);
+      expect(
+        find.text('Descartado por Marta Pérez el 9/10: Se rehízo en la web.'),
+        findsOneWidget,
+      );
+      expect(find.text('Resultados de entrega de una ruta'), findsNWidgets(3));
+      expect(find.text('Ruta nueva'), findsOneWidget);
+      expect(entregar, findsNothing, reason: 'no queda nada sin entregar');
+      expect(find.text('Actualizar estados'), findsOneWidget);
+      await desmontar(tester);
+    });
+
+    testWidgets('«Actualizar estados» consulta UNA vez, y no hay sondeo', (tester) async {
+      await montar(
+        tester,
+        enWeb: false,
+        sembrar: (cola) async {
+          final c = await cola.encolar(metodo: 'POST', ruta: '/routes', cuerpo: const {});
+          await cola.marcarEnRevision(c);
+        },
+      );
+      await tester.pump(const Duration(minutes: 10));
+      expect(entrega.consultas, 0, reason: 'la conexión de allá se paga');
+
+      await tester.tap(find.text('Actualizar estados'));
+      await tester.pumpAndSettle();
+
+      expect(entrega.consultas, 1);
+      expect(find.text('Sin novedades.'), findsOneWidget);
+      await desmontar(tester);
+    });
+
+    group('cuando la entrega no sale', () {
+      Future<void> pulsar(WidgetTester tester, ResumenDeEntrega r) async {
+        await montar(tester, enWeb: false, pendientes: 2);
+        entrega.respuesta = r;
+        await tester.tap(entregar);
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('sesión terminada: la frase y la salida correcta (entrar de nuevo)', (
+        tester,
+      ) async {
+        await pulsar(
+          tester,
+          const ResumenDeEntrega(
+            ResultadoDeEntrega.sesionTerminada,
+            sinEntregar: 2,
+            error: TextosDeEntrega.sesionTerminada,
+          ),
+        );
+
+        expect(find.textContaining('Tu sesión terminó. No se puede entregar.'), findsOneWidget);
+        expect(find.text('Cerrar sesión y entrar de nuevo'), findsOneWidget);
+        expect(
+          await colaDeLaPrueba.lote().then((l) => l.length),
+          2,
+          reason: 'la cola sigue en el aparato',
+        );
+
+        await tester.tap(find.text('Cerrar sesión y entrar de nuevo'));
+        await tester.pumpAndSettle();
+        expect(portero.salidas, 1);
+        await desmontar(tester);
+      });
+
+      testWidgets('ya tiene permiso: lo dice y ofrece entrar de nuevo', (tester) async {
+        await pulsar(
+          tester,
+          const ResumenDeEntrega(
+            ResultadoDeEntrega.yaTienePermiso,
+            sinEntregar: 2,
+            error: TextosDeEntrega.yaTienePermiso,
+          ),
+        );
+
+        expect(
+          find.text('Ya tienes permiso: cierra sesión y entra de nuevo.'),
+          findsOneWidget,
+        );
+        expect(find.text('Cerrar sesión y entrar de nuevo'), findsOneWidget);
+        await desmontar(tester);
+      });
+
+      testWidgets('PAREJA — sin conexión: el literal, SIN botón de entrar de nuevo', (
+        tester,
+      ) async {
+        await pulsar(
+          tester,
+          const ResumenDeEntrega(
+            ResultadoDeEntrega.sinConexion,
+            sinEntregar: 2,
+            error: TextosDeEntrega.sinConexion,
+          ),
+        );
+
+        expect(find.textContaining('Sin conexión con el servidor.'), findsOneWidget);
+        expect(find.text('Cerrar sesión y entrar de nuevo'), findsNothing);
+        expect(entregar, findsOneWidget, reason: 'se puede volver a pulsar');
+        await desmontar(tester);
+      });
+
+      testWidgets('parcial: cuántos entregados y cuántos quedan, y cuánto esperar', (
+        tester,
+      ) async {
+        await pulsar(
+          tester,
+          const ResumenDeEntrega(
+            ResultadoDeEntrega.parcial,
+            entregados: 1,
+            sinEntregar: 1,
+            error: 'Demasiadas peticiones seguidas.',
+            esperar: Duration(seconds: 37),
+          ),
+        );
+
+        expect(
+          find.textContaining('Se entregaron 1 y quedan 1 sin entregar, intactos.'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Vuelve a intentarlo en 37 s.'), findsOneWidget);
+        await desmontar(tester);
+      });
+    });
+
+    group('«Cerrar sesión» con cola: tres opciones', () {
+      Future<void> abrirElCartel(WidgetTester tester) async {
+        await montar(tester, enWeb: false, pendientes: 2);
+        await tester.tap(find.text('Cerrar sesión'));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('ofrece entregar y salir, salir sin entregar y quedarse', (tester) async {
+        await abrirElCartel(tester);
+
+        expect(find.text('Entregar a revisión y salir'), findsOneWidget);
+        expect(find.text('Salir sin entregar'), findsOneWidget);
+        expect(find.text('Me quedo'), findsOneWidget);
+        await desmontar(tester);
+      });
+
+      testWidgets('«Salir sin entregar» AVISA de que queda varado, y sale sin entregar', (
+        tester,
+      ) async {
+        await abrirElCartel(tester);
+
+        expect(
+          find.textContaining('Si sales SIN entregar, quedan varados en este aparato'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'solo subirán si te devuelven el acceso a Reparto y vuelves a entrar',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Salir NO los borra'), findsOneWidget);
+
+        await tester.tap(find.text('Salir sin entregar'));
+        await tester.pumpAndSettle();
+
+        expect(portero.salidas, 1);
+        expect(entrega.entregas, 0);
+        await desmontar(tester);
+      });
+
+      testWidgets('«Entregar a revisión y salir» entrega y, si todo entró, sale', (
+        tester,
+      ) async {
+        await abrirElCartel(tester);
+
+        await tester.tap(find.text('Entregar a revisión y salir'));
+        await tester.pumpAndSettle();
+
+        expect(entrega.entregas, 1);
+        expect(portero.salidas, 1);
+        await desmontar(tester);
+      });
+
+      testWidgets('PAREJA — si la entrega NO sale, NO sale de la sesión y se ve por qué', (
+        tester,
+      ) async {
+        await abrirElCartel(tester);
+        entrega.respuesta = const ResumenDeEntrega(
+          ResultadoDeEntrega.sinConexion,
+          sinEntregar: 2,
+          error: TextosDeEntrega.sinConexion,
+        );
+
+        await tester.tap(find.text('Entregar a revisión y salir'));
+        await tester.pumpAndSettle();
+
+        expect(entrega.entregas, 1);
+        expect(portero.salidas, 0, reason: 'sin entregar no se sale por la puerta de atrás');
+        expect(find.textContaining('Sin conexión con el servidor.'), findsOneWidget);
+        await desmontar(tester);
+      });
+
+      testWidgets('cerrar el cartel sin contestar es QUEDARSE', (tester) async {
+        await abrirElCartel(tester);
+
+        await tester.tapAt(const Offset(5, 5));
+        await tester.pumpAndSettle();
+
+        expect(portero.salidas, 0);
+        expect(entrega.entregas, 0);
+        await desmontar(tester);
+      });
+
+      testWidgets('lo ya entregado NO cuenta como «sin subir»: cerrar sesión sale directo', (
+        tester,
+      ) async {
+        await montar(
+          tester,
+          enWeb: false,
+          sembrar: (cola) async {
+            final c = await cola.encolar(metodo: 'POST', ruta: '/routes', cuerpo: const {});
+            await cola.marcarEnRevision(c);
+          },
+        );
+
+        await tester.tap(find.text('Cerrar sesión'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Queda trabajo sin subir'), findsNothing);
+        expect(portero.salidas, 1);
+        await desmontar(tester);
+      });
     });
   });
 

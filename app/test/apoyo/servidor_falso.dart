@@ -34,18 +34,26 @@ class PeticionVista {
 /// [texto] manda ese cuerpo tal cual y [tipo] su `Content-Type`
 /// (`text/html` si no se dice): `RespuestaFalsa(200, null, '<html>…', 'text/html')` o `RespuestaFalsa.portal(200)`.
 class RespuestaFalsa {
-  RespuestaFalsa(this.codigo, [this.cuerpo, this.texto, this.tipo]);
+  RespuestaFalsa(this.codigo, [this.cuerpo, this.texto, this.tipo])
+    : cabeceras = const <String, String>{};
+
+  /// JSON con cabeceras propias (`Retry-After` de un 429, por ejemplo).
+  RespuestaFalsa.conCabeceras(this.codigo, this.cuerpo, this.cabeceras)
+    : texto = null,
+      tipo = null;
 
   /// Un portal cautivo: `codigo` con una pagina `text/html`.
   RespuestaFalsa.portal(this.codigo)
     : cuerpo = null,
       texto = '<html><body>Bienvenido a la red del hotel</body></html>',
-      tipo = 'text/html; charset=utf-8';
+      tipo = 'text/html; charset=utf-8',
+      cabeceras = const <String, String>{};
 
   final int codigo;
   final Object? cuerpo;
   final String? texto;
   final String? tipo;
+  final Map<String, String> cabeceras;
 }
 
 /// El servidor falso.
@@ -93,6 +101,7 @@ class ServidorFalso implements HttpClientAdapter {
       respuesta.codigo,
       headers: {
         Headers.contentTypeHeader: [respuesta.tipo ?? Headers.jsonContentType],
+        for (final e in respuesta.cabeceras.entries) e.key: [e.value],
       },
     );
   }

@@ -59,12 +59,21 @@ type contadorSucursal struct {
 	SinAtender int64     `json:"sin_atender"`
 }
 
+// EL SEGUNDO NÚMERO ROJO: lo entregado a revisión que sigue esperando a una persona (en_revision,
+// aplicando, rechazado), por sucursal. Con el alcance de siempre.
+type contadorRevision struct {
+	Sucursal   uuid.UUID `json:"sucursal"`
+	EnRevision int64     `json:"en_revision"`
+}
+
 type estadoSalida struct {
 	Aparatos []filaAparato `json:"aparatos"`
 	// La bandeja: lo rechazado que sigue esperando a que una persona decida.
 	Bandeja []filaRechazo `json:"bandeja"`
 	// El número rojo de la cabecera, por sucursal.
 	SinAtender []contadorSucursal `json:"sin_atender"`
+	// Lo entregado a revisión sin decidir, por sucursal (la bandeja de revisión).
+	EnRevision []contadorRevision `json:"en_revision"`
 }
 
 func (s *Servicio) estado(w http.ResponseWriter, r *http.Request) {
@@ -111,11 +120,19 @@ func (s *Servicio) estado(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	enRevision, err := s.datos.RevisionSinDecidirPorSucursal(ctx, filtro)
+	if err != nil {
+		s.log.Error("no se pudo contar la bandeja de revisión", "err", err)
+		httpx.Fallo(w, http.StatusInternalServerError, "No se pudo leer el estado")
+		return
+	}
+
 	ahora := s.ahora()
 	salida := estadoSalida{
 		Aparatos:   make([]filaAparato, 0, len(panel)),
 		Bandeja:    make([]filaRechazo, 0, len(bandeja)),
 		SinAtender: make([]contadorSucursal, 0, len(contadores)),
+		EnRevision: make([]contadorRevision, 0, len(enRevision)),
 	}
 	for _, f := range panel {
 		subida := hora(f.SubidaAt)
@@ -158,6 +175,10 @@ func (s *Servicio) estado(w http.ResponseWriter, r *http.Request) {
 			Sucursal:   c.BranchID,
 			SinAtender: c.SinAtender,
 		})
+	}
+
+	for _, c := range enRevision {
+		salida.EnRevision = append(salida.EnRevision, contadorRevision{Sucursal: c.BranchID, EnRevision: c.EnRevision})
 	}
 
 	httpx.JSON(w, http.StatusOK, salida)

@@ -63,6 +63,25 @@ PROCOVAR_AUTH_SIGNING_KEY=de-juguete-para-el-portatil
 ORIGENES_PERMITIDOS=http://localhost:8082,http://127.0.0.1:8082
 ```
 
+**Ojo: `PROCOVAR_AUTH_SIGNING_KEY=de-juguete-para-el-portatil` solo vale mientras nada firme contra Accesos.** Con el Accesos real de
+§3 (el de `deploy/accesos-local`), todo lo que el reparto le pide **firmado** —los almacenes (`/api/service/almacenes`), el login
+único de la web— se rechaza con una llave inventada: Accesos espera la llave **derivada** de su `SERVICE_AUTH_SECRET`
+(`deriveSigningKey`, `auth/src/lib/service-auth.ts`), que es `HMAC-SHA256(SERVICE_AUTH_SECRET, "svc:v1:<clientId>")` en hexadecimal,
+con el `clientId` de `PROCOVAR_AUTH_CLIENT_ID` (aquí, `delivery`):
+
+```bash
+# SERVICE_AUTH_SECRET es el de deploy/accesos-local/docker-compose.yml (de mentira, a la vista); se lee, no se pega en ningún fichero
+printf 'svc:v1:delivery' | openssl dgst -sha256 -hmac "$SERVICE_AUTH_SECRET" | awk '{print $NF}'
+# y ese valor va en PROCOVAR_AUTH_SIGNING_KEY del .env del reparto
+```
+
+(En el servidor la derivación es la de `docs/montar-en-dokploy.md`, con el `clientId` que allí se dio de alta.) Y, además, **para
+aplicar `POST /board/columns` hace falta un `Almacen` con coordenadas de esa sucursal en Accesos**: sin él, el reparto contesta
+`409 «<Sucursal> no tiene ningún almacén con coordenadas»` a cualquier zona nueva. Se da de alta desde la pantalla de Almacenes
+(`PUT /api/almacenes`, que escribe en Accesos) o directamente en Accesos, y el reparto **recuerda la lista 5 minutos**
+(`ALMACENES_CACHE_MS`, `api/internal/api/almacenes.go`): tras darlo de alta, esperar o reiniciar la API. Los dos huecos los destapó la
+prueba de punta a punta de la bandeja de revisión (`QA-E2E.md`, hallazgo F4, 09/10/2026), que aplica zonas de tablero.
+
 (Sobre «el canal de actualización se deja callado»: el `.env` de esta máquina trae las
 `APP_*` en blanco, pero el compose las lee como `${APP_ULTIMA_VERSION:-1.0.15}`, y en
 Compose `:-` también cae al valor por defecto cuando la variable está **vacía**. Por
@@ -243,6 +262,59 @@ cd app && CHROME_EXECUTABLE=/usr/bin/google-chrome-stable timeout 300 \
 
 Chrome corre sin ventana y el `Dio` de la prueba habla con un adaptador falso: ninguna petición sale a
 un dominio de Procovar. Tarda unos 20 s. Se lanza siempre que se toque `agente_de_usuario.dart`.
+
+## 7-quater. Las pruebas contra un Postgres de verdad (reparto y sync)
+
+Las consultas y, sobre todo, **lo que hace la propia BASE** no lo ve ningún doble de Go: los triggers que impiden
+borrar y cambiar el original de la bandeja de revisión, el `CHECK` que exige motivo en un descarte, el
+`ON CONFLICT DO NOTHING` de la idempotencia y el alcance de sucursal dentro del SQL. Por eso hay dos pruebas de «motor
+real», **las dos se saltan en silencio sin su variable** (también en los `Dockerfile`, que no tienen Postgres), y
+`./comprobar.sh` las dice a gritos:
+
+| Variable | Base | Serie de migraciones | Qué corre |
+|---|---|---|---|
+| `REPARTO_MOTOR_REAL_DSN` | `verif_reparto` | `api/db/migrations` (hasta la 00017) | `api/internal/store/sqlc/consultas_motor_real_test.go` |
+| `SYNC_MOTOR_REAL_DSN` | `verif_sync` | `sync/db/migrations` (hasta la 00004; la prueba exige versión ≥ 4) | `sync/internal/sincro/revision_motor_real_test.go` (la bandeja de revisión) |
+
+Sin la variable, `./comprobar.sh` dice `SALTADO (exporta REPARTO_MOTOR_REAL_DSN: CLAUDE.md §5)` y
+`SALTADO (exporta SYNC_MOTOR_REAL_DSN: base verif_sync, docs/entorno-local.md)`. **«Todo en verde» con esas dos líneas
+en SALTADO no ha ejecutado ni una consulta de verdad.**
+
+**Una vez**, en el Postgres del compose (`docker compose up -d postgres`, `127.0.0.1:5433`, §1). El rol `verif` es de
+juguete (contraseña `verif`, a la vista como las del compose: no abre nada fuera de este portátil); en esta máquina ya
+existe, con login y como superusuario. Si falta, y las dos bases:
+
+```bash
+docker exec -e PGPASSWORD=reparto reparto-postgres-1 psql -U reparto -d postgres \
+  -c "CREATE ROLE verif LOGIN SUPERUSER PASSWORD 'verif';"            # solo si no existe
+docker exec -e PGPASSWORD=reparto reparto-postgres-1 psql -U reparto -d postgres -c "CREATE DATABASE verif_reparto OWNER verif;"
+docker exec -e PGPASSWORD=reparto reparto-postgres-1 psql -U reparto -d postgres -c "CREATE DATABASE verif_sync    OWNER verif;"
+```
+
+**Migrar**, con `goose` (está en `~/go/bin/goose`, no en el `PATH`). Se repite cada vez que aparece una migración nueva
+(`status` primero, como siempre):
+
+```bash
+~/go/bin/goose -dir api/db/migrations  postgres 'postgres://verif:verif@127.0.0.1:5433/verif_reparto?sslmode=disable' up
+~/go/bin/goose -dir sync/db/migrations postgres 'postgres://verif:verif@127.0.0.1:5433/verif_sync?sslmode=disable' up
+```
+
+**Correrlas:**
+
+```bash
+REPARTO_MOTOR_REAL_DSN='postgres://verif:verif@127.0.0.1:5433/verif_reparto?sslmode=disable' \
+SYNC_MOTOR_REAL_DSN='postgres://verif:verif@127.0.0.1:5433/verif_sync?sslmode=disable' ./comprobar.sh      # o, a mano:
+(cd api  && REPARTO_MOTOR_REAL_DSN='postgres://verif:verif@127.0.0.1:5433/verif_reparto?sslmode=disable' \
+            go test -count=1 -run MotorReal ./internal/store/sqlc/)
+(cd sync && SYNC_MOTOR_REAL_DSN='postgres://verif:verif@127.0.0.1:5433/verif_sync?sslmode=disable' \
+            go test -count=1 ./internal/sincro/)                    # con -v se ven los subtests «motor_real»
+```
+
+Las pruebas **se niegan a correr** si la base no se llama `verif…`, `…test…` o `…prueba…`, **nunca leen `DATABASE_URL`**
+ni ninguna variable de producción, y comprueban que la base esté migrada hasta la bandeja. **Cada prueba abre UNA
+transacción y la revierte**: la base queda como estaba, que en la bandeja es obligatorio (ni un `DELETE` puede limpiar lo
+que se escriba: lo impide un trigger). **Nunca se apunta a ninguna base del servidor**: la regla de Procovar prohíbe hablar
+con él desde este PC, y `procovar_reparto_sync` tiene entregas de gente de verdad.
 
 ## 8. Al terminar, se para TODO
 

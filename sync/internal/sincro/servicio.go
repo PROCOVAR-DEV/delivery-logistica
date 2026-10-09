@@ -98,6 +98,17 @@ type Peticion struct {
 	// `identidad.Identidad.Token`: sin esto las rutas del aparato contestan 401 y el
 	// apunte se queda en la cola para siempre.
 	Token string
+
+	// LO QUE SÓLO PONE LA REVISIÓN (`revision_aplicar.go`); en la subida normal van vacías y no viajan.
+	//
+	// `Autor` es el `sub` de quien hizo el gesto, y `Revision` el id de la entrega que lo trajo: el reparto
+	// SÓLO las añade a su línea de registro («rastro de quién»), no autoriza nada con ellas.
+	// `SucursalPedida` es `X-Sucursal-Id` FORZADA a la sucursal del apunte: el reparto sólo la lee para SUPER
+	// ADMIN y DESARROLLADOR (sin sucursal en el token), y es lo que acota a UNA sucursal a un revisor que ve
+	// las ocho. Es la autoridad prestada (B.2, «Lo que NO puede pasar»).
+	Autor          string
+	Revision       string
+	SucursalPedida uuid.UUID
 }
 
 // Aplicado es lo que el reparto contestó de un apunte que SÍ entró.
@@ -199,11 +210,16 @@ func Nuevo(o Opciones) *Servicio {
 	return s
 }
 
-// Rutas son las cuatro del protocolo. Los patrones con método son de `net/http`: no hace
-// falta un enrutador de fuera para cuatro rutas sin parámetros en el camino.
+// Rutas son las cuatro del protocolo más la bandeja del revisor. Los patrones con método son de
+// `net/http`: no hace falta un enrutador de fuera.
+//
+// TODAS van detrás del `Exigir` normal de `main` (la fuente de la casa), que RECHAZA el token de entrega a
+// revisión. Las dos únicas rutas que lo aceptan son las de `RutasDeRevision`, montadas aparte. La bandeja del
+// revisor (`RutasDelRevisor`) se monta AQUÍ, no en `main`: así no hay forma de colgarla de otra puerta.
 func (s *Servicio) Rutas(mux *http.ServeMux) {
 	mux.HandleFunc("POST /sync/aparato", s.alta)
 	mux.HandleFunc("GET /sync/bajada", s.bajada)
 	mux.HandleFunc("POST /sync/subida", s.subida)
 	mux.HandleFunc("GET /sync/estado", s.estado)
+	s.RutasDelRevisor(mux)
 }

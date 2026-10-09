@@ -104,6 +104,40 @@ class Huerfanos {
     return fila.read<int>('hay') > 0;
   }
 
+  /// LOS ESTADOS DE UN APUNTE QUE NOMBRA A UNA FILA, en dos grupos, y es la
+  /// UNICA lista de estados de este fichero (las tres consultas la usan).
+  ///
+  /// Se escribian a mano, en tres SQL, con el texto del estado: cada estado
+  /// nuevo habia que acordarse de ponerlo en las tres, y el que se olvidaba
+  /// reabria el bucle del 29/09/2026. Ahora salen del enum (`.name` es lo que
+  /// guarda `textEnum`) y `test/nucleo/sincro/huerfanos_test.dart` exige que
+  /// cada valor de [EstadoApunte] este clasificado ahi (`aplicado` no esta en
+  /// ninguno a proposito: ya sustituyo el `local-…` por su id de verdad).
+  ///
+  /// **Vivos**: el apunte sigue gestionandose, nadie tiene que reencolar la fila.
+  /// `pendiente` sube solo; `rechazado` espera a una persona; y **`enRevision`**
+  /// esta entregado y lo decide un administrador. Si `enRevision` faltara aqui,
+  /// el ciclo reencolaria como huerfano lo que ya esta en revision, y la bandeja
+  /// recibiria el mismo trabajo dos veces: el bucle del 29/09/2026 con otro nombre.
+  static const _vivos = <EstadoApunte>[
+    EstadoApunte.pendiente,
+    EstadoApunte.rechazado,
+    EstadoApunte.enRevision,
+  ];
+
+  /// **Decididos**: una persona ya dijo «no se vuelve a intentar». La fila
+  /// sigue sin estar arriba —por eso se AVISA, [_esHuerfana] no los mira— pero no
+  /// se REENCOLA. `descartadoPorRevisor` es lo mismo que `descartado` con otro
+  /// decisor: el revisor, no la persona del aparato.
+  static const _decididos = <EstadoApunte>[
+    EstadoApunte.descartado,
+    EstadoApunte.descartadoPorRevisor,
+  ];
+
+  /// `('pendiente', 'rechazado', …)` con los NOMBRES del enum.
+  static String _lista(List<EstadoApunte> estados) =>
+      '(${estados.map((e) => "'${e.name}'").join(', ')})';
+
   /// QUE ES ESTAR HUERFANO, escrito UNA vez.
   ///
   /// Vive en una constante y no copiado en las dos consultas a proposito: son la
@@ -150,7 +184,7 @@ class Huerfanos {
       'AND NOT EXISTS (SELECT 1 FROM equivalencias e WHERE e.provisional = t.id) '
       'AND NOT EXISTS ('
       '  SELECT 1 FROM apuntes a WHERE a.provisional = t.id '
-      "  AND a.estado IN ('pendiente', 'rechazado')"
+      '  AND a.estado IN ${_lista(_vivos)}'
       ') '
       'AND NOT EXISTS ('
       "  SELECT 1 FROM renuncias r WHERE r.tabla = '${sitio.tabla}' "
@@ -182,7 +216,7 @@ class Huerfanos {
       '${_esHuerfana(sitio)} '
       'AND NOT EXISTS ('
       '  SELECT 1 FROM apuntes a WHERE a.provisional = t.id '
-      "  AND a.estado = 'descartado'"
+      '  AND a.estado IN ${_lista(_decididos)}'
       ')';
 
   /// Cuenta lo huerfano, por tipo. Vacio = no hay nada colgado.
@@ -409,7 +443,7 @@ class Huerfanos {
           '  AND NOT EXISTS ('
           '    SELECT 1 FROM apuntes a '
           "    WHERE a.ruta = '/board/placements/' || p.order_id "
-          "      AND a.estado IN ('pendiente', 'rechazado', 'descartado')"
+          '      AND a.estado IN ${_lista(_vivos + _decididos)}'
           '  )',
         )
         .get();

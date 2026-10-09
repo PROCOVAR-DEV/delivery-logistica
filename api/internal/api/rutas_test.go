@@ -772,7 +772,8 @@ func montarRutasRegistrando(t *testing.T, q *dobleDeRutas, salida io.Writer) (ht
 	verif := auth.NuevoVerificador([]byte(secretoDeRutas))
 	s := NuevoServidor(cfg, reg, porteria, verif, func(context.Context) error { return nil })
 
-	rt := httpx.NuevoRouter(httpx.IDDePeticion, httpx.ConRegistro(reg), httpx.RecuperarPanico, httpx.SinCache)
+	// RegistrarPeticiones también aquí, como en `Rutas()`: es la línea que lleva `autor`/`revision`.
+	rt := httpx.NuevoRouter(httpx.IDDePeticion, httpx.ConRegistro(reg), httpx.RecuperarPanico, httpx.RegistrarPeticiones, httpx.SinCache)
 	sesion := []httpx.Medio{verif.Exigir, porteria.Exigir}
 	admin := []httpx.Medio{verif.Exigir, auth.ExigirAdmin, porteria.Exigir}
 	s.rutasDeReparto(rt, sesion, admin)

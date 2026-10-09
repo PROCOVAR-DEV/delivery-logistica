@@ -221,6 +221,11 @@ Future<bool> _elAparatoTieneDatos(Ref ref) async {
     // pregunta estrecha un aparato cuyo unico trabajo era ese contestaba «aqui
     // no habia nadie» y no se decia «sesion perdida» (24/09/2026).
     if (await base.cuantosSinSubir() > 0) return true;
+    // Y LO ENTREGADO A REVISION, que `cuantosSinSubir` no cuenta a proposito (ya
+    // esta arriba) pero que es igual de «aqui habia alguien trabajando»: sin
+    // esto, quien entrego su cola y cerro sesion vuelve a un aparato que dice
+    // «nunca ha entrado nadie» (bandeja-de-revision.md, B.5).
+    if (await base.cuantosEnRevision() > 0) return true;
     // Y LO HUERFANO, que ni siquiera esta en `apuntes`: una ruta armada sin
     // señal que se quedo sin su apunte es el caso mas claro de «aqui habia
     // alguien trabajando», y es ademas el que no se arregla solo.

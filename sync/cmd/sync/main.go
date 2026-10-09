@@ -101,12 +101,23 @@ func arrancar(log *slog.Logger) error {
 	codigos := identidad.NuevoCache(cliente.SucursalPorCodigo, time.Hour)
 	fuente, invalidaciones := identidad.FuenteDeLaCasa(cfg.Identidad, []byte(cfg.JWTSecreto),
 		codigos.Resolver, sesiones.DeRedis(cfg.Redis), log)
+	// LA ENTREGA A REVISIÓN (`docs/bandeja-de-revision.md`): quien perdió `delivery.entrar` y conserva sesión
+	// entrega su cola con un token de ENTREGA de Accesos (10 minutos, un ámbito), que la fuente normal
+	// rechaza. Dos fuentes aparte, construidas con el MISMO registro de sesiones que la normal (un corte de
+	// Accesos también mata al token de entrega) y cada una detrás de su ruta: `entrega` sólo acepta ese
+	// token; `mias` ese o el normal. Ver `identidad.FuentesDeEntrega`.
+	fuenteEntrega, fuenteMias := identidad.FuentesDeEntrega(cfg.Identidad, []byte(cfg.JWTSecreto),
+		codigos.Resolver, invalidaciones, fuente)
 	hiloDeSesiones := make(chan struct{})
 	go func() {
 		defer close(hiloDeSesiones)
 		invalidaciones.Correr(ctx)
 	}()
 	publico.Handle("/sync/", identidad.Exigir(fuente, mux))
+	// Las DOS rutas de la entrega van en el mux público, cada una con su fuente: `ServeMux` elige el patrón
+	// más específico, así que ganan a `/sync/` sólo para esos dos métodos y rutas. Todo lo demás —subida,
+	// bajada, estado, alta— sigue detrás del `Exigir` de arriba, que RECHAZA el token de entrega.
+	servicio.RutasDeRevision(publico, fuenteEntrega, fuenteMias)
 	publico.HandleFunc("GET /salud", func(w http.ResponseWriter, r *http.Request) {
 		if err := base.Ping(r.Context()); err != nil {
 			httpx.Fallo(w, http.StatusServiceUnavailable, "La base no contesta")

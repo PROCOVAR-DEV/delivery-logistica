@@ -326,6 +326,171 @@ void main() {
     });
   });
 
+  // LA BANDEJA DE REVISIÓN (09/10/2026, `docs/bandeja-de-revision.md` B.5).
+  //
+  // `huerfanos.dart` decide qué filas locales están «vivas» con listas de estados, y son
+  // TRES consultas distintas (`_esHuerfana`, `_sePuedeReencolar`, `_tarjetasSueltas`).
+  // Lo entregado a revisión (`enRevision`) y lo que el revisor descartó
+  // (`descartadoPorRevisor`) tienen que estar en ellas, o el ciclo reencola como huérfano
+  // lo que ya está en una bandeja: el bucle del 29/09/2026 con otro nombre. Una prueba por
+  // consulta, para que quitar el estado de UNA sola salga roja.
+  group('la bandeja de revisión', () {
+    Future<String> apunteDe(String ruta, EstadoApunte estado, {String? provisional}) async {
+      final clave = await cola.encolar(
+        metodo: ruta.startsWith('/board/placements') ? 'PUT' : 'POST',
+        ruta: ruta,
+        cuerpo: const {'a': 1},
+        provisional: provisional,
+      );
+      await base.customStatement(
+        'UPDATE apuntes SET estado = ?1 WHERE clave = ?2',
+        [estado.name, clave],
+      );
+      return clave;
+    }
+
+    Future<void> zonaDelServidor(String id) => base.customStatement(
+      'INSERT INTO board_columns (id, branch_id, nombre, posicion, created_at, '
+      'updated_at, nacio_aqui) '
+      "VALUES (?1, 'hab-1', ?1, 1, '2026-10-08T09:00:00.000', "
+      "'2026-10-08T09:00:00.000', 0)",
+      [id],
+    );
+
+    Future<void> tarjetaLocal(String pedido, String zona) async {
+      await base.into(base.orders).insertOnConflictUpdate(
+        OrdersCompanion.insert(id: pedido, customerName: 'C', address: 'Calle 1'),
+      );
+      await base.customStatement(
+        'INSERT INTO board_placements (order_id, column_id, posicion, colocado_at, '
+        'updated_at, nacio_aqui) '
+        "VALUES (?1, ?2, 0, '2026-10-08T09:00:00.000', '2026-10-08T09:00:00.000', 1)",
+        [pedido, zona],
+      );
+    }
+
+    // --- SQL 1: `_esHuerfana`. ---
+    test('SQL 1 · una zona con su apunte ENTREGADO no está huérfana ni se reencola', () async {
+      await zonaLocal('local-abc', pedidos: ['p1']);
+      await apunteDe(
+        '/board/columns?branchId=hab-1',
+        EstadoApunte.enRevision,
+        provisional: 'local-abc',
+      );
+
+      expect(
+        (await huerfanos.mirar()).hayAlguno,
+        isFalse,
+        reason: 'está en la bandeja de un administrador: ni se avisa ni se repite',
+      );
+      expect(await huerfanos.idsParaReencolar(Huerfanos.zonasDelTablero), isEmpty);
+      expect(await huerfanos.volverAEncolar(cola), 0);
+      expect(
+        (await base.select(base.apuntes).get()).length,
+        1,
+        reason: 'no se encoló nada nuevo: reentregarlo duplicaría el trabajo en la bandeja',
+      );
+    });
+
+    // --- SQL 2: `_sePuedeReencolar`. ---
+    test('SQL 2 · lo que el REVISOR descartó se avisa como huérfano pero NO se reencola', () async {
+      await zonaLocal('local-abc', pedidos: ['p1']);
+      await apunteDe(
+        '/board/columns?branchId=hab-1',
+        EstadoApunte.descartadoPorRevisor,
+        provisional: 'local-abc',
+      );
+
+      expect(
+        (await huerfanos.mirar()).hayAlguno,
+        isTrue,
+        reason: 'sigue sin estar arriba: apagar el aviso sería cambiar un error por un silencio',
+      );
+      expect(
+        await huerfanos.idsParaReencolar(Huerfanos.zonasDelTablero),
+        isEmpty,
+        reason: 'una decisión se ESCRIBE: reencolarlo devolvería el trabajo a la bandeja',
+      );
+      expect(await huerfanos.volverAEncolar(cola), 0);
+    });
+
+    // --- SQL 3: `_tarjetasSueltas`. ---
+    for (final estado in [EstadoApunte.enRevision, EstadoApunte.descartadoPorRevisor]) {
+      test('SQL 3 · una tarjeta suelta con su apunte ${estado.name} NO se reencola', () async {
+        await zonaDelServidor('c-arriba');
+        await tarjetaLocal('p1', 'c-arriba');
+        await apunteDe('/board/placements/p1', estado);
+
+        expect(await huerfanos.volverAEncolar(cola), 0);
+        expect((await base.select(base.apuntes).get()).length, 1);
+      });
+    }
+
+    test('SQL 3 · la pareja: la misma tarjeta SIN apunte sí se reencola', () async {
+      await zonaDelServidor('c-arriba');
+      await tarjetaLocal('p1', 'c-arriba');
+
+      expect(await huerfanos.volverAEncolar(cola), 1);
+    });
+
+    // --- TODO estado del enum está clasificado. ---
+    //
+    // Es la guarda del día que alguien añada un estado: tiene que decidir aquí, con una
+    // fila en esta tabla, qué hacen con él las tres consultas. Sin la fila falla el primer
+    // `expect`; con la fila mal puesta fallan los de abajo.
+    test('cada valor de EstadoApunte está clasificado, para las tres consultas', () async {
+      // estado: (¿se AVISA como huérfano?, ¿se REENCOLA?, ¿se reencola su tarjeta suelta?)
+      const clasificado = <EstadoApunte, (bool, bool, bool)>{
+        EstadoApunte.pendiente: (false, false, false),
+        EstadoApunte.rechazado: (false, false, false),
+        EstadoApunte.enRevision: (false, false, false),
+        EstadoApunte.descartado: (true, false, false),
+        EstadoApunte.descartadoPorRevisor: (true, false, false),
+        // Un aplicado sin equivalencia (el servidor no devolvió id) no tiene dueño.
+        EstadoApunte.aplicado: (true, true, true),
+      };
+      expect(
+        clasificado.keys.toSet(),
+        EstadoApunte.values.toSet(),
+        reason: 'se añadió un estado y nadie decidió qué hace con lo huérfano',
+      );
+
+      for (final MapEntry(key: estado, value: esperado) in clasificado.entries) {
+        final z = 'local-${estado.name}';
+        await zonaLocal(z);
+        await apunteDe('/board/columns?branchId=hab-1', estado, provisional: z);
+        final porZona = await huerfanos.mirar();
+        expect(porZona.hayAlguno, esperado.$1, reason: 'se avisa: ${estado.name}');
+        expect(
+          (await huerfanos.idsParaReencolar(Huerfanos.zonasDelTablero)).contains(z),
+          esperado.$2,
+          reason: 'se reencola: ${estado.name}',
+        );
+        // Limpio para el siguiente estado.
+        await base.customStatement('DELETE FROM board_columns');
+        await base.customStatement('DELETE FROM apuntes');
+      }
+
+      for (final estado in clasificado.keys) {
+        await zonaDelServidor('c-${estado.name}');
+        await tarjetaLocal('p-${estado.name}', 'c-${estado.name}');
+        await apunteDe('/board/placements/p-${estado.name}', estado);
+      }
+      // Todas juntas: solo se encola la tarjeta de los estados que no tienen dueño.
+      final antes = (await base.select(base.apuntes).get()).map((a) => a.clave).toSet();
+      final esperadas = {
+        for (final e in clasificado.entries)
+          if (e.value.$3) '/board/placements/p-${e.key.name}',
+      };
+      expect(await huerfanos.volverAEncolar(cola), esperadas.length);
+      final nuevos = (await base.select(base.apuntes).get())
+          .where((a) => !antes.contains(a.clave))
+          .map((a) => a.ruta)
+          .toSet();
+      expect(nuevos, esperadas);
+    });
+  });
+
   test('sin nada colgado, el texto es VACÍO y no revienta', () {
     // `partes.sublist(0, -1)` con la lista vacía lanza un `RangeError`, y esto
     // se pinta justo donde lo normal es que no haya nada: la franja de estado y

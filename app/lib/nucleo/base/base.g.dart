@@ -9348,6 +9348,50 @@ class $ApuntesTable extends Apuntes with TableInfo<$ApuntesTable, Apunte> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<String> revision = GeneratedColumn<String>(
+    'revision',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _revisadoPorMeta = const VerificationMeta(
+    'revisadoPor',
+  );
+  @override
+  late final GeneratedColumn<String> revisadoPor = GeneratedColumn<String>(
+    'revisado_por',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _revisadoAtMeta = const VerificationMeta(
+    'revisadoAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> revisadoAt = GeneratedColumn<DateTime>(
+    'revisado_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _motivoRevisionMeta = const VerificationMeta(
+    'motivoRevision',
+  );
+  @override
+  late final GeneratedColumn<String> motivoRevision = GeneratedColumn<String>(
+    'motivo_revision',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     orden,
@@ -9361,6 +9405,10 @@ class $ApuntesTable extends Apuntes with TableInfo<$ApuntesTable, Apunte> {
     motivo,
     resueltoAt,
     intentos,
+    revision,
+    revisadoPor,
+    revisadoAt,
+    motivoRevision,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -9447,6 +9495,36 @@ class $ApuntesTable extends Apuntes with TableInfo<$ApuntesTable, Apunte> {
         intentos.isAcceptableOrUnknown(data['intentos']!, _intentosMeta),
       );
     }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    }
+    if (data.containsKey('revisado_por')) {
+      context.handle(
+        _revisadoPorMeta,
+        revisadoPor.isAcceptableOrUnknown(
+          data['revisado_por']!,
+          _revisadoPorMeta,
+        ),
+      );
+    }
+    if (data.containsKey('revisado_at')) {
+      context.handle(
+        _revisadoAtMeta,
+        revisadoAt.isAcceptableOrUnknown(data['revisado_at']!, _revisadoAtMeta),
+      );
+    }
+    if (data.containsKey('motivo_revision')) {
+      context.handle(
+        _motivoRevisionMeta,
+        motivoRevision.isAcceptableOrUnknown(
+          data['motivo_revision']!,
+          _motivoRevisionMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -9502,6 +9580,22 @@ class $ApuntesTable extends Apuntes with TableInfo<$ApuntesTable, Apunte> {
         DriftSqlType.int,
         data['${effectivePrefix}intentos'],
       )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}revision'],
+      ),
+      revisadoPor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}revisado_por'],
+      ),
+      revisadoAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}revisado_at'],
+      ),
+      motivoRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}motivo_revision'],
+      ),
     );
   }
 
@@ -9539,6 +9633,19 @@ class Apunte extends DataClass implements Insertable<Apunte> {
   final String? motivo;
   final DateTime? resueltoAt;
   final int intentos;
+
+  /// El id de la ENTREGA (una pulsacion del boton) en la que se mando.
+  final String? revision;
+
+  /// El NOMBRE de quien decidio (el revisor), para pintarlo; no un uuid.
+  final String? revisadoPor;
+
+  /// Cuando decidio, segun el servidor.
+  final DateTime? revisadoAt;
+
+  /// Lo que dice la bandeja de este apunte: el motivo escrito del descarte o el
+  /// literal del reparto cuando no pudo aplicarlo.
+  final String? motivoRevision;
   const Apunte({
     required this.orden,
     required this.clave,
@@ -9551,6 +9658,10 @@ class Apunte extends DataClass implements Insertable<Apunte> {
     this.motivo,
     this.resueltoAt,
     required this.intentos,
+    this.revision,
+    this.revisadoPor,
+    this.revisadoAt,
+    this.motivoRevision,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -9576,6 +9687,18 @@ class Apunte extends DataClass implements Insertable<Apunte> {
       map['resuelto_at'] = Variable<DateTime>(resueltoAt);
     }
     map['intentos'] = Variable<int>(intentos);
+    if (!nullToAbsent || revision != null) {
+      map['revision'] = Variable<String>(revision);
+    }
+    if (!nullToAbsent || revisadoPor != null) {
+      map['revisado_por'] = Variable<String>(revisadoPor);
+    }
+    if (!nullToAbsent || revisadoAt != null) {
+      map['revisado_at'] = Variable<DateTime>(revisadoAt);
+    }
+    if (!nullToAbsent || motivoRevision != null) {
+      map['motivo_revision'] = Variable<String>(motivoRevision);
+    }
     return map;
   }
 
@@ -9598,6 +9721,18 @@ class Apunte extends DataClass implements Insertable<Apunte> {
           ? const Value.absent()
           : Value(resueltoAt),
       intentos: Value(intentos),
+      revision: revision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(revision),
+      revisadoPor: revisadoPor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(revisadoPor),
+      revisadoAt: revisadoAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(revisadoAt),
+      motivoRevision: motivoRevision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(motivoRevision),
     );
   }
 
@@ -9620,6 +9755,10 @@ class Apunte extends DataClass implements Insertable<Apunte> {
       motivo: serializer.fromJson<String?>(json['motivo']),
       resueltoAt: serializer.fromJson<DateTime?>(json['resueltoAt']),
       intentos: serializer.fromJson<int>(json['intentos']),
+      revision: serializer.fromJson<String?>(json['revision']),
+      revisadoPor: serializer.fromJson<String?>(json['revisadoPor']),
+      revisadoAt: serializer.fromJson<DateTime?>(json['revisadoAt']),
+      motivoRevision: serializer.fromJson<String?>(json['motivoRevision']),
     );
   }
   @override
@@ -9639,6 +9778,10 @@ class Apunte extends DataClass implements Insertable<Apunte> {
       'motivo': serializer.toJson<String?>(motivo),
       'resueltoAt': serializer.toJson<DateTime?>(resueltoAt),
       'intentos': serializer.toJson<int>(intentos),
+      'revision': serializer.toJson<String?>(revision),
+      'revisadoPor': serializer.toJson<String?>(revisadoPor),
+      'revisadoAt': serializer.toJson<DateTime?>(revisadoAt),
+      'motivoRevision': serializer.toJson<String?>(motivoRevision),
     };
   }
 
@@ -9654,6 +9797,10 @@ class Apunte extends DataClass implements Insertable<Apunte> {
     Value<String?> motivo = const Value.absent(),
     Value<DateTime?> resueltoAt = const Value.absent(),
     int? intentos,
+    Value<String?> revision = const Value.absent(),
+    Value<String?> revisadoPor = const Value.absent(),
+    Value<DateTime?> revisadoAt = const Value.absent(),
+    Value<String?> motivoRevision = const Value.absent(),
   }) => Apunte(
     orden: orden ?? this.orden,
     clave: clave ?? this.clave,
@@ -9666,6 +9813,12 @@ class Apunte extends DataClass implements Insertable<Apunte> {
     motivo: motivo.present ? motivo.value : this.motivo,
     resueltoAt: resueltoAt.present ? resueltoAt.value : this.resueltoAt,
     intentos: intentos ?? this.intentos,
+    revision: revision.present ? revision.value : this.revision,
+    revisadoPor: revisadoPor.present ? revisadoPor.value : this.revisadoPor,
+    revisadoAt: revisadoAt.present ? revisadoAt.value : this.revisadoAt,
+    motivoRevision: motivoRevision.present
+        ? motivoRevision.value
+        : this.motivoRevision,
   );
   Apunte copyWithCompanion(ApuntesCompanion data) {
     return Apunte(
@@ -9684,6 +9837,16 @@ class Apunte extends DataClass implements Insertable<Apunte> {
           ? data.resueltoAt.value
           : this.resueltoAt,
       intentos: data.intentos.present ? data.intentos.value : this.intentos,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      revisadoPor: data.revisadoPor.present
+          ? data.revisadoPor.value
+          : this.revisadoPor,
+      revisadoAt: data.revisadoAt.present
+          ? data.revisadoAt.value
+          : this.revisadoAt,
+      motivoRevision: data.motivoRevision.present
+          ? data.motivoRevision.value
+          : this.motivoRevision,
     );
   }
 
@@ -9700,7 +9863,11 @@ class Apunte extends DataClass implements Insertable<Apunte> {
           ..write('estado: $estado, ')
           ..write('motivo: $motivo, ')
           ..write('resueltoAt: $resueltoAt, ')
-          ..write('intentos: $intentos')
+          ..write('intentos: $intentos, ')
+          ..write('revision: $revision, ')
+          ..write('revisadoPor: $revisadoPor, ')
+          ..write('revisadoAt: $revisadoAt, ')
+          ..write('motivoRevision: $motivoRevision')
           ..write(')'))
         .toString();
   }
@@ -9718,6 +9885,10 @@ class Apunte extends DataClass implements Insertable<Apunte> {
     motivo,
     resueltoAt,
     intentos,
+    revision,
+    revisadoPor,
+    revisadoAt,
+    motivoRevision,
   );
   @override
   bool operator ==(Object other) =>
@@ -9733,7 +9904,11 @@ class Apunte extends DataClass implements Insertable<Apunte> {
           other.estado == this.estado &&
           other.motivo == this.motivo &&
           other.resueltoAt == this.resueltoAt &&
-          other.intentos == this.intentos);
+          other.intentos == this.intentos &&
+          other.revision == this.revision &&
+          other.revisadoPor == this.revisadoPor &&
+          other.revisadoAt == this.revisadoAt &&
+          other.motivoRevision == this.motivoRevision);
 }
 
 class ApuntesCompanion extends UpdateCompanion<Apunte> {
@@ -9748,6 +9923,10 @@ class ApuntesCompanion extends UpdateCompanion<Apunte> {
   final Value<String?> motivo;
   final Value<DateTime?> resueltoAt;
   final Value<int> intentos;
+  final Value<String?> revision;
+  final Value<String?> revisadoPor;
+  final Value<DateTime?> revisadoAt;
+  final Value<String?> motivoRevision;
   const ApuntesCompanion({
     this.orden = const Value.absent(),
     this.clave = const Value.absent(),
@@ -9760,6 +9939,10 @@ class ApuntesCompanion extends UpdateCompanion<Apunte> {
     this.motivo = const Value.absent(),
     this.resueltoAt = const Value.absent(),
     this.intentos = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.revisadoPor = const Value.absent(),
+    this.revisadoAt = const Value.absent(),
+    this.motivoRevision = const Value.absent(),
   });
   ApuntesCompanion.insert({
     this.orden = const Value.absent(),
@@ -9773,6 +9956,10 @@ class ApuntesCompanion extends UpdateCompanion<Apunte> {
     this.motivo = const Value.absent(),
     this.resueltoAt = const Value.absent(),
     this.intentos = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.revisadoPor = const Value.absent(),
+    this.revisadoAt = const Value.absent(),
+    this.motivoRevision = const Value.absent(),
   }) : clave = Value(clave),
        hechoAt = Value(hechoAt),
        metodo = Value(metodo),
@@ -9790,6 +9977,10 @@ class ApuntesCompanion extends UpdateCompanion<Apunte> {
     Expression<String>? motivo,
     Expression<DateTime>? resueltoAt,
     Expression<int>? intentos,
+    Expression<String>? revision,
+    Expression<String>? revisadoPor,
+    Expression<DateTime>? revisadoAt,
+    Expression<String>? motivoRevision,
   }) {
     return RawValuesInsertable({
       if (orden != null) 'orden': orden,
@@ -9803,6 +9994,10 @@ class ApuntesCompanion extends UpdateCompanion<Apunte> {
       if (motivo != null) 'motivo': motivo,
       if (resueltoAt != null) 'resuelto_at': resueltoAt,
       if (intentos != null) 'intentos': intentos,
+      if (revision != null) 'revision': revision,
+      if (revisadoPor != null) 'revisado_por': revisadoPor,
+      if (revisadoAt != null) 'revisado_at': revisadoAt,
+      if (motivoRevision != null) 'motivo_revision': motivoRevision,
     });
   }
 
@@ -9818,6 +10013,10 @@ class ApuntesCompanion extends UpdateCompanion<Apunte> {
     Value<String?>? motivo,
     Value<DateTime?>? resueltoAt,
     Value<int>? intentos,
+    Value<String?>? revision,
+    Value<String?>? revisadoPor,
+    Value<DateTime?>? revisadoAt,
+    Value<String?>? motivoRevision,
   }) {
     return ApuntesCompanion(
       orden: orden ?? this.orden,
@@ -9831,6 +10030,10 @@ class ApuntesCompanion extends UpdateCompanion<Apunte> {
       motivo: motivo ?? this.motivo,
       resueltoAt: resueltoAt ?? this.resueltoAt,
       intentos: intentos ?? this.intentos,
+      revision: revision ?? this.revision,
+      revisadoPor: revisadoPor ?? this.revisadoPor,
+      revisadoAt: revisadoAt ?? this.revisadoAt,
+      motivoRevision: motivoRevision ?? this.motivoRevision,
     );
   }
 
@@ -9872,6 +10075,18 @@ class ApuntesCompanion extends UpdateCompanion<Apunte> {
     if (intentos.present) {
       map['intentos'] = Variable<int>(intentos.value);
     }
+    if (revision.present) {
+      map['revision'] = Variable<String>(revision.value);
+    }
+    if (revisadoPor.present) {
+      map['revisado_por'] = Variable<String>(revisadoPor.value);
+    }
+    if (revisadoAt.present) {
+      map['revisado_at'] = Variable<DateTime>(revisadoAt.value);
+    }
+    if (motivoRevision.present) {
+      map['motivo_revision'] = Variable<String>(motivoRevision.value);
+    }
     return map;
   }
 
@@ -9888,7 +10103,11 @@ class ApuntesCompanion extends UpdateCompanion<Apunte> {
           ..write('estado: $estado, ')
           ..write('motivo: $motivo, ')
           ..write('resueltoAt: $resueltoAt, ')
-          ..write('intentos: $intentos')
+          ..write('intentos: $intentos, ')
+          ..write('revision: $revision, ')
+          ..write('revisadoPor: $revisadoPor, ')
+          ..write('revisadoAt: $revisadoAt, ')
+          ..write('motivoRevision: $motivoRevision')
           ..write(')'))
         .toString();
   }
@@ -14836,6 +15055,10 @@ typedef $$ApuntesTableCreateCompanionBuilder =
       Value<String?> motivo,
       Value<DateTime?> resueltoAt,
       Value<int> intentos,
+      Value<String?> revision,
+      Value<String?> revisadoPor,
+      Value<DateTime?> revisadoAt,
+      Value<String?> motivoRevision,
     });
 typedef $$ApuntesTableUpdateCompanionBuilder =
     ApuntesCompanion Function({
@@ -14850,6 +15073,10 @@ typedef $$ApuntesTableUpdateCompanionBuilder =
       Value<String?> motivo,
       Value<DateTime?> resueltoAt,
       Value<int> intentos,
+      Value<String?> revision,
+      Value<String?> revisadoPor,
+      Value<DateTime?> revisadoAt,
+      Value<String?> motivoRevision,
     });
 
 class $$ApuntesTableFilterComposer
@@ -14914,6 +15141,26 @@ class $$ApuntesTableFilterComposer
 
   ColumnFilters<int> get intentos => $composableBuilder(
     column: $table.intentos,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get revisadoPor => $composableBuilder(
+    column: $table.revisadoPor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get revisadoAt => $composableBuilder(
+    column: $table.revisadoAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get motivoRevision => $composableBuilder(
+    column: $table.motivoRevision,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -14981,6 +15228,26 @@ class $$ApuntesTableOrderingComposer
     column: $table.intentos,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get revisadoPor => $composableBuilder(
+    column: $table.revisadoPor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get revisadoAt => $composableBuilder(
+    column: $table.revisadoAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get motivoRevision => $composableBuilder(
+    column: $table.motivoRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ApuntesTableAnnotationComposer
@@ -15028,6 +15295,24 @@ class $$ApuntesTableAnnotationComposer
 
   GeneratedColumn<int> get intentos =>
       $composableBuilder(column: $table.intentos, builder: (column) => column);
+
+  GeneratedColumn<String> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<String> get revisadoPor => $composableBuilder(
+    column: $table.revisadoPor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get revisadoAt => $composableBuilder(
+    column: $table.revisadoAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get motivoRevision => $composableBuilder(
+    column: $table.motivoRevision,
+    builder: (column) => column,
+  );
 }
 
 class $$ApuntesTableTableManager
@@ -15069,6 +15354,10 @@ class $$ApuntesTableTableManager
                 Value<String?> motivo = const Value.absent(),
                 Value<DateTime?> resueltoAt = const Value.absent(),
                 Value<int> intentos = const Value.absent(),
+                Value<String?> revision = const Value.absent(),
+                Value<String?> revisadoPor = const Value.absent(),
+                Value<DateTime?> revisadoAt = const Value.absent(),
+                Value<String?> motivoRevision = const Value.absent(),
               }) => ApuntesCompanion(
                 orden: orden,
                 clave: clave,
@@ -15081,6 +15370,10 @@ class $$ApuntesTableTableManager
                 motivo: motivo,
                 resueltoAt: resueltoAt,
                 intentos: intentos,
+                revision: revision,
+                revisadoPor: revisadoPor,
+                revisadoAt: revisadoAt,
+                motivoRevision: motivoRevision,
               ),
           createCompanionCallback:
               ({
@@ -15095,6 +15388,10 @@ class $$ApuntesTableTableManager
                 Value<String?> motivo = const Value.absent(),
                 Value<DateTime?> resueltoAt = const Value.absent(),
                 Value<int> intentos = const Value.absent(),
+                Value<String?> revision = const Value.absent(),
+                Value<String?> revisadoPor = const Value.absent(),
+                Value<DateTime?> revisadoAt = const Value.absent(),
+                Value<String?> motivoRevision = const Value.absent(),
               }) => ApuntesCompanion.insert(
                 orden: orden,
                 clave: clave,
@@ -15107,6 +15404,10 @@ class $$ApuntesTableTableManager
                 motivo: motivo,
                 resueltoAt: resueltoAt,
                 intentos: intentos,
+                revision: revision,
+                revisadoPor: revisadoPor,
+                revisadoAt: revisadoAt,
+                motivoRevision: motivoRevision,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

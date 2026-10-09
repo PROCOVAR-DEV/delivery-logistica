@@ -136,14 +136,48 @@ func RegistrarPeticiones(siguiente http.Handler) http.Handler {
 		case e.codigo >= 400 && e.codigo != http.StatusUnauthorized && e.codigo != http.StatusNotFound:
 			nivel = slog.LevelWarn
 		}
-		Registro(r).Log(r.Context(), nivel, "peticion",
+		campos := []any{
 			"metodo", r.Method,
 			"ruta", r.URL.Path,
 			"codigo", e.codigo,
 			"bytes", e.bytes,
 			"ms", time.Since(inicio).Milliseconds(),
-		)
+		}
+		Registro(r).Log(r.Context(), nivel, "peticion", append(campos, autoriaDe(r)...)...)
 	})
+}
+
+// TopeDeLaAutoria: caracteres que se anotan de `X-Autor` y `X-Revision` (un uuid con guiones mide 36).
+const TopeDeLaAutoria = 64
+
+// autoriaDe: la AUTORÍA DE LA BANDEJA DE REVISIÓN (`docs/bandeja-de-revision.md`, paquete P).
+//
+// Cuando el revisor aplica lo que otra persona entregó, `sync` llama a esta API con el token del
+// REVISOR y añade `X-Autor` (quién hizo el gesto: el `sub` del aparato) y `X-Revision` (el id de la
+// revisión). Aquí se ESCRIBEN, como `autor` y `revision`, en la línea de la petición, que sale para
+// TODA escritura (POST/PUT/PATCH/DELETE) y por eso cubre rutas que no llaman a `rastroDeQuien`
+// (`/board/columns`...): el 09/10/2026 la prueba de punta a punta vio que aplicar el tablero por
+// revisión no dejaba ni rastro de las dos personas. Es el ÚNICO sitio que las escribe.
+//
+// NO AUTORIZAN NADA, no tocan el `actor` (que sale del token verificado, en `rastroDeQuien`) y se
+// recortan: son cabeceras de quien llama, o sea texto de fuera, y un renglón que se pega en un chat
+// no puede crecer con ellas. Un GET no las anota; un valor vacío tampoco.
+func autoriaDe(r *http.Request) []any {
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+	default:
+		return nil
+	}
+	var campos []any
+	for _, c := range [...]struct{ cabecera, clave string }{{"X-Autor", "autor"}, {"X-Revision", "revision"}} {
+		if v := strings.TrimSpace(r.Header.Get(c.cabecera)); v != "" {
+			if t := []rune(v); len(t) > TopeDeLaAutoria {
+				v = string(t[:TopeDeLaAutoria]) + "…"
+			}
+			campos = append(campos, c.clave, v)
+		}
+	}
+	return campos
 }
 
 // RecuperarPanico convierte un pánico en un 500 con el formato de siempre.

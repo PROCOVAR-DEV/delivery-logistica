@@ -58,6 +58,20 @@ type Identidad struct {
 	//
 	// Vacío cuando la identidad no salió de un token (`DeCabeceras`, el modo viejo).
 	Token string
+
+	// El claim `name` del token VERIFICADO (nunca del cuerpo de la petición), para que la bandeja
+	// de revisión diga «Yasmani» y no un uuid. Vacío si el token no lo trae.
+	Nombre string
+	// El `jti` del token: qué token entregó o decidió. Vale como constancia, nunca como secreto.
+	Jti string
+	// Los roles del token VERIFICADO, por nombre (`role`, `rol` y `roles`, sin vacíos). Sólo los lee
+	// [Identidad.RolDeRevisor]: Reparto no decide quién ENTRA por el rol (eso es `entradas`), pero quién REVISA
+	// la bandeja sí se decide por nombre (docs/bandeja-de-revision.md B.3). Vacío con `SYNC_IDENTIDAD=cabeceras`.
+	Roles []string
+	// Ámbito del token. Vacío en todo token normal; [AmbitoEntrega] sólo lo pone
+	// [DeTokenDeEntrega]. Es lo que deja a un manejador exigir «esto sólo con token de entrega»
+	// aunque alguien le monte mal la fuente.
+	Ambito string
 }
 
 // Alcance devuelve la sucursal por la que hay que filtrar, o nil para «todas». Es lo que

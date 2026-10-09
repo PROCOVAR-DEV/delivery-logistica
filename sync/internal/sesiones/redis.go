@@ -88,16 +88,17 @@ func (f *fuenteRedis) Suscribir(ctx context.Context) (Suscripcion, error) {
 	}
 }
 
-// Marcas: SCAN de las marcas `todo` y MGET de sus valores, por lotes. Un valor que no es un entero
-// positivo se salta. La familia `web` NO se carga: no le toca a este servicio.
-func (f *fuenteRedis) Marcas(ctx context.Context) (map[string]int64, error) {
+// Marcas: SCAN de las dos familias de marcas (`web` y `todo`) y MGET de sus valores, por lotes. Un valor que
+// no es un entero positivo se salta. La `web` se carga PORQUE la bandeja del revisor también se usa desde la
+// web con el token de `/api/me` (`web:true`): ver la cabecera del paquete.
+func (f *fuenteRedis) Marcas(ctx context.Context) (Marcas, error) {
 	// Aparte y esperando a ctx, como `Suscribir`: go-redis NO mira la cancelación de un contexto durante
 	// una lectura (sólo su plazo), así que con un Redis que confirma el SUBSCRIBE y se cuelga en el
 	// SCAN esto tardaba el ReadTimeout y sus reintentos (4,5 s medidos) en volver tras cancelar, y el
 	// apagado de `main` (2 s) daba «no terminó a tiempo». Lo que quede del intento lo corta su plazo
 	// (`plazoDeConexion`) o el `Cerrar` del cliente al terminar `Correr`.
 	type resultado struct {
-		m   map[string]int64
+		m   Marcas
 		err error
 	}
 	salida := make(chan resultado, 1)
@@ -109,16 +110,28 @@ func (f *fuenteRedis) Marcas(ctx context.Context) (map[string]int64, error) {
 	case r := <-salida:
 		return r.m, r.err
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return Marcas{}, ctx.Err()
 	}
 }
 
-func (f *fuenteRedis) cargarMarcas(ctx context.Context) (map[string]int64, error) {
+func (f *fuenteRedis) cargarMarcas(ctx context.Context) (Marcas, error) {
 	ctx, cancelar := context.WithTimeout(ctx, plazoDeConexion)
 	defer cancelar()
 
+	web, err := f.marcasDe(ctx, PrefijoDeMarcaWeb)
+	if err != nil {
+		return Marcas{}, err
+	}
+	todo, err := f.marcasDe(ctx, PrefijoDeMarcaTodo)
+	if err != nil {
+		return Marcas{}, err
+	}
+	return Marcas{Web: web, Todo: todo}, nil
+}
+
+func (f *fuenteRedis) marcasDe(ctx context.Context, prefijo string) (map[string]int64, error) {
 	var claves []string
-	it := f.c.Scan(ctx, 0, PrefijoDeMarcaTodo+"*", int64(tamanoDeLote)).Iterator()
+	it := f.c.Scan(ctx, 0, prefijo+"*", int64(tamanoDeLote)).Iterator()
 	for it.Next(ctx) {
 		claves = append(claves, it.Val())
 	}
@@ -136,7 +149,7 @@ func (f *fuenteRedis) cargarMarcas(ctx context.Context) (map[string]int64, error
 		for j, v := range valores {
 			texto, _ := v.(string) // nil = la clave caducó entre el SCAN y el MGET
 			if tms, err := strconv.ParseInt(texto, 10, 64); err == nil && tms > 0 {
-				salida[strings.TrimPrefix(lote[j], PrefijoDeMarcaTodo)] = tms
+				salida[strings.TrimPrefix(lote[j], prefijo)] = tms
 			}
 		}
 	}

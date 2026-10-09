@@ -62,6 +62,11 @@ type resultado struct {
 	// `omitempty` no es cosmética: lo normal es que no haya ninguno, y un `"descartados":
 	// []` en cada apunte del lote es peso en una conexión que se paga.
 	Descartados json.RawMessage `json:"descartados,omitempty"`
+
+	// SÓLO en el `repetido` de algo que una persona DESCARTÓ en la revisión (aditivo): quién y el texto que
+	// escribió, por separado. `motivo` sigue llevando la frase ya montada.
+	DecididoPorNombre string `json:"decididoPorNombre,omitempty"`
+	MotivoDelDescarte string `json:"motivoDelDescarte,omitempty"`
 }
 
 type subidaSalida struct {
@@ -202,6 +207,14 @@ func (s *Servicio) aplicarLote(ctx context.Context, aparato sqlc.Aparato, quien 
 // unApunte resuelve uno solo: ¿ya lo vi? ¿a qué se refiere ese `local-…`? ¿qué dice el
 // reparto?
 func (s *Servicio) unApunte(ctx context.Context, aparato sqlc.Aparato, quien identidad.Identidad, a apunteEntrada, traduce *traductor) (resultado, error) {
+	// 0 · ¿ESTA CLAVE LA ENTREGÓ A REVISIÓN QUIEN PERDIÓ EL ROL? (`revision_entrega.go`) Entonces NO se aplica:
+	// se contesta lo que corresponde a como esté ahora, y lo decide una persona.
+	if r, entregado, err := s.respuestaDeRevision(ctx, aparato, a, traduce); err != nil {
+		return resultado{}, err
+	} else if entregado {
+		return r, nil
+	}
+
 	// 1 · REGLA 1. ¿He visto ya esta clave DE ESTE APARATO?
 	previo, err := s.datos.BuscarApunte(ctx, sqlc.BuscarApunteParams{
 		AparatoID: aparato.ID,
@@ -214,44 +227,13 @@ func (s *Servicio) unApunte(ctx context.Context, aparato sqlc.Aparato, quien ide
 		return resultado{}, err
 	}
 
-	// 2 · REGLA 3. Los `local-…` que traiga se cambian por el id de verdad.
-	ruta, falta, err := traduce.texto(ctx, a.Ruta, a.Provisional)
+	// 2 y 3 · Traducir los `local-…` y mandárselo al reparto (`reenviar`, que comparte la revisión).
+	ruta, aplicado, rechazo, err := s.reenviar(ctx, aparato, quien, a, traduce, nil)
 	if err != nil {
 		return resultado{}, err
 	}
-	cuerpo := a.Cuerpo
-	if falta == "" && len(cuerpo) > 0 {
-		var traducido string
-		traducido, falta, err = traduce.texto(ctx, string(cuerpo), a.Provisional)
-		if err != nil {
-			return resultado{}, err
-		}
-		cuerpo = json.RawMessage(traducido)
-	}
-	if falta != "" {
-		// No se manda al reparto para que conteste 404 —eso sería perder el trabajo con
-		// cara de error técnico—: se rechaza con un motivo que se entiende.
-		motivo := fmt.Sprintf("El identificador provisional %s todavía no corresponde a nada: el apunte que lo crea no ha llegado.", falta)
-		return s.rechazar(ctx, aparato, a, motivo)
-	}
-
-	// 3 · El reparto, que es el dueño de los datos.
-	aplicado, err := s.aplicador.Aplicar(ctx, Peticion{
-		Metodo:   a.Metodo,
-		Ruta:     ruta,
-		Cuerpo:   cuerpo,
-		Hecho:    a.Hecho,
-		Sucursal: aparato.BranchID,
-		Persona:  quien.Persona,
-		Clave:    a.Clave,
-		Token:    quien.Token,
-	})
-	var rechazo *Rechazo
-	switch {
-	case errors.As(err, &rechazo):
+	if rechazo != nil {
 		return s.rechazar(ctx, aparato, a, rechazo.Motivo)
-	case err != nil:
-		return resultado{}, err
 	}
 	idCreado := aplicado.ID
 
@@ -319,6 +301,67 @@ func (s *Servicio) unApunte(ctx context.Context, aparato sqlc.Aparato, quien ide
 		// Y lo que se quedó fuera, tal cual vino. Ver [resultado.Descartados].
 		Descartados: aplicado.Descartados,
 	}, nil
+}
+
+// origenDeRevision es lo único que cambia cuando un apunte no lo reenvía quien lo hizo sino el REVISOR que lo
+// aprobó (`revision_aplicar.go`): quién lo hizo, qué entrega lo trajo y a qué sucursal hay que acotarlo. Es nil
+// en la subida normal, que no manda nada de esto.
+type origenDeRevision struct {
+	Autor          string
+	Revision       string
+	SucursalPedida uuid.UUID
+}
+
+// reenviar son los pasos 2 y 3 de `unApunte`, TAL CUAL, sacados para que la revisión use LA MISMA tubería y las
+// mismas validaciones que la subida normal: traducir los `local-…` (regla 3) y mandárselo al reparto con el
+// token de `quien`. Devuelve la ruta ya traducida, lo que el reparto contestó y, si fue un «no» de negocio
+// (o un provisional que no llegó), el [Rechazo] con su motivo. Una caída o un [SinPermiso] salen como `error`.
+//
+// QUIÉN FIRMA lo decide `quien`: en la subida, la persona; en la revisión, el REVISOR (la persona del apunte
+// ya no tiene permiso). `origen` añade las tres cosas que sólo la revisión manda.
+func (s *Servicio) reenviar(ctx context.Context, aparato sqlc.Aparato, quien identidad.Identidad, a apunteEntrada,
+	traduce *traductor, origen *origenDeRevision) (string, Aplicado, *Rechazo, error) {
+	// REGLA 3. Los `local-…` que traiga se cambian por el id de verdad.
+	ruta, falta, err := traduce.texto(ctx, a.Ruta, a.Provisional)
+	if err != nil {
+		return "", Aplicado{}, nil, err
+	}
+	cuerpo := a.Cuerpo
+	if falta == "" && len(cuerpo) > 0 {
+		var traducido string
+		traducido, falta, err = traduce.texto(ctx, string(cuerpo), a.Provisional)
+		if err != nil {
+			return "", Aplicado{}, nil, err
+		}
+		cuerpo = json.RawMessage(traducido)
+	}
+	if falta != "" {
+		// No se manda al reparto para que conteste 404 —eso sería perder el trabajo con
+		// cara de error técnico—: se rechaza con un motivo que se entiende.
+		return "", Aplicado{}, &Rechazo{Motivo: fmt.Sprintf(
+			"El identificador provisional %s todavía no corresponde a nada: el apunte que lo crea no ha llegado.", falta)}, nil
+	}
+
+	// El reparto, que es el dueño de los datos.
+	p := Peticion{
+		Metodo:   a.Metodo,
+		Ruta:     ruta,
+		Cuerpo:   cuerpo,
+		Hecho:    a.Hecho,
+		Sucursal: aparato.BranchID,
+		Persona:  quien.Persona,
+		Clave:    a.Clave,
+		Token:    quien.Token,
+	}
+	if origen != nil {
+		p.Autor, p.Revision, p.SucursalPedida = origen.Autor, origen.Revision, origen.SucursalPedida
+	}
+	aplicado, err := s.aplicador.Aplicar(ctx, p)
+	var rechazo *Rechazo
+	if errors.As(err, &rechazo) {
+		return ruta, Aplicado{}, rechazo, nil
+	}
+	return ruta, aplicado, nil, err
 }
 
 // mismaRespuestaQueLaPrimeraVez es la regla 1 entera: un apunte se queda para siempre como

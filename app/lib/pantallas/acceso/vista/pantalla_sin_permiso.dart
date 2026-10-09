@@ -11,6 +11,9 @@ import '../../../navegacion/portero.dart';
 import '../../../nucleo/identidad/entrada_por_accesos.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../../nucleo/red/entorno.dart';
+import '../../../nucleo/sincro/entrega_a_revision.dart' show ResultadoDeEntrega;
+import '../datos/textos_de_entrega.dart';
+import 'panel_de_entrega.dart';
 
 /// EL INICIO DE ACCESOS: `AUTH_URL` y su raíz, que es donde la persona ve las
 /// aplicaciones a las que SÍ puede entrar (Jose, 08/10/2026: «a su inicio con la
@@ -34,11 +37,16 @@ const segundosHastaAccesos = 3;
 ///    una navegación de verdad (`navegadorProvider`), como la del login único.
 ///  * **APK y escritorio**: no se va sola. «Ir a Accesos» abre el navegador del
 ///    sistema y «Cerrar sesión» sale como cualquier salida: **no borra la cola**
-///    y, si hay apuntes sin subir, lo pregunta antes.
+///    y, si hay apuntes sin subir, lo pregunta antes. Con cola, ademas, el
+///    [PanelDeEntrega] ofrece **entregarla a revision** (un administrador la
+///    decide) y enseña en que esta lo ya entregado.
 ///
 /// **No vuelve a lanzar la llamada que dio el 403**, ni se reevalúa sola: el
 /// portero se queda en `sinPermiso` hasta que alguien entre de nuevo, así que no
 /// hay bucle posible desde aquí. Todo el porqué, en `docs/sin-permiso.md`.
+/// Lo que se elige en el cartel de «Cerrar sesión» con cola.
+enum _Salida { quedarme, sinEntregar, entregando }
+
 class PantallaSinPermiso extends ConsumerStatefulWidget {
   const PantallaSinPermiso({super.key});
 
@@ -83,35 +91,48 @@ class _PantallaSinPermisoState extends ConsumerState<PantallaSinPermiso> {
     ref.read(navegadorProvider).irA(inicioDeAccesos);
   }
 
+  /// «CERRAR SESIÓN», con tres salidas cuando hay cola (B.5): entregar y salir,
+  /// salir sin entregar —diciendo claro que queda varado— o quedarse.
+  ///
+  /// Salir NO borra la cola (cada persona tiene su copia), pero SIN entregar nadie
+  /// la ve y solo sube si devuelven el permiso: por eso se pregunta, y por eso se
+  /// ofrece la salida que no la deja varada.
   Future<void> _cerrarSesion() async {
     final pendientes = await ref.read(baseProvider).cuantosPendientes();
     if (!mounted) return;
     if (pendientes > 0) {
-      // Lo mismo que el «Cerrar sesión» de la cuenta: salir NO borra la cola, y
-      // lo que sí es verdad es que nadie ve ese trabajo hasta que suba.
-      final sigue = await showDialog<bool>(
+      final eleccion = await showDialog<_Salida>(
         context: context,
         builder: (contexto) => AlertDialog(
-          title: const Text('Queda trabajo sin subir'),
-          content: Text(
-            'Hay $pendientes ${pendientes == 1 ? "apunte" : "apuntes"} sin '
-            'subir al servidor. Salir NO los borra: se quedan en este aparato '
-            'hasta que vuelvas a entrar.\n\nSuben cuando te den acceso a Reparto y '
-            'vuelvas a entrar.',
+          title: const Text(TextosDelPanel.salirTitulo),
+          content: SingleChildScrollView(
+            child: Text(TextosDelPanel.salirCuerpo(pendientes)),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(contexto).pop(false),
-              child: const Text('Me quedo'),
+              onPressed: () => Navigator.of(contexto).pop(_Salida.quedarme),
+              child: const Text(TextosDelPanel.meQuedo),
             ),
             TextButton(
-              onPressed: () => Navigator.of(contexto).pop(true),
-              child: const Text('Salir de todos modos'),
+              onPressed: () => Navigator.of(contexto).pop(_Salida.sinEntregar),
+              child: const Text(TextosDelPanel.salirSinEntregar),
+            ),
+            BotonPrincipal(
+              texto: TextosDelPanel.entregarYSalir,
+              icono: Icons.outbox,
+              alPulsar: () => Navigator.of(contexto).pop(_Salida.entregando),
             ),
           ],
         ),
       );
-      if (sigue != true || !mounted) return;
+      // Cerrar sin contestar —tocar fuera, Escape— es QUEDARSE.
+      if (eleccion == null || eleccion == _Salida.quedarme || !mounted) return;
+      if (eleccion == _Salida.entregando) {
+        final r = await ref.read(controlDeEntregaProvider.notifier).entregar();
+        // Solo se sale si TODO quedó entregado; si no, se queda con el motivo a la
+        // vista en el panel y el trabajo donde estaba.
+        if (r.resultado != ResultadoDeEntrega.entregado || !mounted) return;
+      }
     }
     await ref.read(porteroProvider).salir();
   }
@@ -197,6 +218,9 @@ class _PantallaSinPermisoState extends ConsumerState<PantallaSinPermiso> {
                     alPulsar: _irAAccesos,
                   ),
                 ] else ...[
+                  // SOLO EN EL APARATO (y solo si hay algo): la web no tiene cola
+                  // ni entrega, y se va sola a Accesos.
+                  const PanelDeEntrega(),
                   BotonPrincipal(
                     texto: 'Ir a Accesos',
                     icono: Icons.open_in_new,

@@ -42,6 +42,7 @@ func TestElContratoConAccesosNoSeCambiaSolo(t *testing.T) {
 	}{
 		{"canal", Canal, "procovar:auth:eventos"},
 		{"clave de la marca todo", PrefijoDeMarcaTodo + "u1", "procovar:auth:invalida:todo:u1"},
+		{"clave de la marca web", PrefijoDeMarcaWeb + "u1", "procovar:auth:invalida:web:u1"},
 		{"base de Redis", BaseDeLasMarcas, 6},
 		{"vida de la marca (s)", int(VidaDeUnaMarca / time.Second), 691_200},
 		{"tipo sesion-cerrada", tipoSesionCerrada, "sesion-cerrada"},
@@ -138,7 +139,7 @@ func (r *redisDeMentira) todos() []string {
 	return append([]string(nil), r.comandos...)
 }
 
-// LO QUE `redis.go` MANDA POR EL CABLE: la DB, el canal y el patrón del SCAN (sólo la familia `todo`: la `web` no le toca al sincronizador). Es lo que las
+// LO QUE `redis.go` MANDA POR EL CABLE: la DB, el canal y los patrones del SCAN (las dos familias: la `web` también, por la bandeja web del revisor). Es lo que las
 // tres mutaciones de la auditoría rompían sin que nada se enterase.
 func TestElAdaptadorDeRedisHablaLaBaseElCanalYElPrefijoDelContrato(t *testing.T) {
 	mentira, addr := levantarRedisDeMentira(t)
@@ -160,6 +161,7 @@ func TestElAdaptadorDeRedisHablaLaBaseElCanalYElPrefijoDelContrato(t *testing.T)
 		"SELECT 6", // la DB de las sesiones de Accesos
 		"SUBSCRIBE procovar:auth:eventos",
 		"SCAN 0 MATCH procovar:auth:invalida:todo:* COUNT " + strconv.Itoa(tamanoDeLote),
+		"SCAN 0 MATCH procovar:auth:invalida:web:* COUNT " + strconv.Itoa(tamanoDeLote),
 	} {
 		if !mentira.vio(esperado) {
 			t.Errorf("el adaptador no mandó %q; mandó %q", esperado, mentira.todos())

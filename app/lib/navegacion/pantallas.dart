@@ -6,6 +6,7 @@ import '../pantallas/vehiculos/registro.dart';
 import '../pantallas/informes/registro.dart';
 import '../pantallas/panel/registro.dart';
 import '../pantallas/pedidos/registro.dart';
+import '../pantallas/revision/registro.dart';
 import '../pantallas/rutas/registro.dart';
 import '../pantallas/mapa/registro.dart';
 import '../pantallas/sincronizacion/registro.dart';
@@ -48,6 +49,12 @@ List<PantallaRegistrada> pantallasDeLaAplicacion() => <PantallaRegistrada>[
   // acotado por sucursal desde el servidor. El motivo largo esta en su
   // `registro.dart`.
   registrarSincronizacion(),
+
+  // LA BANDEJA DEL REVISOR: lo que entrego quien perdio el permiso de Reparto,
+  // a la espera de que una persona decida (`docs/bandeja-de-revision.md`). En
+  // el menu SOLO para ADMINISTRADOR, SUPER ADMIN y DESARROLLADOR, y tambien en
+  // la web. El porque entero, en su `registro.dart`.
+  registrarRevision(),
 
   // CÓMO VA EL CANAL CON PEDIDO. Fuera del menú, y **sólo en la web**.
   //

@@ -28,6 +28,7 @@ import 'red/salud.dart';
 import 'red/veredicto_del_sistema.dart';
 import 'reloj.dart';
 import 'sincro/bajada.dart';
+import 'sincro/entrega_a_revision.dart';
 import 'sincro/ciclo.dart';
 import 'sincro/huerfanos.dart';
 import 'sincro/identidad_del_aparato.dart';
@@ -897,6 +898,22 @@ final dispararCicloProvider = Provider<Future<void> Function(String motivo)>(
       (motivo) => ref.read(cicloProvider).ahora(motivo: motivo),
 );
 
+/// LA ENTREGA A REVISION (`docs/bandeja-de-revision.md`). Dos `Dio` crudos, sin
+/// `InterceptorSesion`: el de Accesos de siempre y uno propio para `sync`.
+final entregaARevisionProvider = Provider<EntregaARevision>(
+  (ref) => EntregaARevision(
+    auth: ref.watch(dioAuthProvider),
+    sync: EntregaARevision.dioDeSync(
+      interceptores: [InterceptorDeAgente()],
+    ),
+    cola: ref.watch(colaProvider),
+    base: ref.watch(baseProvider),
+    aparato: ref.watch(identidadDelAparatoProvider),
+    almacen: ref.watch(almacenSesionProvider),
+    trabajaSinConexion: () => ref.read(trabajaSinConexionProvider),
+  ),
+);
+
 final cicloProvider = Provider<CicloDeSincronizacion>(
   (ref) => CicloDeSincronizacion(
     almacen: ref.watch(almacenSesionProvider),
@@ -932,6 +949,14 @@ final cicloProvider = Provider<CicloDeSincronizacion>(
     alAvanzar: (avance) =>
         ref.read(marchaDelCicloProvider.notifier).avanza(avance),
     alAcabar: ref.watch(alAcabarElCicloProvider),
+    // Solo si hay algo `enRevision` (lo decide el servicio, sin red si no).
+    consultarRevision: () => ref
+        .read(entregaARevisionProvider)
+        .consultarConSesion(
+          (ruta, params) => ref
+              .read(clienteSyncProvider)
+              .pedir<Map<String, Object?>>(ruta, params: params),
+        ),
   ),
 );
 

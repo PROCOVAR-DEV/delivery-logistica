@@ -518,3 +518,51 @@ func laCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	t.Fatalf("no hay cookie %q en la respuesta (%d): %v", nombreDeLaCookie, rec.Code, rec.Header())
 	return nil
 }
+
+// ---------------------------------------------------------------------------
+// 2-bis · EL CÓDIGO DE SUCURSAL DE LA WEB (`organization.codigo`, no el `slug`)
+// ---------------------------------------------------------------------------
+
+// La APK y el escritorio llevan `organization.codigo` en el token; la web lo sacaba del `slug` en
+// mayúsculas. En Accesos son columnas distintas y difieren en `PLS` (slug `palma-soriano`): la web de
+// Palma Soriano pedía «PALMA-SORIANO» y su APK «PLS». Ahora manda `codigo` y, si falta, el `slug`
+// (Accesos y Reparto se pueden desplegar en cualquier orden).
+func TestLaSucursalDeLaWebSaleDelCodigoYSiFaltaDelSlug(t *testing.T) {
+	casos := []struct {
+		nombre string
+		org    map[string]any
+		quiero string
+	}{
+		{"el codigo manda sobre el slug (PLS)", map[string]any{"slug": "palma-soriano", "codigo": "PLS"}, "PLS"},
+		{"el codigo manda aunque el slug sea otra sucursal", map[string]any{"slug": "hab", "codigo": "STG"}, "STG"},
+		{"el codigo en minúsculas y con espacios se normaliza", map[string]any{"slug": "palma-soriano", "codigo": " pls "}, "PLS"},
+		// La pareja: sin `codigo` (un Accesos anterior al cambio) se cae al slug de siempre.
+		{"sin codigo: el slug en mayúsculas", map[string]any{"slug": "hab"}, "HAB"},
+		{"codigo vacío: el slug", map[string]any{"slug": "hab", "codigo": ""}, "HAB"},
+		{"codigo en blanco: el slug", map[string]any{"slug": "hab", "codigo": "   "}, "HAB"},
+		{"codigo null: el slug", map[string]any{"slug": "hab", "codigo": nil}, "HAB"},
+		// Un tipo raro NO tumba el login de toda la web: se ignora y se cae al slug.
+		{"codigo numérico: el slug, y el login sigue", map[string]any{"slug": "hab", "codigo": 7}, "HAB"},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			accesos := levantarAccesos(t, func(ruta string, _ map[string]any) (int, any) {
+				p := personaDeMentira("http://reparto.test/orders")
+				p["memberships"] = []any{map[string]any{"organization": c.org, "roles": []any{"SUPERVISOR"}}}
+				return http.StatusOK, p
+			})
+			h := puertaDePrueba(t, accesos.URL, llaveDeFirma)
+			rec := pedir(h, "/api/auth/callback?code=abc123")
+			if rec.Code != http.StatusFound {
+				t.Fatalf("esperaba 302, dio %d", rec.Code)
+			}
+			u, err := auth.NuevoVerificador([]byte(secretoDePrueba)).Verificar(laCookie(t, rec).Value)
+			if err != nil {
+				t.Fatalf("el token de la cookie no lo acepta la propia API: %v", err)
+			}
+			if u.Sucursal != c.quiero {
+				t.Fatalf("sucursal %q, se esperaba %q (org %v)", u.Sucursal, c.quiero, c.org)
+			}
+		})
+	}
+}

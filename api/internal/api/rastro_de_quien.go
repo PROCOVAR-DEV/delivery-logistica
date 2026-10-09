@@ -25,6 +25,10 @@ import (
 // nadie. Aquí la persona ya está verificada —la ruta pasó por `Exigir`—, así que su id sí.
 //
 // No cambia ningún permiso: sólo escribe. `campos` van en pares clave, valor, como slog.
+//
+// `X-Autor` y `X-Revision` (la autoría de la bandeja de revisión) NO se escriben aquí sino en la línea
+// general de la petición (`httpx.RegistrarPeticiones`, que sale para toda escritura), con el mismo
+// `peticion` que ésta: así también las rutas que no llaman a esta función dejan las dos personas.
 func rastroDeQuien(r *http.Request, accion string, campos ...any) {
 	actor, rol := "", ""
 	if u := auth.De(r); u != nil {

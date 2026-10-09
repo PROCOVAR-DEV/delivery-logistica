@@ -71,10 +71,17 @@ var ErrSesionInvalidada = fmt.Errorf("%w: Accesos cortó la sesión", ErrSinSesi
 // Invalidaciones es lo que se pregunta para saber si un token de acceso ya no vale. La implementa
 // `sesiones.Registro` y TIENE QUE CONTESTAR SIN RED: se pregunta en cada petición. `iatMs` es el
 // `iatms` del token (milisegundos, 0 si no lo trae) y `iatSeg` su `iat` en SEGUNDOS, de donde se
-// cae a `iat*1000`; sólo cuentan los cortes `todo` (un cierre de sesión del navegador no echa a la
-// APK). Ver `internal/sesiones`.
+// cae a `iat*1000`. Ver `internal/sesiones`.
+//
+// DOS REGLAS, según de quién sea el token:
+//   - `ElBearerNoVale`: el de la APK y el escritorio (y el de entrega). Sólo cuentan los cortes `todo`: un
+//     cierre de sesión del navegador no echa al teléfono.
+//   - `LaCookieNoVale`: el de una SESIÓN WEB (`web:true`, el que da `/api/me` y la bandeja web manda de
+//     Bearer). Cuentan los `web` y los `todo` (max): quien cerró sesión en el navegador deja de pasar la
+//     puerta del revisor (auditoría de seguridad, 09/10/2026, SERIO 2).
 type Invalidaciones interface {
 	ElBearerNoVale(persona string, iatSeg, iatMs int64) bool
+	LaCookieNoVale(persona string, iatMs int64) bool
 }
 
 // ErrTokenRoto: no es un JWT, o no se puede leer.
@@ -120,13 +127,7 @@ func DeToken(secreto []byte, resolutor Resolutor) Fuente {
 // rechazo es [ErrSesionInvalidada], o sea un 401 normal.
 func DeTokenConInvalidaciones(secreto []byte, resolutor Resolutor, inv Invalidaciones) Fuente {
 	return func(r *http.Request) (Identidad, error) {
-		crudo := ""
-		if cab := r.Header.Get("Authorization"); cab != "" {
-			if partes := strings.Fields(cab); len(partes) == 2 &&
-				strings.EqualFold(partes[0], "Bearer") {
-				crudo = partes[1]
-			}
-		}
+		crudo := bearerDe(r)
 		if strings.TrimSpace(crudo) == "" {
 			return Identidad{}, ErrSinSesion
 		}
@@ -154,6 +155,16 @@ func DeTokenConInvalidaciones(secreto []byte, resolutor Resolutor, inv Invalidac
 	}
 }
 
+// bearerDe saca el token de `Authorization: Bearer …`; vacío si no viene o viene de otra forma.
+func bearerDe(r *http.Request) string {
+	if cab := r.Header.Get("Authorization"); cab != "" {
+		if partes := strings.Fields(cab); len(partes) == 2 && strings.EqualFold(partes[0], "Bearer") {
+			return partes[1]
+		}
+	}
+	return ""
+}
+
 type reclamos struct {
 	Sub           string   `json:"sub"`
 	ID            string   `json:"id"`
@@ -172,6 +183,20 @@ type reclamos struct {
 	// `entradas` EN CRUDO: las llaves `<app>.entrar` que firma Auth. Ausente (len 0), `[]`,
 	// `null` y «no es un array» son cosas distintas. Ver [entradasDelToken].
 	Entradas json.RawMessage `json:"entradas"`
+
+	// LO QUE DISTINGUE AL TOKEN DE ENTREGA A REVISIÓN (`docs/bandeja-de-revision.md`, B.1).
+	//
+	// `TieneAmbito` es si la clave VIENE, sea cual sea su valor y como sea que esté escrita
+	// (`ambito`, `Ambito`, `AMBITO`): una rutas normal rechaza a quien la traiga, así que «viene
+	// vacía», «null» o «un número» NO pueden colarse por no ser un texto. `Ambito` es el valor en
+	// crudo, para compararlo exacto.
+	TieneAmbito bool
+	Ambito      json.RawMessage
+	Purpose     string
+	// `web`: SÓLO lo pone la cookie que firma la web. Dice «esto es una sesión web» (ver [Invalidaciones]).
+	Web    bool
+	Nombre string // `name`: para que la bandeja diga «Yasmani» y no un uuid
+	Jti    string
 }
 
 // UnmarshalJSON tolera que los campos de texto vengan como `null` o como número.
@@ -222,6 +247,20 @@ func (c *reclamos) UnmarshalJSON(b []byte) error {
 	if v, hay := suelto["entradas"]; hay {
 		c.Entradas = v
 	}
+	// Sin distinguir mayúsculas, como las casa el decodificador de Go en `reparto-api`: «Ambito»
+	// no puede ser la forma de colar un token de entrega por las rutas normales.
+	for k, v := range suelto {
+		if strings.EqualFold(k, "ambito") {
+			c.TieneAmbito = true
+			c.Ambito = v
+		}
+	}
+	if v, hay := suelto["web"]; hay {
+		_ = json.Unmarshal(v, &c.Web) // sólo un booleano `true` cuenta; cualquier otra cosa es «no es web»
+	}
+	c.Purpose = texto("purpose")
+	c.Nombre = texto("name")
+	c.Jti = texto("jti")
 	return nil
 }
 
@@ -233,65 +272,98 @@ const margen = time.Minute
 // verificar devuelve la identidad y, cuando la sucursal del token no es un uuid, el
 // CÓDIGO que hay que traducir. Traducirlo aquí es imposible: hace falta ir al reparto.
 func verificar(token string, secreto []byte, inv Invalidaciones) (Identidad, string, error) {
+	c, id, err := abrir(token, secreto, inv)
+	if err != nil {
+		return Identidad{}, "", err
+	}
+	id.Nombre, id.Jti = strings.TrimSpace(c.Nombre), c.Jti
+	for _, r := range rolesDelToken(c) {
+		if r = strings.TrimSpace(r); r != "" {
+			id.Roles = append(id.Roles, r)
+		}
+	}
+
+	// UN TOKEN DE ENTREGA A REVISIÓN NO ENTRA POR LAS RUTAS NORMALES, y se mira ANTES de la llave.
+	//
+	// Accesos firma, con este mismo secreto, un token restringido para quien conserva sesión pero
+	// perdió `delivery.entrar` (`ambito:"reparto.entrega"`, `entradas:[]`). Hasta hoy sólo era
+	// seguro porque `entradas` PRESENTE —aunque `[]`— falla cerrado; bastaba que alguien le
+	// metiera la llave (o que un día se cayera a los roles) para que esa misma firma abriera la
+	// SUBIDA con la autoridad de la persona y se saltara la revisión. Por eso la regla no es
+	// «sin llave no entra» sino «con `ambito` no entra, lleve lo que lleve». Es un 403 con el
+	// mismo cuerpo que el de la llave, no un 401: un 401 que sobrevive a renovar mata la sesión.
+	// La gemela está en `api/internal/auth`; las ata `docs/ambito-de-entrega.casos.json`.
+	if c.TieneAmbito {
+		return Identidad{}, "", fmt.Errorf(
+			"%w: el token trae `ambito` y sólo abre las rutas de entrega a revisión", ErrSinPermisoDeReparto)
+	}
+	return resolverAlcance(c, id)
+}
+
+// abrir es TODO lo que se le exige a cualquier token de auth antes de mirar a qué viene: forma,
+// `alg`, firma en tiempo constante, `exp` obligatorio, `nbf`, `sub` y el corte de sesiones de
+// Accesos. Lo comparten [verificar] (las rutas normales) y [DeTokenDeEntrega], para que ninguno
+// de los dos pueda aflojar nada de esto por su lado.
+func abrir(token string, secreto []byte, inv Invalidaciones) (reclamos, Identidad, error) {
 	partes := strings.Split(token, ".")
 	if len(partes) != 3 {
-		return Identidad{}, "", ErrTokenRoto
+		return reclamos{}, Identidad{}, ErrTokenRoto
 	}
 
 	cabecera, err := decodificar(partes[0])
 	if err != nil {
-		return Identidad{}, "", ErrTokenRoto
+		return reclamos{}, Identidad{}, ErrTokenRoto
 	}
 	var cab struct {
 		Alg string `json:"alg"`
 	}
 	if err := json.Unmarshal(cabecera, &cab); err != nil {
-		return Identidad{}, "", ErrTokenRoto
+		return reclamos{}, Identidad{}, ErrTokenRoto
 	}
 	// El `alg` del token NO elige nada: sólo tiene que coincidir con uno de los nuestros.
 	// Un token que diga `none` o `RS256` se cae aquí, no más abajo.
 	nuevoHash, ok := algoritmos[cab.Alg]
 	if !ok {
-		return Identidad{}, "", fmt.Errorf("%w: algoritmo %q no admitido", ErrSinSesion, cab.Alg)
+		return reclamos{}, Identidad{}, fmt.Errorf("%w: algoritmo %q no admitido", ErrSinSesion, cab.Alg)
 	}
 
 	firma, err := decodificar(partes[2])
 	if err != nil {
-		return Identidad{}, "", ErrTokenRoto
+		return reclamos{}, Identidad{}, ErrTokenRoto
 	}
 	mac := hmac.New(nuevoHash, secreto)
 	mac.Write([]byte(partes[0] + "." + partes[1]))
 	// Tiempo constante: comparar firmas con `==` filtra por el tiempo de respuesta
 	// cuántos bytes iniciales acertó quien prueba.
 	if !hmac.Equal(mac.Sum(nil), firma) {
-		return Identidad{}, "", ErrSinSesion
+		return reclamos{}, Identidad{}, ErrSinSesion
 	}
 
 	cuerpo, err := decodificar(partes[1])
 	if err != nil {
-		return Identidad{}, "", ErrTokenRoto
+		return reclamos{}, Identidad{}, ErrTokenRoto
 	}
 	var c reclamos
 	if err := json.Unmarshal(cuerpo, &c); err != nil {
-		return Identidad{}, "", ErrTokenRoto
+		return reclamos{}, Identidad{}, ErrTokenRoto
 	}
 
 	ahora := time.Now()
 	// Sin `exp` no hay sesión que muera nunca. Se exige.
 	if c.Exp == nil {
-		return Identidad{}, "", fmt.Errorf("%w: el token no trae exp", ErrSinSesion)
+		return reclamos{}, Identidad{}, fmt.Errorf("%w: el token no trae exp", ErrSinSesion)
 	}
 	if ahora.After(time.Unix(int64(*c.Exp), 0).Add(margen)) {
-		return Identidad{}, "", fmt.Errorf("%w: caducado", ErrSinSesion)
+		return reclamos{}, Identidad{}, fmt.Errorf("%w: caducado", ErrSinSesion)
 	}
 	if c.Nbf != nil && ahora.Add(margen).Before(time.Unix(int64(*c.Nbf), 0)) {
-		return Identidad{}, "", fmt.Errorf("%w: todavía no vale", ErrSinSesion)
+		return reclamos{}, Identidad{}, fmt.Errorf("%w: todavía no vale", ErrSinSesion)
 	}
 
 	var id Identidad
 	id.Persona = primero(c.Sub, c.ID)
 	if id.Persona == "" {
-		return Identidad{}, "", ErrSinSesion
+		return reclamos{}, Identidad{}, ErrSinSesion
 	}
 
 	// ACCESOS CORTÓ LAS SESIONES DE ESTA PERSONA DESPUÉS DE EMITIR ESTE TOKEN: 401, antes que cualquier
@@ -304,11 +376,22 @@ func verificar(token string, secreto []byte, inv Invalidaciones) (Identidad, str
 		if c.IatMs != nil {
 			iatms = int64(*c.IatMs)
 		}
-		if inv.ElBearerNoVale(id.Persona, iat, iatms) {
-			return Identidad{}, "", ErrSesionInvalidada
+		// `web:true` SÓLO lo firma la web (`auth_web.go`), y es lo que dice «esto es una sesión web»: no se
+		// deduce de `iatms`, que Accesos también firma en el token de la APK.
+		if c.Web {
+			if inv.LaCookieNoVale(id.Persona, iatms) {
+				return reclamos{}, Identidad{}, ErrSesionInvalidada
+			}
+		} else if inv.ElBearerNoVale(id.Persona, iat, iatms) {
+			return reclamos{}, Identidad{}, ErrSesionInvalidada
 		}
 	}
 
+	return c, id, nil
+}
+
+// resolverAlcance es lo que `verificar` hacía al final: quién entra a Reparto y de qué sucursal es.
+func resolverAlcance(c reclamos, id Identidad) (Identidad, string, error) {
 	// QUIÉN ENTRA A REPARTO, antes de mirar la sucursal: a quien no entra no se le traduce
 	// ningún código (eso es una llamada al reparto) ni se le dice que le falta la sucursal.
 	// Es el MISMO control que `Exigir` de `reparto-api` y por lo mismo que aquí no se delega:

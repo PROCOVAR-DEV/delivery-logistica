@@ -83,6 +83,9 @@ void main() {
         // auditor el 17/09/2026, justo en el cambio que movia esa pantalla de
         // sitio.
         '/sincronizacion',
+        // La bandeja del revisor (N4, 09/10/2026): sin su registro nadie la
+        // alcanza, y la ruta tiene que seguir fuera de `/sync` y `/api`.
+        '/revision',
       ]),
     );
   });
@@ -240,6 +243,9 @@ void main() {
         'inventada', () {
       for (final ruta in <String>[
         '/sincronizacion',
+        // Lee EN VIVO de `sync` lo que dejaron otros aparatos: ninguna coleccion
+        // de esta copia.
+        '/revision',
         '/mapa-sin-conexion',
         // LA GUIA, por el mismo motivo y con otra fuente: su contenido viaja
         // horneado en `assets/manual/manual.txt` y se lee con `rootBundle`. La

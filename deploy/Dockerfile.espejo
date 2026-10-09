@@ -116,6 +116,14 @@ COPY docs/armado-rechazado.casos.json /docs/armado-rechazado.casos.json
 # Misma ruta que los de arriba: desde `/src/internal/auth`, `../../../docs/…` cae en `/docs/…`.
 COPY docs/roles-de-reparto.casos.json /docs/roles-de-reparto.casos.json
 
+# Y EL QUINTO — 09/10/2026
+#
+# `internal/auth/ambito_casos_test.go` lee `docs/ambito-de-entrega.casos.json`, EL MISMO fichero
+# que lee `sync/internal/identidad/entrega_test.go`: «un token con `ambito` (el de entrega a
+# revisión) no entra por las rutas normales» está escrito en dos módulos de Go y esto impide que
+# se separen. Si falta, la prueba hace `Fatalf` y ESTA IMAGEN NO CONSTRUYE.
+COPY docs/ambito-de-entrega.casos.json /docs/ambito-de-entrega.casos.json
+
 # LAS PRUEBAS, ANTES DE CONSTRUIR. Los CUATRO Dockerfile lo hacen; éste era el que
 # faltaba, y es el que más pintaba tenerlo.
 #

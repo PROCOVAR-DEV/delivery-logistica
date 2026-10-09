@@ -60,6 +60,18 @@ else
   paso "motor real"; echo "SALTADO (exporta REPARTO_MOTOR_REAL_DSN: CLAUDE.md §5)"
 fi
 
+# LA BANDEJA DE REVISIÓN DE `sync` CONTRA UN POSTGRES DE VERDAD (docs/bandeja-de-revision.md). Los triggers que
+# impiden borrar y cambiar el original, el CHECK del descarte sin motivo, el ON CONFLICT de la idempotencia y el
+# alcance de sucursal los hace la BASE: un doble no los ve, y sin esta variable `go test` los salta en silencio.
+# Base aislada `verif_sync` migrada con goose hasta la 00004 (docs/entorno-local.md).
+echo "== sync: bandeja de revisión contra Postgres real =="
+if [ -n "${SYNC_MOTOR_REAL_DSN:-}" ]; then
+  paso "motor real (sync)"
+  (cd "$raiz/sync" && go test -count=1 ./internal/sincro/ >/dev/null 2>&1) && bien || mal
+else
+  paso "motor real (sync)"; echo "SALTADO (exporta SYNC_MOTOR_REAL_DSN: base verif_sync, docs/entorno-local.md)"
+fi
+
 # EL ADAPTADOR DE REDIS CONTRA UN REDIS DE VERDAD (sesión única). Mismo trato que el motor real de
 # arriba: `go test` salta `redis_real_test.go` EN SILENCIO sin `REPARTO_REDIS_REAL_ADDR`, y la
 # auditoría del 08/10/2026 demostró que tres mutaciones de `redis.go` (la DB 6 por la 2, el prefijo

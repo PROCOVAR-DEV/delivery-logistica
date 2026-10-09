@@ -149,7 +149,9 @@ class CicloDeSincronizacion {
     void Function()? alTerminar,
     void Function(AvanceDelCiclo)? alAvanzar,
     void Function(ResumenDelCiclo)? alAcabar,
-  }) : _alAvanzar = alAvanzar,
+    Future<int> Function()? consultarRevision,
+  }) : _consultarRevision = consultarRevision,
+       _alAvanzar = alAvanzar,
        _alAcabar = alAcabar,
        _almacen = almacen,
        _renovador = renovador,
@@ -178,6 +180,11 @@ class CicloDeSincronizacion {
   /// Quien pinta «va por clientes». Opcional a proposito: el vigia y el
   /// temporizador disparan ciclos que no esta mirando nadie.
   final void Function(AvanceDelCiclo)? _alAvanzar;
+
+  /// QUE PASO CON LO ENTREGADO A REVISION. Lo pone el proveedor y consulta
+  /// `GET /sync/revision/mias` **solo si hay algo `enRevision`** (si no, ni una
+  /// peticion): el ciclo de quien nunca entrego nada no cambia.
+  final Future<int> Function()? _consultarRevision;
 
   /// COMO QUEDO, para quien lleve la cuenta de si las peticiones llegan.
   ///
@@ -305,6 +312,21 @@ class CicloDeSincronizacion {
     }
   }
 
+  Future<void> _preguntarPorLaRevision() async {
+    final consultar = _consultarRevision;
+    if (consultar == null) return;
+    try {
+      final cambiaron = await consultar();
+      if (cambiaron > 0) {
+        Registro.aviso('revision: $cambiaron apuntes entregados cambiaron de estado');
+      }
+    } on SesionMuerta {
+      rethrow;
+    } on Object catch (e) {
+      Registro.aviso('ciclo: no se pudo preguntar por la revision: $e');
+    }
+  }
+
   ResumenDelCiclo _contar(ResumenDelCiclo resumen) {
     _alAcabar?.call(resumen);
     return resumen;
@@ -388,6 +410,11 @@ class CicloDeSincronizacion {
       _alAvanzar?.call(const AvanceDelCiclo(PasoDelCiclo.subir));
       subidos = await _subida.ciclo(alSubirUno: (van) => subidos = van);
       pasos.add(PasoDelCiclo.subir);
+
+      // 3-bis · LO ENTREGADO A REVISION: ¿lo han aplicado o descartado? Una
+      // consulta de mas por vuelta SOLO para quien tiene algo en revision, y una
+      // consulta que falla no tumba la bajada: es una ayuda, no la razon de ser.
+      await _preguntarPorLaRevision();
 
       // 4 · BAJAR las diferencias, ya sin nada del aparato pendiente que pisar.
       _alAvanzar?.call(const AvanceDelCiclo(PasoDelCiclo.bajar));

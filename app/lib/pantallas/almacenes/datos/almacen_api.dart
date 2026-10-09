@@ -16,6 +16,7 @@ class AlmacenDeAccesos {
   const AlmacenDeAccesos({
     required this.nombre,
     this.id,
+    this.codigo,
     this.direccion,
     this.latitud,
     this.longitud,
@@ -26,6 +27,7 @@ class AlmacenDeAccesos {
   factory AlmacenDeAccesos.deJson(Map<String, Object?> j) => AlmacenDeAccesos(
     id: j['id'] as String?,
     nombre: (j['nombre'] as String?) ?? '',
+    codigo: j['codigo'] as String?,
     direccion: j['direccion'] as String?,
     latitud: _numero(j['latitud']),
     longitud: _numero(j['longitud']),
@@ -37,6 +39,13 @@ class AlmacenDeAccesos {
 
   final String? id;
   final String nombre;
+
+  /// El `objectCode` de Ventra: con él Reparto sabe de qué almacén sale cada
+  /// pedido (el pedido trae el código, no el nombre). `null` = no se sabe o no
+  /// tiene; `''` = se vació A PROPÓSITO y Accesos lo quita. Solo viaja si es
+  /// distinto de `null` (ver [aJson]): quien no conoce el código no puede
+  /// borrárselo a otro que lo puso entre medias.
+  final String? codigo;
   final String? direccion;
   final double? latitud;
   final double? longitud;
@@ -51,6 +60,7 @@ class AlmacenDeAccesos {
 
   AlmacenDeAccesos copiar({
     String? nombre,
+    Object? codigo = _sinTocar,
     Object? direccion = _sinTocar,
     Object? latitud = _sinTocar,
     Object? longitud = _sinTocar,
@@ -59,6 +69,7 @@ class AlmacenDeAccesos {
   }) => AlmacenDeAccesos(
     id: id,
     nombre: nombre ?? this.nombre,
+    codigo: codigo == _sinTocar ? this.codigo : codigo as String?,
     direccion: direccion == _sinTocar ? this.direccion : direccion as String?,
     latitud: latitud == _sinTocar ? this.latitud : latitud as double?,
     longitud: longitud == _sinTocar ? this.longitud : longitud as double?,
@@ -71,6 +82,7 @@ class AlmacenDeAccesos {
   Map<String, Object?> aJson() => <String, Object?>{
     if (id != null) 'id': id,
     'nombre': nombre,
+    if (codigo != null) 'codigo': codigo,
     'direccion': direccion,
     'latitud': latitud,
     'longitud': longitud,

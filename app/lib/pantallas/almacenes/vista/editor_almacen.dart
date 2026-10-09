@@ -111,6 +111,7 @@ class EditorAlmacen extends StatefulWidget {
 
 class _EditorAlmacenState extends State<EditorAlmacen> {
   late final TextEditingController _nombre;
+  late final TextEditingController _codigo;
   late final TextEditingController _direccion;
   late final TextEditingController _punto;
 
@@ -145,6 +146,7 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
     super.initState();
     final a = widget.almacen;
     _nombre = TextEditingController(text: a?.nombre ?? '');
+    _codigo = TextEditingController(text: a?.codigo ?? '');
     _direccion = TextEditingController(text: a?.direccion ?? '');
     _punto = TextEditingController(
       text: a == null || a.sinPunto ? '' : '${a.latitud}, ${a.longitud}',
@@ -156,6 +158,7 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
   @override
   void dispose() {
     _nombre.dispose();
+    _codigo.dispose();
     _direccion.dispose();
     _punto.dispose();
     super.dispose();
@@ -361,6 +364,13 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
                       AlmacenDeAccesos(
                         id: widget.almacen?.id,
                         nombre: _nombre.text.trim(),
+                        // Vacío es «quitarlo» SOLO si tenía uno; si no tenía,
+                        // `null` (no se manda y no toca nada).
+                        codigo: _codigo.text.trim().isNotEmpty
+                            ? _codigo.text.trim()
+                            : (widget.almacen?.codigo?.isNotEmpty ?? false)
+                            ? ''
+                            : null,
                         direccion: _direccion.text.trim().isEmpty
                             ? null
                             : _direccion.text.trim(),
@@ -405,6 +415,20 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
                   ),
                 ),
               ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _codigo,
+              maxLength: 40,
+              decoration: const InputDecoration(
+                labelText: 'Código en Ventra',
+                helperText:
+                    'El que trae cada pedido de este almacén. Sin él, sus '
+                    'pedidos se miden desde el almacén principal.',
+                helperMaxLines: 2,
+                counterText: '',
+                border: OutlineInputBorder(),
+              ),
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,

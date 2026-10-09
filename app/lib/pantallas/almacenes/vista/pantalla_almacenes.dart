@@ -379,6 +379,9 @@ class _Contenido extends StatelessWidget {
                         ? a.direccion!.trim()
                         : 'sin dirección',
                     if (a.sinPunto) 'sin punto',
+                    a.codigo?.trim().isNotEmpty ?? false
+                        ? 'código ${a.codigo!.trim()}'
+                        : 'sin código',
                     if (!a.activo) 'inactivo',
                   ].join(' · '),
                 ),

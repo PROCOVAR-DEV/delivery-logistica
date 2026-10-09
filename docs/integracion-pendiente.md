@@ -27,11 +27,18 @@ desde el que se le diga.
    pantalla dice cuál mandar**. Antes del cambio los dos estaban mal y al menos coincidían. Hace
    falta que Entrega mande el campo — el servidor ya lo acepta y quien no lo mande recibe
    exactamente lo de antes.
-2. **Accesos no expone todavía el `codigo` de cada almacén.** Sin él no hay con qué emparejar:
-   todos los pedidos se apuntan con `almacen_salida_motivo = 'accesos-sin-codigos'` y se miden
-   desde el principal. Son 14 códigos que alguien tiene que rellenar; el `PUT /api/almacenes`
-   pasa el cuerpo a Accesos tal cual, así que lo que falta es el campo en Accesos y en la
-   pantalla de Almacenes (`app/`).
+2. **HECHO el 09/10/2026 (salvo 3 códigos): el `codigo` de cada almacén.** Accesos `d57a4e4` guarda
+   `Almacen.codigo` (único por sucursal; migración `20261009170000_codigo_del_almacen`; el `PUT` lo
+   acepta y el `GET` lo devuelve; **ausente = no tocar**, `""`/`null` = quitar) y la pantalla de
+   Almacenes de la app tiene la casilla «Código en Ventra» y lo enseña en la lista. Los 11 códigos de
+   los almacenes que ya tenían pedidos se pusieron a mano, deducidos de los propios pedidos
+   (`orders.almacen_salida_codigo` + nombre): CAM 2 PV CAMAGUEY · 13 ALM CAMAGUEY; GTO 2 PV GTMO · 3 ALM
+   CENTRAL; HOL 2 PV HOLGUIN; HAB 22 HABANA HACENDADO; TUN 1 PV-TUNAS; SS 123 ALM S-SPIRITUS · 122 TIENDA
+   S-SPIRITUS; STG 1 PV-STGO · 2 AURORA. **Faltan FLORIDA (CAM), PV BAYAMO (GR) y PUNTO J (HAB)**: ningún pedido
+   ha salido de ellos y su código se escribe en la pantalla de Almacenes. Efecto: el espejo repasa
+   los últimos tres días de pedidos, así que **esos recalculan `almacen_salida_*`, el kilometraje y el
+   precio del domicilio** desde su almacén; lo anterior queda como estaba. La APK/Windows ≤ 1.0.32
+   no tienen la casilla (siguen mandando el `PUT` sin `codigo`, que conserva los códigos); la web sí.
 3. **El armado de rutas sigue midiendo desde el principal**: el origen de la ruta, `segment_km`
    de cada parada y `total_distance` (`api/internal/api/tablero.go`). Una ruta de Santiago hecha
    sólo con pedidos de AURORA se arma desde PV-STGO. **No se cambió y hay un motivo de fondo**: una

@@ -93,6 +93,29 @@ func (f *fuenteRedis) Suscribir(ctx context.Context) (Suscripcion, error) {
 // Marcas: SCAN de las dos familias de marcas y MGET de sus valores, por lotes. Un valor que no
 // es un entero positivo se salta.
 func (f *fuenteRedis) Marcas(ctx context.Context) (Marcas, error) {
+	// Aparte y esperando a ctx, como `Suscribir`: go-redis NO mira la cancelación de un contexto durante
+	// una lectura (sólo su plazo), así que con un Redis que confirma el SUBSCRIBE y se cuelga en el
+	// SCAN esto tardaba el ReadTimeout y sus reintentos (4,5 s medidos) en volver tras cancelar, y el
+	// apagado de `main` (2 s) daba «no terminó a tiempo». Lo que quede del intento lo corta su plazo
+	// (`plazoDeConexion`) o el `Cerrar` del cliente al terminar `Correr`.
+	type resultado struct {
+		m   Marcas
+		err error
+	}
+	salida := make(chan resultado, 1)
+	go func() {
+		m, err := f.cargarMarcas(ctx)
+		salida <- resultado{m, err}
+	}()
+	select {
+	case r := <-salida:
+		return r.m, r.err
+	case <-ctx.Done():
+		return Marcas{}, ctx.Err()
+	}
+}
+
+func (f *fuenteRedis) cargarMarcas(ctx context.Context) (Marcas, error) {
 	ctx, cancelar := context.WithTimeout(ctx, plazoDeConexion)
 	defer cancelar()
 

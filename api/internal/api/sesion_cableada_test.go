@@ -15,12 +15,14 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"go/types"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -197,19 +199,66 @@ func TestElServidorComoLoArmaMainRechazaLaSesionInvalidadaPorAccesos(t *testing.
 // `main` SÓLO puede construir el servidor por la función de arriba, con la fuente real y haciéndola
 // correr: llamar a `NuevoServidor` a secas, pasarle `nil` en lugar de `sesiones.DeRedis(cfg.Redis)` o
 // no llamar a `inv.Correr(ctx)` lo dejaría sin empuje, y `cmd/api` no tiene pruebas que lo noten.
-// Esto lee el fuente de `main.go`: es lo único que ata la última pieza sin arrancar una base de datos.
+//
+// Esto ANALIZA `main.go` con go/parser (no lo lee como texto): un comentario no cuenta. La versión
+// de texto aceptaba `_ = ctx // inv.Correr(ctx)` y `nil /* sesiones.DeRedis(cfg.Redis) */`
+// (re-auditoría 09/10/2026, N2/N3): la cadena seguía ahí y la llamada no. Es lo único que ata la última
+// pieza sin arrancar una base de datos.
 func TestMainConstruyeElServidorConElEmpujeDeAccesos(t *testing.T) {
-	fuente, err := os.ReadFile("../../cmd/api/main.go")
+	f, err := parser.ParseFile(token.NewFileSet(), "../../cmd/api/main.go", nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	texto := string(fuente)
-	for _, debe := range []string{"api.NuevoServidorConSesiones(", "sesiones.DeRedis(cfg.Redis)", "inv.Correr(ctx)"} {
-		if !strings.Contains(texto, debe) {
-			t.Errorf("cmd/api/main.go ya no contiene %q: arrancaría sin el empuje de Accesos", debe)
+	var llamadas []*ast.CallExpr
+	var registro string // el nombre al que main asigna el registro de sesiones
+	conRedisReal := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.CallExpr:
+			llamadas = append(llamadas, x)
+		case *ast.AssignStmt:
+			if len(x.Lhs) != 2 || len(x.Rhs) != 1 {
+				break
+			}
+			c, ok := x.Rhs[0].(*ast.CallExpr)
+			if !ok || types.ExprString(c.Fun) != "api.NuevoServidorConSesiones" {
+				break
+			}
+			if id, ok := x.Lhs[1].(*ast.Ident); ok {
+				registro = id.Name
+			}
+			for _, a := range c.Args {
+				// Una LLAMADA a DeRedis con la configuración de verdad: ni `nil`, ni una fuente de memoria.
+				if k, ok := a.(*ast.CallExpr); ok && types.ExprString(k) == "sesiones.DeRedis(cfg.Redis)" {
+					conRedisReal = true
+				}
+			}
+		}
+		return true
+	})
+
+	hayServidor, correBucle := false, false
+	for _, c := range llamadas {
+		nombre := types.ExprString(c.Fun)
+		if nombre == "api.NuevoServidorConSesiones" {
+			hayServidor = true
+		}
+		if registro != "" && registro != "_" && nombre == registro+".Correr" {
+			correBucle = true
+		}
+		if s, ok := c.Fun.(*ast.SelectorExpr); ok && s.Sel.Name == "NuevoServidor" {
+			t.Errorf("cmd/api/main.go llama a %s a secas: el servidor no llevaría el empuje de Accesos", nombre)
 		}
 	}
-	if strings.Contains(texto, "api.NuevoServidor(") {
-		t.Error("cmd/api/main.go llama a api.NuevoServidor a secas: el servidor no llevaría el empuje de Accesos")
+	if !hayServidor {
+		t.Error("cmd/api/main.go ya no llama a api.NuevoServidorConSesiones: arrancaría sin el empuje de Accesos")
+	}
+	if !conRedisReal {
+		t.Error("cmd/api/main.go no pasa sesiones.DeRedis(cfg.Redis) a NuevoServidorConSesiones (¿nil, un comentario?): " +
+			"arrancaría sin el empuje de Accesos")
+	}
+	if !correBucle {
+		t.Errorf("cmd/api/main.go no llama a %q.Correr(...) sobre el registro que devuelve NuevoServidorConSesiones "+
+			"(¿comentado?): el suscriptor nunca escucharía", registro)
 	}
 }

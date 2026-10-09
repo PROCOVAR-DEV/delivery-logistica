@@ -30,6 +30,9 @@ final _casos = <(String, RespuestaFalsa?, bool)>[
     true,
   ),
   ('200 text/html (portal cautivo)', RespuestaFalsa.portal(200), false),
+  // Re-auditoria 09/10/2026: un 401 sin Content-Type y sin cuerpo (proxy/WAF
+  // pelado) lo perdona `contestoLoNuestro`; en /logout NO se confirma por silencio.
+  ('401 vacio sin Content-Type', RespuestaFalsa(401, null, '', ''), false),
   ('401 text/html (portal cautivo)', RespuestaFalsa.portal(401), false),
   (
     '5xx JSON de nuestro servidor',
@@ -108,6 +111,16 @@ void main() {
         'que `contestoLoNuestro` perdona en otros sitios, aqui no)', () {
       expect(cierreConfirmado(a(200, {'ok': true})), isFalse);
       expect(cierreConfirmado(null), isFalse);
+    });
+
+    test('401: con Content-Type JSON confirma; vacio y sin Content-Type NO '
+        '(ni con cuerpo null ni con cuerpo "")', () {
+      expect(
+        cierreConfirmado(a(401, {'error': 'x'}, tipo: 'application/json')),
+        isTrue,
+      );
+      expect(cierreConfirmado(a(401, null)), isFalse);
+      expect(cierreConfirmado(a(401, '')), isFalse);
     });
   });
 

@@ -225,6 +225,25 @@ Sin centinela y sin contraseña: es un Redis suelto de usar y tirar. Las pruebas
 claves `procovar:auth:invalida:*` en la DB 6, así que **nunca** se apunta esa variable al Redis del
 servidor (y la regla de Procovar prohíbe de todos modos hablar con él desde este PC).
 
+## 7-ter. La prueba de Chrome (web)
+
+`app/test/nucleo/red/agente_de_usuario_web_test.dart` (`@TestOn('browser')`) comprueba, con `kIsWeb` de
+verdad, que la aplicación web **no** manda el `User-Agent` propio (cabecera que no es segura para CORS:
+añadiría un preflight al login de Accesos). En la máquina virtual de `flutter test` esa guarda no se
+puede ejecutar por el lado web, y la re-auditoría del 09/10/2026 vio que solo se corría a mano, así que
+`./comprobar.sh` ahora tiene el bloque `chrome (web)`: la corre si hay Chrome (`CHROME_EXECUTABLE`
+puesto, o `google-chrome-stable` en el `PATH`) y dice `chrome (web)  SALTADO (instala Chrome o exporta
+CHROME_EXECUTABLE: docs/entorno-local.md)` cuando no, igual que «motor real» y «redis real».
+
+```bash
+CHROME_EXECUTABLE=/usr/bin/google-chrome-stable ./comprobar.sh      # o, a mano:
+cd app && CHROME_EXECUTABLE=/usr/bin/google-chrome-stable timeout 300 \
+  flutter test --platform chrome test/nucleo/red/agente_de_usuario_web_test.dart
+```
+
+Chrome corre sin ventana y el `Dio` de la prueba habla con un adaptador falso: ninguna petición sale a
+un dominio de Procovar. Tarda unos 20 s. Se lanza siempre que se toque `agente_de_usuario.dart`.
+
 ## 8. Al terminar, se para TODO
 
 Una aplicación viva dispara un ciclo de sincronización cada pocos minutos:

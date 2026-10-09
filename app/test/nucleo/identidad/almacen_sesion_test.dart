@@ -1,5 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion_nativo.dart';
 
 import '../../apoyo/apoyo_sesion.dart';
@@ -82,6 +83,78 @@ void main() {
       final caja = _CajaDeMentira()
         ..datos['reparto.sesion'] = 'esto no es json';
       expect(await AlmacenSeguro(caja).leer(), isNull);
+    });
+  });
+
+  // EL HUECO `reparto.por_revocar` EN EL ALMACEN DEL SISTEMA (Android) —
+  // re-auditoria 09/10/2026. Con `_clavePorRevocar = 'reparto.sesion'` o con
+  // `borrar()` llevandose el hueco, las pruebas con `AlmacenEnMemoria` seguian
+  // verdes. La costura es la que ya hay: `_CajaDeMentira` hereda de
+  // `FlutterSecureStorage` y se la pasa al constructor.
+  group('el hueco de lo por revocar (reparto.por_revocar)', () {
+    const pendiente = RefrescoPorRevocar(sub: 'u-1', refresh: 'r-pendiente');
+
+    test(
+      'borrar() de la SESION no se lo lleva, ni se pisan entre si',
+      () async {
+        final caja = _CajaDeMentira();
+        final a = AlmacenSeguro(caja);
+        expect(await a.guardar(sesionDePrueba(refresh: 'r-sesion')), isTrue);
+        expect(await a.dejarPorRevocar(pendiente), isTrue);
+        expect((await AlmacenSeguro(caja).leer())?.refresh, 'r-sesion');
+
+        await a.borrar(); // salir
+
+        final otroArranque = AlmacenSeguro(caja);
+        expect(await otroArranque.leer(), isNull, reason: 'sin sesion');
+        expect(
+          (await otroArranque.porRevocar()).map((r) => r.refresh),
+          ['r-pendiente'],
+          reason: 'el cierre sin red sigue pendiente aunque ya no haya sesion',
+        );
+      },
+    );
+
+    test(
+      'quitarlo lo borra del almacen, y guardar una sesion NO lo toca',
+      () async {
+        final caja = _CajaDeMentira();
+        final a = AlmacenSeguro(caja);
+        await a.dejarPorRevocar(pendiente);
+        await a.guardar(sesionDePrueba(refresh: 'r-nueva'));
+        expect(caja.datos, hasLength(2), reason: 'dos claves: sesion y hueco');
+
+        await a.quitarPorRevocar('r-pendiente');
+
+        expect(await AlmacenSeguro(caja).porRevocar(), isEmpty);
+        expect(caja.datos, hasLength(1), reason: 'solo queda la sesion');
+        expect((await AlmacenSeguro(caja).leer())?.refresh, 'r-nueva');
+      },
+    );
+
+    test(
+      'un almacen que se cae NO lanza: dejarlo dice false, leerlo vacio',
+      () async {
+        final cae = _CajaDeMentira(seCaeAlEscribir: true);
+        expect(await AlmacenSeguro(cae).dejarPorRevocar(pendiente), isFalse);
+
+        final caja = _CajaDeMentira();
+        await AlmacenSeguro(caja).dejarPorRevocar(pendiente);
+        caja.seCaeAlLeer = true;
+        expect(await AlmacenSeguro(caja).porRevocar(), isEmpty);
+        caja.seCaeAlLeer = false;
+        expect(
+          await AlmacenSeguro(caja).porRevocar(),
+          hasLength(1),
+          reason: 'leer que se cae no borra el hueco',
+        );
+      },
+    );
+
+    test('Linux-roto (acepta y no guarda): dejarlo dice false', () async {
+      // `dejarPorRevocar` lee de vuelta; un almacen de solo escritura no cuenta.
+      final a = AlmacenSeguro(_CajaDeMentira(soloEscribe: true));
+      expect(await a.dejarPorRevocar(pendiente), isFalse);
     });
   });
 

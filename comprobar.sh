@@ -79,6 +79,21 @@ cd "$raiz/app"
 paso "analyze"; flutter analyze >/dev/null 2>&1 && bien || mal
 # Con tope: una prueba colgada se come la sesion entera en vez de fallar. Ya paso.
 paso "test";    timeout 300 flutter test >/dev/null 2>&1 && bien || mal
+
+# LA PRUEBA DE CHROME (web): `agente_de_usuario_web_test.dart` lleva `@TestOn('browser')`, asi que el
+# `flutter test` de arriba (maquina virtual, donde `kIsWeb` es siempre falso) NO la corre, y la
+# re-auditoria del 09/10/2026 vio que solo se lanzaba a mano: quitar la guarda del User-Agent propio
+# en la web (cabecera que rompe CORS en el login de Accesos) salia en verde. Mismo trato que el
+# motor real y Redis: se corre si hay Chrome y se dice SALTADO a gritos si no. Chrome sin ventana, y
+# sin red a ningun dominio de Procovar (el Dio habla con un adaptador falso). Ver docs/entorno-local.md.
+chrome="${CHROME_EXECUTABLE:-$(command -v google-chrome-stable || true)}"
+if [ -n "$chrome" ] && [ -x "$chrome" ]; then
+  paso "chrome (web)"
+  CHROME_EXECUTABLE="$chrome" timeout 300 flutter test --platform chrome \
+    test/nucleo/red/agente_de_usuario_web_test.dart >/dev/null 2>&1 && bien || mal
+else
+  paso "chrome (web)"; echo "SALTADO (instala Chrome o exporta CHROME_EXECUTABLE: docs/entorno-local.md)"
+fi
 cd "$raiz"
 
 echo

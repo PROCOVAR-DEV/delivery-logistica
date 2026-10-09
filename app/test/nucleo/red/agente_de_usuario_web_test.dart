@@ -9,14 +9,23 @@
 // Si saliera, `User-Agent` no es cabecera segura de CORS y el navegador añadiria
 // un preflight al login de Accesos.
 //
-// Se corre a mano (el `@TestOn('browser')` la deja fuera del `flutter test` de la
-// maquina virtual, y por eso no entra en `./comprobar.sh`). Chrome sin ventana,
+// Se corre desde `./comprobar.sh` (bloque «chrome (web)») si hay Chrome, y a mano con (el
+// `@TestOn('browser')` la deja fuera del `flutter test` de la maquina virtual). Chrome sin ventana,
 // sin red a ningun dominio de Procovar (el Dio habla con un adaptador falso):
 //
 //     CHROME_EXECUTABLE=/usr/bin/google-chrome-stable timeout 300 \
 //       flutter test --platform chrome test/nucleo/red/agente_de_usuario_web_test.dart
 //
 // Hay que lanzarla al tocar `agente_de_usuario.dart`.
+//
+// QUE CUBRE CADA PRUEBA (re-auditoria 09/10/2026: la segunda era vacua):
+//  1. `plataformaParaElAgente()` con `kIsWeb` de verdad -> `null`. Caza `esWeb: false` puesto a mano
+//     o quitar `kIsWeb` del cableado: en Chrome `defaultTargetPlatform` es `linux`, saldria «Linux».
+//  2. El `InterceptorDeAgente()` POR DEFECTO, de punta a punta, no pone la cabecera. Caza que el
+//     interceptor deje de usar `plataformaParaElAgente` por defecto (p. ej. se le cuela una plataforma
+//     fija). Se le da una VERSION de mentira: antes leia `PackageInfo`, que en un navegador de prueba
+//     falla, el interceptor se tragaba el error y NUNCA ponia la cabecera, con la guarda rota o sin
+//     ella, o sea que no comprobaba nada.
 @TestOn('browser')
 library;
 
@@ -37,9 +46,9 @@ void main() {
     final servidor = ServidorFalso((p) async => RespuestaFalsa(200));
     final dio = Dio(BaseOptions(baseUrl: 'https://auth.test/api/auth'))
       ..httpClientAdapter = servidor
-      // Sin parametros: el cableado que va a produccion, `kIsWeb` de verdad. Si
-      // intentara leer la version (`PackageInfo`) ya habria puesto la cabecera.
-      ..interceptors.add(InterceptorDeAgente());
+      // La plataforma, POR DEFECTO: el cableado que va a produccion, `kIsWeb` de verdad. La version
+      // es de mentira (ver arriba): si la guarda fallara, la cabecera SALDRIA y esta prueba lo veria.
+      ..interceptors.add(InterceptorDeAgente(version: () async => '9.9.9'));
 
     await dio.post<Object?>('/token', data: <String, Object?>{});
 

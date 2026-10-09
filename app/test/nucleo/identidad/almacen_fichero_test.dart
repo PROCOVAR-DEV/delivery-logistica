@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion_fichero.dart';
 
 import '../../apoyo/apoyo_sesion.dart';
@@ -114,6 +115,90 @@ void main() {
       await almacen().guardar(sesionDePrueba(refresh: 'igual'));
       final segundo = await _elFichero(carpeta).readAsString();
       expect(primero, isNot(segundo));
+    });
+  });
+
+  // EL HUECO `reparto.por_revocar` EN EL DISCO DE VERDAD — re-auditoria 09/10/2026.
+  // Todas las demas pruebas del hueco usan `AlmacenEnMemoria`, que no tiene nombre
+  // de fichero ni cifrado: con `_nombreDePorRevocar = 'sesion.caja'` (el hueco
+  // escrito encima de la sesion) o con `borrar()` llevandose el hueco, todo seguia
+  // en verde. El cierre sin red se perderia en silencio: el refresco vivo 30 dias.
+  group('el hueco de lo por revocar (por_revocar.caja)', () {
+    const pendiente = RefrescoPorRevocar(sub: 'u-1', refresh: 'r-pendiente');
+    File elHueco() => File('${carpeta.path}/por_revocar.caja');
+
+    test('borrar() de la SESION no se lo lleva, y ni la sesion pisa al hueco '
+        'ni el hueco a la sesion', () async {
+      final a = almacen();
+      expect(await a.guardar(sesionDePrueba(refresh: 'r-sesion')), isTrue);
+      expect(await a.dejarPorRevocar(pendiente), isTrue);
+      // Cada uno en SU fichero: el hueco no escribe encima de la sesion.
+      expect((await almacen().leer())?.refresh, 'r-sesion');
+      expect(elHueco().existsSync(), isTrue);
+
+      await a.borrar(); // salir
+
+      expect(_elFichero(carpeta).existsSync(), isFalse);
+      expect(await almacen().leer(), isNull, reason: 'sin sesion');
+      expect((await almacen().porRevocar()).map((r) => r.refresh), [
+        'r-pendiente',
+      ], reason: 'el cierre sin red sigue pendiente aunque ya no haya sesion');
+    });
+
+    test(
+      'sobrevive a un arranque nuevo del almacen (montado DE CERO)',
+      () async {
+        await almacen().dejarPorRevocar(pendiente);
+
+        final otroArranque = almacen();
+        expect((await otroArranque.porRevocar()).single.sub, 'u-1');
+        expect(await otroArranque.leer(), isNull, reason: 'no es una sesion');
+      },
+    );
+
+    test(
+      'quitarlo lo borra del disco, y guardar una sesion NO lo toca',
+      () async {
+        final a = almacen();
+        await a.dejarPorRevocar(pendiente);
+        await a.guardar(sesionDePrueba(refresh: 'r-nueva'));
+        expect((await almacen().porRevocar()), hasLength(1));
+
+        await a.quitarPorRevocar('r-pendiente');
+
+        expect(await almacen().porRevocar(), isEmpty);
+        expect(elHueco().existsSync(), isFalse);
+        expect((await almacen().leer())?.refresh, 'r-nueva');
+      },
+    );
+
+    test('va cifrado igual que la sesion: ni el refresco ni el sub en claro, '
+        'sobre completo y 0600', () async {
+      await almacen().dejarPorRevocar(pendiente);
+      final crudo = await elHueco().readAsString();
+
+      expect(crudo, isNot(contains('r-pendiente')));
+      expect(crudo, isNot(contains('u-1')));
+      final sobre = jsonDecode(crudo) as Map<String, Object?>;
+      expect(sobre['v'], 1);
+      expect(
+        sobre.keys,
+        containsAll(<String>['sal', 'nonce', 'dato', 'sello']),
+      );
+      final permisos = await Process.run('stat', <String>[
+        '-c',
+        '%a',
+        elHueco().path,
+      ]);
+      expect((permisos.stdout as String).trim(), '600');
+    });
+
+    test('el de otra maquina no se abre (y no se borra)', () async {
+      await almacen(maquina: 'la-buena').dejarPorRevocar(pendiente);
+
+      expect(await almacen(maquina: 'la-mala').porRevocar(), isEmpty);
+      expect(elHueco().existsSync(), isTrue);
+      expect(await almacen(maquina: 'la-buena').porRevocar(), hasLength(1));
     });
   });
 

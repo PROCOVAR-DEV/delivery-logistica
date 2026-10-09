@@ -679,6 +679,17 @@ Dos reglas que salieron de ese día:
   `internal/api/sesion_cableada_test.go` / `sync/internal/identidad/fuente_de_la_casa_test.go` atan el
   cableado de `main` (el servidor se construye con `api.NuevoServidorConSesiones` e
   `identidad.FuenteDeLaCasa`, que son lo único que llaman los dos `main`).
+- **Y con Chrome (la web).** `app/test/nucleo/red/agente_de_usuario_web_test.dart` (`@TestOn('browser')`)
+  es lo único que ejecuta la guarda del `User-Agent` con `kIsWeb` de verdad (en la VM `kIsWeb` es
+  siempre falso, y quitar la guarda salía en verde: cabecera no segura para CORS, preflight al login
+  de Accesos). Se corría solo a mano; `./comprobar.sh` ahora tiene el bloque `chrome (web)`: corre
+  esa prueba si hay Chrome (`CHROME_EXECUTABLE` o `google-chrome-stable` en el `PATH`) y dice
+  «SALTADO (instala Chrome o exporta CHROME_EXECUTABLE: docs/entorno-local.md)» si no
+  (`docs/entorno-local.md` §7-ter). Sus dos pruebas cubren cosas distintas, dicho en su cabecera.
+- **El cableado de `main` se ata por AST, no por texto.** `sesion_cableada_test.go` (api) y
+  `fuente_de_la_casa_test.go` (sync) analizan `cmd/*/main.go` con `go/parser`: un comentario no cuenta
+  (`_ = ctx // inv.Correr(ctx)` y `nil /* sesiones.DeRedis(cfg.Redis) */` pasaban la guarda de texto), y
+  en sync `identidad.Exigir` ha de recibir la fuente que salió de `FuenteDeLaCasa`.
 - **Pruebas colgadas**, y son DOS trampas hermanas, las dos de lo mismo: dentro
   de un widget test el tiempo lo manda el `tester` y no avanza solo.
   1. Nada de `await` sobre el primer valor de un stream de Drift ahí dentro: la

@@ -77,12 +77,17 @@ class RevocadorDeCierres {
 ///  * **200**: `Content-Type` JSON (tiene que venir; aqui no vale el silencio de
 ///    [contestoLoNuestro]) y cuerpo `{"ok": true}`, que es lo que Accesos
 ///    contesta SIEMPRE (`auth/src/app/api/auth/logout/route.ts`: «Siempre 200»).
-///  * **401**: [contestoLoNuestro].
+///  * **401**: `Content-Type` JSON, igual que el 200. Un 401 SIN cabecera y con
+///    el cuerpo vacio lo contesta un proxy o un WAF pelado, y [contestoLoNuestro]
+///    perdona ese silencio (§3-quinquies); aqui no, porque Accesos NUNCA contesta
+///    401 en `/logout` (siempre `200 {"ok":true}`) y confirmar por silencio
+///    borraba el hueco sin que Accesos hubiera visto nada (re-auditoria
+///    09/10/2026). Lo que si confirma: un 401 JSON, que es de un Accesos futuro.
 ///  * Todo lo demas, o sin respuesta: no confirma.
 bool cierreConfirmado(Response<Object?>? r) {
   if (r == null || !contestoLoNuestro(r)) return false;
   return switch (r.statusCode) {
-    401 => true,
+    401 => tipoDeContenido(r) != null,
     200 =>
       tipoDeContenido(r) != null &&
           r.data is Map &&

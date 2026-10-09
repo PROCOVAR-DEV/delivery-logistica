@@ -10,10 +10,13 @@ package identidad
 
 import (
 	"context"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"go/types"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -118,25 +121,86 @@ func esperarMarcas(t *testing.T, inv *sesiones.Registro, n int) {
 	}
 }
 
-// `cmd/sync/main.go` SÓLO puede sacar quién llama de [FuenteDeLaCasa], con la fuente real, y hacer
-// correr el registro: llamar a `DeToken` a secas, pasarle `nil` en vez de `sesiones.DeRedis(cfg.Redis)`
-// o no llamar a `Correr` lo dejaría sin empuje, y `cmd/sync` no tiene pruebas que lo noten. Esto lee el
-// fuente de `main.go`.
+// `cmd/sync/main.go` SÓLO puede sacar quién llama de [FuenteDeLaCasa], con la fuente real, hacer correr
+// el registro y ponerle ESA fuente a `Exigir`: llamar a `DeToken` a secas, pasarle `nil` en vez de
+// `sesiones.DeRedis(cfg.Redis)`, no llamar a `Correr`, quitar `identidad.Exigir(fuente, mux)` o
+// dárselo con otra fuente que deje pasar a todos lo dejaría sin empuje (o sin puerta), y `cmd/sync` no
+// tiene pruebas que lo noten.
+//
+// Esto ANALIZA `main.go` con go/parser (no lo lee como texto): un comentario no cuenta. La versión de
+// texto aceptaba `_ = ctx // invalidaciones.Correr(ctx)` y `nil /* sesiones.DeRedis(cfg.Redis) */`
+// (re-auditoría 09/10/2026, O2/O3), y `Exigir` no estaba atado (O7/O8).
 func TestMainSacaQuienLlamaDeLaFuenteDeLaCasa(t *testing.T) {
-	fuente, err := os.ReadFile("../../cmd/sync/main.go")
+	f, err := parser.ParseFile(token.NewFileSet(), "../../cmd/sync/main.go", nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	texto := string(fuente)
-	for _, debe := range []string{"identidad.FuenteDeLaCasa(", "sesiones.DeRedis(cfg.Redis)", "invalidaciones.Correr(ctx)"} {
-		if !strings.Contains(texto, debe) {
-			t.Errorf("cmd/sync/main.go ya no contiene %q: arrancaría sin el empuje de Accesos", debe)
+	var llamadas []*ast.CallExpr
+	var fuente, registro string // los nombres a los que main asigna lo que devuelve FuenteDeLaCasa
+	conRedisReal := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.CallExpr:
+			llamadas = append(llamadas, x)
+		case *ast.SelectorExpr:
+			// Ni llamada ni referencia: `identidad.Exigir(identidad.DeCabeceras, mux)` también se la salta.
+			if id, ok := x.X.(*ast.Ident); ok && id.Name == "identidad" {
+				switch x.Sel.Name {
+				case "DeToken", "DeTokenConInvalidaciones", "DeCabeceras":
+					t.Errorf("cmd/sync/main.go usa identidad.%s directamente: se salta el cableado de FuenteDeLaCasa", x.Sel.Name)
+				}
+			}
+		case *ast.AssignStmt:
+			if len(x.Lhs) != 2 || len(x.Rhs) != 1 {
+				break
+			}
+			c, ok := x.Rhs[0].(*ast.CallExpr)
+			if !ok || types.ExprString(c.Fun) != "identidad.FuenteDeLaCasa" {
+				break
+			}
+			if id, ok := x.Lhs[0].(*ast.Ident); ok {
+				fuente = id.Name
+			}
+			if id, ok := x.Lhs[1].(*ast.Ident); ok {
+				registro = id.Name
+			}
+			for _, a := range c.Args {
+				// Una LLAMADA a DeRedis con la configuración de verdad: ni `nil`, ni una fuente de memoria.
+				if k, ok := a.(*ast.CallExpr); ok && types.ExprString(k) == "sesiones.DeRedis(cfg.Redis)" {
+					conRedisReal = true
+				}
+			}
+		}
+		return true
+	})
+
+	correBucle, exigeLaFuente := false, false
+	for _, c := range llamadas {
+		nombre := types.ExprString(c.Fun)
+		if registro != "" && registro != "_" && nombre == registro+".Correr" {
+			correBucle = true
+		}
+		// `Exigir` con EL identificador que salió de FuenteDeLaCasa, no con cualquier otra cosa.
+		if nombre == "identidad.Exigir" && len(c.Args) > 0 && fuente != "" && fuente != "_" &&
+			types.ExprString(c.Args[0]) == fuente {
+			exigeLaFuente = true
 		}
 	}
-	for _, noDebe := range []string{"identidad.DeToken(", "identidad.DeTokenConInvalidaciones(", "identidad.DeCabeceras"} {
-		if strings.Contains(texto, noDebe) {
-			t.Errorf("cmd/sync/main.go usa %s directamente: se salta el cableado de FuenteDeLaCasa", noDebe)
-		}
+	if fuente == "" {
+		t.Error("cmd/sync/main.go ya no asigna el resultado de identidad.FuenteDeLaCasa(...): " +
+			"arrancaría sin el empuje de Accesos")
+	}
+	if !conRedisReal {
+		t.Error("cmd/sync/main.go no pasa sesiones.DeRedis(cfg.Redis) a FuenteDeLaCasa (¿nil, un comentario?): " +
+			"arrancaría sin el empuje de Accesos")
+	}
+	if !correBucle {
+		t.Errorf("cmd/sync/main.go no llama a %q.Correr(...) sobre el registro que devuelve FuenteDeLaCasa "+
+			"(¿comentado?): el suscriptor nunca escucharía", registro)
+	}
+	if !exigeLaFuente {
+		t.Errorf("cmd/sync/main.go no llama a identidad.Exigir(%s, …) con la fuente que devuelve FuenteDeLaCasa: "+
+			"/sync/ quedaría sin puerta, o con una que deja pasar a todos", fuente)
 	}
 }
 

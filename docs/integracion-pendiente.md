@@ -35,9 +35,12 @@ desde el que se le diga.
    (`orders.almacen_salida_codigo` + nombre): CAM 2 PV CAMAGUEY · 13 ALM CAMAGUEY; GTO 2 PV GTMO · 3 ALM
    CENTRAL; HOL 2 PV HOLGUIN; HAB 22 HABANA HACENDADO; TUN 1 PV-TUNAS; SS 123 ALM S-SPIRITUS · 122 TIENDA
    S-SPIRITUS; STG 1 PV-STGO · 2 AURORA. **Faltan FLORIDA (CAM), PV BAYAMO (GR) y PUNTO J (HAB)**: ningún pedido
-   ha salido de ellos y su código se escribe en la pantalla de Almacenes. Efecto: el espejo repasa
-   los últimos tres días de pedidos, así que **esos recalculan `almacen_salida_*`, el kilometraje y el
-   precio del domicilio** desde su almacén; lo anterior queda como estaba. La APK/Windows ≤ 1.0.32
+   ha salido de ellos y su código se escribe en la pantalla de Almacenes. Efecto, comprobado el
+   09/10/2026 a las 21:07 UTC (pasados ~10 min, por la caché de 5 min de la lista de almacenes): un pedido de
+   La Habana que se actualizó salió con código 22 → HABANA HACENDADO y motivo `almacen-del-pedido`. **Los
+   pedidos nuevos o que cambian** se miden desde su almacén (`almacen_salida_*`, kilometraje y precio del
+   domicilio); **los ~11.000 anteriores conservan `accesos-sin-codigos` y el número que ya tenían** (el
+   repaso solo reescribe lo que cambió en PEDIDO), que es lo correcto para lo ya cotizado. La APK/Windows ≤ 1.0.32
    no tienen la casilla (siguen mandando el `PUT` sin `codigo`, que conserva los códigos); la web sí.
 3. **El armado de rutas sigue midiendo desde el principal**: el origen de la ruta, `segment_km`
    de cada parada y `total_distance` (`api/internal/api/tablero.go`). Una ruta de Santiago hecha

@@ -62,6 +62,21 @@ var algoritmos = map[string]func() hash.Hash{
 // enseñar «no tienes permiso» y mandar a Accesos. Ver [Exigir].
 var ErrSinPermisoDeReparto = errors.New("el rol no entra a Reparto")
 
+// ErrSesionInvalidada: el token es bueno de firma y de fecha, pero Accesos cortó las sesiones de esa
+// persona (alcance `todo`) DESPUÉS de emitirlo. Cuelga de [ErrSinSesion]: sale como un 401, EXACTAMENTE
+// como un token inválido, y NO como un 403 — el cliente trata un 401 como sesión caducada, renueva, y
+// es Accesos quien decide si la sesión murió o sólo falta un permiso. Un 403 aquí mataría la cola.
+var ErrSesionInvalidada = fmt.Errorf("%w: Accesos cortó la sesión", ErrSinSesion)
+
+// Invalidaciones es lo que se pregunta para saber si un token de acceso ya no vale. La implementa
+// `sesiones.Registro` y TIENE QUE CONTESTAR SIN RED: se pregunta en cada petición. `iatMs` es el
+// `iatms` del token (milisegundos, 0 si no lo trae) y `iatSeg` su `iat` en SEGUNDOS, de donde se
+// cae a `iat*1000`; sólo cuentan los cortes `todo` (un cierre de sesión del navegador no echa a la
+// APK). Ver `internal/sesiones`.
+type Invalidaciones interface {
+	ElBearerNoVale(persona string, iatSeg, iatMs int64) bool
+}
+
 // ErrTokenRoto: no es un JWT, o no se puede leer.
 var ErrTokenRoto = errors.New("token ilegible")
 
@@ -97,6 +112,13 @@ var ErrNoSePudoComprobar = errors.New("no se pudo comprobar la sucursal")
 //
 // `resolutor` puede ser nil sólo donde no haya códigos que traducir (pruebas de firma).
 func DeToken(secreto []byte, resolutor Resolutor) Fuente {
+	return DeTokenConInvalidaciones(secreto, resolutor, nil)
+}
+
+// DeTokenConInvalidaciones es [DeToken] además de rechazar el token emitido ANTES de un corte de
+// sesiones de Accesos (`inv`, que puede ser nil: Redis sin configurar o caído no cambia nada). El
+// rechazo es [ErrSesionInvalidada], o sea un 401 normal.
+func DeTokenConInvalidaciones(secreto []byte, resolutor Resolutor, inv Invalidaciones) Fuente {
 	return func(r *http.Request) (Identidad, error) {
 		crudo := ""
 		if cab := r.Header.Get("Authorization"); cab != "" {
@@ -108,7 +130,7 @@ func DeToken(secreto []byte, resolutor Resolutor) Fuente {
 		if strings.TrimSpace(crudo) == "" {
 			return Identidad{}, ErrSinSesion
 		}
-		id, codigo, err := verificar(crudo, secreto)
+		id, codigo, err := verificar(crudo, secreto, inv)
 		if err != nil {
 			return Identidad{}, err
 		}
@@ -143,6 +165,10 @@ type reclamos struct {
 	Roles         []string `json:"roles"`
 	Exp           *float64 `json:"exp"`
 	Nbf           *float64 `json:"nbf"`
+	// `iat` en SEGUNDOS y `iatms` en MILISEGUNDOS: con ellos se compara el corte de sesiones de
+	// Accesos (`iatms` manda si viene). Ausentes son 0.
+	Iat   *float64 `json:"iat"`
+	IatMs *float64 `json:"iatms"`
 	// `entradas` EN CRUDO: las llaves `<app>.entrar` que firma Auth. Ausente (len 0), `[]`,
 	// `null` y «no es un array» son cosas distintas. Ver [entradasDelToken].
 	Entradas json.RawMessage `json:"entradas"`
@@ -191,6 +217,8 @@ func (c *reclamos) UnmarshalJSON(b []byte) error {
 	c.Sucursal = texto("sucursal")
 	c.Exp = numero("exp")
 	c.Nbf = numero("nbf")
+	c.Iat = numero("iat")
+	c.IatMs = numero("iatms")
 	if v, hay := suelto["entradas"]; hay {
 		c.Entradas = v
 	}
@@ -204,7 +232,7 @@ const margen = time.Minute
 
 // verificar devuelve la identidad y, cuando la sucursal del token no es un uuid, el
 // CÓDIGO que hay que traducir. Traducirlo aquí es imposible: hace falta ir al reparto.
-func verificar(token string, secreto []byte) (Identidad, string, error) {
+func verificar(token string, secreto []byte, inv Invalidaciones) (Identidad, string, error) {
 	partes := strings.Split(token, ".")
 	if len(partes) != 3 {
 		return Identidad{}, "", ErrTokenRoto
@@ -264,6 +292,21 @@ func verificar(token string, secreto []byte) (Identidad, string, error) {
 	id.Persona = primero(c.Sub, c.ID)
 	if id.Persona == "" {
 		return Identidad{}, "", ErrSinSesion
+	}
+
+	// ACCESOS CORTÓ LAS SESIONES DE ESTA PERSONA DESPUÉS DE EMITIR ESTE TOKEN: 401, antes que cualquier
+	// otra decisión (un 403 de «sin permiso» no puede tapar un token que ya no vale). Sólo memoria.
+	if inv != nil {
+		var iat, iatms int64
+		if c.Iat != nil {
+			iat = int64(*c.Iat)
+		}
+		if c.IatMs != nil {
+			iatms = int64(*c.IatMs)
+		}
+		if inv.ElBearerNoVale(id.Persona, iat, iatms) {
+			return Identidad{}, "", ErrSesionInvalidada
+		}
 	}
 
 	// QUIÉN ENTRA A REPARTO, antes de mirar la sucursal: a quien no entra no se le traduce

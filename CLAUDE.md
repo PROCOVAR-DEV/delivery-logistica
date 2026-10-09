@@ -408,6 +408,36 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   membresía: `TestLimiteConocido…`). **TRAMPA del despliegue:** Accesos primero (crea LOGISTICO y
   firma `entradas`), luego asignar LOGISTICO a quien trabaje en Reparto, luego `sync` y `api`; en la
   web el rol se refresca al volver a entrar (la cookie dura 7 días).
+- **LA SESIÓN LA INVALIDA ACCESOS, POR REDIS, SIN SONDEO** (Jose, 08/10/2026: «si cierro sesión o me cambian un
+  permiso en Accesos se refleja en todas. Nada de polling: para eso tenemos SSE y Sentinel»; y «la web es la web y las
+  APK son la APK»). Accesos publica en `procovar:auth:eventos` del Redis de la casa (mismas `REDIS_*` que el espejo;
+  marcas de recuperación en la DB 6, `procovar:auth:invalida:{web,todo}:<userId>`, TTL 8 días)
+  `{"v":1,"tipo":"sesion-cerrada|permisos-cambiados","alcance":"web|todo","userIds":[…],"tms":<ms>,…}`. La API
+  (`api/internal/sesiones`, enganchada en `auth.Verificador`) y el sincronizador (`sync/internal/sesiones`, gemela
+  recortada) mantienen un mapa en memoria; **ninguna petición sale a la red**. La cookie web (`iatms` + `web:true`)
+  emitida antes de `max(web,todo)` da 401 y se borra; el token de la APK/escritorio emitido antes de `todo` (su `iatms`,
+  o `iat*1000` si no lo trae) da **401, nunca 403**, en api y sync; un evento `web` no toca a la APK. **«Sesión web» es
+  la que viaja en cookie o lleva `web:true`, NO la que lleva `iatms`** (Accesos también lo firma en la APK) y OJO: la
+  web manda la cookie Y el mismo token como Bearer, así que «el Bearer no se mira» dejaría la web sin cortar. SSE:
+  evento `sesion-invalidada` `{"tipo":…}` sólo a las conexiones de esa persona (las de Bearer sólo en `todo`) y el
+  servidor cierra la conexión. Redis caído o sin configurar **no tumba nada** (WARN, recarga de marcas al reconectar).
+  Topes: se ignora un `tms` a más de 60 s en el futuro, 1000 ids por mensaje, 100.000 marcas por mapa (se van las
+  viejas). La clave de Redis es compartida: **falta una ACL** (sólo Accesos publica/escribe). Variables `REDIS_*` en
+  `reparto-api` Y `reparto-sync` (NO `REDIS_BASE`). Pruebas: `internal/sesiones` (api y sync),
+  `la_sesion_web_la_invalida_accesos_test.go`, `la_apk_tambien_la_invalida_accesos_test.go`,
+  `sync/internal/identidad/accesos_corta_la_sesion_test.go`; Redis real con `REPARTO_REDIS_REAL_ADDR`.
+  **App** (`docs/sin-permiso.md`, sección final): WEB: `eventos_web.dart` hace `close()` del EventSource (si no, el
+  navegador reconecta contra una sesión muerta) y emite `sesion-invalidada:<tipo>`; el embudo `avisosDelServidorProvider`
+  lo corta (jamás llega al vigía: no es un cambio) y `Portero.sesionInvalidada` manda a `fuera` con el mensaje «Tu sesión
+  se cerró en Accesos. Vuelve a entrar.» / «Tus permisos cambiaron. Vuelve a entrar.»; la puerta lo dice 3 s y va a
+  Accesos; idempotente (dos eventos = una navegación). APK/ESCRITORIO: el aviso no echa a nadie; `Portero.renovarPorAviso`
+  renueva YA y decide el refresco (401 = «Tu sesión se cerró», 403 `sin_permiso` = pantalla sin permiso, 200/sin red =
+  nada); la cola y la base no se tocan JAMÁS. Al volver la red el ciclo renueva primero y se entera solo. Cerrar sesión
+  SIN red deja el refresco en un hueco aparte (`reparto.por_revocar`, por persona) que `RevocadorDeCierres` presenta a
+  `/logout` al arrancar, al entrar y al volver la red; sólo se borra con 200 o 401 de nuestro servidor y **NUNCA se usa
+  para entrar**. La app manda `User-Agent: ProcovarReparto/<versión> (<plataforma>)` a Accesos (no en la web) para que
+  la lista de dispositivos distinga Android de Windows. **Qué NO está hecho todavía:** una persona que pierde el rol
+  con cola sin subir la conserva pero no puede entregarla — diseño aprobado en `docs/bandeja-de-revision.md` (1.0.32).
 - **Un 403 `sin_permiso_reparto` NO es un rechazo del apunte** (es la PERSONA, no el apunte): en el
   sincronizador `/sync/subida` contesta 403 sin anotar nada, y en la app el interceptor pasa el
   portero a `EstadoDeAcceso.sinPermiso` (pantalla `/sin-permiso`, ciclo y vigía parados; sesión, base
@@ -641,6 +671,14 @@ Dos reglas que salieron de ese día:
   `reparto-postgres-1` (rol `verif`, ver `docs/entorno-local.md`), migrada con `goose` hasta
   la última, y `REPARTO_MOTOR_REAL_DSN=postgres://verif:verif@127.0.0.1:5433/verif_reparto?sslmode=disable ./comprobar.sh`.
   **Antes de cada despliegue con cambios de SQL, hay que correrla.**
+- **Lo mismo con Redis (sesión única).** `api/internal/sesiones/redis_real_test.go` y su gemela de
+  `sync/` se saltan en silencio sin `REPARTO_REDIS_REAL_ADDR`; `./comprobar.sh` las corre si está
+  puesta y dice «SALTADO» si no. Un Redis local de usar y tirar (`docker run --rm -d --name
+  reparto-go-redis -p 127.0.0.1:6391:6379 redis:7-alpine`, `docs/entorno-local.md` §7-bis). Sin Redis,
+  `sesiones/contrato_test.go` ata la DB 6, el canal y los prefijos al contrato de Accesos, y
+  `internal/api/sesion_cableada_test.go` / `sync/internal/identidad/fuente_de_la_casa_test.go` atan el
+  cableado de `main` (el servidor se construye con `api.NuevoServidorConSesiones` e
+  `identidad.FuenteDeLaCasa`, que son lo único que llaman los dos `main`).
 - **Pruebas colgadas**, y son DOS trampas hermanas, las dos de lo mismo: dentro
   de un widget test el tiempo lo manda el `tester` y no avanza solo.
   1. Nada de `await` sobre el primer valor de un stream de Drift ahí dentro: la
@@ -669,8 +707,15 @@ bloquearon la IP por eso—, así que:
 
 ```bash
 flutter build web --dart-define=API_URL=http://127.0.0.1:8099/api ...
-grep -c "procovar\.cloud" build/web/main.dart.js   # tiene que dar 0
+grep -c "procovar\.cloud" build/web/main.dart.js   # 4 con API_URL, SYNC_URL y AUTH_URL locales
 ```
+
+**El «0» de antes era inalcanzable** (lo midió la re-auditoría del 09/10/2026): quedan 4 apariciones que son
+TEXTO y no peticiones —el valor de respaldo de `AUTH_URL` vacío (`entorno.dart`), el valor por defecto de
+`oferta_de_la_puerta.dart`, la etiqueta «Ir a procovar.cloud» de `pantalla_acceso.dart` y el enlace al portal—.
+Lo que se vigila es que **ninguna línea nueva añada otra** (`git diff -U0 -- app/lib | grep procovar.cloud` vacío) y
+que las tres URL de arriba vayan siempre con `--dart-define` locales; con solo `API_URL` salen 7.
+
 
 Y **cierra las pestañas y para los servidores al terminar**: una aplicación viva
 dispara un ciclo de sincronización cada pocos minutos. Ya pasó.

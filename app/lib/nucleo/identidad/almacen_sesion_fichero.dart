@@ -77,7 +77,7 @@ import 'sesion.dart';
 /// dia que se decida cifrar tambien la copia de datos con una clave derivada de
 /// la contrasena (lo que `identidad.md` deja escrito para mas adelante), este
 /// fichero es el primero que tiene que cambiar.
-class AlmacenEnFichero implements AlmacenDeSesion {
+class AlmacenEnFichero with PorRevocarEnTexto implements AlmacenDeSesion {
   AlmacenEnFichero({Directory? carpeta, String? materialDeLaMaquina})
     : _carpetaPuesta = carpeta,
       _materialPuesto = materialDeLaMaquina;
@@ -168,6 +168,37 @@ class AlmacenEnFichero implements AlmacenDeSesion {
       // Salir tiene que poder salir. Si el fichero no se deja borrar, el par
       // caduca solo; lo que no puede pasar es que la persona se quede dentro.
       Registro.aviso('no se pudo borrar el fichero de la sesion: $e');
+    }
+  }
+
+  /// Aparte del de la sesion, a proposito: ver [RefrescoPorRevocar].
+  static const _nombreDePorRevocar = 'por_revocar.caja';
+
+  @override
+  Future<String?> leerPorRevocar() async {
+    try {
+      final fichero = await _elFichero(_nombreDePorRevocar);
+      if (!fichero.existsSync()) return null;
+      return _descifrar(await fichero.readAsString());
+    } on Object catch (e) {
+      Registro.aviso('no se pudo leer el fichero de lo por revocar: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<bool> escribirPorRevocar(String? texto) async {
+    try {
+      if (texto == null) {
+        final fichero = await _elFichero(_nombreDePorRevocar);
+        if (fichero.existsSync()) await fichero.delete();
+      } else {
+        await _escribir(_nombreDePorRevocar, texto);
+      }
+      return true;
+    } on Object catch (e) {
+      Registro.aviso('no se pudo escribir el fichero de lo por revocar: $e');
+      return false;
     }
   }
 

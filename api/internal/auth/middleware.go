@@ -30,6 +30,9 @@ func (v *Verificador) Exigir(siguiente http.Handler) http.Handler {
 			httpx.Registro(r).Warn("sesión rechazada",
 				append([]any{"motivo", err, "ruta", r.URL.Path},
 					RastroDe(r, time.Now()).Campos()...)...)
+			// Si fue Accesos quien la invalidó, la cookie se borra: que el navegador no siga
+			// mandándola y la web vuelva a entrar por Accesos.
+			v.BorrarCookieSiInvalidada(w, r, err)
 			httpx.NoAutorizado(w, r)
 			return
 		}

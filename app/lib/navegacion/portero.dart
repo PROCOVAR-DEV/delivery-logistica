@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../arranque/arranque.dart';
+import '../nucleo/identidad/revocador_de_cierres.dart';
 import '../nucleo/identidad/sesion.dart';
 import '../nucleo/plataforma.dart';
 import '../nucleo/proveedores.dart';
+import '../nucleo/red/eventos.dart' show tipoPermisosCambiados, tipoSesionCerrada;
+import '../nucleo/red/fallos.dart' show FalloDeRed, Rechazo, SesionMuerta;
 import '../nucleo/sincro/sucursal_del_aparato.dart';
 import '../nucleo/registro/registro.dart';
 import '../pantallas/acceso/estado/estado_acceso.dart';
@@ -131,6 +136,12 @@ class Portero extends ChangeNotifier {
   bool get sesionPerdida => _sesionPerdida;
   bool _sesionPerdida = false;
 
+  /// **Por qué se echó a la persona**, cuando fue Accesos quien lo dijo
+  /// ([sesionInvalidada]); `null` en cualquier otra salida. Lo pinta la puerta
+  /// de la web: «Tu sesión se cerró en Accesos. Vuelve a entrar.»
+  String? get avisoDeSesion => _avisoDeSesion;
+  String? _avisoDeSesion;
+
   /// Por dónde va la configuración inicial. `null` cuando no hay ninguna.
   ConfiguracionInicial? get configuracion => _configuracion;
   ConfiguracionInicial? _configuracion;
@@ -140,6 +151,9 @@ class Portero extends ChangeNotifier {
   /// cuenta — dura quince minutos, así que casi siempre estará caducado al
   /// abrir, y eso no significa que la sesión haya muerto.
   Future<void> comprobar() async {
+    // Un cierre de sesión hecho sin red en la vez anterior: se revoca en cuanto
+    // se pueda (o se espera a que vuelva la red). No espera nadie.
+    unawaited(revocarCierresPendientes());
     final ResultadoDelArranque resultado;
     try {
       resultado = await arrancar(_ref);
@@ -191,6 +205,9 @@ class Portero extends ChangeNotifier {
   Future<void> entro(Sesion sesion) async {
     _sesion = sesion;
     _sesionPerdida = false;
+    _avisoDeSesion = null;
+    // Entrar prueba que hay red: buen momento para los cierres sin revocar.
+    unawaited(revocarCierresPendientes());
     // LA BASE DE ESTA PERSONA, antes de mirar si tiene datos. Si no, lo que se
     // miraría es la base neutra —la de antes de que entrara nadie— y siempre
     // saldría vacía.
@@ -207,6 +224,91 @@ class Portero extends ChangeNotifier {
     // lo encuentra.
     _ref.read(duenoDeLaBaseProvider.notifier).es(null);
     _poner(EstadoDeAcceso.fuera);
+  }
+
+  /// ACCESOS AVISO (`sesion-invalidada`) A UN APARATO — APK y escritorio.
+  ///
+  /// **No se navega a ciegas**: se intenta renovar YA, y el resultado decide por
+  /// los caminos de siempre. Un 401 del refresco es que Accesos cerró la sesión
+  /// ([sesionInvalidada], con «Tu sesión se cerró…»); un 403 `sin_permiso` lo
+  /// lleva el `Renovador` a [sinPermiso]; si la renovación va bien —por ejemplo
+  /// cambiaron los permisos pero la persona sigue entrando— no pasa nada; y sin
+  /// red se queda como estaba: lo recoge el primer ciclo al volver la señal.
+  ///
+  /// **La cola y la base no se tocan jamás**: es [murio], que solo cambia de copia.
+  Future<void> renovarPorAviso() async {
+    if (!haySesionParaSincronizar(_estado)) return;
+    final guardada = await _ref.read(almacenSesionProvider).leer();
+    if (guardada == null) return;
+    try {
+      await _ref.read(renovadorProvider).renovar(guardada);
+    } on SesionMuerta {
+      sesionInvalidada(tipoSesionCerrada);
+    } on Rechazo {
+      // El 403 `sin_permiso` ya se lo dijo el `Renovador` a [sinPermiso].
+    } on FalloDeRed catch (e) {
+      Registro.aviso('aviso de Accesos y sin red para renovar ahora: $e');
+    } on Object catch (e) {
+      Registro.aviso('aviso de Accesos: no se pudo renovar: $e');
+    }
+  }
+
+  /// REVOCA LOS CIERRES DE SESIÓN QUE SE HICIERON SIN RED (`RevocadorDeCierres`).
+  /// Si algo queda sin confirmar, se escucha el aviso de red para volver a
+  /// intentarlo cuando vuelva; si no queda nada, se deja de escuchar. No lanza.
+  Future<void> revocarCierresPendientes() async {
+    try {
+      final quedan = await RevocadorDeCierres(
+        _ref.read(dioAuthProvider),
+        _ref.read(almacenSesionProvider),
+      ).revocarLoPendiente();
+      if (quedan == 0) {
+        unawaited(_escuchaRed?.cancel());
+        _escuchaRed = null;
+      } else {
+        _escucharLaRed();
+      }
+    } on Object catch (e) {
+      Registro.aviso('cierres pendientes: no se pudo mirar: $e');
+    }
+  }
+
+  StreamSubscription<bool>? _escuchaRed;
+
+  void _escucharLaRed() {
+    _escuchaRed ??= _ref
+        .read(avisosDeRedProvider)()
+        .listen(
+          (hayRed) {
+            if (hayRed) unawaited(revocarCierresPendientes());
+          },
+          onError: (Object e) =>
+              Registro.aviso('cierres pendientes: el aviso de red falló: $e'),
+          cancelOnError: false,
+        );
+  }
+
+  @override
+  void dispose() {
+    unawaited(_escuchaRed?.cancel());
+    super.dispose();
+  }
+
+  /// ACCESOS DIJO QUE ESTA SESIÓN YA NO VALE (cerró sesión, o cambiaron sus
+  /// permisos): solo la web, por el evento `sesion-invalidada` del canal
+  /// (`nucleo/red/eventos.dart`). Es [murio] con su mensaje, y llega a la puerta
+  /// al instante en vez de esperar al siguiente 401.
+  ///
+  /// **Idempotente**: estando `fuera` se ignora, así que dos eventos seguidos
+  /// —o uno y el 401 de una petición que iba en vuelo— son UNA salida, UNA
+  /// navegación y el mensaje del primero. No toca la cola ni la base: igual que
+  /// con un 401, lo de esa persona se queda en su fichero.
+  void sesionInvalidada(String tipo) {
+    if (_estado == EstadoDeAcceso.fuera) return;
+    _avisoDeSesion = tipo == tipoPermisosCambiados
+        ? textoDePermisosCambiados
+        : textoDeSesionCerrada;
+    murio();
   }
 
   /// Salir a mano. Revoca en auth si hay red, borra el par y **cambia de copia**.
@@ -228,9 +330,15 @@ class Portero extends ChangeNotifier {
     _sesion = null;
     _configuracion = null;
     _sesionPerdida = false;
+    _avisoDeSesion = null;
     _poner(EstadoDeAcceso.fuera);
     try {
       await _ref.read(servicioAccesoProvider).salir(quien);
+      // Sin red el cierre no llegó a Accesos y el refresco quedó apuntado: se
+      // espera a que vuelva la red aunque nadie toque nada.
+      if ((await _ref.read(almacenSesionProvider).porRevocar()).isNotEmpty) {
+        _escucharLaRed();
+      }
     } on Object catch (e) {
       Registro.aviso('salida con incidencias: $e');
     }
@@ -413,6 +521,11 @@ class Portero extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+/// Lo que dice la puerta de la web cuando Accesos invalidó la sesión
+/// ([Portero.sesionInvalidada]).
+const textoDeSesionCerrada = 'Tu sesión se cerró en Accesos. Vuelve a entrar.';
+const textoDePermisosCambiados = 'Tus permisos cambiaron. Vuelve a entrar.';
 
 final porteroProvider = Provider<Portero>((ref) {
   final portero = Portero(ref);

@@ -28,11 +28,24 @@ class PeticionVista {
 }
 
 /// Lo que el servidor falso contesta.
+///
+/// Por defecto habla JSON, como nuestra API. Para fingir lo que contesta algo
+/// que NO es nuestro servidor (portal cautivo de un hotel o de un ISP, un proxy),
+/// [texto] manda ese cuerpo tal cual y [tipo] su `Content-Type`
+/// (`text/html` si no se dice): `RespuestaFalsa(200, null, '<html>…', 'text/html')` o `RespuestaFalsa.portal(200)`.
 class RespuestaFalsa {
-  RespuestaFalsa(this.codigo, [this.cuerpo]);
+  RespuestaFalsa(this.codigo, [this.cuerpo, this.texto, this.tipo]);
+
+  /// Un portal cautivo: `codigo` con una pagina `text/html`.
+  RespuestaFalsa.portal(this.codigo)
+    : cuerpo = null,
+      texto = '<html><body>Bienvenido a la red del hotel</body></html>',
+      tipo = 'text/html; charset=utf-8';
 
   final int codigo;
   final Object? cuerpo;
+  final String? texto;
+  final String? tipo;
 }
 
 /// El servidor falso.
@@ -75,10 +88,11 @@ class ServidorFalso implements HttpClientAdapter {
     }
 
     return ResponseBody.fromString(
-      jsonEncode(respuesta.cuerpo ?? const <String, Object?>{}),
+      respuesta.texto ??
+          jsonEncode(respuesta.cuerpo ?? const <String, Object?>{}),
       respuesta.codigo,
       headers: {
-        Headers.contentTypeHeader: [Headers.jsonContentType],
+        Headers.contentTypeHeader: [respuesta.tipo ?? Headers.jsonContentType],
       },
     );
   }

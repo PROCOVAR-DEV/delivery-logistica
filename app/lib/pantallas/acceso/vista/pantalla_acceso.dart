@@ -13,7 +13,8 @@ import '../../../nucleo/identidad/entrada_por_accesos.dart';
 import '../../../nucleo/plataforma.dart';
 import '../datos/oferta_de_la_puerta.dart';
 import '../datos/servicio_acceso.dart';
-import 'pantalla_sin_permiso.dart' show inicioDeAccesos;
+import 'pantalla_sin_permiso.dart'
+    show inicioDeAccesos, segundosHastaAccesos;
 import '../estado/estado_acceso.dart';
 
 /// LA PANTALLA DE ACCESO.
@@ -75,6 +76,12 @@ class _PantallaAccesoState extends ConsumerState<PantallaAcceso> {
   /// mismo que ya costó el parpadeo del arranque.
   bool _yendoAAccesos = false;
 
+  /// POR QUÉ SE LLEGÓ AQUÍ, si fue Accesos quien invalidó la sesión
+  /// (`Portero.sesionInvalidada`): «Tu sesión se cerró en Accesos…». `null` en
+  /// el resto de salidas, que se van a Accesos sin parar.
+  late final String? _aviso = ref.read(porteroProvider).avisoDeSesion;
+  Timer? _espera;
+
   @override
   void initState() {
     super.initState();
@@ -84,6 +91,15 @@ class _PantallaAccesoState extends ConsumerState<PantallaAcceso> {
     // (`delivery`, `login/page.tsx`).
     if (!_porAccesos || _entrada.motivo != null) return;
     _yendoAAccesos = true;
+    if (_aviso != null) {
+      // Con aviso se lee antes de irse (como el «sin permiso»): unos segundos y
+      // el botón «Entrar ahora». `aAccesos` no navega dos veces.
+      _espera = Timer(
+        const Duration(seconds: segundosHastaAccesos),
+        _entrada.aAccesos,
+      );
+      return;
+    }
     // Después del primer fotograma: navegar dentro de `initState` deja a medio
     // montar el árbol que se está construyendo.
     WidgetsBinding.instance.addPostFrameCallback((_) => _entrada.aAccesos());
@@ -91,6 +107,7 @@ class _PantallaAccesoState extends ConsumerState<PantallaAcceso> {
 
   @override
   void dispose() {
+    _espera?.cancel();
     _usuario.dispose();
     _contrasena.dispose();
     super.dispose();
@@ -124,7 +141,9 @@ class _PantallaAccesoState extends ConsumerState<PantallaAcceso> {
   Widget build(BuildContext context) {
     // YÉNDOSE A ACCESOS: ni formulario ni promesa ni avisos. Sólo el «un
     // momento», que es la verdad de lo que está pasando.
-    if (_yendoAAccesos) return const _YendoAAccesos();
+    if (_yendoAAccesos) {
+      return _YendoAAccesos(aviso: _aviso, alIrAhora: _entrada.aAccesos);
+    }
 
     // POR QUÉ NO SE ENTRÓ SOLA. `null` en la APK y en el escritorio, donde no
     // hay login único que falle, y también en la web cuando todo va bien.
@@ -226,6 +245,18 @@ class _PantallaAccesoState extends ConsumerState<PantallaAcceso> {
                     _NoEntroPorAccesos(
                       motivo: motivoDelSSO,
                       alReintentar: _entrada.aAccesos,
+                    ),
+                  ],
+                  if (!_porAccesos && _aviso != null) ...[
+                    // En la APK y el escritorio no se espera ni se va a ningún
+                    // lado: se dice por qué se está aquí y el formulario sigue.
+                    const SizedBox(height: Aire.lg),
+                    _Recuadro(
+                      icono: Icons.history_toggle_off,
+                      titulo: _aviso,
+                      detalle:
+                          'Lo que tenías sin subir sigue en este aparato; '
+                          'sube cuando vuelvas a entrar.',
                     ),
                   ],
                   if (sesionPerdida) ...[
@@ -440,10 +471,47 @@ class _SalidasDeLaPuerta extends ConsumerWidget {
 /// de página pasa un instante, y lo que no puede haber ahí es una pantalla en
 /// blanco — que es indistinguible de la aplicación rota.
 class _YendoAAccesos extends StatelessWidget {
-  const _YendoAAccesos();
+  const _YendoAAccesos({this.aviso, this.alIrAhora});
+
+  /// Lo que Accesos dijo de la sesión, si lo dijo: se pinta en vez del «un
+  /// momento» y con el botón de irse ya.
+  final String? aviso;
+  final void Function()? alIrAhora;
 
   @override
-  Widget build(BuildContext context) => Center(
+  Widget build(BuildContext context) => aviso != null
+      ? Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(Aire.lg),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Semantics(
+                    liveRegion: true,
+                    child: _Recuadro(
+                      icono: Icons.history_toggle_off,
+                      titulo: aviso!,
+                      detalle: 'Te llevamos a Accesos en unos segundos.',
+                    ),
+                  ),
+                  const SizedBox(height: Aire.md),
+                  BotonPrincipal(
+                    texto: 'Entrar ahora',
+                    icono: Icons.arrow_forward,
+                    iconoAlFinal: true,
+                    alPulsar: alIrAhora,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        )
+      : _sinAviso();
+
+  Widget _sinAviso() => Center(
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [

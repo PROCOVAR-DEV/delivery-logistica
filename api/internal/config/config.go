@@ -135,6 +135,10 @@ type Config struct {
 	AuthClientID   string
 	AuthSigningKey string
 
+	// Redis: el de la casa, el mismo que lee el espejo. Sólo sirve para enterarse de que Accesos
+	// invalidó una sesión (`internal/sesiones`); vacío = la API sirve sin ese empuje. Ver [Redis].
+	Redis Redis
+
 	// --- notify: por dónde salen los avisos a las personas ------------------
 	//
 	// Los correos y avisos de la casa los manda notify y NADA MÁS que notify —regla de
@@ -354,6 +358,7 @@ func Cargar(version string) (*Config, error) {
 		AuthURL:               strings.TrimRight(valor("PROCOVAR_AUTH_URL", "https://auth.procovar.cloud"), "/"),
 		AuthClientID:          valor("PROCOVAR_AUTH_CLIENT_ID", "delivery"),
 		AuthSigningKey:        strings.TrimSpace(os.Getenv("PROCOVAR_AUTH_SIGNING_KEY")),
+		Redis:                 leerRedis(os.Getenv),
 
 		VentraURL:   strings.TrimRight(valor("WAREHOUSE_API_URL", ""), "/"),
 		VentraToken: strings.TrimSpace(os.Getenv("WAREHOUSE_API_TOKEN")),

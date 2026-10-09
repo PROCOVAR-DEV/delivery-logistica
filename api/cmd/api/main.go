@@ -19,11 +19,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/api"
 	"procovar/reparto-api/internal/auth"
 	"procovar/reparto-api/internal/config"
+	"procovar/reparto-api/internal/sesiones"
 	"procovar/reparto-api/internal/store"
 	"procovar/reparto-api/internal/ventra"
 )
@@ -130,12 +132,39 @@ func correr() error {
 		)
 	}
 
-	servicio := api.NuevoServidor(
+	// El servidor Y el empuje de Accesos se construyen juntos, con la función que prueba
+	// `internal/api/sesion_cableada_test.go`: lo que se cose aquí es lo que se prueba allí.
+	servicio, inv := api.NuevoServidorConSesiones(
 		cfg, reg,
 		alcance.NuevaPorteria(almacen, reg),
 		auth.NuevoVerificador(cfg.JWTSecret),
 		almacen.Salud,
+		sesiones.DeRedis(cfg.Redis),
 	)
+
+	// ACCESOS INVALIDA LA SESIÓN DE LA WEB, Y LO EMPUJA (08/10/2026). Jose: «si cierro sesión o me
+	// cambian un permiso en Accesos se refleja en todas. Nada de polling: para eso tenemos SSE y
+	// Sentinel». Accesos publica en el Redis de la casa (el mismo del espejo, mismas REDIS_*); esto
+	// escucha y mantiene en memoria quién tiene la sesión invalidada (`internal/sesiones`).
+	//
+	// SIN REDIS NO IMPIDE ARRANCAR NI SERVIR, y se dice AQUÍ, que es cuando lo lee quien despliega:
+	// la API funciona como siempre, pero una sesión cerrada en Accesos sigue valiendo en la web
+	// hasta que caduque su cookie (7 días). Con Redis puesto pero caído, el bucle lo dice en cada
+	// intento y sigue sirviendo.
+	if cfg.Redis.Hay() {
+		if len(cfg.Redis.Centinelas) > 0 && cfg.Redis.Maestro == "" {
+			reg.Warn("REDIS_CENTINELAS sin REDIS_MAESTRO: no se sabrá a qué maestro conectar y el " +
+				"empuje de Accesos no llegará (la API sirve igual)")
+		}
+		reg.Info("empuje de sesiones de Accesos por Redis",
+			"centinelas", cfg.Redis.Centinelas, "maestro", cfg.Redis.Maestro,
+			"direccion", cfg.Redis.Direccion, "base", sesiones.BaseDeLasMarcas, "canal", sesiones.Canal)
+	}
+	hiloDeSesiones := make(chan struct{})
+	go func() {
+		defer close(hiloDeSesiones)
+		inv.Correr(ctx)
+	}()
 
 	// EL LECTOR DE VENTRA, sólo si están LAS DOS variables.
 	//
@@ -236,6 +265,13 @@ func correr() error {
 		// Se fuerza el cierre, pero se dice: son peticiones cortadas y tienen que verse.
 		_ = servidor.Close()
 		return fmt.Errorf("no dio tiempo a terminar las peticiones en vuelo: %w", err)
+	}
+	// `ctx` ya está cancelado: el bucle de sesiones sale solo y suelta la conexión a Redis. Con
+	// plazo, porque parar no puede depender de que Redis conteste.
+	select {
+	case <-hiloDeSesiones:
+	case <-time.After(2 * time.Second):
+		reg.Warn("el empuje de sesiones no terminó a tiempo; se sigue con el apagado")
 	}
 	reg.Info("parado")
 	return nil

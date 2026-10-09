@@ -203,6 +203,28 @@ docker start reparto-api-1 reparto-sync-1    # vuelve
 Parar sólo `api` deja el sincronizador vivo y contestando, que es un estado que no
 existe en la calle: o hay red o no la hay.
 
+## 7-bis. Las pruebas contra un Redis de verdad (sesión única)
+
+`api/internal/sesiones/redis_real_test.go` y su gemela de `sync/` ejercitan el adaptador REAL de Redis
+(DB 6, SCAN de las marcas, suscripción al canal, PING, reconexión). Sin `REPARTO_REDIS_REAL_ADDR` se
+saltan **en silencio** —también en los `Dockerfile`, que no tienen Redis—, y el 08/10/2026 una auditoría
+demostró que tres mutaciones de `redis.go` (la DB, el prefijo del SCAN, el canal) pasaban en verde sin
+ella. Por eso `./comprobar.sh` ahora las corre cuando la variable está puesta y dice
+`redis real  SALTADO (...)` a gritos cuando no, igual que con «motor real» de Postgres. (Sin Redis, el
+contrato lo guardan además `sesiones/contrato_test.go` en `api` y en `sync`, que corren siempre.)
+
+```bash
+docker run --rm -d --name reparto-go-redis -p 127.0.0.1:6391:6379 redis:7-alpine
+REPARTO_REDIS_REAL_ADDR=127.0.0.1:6391 ./comprobar.sh        # o, a mano:
+(cd api  && REPARTO_REDIS_REAL_ADDR=127.0.0.1:6391 go test -count=1 -run Real ./internal/sesiones/)
+(cd sync && REPARTO_REDIS_REAL_ADDR=127.0.0.1:6391 go test -count=1 -run Real ./internal/sesiones/)
+docker rm -f reparto-go-redis                                # al terminar
+```
+
+Sin centinela y sin contraseña: es un Redis suelto de usar y tirar. Las pruebas escriben y borran
+claves `procovar:auth:invalida:*` en la DB 6, así que **nunca** se apunta esa variable al Redis del
+servidor (y la regla de Procovar prohíbe de todos modos hablar con él desde este PC).
+
 ## 8. Al terminar, se para TODO
 
 Una aplicación viva dispara un ciclo de sincronización cada pocos minutos:

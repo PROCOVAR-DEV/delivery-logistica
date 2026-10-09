@@ -5,7 +5,8 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../registro/registro.dart';
-import 'eventos.dart' show PulsoDelCanal, avisoDeQueVolvimos;
+import 'eventos.dart'
+    show PulsoDelCanal, avisoDeQueVolvimos, avisoDeSesionInvalidada;
 
 /// EL CANAL EN VIVO DE LA APK Y DEL ESCRITORIO, por SSE a mano sobre `dio`.
 ///
@@ -525,6 +526,14 @@ Stream<String> escucharEventos(
           yaSeRenovoPorUn401 = false;
           tokenRechazado = null;
           Registro.info('canal de eventos: abierto');
+        case 'sesion-invalidada':
+          // ACCESOS AVISA — 08/10/2026. El servidor solo lo manda a los aparatos
+          // si el alcance es `todo`. Aqui NO se echa a nadie ni se cierra el
+          // canal: sale por el stream y el embudo (`avisosDelServidorProvider`)
+          // intenta renovar YA; lo que diga el refresco decide. Un aparato con
+          // el trabajo del dia dentro no se echa por un aviso, solo por un 401
+          // del refresco.
+          control.add(avisoDeSesionInvalidada(cuerpo));
         case 'sin-vivo':
           // El servidor se esta parando. Cerrara el, y el reintento con espera
           // le da tiempo a volver.

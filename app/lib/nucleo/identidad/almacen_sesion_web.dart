@@ -28,7 +28,7 @@ import 'sesion.dart';
 AlmacenDeSesion abrirAlmacenDeSesion() =>
     const AlmacenPorCookie(AlmacenDelNavegador());
 
-class AlmacenDelNavegador implements AlmacenDeSesion {
+class AlmacenDelNavegador with PorRevocarEnTexto implements AlmacenDeSesion {
   const AlmacenDelNavegador();
 
   static const clave = 'reparto.sesion';
@@ -71,6 +71,13 @@ class AlmacenDelNavegador implements AlmacenDeSesion {
       return false;
     }
   }
+
+  /// La web no tiene par que revocar (su sesion es la cookie): nada se guarda.
+  @override
+  Future<String?> leerPorRevocar() async => null;
+
+  @override
+  Future<bool> escribirPorRevocar(String? texto) async => true;
 
   @override
   Future<void> borrar() async {

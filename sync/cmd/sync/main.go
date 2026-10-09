@@ -19,6 +19,7 @@ import (
 	"procovar/reparto-sync/internal/httpx"
 	"procovar/reparto-sync/internal/identidad"
 	"procovar/reparto-sync/internal/reparto"
+	"procovar/reparto-sync/internal/sesiones"
 	"procovar/reparto-sync/internal/sincro"
 	"procovar/reparto-sync/internal/store"
 )
@@ -74,18 +75,37 @@ func arrancar(log *slog.Logger) error {
 	// Todo lo del protocolo exige sesión. La salud no, porque la mira el orquestador y
 	// tiene que poder decir «está vivo» aunque auth esté caído.
 	publico := http.NewServeMux()
-	// DE DÓNDE SALE QUIÉN LLAMA. Con `token` se verifica aquí el de auth, que es lo que
-	// hay que hacer con el servicio publicado en internet; `cabeceras` sólo vale detrás
-	// de un proxy que ya lo haya verificado. El porqué largo, en `internal/identidad`.
-	fuente := identidad.DeCabeceras
-	if cfg.Identidad == "token" {
-		// LA SUCURSAL DEL TOKEN VIENE COMO CÓDIGO (`CAM`), no como uuid, y aquí no hay
-		// tabla de sucursales: la traduce el reparto, y el caché evita una ida y vuelta
-		// por cada apunte de una cola de ocho horas. El porqué entero, en
-		// `internal/identidad/token.go`.
-		codigos := identidad.NuevoCache(cliente.SucursalPorCodigo, time.Hour)
-		fuente = identidad.DeToken([]byte(cfg.JWTSecreto), codigos.Resolver)
+	// ACCESOS CORTA SESIONES Y LO EMPUJA (08/10/2026). Sin esto, un token de acceso de 15 minutos
+	// seguiría sirviendo la bajada y la subida tras un corte de seguridad. Los cambios llegan por el
+	// Redis de la casa (los mismos REDIS_* que el espejo y `reparto-api`); ver `internal/sesiones`.
+	//
+	// SIN REDIS NO IMPIDE ARRANCAR NI SERVIR, y se dice AQUÍ, que es cuando lo lee quien despliega.
+	// Si está caído, el bucle lo dice en cada intento y sigue sirviendo.
+	if cfg.Redis.Hay() {
+		if len(cfg.Redis.Centinelas) > 0 && cfg.Redis.Maestro == "" {
+			log.Warn("REDIS_CENTINELAS sin REDIS_MAESTRO: no se sabrá a qué maestro conectar y el " +
+				"empuje de Accesos no llegará (el sincronizador sirve igual)")
+		}
+		log.Info("empuje de sesiones de Accesos por Redis",
+			"centinelas", cfg.Redis.Centinelas, "maestro", cfg.Redis.Maestro,
+			"direccion", cfg.Redis.Direccion, "base", sesiones.BaseDeLasMarcas, "canal", sesiones.Canal)
 	}
+	// LA SUCURSAL DEL TOKEN VIENE COMO CÓDIGO (`CAM`), no como uuid, y aquí no hay tabla de
+	// sucursales: la traduce el reparto, y el caché evita una ida y vuelta por cada apunte de una cola
+	// de ocho horas. El porqué entero, en `internal/identidad/token.go`.
+	//
+	// DE DÓNDE SALE QUIÉN LLAMA. Con `token` se verifica aquí el de auth, que es lo que hay que hacer
+	// con el servicio publicado en internet; `cabeceras` sólo vale detrás de un proxy que ya lo haya
+	// verificado. El porqué largo, en `internal/identidad`. El cableado con el suscriptor de sesiones
+	// vive en `identidad.FuenteDeLaCasa`, que es lo que prueba `fuente_de_la_casa_test.go`.
+	codigos := identidad.NuevoCache(cliente.SucursalPorCodigo, time.Hour)
+	fuente, invalidaciones := identidad.FuenteDeLaCasa(cfg.Identidad, []byte(cfg.JWTSecreto),
+		codigos.Resolver, sesiones.DeRedis(cfg.Redis), log)
+	hiloDeSesiones := make(chan struct{})
+	go func() {
+		defer close(hiloDeSesiones)
+		invalidaciones.Correr(ctx)
+	}()
 	publico.Handle("/sync/", identidad.Exigir(fuente, mux))
 	publico.HandleFunc("GET /salud", func(w http.ResponseWriter, r *http.Request) {
 		if err := base.Ping(r.Context()); err != nil {
@@ -123,6 +143,14 @@ func arrancar(log *slog.Logger) error {
 		log.Info("parando")
 		cierre, listo := context.WithTimeout(context.Background(), 30*time.Second)
 		defer listo()
-		return servidor.Shutdown(cierre)
+		err := servidor.Shutdown(cierre)
+		// `ctx` ya está cancelado: el bucle de sesiones sale solo y suelta Redis. Con plazo, porque
+		// parar no puede depender de que Redis conteste.
+		select {
+		case <-hiloDeSesiones:
+		case <-time.After(2 * time.Second):
+			log.Warn("el empuje de sesiones no terminó a tiempo; se sigue con el apagado")
+		}
+		return err
 	}
 }

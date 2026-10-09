@@ -55,6 +55,7 @@ import (
 	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/auth"
 	"procovar/reparto-api/internal/httpx"
+	"procovar/reparto-api/internal/sesiones"
 )
 
 // Los cuatro tipos de cambio. Son los del contrato y los conoce la pantalla: uno nuevo que
@@ -230,6 +231,23 @@ var (
 	colaAbonado = 16 // avisos en vuelo que se le guardan a un abonado lento
 )
 
+// abono es una conexión abierta: la sucursal que mira y de quién es.
+//
+// `web` dice de qué CLASE es la credencial con que abrió: la cookie de la web, o el Bearer de la APK y
+// el escritorio. De eso depende qué avisos de sesión le tocan ([Difusor.SesionInvalidada]).
+type abono struct {
+	sucursal, persona string
+	web               bool
+}
+
+// NombreDeSesionInvalidada es el evento SSE con que se le dice a UNA persona que su sesión ya no
+// vale, y la conexión se CIERRA justo después. Lleva `data: {"tipo":"sesion-cerrada"}` o
+// `{"tipo":"permisos-cambiados"}`; la web dice «Tu sesión se cerró en Accesos» o «Tus permisos
+// cambiaron, vuelve a entrar». Contrato con la app (`app/lib/nucleo/red/eventos_web.dart`): dos
+// ficheros que no se ven, así que renombrar un lado sin el otro deja a la web sin enterarse y sin
+// que falle nada, igual que [NombreDelLatido].
+const NombreDeSesionInvalidada = "sesion-invalidada"
+
 // Cambio es lo que se publica. `Detalle` es libre —`{"pedidos": 42}`, `{"productos": 300}`—
 // y lo pone quien avisa.
 //
@@ -307,7 +325,7 @@ type Difusor struct {
 	// las ve todas (DESARROLLADOR y SUPER ADMIN sin sucursal elegida). Es lo que permite
 	// que el reparto se haga aquí y no en el aparato: un aviso de Camagüey ni siquiera
 	// sale por el cable de los otros siete. Ver `repartir`.
-	abonados map[chan Cambio]string
+	abonados map[chan Cambio]abono
 	ultimo   map[string]time.Time // el freno, por tipo Y sucursal (ver `clave`)
 	// pendiente: lo que llegó DENTRO del freno y todavía no ha salido. Es el flanco de
 	// bajada; sin esto, lo que pasa en esos quince segundos no se dice nunca. La clave es
@@ -331,7 +349,7 @@ type Difusor struct {
 
 func NuevoDifusor() *Difusor {
 	return &Difusor{
-		abonados:       map[chan Cambio]string{},
+		abonados:       map[chan Cambio]abono{},
 		ultimo:         map[string]time.Time{},
 		pendiente:      map[string]Cambio{},
 		temporizadores: map[string]*time.Timer{},
@@ -716,8 +734,8 @@ func (d *Difusor) olvidarDespertador(k string) {
 // tablero de Camagüey» ya es contar algo, así que el corte por persona va aquí, donde el
 // alcance sale de quién pregunta y no de lo que mande el cliente.
 func (d *Difusor) repartir(c Cambio) {
-	for ch, suya := range d.abonados {
-		if suya != "" && c.Sucursal != "" && suya != c.Sucursal {
+	for ch, a := range d.abonados {
+		if suya := a.sucursal; suya != "" && c.Sucursal != "" && suya != c.Sucursal {
 			continue
 		}
 		select {
@@ -774,13 +792,20 @@ func (d *Difusor) Suscribir() (<-chan Cambio, func(), bool) { return d.Suscribir
 // ninguna. Con `sucursal` vacío es igual que [Suscribir] — que es lo que le toca a quien ve
 // las ocho, y también el caso seguro si algún día no se puede averiguar cuál es la suya.
 func (d *Difusor) SuscribirDe(sucursal string) (<-chan Cambio, func(), bool) {
+	return d.SuscribirComo(sucursal, "", false)
+}
+
+// SuscribirComo es [SuscribirDe] diciendo además DE QUIÉN es la conexión (`sub` del token) y si la
+// abrió una sesión WEB (`web`), que es lo único que permite avisarle a ella sola que su sesión ya no
+// vale ([Difusor.SesionInvalidada]).
+func (d *Difusor) SuscribirComo(sucursal, persona string, web bool) (<-chan Cambio, func(), bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.cerrado {
 		return nil, func() {}, false
 	}
 	ch := make(chan Cambio, colaAbonado)
-	d.abonados[ch] = sucursal
+	d.abonados[ch] = abono{sucursal: sucursal, persona: persona, web: web}
 	// El corte NO cierra el canal: sólo lo saca del reparto. Cerrarlo aquí y cerrarlo en
 	// `Cerrar` es cerrarlo dos veces el día que las dos cosas pasen a la vez.
 	return ch, func() {
@@ -788,6 +813,42 @@ func (d *Difusor) SuscribirDe(sucursal string) (<-chan Cambio, func(), bool) {
 		delete(d.abonados, ch)
 		d.mu.Unlock()
 	}, true
+}
+
+// SesionInvalidada avisa a las conexiones de ESAS personas —y a ninguna otra— de que Accesos les
+// invalidó la sesión (`internal/sesiones`), y se las cierra: la credencial con que abrieron ya no vale.
+//
+// **Qué conexiones**: las abiertas con la cookie de la web reciben los DOS alcances; las abiertas con
+// el Bearer de la APK y el escritorio, SÓLO `todo` (cerrar sesión en el navegador no echa al teléfono).
+//
+// Es un aviso de PERSONA, no de sucursal: no pasa por `repartir` ni por el freno, y no se pierde
+// por un abonado lento (si su cola está llena, se le cierra la conexión sin el aviso: al
+// reconectar se encuentra el 401, que es lo mismo con otra forma). Nunca bloquea.
+func (d *Difusor) SesionInvalidada(alcance, tipo string, personas []string) {
+	quienes := make(map[string]struct{}, len(personas))
+	for _, p := range personas {
+		quienes[p] = struct{}{}
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.cerrado {
+		return
+	}
+	c := Cambio{Tipo: NombreDeSesionInvalidada, Cuando: d.ahora(), Detalle: map[string]any{"tipo": tipo}}
+	for ch, a := range d.abonados {
+		if _, es := quienes[a.persona]; !es || a.persona == "" {
+			continue
+		}
+		if !a.web && alcance != sesiones.AlcanceTodo {
+			continue // un cierre de sesión `web` no le toca a la APK
+		}
+		select {
+		case ch <- c:
+		default:
+			close(ch)
+			delete(d.abonados, ch)
+		}
+	}
 }
 
 // Cerrar echa a todos los abonados y deja el bus cerrado para siempre.
@@ -885,6 +946,7 @@ func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Di
 		// prueba por qué falló es regalarle el mapa.
 		httpx.Registro(r).Warn("eventos sin sesión",
 			append([]any{"motivo", err}, auth.RastroDe(r, time.Now()).Campos()...)...)
+		s.verif.BorrarCookieSiInvalidada(w, r, err) // Accesos la invalidó: la cookie se va
 		// TEXTO PLANO, no JSON: es lo que dice el contrato y lo que sabe leer el cliente.
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -919,7 +981,7 @@ func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Di
 		return
 	}
 
-	canal, cortar, vivo := bus.SuscribirDe(suya)
+	canal, cortar, vivo := bus.SuscribirComo(suya, u.ID, u.SesionWeb)
 	if !vivo {
 		// El bus está cerrado: el proceso se está parando. Se contesta y se cierra, que es
 		// mejor que dejar al navegador con una conexión que no le va a traer nada. La
@@ -950,6 +1012,15 @@ func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Di
 			if !abierto {
 				// El bus se cerró: el servidor se está parando. Se sale para que el
 				// `Shutdown` pueda terminar.
+				return
+			}
+			if c.Tipo == NombreDeSesionInvalidada {
+				// LA COOKIE DE ESTA PERSONA YA NO VALE: se le dice por qué y SE CIERRA la
+				// conexión (el `return`). Sin cerrar, seguiría recibiendo los avisos de la
+				// sucursal con una sesión que Accesos ya mató, hasta el corte del proxy.
+				tipo, _ := c.Detalle["tipo"].(string)
+				cuerpo, _ := json.Marshal(map[string]string{"tipo": tipo})
+				enviarSSE(w, r, rc, "event: "+NombreDeSesionInvalidada+"\ndata: "+string(cuerpo)+"\n\n")
 				return
 			}
 			if !enviarSSE(w, r, rc, "event: cambio\ndata: "+string(c.datos())+"\n\n") {

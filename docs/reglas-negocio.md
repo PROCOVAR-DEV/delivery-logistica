@@ -798,6 +798,43 @@ no trae el campo (emitido antes del cambio) y se quita cuando caduquen (cookie w
 - **Qué NO es:** no es el alcance de sucursal. Quien entra a Reparto sigue acotado a su sucursal
   por la regla de arriba; el control de entrada va **antes** y no mira la sucursal.
 
+### La sesión la invalida Accesos, por Redis (Reparto Go, 08/10/2026)
+
+Jose: «Accesos debe afectar a las otras sesiones: si inicio en una estoy logueado en las otras, y si
+cierro sesión o me cambian un permiso en Accesos se refleja en todas. Nada de polling: para eso
+tenemos SSE y Sentinel». Y después: «la web es la web y las APK son la APK».
+
+**La sesión de Reparto no es de Reparto: la invalida Accesos, y lo empuja por Redis (el mismo con
+Sentinel que lee el espejo), sin sondeo.** Antes la web emitía su cookie (7 días) y nunca más
+preguntaba a nadie: un cierre de sesión en Accesos no se notaba y un cambio de permisos tardaba hasta
+siete días. Qué pasa ahora, por caso:
+
+- **Cierre de sesión en Accesos** (alcance `web`): la cookie de la web emitida antes deja de valer —
+  `401` y se borra— y las pestañas abiertas reciben `sesion-invalidada` (la web dice «Tu sesión se
+  cerró en Accesos»). **El teléfono y el escritorio siguen**: «las APK son la APK».
+- **Revocación, baja, cambio de rol, de llaves, de admin, de membresía o borrado** (alcance `todo`):
+  la cookie web y el token de la APK y el escritorio emitidos antes dejan de valer (`401`, nunca
+  `403`: la app renueva y Accesos decide si la sesión murió o sólo falta un permiso). La web dice «Tus
+  permisos cambiaron, vuelve a entrar» y vuelve a entrar por Accesos, donde se recalculan roles y
+  `entradas`. `reparto-sync` aplica la misma regla: sin ella, un token de 15 minutos seguiría
+  sirviendo la bajada y la SUBIDA del día tras un corte de seguridad.
+- **Volver a entrar** emite una cookie (o un token) posterior a la marca, y vale. La comparación de la
+  web es `max(web, todo) >= iatms`; la del bearer, `todo >= iatms` del token (Accesos lo firma) o,
+  si no lo trae, `todo >= iat*1000` (segundos: conservadora). Con `iatms` un token renovado 250 ms
+  después del corte no rebota. La cookie lleva `web: true`, que es lo que la distingue del token de
+  la APK (los dos llevan `iatms`).
+- **Redis caído o sin configurar no tumba nada**: se sirve sin el empuje y se dice en el registro; al
+  reconectar se recargan las marcas. Contrato exacto, regla de qué es «sesión web» y límites, en
+  `contratos-api.md`, «Accesos invalida las sesiones».
+
+**La comprobación es de memoria**: un mapa `persona -> tms` que carga el SCAN del arranque y mantiene
+el canal (`api/internal/sesiones`, y su gemela recortada `sync/internal/sesiones`); ninguna petición
+sale a la red. Lo atan `internal/sesiones` (mapa, mensajes malos, reconexión, «cero red»),
+`api/internal/api/la_sesion_web_la_invalida_accesos_test.go` y `la_apk_tambien_la_invalida_accesos_test.go`
+(las tres puertas, el SSE, la cookie borrada) y `sync/internal/identidad/accesos_corta_la_sesion_test.go`.
+Las reglas puras de las dos mitades llevan **los mismos casos** en los dos módulos
+(`TestLaReglaDelBearerSoloMiraLaMarcaTodo`): se cambian juntas.
+
 ### `scopeWhere(scope) -> {branchId?}`
 `{branchId}` si hay, `{}` si no.
 **Qué había antes y por qué estaba mal:** filtraba por `userId` usando como «dueño» al creador de la

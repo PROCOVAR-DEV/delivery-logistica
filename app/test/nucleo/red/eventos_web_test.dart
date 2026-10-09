@@ -36,6 +36,7 @@ const urlBase = 'http://127.0.0.1:8123/api';
 
 void main() {
   pruebaDelRechazo();
+  pruebasDeSesionInvalidada();
   test('en la web se elige el transporte de la web, no el vacío del stub', () {
     expect(
       hayCanalDeEventos,
@@ -134,4 +135,81 @@ void pruebaDelRechazo() {
           'cinco minutos sin una sola peticion.',
     );
   });
+}
+
+/// ACCESOS CERRO LA SESION O CAMBIO LOS PERMISOS — 08/10/2026. SOLO LA WEB.
+///
+/// El servidor de mentira hace lo que la api: `listo`, `event: sesion-invalidada`
+/// y CIERRA la conexion. Si el cliente no hace `close()` el navegador reconecta
+/// solo, y la segunda conexion le trae un `cambio` de tipo `reconecto` que estas
+/// pruebas ven. El prefijo del aviso y sus mensajes se prueban en
+/// `test/navegacion/portero_sesion_invalidada_test.dart`.
+void pruebasDeSesionInvalidada() {
+  /// Lo que sale del canal en [durante] y si el stream se cerro.
+  Future<({List<String> recibidos, bool cerrado})> alCaso(
+    String caso, {
+    Duration durante = const Duration(milliseconds: 1500),
+  }) async {
+    final recibidos = <String>[];
+    var cerrado = false;
+    final sub = escucharEventos(
+      '$urlBase/invalida/$caso',
+      // Sin token, como la web de verdad con el acceso unico.
+      () async => null,
+    ).listen(recibidos.add, onDone: () => cerrado = true);
+    await Future<void>.delayed(durante);
+    await sub.cancel();
+    return (recibidos: recibidos, cerrado: cerrado);
+  }
+
+  test('sesion-invalidada SALE como aviso, el canal se cierra y NO reconecta', () async {
+    // Cuatro segundos y medio: la espera del reintento propio es de un segundo
+    // y la reconexion automatica de Chrome, de unos tres.
+    final r = await alCaso(
+      'cerrada',
+      durante: const Duration(milliseconds: 4500),
+    );
+
+    expect(
+      r.recibidos,
+      [avisoDeQueVolvimos, 'sesion-invalidada:sesion-cerrada'],
+      reason:
+          'o el evento no se escucha (la web sigue como si nada y es la sesion '
+          'zombi que esto viene a quitar), o el canal reconecto contra una '
+          'sesion muerta: `reconecto` en la lista es un 401 cada pocos segundos',
+    );
+    expect(r.cerrado, isTrue, reason: 'tras el aviso el canal se acaba');
+  });
+
+  test('permisos-cambiados sale con su tipo', () async {
+    final r = await alCaso('permisos');
+    expect(r.recibidos, [
+      avisoDeQueVolvimos,
+      'sesion-invalidada:permisos-cambiados',
+    ]);
+  });
+
+  test('un data roto sale como sesion-cerrada', () async {
+    final r = await alCaso('roto');
+    expect(r.recibidos, [
+      avisoDeQueVolvimos,
+      'sesion-invalidada:sesion-cerrada',
+    ]);
+  });
+
+  test('dos eventos seguidos son UN aviso', () async {
+    final r = await alCaso('dos');
+    expect(r.recibidos.where(esSesionInvalidada), [
+      'sesion-invalidada:sesion-cerrada',
+    ], reason: 'dos avisos son dos navegaciones; vale el primero');
+  });
+
+  test(
+    'PAREJA: un evento de OTRO nombre no hace nada y el canal sigue',
+    () async {
+      final r = await alCaso('otro-nombre');
+      expect(r.recibidos, [avisoDeQueVolvimos]);
+      expect(r.cerrado, isFalse);
+    },
+  );
 }

@@ -37,6 +37,11 @@ type Config struct {
 	// El secreto con el que auth firma los tokens. Sólo con `SYNC_IDENTIDAD=token`.
 	JWTSecreto string
 
+	// El Redis de la casa, el mismo que lee el espejo y `reparto-api`: sólo sirve para enterarse de
+	// que Accesos cortó las sesiones de alguien (`internal/sesiones`). Vacío = se sirve sin ese
+	// empuje, y se dice al arrancar. Ver [Redis].
+	Redis Redis
+
 	// Cuántas filas como mucho en una tanda de la bajada antes de contestar
 	// `truncado: true`. Existe porque la primera bajada de una sucursal grande no cabe
 	// de una vez en la conexión de allá.
@@ -58,6 +63,7 @@ func Cargar() (Config, error) {
 		RepartoClave:    os.Getenv("REPARTO_API_KEY"),
 		Identidad:       os.Getenv("SYNC_IDENTIDAD"),
 		JWTSecreto:      os.Getenv("JWT_SECRET"),
+		Redis:           leerRedis(os.Getenv),
 		MaxConexiones:   entero("SYNC_DB_MAX_CONNS", 10),
 		TopeBajada:      entero("SYNC_TOPE_BAJADA", 500),
 		RepartoTiempo:   espera("SYNC_REPARTO_TIMEOUT", 30*time.Second),

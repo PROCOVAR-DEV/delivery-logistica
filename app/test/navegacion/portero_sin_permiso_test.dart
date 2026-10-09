@@ -89,7 +89,13 @@ void main() {
         baseProvider.overrideWithValue(base),
         relojProvider.overrideWithValue(() => DateTime(2026, 10, 8, 8)),
         dioAuthProvider.overrideWithValue(
-          dioFalso((p) async => RespuestaFalsa(200, parDeTokens())),
+          dioFalso(
+            // `/logout` contesta como Accesos (`200 {"ok": true}`): con un par de
+            // tokens no confirma el cierre y queda un refresco por revocar.
+            (p) async => p.ruta.endsWith('/logout')
+                ? logoutDeAccesos()
+                : RespuestaFalsa(200, parDeTokens()),
+          ),
         ),
       ],
     );

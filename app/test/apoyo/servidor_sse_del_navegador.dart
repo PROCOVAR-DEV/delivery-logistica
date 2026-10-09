@@ -24,6 +24,7 @@ Future<void> main(List<String> args) async {
   stderr.writeln('sse de mentira escuchando en 127.0.0.1:$puerto');
 
   var yaRechazo = false;
+  final conexiones = <String, int>{};
   await for (final p in servidor) {
     final origen = p.headers.value('origin') ?? '*';
     p.response.headers
@@ -54,6 +55,54 @@ Future<void> main(List<String> args) async {
         continue;
       }
       stderr.writeln('segundo intento de ${p.uri}: ahora si');
+    }
+    // ACCESOS INVALIDO LA SESION — 08/10/2026. `/invalida/<caso>/eventos`.
+    //
+    // Hace lo que la api de verdad: `listo`, luego `event: sesion-invalidada` y
+    // CIERRA la conexion. Lo que importa es lo que pasa DESPUES: un cliente que
+    // reconecta (el navegador lo hace solo si no se le hace `close()`) recibe en la
+    // segunda conexion un `cambio` con tipo `reconecto`, y la prueba lo ve.
+    final invalida = RegExp(r'/invalida/([a-z-]+)/eventos$')
+        .firstMatch(p.uri.path);
+    if (invalida != null) {
+      final caso = invalida.group(1)!;
+      final n = conexiones[caso] = (conexiones[caso] ?? 0) + 1;
+      p.response.headers
+        ..contentType = ContentType('text', 'event-stream', charset: 'utf-8')
+        ..set('Cache-Control', 'no-cache');
+      p.response.bufferOutput = false;
+      p.response.write('event: listo\ndata: {"vivo":true}\n\n');
+      await p.response.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (n > 1) {
+        stderr.writeln('RECONECTO en $caso (conexion $n)');
+        p.response.write('event: cambio\ndata: {"tipo":"reconecto"}\n\n');
+        await p.response.flush();
+        continue; // la deja abierta
+      }
+      const cerrada =
+          'event: sesion-invalidada\ndata: {"tipo":"sesion-cerrada"}\n\n';
+      const permisos =
+          'event: sesion-invalidada\ndata: {"tipo":"permisos-cambiados"}\n\n';
+      switch (caso) {
+        case 'cerrada':
+          p.response.write(cerrada);
+        case 'permisos':
+          p.response.write(permisos);
+        case 'roto':
+          p.response.write('event: sesion-invalidada\ndata: {"tipo":\n\n');
+        case 'dos':
+          p.response.write(cerrada + permisos);
+        case 'otro-nombre':
+          // Otro nombre de evento: no es el aviso, no hace nada y la conexion
+          // sigue abierta.
+          p.response.write('event: sesion-cerrada\ndata: {"tipo":"x"}\n\n');
+          await p.response.flush();
+          continue;
+      }
+      await p.response.flush();
+      await p.response.close(); // como la api: empuja y corta
+      continue;
     }
     if (!p.uri.path.endsWith('/eventos')) {
       p.response.statusCode = 404;

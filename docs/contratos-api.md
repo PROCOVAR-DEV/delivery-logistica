@@ -88,6 +88,78 @@ Content-Type: application/json; charset=utf-8
   nada** (ni rechazo, ni apunte), así que la cola del aparato queda pendiente y sube sola cuando
   se le dé el rol. Un 403 del alcance (sin `codigo`) sigue siendo un rechazo del apunte con `200`.
 
+### Accesos invalida las sesiones — `401` y evento `sesion-invalidada` (Reparto Go, 08/10/2026)
+
+Jose: «Accesos debe afectar a las otras sesiones; si inicio en una estoy logueado en las otras, y
+si cierro sesión o me cambian un permiso en Accesos se refleja en todas. **Nada de polling: para
+eso tenemos SSE y Sentinel**». Antes la cookie de la web valía siete días sin volver a preguntar a
+nadie. Ahora Accesos lo **empuja** y Reparto lo aplica **sin llamar a la red en cada petición**.
+
+- **El contrato con Accesos (fijo).** Canal pub/sub Redis `procovar:auth:eventos`; mensaje JSON
+  `{"v":1,"tipo":"sesion-cerrada"|"permisos-cambiados","alcance":"web"|"todo","userIds":["<uuid>"],
+  "tms":<unix en MILISEGUNDOS>,"motivo":"..."}`. `alcance`: `web` = un cierre de sesión (`logout`);
+  `todo` = revocación explícita, baja, cambio de rol, de llaves, de admin, de membresía o borrado.
+  Marcas de recuperación en la **DB 6**, DOS claves por persona:
+  `procovar:auth:invalida:web:<userId>` y `procovar:auth:invalida:todo:<userId>` (valor `<tms>`,
+  TTL 8 días; se escriben ANTES de publicar). Un mensaje con `v` desconocida, JSON roto, tipo o
+  alcance desconocidos o sin `tms` **se ignora con un WARN** y no rompe nada; sin `alcance` se lee
+  como `todo` (falla cerrado).
+- **La regla de la COOKIE web.** La cookie lleva `iatms` (el instante de emisión en milisegundos,
+  junto al `iat` de siempre) y la marca `"web": true`. Ya no vale si `max(web[persona], todo[persona]) >= iatms`: `401`
+  `{"error":"Unauthorized"}` (`/api/me`: `{"user":null}`; `/api/eventos`: texto plano) **y la
+  respuesta borra la cookie** con sus mismos atributos. La web vuelve a entrar por Accesos, que si su
+  sesión sigue viva le da una cookie nueva con los roles y las `entradas` recalculados.
+  **Una cookie SIN `iatms`** (anterior a este cambio) vale como emitida en el instante 0: cualquier
+  marca de esa persona la invalida, pero **no se rechaza por faltarle el claim** (al desplegar no se
+  echa a nadie).
+- **La regla del token de la APK y el escritorio (`Bearer`).** Ya no vale si `todo[persona] >=
+  emitido`, donde `emitido` es el claim **`iatms`** (milisegundos; Accesos lo firma en el token de
+  acceso desde el 08/10/2026) y, **si falta, `iat*1000`** (el `iat` va en SEGUNDOS y se compara por
+  arriba: un token sin `iatms` emitido en el mismo segundo que la marca se invalida). Con `iatms` no
+  hay **rebote**: la APK renueva en cuanto le llega el aviso, y con `iat*1000` un token pedido 250 ms
+  después del evento se rechazaba en ~75 % de los casos. **Un evento `web` no le llega**: cerrar la
+  sesión del navegador no echa al teléfono. Mismo `401` que un token inválido y **nunca `403`**: la
+  app lo trata como sesión caducada, renueva contra Accesos, y es Accesos quien decide si la sesión
+  murió o sólo falta un permiso. Lo aplican `reparto-api` (`Verificador`) y `reparto-sync`
+  (`identidad.DeTokenConInvalidaciones`) **antes** de decidir «sin permiso».
+- **Qué es «sesión web»** (porque no es sólo «quien llegó por cookie»): la web manda la cookie *y*
+  el mismo token como `Authorization: Bearer` (su interceptor, con el token de `/api/me`). Es web toda
+  credencial que viaje en una cookie `token` o lleve la marca `"web": true` (sólo la firma
+  `auth_web.go`); el resto es de la APK. **No se distingue por `iatms`**: Accesos lo firma también en
+  el token de la APK, y con eso un cierre de sesión `web` echaría al teléfono. Una credencial invalidada cuenta como un fallo más: con un Bearer viejo delante de una cookie
+  nueva gana la cookie nueva y no se le borra.
+- **Topes (auditoría de seguridad, 08/10/2026).** El Redis es el de toda la casa y su clave es
+  común, así que lo que llega por el canal o por las marcas **no es de fiar**: se ignora (con WARN)
+  un mensaje o una marca con `tms` a más de **60 s en el futuro** —sin esto, un `tms` de 2100 o un
+  salto de reloj dejaba a una persona bloqueada para siempre, porque cada cookie nueva seguiría
+  siendo «anterior»—; de un mensaje se leen como mucho **1000 ids**; cada mapa guarda como mucho
+  **100 000 marcas** y, al pasarse, descarta **las más viejas, nunca las recientes**; la limpieza
+  horaria olvida las de más de 8 días y **rebaja** a «ahora» las que quedaron por delante del reloj.
+  **Pendiente de infraestructura (no es de esta API):** lo correcto es una ACL de Redis donde sólo
+  Accesos pueda `PUBLISH` en `procovar:auth:eventos` y escribir `procovar:auth:invalida:*`; mientras
+  la clave sea compartida, estos topes son la única defensa de este lado.
+- **Las cuentas de servicio** (`x-api-key`) no pasan por el verificador y no se miran.
+- **Sin Redis, o con Redis caído, NO se tumba nada**: la API (y el sincronizador) arrancan y sirven
+  como antes —sin el empuje—, lo dicen en el registro (WARN al arrancar y en cada caída, INFO al
+  volver, una línea de estado cada hora) y, al reconectar, vuelven a cargar las marcas con SCAN.
+- **El evento SSE `sesion-invalidada`** (en `GET /api/eventos`): cuando llega un mensaje, **sólo las
+  conexiones de esas personas** reciben
+  ```
+  event: sesion-invalidada
+  data: {"tipo":"sesion-cerrada"}
+
+  ```
+  (o `{"tipo":"permisos-cambiados"}`) y **el servidor cierra la conexión justo después**: su
+  credencial ya no vale. Las conexiones abiertas con la cookie de la web reciben los dos alcances;
+  las abiertas con `Bearer` (APK, escritorio), sólo `todo`. Mensajes de la web: `sesion-cerrada` →
+  «Tu sesión se cerró en Accesos»; `permisos-cambiados` → «Tus permisos cambiaron, vuelve a entrar».
+  Una conexión cuya cola está llena se cierra sin el aviso (al reconectar encuentra el `401`).
+  **Límite conocido:** lo que se invalida *mientras Redis no se oye* no avisa a las conexiones ya
+  abiertas (sólo se recargan las marcas); se cierran solas cuando el proxy corta el canal (~5 min) y
+  la reconexión recibe `401`.
+- **Variables** (las mismas del espejo; sin ellas, sin empuje): `REDIS_CENTINELAS`, `REDIS_MAESTRO`,
+  `REDIS_CLAVE` (o `REDIS_DIRECCION` / `REDIS_URL` sin centinela). **La base no se configura**: es la 6.
+
 ### Autenticación de servicio (`isValidServiceKey`)
 
 - Cabecera `x-api-key` comparada con `process.env.SERVICE_API_KEY`.
@@ -1057,6 +1129,19 @@ data: {}
      ```
 
      Imprescindible: los proxys cierran conexiones calladas al minuto o dos.
+  4. **Sesión invalidada por Accesos** (Reparto Go, 08/10/2026), sólo para las conexiones de la
+     persona afectada, y la conexión **se cierra después**:
+
+     ```
+     event: sesion-invalidada
+     data: {"tipo":"sesion-cerrada"}
+
+     ```
+
+     `tipo` es `sesion-cerrada` o `permisos-cambiados`. Detalle (alcances, quién lo recibe, qué
+     pasa con Redis caído) en «Accesos invalida las sesiones», arriba. El cliente que no conozca
+     el nombre lo ignora, como cualquier evento desconocido; el servidor cierra igual y la
+     reconexión recibe `401`.
 - Al abortar la petición (`req.signal`): se limpia el intervalo, se cierra el suscriptor de
   Redis y el flujo.
 - **Escribe**: nada.
@@ -1115,6 +1200,9 @@ data: {}
 - **Auth**: usuario. Sin él: **`401` con cuerpo `{"user":null}`** (no `{"error":...}`).
 - **200**: `{ "user": { "id","email","name","role","branchId" }, "token": "<valor de la cookie token> | null" }`.
   Devuelve el token para que el cliente pueda seguir usando `Authorization: Bearer`.
+- **Reparto Go (08/10/2026):** la cookie la emite `Canjear` con `iatms`, y si Accesos la invalidó
+  (cierre de sesión o cambio de permisos posterior a su emisión) contesta `401 {"user":null}` **y
+  borra la cookie**: ver «Accesos invalida las sesiones».
 - **Escribe**: nada.
 
 ---

@@ -46,6 +46,12 @@ Map<String, Object?> parDeTokens({String refresh = 'refresh-1'}) =>
       'refresh_expires_in': 2592000,
     };
 
+/// Lo que contesta `POST /api/auth/logout` de Accesos de verdad: `200 {"ok":
+/// true}` en JSON, SIEMPRE (`auth/src/app/api/auth/logout/route.ts`). Un `200 {}`
+/// ya no confirma el cierre (`cierreConfirmado`).
+RespuestaFalsa logoutDeAccesos() =>
+    RespuestaFalsa(200, <String, Object?>{'ok': true});
+
 Sesion sesionDePrueba({String refresh = 'refresh-1'}) =>
     Sesion.deJson(parDeTokens(refresh: refresh));
 

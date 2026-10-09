@@ -5,7 +5,8 @@ import 'dart:js_interop';
 import 'package:web/web.dart' as web;
 
 import '../registro/registro.dart';
-import 'eventos.dart' show PulsoDelCanal, avisoDeQueVolvimos;
+import 'eventos.dart'
+    show PulsoDelCanal, avisoDeQueVolvimos, avisoDeSesionInvalidada;
 
 /// EL CANAL EN VIVO DE LA WEB, por `EventSource`.
 ///
@@ -295,6 +296,37 @@ Stream<String> escucharEventos(
       'latido',
       (web.Event _) {
         pulso?.latio();
+      }.toJS,
+    );
+
+    // ACCESOS CERRO LA SESION O CAMBIO LOS PERMISOS — 08/10/2026.
+    //
+    // El servidor empuja `sesion-invalidada` y CIERRA la conexion: la cookie ya
+    // no vale. Tres cosas, y las tres hacen falta:
+    //
+    //  * **`close()` ya**, antes de que llegue el corte. Si no, el navegador ve
+    //    la conexion caer y RECONECTA solo (`CONNECTING`, no `CLOSED`), y cada
+    //    reconexion es un 401 contra una sesion muerta.
+    //  * **Cerrar el stream**: es lo que mata todo reintento (`programarReintento`
+    //    y `abrir` miran `control.isClosed`) y lo que hace que un segundo evento
+    //    seguido no pueda emitir otra vez.
+    //  * **Avisar**: el aviso sale por el stream y el embudo se lo da al portero
+    //    (`avisosDelServidorProvider`), que lleva a la persona al login.
+    //
+    // Esto NO renueva la sesion: no es un 401 de los de quince minutos, es que
+    // Accesos dijo que no hay sesion o que los permisos cambiaron.
+    fuente!.addEventListener(
+      'sesion-invalidada',
+      (web.Event e) {
+        if (control.isClosed) return;
+        espera?.cancel();
+        espera = null;
+        fuente?.close();
+        fuente = null;
+        control.add(
+          avisoDeSesionInvalidada((e as web.MessageEvent).data.dartify()),
+        );
+        unawaited(control.close());
       }.toJS,
     );
 

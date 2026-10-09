@@ -82,6 +82,26 @@ entra en auth y la API le contesta 401 sin decir por qué.
 
 `PUERTO` se llama así, en español — no `PORT`.
 
+**El empuje de Accesos (08/10/2026) — qué se copia del espejo.** Para enterarse de que Accesos cerró
+una sesión o cambió permisos, `reparto-api` (y `reparto-sync`, ver abajo) escuchan el Redis de la casa
+con los **MISMOS nombres de variable que `reparto-espejo`**. Se copian del Environment del espejo,
+tal cual y sin renombrar, las que tenga puestas de estas:
+
+```
+REDIS_CENTINELAS=<host:puerto,host:puerto de procovar-sentinel>
+REDIS_MAESTRO=<el nombre del maestro>
+REDIS_CLAVE=<la contraseña>
+```
+
+o, si el espejo va **sin** centinela, `REDIS_DIRECCION=<host:puerto>` (más `REDIS_CLAVE`) o `REDIS_URL`.
+**NO se copian** `REDIS_BASE`, `DELIVERY_STREAM` ni `ESPEJO_ESCUCHA_AVISOS`: son de la cola de PEDIDO
+del espejo. La base de las marcas es la **6** y va fija en el código: una `REDIS_URL` con `/2` al
+final no la cambia. **Sin estas variables no pasa nada malo**: el servicio arranca y sirve como
+siempre, y dice en el registro «sin Redis configurado»; lo único que se pierde es el corte inmediato
+(la cookie de la web valdría sus 7 días). El usuario de Redis necesita `SUBSCRIBE` a
+`procovar:auth:eventos` y `SCAN`/`MGET` de `procovar:auth:invalida:*` en la DB 6 (si Redis usa ACL).
+Cómo se ve que funciona: `sesiones: empuje de Accesos activo` en el registro al arrancar.
+
 ### `reparto-sync`
 
 ```
@@ -103,6 +123,13 @@ ese proxy **no existe**: Traefik enruta `/sync` directo al contenedor, la cabece
 vacía y el servicio contesta **401 a todo**. El cliente lee un 401 que no se arregla
 renovando como «se acabó la sesión» y echa al logístico a la pantalla de acceso justo
 cuando le vuelve la señal. El porqué entero, en `docs/despliegue.md` §3.3.
+
+**Las `REDIS_*` también van aquí** (08/10/2026), las MISMAS que a `reparto-api` y al espejo
+(`REDIS_CENTINELAS`, `REDIS_MAESTRO`, `REDIS_CLAVE`; o `REDIS_DIRECCION` / `REDIS_URL` sin centinela;
+nunca `REDIS_BASE`). Con ellas, un corte de sesiones de Accesos (alcance `todo`) también corta la
+bajada y la subida de la APK: sin ellas el sincronizador sirve igual y dice «sin Redis configurado»,
+pero un token de 15 minutos seguiría valiendo tras un corte de seguridad. Contrato en
+`contratos-api.md`, «Accesos invalida las sesiones».
 
 **`SYNC_PERMITIR_CABECERAS` NO se pone** (08/10/2026). `SYNC_IDENTIDAD=cabeceras` ni siquiera
 arranca sin `SYNC_PERMITIR_CABECERAS=1`: en ese modo la identidad sale de cabeceras que escribe

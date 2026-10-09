@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import '../../../nucleo/identidad/almacen_sesion.dart';
 import '../../../nucleo/identidad/entrada_por_accesos.dart';
 import '../../../nucleo/identidad/renovador.dart' show esSinPermisoDeAccesos;
+import '../../../nucleo/identidad/revocador_de_cierres.dart'
+    show cierreConfirmado;
 import '../../../nucleo/identidad/sesion.dart';
 import '../../../nucleo/registro/registro.dart';
 import '../../../nucleo/plataforma.dart';
@@ -162,21 +164,42 @@ class ServicioDeAcceso {
   /// `GET /api/auth/logout` → Accesos → `GET /api/auth/logout/done`, que retira
   /// la cookie con los mismos atributos con los que se puso.
   Future<void> salir(Sesion? sesion) async {
+    // Sin par no hay nada que revocar: confirmado de antemano.
+    var confirmado = true;
     try {
       // SÓLO SI HAY PAR QUE REVOCAR. Una sesión de cookie no lo tiene, y
       // mandarle a auth un `refresh_token` vacío es una petición que sólo puede
       // fallar y ensuciar el registro de Accesos.
       if (sesion != null && sesion.llevaPar) {
-        await _auth.post<Object?>(
+        final respuesta = await _auth.post<Object?>(
           '/logout',
           data: <String, Object?>{'refresh_token': sesion.refresh},
         );
+        // Un 200 de portal cautivo (`text/html`) no es Accesos: no confirma.
+        confirmado = cierreConfirmado(respuesta);
       }
     } on DioException catch (e) {
-      // Sin red no se puede revocar, y aun así se sale: el refresh caduca solo y
-      // dejar la sesión abierta en el teléfono porque el servidor tuvo un mal
-      // momento es peor.
+      // Sin red no se puede revocar, y aun así se sale: dejar la sesión abierta
+      // en el teléfono porque el servidor tuvo un mal momento es peor.
       Registro.aviso('no se pudo avisar a auth del cierre: ${e.type}');
+      // Un 401 de NUESTRO servidor es que ya estaba cerrado; el de un portal
+      // cautivo no dice nada de Accesos.
+      confirmado = cierreConfirmado(e.response);
+    }
+    // PERO EL REFRESCO NO SE TIRA si no se confirmó: se guarda aparte, ANTES de
+    // borrar la sesión de abajo, y se revoca en cuanto haya red
+    // (`RevocadorDeCierres`). Antes quedaba vivo en Accesos hasta 30 días sin que
+    // nadie lo reintentara.
+    if (!confirmado && sesion != null) {
+      final quedo = await _almacen.dejarPorRevocar(
+        RefrescoPorRevocar(sub: sesion.sub, refresh: sesion.refresh),
+      );
+      if (!quedo) {
+        Registro.fallo(
+          'el cierre no llegó a Accesos y no se pudo dejar pendiente: el '
+          'refresco queda vivo hasta que caduque',
+        );
+      }
     }
     // Lo guardado, siempre: en la web es el par de la puerta de respaldo, si se
     // llegó a usar. Dejarlo ahí sería seguir dentro con la cookie ya borrada.

@@ -92,6 +92,7 @@ func (s *Servidor) yo(w http.ResponseWriter, r *http.Request) {
 		// falló exactamente —no hay token, la firma no cuadra, está caducado— no se le
 		// cuenta a quien pregunta.
 		httpx.Registro(r).Warn("sesión rechazada en /api/me", "motivo", err)
+		s.verif.BorrarCookieSiInvalidada(w, r, err)
 		httpx.JSON(w, r, http.StatusUnauthorized, YoSalida{})
 		return
 	}

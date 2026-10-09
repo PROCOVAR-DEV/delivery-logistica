@@ -26,6 +26,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"procovar/reparto-api/internal/httpx"
 )
 
 var (
@@ -53,6 +55,20 @@ type Usuario struct {
 	// (Auth dice que no entra a nada). NO son lo mismo y una prueba lo ata.
 	Entradas    []string
 	HayEntradas bool
+
+	// IatMs: cuándo se emitió el token, en MILISEGUNDOS (claim `iatms`). Lo firman la cookie de la
+	// web (`auth_web.go`) y, desde el 08/10/2026, Accesos en el token de acceso de la APK. Cero = no
+	// lo trae (una cookie anterior a este cambio, o un token de Accesos anterior a él).
+	IatMs int64
+	// Iat: cuándo se emitió el token, en SEGUNDOS (claim estándar `iat`). Cero = no lo trae.
+	Iat int64
+	// FirmadoPorLaWeb: el token lleva la marca `web` que SÓLO pone `auth_web.go` (la cookie de la
+	// web). Las firmas de Accesos no la llevan. Antes se distinguía por llevar `iatms`; dejó de
+	// valer cuando Accesos empezó a firmarlo también en el token de la APK.
+	FirmadoPorLaWeb bool
+	// SesionWeb: la credencial es de la SESIÓN DE LA WEB —vino en la cookie `token`, o es de las que
+	// firma la web— y no del par de la APK y el escritorio. Lo pone [Verificador.delaPeticion].
+	SesionWeb bool
 }
 
 // LOS ROLES DE VERDAD, escritos como los escribe PEDIDO, que es de donde salen.
@@ -224,6 +240,11 @@ type Verificador struct {
 	// margen para el desfase de reloj entre este servidor y el de auth. Sin él, dos
 	// máquinas con medio minuto de diferencia rechazan tokens recién emitidos.
 	margen time.Duration
+
+	// inv y borrarCookie los pone [Verificador.ConInvalidaciones] ANTES de servir. Sin ellos
+	// (Redis sin configurar, pruebas) no se comprueba nada, que es como era antes.
+	inv          Invalidaciones
+	borrarCookie func(http.ResponseWriter, *http.Request)
 }
 
 func NuevoVerificador(secreto []byte) *Verificador {
@@ -283,14 +304,39 @@ func (v *Verificador) delaPeticion(r *http.Request, preferida func(*Usuario) boo
 	if len(candidatas) == 0 {
 		return nil, "", ErrSinToken
 	}
-	var primerFallo error
+	cookies := valoresDeLaCookie(r)
+	var primerFallo, invalidada error
 	var primeraValida *Usuario
 	var suCredencial string
+	yaInvalidadas := map[string]bool{}
 	for _, crudo := range candidatas {
+		// La web manda el MISMO token en la cookie y en el Bearer: una vez invalidado, no se vuelve
+		// a evaluar ni a escribir en el registro.
+		if yaInvalidadas[crudo] {
+			continue
+		}
 		u, err := v.Verificar(crudo)
 		if err != nil {
 			if primerFallo == nil {
 				primerFallo = err
+			}
+			continue
+		}
+		// UNA CREDENCIAL INVALIDADA POR ACCESOS CUENTA COMO UN FALLO MÁS, y se prueba con las demás:
+		// un Bearer viejo delante de una cookie recién emitida no puede echar a quien ya volvió a entrar.
+		u.SesionWeb = u.FirmadoPorLaWeb || cookies[crudo]
+		if v.sesionInvalidada(u) {
+			yaInvalidadas[crudo] = true
+			if u.SesionWeb {
+				httpx.Registro(r).Info("sesión web invalidada desde Accesos",
+					"ruta", r.URL.Path, "persona", u.ID, "emitida_ms", u.IatMs, "via_cookie", cookies[crudo])
+				invalidada = errWebInvalidada
+			} else {
+				httpx.Registro(r).Info("sesión de la APK o el escritorio invalidada desde Accesos",
+					"ruta", r.URL.Path, "persona", u.ID, "emitida_s", u.Iat)
+				if invalidada == nil {
+					invalidada = errAparatoInvalidado
+				}
 			}
 			continue
 		}
@@ -303,6 +349,9 @@ func (v *Verificador) delaPeticion(r *http.Request, preferida func(*Usuario) boo
 	}
 	if primeraValida != nil {
 		return primeraValida, suCredencial, nil
+	}
+	if invalidada != nil {
+		return nil, "", invalidada // la causa que se puede arreglar (volver a entrar), no otra
 	}
 	return nil, "", primerFallo
 }
@@ -382,6 +431,13 @@ func (v *Verificador) Verificar(token string) (*Usuario, error) {
 		u.Rol = u.Roles[0]
 	}
 	u.Entradas, u.HayEntradas = LeerEntradas(c.Entradas)
+	u.FirmadoPorLaWeb = c.Web
+	if c.IatMs != nil {
+		u.IatMs = int64(*c.IatMs)
+	}
+	if c.Iat != nil {
+		u.Iat = int64(*c.Iat)
+	}
 	return u, nil
 }
 
@@ -410,6 +466,11 @@ type reclamos struct {
 	// la web (7 días) de la de la APK (15 minutos) sin tener que creerse el token. Ver
 	// `rastro.go`.
 	Iat *float64 `json:"iat"`
+	// `iatms`: lo mismo en MILISEGUNDOS. Lo firman la web (`auth_web.go`) y Accesos (token de la APK).
+	// Con él se compara la marca de invalidación de Accesos (`internal/sesiones`), que va en ms.
+	IatMs *float64 `json:"iatms"`
+	// `web`: SÓLO lo pone la cookie que firma `auth_web.go`. Es lo que dice «esto es una sesión web».
+	Web bool `json:"web"`
 	// `entradas`: en crudo para poder distinguir «no vino» (len 0) de `[]` y de `null`. Ver
 	// [LeerEntradas].
 	Entradas json.RawMessage `json:"entradas"`
@@ -445,6 +506,8 @@ func (c *reclamos) UnmarshalJSON(b []byte) error {
 			Exp:           numero(suelto, "exp"),
 			Nbf:           numero(suelto, "nbf"),
 			Iat:           numero(suelto, "iat"),
+			IatMs:         numero(suelto, "iatms"),
+			Web:           suelto["web"] == true,
 		}
 	}
 	// `entradas` se lee APARTE y en crudo, salga por el camino que salga lo demás: un campo suelto

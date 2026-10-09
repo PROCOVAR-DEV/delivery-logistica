@@ -4,7 +4,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/red/eventos_io.dart';
 import 'package:reparto/nucleo/red/eventos.dart'
-    show PulsoDelCanal, avisoDeQueVolvimos;
+    show
+        PulsoDelCanal,
+        avisoDeQueVolvimos,
+        avisoDeSesionInvalidada,
+        esSesionInvalidada;
 
 /// EL CANAL EN VIVO DEL APARATO, comprobado contra un servidor de verdad.
 ///
@@ -29,6 +33,70 @@ const latidoDeVerdad = 'event: latido\ndata: {}\n\n';
 void main() {
   test('hayCanalDeEventos: en el aparato SI hay canal', () {
     expect(hayCanalDeEventos, isTrue);
+  });
+
+  // `sesion-invalidada` EN LA APK Y EL ESCRITORIO — 08/10/2026.
+  //
+  // La api lo empuja por el mismo `/api/eventos` y cierra esa conexion (a los
+  // aparatos solo si el alcance es `todo`). El cliente nativo NO echa a nadie ni
+  // cierra su canal por eso: lo SACA por el stream, y el embudo intenta renovar YA
+  // (`Portero.renovarPorAviso`, probado en `el_aparato_se_entera_test.dart`). Lo
+  // que decide es el refresco, no el aviso. Tras el corte reconecta como tras
+  // cualquier corte del proxy, con su `Authorization: Bearer`.
+  test('el cliente NATIVO saca `sesion-invalidada` por el stream, no cierra el '
+      'canal y reconecta tras el corte', () async {
+    final servidor = await ServidorDeEventos.abrir((s, req, n) async {
+      final r = abrirSSE(req);
+      await escribir(r, 'event: listo\ndata: {"vivo":true}\n\n');
+      if (n == 0) {
+        await escribir(
+          r,
+          'event: sesion-invalidada\ndata: {"tipo":"permisos-cambiados"}\n\n',
+        );
+        await r.close(); // como la api: empuja y corta
+      } else {
+        await escribir(r, 'event: cambio\ndata: {"tipo":"pedidos"}\n\n');
+      }
+    });
+    addTearDown(servidor.cerrar);
+
+    final recibidos = await recoger(
+      escucharEventos(
+        servidor.urlBase,
+        () async => 'tok',
+        esperaInicial: const Duration(milliseconds: 20),
+        esperaMaxima: const Duration(milliseconds: 40),
+      ),
+      durante: const Duration(milliseconds: 800),
+    );
+
+    expect(
+      recibidos,
+      containsAllInOrder([
+        avisoDeSesionInvalidada('{"tipo":"permisos-cambiados"}'),
+        'pedidos',
+      ]),
+      reason: 'el aviso sale, y tras el corte el canal vuelve y trae lo suyo',
+    );
+    expect(servidor.peticiones, greaterThanOrEqualTo(2));
+    expect(servidor.autorizaciones, everyElement('Bearer tok'));
+  });
+
+  test('PAREJA: un evento de otro nombre se ignora y no sale nada', () async {
+    final servidor = await ServidorDeEventos.abrir((s, req, n) async {
+      final r = abrirSSE(req);
+      await escribir(r, 'event: listo\ndata: {"vivo":true}\n\n');
+      await escribir(r, 'event: sesion-cerrada\ndata: {"tipo":"x"}\n\n');
+      await escribir(r, 'event: cambio\ndata: {"tipo":"pedidos"}\n\n');
+    });
+    addTearDown(servidor.cerrar);
+
+    final recibidos = await recoger(
+      escucharEventos(servidor.urlBase, () async => 'tok'),
+    );
+
+    expect(recibidos.where(esSesionInvalidada), isEmpty);
+    expect(soloLosCambios(recibidos), ['pedidos']);
   });
 
   group('la espera del reintento', () {

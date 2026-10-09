@@ -21,6 +21,7 @@ import 'red/cliente_api.dart';
 import 'red/de_quien_viene.dart';
 import 'red/escritura_en_vivo.dart';
 import 'red/entorno.dart';
+import 'red/agente_de_usuario.dart';
 import 'red/eventos.dart';
 import 'red/fallos.dart';
 import 'red/salud.dart';
@@ -145,6 +146,9 @@ final dioAuthProvider = Provider<Dio>(
             contentType: Headers.jsonContentType,
           ),
         )
+        // Su propio `User-Agent` en la APK y el escritorio (la web no): Accesos
+        // enseña el aparato en «Dispositivos y sesiones». Ver `red/agente_de_usuario.dart`.
+        ..interceptors.add(InterceptorDeAgente())
         ..interceptors.add(
           // ESTE CLIENTE TAMBIEN CUENTA PARA LA SALUD DE LA RED, y es el que mas.
           //
@@ -1049,6 +1053,20 @@ final avisosDelServidorProvider = Provider<Stream<String>>((ref) {
           )
           .listen(
             (tipo) {
+              // ACCESOS INVALIDO LA SESION — 08/10/2026. Se corta AQUI y no sigue:
+              // para el vigia y las pantallas no es un cambio, y un ciclo contra
+              // una sesion muerta solo daria 401. Ver `prefijoDeSesionInvalidada`.
+              if (esSesionInvalidada(tipo)) {
+                final portero = ref.read(porteroProvider);
+                if (!ref.read(trabajaSinConexionProvider)) {
+                  portero.sesionInvalidada(tipoDeSesionInvalidada(tipo));
+                } else {
+                  // APK y escritorio: no se echa a ciegas, se renueva YA y el
+                  // refresco decide (`Portero.renovarPorAviso`).
+                  unawaited(portero.renovarPorAviso());
+                }
+                return;
+              }
               // EL SUELO DEL «volví» — 29/09/2026.
               //
               // Va aqui y no en cada transporte porque este es el unico embudo

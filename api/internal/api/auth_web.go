@@ -392,7 +392,15 @@ func (s *Servidor) firmarTokenDeLaWeb(p *personaDeAccesos, ahora time.Time) (str
 		"branchId": p.CodigoSucursal,
 		"sucursal": p.CodigoSucursal,
 		"iat":      ahora.Unix(),
-		"exp":      ahora.Add(duracionDeLaSesionWeb).Unix(),
+		// `iatms`: el instante de emisión en MILISEGUNDOS (08/10/2026). Es contra lo que se compara la
+		// marca con que Accesos invalida esta sesión (`internal/sesiones`, `auth.Verificador`): una
+		// cookie emitida ANTES de la marca ya no vale.
+		"iatms": ahora.UnixMilli(),
+		// `web`: «esta credencial es una sesión de la web». Es lo que la distingue del token de la APK
+		// aunque los dos lleven `iatms` (Accesos también lo firma ahí): la web se corta con cualquier
+		// marca, la APK sólo con las `todo`. Ver `auth.Verificador`.
+		"web": true,
+		"exp": ahora.Add(duracionDeLaSesionWeb).Unix(),
 	}
 
 	// `entradas` va en la cookie SÓLO si Auth la mandó: ausente se queda ausente (y la API cae a

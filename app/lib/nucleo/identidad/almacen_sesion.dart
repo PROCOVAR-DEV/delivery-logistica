@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'sesion.dart';
 
 export 'almacen_sesion_stub.dart'
@@ -70,6 +72,16 @@ abstract interface class AlmacenDeSesion {
 
   Future<void> borrar();
 
+  /// Los refrescos de sesiones cerradas SIN conexion que Accesos aun no sabe que
+  /// estan cerradas. Ver [RefrescoPorRevocar]. No lanza nunca.
+  Future<List<RefrescoPorRevocar>> porRevocar();
+
+  /// Anota uno ANTES de borrar la sesion. `true` si quedo (y se puede releer).
+  Future<bool> dejarPorRevocar(RefrescoPorRevocar pendiente);
+
+  /// Lo quita, y solo debe llamarse cuando el servidor CONFIRMO la revocacion.
+  Future<void> quitarPorRevocar(String refresh);
+
   /// ¿Este aparato puede guardar una sesion y volver a leerla?
   ///
   /// Se pregunta en la pantalla de acceso, ANTES de pedir la contrasena. Hace
@@ -77,6 +89,78 @@ abstract interface class AlmacenDeSesion {
   /// si el plugin esta montado no vale, porque el caso que se vio es
   /// exactamente uno en el que el plugin esta montado y contesta que si a todo.
   Future<SaludDelAlmacen> comprobar();
+}
+
+/// EL REFRESCO DE UN CIERRE DE SESION QUE NO LLEGO A ACCESOS — 08/10/2026.
+///
+/// Salir sin conexion no podia avisar a Accesos (`POST /logout`) y el refresco
+/// quedaba vivo hasta 30 dias sin que nadie lo reintentara. Se guarda aqui,
+/// aparte y por persona, y se revoca en cuanto hay red (`RevocadorDeCierres`).
+///
+/// **NO ES UNA SESION y no sirve para entrar.** `leer()` no lo mira nunca, el
+/// arranque tampoco, y nada lo pone en una cabecera: su unico uso es
+/// presentarselo a `/logout`. Se borra SOLO cuando el servidor confirma.
+class RefrescoPorRevocar {
+  const RefrescoPorRevocar({required this.sub, required this.refresh});
+
+  factory RefrescoPorRevocar.deJson(Map<String, Object?> j) =>
+      RefrescoPorRevocar(
+        sub: j['sub'] as String? ?? '',
+        refresh: j['refresh'] as String? ?? '',
+      );
+
+  /// De quien es (el `sub` de la sesion que se cerro).
+  final String sub;
+  final String refresh;
+
+  Map<String, Object?> aJson() => <String, Object?>{
+    'sub': sub,
+    'refresh': refresh,
+  };
+}
+
+/// Lo de [RefrescoPorRevocar] sobre dos primitivas de texto, para que cada
+/// almacen (llavero, fichero cifrado, memoria) solo diga DONDE lo escribe.
+mixin PorRevocarEnTexto {
+  /// El texto guardado, o `null`. No lanza.
+  Future<String?> leerPorRevocar();
+
+  /// Escribe `texto` (o borra si es `null`) y dice si se pudo.
+  Future<bool> escribirPorRevocar(String? texto);
+
+  Future<List<RefrescoPorRevocar>> porRevocar() async {
+    try {
+      final crudo = await leerPorRevocar();
+      if (crudo == null || crudo.isEmpty) return const [];
+      return [
+        for (final e in jsonDecode(crudo) as List<Object?>)
+          RefrescoPorRevocar.deJson(e! as Map<String, Object?>),
+      ].where((r) => r.refresh.isNotEmpty).toList();
+    } on Object {
+      // Ilegible: no hay nada que revocar que se pueda leer. No se inventa.
+      return const [];
+    }
+  }
+
+  Future<bool> dejarPorRevocar(RefrescoPorRevocar pendiente) async {
+    final ya = await porRevocar();
+    final todos = [
+      ...ya.where((r) => r.refresh != pendiente.refresh),
+      pendiente,
+    ];
+    final texto = jsonEncode([for (final r in todos) r.aJson()]);
+    if (!await escribirPorRevocar(texto)) return false;
+    return await leerPorRevocar() == texto;
+  }
+
+  Future<void> quitarPorRevocar(String refresh) async {
+    final quedan = (await porRevocar())
+        .where((r) => r.refresh != refresh)
+        .toList();
+    await escribirPorRevocar(
+      quedan.isEmpty ? null : jsonEncode([for (final r in quedan) r.aJson()]),
+    );
+  }
 }
 
 /// EL ALMACEN DE LA WEB: la sesion la lleva la cookie del login unico.
@@ -125,6 +209,17 @@ class AlmacenPorCookie implements AlmacenDeSesion {
   @override
   Future<void> borrar() => _respaldo.borrar();
 
+  @override
+  Future<List<RefrescoPorRevocar>> porRevocar() => _respaldo.porRevocar();
+
+  @override
+  Future<bool> dejarPorRevocar(RefrescoPorRevocar pendiente) =>
+      _respaldo.dejarPorRevocar(pendiente);
+
+  @override
+  Future<void> quitarPorRevocar(String refresh) =>
+      _respaldo.quitarPorRevocar(refresh);
+
   /// Lo que hay que comprobar es el respaldo: es lo unico que escribe. La cookie
   /// la lleva el navegador y no hay nada que preguntarle.
   @override
@@ -132,7 +227,7 @@ class AlmacenPorCookie implements AlmacenDeSesion {
 }
 
 /// En memoria. Para los tests y para el destino que no tenga donde guardar.
-class AlmacenEnMemoria implements AlmacenDeSesion {
+class AlmacenEnMemoria with PorRevocarEnTexto implements AlmacenDeSesion {
   AlmacenEnMemoria([this._sesion, this.salud = const SaludDelAlmacen.bien()]);
 
   /// Un almacen que ACEPTA la escritura y luego no encuentra nada, que es el
@@ -156,6 +251,17 @@ class AlmacenEnMemoria implements AlmacenDeSesion {
 
   @override
   Future<void> borrar() async => _sesion = null;
+
+  String? _porRevocar;
+
+  @override
+  Future<String?> leerPorRevocar() async => _porRevocar;
+
+  @override
+  Future<bool> escribirPorRevocar(String? texto) async {
+    _porRevocar = texto;
+    return true;
+  }
 
   @override
   Future<SaludDelAlmacen> comprobar() async => salud;

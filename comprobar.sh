@@ -60,6 +60,20 @@ else
   paso "motor real"; echo "SALTADO (exporta REPARTO_MOTOR_REAL_DSN: CLAUDE.md §5)"
 fi
 
+# EL ADAPTADOR DE REDIS CONTRA UN REDIS DE VERDAD (sesión única). Mismo trato que el motor real de
+# arriba: `go test` salta `redis_real_test.go` EN SILENCIO sin `REPARTO_REDIS_REAL_ADDR`, y la
+# auditoría del 08/10/2026 demostró que tres mutaciones de `redis.go` (la DB 6 por la 2, el prefijo
+# del SCAN, el nombre del canal) salían verdes sin ella: un typo en el canal se desplegaba y la
+# sesión única no funcionaba. Un Redis suelto de usar y tirar: `docs/entorno-local.md` §7-bis.
+echo "== api y sync: sesiones contra Redis real =="
+if [ -n "${REPARTO_REDIS_REAL_ADDR:-}" ]; then
+  paso "redis real"
+  (cd "$raiz/api" && go test -count=1 -run Real ./internal/sesiones/ >/dev/null 2>&1 &&
+   cd "$raiz/sync" && go test -count=1 -run Real ./internal/sesiones/ >/dev/null 2>&1) && bien || mal
+else
+  paso "redis real"; echo "SALTADO (exporta REPARTO_REDIS_REAL_ADDR: docs/entorno-local.md §7-bis)"
+fi
+
 echo "== app (Flutter) =="
 cd "$raiz/app"
 paso "analyze"; flutter analyze >/dev/null 2>&1 && bien || mal

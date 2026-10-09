@@ -3,6 +3,8 @@ import 'eventos_stub.dart'
     if (dart.library.io) 'eventos_io.dart'
     as destino;
 
+import 'dart:convert';
+
 import '../reloj.dart';
 
 // EL ORDEN DE LAS CLAUSULAS IMPORTA: Dart se queda con la PRIMERA que se cumple.
@@ -96,6 +98,65 @@ import '../reloj.dart';
 /// El valor lleva guion a proposito: ningun tipo del servidor lo usa, asi que no
 /// puede chocar con uno. Lo ata `app/test/nucleo/red/al_volver_no_choca_test.dart`.
 const avisoDeQueVolvimos = 'al-volver';
+
+/// ACCESOS CERRO LA SESION O CAMBIO LOS PERMISOS — 08/10/2026.
+///
+/// Jose: «Accesos debe afectar a las otras sesiones: si cierro sesion o me
+/// cambian un permiso en Accesos, que se refleje en todas las aplicaciones, sin
+/// polling: para eso hay SSE». La api de Reparto escucha los avisos de Accesos y
+/// empuja por este mismo canal un evento nombrado `sesion-invalidada` con
+/// `{"tipo":"sesion-cerrada"}` o `{"tipo":"permisos-cambiados"}`, y CIERRA esa
+/// conexion: la cookie ya no vale.
+///
+/// Viaja por el MISMO `Stream<String>` que los cambios, como [avisoDeQueVolvimos]
+/// y por lo mismo: es el unico tubo que hay. Va con el prefijo y el tipo pegados
+/// (`sesion-invalidada:sesion-cerrada`), que lleva `:` y por eso no puede ser un
+/// tipo del servidor, y **no llega nunca a las pantallas ni al vigia**: el
+/// embudo (`avisosDelServidorProvider`) lo corta y se lo da al portero. Un
+/// aviso que se colara hasta el vigia seria un ciclo de sincronizacion contra
+/// una sesion que ya no existe.
+///
+/// La web lo obedece al instante (`Portero.sesionInvalidada`, al login con el
+/// mensaje). La APK y el escritorio lo reciben tambien (`eventos_io.dart`, solo si
+/// la api lo manda: alcance `todo`) pero NO echan a nadie: el embudo intenta
+/// renovar YA (`Portero.renovarPorAviso`) y lo que decida el refresco decide.
+const prefijoDeSesionInvalidada = 'sesion-invalidada:';
+
+/// La sesion se cerro en Accesos.
+const tipoSesionCerrada = 'sesion-cerrada';
+
+/// Cambiaron los permisos de la persona en Accesos.
+const tipoPermisosCambiados = 'permisos-cambiados';
+
+/// Del `data` crudo del evento al aviso que viaja por el stream.
+///
+/// **Un JSON roto, vacio o con un `tipo` que no se conoce es [tipoSesionCerrada]**:
+/// el evento ya dijo lo importante —esta sesion no vale— y lo unico que se
+/// pierde es el matiz del mensaje. Nunca lanza.
+String avisoDeSesionInvalidada(Object? datos) {
+  var tipo = tipoSesionCerrada;
+  if (datos is String) {
+    try {
+      final m = jsonDecode(datos);
+      if (m is Map && m['tipo'] == tipoPermisosCambiados) {
+        tipo = tipoPermisosCambiados;
+      }
+    } on Object {
+      // Un cuerpo que no es JSON: se queda en [tipoSesionCerrada].
+    }
+  }
+  return '$prefijoDeSesionInvalidada$tipo';
+}
+
+/// ¿Este aviso del stream es el de «la sesion ya no vale»?
+bool esSesionInvalidada(String aviso) =>
+    aviso.startsWith(prefijoDeSesionInvalidada);
+
+/// El tipo que lleva un aviso de [esSesionInvalidada]: uno de los dos de arriba.
+String tipoDeSesionInvalidada(String aviso) =>
+    aviso == '$prefijoDeSesionInvalidada$tipoPermisosCambiados'
+    ? tipoPermisosCambiados
+    : tipoSesionCerrada;
 
 /// LO MÍNIMO ENTRE DOS «volví» SEGUIDOS, y por qué hace falta un suelo.
 ///

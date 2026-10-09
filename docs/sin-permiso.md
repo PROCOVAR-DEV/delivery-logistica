@@ -138,3 +138,53 @@ En Accesos se le da a la persona el rol **LOGISTICO** (o ADMINISTRADOR / SUPER A
 DESARROLLADOR). No hay nada que tocar en Reparto: al volver a entrar, la API deja de contestar
 el 403. Si la sucursal de la persona no está dada de alta en Reparto, es otro 403 (sin
 `codigo`) y se trata como siempre.
+
+## Sesión cerrada o permisos cambiados en Accesos — 08/10/2026
+
+Jose: «si cierro sesión o me cambian un permiso en Accesos, que se refleje en todas las
+aplicaciones, sin polling: para eso hay SSE». La API de Reparto escucha los avisos de Accesos
+y empuja por `/api/eventos` un evento `sesion-invalidada` con `{"tipo":"sesion-cerrada"}` o
+`{"tipo":"permisos-cambiados"}`, y cierra esa conexión. El cliente lo pasa por el mismo
+stream como `sesion-invalidada:<tipo>` (`nucleo/red/eventos.dart`); el embudo
+(`avisosDelServidorProvider`) lo corta —no llega al vigía ni a las pantallas— y se lo da al
+portero. Un `data` roto, vacío o con un tipo desconocido es `sesion-cerrada`.
+
+### Qué ve la persona
+
+| | Web | APK y escritorio |
+|---|---|---|
+| Al llegar el aviso | **Al instante** el portero pasa a `fuera` (`Portero.sesionInvalidada`) y la puerta dice «Tu sesión se cerró en Accesos. Vuelve a entrar.» (o «Tus permisos cambiaron. Vuelve a entrar.») con el botón **«Entrar ahora»**; a los 3 s se va sola a Accesos. | **No se echa a nadie por el aviso.** Se intenta renovar el token YA (`Portero.renovarPorAviso`) y decide el refresco. |
+| Refresco 401 (Accesos cerró la sesión) | — | A la puerta con «Tu sesión se cerró en Accesos. Vuelve a entrar.» y el formulario debajo. |
+| Refresco 403 `sin_permiso` | — | Pantalla de «sin permiso» (el `Renovador` ya avisa al portero). |
+| Refresco 200 (p. ej. cambiaron permisos pero sigue entrando) / sin red | — | No pasa nada. Sin red lo recoge el primer ciclo al volver la señal. |
+| Cola y base local | no hay | **No se tocan jamás** (`murio` solo cambia de copia). |
+
+Dos eventos seguidos son **una** salida y **una** navegación: el segundo llega con la persona
+ya `fuera` y se ignora (conserva el mensaje del primero). Un 401 de una petición de la web (la
+cookie ya era inválida) ya llevaba al login —`InterceptorSesion` → `murio` → puerta → Accesos—,
+sin mensaje y sin esperar; queda atado en `test/navegacion/portero_sesion_invalidada_test.dart`.
+
+El transporte de la web (`eventos_web.dart`) hace `close()` del `EventSource` en cuanto llega
+el evento (si no, el navegador reconecta solo contra una sesión muerta) y cierra su stream:
+no reintenta. Solo se prueba en Chrome (ver el encabezado de `test/nucleo/red/eventos_web_test.dart`).
+
+### Al recuperar la conexión
+
+El aparato se entera solo: al volver la red el vigía lanza un ciclo y el ciclo **renueva
+primero** (`ciclo.dart`, paso 1); un refresco cerrado en Accesos da 401 → sesión muerta → puerta.
+Ya era así; queda atado en `test/nucleo/identidad/el_aparato_se_entera_test.dart` (grupo B).
+
+### Cerrar sesión sin conexión: «pendiente de revocar»
+
+Antes, sin red el `POST /logout` fallaba, se registraba un aviso y el refresco quedaba vivo en
+Accesos hasta 30 días sin reintento. Ahora `ServicioDeAcceso.salir`, **antes** de borrar la
+sesión local, guarda el refresco aparte (`RefrescoPorRevocar`: `sub` + `refresh`, en el mismo
+almacén que la sesión —llavero en Android, fichero cifrado en Linux—, clave `reparto.por_revocar` /
+fichero `por_revocar.caja`). `RevocadorDeCierres` lo presenta a `/logout`:
+
+* al arrancar (`Portero.comprobar`), al entrar (`entro`: entrar prueba que hay red) y cuando
+  vuelve la red (el portero escucha el aviso de red mientras quede algo pendiente);
+* se borra el hueco **solo** si el servidor confirma: 200, o 401 de nuestro servidor («ya
+  cerrado»). Sin red, 5xx o cualquier otra cosa → sigue pendiente;
+* **jamás autentica**: `leer()`, el arranque y el renovador no lo miran; solo viaja en el cuerpo
+  de `/logout`. En la web no existe (su sesión es la cookie).

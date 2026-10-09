@@ -27,7 +27,7 @@ import 'sesion.dart';
 AlmacenDeSesion abrirAlmacenDeSesion() =>
     Platform.isLinux ? AlmacenEnFichero() : AlmacenSeguro();
 
-class AlmacenSeguro implements AlmacenDeSesion {
+class AlmacenSeguro with PorRevocarEnTexto implements AlmacenDeSesion {
   AlmacenSeguro([FlutterSecureStorage? caja])
     : _caja =
           caja ??
@@ -117,6 +117,34 @@ class AlmacenSeguro implements AlmacenDeSesion {
       // Salir tiene que poder salir. Si el almacen no deja borrar, el par
       // caduca solo y lo que no puede pasar es que la persona se quede dentro.
       Registro.aviso('el almacen del sistema no dejo borrar la sesion: $e');
+    }
+  }
+
+  /// Aparte de la sesion, a proposito: ver [RefrescoPorRevocar].
+  static const _clavePorRevocar = 'reparto.por_revocar';
+
+  @override
+  Future<String?> leerPorRevocar() async {
+    try {
+      return await _caja.read(key: _clavePorRevocar);
+    } on Object catch (e) {
+      Registro.aviso('el almacen del sistema no dejo leer lo por revocar: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<bool> escribirPorRevocar(String? texto) async {
+    try {
+      if (texto == null) {
+        await _caja.delete(key: _clavePorRevocar);
+      } else {
+        await _caja.write(key: _clavePorRevocar, value: texto);
+      }
+      return true;
+    } on Object catch (e) {
+      Registro.aviso('el almacen del sistema no dejo guardar lo por revocar: $e');
+      return false;
     }
   }
 

@@ -94,6 +94,17 @@ services:
       PROCOVAR_AUTH_URL: ${PROCOVAR_AUTH_URL:-https://auth.procovar.cloud}
       PROCOVAR_AUTH_CLIENT_ID: ${PROCOVAR_AUTH_CLIENT_ID:-delivery}
       PROCOVAR_AUTH_SIGNING_KEY: ${PROCOVAR_AUTH_SIGNING_KEY:-}
+      # ACCESOS INVALIDA LAS SESIONES Y LO EMPUJA (08/10/2026): la API escucha el canal
+      # `procovar:auth:eventos` del Redis de la casa (y carga las marcas de la DB 6) para cerrar la
+      # sesión de la web, y la de la APK en los cortes `todo`, sin preguntar a Accesos en cada
+      # petición. LOS MISMOS NOMBRES que el espejo y que `reparto-sync`; la base NO se configura
+      # (es la 6, fija). Vacías = «sin empuje»: la API arranca y sirve igual y lo dice en el
+      # registro. En local no hay Redis y se dejan vacías.
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_CENTINELAS: ${REDIS_CENTINELAS:-}
+      REDIS_MAESTRO: ${REDIS_MAESTRO:-}
+      REDIS_CLAVE: ${REDIS_CLAVE:-}
+      REDIS_DIRECCION: ${REDIS_DIRECCION:-}
       # El anuncio de versión de la APLICACIÓN, que es lo que leen los aparatos para saber
       # si tienen que actualizarse. A MEDIAS NO ARRANCA: una URL sin `APP_ULTIMA_VERSION`
       # no se anunciaría nunca, y al revés se avisaría sin decir de dónde bajarla. Ver
@@ -232,6 +243,13 @@ services:
       # compose dan 401 en todo sin decir por qué.
       JWT_SECRET: ${JWT_SECRET:-secreto-de-desarrollo-de-mas-de-32-caracteres}
       SYNC_TOPE_BAJADA: ${SYNC_TOPE_BAJADA:-500}
+      # Lo mismo que en `api`: el corte de sesiones de Accesos llega por el Redis de la casa y aquí
+      # se aplica al token de la APK y el escritorio (sólo los cortes `todo`). Vacías = sin empuje.
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_CENTINELAS: ${REDIS_CENTINELAS:-}
+      REDIS_MAESTRO: ${REDIS_MAESTRO:-}
+      REDIS_CLAVE: ${REDIS_CLAVE:-}
+      REDIS_DIRECCION: ${REDIS_DIRECCION:-}
     ports:
       - "127.0.0.1:8081:8081"
     depends_on:

@@ -1252,10 +1252,10 @@ ya son prefijos del reparto).
 | # | Qué | Por qué en este sitio | Estado |
 |---|---|---|---|
 | 1 | **Accesos** (`8ba2642`) | La app 1.0.32 llama a `POST /api/auth/entrega` y los verificadores nuevos solo tienen sentido con el token que firma. Además `/refresh` pasa a mirar la sesión y la baja **antes** de la llave | **HECHO el 09/10/2026** |
-| 2 | **Migraciones `00003` Y `00004` de `procovar_reparto_sync`**, las dos, con el ritual de §2.1 | `sync` nuevo **espera la 4** y se niega a arrancar con la base en la 3 o antes (§2.8; `ExigirMigraciones` lo deriva de los ficheros incrustados). Son **aditivas**: la sync vieja sigue sirviendo igual encima (§2.5, «al revés no pasa nada») | Pendiente |
-| 3 | **Deploy de `reparto-sync`** | Trae la entrega, `mias`, el revisor, el paso 0 de la subida, `en_revision` en `/sync/estado`, el corte `web` de sesión y el recorte del nombre del aparato | Pendiente |
-| 4 | **Deploy de `reparto-api`** | Trae el rechazo de `ambito` (401), el rastro `autor`/`revision` y que la web lea `organization.codigo` | Pendiente |
-| 5 | **Deploy de `reparto-web`** | Trae la ruta `/revision` y `bearerExplicito`; necesita el paso 3 ya servido | Pendiente |
+| 2 | **Migraciones `00003` Y `00004` de `procovar_reparto_sync`**, las dos, con el ritual de §2.1 | `sync` nuevo **espera la 4** y se niega a arrancar con la base en la 3 o antes (§2.8; `ExigirMigraciones` lo deriva de los ficheros incrustados). Son **aditivas**: la sync vieja sigue sirviendo igual encima (§2.5, «al revés no pasa nada») | **HECHO el 09/10/2026** (15:40 Cuba; volcados `…_antes-1.0.32_20261009-1939.dump`; `max(version_id)` = 4, 3 tablas `revision_*`, restricción `f`) |
+| 3 | **Deploy de `reparto-sync`** | Trae la entrega, `mias`, el revisor, el paso 0 de la subida, `en_revision` en `/sync/estado`, el corte `web` de sesión y el recorte del nombre del aparato | **HECHO el 09/10/2026** (`fa0295a`; arrancó 19:42 UTC, «sincronizador escuchando», empuje de sesiones activo; las 4 rutas nuevas dan 401 sin token) |
+| 4 | **Deploy de `reparto-api`** | Trae el rechazo de `ambito` (401), el rastro `autor`/`revision` y que la web lea `organization.codigo` | **HECHO el 09/10/2026** (19:45 UTC) |
+| 5 | **Deploy de `reparto-web`** | Trae la ruta `/revision` y `bearerExplicito`; necesita el paso 3 ya servido | **HECHO el 09/10/2026** (19:49 UTC; bundle con `/revision`, «Entregar a revisión» y «Aplicar todo») |
 | 6 | **APK y Windows 1.0.32** | Es lo último: antes de esto nadie puede entregar | Pendiente |
 
 ### Paso 2, el ritual con `reparto_sync` (tal cual se hace; no se salta nada)

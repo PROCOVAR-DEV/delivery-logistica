@@ -422,9 +422,9 @@ class _EditorAlmacenState extends State<EditorAlmacen> {
               decoration: const InputDecoration(
                 labelText: 'Código en Ventra',
                 helperText:
-                    'El que trae cada pedido de este almacén. Sin él, sus '
-                    'pedidos se miden desde el almacén principal.',
-                helperMaxLines: 2,
+                    'El que trae cada pedido de este almacén. Sin él, se '
+                    'mide desde el principal.',
+                helperMaxLines: 3,
                 counterText: '',
                 border: OutlineInputBorder(),
               ),

@@ -147,21 +147,24 @@ void main() {
     ]);
   });
 
-  test('una trama partida a mitad de palabra por la red se entiende igual', () async {
-    final s = await _Servidor.abrir((p, n) async {
-      final r = _sse(p);
-      await _escribe(r, 'event: revi');
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      await _escribe(r, 'sion\ndata: {"v"');
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      await _escribe(r, ':1}\n\n');
-    });
-    addTearDown(s.cerrar);
+  test(
+    'una trama partida a mitad de palabra por la red se entiende igual',
+    () async {
+      final s = await _Servidor.abrir((p, n) async {
+        final r = _sse(p);
+        await _escribe(r, 'event: revi');
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _escribe(r, 'sion\ndata: {"v"');
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _escribe(r, ':1}\n\n');
+      });
+      addTearDown(s.cerrar);
 
-    final r = await _recoge(abrirFlujoDeRevision(s.url(), 't'));
+      final r = await _recoge(abrirFlujoDeRevision(s.url(), 't'));
 
-    expect(r.sucesos, [sucesoAbierto, sucesoRevision]);
-  });
+      expect(r.sucesos, [sucesoAbierto, sucesoRevision]);
+    },
+  );
 
   test('el servidor cierra (caducó el token de entrega): el stream se CIERRA '
       'sin error, para que quien escucha pida otro token', () async {
@@ -212,26 +215,43 @@ void main() {
       expect(e.esperar, const Duration(seconds: 45));
     });
 
-    test('PAREJA: 429 sin Retry-After, o con uno que no es un número, no inventa '
-        'una espera', () async {
-      expect((await rechazo(429)).esperar, isNull);
-      expect(
-        (await rechazo(429, cabeceras: {'Retry-After': 'pronto'})).esperar,
-        isNull,
-      );
-    });
+    test(
+      'PAREJA: 429 sin Retry-After, o con uno que no es un número, no inventa '
+      'una espera',
+      () async {
+        expect((await rechazo(429)).esperar, isNull);
+        expect(
+          (await rechazo(429, cabeceras: {'Retry-After': 'pronto'})).esperar,
+          isNull,
+        );
+      },
+    );
 
-    test('un 503: el código (quien escucha lo trata como del momento)', () async {
-      expect((await rechazo(503)).codigo, 503);
-    });
+    test(
+      'un 503: el código (quien escucha lo trata como del momento)',
+      () async {
+        expect((await rechazo(503)).codigo, 503);
+      },
+    );
 
     test('nadie escuchando en esa dirección: sin código', () async {
       final s = await _Servidor.abrir((p, n) {});
       final url = s.url();
       await s.cerrar();
 
-      final r = await _recoge(abrirFlujoDeRevision(url, 't'));
+      // En Windows un puerto cerrado tarda ~2 s en rechazar la conexión (reintenta el SYN) y en
+      // Linux es inmediato: con los 400 ms de siempre el CI de Windows veía el error todavía vacío
+      // (10/10/2026). Si el flujo termina antes, `_recoge` no espera al plazo.
+      final r = await _recoge(
+        abrirFlujoDeRevision(url, 't'),
+        durante: const Duration(seconds: 15),
+      );
 
+      expect(
+        r.error,
+        isNotNull,
+        reason: 'la conexión rechazada se dice, no se calla',
+      );
       expect((r.error! as RechazoDelFlujo).codigo, isNull);
     });
   });
@@ -256,24 +276,28 @@ void main() {
       expect(
         s.conexionesVivas,
         0,
-        reason: 'sin esto cada apertura deja un flujo vivo, y a la tercera da 429',
+        reason:
+            'sin esto cada apertura deja un flujo vivo, y a la tercera da 429',
       );
     });
 
-    test('cancelar MIENTRAS se espera la respuesta tampoco deja nada', () async {
-      final s = await _Servidor.abrir((p, n) async {
-        // No contesta: el cliente está esperando las cabeceras.
-      });
-      addTearDown(s.cerrar);
+    test(
+      'cancelar MIENTRAS se espera la respuesta tampoco deja nada',
+      () async {
+        final s = await _Servidor.abrir((p, n) async {
+          // No contesta: el cliente está esperando las cabeceras.
+        });
+        addTearDown(s.cerrar);
 
-      final sub = abrirFlujoDeRevision(s.url(), 't').listen((_) {});
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-      await sub.cancel();
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-      await s.sacudir();
+        final sub = abrirFlujoDeRevision(s.url(), 't').listen((_) {});
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        await sub.cancel();
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        await s.sacudir();
 
-      expect(s.conexionesVivas, 0);
-    });
+        expect(s.conexionesVivas, 0);
+      },
+    );
 
     test('un flujo que se queda MUDO se da por muerto y se cierra (móvil que '
         'cambió de antena)', () async {
@@ -320,18 +344,23 @@ void main() {
     });
   });
 
-  test('desde una prueba NO se abre contra nada que no sea local (producción es '
-      'el valor por defecto de SYNC_URL)', () async {
-    // `.invalid` no existe nunca (RFC 2606): si la guarda no estuviera, esto fallaría
-    // por red y NO con el 403 que la guarda pone.
-    final r = await _recoge(
-      abrirFlujoDeRevision(
-        Uri.parse('https://aviso-no-local.invalid/sync/revision/eventos?aparato=a'),
-        't',
-      ),
-    );
+  test(
+    'desde una prueba NO se abre contra nada que no sea local (producción es '
+    'el valor por defecto de SYNC_URL)',
+    () async {
+      // `.invalid` no existe nunca (RFC 2606): si la guarda no estuviera, esto fallaría
+      // por red y NO con el 403 que la guarda pone.
+      final r = await _recoge(
+        abrirFlujoDeRevision(
+          Uri.parse(
+            'https://aviso-no-local.invalid/sync/revision/eventos?aparato=a',
+          ),
+          't',
+        ),
+      );
 
-    expect((r.error! as RechazoDelFlujo).codigo, 403);
-    expect(r.sucesos, isEmpty);
-  });
+      expect((r.error! as RechazoDelFlujo).codigo, 403);
+      expect(r.sucesos, isEmpty);
+    },
+  );
 }

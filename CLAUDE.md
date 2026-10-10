@@ -466,7 +466,7 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   cookie; cerrar sesión solo en el navegador la corta: 401 en `sync`). **TRAMPAS:** el token de entrega no es un permiso (todo token con `ambito` se rechaza en las rutas normales: **401 en la
   API, 403 en `sync`**; `docs/ambito-de-entrega.casos.json`), **no sustituye a la renovación** (`/refresh` sigue dando 403 a quien no
   tiene la llave), quien **cierra sesión antes de entregar queda varado** (el refresh se revoca), **para quitarle `delivery.entrar` a alguien se le cambia el
-  ROL en Personas, no se le vacía la membresía** (no quita la llave si el rol por defecto la trae: `docs/despliegue.md` §4-bis), el `Down` de
+  ROL en Personas, no se le vacía la membresía, y se le quita TAMBIÉN su rol de miembro en la sucursal si lo tiene** (Accesos suma el rol por defecto y los de miembro, y la llave sigue si queda alguno: `docs/despliegue.md` §4-bis), el `Down` de
   la 00003 **borra las tablas con lo entregado** (en producción no se usa) y `X-Autor`/`X-Revision` son forjables y solo rastro (riesgos
   aceptados B1, B2, B4 y B5 en `bandeja-de-revision.md`). La pantalla `/sin-permiso` (solo APK y
   escritorio, y solo si hay algo que contar; sin cola o en la web no sale) ofrece «Entregar a revisión» con un toque, dice en qué

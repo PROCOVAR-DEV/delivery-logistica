@@ -1350,7 +1350,10 @@ entrega, y contra un `sync` que no tiene `/sync/revision/entrega`, el token de e
 ### Runbook: cómo se le QUITA `delivery.entrar` a una persona (hallazgo F1 de la prueba de punta a punta)
 
 **Se cambia el ROL de la persona en Personas de Accesos (`cambiarRol`, `auth/src/app/(user)/dashboard/_actions.ts`), no se le vacía la
-membresía.** `PUT /api/rbac/orgs/<org>/members/<miembro>/roles {"roleIds":[]}` **no quita la llave** si el rol por defecto de la
+membresía, Y SI TIENE UN ROL DE MIEMBRO EN UNA SUCURSAL SE LE QUITA TAMBIÉN** (Sucursales → la sucursal → Miembros → icono del escudo): Accesos
+suma las llaves del rol por defecto **y** las de todos sus roles de miembro (`aplicaciones-visibles.ts`, `accesoDe`), así que con solo cambiar el rol por
+defecto la persona siguió con `delivery.entrar` y subió su cola (comprobado el 10/10/2026 con `logistico.test`: se creó una zona de verdad). Antes de
+confiar se mira en la base que ni `defaultRole` ni `member_role` traen `delivery.entrar`. `PUT /api/rbac/orgs/<org>/members/<miembro>/roles {"roleIds":[]}` **no quita la llave** si el rol por defecto de la
 persona (`defaultRoleId`) la trae: la prueba de punta a punta lo vio —su token siguió con `roles:["LOGISTICO"]` y `entradas` con
 `delivery.entrar`, y `/api/auth/refresh` seguía dando 200 en vez de 403 `sin_permiso`—. `cambiarRol` cambia `defaultRoleId` (y
 `isSystemAdmin` si el rol es SUPER ADMIN), y **si el rol nuevo pierde llaves publica `permisos-cambiados`**, que es lo que corta

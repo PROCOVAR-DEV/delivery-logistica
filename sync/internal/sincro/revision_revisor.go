@@ -416,6 +416,11 @@ func (s *Servicio) descartarApunte(w http.ResponseWriter, r *http.Request) {
 		Clave: clave, Estado: string(descartado.Estado), Motivo: motivo,
 		DecididoPorNombre: descartado.DecididoPorNombre, DecididoAt: hora(descartado.DecididoAt),
 	}}})
+	// El aviso en vivo (`avisos.go`), DESPUÉS de confirmar y de contestar al revisor, a quien ENTREGÓ el apunte: su
+	// nombre vuelve en la propia sentencia del descarte (`RETURNING e.persona`), así que no hay ninguna lectura más ni
+	// contexto del que depender: aunque el revisor cierre la pestaña justo ahora, la decisión ya está escrita y el
+	// aviso sale. `avisar` no bloquea ni falla; sin suscriptores no hace nada.
+	s.avisos.avisar(descartado.Persona)
 }
 
 // leerOpcional descodifica un cuerpo PEQUEÑO que puede no venir: vacío vale (queda el valor cero); roto, 400.

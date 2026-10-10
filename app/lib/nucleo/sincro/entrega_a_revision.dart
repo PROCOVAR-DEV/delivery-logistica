@@ -8,11 +8,19 @@ import '../red/entorno.dart';
 import '../red/fallos.dart';
 import '../red/interceptor_fallos.dart';
 import '../registro/registro.dart';
+import '../reloj.dart';
 import 'identidad_del_aparato.dart';
 import 'subida.dart' show marcaDeAparatoNoRegistrado;
 
 /// El ambito que Accesos pone en el token de entrega (`POST /api/auth/entrega`).
 const ambitoDeEntrega = 'reparto.entrega';
+
+/// Lo que dura el token de entrega (`POST /api/auth/entrega`: 10 minutos).
+const vidaDelTokenDeEntrega = Duration(minutes: 10);
+
+/// Cuánto antes de caducar deja de servir un token ya pedido para otra consulta:
+/// una petición que sale con 5 s de vida puede llegar con el token ya muerto.
+const margenDelTokenDeEntrega = Duration(seconds: 60);
 
 /// Los literales que lee la persona (`docs/bandeja-de-revision.md`, B.5). Aqui y
 /// no en la pantalla: la pantalla los pinta, esto es lo que SE DICE.
@@ -160,7 +168,9 @@ class EntregaARevision {
     required IdentidadDelAparato aparato,
     required AlmacenDeSesion almacen,
     required bool Function() trabajaSinConexion,
-  }) : _auth = auth,
+    Reloj reloj = relojDelAparato,
+  }) : _reloj = reloj,
+       _auth = auth,
        _sync = sync,
        _cola = cola,
        _base = base,
@@ -188,6 +198,23 @@ class EntregaARevision {
   final IdentidadDelAparato _aparato;
   final AlmacenDeSesion _almacen;
   final bool Function() _trabajaSinConexion;
+  final Reloj _reloj;
+
+  /// EL ÚLTIMO TOKEN DE ENTREGA, para no pedir uno por consulta. **Solo en memoria**
+  /// (nunca a disco ni al registro) y atado a QUIÉN lo pidió: otra persona que entre
+  /// en el mismo aparato no lo hereda.
+  ///
+  /// Por qué: con el aviso en vivo hay una consulta de `mias` en cada aviso y en cada
+  /// (re)apertura, y Accesos tiene un cubo de 10 peticiones con reposición de 1 cada
+  /// 10 s (`auth/src/app/api/auth/entrega/route.ts`). Un revisor que decide más de
+  /// diez apuntes de uno en uno en menos de ~100 s agotaría el cubo: el panel
+  /// enseñaría el 429 y la última decisión quedaría sin leer. El token sirve 10
+  /// minutos; el que se pidió para abrir el flujo sirve también para preguntar.
+  /// Lo guardan el flujo (`paraElAvisoEnVivo`) y las consultas de `mias`; la entrega
+  /// no (pide el suyo y no lo comparte).
+  String? _tokenGuardado;
+  String? _tokenDe;
+  DateTime? _tokenPedidoA;
 
   /// Dos pulsaciones a la vez serian dos tokens y dos pasadas por la misma cola.
   Future<ResumenDeEntrega>? _enVuelo;
@@ -346,11 +373,17 @@ class EntregaARevision {
   /// El refresh es SIEMPRE el vigente del almacen, leido en el momento: otra pieza
   /// pudo renovarlo desde que empezo la entrega, y presentar uno viejo es presentar
   /// un refresh gastado.
-  Future<String> _pedirToken() async {
+  ///
+  /// Con [guardar] se queda en memoria para las consultas de `mias` que vengan
+  /// (`_consultarMias`). Solo esas lo piden: la entrega pide el suyo y no lo comparte.
+  Future<String> _pedirToken({bool guardar = false}) async {
     final sesion = await _almacen.leer();
     if (sesion == null || !sesion.llevaPar) {
       throw const SesionMuerta('no hay sesion guardada');
     }
+    // La hora es la de ANTES de pedirlo: si la respuesta tarda, el token ya iba
+    // contando, y fiarse de más es un 401.
+    final pedidoA = _reloj();
     final r = await _llamar(_auth, 'POST', '/entrega', null, <String, Object?>{
       'refresh_token': sesion.refresh,
     });
@@ -360,7 +393,43 @@ class EntregaARevision {
     if (token is! String || token.isEmpty || r['ambito'] != ambitoDeEntrega) {
       throw const FormatException('Accesos no devolvió un token de entrega');
     }
+    if (guardar) {
+      _tokenGuardado = token;
+      _tokenDe = sesion.sub;
+      _tokenPedidoA = pedidoA;
+    }
     return token;
+  }
+
+  /// El último token de entrega, **si es de [sub] y le queda más de
+  /// [margenDelTokenDeEntrega] de vida**; si no, `null` y toca pedir otro. Un reloj
+  /// que saltó hacia atrás (edad negativa) tampoco vale: no se sabe cuánto lleva.
+  String? _tokenQueAunVale(String sub) {
+    final token = _tokenGuardado;
+    final pedidoA = _tokenPedidoA;
+    if (token == null || pedidoA == null || sub.isEmpty || _tokenDe != sub) {
+      return null;
+    }
+    final edad = _reloj().difference(pedidoA);
+    if (edad.isNegative || edad >= vidaDelTokenDeEntrega - margenDelTokenDeEntrega) {
+      return null;
+    }
+    return token;
+  }
+
+  /// `mias` con un token que vale: **el guardado** si aún sirve, y si no, uno nuevo.
+  /// Un `401` de `sync` con un token REUTILIZADO (caducó antes de lo previsto, o
+  /// Accesos lo dio por muerto) pide otro y reintenta UNA vez; con un token recién
+  /// pedido no se reintenta, porque otro igual de nuevo no lo arregla.
+  Future<Map<String, Object?>> _consultarMias(String sub, String aparato) async {
+    final guardado = _tokenQueAunVale(sub);
+    final token = guardado ?? await _pedirToken(guardar: true);
+    try {
+      return await _pedirMias(token, aparato);
+    } on SesionMuerta {
+      if (guardado == null) rethrow;
+      return _pedirMias(await _pedirToken(guardar: true), aparato);
+    }
   }
 
   Future<Map<String, Object?>> _mandar(
@@ -549,9 +618,8 @@ class EntregaARevision {
       );
     }
     try {
-      final token = await _pedirToken();
       final (cambiaron, truncado) = await _aplicarMias(
-        await _pedirMias(token, aparato),
+        await _consultarMias(sesion.sub, aparato),
       );
       return ResumenDeConsulta(
         ResultadoDeEntrega.entregado,
@@ -562,6 +630,31 @@ class EntregaARevision {
       final c = _cierre(e, entregados: 0, sinEntregar: 0);
       return ResumenDeConsulta(c.resultado, error: c.error, esperar: c.esperar);
     }
+  }
+
+  /// Lo que hace falta para abrir el AVISO EN VIVO (`EscuchaDeRevision`):
+  /// `GET {sync}/revision/eventos?aparato=…` y un token de entrega NUEVO, pedido
+  /// con el mismo método que «Actualizar estados» (`_pedirToken`: no gasta el
+  /// refresh y no hay otro cliente de Accesos).
+  ///
+  /// **Pide SIEMPRE uno nuevo** (es un flujo nuevo, y su vida es la del token) y lo
+  /// guarda: las consultas de `mias` que vengan mientras tanto lo reutilizan en vez
+  /// de pedir otro cada una (`_tokenQueAunVale`).
+  ///
+  /// `null` si no hay nada que escuchar: la web (sin cola ni entrega) o un aparato
+  /// sin alta. **Lanza lo mismo que lanzaría esa consulta** —`SesionMuerta`,
+  /// `FalloDeRed`, `Rechazo`, `RechazoConEspera`— y quien llama decide si
+  /// reintenta; aquí no se traduce nada a frases porque nadie las va a leer: el
+  /// botón de respaldo ya las tiene.
+  Future<({Uri url, String token})?> paraElAvisoEnVivo() async {
+    if (!_trabajaSinConexion()) return null;
+    final aparato = await _aparato.leer();
+    if (aparato == null) return null;
+    final token = await _pedirToken(guardar: true);
+    final url = Uri.parse(
+      '${_sync.options.baseUrl}/revision/eventos',
+    ).replace(queryParameters: <String, String>{'aparato': aparato});
+    return (url: url, token: token);
   }
 
   /// Lo que hace el CICLO (con permiso y token normal): consulta `mias` **solo si

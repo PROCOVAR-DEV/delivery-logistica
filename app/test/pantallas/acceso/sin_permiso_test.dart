@@ -6,6 +6,8 @@
 // En pareja (CLAUDE.md §5): web y aparato, permitido y no permitido. La única diferencia
 // entre las dos mitades de cada pareja es el destino o el estado, nunca otra cosa.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +24,10 @@ import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/nucleo/sincro/entrega_a_revision.dart';
 import 'package:reparto/pantallas/acceso/vista/pantalla_sin_permiso.dart';
+import 'package:reparto/nucleo/sincro/flujo_de_revision.dart'
+    show sucesoAbierto;
+import 'package:reparto/pantallas/acceso/vista/panel_de_entrega.dart'
+    show abridorDeFlujoDeRevisionProvider, escuchaDeRevisionProvider;
 
 import '../../apoyo/apoyo_accesos.dart';
 import '../../apoyo/base_de_prueba.dart';
@@ -75,6 +81,13 @@ class _EntregaFalsa extends Fake implements EntregaARevision {
     consultas++;
     return const ResumenDeConsulta(ResultadoDeEntrega.entregado);
   }
+
+  /// Solo lo usa la escucha de verdad (`conEscucha`).
+  @override
+  Future<({Uri url, String token})?> paraElAvisoEnVivo() async => (
+    url: Uri.parse('https://sync.test/revision/eventos?aparato=ap-1'),
+    token: 'tok',
+  );
 }
 
 void main() {
@@ -88,6 +101,10 @@ void main() {
   late _EntregaFalsa entrega;
   late ColaDeSalida colaDeLaPrueba;
 
+  /// Los flujos que la escucha de verdad ha abierto (`conEscucha`); la prueba los
+  /// maneja a mano.
+  late List<StreamController<String>> flujos;
+
   Future<void> montar(
     WidgetTester tester, {
     required bool enWeb,
@@ -95,6 +112,7 @@ void main() {
     int pendientes = 0,
     Future<void> Function(ColaDeSalida cola)? sembrar,
     bool conRouter = false,
+    bool conEscucha = false,
   }) async {
     // Teléfono de 390 px: el caso que importa.
     tester.view.physicalSize = const Size(390, 800);
@@ -103,6 +121,7 @@ void main() {
 
     navegador = NavegadorFalso();
     abiertos = <String>[];
+    flujos = <StreamController<String>>[];
     final base = baseDePrueba();
     addTearDown(base.close);
     // Sembrado DENTRO del cuerpo (CLAUDE.md §5).
@@ -131,6 +150,20 @@ void main() {
         ),
         porteroProvider.overrideWith((ref) => _PorteroFalso(ref, estado)),
         entregaARevisionProvider.overrideWithValue(entrega),
+        if (conEscucha)
+          // LA ESCUCHA DE VERDAD, con el flujo sustituido por un doble: ni un byte sale.
+          abridorDeFlujoDeRevisionProvider.overrideWithValue((url, token) {
+            final c = StreamController<String>();
+            flujos.add(c);
+            return c.stream;
+          })
+        else
+          // UNA ESCUCHA «SIN SERVIDOR»: este fichero no va del aviso en vivo, y la de
+          // verdad abriría el flujo en cuanto hay algo en revisión. El aviso en vivo
+          // tiene el suyo (`aviso_en_vivo_de_revision_test.dart`); aquí solo se
+          // comprueba que SIN él no hay sondeo (y, en la hermana de abajo, que CON él
+          // abierto tampoco).
+          escuchaDeRevisionProvider.overrideWithValue(null),
       ],
     );
     addTearDown(contenedor.dispose);
@@ -521,6 +554,52 @@ void main() {
       expect(entrega.consultas, 1);
       expect(find.text('Sin novedades.'), findsOneWidget);
       await desmontar(tester);
+    });
+
+    // La hermana de la de arriba, para que el nombre «no hay sondeo» siga vigilando la
+    // pieza NUEVA: aquella corre con la escucha «sin servidor» (y por eso no vería un
+    // temporizador metido en la escucha de verdad). Con el flujo abierto, la única
+    // consulta que no pulsó nadie es la de apertura (ponerse al día: el servidor no
+    // guarda eventos); el reloj no pregunta nada.
+    group('no hay sondeo ni con la escucha de verdad abierta', () {
+      Future<void> montarConAlgoEnRevision(WidgetTester tester) => montar(
+        tester,
+        enWeb: false,
+        conEscucha: true,
+        sembrar: (cola) async {
+          final c = await cola.encolar(metodo: 'POST', ruta: '/routes', cuerpo: const {});
+          await cola.marcarEnRevision(c);
+        },
+      );
+
+      testWidgets('diez minutos de reloj sin eventos: ninguna consulta más que la de '
+          'apertura', (tester) async {
+        await montarConAlgoEnRevision(tester);
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(flujos, hasLength(1), reason: 'la escucha de verdad abrió el flujo');
+        expect(entrega.consultas, 0, reason: 'abierta la petición, aún sin `abierto`');
+
+        flujos.single.add(sucesoAbierto);
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(entrega.consultas, 1, reason: 'la de apertura');
+
+        await tester.pump(const Duration(minutes: 10));
+
+        expect(entrega.consultas, 1, reason: 'la conexión de allá se paga');
+        expect(flujos, hasLength(1));
+        await desmontar(tester);
+      });
+
+      testWidgets('PAREJA: si el flujo no llega a abrir, ni una consulta en diez '
+          'minutos', (tester) async {
+        await montarConAlgoEnRevision(tester);
+
+        await tester.pump(const Duration(minutes: 10));
+
+        expect(flujos, isNotEmpty);
+        expect(entrega.consultas, 0);
+        await desmontar(tester);
+      });
     });
 
     group('cuando la entrega no sale', () {

@@ -429,7 +429,8 @@ func guionDeLasConsultas(t *testing.T, d store.Datos) []string {
 	})
 	anota("descartar con 3 letras: %s", sinFilas(err))
 	dd, err := d.DescartarRevisionApunte(ctx, sqlc.DescartarRevisionApunteParams{Revisor: "r1", RevisorNombre: &nombre, Motivo: "no hacía falta", AparatoID: a1.ID, Clave: "c2", Sucursal: vsuc(s1)})
-	anota("descartar bien: %s %s por=%s motivo=%s", sinFilas(err), dd.Estado, pers(dd.DecididoPorNombre), cuerpo(dd.Motivo))
+	// `persona` es QUIÉN ENTREGÓ (`RETURNING e.persona`): de ahí sale a quién avisa en vivo `descartarApunte`, sin leer nada más.
+	anota("descartar bien: %s %s por=%s motivo=%s persona=%s", sinFilas(err), dd.Estado, pers(dd.DecididoPorNombre), cuerpo(dd.Motivo), dd.Persona)
 	_, err = d.DescartarRevisionApunte(ctx, sqlc.DescartarRevisionApunteParams{Revisor: "r1", Motivo: "no hacía falta", AparatoID: a1.ID, Clave: "c2"})
 	anota("descartar lo ya descartado: %s", sinFilas(err))
 	_, err = d.ReclamarRevisionApunte(ctx, sqlc.ReclamarRevisionApunteParams{Revisor: "r1", AparatoID: a1.ID, Clave: "c2"})

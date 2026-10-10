@@ -24,6 +24,7 @@ import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
 import 'package:reparto/nucleo/identidad/sesion.dart';
 import 'package:reparto/nucleo/plataforma.dart';
+import 'package:reparto/nucleo/red/fallos.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/nucleo/sincro/entrega_a_revision.dart';
 import 'package:reparto/nucleo/sincro/identidad_del_aparato.dart';
@@ -84,6 +85,8 @@ void main() {
       aparato: IdentidadDelAparato(base),
       almacen: almacen,
       trabajaSinConexion: () => enAparato,
+      // El reloj de la prueba: el token guardado se mide contra él.
+      reloj: reloj.leer,
     );
   }
 
@@ -1132,6 +1135,242 @@ void main() {
       await tresEntregados();
       await servicio.consultarConSesion(pedir);
       expect(llamadas, 1);
+    });
+  });
+
+  // El AVISO EN VIVO (`EscuchaDeRevision`) pide lo que necesita abrir el flujo a este
+  // servicio: el mismo token de entrega que «Actualizar estados», sin otro cliente de
+  // Accesos y sin tocar el refresh.
+  group('lo que necesita el aviso en vivo', () {
+    test('la dirección del flujo con ?aparato= y un token de ENTREGA nuevo', () async {
+      final r = await servicio.paraElAvisoEnVivo();
+
+      expect(r, isNotNull);
+      expect(r!.token, 'tok-entrega');
+      expect(r.url.toString(), 'https://sync.test/revision/eventos?aparato=$_aparato');
+      // Un solo POST /entrega, con el refresh de la sesión, y nada más.
+      expect(auth.vistas.map((v) => '${v.metodo} ${v.ruta}'), ['POST /entrega']);
+      expect(
+        (auth.vistas.single.cuerpo! as Map<String, Object?>)['refresh_token'],
+        'r0',
+      );
+      expect(sync.vistas, isEmpty, reason: 'abrir el flujo es cosa de quien lo abre');
+    });
+
+    test('pide un token NUEVO cada vez (el de antes caduca a los 10 minutos)', () async {
+      var n = 0;
+      enAuth = (p) async => _token('tok-${++n}');
+
+      expect((await servicio.paraElAvisoEnVivo())!.token, 'tok-1');
+      expect((await servicio.paraElAvisoEnVivo())!.token, 'tok-2');
+    });
+
+    test('en la WEB no hay nada que escuchar: null y ni una petición', () async {
+      final web = montar(enAparato: false);
+
+      expect(await web.paraElAvisoEnVivo(), isNull);
+      expect(auth.vistas, isEmpty);
+    });
+
+    test('sin alta del aparato: null, y NO se pide token', () async {
+      await base.delete(base.preferencias).go();
+
+      expect(await servicio.paraElAvisoEnVivo(), isNull);
+      expect(auth.vistas, isEmpty);
+    });
+
+    test('lo que falla se lanza igual que en «Actualizar estados» (quien llama '
+        'decide si reintenta)', () async {
+      enAuth = (p) async => RespuestaFalsa(401, const {'error': 'invalid_token'});
+      await expectLater(servicio.paraElAvisoEnVivo(), throwsA(isA<SesionMuerta>()));
+
+      enAuth = (p) async => RespuestaFalsa.conCabeceras(
+        429,
+        const {'error': 'rate_limited'},
+        const {'retry-after': '90'},
+      );
+      await expectLater(
+        servicio.paraElAvisoEnVivo(),
+        throwsA(
+          isA<RechazoConEspera>().having((e) => e.segundos, 'segundos', 90),
+        ),
+      );
+    });
+
+    test('sin sesión guardada: SesionMuerta', () async {
+      await almacen.borrar();
+
+      await expectLater(servicio.paraElAvisoEnVivo(), throwsA(isA<SesionMuerta>()));
+    });
+  });
+
+  // EL TOKEN DEL FLUJO SE REUTILIZA para las consultas de `mias`.
+  //
+  // Con el aviso en vivo hay una consulta en cada aviso y en cada (re)apertura, y Accesos
+  // tiene un cubo de 10 y 1 cada 10 s (`entrega/route.ts`): un revisor que decide doce
+  // apuntes seguidos agotaría el cubo, el panel enseñaría el 429 y la última decisión
+  // quedaría sin leer. El token sirve 10 minutos; se usa mientras le queden más de 60 s.
+  group('el token de entrega se reutiliza', () {
+    late int pedidos;
+
+    /// Una entrega ya hecha (algo `enRevision`) y los contadores a cero.
+    Future<void> conAlgoEnRevision() async {
+      await cuatroApuntes();
+      await servicio.entregar();
+      auth.vistas.clear();
+      sync.vistas.clear();
+      pedidos = 0;
+      enAuth = (p) async => _token('tok-${++pedidos}');
+      enSync = (p) async => RespuestaFalsa(200, const {'entregas': <Object?>[]});
+    }
+
+    Iterable<String?> bearersDeMias() =>
+        sync.vistas.where((v) => v.ruta == '/revision/mias').map(_bearer);
+
+    test('una ráfaga de 12 avisos seguidos pide UN token, no doce', () async {
+      await conAlgoEnRevision();
+      await servicio.paraElAvisoEnVivo(); // el del flujo
+
+      for (var i = 0; i < 12; i++) {
+        final r = await servicio.actualizarEstados();
+        expect(r.bien, isTrue);
+      }
+
+      expect(pedidos, 1, reason: 'el del flujo sirve para las doce');
+      expect(bearersDeMias(), hasLength(12));
+      expect(bearersDeMias(), everyElement('Bearer tok-1'));
+    });
+
+    test('sin token guardado (el botón antes de abrir el flujo) pide uno y lo deja '
+        'para los siguientes', () async {
+      await conAlgoEnRevision();
+
+      await servicio.actualizarEstados();
+      await servicio.actualizarEstados();
+      await servicio.actualizarEstados();
+
+      expect(pedidos, 1);
+    });
+
+    test('con el token a punto de caducar (menos de 60 s de vida) pide OTRO; un '
+        'segundo antes, no', () async {
+      await conAlgoEnRevision();
+      await servicio.paraElAvisoEnVivo();
+
+      reloj.avanzar(const Duration(minutes: 9) - const Duration(seconds: 1));
+      await servicio.actualizarEstados();
+      expect(pedidos, 1, reason: 'a 8:59 todavía le queda más de un minuto');
+
+      reloj.avanzar(const Duration(seconds: 1));
+      await servicio.actualizarEstados();
+      expect(pedidos, 2, reason: 'a 9:00 le queda justo el margen: ya no');
+      expect(bearersDeMias().last, 'Bearer tok-2');
+
+      // Y el nuevo también se reutiliza.
+      await servicio.actualizarEstados();
+      expect(pedidos, 2);
+    });
+
+    test('caducado del todo (pasaron 10 minutos): pide otro', () async {
+      await conAlgoEnRevision();
+      await servicio.paraElAvisoEnVivo();
+
+      reloj.avanzar(const Duration(minutes: 11));
+      await servicio.actualizarEstados();
+
+      expect(pedidos, 2);
+    });
+
+    test('un reloj que saltó hacia ATRÁS no da el token por bueno', () async {
+      await conAlgoEnRevision();
+      await servicio.paraElAvisoEnVivo();
+
+      reloj.avanzar(const Duration(hours: -3));
+      await servicio.actualizarEstados();
+
+      expect(pedidos, 2, reason: 'no se sabe cuánto lleva: se pide otro');
+    });
+
+    test('abrir un flujo NUEVO pide siempre un token nuevo (el de antes caduca)', () async {
+      await conAlgoEnRevision();
+
+      await servicio.paraElAvisoEnVivo();
+      await servicio.paraElAvisoEnVivo();
+
+      expect(pedidos, 2);
+    });
+
+    test('un 401 de `mias` con el token REUTILIZADO pide otro y reintenta UNA vez', () async {
+      await conAlgoEnRevision();
+      await servicio.paraElAvisoEnVivo(); // tok-1
+      enSync = (p) async => _bearer(p) == 'Bearer tok-1'
+          ? RespuestaFalsa(401, const {'error': 'invalid_token'})
+          : RespuestaFalsa(200, const {'entregas': <Object?>[]});
+
+      final r = await servicio.actualizarEstados();
+
+      expect(r.bien, isTrue, reason: 'se arregló solo, la persona no se entera');
+      expect(pedidos, 2);
+      expect(bearersDeMias(), ['Bearer tok-1', 'Bearer tok-2']);
+
+      // El nuevo queda guardado para las siguientes.
+      await servicio.actualizarEstados();
+      expect(pedidos, 2);
+    });
+
+    test('PAREJA: un 401 con un token RECIÉN pedido no se reintenta (otro igual no lo '
+        'arregla)', () async {
+      await conAlgoEnRevision();
+      enSync = (p) async => RespuestaFalsa(401, const {'error': 'invalid_token'});
+
+      final r = await servicio.actualizarEstados();
+
+      expect(r.resultado, ResultadoDeEntrega.sesionTerminada);
+      expect(pedidos, 1);
+      expect(bearersDeMias(), hasLength(1));
+    });
+
+    test('PAREJA: si el segundo token también da 401, se para ahí (una vez, no un bucle)', () async {
+      await conAlgoEnRevision();
+      await servicio.paraElAvisoEnVivo();
+      enSync = (p) async => RespuestaFalsa(401, const {'error': 'invalid_token'});
+
+      final r = await servicio.actualizarEstados();
+
+      expect(r.resultado, ResultadoDeEntrega.sesionTerminada);
+      expect(pedidos, 2);
+      expect(bearersDeMias(), hasLength(2));
+    });
+
+    test('es de QUIEN lo pidió: otra persona en el mismo aparato no lo hereda', () async {
+      await conAlgoEnRevision();
+      await servicio.paraElAvisoEnVivo(); // de u1
+      await almacen.guardar(const Sesion(token: 't2', refresh: 'r9', sub: 'u2'));
+
+      await servicio.actualizarEstados();
+
+      expect(pedidos, 2, reason: 'el token de u1 no se presenta como de u2');
+      expect(
+        (auth.vistas.last.cuerpo! as Map<String, Object?>)['refresh_token'],
+        'r9',
+      );
+    });
+
+    test('la entrega (`entregar`) no comparte el suyo: pide el suyo', () async {
+      await conAlgoEnRevision();
+      await servicio.paraElAvisoEnVivo();
+      await encolar('/routes/r-9/results');
+      enSync = (p) async => p.ruta == '/revision/entrega'
+          ? _enRevision(p)
+          : RespuestaFalsa(200, const {'entregas': <Object?>[]});
+
+      await servicio.entregar();
+
+      expect(pedidos, 2);
+      expect(
+        sync.vistas.where((v) => v.ruta == '/revision/entrega').map(_bearer),
+        everyElement('Bearer tok-2'),
+      );
     });
   });
 

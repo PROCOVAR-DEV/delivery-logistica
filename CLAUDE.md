@@ -472,7 +472,10 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   escritorio, y solo si hay algo que contar; sin cola o en la web no sale) ofrece «Entregar a revisión» con un toque, dice en qué
   está cada apunte, y el «Cerrar sesión» con cola trae tres opciones (entregar y salir, salir sin entregar —queda varado—, me
   quedo). `enRevision` no cuenta como «sin subir», pero sí avisa antes de olvidar una copia. A 09/10/2026 está todo desplegado
-  (Accesos, sync, API, web y la APK/Windows 1.0.32+33); no hay aviso en vivo ni correo de notify. Estado real,
+  (Accesos, sync, API, web y la APK/Windows 1.0.32+33). **Aviso en vivo a la PERSONA (10/10/2026, 1.0.33):** `GET /sync/revision/eventos`
+  (SSE, solo con el token de entrega; `docs/contratos-api.md` §12.3) avisa en cuanto un revisor decide un cambio suyo y la app consulta `mias` (y una vez al abrir cada conexión, que
+  es el ponerse al día); **sin sondeo ni temporizador**: lo vigilan las pruebas «NO HAY SONDEO» de `escucha_de_revision_test.dart` y
+  `aviso_en_vivo_de_revision_test.dart`, y la hermana de `sin_permiso_test.dart`. El revisor sigue con «Actualizar»; no hay correo de notify. Estado real,
   desviaciones y qué no se hizo: `docs/bandeja-de-revision.md` («Estado real (09/10/2026)»); contratos: `docs/contratos-api.md` §12;
   servidor: `docs/sincronizacion.md` §4; orden de despliegue: `docs/despliegue.md` §4-bis; la persona: `docs/sin-permiso.md`.
 - **La tabla de Pedidos enseña SI EL DOMICILIO ESTÁ COBRADO y ya no tiene columna «Vehículo»**

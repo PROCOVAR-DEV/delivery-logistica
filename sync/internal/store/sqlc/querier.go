@@ -154,6 +154,8 @@ type Querier interface {
 	CupoDeRevision(ctx context.Context, arg CupoDeRevisionParams) (CupoDeRevisionRow, error)
 	// DESCARTAR: SÓLO lo que sigue esperando, SÓLO de otra persona, SÓLO dentro del alcance, y con un motivo
 	// escrito (la base lo exige: ≥ 5 caracteres). No borra: marca `descartado` con quién y cuándo.
+	// `e.persona` (QUIÉN LO ENTREGÓ) vuelve en la misma sentencia: el aviso en vivo se lo manda a esa persona sin
+	// ninguna lectura más antes de contestar al revisor (`descartarApunte`).
 	DescartarRevisionApunte(ctx context.Context, arg DescartarRevisionApunteParams) (DescartarRevisionApunteRow, error)
 	// Una caída (5xx o red), no un rechazo: vuelve a `en_revision` con un intento más, sin dueño.
 	DevolverRevisionAEnRevision(ctx context.Context, arg DevolverRevisionAEnRevisionParams) (RevisionApunte, error)

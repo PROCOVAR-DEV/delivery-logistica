@@ -322,6 +322,48 @@ solo conocía el corte `todo`: tras un cierre de sesión SOLO del navegador ese 
 guarda dos mapas (`web`, `todo`), recoge las dos familias de marcas de Redis (también al recargar) y a un token `web:true` le aplica
 `max(web, todo)`; resultado: **401 en `/sync/*`**, igual que la API. La APK y el escritorio siguen con solo `todo`.
 
+### Aviso en vivo para quien entregó — `GET /sync/revision/eventos` (10/10/2026)
+
+Hasta aquí la persona se enteraba de qué había decidido el revisor pulsando «Actualizar estados» (o en el ciclo). Jose pidió
+aviso en vivo y por SSE —«nada de polling, para eso tenemos SSE»— **para la persona** (el revisor sigue pulsando «Actualizar»).
+Es una ruta más de las que abre el token de entrega, aparte de `entrega` y `mias`, y **solo ése** (el normal de la APK no):
+
+```
+GET /sync/revision/eventos?aparato=<uuid>      Authorization: Bearer <token de entrega>
+200 text/event-stream; charset=utf-8 · Cache-Control: no-cache, no-transform · X-Accel-Buffering: no  (y NUNCA Connection: keep-alive)
+: abierto\n\n                                  (nada más entrar)
+event: revision\ndata: {"v":1}\n\n             (una decisión cambió un apunte de ESTA persona)
+: ka\n\n                                       (cada 25 s)
+```
+
+* **El aviso es una señal vacía**: no lleva clave, estado ni motivo. La app, al recibirla, consulta `mias`, que sí pasa por el
+  alcance y la comprobación del aparato; así no se filtra nada por un flujo largo.
+* **Quién y cuándo** (`revision_aplicar.go`, `aplicarDeRevision`; `revision_revisor.go`, `descartarApunte`): después de CONFIRMAR
+  —nunca dentro de una transacción— un apunte `aplicado`, `rechazado` al aplicar o `descartado`, a la **dueña de la entrega** (no a
+  quien decide). Un 5xx del reparto, que devuelve el apunte a `en_revision`, no avisa. El aviso es un extra: sin suscriptores no hace
+  nada y un fallo suyo no toca la respuesta al revisor.
+* **Se cierra solo** cuando caduca el token de entrega (`Identidad.Caduca`, su `exp`; la app reconecta con otro), cuando el cliente se
+  va o cuando el servicio se apaga (`CerrarAvisos` registrado con `Server.RegisterOnShutdown`: un SSE no queda inactivo nunca y
+  `Shutdown` lo esperaría hasta el plazo de 30 s).
+* **El concentrador** (`avisos.go`): suscripciones por persona en memoria, canal de búfer 1 y envío no bloqueante (**señal, no
+  cola**: «aplicar todo en orden» son N avisos y, para quien mira, una actualización), alta y baja con `sync.Mutex`. **Topes: 3
+  canales por persona, 500 en total** —el que sobra, `429` con `Retry-After: 30`—. En lugar del limitador de 60/min de `mias`, que
+  no sirve para un flujo largo.
+* **`WriteTimeout`:** el servidor tiene 60 s de plazo de escritura (absoluto, desde que se leyó la petición) y este flujo lo supera por
+  diseño; el manejador lo sustituye **en su petición y en ninguna otra** por un plazo que **se renueva antes de cada escritura**
+  (`http.ResponseController.SetWriteDeadline(ahora + 60 s)`). No se quita del todo: un cliente que dejó de leer sin cerrar tumbaría la
+  escritura a los 60 s en vez de retener el canal hasta el timeout de TCP. Para que llegue al escritor de verdad, `httpx.Registro`
+  expone `Unwrap` en su espía (sin él, `Flush` y el plazo contestaban `ErrNotSupported`).
+* **A quién se avisa sale de lo ya leído, sin consultas de más:** el descarte devuelve `e.persona` en la propia sentencia
+  (`RETURNING`, `DescartarRevisionApunte`), y aplicar la tiene en la fila que ya cargó. Así el aviso no retiene la respuesta al revisor
+  (`net/http` no vacía hasta que el manejador vuelve) ni depende del contexto de su petición: si cierra la pestaña justo tras
+  confirmar, la persona recibe el aviso igual.
+* **Límite de despliegue: memoria de UN proceso.** `reparto-sync` tiene una réplica. Con más habría que pasar el aviso por Redis
+  (los `REDIS_*` ya están en `sync`): si no, el revisor que decide en la réplica A no avisa a quien escucha en la B. Hasta entonces el
+  aviso es «mejor esfuerzo» y `mias` es la fuente de verdad. Tampoco corta un flujo ya abierto un cierre de sesión de Accesos: el token
+  se verifica al abrir, y el flujo no lleva datos y muere con su `exp` (≤ 10 minutos).
+* El contrato exacto, con todos sus códigos, en `contratos-api.md` §12.3.
+
 ### Quién revisa
 
 **ADMINISTRADOR de esa sucursal, SUPER ADMIN y DESARROLLADOR, y nadie revisa lo suyo** (Jose, 08/10/2026). Por **nombre
@@ -337,7 +379,7 @@ marcando `enRevision` solo con la respuesta en la mano; si el token (10 min) cad
 de red lo deja todo `pendiente`, intacto. Después, el ciclo normal consulta `GET /sync/revision/mias` **solo si hay algo
 `enRevision`**, entre subir y bajar, y un fallo de esa consulta no tumba la bajada. Un `enRevision` no sube ni cuenta en
 «N sin subir» (ya está arriba), pero sí retiene el `completed` de su ruta y cuenta antes de olvidar a una persona. No hay
-sondeo ni aviso en vivo.
+sondeo: el aviso en vivo lo da `GET /sync/revision/eventos` (arriba), y «Actualizar estados» sigue siendo la fuente de verdad.
 
 ---
 

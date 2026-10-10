@@ -234,8 +234,10 @@ WHERE e.id = a.entrega_id
   AND a.estado IN ('en_revision', 'rechazado')
   AND e.persona <> sqlc.arg('revisor')::text
   AND (sqlc.narg('sucursal')::uuid IS NULL OR e.branch_id = sqlc.narg('sucursal')::uuid)
+-- `e.persona` (QUIÉN LO ENTREGÓ) vuelve en la misma sentencia: el aviso en vivo se lo manda a esa persona sin
+-- ninguna lectura más antes de contestar al revisor (`descartarApunte`).
 RETURNING a.aparato_id, a.clave, a.entrega_id, a.orden, a.estado, a.decidido_por, a.decidido_por_nombre,
-          a.decidido_at, a.motivo;
+          a.decidido_at, a.motivo, e.persona;
 
 -- ===========================================================================
 -- 3 · El libro de decisiones (sólo se añade)

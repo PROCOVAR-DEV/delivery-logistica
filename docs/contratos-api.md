@@ -1884,7 +1884,7 @@ HS256 con el `JWT_SECRET` de siempre (el mismo que firma el acceso), `purpose:"a
 | `iatms` | La hora, en milisegundos, de **leer la sesión** (igual que el acceso; para las marcas de invalidación de Accesos). Extra respecto al diseño |
 | `jti`, `iat`, `exp`, `iss` | `exp = iat + 600` |
 
-- **Qué abre:** solo `POST /sync/revision/entrega` y `GET /sync/revision/mias` (12.3). En **cualquier otra ruta**
+- **Qué abre:** solo `POST /sync/revision/entrega`, `GET /sync/revision/mias` y `GET /sync/revision/eventos` (12.3). En **cualquier otra ruta**
   es una credencial que no vale: **la API contesta `401`** (`auth.ErrAmbito`: se rechaza por **presencia** de `ambito`,
   con cualquier valor y aunque traiga `delivery.entrar`) y **`sync` contesta `403 sin_permiso_reparto`**
   (`identidad.verificar`; lo mismo con `Ambito` o `AMBITO`). `GET /api/me` con él da `401 {"user":null}`. Las dos mitades
@@ -1903,7 +1903,7 @@ HS256 con el `JWT_SECRET` de siempre (el mismo que firma el acceso), `purpose:"a
 ## 12.3 `sync`: lo que entrega quien perdió el permiso (token de ENTREGA)
 
 Montadas en el mux público de `sync/cmd/sync/main.go` (`RutasDeRevision`), cada una con su fuente de identidad:
-`entrega` acepta **solo** el token de entrega; `mias`, ese **o** el normal de la misma persona. Todas las demás rutas
+`entrega` y `eventos` aceptan **solo** el token de entrega; `mias`, ese **o** el normal de la misma persona. Todas las demás rutas
 `/sync/*` siguen detrás del `Exigir` normal, que rechaza el token de entrega.
 
 ### `POST /sync/revision/entrega`
@@ -2004,6 +2004,88 @@ tus entregas`.
 Lo vivo primero y, dentro, lo más reciente; **tope de 1.000** (`truncado:true` si se alcanzó: lo que se queda fuera es
 lo más viejo ya decidido). `motivo` es el motivo escrito del descarte, o el literal del reparto si no pudo aplicarlo.
 Sin sondeo automático en la app: lo consulta el ciclo (solo si hay algo en revisión) o «Actualizar estados».
+
+### `GET /sync/revision/eventos?aparato=<uuid>` — el aviso en vivo (SSE, 10/10/2026)
+
+Para que quien entregó se entere de que un revisor decidió algo suyo **sin pulsar «Actualizar estados»** (Jose: «nada de
+polling, para eso tenemos SSE»). Es una **señal vacía**: dice «algo cambió», y el cliente consulta `mias` para saber qué. Es **para la
+persona**; el revisor sigue pulsando «Actualizar» en su bandeja.
+
+**Auth:** `Authorization: Bearer <token de ENTREGA>` y **solo ése**. El token normal de la APK **no** abre el canal (`403
+sin_permiso_reparto`, aunque `mias` sí lo acepte), ni un revisor por tener rol de revisor: el canal es de la persona dueña del
+aparato. Mismas comprobaciones y **los mismos códigos que `mias`** (no hay un oráculo nuevo): `400` sin aparato o con un
+aparato que no es un uuid · `401` sin token / roto / caducado / cortado por Accesos · `404 aparato_no_registrado` ·
+`403 aparato_ajeno` si el aparato no es de la persona del token o no es de su alcance. No lleva el limitador de `mias` (60 por
+minuto: no sirve en un flujo largo); su freno es el tope de canales de abajo.
+
+**200**, con estas cabeceras:
+
+```
+Content-Type: text/event-stream; charset=utf-8
+Cache-Control: no-cache, no-transform
+X-Accel-Buffering: no
+```
+
+Las mismas cautelas que `GET /api/eventos` (`api/internal/api/eventos.go`): `charset=utf-8`; `no-transform`, para que un proxy que comprime
+al vuelo no junte los bloques y la pantalla no reciba nada hasta que hay bastante que comprimir (una **adición del 10/10/2026** al
+`Cache-Control: no-cache` del primer contrato: un cliente debe leer `no-cache` como una de las directivas, no comparar la cabecera
+entera); `X-Accel-Buffering: no`; y **NUNCA `Connection: keep-alive`** (HTTP/2 y HTTP/3 lo prohíben; tras Cloudflare da
+`ERR_QUIC_PROTOCOL_ERROR`), ni siquiera aunque la petición lo traiga. Lo ata una prueba con el socket en crudo
+(`TestLaRespuestaDelCanalNoLlevaConnectionTalComoSale`), porque `http.Client` normaliza las cabeceras y no lo vería. El flujo, cada
+bloque terminado en una línea en blanco:
+
+```
+: abierto                              ← nada más entrar: comentario, para que el cliente sepa que ya está dentro
+
+event: revision                        ← cuando una decisión cambia el estado de un apunte de ESTA persona
+data: {"v":1}
+
+: ka                                   ← un comentario cada 25 s (que ni un proxy ni la red móvil den por muerto el canal)
+```
+
+- **El aviso no lleva datos**: ni clave, ni estado, ni motivo, ni el nombre de quien decidió. Al recibirlo, el cliente llama a
+  `GET /sync/revision/mias?aparato=<uuid>` (que sí pasa por el alcance y la comprobación del aparato). `"v":1` es la versión
+  del aviso: un cliente ignora los `event:` que no conozca.
+- **Cuándo se avisa:** **después de confirmar** en la base (nunca dentro de la transacción) una decisión que **cambia el estado
+  de un apunte de la persona**: `aplicado`, `rechazado` al aplicar y `descartado`, por los tres caminos (aplicar uno, aplicar todo
+  en orden, descartar). La persona es la **dueña de la entrega** (`persona` de `revision_entregas`), nunca quien decide. **No**
+  se avisa cuando un 5xx o la red devuelven el apunte a `en_revision` (para quien espera no cambió nada), ni al reclamarlo
+  (`aplicando`). «Aplicar todo en orden» de varios apuntes puede dar un solo aviso: **es una señal, no una cola** (canal de búfer 1;
+  si ya hay un aviso sin leer no se apila otro), así que un cliente nunca cuenta eventos: ante **uno**, consulta `mias`.
+  Si el aviso falla o no hay nadie escuchando, no pasa nada ni cambia la respuesta al revisor.
+- **Cuándo se cierra el flujo:** (1) **cuando caduca el token de entrega** (`exp`, 10 minutos): el cliente pide otro token a Accesos
+  y reconecta; (2) cuando el cliente se va; (3) cuando el servicio se apaga (`Server.RegisterOnShutdown`). El cliente debe
+  tratar cualquier cierre como «reconecta»: no hay `Last-Event-ID` ni reenvío de lo perdido, porque **el estado de verdad está
+  en `mias`** y se consulta tras cada (re)conexión. Un corte de Accesos (cierre de sesión) no cierra un flujo ya abierto —se
+  verifica el token al abrir—, pero el flujo no lleva datos y muere con el `exp`.
+- **Topes** (memoria de **este** proceso): **3 canales abiertos por persona** y **500 en total**. El que sobra recibe
+  `429` con `Retry-After: 30`: `{"error":"Ya tienes abiertos los canales de avisos que se permiten (3). Cierra alguno o vuelve a
+  intentarlo en 30 segundos. Tus entregas no dependen de esto: «Actualizar estados» te dice siempre cómo van.","codigo":"avisos_al_tope"}`
+  (o, si es el total, «Ahora mismo hay demasiados canales de avisos abiertos…», mismo código). Los rechazos van **después** de
+  validar token y aparato: quien no es dueño de un aparato no gasta un hueco.
+- **Es memoria de UN proceso.** `reparto-sync` corre en una réplica. Con más de una, el revisor que decide en la A no avisaría a
+  quien tiene el canal abierto en la B: habría que pasar el aviso por Redis (los `REDIS_*` ya existen en `sync`). Mientras tanto
+  es «mejor esfuerzo» y `mias` es la fuente de verdad.
+- **`WriteTimeout`:** `sync` arranca con `WriteTimeout` (60 s), un plazo **absoluto desde que se leyó la petición**: mataría el
+  flujo a los 60 s. Este manejador, **y solo éste**, lo sustituye en su propia petición por uno que **se renueva antes de CADA
+  escritura** (`: abierto`, latidos y avisos; `http.ResponseController.SetWriteDeadline(ahora + 60 s)`): el flujo vive lo que dure el
+  token, y un cliente que dejó de leer sin cerrar (el móvil perdió la señal y no mandó RST) tumba la escritura a los 60 s en vez de
+  retener el canal —y su hueco de los 3— hasta el timeout de TCP, que son horas. La siguiente petición de la misma conexión y el
+  resto de rutas conservan su `WriteTimeout`. Un escritor que no lo permita da `500` (se ve) en vez de abrirse y morir a los 60 s.
+- **Registro:** `httpx.Registro` escribe **una** línea al terminar, no al abrir: su `ms` es lo que duró el canal y su hora es la del final.
+- **Cliente:** no vale el `EventSource` del navegador (no manda cabeceras), que aquí no se usa: la entrega es de APK y escritorio,
+  que leen el flujo con su cliente HTTP.
+
+| Código | `codigo` | Cuándo |
+|---|---|---|
+| 200 | — | Flujo abierto (arriba) |
+| 400 | — | `Falta el aparato` · `El aparato no es un identificador válido` |
+| 401 | — | `Unauthorized`: sin token, roto, caducado o cortado por Accesos |
+| 403 | `sin_permiso_reparto` | Token que **no es de entrega** (el normal de la APK, el de un revisor…) |
+| 403 | `aparato_ajeno` | `Ese aparato no es tuyo.` |
+| 404 | `aparato_no_registrado` | `Ese aparato no está registrado. Vuelve a darlo de alta.` |
+| 429 | `avisos_al_tope` | Más de 3 canales de la persona, o más de 500 en el servicio · `Retry-After: 30` |
+| 500 | — | `Este servidor no puede mantener el canal de avisos abierto.` (el escritor no deja quitar el plazo de escritura: no debería pasar) |
 
 ## 12.4 `sync`: la bandeja del revisor (token NORMAL)
 

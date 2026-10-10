@@ -187,6 +187,8 @@ type Servicio struct {
 	ahora     func() time.Time
 	tope      int32
 	log       *slog.Logger
+	// El aviso en vivo de la revisión (`avisos.go`): memoria de ESTE proceso.
+	avisos *avisos
 }
 
 func Nuevo(o Opciones) *Servicio {
@@ -197,6 +199,7 @@ func Nuevo(o Opciones) *Servicio {
 		ahora:     o.Ahora,
 		tope:      o.TopeBajada,
 		log:       o.Log,
+		avisos:    nuevosAvisos(),
 	}
 	if s.ahora == nil {
 		s.ahora = func() time.Time { return time.Now().UTC() }

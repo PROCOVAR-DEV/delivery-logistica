@@ -207,12 +207,31 @@ func (s *Servicio) aplicarEntrega(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, salida)
 }
 
-// aplicarDeRevision es el cuerpo entero de «Aplicar» para UN apunte. Devuelve:
+// aplicarDeRevision es «Aplicar» para UN apunte más el AVISO EN VIVO a quien lo entregó (`avisos.go`). Es el
+// sitio central de los dos caminos (uno y «aplicar todo en orden»): un tercero que se añada no se olvida de avisar.
+//
+// SE AVISA SÓLO SI EL APUNTE QUEDÓ DECIDIDO Y ESCRITO: sin error ni fallo, el resultado es `aplicado` o `rechazado`
+// y su transacción ya se confirmó (cada rama de [Servicio.aplicarYAnotar] vuelve de su `EnTransaccion` antes de
+// llegar aquí; nada de esto corre dentro de una). Un fallo (no se pudo tomar, el reparto se cayó y el apunte vuelve
+// a `en_revision`, no se pudo anotar) deja al apunte donde estaba para quien lo mira, así que no hay nada que contar.
+// El aviso es un extra: `avisar` no bloquea ni falla, y sin suscriptores no hace nada.
+//
+// A QUIÉN: a la persona DUEÑA del apunte (`p.Persona`, sale de la fila de la entrega), jamás al revisor.
+func (s *Servicio) aplicarDeRevision(ctx context.Context, quien identidad.Identidad, rol string, p paraAplicar,
+	traduce *traductor, reintentarInterrumpido bool) (resultadoDeRevision, *falloDeEntrega, error) {
+	res, f, err := s.aplicarYAnotar(ctx, quien, rol, p, traduce, reintentarInterrumpido)
+	if err == nil && f == nil {
+		s.avisos.avisar(p.Persona)
+	}
+	return res, f, err
+}
+
+// aplicarYAnotar es el cuerpo entero de «Aplicar» para UN apunte. Devuelve:
 //   - el resultado, si el apunte quedó `aplicado` o `rechazado`;
 //   - un [falloDeEntrega] si no hubo resultado que dar: no se pudo tomar (403/404/409), el reparto se cayó
 //     (502, el apunte vuelve a `en_revision`) o el permiso del revisor no vale en Reparto (403);
 //   - un `error` sólo si falló la base.
-func (s *Servicio) aplicarDeRevision(ctx context.Context, quien identidad.Identidad, rol string, p paraAplicar,
+func (s *Servicio) aplicarYAnotar(ctx context.Context, quien identidad.Identidad, rol string, p paraAplicar,
 	traduce *traductor, reintentarInterrumpido bool) (resultadoDeRevision, *falloDeEntrega, error) {
 	nombre := textoOpcional(quien.Nombre, topeTextoDeAuditoria)
 	filtro := alcance(quien.Alcance())

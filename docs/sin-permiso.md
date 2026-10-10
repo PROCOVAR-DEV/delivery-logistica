@@ -198,11 +198,100 @@ subir» (ya está arriba), por eso el menú de cuenta y «salir con el gesto» n
 una copia** de la persona (`PersonaEnElAparato.enRevision`): ese apunte local es lo único que le dice qué entregó y qué se hizo
 con ello.
 
-Cómo se enteran estos estados: el botón «Actualizar estados» y **el ciclo normal**, que consulta `GET /sync/revision/mias` entre
-subir y bajar **solo si hay algo `enRevision`**, sin que un fallo tumbe la bajada. No hay sondeo ni aviso en vivo. Si más tarde
+Cómo se enteran estos estados: **el aviso en vivo** (siguiente subsección), el botón «Actualizar estados» (que sigue ahí de
+respaldo) y **el ciclo normal**, que consulta `GET /sync/revision/mias` entre subir y bajar **solo si hay algo `enRevision`**,
+sin que un fallo tumbe la bajada. **No hay sondeo**: ningún temporizador consulta `mias`. Si más tarde
 devuelven el rol: se entra como siempre, los `pendiente` suben solos y **los `enRevision` no se reenvían** (`lote()` solo devuelve
 `pendiente`); si `sync` contesta `en_revision` a una subida, la app lo entiende (`EstadoResultado.enRevision`) y no lo toma por
 rechazo.
+
+### El aviso en vivo: el panel se entera solo (10/10/2026)
+
+Jose lo probó en un móvil real: el administrador aplicó el cambio y el teléfono siguió diciendo «Todavía no se ha aplicado
+nada» hasta pulsar «Actualizar estados». «Nada de polling: para eso tenemos SSE.» Ahora, mientras el panel está en pantalla
+y hay algo `enRevision`, la app mantiene **UNA conexión** `GET {SYNC_URL}/revision/eventos?aparato=<id del aparato>` (SSE,
+`Authorization: Bearer <token de entrega>`, el contrato está en `docs/contratos-api.md` §12.3). Cuando el servidor dice
+`event: revision` —un revisor aplicó, rechazó al aplicar o descartó un apunte de ESTA persona— la app hace **la misma consulta
+que «Actualizar estados»** (`ControlDeEntrega.alAvisoDeRevision` → `actualizarEstados()`, `GET /sync/revision/mias`) y la fila pasa a
+«Aplicado por Marta Pérez…» sin tocar nada. El aviso no trae datos: dice «mira», y quien lo recibe pregunta (la respuesta ya va
+acotada a su persona).
+
+**Y la misma consulta en cada (re)apertura del flujo, también la primera** (en cuanto llega el 200, `abierto`). El servidor no
+guarda eventos ni hay `Last-Event-ID` (`contratos-api.md` §12.3: «`mias` se consulta tras cada (re)conexión»), y en `/sin-permiso` el
+ciclo está parado, así que nadie más pregunta. Sin esto, si el revisor decidía mientras el token de entrega caducaba (cada 10
+minutos) o el móvil cambiaba de antena, el panel se quedaba en «Todavía no se ha aplicado nada» con el apunte ya aplicado (lo
+reprodujo la auditoría con el binario real: cierre a los 17369 ms, decisión a los 17409 ms, reapertura sin consulta). Cuesta UNA
+petición por reconexión de 10 minutos y **no es un sondeo**: sin conexión abierta y sin evento no se pregunta nada, y ningún
+temporizador consulta. Es silenciosa, como las de los avisos: solo habla si cambia algo.
+
+**Quién es quién** (todo en `app/lib/`):
+
+* `nucleo/sincro/flujo_de_revision.dart` — el transporte: `abrirFlujoDeRevision`, SSE a mano sobre `dio` (un `Dio` por conexión,
+  que se cierra al soltarla: cancelar la suscripción NO cierra el socket). Cuenta `abierto` al llegar el 200 y el nombre de cada
+  evento; los comentarios (`: abierto`, `: ka`) y el `data` no dicen nada. Si en 60 s no llega ni un byte (el servidor manda
+  `: ka` cada 25 s) lo da por muerto: un móvil que cambió de antena deja el socket abierto de su lado y mudo para siempre.
+  **No reutiliza `escucharEventos`** (`red/eventos_io.dart`) y el porqué está escrito en la cabecera del fichero: ese canal pide
+  siempre `…/eventos` sin `?aparato=`, entiende otros eventos, trata el 401 con una renovación inmediata, cierra para siempre con
+  cualquier 4xx (el 429 incluido) y no lee `Retry-After`; cambiarlo es retocar el canal de los pedidos. Sí reutiliza su espera
+  creciente (`esperaDeReintento`) y sus lecciones (el `Dio` por conexión, la guarda de `FLUTTER_TEST`).
+* `nucleo/sincro/escucha_de_revision.dart` — `EscuchaDeRevision`: la política. `iniciar()` y `parar()` (idempotentes; `parar`
+  lo suelta TODO). Pide el token con `EntregaARevision.paraElAvisoEnVivo()`, que usa el mismo `_pedirToken` que «Actualizar estados»
+  (no hay otro cliente de Accesos y el refresh no se gasta).
+* `pantallas/acceso/vista/panel_de_entrega.dart` — `escuchaDeRevisionProvider` (cuándo vive), `abridorDeFlujoDeRevisionProvider`
+  (cómo se abre, lo que cambian las pruebas) y `ControlDeEntrega.alAvisoDeRevision`.
+
+**Cuándo vive** (`escuchaDeRevisionProvider`, `autoDispose`, y `PanelDeEntrega` lo mira desde su `build`): las cuatro cosas a la vez.
+(1) Es la APK o el escritorio: **la web no tiene cola ni entrega** (CLAUDE.md §1) y no abre nada. (2) El portero sigue en
+`sinPermiso`: si la persona recupera el permiso, cierra sesión o la sesión muere, el estado cambia y se suelta aunque el panel siga
+un instante montado. (3) Hay algo `enRevision`: sin nada que esperar no se paga la conexión, y al decidirse el último se cierra.
+(4) El panel está montado: al desmontarlo, se cierra y no queda ningún temporizador.
+
+**Qué dice el panel.** Lo mismo que el botón, salvo una cosa: **solo habla cuando cambia algo** («1 cambio de estado.») o falla de
+verdad (el literal del fallo, o lo de `truncado`). Un «Sin novedades.» que sale solo se deja de leer. Mientras consulta no borra lo
+que la persona estaba leyendo. Idempotente: un aviso que llega con otra consulta (o una entrega) en vuelo no se pisa ni se
+pierde: se apunta y se hace **UNA** vuelta más al acabar (la decisión pudo tomarse después de que esa consulta leyera); tres
+avisos seguidos son dos consultas, nunca tres, y nunca dos a la vez (la de apertura y «Actualizar estados» cuentan igual).
+
+**El token de la consulta se reutiliza.** Cada aviso y cada apertura piden `mias`, y Accesos tiene un cubo de 10 peticiones de
+entrega con reposición de 1 cada 10 s (`auth/src/app/api/auth/entrega/route.ts`): un revisor que decide más de 10 apuntes uno a
+uno en menos de ~100 s lo agotaría, el panel enseñaría el 429 y la última decisión quedaría sin leer. Por eso
+`EntregaARevision` guarda **en memoria** (nunca a disco ni al registro) el último token que pidió para el flujo o para una consulta,
+con la hora en que lo pidió y de QUIÉN es (otra persona en el mismo aparato no lo hereda), y lo usa mientras le queden **más de 60 s**
+de sus 10 minutos. Pide otro si ya no vale (o si el reloj saltó hacia atrás) o si `mias` contesta `401`, y entonces reintenta UNA vez;
+un `401` con un token recién pedido no se reintenta. Abrir un flujo nuevo pide siempre uno nuevo. La entrega (`entregar()`) pide el
+suyo y no lo comparte. Una ráfaga de 12 avisos pide 1 token.
+
+**Qué pasa cuando algo sale mal** (nada se reintenta al instante ni sin tope):
+
+| Qué | Qué hace la app |
+|---|---|
+| El servidor cierra el flujo (cada 10 min, al caducar el token de entrega) | Reabre a los 2 s **pidiendo otro token**, y al abrir **consulta `mias`** (ponerse al día de lo decidido en el hueco) |
+| No abre, se corta la red, 5xx, sin latido 60 s | Espera creciente **2 s → 4 → 8 → 16 → 32 → 60 s** (tope) |
+| Una conexión que dura 30 s o más | Cuenta como buena: la espera vuelve a 2 s. Un 200 que se corta al instante **no** la reinicia |
+| `401` (token) | Como el anterior, con otro token. Nunca al instante |
+| `429` (más de 3 flujos a la vez) | Espera lo que diga `Retry-After` si es más que la creciente (con tope de 10 min) |
+| `403` (aparato ajeno), `404` (un `sync` que aún no tiene el flujo), cualquier otro 4xx | **Se acaba.** Es un «no» que el tiempo no cambia (la regla de `eventos_io.dart`) |
+| Accesos: sin sesión, ya tiene permiso, sin sucursal, aparato sin alta | **Se acaba** |
+| Accesos: sin red, 5xx, `429` | Espera creciente (el `Retry-After` de Accesos se respeta) |
+
+Cuando se acaba, la pantalla no se queda sin nada: «Actualizar estados» sigue ahí, y es quien dice el motivo si es que falla.
+
+**Lo que NO hace, a propósito:**
+
+* **No consulta por reloj, ni sin `abierto`.** `sin_permiso_test.dart` («Actualizar estados» consulta UNA vez, y no hay sondeo) sigue
+  fijando que diez minutos de panel abierto son cero consultas con la escucha «sin servidor», y su hermana, con la escucha de
+  verdad abierta (doble del flujo), que son **una**, la de apertura. Si el flujo no llega a abrir (sin red, 401, 429…) no hay nada que
+  ponerse al día y no se pregunta: ahí vale el botón. Un servidor que acepta y se muere al instante da un `abierto` por cada vuelta;
+  la espera creciente (2 a 60 s) lo acota a una consulta por vuelta, como mucho una por minuto.
+* **El revisor no tiene aviso en vivo**: sigue con «Actualizar» (`bandeja-de-revision.md`, punto 8).
+* No hay indicador de «en vivo» en la pantalla.
+
+Pruebas: `test/nucleo/sincro/escucha_de_revision_test.dart` (la política, con un doble del flujo y `tester.pump`),
+`test/nucleo/sincro/flujo_de_revision_test.dart` (el transporte, contra un servidor en `127.0.0.1`: ni un byte sale de esta
+máquina), `test/pantallas/acceso/aviso_en_vivo_de_revision_test.dart` (el panel de verdad con los dos bordes sustituidos, la
+consulta al reabrir y el panel que se desmonta con una consulta en vuelo), la hermana «no hay sondeo ni con la escucha de verdad
+abierta» en `sin_permiso_test.dart`, y `paraElAvisoEnVivo` y «el token de entrega se reutiliza» en
+`test/nucleo/sincro/entrega_a_revision_test.dart`.
 
 ### Qué NO está en la web
 

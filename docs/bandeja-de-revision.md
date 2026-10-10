@@ -303,8 +303,9 @@ cuándo y con qué resultado. No se guarda el token, ni el refresh, ni cabeceras
 
 ### Endpoints de `sync`
 
-* Con token de **entrega**: `POST /sync/revision/entrega` y `GET /sync/revision/mias?aparato=…`
-  (esta última acepta también un token normal de la misma persona).
+* Con token de **entrega**: `POST /sync/revision/entrega`, `GET /sync/revision/mias?aparato=…`
+  (esta acepta también un token normal de la misma persona) y `GET /sync/revision/eventos?aparato=…` (el aviso en vivo, SSE;
+  solo el de entrega, ver punto 8).
 * Con token **normal** de revisor: `GET /sync/revision` (lista, acotada por alcance),
   `GET /sync/revision/{entrega}` (detalle), `POST /sync/revision/{aparato}/{clave}/aplicar`,
   `POST /sync/revision/{entrega}/aplicar` (en orden), `POST /sync/revision/{aparato}/{clave}/descartar`.
@@ -893,9 +894,19 @@ ahora viaja siempre que el apunte lo tenga.
 7. **El rechazo del reparto al aplicar NO deja el apunte local `rechazado`**: sigue `enRevision` con `motivoRevision`
    puesto («No se pudo aplicar: …. Sigue en revisión.»). Un `rechazado` local ofrecería «Reintentar» y «Descartar» a la
    persona sobre algo que el revisor aún puede aplicar (`aparato.dart`, `cola_salida.dart`, `resolverRevision`).
-8. **No hay aviso en vivo.** Ni `CambioEnVivo.revision` ni ningún evento SSE de revisión: el revisor se entera al pulsar
-   «Actualizar», al volver de una desconexión y tras cada decisión propia (`G-APP2.md`). Lo único «en vivo» es el
-   contador `en_revision` de `GET /sync/estado`, y ninguna pantalla lo enseña todavía.
+8. **Aviso en vivo: SÍ para la persona que entregó (10/10/2026), NO para el revisor.** `sync` ofrece `GET /sync/revision/eventos`
+   (SSE, solo token de entrega): cuando un revisor aplica, rechaza al aplicar o descarta un apunte suyo, a esa persona le llega
+   una señal vacía `event: revision` y consulta `mias` (`avisos.go`, `revision_eventos.go`; contrato en `contratos-api.md` §12.3).
+   **Lado app (APK y escritorio, 10/10/2026):** la pantalla `/sin-permiso` mantiene UNA conexión a ese flujo mientras el panel está
+   montado, el portero sigue en `sinPermiso` y hay algo `enRevision` (la web no abre nada: no tiene cola), y al recibir `revision`
+   hace la misma consulta que «Actualizar estados», que se queda de respaldo. **También la hace en cada (re)apertura del flujo**
+   (el servidor no guarda eventos: lo decidido con el flujo cerrado solo se sabe preguntando; `contratos-api.md` §12.3). Sin
+   sondeo: ningún temporizador consulta. Solo habla cuando cambia algo o falla; reconecta con espera creciente (2 a 60 s,
+   `Retry-After` respetado) y pidiendo otro token al caducar el de entrega. La consulta reutiliza el token del flujo mientras le
+   queden más de 60 s (el cubo de Accesos es de 10 y 1 cada 10 s). Qué hace con cada código, qué no hace y dónde está cada pieza: `docs/sin-permiso.md`, «El aviso en vivo».
+   Memoria de un proceso (con más de una réplica habría que pasarlo por Redis). **El revisor sigue sin aviso**: se entera al
+   pulsar «Actualizar», al volver de una desconexión y tras cada decisión propia (`G-APP2.md`), y no hay `CambioEnVivo.revision`.
+   Lo único «en vivo» del lado del revisor es el contador `en_revision` de `GET /sync/estado`, y ninguna pantalla lo enseña todavía.
 9. **Sin correo de notify (fase 2).** `sync` no tiene cliente de notify; no hay aviso por sucursal y día ni a los 7 días.
 10. **La API no lee `X-Apunte`** (solo lo escribe `reparto.go`), así que no hay red contra la doble aplicación: la única
     es el estado `aplicando` y la confirmación a mano. `X-Autor` y `X-Revision` son solo rastro, y **no van en las líneas de
@@ -993,8 +1004,9 @@ La lista honesta, a 09/10/2026:
   `/revision` con una entrega real sigue pendiente.
 * **Desplegado el 09/10/2026**: Accesos `8ba2642`; migraciones 00003 y 00004, sync, API y web de `fa0295a`; APK y Windows 1.0.32+33
   (`c92aca6`). Orden y ritual en `docs/despliegue.md` §4-bis. Falta la prueba física en un teléfono y un PC.
-* **Sin aviso en vivo (SSE) de revisión**: no hay `CambioEnVivo.revision` ni evento alguno; el revisor se entera al pulsar
-  «Actualizar», al volver de una desconexión y tras cada decisión propia, y la persona con «Actualizar estados» o en el ciclo.
+* **Aviso en vivo (SSE) de revisión: solo para la persona que entregó** (`GET /sync/revision/eventos`, 10/10/2026; punto 8 de arriba).
+  **El revisor no lo tiene**: no hay `CambioEnVivo.revision`; se entera al pulsar «Actualizar», al volver de una desconexión y tras
+  cada decisión propia. La persona, además del aviso, tiene «Actualizar estados» y el ciclo.
 * **Sin correo de notify (fase 2)**: `sync` no tiene cliente de notify; no hay aviso por sucursal y día ni a los 7 días.
 * **Sin badge del contador «en revisión» en el menú ni en el panel de Sincronización.** `GET /sync/estado` ya trae `en_revision` por
   sucursal, y ninguna pantalla lo enseña (hoy el contador está solo en la cabecera de `/revision`).

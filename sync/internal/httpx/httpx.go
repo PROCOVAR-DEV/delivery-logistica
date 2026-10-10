@@ -129,3 +129,9 @@ func (e *espiaEstado) WriteHeader(estado int) {
 	e.estado = estado
 	e.ResponseWriter.WriteHeader(estado)
 }
+
+// Unwrap deja a `http.NewResponseController` llegar al escritor de verdad. SIN ESTO el espía lo esconde:
+// `Flush` y `SetWriteDeadline` contestarían `ErrNotSupported` y el canal de avisos en vivo
+// (`GET /sync/revision/eventos`, un SSE) no podría ni vaciar el búfer ni quitarse el `WriteTimeout` de 60 s, que
+// lo mataría en silencio. Ningún otro manejador lo usa: es la puerta, no un cambio de comportamiento.
+func (e *espiaEstado) Unwrap() http.ResponseWriter { return e.ResponseWriter }

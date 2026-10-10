@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -72,6 +73,10 @@ type Identidad struct {
 	// [DeTokenDeEntrega]. Es lo que deja a un manejador exigir «esto sólo con token de entrega»
 	// aunque alguien le monte mal la fuente.
 	Ambito string
+	// Cuándo caduca el token (su `exp`). Sólo la pone [DeTokenDeEntrega]; vacía en el resto. Existe para
+	// el canal de avisos en vivo (`GET /sync/revision/eventos`): un flujo largo que se abrió con un token
+	// de diez minutos no puede sobrevivirle, y el manejador no tiene otro sitio de donde sacar el `exp`.
+	Caduca time.Time
 }
 
 // Alcance devuelve la sucursal por la que hay que filtrar, o nil para «todas». Es lo que

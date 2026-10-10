@@ -1716,6 +1716,19 @@ delante da `ERR_QUIC_PROTOCOL_ERROR`). Las manda el propio servicio; lo que hay 
 vigilar al desplegar es que nadie ponga delante un proxy que amortigüe la respuesta ni un
 tiempo de espera corto para esa ruta.
 
+**`GET /sync/revision/eventos` (10/10/2026) es el segundo SSE de la casa** —el aviso en vivo
+para quien entregó su cola a revisión— y lleva **los mismos tres cuidados**, escritos en
+`sync/internal/sincro/revision_eventos.go` y atados por pruebas: el latido (`: ka` cada 25 s),
+`X-Accel-Buffering: no` y **nunca** `Connection: keep-alive` (prueba con el socket en crudo,
+`TestLaRespuestaDelCanalNoLlevaConnectionTalComoSale`). Más `Cache-Control: no-cache, no-transform`
+y `charset=utf-8`, como `/api/eventos`. Va por el prefijo `/sync`, que **ya** es del sincronizador
+en Traefik (`PathPrefix(`/sync`)` de `reparto.procovar.cloud`): no hay ruta que añadir. Lo que sí hay
+que vigilar al desplegar: que ningún proxy amortigüe la respuesta ni le ponga un tiempo de espera
+corto a esa ruta (el canal vive hasta 10 minutos, lo que dura el token de entrega), y que
+`reparto-sync` siga con **una réplica** —el aviso es memoria de un proceso—. `sync` arranca con
+`WriteTimeout` de 60 s; este manejador lo sustituye por un plazo renovado en cada escritura
+(`contratos-api.md` §12.3), así que el flujo no muere a los 60 s.
+
 ### 6-ter. El Build Arg `VERSION`: que la api sepa decir qué está corriendo
 
 **Comprobado el 24/09/2026:** `GET https://reparto.procovar.cloud/api/version` contestaba

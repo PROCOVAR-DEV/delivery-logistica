@@ -139,6 +139,7 @@ func DeTokenDeEntrega(secreto []byte, resolutor Resolutor, inv Invalidaciones) F
 		}
 
 		id.Nombre, id.Jti, id.Ambito = strings.TrimSpace(c.Nombre), c.Jti, AmbitoEntrega
+		id.Caduca = time.Unix(int64(*c.Exp), 0)
 		// NO se guarda id.Token: ver el comentario del fichero. NO es Super Admin, nunca.
 		id.EsSuperAdmin = false
 		return id, nil

@@ -328,7 +328,7 @@ WHERE e.id = a.entrega_id
   AND e.persona <> $1::text
   AND ($6::uuid IS NULL OR e.branch_id = $6::uuid)
 RETURNING a.aparato_id, a.clave, a.entrega_id, a.orden, a.estado, a.decidido_por, a.decidido_por_nombre,
-          a.decidido_at, a.motivo
+          a.decidido_at, a.motivo, e.persona
 `
 
 type DescartarRevisionApunteParams struct {
@@ -350,10 +350,13 @@ type DescartarRevisionApunteRow struct {
 	DecididoPorNombre *string            `json:"decidido_por_nombre"`
 	DecididoAt        pgtype.Timestamptz `json:"decidido_at"`
 	Motivo            *string            `json:"motivo"`
+	Persona           string             `json:"persona"`
 }
 
 // DESCARTAR: SÓLO lo que sigue esperando, SÓLO de otra persona, SÓLO dentro del alcance, y con un motivo
 // escrito (la base lo exige: ≥ 5 caracteres). No borra: marca `descartado` con quién y cuándo.
+// `e.persona` (QUIÉN LO ENTREGÓ) vuelve en la misma sentencia: el aviso en vivo se lo manda a esa persona sin
+// ninguna lectura más antes de contestar al revisor (`descartarApunte`).
 func (q *Queries) DescartarRevisionApunte(ctx context.Context, arg DescartarRevisionApunteParams) (DescartarRevisionApunteRow, error) {
 	row := q.db.QueryRow(ctx, descartarRevisionApunte,
 		arg.Revisor,
@@ -374,6 +377,7 @@ func (q *Queries) DescartarRevisionApunte(ctx context.Context, arg DescartarRevi
 		&i.DecididoPorNombre,
 		&i.DecididoAt,
 		&i.Motivo,
+		&i.Persona,
 	)
 	return i, err
 }

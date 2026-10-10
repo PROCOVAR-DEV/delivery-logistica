@@ -52,6 +52,9 @@ type entorno struct {
 	normal  identidad.Identidad
 	reloj   time.Time
 	log     *bytes.Buffer
+	// Si no es nil, el contexto de las peticiones de `pedir` (una prueba lo cancela a mitad para ver qué pasa cuando
+	// el cliente se va).
+	ctx context.Context
 }
 
 func nuevoEntorno(t *testing.T, motor string, datos store.Datos) *entorno {
@@ -74,7 +77,7 @@ func nuevoEntorno(t *testing.T, motor string, datos store.Datos) *entorno {
 	e.aparato = aparato
 
 	e.entrega = identidad.Identidad{Persona: e.persona, Nombre: "Yasmani", Sucursal: e.sucursal,
-		Jti: "jti-" + uuid.NewString(), Ambito: identidad.AmbitoEntrega}
+		Jti: "jti-" + uuid.NewString(), Ambito: identidad.AmbitoEntrega, Caduca: time.Now().Add(10 * time.Minute)}
 	e.normal = identidad.Identidad{Persona: e.persona, Sucursal: e.sucursal, Token: "token-normal"}
 
 	interno := http.NewServeMux()
@@ -141,6 +144,9 @@ func (e *entorno) pedir(metodo, ruta string, cuerpo any) *httptest.ResponseRecor
 		}
 	}
 	req := httptest.NewRequest(metodo, ruta, bytes.NewReader(datos))
+	if e.ctx != nil {
+		req = req.WithContext(e.ctx)
+	}
 	w := httptest.NewRecorder()
 	e.publico.ServeHTTP(w, req)
 	return w

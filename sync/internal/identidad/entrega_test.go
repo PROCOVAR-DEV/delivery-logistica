@@ -464,3 +464,26 @@ func TestUnTokenDeEntregaSinSucursalSeRechazaAntesDelResolutor(t *testing.T) {
 		t.Errorf("el token bueno: %+v %v (resolutor llamado %d veces)", id, err, llamadas)
 	}
 }
+
+// EL `exp` DEL TOKEN DE ENTREGA LLEGA A LA IDENTIDAD. El canal de avisos en vivo (`GET /sync/revision/eventos`)
+// es un flujo largo abierto con un token de diez minutos, y se cierra solo cuando ese token caduca: el manejador
+// no ve el token, sólo la [Identidad], así que si `Caduca` no sale de aquí no hay con qué cerrarlo. Sin esta
+// prueba, quitar la asignación dejaría el canal fallando cerrado en producción y verde aquí.
+func TestElTokenDeEntregaLlevaSuCaducidadALaIdentidad(t *testing.T) {
+	exp := time.Now().Add(7 * time.Minute).Unix()
+	id, err := deEntrega(t, con(elTokenDeEntrega(), "exp", exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !id.Caduca.Equal(time.Unix(exp, 0)) {
+		t.Errorf("Caduca = %s, tenía que ser el `exp` del token (%s)", id.Caduca, time.Unix(exp, 0))
+	}
+	// Y un token normal no la lleva: no es de nadie que abra el canal.
+	n, err := normal(t, sin(con(elTokenDeEntrega(), "entradas", []string{llaveEntrarReparto}), "ambito", "purpose"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !n.Caduca.IsZero() {
+		t.Errorf("un token normal trae Caduca = %s", n.Caduca)
+	}
+}

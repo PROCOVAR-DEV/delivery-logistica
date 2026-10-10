@@ -135,6 +135,10 @@ func arrancar(log *slog.Logger) error {
 		WriteTimeout: cfg.EsperaEscritura,
 		IdleTimeout:  2 * time.Minute,
 	}
+	// El aviso en vivo de la revisión (`GET /sync/revision/eventos`) es un SSE que no queda inactivo nunca:
+	// sin esto, `Shutdown` esperaría a los 30 s de abajo a conexiones que no van a terminar solas, y se los
+	// quitaría a las colas que se están aplicando. Cierra SÓLO esos canales; las demás peticiones terminan solas.
+	servidor.RegisterOnShutdown(servicio.CerrarAvisos)
 
 	fallo := make(chan error, 1)
 	go func() {

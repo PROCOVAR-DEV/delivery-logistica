@@ -408,6 +408,7 @@ func (b *baseRevisionFalsa) DescartarRevisionApunte(_ context.Context, arg sqlc.
 	return sqlc.DescartarRevisionApunteRow{
 		AparatoID: a.AparatoID, Clave: a.Clave, EntregaID: a.EntregaID, Orden: a.Orden, Estado: a.Estado,
 		DecididoPor: a.DecididoPor, DecididoPorNombre: a.DecididoPorNombre, DecididoAt: a.DecididoAt, Motivo: a.Motivo,
+		Persona: b.m.entregas[a.EntregaID].Persona, // `RETURNING e.persona`
 	}, nil
 }
 

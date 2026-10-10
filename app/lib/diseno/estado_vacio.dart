@@ -11,33 +11,38 @@ class EstadoVacio extends StatelessWidget {
   final String texto;
   final IconData? icono;
 
+  /// `Center`: la columna se encoge al ancho de su texto y, sin esto, en una
+  /// tarjeta ancha (la web, el escritorio) se queda PEGADA A LA IZQUIERDA con el
+  /// icono y el texto centrados solo entre si (10/10/2026, bandeja de Revision).
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 48, horizontal: Aire.lg),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (icono != null) ...[
-          // El icono en su circulo de papel, como los estados vacios de
-          // delivery: un icono suelto sobre blanco se lee como un fallo.
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colores.grisFondo,
-              shape: BoxShape.circle,
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: Aire.lg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icono != null) ...[
+            // El icono en su circulo de papel, como los estados vacios de
+            // delivery: un icono suelto sobre blanco se lee como un fallo.
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: Colores.grisFondo,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icono, size: 24, color: Colores.tintaSuave),
             ),
-            child: Icon(icono, size: 24, color: Colores.tintaSuave),
+            const SizedBox(height: Aire.md),
+          ],
+          Text(
+            texto,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: Colores.tintaSuave),
           ),
-          const SizedBox(height: Aire.md),
         ],
-        Text(
-          texto,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium
-              ?.copyWith(color: Colores.tintaSuave),
-        ),
-      ],
+      ),
     ),
   );
 }

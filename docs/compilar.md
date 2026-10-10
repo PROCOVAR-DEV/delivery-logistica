@@ -198,11 +198,13 @@ El artefacto del trabajo contiene:
 Antes de ofrecerlo en procovar.cloud hay que descargar ese artefacto, contrastar
 sus huellas, publicar el instalador sin sobrescribir versiones y comprobar su descarga.
 
-La versión **1.0.32+33** (09/10/2026) está en procovar.cloud como **Reparto para Windows**:
-el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.32-windows-setup.exe)
-(16.299.762 bytes, sha256 `d9627cff…28843e`). La ejecución [37982973531 de GitHub Actions](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37982973531),
-sobre el commit `c92aca6` en la organización, compiló e instaló la copia de prueba y cotejó sus archivos.
-(La de la 1.0.31 fue la [37949743642](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37949743642), sobre `5838ce8`; la de la 1.0.30 fue la [37834921676](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37834921676); la de la 1.0.29 fue la [37812597394](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37812597394); la de la 1.0.28 la [37781825464](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37781825464); la de la 1.0.27, [37537712382](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37537712382),
+La versión **1.0.33+34** (10/10/2026) está en procovar.cloud como **Reparto para Windows**:
+el botón «Abrir» descarga el [instalador de Windows](https://archivos.procovar.cloud/reparto/windows/reparto-1.0.33-windows-setup.exe)
+(16.311.983 bytes, sha256 `5b1d4123…b84852`). La ejecución [38072725078 de GitHub Actions](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/38072725078),
+sobre el commit `4c3518c` en la organización, compiló e instaló la copia de prueba y cotejó sus archivos.
+(La primera ejecución de la 1.0.33, 38071946763 sobre `f6e34a5`, falló por UNA prueba que esperaba 400 ms a que se rechazara una conexión a un
+puerto cerrado y en Windows tarda ~2 s: `flujo_de_revision_test.dart`; se arregló en `4c3518c`. La de la 1.0.32 fue la
+[37982973531](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37982973531), sobre `c92aca6`; la de la 1.0.31 fue la [37949743642](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37949743642), sobre `5838ce8`; la de la 1.0.30 fue la [37834921676](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37834921676); la de la 1.0.29 fue la [37812597394](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37812597394); la de la 1.0.28 la [37781825464](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37781825464); la de la 1.0.27, [37537712382](https://github.com/PROCOVAR-DEV/delivery-logistica/actions/runs/37537712382),
 bajo `jose22072000` da 404: ahora vive en la organización.) Las descargas públicas se
 verificaron por tamaño y SHA256 antes de actualizar la tarjeta. Abrir, iniciar sesión
 y trabajar sin conexión en el PC del usuario quedan pendientes de prueba física.
@@ -215,6 +217,16 @@ eliminar mientras no esté completada; los estados de paradas se revisan al puls
 «Marcar como completada» y el histórico queda de sólo lectura. Una hoja rechazada
 retiene el cierre de esa ruta en la cola nativa. Windows conserva su base local para
 trabajar sin conexión; la web trabaja conectada al servidor.
+
+La 1.0.33 trae el **aviso en vivo a la persona** que entregó su cola a revisión (SSE `GET /sync/revision/eventos`, `docs/contratos-api.md`
+§12.3: se entera sola cuando el revisor decide, sin pulsar «Actualizar estados»; sin sondeo, una consulta al abrir cada conexión) y la casilla
+**«Código en Ventra»** de la pantalla de Almacenes (APK y escritorio; la web ya la tenía). Se publicó el 10/10/2026 con `publicacion-1.0.33/` (APK
+`reparto-1.0.33-261010.apk`, 79.986.088 bytes, sha256 `50c1a83d…897d79`, commit `4c3518c`; Windows y Android en `production_verified`, tarjetas 12 y 13
+del portal verificadas con navegador real, 5/5 cada una). El servidor (sync con el canal nuevo, sin migraciones; web; Accesos con la columna `codigo` del
+almacén) se desplegó antes. **Trampa de la subida:** la primera comprobación de rango falla SIEMPRE y la reanudación (`--mode resume`,
+`--publish --resume-uploaded`) solo pasa después de **calentar con 3 peticiones `Range: bytes=0-15` CADA UNO de los ficheros** (el `.exe` Y el `.zip`
+en Windows; solo calentar el `.exe` no bastó). **Falta la prueba física** en un teléfono y un PC, y la prueba del aviso en vivo en un móvil real
+(que Cloudflare y Traefik dejan pasar el canal: el servidor manda las mismas cabeceras y latido que `/api/eventos`, pero no se ha visto en producción).
 
 La 1.0.32 trae la **bandeja de revisión** (`docs/bandeja-de-revision.md`): quien conserva la sesión pero pierde
 `delivery.entrar` entrega a revisión lo que tenía sin subir (pantalla `/sin-permiso`, solo APK y escritorio), y el
@@ -243,10 +255,10 @@ la APK que reconocen el `sin_permiso` de Accesos (`docs/sin-permiso.md`). La 1.0
 `PATCH /api/orders`, camión de otra sucursal, armado local del Tablero como el servidor, cajón de
 acuse en el cierre parcial; ver `docs/reglas-negocio.md` §15.14).
 
-Android y Windows están publicados como **1.0.32+33**, con el anuncio global y las dos
-tarjetas del portal actualizadas (los diarios `.publish-*-1.0.32*` están en `production_verified`).
+Android y Windows están publicados como **1.0.33+34**, con el anuncio global y las dos
+tarjetas del portal actualizadas (los diarios `.publish-*-1.0.33*` están en `production_verified`).
 **Falta la prueba física** en un teléfono con una base 1.0.27 llena (el esquema local pasa de la 4
-a la 6 con un `DROP COLUMN`) y en un PC. Se puede instalar Windows 1.0.32 desde el portal sobre la
+a la 6 con un `DROP COLUMN`) y en un PC. Se puede instalar Windows 1.0.33 desde el portal sobre la
 versión anterior. La actualización automática en el PC del usuario no se ha probado;
 separar el aviso de versión por plataforma sigue siendo un pendiente de arquitectura.
 Las versiones anteriores se conservan.

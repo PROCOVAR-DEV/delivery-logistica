@@ -79,10 +79,14 @@ type pedidoFalso struct {
 	// punto de entrega un pedido que ya estaba colocado.
 	lat, lng float64
 	factura  *sqlc.FacturaEstado
-	// fecha es `order_date`, el segundo trozo del orden de la mitad izquierda y del
-	// cursor. Nil es un pedido SIN fecha, que va al final (`DESC NULLS LAST`) y es donde
+	// fecha es `order_date`, la fecha de repuesto del orden de la mitad izquierda y del
+	// cursor. Nil es un pedido SIN fecha, que va al final (`NULLS LAST`) y es donde
 	// un cursor mal escrito se repite a sí mismo o se salta filas.
 	fecha *time.Time
+	// facturaAt es `factura_at`, la fecha PRINCIPAL del orden desde el 14/10/2026 (issue 6
+	// de Amado): manda sobre `fecha` cuando existe. facturaNumero es `factura_numero`.
+	facturaAt     *time.Time
+	facturaNumero string
 	// entregado es `delivered_at` + `resultado = 'entregado'`, las dos columnas que
 	// `MarcarResultadoDeParada` escribe y limpia JUNTAS. Con `ruta` a nil es el caso que
 	// da miedo y que en producción llega solo: la clave ajena de `orders.route_id` es
@@ -726,12 +730,25 @@ func (q *tableroFalso) ListarPedidosSinColocar(_ context.Context, arg sqlc.Lista
 		if p.fecha != nil {
 			fila.OrderDate = pgtype.Timestamptz{Time: *p.fecha, Valid: true}
 		}
+		if p.facturaAt != nil {
+			fila.FacturaAt = pgtype.Timestamptz{Time: *p.facturaAt, Valid: true}
+		}
+		if p.facturaNumero != "" {
+			numero := p.facturaNumero
+			fila.FacturaNumero = &numero
+		}
+		// `coalesce(factura_at, order_date)`: la fecha por la que se ordena y se corta.
+		fila.FechaCronologica = fila.FacturaAt
+		if !fila.FechaCronologica.Valid {
+			fila.FechaCronologica = fila.OrderDate
+		}
 		salida = append(salida, fila)
 	}
-	// El encargo: el más cerca del almacén primero, y el desempate del SQL de verdad
-	// —`km ASC, order_date DESC NULLS LAST, id ASC`—. Sin el desempate, dos clientes del
-	// mismo edificio salen en un orden distinto en cada llamada y un cursor sobre eso no
-	// puede funcionar: no es que pagine mal, es que no hay por dónde cortar.
+	// El encargo (14/10/2026): del más viejo al más reciente por la fecha de la factura, y
+	// el desempate del SQL de verdad —`fecha_cronologica ASC NULLS LAST, id ASC`—. Sin el
+	// desempate, dos facturas de la misma hora salen en un orden distinto en cada llamada
+	// y un cursor sobre eso no puede funcionar: no es que pagine mal, es que no hay por
+	// dónde cortar.
 	sort.Slice(salida, func(i, j int) bool { return vaAntes(salida[i], salida[j]) })
 	// El corte del cursor: se dejan fuera las filas que NO van después de la terna.
 	var tanda []sqlc.ListarPedidosSinColocarRow
@@ -747,16 +764,13 @@ func (q *tableroFalso) ListarPedidosSinColocar(_ context.Context, arg sqlc.Lista
 	return tanda, nil
 }
 
-// vaAntes repite `ORDER BY km_al_almacen ASC, o.order_date DESC NULLS LAST, o.id ASC`.
+// vaAntes repite `ORDER BY fecha_cronologica ASC NULLS LAST, o.id ASC`.
 func vaAntes(a, b sqlc.ListarPedidosSinColocarRow) bool {
-	if a.KmAlAlmacen != b.KmAlAlmacen {
-		return a.KmAlAlmacen < b.KmAlAlmacen
+	if a.FechaCronologica.Valid != b.FechaCronologica.Valid {
+		return a.FechaCronologica.Valid // las que no tienen fecha van al final
 	}
-	if a.OrderDate.Valid != b.OrderDate.Valid {
-		return a.OrderDate.Valid // las que no tienen fecha van al final
-	}
-	if a.OrderDate.Valid && !a.OrderDate.Time.Equal(b.OrderDate.Time) {
-		return a.OrderDate.Time.After(b.OrderDate.Time) // la más reciente primero
+	if a.FechaCronologica.Valid && !a.FechaCronologica.Time.Equal(b.FechaCronologica.Time) {
+		return a.FechaCronologica.Time.Before(b.FechaCronologica.Time) // la más vieja primero
 	}
 	return a.ID.String() < b.ID.String()
 }
@@ -768,24 +782,14 @@ func despuesDelCursor(f sqlc.ListarPedidosSinColocarRow, arg sqlc.ListarPedidosS
 	if !arg.DesdeID.Valid {
 		return true // desde el principio
 	}
-	if arg.DesdeKm == nil {
-		// Los tres van juntos. En la base esto deja la comparación en NULL y no sale
-		// ninguna fila; aquí se hace lo mismo para que nadie se fíe de un cursor a medias.
-		return false
-	}
-	if f.KmAlAlmacen > *arg.DesdeKm {
-		return true
-	}
-	if f.KmAlAlmacen != *arg.DesdeKm {
-		return false
-	}
 	switch {
-	case arg.DesdeFecha.Valid && !f.OrderDate.Valid:
+	case arg.DesdeFecha.Valid && f.FechaCronologica.Valid &&
+		f.FechaCronologica.Time.After(arg.DesdeFecha.Time):
 		return true
-	case arg.DesdeFecha.Valid && f.OrderDate.Valid && f.OrderDate.Time.Before(arg.DesdeFecha.Time):
-		return true
-	case f.OrderDate.Valid == arg.DesdeFecha.Valid &&
-		(!f.OrderDate.Valid || f.OrderDate.Time.Equal(arg.DesdeFecha.Time)):
+	case arg.DesdeFecha.Valid && !f.FechaCronologica.Valid:
+		return true // las sin fecha van al final: son «después» de cualquier fecha
+	case f.FechaCronologica.Valid == arg.DesdeFecha.Valid &&
+		(!f.FechaCronologica.Valid || f.FechaCronologica.Time.Equal(arg.DesdeFecha.Time)):
 		return f.ID.String() > uuid.UUID(arg.DesdeID.Bytes).String()
 	}
 	return false
@@ -1270,9 +1274,23 @@ func TestQuitarDosVecesNoFalla(t *testing.T) {
 	}
 }
 
-// La mitad izquierda sale ordenada por cercanía al almacén, que es el encargo entero.
-func TestLosSinColocarSalenPorCercania(t *testing.T) {
-	h := montarTab(t, nuevoTablero())
+// La mitad izquierda sale del más viejo al más reciente por la fecha de la factura (Amado,
+// issue 6, 14/10/2026). Hasta ese día salía por cercanía al almacén, que era el encargo.
+//
+// Las fechas están puestas para que NI la cercanía NI el id den este orden: por distancia
+// saldría ped1, ped3, ped2 y por id ped1, ped2, ped3.
+func TestLosSinColocarSalenDelMasViejoAlMasReciente(t *testing.T) {
+	q := nuevoTablero()
+	dia := func(d int) *time.Time {
+		f := time.Date(2026, 10, d, 9, 0, 0, 0, time.UTC)
+		return &f
+	}
+	for id, f := range map[uuid.UUID]*time.Time{ped1: dia(13), ped2: dia(2), ped3: dia(7)} {
+		p := q.pedidos[id]
+		p.facturaAt = f
+		q.pedidos[id] = p
+	}
+	h := montarTab(t, q)
 	w := pedirTab(t, h, http.MethodGet, "/api/board/unplaced", tokenTab(t, sucStg.String()), "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
@@ -1282,14 +1300,16 @@ func TestLosSinColocarSalenPorCercania(t *testing.T) {
 	if len(lista) < 3 {
 		t.Fatalf("faltan pedidos: %s", w.Body.String())
 	}
-	anterior := -1.0
+	var salieron []string
 	for _, cruda := range lista {
-		p := cruda.(map[string]any)
-		km := p["kmAlAlmacen"].(float64)
-		if km < anterior {
-			t.Fatalf("la lista no va del más cerca al más lejos: %s", w.Body.String())
+		salieron = append(salieron, cruda.(map[string]any)["id"].(string))
+	}
+	esperado := []string{ped2.String(), ped3.String(), ped1.String()}
+	for i, id := range esperado {
+		if salieron[i] != id {
+			t.Fatalf("la lista no va del más viejo al más reciente por la factura.\n"+
+				"  salió:    %v\n  esperado: %v", salieron, esperado)
 		}
-		anterior = km
 	}
 	// El pedido que ya va en una ruta no está: el listón es el mismo del armador.
 	if strings.Contains(w.Body.String(), "Ya salió") {

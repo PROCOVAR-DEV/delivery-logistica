@@ -131,6 +131,41 @@ void main() {
     );
   });
 
+  test('el pedido llega con su factura: el número Y cuándo se facturó', () async {
+    // Amado, issues 6 y 8 (14/10/2026): el detalle dice cuándo se facturó y «Sin
+    // colocar» va por la fecha de la factura. `orders.factura_at` existía y NADIE la
+    // escribía: valía NULL en todo el aparato y todo lo anterior caía, sin un error, a
+    // la fecha del pedido.
+    await conEsto(<String, Object?>{
+      'orders': conjunto([
+        <String, Object?>{
+          'id': 'p-1',
+          'customerName': 'Bodega El Cruce',
+          'address': 'Km 8',
+          'weight': 800.0,
+          'status': 'pending',
+          'facturaEstado': 'igual',
+          'facturaNumero': '1024237',
+          'facturaAt': '2026-10-12T09:30:00.000Z',
+          'updatedAt': '2026-10-12T09:30:00.000Z',
+        },
+      ]),
+    }).ciclo();
+
+    final p = await (base.select(
+      base.orders,
+    )..where((t) => t.id.equals('p-1'))).getSingle();
+
+    expect(p.facturaNumero, '1024237');
+    expect(
+      p.facturaAt?.toUtc(),
+      DateTime.utc(2026, 10, 12, 9, 30),
+      reason:
+          '`facturaAt` no se copia: la columna se queda nula, el detalle no puede '
+          'decir cuándo se facturó y «Sin colocar» se ordena por la fecha del pedido.',
+    );
+  });
+
   test('el cliente llega con su origen, y no como «Manual»', () async {
     await conEsto(<String, Object?>{
       'customers': conjunto([

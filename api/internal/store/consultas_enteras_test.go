@@ -57,7 +57,7 @@ func TestElCursorEstaEnLasDosConsultas(t *testing.T) {
 
 	for _, nombre := range []string{"ListarPedidosSinColocar", "ContarPedidosSinColocar"} {
 		cuerpo := cuerpoDe(t, sql, nombre)
-		for _, trozo := range []string{"desde_id", "desde_km", "desde_fecha"} {
+		for _, trozo := range []string{"desde_id", "desde_fecha"} {
 			if !strings.Contains(cuerpo, trozo) {
 				t.Errorf("a %s le falta «%s» del cursor.\n"+
 					"Los dos `WHERE` tienen que ser el mismo texto o el número de arriba "+

@@ -177,10 +177,10 @@ const (
 // EL TOPE YA NO ES UN TECHO, ES UNA TANDA. Hasta el 18/09/2026 sí era un techo: la
 // consulta acababa en `LIMIT` sin `OFFSET` ni cursor, así que lo que no cabía en los 200
 // primeros NO SE PODÍA PEDIR DE NINGUNA MANERA. Medido en producción el 17/09/2026, La
-// Habana tenía 300 pedidos sin colocar: el logístico veía los 200 más cercanos y los 100
-// más lejanos no existían para él. `Truncated` lo avisaba y no llevaba a ningún sitio,
-// que es el §3 del CLAUDE.md —pedir un tope y no poder seguir— y el fallo que más caro
-// sale aquí.
+// Habana tenía 300 pedidos sin colocar: el logístico veía los 200 primeros (entonces por
+// cercanía, hoy por antigüedad de la factura) y los 100 últimos no existían para él.
+// `Truncated` lo avisaba y no llevaba a ningún sitio, que es el §3 del CLAUDE.md —pedir un
+// tope y no poder seguir— y el fallo que más caro sale aquí.
 //
 // Ahora se pide la tanda siguiente con `?desde=<cursor>`, y el cursor lo devuelve la
 // respuesta anterior en `siguiente`.
@@ -247,8 +247,9 @@ type TarjetaSalida struct {
 	MismoCliente int `json:"mismoCliente"`
 }
 
-// SinColocarSalida es una tarjeta de la mitad izquierda. `kmAlAlmacen` es el campo por el
-// que existe media pantalla.
+// SinColocarSalida es una tarjeta de la mitad izquierda. La lista sale del más viejo al más
+// reciente por la fecha de su factura (`fechaDeOrden`, ver `ListarPedidosSinColocar`) y
+// `kmAlAlmacen` ya no ordena: se manda para enseñarlo y para el filtro por distancia.
 type SinColocarSalida struct {
 	ID              uuid.UUID  `json:"id"`
 	OperationNumber *string    `json:"operationNumber"`
@@ -262,8 +263,14 @@ type SinColocarSalida struct {
 	Vendedor        *string    `json:"vendedor"`
 	OrderDate       *time.Time `json:"orderDate"`
 	FacturaEstado   *string    `json:"facturaEstado"`
-	KmAlAlmacen     float64    `json:"kmAlAlmacen"`
-	MismoCliente    int        `json:"mismoCliente"`
+	// El número y la fecha de la factura, y la fecha por la que va ordenada la lista
+	// (`factura_at` y, si no hay, `order_date`). Se mandan para que quien pinte la tarjeta
+	// pueda enseñar la factura y comprobar el orden sin recalcularlo.
+	FacturaNumero *string    `json:"facturaNumero"`
+	FacturaAt     *time.Time `json:"facturaAt"`
+	FechaDeOrden  *time.Time `json:"fechaDeOrden"`
+	KmAlAlmacen   float64    `json:"kmAlAlmacen"`
+	MismoCliente  int        `json:"mismoCliente"`
 }
 
 // AvisosSalida son los tres contadores de arriba. TRES y no uno: «lo archivaron en
@@ -571,7 +578,6 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 		DiaHasta:   hasta,
 		KmMax:      numeroOpcional(q.Get("kmMax")),
 		DesdeID:    cursor.id,
-		DesdeKm:    cursor.km,
 		DesdeFecha: cursor.fecha,
 		// UNA FILA DE MÁS. Es lo que convierte «truncado» en un dato y no en una
 		// sospecha: si vuelve, hay otra tanda; si no vuelve, ésta era la última. Restar
@@ -609,7 +615,9 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 			CustomerPhone: f.CustomerPhone, Address: f.Address, EndAddress: f.EndAddress,
 			Weight: f.Weight, PedidoCosto: f.PedidoCosto, Municipio: f.Municipio,
 			Vendedor: f.Vendedor, OrderDate: hora(f.OrderDate),
-			FacturaEstado: facturaEstado(f.FacturaEstado), KmAlAlmacen: f.KmAlAlmacen,
+			FacturaEstado: facturaEstado(f.FacturaEstado),
+			FacturaNumero: f.FacturaNumero, FacturaAt: hora(f.FacturaAt),
+			FechaDeOrden: hora(f.FechaCronologica), KmAlAlmacen: f.KmAlAlmacen,
 			MismoCliente: repes[strings.ToLower(strings.TrimSpace(f.CustomerName))],
 		})
 	}
@@ -618,7 +626,7 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 	var siguiente *string
 	if hayMas && len(filas) > 0 {
 		ultima := filas[len(filas)-1]
-		c := cursorHacia(ultima.KmAlAlmacen, ultima.OrderDate, ultima.ID)
+		c := cursorHacia(ultima.FechaCronologica, ultima.ID)
 		siguiente = &c
 	}
 	return MitadIzquierda{
@@ -631,35 +639,39 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 // El cursor de la mitad izquierda
 // ---------------------------------------------------------------------------
 
-// tandaDesde son los tres trozos del cursor, ya en el tipo que espera sqlc.
+// tandaDesde son los dos trozos del cursor, ya en el tipo que espera sqlc.
 type tandaDesde struct {
-	km    *float64
 	fecha pgtype.Timestamptz
 	id    pgtype.UUID
 }
 
-// EL FORMATO ES «km|fecha|id», en texto plano y a propósito.
+// EL FORMATO ES «fecha|id», en texto plano y a propósito.
 //
 // Ni base64 ni JSON cifrado: esto se lee en un registro de acceso y en la barra del
 // navegador cuando alguien dice «me faltan pedidos», y un cursor opaco obliga a
 // descodificarlo a mano para saber por dónde iba. La fecha es RFC3339 con nanosegundos, o
-// vacía cuando el pedido no tiene `order_date` —que es un caso real y va al final de la
-// lista, no al principio—.
+// vacía cuando el pedido no tiene ni `factura_at` ni `order_date` —que es un caso real y va
+// al final de la lista, no al principio—.
+//
+// HASTA EL 14/10/2026 ERA «km|fecha|id»: la lista iba por cercanía al almacén y el cursor
+// tenía que llevar la misma terna que su `ORDER BY`. Amado pidió el orden cronológico
+// (issue 6, punto 2), la terna pasó a ser una pareja y los km salieron del cursor con ella.
+// Un cursor viejo, que lleva tres trozos, se rechaza con el 400 de siempre: lo único que se
+// pierde es la tanda en curso de quien estaba paginando en ese instante, que vuelve a pedir
+// la primera. Aceptarlo y leerlo con el orden nuevo habría repetido o saltado pedidos, que
+// es lo que un cursor no puede hacer jamás.
 //
 // No lleva firma ni caducidad porque no concede nada: el alcance no sale de aquí, sale de
 // quién pregunta, y con un cursor inventado lo peor que se consigue es empezar a leer la
 // lista propia por otro sitio.
 const separadorDeTanda = "|"
 
-func cursorHacia(km float64, fecha pgtype.Timestamptz, id uuid.UUID) string {
+func cursorHacia(fecha pgtype.Timestamptz, id uuid.UUID) string {
 	texto := ""
 	if fecha.Valid {
 		texto = fecha.Time.UTC().Format(time.RFC3339Nano)
 	}
-	// 'g' con -1 es la representación más corta que vuelve a dar EXACTAMENTE el mismo
-	// float al leerla. Importa: el corte compara `km = desde_km` en la base, y un
-	// redondeo por el camino repetiría una fila o se saltaría otra.
-	return strconv.FormatFloat(km, 'g', -1, 64) + separadorDeTanda + texto + separadorDeTanda + id.String()
+	return texto + separadorDeTanda + id.String()
 }
 
 func cursorDeLaTanda(crudo string) (tandaDesde, error) {
@@ -668,20 +680,16 @@ func cursorDeLaTanda(crudo string) (tandaDesde, error) {
 		return tandaDesde{}, nil // desde el principio
 	}
 	trozos := strings.Split(crudo, separadorDeTanda)
-	if len(trozos) != 3 {
+	if len(trozos) != 2 {
 		return tandaDesde{}, errCursorRoto
 	}
-	km, err := strconv.ParseFloat(trozos[0], 64)
+	id, err := uuid.Parse(trozos[1])
 	if err != nil {
 		return tandaDesde{}, errCursorRoto
 	}
-	id, err := uuid.Parse(trozos[2])
-	if err != nil {
-		return tandaDesde{}, errCursorRoto
-	}
-	salida := tandaDesde{km: &km, id: pgtype.UUID{Bytes: [16]byte(id), Valid: true}}
-	if trozos[1] != "" {
-		t, err := time.Parse(time.RFC3339Nano, trozos[1])
+	salida := tandaDesde{id: pgtype.UUID{Bytes: [16]byte(id), Valid: true}}
+	if trozos[0] != "" {
+		t, err := time.Parse(time.RFC3339Nano, trozos[0])
 		if err != nil {
 			return tandaDesde{}, errCursorRoto
 		}

@@ -3,10 +3,13 @@ package api
 // LA MITAD IZQUIERDA SE PUEDE PAGINAR ENTERA.
 //
 // `TopeSinColocar` son 200, `limite` sólo podía BAJAR, y la consulta terminaba en `LIMIT`
-// sin `OFFSET`, sin cursor y sin `desde_km`. Medido en producción el 17/09/2026, La Habana
-// tenía 300 pedidos sin colocar: el logístico veía los 200 más cercanos y LOS 100 MÁS
-// LEJANOS NO SE PODÍAN PEDIR DE NINGUNA MANERA. `Truncated` avisaba y no llevaba a ningún
-// sitio.
+// sin `OFFSET` y sin cursor. Medido en producción el 17/09/2026, La Habana tenía 300
+// pedidos sin colocar: el logístico veía los 200 primeros y LOS 100 ÚLTIMOS NO SE PODÍAN
+// PEDIR DE NINGUNA MANERA. `Truncated` avisaba y no llevaba a ningún sitio.
+//
+// Desde el 14/10/2026 la lista va del más viejo al más reciente por la fecha de la factura
+// (issue 6 de Amado) y el cursor es la pareja `fecha|id` de ese `ORDER BY`. Lo que ataca
+// el orden contra Postgres de verdad es `TestMotorReal_SinColocarCronologico`.
 //
 // Es el §3 del CLAUDE.md —pedir un tope y no comprobar el resultado— y el fallo que más
 // caro sale en este proyecto, porque no se ve: la pantalla se queda perfectamente normal.
@@ -25,8 +28,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// sembrar deja `n` pedidos sin colocar en Santiago, cada uno un poco más lejos del almacén
-// que el anterior. El tablero de base ya trae tres (Ana, Beto y Ana otra vez).
+// sembrar deja `n` pedidos sin colocar en Santiago, todos con la MISMA fecha de pedido y sin
+// fecha de factura: el orden lo decide entonces el id, que es el desempate y la parte del
+// cursor que más fácil se rompe. El tablero de base ya trae tres (Ana, Beto y Ana otra
+// vez), esos sin fecha de ningún tipo.
 func sembrar(q *tableroFalso, n int) {
 	ayer := time.Date(2026, 9, 16, 10, 0, 0, 0, time.UTC)
 	for i := 0; i < n; i++ {
@@ -128,30 +133,30 @@ func TestPaginarDeUnoEnUnoTampocoSeSaltaNingunPedido(t *testing.T) {
 	}
 }
 
-// DOS PEDIDOS A LA MISMA DISTANCIA ES EL CASO QUE ROMPE UN CURSOR MAL HECHO.
+// TRES FACTURAS DE LA MISMA FECHA Y UNA SIN FECHA ES EL CASO QUE ROMPE UN CURSOR MAL HECHO.
 //
-// Dos clientes del mismo edificio dan exactamente los mismos kilómetros. Un cursor que
-// sólo mirara los km o se quedaría pegado —devolviendo siempre los mismos— o se saltaría
-// al vecino. Por eso la terna es la del `ORDER BY` entera, con la fecha y el id dentro.
-func TestDosPedidosALaMismaDistanciaNoSePierdenAlPaginar(t *testing.T) {
+// Dos facturas anotadas en el mismo instante dan exactamente la misma fecha. Un cursor que
+// sólo mirara la fecha o se quedaría pegado —devolviendo siempre las mismas— o se saltaría
+// a la vecina. Por eso la pareja es la del `ORDER BY` entera, con el id dentro. Y los sin
+// fecha de ningún tipo van al final, que es donde más fácil se cuela un salto.
+func TestDosFacturasDeLaMismaFechaNoSePierdenAlPaginar(t *testing.T) {
 	q := nuevoTablero()
-	// Tres en el mismo edificio: dos con fechas distintas y uno SIN fecha, que va al
-	// final del desempate (`DESC NULLS LAST`) y es donde más fácil se cuela un salto.
-	viejo := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	nuevoDia := time.Date(2026, 9, 15, 8, 0, 0, 0, time.UTC)
-	mismoEdificio := []struct {
+	misma := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
+	otra := time.Date(2026, 9, 15, 8, 0, 0, 0, time.UTC)
+	mismoInstante := []struct {
 		id    string
 		fecha *time.Time
 	}{
-		{"6e000000-0000-0000-0000-000000000001", &viejo},
-		{"6e000000-0000-0000-0000-000000000002", &nuevoDia},
-		{"6e000000-0000-0000-0000-000000000003", nil},
+		{"6e000000-0000-0000-0000-000000000001", &misma},
+		{"6e000000-0000-0000-0000-000000000002", &misma},
+		{"6e000000-0000-0000-0000-000000000003", &otra},
+		{"6e000000-0000-0000-0000-000000000004", nil},
 	}
-	for i, m := range mismoEdificio {
+	for i, m := range mismoInstante {
 		id := uuid.MustParse(m.id)
 		q.pedidos[id] = pedidoFalso{
 			id: id, sucursal: sucStg, nombre: fmt.Sprintf("Vecino %d", i+1),
-			peso: 1, lat: 20.0447, lng: -75.8219, fecha: m.fecha,
+			peso: 1, lat: 20.0447, lng: -75.8219, facturaAt: m.fecha,
 		}
 	}
 	h := montarTab(t, q)
@@ -160,7 +165,7 @@ func TestDosPedidosALaMismaDistanciaNoSePierdenAlPaginar(t *testing.T) {
 	if int(total) != len(ids) {
 		t.Fatalf("total %v, salieron %d: %v", total, len(ids), ids)
 	}
-	for _, m := range mismoEdificio {
+	for _, m := range mismoInstante {
 		hay := false
 		for _, id := range ids {
 			if id == m.id {
@@ -168,9 +173,125 @@ func TestDosPedidosALaMismaDistanciaNoSePierdenAlPaginar(t *testing.T) {
 			}
 		}
 		if !hay {
-			t.Fatalf("el vecino %s no salió en ninguna tanda: el desempate del cursor se "+
-				"lo saltó — %v", m.id, ids)
+			t.Fatalf("la factura %s no salió en ninguna tanda: el desempate del cursor se "+
+				"la saltó — %v", m.id, ids)
 		}
+	}
+}
+
+// LA LISTA VA POR LA FECHA DE LA FACTURA, NO POR LA DEL PEDIDO, Y EL CURSOR TAMBIÉN.
+//
+// Amado, issue 6 (14/10/2026): «la lista de facturas debe salir ordenada cronológicamente
+// de lo más viejo a lo más reciente». La fecha es `factura_at` y, si el pedido no la tiene,
+// `order_date`; sin ninguna de las dos, al final.
+//
+// Los datos están hechos para que ningún orden ACCIDENTAL dé el esperado: el más viejo por
+// pedido es el más reciente por factura, y viceversa; ni el id ni la distancia (que crece
+// con el sufijo) caminan en el sentido bueno. Y se recorre de uno en uno y de dos en dos:
+// si el cursor se armara con `order_date` y no con la fecha por la que se ordenó, las
+// tandas se repetirían o saltarían justo en el pedido cuyas dos fechas difieren.
+func TestLaListaVaDelMasViejoAlMasRecientePorLaFechaDeLaFactura(t *testing.T) {
+	d := func(dia int) *time.Time {
+		f := time.Date(2026, 10, dia, 9, 30, 0, 0, time.UTC)
+		return &f
+	}
+	siembra := []struct {
+		id        string
+		pedido    *time.Time // order_date
+		factura   *time.Time // factura_at
+		esperaPos int        // lugar esperado entre estos seis (1 = el primero)
+	}{
+		// Factura del 3: manda sobre un pedido del 14.
+		{"8e000000-0000-0000-0000-000000000001", d(14), d(3), 1},
+		// Sin factura: vale la fecha del pedido, del 5.
+		{"8e000000-0000-0000-0000-000000000002", d(5), nil, 2},
+		// Pedido viejísimo del 1 pero facturado el 9: por factura va detrás.
+		{"8e000000-0000-0000-0000-000000000003", d(1), d(9), 3},
+		// Facturado el 12.
+		{"8e000000-0000-0000-0000-000000000004", d(11), d(12), 4},
+		// Las dos sin fecha: al final, y entre ellas por id.
+		{"8e000000-0000-0000-0000-000000000005", nil, nil, 5},
+		{"8e000000-0000-0000-0000-000000000006", nil, nil, 6},
+	}
+	q := nuevoTablero()
+	for _, s := range siembra {
+		id := uuid.MustParse(s.id)
+		q.pedidos[id] = pedidoFalso{
+			id: id, sucursal: sucStg, nombre: "Fecha " + s.id[len(s.id)-1:],
+			peso: 1, lat: 20.0247 + float64(s.esperaPos)*0.01, lng: -75.8219,
+			fecha: s.pedido, facturaAt: s.factura,
+		}
+	}
+	// Los tres de siempre no tienen fecha de ningún tipo: se quedan detrás de los seis,
+	// que son los que se miran. Sus ids (0d…) van ANTES que los 8e… en el desempate de
+	// «sin fecha», así que salen los primeros de ese grupo final.
+	h := montarTab(t, q)
+	jwt := tokenTab(t, sucStg.String())
+
+	esperado := []string{
+		"8e000000-0000-0000-0000-000000000001",
+		"8e000000-0000-0000-0000-000000000002",
+		"8e000000-0000-0000-0000-000000000003",
+		"8e000000-0000-0000-0000-000000000004",
+	}
+	for _, limite := range []int{1, 2, 3, 100} {
+		ids, total := recorrerLaLista(t, h, jwt, limite)
+		if int(total) != len(ids) {
+			t.Fatalf("limite %d: el total dice %v y salieron %d", limite, total, len(ids))
+		}
+		if len(ids) < len(esperado) {
+			t.Fatalf("limite %d: salieron %d pedidos y tendrían que ser al menos %d: %v",
+				limite, len(ids), len(esperado), ids)
+		}
+		for i, id := range esperado {
+			if ids[i] != id {
+				t.Fatalf("limite %d: en el lugar %d tendría que estar %s y está %s.\n"+
+					"Orden entero: %v\nEl orden es del más viejo al más reciente por "+
+					"`coalesce(factura_at, order_date)`.", limite, i+1, id, ids[i], ids)
+			}
+		}
+		// Y los dos sin fecha, que son los últimos de los seis, salen DESPUÉS de los
+		// cuatro con fecha y en orden de id.
+		posicion := map[string]int{}
+		for i, id := range ids {
+			posicion[id] = i
+		}
+		for _, conFecha := range esperado {
+			for _, sinFecha := range []string{
+				"8e000000-0000-0000-0000-000000000005",
+				"8e000000-0000-0000-0000-000000000006",
+			} {
+				if posicion[conFecha] > posicion[sinFecha] {
+					t.Fatalf("limite %d: %s (con fecha) sale detrás de %s (sin fecha). "+
+						"Un pedido sin fecha no es «el más viejo»: va al final.", limite, conFecha, sinFecha)
+				}
+			}
+		}
+		if posicion["8e000000-0000-0000-0000-000000000005"] > posicion["8e000000-0000-0000-0000-000000000006"] {
+			t.Fatalf("limite %d: los dos sin fecha no salen por id: %v", limite, ids)
+		}
+	}
+}
+
+// LA CERCANÍA YA NO ORDENA. Es la mitad opuesta de la prueba de arriba, en pareja: el más
+// lejano del almacén, si su factura es la más vieja, sale el PRIMERO. Si alguien devuelve
+// `km_al_almacen` al `ORDER BY`, aquí cambia el primero.
+func TestElMasLejanoConLaFacturaMasViejaSaleElPrimero(t *testing.T) {
+	q := nuevoTablero()
+	vieja := time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC)
+	nueva := time.Date(2026, 10, 13, 8, 0, 0, 0, time.UTC)
+	lejos := uuid.MustParse("8f000000-0000-0000-0000-000000000001")
+	cerca := uuid.MustParse("8f000000-0000-0000-0000-000000000002")
+	q.pedidos[lejos] = pedidoFalso{id: lejos, sucursal: sucStg, nombre: "Lejos y viejo",
+		peso: 1, lat: 20.50, lng: -75.8219, facturaAt: &vieja}
+	q.pedidos[cerca] = pedidoFalso{id: cerca, sucursal: sucStg, nombre: "Cerca y nuevo",
+		peso: 1, lat: 20.0248, lng: -75.8219, facturaAt: &nueva}
+	h := montarTab(t, q)
+
+	ids, _ := recorrerLaLista(t, h, tokenTab(t, sucStg.String()), 100)
+	if ids[0] != lejos.String() || ids[1] != cerca.String() {
+		t.Fatalf("salen %v: tendría que ir primero el de la factura más vieja (%s), aunque "+
+			"sea el más lejano, y después el más reciente (%s)", ids[:2], lejos, cerca)
 	}
 }
 
@@ -231,10 +352,13 @@ func TestUnCursorRotoEs400YNoUnaListaVacia(t *testing.T) {
 
 	for _, malo := range []string{
 		"cualquier-cosa",
-		"12.5|",
-		"|2026-09-16T10:00:00Z|6e000000-0000-0000-0000-000000000001",
-		"12.5|no-es-una-fecha|6e000000-0000-0000-0000-000000000001",
-		"12.5|2026-09-16T10:00:00Z|no-es-un-uuid",
+		"2026-09-16T10:00:00Z|",
+		"no-es-una-fecha|6e000000-0000-0000-0000-000000000001",
+		"2026-09-16T10:00:00Z|no-es-un-uuid",
+		// EL CURSOR DE ANTES DEL 14/10/2026 (`km|fecha|id`, tres trozos) tiene que ser un
+		// 400 y no leerse con el orden nuevo: se repetirían o se saltarían pedidos.
+		"12.5|2026-09-16T10:00:00Z|6e000000-0000-0000-0000-000000000001",
+		"12.5||6e000000-0000-0000-0000-000000000001",
 	} {
 		w := pedirTab(t, h, http.MethodGet,
 			"/api/board/unplaced?desde="+url.QueryEscape(malo), jwt, "")

@@ -13,12 +13,14 @@ import '../estado/proveedores.dart';
 import 'kit.dart';
 import 'tarjeta.dart';
 
-/// LA MITAD IZQUIERDA: los pedidos sin colocar, **ordenados por cercania al
-/// almacen, el mas cerca primero**.
+/// LA MITAD IZQUIERDA: los pedidos sin colocar, **del mas viejo al mas reciente
+/// por la fecha de su factura**.
 ///
-/// Ese orden es la mitad del encargo: es como se decide que se reparte hoy
-/// cuando no cabe todo. Lo que esta cerca sale igual, porque cuesta poco; lo que
-/// esta lejos espera al dia en que haya suficiente para ese lado.
+/// Hasta el 14/10/2026 iban por cercania al almacen, el mas cerca primero, y era
+/// deliberado: es como se decide que se reparte hoy cuando no cabe todo. Amado
+/// (issue 6, punto 2) pidio el orden cronologico, y lo que se pierde es ver lo
+/// cercano de un golpe: los km siguen en cada tarjeta y en el filtro. El orden y
+/// su porque, en `ConsultasTablero.sinColocar`.
 class PanelSinColocar extends ConsumerStatefulWidget {
   const PanelSinColocar({
     required this.tablero,
@@ -32,7 +34,7 @@ class PanelSinColocar extends ConsumerStatefulWidget {
   final void Function(TarjetaPedido pedido) alPulsarTarjeta;
 
   /// Arrastrar de vuelta a la izquierda: vuelve a «sin colocar» y la lista lo
-  /// recoloca sola por cercania.
+  /// recoloca sola por la fecha de su factura.
   final void Function(TarjetaArrastrada datos) alDevolver;
 
   /// SI ESTA CABECERA DICE «Sin colocar (308)» O SE CALLA.
@@ -125,9 +127,10 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
             // «SE VEN 200 DE 300» TENÍA QUE LLEVAR A ALGUN SITIO — 17/09/2026.
             //
             // Decía «afina con los filtros» y ya. Y eso no es una salida: los
-            // 100 que faltaban eran **los más lejanos al almacén** —la lista va
-            // ordenada por cercanía—, o sea justo los que no se encuentran
-            // afinando, porque quien los busca no sabe ni qué municipio mirar.
+            // 100 que faltaban eran **los últimos de la lista** —entonces los más
+            // lejanos al almacén, hoy los de factura más reciente—, o sea justo
+            // los que no se encuentran afinando, porque quien los busca no sabe
+            // ni qué municipio mirar.
             // No había forma de verlos. Ninguna.
             //
             // Es el §3 del CLAUDE.md otra vez: se pidió un tope y no se puso

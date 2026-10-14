@@ -202,6 +202,10 @@ Columnas por orden (la etiqueta literal es la que se pinta):
     tooltip `Se facturó algo distinto de lo pedido. No puede ir en una ruta hasta que se corrija.`;
     `sin_factura` → `sin facturar`; nulo → `sin cotejar` con tooltip
     `El cotejo contra Ventra no ha pasado por este pedido todavía.` Oculta bajo 1024 px.
+    **El número de factura no se pierde con la columna** (Amado, issue 8, 14/10/2026: «los
+    logísticos operan con número de factura»): entre 768 y 1023 px baja a la celda del cliente,
+    bajo el folio (`Factura 1024237`); en la tarjeta del teléfono sube a la cabecera con su rótulo
+    y la insignia queda solo con el estado (`Cuadra` / `Cambió !`).
     **Con factura `igual` o `cambiado`, junto al número, una segunda marca con el cobro del
     domicilio** (Amado, 08/10/2026: «en la tabla no está claro qué pedidos han sido facturados
     y cobrados»): `Dom. $0.46` en verde, con el importe, cuando `facturaDomicilio > 0`; y

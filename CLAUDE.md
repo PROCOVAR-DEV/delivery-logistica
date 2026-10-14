@@ -488,7 +488,12 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   (`frenaElDomicilioSinCobrar`, que pregunta a `porQueNoSePuedeColocar` y no repite la regla; con
   ruta, entregado o archivado va sólo el número o el verde). La regla NO cambió: la marca la hace
   visible. La columna «Vehículo» se quitó entera (desde la 1.0.28 `orders.vehicle_id` no existe); el
-  camión sigue en el detalle. Trampa: la columna Factura se esconde bajo 1024 px.
+  camión sigue en el detalle. Trampa: la columna Factura se esconde bajo 1024 px (desde el 14/10/2026 el
+  número baja bajo el folio entre 768 y 1023 px y sube a la cabecera de la tarjeta del teléfono: issue 8 de
+  Amado). **«Sin colocar» va del más viejo al más reciente por la fecha de la factura**
+  (`coalesce(factura_at, order_date)`, issue 6; antes por cercanía al almacén, decisión que Amado cambió) y el
+  cursor del servidor es la pareja `fecha|id` de ese `ORDER BY` (`internal/store/orden_y_cursor_test.go`). «Factura»
+  es `factura_numero` (el de Ventra), no `operation_number` (el folio, el «conduce»): `numeroDeFactura`.
 - **Cajón siempre**, también en escritorio (excepción aprobada para este
   proyecto el 05/09/2026). Sin emojis en la interfaz.
 - **Una decisión de una persona se ESCRIBE, no se borra.** Borrar no es decidir:

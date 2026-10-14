@@ -83,9 +83,29 @@ void main() {
     var base = abrirBase();
     await sembrarSucursal(base);
     await sembrarAlmacen(base);
-    await sembrarPedido(base, id: 'p-cerca', aGrados: 0.01, peso: 120);
-    await sembrarPedido(base, id: 'p-medio', aGrados: 0.05, peso: 80);
-    await sembrarPedido(base, id: 'p-lejos', aGrados: 0.40, peso: 60);
+    // Cada uno de una hora de factura distinta, del más viejo al más reciente:
+    // es el orden de «sin colocar» desde el 14/10/2026 (antes, por cercanía).
+    await sembrarPedido(
+      base,
+      id: 'p-cerca',
+      aGrados: 0.01,
+      peso: 120,
+      facturaAt: DateTime(2026, 9, 14, 8),
+    );
+    await sembrarPedido(
+      base,
+      id: 'p-medio',
+      aGrados: 0.05,
+      peso: 80,
+      facturaAt: DateTime(2026, 9, 14, 9),
+    );
+    await sembrarPedido(
+      base,
+      id: 'p-lejos',
+      aGrados: 0.40,
+      peso: 60,
+      facturaAt: DateTime(2026, 9, 14, 10),
+    );
 
     var contenedor = montar(base);
     var tablero = await contenedor.read(tableroProvider.future);
@@ -94,7 +114,7 @@ void main() {
       'p-cerca',
       'p-medio',
       'p-lejos',
-    ], reason: 'el más cerca del almacén primero');
+    ], reason: 'el de la factura más vieja primero');
 
     // ---- Por la tarde, en el patio y sin señal. -----------------------
     //

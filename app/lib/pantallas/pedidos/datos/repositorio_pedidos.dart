@@ -14,6 +14,7 @@ import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
 import 'filtros_pedidos.dart';
+import 'formato.dart' show cantidad;
 
 /// Una linea del pre-despacho: cuanto hay que sacar del almacen de cada
 /// producto.
@@ -227,6 +228,50 @@ class RenglonConPeso {
     final packs = renglon.packs;
     if (packs != null && packs > 0) return packs;
     return renglon.quantity;
+  }
+
+  /// Las unidades sueltas de la línea, SÓLO si `quantity` es de fiar; si no, `null`.
+  ///
+  /// Es la misma regla que ya aplica el pre-despacho (`_unidadesDeLaLinea`, sin su caída al
+  /// catálogo, que aquí no hay): la línea trae empaques Y `quantity` llega a ellos. Ventra
+  /// manda `quantity` y `packs` juntos y casi siempre son unidades y bultos —«MALTA GUAJIRA
+  /// 330 ML BLISTER 6U · 120 unidades · 20 empaques», 7.301 de las 7.738 líneas de producción—,
+  /// pero en otras 437 `quantity` queda POR DEBAJO de los empaques y no son unidades de nada
+  /// («SERVILLETA PROSITO PACA 24P · 7 empaques · 4 unidades», 22/09/2026). Enseñar ese `4`
+  /// como unidades es el número creíble y equivocado: mejor no enseñar unidades.
+  ///
+  /// Sin `packs` tampoco: entonces [empaques] ya es `quantity` y no hay una segunda cifra.
+  double? get unidades {
+    final packs = renglon.packs;
+    if (packs == null || packs <= 0) return null;
+    return renglon.quantity >= packs ? renglon.quantity : null;
+  }
+
+  /// LA CANTIDAD DE LA LÍNEA PARA PERSONAS: primero los EMPAQUES, y las unidades detrás.
+  ///
+  /// «20 empaques · 120 unidades». Amado, issue 6 (14/10/2026): las cantidades salían en
+  /// unidades —«que puede ser interesante, pero más importante es en blíster, que es como
+  /// cargan y transportan»—. El empaque es esa unidad de carga: el blíster de seis, la caja
+  /// de veinticuatro, la paca (los renglones lo dicen en su nombre) y es lo que cuenta el
+  /// almacén en el pre-despacho (`reglas-negocio.md` §12: los formatos «son la unidad con la
+  /// que se carga y se cuenta un camión»). Por eso va primero, y las unidades quedan como
+  /// dato secundario cuando son de fiar ([unidades]).
+  ///
+  /// El rótulo es «empaque» y no «blíster» a propósito: es la palabra que ya usan la ficha,
+  /// la tabla y la hoja del almacén, y una caja o una paca marcada como «blíster» sería un
+  /// error de los que no se ven. [corto] escribe «uds» para donde no cabe más.
+  String cantidadEnTexto({bool corto = false}) {
+    final partes = <String>[
+      '${cantidad(empaques)} ${empaques == 1 ? 'empaque' : 'empaques'}',
+    ];
+    final sueltas = unidades;
+    if (sueltas != null) {
+      final unidad = corto
+          ? (sueltas == 1 ? 'ud' : 'uds')
+          : (sueltas == 1 ? 'unidad' : 'unidades');
+      partes.add('${cantidad(sueltas)} $unidad');
+    }
+    return partes.join(' · ');
   }
 
   /// El peso de la LINEA, tal como lo resolvio el servidor.

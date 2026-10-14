@@ -52,6 +52,13 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 		UpdatedAt:     ahora,
 	}}
 
+	// Un pedido facturado, cambiado después de `desde`, con su número y su fecha de factura.
+	facturadoEl := time.Date(2026, 10, 12, 9, 30, 0, 0, time.UTC)
+	q.sync = append(q.sync, pedidoSync{
+		id: ped1, sucursal: sucStg, nombre: "Facturado", marca: time.Now().UTC().Add(-1 * time.Hour),
+		facturaNumero: "1024237", facturaAt: &facturadoEl,
+	})
+
 	cambios := bajadaDe(t, q, tokenTab(t, sucStg.String()),
 		"?desde="+desde.Format(time.RFC3339Nano))
 
@@ -68,6 +75,29 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 		"deliveryDate", "vehicleId", "branchId",
 		"startedAt", "finishedAt", "createdAt", "updatedAt",
 	})
+
+	// --- Pedidos: la factura, que faltaba en 14/10/2026 --------------------------
+	//
+	// `facturaNumero` viajaba y `facturaAt` NO: la columna `orders.factura_at` existía en el
+	// aparato y valía NULL en todos los pedidos. Amado (issues 6 y 8) pide la fecha de
+	// facturación en el detalle y «Sin colocar» ordenado por ella: sin esta clave el detalle
+	// no la puede decir y la lista cae, sin avisar, a la fecha del pedido.
+	exigirClaves(t, cambios, "orders", []string{
+		"id", "operationNumber", "orderDate", "createdAt",
+		"facturaEstado", "facturaNumero", "facturaAt", "facturaDomicilio",
+	})
+	// Y no basta con la clave: `"facturaAt": nil` también la tiene. El valor tiene que ser
+	// el del pedido, en el formato de las demás fechas.
+	pedido := cambios["cambios"].(map[string]any)["orders"].(map[string]any)["puestos"].([]any)[0].(map[string]any)
+	if pedido["facturaNumero"] != "1024237" {
+		t.Errorf("orders: facturaNumero = %v, tendría que ser 1024237", pedido["facturaNumero"])
+	}
+	llego, _ := pedido["facturaAt"].(string)
+	esperada := facturadoEl.Format(time.RFC3339Nano)
+	if llego != esperada {
+		t.Errorf("orders: facturaAt = %q, tendría que ser %q. El aparato la guarda tal cual para "+
+			"ordenar «Sin colocar» y para decir cuándo se facturó.", llego, esperada)
+	}
 }
 
 // exigirClaves comprueba que el primer elemento de `puestos` de esa colección trae todas

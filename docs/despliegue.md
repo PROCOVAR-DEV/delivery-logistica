@@ -1387,6 +1387,83 @@ Para devolverle el acceso, el camino inverso: darle el rol (p. ej. LOGISTICO) en
 
 ---
 
+## 4-ter. La migración 00018 (tipos de vehículo por sucursal): orden y ventana
+
+Jose, 14/10/2026. Es la primera migración que **cambia lo que una versión vieja de la api entiende
+de una tabla que ya existía**, así que el orden importa más que en las que sólo añaden.
+
+**Qué hace** (`api/db/migrations/00018_tipos_de_vehiculo_por_sucursal.sql`, `docs/esquema-cambios.md` §8):
+añade `vehicle_types.branch_id`, cambia la única de `nombre` por dos índices parciales, inserta en
+cada sucursal una copia de los tipos que hay (hoy cinco por sucursal) y apunta cada camión con
+sucursal a la copia de la suya. Los camiones compartidos no se tocan. Son milisegundos, pero el
+`UPDATE` de `vehicles` pasa por el disparador de `updated_at`: esos camiones salen como modificados
+una vez, y es verdad (cambió su `vehicle_type_id`).
+
+**Orden**, todo seguido y en hora de poca carga:
+
+```
+1. volcado de procovar_reparto           (§2.2; este SÍ hace falta: el Down pierde los costos que
+                                          una sucursal haya editado en su copia)
+2. migración 00018                       (§2.1, pasos 2 a 7; `status` primero, como siempre)
+3. Deploy de reparto-api                 (§4) — INMEDIATAMENTE después, no «cuando uno pueda»
+4. comprobar                             (abajo)
+```
+
+`sync`, el espejo y la app no cambian: ni leen `vehicle_types` ni cambia ninguna ruta que usen.
+`GET /api/vehicle-types` gana dos campos (`sucursalId` y `sucursal`), y para SUPER ADMIN y
+DESARROLLADOR **sin sucursal elegida** ya no trae todos sino sólo los «de todas» (y crear un tipo ahí
+es 400 «Elige una sucursal arriba…»: la app lo enseña como cualquier otro error del servidor).
+
+**La ventana es lo que dura entre el paso 2 y el 3, y qué pasa en ella:**
+
+- **api VIEJA con la base NUEVA** (es la ventana normal). `GET /api/vehicle-types` devuelve cada
+  nombre una vez por sucursal más el de todas, a todo el mundo (el desplegable sale con «truck»
+  nueve veces). Un tipo creado en ese rato nace «de todas». Y, lo que importa, el alta o la
+  edición de un camión con `type` busca `WHERE nombre = $1` sin sucursal y se queda con la
+  primera fila que salga, que en la práctica es el tipo **«de todas»** (la fila original, que
+  Postgres devuelve antes que las copias; sin `ORDER BY` no está garantizado): un camión de
+  sucursal quedaría con un tipo «de todas», que rompe la regla de que el tipo de un camión es de su
+  sucursal y que la api nueva no sabe usar. No se pierde nada y el `UPDATE` del paso 4 lo arregla
+  (lo devuelve al tipo del mismo nombre de SU sucursal); hay que mirar el paso 4. Si en esos minutos
+  nadie da de alta ni edita un camión, no pasa nada.
+- **api NUEVA con la base VIEJA** (si se despliega antes de migrar, o si se baja la migración sin
+  bajar la api). Todo `/api/vehicle-types`, el alta o edición de un camión con `type` y también
+  `POST /api/branches` contestan **500** (`column vt.branch_id does not exist`; en el alta de una
+  sucursal la siembra de tipos va en la misma transacción, así que **se deshace el alta entera**);
+  la lista de camiones, las rutas y los pedidos siguen. No hay nada que arreglar después: es un
+  error en voz alta, y por eso el orden es migrar primero.
+
+**Después (paso 4)**, dentro del servidor, en la base `procovar_reparto` (el patrón de §2.2):
+
+```sql
+-- 1) Tiene que dar CERO filas: ningún camión con el tipo de otra sucursal.
+SELECT v.id, v.name, v.branch_id AS camion_de, t.nombre, t.branch_id AS tipo_de
+FROM vehicles v JOIN vehicle_types t ON t.id = v.vehicle_type_id
+WHERE v.branch_id IS DISTINCT FROM t.branch_id;
+
+-- 2) Cada sucursal con los mismos tipos que los «de todas» (la columna de la derecha es el nulo).
+SELECT b.name, count(*) FROM vehicle_types t LEFT JOIN branches b ON b.id = t.branch_id
+GROUP BY b.name ORDER BY b.name NULLS FIRST;
+```
+
+Si la primera da filas (un camión tocado en la ventana), se devuelve al tipo del mismo nombre de SU
+sucursal, mirando antes cuáles son:
+
+```sql
+UPDATE vehicles v SET vehicle_type_id = c.id
+FROM vehicle_types t, vehicle_types c
+WHERE t.id = v.vehicle_type_id AND v.branch_id IS DISTINCT FROM t.branch_id
+  AND c.branch_id IS NOT DISTINCT FROM v.branch_id AND c.nombre = t.nombre;
+```
+
+**Antes de desplegar**, la prueba contra Postgres de verdad (`CLAUDE.md` §5, `docs/entorno-local.md`
+§7-quater, base migrada hasta la 00018): `TestMotorReal_Migracion00018TiposPorSucursal` sube y baja la
+migración sobre datos sembrados, y `TestMotorReal_TiposDeVehiculoPorSucursal` ata el alcance de las
+consultas nuevas. **Volver atrás**: restaurar el volcado del paso 1 (el `Down` también existe, con sus
+pérdidas dichas en el propio `.sql`), y la api anterior antes de bajar la migración.
+
+---
+
 ## 5. Cómo se comprueba que están vivos
 
 Lo primero, siempre, lo que dice `docs/DOKPLOY-NUEVO-PROYECTO.md` Parte 7: **un build que

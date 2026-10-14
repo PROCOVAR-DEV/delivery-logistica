@@ -857,6 +857,7 @@ type VehicleType struct {
 	Activo     bool               `json:"activo"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	BranchID   pgtype.UUID        `json:"branch_id"`
 }
 
 type VentasFacturada struct {

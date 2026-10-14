@@ -147,9 +147,11 @@ func (s *Servidor) Rutas() http.Handler {
 	//
 	// LAS CUATRO SON DE SESIÓN, NO DE ADMIN (Jose, 14/10/2026): el logístico de Santiago, entrenándose
 	// con Amado, no podía crear un tipo, y la APK es completa para el logístico. Antes de la tabla
-	// esto iba en `PUT /api/settings`, que tampoco pedía admin. OJO: el catálogo es GLOBAL y el costo
-	// por km del tipo es el que cotiza el domicilio en las ocho sucursales; si hubiera que volver a
-	// cerrarlo, es cambiar estas tres líneas a `admin...` (y la prueba `un_logistico_gestiona_tipos`).
+	// esto iba en `PUT /api/settings`, que tampoco pedía admin. Eso era peligroso mientras el catálogo
+	// fuera GLOBAL (el costo por km del tipo es el que cotiza el domicilio, y el de Santiago movía el
+	// precio de las ocho); desde la 00018 los tipos son POR SUCURSAL y cada quien toca sólo los
+	// suyos (`tipos_vehiculo.go`, `tipos_por_sucursal_test.go`), así que abrirlas es seguro. Si hubiera
+	// que volver a cerrarlas, es cambiar estas tres líneas a `admin...` (y la prueba `un_logistico_gestiona_tipos`).
 	rt.ManejarFunc(http.MethodGet, "/api/vehicle-types", s.listarTiposDeVehiculo, sesion...)
 	rt.ManejarFunc(http.MethodPost, "/api/vehicle-types", s.crearTipoDeVehiculo, sesion...)
 	rt.ManejarFunc(http.MethodPatch, "/api/vehicle-types/{id}", s.actualizarTipoDeVehiculo, sesion...)

@@ -30,7 +30,7 @@ import (
 // `GET /api/vehicles` a la red. El ciclo de sincronización no la repinta, así que sin este
 // aviso lo único que la actualizaba era volver a entrar.
 //
-// # ÉSTE VA ACOTADO A SU SUCURSAL, y el de los TIPOS no — 29/09/2026
+// # ÉSTE VA ACOTADO A SU SUCURSAL — 29/09/2026 (el de los TIPOS lo es desde el 14/10/2026)
 //
 // Hasta hoy los dos ficheros compartían este gancho y el gancho era GLOBAL, así que dar de
 // alta un camión en Camagüey mandaba a las otras SIETE pantallas de Vehículos a pedir otra
@@ -42,10 +42,11 @@ import (
 // `acotado()`, así que el alcance de quien escribe es el techo de lo que pudo cambiar: un
 // camión tocado desde Camagüey no puede ser de Holguín. Por eso este gancho se acota.
 //
-// `vehicle_types` **no tiene columna de sucursal ninguna** —es un catálogo de toda la
-// empresa—, así que `tipos_vehiculo.go` tiene el SUYO, `avisarCambioDeTiposDeVehiculo`, y
-// ése sigue siendo de las ocho. Publican el MISMO tipo de aviso (`vehiculos`), porque la
-// pantalla es la misma y enseña las dos cosas; lo que cambia es a quién le llega.
+// `tipos_vehiculo.go` tiene el SUYO, `avisarCambioDeTiposDeVehiculo`: era de las ocho mientras
+// el catálogo de tipos fue de toda la empresa, y desde la 00018 (14/10/2026) `vehicle_types`
+// TAMBIÉN tiene `branch_id`, así que va acotado a la sucursal del tipo (y a todas si es «de
+// todas»). Publican el MISMO tipo de aviso (`vehiculos`), porque la pantalla es la misma y
+// enseña las dos cosas; son dos ganchos porque la sucursal sale de filas distintas.
 //
 // # Y DESDE EL 01/10/2026 LA SUCURSAL SALE DE LA FILA, NO DEL ALCANCE
 //
@@ -312,7 +313,8 @@ func (s *Servidor) crearVehiculo(w http.ResponseWriter, r *http.Request) {
 	if !capacidadValida(w, r, c.Capacity) || !costoKmValido(w, r, c.CostoKmUsd) {
 		return
 	}
-	tipo, ok := s.tipoPorNombre(w, r, a, c.Type.Con(TipoPorDefecto))
+	// El camión nace en la sucursal del alcance, y su tipo tiene que ser de ESA sucursal.
+	tipo, ok := s.tipoPorNombre(w, r, a, c.Type.Con(TipoPorDefecto), a.SucursalDeAlta())
 	if !ok {
 		return
 	}
@@ -434,7 +436,9 @@ func (s *Servidor) actualizarVehiculo(w http.ResponseWriter, r *http.Request) {
 	}
 	nombreTipo := antes.TipoNombre
 	if c.Type.Presente && c.Type.Valor != nil {
-		tipo, ok := s.tipoPorNombre(w, r, a, *c.Type.Valor)
+		// Del camión que ya existe, y no de quien lo toca: un SUPER ADMIN que mira Santiago y
+		// cambia el tipo de un camión compartido tiene que dar con el de todas.
+		tipo, ok := s.tipoPorNombre(w, r, a, *c.Type.Valor, antes.BranchID)
 		if !ok {
 			return
 		}
@@ -642,11 +646,31 @@ func deVehiculo(v sqlc.Vehicle, nombreTipo string) VehiculoSalida {
 // En delivery `type` era texto libre y su catálogo no existía en ninguna parte, así que
 // cualquier cosa se guardaba. Ahora hay tabla y clave ajena: un tipo que no está es un
 // 400, y eso es lo que hace que el desplegable de la pantalla signifique algo.
-func (s *Servidor) tipoPorNombre(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, nombre string) (uuid.UUID, bool) {
-	t, err := a.BuscarTipoDeVehiculoPorNombre(r.Context(), nombre)
+//
+// EL TIPO DE UN CAMIÓN ES DE LA SUCURSAL DEL CAMIÓN (00018): `sucursalDelCamion` es la del
+// camión que se da de alta o se edita, y un camión compartido (nulo) sólo admite tipos «de todas».
+// Lo que no casa da 400, y el 400 DICE LA VERDAD sobre cuál de los dos casos es: «No existe el
+// tipo» (el nombre no está en ninguna parte) o «El tipo X no es de la sucursal de este camión»
+// (existe, pero en otra sucursal o «de todas»). Nunca el tipo de otra sucursal, ni un 404.
+func (s *Servidor) tipoPorNombre(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, nombre string, sucursalDelCamion pgtype.UUID) (uuid.UUID, bool) {
+	t, err := a.BuscarTipoDeVehiculoPorNombre(r.Context(), nombre, sucursalDelCamion)
 	if errors.Is(err, pgx.ErrNoRows) {
-		httpx.Error(w, r, http.StatusBadRequest,
-			fmt.Sprintf("No existe el tipo de vehículo '%s'", nombre))
+		existe, errExiste := a.ExisteTipoDeVehiculoConNombre(r.Context(), nombre)
+		if errExiste != nil {
+			httpx.ErrorInterno(w, r, errExiste)
+			return uuid.Nil, false
+		}
+		switch {
+		case !existe:
+			httpx.Error(w, r, http.StatusBadRequest,
+				fmt.Sprintf("No existe el tipo de vehículo '%s'", nombre))
+		case sucursalDelCamion.Valid:
+			httpx.Error(w, r, http.StatusBadRequest,
+				fmt.Sprintf("El tipo '%s' no es de la sucursal de este camión", nombre))
+		default:
+			httpx.Error(w, r, http.StatusBadRequest,
+				fmt.Sprintf("El tipo '%s' no es un tipo «de todas»: un camión compartido sólo admite ésos", nombre))
+		}
 		return uuid.Nil, false
 	}
 	if err != nil {

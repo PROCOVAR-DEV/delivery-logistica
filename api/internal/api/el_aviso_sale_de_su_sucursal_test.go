@@ -357,10 +357,14 @@ func TestLaTablaDeQueAvisoLlevaSucursal(t *testing.T) {
 		{"pedidos", avisarCambioDePedidos, CambioPedidos, "orders.branch_id"},
 		{"almacenes", avisarCambioDeAlmacenes, CambioAlmacenes,
 			"el código de sucursal viene en el cuerpo y se comprueba contra las visibles"},
-		// LOS DOS DE LA FLOTA, Y VAN EN LADOS DISTINTOS. Era UN solo gancho global hasta el
-		// 29/09/2026, y por eso dar de alta un camión en Camagüey costaba a las otras siete
-		// una petición de `/api/vehicles` y otra de `/api/settings` para pintar lo mismo.
+		// LOS DOS DE LA FLOTA. Era UN solo gancho global hasta el 29/09/2026, y por eso dar de
+		// alta un camión en Camagüey costaba a las otras siete una petición de `/api/vehicles` y
+		// otra de `/api/settings` para pintar lo mismo. El de los TIPOS iba en el lado de los
+		// globales —`vehicle_types` era un catálogo de toda la empresa— y pasó a este el
+		// 14/10/2026, cuando la 00018 les dio `branch_id`: un tipo de Santiago no sale en el
+		// desplegable de Holguín.
 		{"vehiculos", avisarCambioDeVehiculos, CambioVehiculos, "vehicles.branch_id"},
+		{"tipos de vehiculo", avisarCambioDeTiposDeVehiculo, CambioVehiculos, "vehicle_types.branch_id"},
 		{"clientes", avisarCambioDeClientes, CambioClientes,
 			"la coordenada del cliente es la que ordena las paradas de SU sucursal"},
 		// LA TASA. Mismo tipo que los ajustes globales y acotada: el tipo dice QUÉ volver a
@@ -376,8 +380,6 @@ func TestLaTablaDeQueAvisoLlevaSucursal(t *testing.T) {
 		{"catalogo", avisarCambioDelCatalogo, CambioCatalogo,
 			"POST /api/products/sync trae el catálogo de VARIAS sucursales y avisa una vez, " +
 				"y corregir un producto es sólo del SUPER ADMIN"},
-		{"tipos de vehiculo", avisarCambioDeTiposDeVehiculo, CambioVehiculos,
-			"vehicle_types no tiene columna de sucursal ninguna: es de toda la empresa"},
 		{"sucursales", avisarCambioDeSucursales, CambioSucursales, "la lista es de todos"},
 		{"ajustes", avisarCambioDeAjustes, CambioAjustes, "la moneda y la tasa son de toda la empresa"},
 		{"canal", avisarCambioEnElCanal, CambioCanal, "la pantalla del canal mira la cola entera"},

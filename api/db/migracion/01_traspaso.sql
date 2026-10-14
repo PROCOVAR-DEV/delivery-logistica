@@ -1,3 +1,10 @@
+-- NO VOLVER A CORRER TRAS LA 00018 (tipos de vehículo por sucursal, 14/10/2026).
+--
+-- Este traspaso se hizo el día del cambio y no se repite. Si se corriera ahora sobre el esquema
+-- actual, asignaría tipos «de todas» (`vehicle_types.branch_id` nulo) a camiones con sucursal,
+-- que es justo lo que la 00018 dejó de permitir: el tipo de un camión es de la sucursal del
+-- camión. Aquí no se cambia ni una línea de código; sólo este aviso.
+--
 -- El traspaso de delivery (Prisma) al esquema nuevo.
 --
 -- Se corre UNA vez, el día del cambio, con los dos esquemas delante. No es una migración

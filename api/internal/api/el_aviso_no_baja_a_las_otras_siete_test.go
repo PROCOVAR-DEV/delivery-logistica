@@ -14,9 +14,11 @@ package api
 //   - LA FUGA DE LA FLOTA. Un camión de Santiago mandaba a las OTRAS SIETE pantallas de
 //     Vehículos a pedir `GET /api/vehicles` **y** `GET /api/settings` para pintar lo mismo.
 //     El gancho era uno solo y era global porque lo compartía con los TIPOS de vehículo,
-//     que sí son de las ocho. Ahora son dos ganchos. `TestUnCamionDeSantiago…` y su gemela
-//     en positivo, `TestUnTipoDeVehiculoNuevo…`, que sin ella el arreglo pasaría igual con
-//     el aviso roto del todo.
+//     que entonces sí eran de las ocho. Ahora son dos ganchos. `TestUnCamionDeSantiago…`.
+//     **Desde el 14/10/2026 los tipos también son POR SUCURSAL** (00018) y la gemela en
+//     positivo cambió de afirmación: `TestUnTipoDeVehiculoDeSantiago…` (llega a Santiago y NO
+//     a Holguín) y `TestUnTipoDeVehiculoDeTodasSiLlegaALasOcho`, que sin ella el arreglo
+//     pasaría igual con el aviso roto del todo.
 //   - LA TASA, QUE NO AVISABA A NADIE. El refresco de cada hora escribía
 //     `branches.cup_rate` y no publicaba nada: era la única escritura de la api sin aviso.
 //     Con la tasa se convierte TODO importe que se pinta.
@@ -148,48 +150,131 @@ func TestUnCamionDeSantiagoNoBajaLaFlotaDeLasOtrasSiete(t *testing.T) {
 			"para pintar exactamente lo mismo, por la conexión de allá y con ocho "+
 			"navegadores en la oficina más los teléfonos.\n"+
 			"  `vehicles` tiene `branch_id` y los tres manejadores pasan por `acotado()`: "+
-			"el aviso va por `avisarCambioDeVehiculos`, que está acotado. El que NO se "+
-			"acota es el de los TIPOS (`avisarCambioDeTiposDeVehiculo`), que son de toda "+
-			"la empresa.", tocadas, len(tocadas))
+			"el aviso va por `avisarCambioDeVehiculos`, que está acotado, y desde la 00018 "+
+			"también lo está el de los TIPOS (`avisarCambioDeTiposDeVehiculo`).", tocadas, len(tocadas))
 	}
 }
 
-// LA GEMELA EN POSITIVO, Y SIN ELLA LA DE ARRIBA PASA CON EL AVISO ROTO DEL TODO.
+// UN TIPO DE VEHÍCULO DE SANTIAGO LLEGA A SANTIAGO Y NO A HOLGUÍN — 14/10/2026.
 //
-// `vehicle_types` NO tiene columna de sucursal: es el catálogo de toda la empresa, y sale
-// en el desplegable del alta de un camión de las ocho. Acotarlo dejaría a siete pantallas
-// de Vehículos sin enterarse de un tipo nuevo — y como esa pantalla no vive de la base
-// local, el ciclo tampoco la repinta: se queda clavada hasta salir y volver a entrar.
-func TestUnTipoDeVehiculoNuevoSiLlegaALasOcho(t *testing.T) {
-	// LO CREA UN `ADMINISTRADOR` DE SANTIAGO, y esto no es un adorno de la prueba.
-	//
-	// `ExigirAdmin` deja pasar a `ADMINISTRADOR`, que **es de UNA sucursal**
-	// (`../../CLAUDE.md` §5). Con un SUPER ADMIN esta prueba pasaría con el gancho acotado,
-	// porque el alcance de un SUPER ADMIN ya es «todas» y el aviso saldría global de todos
-	// modos: verde por la razón equivocada. Comprobado mutando el 29/09/2026.
-	anterior := busEventos
-	t.Cleanup(func() { busEventos = anterior })
-	busEventos = NuevoDifusor()
-
-	suya, cortarSuya, _ := busEventos.SuscribirDe(avSucStg.String())
-	t.Cleanup(cortarSuya)
-	otra, cortarOtra, _ := busEventos.SuscribirDe(avSucHol.String())
-	t.Cleanup(cortarOtra)
-
-	h := montarAvisos(t, &dobleAvisos{})
-	w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avAdminDeStg(t), `{"nombre":"rastra"}`)
-	avCodigo(t, w, http.StatusCreated)
-
-	if _, hay := recibio(suya); !hay {
-		t.Fatal("el tipo nuevo no llegó ni a la sucursal de quien lo creó")
+// Esta prueba AFIRMABA LO CONTRARIO hasta la 00018: «un tipo creado desde Santiago llega a
+// Holguín», porque `vehicle_types` no tenía columna de sucursal y el tipo salía en el desplegable
+// de las ocho. Con los tipos por sucursal un tipo de Santiago no sale en el desplegable de Holguín, y
+// avisarla es mandarle a pedir `GET /api/vehicles` y `GET /api/vehicle-types` para pintar lo mismo.
+//
+// LAS CUATRO ESCRITURAS, no sólo la que se probó primero: crear, editar, RETIRAR (un tipo en uso) y
+// BORRAR (uno sin uso) publican por CUATRO sitios distintos de `tipos_vehiculo.go`, y cada uno
+// saca la sucursal de una fila distinta. Con sólo el alta cubierta, tres mutaciones —aviso global,
+// sucursal equivocada y, en el borrado, ningún aviso— sobrevivían.
+//
+// SIGUE SIENDO LA GEMELA EN POSITIVO DE LA DE LA FLOTA: la mitad `llega a Santiago` es la que
+// impide que el arreglo pase con el aviso roto del todo (sin ella, esto sale verde con el gancho
+// vacío).
+func TestUnTipoDeVehiculoDeSantiagoLlegaASantiagoYNoAHolguin(t *testing.T) {
+	// LO ESCRIBE UN `ADMINISTRADOR` DE SANTIAGO, y esto no es un adorno de la prueba: un
+	// administrador es de UNA sucursal (`../../CLAUDE.md` §5). Con un SUPER ADMIN en modo «todas» no
+	// podría ni escribir los tipos de Santiago (404), y el aviso de uno «de todas» sale global.
+	casos := []struct {
+		nombre, metodo, ruta, cuerpo string
+		codigo                       int
+		catalogo                     func(*dobleAvisos)
+	}{
+		{"crear", http.MethodPost, "/api/vehicle-types", `{"nombre":"rastra"}`, http.StatusCreated, nil},
+		{"editar", http.MethodPatch, "/api/vehicle-types/" + avTipoCam.String(), `{"costoKmUsd":0.9}`, http.StatusOK, nil},
+		// Lo usa el camión de las pruebas, así que se RETIRA.
+		{"retirar (en uso)", http.MethodDelete, "/api/vehicle-types/" + avTipoCam.String(), ``, http.StatusOK, nil},
+		// Y éste no lo usa nadie, así que se BORRA de verdad: es la rama que no tenía prueba.
+		{"borrar (sin uso)", http.MethodDelete, "/api/vehicle-types/" + avTipoLibreStg.String(), ``, http.StatusOK,
+			func(d *dobleAvisos) {
+				*d.catalogo() = append(*d.catalogo(), tipoDePrueba{VehicleType: sqlcTipoConID(avTipoLibreStg, "libre", avPg(avSucStg))})
+			}},
 	}
-	if _, hay := recibio(otra); !hay {
-		t.Error("un tipo de vehículo creado desde Santiago NO llegó a Holguín.\n" +
-			"  `vehicle_types` no tiene columna de sucursal ninguna: es el catálogo de toda " +
-			"la empresa y ese tipo sale en el desplegable de las ocho.\n" +
-			"  Que no llegue NO falla, no da error y no sale en ningún registro: la " +
-			"pantalla de Vehículos no vive de la base local, así que el ciclo tampoco la " +
-			"repinta y se queda clavada hasta salir y volver a entrar.")
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			anterior := busEventos
+			t.Cleanup(func() { busEventos = anterior })
+			busEventos = NuevoDifusor()
+			suya, cortarSuya, _ := busEventos.SuscribirDe(avSucStg.String())
+			t.Cleanup(cortarSuya)
+			otra, cortarOtra, _ := busEventos.SuscribirDe(avSucHol.String())
+			t.Cleanup(cortarOtra)
+
+			d := &dobleAvisos{}
+			if c.catalogo != nil {
+				c.catalogo(d)
+			}
+			w := pedirAv(t, montarAvisos(t, d), c.metodo, c.ruta, avAdminDeStg(t), c.cuerpo)
+			avCodigo(t, w, c.codigo)
+
+			cambio, hay := recibio(suya)
+			if !hay {
+				t.Fatal("el cambio no llegó ni a la sucursal de quien lo hizo: la pantalla de Vehículos " +
+					"no vive de la base local, así que sin este aviso no hay nada que repinte el desplegable")
+			}
+			if cambio.Tipo != CambioVehiculos {
+				t.Errorf("salió el tipo %q y le toca %q", cambio.Tipo, CambioVehiculos)
+			}
+			if cambio.Sucursal != avSucStg.String() {
+				t.Errorf("el aviso salió con la sucursal %q y tenía que salir con la de Santiago (%s), que "+
+					"es la del tipo que se tocó", cambio.Sucursal, avSucStg)
+			}
+			if _, hay := recibio(otra); hay {
+				t.Error("un cambio en un tipo de vehículo de Santiago LLEGÓ a Holguín.\n" +
+					"  Desde la 00018 `vehicle_types` tiene `branch_id` y cada sucursal tiene SUS tipos: este " +
+					"no sale en el desplegable de Holguín, así que avisarla es mandarla a pedir " +
+					"`GET /api/vehicles` y `GET /api/vehicle-types` por la conexión de allá para pintar " +
+					"exactamente lo mismo.")
+			}
+		})
+	}
+}
+
+// LA PAREJA: UN TIPO «DE TODAS» SÍ LLEGA A LAS DOS. Ya no se CREA ninguno por la API (en modo «todas»
+// el alta es 400), pero se EDITA, se RETIRA y se BORRA, y lo usan los camiones compartidos, que se ven
+// desde las ocho. El aviso sale SIN sucursal, y «sin sucursal» se lee como «de todas», no como «de
+// ninguna». Lo hace un SUPER ADMIN sin sucursal elegida, que es el único que los ve.
+func TestUnTipoDeVehiculoDeTodasSiLlegaALasOcho(t *testing.T) {
+	casos := []struct {
+		nombre, metodo, ruta, cuerpo string
+		catalogo                     func(*dobleAvisos)
+	}{
+		{"editar", http.MethodPatch, "/api/vehicle-types/" + avTipoTodas.String(), `{"costoKmUsd":0.9}`, nil},
+		{"retirar (lo usa un camión compartido)", http.MethodDelete, "/api/vehicle-types/" + avTipoTodas.String(), ``,
+			func(d *dobleAvisos) {
+				for i := range *d.catalogo() {
+					if (*d.catalogo())[i].ID == avTipoTodas {
+						(*d.catalogo())[i].enUso = true
+					}
+				}
+			}},
+		{"borrar (sin uso)", http.MethodDelete, "/api/vehicle-types/" + avTipoTodas.String(), ``, nil},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			anterior := busEventos
+			t.Cleanup(func() { busEventos = anterior })
+			busEventos = NuevoDifusor()
+			stg, cortarStg, _ := busEventos.SuscribirDe(avSucStg.String())
+			t.Cleanup(cortarStg)
+			hol, cortarHol, _ := busEventos.SuscribirDe(avSucHol.String())
+			t.Cleanup(cortarHol)
+
+			d := &dobleAvisos{}
+			if c.catalogo != nil {
+				c.catalogo(d)
+			}
+			w := pedirAv(t, montarAvisos(t, d), c.metodo, c.ruta, avAdmin(t), c.cuerpo)
+			avCodigo(t, w, http.StatusOK)
+
+			if _, hay := recibio(stg); !hay {
+				t.Error("un tipo «de todas» no llegó a Santiago")
+			}
+			if _, hay := recibio(hol); !hay {
+				t.Error("un tipo «de todas» NO llegó a Holguín.\n" +
+					"  Lo usan los camiones compartidos, que se ven desde las ocho: acotar este aviso a una " +
+					"sucursal inventada deja a las demás pantallas viejas, sin error y sin una línea en el registro.")
+			}
+		})
 	}
 }
 

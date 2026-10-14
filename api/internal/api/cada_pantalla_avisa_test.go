@@ -131,9 +131,8 @@ func contarAvisos(t *testing.T) *contadorDeAvisos {
 	avisarCambioDeSucursales = anota(CambioSucursales)
 	avisarCambioDeAjustes = anota(CambioAjustes)
 	// Los tipos de vehículo publican el MISMO texto que la flota (`vehiculos`) porque la
-	// pantalla es la misma; lo que cambia es a quién le llega, y eso lo vigila
-	// `TestLaTablaDeQueAvisoLlevaSucursal`, no esto.
-	avisarCambioDeTiposDeVehiculo = anota(CambioVehiculos)
+	// pantalla es la misma, y desde la 00018 también van acotados (a la sucursal del TIPO).
+	avisarCambioDeTiposDeVehiculo = anotaDe(CambioVehiculos)
 	avisarCambioDeClientes = anotaDe(CambioClientes)
 	avisarCambioEnElCanal = anota(CambioCanal)
 	avisarTasaDeSucursal = anotaDe(CambioAjustes)
@@ -173,8 +172,17 @@ var (
 	avSucStg = uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	avSucHol = uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
-	avVehStg  = uuid.MustParse("a0000000-0000-0000-0000-000000000001")
-	avTipoCam = uuid.MustParse("b0000000-0000-0000-0000-000000000001")
+	avVehStg = uuid.MustParse("a0000000-0000-0000-0000-000000000001")
+
+	// LOS TRES «truck» DEL CATÁLOGO DE LAS PRUEBAS (00018): uno por sucursal y uno «de todas».
+	// Se llaman igual a propósito: es lo que pasa de verdad, y lo único que los distingue es
+	// de quién son.
+	avTipoCam   = uuid.MustParse("b0000000-0000-0000-0000-000000000001") // el de Santiago
+	avTipoHol   = uuid.MustParse("b0000000-0000-0000-0000-000000000002") // el de Holguín
+	avTipoTodas = uuid.MustParse("b0000000-0000-0000-0000-000000000003") // el «de todas»
+	// avTipoLibreStg: un tipo de Santiago que NO usa ningún camión; no está en el catálogo de
+	// fábrica de las pruebas, lo añade quien lo necesite (el borrado de verdad, no el retiro).
+	avTipoLibreStg = uuid.MustParse("b0000000-0000-0000-0000-000000000004")
 )
 
 // errAvFalloDeBase es el fallo que se le mete al doble para probar la otra mitad de la
@@ -212,6 +220,88 @@ type dobleAvisos struct {
 	escritos int
 	// falloAlBorrar se devuelve en `BorrarVehiculo` (la carrera del 23503 con una ruta recién creada).
 	falloAlBorrar error
+
+	// --- el catálogo de tipos (00018). Es un REIMPLEMENTO en Go del SQL de `vehicle_types.sql`:
+	// lo que cuenta de verdad —que el filtro de sucursal esté en el SQL— lo prueba
+	// `consultas_motor_real_test.go` contra Postgres; esto prueba que el manejador y
+	// `alcance.Acotado` PASAN la sucursal que toca.
+	//
+	// tipos es el catálogo; nil = el de fábrica de `catalogoDePrueba`.
+	tipos []tipoDePrueba
+	// buscadoPara anota, en orden, la `sucursal_del_camion` con que se buscó un tipo por nombre.
+	buscadoPara []pgtype.UUID
+	// escritosTipos cuenta las escrituras que de verdad llegaron al catálogo.
+	escritosTipos int
+	// sembradas anota las sucursales a las que se les copiaron los tipos «de todas».
+	sembradas []uuid.UUID
+	// tipoEscrito es el `vehicle_type_id` con que `ActualizarVehiculo` escribió el camión.
+	tipoEscrito pgtype.UUID
+}
+
+// tipoDePrueba es una fila del catálogo con lo único que el SQL calcula aparte: si algún
+// camión lo usa (`BorrarTipoDeVehiculoSinUso` y el conteo del listado).
+type tipoDePrueba struct {
+	sqlc.VehicleType
+	enUso bool
+}
+
+// catalogoDePrueba: el «truck» de Santiago (que usa el camión de las pruebas), el de Holguín y
+// el «de todas». Los tres con el mismo nombre.
+func catalogoDePrueba() []tipoDePrueba {
+	return []tipoDePrueba{
+		{VehicleType: sqlc.VehicleType{ID: avTipoCam, Nombre: "truck", Activo: true, BranchID: avPg(avSucStg)}, enUso: true},
+		{VehicleType: sqlc.VehicleType{ID: avTipoHol, Nombre: "truck", Activo: true, BranchID: avPg(avSucHol)}},
+		{VehicleType: sqlc.VehicleType{ID: avTipoTodas, Nombre: "truck", Activo: true}},
+	}
+}
+
+func (d *dobleAvisos) catalogo() *[]tipoDePrueba {
+	if d.tipos == nil {
+		d.tipos = catalogoDePrueba()
+	}
+	return &d.tipos
+}
+
+// visibleParaTipos es el `branch_id IS NOT DISTINCT FROM sucursal` del SQL: IGUAL para las dos
+// puntas, y NO el de los vehículos. Quien tiene sucursal ve sólo los suyos (ni los «de todas»);
+// quien está en modo «todas» (sucursal nula) ve SÓLO los «de todas», no todos. Con structs, la
+// igualdad ya trata el nulo como un valor más.
+func visibleParaTipos(t sqlc.VehicleType, sucursal pgtype.UUID) bool {
+	return t.BranchID == sucursal
+}
+
+func (d *dobleAvisos) tipoVisible(id uuid.UUID, sucursal pgtype.UUID) (int, bool) {
+	for i, t := range *d.catalogo() {
+		if t.ID == id && visibleParaTipos(t.VehicleType, sucursal) {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// repetido es el índice único parcial: mismo nombre en la MISMA sucursal (o los dos «de todas»).
+func (d *dobleAvisos) repetido(nombre string, sucursal pgtype.UUID, excepto uuid.UUID) bool {
+	for _, t := range *d.catalogo() {
+		if t.ID != excepto && t.Nombre == nombre && t.BranchID == sucursal {
+			return true
+		}
+	}
+	return false
+}
+
+func nombreDeSucursalDePrueba(id pgtype.UUID) *string {
+	var n string
+	switch {
+	case !id.Valid:
+		return nil
+	case id.Bytes == [16]byte(avSucStg):
+		n = "Santiago"
+	case id.Bytes == [16]byte(avSucHol):
+		n = "Holguín"
+	default:
+		return nil
+	}
+	return &n
 }
 
 // sucursalDelCamion: la de Santiago, o ninguna si es el compartido.
@@ -236,11 +326,25 @@ func (d *dobleAvisos) ResolverSucursal(_ context.Context, id uuid.UUID) (sqlc.Re
 
 // --- flota
 
-func (d *dobleAvisos) BuscarTipoDeVehiculoPorNombre(_ context.Context, nombre string) (sqlc.BuscarTipoDeVehiculoPorNombreRow, error) {
-	if nombre == "truck" {
-		return sqlc.BuscarTipoDeVehiculoPorNombreRow{ID: avTipoCam, Nombre: "truck"}, nil
+func (d *dobleAvisos) BuscarTipoDeVehiculoPorNombre(_ context.Context, arg sqlc.BuscarTipoDeVehiculoPorNombreParams) (sqlc.BuscarTipoDeVehiculoPorNombreRow, error) {
+	d.buscadoPara = append(d.buscadoPara, arg.SucursalDelCamion)
+	for _, t := range *d.catalogo() {
+		// `branch_id IS NOT DISTINCT FROM sucursal_del_camion`: con structs, la igualdad ya
+		// trata el nulo como un valor más.
+		if t.Nombre == arg.Nombre && t.BranchID == arg.SucursalDelCamion {
+			return sqlc.BuscarTipoDeVehiculoPorNombreRow{ID: t.ID, Nombre: t.Nombre, Activo: t.Activo, BranchID: t.BranchID}, nil
+		}
 	}
 	return sqlc.BuscarTipoDeVehiculoPorNombreRow{}, pgx.ErrNoRows
+}
+
+func (d *dobleAvisos) ExisteTipoDeVehiculoConNombre(_ context.Context, nombre string) (bool, error) {
+	for _, t := range *d.catalogo() {
+		if t.Nombre == nombre {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (d *dobleAvisos) DesmarcarReferenciaDeDomicilio(context.Context, sqlc.DesmarcarReferenciaDeDomicilioParams) (int64, error) {
@@ -273,6 +377,7 @@ func (d *dobleAvisos) ActualizarVehiculo(_ context.Context, arg sqlc.ActualizarV
 		return sqlc.Vehicle{}, pgx.ErrNoRows
 	}
 	d.escritos++
+	d.tipoEscrito = arg.VehicleTypeID
 	v := sqlc.Vehicle{ID: avVehStg, Name: "Camión de Santiago", VehicleTypeID: avTipoCam,
 		Status: sqlc.VehicleStatusAvailable, BranchID: d.sucursalDelCamion()}
 	if arg.Status != nil {
@@ -305,37 +410,104 @@ func (d *dobleAvisos) BorrarVehiculo(_ context.Context, arg sqlc.BorrarVehiculoP
 
 // --- tipos de vehículo
 
+func (d *dobleAvisos) ListarTiposDeVehiculo(_ context.Context, arg sqlc.ListarTiposDeVehiculoParams) ([]sqlc.ListarTiposDeVehiculoRow, error) {
+	filas := []sqlc.ListarTiposDeVehiculoRow{}
+	for _, t := range *d.catalogo() {
+		if !visibleParaTipos(t.VehicleType, arg.Sucursal) {
+			continue
+		}
+		if arg.SoloActivos != nil && *arg.SoloActivos && !t.Activo {
+			continue
+		}
+		var usos int64
+		if t.enUso {
+			usos = 1
+		}
+		filas = append(filas, sqlc.ListarTiposDeVehiculoRow{
+			ID: t.ID, Nombre: t.Nombre, CostoKmUsd: t.CostoKmUsd, Activo: t.Activo,
+			BranchID: t.BranchID, SucursalNombre: nombreDeSucursalDePrueba(t.BranchID), Vehiculos: usos,
+		})
+	}
+	return filas, nil
+}
+
 func (d *dobleAvisos) CrearTipoDeVehiculo(_ context.Context, arg sqlc.CrearTipoDeVehiculoParams) (sqlc.VehicleType, error) {
-	return sqlc.VehicleType{ID: uuid.New(), Nombre: arg.Nombre, CostoKmUsd: arg.CostoKmUsd, Activo: arg.Activo}, nil
+	if d.repetido(arg.Nombre, arg.BranchID, uuid.Nil) {
+		return sqlc.VehicleType{}, &pgconn.PgError{Code: "23505"}
+	}
+	t := sqlc.VehicleType{ID: uuid.New(), Nombre: arg.Nombre, CostoKmUsd: arg.CostoKmUsd, Activo: arg.Activo, BranchID: arg.BranchID}
+	*d.catalogo() = append(*d.catalogo(), tipoDePrueba{VehicleType: t})
+	d.escritosTipos++
+	return t, nil
 }
 
 func (d *dobleAvisos) ActualizarTipoDeVehiculo(_ context.Context, arg sqlc.ActualizarTipoDeVehiculoParams) (sqlc.VehicleType, error) {
 	if d.falloAlActualizarTipo != nil {
 		return sqlc.VehicleType{}, d.falloAlActualizarTipo
 	}
-	if arg.ID != avTipoCam {
+	i, ok := d.tipoVisible(arg.ID, arg.Sucursal)
+	if !ok {
 		return sqlc.VehicleType{}, pgx.ErrNoRows
 	}
-	return sqlc.VehicleType{ID: avTipoCam, Nombre: "truck", Activo: true}, nil
-}
-
-// BorrarTipoDeVehiculoSinUso devuelve 0 SIEMPRE: el tipo de las pruebas lo usa un camión,
-// así que se cae por la rama del retiro, que es la que más se da de verdad.
-func (d *dobleAvisos) BorrarTipoDeVehiculoSinUso(context.Context, uuid.UUID) (int64, error) {
-	return 0, nil
-}
-
-func (d *dobleAvisos) RetirarTipoDeVehiculo(_ context.Context, id uuid.UUID) (int64, error) {
-	if id != avTipoCam {
-		return 0, nil
+	t := &(*d.catalogo())[i]
+	if arg.Nombre != nil {
+		if d.repetido(*arg.Nombre, t.BranchID, t.ID) {
+			return sqlc.VehicleType{}, &pgconn.PgError{Code: "23505"}
+		}
+		t.Nombre = *arg.Nombre
 	}
-	return 1, nil
+	if arg.TocarCosto {
+		t.CostoKmUsd = arg.CostoKmUsd
+	}
+	if arg.Activo != nil {
+		t.Activo = *arg.Activo
+	}
+	d.escritosTipos++
+	return t.VehicleType, nil
+}
+
+// BorrarTipoDeVehiculoSinUso: se borra si es visible Y nadie lo usa; si no, `ErrNoRows`, que es
+// lo que hace el `DELETE ... RETURNING` de verdad. El «truck» de Santiago lo usa el camión de las
+// pruebas, así que se cae por la rama del retiro, que es la que más se da de verdad.
+func (d *dobleAvisos) BorrarTipoDeVehiculoSinUso(_ context.Context, arg sqlc.BorrarTipoDeVehiculoSinUsoParams) (pgtype.UUID, error) {
+	i, ok := d.tipoVisible(arg.ID, arg.Sucursal)
+	if !ok || (*d.catalogo())[i].enUso {
+		return pgtype.UUID{}, pgx.ErrNoRows
+	}
+	rama := (*d.catalogo())[i].BranchID
+	*d.catalogo() = append((*d.catalogo())[:i], (*d.catalogo())[i+1:]...)
+	d.escritosTipos++
+	return rama, nil
+}
+
+func (d *dobleAvisos) RetirarTipoDeVehiculo(_ context.Context, arg sqlc.RetirarTipoDeVehiculoParams) (pgtype.UUID, error) {
+	i, ok := d.tipoVisible(arg.ID, arg.Sucursal)
+	if !ok {
+		return pgtype.UUID{}, pgx.ErrNoRows
+	}
+	(*d.catalogo())[i].Activo = false
+	d.escritosTipos++
+	return (*d.catalogo())[i].BranchID, nil
 }
 
 // --- sucursales
 
 func (d *dobleAvisos) CrearSucursal(_ context.Context, arg sqlc.CrearSucursalParams) (sqlc.Branch, error) {
 	return sqlc.Branch{ID: uuid.New(), Name: arg.Name, Lat: arg.Lat, Lng: arg.Lng, AreaKm2: arg.AreaKm2}, nil
+}
+
+func (d *dobleAvisos) ObtenerSucursal(_ context.Context, arg sqlc.ObtenerSucursalParams) (sqlc.Branch, error) {
+	p := avPg(arg.ID)
+	n := nombreDeSucursalDePrueba(p)
+	if n == nil || (arg.Sucursal.Valid && arg.Sucursal != p) {
+		return sqlc.Branch{}, pgx.ErrNoRows
+	}
+	return sqlc.Branch{ID: arg.ID, Name: *n}, nil
+}
+
+func (d *dobleAvisos) SembrarTiposDeVehiculoEnSucursal(_ context.Context, sucursal uuid.UUID) (int64, error) {
+	d.sembradas = append(d.sembradas, sucursal)
+	return 1, nil
 }
 
 func (d *dobleAvisos) CrearOrigen(_ context.Context, arg sqlc.CrearOrigenParams) (sqlc.SavedOrigin, error) {
@@ -562,14 +734,14 @@ func TestCadaEscrituraDeLaFlotaAvisa(t *testing.T) {
 		}, []string{CambioVehiculos, CambioRutas, CambioPedidos}},
 
 		{"crear un tipo de vehículo", func(t *testing.T, h http.Handler) {
-			w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avAdmin(t),
+			w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avLogisticoStg(t),
 				`{"nombre":"rastra"}`)
 			avCodigo(t, w, http.StatusCreated)
 		}, []string{CambioVehiculos}},
 
 		{"editar un tipo de vehículo", func(t *testing.T, h http.Handler) {
 			w := pedirAv(t, h, http.MethodPatch, "/api/vehicle-types/"+avTipoCam.String(),
-				avAdmin(t), `{"costoKmUsd":0.9}`)
+				avLogisticoStg(t), `{"costoKmUsd":0.9}`)
 			avCodigo(t, w, http.StatusOK)
 		}, []string{CambioVehiculos}},
 
@@ -577,7 +749,7 @@ func TestCadaEscrituraDeLaFlotaAvisa(t *testing.T) {
 			// Lo usa un camión, así que se RETIRA en vez de borrarse. Sale del
 			// desplegable igual, así que la pantalla cambia igual.
 			w := pedirAv(t, h, http.MethodDelete, "/api/vehicle-types/"+avTipoCam.String(),
-				avAdmin(t), "")
+				avLogisticoStg(t), "")
 			avCodigo(t, w, http.StatusOK)
 		}, []string{CambioVehiculos}},
 	}
@@ -825,7 +997,7 @@ func TestUnaEscrituraRECHAZADANoAvisaEnNingunaPuerta(t *testing.T) {
 	t.Run("un tipo de vehículo sin nombre", func(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
 		avisos := contarAvisos(t)
-		w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avAdmin(t), `{"nombre":"  "}`)
+		w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avLogisticoStg(t), `{"nombre":"  "}`)
 		avCodigo(t, w, http.StatusBadRequest)
 		avisos.exigeSilencio(t, "crear un tipo de vehículo sin nombre")
 	})
@@ -834,7 +1006,7 @@ func TestUnaEscrituraRECHAZADANoAvisaEnNingunaPuerta(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
 		avisos := contarAvisos(t)
 		w := pedirAv(t, h, http.MethodPatch, "/api/vehicle-types/"+desconocido.String(),
-			avAdmin(t), `{"nombre":"x"}`)
+			avLogisticoStg(t), `{"nombre":"x"}`)
 		avCodigo(t, w, http.StatusNotFound)
 		avisos.exigeSilencio(t, "editar un tipo de vehículo que no está")
 	})
@@ -843,7 +1015,7 @@ func TestUnaEscrituraRECHAZADANoAvisaEnNingunaPuerta(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
 		avisos := contarAvisos(t)
 		w := pedirAv(t, h, http.MethodDelete, "/api/vehicle-types/"+desconocido.String(),
-			avAdmin(t), "")
+			avLogisticoStg(t), "")
 		avCodigo(t, w, http.StatusNotFound)
 		avisos.exigeSilencio(t, "retirar un tipo de vehículo que no está")
 	})

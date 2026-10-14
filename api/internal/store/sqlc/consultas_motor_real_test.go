@@ -30,6 +30,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -38,6 +39,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -1970,4 +1972,525 @@ func TestMotorReal_VehiculoInactivo(t *testing.T) {
 	if err != nil || len(lista) != 1 || lista[0].IsActive {
 		t.Fatalf("la lista tiene que traerlo con is_active=false: %+v err=%v", lista, err)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Tipos de vehículo POR SUCURSAL (00018, Jose 14/10/2026)
+// ---------------------------------------------------------------------------
+//
+// El filtro de sucursal de estas consultas NO es el de los vehículos: aquí `branch_id` nulo («de
+// todas») NO pasa para quien tiene sucursal. Los dobles de `internal/api` lo reimplementan en Go
+// y no ven el SQL; esto sí.
+
+// tipoDe siembra un tipo de vehículo con su sucursal (`sinAlcance` = «de todas»).
+func (b *banco) tipoDe(sucursal pgtype.UUID, nombre string) uuid.UUID {
+	b.t.Helper()
+	return b.id(`INSERT INTO vehicle_types (nombre, branch_id) VALUES ($1, $2) RETURNING id`, nombre, sucursal)
+}
+
+func (b *banco) camionConTipo(sucursal pgtype.UUID, tipo uuid.UUID) uuid.UUID {
+	b.t.Helper()
+	return b.id(`INSERT INTO vehicles (name, vehicle_type_id, branch_id) VALUES ($1, $2, $3) RETURNING id`,
+		"camion-"+uuid.NewString()[:8], tipo, sucursal)
+}
+
+func (b *banco) tipoExiste(id uuid.UUID) bool {
+	b.t.Helper()
+	return b.entero(`SELECT count(*) FROM vehicle_types WHERE id = $1`, id) == 1
+}
+
+// intento corre f dentro de un SAVEPOINT: un error de la base (el 23505 que se busca) aborta la
+// transacción entera, y sin esto no se podría seguir mirando nada después.
+func (b *banco) intento(f func() error) error {
+	b.t.Helper()
+	b.exec(`SAVEPOINT intento`)
+	err := f()
+	if err != nil {
+		b.exec(`ROLLBACK TO SAVEPOINT intento`)
+	}
+	b.exec(`RELEASE SAVEPOINT intento`)
+	return err
+}
+
+func esClaveRepetida(err error) bool {
+	var pg *pgconn.PgError
+	return errors.As(err, &pg) && pg.Code == "23505"
+}
+
+// escenaDeTipos: dos sucursales con su tipo cada una, y uno «de todas», LOS TRES CON EL MISMO NOMBRE.
+type escenaDeTipos struct {
+	*banco
+	stg, hol              uuid.UUID
+	deStg, deHol, deTodas uuid.UUID
+	nombre                string
+}
+
+func nuevaEscenaDeTipos(t *testing.T, pool *pgxpool.Pool) *escenaDeTipos {
+	b := nuevoBanco(t, pool)
+	e := &escenaDeTipos{banco: b, stg: b.sucursal(), hol: b.sucursal(), nombre: "t-" + uuid.NewString()[:8]}
+	e.deStg = b.tipoDe(alcance(e.stg), e.nombre)
+	e.deHol = b.tipoDe(alcance(e.hol), e.nombre)
+	e.deTodas = b.tipoDe(sinAlcance, e.nombre)
+	return e
+}
+
+func TestMotorReal_TiposDeVehiculoPorSucursal(t *testing.T) {
+	pool := motorReal(t)
+
+	t.Run("listar_acota_por_sucursal_y_el_modo_todas_ve_SOLO_los_de_todas", func(t *testing.T) {
+		e := nuevaEscenaDeTipos(t, pool)
+		suyos := func(sucursal pgtype.UUID) map[uuid.UUID]ListarTiposDeVehiculoRow {
+			filas, err := e.q.ListarTiposDeVehiculo(e.ctx, ListarTiposDeVehiculoParams{Sucursal: sucursal})
+			if err != nil {
+				t.Fatal(err)
+			}
+			mios := map[uuid.UUID]ListarTiposDeVehiculoRow{}
+			for _, f := range filas {
+				if f.Nombre == e.nombre {
+					mios[f.ID] = f
+				}
+			}
+			return mios
+		}
+		stg := suyos(alcance(e.stg))
+		if len(stg) != 1 || stg[e.deStg].ID != e.deStg {
+			t.Fatalf("Santiago tenía que ver SÓLO el suyo y vio %v", stg)
+		}
+		if f := stg[e.deStg]; !f.BranchID.Valid || f.BranchID.Bytes != e.stg || f.SucursalNombre == nil {
+			t.Fatalf("la fila tiene que decir de qué sucursal es (id y nombre): %+v", f)
+		}
+		if hol := suyos(alcance(e.hol)); len(hol) != 1 || hol[e.deHol].ID != e.deHol {
+			t.Fatalf("Holguín tenía que ver sólo el suyo y vio %v", hol)
+		}
+		// El modo «todas» (sin sucursal) NO ve los tres: ve SÓLO el «de todas», no los de las sucursales.
+		todas := suyos(sinAlcance)
+		if len(todas) != 1 || todas[e.deTodas].ID != e.deTodas {
+			t.Fatalf("en modo «todas» tenía que ver SÓLO el «de todas» y vio %v", todas)
+		}
+		if f := todas[e.deTodas]; f.BranchID.Valid || f.SucursalNombre != nil {
+			t.Fatalf("el «de todas» sale sin sucursal: %+v", f)
+		}
+	})
+
+	t.Run("listar_solo_activos_y_conteo_de_vehiculos", func(t *testing.T) {
+		e := nuevaEscenaDeTipos(t, pool)
+		e.camionConTipo(alcance(e.stg), e.deStg)
+		e.camionConTipo(alcance(e.stg), e.deStg)
+		retirado := e.tipoDe(alcance(e.stg), "retirado-"+uuid.NewString()[:6])
+		e.exec(`UPDATE vehicle_types SET activo = false WHERE id = $1`, retirado)
+		si := true
+		activos, err := e.q.ListarTiposDeVehiculo(e.ctx, ListarTiposDeVehiculoParams{SoloActivos: &si, Sucursal: alcance(e.stg)})
+		if err != nil || len(activos) != 1 || activos[0].ID != e.deStg || activos[0].Vehiculos != 2 {
+			t.Fatalf("activos de Santiago = %+v (err %v); esperaba sólo el suyo con 2 camiones", activos, err)
+		}
+		todos, err := e.q.ListarTiposDeVehiculo(e.ctx, ListarTiposDeVehiculoParams{Sucursal: alcance(e.stg)})
+		if err != nil || len(todos) != 2 {
+			t.Fatalf("sin `solo_activos` salen también los retirados: %+v (err %v)", todos, err)
+		}
+	})
+
+	t.Run("buscar_por_nombre_es_de_la_sucursal_del_camion_y_el_nulo_es_el_de_todas", func(t *testing.T) {
+		e := nuevaEscenaDeTipos(t, pool)
+		for nombre, c := range map[string]struct {
+			camion pgtype.UUID
+			quiero uuid.UUID
+		}{"Santiago": {alcance(e.stg), e.deStg}, "Holguín": {alcance(e.hol), e.deHol}, "compartido": {sinAlcance, e.deTodas}} {
+			got, err := e.q.BuscarTipoDeVehiculoPorNombre(e.ctx, BuscarTipoDeVehiculoPorNombreParams{Nombre: e.nombre, SucursalDelCamion: c.camion})
+			if err != nil || got.ID != c.quiero {
+				t.Fatalf("camión %s: salió %+v (err %v), esperaba %s", nombre, got, err, c.quiero)
+			}
+		}
+		// Un nombre que sólo existe en Holguín no lo encuentra el camión de Santiago NI el compartido.
+		soloHol := "solo-hol-" + uuid.NewString()[:6]
+		e.tipoDe(alcance(e.hol), soloHol)
+		for nombre, camion := range map[string]pgtype.UUID{"Santiago": alcance(e.stg), "compartido": sinAlcance} {
+			_, err := e.q.BuscarTipoDeVehiculoPorNombre(e.ctx, BuscarTipoDeVehiculoPorNombreParams{Nombre: soloHol, SucursalDelCamion: camion})
+			sinFilas(t, "el tipo de Holguín pedido para el camión "+nombre, err)
+		}
+	})
+
+	t.Run("existe_con_nombre_mira_todas_las_sucursales_y_solo_dice_si_o_no", func(t *testing.T) {
+		e := nuevaEscenaDeTipos(t, pool)
+		soloHol := "solo-hol-" + uuid.NewString()[:6]
+		e.tipoDe(alcance(e.hol), soloHol)
+		for nombre, c := range map[string]struct {
+			nombre string
+			quiero bool
+		}{"uno de Holguín": {soloHol, true}, "el de las tres": {e.nombre, true}, "uno que no está": {"fantasma-" + uuid.NewString()[:6], false}} {
+			got, err := e.q.ExisteTipoDeVehiculoConNombre(e.ctx, c.nombre)
+			if err != nil || got != c.quiero {
+				t.Fatalf("%s: salió %v (err %v) y tocaba %v", nombre, got, err, c.quiero)
+			}
+		}
+	})
+
+	t.Run("crear_nace_en_la_sucursal_que_se_le_da_y_el_nombre_es_unico_dentro_de_ella", func(t *testing.T) {
+		e := nuevaEscenaDeTipos(t, pool)
+		nuevo := "nuevo-" + uuid.NewString()[:6]
+		creado, err := e.q.CrearTipoDeVehiculo(e.ctx, CrearTipoDeVehiculoParams{Nombre: nuevo, Activo: true, BranchID: alcance(e.stg), CostoKmUsd: f64(0.7)})
+		if err != nil || !creado.BranchID.Valid || creado.BranchID.Bytes != e.stg {
+			t.Fatalf("el tipo tenía que nacer en Santiago: %+v (err %v)", creado, err)
+		}
+		// El mismo nombre en la MISMA sucursal: 23505. En otra, o «de todas»: sí.
+		err = e.intento(func() error {
+			_, err := e.q.CrearTipoDeVehiculo(e.ctx, CrearTipoDeVehiculoParams{Nombre: nuevo, Activo: true, BranchID: alcance(e.stg)})
+			return err
+		})
+		if !esClaveRepetida(err) {
+			t.Fatalf("el mismo nombre en la misma sucursal tenía que dar 23505 y dio %v", err)
+		}
+		for nombre, sucursal := range map[string]pgtype.UUID{"Holguín": alcance(e.hol), "de todas": sinAlcance} {
+			if _, err := e.q.CrearTipoDeVehiculo(e.ctx, CrearTipoDeVehiculoParams{Nombre: nuevo, Activo: true, BranchID: sucursal}); err != nil {
+				t.Fatalf("el mismo nombre en otra sucursal (%s) tenía que valer: %v", nombre, err)
+			}
+		}
+	})
+
+	t.Run("dos_de_todas_con_el_mismo_nombre_no", func(t *testing.T) {
+		// El caso por el que son DOS índices y no uno: en `(branch_id, nombre)` los nulos no chocan.
+		b := nuevoBanco(t, pool)
+		nombre := "global-" + uuid.NewString()[:6]
+		if _, err := b.q.CrearTipoDeVehiculo(b.ctx, CrearTipoDeVehiculoParams{Nombre: nombre, Activo: true}); err != nil {
+			t.Fatal(err)
+		}
+		err := b.intento(func() error {
+			_, err := b.q.CrearTipoDeVehiculo(b.ctx, CrearTipoDeVehiculoParams{Nombre: nombre, Activo: true})
+			return err
+		})
+		if !esClaveRepetida(err) {
+			t.Fatalf("dos tipos «de todas» con el mismo nombre tenían que dar 23505 y dio %v", err)
+		}
+	})
+
+	t.Run("actualizar_acota_y_no_toca_lo_ajeno", func(t *testing.T) {
+		e := nuevaEscenaDeTipos(t, pool)
+		costo := func(id uuid.UUID) *float64 {
+			var c *float64
+			if err := e.tx.QueryRow(e.ctx, `SELECT costo_km_usd FROM vehicle_types WHERE id = $1`, id).Scan(&c); err != nil {
+				t.Fatal(err)
+			}
+			return c
+		}
+		for nombre, ajeno := range map[string]uuid.UUID{"el de Holguín": e.deHol, "el de todas": e.deTodas} {
+			_, err := e.q.ActualizarTipoDeVehiculo(e.ctx, ActualizarTipoDeVehiculoParams{ID: ajeno, TocarCosto: true, CostoKmUsd: f64(9), Sucursal: alcance(e.stg)})
+			sinFilas(t, "cambiar "+nombre+" desde Santiago", err)
+			if costo(ajeno) != nil {
+				t.Fatalf("Santiago le cambió el costo a %s", nombre)
+			}
+		}
+		got, err := e.q.ActualizarTipoDeVehiculo(e.ctx, ActualizarTipoDeVehiculoParams{ID: e.deStg, TocarCosto: true, CostoKmUsd: f64(0.9), Sucursal: alcance(e.stg)})
+		if err != nil || got.CostoKmUsd == nil || *got.CostoKmUsd != 0.9 || costo(e.deHol) != nil {
+			t.Fatalf("el suyo tenía que cambiar y el de Holguín seguir igual: %+v (err %v)", got, err)
+		}
+		if _, err := e.q.ActualizarTipoDeVehiculo(e.ctx, ActualizarTipoDeVehiculoParams{ID: e.deTodas, TocarCosto: true, CostoKmUsd: f64(0.5), Sucursal: sinAlcance}); err != nil {
+			t.Fatalf("el modo «todas» tenía que poder tocar el de todas: %v", err)
+		}
+		// Y el modo «todas» NO toca el de una sucursal: lo que no está en su lista no se toca.
+		for nombre, deSucursal := range map[string]uuid.UUID{"el de Santiago": e.deStg, "el de Holguín": e.deHol} {
+			_, err := e.q.ActualizarTipoDeVehiculo(e.ctx, ActualizarTipoDeVehiculoParams{ID: deSucursal, TocarCosto: true, CostoKmUsd: f64(7), Sucursal: sinAlcance})
+			sinFilas(t, "cambiar "+nombre+" desde el modo «todas»", err)
+		}
+		if costo(e.deHol) != nil || (costo(e.deStg) == nil || *costo(e.deStg) != 0.9) {
+			t.Fatal("el modo «todas» le cambió el costo a un tipo de sucursal")
+		}
+	})
+
+	t.Run("renombrar_a_un_nombre_de_la_misma_sucursal_es_23505_y_a_uno_de_otra_no", func(t *testing.T) {
+		e := nuevaEscenaDeTipos(t, pool)
+		suyo, deHol := "suyo-"+uuid.NewString()[:6], "de-hol-"+uuid.NewString()[:6]
+		e.tipoDe(alcance(e.stg), suyo)
+		e.tipoDe(alcance(e.hol), deHol)
+		err := e.intento(func() error {
+			_, err := e.q.ActualizarTipoDeVehiculo(e.ctx, ActualizarTipoDeVehiculoParams{ID: e.deStg, Nombre: &suyo, Sucursal: alcance(e.stg)})
+			return err
+		})
+		if !esClaveRepetida(err) {
+			t.Fatalf("renombrar a uno que ya existe en la sucursal tenía que dar 23505 y dio %v", err)
+		}
+		if _, err := e.q.ActualizarTipoDeVehiculo(e.ctx, ActualizarTipoDeVehiculoParams{ID: e.deStg, Nombre: &deHol, Sucursal: alcance(e.stg)}); err != nil {
+			t.Fatalf("renombrar a un nombre que sólo existe en otra sucursal tenía que valer: %v", err)
+		}
+	})
+
+	t.Run("retirar_acota_y_devuelve_la_sucursal", func(t *testing.T) {
+		e := nuevaEscenaDeTipos(t, pool)
+		activo := func(id uuid.UUID) bool {
+			return e.entero(`SELECT count(*) FROM vehicle_types WHERE id = $1 AND activo`, id) == 1
+		}
+		for nombre, ajeno := range map[string]uuid.UUID{"el de Holguín": e.deHol, "el de todas": e.deTodas} {
+			_, err := e.q.RetirarTipoDeVehiculo(e.ctx, RetirarTipoDeVehiculoParams{ID: ajeno, Sucursal: alcance(e.stg)})
+			sinFilas(t, "retirar "+nombre+" desde Santiago", err)
+			if !activo(ajeno) {
+				t.Fatalf("Santiago retiró %s", nombre)
+			}
+		}
+		sucursal, err := e.q.RetirarTipoDeVehiculo(e.ctx, RetirarTipoDeVehiculoParams{ID: e.deStg, Sucursal: alcance(e.stg)})
+		if err != nil || !sucursal.Valid || sucursal.Bytes != e.stg || activo(e.deStg) {
+			t.Fatalf("el suyo tenía que retirarse y devolver su sucursal: %+v (err %v)", sucursal, err)
+		}
+		sucursal, err = e.q.RetirarTipoDeVehiculo(e.ctx, RetirarTipoDeVehiculoParams{ID: e.deTodas, Sucursal: sinAlcance})
+		if err != nil || sucursal.Valid {
+			t.Fatalf("retirar el de todas devuelve sucursal NULA: %+v (err %v)", sucursal, err)
+		}
+		// El modo «todas» no retira uno de sucursal.
+		_, err = e.q.RetirarTipoDeVehiculo(e.ctx, RetirarTipoDeVehiculoParams{ID: e.deHol, Sucursal: sinAlcance})
+		sinFilas(t, "retirar el de Holguín desde el modo «todas»", err)
+		if !activo(e.deHol) {
+			t.Fatal("el modo «todas» retiró un tipo de sucursal")
+		}
+	})
+
+	t.Run("borrar_acota_no_borra_lo_que_usa_un_camion_y_devuelve_la_sucursal", func(t *testing.T) {
+		e := nuevaEscenaDeTipos(t, pool)
+		for nombre, ajeno := range map[string]uuid.UUID{"el de Holguín": e.deHol, "el de todas": e.deTodas} {
+			_, err := e.q.BorrarTipoDeVehiculoSinUso(e.ctx, BorrarTipoDeVehiculoSinUsoParams{ID: ajeno, Sucursal: alcance(e.stg)})
+			sinFilas(t, "borrar "+nombre+" desde Santiago", err)
+			if !e.tipoExiste(ajeno) {
+				t.Fatalf("Santiago borró %s", nombre)
+			}
+		}
+		// En uso: no se borra aunque sea suyo.
+		e.camionConTipo(alcance(e.stg), e.deStg)
+		_, err := e.q.BorrarTipoDeVehiculoSinUso(e.ctx, BorrarTipoDeVehiculoSinUsoParams{ID: e.deStg, Sucursal: alcance(e.stg)})
+		sinFilas(t, "borrar un tipo en uso", err)
+		if !e.tipoExiste(e.deStg) {
+			t.Fatal("se borró un tipo que usa un camión")
+		}
+		// Sin uso y suyo: se borra y devuelve su sucursal.
+		libre := e.tipoDe(alcance(e.stg), "libre-"+uuid.NewString()[:6])
+		sucursal, err := e.q.BorrarTipoDeVehiculoSinUso(e.ctx, BorrarTipoDeVehiculoSinUsoParams{ID: libre, Sucursal: alcance(e.stg)})
+		if err != nil || !sucursal.Valid || sucursal.Bytes != e.stg || e.tipoExiste(libre) {
+			t.Fatalf("el suyo y libre tenía que borrarse y devolver Santiago: %+v (err %v)", sucursal, err)
+		}
+		// El modo «todas» no borra uno de sucursal, aunque esté libre.
+		_, err = e.q.BorrarTipoDeVehiculoSinUso(e.ctx, BorrarTipoDeVehiculoSinUsoParams{ID: e.deHol, Sucursal: sinAlcance})
+		sinFilas(t, "borrar el de Holguín desde el modo «todas»", err)
+		if !e.tipoExiste(e.deHol) {
+			t.Fatal("el modo «todas» borró un tipo de sucursal")
+		}
+		// Y borra el de todas (libre) y recibe NULL.
+		sucursal, err = e.q.BorrarTipoDeVehiculoSinUso(e.ctx, BorrarTipoDeVehiculoSinUsoParams{ID: e.deTodas, Sucursal: sinAlcance})
+		if err != nil || sucursal.Valid || e.tipoExiste(e.deTodas) {
+			t.Fatalf("el de todas libre tenía que borrarse y devolver NULL: %+v (err %v)", sucursal, err)
+		}
+	})
+
+	t.Run("una_sucursal_nueva_recibe_una_copia_de_los_de_todas", func(t *testing.T) {
+		b := nuevoBanco(t, pool)
+		global := "g-" + uuid.NewString()[:6]
+		b.exec(`INSERT INTO vehicle_types (nombre, costo_km_usd, activo) VALUES ($1, 0.4, false)`, global)
+		// Y un tipo de OTRA sucursal, que NO se copia: sólo se siembra lo «de todas».
+		b.tipoDe(alcance(b.sucursal()), "de-otra-"+uuid.NewString()[:6])
+		nueva := b.sucursal()
+		esperados := b.entero(`SELECT count(*) FROM vehicle_types WHERE branch_id IS NULL`)
+		n, err := b.q.SembrarTiposDeVehiculoEnSucursal(b.ctx, nueva)
+		if err != nil || int(n) != esperados {
+			t.Fatalf("sembró %d (err %v) y hay %d «de todas»", n, err, esperados)
+		}
+		if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE branch_id = $1`, nueva); got != esperados {
+			t.Fatalf("la sucursal nueva tiene %d tipos y esperaba %d", got, esperados)
+		}
+		// Nombre, costo y estado se copian (también los retirados).
+		if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE branch_id = $1 AND nombre = $2 AND costo_km_usd = 0.4 AND NOT activo`, nueva, global); got != 1 {
+			t.Fatalf("la copia no conservó nombre, costo y estado")
+		}
+		// Los «de todas» no se tocan: siguen siendo los mismos.
+		if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE branch_id IS NULL`); got != esperados {
+			t.Fatalf("sembrar cambió los «de todas»: %d y eran %d", got, esperados)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// La propia migración 00018: Up, y Down que la deja como estaba
+// ---------------------------------------------------------------------------
+
+// seccionesDeLaMigracion devuelve el SQL de Up y el de Down de un fichero goose.
+func seccionesDeLaMigracion(t *testing.T, fichero string) (up, down string) {
+	t.Helper()
+	crudo, err := os.ReadFile(filepath.Join("..", "..", "..", "db", "migrations", fichero))
+	if err != nil {
+		t.Fatal(err)
+	}
+	todo := string(crudo)
+	iUp, iDown := strings.Index(todo, "-- +goose Up"), strings.Index(todo, "-- +goose Down")
+	if iUp < 0 || iDown < iUp {
+		t.Fatalf("%s no tiene Up y Down", fichero)
+	}
+	return todo[iUp+len("-- +goose Up") : iDown], todo[iDown+len("-- +goose Down"):]
+}
+
+func TestMotorReal_Migracion00018TiposPorSucursal(t *testing.T) {
+	pool := motorReal(t)
+	b := nuevoBanco(t, pool)
+	up, down := seccionesDeLaMigracion(t, "00018_tipos_de_vehiculo_por_sucursal.sql")
+
+	// La base ya está en la 00018. Dentro de ESTA transacción —los DDL de Postgres son
+	// transaccionales— se deshace, se siembra el estado de ANTES con datos de verdad, se sube
+	// y se mira. Todo se revierte al terminar. (Mientras dura, la tabla queda bloqueada para
+	// cualquier otra conexión: no se corre contra una base que esté usando otro.)
+	b.exec(down)
+
+	// ANTES: los tipos de fábrica de la 00001 (uno con costo, otro retirado), dos sucursales con
+	// camiones apuntando a los de todos, y un camión compartido.
+	b.exec(`UPDATE vehicle_types SET costo_km_usd = 0.55 WHERE nombre = 'truck'`)
+	b.exec(`UPDATE vehicle_types SET activo = false WHERE nombre = 'car'`)
+	idGlobal := func(nombre string) uuid.UUID {
+		return b.id(`SELECT id FROM vehicle_types WHERE nombre = $1`, nombre)
+	}
+	truck, van := idGlobal("truck"), idGlobal("van")
+	a, c := b.sucursal(), b.sucursal()
+	camion := func(sucursal any, tipo uuid.UUID) uuid.UUID {
+		return b.id(`INSERT INTO vehicles (name, vehicle_type_id, branch_id) VALUES ($1, $2, $3) RETURNING id`,
+			"camion-"+uuid.NewString()[:8], tipo, sucursal)
+	}
+	vA1, vA2, vC, vCompartido := camion(a, truck), camion(a, van), camion(c, truck), camion(nil, truck)
+	globales := b.entero(`SELECT count(*) FROM vehicle_types`)
+	sucursales := b.entero(`SELECT count(*) FROM branches`) // las dos de arriba, más las que haya
+
+	b.exec(up)
+
+	tipoDelCamion := func(v uuid.UUID) (nombre string, sucursal pgtype.UUID, tipo uuid.UUID) {
+		if err := b.tx.QueryRow(b.ctx, `SELECT vt.nombre, vt.branch_id, vt.id FROM vehicles v JOIN vehicle_types vt ON vt.id = v.vehicle_type_id WHERE v.id = $1`, v).Scan(&nombre, &sucursal, &tipo); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+
+	t.Run("cada_sucursal_recibe_una_copia_de_cada_tipo", func(t *testing.T) {
+		if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE branch_id IS NULL`); got != globales {
+			t.Fatalf("los «de todas» eran %d y quedaron %d: no se tocan", globales, got)
+		}
+		if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE branch_id IS NOT NULL`); got != globales*sucursales {
+			t.Fatalf("hay %d tipos de sucursal y tocaban %d × %d", got, globales, sucursales)
+		}
+		for _, suc := range []uuid.UUID{a, c} {
+			if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE branch_id = $1`, suc); got != globales {
+				t.Fatalf("la sucursal %s tiene %d tipos y tocaban %d", suc, got, globales)
+			}
+			// Costo y estado se copian: el «truck» con su 0.55 y el «car» retirado.
+			if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE branch_id = $1 AND nombre = 'truck' AND costo_km_usd = 0.55`, suc); got != 1 {
+				t.Fatal("la copia del «truck» no conservó su costo")
+			}
+			if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE branch_id = $1 AND nombre = 'car' AND NOT activo`, suc); got != 1 {
+				t.Fatal("la copia del «car» no conservó que estaba retirado")
+			}
+		}
+	})
+
+	t.Run("cada_camion_con_sucursal_apunta_al_tipo_de_su_sucursal", func(t *testing.T) {
+		for camion, esperado := range map[uuid.UUID]struct {
+			nombre string
+			suc    uuid.UUID
+		}{vA1: {"truck", a}, vA2: {"van", a}, vC: {"truck", c}} {
+			nombre, suc, tipo := tipoDelCamion(camion)
+			if nombre != esperado.nombre || !suc.Valid || suc.Bytes != esperado.suc || tipo == truck || tipo == van {
+				t.Fatalf("el camión %s quedó con %q de %+v y tocaba %q de %s", camion, nombre, suc, esperado.nombre, esperado.suc)
+			}
+		}
+	})
+
+	t.Run("el_compartido_se_queda_con_el_de_todas", func(t *testing.T) {
+		if nombre, suc, tipo := tipoDelCamion(vCompartido); nombre != "truck" || suc.Valid || tipo != truck {
+			t.Fatalf("el camión compartido tenía que seguir en el «truck» de todas y quedó con %q %+v %s", nombre, suc, tipo)
+		}
+	})
+
+	t.Run("ningun_camion_queda_con_un_tipo_de_otra_sucursal", func(t *testing.T) {
+		// La invariante que hace cumplir la API desde ahora y que la migración tiene que dejar puesta.
+		// Es la misma consulta que está en `docs/despliegue.md`.
+		if got := b.entero(`SELECT count(*) FROM vehicles v JOIN vehicle_types t ON t.id = v.vehicle_type_id
+			WHERE v.branch_id IS DISTINCT FROM t.branch_id AND v.id IN ($1, $2, $3, $4)`, vA1, vA2, vC, vCompartido); got != 0 {
+			t.Fatalf("%d camiones con el tipo de otra sucursal", got)
+		}
+	})
+
+	t.Run("la_clave_ajena_a_la_sucursal_no_borra_en_cascada", func(t *testing.T) {
+		// 'a' = NO ACTION: borrar una sucursal con tipos falla en voz alta en vez de llevarse el catálogo.
+		var accion string
+		if err := b.tx.QueryRow(b.ctx, `SELECT confdeltype::text FROM pg_constraint WHERE conrelid = 'vehicle_types'::regclass AND contype = 'f' AND confrelid = 'branches'::regclass`).Scan(&accion); err != nil {
+			t.Fatal(err)
+		}
+		if accion != "a" {
+			t.Fatalf("la clave ajena de vehicle_types.branch_id es %q y tiene que ser 'a' (NO ACTION): sin ON DELETE CASCADE", accion)
+		}
+	})
+
+	t.Run("el_nombre_es_unico_por_sucursal_y_entre_los_de_todas", func(t *testing.T) {
+		err := b.intento(func() error {
+			_, err := b.tx.Exec(b.ctx, `INSERT INTO vehicle_types (nombre, branch_id) VALUES ('truck', $1)`, a)
+			return err
+		})
+		if !esClaveRepetida(err) {
+			t.Fatalf("repetir «truck» en la misma sucursal tenía que dar 23505 y dio %v", err)
+		}
+		err = b.intento(func() error {
+			_, err := b.tx.Exec(b.ctx, `INSERT INTO vehicle_types (nombre) VALUES ('truck')`)
+			return err
+		})
+		if !esClaveRepetida(err) {
+			t.Fatalf("repetir «truck» entre los de todas tenía que dar 23505 y dio %v", err)
+		}
+	})
+
+	// DESPUÉS de la subida las sucursales trabajan: A y C tienen su «rastra» con OTRO costo y un
+	// camión cada una; A tiene además una «gandola» con camión y un tipo sin camiones.
+	b.exec(`INSERT INTO vehicle_types (nombre, branch_id, costo_km_usd) VALUES ('rastra', $1, 1.0), ('rastra', $2, 2.0)`, a, c)
+	rastraA := b.id(`SELECT id FROM vehicle_types WHERE nombre = 'rastra' AND branch_id = $1`, a)
+	rastraC := b.id(`SELECT id FROM vehicle_types WHERE nombre = 'rastra' AND branch_id = $1`, c)
+	gandolaA := b.id(`INSERT INTO vehicle_types (nombre, branch_id, costo_km_usd) VALUES ('gandola', $1, 3.0) RETURNING id`, a)
+	b.tipoDe(alcance(a), "sin-camiones")
+	vRastraA, vRastraC, vGandolaA := camion(a, rastraA), camion(c, rastraC), camion(a, gandolaA)
+	// Y A cambió el costo de SU «truck»: el de C no se mueve, que es justo lo que se quería.
+	b.exec(`UPDATE vehicle_types SET costo_km_usd = 0.99 WHERE branch_id = $1 AND nombre = 'truck'`, a)
+	if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE branch_id = $1 AND nombre = 'truck' AND costo_km_usd = 0.55`, c); got != 1 {
+		t.Fatal("cambiar el costo en una sucursal movió el de otra: justo lo que esta migración quiere impedir")
+	}
+
+	b.exec(down)
+
+	t.Run("down_deja_la_base_como_estaba", func(t *testing.T) {
+		if got := b.entero(`SELECT count(*) FROM information_schema.columns WHERE table_name = 'vehicle_types' AND column_name = 'branch_id'`); got != 0 {
+			t.Fatal("el Down dejó la columna branch_id")
+		}
+		if got := b.entero(`SELECT count(*) FROM pg_constraint WHERE conrelid = 'vehicle_types'::regclass AND conname = 'vehicle_types_nombre_key'`); got != 1 {
+			t.Fatal("el Down no devolvió la única de `nombre`")
+		}
+		// Los camiones de antes vuelven al tipo de todas del mismo nombre (los MISMOS ids de antes).
+		for camion, tipo := range map[uuid.UUID]uuid.UUID{vA1: truck, vC: truck, vCompartido: truck, vA2: van} {
+			if got := b.entero(`SELECT count(*) FROM vehicles WHERE id = $1 AND vehicle_type_id = $2`, camion, tipo); got != 1 {
+				t.Fatalf("el camión %s no volvió a su tipo de antes (%s)", camion, tipo)
+			}
+		}
+		// Los de todas conservan su costo: el 0.99 que puso A en SU copia se pierde, que es lo dicho en el Down.
+		if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE nombre = 'truck' AND costo_km_usd = 0.55`); got != 1 {
+			t.Fatal("el «truck» de todas tenía que conservar su costo de antes")
+		}
+	})
+
+	t.Run("down_da_a_los_tipos_nuevos_de_las_sucursales_un_sitio_donde_volver", func(t *testing.T) {
+		tipoYCosto := func(camion uuid.UUID) (nombre string, costo *float64) {
+			if err := b.tx.QueryRow(b.ctx, `SELECT vt.nombre, vt.costo_km_usd FROM vehicles v JOIN vehicle_types vt ON vt.id = v.vehicle_type_id WHERE v.id = $1`, camion).Scan(&nombre, &costo); err != nil {
+				t.Fatalf("el camión %s se quedó sin tipo: %v", camion, err)
+			}
+			return
+		}
+		// «rastra»: A y C la tienen con costos distintos (1.0 y 2.0) -> una sola «rastra» y SIN costo.
+		nA, cA := tipoYCosto(vRastraA)
+		nC, cC := tipoYCosto(vRastraC)
+		if nA != "rastra" || nC != "rastra" || cA != nil || cC != nil {
+			t.Fatalf("«rastra» con costos distintos tenía que quedar vacía: %q %v / %q %v", nA, cA, nC, cC)
+		}
+		if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE nombre = 'rastra'`); got != 1 {
+			t.Fatalf("hay %d «rastra» y tiene que haber una sola", got)
+		}
+		// «gandola»: sólo A, con 3.0 -> se conserva.
+		if n, c := tipoYCosto(vGandolaA); n != "gandola" || c == nil || *c != 3.0 {
+			t.Fatalf("«gandola» tenía que conservar su costo 3.0: %q %v", n, c)
+		}
+		// Un tipo sin camiones no tiene a quién llevarse: se pierde con lo que contuviera.
+		if got := b.entero(`SELECT count(*) FROM vehicle_types WHERE nombre = 'sin-camiones'`); got != 0 {
+			t.Fatal("el Down tenía que descartar el tipo de sucursal sin camiones")
+		}
+	})
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../datos/modelos.dart';
 import '../../../diseno/tema.dart';
+import '../../pedidos/datos/formato.dart' show etiquetaDeFactura;
 import 'kit.dart';
 
 /// Lo que viaja mientras se arrastra: el pedido y de donde sale.
@@ -154,6 +155,28 @@ class TarjetaDePedido extends ConsumerWidget {
                   ),
                 ],
               ),
+              // EL NUMERO DE FACTURA, A LA VISTA — Amado, 14/10/2026 (issue 8): «los
+              // logisticos operan con numero de factura, debe ser una informacion
+              // importante a mostrar en los CARDS de pedidos». Una sola linea con
+              // elipsis, debajo del folio y encima del cliente: no cambia el ancho de
+              // la tarjeta, que es la misma en las dos mitades y en el feedback del
+              // arrastre (280 px), y suma una linea de alto. Sin numero no sale nada:
+              // «Sin factura» / «Sin cotejar» ya lo dicen las marcas de abajo. El
+              // folio de arriba es OTRO numero (el conduce): ver `numeroDeFactura`.
+              if (etiquetaDeFactura(pedido.facturaNumero) case final factura?)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    factura,
+                    key: const ValueKey('tarjeta-factura'),
+                    style: tema.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: tema.colorScheme.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               Text(
                 pedido.customerName,
                 style: tema.textTheme.bodyMedium?.copyWith(
@@ -194,8 +217,10 @@ class TarjetaDePedido extends ConsumerWidget {
                   ],
                 ),
               ],
-              // No se funden las tarjetas: se dicen. Que caigan seguidas al
-              // ordenar por cercania ya las junta; esto es para que el
+              // No se funden las tarjetas: se dicen. Con el orden por cercania
+              // (hasta el 14/10/2026) las del mismo edificio caian seguidas; con
+              // el cronologico ya NO tienen por que, y esta linea es lo unico
+              // que avisa de que hay otra igual mas abajo. Es para que el
               // logistico las meta en la misma columna a proposito y no por
               // casualidad (§7.1).
               if (pedido.mismoCliente > 1) ...[

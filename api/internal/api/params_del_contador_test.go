@@ -32,7 +32,6 @@ func TestElContadorRecibeLosMismosFiltrosQueLaLista(t *testing.T) {
 	// tanda siguiente, así que el cursor se queda fuera.
 	noSeCopian := map[string]string{
 		"DesdeID":    "el cursor: el total no se pagina, o el número bajaría al desplazarse",
-		"DesdeKm":    "el cursor: ídem",
 		"DesdeFecha": "el cursor: ídem",
 		"Limite":     "el tope es de la lista; el contador cuenta todo",
 	}

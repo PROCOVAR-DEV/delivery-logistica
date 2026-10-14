@@ -9,9 +9,10 @@ import 'apoyo.dart';
 /// «SE VEN 200 DE 300» TENÍA QUE LLEVAR A ALGÚN SITIO.
 ///
 /// El aviso decía «afina con los filtros», y eso no era una salida: la lista va
-/// ordenada por cercanía al almacén, así que los que se quedaban fuera eran
-/// **los más lejanos** — justo los que no se encuentran afinando, porque quien
-/// los busca no sabe ni qué municipio mirar.
+/// ordenada, así que los que se quedaban fuera eran **los últimos** — entonces
+/// los más lejanos al almacén, desde el 14/10/2026 los de factura más reciente —,
+/// justo los que no se encuentran afinando, porque quien los busca no sabe ni qué
+/// municipio mirar.
 ///
 /// Medido en producción el 17/09/2026: La Habana tenía 300 pedidos sin colocar y
 /// 100 de ellos no se podían ver de ninguna manera. Es el §3 del CLAUDE.md —
@@ -26,10 +27,18 @@ void main() {
     consultas = ConsultasTablero(base);
     await sembrarSucursal(base);
     await sembrarAlmacen(base);
-    // Doce pedidos a distancias distintas, para que el orden por cercanía sea el
-    // de verdad y el último de la lista sea el más lejano.
+    // Doce pedidos de facturas de horas distintas, cada uno más reciente que el
+    // anterior, para que el orden cronológico sea el de verdad y el último de la
+    // lista sea el más reciente. (Y a distancias que crecen igual: da lo mismo
+    // el orden que se mire, que es lo que esta prueba NO quiere medir; el orden
+    // propiamente dicho vive en `sin_colocar_test.dart`.)
     for (var i = 0; i < 12; i++) {
-      await sembrarPedido(base, id: 'p-$i', aGrados: 0.01 * (i + 1));
+      await sembrarPedido(
+        base,
+        id: 'p-$i',
+        aGrados: 0.01 * (i + 1),
+        facturaAt: DateTime(2026, 9, 14, 8).add(Duration(hours: i)),
+      );
     }
   });
 
@@ -55,8 +64,8 @@ void main() {
     },
   );
 
-  test('subiendo el tope una tanda salen los que faltaban, y son los más '
-      'lejanos', () async {
+  test('subiendo el tope una tanda salen los que faltaban, y son los de la '
+      'cola', () async {
     final corta = await conTope(5);
     final entera = await conTope(5 + FiltrosSinColocar.tanda);
 
@@ -70,7 +79,7 @@ void main() {
       ahora.where((id) => !antes.contains(id)).toList(),
       ['p-5', 'p-6', 'p-7', 'p-8', 'p-9', 'p-10', 'p-11'],
       reason:
-          'los que faltaban eran los más lejanos al almacén, que es justo por '
+          'los que faltaban eran los de la cola de la lista, que es justo por '
           'lo que «afina con los filtros» no servía de nada',
     );
   });

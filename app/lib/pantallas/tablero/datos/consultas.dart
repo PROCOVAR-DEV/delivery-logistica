@@ -382,6 +382,7 @@ SELECT p.order_id, p.column_id, p.posicion, p.colocado_at,
        o.operation_number, o.customer_name, o.customer_phone, o.address,
        o.end_address, o.end_lat, o.end_lng, o.weight, o.pedido_costo,
        o.municipio, o.vendedor, o.order_date, o.factura_estado, o.archivado,
+       o.factura_numero, o.factura_at,
        o.route_id, o.resultado, o.factura_domicilio, o.delivered_at
 FROM ${EsquemaTablero.colocaciones} p
 JOIN ${EsquemaTablero.columnas} c ON c.id = p.column_id
@@ -419,6 +420,8 @@ ORDER BY c.posicion ASC, p.posicion ASC''',
               vendedor: f.readNullable<String>('vendedor'),
               orderDate: f.readNullable<DateTime>('order_date'),
               facturaEstado: f.readNullable<String>('factura_estado'),
+              facturaNumero: f.readNullable<String>('factura_numero'),
+              facturaAt: f.readNullable<DateTime>('factura_at'),
               facturaDomicilio: f.readNullable<double>('factura_domicilio'),
               archivado: f.read<int>('archivado') != 0,
               rutaId: f.readNullable<String>('route_id'),
@@ -465,15 +468,28 @@ WHERE c.branch_id = ?1''',
     );
   }
 
-  /// LOS PEDIDOS SIN COLOCAR, ORDENADOS POR CERCANIA AL ALMACEN.
+  /// LOS PEDIDOS SIN COLOCAR, DEL MAS VIEJO AL MAS RECIENTE POR LA FECHA DE SU
+  /// FACTURA — 14/10/2026.
   ///
-  /// Es la segunda mitad del encargo y no es un adorno: es como se decide que
-  /// se reparte hoy cuando no cabe todo. Lo que esta cerca sale igual, porque
-  /// cuesta poco; lo que esta lejos espera al dia en que haya suficiente para
-  /// ese lado. Por fecha esa decision no se puede tomar.
+  /// Amado, issue 6, punto 2: «la lista de facturas (pedidos) debe salir
+  /// ordenada cronologicamente de lo mas viejo a lo mas reciente». La fecha es
+  /// `facturaAt` y, si el pedido no la trae, `orderDate`; sin ninguna de las
+  /// dos va AL FINAL (un pedido sin fecha no es «el mas viejo»); y el desempate
+  /// es el id, que es lo que impide que las tarjetas bailen entre dos lecturas
+  /// delante de quien las esta arrastrando. Es el MISMO orden que el servidor
+  /// (`ListarPedidosSinColocar`, `coalesce(factura_at, order_date) ASC NULLS
+  /// LAST, id ASC`).
   ///
-  /// **El orden se hace aqui, en el aparato.** En el servidor lo hace el SQL
-  /// (`km_haversine`), pero SQLite no trae trigonometria y, sobre todo, la
+  /// HASTA ESE DIA IBA POR CERCANIA AL ALMACEN, y era deliberado: es como se
+  /// decide que se reparte hoy cuando no cabe todo —lo que esta cerca sale igual,
+  /// porque cuesta poco; lo que esta lejos espera al dia en que haya suficiente
+  /// para ese lado—. **Lo que se pierde:** ya no hay un «lo mas cerca arriba».
+  /// Los kilometros siguen en cada tarjeta y en el filtro `kmMax`, pero ver lo
+  /// cercano de un golpe ya no es mirar la cabeza de la lista. Si hacen falta
+  /// las dos cosas, lo que falta es un selector de orden: este metodo, el SQL del
+  /// servidor y su cursor cambian juntos.
+  ///
+  /// **El orden se hace aqui, en el aparato**, y no en la consulta, porque la
   /// pantalla tiene que dar el mismo orden sin conexion: es la hora a la que se
   /// usa. Son los pedidos de UNA sucursal, no del pais.
   ///
@@ -613,6 +629,9 @@ WHERE c.branch_id = ?1''',
     }
 
     final filas = await consulta.get();
+    // El orden, sobre las filas y antes de armar las tarjetas: el filtro por
+    // kilometros de mas abajo quita elementos pero no reordena.
+    filas.sort(_porFechaDeFactura);
 
     final repes = <String, int>{};
     for (final p in filas) {
@@ -634,6 +653,8 @@ WHERE c.branch_id = ?1''',
             vendedor: p.vendedor,
             orderDate: p.orderDate ?? p.createdAt,
             facturaEstado: p.facturaEstado,
+            facturaNumero: p.facturaNumero,
+            facturaAt: p.facturaAt,
             facturaDomicilio: p.facturaDomicilio,
             archivado: p.archivado,
             rutaId: p.routeId,
@@ -649,22 +670,6 @@ WHERE c.branch_id = ?1''',
     if (kmMax != null) {
       tarjetas = tarjetas.where((t) => t.kmAlAlmacen <= kmMax).toList();
     }
-
-    // El desempate no es adorno: dos clientes del mismo edificio dan
-    // exactamente los mismos kilometros, y sin un segundo criterio el orden
-    // cambia entre dos lecturas y las tarjetas bailan solas delante de quien
-    // las esta arrastrando. Fecha descendente y luego el id, como en el
-    // servidor.
-    tarjetas.sort((a, b) {
-      final porKm = a.kmAlAlmacen.compareTo(b.kmAlAlmacen);
-      if (porKm != 0) return porKm;
-      final fa = a.orderDate;
-      final fb = b.orderDate;
-      if (fa != null && fb != null && fa != fb) return fb.compareTo(fa);
-      if (fa == null && fb != null) return 1;
-      if (fa != null && fb == null) return -1;
-      return a.pedidoId.compareTo(b.pedidoId);
-    });
 
     return MitadIzquierda(
       total: tarjetas.length,
@@ -717,6 +722,23 @@ WHERE c.branch_id = ?1''',
           ),
         )
         .toList(growable: false);
+  }
+
+  /// `ORDER BY coalesce(factura_at, order_date) ASC NULLS LAST, id ASC`, repetido
+  /// tal cual del servidor. Estatico y con nombre propio para que el orden sea UNA
+  /// cosa que se lee, y no un `sort` enterrado en un metodo de doscientas lineas.
+  static int _porFechaDeFactura(Pedido a, Pedido b) {
+    final fa = a.facturaAt ?? a.orderDate;
+    final fb = b.facturaAt ?? b.orderDate;
+    if (fa != null && fb != null) {
+      final cual = fa.compareTo(fb);
+      if (cual != 0) return cual;
+    } else if (fa == null && fb != null) {
+      return 1; // sin fecha, detras de cualquiera con fecha
+    } else if (fa != null && fb == null) {
+      return -1;
+    }
+    return a.id.compareTo(b.id);
   }
 
   /// Sin coordenadas no hay distancia. `infinity` y no `0`: un pedido sin

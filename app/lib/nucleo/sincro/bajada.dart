@@ -709,6 +709,12 @@ class Bajada {
             // DE DÓNDE SON LOS RENGLONES Y EL PESO. Ver `Orders.itemsOrigen`.
             itemsOrigen: Value(_texto(j['itemsOrigen'])),
             facturaNumero: Value(_texto(j['facturaNumero'])),
+            // Cuándo anotó PEDIDO el cotejo con la factura. NADIE lo escribía y la
+            // columna valía NULL en todo el aparato: sin él «Sin colocar» no puede ir
+            // por la fecha de la factura (cae a la del pedido) y el detalle no puede
+            // decir cuándo se facturó (Amado, issues 6 y 8, 14/10/2026). Lo ata
+            // `la_bajada_no_pierde_campos_test.dart`.
+            facturaAt: Value(_fecha(j['facturaAt'])),
             facturaDomicilio: Value(_numero(j['facturaDomicilio'])),
             stopOrder: Value(_entero(j['stopOrder'])),
             deliveredAt: Value(_fecha(j['deliveredAt'])),

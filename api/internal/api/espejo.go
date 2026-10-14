@@ -1518,7 +1518,15 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 			"sucursalCodigo":    f.SucursalCodigo,
 			"facturaEstado":     textoDe(f.FacturaEstado),
 			"facturaNumero":     f.FacturaNumero,
-			"facturaDomicilio":  f.FacturaDomicilio,
+			// `facturaAt` FALTABA Y NADIE LO ECHABA DE MENOS: la columna existía en el aparato
+			// (`orders.factura_at`) y nada la escribía, así que valía NULL en todos los pedidos de
+			// la APK, el escritorio y la web. Amado, issues 6 y 8 (14/10/2026): el detalle del
+			// pedido tiene que decir cuándo se facturó, y «Sin colocar» va del más viejo al más
+			// reciente por la fecha de la FACTURA. Sin esta clave lo primero no se podía enseñar
+			// y lo segundo caía a la fecha del pedido sin avisar: orden creíble y equivocado.
+			// Lo ata `la_bajada_no_pierde_campos_test.go` (y su gemela en Dart).
+			"facturaAt":        hora(f.FacturaAt),
+			"facturaDomicilio": f.FacturaDomicilio,
 			// DE DÓNDE SON `items` Y `weight`: `factura` o `pedido`.
 			//
 			// Cuando la factura cambió lo que se pidió, lo que va en `items` YA son las

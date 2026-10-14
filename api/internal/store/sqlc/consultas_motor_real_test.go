@@ -183,6 +183,12 @@ type semilla struct {
 	Coordenadas bool
 	Peso        *float64 // nil = 1, el de siempre
 	Archivado   bool
+
+	// Las fechas y el número de la factura, para el orden cronológico de «sin colocar»
+	// (issue 6 de Amado, 14/10/2026). Nil en los tres es lo de siempre: un pedido sin fecha.
+	OrderDate     *time.Time
+	FacturaAt     *time.Time
+	FacturaNumero *string
 }
 
 func listo(nombre string, sucursal uuid.UUID) semilla {
@@ -203,19 +209,20 @@ INSERT INTO orders (
     customer_name, address, weight, branch_id, source, external_id,
     end_lat, end_lng, requiere_domicilio, factura_estado, factura_domicilio, pedido_costo,
     route_id, ultima_ruta_id, stop_order, segment_km, trip_leg, status, delivered_at, resultado,
-    archivado
+    archivado, order_date, factura_at, factura_numero
 ) VALUES (
     $1, 'calle 1', COALESCE($18::double precision, 1), $2, $3::text::procedencia, $4,
     $5, $6, $7, $8::text::factura_estado, $9, $10,
     $11, $12, $13, $14, $15::text::trip_leg,
     (CASE WHEN $16::boolean THEN 'delivered' ELSE 'pending' END)::order_status,
     (CASE WHEN $16::boolean THEN now() END), $17::text::stop_result,
-    $19::boolean
+    $19::boolean, $20::timestamptz, $21::timestamptz, $22::text
 ) RETURNING id`,
 		s.Nombre, s.Sucursal, s.Source, "ext-"+uuid.NewString(),
 		lat, lng, s.Requiere, s.Factura, s.Domicilio, s.Costo,
 		s.Ruta, s.UltimaRuta, s.StopOrder, s.SegmentKm, s.TripLeg,
-		s.Entregado, s.Resultado, s.Peso, s.Archivado)
+		s.Entregado, s.Resultado, s.Peso, s.Archivado,
+		s.OrderDate, s.FacturaAt, s.FacturaNumero)
 }
 
 // ficha: un pedido ya colocado en una columna del tablero.
@@ -1500,6 +1507,166 @@ func TestMotorReal_ListasDelTableroYColocarDicenLoMismo(t *testing.T) {
 				"ListarPedidosDisponibles sí exigen", rechazados)
 		}
 	})
+}
+
+// «SIN COLOCAR» VA DEL MÁS VIEJO AL MÁS RECIENTE, Y SE PUEDE PAGINAR ENTERO — 14/10/2026.
+//
+// Amado, issue 6, punto 2: «la lista de facturas (pedidos) debe salir ordenada
+// cronológicamente de lo más viejo a lo más reciente». La fecha es `factura_at` y, si el
+// pedido no la tiene, `order_date`; sin ninguna de las dos, el pedido va al final; el
+// desempate es el id. Antes era por cercanía al almacén.
+//
+// Esto lo ejecuta Postgres de verdad porque es justo lo que un doble no ve: el doble de
+// `internal/api` repite el `ORDER BY` y el cursor en Go, y si el SQL real tiene la comparación
+// del cursor mal, el doble aprueba y la producción repite o se salta pedidos (CLAUDE.md §3,
+// «pedir un tope y comprobar»). Aquí se pagina de uno en uno, de dos en dos y de tres en tres
+// con el cursor armado EXACTAMENTE como lo arma `mitadIzquierda` (la fecha por la que se
+// ordenó y el id de la última fila servida), y la unión de las tandas tiene que ser la lista
+// entera, en el mismo orden, sin una repetida ni una de menos.
+//
+// Los datos están hechos para que ningún orden accidental dé el esperado: la distancia al
+// almacén crece en sentido CONTRARIO al de la fecha de factura (el más viejo es el más
+// lejano), y el pedido más antiguo por `order_date` no es el más antiguo por factura.
+func TestMotorReal_SinColocarCronologico(t *testing.T) {
+	pool := motorReal(t)
+	b := nuevoBanco(t, pool)
+	suc := b.sucursal()
+
+	dia := func(d int) *time.Time {
+		f := time.Date(2026, 10, d, 9, 30, 0, 0, time.UTC)
+		return &f
+	}
+	type caso struct {
+		nombre          string
+		pedido, factura *time.Time
+		numero          *string
+		grado           float64 // cuánto más lejos del almacén (0,01 grado ≈ 1,1 km)
+	}
+	casos := []caso{
+		{"a_factura_3_pedido_14", dia(14), dia(3), str("1024001"), 0.50},
+		{"b_sin_factura_pedido_5", dia(5), nil, nil, 0.40},
+		{"c_factura_9_pedido_1", dia(1), dia(9), str("1024003"), 0.30},
+		{"d_factura_12_pedido_11", dia(11), dia(12), str("1024004"), 0.20},
+		// Dos facturas anotadas en el MISMO instante: sólo el id las separa.
+		{"e_misma_hora", dia(2), dia(13), str("1024005"), 0.10},
+		{"f_misma_hora", dia(2), dia(13), str("1024006"), 0.05},
+		// Sin fecha de ningún tipo: al final, y entre ellas por id.
+		{"g_sin_fecha", nil, nil, nil, 0.02},
+		{"h_sin_fecha", nil, nil, nil, 0.01},
+	}
+	ids := map[string]uuid.UUID{}
+	nombreDe := map[uuid.UUID]string{}
+	for _, c := range casos {
+		s := listo(c.nombre, suc)
+		s.OrderDate, s.FacturaAt, s.FacturaNumero = c.pedido, c.factura, c.numero
+		id := b.pedido(s)
+		b.exec(`UPDATE orders SET end_lat = $2 WHERE id = $1`, id, 21.5+c.grado)
+		ids[c.nombre], nombreDe[id] = id, c.nombre
+	}
+
+	// Lo esperado, escrito a mano: los cuatro primeros por su fecha; luego las dos de la
+	// misma hora por id; luego las dos sin fecha por id.
+	delMismoInstante := []string{"e_misma_hora", "f_misma_hora"}
+	sinFecha := []string{"g_sin_fecha", "h_sin_fecha"}
+	porId := func(nombres []string) []string {
+		salida := append([]string(nil), nombres...)
+		sort.Slice(salida, func(i, j int) bool { return ids[salida[i]].String() < ids[salida[j]].String() })
+		return salida
+	}
+	esperado := []string{"a_factura_3_pedido_14", "b_sin_factura_pedido_5", "c_factura_9_pedido_1", "d_factura_12_pedido_11"}
+	esperado = append(esperado, porId(delMismoInstante)...)
+	esperado = append(esperado, porId(sinFecha)...)
+
+	// Lo mismo que arma el manejador para la lista: el origen es el del propio pedido
+	// (21,5 / -77,9), de modo que los km salen y no ordenan.
+	pedirTanda := func(limite int32, desde *FilaDeCursor) []ListarPedidosSinColocarRow {
+		arg := ListarPedidosSinColocarParams{
+			OrigenLat: 21.5, OrigenLng: -77.9, BranchID: suc, Sucursal: sinAlcance, Limite: limite,
+		}
+		if desde != nil {
+			arg.DesdeID = pgtype.UUID{Bytes: desde.id, Valid: true}
+			arg.DesdeFecha = desde.fecha
+		}
+		filas, err := b.q.ListarPedidosSinColocar(b.ctx, arg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return filas
+	}
+	nombres := func(filas []ListarPedidosSinColocarRow) []string {
+		var salida []string
+		for _, f := range filas {
+			salida = append(salida, nombreDe[f.ID])
+		}
+		return salida
+	}
+
+	t.Run("la_lista_entera_va_del_mas_viejo_al_mas_reciente", func(t *testing.T) {
+		entera := pedirTanda(100, nil)
+		igualesTxt(t, "ListarPedidosSinColocar", nombres(entera), esperado)
+
+		// El número de factura y la fecha por la que se ordenó viajan en la fila.
+		for _, f := range entera {
+			if nombreDe[f.ID] == "a_factura_3_pedido_14" {
+				if f.FacturaNumero == nil || *f.FacturaNumero != "1024001" {
+					t.Errorf("la fila no trae el número de factura: %v", f.FacturaNumero)
+				}
+				if !f.FacturaAt.Valid || !f.FacturaAt.Time.Equal(*dia(3)) {
+					t.Errorf("la fila no trae factura_at: %v", f.FacturaAt)
+				}
+				if !f.FechaCronologica.Valid || !f.FechaCronologica.Time.Equal(*dia(3)) {
+					t.Errorf("fecha_cronologica tendría que ser la FACTURA (3), no la del pedido (14): %v", f.FechaCronologica)
+				}
+			}
+			if nombreDe[f.ID] == "b_sin_factura_pedido_5" {
+				if f.FacturaAt.Valid || !f.FechaCronologica.Valid || !f.FechaCronologica.Time.Equal(*dia(5)) {
+					t.Errorf("sin factura_at la fecha tendría que ser la del pedido (5): %v / %v", f.FacturaAt, f.FechaCronologica)
+				}
+			}
+			if nombreDe[f.ID] == "g_sin_fecha" && f.FechaCronologica.Valid {
+				t.Errorf("sin ninguna fecha, fecha_cronologica tendría que ser nula: %v", f.FechaCronologica)
+			}
+		}
+
+		// Y el contador dice lo mismo que la lista.
+		total, err := b.q.ContarPedidosSinColocar(b.ctx, ContarPedidosSinColocarParams{BranchID: suc, Sucursal: sinAlcance})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if int(total) != len(entera) {
+			t.Errorf("ContarPedidosSinColocar = %d y la lista trae %d", total, len(entera))
+		}
+	})
+
+	for _, limite := range []int32{1, 2, 3} {
+		t.Run(fmt.Sprintf("paginando_de_%d_en_%d_sale_la_lista_entera", limite, limite), func(t *testing.T) {
+			var salida []string
+			var desde *FilaDeCursor
+			for vuelta := 0; ; vuelta++ {
+				if vuelta > 20 {
+					t.Fatalf("el cursor no avanza: 20 vueltas y todavía quedan filas. Van %v", salida)
+				}
+				filas := pedirTanda(limite, desde)
+				if len(filas) == 0 {
+					break
+				}
+				if int32(len(filas)) > limite {
+					t.Fatalf("pidió %d y vinieron %d", limite, len(filas))
+				}
+				salida = append(salida, nombres(filas)...)
+				ultima := filas[len(filas)-1]
+				// El cursor, como lo arma `mitadIzquierda`: la fecha por la que se ordenó y el id.
+				desde = &FilaDeCursor{id: ultima.ID, fecha: ultima.FechaCronologica}
+			}
+			igualesTxt(t, "las tandas unidas", salida, esperado)
+		})
+	}
+}
+
+// FilaDeCursor es el cursor de «sin colocar»: la fecha por la que se ordenó y el id.
+type FilaDeCursor struct {
+	id    uuid.UUID
+	fecha pgtype.Timestamptz
 }
 
 // ---------------------------------------------------------------------------

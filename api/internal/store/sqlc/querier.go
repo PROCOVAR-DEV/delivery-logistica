@@ -915,7 +915,7 @@ type Querier interface {
 	// `DiferenciasDeClientes`, más abajo.
 	ListarClientes(ctx context.Context, arg ListarClientesParams) ([]ListarClientesRow, error)
 	// El tablero de preparación: las columnas de la sucursal, lo que hay puesto en cada una y
-	// los pedidos que faltan por colocar, ordenados por cercanía al almacén.
+	// los pedidos que faltan por colocar, del más viejo al más reciente.
 	//
 	// Especificado en ../../../docs/tablero.md. Las tablas, en 00002_tablero.sql.
 	//
@@ -1082,22 +1082,40 @@ type Querier interface {
 	// Los pedidos de una procedencia, para el repaso de pesos. Sin alcance: es de servicio.
 	ListarPedidosPorFuente(ctx context.Context, source Procedencia) ([]ListarPedidosPorFuenteRow, error)
 	// ---------------------------------------------------------------------------
-	// LOS PEDIDOS SIN COLOCAR, ORDENADOS POR CERCANÍA AL ALMACÉN
+	// LOS PEDIDOS SIN COLOCAR, DEL MÁS VIEJO AL MÁS RECIENTE (14/10/2026)
 	// ---------------------------------------------------------------------------
-	// La mitad izquierda del tablero, y la razón por la que existe la función `km_haversine`.
+	// La mitad izquierda del tablero.
 	//
-	// EL ORDEN ES EL ENCARGO: el más cerca del almacén primero. Es como se decide qué se
-	// reparte hoy cuando no cabe todo — lo cerca sale igual, lo lejos espera al día que haya
-	// suficiente para ese lado—, y por fecha, que es como sale en `/api/orders/available`, esa
-	// decisión no se puede tomar.
+	// EL ORDEN, Y QUÉ DECISIÓN HAY DETRÁS. Hasta el 14/10/2026 era el más cerca del almacén
+	// primero (`km_al_almacen ASC`), y era deliberado: es como se decide qué se reparte hoy
+	// cuando no cabe todo, lo cerca sale igual y lo lejos espera al día que haya suficiente
+	// para ese lado. Ese día Amado (issue 6, punto 2: «la lista de facturas (pedidos) debe
+	// salir ordenada cronológicamente, de lo más viejo a lo más reciente») pidió otra cosa, y
+	// manda él, que es el dueño del producto. Ahora sale por la FECHA DE LA FACTURA, la más
+	// vieja primero: lo que lleva más tiempo esperando es lo primero que se ve.
 	//
-	// EL ORIGEN LLEGA POR PARÁMETRO Y NO SALE DE AQUÍ. El almacén vive en Accesos, no en esta
-	// base, y se copia a propósito en ninguna parte: un almacén copiado se separa del de verdad
-	// en cuanto alguien mueve unas coordenadas allá, y con esas coordenadas se mide el
-	// domicilio que se le cobra al cliente. Quien llama resuelve el almacén principal de la
-	// sucursal (primero el `principal` con coordenadas; si no, el primero que las tenga) y lo
-	// pasa aquí. Sin almacén con coordenadas no hay tablero: se dice que no se puede, no se
-	// ordena por un punto inventado.
+	// QUÉ SE PIERDE, y conviene saberlo: ya no hay un «lo más cerca arriba», y los pedidos de un
+	// mismo cliente o edificio ya no caen seguidos. Los kilómetros siguen en cada tarjeta y en el
+	// filtro `km_max`, pero para ver de un golpe lo cercano ya no basta con mirar la cabeza de la
+	// lista. Si Amado y Jose quieren las dos cosas, lo que falta es un selector de orden en la
+	// pantalla: el cambio sería de esta consulta, de su cursor y del orden local de la aplicación,
+	// los tres juntos.
+	//
+	// LA FECHA ES `coalesce(factura_at, order_date)`. `factura_at` es cuándo PEDIDO anotó el
+	// cotejo contra la factura (lo escribe `new Date()` en su sondeo, así que ronda la hora en
+	// que se facturó y no es la fecha impresa en la factura de Ventra), y `order_date` es la del
+	// pedido, que hace de repuesto para los que no la traen. Si no hay ninguna de las dos, el
+	// pedido va AL FINAL (`NULLS LAST`) y no al principio: un pedido sin fecha que saliera el
+	// primero sería «el más viejo» sin serlo.
+	//
+	// EL DESEMPATE ES EL ID, y no es adorno. Dos facturas anotadas en el mismo instante dan la
+	// misma fecha, y sin un segundo criterio el orden cambia entre dos llamadas y las tarjetas
+	// bailan solas delante de quien las está arrastrando. Antes eran los km y luego la fecha:
+	// ahora el segundo criterio es el id y la distancia ya no entra.
+	//
+	// El origen de la distancia (`origen_lat`, `origen_lng`) sigue llegando por parámetro: el
+	// almacén vive en Accesos, no en esta base, y no se copia aquí a propósito. Ya no ordena, pero
+	// se calcula para enseñar los kilómetros de cada tarjeta y para el filtro `km_max`.
 	//
 	// Las condiciones de «repartible» son LAS MISMAS de `ListarPedidosDisponibles`, ni una más
 	// ni una menos: sin ruta, sin entregar, con coordenadas, facturado (`igual` o `cambiado`),
@@ -1109,9 +1127,9 @@ type Querier interface {
 	// y la mitad izquierda ofrecía tarjetas que el 409 devolvía. Lo ata
 	// `consultas_motor_real_test.go` (todo lo que se ofrece se puede colocar) y el contador lo
 	// ata a la lista `internal/store/contador_y_lista_test.go`.
-	// El desempate por fecha no es adorno: dos clientes en el mismo edificio dan exactamente
-	// los mismos kilómetros, y sin un segundo criterio el orden cambia entre dos llamadas y las
-	// tarjetas bailan solas delante de quien las está arrastrando.
+	// El desempate por id no es adorno: dos facturas anotadas en el mismo instante dan la
+	// misma fecha, y sin un segundo criterio el orden cambia entre dos llamadas y las tarjetas
+	// bailan solas delante de quien las está arrastrando.
 	ListarPedidosSinColocar(ctx context.Context, arg ListarPedidosSinColocarParams) ([]ListarPedidosSinColocarRow, error)
 	// Catálogo. Se llena solo: PEDIDO sondea Ventra y aquí se copia lo que él ya tiene.
 	// No hay alta manual — dos catálogos escritos por separado discrepan sin que nadie lo vea.

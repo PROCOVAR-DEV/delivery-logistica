@@ -10,7 +10,7 @@ import '../../../nucleo/registro/registro.dart';
 import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcel;
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
-import '../../pedidos/datos/formato.dart' show cantidad;
+import '../../pedidos/datos/formato.dart' show etiquetaDeFactura;
 import '../../rutas/datos/repositorio_rutas.dart' show PestanaRutas;
 import '../../rutas/estado/proveedores_rutas.dart'
     show pestanaRutasProvider, rutaElegidaProvider;
@@ -898,6 +898,22 @@ class _DetalleDelPedido extends ConsumerWidget {
         if (pedido.vendedor case final v? when v.isNotEmpty)
           _Dato(Icons.person_outline, v),
 
+        // 1-bis. LA FACTURA: su número y cuándo se facturó — Amado, 14/10/2026
+        //    (issue 6, punto 1): «el detalle del pedido debe incluir la fecha de
+        //    facturación y el número de factura». Es el «cuándo» de este bloque.
+        //    Sin número se dice con letras y no se deja un hueco: en el tablero
+        //    sólo se ofrece lo facturado, así que un pedido sin número aquí es un
+        //    dato que falta y conviene que se vea. El folio —el conduce— ya es el
+        //    título del cajón, y es OTRO número (`numeroDeFactura`).
+        _Dato(
+          Icons.receipt_long_outlined,
+          etiquetaDeFactura(
+                pedido.facturaNumero,
+                facturadaEl: pedido.facturaAt,
+              ) ??
+              'Sin número de factura',
+        ),
+
         // 2. CUÁNTO. El peso y la distancia mandan sobre si cabe en ese camión;
         //    el costo del domicilio se dice porque `sin cotizar` es un dato y no
         //    un hueco (un cero ahí se leería como «el domicilio es gratis»).
@@ -912,7 +928,11 @@ class _DetalleDelPedido extends ConsumerWidget {
           ].join(' · '),
         ),
 
-        // 3. QUÉ LLEVA. Lo último, que es el orden de la ficha de Pedidos.
+        // 3. QUÉ LLEVA. Lo último, que es el orden de la ficha de Pedidos. Las
+        //    cantidades van en EMPAQUES primero —el blíster, la caja, la paca: lo
+        //    que se carga y se transporta— y las unidades detrás, y sólo cuando son
+        //    de fiar (`RenglonConPeso.cantidadEnTexto`). Antes salía «N uds» a secas
+        //    y Amado lo pidió al revés (issue 6, punto 1).
         const SizedBox(height: 8),
         renglones.when(
           loading: () =>
@@ -937,7 +957,7 @@ class _DetalleDelPedido extends ConsumerWidget {
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           '${r.renglon.description} · '
-                          '${cantidad(r.renglon.quantity)} uds',
+                          '${r.cantidadEnTexto(corto: true)}',
                           style: tema.textTheme.bodySmall,
                         ),
                       ),

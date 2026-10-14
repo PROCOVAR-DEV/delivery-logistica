@@ -133,12 +133,14 @@ class _Ficha extends StatelessWidget {
                       for (final r in ficha.renglones)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 2),
+                          // LOS EMPAQUES PRIMERO, LAS UNIDADES DETRÁS — Amado,
+                          // 14/10/2026 (issue 6): lo importante es el blíster,
+                          // «que es como cargan y transportan». Antes salían las
+                          // unidades delante, y además sin mirar si `quantity` era
+                          // de fiar. Ver `RenglonConPeso.cantidadEnTexto`.
                           child: Text(
                             '${r.renglon.description} · '
-                            '${cantidad(r.renglon.quantity)} '
-                            '${r.renglon.quantity == 1 ? 'unidad' : 'unidades'} · '
-                            '×${cantidad(r.empaques)} '
-                            '${r.empaques == 1 ? 'empaque' : 'empaques'} · '
+                            '${r.cantidadEnTexto()} · '
                             '${r.pesoLinea == null ? 'sin peso' : kg(r.pesoLinea)}',
                           ),
                         ),
@@ -191,7 +193,13 @@ class _BandaFactura extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final numero = pedido.facturaNumero ?? '—';
+    final numero = numeroDeFactura(pedido.facturaNumero) ?? '—';
+    // EL NÚMERO Y LA FECHA, DELANTE Y GRANDES — Amado, 14/10/2026 (issues 6 y 8). Hasta
+    // hoy el número sólo salía metido en la frase de abajo y la fecha no salía.
+    final cabecera = etiquetaDeFactura(
+      pedido.facturaNumero,
+      facturadaEl: pedido.facturaAt,
+    );
     final (texto, color) = switch (pedido.facturaEstado) {
       EstadoFactura.igual => (
         'Cuadra con la factura $numero de Ventra: se puede repartir tal cual.',
@@ -216,6 +224,15 @@ class _BandaFactura extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (cabecera != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                cabecera,
+                key: const ValueKey('ficha-factura'),
+                style: TextStyle(color: color, fontWeight: FontWeight.w700),
+              ),
+            ),
           Text(texto, style: TextStyle(color: color)),
           if (pedido.facturaDomicilio != null)
             Text(

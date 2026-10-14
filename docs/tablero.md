@@ -57,15 +57,40 @@ Dos mitades, y la de la izquierda es la que importa.
 
 ### La mitad izquierda — los pedidos sin colocar
 
-**Ordenados por cercanía al almacén de su sucursal, el más cerca primero.** Es la segunda
-mitad del encargo y no es un adorno:
+**Ordenados del más viejo al más reciente por la fecha de su factura — 14/10/2026 (Amado,
+issue 6, punto 2: «la lista de facturas (pedidos) debe salir ordenada cronológicamente de lo
+más viejo a lo más reciente»).** La fecha es `factura_at` y, si el pedido no la trae,
+`order_date`; un pedido sin ninguna de las dos va **al final**, no al principio; el desempate
+es el id (`coalesce(factura_at, order_date) ASC NULLS LAST, id ASC`). El servidor
+(`ListarPedidosSinColocar`) y el aparato (`ConsultasTablero.sinColocar`) ordenan igual, y el
+cursor de la paginación es la pareja `fecha|id` de ese mismo `ORDER BY`.
 
-> Es como se decide qué se reparte hoy cuando no cabe todo. Lo que está cerca sale igual,
-> porque cuesta poco; lo que está lejos espera al día en que haya suficiente para ese lado.
-> Por fecha —que es como sale en `/api/orders/available`— esa decisión no se puede tomar.
+> **Hasta ese día iba por cercanía al almacén, el más cerca primero**, y era deliberado: es
+> como se decide qué se reparte hoy cuando no cabe todo —lo que está cerca sale igual, porque
+> cuesta poco; lo que está lejos espera al día en que haya suficiente para ese lado—. Amado,
+> que es el dueño del producto, pidió el orden cronológico y manda su decisión.
+>
+> **Aparatos ya instalados:** `factura_at` no viajaba en la bajada (la columna existía y valía
+> NULL en todo el aparato) y desde el 14/10/2026 sí. La APK y el escritorio que ya bajaron un
+> pedido lo conservan SIN fecha de factura hasta que ese pedido cambie y vuelva a bajar, y
+> mientras tanto el orden usa la fecha del pedido, que es el repuesto. La web nace vacía en cada
+> carga y no lo nota. Si se quiere uniformidad desde el primer día, hace falta una bajada completa
+> en el primer arranque de la versión nueva (marcas de la bajada, fuera de este cambio).
+>
+> **Lo que se pierde:** ya no hay un «lo más cerca arriba» (los km siguen en cada tarjeta y
+> en el filtro por distancia, pero ver lo cercano de un golpe ya no es mirar la cabeza de la
+> lista) y los pedidos de un mismo cliente o edificio ya no caen seguidos —solo los avisa la
+> línea «2 pedidos de este cliente hoy»—. Si hacen falta las dos cosas, lo que falta es un
+> selector de orden: el cambio sería de la consulta, de su cursor y del orden local, juntos.
 
-Cada tarjeta trae: kilómetros al almacén, número de operación, cliente, dirección de
-entrega, peso, costo del domicilio (`pedido_costo`, el que puso Entrega) y municipio.
+Cada tarjeta trae: kilómetros al almacén, número de operación (el folio, el «conduce»),
+**el número de factura** (`Factura 1024237`, el de Ventra, que es otro número), cliente,
+dirección de entrega, peso, costo del domicilio (`pedido_costo`, el que puso Entrega) y
+municipio. El **detalle** que se abre al moverla añade la fecha en que se facturó
+(`Factura 1024237 · facturada el 12/10/2026`) y cuenta los artículos **en empaques primero**
+(`20 empaques · 120 uds`; el blíster, la caja o la paca son lo que se carga y se transporta)
+y las unidades detrás, solo cuando son de fiar. Qué es «el número de factura» y por qué:
+`numeroDeFactura` en `app/lib/pantallas/pedidos/datos/formato.dart`.
 
 **Qué entra en «Sin colocar» — 07/10/2026 (Amado, incidencias 2 y 6).** Además de lo de
 siempre (de PEDIDO, sin ruta, con punto de entrega, con domicilio), el pedido tiene que
@@ -129,7 +154,7 @@ conexión de allá para tirar el 95%.
 | Arrastrar de «sin colocar» a una columna | El pedido queda colocado en esa columna, en la posición donde se soltó. Desaparece de la izquierda. |
 | Arrastrar de una columna a otra | Cambia de columna. **Es la misma orden**: soltar una tarjeta es decir «este pedido va aquí», venga de donde venga. |
 | Arrastrar dentro de la misma columna | Cambia el orden de visita propuesto. |
-| Arrastrar de vuelta a la izquierda | Vuelve a «sin colocar» y la lista lo recoloca solo por cercanía. |
+| Arrastrar de vuelta a la izquierda | Vuelve a «sin colocar» y la lista lo recoloca solo, por la fecha de su factura. |
 | «+» al final de las columnas | Crea una columna. Va al final; el nombre lo pone la persona. |
 | Arrastrar la cabecera de una columna | Reordena las columnas. |
 | Menú de la columna | Renombrar · elegir camión · vaciar · mover todo a otra columna · borrar · **armar la ruta**. |
@@ -251,9 +276,10 @@ detrás, igual que el resto (`sincronizacion.md`).
 **Se ve y se hace igual que con red:**
 
 - las columnas, las tarjetas puestas y su orden;
-- los pedidos sin colocar **ordenados por cercanía** — el aparato repite la misma fórmula
-  con el almacén que bajó por la mañana (`warehouses` viene en la bajada); no depende de
-  preguntarle a nadie;
+- los pedidos sin colocar **del más viejo al más reciente por la fecha de su factura** — el
+  aparato repite el mismo orden que el servidor con lo que bajó por la mañana; la distancia de
+  cada tarjeta sale del almacén que bajó (`warehouses` viene en la bajada), y tampoco
+  depende de preguntarle a nadie;
 - el peso por columna y el aviso de que no cabe en el camión;
 - crear, renombrar, reordenar y borrar columnas;
 - **armar la ruta** de una columna, con identificador provisional (`local-…`), imprimir el
@@ -291,11 +317,12 @@ Ya se decidió en otro sitio de la casa y aquí vale igual: **el sufijo del foli
 domicilio cada uno. Juntarlos porque coincide el cliente es repetir el error de julio: dos
 facturas, un solo bulto cargado.
 
-Lo que sí hace la pantalla es **ponerlas juntas**: al ordenar por cercanía caen seguidas
-(mismos kilómetros) y la tarjeta marca discretamente «2 pedidos de este cliente hoy», para
-que el logístico los meta en la misma columna a propósito y no por casualidad. El desempate
-del orden es la fecha y luego el id, para que no bailen entre dos llamadas mientras se está
-arrastrando.
+Lo que sí hace la pantalla es **avisarlo**: la tarjeta marca discretamente «2 pedidos de
+este cliente hoy», para que el logístico los meta en la misma columna a propósito y no por
+casualidad. (Hasta el 14/10/2026, al ordenar por cercanía, caían seguidas por tener los mismos
+kilómetros; con el orden cronológico ya no tienen por qué, y la línea de aviso es lo único
+que las junta.) El desempate del orden es el id, para que no bailen entre dos llamadas
+mientras se está arrastrando.
 
 ### 7.2 · Un pedido se factura mientras está colocado
 
@@ -364,7 +391,7 @@ sus tarjetas. Lo que queda en las columnas al final del día es exactamente lo q
 y eso es lo primero que hay que ver a la mañana siguiente.
 
 Lo que sí cambia por la mañana es la mitad izquierda, que trae los pedidos nuevos de la
-bajada, ya ordenados por cercanía entre los de ayer.
+bajada, ya ordenados por la fecha de su factura entre los de ayer.
 
 **El caso del devuelto.** Un pedido que volvió en el camión suelta su `route_id` al cerrar
 la ruta y reaparece en «sin colocar» —**no vuelve a su columna**: su tarjeta se fue cuando

@@ -1223,6 +1223,26 @@ identificación ya existe y ese número se puede usar y mostrar como conduce. «
 domicilio que sale como conduce» (punto 6 de Amado) no es un caso aparte: es un pedido más.
 Todos los rechazos de armado nombran cada pedido por ese número.
 
+**El número de factura de los reportes** (issue 9 de Amado, 14/10/2026: «adicionar a los
+reportes la columna de facturas»). Hay DOS números en el pedido: `operationNumber` (el número de
+operación de la factura, o sea el *conduce*; viene en todo pedido del espejo) y `facturaNumero`
+(con el que Ventra cuadró el pedido; sólo existe cuando hay factura, `igual` o `cambiado`). La
+columna **«Factura»** de los reportes lleva el primero y, si falta, el segundo; si faltan los dos,
+`null` y la raya `—` en pantalla y en el Excel, nunca un hueco ni un texto inventado. Es el
+número con el que Amado ya nombra al pedido en el tablero y en los rechazos del armado, así que
+el reporte y la calle dicen lo mismo. Está en `Detalle de Órdenes` (pantalla y Excel, un número por
+pedido) y en `Por Vehículo` (los números del camión, sin repetir y en orden; la pantalla dice las
+dos primeras y «y N más», el Excel la lista entera, y los pedidos sin número se cuentan aparte).
+**No mueve ningún total**: un número repetido (la ida y la vuelta) sale una vez en la lista del
+camión pero cuenta dos órdenes. `Resumen` no lista pedidos y no lo lleva.
+
+La regla vive en DOS sitios, atados por `docs/numero-de-factura.casos.json` (§3-bis): el servidor
+(`api/internal/api/informes.go`, `numeroDeFactura`/`agruparFacturas`, que contestan
+`GET /api/reports` con `invoiceNumber`, `invoiceNumbers` y `withoutInvoice`) y la aplicación
+(`app/lib/pantallas/informes/datos/numero_de_factura.dart`, que arma el informe de la APK, del
+escritorio y de la web con su base local —la web, con la suya en memoria—). Cualquier otra
+pantalla que quiera enseñar «el número de factura» llama a `NumeroDeFactura.de`, no repite la regla.
+
 **Quitar UNA parada de una ruta planificada** (punto 2): `DELETE /api/routes/{id}/stops/{orderId}`.
 Suelta `route_id` **y `ultima_ruta_id`** (si no, el pedido seguiría contando en los totales de la
 ruta y saldría en su hoja de cierre: la «parada fantasma»); no renumera los `stop_order` ni

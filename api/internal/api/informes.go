@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -53,6 +54,10 @@ type InformePedido struct {
 	RouteName    *string    `json:"routeName"`
 	VehicleName  *string    `json:"vehicleName"`
 	VehiclePlate *string    `json:"vehiclePlate"`
+	// InvoiceNumber es el número de factura del pedido (issue 9 de Amado: la columna de
+	// facturas de los reportes): el número de operación —el «conduce» de Amado— y, si falta,
+	// el de la factura de Ventra. `null` = el pedido no tiene ninguno. Ver `numeroDeFactura`.
+	InvoiceNumber *string `json:"invoiceNumber"`
 }
 
 type InformeResumen struct {
@@ -68,6 +73,11 @@ type InformeVehiculo struct {
 	Count   int     `json:"count"`
 	Revenue float64 `json:"revenue"`
 	Weight  float64 `json:"weight"`
+	// InvoiceNumbers son los números de factura de sus pedidos, SIN REPETIR y en el orden en
+	// que salen en `orders`; WithoutInvoice, cuántos de sus `count` pedidos no tienen número.
+	// Es sólo la lista de referencias: no cambia `count` ni ningún total. Ver `agruparFacturas`.
+	InvoiceNumbers []string `json:"invoiceNumbers"`
+	WithoutInvoice int      `json:"withoutInvoice"`
 }
 
 // rutasInformes monta el informe. `admin` no se usa: en delivery tampoco lo exigía, y
@@ -121,13 +131,17 @@ func (s *Servidor) informe(w http.ResponseWriter, r *http.Request) {
 	// sucursales y la matrícula puede estar vacía, así que agrupar por texto juntaría dos
 	// camiones distintos en una fila con el doble de ingresos, y desde fuera eso no se ve.
 	posicion := map[uuid.UUID]int{}
+	// Los números de cada camión, tal cual salen, para juntarlos al final con la misma
+	// `agruparFacturas` que prueba el fichero de casos compartido con el aparato.
+	numeros := map[uuid.UUID][]*string{}
 	for _, f := range filas {
+		factura := numeroDeFactura(f.OperationNumber, f.FacturaNumero)
 		salida.Orders = append(salida.Orders, InformePedido{
 			ID: f.ID, CustomerName: f.CustomerName, Address: f.Address,
 			EndAddress: f.EndAddress, Weight: f.Weight, Price: f.Ingreso,
 			SegmentKm: f.SegmentKm, CreatedAt: hora(f.CreatedAt),
 			RouteName: f.RutaNombre, VehicleName: f.VehiculoNombre,
-			VehiclePlate: f.VehiculoMatricula,
+			VehiclePlate: f.VehiculoMatricula, InvoiceNumber: factura,
 		})
 
 		salida.Summary.TotalRevenue += f.Ingreso
@@ -155,6 +169,10 @@ func (s *Servidor) informe(w http.ResponseWriter, r *http.Request) {
 		salida.ByVehicle[i].Count++
 		salida.ByVehicle[i].Revenue += f.Ingreso
 		salida.ByVehicle[i].Weight += f.Weight
+		numeros[id] = append(numeros[id], factura)
+	}
+	for id, i := range posicion {
+		salida.ByVehicle[i].InvoiceNumbers, salida.ByVehicle[i].WithoutInvoice = agruparFacturas(numeros[id])
 	}
 
 	salida.Summary.TotalOrders = len(filas)
@@ -166,6 +184,56 @@ func (s *Servidor) informe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpx.JSON(w, r, http.StatusOK, salida)
+}
+
+// numeroDeFactura es el número que lleva la columna «Factura» de los reportes (issue 9 de
+// Amado): el NÚMERO DE OPERACIÓN del pedido —el «conduce» de Amado; Jose, 07/10/2026— y,
+// si falta, el número de la factura de Ventra (`factura_numero`, que sólo existe cuando hay
+// factura). Sin blancos en los extremos; vacío o en blanco es «falta»; si faltan los dos,
+// `nil`: nunca un texto inventado.
+//
+// ESTÁ ESCRITA DOS VECES: aquí y en el aparato (`NumeroDeFactura.de`,
+// `app/lib/pantallas/informes/datos/numero_de_factura.dart`), porque el informe de la APK,
+// del escritorio y de la web lo arma la aplicación con su base local. Las ata
+// `docs/numero-de-factura.casos.json` (prueba `numero_de_factura_casos_compartidos_test.go`):
+// un comentario no falla (CLAUDE.md §3-bis).
+func numeroDeFactura(operacion, factura *string) *string {
+	if n := limpiarNumero(operacion); n != nil {
+		return n
+	}
+	return limpiarNumero(factura)
+}
+
+// limpiarNumero quita los blancos de los extremos —los de Unicode también, y el BOM, que es
+// lo que `trim()` de Dart quita— y dice `nil` si no queda nada.
+func limpiarNumero(texto *string) *string {
+	if texto == nil {
+		return nil
+	}
+	n := strings.TrimFunc(*texto, func(r rune) bool { return unicode.IsSpace(r) || r == '\ufeff' })
+	if n == "" {
+		return nil
+	}
+	return &n
+}
+
+// agruparFacturas junta los números de los pedidos de un camión: los que hay, SIN REPETIR y en
+// el orden en que aparecen, y cuántos pedidos se quedaron sin número. La ida y la vuelta de un
+// mismo pedido llevan el mismo número y salen una vez. Nunca devuelve `nil` en la lista (sale
+// `[]` en el JSON, no `null`). Mismo contrato que `NumeroDeFactura.agrupar` del aparato.
+func agruparFacturas(numeros []*string) (facturas []string, sinFactura int) {
+	facturas = []string{}
+	vistos := map[string]bool{}
+	for _, n := range numeros {
+		switch {
+		case n == nil:
+			sinFactura++
+		case !vistos[*n]:
+			vistos[*n] = true
+			facturas = append(facturas, *n)
+		}
+	}
+	return facturas, sinFactura
 }
 
 // soloFecha reconoce el `AAAA-MM-DD` que manda el selector de la pantalla.

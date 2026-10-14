@@ -1072,6 +1072,12 @@ type Querier interface {
 	// El informe. `ingreso` es `price` si lo hay y si no `pedido_costo`: `price` es el reparto
 	// de carga de una ruta y `pedido_costo` lo que cobró Entrega; no son lo mismo y cobrar uno
 	// por el otro es el error que este COALESCE hace visible en un solo sitio.
+	//
+	// `operation_number` y `factura_numero` salen CRUDOS (issue 9 de Amado: la columna de
+	// facturas). Cuál de los dos es «el número de factura» lo decide `numeroDeFactura` en
+	// `internal/api/informes.go` —manda la operación, respalda la factura—, atado al aparato por
+	// `docs/numero-de-factura.casos.json`. No se resuelve aquí en SQL a propósito: son DOS
+	// escritos de la regla y no tres.
 	ListarPedidosParaInforme(ctx context.Context, arg ListarPedidosParaInformeParams) ([]ListarPedidosParaInformeRow, error)
 	// Los pedidos de una procedencia, para el repaso de pesos. Sin alcance: es de servicio.
 	ListarPedidosPorFuente(ctx context.Context, source Procedencia) ([]ListarPedidosPorFuenteRow, error)

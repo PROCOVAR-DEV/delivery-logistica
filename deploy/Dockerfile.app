@@ -113,6 +113,15 @@ COPY docs/almacen-de-origen.casos.json /docs/almacen-de-origen.casos.json
 #    Sin él la prueba muere al cargar y ESTA IMAGEN NO CONSTRUYE.
 COPY docs/armado-rechazado.casos.json /docs/armado-rechazado.casos.json
 
+#  * `docs/numero-de-factura.casos.json` — el QUINTO, y del mismo tipo (14/10/2026). Cuál es
+#    el número que lleva la columna «Factura» de los reportes (issue 9 de Amado) está
+#    escrito en Dart y en Go, y este fichero es lo único que las ata: lo leen
+#    `el_numero_de_factura_test.dart` y `la_factura_en_los_reportes_test.dart` por
+#    `../docs/…` y su gemelo de Go. Hoy esta imagen sólo corre `flutter analyze`, así que no
+#    se nota si falta; se copia igual para que el día que vuelva `flutter test` no muera al
+#    cargar.
+COPY docs/numero-de-factura.casos.json /docs/numero-de-factura.casos.json
+
 # LAS PRUEBAS, ANTES DE CONSTRUIR. Como en `Dockerfile.api` y `Dockerfile.sync`.
 #
 # El 16/09/2026 una mutación de prueba llegó a producción porque el Dockerfile del

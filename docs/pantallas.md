@@ -693,20 +693,28 @@ insignia). Cargando: `Cargando reporte...`
 placa e `<importe> · <n> órdenes`. Si no hay órdenes: `No hay órdenes para los filtros seleccionados.`
 
 **Por Vehículo** — tabla:
-`Vehículo` | `Placa` | `Órdenes` | `Ingresos` | `Peso Total` | `Promedio/Orden`;
-fila de pie `Totales` con la suma de órdenes, ingresos y peso.
+`Vehículo` | `Placa` | `Órdenes` | `Ingresos` | `Peso Total` | `Promedio/Orden` | `Facturas`;
+fila de pie `Totales` con la suma de órdenes, ingresos y peso (sin total de facturas: es una
+lista de referencias, no una suma). `Facturas` (issue 9 de Amado) dice las DOS primeras
+facturas del camión y cuántas quedan fuera —`PTB25-261005-1479, F-000777 y 1 más`— y, aparte,
+cuántos de sus pedidos no tienen número —`· 1 sin número`—; la lista entera está en el Excel.
+Un número que se repite en dos pedidos (la ida y la vuelta) cuenta una vez; las `Órdenes` y los
+totales no se mueven.
 Vacío: `No hay datos de vehículos para los filtros seleccionados.`
 
 **Detalle de Órdenes** — tabla:
-`Fecha` | `Cliente` | `Ruta` | `Destino` | `Vehículo` | `Peso` | `Precio`;
-fila de pie `Totales:` con peso total (`<n.n> kg`) e importe total.
+`Fecha` | `Factura` | `Cliente` | `Ruta` | `Destino` | `Vehículo` | `Peso` | `Precio`;
+fila de pie `Totales:` con peso total (`<n.n> kg`) e importe total. `Factura` (issue 9 de
+Amado) es el número de factura del pedido —ver «El número de factura de los reportes» en `reglas-negocio.md`
+§15.13—; sin número, la raya `—`, nunca en blanco.
 Vacío: `No hay órdenes para los filtros seleccionados.`
 
 ### Endpoints
 
 - `GET /api/vehicles` — para el selector.
 - `GET /api/reports?from=&to=&vehicleId=` — `{orders[], summary:{totalOrders, totalRevenue,
-  totalWeight, avgPrice}, byVehicle:[{name, plate, count, revenue, weight}]}`.
+  totalWeight, avgPrice}, byVehicle:[{name, plate, count, revenue, weight, invoiceNumbers,
+  withoutInvoice}]}`; cada `orders[]` lleva además `invoiceNumber` (`null` si no tiene).
   El rango se aplica sobre `createdAt`; `to` incluye el día entero.
   **Ingreso de un pedido = `price` si lo tiene, si no `pedidoCosto`.**
 
@@ -717,8 +725,10 @@ Fichero `reporte-procovar-AAAA-MM-DD.xlsx`, tres hojas:
    `Filtro fecha` = `<desde|—> - <hasta|—>`; `Moneda` = código; luego `Total Órdenes`,
    `Ingresos Totales (<MONEDA>)`, `Precio Promedio (<MONEDA>)`, `Peso Total (kg)`.
 2. **`Por Vehículo`**: `Vehículo`, `Placa`, `Órdenes`, `Ingresos (<MONEDA>)`, `Peso (kg)`,
-   `Promedio/Orden (<MONEDA>)`.
-3. **`Detalle de Órdenes`**: `Fecha`, `Cliente`, `Ruta`, `Destino`, `Vehículo`,
+   `Promedio/Orden (<MONEDA>)`, `Facturas` (la lista ENTERA de los números del camión,
+   separados por coma; con un techo de 30.000 letras por celda —Excel no abre una celda de más
+   de 32.767— y, si se llega, se corta por números enteros diciendo `y N más`).
+3. **`Detalle de Órdenes`**: `Fecha`, `Factura`, `Cliente`, `Ruta`, `Destino`, `Vehículo`,
    `Km desde partida`, `Peso (kg)`, `Precio (<MONEDA>)`.
 
 Los importes se convierten a la moneda mostrada y se redondean a 2 decimales; los pesos a

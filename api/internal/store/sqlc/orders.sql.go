@@ -1747,6 +1747,7 @@ SELECT
     o.id, o.customer_name, o.address, o.end_address, o.weight,
     coalesce(o.price, o.pedido_costo, 0) AS ingreso,
     o.segment_km, o.created_at,
+    o.operation_number, o.factura_numero,
     coalesce(r.route_code, r.name) AS ruta_nombre,
     -- El id del camión sale para poder AGRUPAR por él en ` + "`" + `byVehicle` + "`" + `. Agrupar por nombre
     -- juntaría dos camiones distintos que se llamen igual —«Camión 1» lo hay en varias
@@ -1782,6 +1783,8 @@ type ListarPedidosParaInformeRow struct {
 	Ingreso           float64            `json:"ingreso"`
 	SegmentKm         *float64           `json:"segment_km"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	OperationNumber   *string            `json:"operation_number"`
+	FacturaNumero     *string            `json:"factura_numero"`
 	RutaNombre        *string            `json:"ruta_nombre"`
 	VehiculoID        pgtype.UUID        `json:"vehiculo_id"`
 	VehiculoNombre    *string            `json:"vehiculo_nombre"`
@@ -1791,6 +1794,12 @@ type ListarPedidosParaInformeRow struct {
 // El informe. `ingreso` es `price` si lo hay y si no `pedido_costo`: `price` es el reparto
 // de carga de una ruta y `pedido_costo` lo que cobró Entrega; no son lo mismo y cobrar uno
 // por el otro es el error que este COALESCE hace visible en un solo sitio.
+//
+// `operation_number` y `factura_numero` salen CRUDOS (issue 9 de Amado: la columna de
+// facturas). Cuál de los dos es «el número de factura» lo decide `numeroDeFactura` en
+// `internal/api/informes.go` —manda la operación, respalda la factura—, atado al aparato por
+// `docs/numero-de-factura.casos.json`. No se resuelve aquí en SQL a propósito: son DOS
+// escritos de la regla y no tres.
 func (q *Queries) ListarPedidosParaInforme(ctx context.Context, arg ListarPedidosParaInformeParams) ([]ListarPedidosParaInformeRow, error) {
 	rows, err := q.db.Query(ctx, listarPedidosParaInforme,
 		arg.Sucursal,
@@ -1814,6 +1823,8 @@ func (q *Queries) ListarPedidosParaInforme(ctx context.Context, arg ListarPedido
 			&i.Ingreso,
 			&i.SegmentKm,
 			&i.CreatedAt,
+			&i.OperationNumber,
+			&i.FacturaNumero,
 			&i.RutaNombre,
 			&i.VehiculoID,
 			&i.VehiculoNombre,

@@ -139,6 +139,15 @@ COPY docs/roles-de-reparto.casos.json /docs/roles-de-reparto.casos.json
 # se separen. Si falta, la prueba hace `Fatalf` y ESTA IMAGEN NO CONSTRUYE.
 COPY docs/ambito-de-entrega.casos.json /docs/ambito-de-entrega.casos.json
 
+# Y EL SEXTO — 14/10/2026
+#
+# `internal/api/numero_de_factura_casos_compartidos_test.go` (y `informes_motor_real_test.go`,
+# que se salta sin Postgres) lee `docs/numero-de-factura.casos.json`, EL MISMO fichero que lee
+# `app/test/pantallas/informes/el_numero_de_factura_test.dart`: cuál es el número que lleva la
+# columna «Factura» de los reportes (issue 9 de Amado) está escrito en Go y en Dart, y esto
+# impide que se separen. Si falta, la prueba hace `Fatalf` y ESTA IMAGEN NO CONSTRUYE.
+COPY docs/numero-de-factura.casos.json /docs/numero-de-factura.casos.json
+
 # Y EL COMPOSE, POR LA MISMA RAZÓN — 24/09/2026
 #
 # `internal/config/config_test.go` y `internal/api/version_test.go` leen las `APP_*` de

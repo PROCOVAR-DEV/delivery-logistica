@@ -38,6 +38,7 @@ void main() {
       vehiculo: 'Ford 600',
       placa: 'P123',
       kmDesdePartida: 8.25,
+      factura: 'PTB25-260913-0001',
     ),
     FilaDeInforme(
       id: 'o2',
@@ -50,6 +51,7 @@ void main() {
       vehiculoId: 'v1',
       vehiculo: 'Ford 600',
       placa: 'P123',
+      factura: 'PTB25-260913-0002',
     ),
     const FilaDeInforme(
       id: 'o3',
@@ -150,7 +152,8 @@ void main() {
 
   group('la hoja Por Vehículo', () {
     test(
-      'lleva las seis columnas del pliego, con la moneda en la cabecera',
+      'lleva las seis columnas del pliego y la de facturas, con la moneda en '
+      'la cabecera',
       () {
         expect(exportar()['Por Vehículo']!.first, [
           'Vehículo',
@@ -159,6 +162,7 @@ void main() {
           'Ingresos (USD)',
           'Peso (kg)',
           'Promedio/Orden (USD)',
+          'Facturas',
         ]);
       },
     );
@@ -169,11 +173,21 @@ void main() {
       // Cabecera, una fila de camión y el pie. El pedido sin camión no asoma
       // por aquí.
       expect(hoja.length, 3);
-      expect(hoja[1], ['Ford 600', 'P123', 2, 150.5, 17.3, 75.25]);
+      expect(hoja[1], [
+        'Ford 600',
+        'P123',
+        2,
+        150.5,
+        17.3,
+        75.25,
+        // Issue 9 de Amado: TODAS las facturas del camion, en el orden en que
+        // salen. La pantalla ensena las dos primeras; el fichero, la lista.
+        'PTB25-260913-0001, PTB25-260913-0002',
+      ]);
 
       expect(
         hoja.last,
-        ['Totales', '', 2, 150.5, 17.3, ''],
+        ['Totales', '', 2, 150.5, 17.3, '', ''],
         reason:
             'La hoja «Por Vehículo» tiene que cerrar con la misma fila de '
             'totales que el pie de la pantalla. Sin ella, quien cuadra caja '
@@ -187,9 +201,10 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('la hoja Detalle de Órdenes', () {
-    test('lleva las ocho columnas del pliego', () {
+    test('lleva las ocho columnas del pliego y la Factura', () {
       expect(exportar()['Detalle de Órdenes']!.first, [
         'Fecha',
+        'Factura',
         'Cliente',
         'Ruta',
         'Destino',
@@ -207,6 +222,7 @@ void main() {
       expect(hoja.length, 5);
       expect(hoja[1], [
         '13/9/2026',
+        'PTB25-260913-0001',
         'Panadería La Habana',
         'R-001',
         // El `&` del destino sale tal cual: si el XML no lo escapara, el
@@ -220,7 +236,7 @@ void main() {
 
       expect(
         hoja.last,
-        ['Totales:', '', '', '', '', '', 19.3, 160.49],
+        ['Totales:', '', '', '', '', '', '', 19.3, 160.49],
         reason:
             'El pie de «Detalle de Órdenes» tiene que traer el peso total y el '
             'importe total, los mismos que el pie de la pantalla.',
@@ -230,20 +246,20 @@ void main() {
     test('sin km desde partida se deja el HUECO, nunca un cero', () {
       final segunda = exportar()['Detalle de Órdenes']![2];
       expect(
-        segunda[5],
+        segunda[6],
         isNull,
         reason:
             'Un cero en «Km desde partida» se lee como «salió de la partida», '
             'que es otra cosa que «no se sabe». Un hueco se ve y se pregunta.',
       );
       // Y la fila no se corre: el precio sigue en su columna.
-      expect(segunda[7], 50.5);
+      expect(segunda[8], 50.5);
     });
 
     test('un pedido sin ruta ni vehículo sale con la raya, no vacío', () {
       final tercera = exportar()['Detalle de Órdenes']![3];
-      expect(tercera[2], '—');
-      expect(tercera[4], '—');
+      expect(tercera[3], '—');
+      expect(tercera[5], '—');
     });
   });
 
@@ -401,29 +417,29 @@ void main() {
 
       final suya = hoja[2];
       expect(
-        celda(suya, 7),
+        celda(suya, 8),
         isNull,
         reason:
-            'La orden sin cotizar salió con ${celda(suya, 7)} en la columna '
+            'La orden sin cotizar salió con ${celda(suya, 8)} en la columna '
             'de precio. Un cero ahí dice que ese domicilio fue gratis, y se '
             'suma en la hoja que alguien copia para cobrar.',
       );
       // Y la fila no se corre: el peso sigue en la suya.
-      expect(suya[6], 5.0);
+      expect(suya[7], 5.0);
 
       final pie = hoja.last;
       expect(
-        celda(pie, 7),
+        celda(pie, 8),
         isNull,
         reason:
-            'El pie del detalle salió con ${celda(pie, 7)}: es la suma de las '
+            'El pie del detalle salió con ${celda(pie, 8)}: es la suma de las '
             'OTRAS dos puesta donde va el total, y se lee como el total del '
             'informe entero.',
       );
       // El rótulo dice CUÁNTAS faltan, que es lo único con lo que se arregla.
       expect(pie.first, 'Totales: (1 sin cotizar)');
       // Lo que sí se sabe se sigue diciendo: el peso no se cae con el importe.
-      expect(pie[6], 19.3);
+      expect(pie[7], 19.3);
     });
 
     test('el Resumen deja las dos cifras vacías y dice cuántas faltan', () {
@@ -486,9 +502,9 @@ void main() {
       );
 
       final detalle = exportar()['Detalle de Órdenes']!;
-      expect(detalle[2][7], 50.5);
+      expect(detalle[2][8], 50.5);
       expect(detalle.last.first, 'Totales:');
-      expect(detalle.last[7], 160.49);
+      expect(detalle.last[8], 160.49);
     });
   });
 }

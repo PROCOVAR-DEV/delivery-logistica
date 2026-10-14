@@ -55,7 +55,7 @@ done
 echo "== api: consultas contra Postgres real =="
 if [ -n "${REPARTO_MOTOR_REAL_DSN:-}" ]; then
   paso "motor real"
-  (cd "$raiz/api" && go test -count=1 -run MotorReal ./internal/store/sqlc/ >/dev/null 2>&1) && bien || mal
+  (cd "$raiz/api" && go test -count=1 -run MotorReal ./internal/store/sqlc/ ./internal/api/ >/dev/null 2>&1) && bien || mal
 else
   paso "motor real"; echo "SALTADO (exporta REPARTO_MOTOR_REAL_DSN: CLAUDE.md §5)"
 fi

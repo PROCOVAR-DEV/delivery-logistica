@@ -1664,11 +1664,22 @@ catálogo era global.) No dejan línea de «Rastro de quién» (a diferencia de 
 
 ```json
 {
-  "orders": [ { "id","customerName","address","endAddress","weight","price","segmentKm","createdAt","routeName","vehicleName","vehiclePlate" } ],
+  "orders": [ { "id","customerName","address","endAddress","weight","price","segmentKm","createdAt","routeName","vehicleName","vehiclePlate","invoiceNumber" } ],
   "summary": { "totalOrders": 0, "totalRevenue": 0, "totalWeight": 0, "avgPrice": 0 },
-  "byVehicle": [ { "name": "...", "plate": "..."|null, "count": 0, "revenue": 0, "weight": 0 } ]
+  "byVehicle": [ { "name": "...", "plate": "..."|null, "count": 0, "revenue": 0, "weight": 0, "invoiceNumbers": ["..."], "withoutInvoice": 0 } ]
 }
 ```
+
+  - **`invoiceNumber`** (issue 9 de Amado, 14/10/2026; el Next no lo tiene): el número de
+    factura del pedido = su número de operación (`operationNumber`, el «conduce» de Amado) y,
+    si falta, el de la factura de Ventra (`facturaNumero`); sin blancos en los extremos; `null`
+    si faltan los dos. **No es `facturaNumero` a secas**: ese sólo existe cuando hay factura.
+  - **`invoiceNumbers`** (en `byVehicle`): los números de sus pedidos, SIN REPETIR y en el
+    orden en que salen en `orders`; **`withoutInvoice`**: cuántos de sus `count` pedidos no
+    tienen número. Es sólo una lista de referencias: no cambia `count` ni ningún total. Sale
+    `[]` y no `null` cuando no hay ninguno.
+  - La regla está escrita en Go (`informes.go`, `numeroDeFactura` y `agruparFacturas`) y en
+    el aparato (`numero_de_factura.dart`), y las ata `docs/numero-de-factura.casos.json`.
 
   - `routeName = route.routeCode || route.name || null`.
   - `avgPrice = orders.length > 0 ? totalRevenue / orders.length : 0`.

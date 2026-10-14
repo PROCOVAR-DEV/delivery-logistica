@@ -191,6 +191,8 @@ type dobleAvisos struct {
 
 	// falloAlEscribir se devuelve en la escritura de los ajustes. Ver `errAvFalloDeBase`.
 	falloAlEscribir error
+	// falloAlActualizarTipo se devuelve en `ActualizarTipoDeVehiculo` (el 23505 del nombre repetido).
+	falloAlActualizarTipo error
 	// vehiculoEnUso hace que el camión estuviera `in_use` antes del PATCH, que es lo que
 	// dispara el cierre de su ruta abierta.
 	vehiculoEnUso bool
@@ -308,6 +310,9 @@ func (d *dobleAvisos) CrearTipoDeVehiculo(_ context.Context, arg sqlc.CrearTipoD
 }
 
 func (d *dobleAvisos) ActualizarTipoDeVehiculo(_ context.Context, arg sqlc.ActualizarTipoDeVehiculoParams) (sqlc.VehicleType, error) {
+	if d.falloAlActualizarTipo != nil {
+		return sqlc.VehicleType{}, d.falloAlActualizarTipo
+	}
 	if arg.ID != avTipoCam {
 		return sqlc.VehicleType{}, pgx.ErrNoRows
 	}

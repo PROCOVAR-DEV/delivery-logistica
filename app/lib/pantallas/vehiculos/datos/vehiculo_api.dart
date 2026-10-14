@@ -257,17 +257,35 @@ class VehiculoDeLaApi {
   }
 }
 
-/// Un tipo de vehiculo, de `settings.tiposVehiculo`.
+/// Un tipo de vehiculo, de `GET /api/vehicle-types`.
+///
+/// Antes venia de `settings.tiposVehiculo`, un campo que la API ya no tiene: el
+/// 14/09/2026 pasó a su propia tabla y esta pantalla siguio mandando los tipos a
+/// `PUT /api/settings`, que contestaba 200, los tiraba y la pantalla decia
+/// «Tipos guardados». Amado lo vio entrenando a un logistico en Santiago.
 class TipoDeVehiculo {
-  const TipoDeVehiculo({required this.nombre, this.costoKmUsd});
+  const TipoDeVehiculo({
+    required this.nombre,
+    this.costoKmUsd,
+    this.id,
+    this.activo = true,
+  });
 
   factory TipoDeVehiculo.deJson(Map<String, Object?> j) => TipoDeVehiculo(
+    id: j['id'] as String?,
     nombre: (j['nombre'] as String?) ?? '',
     costoKmUsd: _numero(j['costoKmUsd']),
+    activo: (j['activo'] as bool?) ?? true,
   );
 
+  /// `null` = todavia no existe en el servidor (se acaba de escribir).
+  final String? id;
   final String nombre;
   final double? costoKmUsd;
+
+  /// Un tipo RETIRADO sigue en la tabla porque algun camion lo usa, pero no se
+  /// ofrece ni se enseña.
+  final bool activo;
 
   Map<String, Object?> aJson() => {'nombre': nombre, 'costoKmUsd': costoKmUsd};
 
@@ -287,6 +305,8 @@ class TipoDeVehiculo {
     required List<TipoDeVehiculo> deAjustes,
     required List<VehiculoDeLaApi> vehiculos,
   }) {
+    // Los retirados cuentan como conocidos (no se vuelven a sembrar) pero no se
+    // enseñan: los quitó quien pulsó «Quitar» y no deben volver.
     final conocidos = {for (final t in deAjustes) t.nombre};
     final sembrados = <TipoDeVehiculo>[];
     for (final v in vehiculos) {
@@ -303,19 +323,21 @@ class TipoDeVehiculo {
         ),
       );
     }
-    return [...deAjustes, ...sembrados];
+    return [...deAjustes.where((t) => t.activo), ...sembrados];
   }
 }
 
-/// Lo que hace falta de `GET /api/settings`: los tipos y la tasa.
+/// Lo que hace falta de `GET /api/settings` y `GET /api/vehicle-types`: la tasa
+/// y los tipos.
 class AjustesDeLaApi {
   const AjustesDeLaApi({required this.tipos, required this.cupRate});
 
-  factory AjustesDeLaApi.deJson(Map<String, Object?> j) => AjustesDeLaApi(
-    tipos: [
-      for (final t in (j['tiposVehiculo'] as List<Object?>?) ?? const [])
-        TipoDeVehiculo.deJson(t! as Map<String, Object?>),
-    ],
+  /// Los tipos ya no vienen en `/settings`: llegan de `/vehicle-types`.
+  factory AjustesDeLaApi.deJson(
+    Map<String, Object?> j, {
+    required List<TipoDeVehiculo> tipos,
+  }) => AjustesDeLaApi(
+    tipos: tipos,
     // 320 por defecto, lo dice el pliego. Sin tasa el ayudante del costo por km
     // no se puede calcular, y quedarse sin ayudante es peor que usar la de la
     // casa diciendo cual es.

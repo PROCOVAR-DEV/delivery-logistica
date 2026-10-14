@@ -550,6 +550,8 @@ No son tareas de este proyecto, pero conviene saberlos:
   que llega es el de la sucursal propia.
 - **`Settings.tiposVehiculo` nunca existió en el esquema** (ver `esquema-cambios.md`): la
   pantalla de vehículos creaba tipos, los mandaba a guardar y se perdían sin un error.
+  La API nueva ya tenía la tabla `vehicle_types` y `/api/vehicle-types`; la **app** del reparto tardó en
+  usarlas y siguió mandando `PUT /api/settings {tiposVehiculo}` (que la API ignora) hasta el 14/10/2026.
 - **El panel contaba «los pedidos de la cuenta que mira»**, no los de la sucursal.
 
 ## Ya cerrado

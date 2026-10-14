@@ -586,13 +586,15 @@ Vacío: `Sin tipos. Agrega el primero.` Botón `Agregar tipo`. Pie: `Cancelar` y
 | Acción | Llamada |
 |---|---|
 | Listar | `GET /api/vehicles` (incluye `_count.routes`, `_count.orders` y la ruta activa) |
-| Ajustes / tipos / tasa | `GET /api/settings` |
+| Ajustes / tasa | `GET /api/settings` (ya no trae `tiposVehiculo`) |
+| Tipos de vehículo | `GET /api/vehicle-types` (todos, retirados incluidos; junto a `/vehicles` y `/settings`: son TRES peticiones al abrir la pantalla) |
 | Crear | `POST /api/vehicles` `{name, type, plate, capacity, status, notes, costoKmUsd, usarParaDomicilio}` |
 | Editar | `PATCH /api/vehicles/<id>` con los mismos campos |
 | Eliminar | `DELETE /api/vehicles/<id>` (en el reparto **pregunta antes**, en un cajón). Un vehículo con rutas, aunque sean históricas, **no se borra**: 409 `No se puede eliminar este vehículo porque tiene rutas asociadas, incluso históricas. Márcalo como inactivo para impedir que se use en nuevas rutas.` Se desactiva con el interruptor `Vehículo activo`. |
 | `Usar para domicilio` | `PATCH /api/vehicles/<id>` `{usarParaDomicilio:true}` |
 | `Marcar disponible` | `PATCH /api/vehicles/<id>` `{status:'available'}` (refresca también rutas) |
-| Guardar tipos | `PUT /api/settings` `{tiposVehiculo:[{nombre, costoKmUsd}]}` |
+| Crear un tipo (desde la ficha del vehículo) | `GET /api/vehicle-types` (para ver los retirados) y después `POST /api/vehicle-types` `{nombre, costoKmUsd}`; si ya hay un tipo **retirado** con ese nombre se reactiva con `PATCH /api/vehicle-types/<id>` `{activo:true}` (y `costoKmUsd` sólo si se escribió uno: mandar `null` borraría el que tenía) en vez de chocar con el 409 `Ya existe un tipo de vehículo con ese nombre`. |
+| Guardar tipos | El cajón **reconcilia tipo a tipo** contra `/api/vehicle-types` (`contratos-api.md`), partiendo de lo que tenía AL ABRIRSE: primero `DELETE /api/vehicle-types/<id>` de cada tipo quitado (un 404 es «ya estaba borrado»; si algún camión lo usa el servidor lo **retira**, `retirado:true`, no lo borra), luego `PATCH /api/vehicle-types/<id>` sólo con los campos que esa persona cambió (`nombre` y/o `costoKmUsd`; `null` vacía el costo) y `POST /api/vehicle-types` `{nombre, costoKmUsd}` por cada fila nueva (antes se vuelve a leer `GET /api/vehicle-types`: si el nombre ya existe activo no se repite y si está retirado se reactiva). **No es atómico**: una petición por tipo; si una falla cuando otras ya entraron, la pantalla dice «Se guardó sólo una parte». Ya **no** se manda `PUT /api/settings {tiposVehiculo}`: la API lo ignora (WARN) y los tipos se perdían en silencio hasta el 14/10/2026. Escribir tipos lo puede cualquier sesión de Reparto, también `LOGISTICO` (Jose, 14/10/2026). |
 
 Desde el 07/10/2026 **sólo se ofrecen para una ruta nueva** (paso `Vehículo` del asistente y
 `Camión previsto` de una zona) los vehículos **activos**; los inactivos se siguen viendo en

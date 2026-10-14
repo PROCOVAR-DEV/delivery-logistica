@@ -9,9 +9,10 @@ import '../datos/vehiculo_api.dart';
 
 /// El cajon `md` de «Tipos de vehículo». Pliego: `pantallas.md` §5.
 ///
-/// Se edita la lista entera y se manda entera en `PUT /api/settings`, igual que
-/// los almacenes: el servidor guarda `tiposVehiculo` como un bloque, no tipo a
-/// tipo.
+/// Se edita la lista entera y quien guarda (`RepositorioVehiculos.guardarTipos`)
+/// la compara con el servidor y manda tipo a tipo a `/api/vehicle-types`. Cada
+/// fila lleva el `id` del tipo que ya existe: sin el, renombrar un tipo seria
+/// crear otro.
 class TiposDeVehiculo extends StatefulWidget {
   const TiposDeVehiculo({
     required this.tipos,
@@ -37,6 +38,7 @@ class _TiposDeVehiculoState extends State<TiposDeVehiculo> {
     _filas = [
       for (final t in widget.tipos)
         _Fila(
+          id: t.id,
           nombre: TextEditingController(text: t.nombre),
           costo: TextEditingController(
             text: t.costoKmUsd == null ? '' : '${t.costoKmUsd}',
@@ -84,6 +86,7 @@ class _TiposDeVehiculoState extends State<TiposDeVehiculo> {
                     for (final f in _filas)
                       if (f.nombre.text.trim().isNotEmpty)
                         TipoDeVehiculo(
+                          id: f.id,
                           nombre: f.nombre.text.trim(),
                           costoKmUsd: double.tryParse(f.costo.text.trim()),
                         ),
@@ -185,7 +188,8 @@ class _TiposDeVehiculoState extends State<TiposDeVehiculo> {
 }
 
 class _Fila {
-  _Fila({required this.nombre, required this.costo});
+  _Fila({required this.nombre, required this.costo, this.id});
+  final String? id;
   final TextEditingController nombre;
   final TextEditingController costo;
 }

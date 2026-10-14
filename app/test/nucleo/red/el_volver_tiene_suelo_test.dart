@@ -2,9 +2,9 @@
 //
 // El aviso de «volví» (`avisoDeQueVolvimos`) no es gratis: cada uno dispara un
 // ciclo de sincronización entero, un `GET /api/board` por tablero abierto y un
-// `GET /vehicles` + `GET /settings` por pantalla de flota abierta. Con el corte
-// normal del proxy —cada 300 s— está bien pagado y es justo lo que evita que una
-// pantalla se quede vieja para siempre.
+// `GET /vehicles` + `GET /settings` + `GET /vehicle-types` por pantalla de
+// flota abierta. Con el corte normal del proxy —cada 300 s— está bien pagado y
+// es justo lo que evita que una pantalla se quede vieja para siempre.
 //
 // El caso que hay que cerrar es otro, y lo encontró la auditoría del arreglo el
 // 29/09/2026: **un servidor que acepta, manda el `listo` y se muere**. Es lo que

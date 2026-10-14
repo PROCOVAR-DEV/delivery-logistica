@@ -386,7 +386,8 @@ Singleton de facto: el código hace `findFirst()` y, si no hay, `create({data:{}
 Índices: solo PK. **No hay `createdAt` ni `updatedAt`.**
 
 Deuda detectada: `src/app/(dashboard)/vehicles/page.tsx` lee y escribe
-`settings.tiposVehiculo` (línea 120, 124, 139) y ese campo **no existe en el esquema**.
+`settings.tiposVehiculo` (línea 120, 124, 139) y ese campo **no existe en el esquema**. *(En el reparto es la
+tabla `vehicle_types`, `/api/vehicle-types`; ver `esquema-cambios.md`.)*
 Los parámetros de precio (`dom*`, `domConfigured`, tarifa base, costo/km, costo/kg) se
 eliminaron el 03/09/2026 (migración `20260903130000_fuera_los_precios`).
 
@@ -468,7 +469,8 @@ No existe `maintenance` en el código.
 Default `"truck"`. La UI ofrece: **`truck` | `van` | `motorcycle` | `car`**.
 Es **abierto**: `createTipoInlineMutation` permite crear tipos nuevos por nombre libre
 (se guardarían en el inexistente `Settings.tiposVehiculo`). En Go: tratarlo como string
-validado contra catálogo, no como enum cerrado.
+validado contra catálogo, no como enum cerrado. *(En el reparto el catálogo es la tabla `vehicle_types`,
+con `/api/vehicle-types`, y no `Settings.tiposVehiculo`.)*
 
 ### 3.5 `Order.source` / `Customer.source`
 Conjunto cerrado: **`"pedido"` | `NULL`**. `NULL` = alta manual en delivery.
@@ -645,7 +647,10 @@ implementado en aplicación (`findFirst` + `update`/`create`) y respaldado sólo
 7. Doble camino `Order.vehicleId` vs `OrderVehicle` sin garantía de coherencia. *(Resuelto en el
    reparto el 07/10/2026: `orders.vehicle_id` se eliminó, `00015`.)*
 8. `Product` UNIQUE `[sucursalCodigo, sku]` no dedupica filas con `sucursalCodigo NULL`.
-9. `Settings.tiposVehiculo` se lee y escribe desde la UI pero no existe en el esquema.
+9. `Settings.tiposVehiculo` se lee y escribe desde la UI pero no existe en el esquema. *(Resuelto en el
+   reparto: tabla `vehicle_types` y rutas `/api/vehicle-types`, `contratos-api.md`. La API ya no lee ni
+   devuelve ese campo; la app dejó de mandarlo a `PUT /api/settings` el 14/10/2026, y hasta entonces los
+   tipos se perdían en silencio.)*
 10. `Order.lat/lng` duplican `endLat/endLng` al importar; sólo `endLat/endLng` se usan para rutear.
 11. `VentaFacturada` es tabla muerta (sin escritores) que conserva histórico.
 12. Sin `onDelete` explícito salvo `OrderVehicle`; definir la política en SQL al migrar.

@@ -240,16 +240,22 @@ class ControlVehiculos extends Notifier<AvisoVehiculos?> {
     'Se usará este vehículo para calcular el domicilio.',
   );
 
-  Future<bool> guardarTipos(List<TipoDeVehiculo> tipos) => _hacer(
+  Future<bool> guardarTipos(
+    List<TipoDeVehiculo> tipos, {
+    required List<TipoDeVehiculo> abiertos,
+  }) => _hacer(
     'tipos',
-    () => _repositorio.guardarTipos(tipos),
+    () => _repositorio.guardarTipos(tipos, abiertos: abiertos),
     'Tipos guardados.',
   );
+
+  Future<bool> crearTipo(TipoDeVehiculo tipo) =>
+      _hacer('tipo-nuevo', () => _repositorio.crearTipo(tipo), 'Tipo creado.');
 
   RepositorioVehiculos get _repositorio =>
       ref.read(repositorioVehiculosProvider);
 
-  /// La puerta de las seis escrituras: una sola de cada [clave] a la vez.
+  /// La puerta de las escrituras: una sola de cada [clave] a la vez.
   Future<bool> _hacer(
     String clave,
     Future<void> Function() accion,
@@ -272,6 +278,22 @@ class ControlVehiculos extends Notifier<AvisoVehiculos?> {
     state = null;
     try {
       await accion();
+    } on GuardadoAMedias catch (e) {
+      // Una parte SI se guardo. Decir «no se guardó nada» seria mentir: el
+      // servidor ya tiene esos cambios. Se refresca para que la lista los
+      // enseñe y se dice por qué falló el resto.
+      ref.invalidate(ajustesVehiculosProvider);
+      final motivo = switch (e.causa) {
+        Rechazo(:final mensaje) => mensaje,
+        _ => 'se perdió la conexión con el servidor',
+      };
+      state = AvisoVehiculos(
+        'Se guardó sólo una parte (${e.aplicadas} cambio'
+        '${e.aplicadas == 1 ? '' : 's'}) y falló el resto: $motivo. '
+        'Revisa la lista y vuelve a guardar.',
+        esFallo: true,
+      );
+      return false;
     } on FalloDeRed {
       // Red caida, tiempo agotado o 5xx: la peticion NO llego. No se encola, no
       // se escribe en local, no se dice que se guardo.

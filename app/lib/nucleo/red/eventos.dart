@@ -162,8 +162,8 @@ String tipoDeSesionInvalidada(String aviso) =>
 ///
 /// El aviso cuesta: cada uno dispara un ciclo de sincronizacion entero, un
 /// `GET /api/board` por tablero abierto y un `GET /vehicles` + `GET /settings`
-/// por pantalla de flota abierta. Con el corte normal del proxy —cada 300 s—
-/// eso esta bien pagado. El problema es otro caso:
+/// + `GET /vehicle-types` por pantalla de flota abierta. Con el corte normal
+/// del proxy —cada 300 s— eso esta bien pagado. El problema es otro caso:
 ///
 /// **un servidor que acepta, manda el `listo` y se muere**, que es justo lo que
 /// pasa en un reinicio o con un contenedor que no levanta. El `listo` reinicia

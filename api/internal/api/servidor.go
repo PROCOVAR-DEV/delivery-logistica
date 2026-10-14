@@ -144,10 +144,16 @@ func (s *Servidor) Rutas() http.Handler {
 	// `PUT /api/settings` con la clave `tiposVehiculo`, un campo que NUNCA EXISTIÓ en el
 	// esquema — la pantalla creaba tipos, los guardaba y se perdían sin un solo error.
 	// Ahora es una tabla, así que es un recurso con sus rutas.
+	//
+	// LAS CUATRO SON DE SESIÓN, NO DE ADMIN (Jose, 14/10/2026): el logístico de Santiago, entrenándose
+	// con Amado, no podía crear un tipo, y la APK es completa para el logístico. Antes de la tabla
+	// esto iba en `PUT /api/settings`, que tampoco pedía admin. OJO: el catálogo es GLOBAL y el costo
+	// por km del tipo es el que cotiza el domicilio en las ocho sucursales; si hubiera que volver a
+	// cerrarlo, es cambiar estas tres líneas a `admin...` (y la prueba `un_logistico_gestiona_tipos`).
 	rt.ManejarFunc(http.MethodGet, "/api/vehicle-types", s.listarTiposDeVehiculo, sesion...)
-	rt.ManejarFunc(http.MethodPost, "/api/vehicle-types", s.crearTipoDeVehiculo, admin...)
-	rt.ManejarFunc(http.MethodPatch, "/api/vehicle-types/{id}", s.actualizarTipoDeVehiculo, admin...)
-	rt.ManejarFunc(http.MethodDelete, "/api/vehicle-types/{id}", s.borrarTipoDeVehiculo, admin...)
+	rt.ManejarFunc(http.MethodPost, "/api/vehicle-types", s.crearTipoDeVehiculo, sesion...)
+	rt.ManejarFunc(http.MethodPatch, "/api/vehicle-types/{id}", s.actualizarTipoDeVehiculo, sesion...)
+	rt.ManejarFunc(http.MethodDelete, "/api/vehicle-types/{id}", s.borrarTipoDeVehiculo, sesion...)
 
 	// Ajustes. Globales: llevan sesión pero el alcance no pinta nada (y aun así se monta,
 	// porque es por donde se llega a las consultas).

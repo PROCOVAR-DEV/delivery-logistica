@@ -29,7 +29,7 @@ entero «por si acaso» es tener el mismo dato en dos sitios y no saber cuál ma
 
 | Antes | Ahora | Por qué |
 |---|---|---|
-| `Settings.tiposVehiculo` | tabla **`vehicle_types`** | **El campo nunca existió en el esquema.** La pantalla de vehículos dejaba crear tipos nuevos, los mandaba a guardar y se perdían sin un solo error. Por eso `Vehicle.type` era un conjunto que nadie podía cerrar: su catálogo no estaba en ninguna parte. |
+| `Settings.tiposVehiculo` | tabla **`vehicle_types`** | **El campo nunca existió en el esquema.** La pantalla de vehículos dejaba crear tipos nuevos, los mandaba a guardar y se perdían sin un solo error. Por eso `Vehicle.type` era un conjunto que nadie podía cerrar: su catálogo no estaba en ninguna parte. **14/10/2026: la app tardó en migrarse.** La API ya tenía la tabla y `/api/vehicle-types`, pero la app seguía mandando los tipos en `PUT /api/settings {tiposVehiculo}`; la API ya no lee ese campo (solo deja un WARN) y contesta 200, así que el cajón de tipos «guardaba» y los tipos se perdían en silencio: el mismo fallo de antes, ahora en el cliente. Arreglado ese día: la app usa `/api/vehicle-types` (ver `contratos-api.md`) y `GET /api/settings` ya no devuelve `tiposVehiculo`. |
 | `Order.items` | tabla **`order_items`** | Dentro de un JSON no se busca. Por eso existía `productosTexto`, una copia de los nombres en texto plano metida a mano sólo para poder preguntar «¿qué pedidos llevan malta?». **Esa copia desaparece**: un dato copiado en dos sitios acaba discrepando, y este además se copiaba a mano. |
 | `Settings.currencies` | tabla **`currencies`** | Una lista de cosas con su clave y su valor es una tabla. Así la moneda es única, se sabe cuándo cambió cada tasa, y corregir una no obliga a reescribir el array entero. |
 

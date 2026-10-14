@@ -1413,6 +1413,86 @@ data: {}
 - **200**: `{"success":true}`.
 - **Modelos**: `OrderVehicle`, `Vehicle`.
 
+## `/api/vehicle-types` — el catálogo de tipos de vehículo (RECURSO PROPIO DEL REPARTO)
+
+No existe en las 35 rutas de delivery. Allí los tipos viajaban dentro de `PUT /api/settings` con
+la clave `tiposVehiculo`, un campo que **nunca existió en el esquema** (ver `esquema-cambios.md`):
+se creaban, se «guardaban» y se perdían sin un solo error. Ahora son la tabla `vehicle_types` y
+tienen sus cuatro rutas (`api/internal/api/tipos_vehiculo.go`). **`GET /api/settings` ya no
+devuelve `tiposVehiculo`** y `PUT /api/settings` ya no lo guarda.
+
+- **Auth de las cuatro**: usuario, **cualquier sesión de Reparto, también `LOGISTICO`** (Jose,
+  14/10/2026: «la APK es completa para el logístico»). **No exigen admin**, ni siquiera las tres de
+  escritura: antes de esa fecha pedían `ExigirAdmin` y un logístico recibía 403. Quien no entra a
+  Reparto sigue recibiendo el 403 `sin_permiso_reparto` de siempre (y no se escribe). Que la regla
+  sea tan abierta es una **decisión de Jose, y delicada**: el catálogo es **GLOBAL** y el costo por
+  km del tipo es el valor por defecto que cotiza el domicilio de todos los camiones que lo usen,
+  en las ocho sucursales. Si hubiera que cerrarlo, son las tres rutas de escritura de
+  `servidor.go` a `admin...` (y la prueba `un_logistico_gestiona_tipos_test.go`).
+- **Alcance**: la tabla **no tiene columna de sucursal**: el catálogo es el mismo para las ocho.
+- **Forma de un tipo** (la misma en las cuatro):
+
+```json
+{ "id": "<uuid>", "nombre": "truck", "costoKmUsd": 0.45 | null, "activo": true,
+  "vehiculos": 0, "createdAt": "<RFC3339>|null", "updatedAt": "<RFC3339>|null" }
+```
+
+  `costoKmUsd` nulo es «todavía no se sabe» (no cero: un cero guardado se lee como «el kilómetro
+  es gratis»). `vehiculos` es cuántos camiones usan el tipo; **sólo `GET` lo cuenta de verdad**:
+  en la respuesta de `POST` y `PATCH` es siempre `0`.
+- **Errores comunes**: cuerpo que no es JSON → `400 {"error":"Cuerpo de la petición no válido"}`;
+  `{id}` que no es un uuid, o que no existe → `404 {"error":"No encontrado"}` (en español, no el
+  `Not found` de `/api/vehicles/[id]`); `costoKmUsd` negativo, infinito o NaN → `400
+  {"error":"El costo por kilómetro no puede ser negativo, y llegó '<valor>'. Déjalo vacío si
+  todavía no se sabe: un hueco se ve y se rellena."}` (la misma guarda que `/api/vehicles`).
+
+### `GET /api/vehicle-types?activos=1`
+
+- **Query**: `activos=1` (o `true`) → sólo los activos, que es lo que pide el desplegable del alta
+  de un camión. Sin ella salen **TODOS, activos y retirados**: la pantalla de administración tiene
+  que ver lo retirado para poder reactivarlo.
+- **200**: array de tipos, por `nombre` ascendente, con `vehiculos` contado. Vacío = `[]`.
+
+### `POST /api/vehicle-types`
+
+- **Cuerpo**: `{ nombre, costoKmUsd?, activo? }`. `nombre` se recorta y es obligatorio: vacío o
+  ausente → `400 {"error":"El nombre del tipo es obligatorio"}`. `costoKmUsd` ausente o `null` →
+  se guarda vacío (a propósito: nunca un número inventado). `activo` ausente → `true`.
+- `nombre` es **único**: repetido (también el de un tipo RETIRADO, que el cajón no enseña) →
+  `409 {"error":"Ya existe un tipo de vehículo con ese nombre"}`. Quien lo recibe puede elegir el
+  que ya existe o, si está retirado, reactivarlo con `PATCH {activo:true}`.
+- **201**: el tipo creado (`vehiculos: 0`). Avisa en vivo (ver abajo).
+
+### `PATCH /api/vehicle-types/{id}`
+
+- **Cuerpo** (sólo lo presente cambia): `nombre`, `costoKmUsd`, `activo`.
+  - `nombre`: se recorta; presente pero vacío → `400 {"error":"El nombre del tipo es obligatorio"}`
+    (antes dejaba un tipo imposible de elegir). Repetido → el mismo
+    `409 {"error":"Ya existe un tipo de vehículo con ese nombre"}` del POST (antes, `500`, y la app
+    lo tomaba por un fallo de red).
+  - `costoKmUsd`: **distingue ausente de `null`**. Ausente no lo toca; `null` lo **vacía**; un
+    número lo cambia.
+  - `activo: true` reactiva un tipo retirado; `false` lo retira sin borrarlo.
+- **200**: el tipo actualizado (`vehiculos: 0`). Avisa en vivo.
+
+### `DELETE /api/vehicle-types/{id}`
+
+- Sin cuerpo. Borrar un tipo que usa algún camión dejaría la clave ajena colgando (un camión sin
+  tipo es un camión sin costo por km y sin fórmula del domicilio), así que:
+  - **sin camiones** → se **borra** de verdad: `200 {"success":true,"retirado":false}`;
+  - **con camiones** → se **RETIRA** (`activo = false`): deja de ofrecerse y los que ya lo tienen
+    siguen funcionando: `200 {"success":true,"retirado":true}`.
+- La comprobación de uso va en la misma sentencia que el borrado (entre un conteo y el borrado
+  cabe un alta). La respuesta dice cuál de las dos pasó porque la pantalla tiene que poder decirlo.
+  Id inexistente → `404 {"error":"No encontrado"}`.
+- **Escribe**: `vehicle_types`. Avisa en vivo.
+
+### Aviso en vivo y rastro
+
+Las tres escrituras publican el aviso `vehiculos` (el mismo de la flota: es la misma pantalla)
+**A LAS OCHO sucursales**, sin acotar: el tipo no es de ninguna. No dejan línea de «Rastro de
+quién» (a diferencia de `/api/vehicles`).
+
 ---
 
 # 8. Productos (`/api/products`)
@@ -1569,9 +1649,13 @@ data: {}
 ## `PUT /api/settings`
 
 - **Auth**: usuario (**no exige admin**). **Sin alcance**.
-- **Cuerpo** — sólo cuatro campos se leen: `currency`, `cupRate`, `currencies`,
-  `tiposVehiculo`. Todo lo demás se ignora. Si viene `cupRate`, además se pone
-  `cupRateUpdatedAt = now`.
+- **Cuerpo** — sólo tres campos se leen: `currency`, `cupRate`, `currencies`. Todo lo demás se
+  ignora. Si viene `cupRate`, además se pone `cupRateUpdatedAt = now`.
+- **`tiposVehiculo` YA NO SE GUARDA** (ni se devuelve en `GET /api/settings`): los tipos son la tabla
+  `vehicle_types`, con sus rutas `/api/vehicle-types` (ver su sección, tras `/api/vehicles/[id]`). Si
+  un cliente viejo lo sigue mandando, la API contesta 200 **sin guardarlo** y deja un WARN en el
+  registro («llegó tiposVehiculo a /api/settings…»). La app tardó en migrarse (14/10/2026): hasta
+  entonces mandaba los tipos aquí y se perdían en silencio.
 - Si hay fila → `update`; si no → `create` con esos datos.
 - **200**: el `Settings` resultante. **Modelos**: `Settings`.
 - Deja la línea de rastro `ajustes guardados` (ver «Rastro de quién»). Que **no exija admin**
@@ -2284,4 +2368,5 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | 32 | `/api/tasa` | GET | usuario | sí | no |
 | 33 | `/api/vehicles` | GET, POST | usuario | sí | Vehicle |
 | 34 | `/api/vehicles/[id]` | GET, PATCH, DELETE | usuario | sí | Vehicle, Route, Order, OrderVehicle |
+| 34-bis | `/api/vehicle-types` y `/api/vehicle-types/{id}` | GET, POST / PATCH, DELETE (propias del reparto, 14/10/2026: antes `tiposVehiculo` dentro de `/api/settings`) | usuario, también LOGISTICO (las tres de escritura NO piden admin) | no (catálogo global) | VehicleType (`vehicle_types`) |
 | 35 | `/api/version` | GET | ninguna | no | no |

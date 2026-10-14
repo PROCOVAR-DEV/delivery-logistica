@@ -90,7 +90,9 @@ echo "== app (Flutter) =="
 cd "$raiz/app"
 paso "analyze"; flutter analyze >/dev/null 2>&1 && bien || mal
 # Con tope: una prueba colgada se come la sesion entera en vez de fallar. Ya paso.
-paso "test";    timeout 300 flutter test >/dev/null 2>&1 && bien || mal
+# 900 s (14/10/2026): la suite ya tarda 5 min 19 s en esta maquina y el tope de 300 s la cortaba
+# dando un «FALLA» sin detalle; sigue siendo el tope de un cuelgue, no el tiempo normal.
+paso "test";    timeout 900 flutter test >/dev/null 2>&1 && bien || mal
 
 # LA PRUEBA DE CHROME (web): `agente_de_usuario_web_test.dart` lleva `@TestOn('browser')`, asi que el
 # `flutter test` de arriba (maquina virtual, donde `kIsWeb` es siempre falso) NO la corre, y la

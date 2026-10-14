@@ -90,7 +90,7 @@ type cuerpoTipoVehiculo struct {
 	Activo     httpx.Opcional[bool]    `json:"activo"`
 }
 
-// POST /api/vehicle-types   (admin)
+// POST /api/vehicle-types   (cualquier sesión de Reparto, también LOGISTICO)
 func (s *Servidor) crearTipoDeVehiculo(w http.ResponseWriter, r *http.Request) {
 	a, ok := acotado(w, r)
 	if !ok {
@@ -135,7 +135,7 @@ func (s *Servidor) crearTipoDeVehiculo(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, r, http.StatusCreated, deTipo(t, 0))
 }
 
-// PATCH /api/vehicle-types/{id}   (admin)
+// PATCH /api/vehicle-types/{id}   (cualquier sesión de Reparto, también LOGISTICO)
 func (s *Servidor) actualizarTipoDeVehiculo(w http.ResponseWriter, r *http.Request) {
 	a, ok := acotado(w, r)
 	if !ok {
@@ -152,9 +152,20 @@ func (s *Servidor) actualizarTipoDeVehiculo(w http.ResponseWriter, r *http.Reque
 	if !costoKmValido(w, r, c.CostoKmUsd) {
 		return
 	}
+	// El nombre, recortado y no vacío: sin esto un PATCH con `"nombre":"  "` dejaba un tipo
+	// que no se puede elegir (el POST ya lo rechaza).
+	nombre := c.Nombre.Puntero()
+	if nombre != nil {
+		recortado := strings.TrimSpace(*nombre)
+		if recortado == "" {
+			httpx.Error(w, r, http.StatusBadRequest, "El nombre del tipo es obligatorio")
+			return
+		}
+		nombre = &recortado
+	}
 	t, err := a.ActualizarTipoDeVehiculo(r.Context(), sqlc.ActualizarTipoDeVehiculoParams{
 		ID:         id,
-		Nombre:     c.Nombre.Puntero(),
+		Nombre:     nombre,
 		TocarCosto: c.CostoKmUsd.Presente,
 		CostoKmUsd: c.CostoKmUsd.Valor,
 		Activo:     c.Activo.Puntero(),
@@ -164,6 +175,14 @@ func (s *Servidor) actualizarTipoDeVehiculo(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if err != nil {
+		// Renombrar a un nombre que ya existe (también el de un RETIRADO, que el cajón ni
+		// enseña) choca con la única de `nombre`. Con un 500 la app lo toma por un fallo de
+		// red, reintenta 15 s y dice «no se guardó nada»: el mismo choque que el POST ya
+		// traducía a 409 y el PATCH no.
+		if esClaveRepetida(err) {
+			httpx.Error(w, r, http.StatusConflict, "Ya existe un tipo de vehículo con ese nombre")
+			return
+		}
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
@@ -171,7 +190,7 @@ func (s *Servidor) actualizarTipoDeVehiculo(w http.ResponseWriter, r *http.Reque
 	httpx.JSON(w, r, http.StatusOK, deTipo(t, 0))
 }
 
-// DELETE /api/vehicle-types/{id}   (admin)
+// DELETE /api/vehicle-types/{id}   (cualquier sesión de Reparto, también LOGISTICO)
 //
 // Borrar un tipo que usa algún camión dejaría la clave ajena colgando, y a la fuerza
 // dejaría camiones sin tipo: un camión sin tipo es un camión sin costo por km y por tanto

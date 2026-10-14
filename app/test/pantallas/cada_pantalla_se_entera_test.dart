@@ -39,6 +39,19 @@ import 'almacenes/apoyo_almacenes.dart' as alm;
 import 'clientes/apoyo_clientes.dart';
 import 'vehiculos/apoyo_vehiculos.dart' as veh;
 
+/// `GET /api/vehicle-types` con la forma REAL del contrato (`id`, `nombre`,
+/// `costoKmUsd`, `activo`, `vehiculos`). Antes esta ruta caia en la lista de
+/// CAMIONES y la prueba pasaba por casualidad.
+const tiposDeLaApi = <Object?>[
+  <String, Object?>{
+    'id': 't0',
+    'nombre': 'truck',
+    'costoKmUsd': 1.65,
+    'activo': true,
+    'vehiculos': 1,
+  },
+];
+
 void main() {
   /// El canal en vivo, en la mano. Es de difusión porque lo escuchan varios
   /// proveedores a la vez, igual que el de verdad.
@@ -95,11 +108,11 @@ void main() {
       'y repinta', (tester) async {
     var nombre = 'Camión viejo';
     final banco = veh.Banco((p) async {
+      if (p.ruta.endsWith('/vehicle-types')) {
+        return RespuestaFalsa(200, tiposDeLaApi);
+      }
       if (p.ruta.endsWith('/settings')) {
-        return RespuestaFalsa(200, const <String, Object?>{
-          'tiposVehiculo': <Object?>[],
-          'cupRate': 320,
-        });
+        return RespuestaFalsa(200, const <String, Object?>{'cupRate': 320});
       }
       return RespuestaFalsa(200, [
         <String, Object?>{
@@ -174,11 +187,11 @@ void main() {
       'llegado ningún aviso suyo', (tester) async {
     var nombre = 'Camión viejo';
     final banco = veh.Banco((p) async {
+      if (p.ruta.endsWith('/vehicle-types')) {
+        return RespuestaFalsa(200, tiposDeLaApi);
+      }
       if (p.ruta.endsWith('/settings')) {
-        return RespuestaFalsa(200, const <String, Object?>{
-          'tiposVehiculo': <Object?>[],
-          'cupRate': 320,
-        });
+        return RespuestaFalsa(200, const <String, Object?>{'cupRate': 320});
       }
       return RespuestaFalsa(200, [
         <String, Object?>{
@@ -229,10 +242,7 @@ void main() {
     (tester) async {
       final banco = veh.Banco((p) async {
         if (p.ruta.endsWith('/settings')) {
-          return RespuestaFalsa(200, const <String, Object?>{
-            'tiposVehiculo': <Object?>[],
-            'cupRate': 320,
-          });
+          return RespuestaFalsa(200, const <String, Object?>{'cupRate': 320});
         }
         return RespuestaFalsa(200, const <Object?>[]);
       });
@@ -264,10 +274,7 @@ void main() {
   ) async {
     final banco = veh.Banco((p) async {
       if (p.ruta.endsWith('/settings')) {
-        return RespuestaFalsa(200, const <String, Object?>{
-          'tiposVehiculo': <Object?>[],
-          'cupRate': 320,
-        });
+        return RespuestaFalsa(200, const <String, Object?>{'cupRate': 320});
       }
       return RespuestaFalsa(200, const <Object?>[]);
     });

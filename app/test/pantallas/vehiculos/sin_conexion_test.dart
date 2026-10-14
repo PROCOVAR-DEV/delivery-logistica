@@ -61,7 +61,9 @@ void main() {
     expect(await control.marcarDisponible('v1'), isFalse);
     expect(await control.usarParaDomicilio('v1'), isFalse);
     expect(
-      await control.guardarTipos(const [TipoDeVehiculo(nombre: 'Camión')]),
+      await control.guardarTipos(const [
+        TipoDeVehiculo(nombre: 'Camión'),
+      ], abiertos: const []),
       isFalse,
     );
 

@@ -1089,19 +1089,21 @@ Future<void> _abrirYCerrar(
 /// «existe pero le falta la ubicación» es el estado normal de estos días y es lo
 /// que la pantalla tiene que saber pintar.
 Future<RespuestaFalsa?> _responder(PeticionVista peticion) async {
+  if (peticion.ruta.endsWith('/vehicle-types')) {
+    return RespuestaFalsa(200, const <Object?>[
+      {
+        'id': 'tv1',
+        // Largo a propósito: es el que desbordaba el desplegable `Tipo` a 390
+        // px, y con «truck» no se ve nada.
+        'nombre': 'Camión rígido de reparto urbano',
+        'costoKmUsd': 1.25,
+        'activo': true,
+        'vehiculos': 4,
+      },
+    ]);
+  }
   if (peticion.ruta.endsWith('/settings')) {
-    return RespuestaFalsa(200, const <String, Object?>{
-      'tiposVehiculo': <Object?>[
-        {
-          'id': 'tv1',
-          // Largo a propósito: es el que desbordaba el desplegable `Tipo` a 390
-          // px, y con «truck» no se ve nada.
-          'nombre': 'Camión rígido de reparto urbano',
-          'costoPorKm': 1.25,
-        },
-      ],
-      'cupRate': 320,
-    });
+    return RespuestaFalsa(200, const <String, Object?>{'cupRate': 320});
   }
   if (peticion.ruta.endsWith('/vehicles')) {
     return RespuestaFalsa(200, <Object?>[

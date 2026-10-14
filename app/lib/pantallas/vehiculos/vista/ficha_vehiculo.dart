@@ -33,7 +33,7 @@ class FichaVehiculo extends StatefulWidget {
   final bool guardando;
   final ValueChanged<DatosVehiculo> alGuardar;
 
-  /// GUARDA el tipo nuevo en el catalogo (`PUT /api/settings`) y contesta si se
+  /// GUARDA el tipo nuevo en el catalogo (`POST /api/vehicle-types`) y contesta si se
   /// aplico. Quien guarda es la pantalla, como con el vehiculo.
   ///
   /// Sin esto el tipo nuevo vivia sólo en el `setState` de esta ficha y se

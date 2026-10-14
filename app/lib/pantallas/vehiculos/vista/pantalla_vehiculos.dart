@@ -53,17 +53,13 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
   List<TipoDeVehiculo> _tiposVisibles(AjustesDeLaApi ajustes) =>
       TipoDeVehiculo.paraElCajon(deAjustes: ajustes.tipos, vehiculos: _flota);
 
-  /// Mete un tipo nuevo en el catalogo y lo GUARDA (`PUT /api/settings`).
-  ///
-  /// Se manda la lista entera, que es como el servidor guarda `tiposVehiculo`:
-  /// los que ya estaban mas el nuevo.
+  /// Mete un tipo nuevo en el catalogo y lo GUARDA (`POST /api/vehicle-types`;
+  /// si el nombre es el de un retirado, lo reactiva).
   Future<bool> _crearTipo(TipoDeVehiculo nuevo) async {
-    final ajustes = _ajustes;
-    if (ajustes.tipos.any((t) => t.nombre == nuevo.nombre)) return true;
-    return ref.read(controlVehiculosProvider.notifier).guardarTipos([
-      ...ajustes.tipos,
-      nuevo,
-    ]);
+    if (_tiposVisibles(_ajustes).any((t) => t.nombre == nuevo.nombre)) {
+      return true;
+    }
+    return ref.read(controlVehiculosProvider.notifier).crearTipo(nuevo);
   }
 
   Future<void> _abrirFicha([VehiculoDeLaApi? vehiculo]) async {
@@ -105,18 +101,20 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
   }
 
   Future<void> _abrirTipos() async {
-    final ajustes = _ajustes;
+    // Lo que el cajon tiene AL ABRIRSE: de ahi salen los que se quitaron y lo
+    // que cambio esta persona (ver `RepositorioVehiculos.guardarTipos`).
+    final abiertos = _tiposVisibles(_ajustes);
     await abrirPanel<void>(
       context,
       (contexto) => StatefulBuilder(
         builder: (contexto, repintar) => TiposDeVehiculo(
-          tipos: _tiposVisibles(ajustes),
+          tipos: abiertos,
           guardando: _guardando,
           alGuardar: (tipos) async {
             repintar(() => _guardando = true);
             final bien = await ref
                 .read(controlVehiculosProvider.notifier)
-                .guardarTipos(tipos);
+                .guardarTipos(tipos, abiertos: abiertos);
             if (!contexto.mounted) return;
             repintar(() => _guardando = false);
             if (bien) Navigator.of(contexto).pop();

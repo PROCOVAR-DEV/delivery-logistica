@@ -328,9 +328,25 @@ Cabecera: código, nombre y etiqueta con la sucursal. Botones:
 - `Marcar como completada` (sólo `in_progress`; mientras: `Completando...`).
 - Insignia `Peso total (<w> kg) supera capacidad (<c> kg)` si procede.
 
+**Sección de filtros plegable (issue 6.3 de Amado; hecho el 14/10/2026).** Los filtros de la lista
+(buscar, `Rutas de un camión`, `Ubicación de salida`, `Desde`/`Hasta`, `Limpiar`) viven
+tras un botón `Filtros` (icono de ajustes, chevrón `v`/`^`) que los pliega y despliega. Con
+los dos paneles arranca **plegada**; en el teléfono, **desplegada**. Lo elegido se recuerda
+mientras la aplicación está abierta (`filtrosPlegadosProvider`, no se guarda en el aparato).
+Plegada, el botón dice `Filtros · <n> activo(s)` y muestra su propio `Limpiar`.
+
 Línea de datos: estado, `<km> km (incl. regreso)`, `<kg> kg`, importe total, vehículo
 `Nombre · Placa`, fecha de entrega, `Carga total: <n>` y la **duración** («3 h 20 min»,
 sale de `startedAt`/`finishedAt`; tooltip con las horas).
+
+**Pre-despacho de la ruta (issue 8 de Amado; hecho el 14/10/2026).** Debajo de `Carga total` (que se
+mantiene), el detalle de **toda** ruta —armada a mano o desde una zona del tablero— trae la
+sección `Pre-despacho`: la misma vista que el paso 4 del asistente y que Pedidos
+(`VistaPreDespacho`), el botón `Ver e imprimir` y, debajo, la tabla `Por factura`. Antes el
+pre-despacho sólo existía dentro del asistente, y una ruta del tablero (que va derecha al
+detalle) no lo tenía. La suma es **una sola** para las tres entradas:
+`ConsultasPedidos.preDespachoDe`; `app/lib/pantallas/rutas/datos/pre_despacho_de_la_ruta.dart`
+sólo la reparte pedido a pedido. Ver §10.1 para la tabla.
 
 Compartir: enlace `Abrir en Google Maps` (origen = almacén, paradas en orden, **destino =
 el mismo almacén**, `travelmode=driving&dir_action=navigate`), botón `copiar enlace` que
@@ -970,7 +986,23 @@ Datos de entrada: `sucursal`, `vehiculo`, `dia` (`AAAA-MM-DD`, opcional), `pedid
    Los tres literales están **atados a los de la pantalla con una prueba**, no con
    un comentario (`app/test/impresion/los_dos_pesos_del_pre_despacho_test.dart`),
    que es la regla del §3-bis del `CLAUDE.md`.
-5. Firmas, dos huecos con línea superior: `Sacó del almacén` · `Recibió (chofer)`.
+5. **`Por factura` (issue 8 de Amado, hecho el 14/10/2026; no existe en Next).** Sólo si la hoja sabe de
+   qué factura sale cada cosa —la que se imprime desde el detalle de una ruta; la de Pedidos
+   no la lleva—. El almacén rebaja las tarjetas de estiba por cantidad **y factura**: de 20
+   blister, 10 son de una factura y 10 de otra. Título `POR FACTURA` y una tabla con **una
+   fila por (factura, producto)**, ordenada por número de factura, un subtotal en negrita por
+   factura y el total:
+
+   | `Factura` | `Producto` | `Blister` | `Unidades` | `Peso (kg)` |
+   |---|---|---|---|---|
+
+   **La imagen que Amado adjuntó al issue no se pudo ver al escribir esto**: las columnas son
+   una propuesta. Se cambian en **un solo sitio**, la lista `columnasPorFactura`
+   (`app/lib/impresion/por_factura.dart`), que leen la pantalla (`tabla_por_factura.dart`) y
+   este PDF. La factura es `orders.operation_number` (el conduce; si falta, `factura_numero`;
+   si tampoco, `Sin número`) y se decide en `numeroDeFactura`. Cada cifra sigue la regla de
+   la tabla de arriba (`≥` si falta algún renglón, `—` si no se sabe, el cero no es un peso).
+6. Firmas, dos huecos con línea superior: `Sacó del almacén` · `Recibió (chofer)`.
 
 Las líneas vienen ya ordenadas de más a menos empaques. Los caracteres `& < > "` se
 escapan.

@@ -63,6 +63,45 @@ class LineaPreDespacho {
   bool get unidadesCompletas => lineasSinUnidades == 0;
 }
 
+/// UNA FACTURA DEL PRE-DESPACHO: lo que lleva un pedido, producto a producto.
+///
+/// Es el insumo de la tabla «Por factura» (Amado, issue 8): el almacén rebaja
+/// las tarjetas de estiba **por cantidades Y facturas** —«se sacaron 20 blister,
+/// 10 de una factura y 10 de otra: en la tarjeta no se pone 20, se ponen 10 y
+/// 10 poniendo la factura que provocó la salida»—, así que el total por
+/// producto no le sirve para esa tarea y hace falta el reparto.
+///
+/// [lineas] son LAS MISMAS [LineaPreDespacho] de la hoja, calculadas con la misma
+/// regla (empaques, unidades y los tres escalones del peso) pero sobre UN solo
+/// pedido: una factura es un pedido, y su pre-despacho es el de ese pedido.
+/// Quien las arma es `pantallas/rutas/datos/pre_despacho_de_la_ruta.dart`; aquí
+/// sólo se guardan.
+class FacturaDelPreDespacho {
+  const FacturaDelPreDespacho({
+    required this.numero,
+    required this.cliente,
+    required this.lineas,
+  });
+
+  /// El número de la factura, o `null` si el pedido no trae ninguno (ver
+  /// `numeroDeFactura`, en `pantallas/rutas/datos/pre_despacho_de_la_ruta.dart`,
+  /// que decide cuál de los dos números del pedido es).
+  final String? numero;
+
+  /// A quién se le entrega. Sale en la tarjeta del teléfono y es lo que
+  /// distingue dos facturas sin número.
+  final String cliente;
+
+  final List<LineaPreDespacho> lineas;
+
+  /// Lo que se escribe en la columna de la factura. Un hueco no se deja: «Sin
+  /// número» se ve y se puede ir a arreglar; una celda vacía parece un descuido
+  /// de la hoja.
+  String get rotulo => numero ?? sinNumero;
+
+  static const String sinNumero = 'Sin número';
+}
+
 /// La hoja con la que alguien baja al almacen a sacar mercancia.
 class HojaPreDespacho {
   const HojaPreDespacho({
@@ -72,6 +111,7 @@ class HojaPreDespacho {
     required this.pesoKg,
     required this.lineas,
     this.dia,
+    this.facturas = const <FacturaDelPreDespacho>[],
   });
 
   final String sucursal;
@@ -90,6 +130,13 @@ class HojaPreDespacho {
 
   /// Ya vienen ordenadas de mas a menos empaques; esta hoja no las reordena.
   final List<LineaPreDespacho> lineas;
+
+  /// El reparto de [lineas] por factura. **Vacío = la hoja no lleva la tabla
+  /// «Por factura»**: es lo que pasa en las hojas que se arman sin saber de qué
+  /// factura sale cada cosa (la de Pedidos, que suma lo filtrado). Dentro de una
+  /// ruta sí se sabe, y entonces la hoja la trae. Ya vienen en el orden en que
+  /// se imprimen; la hoja no las reordena.
+  final List<FacturaDelPreDespacho> facturas;
 }
 
 /// Una linea del post-despacho: de un producto, lo que salio, lo entregado y lo
@@ -231,21 +278,32 @@ class TotalesPreDespacho {
     this.sinUnidades = 0,
   });
 
-  factory TotalesPreDespacho.de(HojaPreDespacho h) => TotalesPreDespacho(
-    formatos: h.lineas.fold<num>(0, (t, l) => t + l.formatos),
-    unidades: _suma(h.lineas.map((l) => l.unidades)),
+  factory TotalesPreDespacho.de(HojaPreDespacho h) =>
+      TotalesPreDespacho.deLineas(h.lineas, pesoDeLosPedidos: h.pesoKg);
+
+  /// LA SUMA DE UNAS LÍNEAS, sea cual sea el papel donde van. La hoja entera la
+  /// usa para su pie, y la tabla «Por factura» para el subtotal de cada factura y
+  /// para su total: **una sola suma, con una sola regla del `≥` y del cero**. Si
+  /// los subtotales se sumaran con otro código, el total de «Por factura» y el de
+  /// la tabla de arriba podrían decir dos cosas el día que se toque uno solo.
+  factory TotalesPreDespacho.deLineas(
+    List<LineaPreDespacho> lineas, {
+    num pesoDeLosPedidos = 0,
+  }) => TotalesPreDespacho(
+    formatos: lineas.fold<num>(0, (t, l) => t + l.formatos),
+    unidades: _suma(lineas.map((l) => l.unidades)),
     pesoDeLosProductos: _suma(
-      h.lineas.map((l) => sePuedeSumarElPeso(l.pesoKg) ? l.pesoKg : null),
+      lineas.map((l) => sePuedeSumarElPeso(l.pesoKg) ? l.pesoKg : null),
     ),
-    pesoDeLosPedidos: h.pesoKg,
-    productos: h.lineas.length,
+    pesoDeLosPedidos: pesoDeLosPedidos,
+    productos: lineas.length,
     // RENGLONES, no productos: un producto con 21 renglones huérfanos de 1.149
     // y otro con los 6 que tiene no son el mismo agujero.
-    sinPeso: h.lineas.fold<int>(
+    sinPeso: lineas.fold<int>(
       0,
       (n, l) => n + faltan(l.lineasSinPeso, hayCifra: sePuedeSumarElPeso(l.pesoKg)),
     ),
-    sinUnidades: h.lineas.fold<int>(
+    sinUnidades: lineas.fold<int>(
       0,
       (n, l) => n + faltan(l.lineasSinUnidades, hayCifra: l.unidades != null),
     ),

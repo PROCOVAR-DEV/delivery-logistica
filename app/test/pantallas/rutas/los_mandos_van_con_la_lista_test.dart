@@ -46,6 +46,7 @@ import 'package:reparto/idioma.dart';
 
 import '../../apoyo/base_de_prueba.dart';
 import '../pedidos/sembrar.dart';
+import 'desplegar_los_filtros.dart';
 
 final elBoton = find.widgetWithText(FilledButton, '+ Nueva Ruta');
 final laBarraDeFiltros = find.byType(BarraDeFiltros);
@@ -202,6 +203,9 @@ void main() {
       tester,
     ) async {
       await pintar(tester, const Size(1600, 1400));
+      // Con los dos paneles la sección de filtros arranca plegada (issue 6 de
+      // Amado): se abre, como haría una persona, para medir dónde cae la barra.
+      await desplegarLosFiltros(tester);
 
       final raya = laRaya(tester);
 
@@ -271,6 +275,7 @@ void main() {
       tester,
     ) async {
       await pintar(tester, const Size(1600, 1400));
+      await desplegarLosFiltros(tester);
 
       // Sin filtros puestos no hay botón: un «Limpiar» permanente es un botón
       // que no hace nada la mayor parte del tiempo.

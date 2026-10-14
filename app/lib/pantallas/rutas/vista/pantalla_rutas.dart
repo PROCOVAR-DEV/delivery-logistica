@@ -234,7 +234,7 @@ class PantallaRutas extends ConsumerWidget {
                     alCambiar: irALaPestana,
                   ),
                 ),
-                const _FiltrosDeLaLista(),
+                _FiltrosDeLaLista(enEscritorio: enEscritorio),
                 Expanded(
                   // LA LISTA, QUE SE CAMBIA DESLIZANDO EL DEDO.
                   //
@@ -488,10 +488,127 @@ abstract final class TextosDeLosFiltrosDeRutas {
   /// reparte la fila del teléfono por lo que mide el rótulo de cada filtro; ver
   /// la nota de las claves más abajo.
   static const tituloUbicacion = 'Ubicación de salida';
+
+  /// El botón que pliega y despliega la sección de filtros.
+  static const clavePlegar = ValueKey('rutas-filtros-plegar');
+
+  /// El `Limpiar` del encabezado, que sólo sale con la sección plegada y algún
+  /// filtro puesto.
+  static const claveLimpiarPlegado = ValueKey('rutas-filtros-limpiar-plegado');
+
+  /// El rótulo del encabezado: `Filtros`, o `Filtros · 2 activos` si hay puestos.
+  static String encabezado(int cuantos) => cuantos == 0
+      ? 'Filtros'
+      : 'Filtros · $cuantos ${cuantos == 1 ? 'activo' : 'activos'}';
 }
 
+/// LA SECCIÓN DE FILTROS, QUE SE PLIEGA — issue 6 de Amado (punto 3).
+///
+/// Amado, mirando el Planificador de Rutas en el escritorio: «la sección de
+/// filtro debe contraerse y expandirse; ahora ocupa todo el área y las rutas
+/// aparecen muy abajo y casi no se pueden hacer scroll, ni se ven».
+///
+/// Era literal: con los dos paneles la columna de la lista mide ~400 px, y en
+/// ella la barra de filtros (buscar, camión, ubicación de salida, las dos fechas
+/// y «Limpiar») se apila entera encima de la lista. Con la cabecera y las
+/// pestañas de arriba, en una ventana de 800 px de alto caben dos tarjetas (tres
+/// con la sección plegada; la primera baja de 532 a 363 px del borde de arriba,
+/// medido en `test/pantallas/rutas/los_filtros_se_pliegan_test.dart`).
+///
+/// ## Qué se decidió, y por qué
+///
+///  * **Un encabezado que dice qué es y cuántos hay puestos**
+///    (`Filtros · 2 activos`) con su chevrón. Plegar no puede esconder que la
+///    lista está acotada: una lista con «Cualquier vehículo» escondido detrás
+///    del pliegue y una ruta que falta es el «descartado en silencio» del §4.
+///  * **Plegada por defecto en los dos paneles, desplegada en el teléfono.** Ahí
+///    está la queja, y es donde plegar devuelve media pantalla a las rutas. El
+///    teléfono se queda como estaba (otra pantalla que Jose ya aprobó).
+///  * **`Limpiar` sigue a mano con la sección plegada** (va en el encabezado):
+///    quien ve una lista corta por un filtro olvidado tiene que poder quitarlo
+///    sin desplegar nada.
+///  * **Se recuerda mientras la aplicación está abierta**
+///    ([filtrosPlegadosProvider]): cambiar de pestaña o de ruta no la repliega.
+///    Pliega de verdad —la barra no se construye—, no se esconde con altura 0: lo
+///    que no se ve no tiene que ocupar sitio ni foco.
 class _FiltrosDeLaLista extends ConsumerWidget {
-  const _FiltrosDeLaLista();
+  const _FiltrosDeLaLista({required this.enEscritorio});
+
+  /// Los dos paneles: lo que decide el valor por defecto.
+  final bool enEscritorio;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cuantos = ref.watch(filtrosRutasProvider.select((f) => f.cuantos));
+    final plegados = ref.watch(filtrosPlegadosProvider) ?? enEscritorio;
+
+    // El margen se mide con el ancho de ESTE panel, como la barra de debajo.
+    return LayoutBuilder(
+      builder: (contexto, medidas) {
+        final lateral = medidas.maxWidth < Anchos.idioma ? Aire.sm : Aire.lg;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: lateral),
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Tooltip(
+                      message: plegados
+                          ? 'Mostrar los filtros'
+                          : 'Ocultar los filtros',
+                      child: TextButton.icon(
+                        key: TextosDeLosFiltrosDeRutas.clavePlegar,
+                        onPressed: () => ref
+                            .read(filtrosPlegadosProvider.notifier)
+                            .poner(!plegados),
+                        icon: const Icon(Icons.tune, size: 18),
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                TextosDeLosFiltrosDeRutas.encabezado(cuantos),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              plegados ? Icons.expand_more : Icons.expand_less,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  // Con la sección desplegada, `Limpiar` es el de la barra
+                  // (dentro de ella, alineado con los filtros); aquí sólo cuando
+                  // la barra no está y no habría otro.
+                  if (plegados && cuantos > 0)
+                    TextButton.icon(
+                      key: TextosDeLosFiltrosDeRutas.claveLimpiarPlegado,
+                      onPressed: () =>
+                          ref.read(filtrosRutasProvider.notifier).limpiar(),
+                      icon: const Icon(Icons.close, size: 16),
+                      label: const Text('Limpiar'),
+                    ),
+                ],
+              ),
+            ),
+            if (!plegados) const _BarraDeFiltrosDeRutas(),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _BarraDeFiltrosDeRutas extends ConsumerWidget {
+  const _BarraDeFiltrosDeRutas();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

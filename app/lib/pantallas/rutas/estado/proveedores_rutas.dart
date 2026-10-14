@@ -13,7 +13,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
+import '../../pedidos/estado/proveedores_pedidos.dart';
 import '../datos/acciones_rutas.dart';
+import '../datos/pre_despacho_de_la_ruta.dart';
 import '../datos/repositorio_rutas.dart';
 
 final consultasRutasProvider = Provider<ConsultasRutas>(
@@ -59,6 +61,29 @@ class FiltrosDeRutas extends Notifier<FiltrosRutas> {
 
 final filtrosRutasProvider = NotifierProvider<FiltrosDeRutas, FiltrosRutas>(
   FiltrosDeRutas.new,
+);
+
+/// ¿ESTÁ PLEGADA LA SECCIÓN DE FILTROS de la lista de rutas? Issue 6 de Amado
+/// (punto 3): «en rutas, en el desktop, el Planificador de rutas: la sección de
+/// filtro debe contraerse y expandirse; ahora ocupa todo el área y las rutas
+/// aparecen muy abajo y casi no se puede hacer scroll».
+///
+/// `null` = nadie la ha tocado, y entonces manda la forma de la pantalla: plegada
+/// con los dos paneles (la columna de la lista mide ~400 px y los filtros se
+/// apilan hasta comerse medio alto), desplegada en el teléfono (donde nadie se ha
+/// quejado y la pantalla es lo que era). En cuanto alguien la toca, **su elección
+/// se recuerda mientras la aplicación está abierta**: cambiar de pestaña, elegir
+/// una ruta o volver desde otra pantalla no la vuelve a plegar. No se guarda en
+/// el aparato: cada sesión empieza con el valor por defecto.
+class FiltrosPlegados extends Notifier<bool?> {
+  @override
+  bool? build() => null;
+
+  void poner(bool plegados) => state = plegados;
+}
+
+final filtrosPlegadosProvider = NotifierProvider<FiltrosPlegados, bool?>(
+  FiltrosPlegados.new,
 );
 
 class PaginaDeRutas extends Notifier<int> {
@@ -277,6 +302,41 @@ final renglonesDeParadasProvider =
       return () async* {
         // El primero enseguida: `tableUpdates` no emite al suscribirse, y sin
         // esto la carga arrancaria en cero aunque los renglones ya estuvieran.
+        yield await mirar();
+        yield* base
+            .tableUpdates(
+              TableUpdateQuery.onAllTables([base.orderItems, base.products]),
+            )
+            .asyncMap((_) => mirar());
+      }();
+    });
+
+/// EL PRE-DESPACHO DE UNA RUTA: la tabla de producto a producto y el reparto por
+/// factura. Ver `datos/pre_despacho_de_la_ruta.dart`.
+///
+/// ## STREAM, no Future — el §3-ter, otra vez
+///
+/// Mismo molde que [renglonesDeParadasProvider] y por lo mismo: en la web la base
+/// nace vacía en cada carga y `order_items` llega DESPUÉS de `orders`, así que
+/// una respuesta pedida una sola vez, al abrir el detalle, se queda con «Sin
+/// productos» encima de una ruta cargada. Se rehace con cada cambio de los
+/// renglones o del catálogo, y con cada cambio de las paradas (que es lo que
+/// hace que este provider se reconstruya solo al quitar una).
+final preDespachoDeLaRutaProvider = StreamProvider.autoDispose
+    .family<PreDespachoDeLaRuta, String>((ref, rutaId) {
+      final base = ref.watch(baseProvider);
+      final pedidos = ref.watch(consultasPedidosProvider);
+      final paradas = ref.watch(paradasDeRutaProvider(rutaId)).value;
+      if (paradas == null) {
+        // Las paradas todavía no han contestado: «cargando», que es la verdad.
+        return const Stream<PreDespachoDeLaRuta>.empty();
+      }
+
+      Future<PreDespachoDeLaRuta> mirar() =>
+          preDespachoDeLaRuta(pedidos, paradas);
+
+      return () async* {
+        // El primero enseguida: `tableUpdates` no emite al suscribirse.
         yield await mirar();
         yield* base
             .tableUpdates(

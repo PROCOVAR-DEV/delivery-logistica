@@ -23,6 +23,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../diseno/tema.dart';
+import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
+import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../ayuda/datos/controles_senalados.dart';
@@ -30,13 +32,16 @@ import '../../ayuda/vista/control_senalado.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/vista/kit.dart';
+import '../../pedidos/vista/vista_pre_despacho.dart';
 import '../datos/acciones_rutas.dart';
 import '../datos/formato_de_la_ruta.dart';
 import '../datos/importe_de_la_ruta.dart';
+import '../datos/pre_despacho_de_la_ruta.dart';
 import '../datos/repositorio_rutas.dart';
 import '../estado/proveedores_rutas.dart';
 import 'cierre_de_ruta.dart';
 import 'mapa_de_la_ruta.dart';
+import 'tabla_por_factura.dart';
 
 /// EL RELLENO DE ABAJO DEL TODO.
 ///
@@ -137,6 +142,11 @@ class DetalleDeRuta extends ConsumerWidget {
       MapaDeLaRuta(ruta: conTodo),
       const SizedBox(height: 12),
       _Paradas(ruta: conTodo),
+      const SizedBox(height: 20),
+      // EL PRE-DESPACHO, EN TODAS LAS RUTAS. Antes sólo lo tenía la que se
+      // armaba a mano en el asistente; la que salía del tablero no lo traía.
+      // Ver `datos/pre_despacho_de_la_ruta.dart`.
+      _PreDespacho(ruta: conTodo),
     ];
 
     // Dentro del cajón el que se desplaza es el cuerpo del cajón: aquí una
@@ -780,6 +790,107 @@ class _Paradas extends ConsumerWidget {
     return total;
   }
 }
+
+/// EL PRE-DESPACHO DE LA RUTA: lo que hay que sacar del almacén, producto a
+/// producto y factura a factura. Issue 8 de Amado.
+///
+/// Es **la misma vista** que el paso 4 del asistente y que Pedidos
+/// ([VistaPreDespacho]), con la misma suma por debajo
+/// (`datos/pre_despacho_de_la_ruta.dart`), y sale en TODAS las rutas: la armada a
+/// mano y la que sale de una zona del tablero. «Carga total», encima, se queda
+/// como estaba.
+///
+/// Debajo va la tabla «Por factura» —una fila por factura y producto, con
+/// subtotales—, porque el almacén rebaja las tarjetas de estiba por cantidad Y
+/// factura, y la cuenta por producto no se lo dice.
+class _PreDespacho extends ConsumerWidget {
+  const _PreDespacho({required this.ruta});
+
+  final RutaConTodo ruta;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // `null` mientras no ha llegado: la vista dice «Cargando...» y no «Sin
+    // productos», que sería afirmar que la ruta va vacía.
+    final pre = ref.watch(preDespachoDeLaRutaProvider(ruta.ruta.id)).value;
+    final titulo = Theme.of(
+      context,
+    ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text(PreDespacho.titulo, style: titulo)),
+            BotonPrincipal(
+              key: claveDeVerEImprimirElPreDespacho,
+              icono: Icons.print_outlined,
+              texto: PreDespacho.verEImprimir,
+              // Una hoja en blanco no es una hoja.
+              alPulsar: pre == null || pre.totales.lineas.isEmpty
+                  ? null
+                  : () => _verEImprimir(context, ref, pre),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        VistaPreDespacho(totales: pre?.totales),
+        if (pre != null && pre.facturas.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(PorFactura.titulo, style: titulo),
+          const SizedBox(height: 6),
+          TablaPorFactura(facturas: pre.facturas),
+        ],
+      ],
+    );
+  }
+
+  /// La hoja con la que alguien baja al almacén. Se mira primero y se imprime
+  /// desde su vista previa, como en el asistente.
+  void _verEImprimir(
+    BuildContext context,
+    WidgetRef ref,
+    PreDespachoDeLaRuta pre,
+  ) {
+    final fecha = ruta.ruta.deliveryDate;
+    final hoja = hojaDePreDespachoDeLaRuta(
+      totales: pre.totales,
+      sucursal: ruta.sucursal?.name ?? '',
+      vehiculo: ruta.vehiculo?.name ?? '',
+      // `AAAA-MM-DD`, como lo escribe la hoja: se compara carácter a carácter.
+      dia: fecha == null
+          ? null
+          : '${fecha.year.toString().padLeft(4, '0')}-'
+                '${fecha.month.toString().padLeft(2, '0')}-'
+                '${fecha.day.toString().padLeft(2, '0')}',
+      pedidos: ruta.paradas.length,
+      pesoKg: ruta.pesoTotal,
+      facturas: pre.facturas,
+    );
+    final impresoEn = ref.read(relojProvider)();
+    abrirCajon<void>(
+      context,
+      (contexto) => Cajon(
+        titulo: PreDespacho.tituloDeLaHoja,
+        subtitulo: ruta.ruta.routeCode ?? ruta.ruta.id,
+        ancho: AnchoCajon.xl,
+        // EL ALTO SALE DE LA PANTALLA (el mismo 0.75 que las otras hojas): la
+        // vista previa quiere todo el alto que le den y el cuerpo del cajón se
+        // desplaza, así que sin un alto concreto no se pinta.
+        cuerpo: SizedBox(
+          height: MediaQuery.sizeOf(contexto).height * 0.75,
+          child: VistaPreviaPdf(
+            armar: (formato) => pdfPreDespacho(hoja, impresoEn: impresoEn),
+            nombreDeFichero: 'pre-despacho.pdf',
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// La clave del botón que abre la hoja del pre-despacho de la ruta.
+const claveDeVerEImprimirElPreDespacho = ValueKey('ruta-pre-despacho-imprimir');
 
 /// UNA PARADA EN LA HOJA DE «VER PARADAS».
 ///

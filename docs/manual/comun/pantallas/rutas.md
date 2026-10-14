@@ -26,6 +26,16 @@ puestos, ese número y las tarjetas que ves pueden no coincidir.
 
 ## Buscar y filtrar
 
+Los filtros viven en una sección que **se pliega y se despliega** con el botón
+**«Filtros»** (el del embudo, justo encima de la lista). Con los dos paneles (la
+lista a un lado y el detalle al otro) **arranca plegada**, para que las rutas
+ocupen el sitio; en el teléfono arranca desplegada. Lo que elijas se recuerda
+mientras tengas la aplicación abierta: cambiar de pestaña no la vuelve a plegar.
+
+Plegada no esconde que la lista está acotada: el botón dice cuántos filtros hay
+puestos («Filtros · 2 activos») y trae su propio **«Limpiar»** para quitarlos sin
+desplegar nada.
+
 - **Buscador**: «Buscar por código, nombre, vehículo...». Busca en el código de la
   ruta, su nombre, la dirección de salida, el camión y la sucursal. Busca solo,
   sin Intro.
@@ -265,8 +275,31 @@ Al copiar: **«Copiado. Ya se puede pegar en un chat.»**
 
 ### «Carga total»
 
-Al final del detalle, una insignia por producto con lo que lleva el camión en
+Debajo de las paradas, una insignia por producto con lo que lleva el camión en
 total: «MALTA GUAJIRA ×48».
+
+### «Pre-despacho»
+
+Debajo de «Carga total», **en todas las rutas** —las que armas a mano con «+ Nueva
+Ruta» y las que salen de una zona del Tablero—, está el mismo pre-despacho que ves
+al elegir los pedidos en el asistente: la tabla producto a producto (empaques,
+unidades y kilos), los dos pesos con su rótulo, y el botón **«Ver e imprimir»**,
+que abre la hoja con la que se baja al almacén.
+
+Debajo, la tabla **«Por factura»**: **una fila por cada factura y producto**, con
+el **número de factura** (el número de operación, el «conduce»), el producto, los
+**blister**, las unidades y el peso, y **el subtotal de cada factura** más el total
+al final. Es la que sirve para rebajar las tarjetas de estiba por cantidad y
+factura: si salieron 20 blister de malta, 10 de una factura y 10 de otra, aquí lo
+ves como «10» y «10» con la factura de cada una, y no como «20». Las facturas van
+por orden de número. La hoja impresa lleva la misma tabla.
+
+Dos cosas que conviene saber:
+
+- Una cifra con **«≥»** delante es un mínimo: a algún renglón le falta el dato
+  (casi siempre el peso) y lo que ves es lo que sí se sabe.
+- Si una factura no trae número sale como **«Sin número»**, y si no trae ni un
+  renglón, como **«Sin renglones»**: no desaparece de la tabla.
 
 ---
 

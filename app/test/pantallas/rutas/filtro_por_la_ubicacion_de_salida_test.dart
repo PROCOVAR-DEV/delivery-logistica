@@ -44,6 +44,7 @@ import 'package:reparto/idioma.dart';
 
 import '../../apoyo/base_de_prueba.dart';
 import '../pedidos/sembrar.dart';
+import 'desplegar_los_filtros.dart';
 
 /// Una ruta a mano con su origen. `Ruta` es una `DataClass` de Drift y su
 /// constructor sólo exige lo imprescindible, así que para las pruebas de
@@ -299,6 +300,10 @@ void main() {
         ),
       );
       await asentar(tester);
+      // Con los dos paneles la sección de filtros arranca plegada (issue 6 de
+      // Amado) y el filtro de la ubicación vive dentro de ella: se abre, como
+      // haría una persona. En el teléfono ya está abierta y esto no hace nada.
+      await desplegarLosFiltros(tester);
     }
 
     /// El desplegable de la ubicación, buscado por su clave — la MISMA que

@@ -1425,17 +1425,37 @@ devuelve `tiposVehiculo`** y `PUT /api/settings` ya no lo guarda.
   14/10/2026: «la APK es completa para el logístico»). **No exigen admin**, ni siquiera las tres de
   escritura: antes de esa fecha pedían `ExigirAdmin` y un logístico recibía 403. Quien no entra a
   Reparto sigue recibiendo el 403 `sin_permiso_reparto` de siempre (y no se escribe). Que la regla
-  sea tan abierta es una **decisión de Jose, y delicada**: el catálogo es **GLOBAL** y el costo por
-  km del tipo es el valor por defecto que cotiza el domicilio de todos los camiones que lo usen,
-  en las ocho sucursales. Si hubiera que cerrarlo, son las tres rutas de escritura de
-  `servidor.go` a `admin...` (y la prueba `un_logistico_gestiona_tipos_test.go`).
-- **Alcance**: la tabla **no tiene columna de sucursal**: el catálogo es el mismo para las ocho.
+  sea tan abierta es una **decisión de Jose**, y es segura porque el catálogo es **POR SUCURSAL**
+  (ver «Alcance»): el costo por km del tipo es el valor por defecto que cotiza el domicilio de los
+  camiones que lo usen, y cada quien toca sólo los de SU sucursal. Si hubiera que cerrarlo, son las
+  tres rutas de escritura de `servidor.go` a `admin...` (y la prueba `un_logistico_gestiona_tipos_test.go`).
+- **Alcance — POR SUCURSAL desde la 00018 (Jose, 14/10/2026)**. Hasta entonces el catálogo era el mismo
+  para las ocho y el logístico de Santiago editaba «truck» y movía el precio en Holguín. Ahora cada
+  sucursal tiene SUS tipos (`vehicle_types.branch_id`; **nulo = «de todas»**, los cinco de fábrica, que
+  sólo usan los camiones compartidos):
+  - **Quien tiene sucursal** (LOGISTICO, ADMINISTRADOR, o un SUPER ADMIN con una sucursal elegida en
+    `X-Sucursal-Id`) **lista y toca sólo los de la suya**. Un tipo de otra sucursal o uno «de todas»
+    es **`404 {"error":"No encontrado"}`**, no 403, igual que un id que no existe.
+  - **Quien ve todas** (SUPER ADMIN / DESARROLLADOR sin sucursal elegida) lista y toca todos.
+  - **`POST` crea en la sucursal de quien llama**, nunca en la que mande el cuerpo; quien ve todas lo
+    crea «de todas» (para dar de alta uno de una sucursal, que mire esa sucursal con el selector).
+  - El **nombre es único DENTRO de cada sucursal** (y entre los «de todas»): «rastra» puede estar en
+    Santiago y en Holguín. Que coincida con el de un tipo «de todas» no es un choque.
+  - **Un camión sólo admite tipos de su sucursal** (o «de todas» si el camión es compartido):
+    `POST` y `PATCH /api/vehicles` con un `type` que no existe en esa sucursal → `400 {"error":"No
+    existe el tipo de vehículo '<nombre>' entre los tipos de su sucursal"}` (para un compartido: `...
+    entre los tipos «de todas» (un camión compartido sólo admite ésos)`).
+  - Una **sucursal nueva** (`POST /api/branches`) nace con una copia de los tipos «de todas».
 - **Forma de un tipo** (la misma en las cuatro):
 
 ```json
 { "id": "<uuid>", "nombre": "truck", "costoKmUsd": 0.45 | null, "activo": true,
-  "vehiculos": 0, "createdAt": "<RFC3339>|null", "updatedAt": "<RFC3339>|null" }
+  "vehiculos": 0, "sucursalId": "<uuid>" | null, "sucursal": "Santiago" | null,
+  "createdAt": "<RFC3339>|null", "updatedAt": "<RFC3339>|null" }
 ```
+
+  `sucursalId` y `sucursal` (el nombre) dicen de quién es el tipo; **los dos nulos son «de todas»**.
+  Quien ve todas recibe el mismo `nombre` varias veces y son lo único que distingue un «truck» de otro.
 
   `costoKmUsd` nulo es «todavía no se sabe» (no cero: un cero guardado se lee como «el kilómetro
   es gratis»). `vehiculos` es cuántos camiones usan el tipo; **sólo `GET` lo cuenta de verdad**:
@@ -1451,14 +1471,15 @@ devuelve `tiposVehiculo`** y `PUT /api/settings` ya no lo guarda.
 - **Query**: `activos=1` (o `true`) → sólo los activos, que es lo que pide el desplegable del alta
   de un camión. Sin ella salen **TODOS, activos y retirados**: la pantalla de administración tiene
   que ver lo retirado para poder reactivarlo.
-- **200**: array de tipos, por `nombre` ascendente, con `vehiculos` contado. Vacío = `[]`.
+- **200**: array de tipos, por `nombre` ascendente (y por sucursal dentro del mismo nombre), con
+  `vehiculos` contado. Sólo los de la sucursal de quien llama; todos, si ve todas. Vacío = `[]`.
 
 ### `POST /api/vehicle-types`
 
 - **Cuerpo**: `{ nombre, costoKmUsd?, activo? }`. `nombre` se recorta y es obligatorio: vacío o
   ausente → `400 {"error":"El nombre del tipo es obligatorio"}`. `costoKmUsd` ausente o `null` →
   se guarda vacío (a propósito: nunca un número inventado). `activo` ausente → `true`.
-- `nombre` es **único**: repetido (también el de un tipo RETIRADO, que el cajón no enseña) →
+- `nombre` es **único en la sucursal**: repetido (también el de un tipo RETIRADO, que el cajón no enseña) →
   `409 {"error":"Ya existe un tipo de vehículo con ese nombre"}`. Quien lo recibe puede elegir el
   que ya existe o, si está retirado, reactivarlo con `PATCH {activo:true}`.
 - **201**: el tipo creado (`vehiculos: 0`). Avisa en vivo (ver abajo).
@@ -1484,14 +1505,16 @@ devuelve `tiposVehiculo`** y `PUT /api/settings` ya no lo guarda.
     siguen funcionando: `200 {"success":true,"retirado":true}`.
 - La comprobación de uso va en la misma sentencia que el borrado (entre un conteo y el borrado
   cabe un alta). La respuesta dice cuál de las dos pasó porque la pantalla tiene que poder decirlo.
-  Id inexistente → `404 {"error":"No encontrado"}`.
+  Id inexistente, de otra sucursal o «de todas» (para quien tiene sucursal) → `404 {"error":"No encontrado"}`.
 - **Escribe**: `vehicle_types`. Avisa en vivo.
 
 ### Aviso en vivo y rastro
 
 Las tres escrituras publican el aviso `vehiculos` (el mismo de la flota: es la misma pantalla)
-**A LAS OCHO sucursales**, sin acotar: el tipo no es de ninguna. No dejan línea de «Rastro de
-quién» (a diferencia de `/api/vehicles`).
+**acotado a la sucursal DEL TIPO** que se escribió (la que devuelve la propia consulta, no la de
+quien llama): un tipo de Santiago llega a Santiago y **no** a Holguín. Un tipo «de todas»
+(`branch_id` nulo) sale sin sucursal y llega a las ocho. (Hasta la 00018 iba siempre a las ocho: el
+catálogo era global.) No dejan línea de «Rastro de quién» (a diferencia de `/api/vehicles`).
 
 ---
 
@@ -2368,5 +2391,5 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | 32 | `/api/tasa` | GET | usuario | sí | no |
 | 33 | `/api/vehicles` | GET, POST | usuario | sí | Vehicle |
 | 34 | `/api/vehicles/[id]` | GET, PATCH, DELETE | usuario | sí | Vehicle, Route, Order, OrderVehicle |
-| 34-bis | `/api/vehicle-types` y `/api/vehicle-types/{id}` | GET, POST / PATCH, DELETE (propias del reparto, 14/10/2026: antes `tiposVehiculo` dentro de `/api/settings`) | usuario, también LOGISTICO (las tres de escritura NO piden admin) | no (catálogo global) | VehicleType (`vehicle_types`) |
+| 34-bis | `/api/vehicle-types` y `/api/vehicle-types/{id}` | GET, POST / PATCH, DELETE (propias del reparto, 14/10/2026: antes `tiposVehiculo` dentro de `/api/settings`) | usuario, también LOGISTICO (las tres de escritura NO piden admin) | sí, por sucursal (00018; los «de todas» sólo para quien ve todas) | VehicleType (`vehicle_types`) |
 | 35 | `/api/version` | GET | ninguna | no | no |

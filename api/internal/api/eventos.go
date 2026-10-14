@@ -447,16 +447,19 @@ var busEventos = NuevoDifusor()
 //     VARIAS sucursales en una sola vuelta y avisa una sola vez, y corregir un producto es
 //     **sólo del SUPER ADMIN** (`esSuperAdmin` en `productos.go`), o sea que su alcance ya
 //     es «todas» y acotarlo no cambiaría nada salvo esconder por qué.
-//   - `vehiculos` -> DOS GANCHOS, y aquí está la diferencia que costó la fuga hasta el
-//     29/09/2026. `avisarCambioDeVehiculos` (`vehiculos.go`) va ACOTADO: `vehicles` tiene
-//     `branch_id` y sus tres manejadores pasan por `acotado()`, así que dar de alta un
-//     camión en Camagüey ya no manda a las otras siete a pedir `/api/vehicles` **y**
-//     `/api/settings` para pintar lo mismo. `avisarCambioDeTiposDeVehiculo`
-//     (`tipos_vehiculo.go`) sigue GLOBAL: `vehicle_types` **no tiene columna de sucursal
-//     ninguna** (es un catálogo de toda la empresa), y acotarlo dejaría a las otras siete
-//     pantallas de Vehículos sin enterarse de un tipo nuevo —y esa pantalla NO vive de la
-//     base local, así que el ciclo tampoco la repinta: se queda clavada hasta salir y
-//     volver a entrar. Los dos publican el MISMO tipo, porque la pantalla es la misma.
+//   - `vehiculos` -> DOS GANCHOS, y los dos ACOTADOS, aunque hasta el 14/10/2026 el segundo no
+//     lo era (la diferencia costó la fuga del 29/09/2026). `avisarCambioDeVehiculos`
+//     (`vehiculos.go`): `vehicles` tiene `branch_id` y sus tres manejadores pasan por
+//     `acotado()`, así que dar de alta un camión en Camagüey ya no manda a las otras siete a
+//     pedir `/api/vehicles` **y** `/api/settings` para pintar lo mismo.
+//     `avisarCambioDeTiposDeVehiculo` (`tipos_vehiculo.go`) fue GLOBAL mientras `vehicle_types`
+//     era un catálogo de toda la empresa sin columna de sucursal: acotarlo dejaba a las otras
+//     siete pantallas de Vehículos sin enterarse de un tipo nuevo, y esa pantalla NO vive de la
+//     base local, así que el ciclo tampoco la repinta. **Desde la 00018 (Jose, 14/10/2026) los
+//     tipos son POR SUCURSAL** (`vehicle_types.branch_id`), la cuenta es la contraria —un tipo de
+//     Santiago no sale en el desplegable de Holguín— y el aviso lleva la sucursal DEL TIPO que
+//     devuelve la propia consulta; un tipo «de todas» (`branch_id` nulo) sale sin sucursal y
+//     llega a las ocho. Los dos publican el MISMO tipo, porque la pantalla es la misma.
 //   - `clientes` -> ACOTABLE, y desde el 29/09/2026 **sí lo publica alguien**: el aviso
 //     `cliente` de `POST /api/webhooks/pedido`, que es cuando en PEDIDO corrigen la
 //     coordenada de un cliente. Aquí decía que no había ninguna puerta que escribiera
@@ -534,12 +537,14 @@ func init() {
 	avisarCambioDeClientes = func(_ context.Context, sucursal string) {
 		busEventos.AvisarDe(CambioClientes, sucursal, nil)
 	}
+	avisarCambioDeTiposDeVehiculo = func(_ context.Context, sucursal string) {
+		busEventos.AvisarDe(CambioVehiculos, sucursal, nil)
+	}
 
 	// LOS DE TODAS. Van por `Avisar` —sin sucursal— a propósito; el porqué de cada uno,
 	// en la tabla de arriba. No se les pasa ninguna sucursal aunque quien los toque
 	// tenga una: lo que cambian lo ven las ocho.
 	avisarCambioDelCatalogo = func(_ context.Context) { busEventos.Avisar(CambioCatalogo, nil) }
-	avisarCambioDeTiposDeVehiculo = func(_ context.Context) { busEventos.Avisar(CambioVehiculos, nil) }
 	avisarCambioDeSucursales = func(_ context.Context) { busEventos.Avisar(CambioSucursales, nil) }
 	avisarCambioDeAjustes = func(_ context.Context) { busEventos.Avisar(CambioAjustes, nil) }
 	avisarCambioEnElCanal = func(_ context.Context) { busEventos.Avisar(CambioCanal, nil) }

@@ -20,15 +20,17 @@ UPDATE vehicle_types SET
                         ELSE costo_km_usd END,
     activo       = coalesce($4::boolean, activo)
 WHERE id = $5
-RETURNING id, nombre, costo_km_usd, activo, created_at, updated_at
+  AND ($6::uuid IS NULL OR branch_id = $6::uuid)
+RETURNING id, nombre, costo_km_usd, activo, created_at, updated_at, branch_id
 `
 
 type ActualizarTipoDeVehiculoParams struct {
-	Nombre     *string   `json:"nombre"`
-	TocarCosto bool      `json:"tocar_costo"`
-	CostoKmUsd *float64  `json:"costo_km_usd"`
-	Activo     *bool     `json:"activo"`
-	ID         uuid.UUID `json:"id"`
+	Nombre     *string     `json:"nombre"`
+	TocarCosto bool        `json:"tocar_costo"`
+	CostoKmUsd *float64    `json:"costo_km_usd"`
+	Activo     *bool       `json:"activo"`
+	ID         uuid.UUID   `json:"id"`
+	Sucursal   pgtype.UUID `json:"sucursal"`
 }
 
 func (q *Queries) ActualizarTipoDeVehiculo(ctx context.Context, arg ActualizarTipoDeVehiculoParams) (VehicleType, error) {
@@ -38,6 +40,7 @@ func (q *Queries) ActualizarTipoDeVehiculo(ctx context.Context, arg ActualizarTi
 		arg.CostoKmUsd,
 		arg.Activo,
 		arg.ID,
+		arg.Sucursal,
 	)
 	var i VehicleType
 	err := row.Scan(
@@ -47,71 +50,107 @@ func (q *Queries) ActualizarTipoDeVehiculo(ctx context.Context, arg ActualizarTi
 		&i.Activo,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BranchID,
 	)
 	return i, err
 }
 
-const borrarTipoDeVehiculoSinUso = `-- name: BorrarTipoDeVehiculoSinUso :execrows
+const borrarTipoDeVehiculoSinUso = `-- name: BorrarTipoDeVehiculoSinUso :one
 DELETE FROM vehicle_types vt
 WHERE vt.id = $1
+  AND ($2::uuid IS NULL OR vt.branch_id = $2::uuid)
   AND NOT EXISTS (SELECT 1 FROM vehicles v WHERE v.vehicle_type_id = vt.id)
+RETURNING vt.branch_id
 `
+
+type BorrarTipoDeVehiculoSinUsoParams struct {
+	ID       uuid.UUID   `json:"id"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
 
 // Sólo se puede borrar de verdad un tipo que no use nadie. Se comprueba aquí, en la misma
 // sentencia, y no con un conteo antes: entre el conteo y el borrado cabe un alta.
-func (q *Queries) BorrarTipoDeVehiculoSinUso(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, borrarTipoDeVehiculoSinUso, id)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+//
+// Cero filas aquí NO es el 404: es «no existe, no es tuyo, o lo usa un camión», y el manejador
+// lo distingue intentando retirarlo (que también va acotado). Devuelve la sucursal del tipo
+// borrado, porque cuando se avisa la fila ya no está.
+func (q *Queries) BorrarTipoDeVehiculoSinUso(ctx context.Context, arg BorrarTipoDeVehiculoSinUsoParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, borrarTipoDeVehiculoSinUso, arg.ID, arg.Sucursal)
+	var branch_id pgtype.UUID
+	err := row.Scan(&branch_id)
+	return branch_id, err
 }
 
 const buscarTipoDeVehiculoPorNombre = `-- name: BuscarTipoDeVehiculoPorNombre :one
-SELECT vt.id, vt.nombre, vt.costo_km_usd, vt.activo
+SELECT vt.id, vt.nombre, vt.costo_km_usd, vt.activo, vt.branch_id
 FROM vehicle_types vt
 WHERE vt.nombre = $1
+  AND vt.branch_id IS NOT DISTINCT FROM $2::uuid
 `
 
-type BuscarTipoDeVehiculoPorNombreRow struct {
-	ID         uuid.UUID `json:"id"`
-	Nombre     string    `json:"nombre"`
-	CostoKmUsd *float64  `json:"costo_km_usd"`
-	Activo     bool      `json:"activo"`
+type BuscarTipoDeVehiculoPorNombreParams struct {
+	Nombre            string      `json:"nombre"`
+	SucursalDelCamion pgtype.UUID `json:"sucursal_del_camion"`
 }
 
-// Por nombre, para el espejo y para el alta de vehículos: el cuerpo del POST manda
-// `type: "truck"`, un texto, y hay que traducirlo al id del catálogo. `nombre` es UNIQUE.
-func (q *Queries) BuscarTipoDeVehiculoPorNombre(ctx context.Context, nombre string) (BuscarTipoDeVehiculoPorNombreRow, error) {
-	row := q.db.QueryRow(ctx, buscarTipoDeVehiculoPorNombre, nombre)
+type BuscarTipoDeVehiculoPorNombreRow struct {
+	ID         uuid.UUID   `json:"id"`
+	Nombre     string      `json:"nombre"`
+	CostoKmUsd *float64    `json:"costo_km_usd"`
+	Activo     bool        `json:"activo"`
+	BranchID   pgtype.UUID `json:"branch_id"`
+}
+
+// Por nombre, para el alta y la edición de vehículos: el cuerpo del POST manda
+// `type: "truck"`, un texto, y hay que traducirlo al id del catálogo.
+//
+// `sucursal_del_camion` NO ES EL ALCANCE de quien pregunta: es la sucursal del camión que se
+// da de alta o se edita (nulo = compartido), y el tipo tiene que ser de ESA sucursal. Distinto
+// por una razón concreta: un SUPER ADMIN en modo «todas» que edita el camión de Holguín tiene
+// alcance nulo y tiene que encontrar el «truck» de Holguín, no el de todas; y uno que mira
+// Santiago y edita un camión compartido tiene que encontrar el de todas, no el de Santiago.
+// `IS NOT DISTINCT FROM` y no `=`: el nulo es «de todas» y con `=` no casaría nunca. Los dos
+// índices únicos parciales de la 00018 dejan UNA fila como máximo.
+func (q *Queries) BuscarTipoDeVehiculoPorNombre(ctx context.Context, arg BuscarTipoDeVehiculoPorNombreParams) (BuscarTipoDeVehiculoPorNombreRow, error) {
+	row := q.db.QueryRow(ctx, buscarTipoDeVehiculoPorNombre, arg.Nombre, arg.SucursalDelCamion)
 	var i BuscarTipoDeVehiculoPorNombreRow
 	err := row.Scan(
 		&i.ID,
 		&i.Nombre,
 		&i.CostoKmUsd,
 		&i.Activo,
+		&i.BranchID,
 	)
 	return i, err
 }
 
 const crearTipoDeVehiculo = `-- name: CrearTipoDeVehiculo :one
-INSERT INTO vehicle_types (nombre, costo_km_usd, activo)
-VALUES ($1, $2, $3)
-RETURNING id, nombre, costo_km_usd, activo, created_at, updated_at
+INSERT INTO vehicle_types (nombre, costo_km_usd, activo, branch_id)
+VALUES ($1, $2, $3, $4)
+RETURNING id, nombre, costo_km_usd, activo, created_at, updated_at, branch_id
 `
 
 type CrearTipoDeVehiculoParams struct {
-	Nombre     string   `json:"nombre"`
-	CostoKmUsd *float64 `json:"costo_km_usd"`
-	Activo     bool     `json:"activo"`
+	Nombre     string      `json:"nombre"`
+	CostoKmUsd *float64    `json:"costo_km_usd"`
+	Activo     bool        `json:"activo"`
+	BranchID   pgtype.UUID `json:"branch_id"`
 }
 
 // El costo por km del tipo es un VALOR POR DEFECTO, no el bueno: cada vehículo puede tener
 // el suyo porque quien lo da es el camionero y dos camiones del mismo tipo no cuestan
 // igual. Se deja vacío a propósito en los cuatro que vienen de fábrica — ponerle un número
 // inventado es peor que no tenerlo, porque se cobra igual y nadie lo revisa.
+//
+// El tipo NACE en la sucursal del alcance (`branch_id`, que lo rellena `alcance.Acotado`);
+// quien no tiene alcance lo deja «de todas».
 func (q *Queries) CrearTipoDeVehiculo(ctx context.Context, arg CrearTipoDeVehiculoParams) (VehicleType, error) {
-	row := q.db.QueryRow(ctx, crearTipoDeVehiculo, arg.Nombre, arg.CostoKmUsd, arg.Activo)
+	row := q.db.QueryRow(ctx, crearTipoDeVehiculo,
+		arg.Nombre,
+		arg.CostoKmUsd,
+		arg.Activo,
+		arg.BranchID,
+	)
 	var i VehicleType
 	err := row.Scan(
 		&i.ID,
@@ -120,6 +159,7 @@ func (q *Queries) CrearTipoDeVehiculo(ctx context.Context, arg CrearTipoDeVehicu
 		&i.Activo,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BranchID,
 	)
 	return i, err
 }
@@ -128,22 +168,33 @@ const listarTiposDeVehiculo = `-- name: ListarTiposDeVehiculo :many
 
 SELECT
     vt.id, vt.nombre, vt.costo_km_usd, vt.activo, vt.created_at, vt.updated_at,
+    vt.branch_id,
+    b.name AS sucursal_nombre,
     (SELECT count(*) FROM vehicles v WHERE v.vehicle_type_id = vt.id) AS vehiculos
 FROM vehicle_types vt
+LEFT JOIN branches b ON b.id = vt.branch_id
 WHERE ($1::boolean IS NULL
        OR NOT $1::boolean
        OR vt.activo)
-ORDER BY vt.nombre ASC
+  AND ($2::uuid IS NULL OR vt.branch_id = $2::uuid)
+ORDER BY vt.nombre ASC, b.name ASC NULLS FIRST
 `
 
+type ListarTiposDeVehiculoParams struct {
+	SoloActivos *bool       `json:"solo_activos"`
+	Sucursal    pgtype.UUID `json:"sucursal"`
+}
+
 type ListarTiposDeVehiculoRow struct {
-	ID         uuid.UUID          `json:"id"`
-	Nombre     string             `json:"nombre"`
-	CostoKmUsd *float64           `json:"costo_km_usd"`
-	Activo     bool               `json:"activo"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-	Vehiculos  int64              `json:"vehiculos"`
+	ID             uuid.UUID          `json:"id"`
+	Nombre         string             `json:"nombre"`
+	CostoKmUsd     *float64           `json:"costo_km_usd"`
+	Activo         bool               `json:"activo"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	BranchID       pgtype.UUID        `json:"branch_id"`
+	SucursalNombre *string            `json:"sucursal_nombre"`
+	Vehiculos      int64              `json:"vehiculos"`
 }
 
 // El catálogo de tipos de vehículo — LA TABLA QUE FALTABA.
@@ -153,14 +204,23 @@ type ListarTiposDeVehiculoRow struct {
 // se perdían sin un solo error. Por eso `Vehicle.type` era un conjunto abierto que nadie
 // podía cerrar — su catálogo no estaba en ninguna parte.
 //
-// GLOBAL, sin alcance por sucursal: un «camión» es un camión en las ocho, y la tabla no
-// tiene columna de sucursal que filtrar. Lo que sí es por sucursal es qué VEHÍCULO
-// concreto es el de referencia, y eso vive en `vehicles`.
+// POR SUCURSAL desde la 00018 (Jose, 14/10/2026). Cada sucursal tiene SUS tipos, y el costo por
+// km del tipo es el que cotiza el domicilio de SU flota: que Santiago editara «truck» movía el
+// precio en las ocho. `branch_id` NULO = el tipo «de todas»: los de fábrica, que sólo usan los
+// camiones compartidos (`vehicles.branch_id` nulo).
+//
+// OJO con la forma del filtro, que NO es la de vehículos: allí `branch_id IS NULL` pasa para
+// que un camión compartido salga en la lista de todas; aquí NO. Quien tiene sucursal ve y toca
+// sólo los SUYOS, y los «de todas» le son tan ajenos como los de Holguín (404, no 403). Sólo
+// quien no tiene sucursal (SUPER ADMIN / DESARROLLADOR en modo «todas») ve todos.
 // Los tipos que se pueden elegir. Por defecto sólo los activos: `activo` existe para poder
 // RETIRAR un tipo sin romper los vehículos que ya lo usan — borrarlo dejaría la clave
 // ajena colgando y no hay a dónde mover un camión que ya es de ese tipo.
-func (q *Queries) ListarTiposDeVehiculo(ctx context.Context, soloActivos *bool) ([]ListarTiposDeVehiculoRow, error) {
-	rows, err := q.db.Query(ctx, listarTiposDeVehiculo, soloActivos)
+//
+// Lleva la sucursal (id y nombre) porque quien ve todas tiene el mismo nombre varias veces
+// y, sin ella, no sabe cuál es cuál.
+func (q *Queries) ListarTiposDeVehiculo(ctx context.Context, arg ListarTiposDeVehiculoParams) ([]ListarTiposDeVehiculoRow, error) {
+	rows, err := q.db.Query(ctx, listarTiposDeVehiculo, arg.SoloActivos, arg.Sucursal)
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +235,8 @@ func (q *Queries) ListarTiposDeVehiculo(ctx context.Context, soloActivos *bool) 
 			&i.Activo,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.BranchID,
+			&i.SucursalNombre,
 			&i.Vehiculos,
 		); err != nil {
 			return nil, err
@@ -188,13 +250,19 @@ func (q *Queries) ListarTiposDeVehiculo(ctx context.Context, soloActivos *bool) 
 }
 
 const obtenerTipoDeVehiculo = `-- name: ObtenerTipoDeVehiculo :one
-SELECT vt.id, vt.nombre, vt.costo_km_usd, vt.activo, vt.created_at, vt.updated_at
+SELECT vt.id, vt.nombre, vt.costo_km_usd, vt.activo, vt.created_at, vt.updated_at, vt.branch_id
 FROM vehicle_types vt
 WHERE vt.id = $1
+  AND ($2::uuid IS NULL OR vt.branch_id = $2::uuid)
 `
 
-func (q *Queries) ObtenerTipoDeVehiculo(ctx context.Context, id uuid.UUID) (VehicleType, error) {
-	row := q.db.QueryRow(ctx, obtenerTipoDeVehiculo, id)
+type ObtenerTipoDeVehiculoParams struct {
+	ID       uuid.UUID   `json:"id"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
+
+func (q *Queries) ObtenerTipoDeVehiculo(ctx context.Context, arg ObtenerTipoDeVehiculoParams) (VehicleType, error) {
+	row := q.db.QueryRow(ctx, obtenerTipoDeVehiculo, arg.ID, arg.Sucursal)
 	var i VehicleType
 	err := row.Scan(
 		&i.ID,
@@ -203,20 +271,50 @@ func (q *Queries) ObtenerTipoDeVehiculo(ctx context.Context, id uuid.UUID) (Vehi
 		&i.Activo,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.BranchID,
 	)
 	return i, err
 }
 
-const retirarTipoDeVehiculo = `-- name: RetirarTipoDeVehiculo :execrows
-UPDATE vehicle_types SET activo = false WHERE id = $1
+const retirarTipoDeVehiculo = `-- name: RetirarTipoDeVehiculo :one
+UPDATE vehicle_types SET activo = false
+WHERE id = $1
+  AND ($2::uuid IS NULL OR branch_id = $2::uuid)
+RETURNING branch_id
 `
+
+type RetirarTipoDeVehiculoParams struct {
+	ID       uuid.UUID   `json:"id"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
 
 // Retirar un tipo NO es borrarlo. Se desactiva: deja de ofrecerse en el desplegable y los
 // camiones que ya lo tienen siguen funcionando. Un DELETE choca contra la clave ajena de
 // `vehicles.vehicle_type_id`, y hacerlo a la fuerza dejaría camiones sin tipo, que es un
 // camión sin costo por km y por tanto sin fórmula del domicilio.
-func (q *Queries) RetirarTipoDeVehiculo(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, retirarTipoDeVehiculo, id)
+//
+// DEVUELVE LA SUCURSAL DEL TIPO, por lo mismo que `BorrarVehiculo`: de ahí sale el aviso en
+// vivo. `:one`: cero filas es «no existe O no es de tu sucursal», o sea el 404.
+func (q *Queries) RetirarTipoDeVehiculo(ctx context.Context, arg RetirarTipoDeVehiculoParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, retirarTipoDeVehiculo, arg.ID, arg.Sucursal)
+	var branch_id pgtype.UUID
+	err := row.Scan(&branch_id)
+	return branch_id, err
+}
+
+const sembrarTiposDeVehiculoEnSucursal = `-- name: SembrarTiposDeVehiculoEnSucursal :execrows
+INSERT INTO vehicle_types (nombre, costo_km_usd, activo, branch_id)
+SELECT t.nombre, t.costo_km_usd, t.activo, $1::uuid
+FROM vehicle_types t
+WHERE t.branch_id IS NULL
+`
+
+// Una sucursal nueva nace con COPIA de los tipos «de todas» (nombre, costo y estado), como
+// las que ya existían cuando la 00018 se los dio a cada una. Sin esto empezaría con el catálogo
+// vacío y su primer camión (`type` por defecto «truck») daría 400. Va en la misma transacción
+// que el alta de la sucursal.
+func (q *Queries) SembrarTiposDeVehiculoEnSucursal(ctx context.Context, sucursal uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, sembrarTiposDeVehiculoEnSucursal, sucursal)
 	if err != nil {
 		return 0, err
 	}

@@ -169,6 +169,13 @@ func (s *Servidor) crearSucursal(w http.ResponseWriter, r *http.Request) {
 			Lng:      creada.Lng,
 			BranchID: pgDe(creada.ID),
 		})
+		if err != nil {
+			return err
+		}
+		// Y sus tipos de vehículo: una COPIA de los «de todas», como la 00018 se los dio a las
+		// que ya existían. Los tipos son por sucursal, y una que naciera sin ninguno no podría
+		// dar de alta ni un camión (el `type` por defecto, «truck», daría 400).
+		_, err = tx.SembrarTiposDeVehiculoEnSucursal(r.Context(), creada.ID)
 		return err
 	})
 	if err != nil {

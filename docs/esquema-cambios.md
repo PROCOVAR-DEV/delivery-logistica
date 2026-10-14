@@ -121,3 +121,36 @@ rechaza la base, y dos altas manuales idénticas entran sin problema.
 
 Con esto el upsert del espejo puede y debe ser `ON CONFLICT`, que es atómico. Las consultas
 que hoy hacen buscar-y-escribir hay que cambiarlas.
+
+---
+
+## 8 · Los tipos de vehículo son POR SUCURSAL (00018, Jose 14/10/2026)
+
+La tabla `vehicle_types` nació (§1) como el catálogo de **toda la empresa**, y el costo por km
+de un tipo es el que cotiza el domicilio: que el logístico de Santiago editara «truck» movía el
+precio en las ocho sucursales. Desde la `00018_tipos_de_vehiculo_por_sucursal.sql` cada sucursal
+tiene SUS tipos y quien trabaja en una ve y toca sólo los suyos.
+
+- **`vehicle_types.branch_id`** (nulable, sin `ON DELETE CASCADE`). **NULO = el tipo «de todas»**:
+  los cinco de fábrica de la `00001`, que se quedan por los camiones **compartidos**
+  (`vehicles.branch_id` nulo) y que ninguna sucursal puede tocar.
+- **`nombre` deja de ser único en toda la tabla.** Son dos índices únicos parciales
+  (`vehicle_types_nombre_de_todas`, `vehicle_types_nombre_por_sucursal`): el mismo nombre en dos
+  sucursales sí, en la misma no. Son DOS porque en un único `(branch_id, nombre)` los nulos no
+  chocan entre sí y se podrían repetir los «de todas».
+- **A cada sucursal se le dio una COPIA de los tipos** (nombre, costo y estado), y cada camión con
+  sucursal pasó a apuntar a la de la suya. Una sucursal creada después (`POST /api/branches`) recibe
+  la misma copia de los «de todas» en la misma transacción.
+- **La regla que queda** es: el tipo de un camión es de la sucursal del camión
+  (`vehicles.branch_id IS NOT DISTINCT FROM vehicle_types.branch_id`). **La hace cumplir la API**
+  (`BuscarTipoDeVehiculoPorNombre` busca por nombre PARA la sucursal del camión; un tipo de otra
+  sucursal es un 400), no la base: no hay clave compuesta ni disparador. La consulta que la
+  comprueba sobre datos reales está en `docs/despliegue.md`.
+- **El filtro NO es el de los vehículos.** En `vehicles`, `branch_id` nulo pasa el filtro de
+  alcance (un camión compartido sale en la lista de todas). En los tipos NO pasa: quien tiene
+  sucursal no ve ni toca los «de todas», y un id ajeno es un 404, no un 403.
+- **Sin vuelta atrás sin pérdida.** El `Down` devuelve los camiones al tipo «de todas» del mismo
+  nombre y borra los de sucursal, pero **los costos que una sucursal haya editado en SU copia se
+  pierden** (vuelve el del tipo de todas) y un nombre que sólo exista en sucursales se crea «de
+  todas», con costo sólo si todas coinciden. Dicho en el propio `.sql` y atado por
+  `TestMotorReal_Migracion00018TiposPorSucursal`.

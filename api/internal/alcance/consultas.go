@@ -152,42 +152,78 @@ func (a *Acotado) BorrarAsignacionesDeVehiculo(ctx context.Context, vehiculo uui
 }
 
 // ---------------------------------------------------------------------------
+// Tipos de vehículo
+// ---------------------------------------------------------------------------
+//
+// POR SUCURSAL desde la 00018 (Jose, 14/10/2026). Y el filtro NO es el de los vehículos: aquí
+// `branch_id` nulo («de todas») NO pasa para quien tiene sucursal. Quien trabaja en Santiago ve y
+// toca los tipos de Santiago; los de Holguín y los «de todas» le son tan ajenos como un id que
+// no existe (404, no 403). Sólo quien no tiene alcance —SUPER ADMIN / DESARROLLADOR en modo
+// «todas»— ve y toca todos.
+
+func (a *Acotado) ListarTiposDeVehiculo(ctx context.Context, soloActivos *bool) ([]sqlc.ListarTiposDeVehiculoRow, error) {
+	return a.q.ListarTiposDeVehiculo(ctx, sqlc.ListarTiposDeVehiculoParams{SoloActivos: soloActivos, Sucursal: a.sucursalPg()})
+}
+
+func (a *Acotado) ObtenerTipoDeVehiculo(ctx context.Context, id uuid.UUID) (sqlc.VehicleType, error) {
+	return a.q.ObtenerTipoDeVehiculo(ctx, sqlc.ObtenerTipoDeVehiculoParams{ID: id, Sucursal: a.sucursalPg()})
+}
+
+// SucursalDeAlta es la sucursal en la que NACE lo que esta persona da de alta (nulo = de
+// todas). Es la misma que ponen `CrearVehiculo` y `CrearTipoDeVehiculo` en `branch_id`: el
+// manejador del alta de un camión la necesita ANTES, para buscar el tipo de esa sucursal.
+func (a *Acotado) SucursalDeAlta() pgtype.UUID { return a.sucursalPg() }
+
+// BuscarTipoDeVehiculoPorNombre: el tipo con ese nombre PARA UN CAMIÓN de esa sucursal (nulo =
+// camión compartido, que sólo usa los «de todas»).
+//
+// LA SUCURSAL ES LA DEL CAMIÓN Y NO LA DEL ALCANCE, a propósito (por qué, en el SQL). El
+// parámetro se acepta como argumento —contra la regla de este fichero— porque aquí no
+// acota lo que se VE sino QUÉ tipo casa con un camión que el manejador ya tiene en la mano:
+// o salió de `ObtenerVehiculo` (acotado) o es la de `SucursalDeAlta`.
+func (a *Acotado) BuscarTipoDeVehiculoPorNombre(ctx context.Context, nombre string, sucursalDelCamion pgtype.UUID) (sqlc.BuscarTipoDeVehiculoPorNombreRow, error) {
+	return a.q.BuscarTipoDeVehiculoPorNombre(ctx, sqlc.BuscarTipoDeVehiculoPorNombreParams{
+		Nombre: nombre, SucursalDelCamion: sucursalDelCamion,
+	})
+}
+
+// CrearTipoDeVehiculo: el tipo NACE en la sucursal del alcance. Quien no tiene alcance lo deja
+// «de todas».
+func (a *Acotado) CrearTipoDeVehiculo(ctx context.Context, arg sqlc.CrearTipoDeVehiculoParams) (sqlc.VehicleType, error) {
+	arg.BranchID = a.sucursalPg()
+	return a.q.CrearTipoDeVehiculo(ctx, arg)
+}
+
+func (a *Acotado) ActualizarTipoDeVehiculo(ctx context.Context, arg sqlc.ActualizarTipoDeVehiculoParams) (sqlc.VehicleType, error) {
+	arg.Sucursal = a.sucursalPg()
+	return a.q.ActualizarTipoDeVehiculo(ctx, arg)
+}
+
+// RetirarTipoDeVehiculo y BorrarTipoDeVehiculoSinUso devuelven LA SUCURSAL DEL TIPO, no el
+// número de filas: es de donde sale el aviso en vivo, y cuando se avisa la fila ya no está
+// (el borrado) o no se quiere releerla. `pgx.ErrNoRows` es «no existe, no es de tu sucursal»
+// —el 404— y, en el borrado, también «lo usa un camión».
+func (a *Acotado) RetirarTipoDeVehiculo(ctx context.Context, id uuid.UUID) (pgtype.UUID, error) {
+	return a.q.RetirarTipoDeVehiculo(ctx, sqlc.RetirarTipoDeVehiculoParams{ID: id, Sucursal: a.sucursalPg()})
+}
+
+func (a *Acotado) BorrarTipoDeVehiculoSinUso(ctx context.Context, id uuid.UUID) (pgtype.UUID, error) {
+	return a.q.BorrarTipoDeVehiculoSinUso(ctx, sqlc.BorrarTipoDeVehiculoSinUsoParams{ID: id, Sucursal: a.sucursalPg()})
+}
+
+// SembrarTiposDeVehiculoEnSucursal se pregunta de la sucursal que se acaba de crear, no de la
+// del alcance (igual que `ContarOrigenesDeSucursal`): copia los tipos «de todas» a la nueva.
+func (a *Acotado) SembrarTiposDeVehiculoEnSucursal(ctx context.Context, sucursal uuid.UUID) (int64, error) {
+	return a.q.SembrarTiposDeVehiculoEnSucursal(ctx, sucursal)
+}
+
+// ---------------------------------------------------------------------------
 // SIN ALCANCE, a propósito
 // ---------------------------------------------------------------------------
 //
 // Lo de abajo es GLOBAL de la empresa y ninguna de estas tablas tiene columna de sucursal
 // que filtrar. No es un olvido; está escrito en el esquema y repetido aquí porque es
 // justo lo que hay que mirar dos veces cuando se revisa la seguridad.
-
-// Tipos de vehículo: un «camión» es un camión en las ocho sucursales. Lo que sí es por
-// sucursal es qué VEHÍCULO concreto es el de referencia, y eso vive en `vehicles`.
-func (a *Acotado) ListarTiposDeVehiculo(ctx context.Context, soloActivos *bool) ([]sqlc.ListarTiposDeVehiculoRow, error) {
-	return a.q.ListarTiposDeVehiculo(ctx, soloActivos)
-}
-
-func (a *Acotado) ObtenerTipoDeVehiculo(ctx context.Context, id uuid.UUID) (sqlc.VehicleType, error) {
-	return a.q.ObtenerTipoDeVehiculo(ctx, id)
-}
-
-func (a *Acotado) BuscarTipoDeVehiculoPorNombre(ctx context.Context, nombre string) (sqlc.BuscarTipoDeVehiculoPorNombreRow, error) {
-	return a.q.BuscarTipoDeVehiculoPorNombre(ctx, nombre)
-}
-
-func (a *Acotado) CrearTipoDeVehiculo(ctx context.Context, arg sqlc.CrearTipoDeVehiculoParams) (sqlc.VehicleType, error) {
-	return a.q.CrearTipoDeVehiculo(ctx, arg)
-}
-
-func (a *Acotado) ActualizarTipoDeVehiculo(ctx context.Context, arg sqlc.ActualizarTipoDeVehiculoParams) (sqlc.VehicleType, error) {
-	return a.q.ActualizarTipoDeVehiculo(ctx, arg)
-}
-
-func (a *Acotado) RetirarTipoDeVehiculo(ctx context.Context, id uuid.UUID) (int64, error) {
-	return a.q.RetirarTipoDeVehiculo(ctx, id)
-}
-
-func (a *Acotado) BorrarTipoDeVehiculoSinUso(ctx context.Context, id uuid.UUID) (int64, error) {
-	return a.q.BorrarTipoDeVehiculoSinUso(ctx, id)
-}
 
 // Ajustes y monedas: son de toda la empresa. La tasa POR SUCURSAL es otra cosa y vive en
 // Accesos, no aquí.

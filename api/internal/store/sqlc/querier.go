@@ -216,7 +216,11 @@ type Querier interface {
 	BorrarSucursal(ctx context.Context, arg BorrarSucursalParams) (int64, error)
 	// Sólo se puede borrar de verdad un tipo que no use nadie. Se comprueba aquí, en la misma
 	// sentencia, y no con un conteo antes: entre el conteo y el borrado cabe un alta.
-	BorrarTipoDeVehiculoSinUso(ctx context.Context, id uuid.UUID) (int64, error)
+	//
+	// Cero filas aquí NO es el 404: es «no existe, no es tuyo, o lo usa un camión», y el manejador
+	// lo distingue intentando retirarlo (que también va acotado). Devuelve la sucursal del tipo
+	// borrado, porque cuando se avisa la fila ya no está.
+	BorrarTipoDeVehiculoSinUso(ctx context.Context, arg BorrarTipoDeVehiculoSinUsoParams) (pgtype.UUID, error)
 	// DEVUELVE LA SUCURSAL DEL CAMIÓN BORRADO, y no es un adorno — 01/10/2026. El aviso en
 	// vivo de la flota sale de la sucursal de la FILA y no del alcance de quien llamó, y aquí la
 	// fila ya no está cuando se avisa: o la trae el DELETE, o no la trae nadie.
@@ -242,9 +246,17 @@ type Querier interface {
 	// La sucursal por su código de PEDIDO/Ventra (CAM, HAB, STG...). Es por lo que PEDIDO
 	// cotiza: manda su código y aquí se busca la nuestra.
 	BuscarSucursalPorCodigo(ctx context.Context, externalID *string) (BuscarSucursalPorCodigoRow, error)
-	// Por nombre, para el espejo y para el alta de vehículos: el cuerpo del POST manda
-	// `type: "truck"`, un texto, y hay que traducirlo al id del catálogo. `nombre` es UNIQUE.
-	BuscarTipoDeVehiculoPorNombre(ctx context.Context, nombre string) (BuscarTipoDeVehiculoPorNombreRow, error)
+	// Por nombre, para el alta y la edición de vehículos: el cuerpo del POST manda
+	// `type: "truck"`, un texto, y hay que traducirlo al id del catálogo.
+	//
+	// `sucursal_del_camion` NO ES EL ALCANCE de quien pregunta: es la sucursal del camión que se
+	// da de alta o se edita (nulo = compartido), y el tipo tiene que ser de ESA sucursal. Distinto
+	// por una razón concreta: un SUPER ADMIN en modo «todas» que edita el camión de Holguín tiene
+	// alcance nulo y tiene que encontrar el «truck» de Holguín, no el de todas; y uno que mira
+	// Santiago y edita un camión compartido tiene que encontrar el de todas, no el de Santiago.
+	// `IS NOT DISTINCT FROM` y no `=`: el nulo es «de todas» y con `=` no casaría nunca. Los dos
+	// índices únicos parciales de la 00018 dejan UNA fila como máximo.
+	BuscarTipoDeVehiculoPorNombre(ctx context.Context, arg BuscarTipoDeVehiculoPorNombreParams) (BuscarTipoDeVehiculoPorNombreRow, error)
 	// Ocupar y liberar el camión. El vehículo se marca `in_use` al DESPACHAR la ruta (pasarla
 	// a `in_progress`), no al armarla: entre que se arma la noche anterior y sale por la
 	// mañana, el camión sigue disponible para otra cosa.
@@ -469,6 +481,9 @@ type Querier interface {
 	// el suyo porque quien lo da es el camionero y dos camiones del mismo tipo no cuestan
 	// igual. Se deja vacío a propósito en los cuatro que vienen de fábrica — ponerle un número
 	// inventado es peor que no tenerlo, porque se cobra igual y nadie lo revisa.
+	//
+	// El tipo NACE en la sucursal del alcance (`branch_id`, que lo rellena `alcance.Acotado`);
+	// quien no tiene alcance lo deja «de todas».
 	CrearTipoDeVehiculo(ctx context.Context, arg CrearTipoDeVehiculoParams) (VehicleType, error)
 	// ---------------------------------------------------------------------------
 	// Altas y cambios
@@ -1188,13 +1203,22 @@ type Querier interface {
 	// se perdían sin un solo error. Por eso `Vehicle.type` era un conjunto abierto que nadie
 	// podía cerrar — su catálogo no estaba en ninguna parte.
 	//
-	// GLOBAL, sin alcance por sucursal: un «camión» es un camión en las ocho, y la tabla no
-	// tiene columna de sucursal que filtrar. Lo que sí es por sucursal es qué VEHÍCULO
-	// concreto es el de referencia, y eso vive en `vehicles`.
+	// POR SUCURSAL desde la 00018 (Jose, 14/10/2026). Cada sucursal tiene SUS tipos, y el costo por
+	// km del tipo es el que cotiza el domicilio de SU flota: que Santiago editara «truck» movía el
+	// precio en las ocho. `branch_id` NULO = el tipo «de todas»: los de fábrica, que sólo usan los
+	// camiones compartidos (`vehicles.branch_id` nulo).
+	//
+	// OJO con la forma del filtro, que NO es la de vehículos: allí `branch_id IS NULL` pasa para
+	// que un camión compartido salga en la lista de todas; aquí NO. Quien tiene sucursal ve y toca
+	// sólo los SUYOS, y los «de todas» le son tan ajenos como los de Holguín (404, no 403). Sólo
+	// quien no tiene sucursal (SUPER ADMIN / DESARROLLADOR en modo «todas») ve todos.
 	// Los tipos que se pueden elegir. Por defecto sólo los activos: `activo` existe para poder
 	// RETIRAR un tipo sin romper los vehículos que ya lo usan — borrarlo dejaría la clave
 	// ajena colgando y no hay a dónde mover un camión que ya es de ese tipo.
-	ListarTiposDeVehiculo(ctx context.Context, soloActivos *bool) ([]ListarTiposDeVehiculoRow, error)
+	//
+	// Lleva la sucursal (id y nombre) porque quien ve todas tiene el mismo nombre varias veces
+	// y, sin ella, no sabe cuál es cuál.
+	ListarTiposDeVehiculo(ctx context.Context, arg ListarTiposDeVehiculoParams) ([]ListarTiposDeVehiculoRow, error)
 	// La flota.
 	//
 	// `branch_id` NULL en un vehículo significa «de todas las sucursales», así que el filtro
@@ -1329,7 +1353,7 @@ type Querier interface {
 	// y tienen que serlo, porque decir «existe pero no es tuya» ya es contar algo.
 	ObtenerRuta(ctx context.Context, arg ObtenerRutaParams) (ObtenerRutaRow, error)
 	ObtenerSucursal(ctx context.Context, arg ObtenerSucursalParams) (Branch, error)
-	ObtenerTipoDeVehiculo(ctx context.Context, id uuid.UUID) (VehicleType, error)
+	ObtenerTipoDeVehiculo(ctx context.Context, arg ObtenerTipoDeVehiculoParams) (VehicleType, error)
 	ObtenerVehiculo(ctx context.Context, arg ObtenerVehiculoParams) (ObtenerVehiculoRow, error)
 	// El camión de una ruta que se está armando, para comprobar la capacidad.
 	//
@@ -1592,7 +1616,10 @@ type Querier interface {
 	// camiones que ya lo tienen siguen funcionando. Un DELETE choca contra la clave ajena de
 	// `vehicles.vehicle_type_id`, y hacerlo a la fuerza dejaría camiones sin tipo, que es un
 	// camión sin costo por km y por tanto sin fórmula del domicilio.
-	RetirarTipoDeVehiculo(ctx context.Context, id uuid.UUID) (int64, error)
+	//
+	// DEVUELVE LA SUCURSAL DEL TIPO, por lo mismo que `BorrarVehiculo`: de ahí sale el aviso en
+	// vivo. `:one`: cero filas es «no existe O no es de tu sucursal», o sea el 404.
+	RetirarTipoDeVehiculo(ctx context.Context, arg RetirarTipoDeVehiculoParams) (pgtype.UUID, error)
 	// La ruta viva más reciente de un camión, para la tarjeta de la flota.
 	RutaActivaDeVehiculo(ctx context.Context, arg RutaActivaDeVehiculoParams) (RutaActivaDeVehiculoRow, error)
 	// ---------------------------------------------------------------------------
@@ -1628,6 +1655,11 @@ type Querier interface {
 	// El alcance se copia de `ListarVehiculos`: se acota por la sucursal de la RUTA, que es la
 	// misma por la que se acota `ContarVehiculosEnRuta`.
 	RutasAbiertasDeLaFlota(ctx context.Context, sucursal pgtype.UUID) ([]RutasAbiertasDeLaFlotaRow, error)
+	// Una sucursal nueva nace con COPIA de los tipos «de todas» (nombre, costo y estado), como
+	// las que ya existían cuando la 00018 se los dio a cada una. Sin esto empezaría con el catálogo
+	// vacío y su primer camión (`type` por defecto «truck») daría 400. Va en la misma transacción
+	// que el alta de la sucursal.
+	SembrarTiposDeVehiculoEnSucursal(ctx context.Context, sucursal uuid.UUID) (int64, error)
 	// ---------------------------------------------------------------------------
 	// Borrar una ruta  (DELETE /api/routes/[id])
 	// ---------------------------------------------------------------------------

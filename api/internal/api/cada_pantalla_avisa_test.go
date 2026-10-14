@@ -180,6 +180,9 @@ var (
 	avTipoCam   = uuid.MustParse("b0000000-0000-0000-0000-000000000001") // el de Santiago
 	avTipoHol   = uuid.MustParse("b0000000-0000-0000-0000-000000000002") // el de Holguín
 	avTipoTodas = uuid.MustParse("b0000000-0000-0000-0000-000000000003") // el «de todas»
+	// avTipoLibreStg: un tipo de Santiago que NO usa ningún camión; no está en el catálogo de
+	// fábrica de las pruebas, lo añade quien lo necesite (el borrado de verdad, no el retiro).
+	avTipoLibreStg = uuid.MustParse("b0000000-0000-0000-0000-000000000004")
 )
 
 // errAvFalloDeBase es el fallo que se le mete al doble para probar la otra mitad de la
@@ -259,10 +262,12 @@ func (d *dobleAvisos) catalogo() *[]tipoDePrueba {
 	return &d.tipos
 }
 
-// visibleParaTipos es el `(sucursal IS NULL OR branch_id = sucursal)` del SQL: SIN el
-// `OR branch_id IS NULL` de los vehículos. Un tipo «de todas» no lo ve quien tiene sucursal.
+// visibleParaTipos es el `branch_id IS NOT DISTINCT FROM sucursal` del SQL: IGUAL para las dos
+// puntas, y NO el de los vehículos. Quien tiene sucursal ve sólo los suyos (ni los «de todas»);
+// quien está en modo «todas» (sucursal nula) ve SÓLO los «de todas», no todos. Con structs, la
+// igualdad ya trata el nulo como un valor más.
 func visibleParaTipos(t sqlc.VehicleType, sucursal pgtype.UUID) bool {
-	return !sucursal.Valid || (t.BranchID.Valid && t.BranchID.Bytes == sucursal.Bytes)
+	return t.BranchID == sucursal
 }
 
 func (d *dobleAvisos) tipoVisible(id uuid.UUID, sucursal pgtype.UUID) (int, bool) {
@@ -331,6 +336,15 @@ func (d *dobleAvisos) BuscarTipoDeVehiculoPorNombre(_ context.Context, arg sqlc.
 		}
 	}
 	return sqlc.BuscarTipoDeVehiculoPorNombreRow{}, pgx.ErrNoRows
+}
+
+func (d *dobleAvisos) ExisteTipoDeVehiculoConNombre(_ context.Context, nombre string) (bool, error) {
+	for _, t := range *d.catalogo() {
+		if t.Nombre == nombre {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (d *dobleAvisos) DesmarcarReferenciaDeDomicilio(context.Context, sqlc.DesmarcarReferenciaDeDomicilioParams) (int64, error) {
@@ -720,14 +734,14 @@ func TestCadaEscrituraDeLaFlotaAvisa(t *testing.T) {
 		}, []string{CambioVehiculos, CambioRutas, CambioPedidos}},
 
 		{"crear un tipo de vehículo", func(t *testing.T, h http.Handler) {
-			w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avAdmin(t),
+			w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avLogisticoStg(t),
 				`{"nombre":"rastra"}`)
 			avCodigo(t, w, http.StatusCreated)
 		}, []string{CambioVehiculos}},
 
 		{"editar un tipo de vehículo", func(t *testing.T, h http.Handler) {
 			w := pedirAv(t, h, http.MethodPatch, "/api/vehicle-types/"+avTipoCam.String(),
-				avAdmin(t), `{"costoKmUsd":0.9}`)
+				avLogisticoStg(t), `{"costoKmUsd":0.9}`)
 			avCodigo(t, w, http.StatusOK)
 		}, []string{CambioVehiculos}},
 
@@ -735,7 +749,7 @@ func TestCadaEscrituraDeLaFlotaAvisa(t *testing.T) {
 			// Lo usa un camión, así que se RETIRA en vez de borrarse. Sale del
 			// desplegable igual, así que la pantalla cambia igual.
 			w := pedirAv(t, h, http.MethodDelete, "/api/vehicle-types/"+avTipoCam.String(),
-				avAdmin(t), "")
+				avLogisticoStg(t), "")
 			avCodigo(t, w, http.StatusOK)
 		}, []string{CambioVehiculos}},
 	}
@@ -983,7 +997,7 @@ func TestUnaEscrituraRECHAZADANoAvisaEnNingunaPuerta(t *testing.T) {
 	t.Run("un tipo de vehículo sin nombre", func(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
 		avisos := contarAvisos(t)
-		w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avAdmin(t), `{"nombre":"  "}`)
+		w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avLogisticoStg(t), `{"nombre":"  "}`)
 		avCodigo(t, w, http.StatusBadRequest)
 		avisos.exigeSilencio(t, "crear un tipo de vehículo sin nombre")
 	})
@@ -992,7 +1006,7 @@ func TestUnaEscrituraRECHAZADANoAvisaEnNingunaPuerta(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
 		avisos := contarAvisos(t)
 		w := pedirAv(t, h, http.MethodPatch, "/api/vehicle-types/"+desconocido.String(),
-			avAdmin(t), `{"nombre":"x"}`)
+			avLogisticoStg(t), `{"nombre":"x"}`)
 		avCodigo(t, w, http.StatusNotFound)
 		avisos.exigeSilencio(t, "editar un tipo de vehículo que no está")
 	})
@@ -1001,7 +1015,7 @@ func TestUnaEscrituraRECHAZADANoAvisaEnNingunaPuerta(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
 		avisos := contarAvisos(t)
 		w := pedirAv(t, h, http.MethodDelete, "/api/vehicle-types/"+desconocido.String(),
-			avAdmin(t), "")
+			avLogisticoStg(t), "")
 		avCodigo(t, w, http.StatusNotFound)
 		avisos.exigeSilencio(t, "retirar un tipo de vehículo que no está")
 	})

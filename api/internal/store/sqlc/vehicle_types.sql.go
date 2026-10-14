@@ -20,7 +20,7 @@ UPDATE vehicle_types SET
                         ELSE costo_km_usd END,
     activo       = coalesce($4::boolean, activo)
 WHERE id = $5
-  AND ($6::uuid IS NULL OR branch_id = $6::uuid)
+  AND branch_id IS NOT DISTINCT FROM $6::uuid
 RETURNING id, nombre, costo_km_usd, activo, created_at, updated_at, branch_id
 `
 
@@ -58,7 +58,7 @@ func (q *Queries) ActualizarTipoDeVehiculo(ctx context.Context, arg ActualizarTi
 const borrarTipoDeVehiculoSinUso = `-- name: BorrarTipoDeVehiculoSinUso :one
 DELETE FROM vehicle_types vt
 WHERE vt.id = $1
-  AND ($2::uuid IS NULL OR vt.branch_id = $2::uuid)
+  AND vt.branch_id IS NOT DISTINCT FROM $2::uuid
   AND NOT EXISTS (SELECT 1 FROM vehicles v WHERE v.vehicle_type_id = vt.id)
 RETURNING vt.branch_id
 `
@@ -142,8 +142,9 @@ type CrearTipoDeVehiculoParams struct {
 // igual. Se deja vacío a propósito en los cuatro que vienen de fábrica — ponerle un número
 // inventado es peor que no tenerlo, porque se cobra igual y nadie lo revisa.
 //
-// El tipo NACE en la sucursal del alcance (`branch_id`, que lo rellena `alcance.Acotado`);
-// quien no tiene alcance lo deja «de todas».
+// El tipo NACE en la sucursal del alcance (`branch_id`, que lo rellena `alcance.Acotado`). El
+// manejador NO llama a esta consulta sin sucursal: en modo «todas» contesta 400 y no crea ningún
+// «de todas» (ver arriba). La tabla sí admite el nulo, porque así viven los de fábrica.
 func (q *Queries) CrearTipoDeVehiculo(ctx context.Context, arg CrearTipoDeVehiculoParams) (VehicleType, error) {
 	row := q.db.QueryRow(ctx, crearTipoDeVehiculo,
 		arg.Nombre,
@@ -164,6 +165,22 @@ func (q *Queries) CrearTipoDeVehiculo(ctx context.Context, arg CrearTipoDeVehicu
 	return i, err
 }
 
+const existeTipoDeVehiculoConNombre = `-- name: ExisteTipoDeVehiculoConNombre :one
+SELECT EXISTS (SELECT 1 FROM vehicle_types vt WHERE vt.nombre = $1)
+`
+
+// ¿Existe ese nombre en ALGUNA sucursal o «de todas»? NO LLEVA ALCANCE, a propósito, y sólo sirve
+// para decir la verdad en un error: cuando `BuscarTipoDeVehiculoPorNombre` no encuentra el tipo
+// para el camión, «No existe el tipo X» y «El tipo X no es de la sucursal de este camión» son
+// dos errores distintos y quien los lee hace cosas distintas. Devuelve un booleano, nunca la fila
+// ni su id.
+func (q *Queries) ExisteTipoDeVehiculoConNombre(ctx context.Context, nombre string) (bool, error) {
+	row := q.db.QueryRow(ctx, existeTipoDeVehiculoConNombre, nombre)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listarTiposDeVehiculo = `-- name: ListarTiposDeVehiculo :many
 
 SELECT
@@ -176,8 +193,8 @@ LEFT JOIN branches b ON b.id = vt.branch_id
 WHERE ($1::boolean IS NULL
        OR NOT $1::boolean
        OR vt.activo)
-  AND ($2::uuid IS NULL OR vt.branch_id = $2::uuid)
-ORDER BY vt.nombre ASC, b.name ASC NULLS FIRST
+  AND vt.branch_id IS NOT DISTINCT FROM $2::uuid
+ORDER BY vt.nombre ASC
 `
 
 type ListarTiposDeVehiculoParams struct {
@@ -210,15 +227,25 @@ type ListarTiposDeVehiculoRow struct {
 // camiones compartidos (`vehicles.branch_id` nulo).
 //
 // OJO con la forma del filtro, que NO es la de vehículos: allí `branch_id IS NULL` pasa para
-// que un camión compartido salga en la lista de todas; aquí NO. Quien tiene sucursal ve y toca
-// sólo los SUYOS, y los «de todas» le son tan ajenos como los de Holguín (404, no 403). Sólo
-// quien no tiene sucursal (SUPER ADMIN / DESARROLLADOR en modo «todas») ve todos.
+// que un camión compartido salga en la lista de todas, y quien ve todas ve todo. Aquí el filtro
+// es `branch_id IS NOT DISTINCT FROM sucursal`, o sea IGUAL para las dos puntas:
+//
+//   - quien tiene sucursal (o la eligió arriba) ve y toca sólo los SUYOS; los «de todas» y los de
+//     Holguín le son igual de ajenos (404, no 403);
+//   - quien está en modo «todas» (SUPER ADMIN / DESARROLLADOR sin sucursal elegida) ve y toca SÓLO
+//     los «de todas»: los mismos cinco nombres que cada sucursal tiene copiados. Para ver o editar
+//     los de una sucursal elige esa sucursal con el selector. Se le dieron antes todos, y eran 45
+//     filas con nombres repetidos que ni la app ni él sabían distinguir.
+//
+// LOS «DE TODAS» LOS CREÓ LA MIGRACIÓN (los de fábrica de la 00001) Y LA API YA NO CREA NINGUNO:
+// un tipo «de todas» sólo lo admite un camión compartido, y ninguno de sucursal. Se editan, se
+// retiran y se copian a las sucursales nuevas, pero no se crean.
 // Los tipos que se pueden elegir. Por defecto sólo los activos: `activo` existe para poder
 // RETIRAR un tipo sin romper los vehículos que ya lo usan — borrarlo dejaría la clave
 // ajena colgando y no hay a dónde mover un camión que ya es de ese tipo.
 //
-// Lleva la sucursal (id y nombre) porque quien ve todas tiene el mismo nombre varias veces
-// y, sin ella, no sabe cuál es cuál.
+// Lleva la sucursal (id y nombre) para que quien llama sepa de quién es cada fila; nulos son
+// los «de todas».
 func (q *Queries) ListarTiposDeVehiculo(ctx context.Context, arg ListarTiposDeVehiculoParams) ([]ListarTiposDeVehiculoRow, error) {
 	rows, err := q.db.Query(ctx, listarTiposDeVehiculo, arg.SoloActivos, arg.Sucursal)
 	if err != nil {
@@ -249,37 +276,10 @@ func (q *Queries) ListarTiposDeVehiculo(ctx context.Context, arg ListarTiposDeVe
 	return items, nil
 }
 
-const obtenerTipoDeVehiculo = `-- name: ObtenerTipoDeVehiculo :one
-SELECT vt.id, vt.nombre, vt.costo_km_usd, vt.activo, vt.created_at, vt.updated_at, vt.branch_id
-FROM vehicle_types vt
-WHERE vt.id = $1
-  AND ($2::uuid IS NULL OR vt.branch_id = $2::uuid)
-`
-
-type ObtenerTipoDeVehiculoParams struct {
-	ID       uuid.UUID   `json:"id"`
-	Sucursal pgtype.UUID `json:"sucursal"`
-}
-
-func (q *Queries) ObtenerTipoDeVehiculo(ctx context.Context, arg ObtenerTipoDeVehiculoParams) (VehicleType, error) {
-	row := q.db.QueryRow(ctx, obtenerTipoDeVehiculo, arg.ID, arg.Sucursal)
-	var i VehicleType
-	err := row.Scan(
-		&i.ID,
-		&i.Nombre,
-		&i.CostoKmUsd,
-		&i.Activo,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.BranchID,
-	)
-	return i, err
-}
-
 const retirarTipoDeVehiculo = `-- name: RetirarTipoDeVehiculo :one
 UPDATE vehicle_types SET activo = false
 WHERE id = $1
-  AND ($2::uuid IS NULL OR branch_id = $2::uuid)
+  AND branch_id IS NOT DISTINCT FROM $2::uuid
 RETURNING branch_id
 `
 

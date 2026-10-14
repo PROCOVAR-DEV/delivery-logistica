@@ -1436,15 +1436,27 @@ devuelve `tiposVehiculo`** y `PUT /api/settings` ya no lo guarda.
   - **Quien tiene sucursal** (LOGISTICO, ADMINISTRADOR, o un SUPER ADMIN con una sucursal elegida en
     `X-Sucursal-Id`) **lista y toca sólo los de la suya**. Un tipo de otra sucursal o uno «de todas»
     es **`404 {"error":"No encontrado"}`**, no 403, igual que un id que no existe.
-  - **Quien ve todas** (SUPER ADMIN / DESARROLLADOR sin sucursal elegida) lista y toca todos.
-  - **`POST` crea en la sucursal de quien llama**, nunca en la que mande el cuerpo; quien ve todas lo
-    crea «de todas» (para dar de alta uno de una sucursal, que mire esa sucursal con el selector).
+  - **El modo «todas»** (SUPER ADMIN / DESARROLLADOR sin sucursal elegida) **NO ve todos: ve y toca SÓLO
+    los «de todas»**, los mismos cinco nombres que cada sucursal tiene copiados. Se dio todo al principio
+    y eran 45 filas con los nombres repetidos que ni la app ni la persona sabían distinguir. Para ver o
+    tocar los de una sucursal se elige esa sucursal con `X-Sucursal-Id`, como ya hace la app. Por la
+    misma regla (el alcance de un tipo es lo que se lista en ese modo), **`PATCH` y `DELETE` de un tipo
+    de sucursal desde «todas» son `404`**, igual que de un ajeno: así no se edita el «truck» de Santiago
+    creyendo que se edita el de todas.
+  - **`POST` crea en la sucursal de quien llama**, nunca en la que mande el cuerpo. **En modo «todas»
+    es `400 {"error":"Elige una sucursal arriba para crear el tipo: los tipos de vehículo son de cada
+    sucursal."}` y no crea nada**: nacería «de todas», y un tipo «de todas» sólo lo admite un camión
+    compartido. Los «de todas» los creó la migración (los de fábrica); la API se limita a editarlos,
+    retirarlos y copiarlos a las sucursales nuevas.
   - El **nombre es único DENTRO de cada sucursal** (y entre los «de todas»): «rastra» puede estar en
     Santiago y en Holguín. Que coincida con el de un tipo «de todas» no es un choque.
-  - **Un camión sólo admite tipos de su sucursal** (o «de todas» si el camión es compartido):
-    `POST` y `PATCH /api/vehicles` con un `type` que no existe en esa sucursal → `400 {"error":"No
-    existe el tipo de vehículo '<nombre>' entre los tipos de su sucursal"}` (para un compartido: `...
-    entre los tipos «de todas» (un camión compartido sólo admite ésos)`).
+  - **Un camión sólo admite tipos de su sucursal** (o «de todas» si el camión es compartido). El `type`
+    se resuelve por NOMBRE contra la sucursal **del camión**, no la de quien llama: desde el modo
+    «todas» se puede editar un camión de Santiago y se le busca el tipo en Santiago. `POST` y `PATCH
+    /api/vehicles` con un `type` que no le corresponde dan `400`, y el texto distingue los casos:
+    `No existe el tipo de vehículo '<nombre>'` (no está en ninguna parte), `El tipo '<nombre>' no es de
+    la sucursal de este camión` (existe, pero es de otra o «de todas») y, si el camión es compartido,
+    `El tipo '<nombre>' no es un tipo «de todas»: un camión compartido sólo admite ésos`.
   - Una **sucursal nueva** (`POST /api/branches`) nace con una copia de los tipos «de todas».
 - **Forma de un tipo** (la misma en las cuatro):
 
@@ -1471,8 +1483,8 @@ devuelve `tiposVehiculo`** y `PUT /api/settings` ya no lo guarda.
 - **Query**: `activos=1` (o `true`) → sólo los activos, que es lo que pide el desplegable del alta
   de un camión. Sin ella salen **TODOS, activos y retirados**: la pantalla de administración tiene
   que ver lo retirado para poder reactivarlo.
-- **200**: array de tipos, por `nombre` ascendente (y por sucursal dentro del mismo nombre), con
-  `vehiculos` contado. Sólo los de la sucursal de quien llama; todos, si ve todas. Vacío = `[]`.
+- **200**: array de tipos, por `nombre` ascendente, con `vehiculos` contado. Sólo los de la sucursal de
+  quien llama (o la elegida con `X-Sucursal-Id`); en modo «todas», sólo los «de todas». Vacío = `[]`.
 
 ### `POST /api/vehicle-types`
 
@@ -2391,5 +2403,5 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | 32 | `/api/tasa` | GET | usuario | sí | no |
 | 33 | `/api/vehicles` | GET, POST | usuario | sí | Vehicle |
 | 34 | `/api/vehicles/[id]` | GET, PATCH, DELETE | usuario | sí | Vehicle, Route, Order, OrderVehicle |
-| 34-bis | `/api/vehicle-types` y `/api/vehicle-types/{id}` | GET, POST / PATCH, DELETE (propias del reparto, 14/10/2026: antes `tiposVehiculo` dentro de `/api/settings`) | usuario, también LOGISTICO (las tres de escritura NO piden admin) | sí, por sucursal (00018; los «de todas» sólo para quien ve todas) | VehicleType (`vehicle_types`) |
+| 34-bis | `/api/vehicle-types` y `/api/vehicle-types/{id}` | GET, POST / PATCH, DELETE (propias del reparto, 14/10/2026: antes `tiposVehiculo` dentro de `/api/settings`) | usuario, también LOGISTICO (las tres de escritura NO piden admin) | sí, por sucursal (00018; el modo «todas» sólo ve los «de todas») | VehicleType (`vehicle_types`) |
 | 35 | `/api/version` | GET | ninguna | no | no |

@@ -649,16 +649,28 @@ func deVehiculo(v sqlc.Vehicle, nombreTipo string) VehiculoSalida {
 //
 // EL TIPO DE UN CAMIÓN ES DE LA SUCURSAL DEL CAMIÓN (00018): `sucursalDelCamion` es la del
 // camión que se da de alta o se edita, y un camión compartido (nulo) sólo admite tipos «de todas».
-// Lo que no casa da 400 con su motivo, no un 404 ni, peor, el tipo de otra sucursal.
+// Lo que no casa da 400, y el 400 DICE LA VERDAD sobre cuál de los dos casos es: «No existe el
+// tipo» (el nombre no está en ninguna parte) o «El tipo X no es de la sucursal de este camión»
+// (existe, pero en otra sucursal o «de todas»). Nunca el tipo de otra sucursal, ni un 404.
 func (s *Servidor) tipoPorNombre(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, nombre string, sucursalDelCamion pgtype.UUID) (uuid.UUID, bool) {
 	t, err := a.BuscarTipoDeVehiculoPorNombre(r.Context(), nombre, sucursalDelCamion)
 	if errors.Is(err, pgx.ErrNoRows) {
-		donde := "entre los tipos de su sucursal"
-		if !sucursalDelCamion.Valid {
-			donde = "entre los tipos «de todas» (un camión compartido sólo admite ésos)"
+		existe, errExiste := a.ExisteTipoDeVehiculoConNombre(r.Context(), nombre)
+		if errExiste != nil {
+			httpx.ErrorInterno(w, r, errExiste)
+			return uuid.Nil, false
 		}
-		httpx.Error(w, r, http.StatusBadRequest,
-			fmt.Sprintf("No existe el tipo de vehículo '%s' %s", nombre, donde))
+		switch {
+		case !existe:
+			httpx.Error(w, r, http.StatusBadRequest,
+				fmt.Sprintf("No existe el tipo de vehículo '%s'", nombre))
+		case sucursalDelCamion.Valid:
+			httpx.Error(w, r, http.StatusBadRequest,
+				fmt.Sprintf("El tipo '%s' no es de la sucursal de este camión", nombre))
+		default:
+			httpx.Error(w, r, http.StatusBadRequest,
+				fmt.Sprintf("El tipo '%s' no es un tipo «de todas»: un camión compartido sólo admite ésos", nombre))
+		}
 		return uuid.Nil, false
 	}
 	if err != nil {

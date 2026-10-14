@@ -155,18 +155,21 @@ func (a *Acotado) BorrarAsignacionesDeVehiculo(ctx context.Context, vehiculo uui
 // Tipos de vehículo
 // ---------------------------------------------------------------------------
 //
-// POR SUCURSAL desde la 00018 (Jose, 14/10/2026). Y el filtro NO es el de los vehículos: aquí
-// `branch_id` nulo («de todas») NO pasa para quien tiene sucursal. Quien trabaja en Santiago ve y
-// toca los tipos de Santiago; los de Holguín y los «de todas» le son tan ajenos como un id que
-// no existe (404, no 403). Sólo quien no tiene alcance —SUPER ADMIN / DESARROLLADOR en modo
-// «todas»— ve y toca todos.
+// POR SUCURSAL desde la 00018 (Jose, 14/10/2026). Y el filtro NO es el de los vehículos, donde el
+// nulo pasa y quien ve todas ve todo: aquí es `branch_id IS NOT DISTINCT FROM sucursal`, igual para
+// las dos puntas.
+//
+//   - Quien trabaja en Santiago (o la eligió arriba) ve y toca los tipos de Santiago; los de Holguín
+//     y los «de todas» le son tan ajenos como un id que no existe (404, no 403).
+//   - Quien está en modo «todas» (SUPER ADMIN / DESARROLLADOR sin sucursal elegida) ve y toca SÓLO
+//     los «de todas». Los de una sucursal se ven y se tocan eligiendo esa sucursal. Antes veía los
+//     45 con los nombres repetidos, y ni él ni la app los distinguían.
+//
+// `CrearTipoDeVehiculo` no se llama en modo «todas»: el manejador contesta 400 (los «de todas» los
+// creó la migración y la API no crea más).
 
 func (a *Acotado) ListarTiposDeVehiculo(ctx context.Context, soloActivos *bool) ([]sqlc.ListarTiposDeVehiculoRow, error) {
 	return a.q.ListarTiposDeVehiculo(ctx, sqlc.ListarTiposDeVehiculoParams{SoloActivos: soloActivos, Sucursal: a.sucursalPg()})
-}
-
-func (a *Acotado) ObtenerTipoDeVehiculo(ctx context.Context, id uuid.UUID) (sqlc.VehicleType, error) {
-	return a.q.ObtenerTipoDeVehiculo(ctx, sqlc.ObtenerTipoDeVehiculoParams{ID: id, Sucursal: a.sucursalPg()})
 }
 
 // SucursalDeAlta es la sucursal en la que NACE lo que esta persona da de alta (nulo = de
@@ -187,8 +190,14 @@ func (a *Acotado) BuscarTipoDeVehiculoPorNombre(ctx context.Context, nombre stri
 	})
 }
 
-// CrearTipoDeVehiculo: el tipo NACE en la sucursal del alcance. Quien no tiene alcance lo deja
-// «de todas».
+// ExisteTipoDeVehiculoConNombre NO LLEVA ALCANCE, a propósito: sólo contesta sí o no, para que el
+// 400 de un camión con un tipo que no le corresponde diga la verdad («no existe» o «no es de la
+// sucursal de este camión»). Nunca devuelve la fila.
+func (a *Acotado) ExisteTipoDeVehiculoConNombre(ctx context.Context, nombre string) (bool, error) {
+	return a.q.ExisteTipoDeVehiculoConNombre(ctx, nombre)
+}
+
+// CrearTipoDeVehiculo: el tipo NACE en la sucursal del alcance. El manejador no llama sin ella.
 func (a *Acotado) CrearTipoDeVehiculo(ctx context.Context, arg sqlc.CrearTipoDeVehiculoParams) (sqlc.VehicleType, error) {
 	arg.BranchID = a.sucursalPg()
 	return a.q.CrearTipoDeVehiculo(ctx, arg)

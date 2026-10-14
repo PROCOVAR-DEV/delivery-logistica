@@ -2037,7 +2037,7 @@ func nuevaEscenaDeTipos(t *testing.T, pool *pgxpool.Pool) *escenaDeTipos {
 func TestMotorReal_TiposDeVehiculoPorSucursal(t *testing.T) {
 	pool := motorReal(t)
 
-	t.Run("listar_acota_por_sucursal_y_el_de_todas_solo_lo_ve_quien_ve_todas", func(t *testing.T) {
+	t.Run("listar_acota_por_sucursal_y_el_modo_todas_ve_SOLO_los_de_todas", func(t *testing.T) {
 		e := nuevaEscenaDeTipos(t, pool)
 		suyos := func(sucursal pgtype.UUID) map[uuid.UUID]ListarTiposDeVehiculoRow {
 			filas, err := e.q.ListarTiposDeVehiculo(e.ctx, ListarTiposDeVehiculoParams{Sucursal: sucursal})
@@ -2062,9 +2062,10 @@ func TestMotorReal_TiposDeVehiculoPorSucursal(t *testing.T) {
 		if hol := suyos(alcance(e.hol)); len(hol) != 1 || hol[e.deHol].ID != e.deHol {
 			t.Fatalf("Holguín tenía que ver sólo el suyo y vio %v", hol)
 		}
+		// El modo «todas» (sin sucursal) NO ve los tres: ve SÓLO el «de todas», no los de las sucursales.
 		todas := suyos(sinAlcance)
-		if len(todas) != 3 {
-			t.Fatalf("quien ve todas tenía que ver los tres y vio %v", todas)
+		if len(todas) != 1 || todas[e.deTodas].ID != e.deTodas {
+			t.Fatalf("en modo «todas» tenía que ver SÓLO el «de todas» y vio %v", todas)
 		}
 		if f := todas[e.deTodas]; f.BranchID.Valid || f.SucursalNombre != nil {
 			t.Fatalf("el «de todas» sale sin sucursal: %+v", f)
@@ -2088,20 +2089,6 @@ func TestMotorReal_TiposDeVehiculoPorSucursal(t *testing.T) {
 		}
 	})
 
-	t.Run("obtener_acota", func(t *testing.T) {
-		e := nuevaEscenaDeTipos(t, pool)
-		if tp, err := e.q.ObtenerTipoDeVehiculo(e.ctx, ObtenerTipoDeVehiculoParams{ID: e.deStg, Sucursal: alcance(e.stg)}); err != nil || tp.ID != e.deStg {
-			t.Fatalf("el suyo tenía que salir: %+v (err %v)", tp, err)
-		}
-		for nombre, ajeno := range map[string]uuid.UUID{"el de Holguín": e.deHol, "el de todas": e.deTodas} {
-			_, err := e.q.ObtenerTipoDeVehiculo(e.ctx, ObtenerTipoDeVehiculoParams{ID: ajeno, Sucursal: alcance(e.stg)})
-			sinFilas(t, nombre+" visto desde Santiago", err)
-			if _, err := e.q.ObtenerTipoDeVehiculo(e.ctx, ObtenerTipoDeVehiculoParams{ID: ajeno, Sucursal: sinAlcance}); err != nil {
-				t.Fatalf("quien ve todas tenía que ver %s: %v", nombre, err)
-			}
-		}
-	})
-
 	t.Run("buscar_por_nombre_es_de_la_sucursal_del_camion_y_el_nulo_es_el_de_todas", func(t *testing.T) {
 		e := nuevaEscenaDeTipos(t, pool)
 		for nombre, c := range map[string]struct {
@@ -2119,6 +2106,21 @@ func TestMotorReal_TiposDeVehiculoPorSucursal(t *testing.T) {
 		for nombre, camion := range map[string]pgtype.UUID{"Santiago": alcance(e.stg), "compartido": sinAlcance} {
 			_, err := e.q.BuscarTipoDeVehiculoPorNombre(e.ctx, BuscarTipoDeVehiculoPorNombreParams{Nombre: soloHol, SucursalDelCamion: camion})
 			sinFilas(t, "el tipo de Holguín pedido para el camión "+nombre, err)
+		}
+	})
+
+	t.Run("existe_con_nombre_mira_todas_las_sucursales_y_solo_dice_si_o_no", func(t *testing.T) {
+		e := nuevaEscenaDeTipos(t, pool)
+		soloHol := "solo-hol-" + uuid.NewString()[:6]
+		e.tipoDe(alcance(e.hol), soloHol)
+		for nombre, c := range map[string]struct {
+			nombre string
+			quiero bool
+		}{"uno de Holguín": {soloHol, true}, "el de las tres": {e.nombre, true}, "uno que no está": {"fantasma-" + uuid.NewString()[:6], false}} {
+			got, err := e.q.ExisteTipoDeVehiculoConNombre(e.ctx, c.nombre)
+			if err != nil || got != c.quiero {
+				t.Fatalf("%s: salió %v (err %v) y tocaba %v", nombre, got, err, c.quiero)
+			}
 		}
 	})
 
@@ -2181,7 +2183,15 @@ func TestMotorReal_TiposDeVehiculoPorSucursal(t *testing.T) {
 			t.Fatalf("el suyo tenía que cambiar y el de Holguín seguir igual: %+v (err %v)", got, err)
 		}
 		if _, err := e.q.ActualizarTipoDeVehiculo(e.ctx, ActualizarTipoDeVehiculoParams{ID: e.deTodas, TocarCosto: true, CostoKmUsd: f64(0.5), Sucursal: sinAlcance}); err != nil {
-			t.Fatalf("quien ve todas tenía que poder tocar el de todas: %v", err)
+			t.Fatalf("el modo «todas» tenía que poder tocar el de todas: %v", err)
+		}
+		// Y el modo «todas» NO toca el de una sucursal: lo que no está en su lista no se toca.
+		for nombre, deSucursal := range map[string]uuid.UUID{"el de Santiago": e.deStg, "el de Holguín": e.deHol} {
+			_, err := e.q.ActualizarTipoDeVehiculo(e.ctx, ActualizarTipoDeVehiculoParams{ID: deSucursal, TocarCosto: true, CostoKmUsd: f64(7), Sucursal: sinAlcance})
+			sinFilas(t, "cambiar "+nombre+" desde el modo «todas»", err)
+		}
+		if costo(e.deHol) != nil || (costo(e.deStg) == nil || *costo(e.deStg) != 0.9) {
+			t.Fatal("el modo «todas» le cambió el costo a un tipo de sucursal")
 		}
 	})
 
@@ -2222,6 +2232,12 @@ func TestMotorReal_TiposDeVehiculoPorSucursal(t *testing.T) {
 		if err != nil || sucursal.Valid {
 			t.Fatalf("retirar el de todas devuelve sucursal NULA: %+v (err %v)", sucursal, err)
 		}
+		// El modo «todas» no retira uno de sucursal.
+		_, err = e.q.RetirarTipoDeVehiculo(e.ctx, RetirarTipoDeVehiculoParams{ID: e.deHol, Sucursal: sinAlcance})
+		sinFilas(t, "retirar el de Holguín desde el modo «todas»", err)
+		if !activo(e.deHol) {
+			t.Fatal("el modo «todas» retiró un tipo de sucursal")
+		}
 	})
 
 	t.Run("borrar_acota_no_borra_lo_que_usa_un_camion_y_devuelve_la_sucursal", func(t *testing.T) {
@@ -2246,7 +2262,13 @@ func TestMotorReal_TiposDeVehiculoPorSucursal(t *testing.T) {
 		if err != nil || !sucursal.Valid || sucursal.Bytes != e.stg || e.tipoExiste(libre) {
 			t.Fatalf("el suyo y libre tenía que borrarse y devolver Santiago: %+v (err %v)", sucursal, err)
 		}
-		// Quien ve todas borra el de todas (libre) y recibe NULL.
+		// El modo «todas» no borra uno de sucursal, aunque esté libre.
+		_, err = e.q.BorrarTipoDeVehiculoSinUso(e.ctx, BorrarTipoDeVehiculoSinUsoParams{ID: e.deHol, Sucursal: sinAlcance})
+		sinFilas(t, "borrar el de Holguín desde el modo «todas»", err)
+		if !e.tipoExiste(e.deHol) {
+			t.Fatal("el modo «todas» borró un tipo de sucursal")
+		}
+		// Y borra el de todas (libre) y recibe NULL.
 		sucursal, err = e.q.BorrarTipoDeVehiculoSinUso(e.ctx, BorrarTipoDeVehiculoSinUsoParams{ID: e.deTodas, Sucursal: sinAlcance})
 		if err != nil || sucursal.Valid || e.tipoExiste(e.deTodas) {
 			t.Fatalf("el de todas libre tenía que borrarse y devolver NULL: %+v (err %v)", sucursal, err)

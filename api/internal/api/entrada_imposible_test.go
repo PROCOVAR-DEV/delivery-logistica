@@ -328,7 +328,7 @@ func TestUnCamionConNumerosImposiblesNoSeDaDeAlta(t *testing.T) {
 	// Y en el TIPO, que es el valor por defecto de toda la flota que lo use.
 	t.Run("ni en el tipo de vehículo", func(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
-		w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avAdmin(t),
+		w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avLogisticoStg(t),
 			`{"nombre":"rastra","costoKmUsd":-0.5}`)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("código %d, se esperaba 400: %s", w.Code, w.Body.String())
@@ -368,7 +368,7 @@ func TestUnCamionNormalSigueDandoseDeAlta(t *testing.T) {
 	}
 	t.Run("y el tipo con su costo normal", func(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
-		w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avAdmin(t),
+		w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avLogisticoStg(t),
 			`{"nombre":"rastra","costoKmUsd":0.42}`)
 		if w.Code != http.StatusCreated {
 			t.Fatalf("código %d, se esperaba 201: %s", w.Code, w.Body.String())
@@ -376,7 +376,7 @@ func TestUnCamionNormalSigueDandoseDeAlta(t *testing.T) {
 	})
 	t.Run("y el tipo SIN costo, que es el hueco que hay que dejar", func(t *testing.T) {
 		h := montarAvisos(t, &dobleAvisos{})
-		w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avAdmin(t), `{"nombre":"rastra"}`)
+		w := pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avLogisticoStg(t), `{"nombre":"rastra"}`)
 		if w.Code != http.StatusCreated {
 			t.Fatalf("código %d, se esperaba 201: %s", w.Code, w.Body.String())
 		}

@@ -147,8 +147,12 @@ tiene SUS tipos y quien trabaja en una ve y toca sólo los suyos.
   sucursal es un 400), no la base: no hay clave compuesta ni disparador. La consulta que la
   comprueba sobre datos reales está en `docs/despliegue.md`.
 - **El filtro NO es el de los vehículos.** En `vehicles`, `branch_id` nulo pasa el filtro de
-  alcance (un camión compartido sale en la lista de todas). En los tipos NO pasa: quien tiene
-  sucursal no ve ni toca los «de todas», y un id ajeno es un 404, no un 403.
+  alcance (un camión compartido sale en la lista de todas) y quien ve todas ve todo. En los tipos es
+  `branch_id IS NOT DISTINCT FROM sucursal`, igual para las dos puntas: quien tiene sucursal ve y toca
+  sólo los suyos (los «de todas» le son ajenos), y quien está en modo «todas» ve y toca **sólo los «de
+  todas»**. Un id fuera de eso es un 404, no un 403. La API **no crea** tipos «de todas» (el alta en
+  modo «todas» es 400): los de fábrica los creó la migración, y se editan, se retiran y se copian a
+  las sucursales nuevas.
 - **Sin vuelta atrás sin pérdida.** El `Down` devuelve los camiones al tipo «de todas» del mismo
   nombre y borra los de sucursal, pero **los costos que una sucursal haya editado en SU copia se
   pierden** (vuelve el del tipo de todas) y un nombre que sólo exista en sucursales se crea «de

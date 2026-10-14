@@ -28,10 +28,16 @@ import (
 // a la vez: el logístico de Santiago editaba «truck» y cambiaba el precio en Holguín. Ahora cada
 // sucursal tiene SUS tipos y quien trabaja en una ve y toca sólo los suyos (los de otra
 // sucursal y los «de todas» son un 404, igual que un id que no existe). `branch_id` NULO es el
-// tipo «de todas»: los cinco de fábrica, que sólo usan los camiones compartidos. Sólo quien no
-// tiene sucursal (SUPER ADMIN y DESARROLLADOR en modo «todas») ve todos, y lo que cree allí
-// nace «de todas»: para dar de alta un tipo de una sucursal hay que mirar esa sucursal con el
-// selector de arriba.
+// tipo «de todas»: los cinco de fábrica, que sólo usan los camiones compartidos.
+//
+// EL MODO «TODAS» (SUPER ADMIN y DESARROLLADOR sin sucursal elegida) NO ve todos: ve SÓLO los «de
+// todas», los mismos cinco nombres que cada sucursal tiene copiados — el alcance de los tipos es
+// siempre «una sola sucursal, o la de todas». Se dio todo al principio y eran 45 filas con los
+// nombres repetidos que ni la app ni la persona sabían distinguir. Para ver o tocar los de una
+// sucursal se elige esa sucursal con el selector (`X-Sucursal-Id`), como ya hace la app.
+// CONSECUENCIA: PATCH/DELETE de un tipo de sucursal desde «todas» es 404, igual que de un ajeno
+// (lo que no está en la lista de ese modo no se toca), y POST desde «todas» es 400 — no se crea
+// ningún tipo «de todas», que sólo admiten los camiones compartidos y los creó la migración.
 //
 // EL NOMBRE SE REPITE ENTRE SUCURSALES y es único DENTRO de cada una (dos índices únicos parciales,
 // 00018). Que coincida con el de uno «de todas» NO es un choque: quien tiene sucursal no ve ni puede
@@ -62,8 +68,8 @@ type TipoVehiculoSalida struct {
 	Activo     bool      `json:"activo"`
 	Vehiculos  int64     `json:"vehiculos"`
 	// SucursalID y Sucursal dicen de quién es el tipo; AMBOS NULOS son «de todas». Quien tiene
-	// sucursal sólo recibe la suya; quien ve todas recibe el mismo nombre varias veces y esto
-	// es lo único que distingue un «truck» de otro.
+	// sucursal sólo recibe la suya y el modo «todas» sólo los «de todas» (sin sucursal), así que
+	// el mismo nombre no se repite en una lista; esto dice de quién es cada fila.
 	SucursalID *uuid.UUID `json:"sucursalId"`
 	Sucursal   *string    `json:"sucursal"`
 	CreatedAt  *time.Time `json:"createdAt"`
@@ -75,7 +81,7 @@ type TipoVehiculoSalida struct {
 // Por defecto salen TODOS, activos y retirados: esta ruta la usa la pantalla de
 // administración, que tiene que poder ver lo retirado para volver a activarlo. Con
 // `activos=1` salen sólo los que se pueden elegir, que es lo que pide el desplegable del
-// alta de un camión. Salen los de SU sucursal; quien ve todas, los de todas.
+// alta de un camión. Salen los de SU sucursal; en modo «todas», sólo los «de todas».
 func (s *Servidor) listarTiposDeVehiculo(w http.ResponseWriter, r *http.Request) {
 	a, ok := acotado(w, r)
 	if !ok {
@@ -108,10 +114,20 @@ type cuerpoTipoVehiculo struct {
 	Activo     httpx.Opcional[bool]    `json:"activo"`
 }
 
+// msgTipoSinSucursal es el 400 de crear un tipo en modo «todas».
+const msgTipoSinSucursal = "Elige una sucursal arriba para crear el tipo: los tipos de vehículo son de cada sucursal."
+
 // POST /api/vehicle-types   (cualquier sesión de Reparto, también LOGISTICO)
 func (s *Servidor) crearTipoDeVehiculo(w http.ResponseWriter, r *http.Request) {
 	a, ok := acotado(w, r)
 	if !ok {
+		return
+	}
+	// Sin sucursal elegida (modo «todas») no se crea nada: nacería «de todas», y un tipo «de todas»
+	// sólo lo admite un camión compartido; ninguno de sucursal. Mejor decirlo que crear un tipo que
+	// nadie puede usar.
+	if !a.SucursalDeAlta().Valid {
+		httpx.Error(w, r, http.StatusBadRequest, msgTipoSinSucursal)
 		return
 	}
 	var c cuerpoTipoVehiculo

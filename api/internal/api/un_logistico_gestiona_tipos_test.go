@@ -55,7 +55,7 @@ func TestQuienNoEntraAReparteNoTocaLosTipos(t *testing.T) {
 func TestRenombrarAUnNombreRepetidoEs409(t *testing.T) {
 	d := &dobleAvisos{falloAlActualizarTipo: &pgconn.PgError{Code: "23505"}}
 	h := montarAvisos(t, d)
-	w := pedirAv(t, h, http.MethodPatch, "/api/vehicle-types/"+avTipoCam.String(), avAdmin(t),
+	w := pedirAv(t, h, http.MethodPatch, "/api/vehicle-types/"+avTipoCam.String(), avLogisticoStg(t),
 		`{"nombre":"van"}`)
 	avCodigo(t, w, http.StatusConflict)
 	if !strings.Contains(w.Body.String(), "Ya existe un tipo de vehículo con ese nombre") {
@@ -66,7 +66,7 @@ func TestRenombrarAUnNombreRepetidoEs409(t *testing.T) {
 func TestRenombrarAUnNombreVacioEs400(t *testing.T) {
 	h := montarAvisos(t, &dobleAvisos{})
 	for _, cuerpo := range []string{`{"nombre":""}`, `{"nombre":"   "}`} {
-		w := pedirAv(t, h, http.MethodPatch, "/api/vehicle-types/"+avTipoCam.String(), avAdmin(t), cuerpo)
+		w := pedirAv(t, h, http.MethodPatch, "/api/vehicle-types/"+avTipoCam.String(), avLogisticoStg(t), cuerpo)
 		avCodigo(t, w, http.StatusBadRequest)
 	}
 }

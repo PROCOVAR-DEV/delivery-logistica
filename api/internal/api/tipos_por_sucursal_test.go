@@ -6,7 +6,9 @@ package api
 // es el que cotiza el domicilio: el logístico de Santiago editaba «truck» y movía el precio en
 // las ocho. Ahora cada sucursal tiene SUS tipos y quien trabaja en una ve y toca sólo los suyos;
 // los de otra sucursal y los «de todas» (`branch_id` nulo, los camiones compartidos) le son un 404,
-// no un 403, como el resto del alcance de esta api.
+// no un 403, como el resto del alcance de esta api. Y quien está en modo «todas» (SUPER ADMIN o
+// DESARROLLADOR sin sucursal elegida) NO ve todos: ve SÓLO los «de todas»; los de una sucursal se
+// tocan eligiéndola con el selector. Ahí no se crea ninguno (400): los «de todas» los creó la migración.
 //
 // QUÉ PRUEBA ESTO Y QUÉ NO. Va contra el doble `dobleAvisos`, que reimplementa el SQL en Go:
 // comprueba que el manejador y `alcance.Acotado` PASAN la sucursal que toca (quien la quite de
@@ -92,8 +94,8 @@ func tipoDe(t *testing.T, w *httptest.ResponseRecorder, codigo int) TipoVehiculo
 
 // --------------------------------------------------------------------------- listar
 
-// CADA SUCURSAL VE SÓLO SUS TIPOS. Y quien ve todas, todos, con la sucursal de cada uno: el
-// mismo «truck» está tres veces y sin `sucursalId` ni `sucursal` no se sabe cuál es cuál.
+// CADA SUCURSAL VE SÓLO SUS TIPOS. Y el modo «todas», sólo los «de todas», sin sucursal: el
+// mismo «truck» existe tres veces en la base y ninguna lista trae más de una.
 func TestCadaSucursalVeSoloSusTipos(t *testing.T) {
 	h := montarAvisos(t, &dobleAvisos{})
 
@@ -115,16 +117,15 @@ func TestCadaSucursalVeSoloSusTipos(t *testing.T) {
 		}
 	})
 
-	t.Run("un SUPER ADMIN sin sucursal ve los tres, y el de todas sale sin sucursal", func(t *testing.T) {
+	t.Run("un SUPER ADMIN sin sucursal (modo «todas») ve SÓLO los «de todas», sin sucursal", func(t *testing.T) {
 		tipos := tiposDe(t, pedirAv(t, h, http.MethodGet, "/api/vehicle-types", avSuperSinSucursal(t), ""))
 		ids := idsDe(tipos)
-		if len(tipos) != 3 || !ids[avTipoCam] || !ids[avTipoHol] || !ids[avTipoTodas] {
-			t.Fatalf("quien ve todas tenía que ver los tres y vio %+v", tipos)
+		if len(tipos) != 1 || !ids[avTipoTodas] {
+			t.Fatalf("en modo «todas» tenía que ver sólo el «de todas» (%s), no los de las sucursales, "+
+				"y vio %+v", avTipoTodas, tipos)
 		}
-		for _, tp := range tipos {
-			if tp.ID == avTipoTodas && (tp.SucursalID != nil || tp.Sucursal != nil) {
-				t.Fatalf("el tipo «de todas» tiene que salir con sucursalId y sucursal nulos: %+v", tp)
-			}
+		if tipos[0].SucursalID != nil || tipos[0].Sucursal != nil {
+			t.Fatalf("el tipo «de todas» tiene que salir con sucursalId y sucursal nulos: %+v", tipos[0])
 		}
 	})
 
@@ -139,7 +140,7 @@ func TestCadaSucursalVeSoloSusTipos(t *testing.T) {
 // --------------------------------------------------------------------------- editar y borrar
 
 // SANTIAGO NO TOCA EL TIPO DE HOLGUÍN NI EL «DE TODAS»: 404 —no 403—, y no se escribe nada.
-// En PAREJA: el suyo sí, y quien ve todas toca cualquiera.
+// En PAREJA: el suyo sí; y el modo «todas» toca sólo los «de todas» (los de sucursal son 404 desde ahí).
 func TestSantiagoNoTocaLosTiposDeHolguinNiLosDeTodas(t *testing.T) {
 	santiago := avLogisticoDe(t, avSucStg)
 
@@ -176,13 +177,38 @@ func TestSantiagoNoTocaLosTiposDeHolguinNiLosDeTodas(t *testing.T) {
 		}
 	})
 
-	t.Run("quien ve todas sí toca el de Holguín y el de todas", func(t *testing.T) {
+	// EL MODO «TODAS» TOCA SÓLO LO QUE VE: los «de todas». Un tipo de sucursal desde ahí es 404, igual
+	// que uno ajeno: lo que no está en su lista no se toca, y así no edita el «truck» de Santiago
+	// creyendo que edita el de todas. Para tocar uno de sucursal, elige esa sucursal.
+	for _, p := range []struct{ metodo, cuerpo string }{
+		{http.MethodPatch, `{"costoKmUsd":0.9}`},
+		{http.MethodDelete, ``},
+	} {
+		t.Run(p.metodo+" en modo «todas» sobre un tipo de sucursal: 404 y no escribe", func(t *testing.T) {
+			for nombre, deSucursal := range map[string]uuid.UUID{"el de Santiago": avTipoCam, "el de Holguín": avTipoHol} {
+				d := &dobleAvisos{}
+				w := pedirAv(t, montarAvisos(t, d), p.metodo, "/api/vehicle-types/"+deSucursal.String(), avSuperSinSucursal(t), p.cuerpo)
+				avCodigo(t, w, http.StatusNotFound)
+				if d.escritosTipos != 0 {
+					t.Fatalf("el 404 sobre %s llegó DESPUÉS de escribir: %d escrituras", nombre, d.escritosTipos)
+				}
+			}
+		})
+	}
+
+	t.Run("en modo «todas» sí toca el «de todas»", func(t *testing.T) {
 		d := &dobleAvisos{}
-		h := montarAvisos(t, d)
-		for _, id := range []uuid.UUID{avTipoHol, avTipoTodas} {
-			avCodigo(t, pedirAv(t, h, http.MethodPatch, "/api/vehicle-types/"+id.String(), avSuperSinSucursal(t),
-				`{"costoKmUsd":0.9}`), http.StatusOK)
+		avCodigo(t, pedirAv(t, montarAvisos(t, d), http.MethodPatch, "/api/vehicle-types/"+avTipoTodas.String(),
+			avSuperSinSucursal(t), `{"costoKmUsd":0.9}`), http.StatusOK)
+		if d.escritosTipos != 1 {
+			t.Fatalf("tenía que escribir una vez: %d", d.escritosTipos)
 		}
+	})
+
+	t.Run("un SUPER ADMIN que mira Holguín toca el de Holguín", func(t *testing.T) {
+		w := pedirDe(t, montarAvisos(t, &dobleAvisos{}), http.MethodPatch, "/api/vehicle-types/"+avTipoHol.String(),
+			avSuperSinSucursal(t), avSucHol.String(), `{"costoKmUsd":0.9}`)
+		avCodigo(t, w, http.StatusOK)
 	})
 
 	t.Run("un SUPER ADMIN que mira Santiago no toca el de Holguín", func(t *testing.T) {
@@ -215,12 +241,24 @@ func TestUnTipoNuevoNaceEnLaSucursalDeQuienLoCrea(t *testing.T) {
 		}
 	})
 
-	t.Run("un SUPER ADMIN sin sucursal lo deja «de todas»", func(t *testing.T) {
-		tp := tipoDe(t, pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avSuperSinSucursal(t), `{"nombre":"gandola"}`), http.StatusCreated)
-		if tp.SucursalID != nil || tp.Sucursal != nil {
-			t.Fatalf("sin sucursal elegida el tipo nace «de todas»: %+v", tp)
-		}
-	})
+	// EN MODO «TODAS» NO SE CREA NADA: nacería «de todas», y un tipo «de todas» sólo lo admite un
+	// camión compartido; ninguno de sucursal. Antes se creaba, y el 400 de dar de alta un camión
+	// con él decía una mentira. El mensaje dice qué hacer.
+	desarrollador := tokenDeDatos(t, map[string]any{"sub": "p-dev", "role": "DESARROLLADOR", "entradas": []string{"delivery.entrar"}})
+	for nombre, jwt := range map[string]string{"SUPER ADMIN": avSuperSinSucursal(t), "DESARROLLADOR": desarrollador} {
+		t.Run(nombre+" sin sucursal elegida: 400 y no crea ninguno", func(t *testing.T) {
+			d := &dobleAvisos{}
+			antes := len(*d.catalogo())
+			w := pedirAv(t, montarAvisos(t, d), http.MethodPost, "/api/vehicle-types", jwt, `{"nombre":"gandola"}`)
+			avCodigo(t, w, http.StatusBadRequest)
+			if !strings.Contains(w.Body.String(), "Elige una sucursal arriba para crear el tipo: los tipos de vehículo son de cada sucursal.") {
+				t.Fatalf("el 400 tiene que decir qué hacer: %s", w.Body.String())
+			}
+			if d.escritosTipos != 0 || len(*d.catalogo()) != antes {
+				t.Fatalf("el 400 llegó DESPUÉS de crear: %d escrituras", d.escritosTipos)
+			}
+		})
+	}
 
 	t.Run("un SUPER ADMIN que mira Holguín lo crea en Holguín", func(t *testing.T) {
 		tp := tipoDe(t, pedirDe(t, h, http.MethodPost, "/api/vehicle-types", avSuperSinSucursal(t), avSucHol.String(), `{"nombre":"chata"}`), http.StatusCreated)
@@ -247,11 +285,12 @@ func TestElMismoNombreEnDosSucursalesSiEnLaMismaNo(t *testing.T) {
 
 	avCodigo(t, pedirAv(t, h, http.MethodPost, "/api/vehicle-types", holguin, `{"nombre":"rastra"}`), http.StatusCreated)
 
-	// «truck» es el nombre del tipo «de todas»: Santiago ya tiene el suyo (409), pero un nombre que
-	// SÓLO existe «de todas» no le estorba.
+	// «truck» es también el nombre del tipo «de todas»: Santiago ya tiene el suyo (409). Y un nombre
+	// que SÓLO existe «de todas» («gandola», sembrado aparte) no le estorba.
 	avCodigo(t, pedirAv(t, h, http.MethodPost, "/api/vehicle-types", santiago, `{"nombre":"truck"}`), http.StatusConflict)
-	avCodigo(t, pedirAv(t, h, http.MethodPost, "/api/vehicle-types", avSuperSinSucursal(t), `{"nombre":"gandola"}`), http.StatusCreated)
-	avCodigo(t, pedirAv(t, h, http.MethodPost, "/api/vehicle-types", santiago, `{"nombre":"gandola"}`), http.StatusCreated)
+	d2 := &dobleAvisos{}
+	*d2.catalogo() = append(*d2.catalogo(), tipoDePrueba{VehicleType: sqlcTipo("gandola", pgtype.UUID{})})
+	avCodigo(t, pedirAv(t, montarAvisos(t, d2), http.MethodPost, "/api/vehicle-types", santiago, `{"nombre":"gandola"}`), http.StatusCreated)
 
 	// Y renombrar a uno que ya existe EN LA MISMA sucursal es 409; a uno de otra, no.
 	avCodigo(t, pedirAv(t, h, http.MethodPatch, "/api/vehicle-types/"+avTipoCam.String(), santiago, `{"nombre":"rastra"}`), http.StatusConflict)
@@ -281,12 +320,24 @@ func TestElTipoDeUnCamionEsDeLaSucursalDelCamion(t *testing.T) {
 		}
 	})
 
-	t.Run("pero no el de Holguín: 400 con el motivo", func(t *testing.T) {
-		w := pedirAv(t, montarAvisos(t, conRastraDeHolguin()), http.MethodPost, "/api/vehicles", avLogisticoDe(t, avSucStg), `{"name":"c","type":"rastra"}`)
+	// EL 400 DICE LA VERDAD, y son dos verdades distintas: el tipo EXISTE pero es de otra sucursal, o no
+	// existe en ninguna parte. Decir «no existe» de uno que sí existe manda a buscar un fallo que no hay.
+	t.Run("pero no el de Holguín: 400 que dice que no es de la sucursal de este camión", func(t *testing.T) {
+		d := conRastraDeHolguin()
+		w := pedirAv(t, montarAvisos(t, d), http.MethodPost, "/api/vehicles", avLogisticoDe(t, avSucStg), `{"name":"c","type":"rastra"}`)
 		avCodigo(t, w, http.StatusBadRequest)
-		if !strings.Contains(w.Body.String(), "No existe el tipo de vehículo 'rastra'") ||
-			!strings.Contains(w.Body.String(), "su sucursal") {
-			t.Fatalf("el 400 no dice qué pasa: %s", w.Body.String())
+		if !strings.Contains(w.Body.String(), "El tipo 'rastra' no es de la sucursal de este camión") ||
+			strings.Contains(w.Body.String(), "No existe") {
+			t.Fatalf("el 400 no dice la verdad (existe, pero en otra sucursal): %s", w.Body.String())
+		}
+	})
+
+	t.Run("y uno que no existe en ninguna parte: «No existe el tipo»", func(t *testing.T) {
+		w := pedirAv(t, montarAvisos(t, conRastraDeHolguin()), http.MethodPost, "/api/vehicles", avLogisticoDe(t, avSucStg), `{"name":"c","type":"fantasma"}`)
+		avCodigo(t, w, http.StatusBadRequest)
+		if !strings.Contains(w.Body.String(), "No existe el tipo de vehículo 'fantasma'") ||
+			strings.Contains(w.Body.String(), "no es de la sucursal") {
+			t.Fatalf("el 400 no dice que no existe: %s", w.Body.String())
 		}
 	})
 
@@ -308,7 +359,7 @@ func TestElTipoDeUnCamionEsDeLaSucursalDelCamion(t *testing.T) {
 		}
 		w = pedirAv(t, h, http.MethodPost, "/api/vehicles", avSuperSinSucursal(t), `{"name":"c","type":"rastra"}`)
 		avCodigo(t, w, http.StatusBadRequest)
-		if !strings.Contains(w.Body.String(), "«de todas»") {
+		if !strings.Contains(w.Body.String(), "El tipo 'rastra' no es un tipo «de todas»") {
 			t.Fatalf("el 400 tenía que decir que un compartido sólo admite los «de todas»: %s", w.Body.String())
 		}
 	})
@@ -347,6 +398,26 @@ func TestAlEditarElTipoSeBuscaParaElCamionNoParaQuienLoEdita(t *testing.T) {
 		w := pedirAv(t, montarAvisos(t, d), http.MethodPatch, "/api/vehicles/"+avVehStg.String(),
 			avLogisticoDe(t, avSucStg), `{"type":"rastra"}`)
 		avCodigo(t, w, http.StatusBadRequest)
+		if !strings.Contains(w.Body.String(), "El tipo 'rastra' no es de la sucursal de este camión") {
+			t.Fatalf("el 400 no dice la verdad: %s", w.Body.String())
+		}
+		if d.escritos != 0 {
+			t.Fatalf("el 400 llegó DESPUÉS de escribir: %d escrituras", d.escritos)
+		}
+	})
+
+	t.Run("desde el modo «todas», un tipo que sólo existe «de todas» sobre un camión de Santiago: 400", func(t *testing.T) {
+		// La lista de ese modo sólo trae los «de todas»; el nombre se resuelve contra la sucursal del
+		// camión, y si Santiago no lo tiene (lo renombró o lo borró) el 400 lo dice en vez de pegarle
+		// el tipo de todas a un camión de sucursal.
+		d := &dobleAvisos{}
+		*d.catalogo() = append(*d.catalogo(), tipoDePrueba{VehicleType: sqlcTipo("especial", pgtype.UUID{})})
+		w := pedirAv(t, montarAvisos(t, d), http.MethodPatch, "/api/vehicles/"+avVehStg.String(),
+			avSuperSinSucursal(t), `{"type":"especial"}`)
+		avCodigo(t, w, http.StatusBadRequest)
+		if !strings.Contains(w.Body.String(), "El tipo 'especial' no es de la sucursal de este camión") {
+			t.Fatalf("el 400 no dice la verdad: %s", w.Body.String())
+		}
 		if d.escritos != 0 {
 			t.Fatalf("el 400 llegó DESPUÉS de escribir: %d escrituras", d.escritos)
 		}
@@ -382,5 +453,9 @@ func TestUnaSucursalNuevaNaceConLosTiposDeTodas(t *testing.T) {
 }
 
 func sqlcTipo(nombre string, sucursal pgtype.UUID) sqlc.VehicleType {
-	return sqlc.VehicleType{ID: uuid.New(), Nombre: nombre, Activo: true, BranchID: sucursal}
+	return sqlcTipoConID(uuid.New(), nombre, sucursal)
+}
+
+func sqlcTipoConID(id uuid.UUID, nombre string, sucursal pgtype.UUID) sqlc.VehicleType {
+	return sqlc.VehicleType{ID: id, Nombre: nombre, Activo: true, BranchID: sucursal}
 }

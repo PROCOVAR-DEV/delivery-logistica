@@ -1409,23 +1409,29 @@ una vez, y es verdad (cambió su `vehicle_type_id`).
 4. comprobar                             (abajo)
 ```
 
-`sync`, el espejo y la app no cambian: ni leen `vehicle_types` ni cambia ninguna ruta que usen
-(`GET /api/vehicle-types` sólo gana dos campos, `sucursalId` y `sucursal`).
+`sync`, el espejo y la app no cambian: ni leen `vehicle_types` ni cambia ninguna ruta que usen.
+`GET /api/vehicle-types` gana dos campos (`sucursalId` y `sucursal`), y para SUPER ADMIN y
+DESARROLLADOR **sin sucursal elegida** ya no trae todos sino sólo los «de todas» (y crear un tipo ahí
+es 400 «Elige una sucursal arriba…»: la app lo enseña como cualquier otro error del servidor).
 
 **La ventana es lo que dura entre el paso 2 y el 3, y qué pasa en ella:**
 
 - **api VIEJA con la base NUEVA** (es la ventana normal). `GET /api/vehicle-types` devuelve cada
   nombre una vez por sucursal más el de todas, a todo el mundo (el desplegable sale con «truck»
   nueve veces). Un tipo creado en ese rato nace «de todas». Y, lo que importa, el alta o la
-  edición de un camión con `type` busca `WHERE nombre = $1` sin sucursal y se queda **con la
-  primera fila que salga, que puede ser el tipo de OTRA sucursal**: no se nota (se llama igual) y
-  rompe la regla de que el tipo de un camión es de su sucursal. No se pierde nada, pero hay que
-  mirar el paso 4. Si en esos minutos nadie da de alta ni edita un camión, no pasa nada.
+  edición de un camión con `type` busca `WHERE nombre = $1` sin sucursal y se queda con la
+  primera fila que salga, que en la práctica es el tipo **«de todas»** (la fila original, que
+  Postgres devuelve antes que las copias; sin `ORDER BY` no está garantizado): un camión de
+  sucursal quedaría con un tipo «de todas», que rompe la regla de que el tipo de un camión es de su
+  sucursal y que la api nueva no sabe usar. No se pierde nada y el `UPDATE` del paso 4 lo arregla
+  (lo devuelve al tipo del mismo nombre de SU sucursal); hay que mirar el paso 4. Si en esos minutos
+  nadie da de alta ni edita un camión, no pasa nada.
 - **api NUEVA con la base VIEJA** (si se despliega antes de migrar, o si se baja la migración sin
-  bajar la api). Todo `/api/vehicle-types` y el alta o edición de un camión con `type` contestan
-  **500** (`column vt.branch_id does not exist`); la lista de camiones, las rutas y los pedidos
-  siguen. No hay nada que arreglar después: es un error en voz alta, y por eso el orden es migrar
-  primero.
+  bajar la api). Todo `/api/vehicle-types`, el alta o edición de un camión con `type` y también
+  `POST /api/branches` contestan **500** (`column vt.branch_id does not exist`; en el alta de una
+  sucursal la siembra de tipos va en la misma transacción, así que **se deshace el alta entera**);
+  la lista de camiones, las rutas y los pedidos siguen. No hay nada que arreglar después: es un
+  error en voz alta, y por eso el orden es migrar primero.
 
 **Después (paso 4)**, dentro del servidor, en la base `procovar_reparto` (el patrón de §2.2):
 

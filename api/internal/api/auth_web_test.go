@@ -77,7 +77,8 @@ func (a *accesosDeMentira) ultima(ruta string) *peticionVista {
 
 // puertaDePrueba monta SÓLO las rutas de la puerta y `/api/me`, que es la que
 // tiene que reconocer la cookie que se acaba de escribir.
-func puertaDePrueba(t *testing.T, accesos string, llave string) http.Handler {
+// `publica` (opcional) es la `PROCOVAR_AUTH_PUBLIC_URL`; sin ella vale `accesos`.
+func puertaDePrueba(t *testing.T, accesos string, llave string, publica ...string) http.Handler {
 	t.Helper()
 	// Sin dirección pública declarada: se deduce de la petición, que es lo que
 	// pasa en desarrollo. Las pruebas que la necesitan la ponen ellas.
@@ -89,6 +90,9 @@ func puertaDePrueba(t *testing.T, accesos string, llave string) http.Handler {
 		AuthURL:        accesos,
 		AuthClientID:   "reparto",
 		AuthSigningKey: llave,
+	}
+	if len(publica) > 0 {
+		cfg.AuthPublicURL = publica[0]
 	}
 	s := NuevoServidor(cfg, reg,
 		alcance.NuevaPorteria(nil, reg),
@@ -431,6 +435,36 @@ func TestSalirVaPrimeroAAccesos(t *testing.T) {
 	}
 	if len(rec.Result().Cookies()) != 0 {
 		t.Fatal("se borró la cookie ANTES de ir a Accesos: decir que no ahí deja a la persona fuera de la aplicación sin haber querido salir")
+	}
+}
+
+// ACCESOS POR LA RED INTERNA: el servidor le habla por `AuthURL` (la de Docker) y el
+// navegador va a `AuthPublicURL`. Accesos contesta con su URL PÚBLICA, y el login no
+// puede rechazarla por no ser la interna; salir tampoco puede mandar al navegador a un
+// nombre que sólo existe dentro de Docker.
+func TestConAccesosInternoEntrarYSalirVanALaPublica(t *testing.T) {
+	const publica = "https://auth.procovar.test"
+	accesos := levantarAccesos(t, func(string, map[string]any) (int, any) {
+		return http.StatusOK, map[string]any{"redirectUrl": publica + "/sign-in?ticket=abc"}
+	})
+	h := puertaDePrueba(t, accesos.URL, llaveDeFirma, publica)
+
+	if destino := pedir(h, "/api/auth/entrar").Header().Get("Location"); destino != publica+"/sign-in?ticket=abc" {
+		t.Fatalf("entrar no manda a la pública que dijo Accesos: %q", destino)
+	}
+	if accesos.ultima(rutaPedirRedireccion) == nil {
+		t.Fatal("la redirección no se le pidió a Accesos por la interna")
+	}
+	if destino := pedir(h, "/api/auth/logout").Header().Get("Location"); !strings.HasPrefix(destino, publica+"/logout?") {
+		t.Fatalf("salir no manda a la pública: %q", destino)
+	}
+
+	// Y la interna deja de valer como destino del navegador.
+	accesos.responder = func(string, map[string]any) (int, any) {
+		return http.StatusOK, map[string]any{"redirectUrl": accesos.URL + "/sign-in"}
+	}
+	if destino := pedir(h, "/api/auth/entrar").Header().Get("Location"); destino != "http://reparto.test/acceso?sso=error" {
+		t.Fatalf("se mandó al navegador a la interna: %q", destino)
 	}
 }
 

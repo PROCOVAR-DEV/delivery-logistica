@@ -533,11 +533,19 @@ func (s *Servidor) hayLoginUnico() bool {
 	return s.cfg != nil && strings.TrimSpace(s.cfg.AuthSigningKey) != ""
 }
 
-func (s *Servidor) urlDeAccesos() string {
-	if s.cfg == nil {
+// urlDeAccesos es la que ve el NAVEGADOR, no la de servidor a servidor.
+func (s *Servidor) urlDeAccesos() string { return urlPublicaDeAccesos(s.cfg) }
+
+// urlPublicaDeAccesos: `AuthPublicURL`, o `AuthURL` si no la hay (config sin pasar por
+// `Cargar`, como en las pruebas).
+func urlPublicaDeAccesos(cfg *config.Config) string {
+	if cfg == nil {
 		return ""
 	}
-	return strings.TrimRight(strings.TrimSpace(s.cfg.AuthURL), "/")
+	if u := strings.TrimRight(strings.TrimSpace(cfg.AuthPublicURL), "/"); u != "" {
+		return u
+	}
+	return strings.TrimRight(strings.TrimSpace(cfg.AuthURL), "/")
 }
 
 // Las dos rutas del login único en Accesos. Escritas aquí y no repartidas porque
@@ -576,7 +584,8 @@ func (c *ssoDeAccesos) Redireccion(ctx context.Context, callbackURL, volverA str
 	// abierto con nuestro dominio delante: basta que la respuesta de Accesos se
 	// tuerza —o que `AUTH_URL` apunte donde no debe— para mandar a alguien a una
 	// copia del login con nuestra dirección en la barra.
-	if !mismoSitio(r.RedirectURL, c.base()) {
+	// Contra la PÚBLICA: `AuthURL` puede ser la interna de Docker y Accesos contesta con la suya.
+	if !mismoSitio(r.RedirectURL, urlPublicaDeAccesos(c.cfg)) {
 		return "", fmt.Errorf("Accesos mandó a un sitio que no es suyo: %s", recorte(r.RedirectURL, 120))
 	}
 	return r.RedirectURL, nil
@@ -715,13 +724,6 @@ func unirRoles(grupos ...[]string) []string {
 		}
 	}
 	return salida
-}
-
-func (c *ssoDeAccesos) base() string {
-	if c.cfg == nil {
-		return ""
-	}
-	return strings.TrimRight(strings.TrimSpace(c.cfg.AuthURL), "/")
 }
 
 func (c *ssoDeAccesos) clienteID() string {

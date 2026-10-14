@@ -131,7 +131,12 @@ type Config struct {
 	// La llave NO tiene valor por defecto: sin ella no hay firma posible y el cliente lo
 	// dice antes de salir a la red, porque un «401 de auth» es mucho más difícil de
 	// relacionar con una variable que falta.
-	AuthURL        string
+	AuthURL string
+	// AuthPublicURL es la de Accesos que ve el NAVEGADOR (salir y la comprobación de a dónde
+	// manda el login). Va aparte porque `AuthURL` puede ser la interna de Docker
+	// (`http://procovar-auth-kx6aey:3500`) y Accesos contesta con su URL pública. Si no se
+	// configura vale lo mismo que `AuthURL`, que es como funcionaba antes.
+	AuthPublicURL  string
 	AuthClientID   string
 	AuthSigningKey string
 
@@ -356,6 +361,7 @@ func Cargar(version string) (*Config, error) {
 		WebhookDePedidoKey:    strings.TrimSpace(os.Getenv("PEDIDO_WEBHOOK_KEY")),
 		WebhookDePedidoSecret: strings.TrimSpace(os.Getenv("PEDIDO_WEBHOOK_SECRET")),
 		AuthURL:               strings.TrimRight(valor("PROCOVAR_AUTH_URL", "https://auth.procovar.cloud"), "/"),
+		AuthPublicURL:         strings.TrimRight(strings.TrimSpace(os.Getenv("PROCOVAR_AUTH_PUBLIC_URL")), "/"),
 		AuthClientID:          valor("PROCOVAR_AUTH_CLIENT_ID", "delivery"),
 		AuthSigningKey:        strings.TrimSpace(os.Getenv("PROCOVAR_AUTH_SIGNING_KEY")),
 		Redis:                 leerRedis(os.Getenv),
@@ -376,6 +382,10 @@ func Cargar(version string) (*Config, error) {
 			Tipo:    valor("QB_NOTIFY_TIPO", TipoDeAvisoPorDefecto),
 			Destino: strings.TrimSpace(os.Getenv("QB_NOTIFY_DESTINO")),
 		},
+	}
+
+	if c.AuthPublicURL == "" {
+		c.AuthPublicURL = c.AuthURL
 	}
 
 	var errs []error
@@ -428,6 +438,7 @@ func Cargar(version string) (*Config, error) {
 		{"PEDIDO_API_URL", c.PedidoAPIURL},
 		{"DELIVERY_URL", c.DeliveryURL},
 		{"PROCOVAR_AUTH_URL", c.AuthURL},
+		{"PROCOVAR_AUTH_PUBLIC_URL", c.AuthPublicURL},
 		{"WAREHOUSE_API_URL", c.VentraURL},
 		{"QB_NOTIFY_URL", c.Notify.URL},
 	} {

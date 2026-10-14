@@ -72,10 +72,15 @@ ENTORNO=produccion
 ORIGENES_PERMITIDOS=https://reparto.procovar.cloud
 PEDIDO_API_URL=<la interna de pedido-api>
 SERVICE_API_KEY=<la misma que usa delivery hoy>
-PROCOVAR_AUTH_URL=https://auth.procovar.cloud
+PROCOVAR_AUTH_URL=http://procovar-auth-kx6aey:3500
+PROCOVAR_AUTH_PUBLIC_URL=https://auth.procovar.cloud
 PROCOVAR_AUTH_CLIENT_ID=reparto
 PROCOVAR_AUTH_SIGNING_KEY=<la que dé auth para este cliente>
 ```
+
+`PROCOVAR_AUTH_URL` es la de servidor a servidor (red interna de Docker, sin pasar por
+Cloudflare); `PROCOVAR_AUTH_PUBLIC_URL` es la que ve el navegador (entrar y salir). Sin la
+pública, vale la misma que `PROCOVAR_AUTH_URL`: con la interna sola el login se rompe.
 
 **`JWT_SECRET` tiene que ser el MISMO que se le ponga a `auth`.** Si no, el logístico
 entra en auth y la API le contesta 401 sin decir por qué.

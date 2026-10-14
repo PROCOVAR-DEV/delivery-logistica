@@ -140,6 +140,9 @@ func TestSinLasDeFueraArrancaConLosValoresDeLaCasa(t *testing.T) {
 	if c.AuthURL != "https://auth.procovar.cloud" {
 		t.Fatalf("la URL de Accesos por defecto es la de la casa, y salió %q", c.AuthURL)
 	}
+	if c.AuthPublicURL != c.AuthURL {
+		t.Fatalf("sin PROCOVAR_AUTH_PUBLIC_URL la pública es la misma, y salió %q", c.AuthPublicURL)
+	}
 	if c.AuthClientID != "delivery" {
 		t.Fatalf("el cliente por defecto es \"delivery\", y salió %q", c.AuthClientID)
 	}
@@ -618,5 +621,26 @@ func TestLaDescargaCompletaLlegaAlaConfiguracion(t *testing.T) {
 	// rechazaría una y otra vez sin que nadie entienda por qué.
 	if f.SHA256 != huellaDeEjemplo {
 		t.Fatalf("la huella tiene que guardarse en minúsculas: %q", f.SHA256)
+	}
+}
+
+// Accesos por la red interna de Docker: el servidor usa la interna y el navegador la pública.
+func TestAccesosInternoYPublicoVanPorSeparado(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://u:c@localhost:5432/b")
+	t.Setenv("JWT_SECRET", secretoBueno)
+	t.Setenv("PROCOVAR_AUTH_URL", "http://procovar-auth-kx6aey:3500/")
+	t.Setenv("PROCOVAR_AUTH_PUBLIC_URL", "https://auth.procovar.cloud/")
+
+	c, err := config.Cargar("dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.AuthURL != "http://procovar-auth-kx6aey:3500" || c.AuthPublicURL != "https://auth.procovar.cloud" {
+		t.Fatalf("interna %q, pública %q", c.AuthURL, c.AuthPublicURL)
+	}
+
+	t.Setenv("PROCOVAR_AUTH_PUBLIC_URL", "auth.procovar.cloud")
+	if _, err := config.Cargar("dev"); err == nil {
+		t.Fatal("una pública sin esquema tenía que fallar al arrancar")
 	}
 }

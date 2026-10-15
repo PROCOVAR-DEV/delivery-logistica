@@ -59,6 +59,7 @@ func metodoAdmitidoEnRevision(m string) bool {
 // con el `/api` que pone `reparto.Aplicar`:
 //
 //	/routes                       /routes/{id}            /routes/{id}/stops/{pedido}     /routes/{id}/results
+//	/routes/{id}/stops            (PUT, reordenar las paradas: issue 11, 15/10/2026)
 //	/board/columns                /board/columns/{id}     /board/columns/{id}/route
 //	/board/placements/{pedido}
 //
@@ -73,7 +74,7 @@ func metodoAdmitidoEnRevision(m string) bool {
 const idDeRutaEnRevision = `[A-Za-z0-9_-]+`
 
 var reRutaDeRevision = regexp.MustCompile(`^(?:` +
-	`/routes(?:/` + idDeRutaEnRevision + `(?:/stops/` + idDeRutaEnRevision + `|/results)?)?` +
+	`/routes(?:/` + idDeRutaEnRevision + `(?:/stops(?:/` + idDeRutaEnRevision + `)?|/results)?)?` +
 	`|/board/columns(?:/` + idDeRutaEnRevision + `(?:/route)?)?` +
 	`|/board/placements/` + idDeRutaEnRevision +
 	`)(?:\?[A-Za-z0-9._~=&,+:-]*)?$`)

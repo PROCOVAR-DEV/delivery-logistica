@@ -143,6 +143,11 @@ func (a *Acotado) FijarTotalesDeRuta(ctx context.Context, arg sqlc.FijarTotalesD
 	return a.q.FijarTotalesDeRuta(ctx, arg)
 }
 
+func (a *Acotado) FijarOrdenDeParada(ctx context.Context, arg sqlc.FijarOrdenDeParadaParams) (int64, error) {
+	arg.Sucursal = a.sucursalPg()
+	return a.q.FijarOrdenDeParada(ctx, arg)
+}
+
 // ---------------------------------------------------------------------------
 // Cambios de estado  (PATCH /api/routes/[id])
 // ---------------------------------------------------------------------------

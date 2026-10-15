@@ -721,6 +721,11 @@ type Querier interface {
 	// Hace falta guardarlo porque de los datos NO se puede deducir: hay pedidos viejos
 	// sueltos, así que «el más antiguo que tengo» no significa «tengo todo hasta ahí».
 	FijarBarridoDelEspejo(ctx context.Context, syncBarridoDia int32) error
+	// REORDENAR UNA PARADA (`PUT /api/routes/{id}/stops`, issue 11 de Amado). Sólo el orden y su
+	// `segment_km`; NADA de `resultado`, `price` ni `trip_leg`: en una ruta en curso puede haber
+	// marcas que no se tocan. Cero filas = ese pedido ya no va cargado en esta ruta (`route_id`)
+	// o no es de tu sucursal, y el manejador deshace la transacción entera: a medias no vale.
+	FijarOrdenDeParada(ctx context.Context, arg FijarOrdenDeParadaParams) (int64, error)
 	// El recorrido y la firma de quién ordenó, ya con las paradas puestas.
 	// `total_distance` es el CIRCUITO CERRADO: los tramos más el regreso al origen. El camión
 	// vuelve, y no contar la vuelta subestima el viaje justo a la mitad de las rutas largas.

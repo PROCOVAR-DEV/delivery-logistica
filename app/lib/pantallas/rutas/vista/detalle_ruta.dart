@@ -43,6 +43,7 @@ import '../datos/repositorio_rutas.dart';
 import '../estado/proveedores_rutas.dart';
 import 'cierre_de_ruta.dart';
 import 'mapa_de_la_ruta.dart';
+import 'paradas_ordenables.dart';
 import 'tabla_por_producto_y_factura.dart';
 
 /// EL RELLENO DE ABAJO DEL TODO.
@@ -141,6 +142,16 @@ class DetalleDeRuta extends ConsumerWidget {
       // fusión lo metió dentro y once pruebas de la cabecera reventaron).
       const SizedBox(height: 4),
       DistribuidorDeLaRuta(distribuidorId: conTodo.ruta.distribuidorId),
+      // CÓMO ESTÁ ORDENADA (issue 11 de Amado). Sólo donde aún se puede cambiar:
+      // ver `comoEstaOrdenada`, por qué en una completada no se enseña.
+      if (conTodo.ruta.status != EstadoRuta.completada) ...[
+        const SizedBox(height: 4),
+        Text(
+          comoEstaOrdenada(optimizada: conTodo.ruta.optimized),
+          key: claveDeComoEstaOrdenada,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
       const SizedBox(height: 12),
       // EL MAPA, con sus cuatro gestos —abrir en Google Maps, WhatsApp,
       // compartir y copiar. Antes aqui habia medio gesto: un boton que
@@ -292,6 +303,7 @@ const claveDeVolverDeLaQueNoEsta = ValueKey('ruta-que-ya-no-esta-volver');
 /// por su texto ataria la prueba a como se llaman hoy, y justo el texto es una
 /// de las cosas que cambia: sólo `Ver cierre` en una ruta completada.
 const claveDelCierre = ValueKey('ruta-cierre');
+const claveDeComoEstaOrdenada = ValueKey('ruta-como-esta-ordenada');
 const claveDeCompletar = ValueKey('ruta-marcar-como-completada');
 
 class _Cabecera extends ConsumerWidget {
@@ -478,6 +490,11 @@ class _Acciones extends ConsumerWidget {
           final paradas =
               ref.watch(paradasDeRutaProvider(ruta.ruta.id)).value ??
               ruta.paradas;
+          // LA RUTA VIVA: el estado y la firma de quién ordenó cambian con el
+          // cajón delante (al reordenar, o si otro la completa).
+          final viva =
+              ref.watch(rutaConTodoProvider(ruta.ruta.id)).value?.ruta ??
+              ruta.ruta;
           // LO QUE HAY QUE BAJAR EN CADA PARADA.
           //
           // Jose, 17/09/2026: «el chofer debe saber qué es lo que se tiene
@@ -494,27 +511,27 @@ class _Acciones extends ConsumerWidget {
             subtitulo: ruta.ruta.routeCode ?? ruta.ruta.id,
             cuerpo: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < paradas.length; i++)
-                    TarjetaDeParada(
-                      numero: paradas[i].stopOrder ?? i + 1,
-                      parada: paradas[i],
-                      origenLat: ruta.ruta.originLat,
-                      origenLng: ruta.ruta.originLng,
-                      lineas:
-                          renglones[paradas[i].id] ?? const <RenglonConPeso>[],
-                      alQuitar: ruta.ruta.status == EstadoRuta.planificada
-                          ? () => _quitarDeLaRuta(
-                              context,
-                              ref,
-                              ruta.ruta.id,
-                              paradas[i],
-                            )
-                          : null,
-                    ),
-                ],
+              // REORDENAR ARRASTRANDO (issue 11): en una ruta no completada
+              // cada parada lleva su asa y arriba «Ordenar por cercanía».
+              child: ParadasOrdenables(
+                rutaId: viva.id,
+                estado: viva.status,
+                optimizada: viva.optimized,
+                paradas: paradas,
+                alReordenar: ({orden}) => ref
+                    .read(accionesDeRutaProvider)
+                    .reordenar(viva.id, orden: orden),
+                tarjeta: (parada, numero, asa) => TarjetaDeParada(
+                  numero: numero,
+                  parada: parada,
+                  asa: asa,
+                  origenLat: viva.originLat,
+                  origenLng: viva.originLng,
+                  lineas: renglones[parada.id] ?? const <RenglonConPeso>[],
+                  alQuitar: viva.status == EstadoRuta.planificada
+                      ? () => _quitarDeLaRuta(context, ref, viva.id, parada)
+                      : null,
+                ),
               ),
             ),
           );
@@ -943,11 +960,16 @@ class TarjetaDeParada extends StatelessWidget {
     this.origenLat,
     this.origenLng,
     this.alQuitar,
+    this.asa,
     super.key,
   });
 
   final int numero;
   final Pedido parada;
+
+  /// El asa para arrastrar la parada a otro sitio del orden (`ParadasOrdenables`),
+  /// o `null` donde no se reordena.
+  final Widget? asa;
 
   /// EL PUNTO DE PARTIDA DE LA RUTA, que es de la ruta y no de la parada.
   ///
@@ -975,6 +997,7 @@ class TarjetaDeParada extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          ?asa,
           // El número de la parada, el mismo que lleva en el mapa.
           CircleAvatar(
             radius: 14,

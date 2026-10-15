@@ -150,6 +150,9 @@ COPY docs/numero-de-factura.casos.json /docs/numero-de-factura.casos.json
 # `internal/api/punto_de_salida_casos_compartidos_test.go` lee `docs/punto-de-salida.casos.json`
 # (00020, 15/10/2026): de qué almacén sale la ruta de una zona, la misma regla que el aparato.
 COPY docs/punto-de-salida.casos.json /docs/punto-de-salida.casos.json
+# `internal/api/reordenar_paradas_casos_compartidos_test.go` lee `docs/reordenar-paradas.casos.json`
+# (issue 11, 15/10/2026): reordenar las paradas de una ruta, la misma regla que el aparato.
+COPY docs/reordenar-paradas.casos.json /docs/reordenar-paradas.casos.json
 
 # Y EL COMPOSE, POR LA MISMA RAZÓN — 24/09/2026
 #

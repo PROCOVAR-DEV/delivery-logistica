@@ -1,0 +1,103 @@
+{
+  "queEsEsto": "REORDENAR LAS PARADAS DE UNA RUTA YA ARMADA (issue 11 de Amado, 15/10/2026). La regla se escribe DOS veces: en el servidor (`PUT /api/routes/{id}/stops`, `api/internal/api/rutas.go`: `ordenPorCercania`, `kmDelRecorrido` y `motivoDelOrden`) y en el aparato, que reordena sin señal (`app/lib/pantallas/rutas/datos/geo.dart`: `ordenPorCercania` y `kmDelCircuito`; `acciones_rutas.dart`: `motivoDelOrden`). Si se separan, la APK enseña un orden y unos km y al subir el servidor guarda otros, o rechaza con otras palabras. Este fichero las ata (CLAUDE.md §3-bis: con una prueba, no con un comentario).",
+  "quienLoLee": [
+    "api/internal/api/reordenar_paradas_casos_compartidos_test.go",
+    "app/test/pantallas/rutas/reordenar_paradas_casos_compartidos_test.dart"
+  ],
+  "laRegla": "Por cercanía: las paradas CON punto, por `ordenDeVisita` desde el ORIGEN de la ruta (el mismo algoritmo que arma la ruta: vecino más próximo + 2-opt + Or-opt sobre el circuito cerrado, `docs/orden-de-paradas.casos.json`); las que NO tienen punto, al final y en el orden que traían. A mano: la lista ENTERA de las paradas cargadas, sin repetir ni sobrar ninguna. En los dos casos `totalKm` es el circuito cerrado (origen → paradas con punto en su orden → origen) y el km de cada parada es la RADIAL del origen a ella, que no depende del orden.",
+  "toleranciaKm": 1e-09,
+  "comoSeLee": "`paradas` va en el orden actual de la ruta (`stop_order`). Una parada con `lat`/`lng` nulos no tiene punto. En `rechazos`, `codigo` 0 y `motivo` vacío es que el orden vale.",
+  "sinOrigen": "La ruta no tiene punto de salida: sin él no se pueden medir los km ni ordenar por cercanía.",
+  "origen": { "lat": 20.0247, "lng": -75.8219 },
+  "paradas": [
+    { "id": "00000000-0000-4000-8000-00000000000a", "conduce": "PTB-1", "cliente": "Vista Alegre", "lat": 20.035, "lng": -75.805 },
+    { "id": "00000000-0000-4000-8000-00000000000b", "conduce": "PTB-2", "cliente": "Altamira", "lat": 20.052, "lng": -75.853 },
+    { "id": "00000000-0000-4000-8000-00000000000c", "conduce": "PTB-3", "cliente": "Abel Santamaría", "lat": 20.043, "lng": -75.815 },
+    { "id": "00000000-0000-4000-8000-00000000000d", "conduce": "PTB-4", "cliente": "Sueño", "lat": 20.03, "lng": -75.826 },
+    { "id": "00000000-0000-4000-8000-00000000000e", "conduce": null, "cliente": "Bodega sin mapa", "lat": null, "lng": null },
+    { "id": "00000000-0000-4000-8000-00000000000f", "conduce": "PTB-6", "cliente": "El Caney", "lat": 20.056, "lng": -75.78 }
+  ],
+  "radialKm": {
+    "00000000-0000-4000-8000-00000000000a": 2.104477517360884,
+    "00000000-0000-4000-8000-00000000000b": 4.4463254829273975,
+    "00000000-0000-4000-8000-00000000000c": 2.158764648501708,
+    "00000000-0000-4000-8000-00000000000d": 0.7285469423564541,
+    "00000000-0000-4000-8000-00000000000f": 5.5920515529654855
+  },
+  "porCercania": {
+    "nota": "El óptimo del circuito (medido a fuerza bruta, 18,0947 km) es a-f-c-b-d o su reverso; el algoritmo arranca por la más cercana al origen (d) y sale el reverso. La parada sin mapa (e) va al final.",
+    "orden": [
+      "00000000-0000-4000-8000-00000000000d",
+      "00000000-0000-4000-8000-00000000000b",
+      "00000000-0000-4000-8000-00000000000c",
+      "00000000-0000-4000-8000-00000000000f",
+      "00000000-0000-4000-8000-00000000000a",
+      "00000000-0000-4000-8000-00000000000e"
+    ],
+    "totalKm": 18.094738406669812
+  },
+  "aMano": [
+    {
+      "nombre": "el orden en que estaban",
+      "orden": [
+        "00000000-0000-4000-8000-00000000000a",
+        "00000000-0000-4000-8000-00000000000b",
+        "00000000-0000-4000-8000-00000000000c",
+        "00000000-0000-4000-8000-00000000000d",
+        "00000000-0000-4000-8000-00000000000e",
+        "00000000-0000-4000-8000-00000000000f"
+      ],
+      "totalKm": 24.603184508784658
+    },
+    {
+      "nombre": "arrastrando El Caney al principio y la de sin mapa en medio",
+      "orden": [
+        "00000000-0000-4000-8000-00000000000f",
+        "00000000-0000-4000-8000-00000000000e",
+        "00000000-0000-4000-8000-00000000000a",
+        "00000000-0000-4000-8000-00000000000b",
+        "00000000-0000-4000-8000-00000000000c",
+        "00000000-0000-4000-8000-00000000000d"
+      ],
+      "totalKm": 21.122602049411196
+    }
+  ],
+  "rechazos": [
+    {
+      "nombre": "la lista exacta, en otro orden, vale",
+      "orden": ["00000000-0000-4000-8000-00000000000f", "00000000-0000-4000-8000-00000000000e", "00000000-0000-4000-8000-00000000000d", "00000000-0000-4000-8000-00000000000c", "00000000-0000-4000-8000-00000000000b", "00000000-0000-4000-8000-00000000000a"],
+      "codigo": 0,
+      "motivo": ""
+    },
+    {
+      "nombre": "falta una",
+      "orden": ["00000000-0000-4000-8000-00000000000a", "00000000-0000-4000-8000-00000000000b", "00000000-0000-4000-8000-00000000000d", "00000000-0000-4000-8000-00000000000e", "00000000-0000-4000-8000-00000000000f"],
+      "codigo": 409,
+      "motivo": "El nuevo orden no coincide con las paradas de la ruta (falta PTB-3). Vuelve a abrir la ruta y ordénala otra vez."
+    },
+    {
+      "nombre": "faltan dos (una sin conduce se nombra por su cliente) y sobra una",
+      "orden": ["00000000-0000-4000-8000-00000000000a", "00000000-0000-4000-8000-00000000000b", "00000000-0000-4000-8000-00000000000c", "00000000-0000-4000-8000-00000000000d", "00000000-0000-4000-8000-0000000000ff"],
+      "codigo": 409,
+      "motivo": "El nuevo orden no coincide con las paradas de la ruta (faltan Bodega sin mapa, PTB-6; sobra 1 pedido que no va en ella). Vuelve a abrir la ruta y ordénala otra vez."
+    },
+    {
+      "nombre": "sobran dos",
+      "orden": ["00000000-0000-4000-8000-00000000000a", "00000000-0000-4000-8000-00000000000b", "00000000-0000-4000-8000-00000000000c", "00000000-0000-4000-8000-00000000000d", "00000000-0000-4000-8000-00000000000e", "00000000-0000-4000-8000-00000000000f", "00000000-0000-4000-8000-0000000000fe", "00000000-0000-4000-8000-0000000000ff"],
+      "codigo": 409,
+      "motivo": "El nuevo orden no coincide con las paradas de la ruta (sobran 2 pedidos que no van en ella). Vuelve a abrir la ruta y ordénala otra vez."
+    },
+    {
+      "nombre": "repite una",
+      "orden": ["00000000-0000-4000-8000-00000000000a", "00000000-0000-4000-8000-00000000000b", "00000000-0000-4000-8000-00000000000a", "00000000-0000-4000-8000-00000000000c", "00000000-0000-4000-8000-00000000000d", "00000000-0000-4000-8000-00000000000e", "00000000-0000-4000-8000-00000000000f"],
+      "codigo": 400,
+      "motivo": "El nuevo orden repite la parada PTB-1: cada parada va una sola vez."
+    },
+    {
+      "nombre": "vacío sobre una ruta con paradas: faltan todas",
+      "orden": [],
+      "codigo": 409,
+      "motivo": "El nuevo orden no coincide con las paradas de la ruta (faltan PTB-1, PTB-2, PTB-3, PTB-4, Bodega sin mapa, PTB-6). Vuelve a abrir la ruta y ordénala otra vez."
+    }
+  ]
+}

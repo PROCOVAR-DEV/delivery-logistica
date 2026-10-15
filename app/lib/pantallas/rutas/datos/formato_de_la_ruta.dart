@@ -71,6 +71,15 @@ import 'geo.dart';
 /// que mas caro sale aqui (`CLAUDE.md` §2 y §4).
 String pesoDeLaRuta(double kg) => Numeros.kgRedondeado(kg);
 
+/// COMO ESTA ORDENADA LA RUTA (issue 11 de Amado: «no me quedó claro el
+/// principio que utilizas»). Sale de `routes.optimized`, la firma de quien ordenó
+/// las paradas: la ponen el armado, el tablero y el reordenar, y desde el
+/// 21/09/2026 dice la verdad. Antes de esa fecha valía `true` siempre, y por eso
+/// el detalle sólo la enseña en rutas que no están completadas.
+String comoEstaOrdenada({required bool optimizada}) => optimizada
+    ? 'Orden de visita: por cercanía al punto de salida'
+    : 'Orden de visita: a mano (el de la zona del tablero, o arrastrado)';
+
 /// LO QUE UNA PARADA DICE QUE HAY DESDE LA PARTIDA, o por que no lo dice.
 ///
 /// Devuelve el rotulo entero de la insignia, no solo el numero, porque **los

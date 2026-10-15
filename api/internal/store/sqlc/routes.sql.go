@@ -676,6 +676,41 @@ func (q *Queries) EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoA
 	return result.RowsAffected(), nil
 }
 
+const fijarOrdenDeParada = `-- name: FijarOrdenDeParada :execrows
+UPDATE orders SET
+    stop_order = $1,
+    segment_km = $2
+WHERE id = $3
+  AND route_id = $4
+  AND ($5::uuid IS NULL OR branch_id = $5::uuid)
+`
+
+type FijarOrdenDeParadaParams struct {
+	StopOrder *int32      `json:"stop_order"`
+	SegmentKm *float64    `json:"segment_km"`
+	PedidoID  uuid.UUID   `json:"pedido_id"`
+	RutaID    pgtype.UUID `json:"ruta_id"`
+	Sucursal  pgtype.UUID `json:"sucursal"`
+}
+
+// REORDENAR UNA PARADA (`PUT /api/routes/{id}/stops`, issue 11 de Amado). Sólo el orden y su
+// `segment_km`; NADA de `resultado`, `price` ni `trip_leg`: en una ruta en curso puede haber
+// marcas que no se tocan. Cero filas = ese pedido ya no va cargado en esta ruta (`route_id`)
+// o no es de tu sucursal, y el manejador deshace la transacción entera: a medias no vale.
+func (q *Queries) FijarOrdenDeParada(ctx context.Context, arg FijarOrdenDeParadaParams) (int64, error) {
+	result, err := q.db.Exec(ctx, fijarOrdenDeParada,
+		arg.StopOrder,
+		arg.SegmentKm,
+		arg.PedidoID,
+		arg.RutaID,
+		arg.Sucursal,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const fijarTotalesDeRuta = `-- name: FijarTotalesDeRuta :one
 UPDATE routes SET
     total_distance = $1,

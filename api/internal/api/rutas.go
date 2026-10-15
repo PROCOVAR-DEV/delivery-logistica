@@ -67,6 +67,13 @@ const (
 	msgParadaNoPertenece   = "El pedido no pertenece a una ruta planificada o ya fue retirado"
 	// Sólo completar fija el histórico. Una marca de parada no cierra la ruta.
 	msgRutaCompletada = "La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico."
+	// LOS «NO» DE REORDENAR (`PUT /api/routes/{id}/stops`, issue 11 de Amado). Constantes para
+	// que la app los diga igual sin señal (`acciones_rutas.dart`).
+	msgOrdenSinForma = "Manda `orden` con todas las paradas de la ruta en su nuevo orden, o `porCercania: true`."
+	msgOrdenRepetido = "El nuevo orden repite la parada %s: cada parada va una sola vez."
+	msgOrdenNoCuadra = "El nuevo orden no coincide con las paradas de la ruta (%s). " +
+		"Vuelve a abrir la ruta y ordénala otra vez."
+	msgRutaSinOrigen = "La ruta no tiene punto de salida: sin él no se pueden medir los km ni ordenar por cercanía."
 	// EL PUNTO DE PARTIDA TIENE QUE CAER EN EL PLANETA. Ver `puntoDelPlaneta`.
 	msgOrigenImposible = "El punto de partida (%s, %s) no es un punto del mapa: " +
 		"la latitud va de -90 a 90 y la longitud de -180 a 180. " +
@@ -263,6 +270,37 @@ func ordenDelLogistico(ids []uuid.UUID, paradas []paradaGeo) []uuid.UUID {
 		}
 	}
 	return orden
+}
+
+// kmDelRecorrido son los dos números de una ruta ya ordenada, y los usan las dos puertas que
+// ordenan: armar (`crearRuta`) y reordenar (`ordenarParadas`). Es la gemela de `kmDelCircuito`
+// y `haversineKm` en `app/lib/pantallas/rutas/datos/geo.dart`.
+//
+//   - `total`: el CIRCUITO CERRADO, origen→p1→…→pn→origen. Sin la vuelta, las rutas largas
+//     salen a la mitad de lo que son.
+//   - `radial`: por parada, la línea recta del origen a ese cliente (`segment_km`), que es con
+//     lo que se cobra el domicilio. NO es el tramo del recorrido, así que no cambia al
+//     reordenar.
+func kmDelRecorrido(origenLat, origenLng float64, ordenadas []paradaGeo) (total float64, radial map[uuid.UUID]float64) {
+	radial = make(map[uuid.UUID]float64, len(ordenadas))
+	anteriorLat, anteriorLng := origenLat, origenLng
+	for _, p := range ordenadas {
+		total += kmHaversine(anteriorLat, anteriorLng, p.lat, p.lng)
+		radial[p.id] = kmHaversine(origenLat, origenLng, p.lat, p.lng)
+		anteriorLat, anteriorLng = p.lat, p.lng
+	}
+	if len(ordenadas) > 0 {
+		total += kmHaversine(anteriorLat, anteriorLng, origenLat, origenLng)
+	}
+	return total, radial
+}
+
+// ordenPorCercania es el «Ordenar por cercanía» de una ruta ya armada: las paradas CON punto,
+// por `ordenDeVisita` desde el origen; las que no lo tienen, al final y en el orden que traían
+// —la misma regla que `porCercania` del tablero—. Su gemela es `ordenPorCercania` de
+// `geo.dart`, y las ata `docs/reordenar-paradas.casos.json`.
+func ordenPorCercania(origenLat, origenLng float64, conPunto []paradaGeo, sinPunto []uuid.UUID) []uuid.UUID {
+	return append(ordenDeVisita(origenLat, origenLng, conPunto), sinPunto...)
 }
 
 // vecinoMasProximo es el greedy de siempre devolviendo las paradas en vez de sus ids:
@@ -628,10 +666,10 @@ type RenglonDeParada struct {
 // El montaje
 // ---------------------------------------------------------------------------
 
-// rutasDeReparto cuelga las seis rutas del recurso.
+// rutasDeReparto cuelga las rutas del recurso.
 //
 // TODAS van con sesión y alcance, NINGUNA con `admin`: el contrato dice «Auth: usuario»
-// en las seis. Armar y cerrar rutas es el trabajo diario del logístico, no una tarea de
+// en todas. Armar y cerrar rutas es el trabajo diario del logístico, no una tarea de
 // administración; exigir admin aquí dejaría a la sucursal sin poder despachar. El
 // parámetro `admin` se recibe igual para que el montaje se lea idéntico al de los demás
 // recursos y para no tener que cambiar la firma el día que alguna lo pida.
@@ -644,6 +682,7 @@ func (s *Servidor) rutasDeReparto(rt *httpx.Router, sesion, admin []httpx.Medio)
 	rt.ManejarFunc(http.MethodPatch, "/api/routes/{id}", s.actualizarRuta, sesion...)
 	rt.ManejarFunc(http.MethodDelete, "/api/routes/{id}", s.borrarRuta, sesion...)
 	rt.ManejarFunc(http.MethodDelete, "/api/routes/{id}/stops/{orderId}", s.quitarParadaPlanificada, sesion...)
+	rt.ManejarFunc(http.MethodPut, "/api/routes/{id}/stops", s.ordenarParadas, sesion...)
 	rt.ManejarFunc(http.MethodPost, "/api/routes/{id}/results", s.cerrarRuta, sesion...)
 }
 
@@ -1028,18 +1067,11 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 	//    vuelta incluida. Sin la vuelta, las rutas largas salen a la mitad de lo que son.
 	//  - `segmentKm` de cada pedido es la distancia RADIAL del origen a ese cliente, que
 	//    es con lo que se cobra el domicilio. No es el tramo del recorrido.
-	var distanciaTotal float64
-	segmentos := map[uuid.UUID]float64{}
-	anteriorLat, anteriorLng := origenLat, origenLng
+	ordenadas := make([]paradaGeo, 0, len(orden))
 	for _, id := range orden {
-		p := porID[id]
-		distanciaTotal += kmHaversine(anteriorLat, anteriorLng, p.lat, p.lng)
-		segmentos[id] = kmHaversine(origenLat, origenLng, p.lat, p.lng)
-		anteriorLat, anteriorLng = p.lat, p.lng
+		ordenadas = append(ordenadas, porID[id])
 	}
-	if len(orden) > 0 {
-		distanciaTotal += kmHaversine(anteriorLat, anteriorLng, origenLat, origenLng)
-	}
+	distanciaTotal, segmentos := kmDelRecorrido(origenLat, origenLng, ordenadas)
 
 	// --- El código de ruta --------------------------------------------------
 	//
@@ -1531,6 +1563,204 @@ func (s *Servidor) quitarParadaPlanificada(w http.ResponseWriter, r *http.Reques
 	avisarCambioDePedidos(r.Context(), sucursal)
 	avisarCambioDelTablero(r.Context(), sucursal)
 	httpx.JSON(w, r, http.StatusOK, map[string]bool{"success": true})
+}
+
+// ---------------------------------------------------------------------------
+// PUT /api/routes/{id}/stops — reordenar las paradas (issue 11 de Amado, 15/10/2026)
+// ---------------------------------------------------------------------------
+
+// cuerpoOrdenarParadas: UNA de las dos formas. `orden` es la lista ENTERA de las paradas
+// cargadas (`route_id`) en el orden nuevo; `porCercania` la calcula el servidor desde el
+// origen de la ruta. `orden: []` vale para una ruta sin paradas; `null` es no mandarla.
+type cuerpoOrdenarParadas struct {
+	Orden       []string `json:"orden"`
+	PorCercania bool     `json:"porCercania"`
+}
+
+// rechazoDelOrden corta la transacción con su código y su motivo literal.
+type rechazoDelOrden struct {
+	codigo int
+	motivo string
+}
+
+func (e rechazoDelOrden) Error() string { return e.motivo }
+
+// motivoDelOrden dice por qué el orden pedido no vale, o "" si es la lista exacta de las
+// paradas cargadas. NADA DE REORDENAR A MEDIAS: una parada que faltara se quedaría con su
+// número viejo, repetido con el de otra, y la hoja del camión saldría con dos «3». Las que
+// faltan se nombran por su conduce; las que sobran sólo se cuentan (pueden ser de otra
+// sucursal, y nombrarlas sería contar algo de ellas). Los literales los ata
+// `docs/reordenar-paradas.casos.json`, que lee también la app.
+func motivoDelOrden(pedido []uuid.UUID, filas []sqlc.ListarParadasDeRutasRow) (int, string) {
+	cargadas := make(map[uuid.UUID]sqlc.ListarParadasDeRutasRow, len(filas))
+	for _, f := range filas {
+		cargadas[f.ID] = f
+	}
+	visto := make(map[uuid.UUID]bool, len(pedido))
+	sobran := 0
+	for _, id := range pedido {
+		if visto[id] {
+			nombre := id.String()
+			if f, ok := cargadas[id]; ok {
+				nombre = quienEs(f.OperationNumber, f.CustomerName)
+			}
+			return http.StatusBadRequest, fmt.Sprintf(msgOrdenRepetido, nombre)
+		}
+		visto[id] = true
+		if _, ok := cargadas[id]; !ok {
+			sobran++
+		}
+	}
+	var faltan []string
+	for _, f := range filas {
+		if !visto[f.ID] {
+			faltan = append(faltan, quienEs(f.OperationNumber, f.CustomerName))
+		}
+	}
+	var partes []string
+	switch len(faltan) {
+	case 0:
+	case 1:
+		partes = append(partes, "falta "+faltan[0])
+	default:
+		partes = append(partes, "faltan "+strings.Join(faltan, ", "))
+	}
+	switch sobran {
+	case 0:
+	case 1:
+		partes = append(partes, "sobra 1 pedido que no va en ella")
+	default:
+		partes = append(partes, fmt.Sprintf("sobran %d pedidos que no van en ella", sobran))
+	}
+	if len(partes) == 0 {
+		return 0, ""
+	}
+	return http.StatusConflict, fmt.Sprintf(msgOrdenNoCuadra, strings.Join(partes, "; "))
+}
+
+// paradasConYSinPunto separa las paradas que se pueden medir de las que no, conservando el
+// orden en que vienen. Una coordenada fuera del planeta cuenta como sin punto: su NaN se
+// comería `total_distance` y con él la respuesta entera (ver `puntoDelPlaneta`).
+func paradasConYSinPunto(filas []sqlc.ListarParadasDeRutasRow) (conPunto []paradaGeo, sinPunto []uuid.UUID) {
+	for _, f := range filas {
+		if f.EndLat == nil || f.EndLng == nil || !puntoDelPlaneta(*f.EndLat, *f.EndLng) {
+			sinPunto = append(sinPunto, f.ID)
+			continue
+		}
+		conPunto = append(conPunto, paradaGeo{id: f.ID, lat: *f.EndLat, lng: *f.EndLng})
+	}
+	return conPunto, sinPunto
+}
+
+// ordenarParadas fija el orden de visita de una ruta NO completada y, en la misma
+// transacción, lo que sale de él: `stop_order`, el `segment_km` de cada parada desde el
+// origen de la ruta, `total_distance` (con la vuelta, `kmDelRecorrido`, la misma cuenta que
+// al armar) y la firma `optimized` —`true` sólo si lo ordenó la máquina—.
+//
+// Planificada o en curso, sí: el chófer que ya salió también puede cambiar de plan. Sólo
+// `completed` es histórico (CLAUDE.md §1) y se rechaza bajo el bloqueo de fila.
+func (s *Servidor) ordenarParadas(w http.ResponseWriter, r *http.Request) {
+	a, ok := acotado(w, r)
+	if !ok {
+		return
+	}
+	id, ok := idDeRuta(w, r, httpx.MsgNoEncontrado)
+	if !ok {
+		return
+	}
+	var c cuerpoOrdenarParadas
+	if !httpx.LeerJSON(w, r, &c) {
+		return
+	}
+	if c.PorCercania == (c.Orden != nil) {
+		httpx.Error(w, r, http.StatusBadRequest, msgOrdenSinForma)
+		return
+	}
+	pedido := make([]uuid.UUID, 0, len(c.Orden))
+	for _, crudo := range c.Orden {
+		pid, err := uuid.Parse(strings.TrimSpace(crudo))
+		if err != nil {
+			httpx.Error(w, r, http.StatusBadRequest, "Identificador de pedido no válido")
+			return
+		}
+		pedido = append(pedido, pid)
+	}
+
+	var ruta sqlc.ObtenerRutaRow
+	err := a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
+		var err error
+		ruta, err = rutaEditableEnTx(r.Context(), tx, id)
+		if err != nil {
+			return err
+		}
+		if ruta.OriginLat == nil || ruta.OriginLng == nil {
+			return rechazoDelOrden{http.StatusConflict, msgRutaSinOrigen}
+		}
+		origenLat, origenLng := *ruta.OriginLat, *ruta.OriginLng
+		filas, err := tx.ParadasDeRutas(r.Context(), []uuid.UUID{id})
+		if err != nil {
+			return err
+		}
+		conPunto, sinPunto := paradasConYSinPunto(filas)
+		orden := pedido
+		if c.PorCercania {
+			orden = ordenPorCercania(origenLat, origenLng, conPunto, sinPunto)
+		} else if codigo, motivo := motivoDelOrden(pedido, filas); motivo != "" {
+			return rechazoDelOrden{codigo, motivo}
+		}
+
+		porID := make(map[uuid.UUID]paradaGeo, len(conPunto))
+		for _, g := range conPunto {
+			porID[g.id] = g
+		}
+		ordenadas := make([]paradaGeo, 0, len(conPunto))
+		for _, pid := range orden {
+			if g, ok := porID[pid]; ok {
+				ordenadas = append(ordenadas, g)
+			}
+		}
+		total, radial := kmDelRecorrido(origenLat, origenLng, ordenadas)
+		for i, pid := range orden {
+			n := int32(i + 1)
+			var km *float64 // sin punto, sin km: un hueco se ve, un cero se cree
+			if v, ok := radial[pid]; ok {
+				km = &v
+			}
+			tocadas, err := tx.FijarOrdenDeParada(r.Context(), sqlc.FijarOrdenDeParadaParams{
+				StopOrder: &n, SegmentKm: km, PedidoID: pid, RutaID: pgDe(id),
+			})
+			if err != nil {
+				return err
+			}
+			if tocadas == 0 {
+				// Salió de la ruta entre la lectura y la escritura (otro cierre, otro «quitar»).
+				return rechazoDelOrden{http.StatusConflict,
+					fmt.Sprintf(msgOrdenNoCuadra, "una parada dejó la ruta mientras se ordenaba")}
+			}
+		}
+		_, err = tx.FijarTotalesDeRuta(r.Context(), sqlc.FijarTotalesDeRutaParams{
+			TotalDistance: total, Optimizado: &c.PorCercania, ID: id,
+		})
+		return err
+	})
+	var rechazo rechazoDelOrden
+	switch {
+	case errors.Is(err, errRutaCompletada):
+		httpx.Error(w, r, http.StatusConflict, msgRutaCompletada)
+		return
+	case errors.Is(err, pgx.ErrNoRows):
+		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNoEncontrado)
+		return
+	case errors.As(err, &rechazo):
+		httpx.Error(w, r, rechazo.codigo, rechazo.motivo)
+		return
+	case err != nil:
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	rastroDeQuien(r, "ruta: paradas reordenadas", "ruta", id, "por_cercania", c.PorCercania)
+	avisarCambioDeRutas(r.Context(), deLaFilaPg(ruta.BranchID))
+	s.responderConLaRuta(w, r, a, id, http.StatusOK)
 }
 
 func (s *Servidor) borrarRuta(w http.ResponseWriter, r *http.Request) {

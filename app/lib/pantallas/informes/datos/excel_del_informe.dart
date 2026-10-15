@@ -52,9 +52,9 @@ import 'dart:typed_data';
 
 import 'package:intl/intl.dart';
 
+import '../../../nucleo/numero_de_factura.dart';
 import 'consultas_informes.dart';
 import 'hoja_de_calculo.dart';
-import 'numero_de_factura.dart';
 
 /// La moneda en la que se escribe el fichero, con lo que hace falta para
 /// llegar a ella.

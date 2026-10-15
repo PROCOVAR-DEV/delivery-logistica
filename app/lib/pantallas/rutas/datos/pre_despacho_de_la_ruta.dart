@@ -36,12 +36,26 @@
 // facturas cuadre con la tabla de arriba se ata con una prueba y no con un
 // comentario.
 //
+// **«La factura» es `orders.factura_numero`** (el de Ventra, `1024237`), por la misma regla
+// que el tablero, Pedidos y los reportes: `NumeroDeFactura` (`nucleo/numero_de_factura.dart`).
+// Antes esta tabla usaba el folio (`PTB25-261005-1479`) y caía a `factura_numero` si faltaba:
+// el almacén leía en el papel un número que el resto de la aplicación no llamaba factura. Sin
+// `factura_numero` la fila dice «Sin número»; NO cae al folio.
+//
+// **Un pedido con varias facturas (`1024237, 1024240`) es UNA fila-grupo con las dos, no dos.**
+// `order_items` no dice qué renglón salió de qué factura, así que separar el pedido en dos
+// facturas obliga a repetir sus renglones en cada una: la suma de «Por factura» dejaría de
+// cuadrar con la tabla de arriba (lo ata la prueba de las ataduras) y el almacén rebajaría
+// DOS veces la misma mercancía de sus tarjetas de estiba. Cuando el renglón sepa su factura,
+// el cambio es `NumeroDeFactura.separar` aquí.
+//
 // Funciona igual sin conexión (APK y escritorio: la base local) y en la web (su
 // base en memoria, que llena la bajada): es el mismo código sobre la misma
 // tabla `order_items`.
 
 import '../../../impresion/hoja.dart' as papel;
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/numero_de_factura.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 
 /// El pre-despacho de una ruta: la tabla de producto a producto y el reparto por
@@ -56,36 +70,15 @@ class PreDespachoDeLaRuta {
   final List<papel.FacturaDelPreDespacho> facturas;
 }
 
-/// EL NÚMERO DE FACTURA DE UN PEDIDO.
-///
-/// El «conduce» de Amado es el número de operación de la factura
-/// (`orders.operation_number`; Jose, 07/10/2026, `docs/reglas-negocio.md`) y es
-/// lo que ya nombra a cada parada en el detalle, en el cierre y en todos los
-/// rechazos del armado. Esta tabla usa el MISMO número, para que el almacén lea
-/// en el papel lo que el chofer lee en la parada.
-///
-/// Si el pedido no trae ninguno cae a `facturaNumero` —el número con el que
-/// cuadró en Ventra—, y si tampoco, `null`: la tabla dice «Sin número» en vez de
-/// inventar uno. **Es la única función que decide cuál es «la factura»**: si
-/// resulta que el almacén rebaja las tarjetas con el otro número, es éste el
-/// sitio donde se cambia.
-String? numeroDeFactura(Pedido pedido) {
-  for (final candidato in [pedido.operationNumber, pedido.facturaNumero]) {
-    final limpio = candidato?.trim();
-    if (limpio != null && limpio.isNotEmpty) return limpio;
-  }
-  return null;
-}
-
 /// El orden de las facturas en la tabla: por número, sin distinguir mayúsculas;
 /// las que no tienen número, al final, y a igualdad el orden de la parada.
 ///
-/// ponytail: orden alfabético del texto, no natural. Con números de ancho fijo
-/// (`PTB25-261005-1479`) coincide con el numérico; si algún día llegan números
+/// ponytail: orden alfabético del texto, no natural. Con números de Ventra de ancho
+/// fijo (`1024237`, siete cifras) coincide con el numérico; si algún día llegan números
 /// de distinto largo («9» y «10») hay que pasar a orden natural aquí.
 int ordenDeLasFacturas(Pedido a, Pedido b) {
-  final na = numeroDeFactura(a)?.toLowerCase();
-  final nb = numeroDeFactura(b)?.toLowerCase();
+  final na = NumeroDeFactura.de(a.facturaNumero)?.toLowerCase();
+  final nb = NumeroDeFactura.de(b.facturaNumero)?.toLowerCase();
   if (na != nb) {
     if (na == null) return 1;
     if (nb == null) return -1;
@@ -111,7 +104,7 @@ Future<PreDespachoDeLaRuta> preDespachoDeLaRuta(
     final suyo = await pedidos.preDespachoDe([parada.id]);
     facturas.add(
       papel.FacturaDelPreDespacho(
-        numero: numeroDeFactura(parada),
+        numero: NumeroDeFactura.de(parada.facturaNumero),
         cliente: parada.customerName,
         lineas: lineasDelPapel(suyo),
       ),

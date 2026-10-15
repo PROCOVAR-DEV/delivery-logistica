@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
-import 'numero_de_factura.dart';
+import '../../../nucleo/numero_de_factura.dart';
 
 /// Lo que se le pide al informe. Sin valores por defecto: arranca sin rango y
 /// sin vehiculo (pliego §7).
@@ -85,9 +85,10 @@ class FilaDeInforme {
   final String? placa;
   final double? kmDesdePartida;
 
-  /// El número de factura del pedido (issue 9 de Amado). Sale de
-  /// [NumeroDeFactura.de] y de ningún otro sitio. `null` = el pedido no tiene
-  /// número, y se pinta con la raya: nunca en blanco ni inventado.
+  /// El número de factura del pedido (issue 9 de Amado): su `factura_numero`, el de
+  /// Ventra, sin caer nunca al folio. Sale de [NumeroDeFactura.de] y de ningún otro
+  /// sitio. `null` = el pedido no tiene número, y se pinta con la raya: nunca en
+  /// blanco ni inventado.
   final String? factura;
 }
 
@@ -208,7 +209,7 @@ class ConsultasInformes {
     const sql = '''
 SELECT o.id, o.customer_name, o.address, o.end_address, o.weight,
        o.price, o.pedido_costo, o.segment_km, o.created_at,
-       o.operation_number, o.factura_numero,
+       o.factura_numero,
        COALESCE(r.route_code, r.name) AS ruta_nombre,
        v.id    AS vehiculo_id,
        v.name  AS vehiculo_nombre,
@@ -329,10 +330,7 @@ SELECT o.id, o.customer_name, o.address, o.end_address, o.weight,
           vehiculo: f.read<String?>('vehiculo_nombre'),
           placa: f.read<String?>('vehiculo_placa'),
           kmDesdePartida: f.read<double?>('segment_km'),
-          factura: NumeroDeFactura.de(
-            operationNumber: f.read<String?>('operation_number'),
-            facturaNumero: f.read<String?>('factura_numero'),
-          ),
+          factura: NumeroDeFactura.de(f.read<String?>('factura_numero')),
         ),
       );
     }

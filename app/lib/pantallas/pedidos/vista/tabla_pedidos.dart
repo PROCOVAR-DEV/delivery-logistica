@@ -26,6 +26,7 @@ import 'package:flutter/material.dart';
 
 import '../../../diseno/tema.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/numero_de_factura.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
 import '../datos/estado_reparto.dart';
@@ -712,7 +713,10 @@ class _Factura extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final numero = pedido.facturaNumero ?? '';
+    // El MISMO texto que la tarjeta, la ficha, el tablero y los reportes (`NumeroDeFactura`):
+    // crudo, la comilla de Excel de una factura que bajó antes del arreglo se veía aquí
+    // y en ningún otro sitio.
+    final numero = NumeroDeFactura.de(pedido.facturaNumero) ?? '—';
     switch (pedido.facturaEstado) {
       case EstadoFactura.igual:
         return _ConCobro(

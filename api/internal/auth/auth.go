@@ -184,6 +184,10 @@ const LlaveEntrarReparto = "delivery.entrar"
 // `entradas`, y esta constante y la lista de roles de `PuedeEntrarAReparto`
 // se borran. `TestLaCaidaPorRolesEsDeTransicion` la nombra para que no se olvide.
 //
+// 15/10/2026: en vez de quitarla a ciegas, [PermitirReparto] apunta en el registro cada entrada
+// por esta caída («entró por la caída de roles (token sin entradas)»). Se quita cuando en
+// producción pase un día entero sin ese renglón (`docker service logs reparto-api-…`).
+//
 // Jose, 08/10/2026: «Reparto no decide quién entra; eso lo maneja Auth (Accesos); Reparto es un
 // microservicio y el login es de Auth». Antes (mismo día) la lista de roles ERA la regla.
 const CaidaPorRolesDeTransicion = true

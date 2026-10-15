@@ -64,12 +64,20 @@ const (
 // (correo o id, como el alcance) y ruta. Con eso basta para contestar «¿por qué no entra
 // Pedro?» sin abrir nada más.
 func PermitirReparto(w http.ResponseWriter, r *http.Request, u *Usuario) bool {
-	if u.PuedeEntrarAReparto() {
-		return true
-	}
 	quien := u.Email
 	if quien == "" {
 		quien = u.ID
+	}
+	if u.PuedeEntrarAReparto() {
+		// ENTRÓ POR LA CAÍDA DE ROLES ([CaidaPorRolesDeTransicion]): su token no trae `entradas`.
+		// Se apunta (15/10/2026) para quitar la caída con datos y no a ciegas: si un día entero no
+		// sale este renglón en producción, nadie depende de ella. Sin esto sólo se veían los
+		// rechazos, y quitarla podía dejar fuera a un cliente que nadie recordaba.
+		if !u.HayEntradas {
+			httpx.Registro(r).Warn("entró por la caída de roles (token sin entradas)",
+				"rol", u.Rol, "roles", u.Roles, "sucursal", u.Sucursal, "persona", quien, "ruta", r.URL.Path)
+		}
+		return true
 	}
 	httpx.Registro(r).Warn("sin permiso de reparto",
 		"rol", u.Rol, "roles", u.Roles, "sucursal", u.Sucursal, "persona", quien, "ruta", r.URL.Path,

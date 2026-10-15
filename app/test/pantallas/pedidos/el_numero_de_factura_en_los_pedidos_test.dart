@@ -30,6 +30,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
+import 'package:reparto/nucleo/numero_de_factura.dart';
 import 'package:reparto/pantallas/pedidos/datos/formato.dart';
 import 'package:reparto/pantallas/pedidos/datos/repositorio_pedidos.dart';
 import 'package:reparto/pantallas/pedidos/estado/proveedores_pedidos.dart';
@@ -331,16 +332,19 @@ void main() {
   });
 
   group('las funciones que lo deciden', () {
-    test('numeroDeFactura: vacío es nulo y la comilla de Excel se quita', () {
-      expect(numeroDeFactura(null), isNull);
-      expect(numeroDeFactura(''), isNull);
-      expect(numeroDeFactura('   '), isNull);
-      expect(numeroDeFactura('1024237'), '1024237');
-      expect(numeroDeFactura(' 1024237 '), '1024237');
-      expect(numeroDeFactura("'1024237"), '1024237');
-      // Dos facturas juntas, como las escribe el cotejo de PEDIDO.
-      expect(numeroDeFactura('1024237, 1024240'), '1024237, 1024240');
-    });
+    test(
+      'NumeroDeFactura.de: vacío es nulo y la comilla de Excel se quita',
+      () {
+        expect(NumeroDeFactura.de(null), isNull);
+        expect(NumeroDeFactura.de(''), isNull);
+        expect(NumeroDeFactura.de('   '), isNull);
+        expect(NumeroDeFactura.de('1024237'), '1024237');
+        expect(NumeroDeFactura.de(' 1024237 '), '1024237');
+        expect(NumeroDeFactura.de("'1024237"), '1024237');
+        // Dos facturas juntas, como las escribe el cotejo de PEDIDO.
+        expect(NumeroDeFactura.de('1024237, 1024240'), '1024237, 1024240');
+      },
+    );
 
     test('etiquetaDeFactura: la fecha sólo sale CON número', () {
       final cuando = DateTime(2026, 10, 12, 9, 30);

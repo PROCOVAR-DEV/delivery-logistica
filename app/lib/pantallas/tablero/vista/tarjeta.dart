@@ -162,7 +162,8 @@ class TarjetaDePedido extends ConsumerWidget {
               // la tarjeta, que es la misma en las dos mitades y en el feedback del
               // arrastre (280 px), y suma una linea de alto. Sin numero no sale nada:
               // «Sin factura» / «Sin cotejar» ya lo dicen las marcas de abajo. El
-              // folio de arriba es OTRO numero (el conduce): ver `numeroDeFactura`.
+              // folio de arriba es OTRO numero (el conduce): ver `NumeroDeFactura`
+              // (`nucleo/numero_de_factura.dart`).
               if (etiquetaDeFactura(pedido.facturaNumero) case final factura?)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 2),

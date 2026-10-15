@@ -1027,10 +1027,11 @@ ORDER BY pedidos DESC;
 -- por el otro es el error que este COALESCE hace visible en un solo sitio.
 --
 -- `operation_number` y `factura_numero` salen CRUDOS (issue 9 de Amado: la columna de
--- facturas). Cuál de los dos es «el número de factura» lo decide `numeroDeFactura` en
--- `internal/api/informes.go` —manda la operación, respalda la factura—, atado al aparato por
--- `docs/numero-de-factura.casos.json`. No se resuelve aquí en SQL a propósito: son DOS
--- escritos de la regla y no tres.
+-- facturas). «El número de factura» es SÓLO `factura_numero` (el de Ventra; el folio
+-- `operation_number` NO lo es y no hace de respaldo): lo decide `numeroDeFactura` en
+-- `internal/api/informes.go`, atado al aparato por `docs/numero-de-factura.casos.json`, que
+-- lleva un folio distinto en cada pedido para que se vea si alguien lo usa. No se resuelve
+-- aquí en SQL a propósito: son DOS escritos de la regla y no tres.
 -- name: ListarPedidosParaInforme :many
 SELECT
     o.id, o.customer_name, o.address, o.end_address, o.weight,

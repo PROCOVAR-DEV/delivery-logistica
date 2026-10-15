@@ -3,20 +3,20 @@ package api
 // EL NÚMERO DE FACTURA DE LOS REPORTES, Y QUE SEA EL MISMO QUE EL DEL APARATO.
 //
 // Issue 9 de Amado: «Adicionar la factura como elemento de referencia importante:
-// adicionar a los reportes la columna de facturas».
+// adicionar a los reportes la columna de facturas». Decisión de Jose, 14/10/2026: «factura» es
+// `orders.factura_numero` —el de Ventra— en TODA la aplicación; el folio (`operation_number`, el
+// «conduce») no lo es, y sin `factura_numero` no hay número: no se cae al folio.
 //
-// La regla —manda el número de operación (el «conduce»), respalda el de la factura de
-// Ventra, si faltan los dos no hay número— está escrita DOS veces: aquí
-// (`numeroDeFactura`, que contesta `GET /api/reports`) y en el aparato
-// (`NumeroDeFactura.de`, que arma el informe de la APK, del escritorio y de la web con su
-// base local). Si se separan, el mismo informe lleva un número en la pantalla y otro en el
-// Excel del servidor, y no falla nada: se lee igual de bien. Un comentario no falla
-// (`CLAUDE.md` §3-bis).
+// La regla está escrita DOS veces: aquí (`numeroDeFactura`, que contesta `GET /api/reports`) y en
+// el aparato (`NumeroDeFactura.de`, que arma el informe de la APK, del escritorio y de la web con
+// su base local, y de la que cuelgan el tablero, Pedidos y el pre-despacho). Si se separan, el
+// mismo pedido lleva un número en la pantalla y otro en el Excel del servidor, y no falla nada:
+// se lee igual de bien. Un comentario no falla (`CLAUDE.md` §3-bis).
 //
 // `docs/numero-de-factura.casos.json` lo leen esta prueba y
-// `app/test/pantallas/informes/el_numero_de_factura_test.dart`. Es EL MISMO fichero, no una
-// copia: una copia se desincroniza y entonces las dos pruebas salen verdes diciendo cosas
-// distintas.
+// `app/test/nucleo/el_numero_de_factura_test.dart` (más las de las pantallas). Es EL MISMO
+// fichero, no una copia: una copia se desincroniza y entonces las dos pruebas salen verdes
+// diciendo cosas distintas.
 
 import (
 	"encoding/json"
@@ -38,10 +38,10 @@ import (
 const rutaDeLosCasosDeFactura = "../../../docs/numero-de-factura.casos.json"
 
 type casoDeNumero struct {
-	Nombre          string  `json:"nombre"`
-	OperationNumber *string `json:"operationNumber"`
-	FacturaNumero   *string `json:"facturaNumero"`
-	Esperado        *string `json:"esperado"`
+	Nombre        string   `json:"nombre"`
+	FacturaNumero *string  `json:"facturaNumero"`
+	Esperado      *string  `json:"esperado"`
+	Separadas     []string `json:"separadas"`
 }
 
 type pedidoDeCaso struct {
@@ -107,36 +107,84 @@ func numeroOHueco(p *string) string {
 func TestElNumeroDeFacturaEsElDelAparato(t *testing.T) {
 	f := leerCasosDeFactura(t)
 
-	// El caso que motivó todo esto tiene que seguir estando: sin esta comprobación, quitarlo
+	// Los casos que motivaron todo esto tienen que seguir estando: sin esta comprobación, quitarlos
 	// del JSON deja la suite en verde y la regla sin vigilante.
-	hayPrincipal := false
+	hay := map[string]bool{}
 	for _, c := range f.Resolver {
-		if c.Nombre == "con los dos gana el número de operación" {
-			hayPrincipal = true
-		}
+		hay[c.Nombre] = true
 		t.Run(c.Nombre, func(t *testing.T) {
-			salio := numeroDeFactura(c.OperationNumber, c.FacturaNumero)
+			salio := numeroDeFactura(c.FacturaNumero)
 			if numeroOHueco(salio) != numeroOHueco(c.Esperado) {
-				t.Errorf("con operationNumber=%s y facturaNumero=%s el número tiene que ser %s y "+
-					"salió %s.\nEs la misma regla que `NumeroDeFactura.de` del aparato "+
-					"(app/lib/pantallas/informes/datos/numero_de_factura.dart): si cambia, "+
-					"cambian los DOS lados y %s.",
-					numeroOHueco(c.OperationNumber), numeroOHueco(c.FacturaNumero),
-					numeroOHueco(c.Esperado), numeroOHueco(salio), rutaDeLosCasosDeFactura)
+				t.Errorf("con facturaNumero=%s el número tiene que ser %s y salió %s.\n"+
+					"Es la misma regla que `NumeroDeFactura.de` del aparato "+
+					"(app/lib/nucleo/numero_de_factura.dart): si cambia, cambian los DOS lados y %s.",
+					numeroOHueco(c.FacturaNumero), numeroOHueco(c.Esperado), numeroOHueco(salio),
+					rutaDeLosCasosDeFactura)
+			}
+			separadas := numerosDeFactura(c.FacturaNumero)
+			if len(separadas) != len(c.Separadas) || (len(separadas) > 0 && !reflect.DeepEqual(separadas, c.Separadas)) {
+				t.Errorf("con facturaNumero=%s las facturas sueltas tienen que ser %q y salieron %q "+
+					"(`NumeroDeFactura.separar` del aparato)",
+					numeroOHueco(c.FacturaNumero), c.Separadas, separadas)
 			}
 		})
 	}
-	if !hayPrincipal {
-		t.Fatal("al fichero de casos le falta «con los dos gana el número de operación»")
+	for _, requerido := range []string{
+		"un número de Ventra se dice tal cual",
+		"varias facturas del pedido se dicen tal cual, y separadas son dos",
+		"la comilla de Excel se quita",
+		"nulo no es un número",
+	} {
+		if !hay[requerido] {
+			t.Fatalf("al fichero de casos le falta «%s»", requerido)
+		}
+	}
+}
+
+// LA PAREJA QUE LE IMPORTA A AMADO, escrita a mano y sin el fichero: con factura_numero sale ESE
+// número aunque el folio sea otro; sin él no sale ninguno aunque haya folio. Si alguien vuelve a
+// hacer que el folio respalde a la factura, el fichero de casos ya lo caza; esto lo dice con
+// palabras.
+func TestElFolioNoHaceDeFactura(t *testing.T) {
+	camion := uuid.New()
+	conFactura := filaDeInforme("Con factura", 10, 1, &camion, "Camión 1")
+	folio, factura := "PTB25-261005-1479", "1024237"
+	conFactura.OperationNumber, conFactura.FacturaNumero = &folio, &factura
+	sinFactura := filaDeInforme("Sin factura", 10, 1, &camion, "Camión 1")
+	otroFolio := "PTB25-261005-1480"
+	sinFactura.OperationNumber = &otroFolio
+
+	h := montarDePanel(t, &dobleDePanel{informe: []sqlc.ListarPedidosParaInformeRow{conFactura, sinFactura}})
+	w := pedirDePanel(t, h, "/api/reports", tokenDePanel(t, map[string]any{"sub": "u1", "role": "SUPER ADMIN"}))
+	if w.Code != http.StatusOK {
+		t.Fatalf("código %d: %s", w.Code, w.Body.String())
+	}
+	inf := leerJSONDePanel[InformeSalida](t, w)
+	porCliente := map[string]*string{}
+	for _, o := range inf.Orders {
+		porCliente[o.CustomerName] = o.InvoiceNumber
+	}
+	if got := numeroOHueco(porCliente["Con factura"]); got != `"1024237"` {
+		t.Errorf("con factura_numero el número tiene que ser el de Ventra, \"1024237\"; salió %s", got)
+	}
+	if got := numeroOHueco(porCliente["Sin factura"]); got != "null" {
+		t.Errorf("sin factura_numero tiene que salir null, aunque el pedido tenga folio; salió %s "+
+			"(caer al folio es lo que hacía decir números distintos a cada pantalla)", got)
+	}
+	if v := inf.ByVehicle[0]; !reflect.DeepEqual(v.InvoiceNumbers, []string{"1024237"}) || v.WithoutInvoice != 1 {
+		t.Errorf("el camión tiene que listar [1024237] y contar 1 sin número; salió %q y %d",
+			v.InvoiceNumbers, v.WithoutInvoice)
 	}
 }
 
 func TestLaAgrupacionDeFacturasEsLaDelAparato(t *testing.T) {
 	for _, c := range leerCasosDeFactura(t).Agrupar {
 		t.Run(c.Nombre, func(t *testing.T) {
+			// Como el servidor: cada pedido pasa primero por `numeroDeFactura`, y la agrupación
+			// parte ese texto otra vez (con varias facturas, `1024237, 1024240`).
 			var numeros []*string
 			for _, p := range c.Pedidos {
-				numeros = append(numeros, numeroDeFactura(p.OperationNumber, p.FacturaNumero))
+				numeros = append(numeros, numeroDeFactura(p.FacturaNumero))
 			}
 			facturas, sin := agruparFacturas(numeros)
 			if !reflect.DeepEqual(facturas, c.Facturas) && !(len(facturas) == 0 && len(c.Facturas) == 0) {

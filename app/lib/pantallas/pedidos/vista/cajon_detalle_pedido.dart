@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
+import '../../../nucleo/numero_de_factura.dart';
 import '../../../nucleo/plataforma.dart';
 import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcel;
 
@@ -193,7 +194,7 @@ class _BandaFactura extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final numero = numeroDeFactura(pedido.facturaNumero) ?? '—';
+    final numero = NumeroDeFactura.de(pedido.facturaNumero) ?? '—';
     // EL NÚMERO Y LA FECHA, DELANTE Y GRANDES — Amado, 14/10/2026 (issues 6 y 8). Hasta
     // hoy el número sólo salía metido en la frase de abajo y la fecha no salía.
     final cabecera = etiquetaDeFactura(

@@ -905,7 +905,7 @@ class _DetalleDelPedido extends ConsumerWidget {
         //    Sin número se dice con letras y no se deja un hueco: en el tablero
         //    sólo se ofrece lo facturado, así que un pedido sin número aquí es un
         //    dato que falta y conviene que se vea. El folio —el conduce— ya es el
-        //    título del cajón, y es OTRO número (`numeroDeFactura`).
+        //    título del cajón, y es OTRO número (`NumeroDeFactura`).
         _Dato(
           Icons.receipt_long_outlined,
           etiquetaDeFactura(

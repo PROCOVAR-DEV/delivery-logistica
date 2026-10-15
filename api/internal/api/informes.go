@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"procovar/reparto-api/internal/espejo"
 	"procovar/reparto-api/internal/httpx"
 	"procovar/reparto-api/internal/store/sqlc"
 )
@@ -55,8 +56,9 @@ type InformePedido struct {
 	VehicleName  *string    `json:"vehicleName"`
 	VehiclePlate *string    `json:"vehiclePlate"`
 	// InvoiceNumber es el número de factura del pedido (issue 9 de Amado: la columna de
-	// facturas de los reportes): el número de operación —el «conduce» de Amado— y, si falta,
-	// el de la factura de Ventra. `null` = el pedido no tiene ninguno. Ver `numeroDeFactura`.
+	// facturas de los reportes): su `factura_numero`, el de Ventra, y nada más —NO el folio
+	// (`operation_number`, el «conduce»)—. Con varias facturas, `1024237, 1024240`. `null` =
+	// el pedido no tiene ninguna. Ver `numeroDeFactura`.
 	InvoiceNumber *string `json:"invoiceNumber"`
 }
 
@@ -73,9 +75,10 @@ type InformeVehiculo struct {
 	Count   int     `json:"count"`
 	Revenue float64 `json:"revenue"`
 	Weight  float64 `json:"weight"`
-	// InvoiceNumbers son los números de factura de sus pedidos, SIN REPETIR y en el orden en
-	// que salen en `orders`; WithoutInvoice, cuántos de sus `count` pedidos no tienen número.
-	// Es sólo la lista de referencias: no cambia `count` ni ningún total. Ver `agruparFacturas`.
+	// InvoiceNumbers son las FACTURAS de sus pedidos, una a una (un pedido con dos aporta las
+	// dos), SIN REPETIR y en el orden en que salen en `orders`; WithoutInvoice, cuántos de sus
+	// `count` pedidos no tienen ninguna. Es sólo la lista de referencias: no cambia `count` ni
+	// ningún total. Ver `agruparFacturas`.
 	InvoiceNumbers []string `json:"invoiceNumbers"`
 	WithoutInvoice int      `json:"withoutInvoice"`
 }
@@ -135,7 +138,7 @@ func (s *Servidor) informe(w http.ResponseWriter, r *http.Request) {
 	// `agruparFacturas` que prueba el fichero de casos compartido con el aparato.
 	numeros := map[uuid.UUID][]*string{}
 	for _, f := range filas {
-		factura := numeroDeFactura(f.OperationNumber, f.FacturaNumero)
+		factura := numeroDeFactura(f.FacturaNumero)
 		salida.Orders = append(salida.Orders, InformePedido{
 			ID: f.ID, CustomerName: f.CustomerName, Address: f.Address,
 			EndAddress: f.EndAddress, Weight: f.Weight, Price: f.Ingreso,
@@ -186,51 +189,73 @@ func (s *Servidor) informe(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, r, http.StatusOK, salida)
 }
 
-// numeroDeFactura es el número que lleva la columna «Factura» de los reportes (issue 9 de
-// Amado): el NÚMERO DE OPERACIÓN del pedido —el «conduce» de Amado; Jose, 07/10/2026— y,
-// si falta, el número de la factura de Ventra (`factura_numero`, que sólo existe cuando hay
-// factura). Sin blancos en los extremos; vacío o en blanco es «falta»; si faltan los dos,
-// `nil`: nunca un texto inventado.
+// LA FACTURA DE UN PEDIDO ES `factura_numero` —el de Ventra— Y NADA MÁS (decisión de Jose,
+// 14/10/2026, tras el issue 9 de Amado).
 //
-// ESTÁ ESCRITA DOS VECES: aquí y en el aparato (`NumeroDeFactura.de`,
-// `app/lib/pantallas/informes/datos/numero_de_factura.dart`), porque el informe de la APK,
-// del escritorio y de la web lo arma la aplicación con su base local. Las ata
-// `docs/numero-de-factura.casos.json` (prueba `numero_de_factura_casos_compartidos_test.go`):
-// un comentario no falla (CLAUDE.md §3-bis).
-func numeroDeFactura(operacion, factura *string) *string {
-	if n := limpiarNumero(operacion); n != nil {
-		return n
+// Hay dos números en el pedido: `operation_number` (el folio, `PTB25-261005-1479`, el «conduce»)
+// y `factura_numero` (`1024237`, el `operNumber` de Ventra; con más de una factura PEDIDO las junta
+// con coma: `1024237, 1024240`). Antes los reportes y el pre-despacho enseñaban el folio y caían a
+// la factura si faltaba, mientras el tablero y Pedidos enseñaban la factura: la misma aplicación
+// decía dos números para lo mismo. Ahora «factura» es `factura_numero` en toda la app, y **sin él NO
+// hay número: no se cae al folio** (caer al folio es lo que mezclaba números de dos clases en la
+// misma columna).
+//
+// ESTÁ ESCRITA DOS VECES: aquí y en el aparato (`NumeroDeFactura`,
+// `app/lib/nucleo/numero_de_factura.dart`), porque el informe de la APK, del escritorio y de la web
+// lo arma la aplicación con su base local. Las ata `docs/numero-de-factura.casos.json` (prueba
+// `numero_de_factura_casos_compartidos_test.go`): un comentario no falla (CLAUDE.md §3-bis).
+
+// numerosDeFactura parte el `factura_numero` crudo en sus facturas, una a una: sin blancos en los
+// extremos —los de Unicode también, y el BOM, que es lo que `trim()` de Dart quita—, sin la comilla
+// de Excel que pudo bajar delante (`'1024237`) y sin trozos vacíos. Vacío si no hay ninguna.
+func numerosDeFactura(crudo *string) []string {
+	if crudo == nil {
+		return nil
 	}
-	return limpiarNumero(factura)
+	sinComilla := espejo.SinLaComillaDeExcel(blancosFuera(*crudo))
+	var facturas []string
+	for _, trozo := range strings.Split(sinComilla, ",") {
+		if n := blancosFuera(trozo); n != "" {
+			facturas = append(facturas, n)
+		}
+	}
+	return facturas
 }
 
-// limpiarNumero quita los blancos de los extremos —los de Unicode también, y el BOM, que es
-// lo que `trim()` de Dart quita— y dice `nil` si no queda nada.
-func limpiarNumero(texto *string) *string {
-	if texto == nil {
+// numeroDeFactura es el número que lleva la columna «Factura» de los reportes: las facturas de
+// `numerosDeFactura` juntas con coma y espacio, o `nil` si el pedido no tiene ninguna. Nunca un
+// texto inventado.
+func numeroDeFactura(crudo *string) *string {
+	facturas := numerosDeFactura(crudo)
+	if len(facturas) == 0 {
 		return nil
 	}
-	n := strings.TrimFunc(*texto, func(r rune) bool { return unicode.IsSpace(r) || r == '\ufeff' })
-	if n == "" {
-		return nil
-	}
+	n := strings.Join(facturas, ", ")
 	return &n
 }
 
-// agruparFacturas junta los números de los pedidos de un camión: los que hay, SIN REPETIR y en
-// el orden en que aparecen, y cuántos pedidos se quedaron sin número. La ida y la vuelta de un
-// mismo pedido llevan el mismo número y salen una vez. Nunca devuelve `nil` en la lista (sale
-// `[]` en el JSON, no `null`). Mismo contrato que `NumeroDeFactura.agrupar` del aparato.
+func blancosFuera(texto string) string {
+	return strings.TrimFunc(texto, func(r rune) bool { return unicode.IsSpace(r) || r == '\ufeff' })
+}
+
+// agruparFacturas junta las facturas de los pedidos de un camión: cada una UNA vez, en el orden en
+// que aparecen —un pedido con dos aporta las dos, y la ida y la vuelta de un mismo pedido llevan la
+// misma—, y cuántos pedidos se quedaron sin ninguna. Recibe el crudo o el ya resuelto por
+// `numeroDeFactura`: partir dos veces da lo mismo. Nunca devuelve `nil` en la lista (sale `[]` en el
+// JSON, no `null`). Mismo contrato que `NumeroDeFactura.agrupar` del aparato.
 func agruparFacturas(numeros []*string) (facturas []string, sinFactura int) {
 	facturas = []string{}
 	vistos := map[string]bool{}
-	for _, n := range numeros {
-		switch {
-		case n == nil:
+	for _, crudo := range numeros {
+		suyas := numerosDeFactura(crudo)
+		if len(suyas) == 0 {
 			sinFactura++
-		case !vistos[*n]:
-			vistos[*n] = true
-			facturas = append(facturas, *n)
+		}
+		for _, n := range suyas {
+			if !vistos[n] {
+				vistos[n] = true
+				facturas = append(facturas, n)
+			}
 		}
 	}
 	return facturas, sinFactura

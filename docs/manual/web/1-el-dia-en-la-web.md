@@ -162,7 +162,7 @@ tarjeta: eso es el teléfono, que no tiene las dos mitades a la vez.
    - Los filtros son **«Día del pedido»**, **«Municipio»**, **«Vendedor»**, **«Hasta
      cuántos km del almacén»** (se aplica al salir del campo o con intro) y **«Cobro
      del domicilio»**. Para quitarlos, **«Quitar todos los filtros»**.
-2. O usa **el buscador**, que dice «Cliente, operación, dirección, artículo…» y
+2. O usa **el buscador**, que dice «Cliente, operación, factura, dirección, artículo…» y
    **filtra mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
    - Si pone **«Se ven 200 de 308.»**, haz clic en **«Ver 108 más»**.
 3. **Agarra la tarjeta del pedido** en la mitad izquierda, arrástrala hasta la zona

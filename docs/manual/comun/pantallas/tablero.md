@@ -54,7 +54,7 @@ No es un fallo. Es para que lo de allá no pise lo que hiciste aquí. Sube prime
 
 ## Buscar y filtrar la mitad izquierda
 
-- **El buscador** dice «Cliente, operación, dirección, artículo…» y **filtra al
+- **El buscador** dice «Cliente, operación, factura, dirección, artículo…» y **filtra al
   escribir**, sin darle a Intro.
 - **El embudo** abre los filtros:
   - **«Día del pedido»**

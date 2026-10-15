@@ -115,7 +115,7 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
                   ancho: null,
                   // La misma caja de la lista de pedidos, contenido de los
                   // renglones incluido: «¿que pedidos llevan malta?».
-                  pista: 'Cliente, operación, dirección, artículo…',
+                  pista: 'Cliente, operación, factura, dirección, artículo…',
                   alBuscar: (texto) => FiltrosEnLaUrl.poner(
                     context,
                     ref,

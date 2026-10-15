@@ -112,7 +112,7 @@ contador y la lista tienen que decir lo mismo: lo ata una prueba (CLAUDE.md §3-
 este párrafo.
 
 Filtros de la mitad izquierda: día del pedido, búsqueda libre (la misma caja de la lista de
-pedidos: cliente, operación, dirección, municipio, vendedor y el **contenido de los
+pedidos: cliente, operación, factura, dirección, municipio, vendedor y el **contenido de los
 renglones** — «¿qué pedidos llevan malta?»), municipio, vendedor y un corte por kilómetros.
 
 ### La mitad derecha — las columnas

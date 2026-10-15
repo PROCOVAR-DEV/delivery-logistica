@@ -389,7 +389,7 @@ previsto».
 
    Y para quitarlos, **«Quitar todos los filtros»**. Cuando hay filtros puestos, el
    embudo lleva un punto.
-3. O usa el buscador de arriba: **«Cliente, operación, dirección, artículo…»**.
+3. O usa el buscador de arriba: **«Cliente, operación, factura, dirección, artículo…»**.
    Filtra **según escribes**, sin darle a nada.
    <!-- señala: tablero-sin-colocar-buscar -->
    - **Si pone «Se ven 200 de 308.»** en ámbar, toca **«Ver 108 más»** para cargar
@@ -5281,7 +5281,7 @@ No es un fallo. Es para que lo de allá no pise lo que hiciste aquí. Sube prime
 
 ## Buscar y filtrar la mitad izquierda
 
-- **El buscador** dice «Cliente, operación, dirección, artículo…» y **filtra al
+- **El buscador** dice «Cliente, operación, factura, dirección, artículo…» y **filtra al
   escribir**, sin darle a Intro.
 - **El embudo** abre los filtros:
   - **«Día del pedido»**
@@ -7303,7 +7303,7 @@ cada tarjeta y se elige la zona en el cajón.
    - Abre **«Día del pedido»**, **«Municipio»**, **«Vendedor»**, **«Hasta cuántos km
      del almacén»** (se aplica al salir del campo o con intro) y **«Cobro del
      domicilio»**.
-2. O usa **el buscador** («Cliente, operación, dirección, artículo…»), que **filtra
+2. O usa **el buscador** («Cliente, operación, factura, dirección, artículo…»), que **filtra
    mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
    - Si pone **«Se ven 200 de 308.»**, clic en **«Ver 108 más»**.
 3. **Agarra la tarjeta con el ratón**, arrástrala hasta la zona señalada y
@@ -8394,7 +8394,7 @@ tarjeta: eso es el teléfono, que no tiene las dos mitades a la vez.
    - Los filtros son **«Día del pedido»**, **«Municipio»**, **«Vendedor»**, **«Hasta
      cuántos km del almacén»** (se aplica al salir del campo o con intro) y **«Cobro
      del domicilio»**. Para quitarlos, **«Quitar todos los filtros»**.
-2. O usa **el buscador**, que dice «Cliente, operación, dirección, artículo…» y
+2. O usa **el buscador**, que dice «Cliente, operación, factura, dirección, artículo…» y
    **filtra mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
    - Si pone **«Se ven 200 de 308.»**, haz clic en **«Ver 108 más»**.
 3. **Agarra la tarjeta del pedido** en la mitad izquierda, arrástrala hasta la zona

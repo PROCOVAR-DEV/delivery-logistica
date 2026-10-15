@@ -142,7 +142,7 @@ cada tarjeta y se elige la zona en el cajón.
    - Abre **«Día del pedido»**, **«Municipio»**, **«Vendedor»**, **«Hasta cuántos km
      del almacén»** (se aplica al salir del campo o con intro) y **«Cobro del
      domicilio»**.
-2. O usa **el buscador** («Cliente, operación, dirección, artículo…»), que **filtra
+2. O usa **el buscador** («Cliente, operación, factura, dirección, artículo…»), que **filtra
    mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
    - Si pone **«Se ven 200 de 308.»**, clic en **«Ver 108 más»**.
 3. **Agarra la tarjeta con el ratón**, arrástrala hasta la zona señalada y

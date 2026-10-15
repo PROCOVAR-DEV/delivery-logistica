@@ -196,7 +196,7 @@ previsto».
 
    Y para quitarlos, **«Quitar todos los filtros»**. Cuando hay filtros puestos, el
    embudo lleva un punto.
-3. O usa el buscador de arriba: **«Cliente, operación, dirección, artículo…»**.
+3. O usa el buscador de arriba: **«Cliente, operación, factura, dirección, artículo…»**.
    Filtra **según escribes**, sin darle a nada.
    <!-- señala: tablero-sin-colocar-buscar -->
    - **Si pone «Se ven 200 de 308.»** en ámbar, toca **«Ver 108 más»** para cargar

@@ -142,6 +142,43 @@ const _laTablaDeAmado = <List<String>>[
   ['Total', '', '29', '198', '≥ 250.0'],
 ];
 
+/// Un tercer pedido SIN `factura_numero` y con folio, que es la PRIMERA parada:
+/// la tabla lo pone «Sin número» y AL FINAL. Ni cae al folio (`NumeroDeFactura`,
+/// decisión de Jose) ni sube delante por ser la primera parada.
+const _folioSinFactura = 'PTB25-261015-0003';
+
+Future<void> _sembrarUnoSinFactura(BaseLocal base) async {
+  await sembrarPedido(
+    base,
+    id: 'o3',
+    cliente: 'Caro',
+    folio: _folioSinFactura,
+    facturaNumero: null,
+    rutaId: 'R1',
+    orden: -1,
+    peso: 25,
+  );
+  await sembrarRenglon(
+    base,
+    id: 'r6',
+    pedidoId: 'o3',
+    linea: 1,
+    producto: 'ARROZ 25KG',
+    unidades: 10,
+    empaques: 1,
+    pesoLinea: 25,
+  );
+}
+
+/// [_laTablaDeAmado] con el pedido sin factura: sus filas detrás de las de F-200 y
+/// el total con su blister, sus unidades y sus kilos.
+final _laTablaConUnoSinFactura = <List<String>>[
+  ..._laTablaDeAmado.take(_laTablaDeAmado.length - 1),
+  ['Sin número', 'ARROZ 25KG', '1', '10', '25.0'],
+  ['Sin número', 'Subtotal', '1', '10', '25.0'],
+  ['Total', '', '30', '208', '≥ 275.0'],
+];
+
 void main() {
   late BaseLocal base;
 
@@ -390,6 +427,58 @@ void main() {
     await desmontar(tester);
   });
 
+  testWidgets('un pedido SIN factura sale «Sin número» y AL FINAL, en la '
+      'pantalla y en el papel; su folio NO hace de factura', (tester) async {
+    await _sembrarLasFacturas(base);
+    await _sembrarUnoSinFactura(base);
+    await pintar(tester, const Size(1440, 2400));
+
+    final tabla = losTextos(tester, find.byKey(PorFactura.claveDeLaTabla));
+    expect(
+      tabla,
+      [for (final fila in _laTablaConUnoSinFactura) ...fila],
+      reason:
+          'con número por número y los «Sin número» al final, aunque sea la '
+          'primera parada',
+    );
+    expect(
+      tabla,
+      isNot(contains(_folioSinFactura)),
+      reason: 'el folio salió como número de factura',
+    );
+
+    await tester.tap(find.byKey(claveDeVerEImprimirElPreDespacho));
+    await asentar(tester);
+    final vista = tester.widget<VistaPreviaPdf>(find.byType(VistaPreviaPdf));
+    final renglones = [
+      for (final r in leerElPapel(
+        await vista.armar(PdfPageFormat.a4),
+      ).renglones)
+        r.texto,
+    ];
+    final enElPapel = [
+      for (final fila in _laTablaConUnoSinFactura.skip(1))
+        fila.where((c) => c.isNotEmpty).join(' '),
+    ];
+    // Los renglones de «Por factura» en el papel, en el orden en que salen. Desde
+    // su título: el pie de la tabla de arriba dice el mismo «Total».
+    expect(
+      renglones
+          .skip(renglones.indexOf('POR FACTURA'))
+          .where(enElPapel.contains)
+          .toList(),
+      enElPapel,
+      reason: 'el papel:\n${renglones.join('\n')}',
+    );
+    expect(
+      renglones.where((r) => r.contains(_folioSinFactura)),
+      isEmpty,
+      reason: 'el folio salió en el papel como número de factura',
+    );
+
+    await desmontar(tester);
+  });
+
   // ---------------------------------------------------------------------------
   // LAS ATADURAS: dos caminos al mismo papel, y una tabla que cuadra con otra
   // ---------------------------------------------------------------------------
@@ -520,6 +609,20 @@ void main() {
       expect(pre.facturas.map((f) => f.numero), ['F-100', 'F-200']);
       expect(pre.facturas.map((f) => f.cliente), ['Ana', 'Beto']);
     });
+
+    test(
+      'la que no tiene número va al FINAL y sin número: no cae al folio',
+      () async {
+        await _sembrarLasFacturas(base);
+        await _sembrarUnoSinFactura(base);
+        final pre = await laDeLaRuta();
+
+        // `o3` es la PRIMERA parada (orden -1) y va la última.
+        expect(pre.facturas.map((f) => f.numero), ['F-100', 'F-200', null]);
+        expect(pre.facturas.map((f) => f.cliente), ['Ana', 'Beto', 'Caro']);
+        expect(pre.facturas.last.rotulo, 'Sin número');
+      },
+    );
   });
 }
 

@@ -180,6 +180,75 @@ void main() {
     );
   });
 
+  // 1.0.35: la bajada empieza a leer `facturaAt`, y por diferencias un pedido que no cambia no
+  // vuelve a viajar. EN PAREJA: el aparato que YA tenía la copia la baja entera UNA vez (sin
+  // `desde`), y después vuelve a pedir por diferencias; el que ya lo hizo no lo repite nunca.
+  group(
+    'la copia de antes de la 1.0.35 se vuelve a bajar entera, una sola vez',
+    () {
+      Bajada contando(List<PeticionVista> peticiones) {
+        var vuelta = 0;
+        return Bajada(
+          cliente: clienteFalso((p) async {
+            peticiones.add(p);
+            vuelta++;
+            return RespuestaFalsa(200, <String, Object?>{
+              'hasta': '2026-10-15T0$vuelta:00:00.000Z',
+              'completa': false,
+              'truncado': false,
+              'cambios': <String, Object?>{'orders': conjunto()},
+            });
+          }),
+          base: base,
+          frescura: frescura,
+          reloj: () => ahora,
+        );
+      }
+
+      test('un aparato con la copia vieja pide sin `desde` la primera vez y luego por diferencias', () async {
+        await frescura.marcar(
+          Colecciones.pedidos,
+          hasta: '2026-10-01T00:00:00.000Z',
+        );
+        final peticiones = <PeticionVista>[];
+        final bajada = contando(peticiones);
+
+        await bajada.ciclo();
+        await bajada.ciclo();
+
+        expect(
+          peticiones.first.parametros['desde'],
+          isNull,
+          reason:
+              'la copia de antes de la 1.0.35 no tiene la fecha de factura de los pedidos que no '
+              'cambiaron: tiene que bajarlos ENTEROS una vez, o «Sin colocar» sale en otro orden '
+              'que en la web',
+        );
+        expect(
+          peticiones.last.parametros['desde'],
+          '2026-10-15T01:00:00.000Z',
+          reason: 'después de la vez, vuelve a pedir por diferencias: no es una bajada entera siempre',
+        );
+      });
+
+      test('el aparato que ya la hizo no la repite', () async {
+        await frescura.rebajarLosPedidosUnaVez();
+        await frescura.marcar(
+          Colecciones.pedidos,
+          hasta: '2026-10-14T00:00:00.000Z',
+        );
+        final peticiones = <PeticionVista>[];
+
+        await contando(peticiones).ciclo();
+
+        expect(
+          peticiones.first.parametros['desde'],
+          '2026-10-14T00:00:00.000Z',
+        );
+      });
+    },
+  );
+
   test('`truncado` encadena otra tanda, y sin `hasta` se para', () async {
     final resumen = await conRespuestas([
       <String, Object?>{

@@ -203,6 +203,46 @@ void main() {
       expect(ids(izquierda), ['zz-con-fecha', 'aa-sin-fecha']);
     });
 
+    test('el sin fecha va el ÚLTIMO por el ORDEN DEL APARATO, no porque la base '
+        'ya lo dé así (`NULLS LAST`, como el servidor)', () async {
+      // La de arriba no basta, y no por floja: la consulta recorre
+      // `orders_sucursal_fecha_idx` (`order_date DESC`), que ya entrega los sin
+      // fecha DETRÁS, y un `sort` que los pusiera delante no los mueve: con el
+      // índice, cambiar el `return 1` de `_porFechaDeFactura` por `-1` sale en
+      // verde. Sin el índice la base los da en orden de siembra, y aquí el sin
+      // fecha se siembra el PRIMERO: lo que lo manda al final es el `sort`, que
+      // es lo que promete `sinColocar` («el orden se hace aquí, no en la
+      // consulta»).
+      await base.customStatement('DROP INDEX orders_sucursal_fecha_idx');
+      await sembrarPedido(base, id: 'm-sin-fecha');
+      await sembrarPedido(
+        base,
+        id: 'a-con-fecha-el-14',
+        fecha: DateTime(2026, 10, 14, 9),
+      );
+      await sembrarPedido(
+        base,
+        id: 'z-con-fecha-el-2',
+        fecha: DateTime(2026, 10, 2, 9),
+      );
+      await (base.update(
+        base.orders,
+      )..where((t) => t.id.equals('m-sin-fecha'))).write(
+        const OrdersCompanion(
+          orderDate: Value(null),
+          createdAt: Value(null),
+          facturaAt: Value(null),
+        ),
+      );
+
+      final izquierda = await consultas.sinColocar(sucursalStg, origen);
+      expect(ids(izquierda), [
+        'z-con-fecha-el-2',
+        'a-con-fecha-el-14',
+        'm-sin-fecha',
+      ]);
+    });
+
     test('a la misma fecha el desempate es estable: el id', () async {
       // Dos facturas anotadas en el mismo instante. Sin un segundo criterio
       // las tarjetas bailan entre dos lecturas delante de quien las está

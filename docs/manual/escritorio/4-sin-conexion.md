@@ -35,7 +35,8 @@ ruta» (si está planificada), ver y sacar los PDF del pre-despacho y el post-de
 consultar Pedidos, Clientes y Reportes.
 
 **Armar la ruta de una zona sin conexión usa la misma regla que el servidor**: sólo
-entran los pedidos facturados que cuadran, con el domicilio cobrado y cotizado. Los
+entran los pedidos facturados (cuadren o no), con el domicilio cobrado y, si el
+vendedor lo marcó, cotizado. Los
 demás se descartan y se nombran por su conduce, y si no entra ninguno no se arma la
 ruta.
 

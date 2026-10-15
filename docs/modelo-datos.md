@@ -489,7 +489,8 @@ completada) — ver `lib/filtrosPedido.ts:151-157` y `estadoPedido()` en `orders
 ### 3.8 `Order.facturaEstado`
 Conjunto cerrado: **`igual` | `cambiado` | `sin_factura` | `NULL`**.
 - `igual` — lo facturado coincide con lo pedido; el armador de rutas lo ofrece por defecto.
-- `cambiado` — se facturó otra cosa.
+- `cambiado` — se facturó otra cosa. Entra a una ruta igual que `igual` desde el 15/10/2026
+  (issue 10 de Amado): al camión sube lo facturado. Regla completa en `reglas-negocio.md` §15.13.
 - `sin_factura` — todavía no facturado.
 - `NULL` — no cotejado (no hay facturación de ese día).
 Copiado de PEDIDO; delivery no lo calcula, sólo filtra por él.

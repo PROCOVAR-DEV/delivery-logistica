@@ -838,8 +838,8 @@ type pedidoDelLote struct {
 	FechaComprometida *string `json:"fechaComprometida"`
 
 	// El cotejo contra la FACTURA, tal como lo dejó PEDIDO. Lo hace PEDIDO —el pedido es
-	// suyo— y aquí sólo se copia: el armador ofrece por defecto los que cuadran, porque
-	// cargar el camión con un pedido que la factura cambió es descuadrar la caja.
+	// suyo— y aquí sólo se copia. A una ruta entran `igual` y `cambiado` (desde el
+	// 15/10/2026, issue 10 de Amado: al camión sube lo facturado, ver `ItemsOrigen`).
 	//
 	// `facturaDomicilio` es además la señal MÁS FIABLE de que va a domicilio: sale del
 	// mostrador y no de una casilla marcada al tomar el pedido.

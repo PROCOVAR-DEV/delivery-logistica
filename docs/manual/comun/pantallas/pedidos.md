@@ -14,19 +14,19 @@ filtro de sucursal.
 
 Al entrar, la pantalla **viene acotada a propósito** y lo dice:
 
-> «Enseñando sólo lo que puede subir a un camión: lo que tiene factura —cuadre o
-> no— y sin archivar. Lo que cambió también sube: se carga con las líneas de la
-> factura, no con las del pedido.»
+> «Enseñando sólo lo que tiene factura —cuadre o no— y sin archivar. A una ruta
+> entra lo facturado con el domicilio cobrado, y cotizado en Entrega si el vendedor
+> lo marcó: si la factura cambió, al camión va lo facturado.»
 
 Debajo, el botón **«Ver todos los pedidos»**, que quita ese acotado.
 
 Si no encuentras un pedido, esto es lo primero que hay que probar.
 
-**Ojo con la última frase de la franja** («Lo que cambió también sube»): es del
-catálogo, y ya no vale para las rutas. Esta lista enseña lo que tiene factura; **a una
-ruta nueva o a una zona sólo entra lo que además cuadra con la factura, con el
-domicilio cobrado y cotizado**. Un pedido que cambió en la factura se ve aquí, pero la
-ruta lo descarta con «cambió en la factura».
+**Esta lista enseña lo que tiene factura; no todo lo que sale entra en una ruta.** A una
+ruta nueva o a una zona sólo entra lo que además tiene **el domicilio cobrado** en la
+factura, y **cotizado en Entrega si el vendedor marcó domicilio**. Un pedido que cambió
+en la factura sí entra: al camión va lo facturado. Ver [Las reglas del
+reparto](../las-reglas-del-reparto.md).
 
 ---
 
@@ -128,7 +128,7 @@ nueva.
 | Qué se ve | Qué significa |
 |---|---|
 | El número en verde | «Cuadra con lo pedido: se puede repartir tal cual.» |
-| El número con un `!` en ámbar | «Se facturó algo distinto de lo pedido. No puede ir en una ruta hasta que se corrija.» |
+| El número con un `!` en ámbar | «Se facturó algo distinto de lo pedido: al camión va lo facturado.» |
 | «sin facturar» en gris | No hay factura |
 | «sin cotejar» en gris | «El cotejo contra Ventra no ha pasado por este pedido todavía.» |
 
@@ -141,7 +141,7 @@ en verde o con el `!`):
 | **«Sin cobro de domicilio»** en ámbar | «La factura no trae la línea ENTREGA A DOMICILIO: este pedido no puede ir a una ruta ni a una zona del tablero hasta que el domicilio se cobre en la factura.» |
 
 Así se ve **antes de marcar** por qué un pedido facturado no va a entrar en una ruta ni en
-una zona: la factura cuadra, pero no cobró el domicilio. Con «sin facturar» o «sin cotejar»
+una zona: hay factura, pero no cobró el domicilio. Con «sin facturar» o «sin cotejar»
 no sale esta marca, porque ya está dicho que falta la factura.
 
 **El ámbar sólo sale si ése es el motivo.** Un pedido que ya va en una ruta, que ya se
@@ -237,19 +237,30 @@ Lleva, en este orden:
    negrita: `Factura F-2992 · facturada el 12/10/2026` (la fecha es la del cotejo contra
    Ventra, que ronda la hora en que se facturó; sin número de factura no sale), y sigue
    con el estado:
-   - Verde: «Cuadra con la factura F-2992 de Ventra: se puede repartir tal cual.»
-   - Ámbar: «Se facturó algo distinto de lo pedido (factura F-2992). Lo que va en
-     el camión es lo facturado.» **Pero un pedido que no cuadra no sube a una ruta**:
-     la ruta lo descarta con «cambió en la factura».
+   - Verde: «Cuadra con la factura F-2992 de Ventra: lo pedido es lo facturado.»
+   - Ámbar: «Se facturó algo distinto de lo pedido (factura F-2992). Al camión va lo
+     facturado: los productos de abajo ya son los de la factura.» **Este pedido sí
+     sube a una ruta**, con lo facturado. Si la factura no se pudo atar a este pedido,
+     dice en cambio «…, pero los productos de abajo son los del pedido: la factura no se
+     pudo atar a este pedido.», y si no se sabe, sólo «Al camión va lo facturado.».
    - Gris: «Todavía no aparece facturado en Ventra.»
+   - Con factura, una línea que dice si puede ir a una ruta:
+     - «Puede ir a una ruta.»
+     - «No entra a una ruta: la factura no tiene un cobro de domicilio registrado.»
+     - «No entra a una ruta: se marcó domicilio y Entrega todavía no lo cotizó.»
+
+     No sale nada si el pedido ya va en una ruta, ya se entregó o está archivado.
    - Y si la factura cobró domicilio: «La factura cobró 15.00 USD de domicilio.»
      **Sin ese cobro, el pedido no se ofrece para una ruta ni para una zona.**
 4. **El bloque del domicilio** — «Distancia 4.35 km · Peso total 128.0 kg» y, a la
    derecha, el importe o **«Sin calcular todavía»**. Debajo:
    - Con precio: «El costo lo puso el repartidor desde Entrega. La distancia es
      del almacén al cliente.»
-   - Sin precio: «El costo lo pone el repartidor desde Entrega; hasta entonces este
-     pedido no tiene precio de domicilio.»
+   - Sin precio, si el vendedor marcó domicilio: «El costo lo pone el repartidor desde
+     Entrega; hasta entonces este pedido no tiene precio de domicilio.»
+   - Sin precio, si **no** lo marcó («Sin calcular todavía» sale en gris): «El vendedor
+     no marcó domicilio y Entrega sólo cotiza los marcados: este pedido no tiene precio
+     de domicilio, y no le hace falta para ir a una ruta.»
 5. **«Productos (6)»** — una línea por renglón, **con los empaques primero** (el blíster,
    la caja, la paca: lo que se carga y se transporta) y las unidades detrás: «MALTA
    GUAJIRA CAJA 24U · 10 empaques · 240 unidades · 88.5 kg». Si el renglón no trae
@@ -309,8 +320,8 @@ mismos «no» que da el servidor al colocar una tarjeta:
   registrado.»
 - «No se puede asociar al tablero: primero cotiza el domicilio del pedido.»
 
-**A una zona sólo se coloca lo que tiene el domicilio cobrado y cotizado.** Es la misma
-regla que para armar una ruta: ver [Tablero](tablero.md).
+**A una zona sólo se coloca lo que tiene el domicilio cobrado, y cotizado si el vendedor
+lo marcó.** Es la misma regla que para armar una ruta: ver [Tablero](tablero.md).
 
 **Los que sí fueron pierden la marca; los que no, se quedan marcados** para poder
 seguir trabajando con ellos.

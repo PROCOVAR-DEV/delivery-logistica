@@ -68,7 +68,9 @@ Tres enlaces: `Planificar Rutas` → `/routes`; `Ver Reportes` → `/reports`;
   `{ totalOrders, sinRuta, rutasActivas, entregadosHoy, totalVehicles, vehiculosEnRuta,
   pesoPendiente, totalDomicilios, porSucursal: [{sucursal, pedidos, pesoKg}] }`.
 - **Definición de «repartible»** (la usa `sinRuta`, `pesoPendiente` y `porSucursal`):
-  `routeId = null` **y** `endLat` no nulo **y** `facturaEstado ∈ {igual, cambiado}`.
+  `routeId = null` **y** `endLat` no nulo **y** la regla de entrada a una ruta:
+  `facturaEstado ∈ {igual, cambiado}` **y** `facturaDomicilio > 0` **y** (`pedidoCosto` no
+  nulo **o** `requiereDomicilio` distinto de `true`) — issue 10 de Amado, 15/10/2026.
 - `entregadosHoy` = pedidos con `deliveredAt` desde las 00:00 de hoy.
 - `totalDomicilios` = suma de `pedidoCosto` (lo cobrado en PEDIDO, no la estimación de
   delivery).
@@ -91,7 +93,7 @@ alta manual se retiró el 03/09/2026 (`POST /api/orders` ya no existe).
 La lista **arranca filtrada** a lo que puede subir a un camión: `factura=con_factura` y
 `archivado=0`. Mientras esos dos sigan exactamente así se muestra una franja azul:
 
-> `Enseñando sólo lo que puede subir a un camión: lo que tiene factura —cuadre o no— y sin archivar. Lo que cambió también sube: se carga con las líneas de la factura, no con las del pedido.`
+> `Enseñando sólo lo que tiene factura —cuadre o no— y sin archivar. A una ruta entra lo facturado con el domicilio cobrado, y cotizado en Entrega si el vendedor lo marcó: si la factura cambió, al camión va lo facturado.`
 
 con el botón `Ver todos los pedidos`, que pone ambos filtros a vacío.
 
@@ -199,7 +201,8 @@ Columnas por orden (la etiqueta literal es la que se pinta):
     `sin cotizar` en gris.
 11. `Factura` — `igual` → nº de factura en verde, tooltip
     `Cuadra con lo pedido: se puede repartir tal cual.`; `cambiado` → nº + `⚠` en ámbar,
-    tooltip `Se facturó algo distinto de lo pedido. No puede ir en una ruta hasta que se corrija.`;
+    tooltip `Se facturó algo distinto de lo pedido: al camión va lo facturado.` (hasta el
+    15/10/2026 decía que no podía ir en una ruta; desde el issue 10 de Amado `cambiado` entra);
     `sin_factura` → `sin facturar`; nulo → `sin cotejar` con tooltip
     `El cotejo contra Ventra no ha pasado por este pedido todavía.` Oculta bajo 1024 px.
     **El número de factura no se pierde con la columna** (Amado, issue 8, 14/10/2026: «los
@@ -252,14 +255,21 @@ Título = nombre del cliente, subtítulo = folio. Secciones:
 - `Recorrido`: mapa de 220 px con dos puntos, almacén (origen) → cliente. Pie:
   `Del almacén (<nombre>) al cliente.`
 - Banda de factura según `facturaEstado`:
-  - `Cuadra con la factura <nº> de Ventra: se puede repartir tal cual.`
-  - `Se facturó algo distinto de lo pedido (factura <nº>). Lo que va en el camión es lo facturado.`
-  - `Todavía no aparece facturado en Ventra.`
+  - `igual`: `Cuadra con la factura <nº> de Ventra: lo pedido es lo facturado.`
+  - `cambiado`: `Se facturó algo distinto de lo pedido (factura <nº>). Al camión va lo facturado: los productos de abajo ya son los de la factura.` (con `itemsOrigen = 'factura'`; con `'pedido'` termina en `, pero los productos de abajo son los del pedido: la factura no se pudo atar a este pedido.`, y sin `itemsOrigen` en `Al camión va lo facturado.`)
+  - Sin factura: `Todavía no aparece facturado en Ventra.`
+  - Con `igual` o `cambiado`, una línea más que dice si entra a una ruta (15/10/2026,
+    `lineaDeRutaDeLaFicha`, que pregunta a `porQueNoSePuedeColocar` y no repite la regla):
+    `Puede ir a una ruta.` / `No entra a una ruta: la factura no tiene un cobro de domicilio registrado.`
+    / `No entra a una ruta: se marcó domicilio y Entrega todavía no lo cotizó.` Nada si ya va
+    en una ruta, está entregado o archivado (ni si no tiene punto de entrega).
   - Y si hay línea de domicilio: `La factura cobró <n.nn> USD de domicilio.`
-- `Domicilio` (caja verde si hay precio, ámbar si no): `Distancia` (`<n.nn> km` o `—`),
-  `Peso total` (`<n.nn> kg`), y a la derecha el importe o `Sin calcular todavía`.
+- `Domicilio` (caja verde si hay precio; sin precio, ámbar si el vendedor marcó domicilio y
+  gris si no): `Distancia` (`<n.nn> km` o `—`), `Peso total` (`<n.nn> kg`), y a la derecha
+  el importe o `Sin calcular todavía`.
   Nota al pie: `El costo lo puso el repartidor desde Entrega. La distancia es del almacén al cliente.`
-  / `El costo lo pone el repartidor desde Entrega; hasta entonces este pedido no tiene precio de domicilio.`
+  / (marcado) `El costo lo pone el repartidor desde Entrega; hasta entonces este pedido no tiene precio de domicilio.`
+  / (sin marcar) `El vendedor no marcó domicilio y Entrega sólo cotiza los marcados: este pedido no tiene precio de domicilio, y no le hace falta para ir a una ruta.`
 - `Productos (<n>)`: por línea, nombre, `<n> unidades`, ` · <n.nn> kg/empaque`,
   `×<empaques> empaques` y el peso de la línea; si no hay peso resuelto: `sin peso`.
   Vacío: `Sin productos`.
@@ -404,7 +414,13 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
    - Botón `Limpiar` (vuelve a domicilio=`1`).
    - Buscador `Buscar pedido...` y selector `Municipio del cliente` / `Todos los municipios`
      (este último se aplica **en el cliente**).
-   - **El cuadre con la factura NO es configurable:** siempre se manda `factura=cuadra`.
+   - **La regla de entrada NO es configurable:** la lista sólo trae lo que una ruta acepta
+     —`facturaEstado ∈ {igual, cambiado}`, `facturaDomicilio > 0` y `pedidoCosto` no nulo
+     si `requiereDomicilio` es `true`— y no hay filtro de factura. Hasta el 15/10/2026 se
+     mandaba siempre `factura=cuadra` (sólo `igual`); ya no, porque dejaba fuera los
+     `cambiado`. Ojo con `domicilio=1`, que es el defecto: filtra la casilla
+     `requiereDomicilio` y esconde los pedidos sin marcar que sí entran (los que sólo
+     tienen el cobro en la factura); hay que poner `Con y sin domicilio` para verlos.
 
    Aviso si la lista viene recortada (tope de 2000 en el servidor):
    `Hay más pedidos de los que caben en la lista. Elegí la sucursal y el día para verlos todos: una ruta se arma con los de un sitio y un día.`
@@ -435,7 +451,7 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
 | Vehículos | `GET /api/vehicles` | Para el selector y el filtro. |
 | Almacenes | `GET /api/almacenes` | Punto de partida (por código de sucursal). |
 | Sucursales | `GET /api/branches` | Las que la persona puede ver. |
-| Pedidos elegibles | `GET /api/orders/available` con `q, branchId, fecha, vendedor, kmMax, costoMin, estado, cotizado, domicilio, factura=cuadra` | Devuelve `{orders, total, truncated}`; tope 2000. |
+| Pedidos elegibles | `GET /api/orders/available` con `q, branchId, fecha, vendedor, kmMax, costoMin, estado, cotizado, domicilio` | Devuelve `{orders, total, truncated}`; tope 2000. Sin `factura`: la regla de entrada va fija en la consulta. |
 | Opciones de filtro | misma URL sin `q`, `vendedor` ni municipio | Para que elegir un vendedor no borre los demás. |
 | Crear ruta | `POST /api/routes` con `{name?, branchId, vehicleId, deliveryDate?, originAddress, originLat, originLng, orderIds[]}` | 201 con la ruta creada; se selecciona sola. |
 | Iniciar | `PATCH /api/routes/<id>` `{status:'in_progress'}` | Pasa a la pestaña `En curso`; marca el vehículo `in_use`. |
@@ -454,9 +470,12 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
   los dos números serían el mismo y no informan de nada. La escriben igual el
   servidor y el aparato —la ruta se arma sin señal—, y lo que las ata es
   `docs/armado-rechazado.casos.json`.
-- `En una ruta sólo entra lo facturado y que cuadre. <n> no cumplen: <conduce> (cambió en la factura|sin facturar|sin cotejar), … y <n> más.` (409)
+- `En una ruta sólo entra lo facturado. <n> no cumplen: <conduce> (sin facturar|sin cotejar), … y <n> más.` (409)
+  — desde el 15/10/2026; antes decía `lo facturado y que cuadre` y tenía el motivo
+  `cambió en la factura`, que ya no existe: `cambiado` entra.
 - `En una ruta sólo entra lo facturado con domicilio cobrado. <n> no cumplen: <conduce>, … y <k> más.` (409)
 - `No se puede crear la ruta: <n> pedidos no tienen cotizado el domicilio en Entrega: <conduce>, … y <k> más.` (409)
+  — sólo nombra pedidos con `requiereDomicilio = true` (Entrega sólo cotiza los marcados).
 - `El vehículo está inactivo y no se puede asignar a una ruta.` (400)
 - `Peso total (<w> kg) supera la capacidad del vehículo (<c> kg)` (400)
 - `Una ruta se arma eligiendo pedidos ya existentes. Manda \`orderIds\`.`

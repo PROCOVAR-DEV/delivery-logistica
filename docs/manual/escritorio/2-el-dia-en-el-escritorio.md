@@ -177,10 +177,12 @@ Camión: F-350                       sin subir
 
 ### Las marcas de los pedidos
 
-- **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
-  factura»** y **«Cambió en la factura»** — las cinco **en rojo**: hoy **no salen**. En
-  el camión sólo sube lo que cuadra con la factura.
-- **Sin domicilio cobrado o sin cotizar** — **ni salen en «Sin colocar»**; si intentas
+- **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»** y **«Sin
+  factura»** — las cuatro **en rojo**: hoy **no salen**.
+- **«Cambió en la factura»** — **en ámbar**: **sí sale**. Sólo avisa de que al camión va
+  lo facturado, no lo que se pidió.
+- **Sin domicilio cobrado, o marcado a domicilio y sin cotizar** — **ni salen en «Sin
+  colocar»**; si intentas
   colocarlos, te lo rechaza al momento con su motivo («No se puede asociar al tablero:
   la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el
   domicilio del pedido.»), aunque no haya conexión.
@@ -230,7 +232,7 @@ Debajo te lista por qué se cayó cada uno:
 
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
-PTB25-261005-1502 · ANA MARTÍNEZ: Cambió en la factura
+PTB25-261005-1502 · ANA MARTÍNEZ: Sin factura
 PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
 PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
@@ -238,7 +240,8 @@ PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ### Qué entra y qué no
 
 **Sin conexión se arma con la misma regla que el servidor**: sólo entran los pedidos
-facturados que cuadran, con el domicilio cobrado y cotizado. Los demás se descartan, se
+facturados (cuadren o no), con el domicilio cobrado y, si el vendedor lo marcó,
+cotizado. Los demás se descartan, se
 quedan puestos en la zona y marcados, y se nombran por su **conduce** (el número de
 operación de la factura). **Si algunos entran y otros no**, la ruta se arma con los que
 entran y una franja roja dice quién se quedó fuera:

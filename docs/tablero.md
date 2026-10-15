@@ -92,21 +92,26 @@ municipio. El **detalle** que se abre al moverla añade la fecha en que se factu
 y las unidades detrás, solo cuando son de fiar. Qué es «el número de factura» y por qué:
 `numeroDeFactura` en `app/lib/pantallas/pedidos/datos/formato.dart`.
 
-**Qué entra en «Sin colocar» — 07/10/2026 (Amado, incidencias 2 y 6).** Además de lo de
-siempre (de PEDIDO, sin ruta, con punto de entrega, con domicilio), el pedido tiene que
-traer **el domicilio cobrado** (`factura_domicilio > 0` en la factura) y **cotizado en
-Entrega** (`pedido_costo` no nulo; un cero **sí** es un precio puesto). Sin eso la tarjeta
-**ni se ofrece**, y si se intenta colocar igualmente (arrastrar, o «Mandar a una zona» desde
-Pedidos) se rechaza con un mensaje claro: `No se puede asociar al tablero: la factura no
-tiene un cobro de domicilio registrado.` / `No se puede asociar al tablero: primero cotiza
-el domicilio del pedido.` (más `Ese pedido ya se entregó` y `Ese pedido ya está en una
-ruta`). Colocar **no mira** el estado de la factura: «Sin colocar» ofrece `igual` y
-`cambiado` (la `cambiado` con su marca roja desde la 1.0.29; hasta la 1.0.28 era ámbar), y la que no cuadra la descarta después
-**armar la zona** (`cambió en la factura`, igual que `la factura no tiene domicilio
-cobrado` y `domicilio sin cotizar`). El caso que lo motivó: sin las dos condiciones el
-tablero ofrecía tarjetas que el servidor devolvía con un 409, y con los datos reales del
-07/10/2026 de 1.914 pedidos repartibles sólo 29 cumplían las tres cosas (64 con domicilio
-cobrado, 33 cotizados). Sin señal el aparato dice el mismo «no» **al momento** (con las
+**Qué entra en «Sin colocar» — 07/10/2026 (Amado, incidencias 2 y 6), revisado el 15/10/2026
+(issue 10).** Además de lo de siempre (de PEDIDO, sin ruta, con punto de entrega, factura
+`igual` o `cambiado`, sin archivar), el pedido tiene que traer **el domicilio cobrado**
+(`factura_domicilio > 0` en la factura) y, **si el vendedor marcó domicilio**
+(`requiere_domicilio`), **cotizado en Entrega** (`pedido_costo` no nulo; un cero **sí** es un
+precio puesto). **Ya no exige la casilla de domicilio marcada** (`requiere_domicilio IS TRUE`,
+del 25/09 al 15/10/2026): la marca el vendedor y Ventra cobra el domicilio aunque no la marque
+—`PBF26-2610131268`, sin marcar y con 1.31 de «ENTREGA A DOMICILIO», no salía nunca en el
+tablero—, así que lo que dice que va a domicilio es el cobro en la factura, y la casilla sólo
+decide si hace falta la cotización. Sin eso la tarjeta **ni se ofrece**, y si se intenta
+colocar igualmente (arrastrar, o «Mandar a una zona» desde Pedidos) se rechaza con un mensaje
+claro: `No se puede asociar al tablero: la factura no tiene un cobro de domicilio
+registrado.` / `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` (sólo
+si está marcado; más `Ese pedido ya se entregó` y `Ese pedido ya está en una ruta`). Colocar
+**no mira** el estado de la factura; «Sin colocar» ofrece `igual` y `cambiado` (la `cambiado`
+con su marca **ámbar** desde el 15/10/2026: avisa y sale; de la 1.0.29 a la 1.0.37 fue roja y
+no salía), y lo que no sube lo descarta después **al armar la zona** (`sin cotejar`, `sin
+factura`, `la factura no tiene domicilio cobrado`, `domicilio sin cotizar`). El caso que lo
+motivó el 07/10: sin las dos condiciones el tablero ofrecía tarjetas que el servidor devolvía
+con un 409. Sin señal el aparato dice el mismo «no» **al momento** (con las
 mismas palabras que el servidor) y no horas después, desde la bandeja de rechazados. El
 contador y la lista tienen que decir lo mismo: lo ata una prueba (CLAUDE.md §3-bis), no
 este párrafo.
@@ -191,8 +196,9 @@ una lista de casillas marcadas:
    previa a ella: si vuelven menos de los que hay puestos, alguien se los llevó entre que se
    pintó el tablero y se pulsó el botón, y de ahí sale el `409 «N de los M pedidos ya están
    en otra ruta»`.
-2. Se descartan los que no cuadran con la factura, **nombrándolos**: quién falla y por qué
-   («cambió en la factura» / «sin cotejar»). Una columna de doce que produce una ruta de
+2. Se descartan los que no pueden subir, **nombrándolos**: quién falla y por qué
+   («sin cotejar» / «sin factura» / «la factura no tiene domicilio cobrado» / «domicilio sin
+   cotizar»; `cambiado` sube desde el 15/10/2026). Una columna de doce que produce una ruta de
    nueve sin explicación es la manera más rápida de que el logístico deje de fiarse.
 3. El origen es el punto de salida de la zona y, si no tiene, el almacén principal (§3, 00020); el
    camión, el previsto de la columna si lo hay.
@@ -212,13 +218,16 @@ lista de por qué se cayó cada uno.
 **Armar sin señal (APK/escritorio), desde la 1.0.29: la misma regla que el servidor.** Hasta
 la 1.0.28 el aparato armaba con todo lo que no llevara una marca grave, y el servidor
 descartaba después lo que el aparato ya había subido al camión (domicilio sin cobrar, sin
-cotizar y `cambiado`). Ahora la tarjeta entra sólo si es `igual`, con `factura_domicilio > 0`
-y `pedido_costo` no nulo (y no entregada); lo demás se **descarta y se nombra** por su
-conduce (el número de operación de la factura) con el mismo motivo que daría el servidor:
-`Archivado en PEDIDO`, `Ya va en otra ruta`, `Sin cotejar`, `Sin factura`, `Cambió en la
-factura` (las cinco son las marcas de la tarjeta, con mayúscula inicial), `ya se entregó`,
-`la factura no tiene domicilio cobrado`, `domicilio sin cotizar` (las dos últimas, idénticas a
+cotizar y `cambiado`). Ahora la tarjeta entra sólo si cumple la regla de entrada
+(`app/lib/nucleo/regla_de_entrada.dart`, la misma del servidor): `igual` o `cambiado` (desde
+el 15/10/2026; hasta entonces sólo `igual`), con `factura_domicilio > 0` y, si el vendedor
+marcó domicilio, `pedido_costo` no nulo (y no entregada); lo demás se **descarta y se nombra**
+por su conduce (el número de operación de la factura) con el mismo motivo que daría el
+servidor: `Archivado en PEDIDO`, `Ya va en otra ruta`, `Sin cotejar`, `Sin factura` (las
+cuatro marcas rojas de la tarjeta, con mayúscula inicial), `ya se entregó`, `la factura no
+tiene domicilio cobrado`, `domicilio sin cotizar` (las dos últimas, idénticas a
 `docs/armado-rechazado.casos.json`), por ese orden de prioridad (`TarjetaPedido.motivoDeNoSubir`).
+`Cambió en la factura` ya no descarta: es la marca ámbar, que avisa y sube.
 **Si ninguna cumple, no se arma la ruta** (`La columna no tiene ningún pedido que se pueda
 repartir hoy` y debajo la lista). Si algunas sí y otras no, la ruta se arma con las buenas, las
 descartadas se quedan puestas en la zona y marcadas, y una franja roja de 6 s —en la web,
@@ -359,7 +368,7 @@ Los cuatro desenlaces:
 | Quedó en | Qué significa | Qué hace el tablero |
 |---|---|---|
 | `igual` | cuadra | nada, es lo normal |
-| `cambiado` | se facturó distinto de como se pidió | **se marca** en rojo (1.0.29; hasta la 1.0.28, ámbar) y se queda en la columna, pero **ya no sube a la ruta** (07/10/2026: «en el camión sólo sube lo que cuadra con la factura»). Al armar la zona sale en `descartados` con `cambió en la factura`. Antes se repartía con las líneas de la factura y se avisaba de que el peso ya no era el mismo |
+| `cambiado` | se facturó distinto de como se pidió | **se marca en ámbar** (`MarcaTarjeta.cambiado`, `grave: false`) y **sube a la ruta** con las líneas de la factura: al camión va lo facturado (15/10/2026, issue 10 de Amado). De la 1.0.29 a la 1.0.37 fue roja y no subía («en el camión sólo sube lo que cuadra con la factura», 07/10/2026), con el motivo `cambió en la factura` en `descartados`, que ya no existe |
 | `sin_factura` | no hay nada que llevar | se marca en rojo: hoy no sale |
 | `NULL` | **no se sabe** | se marca en rojo. No es «cuadra». Con un NULL colado se armó una ruta sin facturar el 2/09 |
 

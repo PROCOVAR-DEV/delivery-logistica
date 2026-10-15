@@ -74,11 +74,12 @@ void main() {
     };
     expect(puestas.length, 4, reason: 'ninguna se esconde');
     expect(puestas['igual']!.marcas, isEmpty);
-    // `cambiado` TAMPOCO sube (Jose, 07/10/2026: «en el camion solo sube lo
-    // que cuadra con la factura»), y hasta 1.0.28 esta prueba decia lo
-    // contrario: el aparato armaba con lo que el servidor descarta.
+    // `cambiado` SUBE desde el 15/10/2026 (issue 10 de Amado: al camion va lo
+    // facturado), con su marca AMBAR para que se vea que la carga no es la
+    // pedida. Entre la 1.0.29 y la 1.0.37 no subia.
     expect(puestas['cambiado']!.marcas, [MarcaTarjeta.cambiado]);
-    expect(puestas['cambiado']!.repartible, isFalse);
+    expect(MarcaTarjeta.cambiado.grave, isFalse, reason: 'ambar: avisa y sale');
+    expect(puestas['cambiado']!.repartible, isTrue);
     expect(puestas['igual']!.repartible, isTrue);
     expect(puestas['sin-factura']!.repartible, isFalse);
     // NULL NO ES «cuadra»: es «no se sabe». Con un NULL colado se armo una ruta

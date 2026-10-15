@@ -6,6 +6,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/regla_de_entrada.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 
 /// Las tres pestanas, con los estados que agrupa cada una y su texto de vacio.
@@ -479,14 +480,16 @@ class ConsultasRutas {
   /// Los pedidos que se pueden meter en una ruta.
   ///
   /// Las condiciones fijas son las del servidor y **no son negociables**:
-  /// `source='pedido'`, sin ruta, con coordenadas de entrega y facturado. El
-  /// filtro de factura de la pantalla NO es configurable: siempre `cuadra`
-  /// (`facturaEstado = 'igual'`), que es lo unico que el armado del servidor
-  /// acepta —`cambiado` no entra: «en el camion solo sube lo que cuadra con la
-  /// factura», Jose, 07/10/2026—. Y desde el 07/10/2026 (Amado, incidencias 2 y
-  /// 6) tambien el domicilio cobrado (`facturaDomicilio > 0`) y cotizado en
-  /// Entrega (`pedidoCosto` no nulo). Ofrecer aqui lo que alli se rechaza es
-  /// fabricar rechazos tardios.
+  /// `source='pedido'`, sin ruta, con coordenadas de entrega y la regla de
+  /// entrada a una ruta (`nucleo/regla_de_entrada.dart`): facturado (`igual` o
+  /// `cambiado`, este desde el 15/10/2026, issue 10 de Amado), domicilio cobrado
+  /// (`facturaDomicilio > 0`) y, si el vendedor lo marco, cotizado en Entrega.
+  /// Ofrecer aqui lo que alli se rechaza es fabricar rechazos tardios.
+  ///
+  /// OJO con el filtro [domicilio] de la pantalla: arranca en «Sólo con
+  /// domicilio» (la casilla del vendedor) y esconde los pedidos SIN MARCAR que
+  /// la regla deja entrar, como PBF26-2610131268. Salen con «Con y sin
+  /// domicilio», y en «Sin colocar» del tablero salen siempre.
   /// [estado], [domicilio] y [cotizado] llevan **los mismos valores que los
   /// query params del servidor** (`contratos-api.md`, «Filtros compartidos»):
   /// `''` es sin filtro. Se escriben asi, como texto, y no como enums propios,
@@ -514,9 +517,10 @@ class ConsultasRutas {
         o.routeId.isNull() &
         o.endLat.isNotNull() &
         o.endLng.isNotNull() &
-        o.facturaEstado.equals(EstadoFactura.igual) &
-        o.facturaDomicilio.isBiggerThanValue(0) &
-        o.pedidoCosto.isNotNull();
+        // LA REGLA DE ENTRADA (`nucleo/regla_de_entrada.dart`), la misma que
+        // `ListarPedidosDisponibles` del servidor: `cambiado` entra y la
+        // cotizacion solo se exige si se marco domicilio (issue 10, 15/10/2026).
+        entraEnRuta(o);
 
     if (sucursalId != null && sucursalId.isNotEmpty) {
       donde = donde & o.branchId.equals(sucursalId);

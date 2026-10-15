@@ -75,7 +75,9 @@ $5212.78                                         Eliminar
 - **De dónde sale**, o «Sin punto de partida».
 - **«Sobrepeso»** en ámbar si la ruta pesa más que la capacidad del camión.
 - **El importe**, que **se suma de las paradas**. Si falta cotizar alguna sale en
-  ámbar: «— (2 de 5 sin cotizar)». Nunca sale `$0.00` por falta de datos.
+  ámbar: «— (2 de 5 sin cotizar)». Nunca sale `$0.00` por falta de datos. Un pedido
+  que el vendedor no marcó a domicilio entra sin que Entrega lo cotice y cuenta en ese
+  «sin cotizar» (ver [Qué significa cada número](../que-significa-cada-numero.md)).
 - **«Eliminar»** — **sólo si la ruta no está completada**, y **pregunta antes** (ver
   abajo).
 
@@ -398,31 +400,37 @@ Los filtros:
 **Cuidado con «costo mín.»:** un pedido sin cotizar cuenta como cero, así que
 cualquier «costo mín.» mayor que cero lo deja fuera.
 
-#### Qué pedidos se ofrecen: lo facturado, cobrado y cotizado
+#### Qué pedidos se ofrecen: lo facturado y con el domicilio cobrado
 
 Esta lista **sólo trae pedidos que cumplen las tres cosas a la vez**. Los demás no se
 ofrecen, y no hay filtro que los haga salir:
 
-1. **Facturados y que CUADREN con la factura.** No basta con que haya factura: si la
-   factura cambió respecto a lo pedido («Cambió en la factura»), ese pedido tampoco
-   entra. En el camión sólo sube lo que cuadra con la factura.
+1. **Facturados**, cuadren o no con lo pedido. Si la factura cambió («Cambió en la
+   factura»), el pedido **sí entra**: al camión va lo facturado, porque sus productos ya
+   son los de la factura.
 2. **Con el domicilio cobrado**: la factura trae un importe de domicilio **mayor que
    cero**. El domicilio es un servicio que se cobra; sin cobro no se reparte.
-3. **Cotizados en Entrega**: el repartidor ya puso el costo del domicilio. (Un costo
-   de cero **sí** es un precio puesto; lo que no vale es que esté vacío.)
+3. **Cotizados en Entrega, si el vendedor marcó domicilio**: entonces el repartidor
+   tiene que haber puesto ya el costo. (Un costo de cero **sí** es un precio puesto; lo
+   que no vale es que esté vacío.) Si el vendedor **no** lo marcó, no se le pide:
+   Entrega sólo cotiza los marcados, y lo que dice que va a domicilio es el cobro de la
+   factura.
 
-El cuadre con la factura no se puede cambiar: siempre entra sólo lo que cuadra. Y los
-dos filtros del final («Si el pedido lleva entrega a domicilio» y «Si Entrega ya le
-puso costo de domicilio») siguen ahí, pero **sólo recortan lo que ya cumple las
-tres**: por ejemplo, «Sin cotizar» siempre deja la lista vacía, porque un pedido sin
-cotizar nunca se ofrece.
+Esto no se puede cambiar con los filtros. Los dos del final («Si el pedido lleva entrega
+a domicilio» y «Si Entrega ya le puso costo de domicilio») **sólo recortan lo que ya
+cumple las tres**:
+
+- **«Sólo con domicilio», que es como arranca, deja fuera los que el vendedor no
+  marcó**, aunque la factura cobre el domicilio y puedan ir. Para verlos, pon «Con y
+  sin domicilio».
+- **«Sin cotizar» sólo puede traer pedidos que el vendedor no marcó**, así que junto a
+  «Sólo con domicilio» deja la lista vacía.
 
 **Por eso la lista puede salir corta**, sobre todo mientras Entrega no haya cotizado
-más domicilios. Con los datos del 07/10/2026, de 1.914 pedidos repartibles sólo 29
-cumplían las tres cosas. No es un fallo: lo que falta no se ha cobrado o no se ha
-cotizado, y se arregla cobrando o cotizando en Entrega, no en esta pantalla. El Panel
-(«Pedidos sin ruta») cuenta con este mismo criterio, y la mitad «Sin colocar» del
-Tablero pide también el domicilio cobrado y cotizado (ver [Tablero](tablero.md)).
+más domicilios. No es un fallo: lo que falta no se ha cobrado o no se ha cotizado, y se
+arregla cobrando o cotizando en Entrega, no en esta pantalla. El Panel («Pedidos sin
+ruta») cuenta con este mismo criterio, y la mitad «Sin colocar» del Tablero también
+(ver [Tablero](tablero.md)).
 
 ### La barra de capacidad
 
@@ -484,17 +492,19 @@ comprueban en este orden:
    Los motivos posibles: «ya se entregó y no puede volver a un camión», «ya va en
    la ruta RT-…», «PEDIDO lo archivó», «sin coordenadas de entrega», «no vino de
    PEDIDO».
-5. **Facturación** — lo que no cuadra con la factura. Cada pedido sale por su
-   conduce, con su motivo:
+5. **Facturación** — lo que no tiene factura. Cada pedido sale por su conduce, con su
+   motivo:
 
-   > «En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen:
-   > PTB25-261005-1480 (sin facturar), PTB25-261005-1502 (cambió en la factura),
-   > PTB25-261005-1511 (sin cotejar).»
+   > «En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin
+   > facturar), PTB25-261005-1502 (sin cotejar), PTB25-261005-1511 (sin facturar).»
+
+   Un pedido que cambió en la factura **no** sale aquí: entra, con lo facturado.
 6. **Domicilio cobrado** — la factura no trae importe de domicilio:
 
    > «En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen:
    > PTB25-261005-1480, PTB25-261005-1502.»
-7. **Domicilio cotizado** — Entrega todavía no le puso costo:
+7. **Domicilio cotizado** — el vendedor marcó domicilio y Entrega todavía no le puso
+   costo:
 
    > «No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en
    > Entrega: PTB25-261005-1480, PTB25-261005-1502.»

@@ -5,15 +5,17 @@ ahorra la mitad de los «no me deja».
 
 ---
 
-## 1. En un camión sólo sube lo facturado y que cuadre
+## 1. En un camión sólo sube lo facturado
 
 Un pedido que no está facturado **no entra en una ruta**. No es un capricho de la
 aplicación: lo que se carga tiene que ser lo que se cobró.
 
-Y no basta con que haya factura: tiene que **cuadrar** con ella. Si la factura cambió
-respecto a lo pedido, ese pedido tampoco sube hoy.
+Si la factura **cambió** respecto a lo pedido, el pedido **sí sube**, pero con lo
+facturado: sus productos ya son los de la factura, así que al camión va lo que se
+cobró, no lo que se pidió.
 
-Un pedido puede llevar una de estas marcas. **Las cinco impiden repartirlo hoy**:
+Un pedido puede llevar una de estas marcas. **Las cuatro primeras impiden repartirlo
+hoy; la última sólo avisa**:
 
 | Marca | Qué quiere decir | ¿Se puede repartir? |
 |---|---|---|
@@ -21,21 +23,29 @@ Un pedido puede llevar una de estas marcas. **Las cinco impiden repartirlo hoy**
 | **«Ya va en otra ruta»** | Se lo llevó otra ruta, quizá desde otro aparato | **No** |
 | **«Sin cotejar»** | No se sabe si la factura cuadra. **No es «cuadra»: es «no se sabe»** | **No** |
 | **«Sin factura»** | No hay nada que llevar | **No** |
-| **«Cambió en la factura»** | Se facturó distinto de como se pidió | **No**: al armar la ruta se descarta y se nombra por su conduce |
+| **«Cambió en la factura»** (en ámbar) | Se facturó distinto de como se pidió | **Sí**: al camión va lo facturado |
 
 Un pedido puede llevar **varias marcas a la vez**: archivado y sin facturar es las
 dos cosas.
 
-### Y además: el domicilio tiene que estar cobrado y cotizado
+### Y además: el domicilio tiene que estar cobrado (y cotizado, si se marcó)
 
 El domicilio ahora es un servicio que se cobra, y dejar entrar cualquier pedido sería
 repartir sin cobrar. Por eso, **para entrar en una ruta nueva, y para colocarse en una
-zona del Tablero, un pedido tiene que cumplir las tres a la vez**:
+zona del Tablero, un pedido tiene que cumplir a la vez**:
 
-1. **Facturado y que cuadre** con la factura (lo de arriba).
+1. **Facturado**, cuadre o haya cambiado (lo de arriba).
 2. **Con el domicilio cobrado**: el importe de domicilio de la factura es **mayor que
-   cero**.
-3. **Cotizado en Entrega**: el repartidor ya le puso el costo del domicilio.
+   cero**. Esto es lo que dice que un pedido va a domicilio, aunque el vendedor no
+   marcara la casilla.
+3. **Cotizado en Entrega, si el vendedor marcó domicilio**: entonces el repartidor
+   tiene que haberle puesto ya el costo. Si no lo marcó, no hace falta: Entrega sólo
+   cotiza los pedidos marcados.
+
+**Ejemplo:** en Santiago, un pedido de «PARRANDA 0.33L ×20», sin la casilla de
+domicilio marcada, se facturó como «CERVEZA PARRANDA 500 ML BLISTER 6U ×20» con
+«ENTREGA A DOMICILIO» 1.31. Cambió en la factura y Entrega no lo cotizó, pero está
+facturado y el domicilio está cobrado: **entra**, y al camión sube la cerveza de 500 ml.
 
 Lo que no cumple **no se ofrece** en la lista de disponibles de Rutas, y si se intenta
 meter igualmente **se rechaza diciendo cuál es**, por su conduce. Los mensajes están en

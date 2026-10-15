@@ -27,6 +27,7 @@ package sqlc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -1995,9 +1996,9 @@ func TestMotorReal_EngancharPedidoARuta(t *testing.T) {
 		pasa      bool
 	}{
 		{"igual_cobrado_y_cotizado", str("igual"), f64(5), f64(10), true},
-		// El SQL NO corta `cambiado`: lo corta el manejador, para poder nombrarlo. Este caso
-		// documenta la mitad de la regla que vive en Go (`mensajeNoFacturados`).
-		{"cambiado_pasa_el_sql_y_lo_corta_el_manejador", str("cambiado"), f64(5), f64(10), true},
+		// El SQL NO mira la factura: la corta el manejador (`rechazoDelArmado`), y `cambiado`
+		// entra desde el 15/10/2026 (issue 10).
+		{"cambiado_entra", str("cambiado"), f64(5), f64(10), true},
 		{"sin_cobrar", str("igual"), nil, f64(10), false},
 		{"domicilio_en_cero", str("igual"), f64(0), f64(10), false},
 		{"sin_cotizar", str("igual"), f64(5), nil, false},
@@ -2041,6 +2042,118 @@ func TestMotorReal_EngancharPedidoARuta(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// 9-bis. LA REGLA DE ENTRADA ES LA DEL FICHERO (issue 10 de Amado, 15/10/2026)
+// ---------------------------------------------------------------------------
+
+// TestMotorReal_LaReglaDeEntradaEsLaDelFichero siembra cada caso de `reglaDeEntrada` de
+// `docs/armado-rechazado.casos.json` —el MISMO fichero que leen los manejadores y el aparato—
+// y le pregunta a Postgres de verdad: las dos listas, sus contadores y el Panel lo ofrecen si
+// y sólo si entra. `ColocarPedido` y `EngancharPedidoARuta` no miran la factura (la corta el
+// manejador), así que se les pregunta sólo por los casos con la factura en regla.
+func TestMotorReal_LaReglaDeEntradaEsLaDelFichero(t *testing.T) {
+	pool := motorReal(t)
+	const ruta = "../../../../docs/armado-rechazado.casos.json"
+	crudo, err := os.ReadFile(ruta)
+	if err != nil {
+		t.Fatalf("no se pudo leer %s: %v", ruta, err)
+	}
+	var fichero struct {
+		Regla struct {
+			Casos []struct {
+				Nombre            string   `json:"nombre"`
+				Nota              string   `json:"nota"`
+				OperationNumber   string   `json:"operationNumber"`
+				FacturaEstado     *string  `json:"facturaEstado"`
+				FacturaDomicilio  *float64 `json:"facturaDomicilio"`
+				PedidoCosto       *float64 `json:"pedidoCosto"`
+				RequiereDomicilio *bool    `json:"requiereDomicilio"`
+				Entra             bool     `json:"entra"`
+			} `json:"casos"`
+		} `json:"reglaDeEntrada"`
+	}
+	if err := json.Unmarshal(crudo, &fichero); err != nil {
+		t.Fatal(err)
+	}
+	if len(fichero.Regla.Casos) == 0 {
+		t.Fatalf("%s no trae `reglaDeEntrada`: una prueba sobre una lista vacía sale verde sin mirar nada", ruta)
+	}
+	for _, c := range fichero.Regla.Casos {
+		t.Run(c.Nombre, func(t *testing.T) {
+			b := nuevoBanco(t, pool)
+			suc := b.sucursal()
+			col := b.columna(suc, "Centro", 0)
+			s := listo(c.OperationNumber, suc)
+			s.Factura, s.Domicilio, s.Costo = c.FacturaEstado, c.FacturaDomicilio, c.PedidoCosto
+			s.Requiere = c.RequiereDomicilio != nil && *c.RequiereDomicilio
+			p := b.pedido(s)
+			if c.RequiereDomicilio == nil {
+				b.exec(`UPDATE orders SET requiere_domicilio = NULL WHERE id = $1`, p)
+			}
+			uno := int64(0)
+			if c.Entra {
+				uno = 1
+			}
+			donde := func(que string, n int64) {
+				t.Helper()
+				if n != uno {
+					t.Errorf("%s lo cuenta %d veces y el fichero dice entra=%v\n%s", que, n, c.Entra, c.Nota)
+				}
+			}
+
+			lista, err := b.q.ListarPedidosDisponibles(b.ctx, ListarPedidosDisponiblesParams{BranchID: alcance(suc), Limite: 10})
+			if err != nil {
+				t.Fatal(err)
+			}
+			donde("ListarPedidosDisponibles", int64(len(lista)))
+			n, err := b.q.ContarPedidosDisponibles(b.ctx, ContarPedidosDisponiblesParams{BranchID: alcance(suc)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			donde("ContarPedidosDisponibles", n)
+			sin, err := b.q.ListarPedidosSinColocar(b.ctx, ListarPedidosSinColocarParams{BranchID: suc, Sucursal: sinAlcance, Limite: 10})
+			if err != nil {
+				t.Fatal(err)
+			}
+			donde("ListarPedidosSinColocar", int64(len(sin)))
+			n, err = b.q.ContarPedidosSinColocar(b.ctx, ContarPedidosSinColocarParams{BranchID: suc, Sucursal: sinAlcance})
+			if err != nil {
+				t.Fatal(err)
+			}
+			donde("ContarPedidosSinColocar", n)
+			hoy := pgtype.Timestamptz{Time: time.Now().Add(-24 * time.Hour), Valid: true}
+			resumen, err := b.q.PanelResumen(b.ctx, PanelResumenParams{Hoy: hoy, Sucursal: alcance(suc)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			donde("PanelResumen.sin_ruta", resumen.SinRuta)
+			porSucursal, err := b.q.PanelPorSucursal(b.ctx, alcance(suc))
+			if err != nil {
+				t.Fatal(err)
+			}
+			donde("PanelPorSucursal", int64(len(porSucursal)))
+
+			if c.FacturaEstado == nil || (*c.FacturaEstado != "igual" && *c.FacturaEstado != "cambiado") {
+				return
+			}
+			_, err = b.q.ColocarPedido(b.ctx, ColocarPedidoParams{PedidoID: p, ColumnaID: col, Sucursal: alcance(suc)})
+			if c.Entra && err != nil {
+				t.Errorf("ColocarPedido lo rechaza (%v) y el fichero dice que entra\n%s", err, c.Nota)
+			}
+			if !c.Entra && !errors.Is(err, pgx.ErrNoRows) {
+				t.Errorf("ColocarPedido lo acepta (err=%v) y el fichero dice que no entra\n%s", err, c.Nota)
+			}
+			r := b.ruta(suc, RouteStatusPlanned)
+			n, err = b.q.EngancharPedidoARuta(b.ctx, EngancharPedidoARutaParams{
+				PedidoID: p, RutaID: alcance(r), StopOrder: i32(1), Sucursal: alcance(suc)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			donde("EngancharPedidoARuta", n)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // 10. Lo que se ofrece y lo que se cuenta dicen lo mismo (D2)
 // ---------------------------------------------------------------------------
 
@@ -2062,9 +2175,12 @@ func TestMotorReal_DisponiblesPanelYSinColocarCuentanLoMismo(t *testing.T) {
 		{"d_domicilio_cero", "igual", f64(0), f64(10), 80},
 		{"e_sin_cotizar", "cambiado", f64(5), nil, 160},
 		{"f_sin_factura", "sin_factura", f64(5), f64(10), 320},
+		// El caso real del issue 10: cambiado, cobrado, sin cotizar y SIN MARCAR. Entra.
+		{"g_sin_marcar_sin_cotizar", "cambiado", f64(1.31), nil, 640},
 	} {
 		s := listo(c.nombre, suc)
 		s.Factura, s.Domicilio, s.Costo, s.Peso = str(c.factura), c.domicilio, c.costo, f64(c.peso)
+		s.Requiere = c.nombre != "g_sin_marcar_sin_cotizar"
 		b.pedido(s)
 	}
 
@@ -2076,8 +2192,8 @@ func TestMotorReal_DisponiblesPanelYSinColocarCuentanLoMismo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if disp != 2 || len(lista) != 2 {
-		t.Fatalf("disponibles: contador=%d lista=%d, esperaba 2 y 2 (a y b)", disp, len(lista))
+	if disp != 3 || len(lista) != 3 {
+		t.Fatalf("disponibles: contador=%d lista=%d, esperaba 3 y 3 (a, b y g)", disp, len(lista))
 	}
 
 	sin, err := b.q.ContarPedidosSinColocar(b.ctx, ContarPedidosSinColocarParams{BranchID: suc, Sucursal: sinAlcance})
@@ -2088,21 +2204,21 @@ func TestMotorReal_DisponiblesPanelYSinColocarCuentanLoMismo(t *testing.T) {
 		t.Fatalf("«Sin colocar» cuenta %d y los disponibles %d: el tablero ofrece algo que el armador no", sin, disp)
 	}
 
-	// El Panel: el mismo número y el mismo peso (10 + 20 = 30), por resumen y por sucursal.
+	// El Panel: el mismo número y el mismo peso (10 + 20 + 640 = 670), por resumen y por sucursal.
 	hoy := pgtype.Timestamptz{Time: time.Now().Add(-24 * time.Hour), Valid: true}
 	resumen, err := b.q.PanelResumen(b.ctx, PanelResumenParams{Hoy: hoy, Sucursal: alcance(suc)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if int64(resumen.SinRuta) != disp || resumen.PesoPendiente != 30 {
-		t.Fatalf("PanelResumen: sin_ruta=%d peso_pendiente=%v, esperaba %d y 30", resumen.SinRuta, resumen.PesoPendiente, disp)
+	if int64(resumen.SinRuta) != disp || resumen.PesoPendiente != 670 {
+		t.Fatalf("PanelResumen: sin_ruta=%d peso_pendiente=%v, esperaba %d y 670", resumen.SinRuta, resumen.PesoPendiente, disp)
 	}
 	porSucursal, err := b.q.PanelPorSucursal(b.ctx, alcance(suc))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(porSucursal) != 1 || int64(porSucursal[0].Pedidos) != disp || porSucursal[0].PesoKg != 30 {
-		t.Fatalf("PanelPorSucursal: %+v, esperaba %d pedidos y 30 kg", porSucursal, disp)
+	if len(porSucursal) != 1 || int64(porSucursal[0].Pedidos) != disp || porSucursal[0].PesoKg != 670 {
+		t.Fatalf("PanelPorSucursal: %+v, esperaba %d pedidos y 670 kg", porSucursal, disp)
 	}
 }
 

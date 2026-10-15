@@ -233,15 +233,17 @@ Camión: F-350
 
 ### Si un pedido lleva una marca roja
 
-- **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
-  factura»** y **«Cambió en la factura»** — las cinco **en rojo**: ese pedido **hoy no
-  sale**. En el camión sólo sube lo que cuadra con la factura. Lo puedes dejar puesto:
-  no entrará en la ruta y te lo dirá.
+- **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»** y **«Sin
+  factura»** — las cuatro **en rojo**: ese pedido **hoy no sale**. Lo puedes dejar
+  puesto: no entrará en la ruta y te lo dirá.
+
+**«Cambió en la factura» va en ámbar y sí sale**: sólo avisa de que al camión va lo
+facturado, no lo que se pidió.
 
 ### Si un pedido no te deja colocarlo
 
-A una zona sólo se coloca lo que tiene **el domicilio cobrado en la factura y cotizado
-en Entrega**. Los que no cumplen **ni salen en «Sin colocar»**, y si llegas a
+A una zona sólo se coloca lo que tiene **el domicilio cobrado en la factura** y, si el
+vendedor lo marcó, **cotizado en Entrega**. Los que no cumplen **ni salen en «Sin colocar»**, y si llegas a
 intentarlo (por ejemplo, desde Pedidos con «Mandar a una zona») sale el motivo y la
 tarjeta se queda donde estaba:
 
@@ -312,7 +314,7 @@ Debajo te lista, uno a uno, por qué se cayó cada pedido:
 
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
-PTB25-261005-1502 · ANA MARTÍNEZ: Cambió en la factura
+PTB25-261005-1502 · ANA MARTÍNEZ: Sin factura
 PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
 PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
@@ -322,8 +324,8 @@ la zona (o resuélvelos en PEDIDO o en Entrega) y vuelve a armar.
 
 ### Qué entró y qué no
 
-**Sólo entran en la ruta los pedidos repartibles**: facturados y que cuadran, con el
-domicilio cobrado y cotizado. **Sin señal se arma con la misma regla que el servidor**:
+**Sólo entran en la ruta los pedidos repartibles**: facturados (cuadren o no), con el
+domicilio cobrado y, si el vendedor lo marcó, cotizado. **Sin señal se arma con la misma regla que el servidor**:
 el teléfono dice el mismo «no» que diría él, en el momento. Los que no cumplen **se
 descartan**: **se quedan puestos en la zona y marcados**. No se pierde nada, y la zona
 no se te queda vacía sin explicación.

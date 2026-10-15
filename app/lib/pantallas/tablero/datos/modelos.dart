@@ -1,4 +1,5 @@
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/regla_de_entrada.dart';
 
 /// El punto desde el que se mide la cercania: el almacen principal de la
 /// sucursal (§3 «De donde sale la distancia»).
@@ -259,19 +260,20 @@ enum MarcaTarjeta {
   /// No hay nada que llevar: hoy no sale.
   sinFactura('Sin factura', grave: true),
 
-  /// Se facturo distinto de como se pidio. **Tampoco sale** —Jose, 07/10/2026:
-  /// «en el camion solo sube lo que cuadra con la factura»; el servidor lo
-  /// descarta en `armarRutaDeColumna` con «cambió en la factura»— y por eso es
-  /// grave: hasta 1.0.28 estaba en ambar, el armado local lo subia y la ruta
-  /// salia con una factura que ya no era la que se cargo.
-  cambiado('Cambió en la factura', grave: true);
+  /// Se facturo distinto de como se pidio. **SALE, y en ambar** desde el
+  /// 15/10/2026 (issue 10 de Amado): sus renglones ya son los de la factura, asi
+  /// que al camion sube lo facturado. Entre la 1.0.29 y la 1.0.37 fue grave y no
+  /// salia (Jose, 07/10/2026), y eso dejaba fuera pedidos cobrados como
+  /// PBF26-2610131268. La marca se queda para que se vea que la carga no es la
+  /// que se pidio.
+  cambiado('Cambió en la factura', grave: false);
 
   const MarcaTarjeta(this.texto, {required this.grave});
 
   final String texto;
 
-  /// En rojo lo que hoy NO sale en un camion; en ambar, si algun dia hay algo
-  /// que se avisa pero sale (hoy no queda ninguna marca asi).
+  /// En rojo lo que hoy NO sale en un camion; en ambar, lo que se avisa pero
+  /// sale (hoy, [cambiado]).
   final bool grave;
 }
 
@@ -294,6 +296,7 @@ class TarjetaPedido {
     this.facturaNumero,
     this.facturaAt,
     this.facturaDomicilio,
+    this.requiereDomicilio,
     this.archivado = false,
     this.rutaId,
     this.resultado,
@@ -325,6 +328,10 @@ class TarjetaPedido {
   /// Lo que la factura cobro de domicilio. `null` y cero son lo mismo aqui:
   /// «no esta cobrado» (ver [motivoDeNoSubir]).
   final double? facturaDomicilio;
+
+  /// La casilla de domicilio que marco el vendedor. Solo decide si hace falta la
+  /// cotizacion de Entrega para subir (`faltaLaCotizacion`, issue 10 de Amado).
+  final bool? requiereDomicilio;
   final bool archivado;
   final String? rutaId;
   final String? resultado;
@@ -355,13 +362,14 @@ class TarjetaPedido {
   /// tablero.go`), **la misma y con las mismas palabras**: sin senal el que dice
   /// «no» es el telefono, y si dos lados discrepan la misma zona arma una ruta
   /// con conexion y otra distinta sin ella. Hasta 1.0.28 el aparato solo miraba
-  /// las marcas graves y armaba con lo que el servidor descarta: domicilio sin
-  /// cobrar, sin cotizar y `cambiado` (Amado, 07/10/2026, incidencia 6).
+  /// las marcas graves y armaba con lo que el servidor descarta (Amado,
+  /// 07/10/2026, incidencia 6).
   ///
-  /// Solo entra lo facturado y que cuadre (`igual`; `cambiado` NO), con
-  /// `facturaDomicilio > 0` y `pedidoCosto` no nulo. Las marcas conservan su
-  /// texto de siempre; los dos de domicilio son los del servidor, letra por
-  /// letra (`docs/armado-rechazado.casos.json`, `descartadosDelTablero`).
+  /// La regla vive en `nucleo/regla_de_entrada.dart`: facturado (`igual` o
+  /// `cambiado`, que es una marca ambar y SUBE), domicilio cobrado y, si el
+  /// vendedor lo marco, cotizado. Las marcas conservan su texto de siempre; los
+  /// dos de domicilio son los del servidor, letra por letra
+  /// (`docs/armado-rechazado.casos.json`, `descartadosDelTablero`).
   ///
   /// `ya se entregó` va aqui aunque el servidor lo pregunte primero: al armar,
   /// el aparato deja a `null` el resultado del pedido (reasignar un devuelto es
@@ -373,11 +381,15 @@ class TarjetaPedido {
     if (deliveredAt != null || resultado == ResultadoParada.entregado) {
       return 'ya se entregó';
     }
-    final domicilio = facturaDomicilio;
-    if (domicilio == null || domicilio <= 0) {
+    if (domicilioSinCobrar(facturaDomicilio)) {
       return 'la factura no tiene domicilio cobrado';
     }
-    if (pedidoCosto == null) return 'domicilio sin cotizar';
+    if (faltaLaCotizacion(
+      pedidoCosto: pedidoCosto,
+      requiereDomicilio: requiereDomicilio,
+    )) {
+      return 'domicilio sin cotizar';
+    }
     return null;
   }
 

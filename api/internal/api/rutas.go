@@ -886,35 +886,12 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Sólo entra lo facturado, que cuadre, con domicilio cobrado y cotizado -------
+	// --- Sólo entra lo facturado, con domicilio cobrado y, si se marcó, cotizado -----
 	//
 	// Se comprueba aquí aunque la pantalla ya filtre: basta con que alguien mande los ids
 	// a mano, o con que un pedido se coteje otra vez entre que se eligió y se armó la
-	// ruta. Lo que se carga tiene que ser lo que se cobró.
-	//
-	// SON TRES CORTES Y BLOQUEAN, NO AVISAN (Amado, 07/10/2026: el domicilio ya es un
-	// servicio que se cobra, y dejar entrar cualquier pedido es una vulnerabilidad). Hasta
-	// el 07/10/2026 el tercero era un aviso con el total de la ruta más bajo, y con él
-	// salían rutas con importes a cero que nadie veía hasta cuadrar la caja.
-	//
-	//  1. Facturado Y QUE CUADRE: `igual`. `cambiado` NO entra: en el camión sólo sube lo
-	//     que cuadra con la factura (Jose, `reglas-negocio.md`), y Amado no pidió cambiarlo.
-	//  2. Domicilio COBRADO en la factura (`factura_domicilio > 0`).
-	//  3. Domicilio COTIZADO en Entrega (`pedido_costo` no nulo): la factura puede estar
-	//     pagada y aun así faltar la cotización propia de Entrega, y sin ella no hay importe
-	//     fiable que asignar a la parada.
-	//
-	// Cada rechazo identifica a los pedidos por su número de operación, que es el que
-	// aparece también en la hoja de ruta.
-	if mensaje := mensajeNoFacturados(pedidos); mensaje != "" {
-		httpx.Error(w, r, http.StatusConflict, mensaje)
-		return
-	}
-	if mensaje := mensajeDomicilioSinCobrar(pedidos); mensaje != "" {
-		httpx.Error(w, r, http.StatusConflict, mensaje)
-		return
-	}
-	if mensaje := mensajeSinCalcular(pedidos); mensaje != "" {
+	// ruta. Lo que se carga tiene que ser lo que se cobró. Ver `rechazoDelArmado`.
+	if mensaje := rechazoDelArmado(pedidos); mensaje != "" {
 		httpx.Error(w, r, http.StatusConflict, mensaje)
 		return
 	}
@@ -1191,10 +1168,11 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 
 	// La ruta sola, sin `avisos`. Hasta el 07/10/2026 la respuesta podía llevar
 	// `{"ruta": …, "avisos": {"sinCosto": N}}` para decir «el total no incluye N pedidos
-	// sin costo de domicilio». Ya no existe ese caso: un pedido sin cotizar no entra en una
-	// ruta (`mensajeSinCalcular`), así que todas las paradas aportan su importe y el total
-	// está completo. La clave `avisos` se fue con él; los clientes leen el id de la ruta en
-	// la raíz o dentro de `ruta`, y la raíz es la que se contesta.
+	// sin costo de domicilio». Un pedido MARCADO a domicilio sin cotizar no entra en una ruta
+	// (`mensajeSinCalcular`); uno sin marcar sí entra sin cotización (issue 10, 15/10/2026) y
+	// lo cuentan los totales de la ruta (`paradas_sin_cotizar`), no esta respuesta. La clave
+	// `avisos` se fue; los clientes leen el id de la ruta en la raíz o dentro de `ruta`, y la
+	// raíz es la que se contesta.
 	s.responderConLaRuta(w, r, ar, creada.ID, http.StatusCreated)
 }
 
@@ -2510,19 +2488,53 @@ func valorO(v *float64) float64 {
 	return *v
 }
 
-// mensajeNoFacturados arma el 409 de facturación, o "" si todos cuadran.
+// rechazoDelArmado es LA REGLA DE ENTRADA A UNA RUTA del asistente, o "" si entran todos.
+//
+// SON TRES CORTES Y BLOQUEAN, NO AVISAN (Amado, 07/10/2026: el domicilio ya es un servicio
+// que se cobra, y dejar entrar cualquier pedido es una vulnerabilidad), en este orden:
+//
+//  1. FACTURADO: `igual` o `cambiado`. `cambiado` entra desde el 15/10/2026 (issue 10 de
+//     Amado, PBF26-2610131268): sus renglones ya son los de la factura (`ItemsOrigen`), así
+//     que al camión sube lo facturado. Fuera quedan sin factura y sin cotejar.
+//  2. Domicilio COBRADO en la factura (`factura_domicilio > 0`).
+//  3. Domicilio COTIZADO en Entrega, SÓLO si el vendedor marcó domicilio
+//     (`faltaLaCotizacion`): Entrega sólo cotiza los marcados, y exigírselo a uno no marcado
+//     lo dejaba fuera para siempre.
+//
+// La misma regla está en el SQL de las listas, en `motivoDeCorteDelArmado` (zonas) y en el
+// aparato, y la ata `docs/armado-rechazado.casos.json` (`reglaDeEntrada`). Cada rechazo
+// nombra a los pedidos por su número de operación, el de la hoja de ruta.
+func rechazoDelArmado(pedidos []sqlc.PedidosParaArmarRutaRow) string {
+	if m := mensajeNoFacturados(pedidos); m != "" {
+		return m
+	}
+	if m := mensajeDomicilioSinCobrar(pedidos); m != "" {
+		return m
+	}
+	return mensajeSinCalcular(pedidos)
+}
+
+// faltaLaCotizacion: el vendedor marcó domicilio (`requiere_domicilio IS TRUE`) y Entrega
+// todavía no lo cotizó. Sin marcar (falso o nulo) la cotización no se exige (issue 10 de
+// Amado, 15/10/2026). Es la mitad Go de `(pedido_costo IS NOT NULL OR requiere_domicilio IS
+// NOT TRUE)` y la usan el asistente, las zonas y colocar.
+func faltaLaCotizacion(costo *float64, requiere *bool) bool {
+	return costo == nil && requiere != nil && *requiere
+}
+
+// facturaQueEntra: `igual` o `cambiado`, la mitad Go de `factura_estado IN ('igual','cambiado')`.
+func facturaQueEntra(e *sqlc.FacturaEstado) bool {
+	return e != nil && (*e == sqlc.FacturaEstadoIgual || *e == sqlc.FacturaEstadoCambiado)
+}
+
+// mensajeNoFacturados arma el 409 de facturación, o "" si todos están facturados.
 //
 // Se dice CUÁLES y por qué: un «no se pudo» a secas obliga a adivinar cuál de los quince
 // pedidos es el que sobra. Se nombran los cinco primeros y se cuenta el resto.
 func mensajeNoFacturados(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 	var malos []sqlc.PedidosParaArmarRutaRow
 	for _, p := range pedidos {
-		// ESTRICTAMENTE `igual`: más duro que el filtro `con_factura` de la lista de
-		// disponibles, que admite también `cambiado`. En el camión sólo sube lo que
-		// cuadra con la factura (Jose, `reglas-negocio.md`). El 07/10/2026 se llegó a
-		// aceptar `cambiado` aquí «porque también es una factura» y se volvió a `igual` el
-		// mismo día: Amado pidió el domicilio cobrado y cotizado, no aflojar esto.
-		if p.FacturaEstado == nil || *p.FacturaEstado != sqlc.FacturaEstadoIgual {
+		if !facturaQueEntra(p.FacturaEstado) {
 			malos = append(malos, p)
 		}
 	}
@@ -2540,7 +2552,7 @@ func mensajeNoFacturados(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 		}
 		detalle = append(detalle, fmt.Sprintf("%s (%s)", quien, motivoDeFactura(p.FacturaEstado)))
 	}
-	mensaje := fmt.Sprintf("En una ruta sólo entra lo facturado y que cuadre. %d no cumplen: %s",
+	mensaje := fmt.Sprintf("En una ruta sólo entra lo facturado. %d no cumplen: %s",
 		len(malos), strings.Join(detalle, ", "))
 	if len(malos) > 5 {
 		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
@@ -2587,12 +2599,12 @@ func mensajeDomicilioSinCobrar(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 	return mensaje + "."
 }
 
-// mensajeSinCalcular bloquea pedidos sin la cotización de domicilio de Entrega e
-// identifica cada uno por su número de operación visible.
+// mensajeSinCalcular bloquea pedidos MARCADOS a domicilio sin la cotización de Entrega e
+// identifica cada uno por su número de operación visible. Uno sin marcar no la necesita.
 func mensajeSinCalcular(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 	var malos []sqlc.PedidosParaArmarRutaRow
 	for _, p := range pedidos {
-		if p.PedidoCosto == nil {
+		if faltaLaCotizacion(p.PedidoCosto, p.RequiereDomicilio) {
 			malos = append(malos, p)
 		}
 	}
@@ -2621,14 +2633,9 @@ func mensajeSinCalcular(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 // motivoDeFactura traduce el estado a lo que se lee en la pantalla. Un estado NULL es
 // «sin cotejar», igual que cualquier otro valor inesperado: lo que no se comprobó no se
 // carga, y decir «sin factura» cuando en realidad nadie la ha mirado sería mentir.
+// `cambiado` no llega aquí: entra (15/10/2026).
 func motivoDeFactura(e *sqlc.FacturaEstado) string {
-	if e == nil {
-		return "sin cotejar"
-	}
-	switch *e {
-	case sqlc.FacturaEstadoCambiado:
-		return "cambió en la factura"
-	case sqlc.FacturaEstadoSinFactura:
+	if e != nil && *e == sqlc.FacturaEstadoSinFactura {
 		return "sin facturar"
 	}
 	return "sin cotejar"

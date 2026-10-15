@@ -224,10 +224,10 @@ void main() {
       expect(await ids(), isNot(contains('d8')));
     });
 
-    test('la factura tiene que CUADRAR, no basta con tenerla', () async {
-      // `cambiado` no se ofrece: lo que el armado del servidor rechaza no se
-      // puede ofrecer aqui (Jose, 07/10/2026: «en el camión sólo sube lo que
-      // cuadra con la factura»). Codex lo había dejado pasar en 968679f.
+    test('la factura cambiada SÍ se ofrece: al camión va lo facturado', () async {
+      // Issue 10 de Amado (15/10/2026): `cambiado` entra a una ruta porque sus
+      // renglones ya son los de la factura, y el servidor lo ofrece igual
+      // (`ListarPedidosDisponibles`). La pareja es la de abajo (sin factura).
       await sembrarPedido(
         base,
         id: 'd9',
@@ -236,7 +236,19 @@ void main() {
         endLat: 21.33,
         endLng: -77.83,
       );
-      expect(await ids(), isNot(contains('d9')));
+      expect(await ids(), contains('d9'));
+    });
+
+    test('sin factura no se ofrece', () async {
+      await sembrarPedido(
+        base,
+        id: 'd9b',
+        cliente: 'Iris B',
+        facturaEstado: EstadoFactura.sinFactura,
+        endLat: 21.331,
+        endLng: -77.831,
+      );
+      expect(await ids(), isNot(contains('d9b')));
     });
 
     test('sin cotejar tampoco: NULL no es «cuadra»', () async {
@@ -283,6 +295,21 @@ void main() {
         endLng: -77.87,
       );
       expect(await ids(), isNot(contains('d13')));
+    });
+
+    test('sin cotizar y SIN MARCAR domicilio sí se ofrece (issue 10)', () async {
+      // Entrega sólo cotiza los marcados: exigírselo a uno sin marcar lo dejaba
+      // fuera para siempre. La pareja es la de arriba (marcado y sin cotizar).
+      await sembrarPedido(
+        base,
+        id: 'd14',
+        cliente: 'Nora',
+        pedidoCosto: null,
+        requiereDomicilio: false,
+        endLat: 21.38,
+        endLng: -77.88,
+      );
+      expect(await ids(), contains('d14'));
     });
   });
 }

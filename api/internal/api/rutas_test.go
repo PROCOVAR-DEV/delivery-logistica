@@ -69,9 +69,12 @@ type pedidoDeRutas struct {
 	// `sinCobrarDomicilio` deja `factura_domicilio` en NULL. Al revés a propósito: el valor
 	// cero es «el domicilio está cobrado», que es lo que necesitan casi todas las pruebas.
 	sinCobrarDomicilio bool
-	sucursal           uuid.UUID
-	externalID         *string
-	fuente             *sqlc.Procedencia
+	// `noMarcoDomicilio` deja `requiere_domicilio` en false: sin marcar no se exige la
+	// cotización (issue 10 de Amado, 15/10/2026). El valor cero es «marcado», como siempre.
+	noMarcoDomicilio bool
+	sucursal         uuid.UUID
+	externalID       *string
+	fuente           *sqlc.Procedencia
 	// `archivado` es el borrado blando de PEDIDO y SÍ filtra en `PedidosParaArmarRuta`.
 	// Faltaba en el doble, así que la condición existía en el SQL y no se podía ejercitar
 	// desde aquí — que es como el 409 llegó a decir «ya está en otra ruta» de un archivado.
@@ -305,6 +308,11 @@ func (d *dobleDeRutas) ListarParadasQueViajaronEnRuta(_ context.Context, arg sql
 	return salida, nil
 }
 
+func requiereDelDoble(p *pedidoDeRutas) *bool {
+	v := !p.noMarcoDomicilio
+	return &v
+}
+
 func domicilioDelDoble(p *pedidoDeRutas) *float64 {
 	if p.sinCobrarDomicilio {
 		return nil
@@ -312,8 +320,8 @@ func domicilioDelDoble(p *pedidoDeRutas) *float64 {
 	return decimalDeRutas(1)
 }
 
-// PedidosParaArmarRuta repite las condiciones de elegibilidad del SQL. Facturas `igual` y
-// `cambiado` son válidas; las no facturadas se rechazan con su motivo en el manejador.
+// PedidosParaArmarRuta repite las condiciones de elegibilidad del SQL. La factura no filtra
+// aquí: la corta el manejador (`rechazoDelArmado`) con su motivo.
 func (d *dobleDeRutas) PedidosParaArmarRuta(_ context.Context, arg sqlc.PedidosParaArmarRutaParams) ([]sqlc.PedidosParaArmarRutaRow, error) {
 	d.sucursalVista = append(d.sucursalVista, arg.Sucursal)
 	var salida []sqlc.PedidosParaArmarRutaRow
@@ -330,8 +338,8 @@ func (d *dobleDeRutas) PedidosParaArmarRuta(_ context.Context, arg sqlc.PedidosP
 		salida = append(salida, sqlc.PedidosParaArmarRutaRow{
 			ID: p.id, OperationNumber: p.operacion, CustomerName: p.cliente,
 			EndLat: p.endLat, EndLng: p.endLng, Weight: p.peso, PedidoCosto: p.costo,
-			FacturaDomicilio: domicilioDelDoble(p),
-			FacturaEstado:    p.factura, BranchID: pgDeRutas(p.sucursal),
+			FacturaDomicilio: domicilioDelDoble(p), RequiereDomicilio: requiereDelDoble(p),
+			FacturaEstado: p.factura, BranchID: pgDeRutas(p.sucursal),
 			ExternalID: p.externalID, Source: p.fuente,
 			// `delivered_at` y `resultado` salen como DATO, no filtran en el `WHERE`:
 			// igual que `factura_estado`, para que el manejador pueda nombrar cuál se
@@ -415,9 +423,9 @@ func (d *dobleDeRutas) EngancharPedidoARuta(_ context.Context, arg sqlc.Engancha
 	if !hay || p.rutaID != nil || !alcanza(arg.Sucursal, &p.sucursal) {
 		return 0, nil
 	}
-	// LAS DOS DE AMADO (`factura_domicilio > 0` y `pedido_costo IS NOT NULL`). `factura_estado`
-	// NO está en el SQL y no puede estar aquí: lo corta el manejador.
-	if p.sinCobrarDomicilio || p.costo == nil {
+	// LAS DOS DE AMADO (`factura_domicilio > 0` y la cotización, sólo si se marcó domicilio:
+	// issue 10). `factura_estado` NO está en el SQL y no puede estar aquí: lo corta el manejador.
+	if p.sinCobrarDomicilio || (p.costo == nil && !p.noMarcoDomicilio) {
 		return 0, nil
 	}
 	// UN ENTREGADO NO SE REASIGNA, también en el SQL (08/10/2026): lo repite la consulta de
@@ -1346,17 +1354,18 @@ func TestArmarRutaConMasDeCincoQueNoEntranCuentaElResto(t *testing.T) {
 	}
 }
 
-// En un camión sólo sube lo facturado Y QUE CUADRE, y se dice CUÁL falla y por qué: un
-// «no se pudo» a secas obliga a adivinar cuál de los quince pedidos sobra.
+// En un camión sólo sube lo FACTURADO, y se dice CUÁL falla y por qué: un «no se pudo» a
+// secas obliga a adivinar cuál de los quince pedidos sobra.
 //
-// `cambiado` NO entra. El 07/10/2026 se aceptó «porque también es una factura» y se volvió
-// atrás el mismo día: la regla de Jose es que en el camión sólo sube lo que cuadra con la
-// factura, y Amado pidió sumar el domicilio cobrado y cotizado, no aflojar ésta.
+// `cambiado` SÍ entra desde el 15/10/2026 (issue 10 de Amado): sus renglones ya son los de la
+// factura. Lo que se queda fuera es sin factura y sin cotejar.
 func TestArmarRutaSoloEntraLoFacturadoYDiceCualFalla(t *testing.T) {
 	d, stg, _ := datosDeReparto()
+	sinFactura := sqlc.FacturaEstadoSinFactura
 	cambiado := sqlc.FacturaEstadoCambiado
-	d.pedidos[stg[0]].factura = &cambiado
+	d.pedidos[stg[0]].factura = &sinFactura
 	d.pedidos[stg[1]].factura = nil // sin cotejar
+	d.pedidos[stg[2]].factura = &cambiado
 	h := montarRutas(t, d)
 
 	w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
@@ -1365,14 +1374,54 @@ func TestArmarRutaSoloEntraLoFacturadoYDiceCualFalla(t *testing.T) {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
 	mensaje := errorDeRutas(t, w)
-	const esperado = "En una ruta sólo entra lo facturado y que cuadre. 2 no cumplen: " +
-		"X-Lejos (cambió en la factura), X-Cerca (sin cotejar)."
+	const esperado = "En una ruta sólo entra lo facturado. 2 no cumplen: " +
+		"X-Lejos (sin facturar), X-Cerca (sin cotejar)."
 	if mensaje != esperado {
-		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", mensaje, esperado)
+		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q\n(el cambiado X-Medio no se nombra: entra)", mensaje, esperado)
 	}
 	if len(d.rutas) != 0 {
 		t.Fatal("se armó la ruta a pesar del rechazo")
 	}
+}
+
+// EL CASO REAL DEL ISSUE 10 DE AMADO (15/10/2026), Santiago: PBF26-2610131268, factura 47061.
+// El vendedor NO marcó domicilio, Ventra facturó otra cosa (`cambiado`) y cobró 1.31 de
+// «ENTREGA A DOMICILIO», y Entrega no lo cotizó (sólo cotiza los marcados). Tiene que entrar
+// en la ruta. Y la pareja: el MISMO pedido marcado a domicilio y sin cotizar se queda fuera,
+// con el literal de siempre.
+func TestElCasoRealDelIssue10EntraEnLaRuta(t *testing.T) {
+	prepara := func(marcado bool) (*dobleDeRutas, uuid.UUID) {
+		d, stg, _ := datosDeReparto()
+		cambiado := sqlc.FacturaEstadoCambiado
+		p := d.pedidos[stg[0]]
+		p.operacion = textoDeRutas("PBF26-2610131268")
+		p.factura, p.costo, p.noMarcoDomicilio = &cambiado, nil, !marcado
+		return d, stg[0]
+	}
+
+	t.Run("sin marcar: entra", func(t *testing.T) {
+		d, id := prepara(false)
+		w := llamarRutas(t, montarRutas(t, d), http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
+			cuerpoDeArmado(camionStg.String(), id))
+		if w.Code != http.StatusCreated {
+			t.Fatalf("el caso real tiene que entrar y dio %d: %s", w.Code, w.Body.String())
+		}
+		if d.pedidos[id].rutaID == nil {
+			t.Fatal("la ruta se creó pero el pedido no quedó enganchado: EngancharPedidoARuta lo rechazó")
+		}
+	})
+	t.Run("marcado y sin cotizar: no entra", func(t *testing.T) {
+		d, id := prepara(true)
+		w := llamarRutas(t, montarRutas(t, d), http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
+			cuerpoDeArmado(camionStg.String(), id))
+		const esperado = "No se puede crear la ruta: 1 pedidos no tienen cotizado el domicilio en Entrega: PBF26-2610131268."
+		if w.Code != http.StatusConflict || errorDeRutas(t, w) != esperado {
+			t.Fatalf("tenía que ser 409 %q y fue %d: %s", esperado, w.Code, w.Body.String())
+		}
+		if len(d.rutas) != 0 {
+			t.Fatal("se armó la ruta a pesar del rechazo")
+		}
+	})
 }
 
 // La otra mitad de la pareja: con `igual` (y el domicilio cobrado y cotizado) la ruta SÍ
@@ -1454,7 +1503,7 @@ func TestArmarRutaConMasDeCincoSinFacturaCuentaElResto(t *testing.T) {
 		t.Fatalf("código %d", w.Code)
 	}
 	mensaje := errorDeRutas(t, w)
-	if !strings.HasPrefix(mensaje, "En una ruta sólo entra lo facturado y que cuadre. 7 no cumplen: ") {
+	if !strings.HasPrefix(mensaje, "En una ruta sólo entra lo facturado. 7 no cumplen: ") {
 		t.Fatalf("mensaje %q", mensaje)
 	}
 	if !strings.HasSuffix(mensaje, " y 2 más.") {
@@ -2081,19 +2130,28 @@ func TestLasSeisRutasExigenSesion(t *testing.T) {
 
 // --- La guarda de la cotización y del cobro de domicilio ----------------------
 
+// filaParaGuarda: un pedido MARCADO a domicilio, que es al que se le exige la cotización.
 func filaParaGuarda(nombre string, costo *float64, facturaDom *float64) sqlc.PedidosParaArmarRutaRow {
+	marcado := true
 	return sqlc.PedidosParaArmarRutaRow{
-		CustomerName:     nombre,
-		PedidoCosto:      costo,
-		FacturaDomicilio: facturaDom,
+		CustomerName:      nombre,
+		PedidoCosto:       costo,
+		FacturaDomicilio:  facturaDom,
+		RequiereDomicilio: &marcado,
 	}
 }
 
-// Sin cotización no se arma, tenga o no tenga el domicilio cobrado: sin importe fiable no hay
-// nada que asignar a la parada.
+// Sin cotización no se arma un pedido MARCADO a domicilio, tenga o no tenga el domicilio
+// cobrado: sin importe fiable no hay nada que asignar a la parada. Y uno SIN marcar sí pasa
+// (issue 10 de Amado, 15/10/2026): Entrega sólo cotiza los marcados.
 func TestSinCotizacionBloqueaElArmado(t *testing.T) {
 	precio := 12.5
 	cobrado := 9.0
+	sinMarcar := func(f sqlc.PedidosParaArmarRutaRow, v *bool) sqlc.PedidosParaArmarRutaRow {
+		f.RequiereDomicilio = v
+		return f
+	}
+	falso := false
 	casos := []struct {
 		nombre string
 		fila   sqlc.PedidosParaArmarRutaRow
@@ -2103,6 +2161,8 @@ func TestSinCotizacionBloqueaElArmado(t *testing.T) {
 		{"cobrado y SIN calcular", filaParaGuarda("B", nil, &cobrado), false},
 		{"sin cobrar y SIN calcular", filaParaGuarda("C", nil, nil), false},
 		{"sin cobrar pero calculado: esta guarda sólo mira la cotización", filaParaGuarda("D", &precio, nil), true},
+		{"SIN MARCAR y sin calcular: no se le exige", sinMarcar(filaParaGuarda("E", nil, &cobrado), &falso), true},
+		{"marca NULA (nadie la puso) y sin calcular: tampoco", sinMarcar(filaParaGuarda("F", nil, &cobrado), nil), true},
 	}
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {

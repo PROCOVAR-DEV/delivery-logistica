@@ -11,11 +11,18 @@ import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/numero_de_factura.dart';
 import '../../../nucleo/plataforma.dart';
+import '../../../nucleo/regla_de_entrada.dart'
+    show faltaLaCotizacion, facturaQueEntra;
 import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcel;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../tablero/datos/repositorio.dart'
+    show
+        msgSinCotizarElDomicilio,
+        msgSinDomicilioCobrado,
+        porQueNoSePuedeColocar;
 import '../datos/formato.dart';
 import '../datos/repositorio_pedidos.dart';
 import '../estado/proveedores_pedidos.dart';
@@ -201,18 +208,33 @@ class _BandaFactura extends StatelessWidget {
       pedido.facturaNumero,
       facturadaEl: pedido.facturaAt,
     );
+    // `cambiado` YA NO DICE «no entra a una ruta» (issue 10 de Amado, 15/10/2026):
+    // PBF26-2610131268 salía así y sí entra. Al camión va lo facturado, y los
+    // productos de abajo ya son los de la factura (`itemsOrigen`).
     final (texto, color) = switch (pedido.facturaEstado) {
       EstadoFactura.igual => (
-        'Cuadra con la factura $numero de Ventra: se puede repartir tal cual.',
+        'Cuadra con la factura $numero de Ventra: lo pedido es lo facturado.',
         Colores.verde,
       ),
+      // «Los productos de abajo» sólo se afirma cuando `itemsOrigen` lo dice: un
+      // `cambiado` cuyo cotejo no ató la factura a ESTE pedido trae los renglones
+      // del pedido, y nulo es «no se sabe» (`Orders.itemsOrigen`).
       EstadoFactura.cambiado => (
-        'Se facturó algo distinto de lo pedido (factura $numero). '
-            'No cuadra con la factura, así que no entra a una ruta.',
+        'Se facturó algo distinto de lo pedido (factura $numero). Al camión va '
+            'lo facturado${switch (pedido.itemsOrigen) {
+              'factura' => ': los productos de abajo ya son los de la factura.',
+              Procedencia.pedido => ', pero los productos de abajo son los del '
+                  'pedido: la factura no se pudo atar a este pedido.',
+              _ => '.',
+            }}',
         Colores.ambar,
       ),
       _ => ('Todavía no aparece facturado en Ventra.', Colores.gris),
     };
+    // La banda sólo habla de la ruta cuando hay factura que cargar.
+    final ruta = facturaQueEntra(pedido.facturaEstado)
+        ? lineaDeRutaDeLaFicha(pedido)
+        : null;
 
     return Container(
       width: double.infinity,
@@ -235,6 +257,12 @@ class _BandaFactura extends StatelessWidget {
               ),
             ),
           Text(texto, style: TextStyle(color: color)),
+          if (ruta != null)
+            Text(
+              ruta,
+              key: const ValueKey('ficha-ruta'),
+              style: TextStyle(color: color, fontWeight: FontWeight.w600),
+            ),
           if (pedido.facturaDomicilio != null)
             Text(
               'La factura cobró '
@@ -247,6 +275,34 @@ class _BandaFactura extends StatelessWidget {
   }
 }
 
+/// LO QUE LA FICHA DICE DE LA RUTA, o `null` si no dice nada.
+///
+/// **No repite la regla: le pregunta a [porQueNoSePuedeColocar]**, la misma pieza
+/// que el arrastre del tablero y el «Sin cobro de domicilio» de la tabla, que a su
+/// vez lee `nucleo/regla_de_entrada.dart`. «No entra» sale SÓLO cuando de verdad no
+/// entra por el domicilio: sin cobrar en la factura, o marcado y sin cotizar. Un
+/// entregado, uno que ya va en una ruta o uno archivado no tienen nada que decir
+/// aquí (lo cuenta el resto de la ficha), y uno sin punto de entrega tampoco puede
+/// ir, así que no se le dice que puede.
+String? lineaDeRutaDeLaFicha(Pedido pedido) {
+  final motivo = porQueNoSePuedeColocar(pedido);
+  if (motivo == msgSinDomicilioCobrado) {
+    return 'No entra a una ruta: la factura no tiene un cobro de domicilio '
+        'registrado.';
+  }
+  if (motivo == msgSinCotizarElDomicilio) {
+    return 'No entra a una ruta: se marcó domicilio y Entrega todavía no lo '
+        'cotizó.';
+  }
+  if (motivo == null &&
+      !pedido.archivado &&
+      pedido.endLat != null &&
+      pedido.endLng != null) {
+    return 'Puede ir a una ruta.';
+  }
+  return null;
+}
+
 class _Domicilio extends StatelessWidget {
   const _Domicilio({required this.pedido});
 
@@ -255,7 +311,18 @@ class _Domicilio extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final conPrecio = pedido.pedidoCosto != null;
-    final color = conPrecio ? Colores.verde : Colores.ambar;
+    // Sin precio, el ámbar es sólo para quien lo NECESITA para repartir (marcado a
+    // domicilio). Al que no se marcó no le hace falta (issue 10, 15/10/2026), y
+    // pintarlo de aviso sugería lo contrario.
+    final hacefalta = faltaLaCotizacion(
+      pedidoCosto: pedido.pedidoCosto,
+      requiereDomicilio: pedido.requiereDomicilio,
+    );
+    final color = conPrecio
+        ? Colores.verde
+        : hacefalta
+        ? Colores.ambar
+        : Colores.gris;
 
     return Container(
       width: double.infinity,
@@ -288,8 +355,12 @@ class _Domicilio extends StatelessWidget {
             conPrecio
                 ? 'El costo lo puso el repartidor desde Entrega. '
                       'La distancia es del almacén al cliente.'
-                : 'El costo lo pone el repartidor desde Entrega; hasta entonces '
-                      'este pedido no tiene precio de domicilio.',
+                : hacefalta
+                ? 'El costo lo pone el repartidor desde Entrega; hasta entonces '
+                      'este pedido no tiene precio de domicilio.'
+                : 'El vendedor no marcó domicilio y Entrega sólo cotiza los '
+                      'marcados: este pedido no tiene precio de domicilio, y no '
+                      'le hace falta para ir a una ruta.',
             style: TextStyle(fontSize: 12, color: Colores.gris),
           ),
         ],

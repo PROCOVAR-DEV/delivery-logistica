@@ -138,8 +138,8 @@ func TestLosMensajesNuevosDelServidorSonLosDelFichero(t *testing.T) {
 			case "sin-domicilio-cobrado-uno":
 				salio = mensajeDomicilioSinCobrar([]sqlc.PedidosParaArmarRutaRow{fila})
 			case "sin-cotizar-uno":
-				cobrado := 9.0
-				fila.FacturaDomicilio = &cobrado
+				cobrado, marcado := 9.0, true
+				fila.FacturaDomicilio, fila.RequiereDomicilio = &cobrado, &marcado
 				salio = mensajeSinCalcular([]sqlc.PedidosParaArmarRutaRow{fila})
 			default:
 				t.Fatalf("caso %q sin comprobación: añádela aquí o el fichero miente", c.Nombre)
@@ -202,5 +202,91 @@ func TestLosMensajesNuevosDelServidorSonLosDelFichero(t *testing.T) {
 			t.Errorf("%s: el servidor dice motivo=%q queHacer=%q y el fichero fija motivo=%q queHacer=%q",
 				d.Nombre, got["motivo"], got["queHacer"], d.Motivo, d.QueHacer)
 		}
+	}
+}
+
+// casoDeEntrada es un caso de `reglaDeEntrada`: un pedido y si entra en una ruta.
+type casoDeEntrada struct {
+	Nombre            string   `json:"nombre"`
+	Nota              string   `json:"nota"`
+	OperationNumber   string   `json:"operationNumber"`
+	FacturaEstado     *string  `json:"facturaEstado"`
+	FacturaDomicilio  *float64 `json:"facturaDomicilio"`
+	PedidoCosto       *float64 `json:"pedidoCosto"`
+	RequiereDomicilio *bool    `json:"requiereDomicilio"`
+	Entra             bool     `json:"entra"`
+	Mensaje           string   `json:"mensaje"`
+}
+
+// leerReglaDeEntrada lee los casos y exige los que no se pueden perder: el caso real del
+// issue 10 entrando y, al menos, uno de cada lado.
+func leerReglaDeEntrada(t *testing.T) []casoDeEntrada {
+	t.Helper()
+	b, err := os.ReadFile(rutaDeLosCasosDelArmado)
+	if err != nil {
+		t.Fatalf("no se pudo leer %s: %v", rutaDeLosCasosDelArmado, err)
+	}
+	var fichero struct {
+		Regla struct {
+			Casos []casoDeEntrada `json:"casos"`
+		} `json:"reglaDeEntrada"`
+	}
+	if err := json.Unmarshal(b, &fichero); err != nil {
+		t.Fatalf("%s no se puede interpretar: %v", rutaDeLosCasosDelArmado, err)
+	}
+	entran, noEntran, real := 0, 0, false
+	for _, c := range fichero.Regla.Casos {
+		if c.Entra {
+			entran++
+		} else {
+			noEntran++
+		}
+		if c.Nombre == "caso-real-PBF26-2610131268" && c.Entra {
+			real = true
+		}
+	}
+	if entran == 0 || noEntran == 0 || !real {
+		t.Fatalf("%s: `reglaDeEntrada` tiene que traer casos que entran (%d), que no entran (%d) y el "+
+			"caso real del issue 10 entrando (%v): sin ellos esta prueba sale verde sin mirar nada",
+			rutaDeLosCasosDelArmado, entran, noEntran, real)
+	}
+	return fichero.Regla.Casos
+}
+
+// LA REGLA DE ENTRADA DEL SERVIDOR ES LA DEL FICHERO — issue 10 de Amado, 15/10/2026.
+//
+// Las dos puertas que deciden en Go: el asistente (`rechazoDelArmado`, POST /api/routes) y la
+// zona del tablero (`motivoDeCorteDelArmado`, POST /api/board/columns/{id}/route). El aparato
+// lee los MISMOS casos (`la_regla_de_entrada_es_la_del_servidor_test.dart`) y el SQL también
+// (`TestMotorReal_LaReglaDeEntradaEsLaDelFichero`).
+func TestLaReglaDeEntradaEsLaDelFichero(t *testing.T) {
+	for _, c := range leerReglaDeEntrada(t) {
+		t.Run(c.Nombre, func(t *testing.T) {
+			var estado *sqlc.FacturaEstado
+			if c.FacturaEstado != nil {
+				e := sqlc.FacturaEstado(*c.FacturaEstado)
+				estado = &e
+			}
+			op := c.OperationNumber
+			asistente := rechazoDelArmado([]sqlc.PedidosParaArmarRutaRow{{
+				OperationNumber: &op, CustomerName: "Cliente", FacturaEstado: estado,
+				FacturaDomicilio: c.FacturaDomicilio, PedidoCosto: c.PedidoCosto,
+				RequiereDomicilio: c.RequiereDomicilio,
+			}})
+			if c.Entra && asistente != "" {
+				t.Errorf("el asistente lo rechaza y tiene que entrar: %q\n%s", asistente, c.Nota)
+			}
+			if !c.Entra && asistente != c.Mensaje {
+				t.Errorf("el asistente dice:\n  %q\ny el fichero fija:\n  %q\n%s", asistente, c.Mensaje, c.Nota)
+			}
+			zona, _ := motivoDeCorteDelArmado(sqlc.PedidosDeColumnaParaArmarRutaRow{
+				OperationNumber: &op, CustomerName: "Cliente", FacturaEstado: estado,
+				FacturaDomicilio: c.FacturaDomicilio, PedidoCosto: c.PedidoCosto,
+				RequiereDomicilio: c.RequiereDomicilio,
+			})
+			if c.Entra != (zona == "") {
+				t.Errorf("la zona del tablero dice %q y el fichero dice entra=%v\n%s", zona, c.Entra, c.Nota)
+			}
+		})
 	}
 }

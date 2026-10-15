@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 
 import '../../../nucleo/almacenes/almacen_de_referencia.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/registro/registro.dart';
 import 'esquema.dart';
 import 'geo.dart';
@@ -419,7 +420,7 @@ SELECT p.order_id, p.column_id, p.posicion, p.colocado_at, c.almacen_id,
        o.operation_number, o.customer_name, o.customer_phone, o.address,
        o.end_address, o.end_lat, o.end_lng, o.weight, o.pedido_costo,
        o.municipio, o.vendedor, o.order_date, o.factura_estado, o.archivado,
-       o.factura_numero, o.factura_at,
+       o.factura_numero, o.factura_at, o.requiere_domicilio,
        o.route_id, o.resultado, o.factura_domicilio, o.delivered_at
 FROM ${EsquemaTablero.colocaciones} p
 JOIN ${EsquemaTablero.columnas} c ON c.id = p.column_id
@@ -466,6 +467,7 @@ ORDER BY c.posicion ASC, p.posicion ASC''',
               facturaNumero: f.readNullable<String>('factura_numero'),
               facturaAt: f.readNullable<DateTime>('factura_at'),
               facturaDomicilio: f.readNullable<double>('factura_domicilio'),
+              requiereDomicilio: f.readNullable<bool>('requiere_domicilio'),
               archivado: f.read<int>('archivado') != 0,
               rutaId: f.readNullable<String>('route_id'),
               resultado: f.readNullable<String>('resultado'),
@@ -542,8 +544,9 @@ WHERE c.branch_id = ?1''',
   /// el logistico prepararia una columna entera para que al final del dia le
   /// digan que no. Desde el 07/10/2026 (Amado) entran **tambien** el domicilio
   /// cobrado (`facturaDomicilio > 0`) y el domicilio cotizado (`pedidoCosto` no
-  /// nulo): sin ellos la tarjeta se ofrecia aqui y `colocar` la rechazaba
-  /// (`porQueNoSePuedeColocar`), o se colocaba y fallaba al armar la zona.
+  /// nulo) si el vendedor lo marco (issue 10, 15/10/2026): sin ellos la tarjeta
+  /// se ofrecia aqui y `colocar` la rechazaba (`porQueNoSePuedeColocar`), o se
+  /// colocaba y fallaba al armar la zona.
   Future<MitadIzquierda> sinColocar(
     String sucursalId,
     AlmacenOrigen origen, {
@@ -560,35 +563,21 @@ WHERE c.branch_id = ?1''',
             t.routeId.isNull() &
             t.endLat.isNotNull() &
             t.endLng.isNotNull() &
-            t.facturaEstado.isIn(const [
-              EstadoFactura.igual,
-              EstadoFactura.cambiado,
-            ]) &
-            // SIN DOMICILIO NO SE COLOCA: NO HAY NADA QUE LLEVAR A CASA.
-            //
-            // El tablero prepara las rutas, y una ruta reparte a domicilio.
-            // Sin esto, con los datos del 25/09/2026, Santiago ofrecia 246
-            // pedidos sin colocar de los que **183 no eran de domicilio**: se
-            // podia armar una zona entera con ellos —y se armo, probandolo— y
-            // despues el asistente no la aceptaba, porque alli el filtro si
-            // estaba. Jose: «sin domicilio no los pongas, por que eso no lleva
-            // domicilio».
+            // LA REGLA DE ENTRADA A UNA RUTA (`nucleo/regla_de_entrada.dart`):
+            // facturado (`igual` o `cambiado`), domicilio cobrado y, si el
+            // vendedor lo marco, cotizado. La misma que el servidor en su lista y
+            // en su contador, y que la lista de disponibles de Rutas.
             //
             // VA AQUI ADEMAS DE EN EL SQL DEL SERVIDOR, y no es duplicar por
             // gusto: esta pantalla NO le pregunta a la api, se lo pregunta a su
             // propia base local —que es lo que la hace funcionar sin senal—.
-            // Arreglarlo solo en `db/queries/tablero.sql` dejaba el numero
-            // exactamente igual, y se comprobo desplegando: la api ya filtraba
-            // y la pantalla seguia diciendo 243.
-            t.requiereDomicilio.equals(true) &
-            // LAS DOS CONDICIONES DE AMADO (07/10/2026, incidencias 2 y 6): la
-            // factura trae un cobro de domicilio positivo y Entrega ya cotizo el
-            // domicilio. Son las mismas que aplica el servidor en su lista y en su
-            // contador, y las mismas que la lista de disponibles de Rutas
-            // (`ConsultasRutas.disponibles`). Un `pedidoCosto` de cero SI cuenta
-            // como cotizado: cero es un precio puesto, nulo es que falta.
-            t.facturaDomicilio.isBiggerThanValue(0) &
-            t.pedidoCosto.isNotNull(),
+            //
+            // Ya NO va `requiereDomicilio = true` (25/09/2026, «sin domicilio no
+            // los pongas»): lo que dice que un pedido lleva domicilio es el cobro
+            // de la factura, y con la casilla aqui PBF26-2610131268 —sin marcar y
+            // con 1.31 de domicilio cobrado— no salia nunca (issue 10 de Amado,
+            // 15/10/2026).
+            entraEnRuta(t),
       );
     // «Sin colocar» = no esta en ninguna columna. Del tablero de NADIE: un
     // pedido es de una sucursal y sólo puede estar en el suyo.
@@ -699,6 +688,7 @@ WHERE c.branch_id = ?1''',
             facturaNumero: p.facturaNumero,
             facturaAt: p.facturaAt,
             facturaDomicilio: p.facturaDomicilio,
+            requiereDomicilio: p.requiereDomicilio,
             archivado: p.archivado,
             rutaId: p.routeId,
             resultado: p.resultado,

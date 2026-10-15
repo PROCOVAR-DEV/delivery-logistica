@@ -154,6 +154,11 @@ parada de 5: sin ella no hay importe de la ruta.»
 
 **Un total a medias es peor que ninguno**: parece completo y se queda corto.
 
+**Ojo con los pedidos que el vendedor no marcó a domicilio.** Entran en una ruta aunque
+Entrega no los haya cotizado (Entrega sólo cotiza los marcados), así que van **sin
+precio de domicilio** y la ruta los cuenta en «sin cotizar». Mientras nadie les ponga
+precio, esa ruta no enseña su total. Está pendiente de decidir qué hacer con ellos.
+
 ### Por qué un domicilio se queda sin cotizar
 
 Casi siempre es una de estas tres, y ninguna se arregla desde esta aplicación:
@@ -198,11 +203,16 @@ real que hace el camión será mayor.
 ## El peso pendiente del Panel
 
 Suma el peso de los pedidos **repartibles** que todavía no están en ninguna ruta.
-Un pedido es repartible cuando cumple las tres a la vez:
+Un pedido es repartible cuando cumple todo esto a la vez:
 
 1. no está ya metido en otra ruta,
-2. tiene coordenadas de entrega, y
-3. está facturado y cuadra (o cambió en la factura).
+2. tiene coordenadas de entrega,
+3. está facturado, cuadre o haya cambiado en la factura,
+4. la factura cobra el domicilio (importe mayor que cero), y
+5. si el vendedor marcó domicilio, Entrega ya lo cotizó.
+
+Es la misma regla que para entrar en una ruta: ver [Las reglas del
+reparto](las-reglas-del-reparto.md).
 
 Un pedido sin coordenadas **no** entra en este número aunque esté sin repartir:
 no se puede llevar a ningún sitio.

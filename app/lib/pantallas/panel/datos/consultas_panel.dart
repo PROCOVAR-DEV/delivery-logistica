@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/reloj.dart';
 
 /// Las siete cifras de arriba del Panel.
@@ -76,9 +77,9 @@ class PendienteDeSucursal {
 ///
 /// La definicion de REPARTIBLE esta escrita **una sola vez**, en [_repartible],
 /// y es la de la lista de disponibles de Rutas (`ConsultasRutas.disponibles`):
-/// de PEDIDO, sin ruta, con punto de entrega, factura que CUADRE (`igual`),
-/// domicilio cobrado (`factura_domicilio > 0`) y domicilio cotizado
-/// (`pedido_costo` no nulo). Tenerla dos veces es como se acaba con dos numeros
+/// de PEDIDO, sin ruta, con punto de entrega y la regla de entrada a una ruta
+/// (`nucleo/regla_de_entrada.dart`: factura `igual` o `cambiado`, domicilio
+/// cobrado y, si se marco, cotizado). Tenerla dos veces es como se acaba con dos numeros
 /// distintos para la misma pregunta, y el que sobra siempre es el que alguien
 /// mira: el Panel decia «40 por repartir» y el armador ofrecia 12.
 ///
@@ -94,8 +95,7 @@ class ConsultasPanel {
   static const _repartible =
       "o.source = 'pedido' AND o.route_id IS NULL "
       "AND o.end_lat IS NOT NULL AND o.end_lng IS NOT NULL "
-      "AND o.factura_estado = 'igual' "
-      "AND o.factura_domicilio > 0 AND o.pedido_costo IS NOT NULL";
+      'AND $entraEnRutaSql';
 
   // «EN MARCHA» ES LA QUE SALIÓ, y una planificada no ha salido — 22/09/2026.
   //

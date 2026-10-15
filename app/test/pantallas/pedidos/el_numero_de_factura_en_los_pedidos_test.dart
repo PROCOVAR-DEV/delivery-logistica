@@ -127,6 +127,14 @@ void main() {
       expect(tester.widget<Text>(enTarjeta).data, 'Factura F-1001');
       expect(find.text('Cambió !'), findsOneWidget);
       expect(find.text('Cuadra'), findsNothing);
+      // Issue 10 de Amado (15/10/2026): `cambiado` entra a una ruta, y el
+      // tooltip ya no dice que no puede ir.
+      expect(
+        find.byTooltip(
+          'Se facturó algo distinto de lo pedido: al camión va lo facturado.',
+        ),
+        findsOneWidget,
+      );
     });
 
     for (final (nombre, estado) in const [
@@ -308,12 +316,13 @@ void main() {
     for (final (estado, frase) in const [
       (
         EstadoFactura.igual,
-        'Cuadra con la factura — de Ventra: se puede repartir tal cual.',
+        'Cuadra con la factura — de Ventra: lo pedido es lo facturado.',
       ),
       (
         EstadoFactura.cambiado,
-        'Se facturó algo distinto de lo pedido (factura —). '
-            'No cuadra con la factura, así que no entra a una ruta.',
+        // Sin `itemsOrigen` no se afirma de dónde son los productos.
+        'Se facturó algo distinto de lo pedido (factura —). Al camión va '
+            'lo facturado.',
       ),
     ]) {
       testWidgets('cotejada ($estado) y sin número, la banda dice «—» y no el '

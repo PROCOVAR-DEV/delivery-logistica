@@ -198,11 +198,13 @@ Camión: F-350
 
 ### Las marcas de los pedidos
 
-- **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»**, **«Sin
-  factura»** y **«Cambió en la factura»** — las cinco **en rojo**: hoy **no salen**. En
-  el camión sólo sube lo que cuadra con la factura. Los puedes dejar puestos: no
+- **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»** y **«Sin
+  factura»** — las cuatro **en rojo**: hoy **no salen**. Los puedes dejar puestos: no
   entrarán en la ruta y te lo dirá.
-- **Sin domicilio cobrado o sin cotizar** — esos pedidos **ni salen en «Sin colocar»**, y
+- **«Cambió en la factura»** — **en ámbar**: **sí sale**. Sólo avisa de que al camión va
+  lo facturado, no lo que se pidió.
+- **Sin domicilio cobrado, o marcado a domicilio y sin cotizar** — esos pedidos **ni
+  salen en «Sin colocar»**, y
   si intentas colocarlos te lo rechaza con su motivo («No se puede asociar al tablero:
   la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el domicilio
   del pedido.»). Ver [Tablero](../comun/pantallas/tablero.md#qué-se-puede-colocar-en-una-zona).
@@ -259,7 +261,7 @@ Debajo te lista, uno a uno, por qué se cayó cada pedido:
 
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
-PTB25-261005-1502 · ANA MARTÍNEZ: Cambió en la factura
+PTB25-261005-1502 · ANA MARTÍNEZ: Sin factura
 PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
 PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
@@ -268,8 +270,8 @@ Cada pedido sale por su **conduce** (el número de operación de la factura).
 
 ### Qué entra y qué no
 
-**Sólo entran los pedidos repartibles** (facturados que cuadran, con el domicilio
-cobrado y cotizado). Los que no, **se descartan: se quedan en la zona y marcados**. No
+**Sólo entran los pedidos repartibles** (facturados, cuadren o no, con el domicilio
+cobrado y, si el vendedor lo marcó, cotizado). Los que no, **se descartan: se quedan en la zona y marcados**. No
 desaparece nada. **Si algunos entran y otros no**, la ruta se arma con los que entran y,
 al llegar a Rutas, una franja roja nombra a los que se quedaron fuera, cada uno por su
 conduce:

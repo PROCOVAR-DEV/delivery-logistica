@@ -113,6 +113,7 @@ func contarAvisos(t *testing.T) *contadorDeAvisos {
 	// MÁS no los contaba. Es el mismo agujero que tenía el propio código.
 	antTipos, antClientes := avisarCambioDeTiposDeVehiculo, avisarCambioDeClientes
 	antCanal, antTasa := avisarCambioEnElCanal, avisarTasaDeSucursal
+	antDist := avisarCambioDeDistribuidores
 	t.Cleanup(func() {
 		avisarCambioDeRutas, avisarCambioDelTablero = antRutas, antTablero
 		avisarCambioDePedidos, avisarCambioDelCatalogo = antPedidos, antCatalogo
@@ -120,6 +121,7 @@ func contarAvisos(t *testing.T) *contadorDeAvisos {
 		avisarCambioDeSucursales, avisarCambioDeAjustes = antSuc, antAj
 		avisarCambioDeTiposDeVehiculo, avisarCambioDeClientes = antTipos, antClientes
 		avisarCambioEnElCanal, avisarTasaDeSucursal = antCanal, antTasa
+		avisarCambioDeDistribuidores = antDist
 	})
 
 	avisarCambioDeRutas = anotaDe(CambioRutas)
@@ -133,6 +135,8 @@ func contarAvisos(t *testing.T) *contadorDeAvisos {
 	// Los tipos de vehículo publican el MISMO texto que la flota (`vehiculos`) porque la
 	// pantalla es la misma, y desde la 00018 también van acotados (a la sucursal del TIPO).
 	avisarCambioDeTiposDeVehiculo = anotaDe(CambioVehiculos)
+	// Los distribuidores (00019) tambien publican el tipo de la flota y van acotados a SU sucursal.
+	avisarCambioDeDistribuidores = anotaDe(CambioVehiculos)
 	avisarCambioDeClientes = anotaDe(CambioClientes)
 	avisarCambioEnElCanal = anota(CambioCanal)
 	avisarTasaDeSucursal = anotaDe(CambioAjustes)
@@ -1181,6 +1185,9 @@ func TestNingunaEscrituraDeNingunaPantallaSeQuedaSinAvisar(t *testing.T) {
 		"tipos_vehiculo.go": {
 			"crearTipoDeVehiculo", "actualizarTipoDeVehiculo", "borrarTipoDeVehiculo",
 		},
+		"distribuidores.go": {
+			"crearDistribuidor", "actualizarDistribuidor", "borrarDistribuidor",
+		},
 		"sucursales.go": {"crearSucursal", "actualizarSucursal", "borrarSucursal"},
 		"ajustes.go":    {"guardarAjustes"},
 		"almacenes.go":  {"guardarAlmacenes"},
@@ -1192,6 +1199,7 @@ func TestNingunaEscrituraDeNingunaPantallaSeQuedaSinAvisar(t *testing.T) {
 	gancho := map[string]string{
 		"vehiculos.go":      "avisarCambioDeVehiculos(",
 		"tipos_vehiculo.go": "avisarCambioDeTiposDeVehiculo(",
+		"distribuidores.go": "avisarCambioDeDistribuidores(",
 		"sucursales.go":     "avisarCambioDeSucursales(",
 		"ajustes.go":        "avisarCambioDeAjustes(",
 		"almacenes.go":      "avisarCambioDeAlmacenes(",

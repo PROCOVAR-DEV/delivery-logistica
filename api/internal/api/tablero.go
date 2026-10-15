@@ -1325,6 +1325,10 @@ func (s *Servidor) quitarPedidoDelTablero(w http.ResponseWriter, r *http.Request
 type cuerpoArmar struct {
 	Nombre     httpx.Opcional[string] `json:"nombre"`
 	VehiculoID httpx.Opcional[string] `json:"vehiculoId"`
+	// QUIÉN REPARTE (issue 7). Opcional: vacío o null = sin distribuidor. Si viene tiene que ser de la
+	// sucursal de la zona y estar en activo (`distribuidorDeLaRuta`). La zona NO guarda uno previsto
+	// como guarda el camión: se elige al armar.
+	DistribuidorID httpx.Opcional[string] `json:"distribuidorId"`
 	// Optimizar reordena por cercanía (el greedy de siempre). Por defecto NO: el
 	// logístico ya propuso un orden arrastrando y él conoce las calles de su distrito;
 	// el vecino más próximo no. Lo que no puede pasar es que su orden se pierda sin que
@@ -1713,6 +1717,13 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// QUIÉN REPARTE, si lo mandan: de la sucursal de LA ZONA y en activo. Después de los cortes del
+	// camión, que son los que ya existían y los que la persona espera leer primero.
+	distribuidor, ok := distribuidorDeLaRuta(w, r, a, c.DistribuidorID.Con(""), pgDe(columna.BranchID))
+	if !ok {
+		return
+	}
+
 	codigo, err := s.codigoDeRuta(r, a)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
@@ -1726,14 +1737,15 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	err = a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
 		var err error
 		ruta, err = tx.TableroCrearRuta(r.Context(), sqlc.CrearRutaParams{
-			Name:          &nombre,
-			RouteCode:     &codigo,
-			OriginAddress: aTexto(almacen.Nombre),
-			OriginLat:     &almacen.Lat,
-			OriginLng:     &almacen.Lng,
-			VehicleID:     vehiculo,
-			BranchID:      pgDe(columna.BranchID),
-			DeliveryDate:  entrega,
+			Name:           &nombre,
+			RouteCode:      &codigo,
+			OriginAddress:  aTexto(almacen.Nombre),
+			OriginLat:      &almacen.Lat,
+			OriginLng:      &almacen.Lng,
+			VehicleID:      vehiculo,
+			BranchID:       pgDe(columna.BranchID),
+			DeliveryDate:   entrega,
+			DistribuidorID: distribuidor,
 		})
 		if err != nil {
 			return err
@@ -1833,17 +1845,18 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	avisarCambioDelTablero(r.Context(), deLaFila(columna.BranchID))
 
 	httpx.JSON(w, r, http.StatusCreated, map[string]any{
-		"id":          ruta.ID,
-		"routeCode":   ruta.RouteCode,
-		"name":        ruta.Name,
-		"status":      string(ruta.Status),
-		"branchId":    columna.BranchID,
-		"columnaId":   columna.ID,
-		"paradas":     enganchados,
-		"totalWeight": pesoTotal,
-		"totalPrice":  costoTotal,
-		"distanciaKm": distancia,
-		"origen":      almacen,
+		"id":             ruta.ID,
+		"routeCode":      ruta.RouteCode,
+		"name":           ruta.Name,
+		"status":         string(ruta.Status),
+		"branchId":       columna.BranchID,
+		"distribuidorId": idOpcional(distribuidor),
+		"columnaId":      columna.ID,
+		"paradas":        enganchados,
+		"totalWeight":    pesoTotal,
+		"totalPrice":     costoTotal,
+		"distanciaKm":    distancia,
+		"origen":         almacen,
 		// Quién se cayó y por qué, siempre, aunque esté vacío: la pantalla tiene que
 		// poder decir «de doce salieron nueve, y éstos tres son los que faltan».
 		"descartados": descartados,

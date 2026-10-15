@@ -13,6 +13,8 @@ import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
+import '../../distribuidores/datos/distribuidor_de_la_ruta.dart';
+import '../../distribuidores/estado/proveedores_distribuidores.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/vista/kit.dart';
 import '../datos/acciones_rutas.dart';
@@ -50,6 +52,13 @@ class ListaDeRutas extends ConsumerWidget {
     final sucursales = {
       for (final s in ref.watch(sucursalesProvider).value ?? const <Sucursal>[])
         s.id: s,
+    };
+    // QUIEN REPARTE cada ruta (issue 7): por id, de lo que el aparato tiene bajado.
+    final distribuidores = {
+      for (final d
+          in ref.watch(distribuidoresDeLaBarraProvider).value ??
+              const <Distribuidor>[])
+        d.id: d,
     };
     // UNA sola consulta agrupada para las veinte tarjetas, no una por tarjeta.
     // Mientras no llegue es `null`, y entonces la tarjeta **no escribe un
@@ -139,6 +148,10 @@ class ListaDeRutas extends ConsumerWidget {
               esLaPrimera: cual == 0 && cualGrupo == 0,
               ruta: ruta,
               vehiculo: vehiculos[ruta.vehicleId],
+              distribuidor: textoDelDistribuidor(
+                ruta.distribuidorId,
+                distribuidores,
+              ),
               ocupacionDelCamion: ruta.vehicleId == null
                   ? null
                   : ocupados?[ruta.vehicleId],
@@ -212,6 +225,7 @@ class _TarjetaDeRuta extends ConsumerWidget {
     required this.esLaPrimera,
     required this.ruta,
     required this.vehiculo,
+    required this.distribuidor,
     required this.ocupacionDelCamion,
     required this.seSabeLaOcupacion,
     required this.paradas,
@@ -225,6 +239,13 @@ class _TarjetaDeRuta extends ConsumerWidget {
 
   final Ruta ruta;
   final Vehiculo? vehiculo;
+
+  /// QUIEN REPARTE, ya escrito (`textoDelDistribuidor`): su nombre, «Sin
+  /// distribuidor» o «Distribuidor sin descargar». SIEMPRE un texto y siempre un
+  /// renglon, a proposito: si solo saliera cuando hay uno, las rutas historicas
+  /// serian mas bajas que las nuevas y la lista saldria con dientes de sierra
+  /// (`tarjetas_de_la_misma_altura_test.dart`).
+  final String distribuidor;
 
   /// La ruta ABIERTA que tiene cogido a este camión, si hay alguna. Puede ser
   /// ésta misma —lo normal— o **otra**, que es el caso que importa: dos rutas
@@ -449,6 +470,8 @@ class _TarjetaDeRuta extends ConsumerWidget {
                             '${vehiculo!.plate == null ? '' : ' (${vehiculo!.plate})'}'
                             '$_comoAndaElCamion',
                 ),
+                // 3-bis. Quien reparte (issue 7): la persona responsable de la entrega.
+                _Renglon(icono: Icons.badge_outlined, texto: distribuidor),
                 _Renglon(
                   icono: Icons.place_outlined,
                   texto: ruta.originAddress ?? 'Sin punto de partida',

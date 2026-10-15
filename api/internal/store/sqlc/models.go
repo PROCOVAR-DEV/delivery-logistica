@@ -65,6 +65,7 @@ const (
 	ColeccionDeLaBajadaCustomers       ColeccionDeLaBajada = "customers"
 	ColeccionDeLaBajadaBoardColumns    ColeccionDeLaBajada = "boardColumns"
 	ColeccionDeLaBajadaBoardPlacements ColeccionDeLaBajada = "boardPlacements"
+	ColeccionDeLaBajadaDistribuidores  ColeccionDeLaBajada = "distribuidores"
 )
 
 func (e *ColeccionDeLaBajada) Scan(src interface{}) error {
@@ -635,6 +636,15 @@ type Customer struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Distribuidore struct {
+	ID        uuid.UUID          `json:"id"`
+	BranchID  uuid.UUID          `json:"branch_id"`
+	Nombre    string             `json:"nombre"`
+	Activo    bool               `json:"activo"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type EnviosDelWebhook struct {
 	ID         uuid.UUID          `json:"id"`
 	Destino    string             `json:"destino"`
@@ -808,7 +818,8 @@ type Route struct {
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 	// Cuántas paradas entraron en la ruta sin costo de domicilio, contadas al armarla. NULL = no consta (rutas anteriores a esta migración); 0 = estaban todas cotizadas.
-	ParadasSinCotizar *int32 `json:"paradas_sin_cotizar"`
+	ParadasSinCotizar *int32      `json:"paradas_sin_cotizar"`
+	DistribuidorID    pgtype.UUID `json:"distribuidor_id"`
 }
 
 type SavedOrigin struct {

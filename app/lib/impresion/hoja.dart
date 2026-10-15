@@ -153,6 +153,7 @@ class HojaPostDespacho {
     required this.sinMarcar,
     required this.lineas,
     required this.pendientes,
+    this.distribuidor = '',
     this.salida,
     this.regreso,
   });
@@ -160,6 +161,9 @@ class HojaPostDespacho {
   final String ruta;
   final String sucursal;
   final String vehiculo;
+
+  /// Quien reparte la ruta; vacio = no consta y no se imprime. Ver `DatosDeRuta`.
+  final String distribuidor;
 
   /// Cuando salio y cuando volvio, si se sabe. Textos ya formados: la hoja los
   /// escribe tal cual, igual que la de Next.

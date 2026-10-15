@@ -1528,6 +1528,39 @@ quien llama): un tipo de Santiago llega a Santiago y **no** a Holguín. Un tipo 
 (`branch_id` nulo) sale sin sucursal y llega a las ocho. (Hasta la 00018 iba siempre a las ocho: el
 catálogo era global.) No dejan línea de «Rastro de quién» (a diferencia de `/api/vehicles`).
 
+## `/api/distribuidores` — quién reparte, POR SUCURSAL (00019, issue 7 de Amado)
+
+Recurso propio del reparto (`api/internal/api/distribuidores.go`). **Auth**: cualquier sesión de
+Reparto, también `LOGISTICO`, igual que los tipos de vehículo.
+
+**Alcance**: quien tiene sucursal lista y toca sólo los suyos; uno de otra sucursal es
+`404 {"error":"No encontrado"}`. El modo «todas» (SUPER ADMIN / DESARROLLADOR sin sucursal elegida)
+**lista los de todas** (cada fila con `sucursalId` y `sucursal`) pero **no crea**: el `POST` es
+`400 {"error":"Elige una sucursal arriba para crear el distribuidor: los distribuidores son de cada sucursal."}`.
+
+- `GET /api/distribuidores[?activos=1]` → `[{id, nombre, activo, sucursalId, sucursal, rutas, createdAt, updatedAt}]`.
+  Sin `activos` salen también los retirados; `rutas` = cuántas rutas lo usan.
+- `POST /api/distribuidores` `{nombre, activo?}` → `201` con el distribuidor. Nombre vacío → 400;
+  nombre que la sucursal ya tiene (mayúsculas y espacios aparte, retirados incluidos) →
+  `409 {"error":"Ya existe un distribuidor con ese nombre en esta sucursal"}`.
+- `PATCH /api/distribuidores/{id}` `{nombre?, activo?}` → `200`. Mismo 400/409/404. La sucursal no se cambia nunca.
+- `DELETE /api/distribuidores/{id}` → `200 {"success":true,"retirado":false}` si no lo usa ninguna ruta
+  (se borra de verdad) o `{"success":true,"retirado":true}` si alguna lo usa (se retira).
+
+**En las rutas**: `POST /api/routes`, `PATCH /api/routes/{id}` y `POST /api/board/columns/{id}/route`
+aceptan `distribuidorId` opcional (en el `PATCH`, `null` lo quita y ausente no lo toca). Se valida en
+este orden: que exista y sea alcanzable (`400 No existe el distribuidor '<id>'`), que sea de la
+sucursal de la ruta (`400 El distribuidor '<id>' no es de la sucursal de esta ruta`) y que esté en
+activo (`400 El distribuidor está retirado y no se puede asignar a una ruta.`). La ruta devuelve
+`distribuidorId` y `distribuidor: {id, nombre}` (nulo en las históricas).
+
+**Bajada** (`GET /api/sync/cambios`): colección `distribuidores` (`id, nombre, activo, branchId,
+updatedAt`, retirados incluidos, con lápidas) y `distribuidorId` en cada ruta. `?completas=distribuidores`
+la manda entera aunque venga `desde` (la usa una vez el aparato que ya tenía marca de antes).
+
+**Aviso en vivo**: las tres escrituras publican `vehiculos` (la pantalla es la de Vehículos) acotado a
+la sucursal DEL DISTRIBUIDOR.
+
 ---
 
 # 8. Productos (`/api/products`)

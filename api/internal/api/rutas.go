@@ -545,18 +545,27 @@ type RutaSalida struct {
 	DeliveryDate      *time.Time `json:"deliveryDate"`
 	VehicleID         *uuid.UUID `json:"vehicleId"`
 	BranchID          *uuid.UUID `json:"branchId"`
-	CreadoPor         *string    `json:"creadoPor"`
-	StartedAt         *time.Time `json:"startedAt"`
-	FinishedAt        *time.Time `json:"finishedAt"`
-	Optimized         bool       `json:"optimized"`
-	CreatedAt         *time.Time `json:"createdAt"`
-	UpdatedAt         *time.Time `json:"updatedAt"`
+	// QUIÉN REPARTE (issue 7). Nulo = ruta histórica o armada sin distribuidor: no se inventa uno.
+	DistribuidorID *uuid.UUID `json:"distribuidorId"`
+	CreadoPor      *string    `json:"creadoPor"`
+	StartedAt      *time.Time `json:"startedAt"`
+	FinishedAt     *time.Time `json:"finishedAt"`
+	Optimized      bool       `json:"optimized"`
+	CreatedAt      *time.Time `json:"createdAt"`
+	UpdatedAt      *time.Time `json:"updatedAt"`
 	// `branch` no venía en delivery y tuvo que añadirse: el Super Admin veía las rutas de
 	// las ocho sucursales en una lista sin nada que las distinguiera, y dos rutas del
 	// mismo día con el mismo aspecto podían ser de Holguín y de La Habana.
-	Branch  *SucursalDeRuta `json:"branch"`
-	Vehicle *CamionDeRuta   `json:"vehicle"`
-	Orders  []ParadaSalida  `json:"orders"`
+	Branch       *SucursalDeRuta `json:"branch"`
+	Vehicle      *CamionDeRuta   `json:"vehicle"`
+	Distribuidor *QuienReparte   `json:"distribuidor"`
+	Orders       []ParadaSalida  `json:"orders"`
+}
+
+// QuienReparte es el distribuidor de una ruta, con su nombre para pintarlo sin pedir la lista.
+type QuienReparte struct {
+	ID     uuid.UUID `json:"id"`
+	Nombre *string   `json:"nombre"`
 }
 
 type SucursalDeRuta struct {
@@ -725,6 +734,9 @@ type cuerpoRuta struct {
 	OriginLng     httpx.Opcional[float64] `json:"originLng"`
 	DeliveryDate  httpx.Opcional[string]  `json:"deliveryDate"`
 	BranchID      httpx.Opcional[string]  `json:"branchId"`
+	// QUIÉN REPARTE (issue 7). Opcional: vacío o null = sin distribuidor. Si viene tiene que ser de
+	// la sucursal de la ruta y estar en activo (`distribuidorDeLaRuta`).
+	DistribuidorID httpx.Opcional[string] `json:"distribuidorId"`
 	// Crudo a propósito: el contrato dice que lo que NO sea un array de ids se trata
 	// como «no vinieron pedidos» y sale por su mensaje, no por «cuerpo no válido».
 	OrderIds json.RawMessage `json:"orderIds"`
@@ -979,6 +991,13 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// QUIÉN REPARTE, si lo mandan. Después de los cortes del camión: si el camión no sirve, decir
+	// además que el distribuidor tampoco manda a la persona a arreglar lo segundo primero.
+	distribuidor, ok := distribuidorDeLaRuta(w, r, ar, c.DistribuidorID.Con(""), sucursalRuta)
+	if !ok {
+		return
+	}
+
 	// --- El recorrido -------------------------------------------------------
 	//
 	// Se ordena por el DESTINO (`end_lat`/`end_lng`), no por `lat`/`lng`: el camión va a
@@ -1074,14 +1093,15 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 	err = ar.EnTx(r.Context(), func(tx *alcance.Acotado) error {
 		var err error
 		creada, err = tx.CrearRuta(r.Context(), sqlc.CrearRutaParams{
-			Name:          aTexto(strings.TrimSpace(c.Name.Con(""))),
-			RouteCode:     &codigo,
-			OriginAddress: aTexto(strings.TrimSpace(c.OriginAddress.Con(""))),
-			OriginLat:     &origenLat,
-			OriginLng:     &origenLng,
-			DeliveryDate:  entrega,
-			VehicleID:     idDelVehiculo(vehiculo),
-			BranchID:      sucursalRuta,
+			Name:           aTexto(strings.TrimSpace(c.Name.Con(""))),
+			RouteCode:      &codigo,
+			OriginAddress:  aTexto(strings.TrimSpace(c.OriginAddress.Con(""))),
+			OriginLat:      &origenLat,
+			OriginLng:      &origenLng,
+			DeliveryDate:   entrega,
+			VehicleID:      idDelVehiculo(vehiculo),
+			BranchID:       sucursalRuta,
+			DistribuidorID: distribuidor,
 			// `creado_por` lo pone el alcance: es constancia de quién armó la ruta y NO
 			// filtra nada. Filtrar por el creador es lo que escondió los pedidos de
 			// Holguín a los propios compañeros de Holguín.
@@ -1223,6 +1243,9 @@ type cuerpoActualizarRuta struct {
 	VehicleID httpx.Opcional[string] `json:"vehicleId"`
 	Name      httpx.Opcional[string] `json:"name"`
 	Status    httpx.Opcional[string] `json:"status"`
+	// QUIÉN REPARTE (issue 7). Ausente = no se toca; vacío o null = se QUITA; con valor = el
+	// distribuidor de la MISMA sucursal que la ruta y en activo.
+	DistribuidorID httpx.Opcional[string] `json:"distribuidorId"`
 }
 
 // La comprobación previa mejora el error, pero sólo esta lectura bloqueada
@@ -1280,10 +1303,22 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 		estado = &e
 	}
 
+	// QUIÉN REPARTE: se valida ANTES de escribir nada, contra la sucursal de la ruta. Ausente no
+	// toca; vacío lo quita. Va por los dos caminos de abajo (la misma sentencia que el resto).
+	tocarDistribuidor := c.DistribuidorID.Presente
+	var distribuidor pgtype.UUID
+	if tocarDistribuidor {
+		d, ok := distribuidorDeLaRuta(w, r, a, c.DistribuidorID.Con(""), antes.BranchID)
+		if !ok {
+			return
+		}
+		distribuidor = d
+	}
+
 	// CAMINO A: cambiar el camión. Tiene prioridad y retorna antes, tal como el contrato;
 	// aquí no se tocan `startedAt`/`finishedAt` ni se avisa a PEDIDO.
 	if c.VehicleID.Presente {
-		s.cambiarCamionDeRuta(w, r, a, antes, c, nombre, estado)
+		s.cambiarCamionDeRuta(w, r, a, antes, c, nombre, estado, tocarDistribuidor, distribuidor)
 		return
 	}
 
@@ -1297,6 +1332,7 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 		}
 		if _, err := tx.ActualizarEstadoDeRuta(r.Context(), sqlc.ActualizarEstadoDeRutaParams{
 			ID: id, Name: nombre, Status: estado,
+			TocarDistribuidor: tocarDistribuidor, DistribuidorID: distribuidor,
 		}); err != nil {
 			return err
 		}
@@ -1341,6 +1377,10 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 		// ocupa el camión. Las dos dejan constancia de quién.
 		rastroDeQuien(r, "ruta: estado cambiado", "ruta", id, "de", string(antes.Status), "a", string(*estado))
 	}
+	if tocarDistribuidor {
+		rastroDeQuien(r, "ruta: distribuidor cambiado", "ruta", id,
+			"distribuidor_antes", idParaElRegistro(antes.DistribuidorID), "distribuidor_ahora", idParaElRegistro(distribuidor))
+	}
 	// `antes` es la ruta leída al entrar, y la sucursal de una ruta no se cambia nunca: ni
 	// el estado ni el camión la mueven, así que es la misma antes y después.
 	avisarCambioDeRutas(r.Context(), deLaFilaPg(antes.BranchID))
@@ -1349,7 +1389,8 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 
 // cambiarCamionDeRuta es el camino A del PATCH: soltar el camión viejo y ocupar el nuevo.
 func (s *Servidor) cambiarCamionDeRuta(w http.ResponseWriter, r *http.Request, a *alcance.Acotado,
-	antes sqlc.ObtenerRutaRow, c cuerpoActualizarRuta, nombre *string, estado *sqlc.RouteStatus) {
+	antes sqlc.ObtenerRutaRow, c cuerpoActualizarRuta, nombre *string, estado *sqlc.RouteStatus,
+	tocarDistribuidor bool, distribuidor pgtype.UUID) {
 
 	// Un `vehicleId` vacío o null desengancha el camión. Uno con valor tiene que EXISTIR y
 	// ser alcanzable: si no, la clave ajena daría un 500 con la jerga de Postgres dentro.
@@ -1410,6 +1451,7 @@ func (s *Servidor) cambiarCamionDeRuta(w http.ResponseWriter, r *http.Request, a
 		}
 		_, err = tx.CambiarVehiculoDeRuta(r.Context(), sqlc.CambiarVehiculoDeRutaParams{
 			ID: antes.ID, VehicleID: aPgOpcional(nuevo), Name: nombre, Status: estado,
+			TocarDistribuidor: tocarDistribuidor, DistribuidorID: distribuidor,
 		})
 		return err
 	})
@@ -1427,6 +1469,10 @@ func (s *Servidor) cambiarCamionDeRuta(w http.ResponseWriter, r *http.Request, a
 	}
 	rastroDeQuien(r, "ruta: camión cambiado", "ruta", antes.ID,
 		"vehiculo_antes", idParaElRegistro(antes.VehicleID), "vehiculo_ahora", idParaElRegistro(aPgOpcional(nuevo)))
+	if tocarDistribuidor {
+		rastroDeQuien(r, "ruta: distribuidor cambiado", "ruta", antes.ID,
+			"distribuidor_antes", idParaElRegistro(antes.DistribuidorID), "distribuidor_ahora", idParaElRegistro(distribuidor))
+	}
 	avisarCambioDeRutas(r.Context(), deLaFilaPg(antes.BranchID))
 	s.responderConLaRuta(w, r, a, antes.ID, http.StatusOK)
 }
@@ -2760,6 +2806,7 @@ func deFilaDeLista(f sqlc.ListarRutasRow, paradas []ParadaSalida) RutaSalida {
 		TotalDistance: f.TotalDistance, TotalWeight: f.TotalWeight, TotalPrice: f.TotalPrice,
 		ParadasSinCotizar: f.ParadasSinCotizar,
 		DeliveryDate:      f.DeliveryDate, VehicleID: f.VehicleID, BranchID: f.BranchID,
+		DistribuidorID: f.DistribuidorID, DistribuidorNombre: f.DistribuidorNombre,
 		CreadoPor: f.CreadoPor, StartedAt: f.StartedAt, FinishedAt: f.FinishedAt,
 		Optimized: f.Optimized, CreatedAt: f.CreatedAt, UpdatedAt: f.UpdatedAt,
 		SucursalNombre: f.SucursalNombre, SucursalCodigo: f.SucursalCodigo,
@@ -2775,6 +2822,7 @@ func deFilaDeDetalle(f sqlc.ObtenerRutaRow, paradas []ParadaSalida) RutaSalida {
 		TotalDistance: f.TotalDistance, TotalWeight: f.TotalWeight, TotalPrice: f.TotalPrice,
 		ParadasSinCotizar: f.ParadasSinCotizar,
 		DeliveryDate:      f.DeliveryDate, VehicleID: f.VehicleID, BranchID: f.BranchID,
+		DistribuidorID: f.DistribuidorID, DistribuidorNombre: f.DistribuidorNombre,
 		CreadoPor: f.CreadoPor, StartedAt: f.StartedAt, FinishedAt: f.FinishedAt,
 		Optimized: f.Optimized, CreatedAt: f.CreatedAt, UpdatedAt: f.UpdatedAt,
 		SucursalNombre: f.SucursalNombre, SucursalCodigo: f.SucursalCodigo,
@@ -2787,32 +2835,34 @@ func deFilaDeDetalle(f sqlc.ObtenerRutaRow, paradas []ParadaSalida) RutaSalida {
 // mismas columnas con distinto tipo— y la salida. Existe para no escribir dos veces el
 // mismo armado y que un día se cambie sólo uno.
 type datosDeRuta struct {
-	ID                uuid.UUID
-	Name              *string
-	RouteCode         *string
-	Status            string
-	OriginAddress     *string
-	OriginLat         *float64
-	OriginLng         *float64
-	TotalDistance     float64
-	TotalWeight       float64
-	TotalPrice        float64
-	ParadasSinCotizar *int32
-	DeliveryDate      pgtype.Timestamptz
-	VehicleID         pgtype.UUID
-	BranchID          pgtype.UUID
-	CreadoPor         *string
-	StartedAt         pgtype.Timestamptz
-	FinishedAt        pgtype.Timestamptz
-	Optimized         bool
-	CreatedAt         pgtype.Timestamptz
-	UpdatedAt         pgtype.Timestamptz
-	SucursalNombre    *string
-	SucursalCodigo    *string
-	VehiculoNombre    *string
-	VehiculoMatricula *string
-	VehiculoCapacidad *float64
-	VehiculoTipo      *string
+	ID                 uuid.UUID
+	Name               *string
+	RouteCode          *string
+	Status             string
+	OriginAddress      *string
+	OriginLat          *float64
+	OriginLng          *float64
+	TotalDistance      float64
+	TotalWeight        float64
+	TotalPrice         float64
+	ParadasSinCotizar  *int32
+	DeliveryDate       pgtype.Timestamptz
+	VehicleID          pgtype.UUID
+	BranchID           pgtype.UUID
+	DistribuidorID     pgtype.UUID
+	DistribuidorNombre *string
+	CreadoPor          *string
+	StartedAt          pgtype.Timestamptz
+	FinishedAt         pgtype.Timestamptz
+	Optimized          bool
+	CreatedAt          pgtype.Timestamptz
+	UpdatedAt          pgtype.Timestamptz
+	SucursalNombre     *string
+	SucursalCodigo     *string
+	VehiculoNombre     *string
+	VehiculoMatricula  *string
+	VehiculoCapacidad  *float64
+	VehiculoTipo       *string
 }
 
 func armarRuta(d datosDeRuta, paradas []ParadaSalida) RutaSalida {
@@ -2822,7 +2872,7 @@ func armarRuta(d datosDeRuta, paradas []ParadaSalida) RutaSalida {
 		TotalDistance: d.TotalDistance, TotalWeight: d.TotalWeight, TotalPrice: d.TotalPrice,
 		ParadasSinCotizar: d.ParadasSinCotizar,
 		DeliveryDate:      hora(d.DeliveryDate), VehicleID: idOpcional(d.VehicleID),
-		BranchID: idOpcional(d.BranchID), CreadoPor: d.CreadoPor,
+		BranchID: idOpcional(d.BranchID), DistribuidorID: idOpcional(d.DistribuidorID), CreadoPor: d.CreadoPor,
 		StartedAt: hora(d.StartedAt), FinishedAt: hora(d.FinishedAt),
 		Optimized: d.Optimized, CreatedAt: hora(d.CreatedAt), UpdatedAt: hora(d.UpdatedAt),
 		// Siempre lista, nunca null: ver el comentario de `Items`.
@@ -2835,6 +2885,9 @@ func armarRuta(d datosDeRuta, paradas []ParadaSalida) RutaSalida {
 		salida.Branch = &SucursalDeRuta{
 			ID: uuid.UUID(d.BranchID.Bytes), Name: d.SucursalNombre, ExternalID: d.SucursalCodigo,
 		}
+	}
+	if d.DistribuidorID.Valid {
+		salida.Distribuidor = &QuienReparte{ID: uuid.UUID(d.DistribuidorID.Bytes), Nombre: d.DistribuidorNombre}
 	}
 	if d.VehicleID.Valid {
 		salida.Vehicle = &CamionDeRuta{

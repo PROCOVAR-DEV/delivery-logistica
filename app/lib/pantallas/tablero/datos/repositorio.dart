@@ -5,6 +5,7 @@ import '../../../nucleo/cola/cola_salida.dart';
 import '../../../nucleo/cola/provisionales.dart';
 import '../../../nucleo/red/escritura_en_vivo.dart';
 import '../../../nucleo/reloj.dart';
+import '../../distribuidores/datos/distribuidor_valido.dart';
 import '../../rutas/datos/acciones_rutas.dart' show msgVehiculoInactivo;
 import '../../rutas/datos/geo.dart';
 import '../../rutas/datos/importe_de_la_ruta.dart';
@@ -712,6 +713,10 @@ class RepositorioTablero {
     /// Sólo se llama **cuando de verdad se cayó alguien**: un aviso que sale
     /// siempre deja de leerse (§3-quinquies).
     void Function(List<String> descartados)? alDejarFuera,
+
+    /// QUIEN REPARTE (issue 7, 14/10/2026). Opcional: `null` = la ruta sale sin
+    /// distribuidor. Se comprueba como lo comprueba el servidor y con sus palabras.
+    String? distribuidorId,
   }) async {
     await _listo();
     final consultas = ConsultasTablero(_base);
@@ -851,10 +856,26 @@ class RepositorioTablero {
           Parada(t.pedido.pedidoId, p.lat, p.lng),
     ];
 
+    // QUIEN REPARTE, DESPUES de los cortes del camion (el orden del servidor): el «no» sale
+    // ahora, con las mismas palabras, y no horas despues en la bandeja. Ver
+    // `distribuidorParaUnaRuta`.
+    final Distribuidor? distribuidor;
+    try {
+      distribuidor = await distribuidorParaUnaRuta(
+        _base,
+        id: distribuidorId,
+        sucursalDeLaRuta: sucursalId,
+      );
+    } on DistribuidorNoValido catch (no) {
+      throw RechazoDelTablero(no.mensaje);
+    }
+
     // El cuerpo, UNO SOLO: lo manda la web ahora y lo encola la APK para luego.
     final cuerpo = <String, Object?>{
       'nombre': ?nombre,
       'vehiculoId': ?columna?.vehiculoId,
+      // Solo viaja si hay uno: su ausencia es «sin distribuidor».
+      'distribuidorId': ?distribuidor?.id,
       // El orden del logistico gana al greedy por defecto (§5.4).
       'optimizar': false,
       // EL DIA DE LA RUTA, Y VIAJA. Antes se escribia aqui abajo en la base
@@ -964,6 +985,7 @@ class RepositorioTablero {
             RoutesCompanion.insert(
               id: rutaId,
               name: Value(nombre ?? columna?.nombre),
+              distribuidorId: Value(distribuidor?.id),
               status: const Value(EstadoRuta.planificada),
               originLat: Value(origen.lat),
               originLng: Value(origen.lng),

@@ -73,6 +73,7 @@ class DatosDeRuta {
     required this.ruta,
     required this.sucursal,
     required this.vehiculo,
+    this.distribuidor = '',
     this.salida,
     this.regreso,
   });
@@ -80,6 +81,11 @@ class DatosDeRuta {
   final String ruta;
   final String sucursal;
   final String vehiculo;
+
+  /// QUIEN REPARTE (issue 7, 14/10/2026): la persona que firma «Entregó (chofer)».
+  /// Vacio = la ruta no tiene (una anterior al 14/10/2026, o armada sin elegir): no
+  /// se escribe nada, ni «sin distribuidor», en un papel que se firma.
+  final String distribuidor;
   final String? salida;
   final String? regreso;
 }
@@ -224,6 +230,7 @@ HojaPostDespacho armarPostDespacho(
     ruta: datos.ruta,
     sucursal: datos.sucursal,
     vehiculo: datos.vehiculo,
+    distribuidor: datos.distribuidor,
     salida: datos.salida,
     regreso: datos.regreso,
     entregadas: entregadas,

@@ -47,6 +47,9 @@ type espejoFalso struct {
 	// la lista NO salga en `quitados` pase lo que pase.
 	rutasDelEspejo     []sqlc.ListarRutasRow
 	vehiculosDelEspejo []sqlc.ListarVehiculosRow
+	// Los distribuidores de la bajada (00019). Se acotan como su lista de verdad: por la
+	// sucursal del alcance, SIN el `OR … IS NULL` de los camiones (no hay «de todas»).
+	distribuidoresDelEspejo []sqlc.ListarDistribuidoresRow
 
 	// El padrón de clientes de la bajada, entero. El doble lo sirve por tandas
 	// respetando `Limite` y `Desplazamiento`, como el SQL: lo que se comprueba es que el
@@ -331,6 +334,18 @@ func (q *espejoFalso) ListarVehiculos(_ context.Context, sucursal pgtype.UUID) (
 			continue
 		}
 		salida = append(salida, v)
+	}
+	return salida, nil
+}
+
+// ListarDistribuidores repite el `(sucursal IS NULL OR d.branch_id = sucursal)` del SQL.
+func (q *espejoFalso) ListarDistribuidores(_ context.Context, arg sqlc.ListarDistribuidoresParams) ([]sqlc.ListarDistribuidoresRow, error) {
+	var salida []sqlc.ListarDistribuidoresRow
+	for _, d := range q.distribuidoresDelEspejo {
+		if arg.Sucursal.Valid && d.BranchID != uuid.UUID(arg.Sucursal.Bytes) {
+			continue
+		}
+		salida = append(salida, d)
 	}
 	return salida, nil
 }

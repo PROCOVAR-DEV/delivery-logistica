@@ -2105,6 +2105,367 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
   }
 }
 
+class $DistribuidoresTable extends Distribuidores
+    with TableInfo<$DistribuidoresTable, Distribuidor> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DistribuidoresTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nombreMeta = const VerificationMeta('nombre');
+  @override
+  late final GeneratedColumn<String> nombre = GeneratedColumn<String>(
+    'nombre',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _activoMeta = const VerificationMeta('activo');
+  @override
+  late final GeneratedColumn<bool> activo = GeneratedColumn<bool>(
+    'activo',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("activo" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _branchIdMeta = const VerificationMeta(
+    'branchId',
+  );
+  @override
+  late final GeneratedColumn<String> branchId = GeneratedColumn<String>(
+    'branch_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    nombre,
+    activo,
+    branchId,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'distribuidores';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Distribuidor> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('nombre')) {
+      context.handle(
+        _nombreMeta,
+        nombre.isAcceptableOrUnknown(data['nombre']!, _nombreMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nombreMeta);
+    }
+    if (data.containsKey('activo')) {
+      context.handle(
+        _activoMeta,
+        activo.isAcceptableOrUnknown(data['activo']!, _activoMeta),
+      );
+    }
+    if (data.containsKey('branch_id')) {
+      context.handle(
+        _branchIdMeta,
+        branchId.isAcceptableOrUnknown(data['branch_id']!, _branchIdMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Distribuidor map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Distribuidor(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      nombre: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}nombre'],
+      )!,
+      activo: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}activo'],
+      )!,
+      branchId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}branch_id'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $DistribuidoresTable createAlias(String alias) {
+    return $DistribuidoresTable(attachedDatabase, alias);
+  }
+}
+
+class Distribuidor extends DataClass implements Insertable<Distribuidor> {
+  final String id;
+  final String nombre;
+  final bool activo;
+  final String? branchId;
+  final DateTime? updatedAt;
+  const Distribuidor({
+    required this.id,
+    required this.nombre,
+    required this.activo,
+    this.branchId,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['nombre'] = Variable<String>(nombre);
+    map['activo'] = Variable<bool>(activo);
+    if (!nullToAbsent || branchId != null) {
+      map['branch_id'] = Variable<String>(branchId);
+    }
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  DistribuidoresCompanion toCompanion(bool nullToAbsent) {
+    return DistribuidoresCompanion(
+      id: Value(id),
+      nombre: Value(nombre),
+      activo: Value(activo),
+      branchId: branchId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(branchId),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory Distribuidor.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Distribuidor(
+      id: serializer.fromJson<String>(json['id']),
+      nombre: serializer.fromJson<String>(json['nombre']),
+      activo: serializer.fromJson<bool>(json['activo']),
+      branchId: serializer.fromJson<String?>(json['branchId']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'nombre': serializer.toJson<String>(nombre),
+      'activo': serializer.toJson<bool>(activo),
+      'branchId': serializer.toJson<String?>(branchId),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  Distribuidor copyWith({
+    String? id,
+    String? nombre,
+    bool? activo,
+    Value<String?> branchId = const Value.absent(),
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => Distribuidor(
+    id: id ?? this.id,
+    nombre: nombre ?? this.nombre,
+    activo: activo ?? this.activo,
+    branchId: branchId.present ? branchId.value : this.branchId,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  Distribuidor copyWithCompanion(DistribuidoresCompanion data) {
+    return Distribuidor(
+      id: data.id.present ? data.id.value : this.id,
+      nombre: data.nombre.present ? data.nombre.value : this.nombre,
+      activo: data.activo.present ? data.activo.value : this.activo,
+      branchId: data.branchId.present ? data.branchId.value : this.branchId,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Distribuidor(')
+          ..write('id: $id, ')
+          ..write('nombre: $nombre, ')
+          ..write('activo: $activo, ')
+          ..write('branchId: $branchId, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, nombre, activo, branchId, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Distribuidor &&
+          other.id == this.id &&
+          other.nombre == this.nombre &&
+          other.activo == this.activo &&
+          other.branchId == this.branchId &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DistribuidoresCompanion extends UpdateCompanion<Distribuidor> {
+  final Value<String> id;
+  final Value<String> nombre;
+  final Value<bool> activo;
+  final Value<String?> branchId;
+  final Value<DateTime?> updatedAt;
+  final Value<int> rowid;
+  const DistribuidoresCompanion({
+    this.id = const Value.absent(),
+    this.nombre = const Value.absent(),
+    this.activo = const Value.absent(),
+    this.branchId = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DistribuidoresCompanion.insert({
+    required String id,
+    required String nombre,
+    this.activo = const Value.absent(),
+    this.branchId = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       nombre = Value(nombre);
+  static Insertable<Distribuidor> custom({
+    Expression<String>? id,
+    Expression<String>? nombre,
+    Expression<bool>? activo,
+    Expression<String>? branchId,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (nombre != null) 'nombre': nombre,
+      if (activo != null) 'activo': activo,
+      if (branchId != null) 'branch_id': branchId,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DistribuidoresCompanion copyWith({
+    Value<String>? id,
+    Value<String>? nombre,
+    Value<bool>? activo,
+    Value<String?>? branchId,
+    Value<DateTime?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return DistribuidoresCompanion(
+      id: id ?? this.id,
+      nombre: nombre ?? this.nombre,
+      activo: activo ?? this.activo,
+      branchId: branchId ?? this.branchId,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (nombre.present) {
+      map['nombre'] = Variable<String>(nombre.value);
+    }
+    if (activo.present) {
+      map['activo'] = Variable<bool>(activo.value);
+    }
+    if (branchId.present) {
+      map['branch_id'] = Variable<String>(branchId.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DistribuidoresCompanion(')
+          ..write('id: $id, ')
+          ..write('nombre: $nombre, ')
+          ..write('activo: $activo, ')
+          ..write('branchId: $branchId, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ProductsTable extends Products with TableInfo<$ProductsTable, Producto> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -7166,6 +7527,17 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Ruta> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _distribuidorIdMeta = const VerificationMeta(
+    'distribuidorId',
+  );
+  @override
+  late final GeneratedColumn<String> distribuidorId = GeneratedColumn<String>(
+    'distribuidor_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _creadoPorMeta = const VerificationMeta(
     'creadoPor',
   );
@@ -7261,6 +7633,7 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Ruta> {
     totalPrice,
     deliveryDate,
     vehicleId,
+    distribuidorId,
     creadoPor,
     branchId,
     startedAt,
@@ -7364,6 +7737,15 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Ruta> {
         vehicleId.isAcceptableOrUnknown(data['vehicle_id']!, _vehicleIdMeta),
       );
     }
+    if (data.containsKey('distribuidor_id')) {
+      context.handle(
+        _distribuidorIdMeta,
+        distribuidorId.isAcceptableOrUnknown(
+          data['distribuidor_id']!,
+          _distribuidorIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('creado_por')) {
       context.handle(
         _creadoPorMeta,
@@ -7463,6 +7845,10 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Ruta> {
         DriftSqlType.string,
         data['${effectivePrefix}vehicle_id'],
       ),
+      distribuidorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}distribuidor_id'],
+      ),
       creadoPor: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}creado_por'],
@@ -7513,6 +7899,12 @@ class Ruta extends DataClass implements Insertable<Ruta> {
   final double totalPrice;
   final DateTime? deliveryDate;
   final String? vehicleId;
+
+  /// QUIÉN REPARTE (issue 7 de Amado, 14/10/2026): el distribuidor de la ruta, de
+  /// la tabla [Distribuidores]. **Nulo = ruta histórica o armada sin distribuidor**,
+  /// y se queda así: no se inventa uno. Solo el id; el nombre se resuelve contra
+  /// [Distribuidores] al pintar, así un renombrado no obliga a reescribir rutas.
+  final String? distribuidorId;
   final String? creadoPor;
   final String? branchId;
   final DateTime? startedAt;
@@ -7533,6 +7925,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     required this.totalPrice,
     this.deliveryDate,
     this.vehicleId,
+    this.distribuidorId,
     this.creadoPor,
     this.branchId,
     this.startedAt,
@@ -7569,6 +7962,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     }
     if (!nullToAbsent || vehicleId != null) {
       map['vehicle_id'] = Variable<String>(vehicleId);
+    }
+    if (!nullToAbsent || distribuidorId != null) {
+      map['distribuidor_id'] = Variable<String>(distribuidorId);
     }
     if (!nullToAbsent || creadoPor != null) {
       map['creado_por'] = Variable<String>(creadoPor);
@@ -7618,6 +8014,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
       vehicleId: vehicleId == null && nullToAbsent
           ? const Value.absent()
           : Value(vehicleId),
+      distribuidorId: distribuidorId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(distribuidorId),
       creadoPor: creadoPor == null && nullToAbsent
           ? const Value.absent()
           : Value(creadoPor),
@@ -7658,6 +8057,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
       totalPrice: serializer.fromJson<double>(json['totalPrice']),
       deliveryDate: serializer.fromJson<DateTime?>(json['deliveryDate']),
       vehicleId: serializer.fromJson<String?>(json['vehicleId']),
+      distribuidorId: serializer.fromJson<String?>(json['distribuidorId']),
       creadoPor: serializer.fromJson<String?>(json['creadoPor']),
       branchId: serializer.fromJson<String?>(json['branchId']),
       startedAt: serializer.fromJson<DateTime?>(json['startedAt']),
@@ -7683,6 +8083,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
       'totalPrice': serializer.toJson<double>(totalPrice),
       'deliveryDate': serializer.toJson<DateTime?>(deliveryDate),
       'vehicleId': serializer.toJson<String?>(vehicleId),
+      'distribuidorId': serializer.toJson<String?>(distribuidorId),
       'creadoPor': serializer.toJson<String?>(creadoPor),
       'branchId': serializer.toJson<String?>(branchId),
       'startedAt': serializer.toJson<DateTime?>(startedAt),
@@ -7706,6 +8107,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     double? totalPrice,
     Value<DateTime?> deliveryDate = const Value.absent(),
     Value<String?> vehicleId = const Value.absent(),
+    Value<String?> distribuidorId = const Value.absent(),
     Value<String?> creadoPor = const Value.absent(),
     Value<String?> branchId = const Value.absent(),
     Value<DateTime?> startedAt = const Value.absent(),
@@ -7728,6 +8130,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     totalPrice: totalPrice ?? this.totalPrice,
     deliveryDate: deliveryDate.present ? deliveryDate.value : this.deliveryDate,
     vehicleId: vehicleId.present ? vehicleId.value : this.vehicleId,
+    distribuidorId: distribuidorId.present
+        ? distribuidorId.value
+        : this.distribuidorId,
     creadoPor: creadoPor.present ? creadoPor.value : this.creadoPor,
     branchId: branchId.present ? branchId.value : this.branchId,
     startedAt: startedAt.present ? startedAt.value : this.startedAt,
@@ -7760,6 +8165,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
           ? data.deliveryDate.value
           : this.deliveryDate,
       vehicleId: data.vehicleId.present ? data.vehicleId.value : this.vehicleId,
+      distribuidorId: data.distribuidorId.present
+          ? data.distribuidorId.value
+          : this.distribuidorId,
       creadoPor: data.creadoPor.present ? data.creadoPor.value : this.creadoPor,
       branchId: data.branchId.present ? data.branchId.value : this.branchId,
       startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
@@ -7787,6 +8195,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
           ..write('totalPrice: $totalPrice, ')
           ..write('deliveryDate: $deliveryDate, ')
           ..write('vehicleId: $vehicleId, ')
+          ..write('distribuidorId: $distribuidorId, ')
           ..write('creadoPor: $creadoPor, ')
           ..write('branchId: $branchId, ')
           ..write('startedAt: $startedAt, ')
@@ -7812,6 +8221,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     totalPrice,
     deliveryDate,
     vehicleId,
+    distribuidorId,
     creadoPor,
     branchId,
     startedAt,
@@ -7836,6 +8246,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
           other.totalPrice == this.totalPrice &&
           other.deliveryDate == this.deliveryDate &&
           other.vehicleId == this.vehicleId &&
+          other.distribuidorId == this.distribuidorId &&
           other.creadoPor == this.creadoPor &&
           other.branchId == this.branchId &&
           other.startedAt == this.startedAt &&
@@ -7858,6 +8269,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
   final Value<double> totalPrice;
   final Value<DateTime?> deliveryDate;
   final Value<String?> vehicleId;
+  final Value<String?> distribuidorId;
   final Value<String?> creadoPor;
   final Value<String?> branchId;
   final Value<DateTime?> startedAt;
@@ -7879,6 +8291,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
     this.totalPrice = const Value.absent(),
     this.deliveryDate = const Value.absent(),
     this.vehicleId = const Value.absent(),
+    this.distribuidorId = const Value.absent(),
     this.creadoPor = const Value.absent(),
     this.branchId = const Value.absent(),
     this.startedAt = const Value.absent(),
@@ -7901,6 +8314,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
     this.totalPrice = const Value.absent(),
     this.deliveryDate = const Value.absent(),
     this.vehicleId = const Value.absent(),
+    this.distribuidorId = const Value.absent(),
     this.creadoPor = const Value.absent(),
     this.branchId = const Value.absent(),
     this.startedAt = const Value.absent(),
@@ -7923,6 +8337,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
     Expression<double>? totalPrice,
     Expression<DateTime>? deliveryDate,
     Expression<String>? vehicleId,
+    Expression<String>? distribuidorId,
     Expression<String>? creadoPor,
     Expression<String>? branchId,
     Expression<DateTime>? startedAt,
@@ -7945,6 +8360,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
       if (totalPrice != null) 'total_price': totalPrice,
       if (deliveryDate != null) 'delivery_date': deliveryDate,
       if (vehicleId != null) 'vehicle_id': vehicleId,
+      if (distribuidorId != null) 'distribuidor_id': distribuidorId,
       if (creadoPor != null) 'creado_por': creadoPor,
       if (branchId != null) 'branch_id': branchId,
       if (startedAt != null) 'started_at': startedAt,
@@ -7969,6 +8385,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
     Value<double>? totalPrice,
     Value<DateTime?>? deliveryDate,
     Value<String?>? vehicleId,
+    Value<String?>? distribuidorId,
     Value<String?>? creadoPor,
     Value<String?>? branchId,
     Value<DateTime?>? startedAt,
@@ -7991,6 +8408,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
       totalPrice: totalPrice ?? this.totalPrice,
       deliveryDate: deliveryDate ?? this.deliveryDate,
       vehicleId: vehicleId ?? this.vehicleId,
+      distribuidorId: distribuidorId ?? this.distribuidorId,
       creadoPor: creadoPor ?? this.creadoPor,
       branchId: branchId ?? this.branchId,
       startedAt: startedAt ?? this.startedAt,
@@ -8041,6 +8459,9 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
     if (vehicleId.present) {
       map['vehicle_id'] = Variable<String>(vehicleId.value);
     }
+    if (distribuidorId.present) {
+      map['distribuidor_id'] = Variable<String>(distribuidorId.value);
+    }
     if (creadoPor.present) {
       map['creado_por'] = Variable<String>(creadoPor.value);
     }
@@ -8083,6 +8504,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
           ..write('totalPrice: $totalPrice, ')
           ..write('deliveryDate: $deliveryDate, ')
           ..write('vehicleId: $vehicleId, ')
+          ..write('distribuidorId: $distribuidorId, ')
           ..write('creadoPor: $creadoPor, ')
           ..write('branchId: $branchId, ')
           ..write('startedAt: $startedAt, ')
@@ -10918,6 +11340,7 @@ abstract class _$BaseLocal extends GeneratedDatabase {
   late final $BranchesTable branches = $BranchesTable(this);
   late final $VehicleTypesTable vehicleTypes = $VehicleTypesTable(this);
   late final $VehiclesTable vehicles = $VehiclesTable(this);
+  late final $DistribuidoresTable distribuidores = $DistribuidoresTable(this);
   late final $ProductsTable products = $ProductsTable(this);
   late final $CustomersTable customers = $CustomersTable(this);
   late final $OrdersTable orders = $OrdersTable(this);
@@ -10937,6 +11360,7 @@ abstract class _$BaseLocal extends GeneratedDatabase {
     branches,
     vehicleTypes,
     vehicles,
+    distribuidores,
     products,
     customers,
     orders,
@@ -11919,6 +12343,206 @@ typedef $$VehiclesTableProcessedTableManager =
       $$VehiclesTableUpdateCompanionBuilder,
       (Vehiculo, BaseReferences<_$BaseLocal, $VehiclesTable, Vehiculo>),
       Vehiculo,
+      PrefetchHooks Function()
+    >;
+typedef $$DistribuidoresTableCreateCompanionBuilder =
+    DistribuidoresCompanion Function({
+      required String id,
+      required String nombre,
+      Value<bool> activo,
+      Value<String?> branchId,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DistribuidoresTableUpdateCompanionBuilder =
+    DistribuidoresCompanion Function({
+      Value<String> id,
+      Value<String> nombre,
+      Value<bool> activo,
+      Value<String?> branchId,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$DistribuidoresTableFilterComposer
+    extends Composer<_$BaseLocal, $DistribuidoresTable> {
+  $$DistribuidoresTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nombre => $composableBuilder(
+    column: $table.nombre,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get activo => $composableBuilder(
+    column: $table.activo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get branchId => $composableBuilder(
+    column: $table.branchId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DistribuidoresTableOrderingComposer
+    extends Composer<_$BaseLocal, $DistribuidoresTable> {
+  $$DistribuidoresTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nombre => $composableBuilder(
+    column: $table.nombre,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get activo => $composableBuilder(
+    column: $table.activo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get branchId => $composableBuilder(
+    column: $table.branchId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DistribuidoresTableAnnotationComposer
+    extends Composer<_$BaseLocal, $DistribuidoresTable> {
+  $$DistribuidoresTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get nombre =>
+      $composableBuilder(column: $table.nombre, builder: (column) => column);
+
+  GeneratedColumn<bool> get activo =>
+      $composableBuilder(column: $table.activo, builder: (column) => column);
+
+  GeneratedColumn<String> get branchId =>
+      $composableBuilder(column: $table.branchId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$DistribuidoresTableTableManager
+    extends
+        RootTableManager<
+          _$BaseLocal,
+          $DistribuidoresTable,
+          Distribuidor,
+          $$DistribuidoresTableFilterComposer,
+          $$DistribuidoresTableOrderingComposer,
+          $$DistribuidoresTableAnnotationComposer,
+          $$DistribuidoresTableCreateCompanionBuilder,
+          $$DistribuidoresTableUpdateCompanionBuilder,
+          (
+            Distribuidor,
+            BaseReferences<_$BaseLocal, $DistribuidoresTable, Distribuidor>,
+          ),
+          Distribuidor,
+          PrefetchHooks Function()
+        > {
+  $$DistribuidoresTableTableManager(_$BaseLocal db, $DistribuidoresTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DistribuidoresTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DistribuidoresTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DistribuidoresTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> nombre = const Value.absent(),
+                Value<bool> activo = const Value.absent(),
+                Value<String?> branchId = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DistribuidoresCompanion(
+                id: id,
+                nombre: nombre,
+                activo: activo,
+                branchId: branchId,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String nombre,
+                Value<bool> activo = const Value.absent(),
+                Value<String?> branchId = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DistribuidoresCompanion.insert(
+                id: id,
+                nombre: nombre,
+                activo: activo,
+                branchId: branchId,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DistribuidoresTableProcessedTableManager =
+    ProcessedTableManager<
+      _$BaseLocal,
+      $DistribuidoresTable,
+      Distribuidor,
+      $$DistribuidoresTableFilterComposer,
+      $$DistribuidoresTableOrderingComposer,
+      $$DistribuidoresTableAnnotationComposer,
+      $$DistribuidoresTableCreateCompanionBuilder,
+      $$DistribuidoresTableUpdateCompanionBuilder,
+      (
+        Distribuidor,
+        BaseReferences<_$BaseLocal, $DistribuidoresTable, Distribuidor>,
+      ),
+      Distribuidor,
       PrefetchHooks Function()
     >;
 typedef $$ProductsTableCreateCompanionBuilder =
@@ -14043,6 +14667,7 @@ typedef $$RoutesTableCreateCompanionBuilder =
       Value<double> totalPrice,
       Value<DateTime?> deliveryDate,
       Value<String?> vehicleId,
+      Value<String?> distribuidorId,
       Value<String?> creadoPor,
       Value<String?> branchId,
       Value<DateTime?> startedAt,
@@ -14066,6 +14691,7 @@ typedef $$RoutesTableUpdateCompanionBuilder =
       Value<double> totalPrice,
       Value<DateTime?> deliveryDate,
       Value<String?> vehicleId,
+      Value<String?> distribuidorId,
       Value<String?> creadoPor,
       Value<String?> branchId,
       Value<DateTime?> startedAt,
@@ -14141,6 +14767,11 @@ class $$RoutesTableFilterComposer extends Composer<_$BaseLocal, $RoutesTable> {
 
   ColumnFilters<String> get vehicleId => $composableBuilder(
     column: $table.vehicleId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get distribuidorId => $composableBuilder(
+    column: $table.distribuidorId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14249,6 +14880,11 @@ class $$RoutesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get distribuidorId => $composableBuilder(
+    column: $table.distribuidorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get creadoPor => $composableBuilder(
     column: $table.creadoPor,
     builder: (column) => ColumnOrderings(column),
@@ -14340,6 +14976,11 @@ class $$RoutesTableAnnotationComposer
   GeneratedColumn<String> get vehicleId =>
       $composableBuilder(column: $table.vehicleId, builder: (column) => column);
 
+  GeneratedColumn<String> get distribuidorId => $composableBuilder(
+    column: $table.distribuidorId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get creadoPor =>
       $composableBuilder(column: $table.creadoPor, builder: (column) => column);
 
@@ -14404,6 +15045,7 @@ class $$RoutesTableTableManager
                 Value<double> totalPrice = const Value.absent(),
                 Value<DateTime?> deliveryDate = const Value.absent(),
                 Value<String?> vehicleId = const Value.absent(),
+                Value<String?> distribuidorId = const Value.absent(),
                 Value<String?> creadoPor = const Value.absent(),
                 Value<String?> branchId = const Value.absent(),
                 Value<DateTime?> startedAt = const Value.absent(),
@@ -14425,6 +15067,7 @@ class $$RoutesTableTableManager
                 totalPrice: totalPrice,
                 deliveryDate: deliveryDate,
                 vehicleId: vehicleId,
+                distribuidorId: distribuidorId,
                 creadoPor: creadoPor,
                 branchId: branchId,
                 startedAt: startedAt,
@@ -14448,6 +15091,7 @@ class $$RoutesTableTableManager
                 Value<double> totalPrice = const Value.absent(),
                 Value<DateTime?> deliveryDate = const Value.absent(),
                 Value<String?> vehicleId = const Value.absent(),
+                Value<String?> distribuidorId = const Value.absent(),
                 Value<String?> creadoPor = const Value.absent(),
                 Value<String?> branchId = const Value.absent(),
                 Value<DateTime?> startedAt = const Value.absent(),
@@ -14469,6 +15113,7 @@ class $$RoutesTableTableManager
                 totalPrice: totalPrice,
                 deliveryDate: deliveryDate,
                 vehicleId: vehicleId,
+                distribuidorId: distribuidorId,
                 creadoPor: creadoPor,
                 branchId: branchId,
                 startedAt: startedAt,
@@ -15926,6 +16571,8 @@ class $BaseLocalManager {
       $$VehicleTypesTableTableManager(_db, _db.vehicleTypes);
   $$VehiclesTableTableManager get vehicles =>
       $$VehiclesTableTableManager(_db, _db.vehicles);
+  $$DistribuidoresTableTableManager get distribuidores =>
+      $$DistribuidoresTableTableManager(_db, _db.distribuidores);
   $$ProductsTableTableManager get products =>
       $$ProductsTableTableManager(_db, _db.products);
   $$CustomersTableTableManager get customers =>

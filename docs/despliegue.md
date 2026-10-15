@@ -1464,6 +1464,48 @@ pérdidas dichas en el propio `.sql`), y la api anterior antes de bajar la migra
 
 ---
 
+## 4-quater. La migración 00019 (distribuidores): orden y ventana
+
+Issue 7 de Amado, 15/10/2026. Sigue el molde de la 00018, pero **sólo AÑADE**: tabla nueva
+`distribuidores` (por sucursal, `branch_id` NOT NULL), columna nula `routes.distribuidor_id` (las rutas
+que ya hay quedan sin distribuidor, que es la verdad), el valor `distribuidores` en
+`coleccion_de_la_bajada` y el disparador de su lápida. Detalle en `docs/esquema-cambios.md` §9.
+
+**Orden**:
+
+```
+1. migración 00019                       (§2.1, pasos 2 a 7; `status` primero, como siempre)
+2. Deploy de reparto-api                 (§4) — después de migrar, nunca antes
+3. Deploy de la web y publicación de la APK/escritorio
+```
+
+El volcado previo no hace falta (no cambia ni borra nada). `sync` no cambia: el `distribuidorId` del
+apunte `POST /routes` viaja dentro del cuerpo, que el sincronizador no interpreta
+(`sync/internal/reparto/el_distribuidor_del_apunte_test.go`).
+
+**La ventana:**
+
+- **api VIEJA con la base NUEVA** (lo normal entre 1 y 2): nada cambia; la api vieja no lee ni escribe
+  la columna ni la tabla.
+- **api NUEVA con la base VIEJA** (si se despliega antes de migrar): todo lo que lee rutas contesta
+  **500** (`column r.distribuidor_id does not exist`), y también la bajada. Error en voz alta: por eso
+  se migra primero.
+- **App nueva con api vieja** (web desplegada antes que la api): `/api/distribuidores` da 404 y el
+  cajón lo dice; la bajada no trae la colección y el cartel de «no bajó» lo dice. Las rutas se arman
+  igual, sin distribuidor.
+- **APK vieja con api nueva**: ignora `distribuidores` y `distribuidorId`; sus rutas nacen sin
+  distribuidor. La APK nueva, la primera vez, pide la colección ENTERA (`completas=distribuidores`)
+  aunque ya tenga marca de otros días.
+
+**El `Down`** quita la tabla, la columna y las lápidas de la colección; **pierde quién repartió cada
+ruta**. El valor del enum se queda (Postgres no sabe quitarlo) y no estorba.
+
+**Antes de desplegar**, contra Postgres de verdad (base migrada hasta la 00019):
+`TestMotorReal_Migracion00019Distribuidores` (sube, baja y vuelve a subir sobre datos sembrados) y
+`TestMotorReal_DistribuidoresPorSucursal` (alcance de las consultas nuevas).
+
+---
+
 ## 5. Cómo se comprueba que están vivos
 
 Lo primero, siempre, lo que dice `docs/DOKPLOY-NUEVO-PROYECTO.md` Parte 7: **un build que

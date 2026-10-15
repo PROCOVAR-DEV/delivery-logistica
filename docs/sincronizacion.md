@@ -38,6 +38,7 @@ Devuelve lo que cambió desde `desde`. Sin `desde`, la primera carga completa.
     "customers": { "puestos": [ … ], "quitados": ["id", …] },
     "products":  { "puestos": [ … ], "quitados": ["id", …] },
     "vehicles":  { "puestos": [ … ], "quitados": ["id", …] },
+    "distribuidores": { "puestos": [ … ], "quitados": ["id", …] },  // 00019, ver abajo
     "branches":  { "puestos": [ … ], "quitados": ["id", …] },
     "warehouses":{ "puestos": [ … ], "quitados": [] },
     "settings":  { "puestos": [ … ], "quitados": [] }
@@ -70,6 +71,13 @@ ahí, en otra sucursal, y mandárselo en `quitados` le borraría del aparato alg
 Las dos que siguen vacías lo están por decisión escrita, no por olvido: `settings` es UNA
 fila global que no se borra nunca, y `warehouses` vive en Accesos, que no dice qué borró.
 Los dos motivos largos están en `espejo.go`, donde se sirven.
+
+**`distribuidores`** (15/10/2026, issue 7) es la primera colección que llega a aparatos que YA
+tienen marca: la marca `desde` es de todas a la vez, y un aparato que sincronizó con la versión
+anterior la avanzó con los distribuidores ya creados en el servidor, así que «lo que cambió desde
+ayer» no se los traería nunca. Por eso la app pide `completas=distribuidores` (esa colección entera,
+sin lápidas) mientras no la tenga marcada como bajada, y después va por diferencias como las demás.
+Una colección nueva en el futuro necesita lo mismo.
 
 **`truncado`** existe porque la primera bajada de una sucursal grande no cabe de una vez en
 la conexión de allá. Se pide por tandas hasta que venga `false`.

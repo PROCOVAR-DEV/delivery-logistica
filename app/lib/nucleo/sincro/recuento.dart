@@ -80,6 +80,7 @@ class Recontador {
       Colecciones.clientes: await _cuantas(_base.customers),
       Colecciones.productos: await _cuantas(_base.products),
       Colecciones.vehiculos: await _cuantas(_base.vehicles),
+      Colecciones.distribuidores: await _cuantas(_base.distribuidores),
       Colecciones.sucursales: await _cuantas(_base.branches),
       Colecciones.almacenes: await _cuantas(_base.warehouses),
       Colecciones.ajustes: await _cuantas(_base.settings),
@@ -174,6 +175,10 @@ abstract final class Faltas {
   ///    leeria nadie.
   ///  * `settings` — sin la fila de ajustes los importes se quedan en USD, que
   ///    es el valor guardado. Se ve raro, pero no manda mal un camion.
+  ///  * `distribuidores` — una sucursal puede no tener ninguno dado de alta todavia
+  ///    (issue 7, 14/10/2026), y la ruta se arma igual, sin distribuidor. Lo que SI
+  ///    se avisa es que **no se bajaron** (`nuncaSeBajo`): sin la lista el selector
+  ///    de «Nueva ruta» no ofrece a nadie aunque la sucursal tenga a diez.
   ///
   /// Que no se avise **no es que no se cuente**: las nueve salen con su numero
   /// en el resumen. Lo que no hacen es tumbar el verde.
@@ -182,6 +187,7 @@ abstract final class Faltas {
     Colecciones.renglones,
     Colecciones.rutas,
     Colecciones.vehiculos,
+    Colecciones.distribuidores,
     Colecciones.ajustes,
   ];
 
@@ -199,7 +205,8 @@ abstract final class Faltas {
     Colecciones.productos,
   ];
 
-  /// LO DE SIEMPRE: menos de **veinte filas entre las cuatro**.
+  /// LO DE SIEMPRE: menos de **veinte filas entre las cinco** (los distribuidores
+  /// se sumaron el 14/10/2026: unas decenas por sucursal).
   ///
   /// No tardan nada y por eso no merecen cuatro renglones en la pantalla — pero
   /// hacen falta las cuatro, y por eso no se pueden callar del todo: sin
@@ -208,6 +215,7 @@ abstract final class Faltas {
   /// los ajustes son UNA fila con la tasa. Van juntas, en una linea.
   static const loDeSiempre = <String>[
     Colecciones.vehiculos,
+    Colecciones.distribuidores,
     Colecciones.sucursales,
     Colecciones.almacenes,
     Colecciones.ajustes,
@@ -281,9 +289,9 @@ abstract final class Faltas {
   /// Que se rompe sin **lo de siempre**, en una sola frase. Son cuatro cosas de
   /// menos de veinte filas, y leerlas por separado es leer cuatro veces lo mismo.
   static const seRompeSinLoDeSiempre =
-      'Lo de siempre: sin vehículo no se cierra una ruta, sin sucursal no hay '
-      'desde dónde medir y sin almacén el domicilio se cobra desde el sitio '
-      'equivocado.';
+      'Lo de siempre: sin vehículo no se cierra una ruta, sin distribuidor no '
+      'se puede decir quién la reparte, sin sucursal no hay desde dónde medir '
+      'y sin almacén el domicilio se cobra desde el sitio equivocado.';
 
   static String comoSeLlama(String coleccion) => switch (coleccion) {
     Colecciones.pedidos => 'los pedidos',
@@ -292,6 +300,7 @@ abstract final class Faltas {
     Colecciones.clientes => 'los clientes',
     Colecciones.productos => 'el catálogo de productos',
     Colecciones.vehiculos => 'los vehículos',
+    Colecciones.distribuidores => 'los distribuidores',
     Colecciones.sucursales => 'las sucursales',
     Colecciones.almacenes => 'los almacenes',
     Colecciones.ajustes => 'los ajustes',
@@ -309,6 +318,8 @@ abstract final class Faltas {
     Colecciones.productos =>
       'sin él los pesos van incompletos y el pre-despacho sale corto',
     Colecciones.vehiculos => 'sin ellos no se puede asignar camión a una ruta',
+    Colecciones.distribuidores =>
+      'sin ellos no se puede decir quién reparte la ruta',
     Colecciones.sucursales => 'sin ellas no hay punto de origen para medir',
     Colecciones.almacenes =>
       'sin ellos el domicilio se cobra desde el sitio equivocado',

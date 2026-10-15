@@ -158,3 +158,29 @@ tiene SUS tipos y quien trabaja en una ve y toca sólo los suyos.
   pierden** (vuelve el del tipo de todas) y un nombre que sólo exista en sucursales se crea «de
   todas», con costo sólo si todas coinciden. Dicho en el propio `.sql` y atado por
   `TestMotorReal_Migracion00018TiposPorSucursal`.
+
+## 9 · Los distribuidores, POR SUCURSAL (00019, issue 7 de Amado, 15/10/2026)
+
+El distribuidor es la persona responsable de la entrega y de devolver las facturas entregadas: el
+chofer mismo si va en triciclo, un empleado de Procovar si el vehículo es rentado. Es un
+**nomenclador de cada sucursal**, no una persona de Accesos (§6: aquí no hay tabla de personas, sólo
+un nombre y si sigue en activo). Se asocia a la ruta **al crearla**.
+
+- **`distribuidores`** (`id`, `branch_id` **NOT NULL** sin `ON DELETE CASCADE`, `nombre` con
+  `CHECK (btrim(nombre) <> '')`, `activo`, `created_at`/`updated_at` con `set_updated_at`). No hay «de
+  todas» como en los tipos de vehículo.
+- **Nombre único dentro de la sucursal** sin distinguir mayúsculas ni espacios de los bordes
+  (`distribuidores_nombre_por_sucursal` sobre `(branch_id, lower(btrim(nombre)))`); la API además deja
+  un solo espacio entre palabras.
+- **`routes.distribuidor_id`** nulo y sin cascada. **NULO = ruta histórica o armada sin
+  distribuidor**: la migración no inventa ninguno. Índice parcial para «¿lo usa alguna ruta?».
+- **Retirar en vez de borrar**: el `DELETE` de la API sólo borra al que no usa ninguna ruta (lo
+  comprueba en la misma sentencia); si alguna lo usa, lo pone `activo = false`.
+- **La API valida la ruta** (`distribuidorDeLaRuta`, `rutas.go`/`distribuidores.go`): el distribuidor
+  tiene que ser de la MISMA sucursal que la ruta y estar en activo; la clave ajena sola no sabe de
+  sucursales.
+- **Baja al aparato** como la colección `distribuidores` (valor nuevo de `coleccion_de_la_bajada`,
+  lápida por disparador `AFTER DELETE`): la APK y el escritorio lo eligen sin conexión.
+- **Alcance**: el de las rutas, no el de los tipos. Quien tiene sucursal ve y toca sólo los suyos (los
+  ajenos son 404); el modo «todas» lee las listas de todas (cada fila con su sucursal) porque una ruta
+  de cualquier sucursal tiene que poder decir quién la reparte, pero **no crea** (400).

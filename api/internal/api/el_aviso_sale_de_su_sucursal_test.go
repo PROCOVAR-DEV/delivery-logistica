@@ -365,6 +365,8 @@ func TestLaTablaDeQueAvisoLlevaSucursal(t *testing.T) {
 		// desplegable de Holguín.
 		{"vehiculos", avisarCambioDeVehiculos, CambioVehiculos, "vehicles.branch_id"},
 		{"tipos de vehiculo", avisarCambioDeTiposDeVehiculo, CambioVehiculos, "vehicle_types.branch_id"},
+		// Los distribuidores (00019) viven en la pantalla de Vehículos y publican su mismo tipo.
+		{"distribuidores", avisarCambioDeDistribuidores, CambioVehiculos, "distribuidores.branch_id"},
 		{"clientes", avisarCambioDeClientes, CambioClientes,
 			"la coordenada del cliente es la que ordena las paradas de SU sucursal"},
 		// LA TASA. Mismo tipo que los ajustes globales y acotada: el tipo dice QUÉ volver a

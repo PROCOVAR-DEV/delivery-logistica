@@ -135,6 +135,9 @@ class Bajada {
     Colecciones.clientes,
     Colecciones.productos,
     Colecciones.vehiculos,
+    // LOS DISTRIBUIDORES (issue 7, 14/10/2026): quien reparte cada ruta, por
+    // sucursal. Baja con el dia porque se elige SIN conexion al crear la ruta.
+    Colecciones.distribuidores,
     Colecciones.sucursales,
     Colecciones.ajustes,
   ];
@@ -168,12 +171,38 @@ class Bajada {
     for (var vuelta = 0; vuelta < maximoDeTandas; vuelta++) {
       final desde = await _frescura.desde(Colecciones.pedidos);
 
+      // LOS DISTRIBUIDORES QUE YA EXISTIAN, para el aparato que ya habia sincronizado.
+      //
+      // La bajada por diferencias pide «lo que cambio desde la marca de `orders`», y esa
+      // marca es de TODAS las colecciones a la vez. Un aparato que sincronizo ayer con la
+      // version vieja de la aplicacion —que no conocia los distribuidores— avanzo su marca
+      // con ellos ya creados en el servidor, los tiro, y hoy, con la version nueva, pide
+      // «desde ayer»: lo creado ANTES de ayer no vuelve a salir. Nunca. El selector de
+      // «Nueva ruta» se quedaria vacio con la sucursal llena de distribuidores, y sin ningun
+      // error: el mismo hueco que hizo que el cambio de sucursal necesitara
+      // `olvidarElCursor`.
+      //
+      // Se arregla pidiendo ESA coleccion entera (`completas=distribuidores`) y solo hasta
+      // que se marque como bajada: la primera tanda la trae completa, la escribe y la
+      // marca, y las siguientes ya van por diferencias y lapidas, que si saben de lo que se
+      // borra. Es una lista de decenas de filas; pedir con ella el resto del dia seria
+      // gastarle la conexion al repartidor, y rehacer la carga ENTERA (`olvidarElCursor`)
+      // no traeria las lapidas de lo borrado mientras tanto — el hueco de la ruta fantasma.
+      //
+      // Sin marca de `orders` no se pide: la primera tanda ya es COMPLETA (un aparato nuevo
+      // y la web, que nace vacia en cada carga) y trae todos.
+      final completas = <String>[
+        if (desde != null && !await _frescura.seDescargo(Colecciones.distribuidores))
+          Colecciones.distribuidores,
+      ];
+
       final datos = await _cliente.pedir<Map<String, Object?>>(
         '/sync/cambios',
         params: <String, Object?>{
           'desde': ?desde,
           'sucursal': ?sucursal,
           'continuar': ?continuar,
+          if (completas.isNotEmpty) 'completas': completas.join(','),
         },
       );
 
@@ -492,6 +521,10 @@ class Bajada {
                 totalPrice: Value(_numero(j['totalPrice']) ?? 0),
                 deliveryDate: Value(_fecha(j['deliveryDate'])),
                 vehicleId: Value(_texto(j['vehicleId'])),
+                // QUIEN REPARTE (issue 7). Solo el id: el nombre sale de la coleccion
+                // `distribuidores`. Sin el, una ruta bajada del servidor perderia a
+                // quien la reparte en cuanto la bajada la pisara.
+                distribuidorId: Value(_texto(j['distribuidorId'])),
                 creadoPor: Value(_texto(j['creadoPor'])),
                 branchId: Value(_texto(j['branchId'])),
                 startedAt: Value(_fecha(j['startedAt'])),
@@ -570,6 +603,21 @@ class Bajada {
                 // (Amado, 07/10/2026: un camion con rutas se inactiva, no se
                 // borra). Lo vigila `la_bajada_no_pierde_campos_test.dart`.
                 isActive: Value(j['isActive'] != false),
+                branchId: Value(_texto(j['branchId'])),
+                updatedAt: Value(_fecha(j['updatedAt'])),
+              ),
+            );
+      case Colecciones.distribuidores:
+        await _base
+            .into(_base.distribuidores)
+            .insertOnConflictUpdate(
+              DistribuidoresCompanion.insert(
+                id: _texto(j['id'])!,
+                nombre: _texto(j['nombre']) ?? '',
+                // `activo` AUSENTE ES ACTIVO, como `isActive` de los camiones: solo un
+                // `false` explicito es un retiro (el selector esconde al retirado, y
+                // leerlo con `== true` dejaria a toda la sucursal sin quien elegir).
+                activo: Value(j['activo'] != false),
                 branchId: Value(_texto(j['branchId'])),
                 updatedAt: Value(_fecha(j['updatedAt'])),
               ),
@@ -772,6 +820,10 @@ class Bajada {
         await (_base.delete(
           _base.vehicles,
         )..where((v) => v.id.equals(id))).go();
+      case Colecciones.distribuidores:
+        await (_base.delete(
+          _base.distribuidores,
+        )..where((d) => d.id.equals(id))).go();
       case Colecciones.sucursales:
         await (_base.delete(
           _base.branches,

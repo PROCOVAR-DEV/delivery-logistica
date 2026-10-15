@@ -19,6 +19,11 @@ abstract final class Colecciones {
   static const clientes = 'customers';
   static const productos = 'products';
   static const vehiculos = 'vehicles';
+
+  /// Los distribuidores de cada sucursal (issue 7, 14/10/2026). Va DETRAS de los
+  /// vehiculos y delante de las sucursales, y `warehouses` sigue siendo la
+  /// penultima de `todas` (`proveedores_rutas.dart` lo cuenta).
+  static const distribuidores = 'distribuidores';
   static const sucursales = 'branches';
   static const almacenes = 'warehouses';
   static const ajustes = 'settings';
@@ -30,6 +35,7 @@ abstract final class Colecciones {
     clientes,
     productos,
     vehiculos,
+    distribuidores,
     sucursales,
     almacenes,
     ajustes,
@@ -94,6 +100,15 @@ abstract final class ClaveDePreferencia {
   /// aparato, que es de donde es: la sucursal que se MIRA es a donde uno mira;
   /// esta es donde uno esta.
   static const sucursalDelAparato = 'sucursalDelAparato';
+
+  /// EL DISTRIBUIDOR DE LA ULTIMA RUTA, uno por sucursal (issue 7, 14/10/2026).
+  ///
+  /// Quien arma diez rutas el mismo dia suele armarlas con las mismas personas, asi
+  /// que el selector de «Nueva ruta» deja puesto el de la ultima de ESA sucursal
+  /// (si sigue en activo). Por sucursal y no uno solo: un SUPER ADMIN arma rutas de
+  /// ocho sucursales y el chofer de Holguin no es el de Santiago.
+  static String ultimoDistribuidorDe(String sucursalId) =>
+      'ultimoDistribuidor:$sucursalId';
 }
 
 @DriftDatabase(
@@ -102,6 +117,7 @@ abstract final class ClaveDePreferencia {
     Branches,
     VehicleTypes,
     Vehicles,
+    Distribuidores,
     Products,
     Customers,
     Orders,
@@ -152,8 +168,14 @@ class BaseLocal extends _$BaseLocal {
   /// `motivo_revision`) y el enum, dos estados (`tablas/aparato.dart`). Es la tabla
   /// donde vive **la cola sin subir**: por eso la migración sólo AÑADE, y sólo lo que
   /// falta (ver el `desde < 7`).
+  ///
+  /// ## 8 — los distribuidores (14/10/2026, issue 7 de Amado)
+  ///
+  /// Tabla nueva `distribuidores` (el nomenclador de cada sucursal) y `routes`
+  /// gana `distribuidor_id`, nula. Las dos son ADITIVAS: la cola de `apuntes` no se
+  /// toca. Ver el `desde < 8`.
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -224,6 +246,34 @@ class BaseLocal extends _$BaseLocal {
           apuntes.motivoRevision,
         ]) {
           if (!hay.contains(columna.name)) await m.addColumn(apuntes, columna);
+        }
+      }
+      if (desde < 8) {
+        // LOS DISTRIBUIDORES. Ver `Distribuidores` y `Routes.distribuidorId`.
+        //
+        // **Solo lo que falta**, por lo mismo que la 5 y la 7: un `CREATE TABLE` de
+        // una que ya esta, o un `ADD COLUMN` de una columna que ya esta, LANZA, y
+        // una migracion que lanza deja la base sin abrir — o sea la cola del dia
+        // secuestrada. Pasa con una copia nacida con el esquema nuevo y el
+        // `user_version` atras.
+        //
+        // La tabla nace VACIA y la columna NULA: nulo es «ruta sin distribuidor», que
+        // es la verdad de todo lo que ya hay. Los distribuidores de verdad los trae
+        // la bajada (`Bajada.ciclo` los pide ENTEROS la primera vez —`completas`—
+        // aunque el aparato ya tenga su marca de otros dias; sin eso, un aparato que
+        // ya sincronizo nunca los recibiria, porque la bajada por diferencias solo
+        // trae lo que cambio DESPUES de su marca).
+        final tablas = (await customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'table'",
+        ).get()).map((f) => f.read<String>('name')).toSet();
+        if (!tablas.contains(distribuidores.actualTableName)) {
+          await m.createTable(distribuidores);
+        }
+        final deRutas = (await customSelect('PRAGMA table_info(routes)').get())
+            .map((f) => f.read<String>('name'))
+            .toSet();
+        if (!deRutas.contains(routes.distribuidorId.name)) {
+          await m.addColumn(routes, routes.distribuidorId);
         }
       }
     },
@@ -340,6 +390,7 @@ class BaseLocal extends _$BaseLocal {
         customers,
         products,
         vehicles,
+        distribuidores,
         vehicleTypes,
         warehouses,
         branches,

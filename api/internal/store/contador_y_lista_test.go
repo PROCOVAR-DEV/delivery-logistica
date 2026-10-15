@@ -79,6 +79,32 @@ func TestElContadorMiraLasMismasTablasQueLaLista(t *testing.T) {
 	}
 }
 
+// LO MISMO PARA LAS DOS PAREJAS DE `orders.sql`: el catálogo de Pedidos y los disponibles del
+// asistente. El 15/10/2026 (issue 10 de Amado) su filtro `domicilio` pasó a mirar también el
+// cobro de la factura en las cuatro a la vez; si una se queda atrás, «Mostrando 1-50 de N» o
+// el `total` del asistente cuentan otra cosa que la lista. Sólo el `WHERE`: el `FROM` del
+// catálogo lleva JOIN de pura lectura (vehículo, sucursal, peso) que su contador no necesita.
+func TestLosContadoresDePedidosFiltranLoMismoQueSusListas(t *testing.T) {
+	ruta := filepath.Join("..", "..", "db", "queries", "orders.sql")
+	b, err := os.ReadFile(ruta)
+	if err != nil {
+		t.Fatalf("no se pudo leer %s: %v", ruta, err)
+	}
+	sql := string(b)
+	for _, par := range [][2]string{
+		{"ListarPedidos", "ContarPedidos"},
+		{"ListarPedidosDisponibles", "ContarPedidosDisponibles"},
+	} {
+		lista, contador := filtrosDe(t, sql, par[0]), filtrosDe(t, sql, par[1])
+		if f := loQueFaltaEn(contador, lista); len(f) > 0 {
+			t.Errorf("%s no filtra lo que sí filtra %s: %v", par[1], par[0], f)
+		}
+		if s := loQueFaltaEn(lista, contador); len(s) > 0 {
+			t.Errorf("%s filtra de más, cosas que %s no filtra: %v", par[1], par[0], s)
+		}
+	}
+}
+
 // El `FROM` con sus `JOIN`, normalizado: desde `FROM` hasta el `WHERE`.
 func desdeDe(t *testing.T, sql, nombre string) string {
 	t.Helper()
@@ -119,7 +145,7 @@ func cuerpoDe(t *testing.T, sql, nombre string) string {
 	marca := "-- name: " + nombre + " "
 	i := strings.Index(sql, marca)
 	if i < 0 {
-		t.Fatalf("no está la consulta %q en tablero.sql", nombre)
+		t.Fatalf("no está la consulta %q en el fichero", nombre)
 	}
 	resto := sql[i:]
 

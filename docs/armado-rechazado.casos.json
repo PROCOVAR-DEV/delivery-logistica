@@ -5,7 +5,8 @@
     "api/internal/store/sqlc/consultas_motor_real_test.go",
     "app/test/pantallas/rutas/encabezado_del_armado_test.dart",
     "app/test/pantallas/tablero/el_armado_local_descarta_como_el_servidor_test.dart",
-    "app/test/pantallas/rutas/la_regla_de_entrada_es_la_del_servidor_test.dart"
+    "app/test/pantallas/rutas/la_regla_de_entrada_es_la_del_servidor_test.dart",
+    "app/test/pantallas/rutas/el_filtro_de_domicilio_cuenta_lo_cobrado_test.dart"
   ],
   "deDondeSale": "El 28/09/2026 la cabecera decia «1 de los 1 pedidos elegidos no pueden ir en esta ruta»: tres faltas en siete palabras y en el caso mas comun de todos, elegir un pedido y que no entre. Estaba mal en los dos lados a la vez, y a proposito: arreglarlo en uno solo habria roto la paridad, que es peor. Se arreglo en los dos el 29/09/2026 y este fichero nacio con el arreglo.",
   "laRegla": "Son DOS concordancias distintas porque los dos numeros cuentan cosas distintas. El VERBO va con `seCaen`, que es el sujeto de la frase: «1 ... no PUEDE ir», «3 ... no PUEDEN ir». El SUSTANTIVO va con `seEligieron`, los que la persona marco en la pantalla. Y cuando `seEligieron` es 1 los dos numeros son forzosamente el mismo, asi que decirlos no informa de nada y la frase va sin ellos.",
@@ -253,6 +254,84 @@
         "pedidoCosto": 0,
         "requiereDomicilio": true,
         "entra": true
+      }
+    ]
+  },
+  "filtroDeDomicilio": {
+    "queEsEsto": "EL FILTRO `domicilio` DE LOS PEDIDOS («Con y sin domicilio» / «Sólo con domicilio» = `1` / «Sólo sin domicilio» = `0`), el mismo en el servidor (`ListarPedidos`, `ContarPedidos`, `ListarPedidosDisponibles` y `ContarPedidosDisponibles`) y en el aparato (`conDomicilio` de `app/lib/nucleo/regla_de_entrada.dart`, que usa la lista de disponibles del asistente). Desde el 15/10/2026 (issue 10 de Amado) un pedido LLEVA DOMICILIO si el vendedor lo marcó (`requiereDomicilio` true) O la factura lo cobró (`facturaDomicilio > 0`); «sin domicilio» es el contrario exacto. Antes miraba sólo la casilla, y el asistente, que arranca en «Sólo con domicilio», escondía justo el caso real. Cada caso dice `conDomicilio`: sale en «Sólo con domicilio» si es true, en «Sólo sin domicilio» si es false, y en «Con y sin» siempre. En la lista de disponibles, además, sólo sale lo que entra a una ruta (`reglaDeEntrada`).",
+    "casos": [
+      {
+        "nombre": "caso-real-PBF26-2610131268",
+        "nota": "EL CASO DE PRODUCCIÓN, Santiago, factura 47061: sin marcar domicilio y con «ENTREGA A DOMICILIO» 1.31 en la factura. Sale en «Sólo con domicilio» (que es como arranca el asistente) y NO sale en «Sólo sin domicilio».",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "cambiado",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": null,
+        "requiereDomicilio": false,
+        "conDomicilio": true
+      },
+      {
+        "nombre": "marcado-sin-cobro",
+        "nota": "La casilla del vendedor basta para «con domicilio», aunque la factura no lo cobre.",
+        "facturaEstado": "igual",
+        "facturaDomicilio": null,
+        "pedidoCosto": 10,
+        "requiereDomicilio": true,
+        "conDomicilio": true
+      },
+      {
+        "nombre": "marcado-y-cobrado",
+        "nota": "Marcado y cobrado: con domicilio.",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": 10,
+        "requiereDomicilio": true,
+        "conDomicilio": true
+      },
+      {
+        "nombre": "sin-marca-y-cobrado",
+        "nota": "`requiereDomicilio` nulo y cobrado: lo que manda es el cobro.",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 2,
+        "pedidoCosto": null,
+        "requiereDomicilio": null,
+        "conDomicilio": true
+      },
+      {
+        "nombre": "sin-marcar-sin-cobro",
+        "nota": "Ni marcado ni cobrado: sin domicilio.",
+        "facturaEstado": "igual",
+        "facturaDomicilio": null,
+        "pedidoCosto": null,
+        "requiereDomicilio": false,
+        "conDomicilio": false
+      },
+      {
+        "nombre": "sin-marca-sin-cobro",
+        "nota": "Nulo no es «lleva»: nadie lo marcó y nadie lo cobró, sin domicilio.",
+        "facturaEstado": "igual",
+        "facturaDomicilio": null,
+        "pedidoCosto": null,
+        "requiereDomicilio": null,
+        "conDomicilio": false
+      },
+      {
+        "nombre": "sin-marcar-cobro-en-cero",
+        "nota": "Un cobro en cero no es un cobro: sin domicilio.",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 0,
+        "pedidoCosto": 10,
+        "requiereDomicilio": false,
+        "conDomicilio": false
+      },
+      {
+        "nombre": "sin-marcar-cobro-negativo",
+        "nota": "Un cobro negativo tampoco: «sin» es `facturaDomicilio <= 0`, no `= 0`.",
+        "facturaEstado": "igual",
+        "facturaDomicilio": -1,
+        "pedidoCosto": 10,
+        "requiereDomicilio": false,
+        "conDomicilio": false
       }
     ]
   }

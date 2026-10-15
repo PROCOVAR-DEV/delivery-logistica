@@ -407,8 +407,10 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
    - `km máx.` (número) y `costo mín.` (número).
    - Selector `Estado del pedido en PEDIDO` / `Cualquier estado`: `En proceso`=`en_proceso`,
      `Completada`=`completada`, `Expirada`=`expirada`.
-   - Selector `Si el pedido lleva entrega a domicilio` / `Con y sin domicilio`:
-     `Sólo con domicilio`=`1` **(por defecto `1`)**, `Sólo sin domicilio`=`0`.
+   - Selector `Si lleva domicilio: marcado por el vendedor o cobrado en la factura` /
+     `Con y sin domicilio`: `Sólo con domicilio`=`1` **(por defecto `1`)**, `Sólo sin
+     domicilio`=`0`. «Con» es `requiereDomicilio = true` **o** `facturaDomicilio > 0`;
+     «sin», el contrario exacto (desde el 15/10/2026, issue 10).
    - Selector `Si Entrega ya le puso costo de domicilio` / `Cotizados y sin cotizar`:
      `Ya cotizados`=`1`, `Sin cotizar`=`0`.
    - Botón `Limpiar` (vuelve a domicilio=`1`).
@@ -418,9 +420,9 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
      —`facturaEstado ∈ {igual, cambiado}`, `facturaDomicilio > 0` y `pedidoCosto` no nulo
      si `requiereDomicilio` es `true`— y no hay filtro de factura. Hasta el 15/10/2026 se
      mandaba siempre `factura=cuadra` (sólo `igual`); ya no, porque dejaba fuera los
-     `cambiado`. Ojo con `domicilio=1`, que es el defecto: filtra la casilla
-     `requiereDomicilio` y esconde los pedidos sin marcar que sí entran (los que sólo
-     tienen el cobro en la factura); hay que poner `Con y sin domicilio` para verlos.
+     `cambiado`. `domicilio=1`, que es el defecto, cuenta también el cobro de la
+     factura, así que ya no esconde los pedidos sin marcar que sí entran (hasta el
+     15/10/2026 miraba sólo la casilla `requiereDomicilio` y los escondía).
 
    Aviso si la lista viene recortada (tope de 2000 en el servidor):
    `Hay más pedidos de los que caben en la lista. Elegí la sucursal y el día para verlos todos: una ruta se arma con los de un sitio y un día.`

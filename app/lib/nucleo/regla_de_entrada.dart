@@ -48,6 +48,17 @@ Expression<bool> entraEnRuta($OrdersTable o) =>
         o.requiereDomicilio.isNull() |
         o.requiereDomicilio.equals(false));
 
+/// LLEVA DOMICILIO: el vendedor lo marcó O la factura lo cobró (`facturaDomicilio > 0`). Es el
+/// filtro `domicilio` de los pedidos («Sólo con domicilio» = `1`), el mismo que el SQL de
+/// `ListarPedidos`/`ListarPedidosDisponibles` y sus contadores, atado por `filtroDeDomicilio`
+/// de `docs/armado-rechazado.casos.json`. Con sólo la casilla, el asistente —que arranca en
+/// «Sólo con domicilio»— escondía el caso del issue 10 (PBF26-2610131268, sin marcar y con
+/// 1.31 cobrado). Ninguna de las dos ramas da NULL, así que «Sólo sin domicilio» es
+/// `conDomicilio(o).not()`, el contrario exacto (nulo no es llevarlo; un cero no es cobro).
+Expression<bool> conDomicilio($OrdersTable o) =>
+    o.requiereDomicilio.isValue(true) |
+    coalesce([o.facturaDomicilio, const Constant(0.0)]).isBiggerThanValue(0);
+
 /// Las tres juntas en SQL de SQLite, para las consultas a mano (el Panel). `IS NOT 1` es el
 /// `IS NOT TRUE` de Postgres: un NULL también pasa.
 const entraEnRutaSql =

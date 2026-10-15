@@ -113,6 +113,8 @@ class ServicioDeAcceso {
     String? sucursal,
   }) async {
     try {
+      // Antes de pedirlo: el token no puede ser mas viejo (`Sesion.leQueda`).
+      final pedidoA = DateTime.now();
       final respuesta = await _auth.post<Map<String, Object?>>(
         '/token',
         data: <String, Object?>{
@@ -124,7 +126,10 @@ class ServicioDeAcceso {
           if (sucursal != null && sucursal.isNotEmpty) 'sucursal': sucursal,
         },
       );
-      final sesion = Sesion.deJson(respuesta.data ?? const <String, Object?>{});
+      final sesion = Sesion.deJson(
+        respuesta.data ?? const <String, Object?>{},
+        pedidoA: pedidoA,
+      );
       final seGuardo = await _almacen.guardar(sesion);
       Registro.info('dentro: ${sesion.sub} (${sesion.sucursalId ?? "todas"})');
       if (!seGuardo) {

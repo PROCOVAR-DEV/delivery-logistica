@@ -16,6 +16,12 @@ String tokenDePrueba({
   String nombre = '',
   String correo = '',
   String rol = '',
+
+  /// `iat` y `exp` en segundos, como los firma Accesos. Sólo entran cuando se
+  /// piden: sin ellos el aparato no sabe cuánto le queda y renueva siempre, que es
+  /// lo que esperan las pruebas que ya estaban escritas.
+  int? iat,
+  int? exp,
 }) {
   String trozo(Map<String, Object?> m) =>
       base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');
@@ -31,6 +37,8 @@ String tokenDePrueba({
     if (nombre.isNotEmpty) 'name': nombre,
     if (correo.isNotEmpty) 'email': correo,
     if (rol.isNotEmpty) 'role': rol,
+    'iat': ?iat,
+    'exp': ?exp,
   });
   return '$cabecera.$carga.firmafalsa';
 }

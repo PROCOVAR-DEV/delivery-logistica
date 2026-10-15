@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
@@ -82,6 +83,7 @@ void main() {
             ),
           ),
         ),
+        sucursalDeLaSesionProvider.overrideWithValue(sucursalStg),
       ],
       // La pantalla NO lleva `Scaffold`: lo pone el armazon. Aqui se envuelve a
       // mano para poder pintarla suelta, sin arrastrar la navegacion entera.

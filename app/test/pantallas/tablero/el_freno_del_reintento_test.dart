@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
 import 'package:reparto/nucleo/identidad/sesion.dart';
@@ -87,6 +88,7 @@ void main() {
             ),
           ),
         ),
+        sucursalDeLaSesionProvider.overrideWithValue(sucursalStg),
       ],
     );
   }

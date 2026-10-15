@@ -32,6 +32,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
 import 'package:reparto/diseno/pestanas.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
@@ -103,6 +104,7 @@ void main() {
             ),
           ),
         ),
+        sucursalDeLaSesionProvider.overrideWithValue(sucursalStg),
       ],
       child: const MaterialApp(home: Scaffold(body: PantallaTablero())),
     );

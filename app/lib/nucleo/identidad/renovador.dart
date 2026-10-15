@@ -4,6 +4,7 @@ import 'package:synchronized/synchronized.dart';
 import '../red/de_quien_viene.dart';
 import '../red/fallos.dart';
 import '../registro/registro.dart';
+import '../reloj.dart';
 import 'almacen_sesion.dart';
 import 'sesion.dart';
 
@@ -31,8 +32,36 @@ import 'sesion.dart';
 /// renovacion fallida que dejara el candado puesto impediria cualquier intento
 /// posterior, y eso es el aparato muerto hasta reinstalar.
 class Renovador {
-  Renovador(this._crudo, this._almacen, {void Function()? alFaltarPermiso})
-    : _alFaltarPermiso = alFaltarPermiso;
+  Renovador(
+    this._crudo,
+    this._almacen, {
+    void Function()? alFaltarPermiso,
+    Reloj reloj = relojDelAparato,
+  }) : _alFaltarPermiso = alFaltarPermiso,
+       _reloj = reloj;
+
+  /// LO QUE TIENE QUE QUEDARLE AL TOKEN PARA NO RENOVARLO — 15/10/2026.
+  ///
+  /// El logístico de Santiago (escritorio 1.0.35) renovaba en CADA vuelta del
+  /// ciclo: 142 `POST /refresh` en 5 horas, uno cada 15–60 s. Cada renovación rota
+  /// el refresh, y con la conexión de allá una respuesta se perdió: el reintento
+  /// llevó el refresh viejo, Accesos lo leyó como robo y le cerró todas las
+  /// sesiones a media tarde. Renovar sólo cuando hace falta deja eso en una cada
+  /// ~10 minutos mientras haya ciclos.
+  ///
+  /// Cinco minutos de quince, y no menos, porque tienen que caber:
+  ///  * lo que tarda en llegar la respuesta del par, que lo hace más viejo de lo
+  ///    que el aparato cree ([Sesion.pedidoA] ya cuenta desde antes de pedirlo,
+  ///    y `dioAuth` corta a los 10 s de conectar + 15 s sin recibir);
+  ///  * una vuelta entera del ciclo por la conexión de allá (subida uno a uno y
+  ///    bajada en tandas: minutos), para que el token no caduque a mitad;
+  ///  * y el vigía, que da una vuelta cada 5 minutos: con este margen la vuelta
+  ///    que renueva llega antes de que caduque, no después.
+  /// Y si aun así caduca a mitad, el 401 renueva y reintenta: el margen ahorra
+  /// esa ida y vuelta, no la sustituye.
+  static const margenParaRenovar = Duration(minutes: 5);
+
+  final Reloj _reloj;
 
   /// Se avisa cuando Accesos contesta al refresco con 403 `sin_permiso`: la
   /// persona PERDIÓ el permiso de Reparto (a media jornada, por ejemplo). Lleva
@@ -77,11 +106,15 @@ class Renovador {
 
     try {
       _renovacionesPedidas++;
+      final pedidoA = _reloj();
       final respuesta = await _crudo.post<Map<String, Object?>>(
         '/refresh',
         data: <String, Object?>{'refresh': actual.refresh},
       );
-      final nueva = Sesion.deJson(respuesta.data ?? const <String, Object?>{});
+      final nueva = Sesion.deJson(
+        respuesta.data ?? const <String, Object?>{},
+        pedidoA: pedidoA,
+      );
       // El refresh se sustituye ENTERO. El viejo no se guarda nunca.
       //
       // Que no quede guardado NO para la renovacion: el par nuevo ya esta en la
@@ -123,6 +156,17 @@ class Renovador {
       throw FalloDeRed(codigo: e.response?.statusCode, detalle: _mensajeDe(e));
     }
   });
+
+  /// RENUEVA SÓLO SI HACE FALTA: no se sabe cuánto le queda al token, o le quedan
+  /// menos de [margenParaRenovar]. Devuelve si se renovó. Es lo que usa el ciclo;
+  /// el 401, el aviso de Accesos y el arranque siguen llamando a [renovar] a secas,
+  /// porque ahí renovar es justo lo que se pide.
+  Future<bool> renovarSiHaceFalta(Sesion vista) async {
+    final queda = vista.leQueda(_reloj());
+    if (queda != null && queda > margenParaRenovar) return false;
+    await renovar(vista);
+    return true;
+  }
 
   /// El mensaje literal del servidor, si lo mando. Un refresh reutilizado llega
   /// con su explicacion y esa explicacion tiene que llegar a la pantalla.

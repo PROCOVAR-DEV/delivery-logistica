@@ -221,6 +221,7 @@ final renovadorProvider = Provider<Renovador>(
     // 403 `sin_permiso` al renovar: la persona perdio el permiso de Reparto.
     // Al portero, sin borrar tokens ni cola (`docs/sin-permiso.md`).
     alFaltarPermiso: () => ref.read(porteroProvider).sinPermiso(),
+    reloj: ref.watch(relojProvider),
   ),
 );
 

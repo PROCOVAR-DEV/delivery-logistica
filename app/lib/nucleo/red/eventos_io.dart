@@ -411,7 +411,8 @@ Stream<String> escucharEventos(
           // NO se vuelve a renovar aqui, y es a proposito: eso seria una ida y
           // vuelta a Accesos por minuto, por aparato, durante toda la jornada.
           // **Quien recupera esto es el ciclo**, que renueva la sesion por su
-          // cuenta cada quince minutos. Cuando lo haga, el token sera otro y el
+          // cuenta antes de que caduque (`Renovador.margenParaRenovar`, desde el
+          // 15/10/2026 ya no en cada vuelta). Cuando lo haga, el token sera otro y el
           // freno de abajo dejara pasar la apertura sola.
           await cerrarConexion();
           if (!vivo) return;

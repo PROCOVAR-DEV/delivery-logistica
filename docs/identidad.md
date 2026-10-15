@@ -106,13 +106,26 @@ Y si no hay red al arrancar, se entra igual con lo guardado. Ver la regla 3.
 ## Al recuperar la señal, el orden
 
 ```
-1. renovar     ← primero, SIEMPRE
+1. renovar     ← primero, SI HACE FALTA
 2. subir la cola
 3. bajar diferencias
 ```
 
 Ocho horas sin conexión dejan el acceso caducado. Si la cola sale con el viejo, todo
 responde 401 y se para.
+
+**«Si hace falta», no «siempre» — 15/10/2026.** El escritorio de Santiago (1.0.35)
+renovaba en cada vuelta del ciclo: 142 `POST /refresh` en cinco horas, uno cada 15–60 s.
+Cada renovación rota el refresh, y con la conexión de allá una respuesta se perdió: el
+reintento llevó el refresh viejo y Accesos le cerró todas las sesiones (regla 1). Ahora el
+ciclo renueva sólo si no se sabe cuánto le queda al token o le quedan menos de **5
+minutos** (`Renovador.margenParaRenovar`, con el porqué del número). Cuánto le queda **no
+se compara con el reloj del aparato**, que puede ir desfasado: se cuenta `exp − iat` (los
+dos del servidor) desde la hora del aparato en que se PIDIÓ el par (`Sesion.pedidoA`,
+guardada con él). Un reloj que va hacia atrás es «no se sabe» y renueva. El 401
+(interceptor y canal de eventos), el aviso de Accesos (`renovarPorAviso`) y el arranque
+siguen renovando en el acto. Un cambio de rol se nota igual en ≤ 15 minutos, porque el
+token se renueva antes de caducar. Pruebas: `app/test/nucleo/sincro/renovar_solo_si_hace_falta_test.dart`.
 
 ---
 

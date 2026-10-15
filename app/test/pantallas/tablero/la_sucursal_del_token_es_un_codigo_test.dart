@@ -20,28 +20,24 @@
 // bajo.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reparto/navegacion/portero.dart';
 import 'package:reparto/nucleo/base/base.dart';
-import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
-import 'package:reparto/nucleo/identidad/sesion.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/pantallas/tablero/estado/proveedores.dart';
 
 import '../../apoyo/base_de_prueba.dart';
 import 'apoyo.dart';
 
-Sesion _sesionCon(String? sucursal) => Sesion(
-  token: 'no-se-verifica-aqui',
-  refresh: 'r',
-  sub: 'p-1',
-  sucursalId: sucursal,
-  roles: const ['ADMINISTRADOR'],
-);
+/// La sucursal que trae la sesion vigente, tal cual la firma Accesos. Desde el
+/// 15/10/2026 sale del portero (`sucursalDeLaSesionProvider`), no del almacen.
+String? _sesionCon(String? sucursal) =>
+    (sucursal == null || sucursal.isEmpty) ? null : sucursal;
 
-ProviderContainer _contenedor(BaseLocal base, Sesion? sesion) =>
+ProviderContainer _contenedor(BaseLocal base, String? sucursalDeLaSesion) =>
     ProviderContainer(
       overrides: [
         baseProvider.overrideWithValue(base),
-        almacenSesionProvider.overrideWithValue(AlmacenEnMemoria(sesion)),
+        sucursalDeLaSesionProvider.overrideWithValue(sucursalDeLaSesion),
       ],
     );
 

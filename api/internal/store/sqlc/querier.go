@@ -20,9 +20,10 @@ type Querier interface {
 	// que dice si el número que se está usando es de hoy o de hace tres semanas, y tocarlo por
 	// guardar la moneda lo convertiría en una copia de `updated_at`, que ya existe.
 	ActualizarAjustes(ctx context.Context, arg ActualizarAjustesParams) (Setting, error)
-	// Renombrar y elegir camión. `tocar_vehiculo` existe porque «no me lo toques» y «quítamelo»
-	// son dos órdenes distintas y las dos llegan con el campo vacío: sin la bandera, dejar el
-	// nombre en blanco desasignaría el camión de paso.
+	// Renombrar, elegir camión y elegir punto de salida. `tocar_vehiculo` existe porque «no me lo
+	// toques» y «quítamelo» son dos órdenes distintas y las dos llegan con el campo vacío: sin la
+	// bandera, dejar el nombre en blanco desasignaría el camión de paso. `tocar_almacen`, lo mismo
+	// para el punto de salida (00020): nulo es «vuelve a salir del principal».
 	ActualizarColumna(ctx context.Context, arg ActualizarColumnaParams) (BoardColumn, error)
 	// Renombrar o volver a activar/retirar. La sucursal de un distribuidor NO se cambia nunca: una
 	// ruta ya firmada por él seguiría apuntando a quien dejó de ser de su sucursal.

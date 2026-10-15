@@ -184,3 +184,18 @@ un nombre y si sigue en activo). Se asocia a la ruta **al crearla**.
 - **Alcance**: el de las rutas, no el de los tipos. Quien tiene sucursal ve y toca sólo los suyos (los
   ajenos son 404); el modo «todas» lee las listas de todas (cada fila con su sucursal) porque una ruta
   de cualquier sucursal tiene que poder decir quién la reparte, pero **no crea** (400).
+
+## 10 · El punto de salida de cada zona (00020, Jose 15/10/2026)
+
+«Quisiera que cada columna se pudiera configurar de dónde sale, así los tableros quedan preparados
+para cada punto o almacén sin estar cambiando de lado a lado.»
+
+- **`board_columns.almacen_id`** texto nulo, con `CHECK` contra la cadena en blanco. Es el **id del
+  almacén de Accesos**, no una clave ajena: el almacén vive en Accesos y aquí no se copia (§3 de
+  `tablero.md`). **NULO = sale del principal de la sucursal**, que es lo de antes: la migración no
+  rellena nada y ninguna zona cambia de punto al desplegar.
+- **La API valida** contra la lista viva de Accesos de la sucursal **de la zona** (`puntoDeSalida`,
+  `tablero.go`): que exista allí, activo y con coordenadas que no sean (0,0); si no, 400 con el motivo.
+  Y vuelve a mirarlo al armar la ruta: un punto que dejó de servir es un 409, nunca el principal en
+  silencio. Regla y literales compartidos con el aparato en `docs/punto-de-salida.casos.json`.
+- **`Down`**: quita la columna y pierde el punto de cada zona; todas vuelven al principal.

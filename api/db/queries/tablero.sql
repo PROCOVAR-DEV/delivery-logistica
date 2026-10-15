@@ -32,7 +32,7 @@
 -- name: ListarColumnasDelTablero :many
 SELECT
     c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-    c.created_at, c.updated_at,
+    c.created_at, c.updated_at, c.almacen_id,
     v.name     AS vehiculo_nombre,
     v.plate    AS vehiculo_matricula,
     v.capacity AS vehiculo_capacidad,
@@ -62,7 +62,7 @@ ORDER BY c.posicion ASC, c.created_at ASC;
 -- serlo, porque decir «existe pero no es tuya» ya es contar algo.
 -- name: ObtenerColumna :one
 SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-       c.created_at, c.updated_at
+       c.created_at, c.updated_at, c.almacen_id
 FROM board_columns c
 WHERE c.id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid);
@@ -94,21 +94,22 @@ WHERE c.id = sqlc.arg('id')
 -- que no lo mande siguen funcionando igual.
 -- name: CrearColumna :one
 WITH nueva AS (
-    INSERT INTO board_columns (id, branch_id, nombre, posicion, vehicle_id, creado_por)
+    INSERT INTO board_columns (id, branch_id, nombre, posicion, vehicle_id, creado_por, almacen_id)
     SELECT
         coalesce(sqlc.narg('id')::uuid, gen_random_uuid()),
         b.id,
         sqlc.arg('nombre'),
         coalesce((SELECT max(c.posicion) + 1 FROM board_columns c WHERE c.branch_id = b.id), 1),
         sqlc.narg('vehicle_id'),
-        sqlc.narg('creado_por')
+        sqlc.narg('creado_por'),
+        sqlc.narg('almacen_id')
     FROM branches b
     WHERE b.id = sqlc.arg('branch_id')
       AND (sqlc.narg('sucursal')::uuid IS NULL OR b.id = sqlc.narg('sucursal')::uuid)
     ON CONFLICT (id) DO NOTHING
-    RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at
+    RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id
 )
-SELECT id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at
+SELECT id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id
 FROM nueva
 UNION ALL
 -- LA QUE YA ESTABA. Es la rama del reintento: el aparato mandó dos veces el mismo id
@@ -117,7 +118,7 @@ UNION ALL
 -- Va acotada igual que el `INSERT`: sin el `branch_id` aquí, mandar el id de la zona de
 -- otra sucursal la devolvería, y eso es enseñar lo que no es de uno.
 SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-       c.created_at, c.updated_at
+       c.created_at, c.updated_at, c.almacen_id
 FROM board_columns c
 WHERE sqlc.narg('id')::uuid IS NOT NULL
   AND c.id = sqlc.narg('id')::uuid
@@ -125,17 +126,20 @@ WHERE sqlc.narg('id')::uuid IS NOT NULL
   AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)
 LIMIT 1;
 
--- Renombrar y elegir camión. `tocar_vehiculo` existe porque «no me lo toques» y «quítamelo»
--- son dos órdenes distintas y las dos llegan con el campo vacío: sin la bandera, dejar el
--- nombre en blanco desasignaría el camión de paso.
+-- Renombrar, elegir camión y elegir punto de salida. `tocar_vehiculo` existe porque «no me lo
+-- toques» y «quítamelo» son dos órdenes distintas y las dos llegan con el campo vacío: sin la
+-- bandera, dejar el nombre en blanco desasignaría el camión de paso. `tocar_almacen`, lo mismo
+-- para el punto de salida (00020): nulo es «vuelve a salir del principal».
 -- name: ActualizarColumna :one
 UPDATE board_columns SET
     nombre     = coalesce(sqlc.narg('nombre')::text, nombre),
     vehicle_id = CASE WHEN sqlc.arg('tocar_vehiculo')::boolean
-                      THEN sqlc.narg('vehicle_id')::uuid ELSE vehicle_id END
+                      THEN sqlc.narg('vehicle_id')::uuid ELSE vehicle_id END,
+    almacen_id = CASE WHEN sqlc.arg('tocar_almacen')::boolean
+                      THEN sqlc.narg('almacen_id')::text ELSE almacen_id END
 WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
-RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at;
+RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id;
 
 -- Reordenar el tablero entero de una vez: llega la lista de ids en el orden nuevo y la
 -- posición de cada uno es su sitio en esa lista.

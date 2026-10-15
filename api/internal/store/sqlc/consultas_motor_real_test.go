@@ -2661,3 +2661,57 @@ func TestMotorReal_Migracion00018TiposPorSucursal(t *testing.T) {
 		}
 	})
 }
+
+// EL PUNTO DE SALIDA DE LA ZONA (00020, 15/10/2026). Crear con punto lo guarda y lo devuelve
+// —también por la rama del reintento—; renombrar NO lo toca (`tocar_almacen` en falso);
+// tocarlo con nulo lo quita; la lista y `ObtenerColumna` lo traen; y una cadena en blanco no
+// entra (CHECK): «sin punto» es NULL, no ”.
+func TestMotorReal_PuntoDeSalidaDeLaZona(t *testing.T) {
+	pool := motorReal(t)
+	b := nuevoBanco(t, pool)
+	suc := b.sucursal()
+	id := uuid.New()
+	alta := CrearColumnaParams{
+		ID: alcance(id), BranchID: suc, Nombre: "Centro", AlmacenID: str("alm-aurora"), Sucursal: alcance(suc),
+	}
+	col, err := b.q.CrearColumna(b.ctx, alta)
+	if err != nil || col.AlmacenID == nil || *col.AlmacenID != "alm-aurora" {
+		t.Fatalf("crear con punto: %+v err=%v", col, err)
+	}
+	// El reintento del aparato (mismo id) devuelve la que ya estaba, con su punto.
+	otra, err := b.q.CrearColumna(b.ctx, alta)
+	if err != nil || otra.ID != id || otra.AlmacenID == nil || *otra.AlmacenID != "alm-aurora" {
+		t.Fatalf("la rama del reintento perdió el punto: %+v err=%v", otra, err)
+	}
+
+	ren, err := b.q.ActualizarColumna(b.ctx, ActualizarColumnaParams{
+		ID: id, Nombre: str("Centro histórico"), Sucursal: alcance(suc),
+	})
+	if err != nil || ren.AlmacenID == nil || *ren.AlmacenID != "alm-aurora" {
+		t.Fatalf("renombrar se llevó el punto de salida: %+v err=%v", ren, err)
+	}
+	filas, err := b.q.ListarColumnasDelTablero(b.ctx, ListarColumnasDelTableroParams{BranchID: suc, Sucursal: alcance(suc)})
+	if err != nil || len(filas) != 1 || filas[0].AlmacenID == nil || *filas[0].AlmacenID != "alm-aurora" {
+		t.Fatalf("la lista no trae el punto: %+v err=%v", filas, err)
+	}
+
+	quitada, err := b.q.ActualizarColumna(b.ctx, ActualizarColumnaParams{
+		ID: id, TocarAlmacen: true, AlmacenID: nil, Sucursal: alcance(suc),
+	})
+	if err != nil || quitada.AlmacenID != nil {
+		t.Fatalf("tocar_almacen con nulo no quitó el punto: %+v err=%v", quitada, err)
+	}
+	if c, err := b.q.ObtenerColumna(b.ctx, ObtenerColumnaParams{ID: id, Sucursal: alcance(suc)}); err != nil || c.AlmacenID != nil {
+		t.Fatalf("ObtenerColumna: %+v err=%v", c, err)
+	}
+
+	b.exec(`SAVEPOINT antes_del_blanco`)
+	_, err = b.q.ActualizarColumna(b.ctx, ActualizarColumnaParams{
+		ID: id, TocarAlmacen: true, AlmacenID: str("  "), Sucursal: alcance(suc),
+	})
+	var pgErr interface{ SQLState() string }
+	if !errors.As(err, &pgErr) || pgErr.SQLState() != "23514" {
+		t.Fatalf("un punto en blanco tenía que chocar con el CHECK (23514) y llegó %v", err)
+	}
+	b.exec(`ROLLBACK TO SAVEPOINT antes_del_blanco`)
+}

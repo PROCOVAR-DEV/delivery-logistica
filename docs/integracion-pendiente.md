@@ -50,6 +50,10 @@ desde el que se le diga.
    único es correcto. Eso no es una implementación: es decidir si una zona con dos almacenes son
    dos rutas, o una ruta con dos recogidas. **Lo decide Jose.** Y `segment_km` es el número con el
    que se repartió la carga hasta hoy: cambiarlo descuadra los informes viejos.
+   **Decidido el 15/10/2026 (migración 00020)**: cada ZONA elige su punto de salida
+   (`board_columns.almacen_id`) y su ruta sale de ahí; nula, del principal como antes. Una zona sigue
+   teniendo UN origen: si mezcla pedidos de AURORA y de PV-STGO, la persona decide de cuál sale (o
+   parte la zona). Los pedidos ya armados no se recalculan. Ver `docs/tablero.md` §3.
 4. **La APK resuelve el tablero y el armado de ruta EN LOCAL**
    (`app/lib/nucleo/almacenes/almacen_de_referencia.dart`), así que sigue midiendo desde el
    principal: el mismo botón, dos kilometrajes según se pulse en el navegador o en el teléfono —

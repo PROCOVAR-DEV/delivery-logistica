@@ -70,6 +70,7 @@ func (a *Acotado) CrearColumna(ctx context.Context, arg sqlc.CrearColumnaParams)
 		CreadoPor: fila.CreadoPor,
 		CreatedAt: fila.CreatedAt,
 		UpdatedAt: fila.UpdatedAt,
+		AlmacenID: fila.AlmacenID,
 	}, nil
 }
 

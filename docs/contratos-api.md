@@ -1989,6 +1989,42 @@ Camión: `400 El vehículo está inactivo y no se puede asignar a una ruta.` tan
 cuerpo como si es el **previsto** de la zona (un camión que se dio de baja después de
 asignarlo a la zona). Se mira después de la comprobación de sucursal.
 
+## El punto de salida de una zona (migración 00020, Jose 15/10/2026)
+
+Cada zona guarda de qué almacén sale su ruta: `board_columns.almacen_id`, el **id del almacén de
+Accesos** (el mismo `id` de `/api/service/almacenes` y de la colección `almacenes` del aparato).
+**Nulo = lo de antes**: la zona sale del principal de la sucursal (`cotizar.ElegirAlmacen`). El
+servidor no conoce el almacén «elegido arriba» en la pantalla: ése es sólo el valor con el que la
+app crea las zonas nuevas.
+
+- **`GET /api/board`**: cada columna lleva `"almacenId": string|null` y `"almacen": {"id","nombre"}|null`.
+  `almacen` es nulo si la zona no tiene punto **o si Accesos ya no lo tiene en su sucursal** (y
+  entonces `almacenId` sigue puesto: el hueco se ve). Las tarjetas puestas en una zona con punto
+  válido miden `kmAlAlmacen` **desde ese punto**; las demás, desde el `almacen` de arriba.
+- **`POST /api/board/columns`** acepta `"almacenId"` opcional (una zona nueva nace con él).
+- **`PATCH /api/board/columns/{id}`** acepta `"almacenId"`: string = poner, `null` o `""` = quitar
+  (vuelve al principal), **ausente = no tocar** (renombrar o elegir camión no lo cambia). Sólo
+  cuando viene se pregunta a Accesos: renombrar sigue funcionando con Accesos caído.
+- **Validación, falla cerrado**, contra la lista de Accesos de la sucursal **de la zona** (no la del
+  cuerpo ni la de quien pregunta). `400` con el motivo literal, en este orden:
+
+  | Código | Mensaje | Cuándo |
+  |---|---|---|
+  | 400 | `No existe el almacén '<id>' en <Sucursal>` | no está en la lista de esa sucursal: de otra, inventado o borrado. Igual que si no existiera |
+  | 400 | `«<nombre>» está dado de baja en Accesos` | `activo = false` |
+  | 400 | `«<nombre>» no tiene la ubicación puesta en Almacenes` | sin coordenadas, o en (0,0) |
+  | 502 | `No se pudieron traer los almacenes de Accesos: …` | Accesos no contesta (la cola de la APK lo reintenta: no es un rechazo) |
+  | 404 | `Esa zona del tablero ya no existe` | zona de otra sucursal o inexistente |
+
+- **`POST /api/board/columns/{id}/route`** sale del punto de la zona: `origin_*` de la ruta, el orden
+  por cercanía (`optimizar`), el `segment_km` de cada parada, el circuito y `origen` de la respuesta.
+  Si el punto **ya no sirve** (Accesos lo borró, lo dio de baja o le quitó la ubicación) **no se cae
+  al principal en silencio**: `409 La zona «<zona>» no puede salir de su punto de salida: <motivo de
+  la tabla de arriba>. Elige otro en «Punto de salida».` Se comprueba al resolver el origen, **antes**
+  de mirar los pedidos y el camión.
+- La regla y sus literales están en `docs/punto-de-salida.casos.json`, que leen las pruebas del
+  servidor y del aparato (el aparato arma sin señal con la misma regla).
+
 ## Borrar una zona
 
 Una zona vacía de tarjetas se borra aunque tenga una ruta planificada nacida de ella

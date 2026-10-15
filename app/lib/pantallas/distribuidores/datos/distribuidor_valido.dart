@@ -47,9 +47,10 @@ Future<Distribuidor?> distribuidorParaUnaRuta(
     base.distribuidores,
   )..where((x) => x.id.equals(pedido))).getSingleOrNull();
   if (d == null) throw DistribuidorNoValido("No existe el distribuidor '$pedido'");
-  if (d.branchId != null &&
-      sucursalDeLaRuta != null &&
-      d.branchId != sucursalDeLaRuta) {
+  // Como el servidor (`distribuidorDeLaRuta`): sin sucursal de la ruta, o de
+  // otra, no vale. Falla cerrado; antes dejaba pasar el nulo y el «no» llegaba
+  // horas despues a la bandeja.
+  if (d.branchId == null || d.branchId != sucursalDeLaRuta) {
     throw DistribuidorNoValido(
       "El distribuidor '$pedido' no es de la sucursal de esta ruta",
     );

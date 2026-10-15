@@ -139,6 +139,21 @@ void main() {
       );
       await sinEscribirNada(error);
     });
+
+    // Falla cerrado, como el servidor: una ruta sin sucursal no admite a nadie.
+    // La pareja: con la sucursal de la ruta, el mismo distribuidor pasa.
+    test('sin sucursal de la ruta no vale ninguno; con la suya, si', () async {
+      await expectLater(
+        distribuidorParaUnaRuta(base, id: 'd-juan', sucursalDeLaRuta: null),
+        throwsA(isA<DistribuidorNoValido>()),
+      );
+      final d = await distribuidorParaUnaRuta(
+        base,
+        id: 'd-juan',
+        sucursalDeLaRuta: 'B1',
+      );
+      expect(d?.id, 'd-juan');
+    });
   });
 
   group('en la web la ruta la crea el servidor, y el distribuidor viaja y vuelve', () {

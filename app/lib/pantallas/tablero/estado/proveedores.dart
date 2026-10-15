@@ -502,7 +502,13 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
       sucursalNombre: nombre,
       almacen: almacen,
       almacenes: almacenes,
-      columnas: await consultas.columnas(sucursalId),
+      // AGRUPADAS POR SU PUNTO DE SALIDA, el del principal primero
+      // (`zonasPorPunto`). Aquí y no en la vista: el orden de la tira, de las
+      // páginas del teléfono y de reordenar es el mismo.
+      columnas: zonasPorPunto(
+        await consultas.columnas(sucursalId),
+        (await consultas.puntosDe(sucursalId))(null).sale?.id,
+      ),
       colocados: await consultas.colocados(sucursalId, almacen),
       avisos: await consultas.avisos(sucursalId),
       sinColocar: await consultas.sinColocar(
@@ -911,12 +917,16 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
     if (sucursalId == null || sucursalId.isEmpty) {
       throw const FaltaElegirSucursal();
     }
+    // NACE CON EL PUNTO ELEGIDO ARRIBA, si se eligió uno y sirve (el de arriba
+    // es ése solo si sirve); si no, sin punto = el principal.
+    final elegido = ref.read(almacenElegidoProvider)[sucursalId];
     final id = await ref
         .read(repositorioTableroProvider)
         .crearColumna(
           sucursalId: sucursalId,
           nombre: nombre,
           vehiculoId: vehiculoId,
+          almacenId: elegido == state.value?.almacen.id ? elegido : null,
         );
     await refrescar();
     return id;
@@ -933,6 +943,13 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
     await ref
         .read(repositorioTableroProvider)
         .elegirCamion(columnaId, vehiculoId);
+    await refrescar();
+  }
+
+  Future<void> elegirPuntoDeSalida(String columnaId, String? almacenId) async {
+    await ref
+        .read(repositorioTableroProvider)
+        .elegirPuntoDeSalida(columnaId, almacenId);
     await refrescar();
   }
 
@@ -992,7 +1009,6 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
         .read(repositorioTableroProvider)
         .armarRuta(
           columnaId: columnaId,
-          origen: tablero.almacen,
           sucursalId: tablero.sucursalId,
           nombre: nombre,
           alDejarFuera: alDejarFuera,

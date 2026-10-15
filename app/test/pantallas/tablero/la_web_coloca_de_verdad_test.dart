@@ -41,13 +41,6 @@ void main() {
   late RepositorioTablero enElAparato;
   late Future<RespuestaFalsa?> Function(PeticionVista) contesta;
 
-  const origen = AlmacenOrigen(
-    id: 'alm-1',
-    nombre: 'Almacén principal',
-    lat: almacenLat,
-    lng: almacenLng,
-  );
-
   setUp(() async {
     base = baseDePrueba();
     consultas = ConsultasTablero(base);
@@ -326,7 +319,6 @@ void main() {
 
       final rutaId = await enLaWeb.armarRuta(
         columnaId: columna,
-        origen: origen,
         sucursalId: sucursalStg,
       );
 
@@ -364,7 +356,6 @@ void main() {
       await expectLater(
         () => enLaWeb.armarRuta(
           columnaId: columna,
-          origen: origen,
           sucursalId: sucursalStg,
         ),
         throwsA(
@@ -407,7 +398,6 @@ void main() {
       await expectLater(
         () => enLaWeb.armarRuta(
           columnaId: columna,
-          origen: origen,
           sucursalId: sucursalStg,
         ),
         throwsA(
@@ -427,7 +417,6 @@ void main() {
       await expectLater(
         () => enLaWeb.armarRuta(
           columnaId: columna,
-          origen: origen,
           sucursalId: sucursalStg,
         ),
         throwsA(

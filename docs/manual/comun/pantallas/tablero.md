@@ -112,6 +112,7 @@ De arriba abajo:
 Vista Alegre (9)                           ⋮
 1.210 kg / 1.000 kg · 41,00 USD      (!) no cabe
 Camión: F-350                          sin subir
+desde PV-STGO
 ```
 
 - **«Vista Alegre (9)»** — el nombre y cuántos pedidos lleva.
@@ -123,6 +124,14 @@ Camión: F-350                          sin subir
 - **«Camión: F-350»** o **«Camión: —»**.
 - **«sin subir»** o **«rechazada»** en ámbar, cuando esa zona tiene trabajo que no
   ha llegado al servidor.
+- **«desde PV-STGO»** — el almacén del que sale la ruta de esa zona (su **punto de
+  salida**) y desde el que se miden los km de sus pedidos. Si el punto elegido ya no
+  sirve, en su lugar sale el motivo en ámbar, por ejemplo «AURORA está dado de baja en
+  Accesos».
+
+**Las zonas van agrupadas por su punto de salida**: primero las que salen del almacén
+principal y después, almacén por almacén, las demás. En pantalla grande hay un hueco de
+más entre un grupo y el siguiente. Dentro de cada grupo, el orden de siempre.
 
 ---
 
@@ -212,10 +221,12 @@ cumplían las tres condiciones.)
 - **El menú de la zona** se abre con el **⋮** («Opciones de la columna») y lleva:
   1. **«Renombrar»**
   2. **«Camión previsto»** — debajo el camión elegido, o **«Sin elegir»**
-  3. **«Vaciar»** — «Las tarjetas vuelven a «sin colocar»»
-  4. **«Mover todo a otra columna»**
-  5. **«Borrar la columna»**
-  6. Y abajo, separado: **«Armar la ruta de esta zona»**
+  3. **«Punto de salida»** — debajo el almacén del que sale la zona, por ejemplo
+     «El principal: PV-STGO» o «AURORA»
+  4. **«Vaciar»** — «Las tarjetas vuelven a «sin colocar»»
+  5. **«Mover todo a otra columna»**
+  6. **«Borrar la columna»**
+  7. Y abajo, separado: **«Armar la ruta de esta zona»**
 
 ### «Camión previsto»
 
@@ -232,6 +243,23 @@ ruta.
 - Si el camión que ya tenía la zona se dio de baja después, la zona lo sigue
   nombrando, pero **al armar la ruta el servidor no lo acepta**: «El vehículo está
   inactivo y no se puede asignar a una ruta.» Elige otro en «Camión previsto».
+
+### «Punto de salida»
+
+De qué almacén sale la ruta de la zona. Así cada zona queda preparada para su punto
+y no hay que cambiar el almacén de arriba cada vez.
+
+- **«El principal»** es lo de siempre: el almacén que Accesos marca como principal.
+- Debajo, los almacenes **de esa sucursal**. Los que no tienen la ubicación puesta
+  salen apagados con «sin ubicación configurada» y no se pueden elegir.
+- Una zona **nueva** nace con el almacén que esté elegido arriba; si no se eligió
+  ninguno, con el principal.
+- Al **armar la ruta** de la zona, la ruta sale de ese almacén, y los km de cada
+  parada se miden desde él. Si el almacén se dio de baja o perdió la ubicación, **no
+  se arma desde el principal sin avisar**: dice «La zona «Centro» no puede salir de su
+  punto de salida: … Elige otro en «Punto de salida».»
+- Funciona igual sin señal en la APK y el escritorio (se sube después); en la web se
+  guarda en el momento y, si el servidor dice que no, sale su motivo.
 
 ### Borrar una zona
 

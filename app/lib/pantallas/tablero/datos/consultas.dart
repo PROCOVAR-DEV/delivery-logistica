@@ -7,6 +7,7 @@ import '../../../nucleo/registro/registro.dart';
 import 'esquema.dart';
 import 'geo.dart';
 import 'modelos.dart';
+import 'punto_de_salida.dart';
 
 /// Los filtros de la mitad izquierda (§3 «Filtros de la mitad izquierda»).
 class FiltrosSinColocar {
@@ -233,6 +234,36 @@ class ConsultasTablero {
     ];
   }
 
+  /// DE DÓNDE SALE CADA ZONA de [sucursalId], con una sola lectura de sus
+  /// almacenes. La regla es [puntoDeSalida], la misma que la del servidor.
+  Future<({AlmacenOrigen? sale, String? no}) Function(String? almacenId)>
+  puntosDe(String sucursalId) async {
+    final sucursal = await (_base.select(
+      _base.branches,
+    )..where((b) => b.id.equals(sucursalId))).getSingleOrNull();
+    final almacenes = await _almacenesCrudos(sucursal?.externalId);
+    final nombre = sucursal?.name ?? 'Esta sucursal';
+    return (String? almacenId) {
+      final r = puntoDeSalida(
+        almacenId: almacenId,
+        deLaSucursal: almacenes,
+        sucursal: nombre,
+      );
+      final a = r.sale;
+      return (
+        sale: a == null
+            ? null
+            : AlmacenOrigen(
+                id: a.id,
+                nombre: a.nombre,
+                lat: a.lat!,
+                lng: a.lng!,
+              ),
+        no: r.no,
+      );
+    };
+  }
+
   /// Las filas de `warehouses` de esa sucursal, tal cual y ya ordenadas.
   Future<List<Almacen>> _almacenesCrudos(String? codigo) async {
     if (codigo == null || codigo.isEmpty) return const <Almacen>[];
@@ -295,7 +326,7 @@ class ConsultasTablero {
     final filas = await _base
         .customSelect(
           '''
-SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id,
+SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.almacen_id,
        v.name     AS vehiculo_nombre,
        v.plate    AS vehiculo_matricula,
        v.capacity AS vehiculo_capacidad,
@@ -342,13 +373,19 @@ ORDER BY c.posicion ASC, c.created_at ASC''',
         )
         .get();
 
+    final puntoDe = await puntosDe(sucursalId);
     return filas
-        .map(
-          (f) => ColumnaTablero(
+        .map((f) {
+          final almacenId = f.readNullable<String>('almacen_id');
+          final punto = puntoDe(almacenId);
+          return ColumnaTablero(
             id: f.read<String>('id'),
             branchId: f.read<String>('branch_id'),
             nombre: f.read<String>('nombre'),
             posicion: f.read<int>('posicion'),
+            almacenId: almacenId,
+            sale: punto.sale,
+            noPuedeSalir: punto.no,
             vehiculoId: f.readNullable<String>('vehicle_id'),
             vehiculoNombre: f.readNullable<String>('vehiculo_nombre'),
             vehiculoMatricula: f.readNullable<String>('vehiculo_matricula'),
@@ -358,8 +395,8 @@ ORDER BY c.posicion ASC, c.created_at ASC''',
             costoUsd: f.read<double>('costo_usd'),
             sinSubir: f.read<bool>('sin_subir'),
             rechazada: f.read<bool>('rechazada'),
-          ),
-        )
+          );
+        })
         .toList(growable: false);
   }
 
@@ -378,7 +415,7 @@ ORDER BY c.posicion ASC, c.created_at ASC''',
     final filas = await _base
         .customSelect(
           '''
-SELECT p.order_id, p.column_id, p.posicion, p.colocado_at,
+SELECT p.order_id, p.column_id, p.posicion, p.colocado_at, c.almacen_id,
        o.operation_number, o.customer_name, o.customer_phone, o.address,
        o.end_address, o.end_lat, o.end_lng, o.weight, o.pedido_costo,
        o.municipio, o.vendedor, o.order_date, o.factura_estado, o.archivado,
@@ -399,9 +436,15 @@ ORDER BY c.posicion ASC, p.posicion ASC''',
       repes[clave] = (repes[clave] ?? 0) + 1;
     }
 
+    // LOS KM DE LO PUESTO, DESDE EL PUNTO DE SU ZONA si sirve; si no, desde
+    // [origen] (el de arriba). Igual que `kmAlAlmacen` de `GET /api/board`: si
+    // no, el «desde X» de la zona y los km de sus tarjetas no casan.
+    final puntoDe = await puntosDe(sucursalId);
     return filas
         .map((f) {
           final nombre = f.read<String>('customer_name');
+          final desde =
+              puntoDe(f.readNullable<String>('almacen_id')).sale ?? origen;
           return TarjetaColocada(
             columnaId: f.read<String>('column_id'),
             posicion: f.read<int>('posicion'),
@@ -428,7 +471,7 @@ ORDER BY c.posicion ASC, p.posicion ASC''',
               resultado: f.readNullable<String>('resultado'),
               deliveredAt: f.readNullable<DateTime>('delivered_at'),
               kmAlAlmacen: _km(
-                origen,
+                desde,
                 f.readNullable<double>('end_lat'),
                 f.readNullable<double>('end_lng'),
               ),

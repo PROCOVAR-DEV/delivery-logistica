@@ -49,7 +49,6 @@ void main() {
     late ConsultasTablero consultas;
     late ColaDeSalida cola;
     late RepositorioTablero repo;
-    late AlmacenOrigen origen;
     late String centro;
 
     setUp(() async {
@@ -60,7 +59,6 @@ void main() {
       await sembrarSucursal(base);
       await sembrarAlmacen(base);
       await sembrarCamion(base, id: 'v1', capacidad: 2000);
-      origen = await consultas.almacenDe(sucursalStg);
       centro = await repo.crearColumna(
         sucursalId: sucursalStg,
         nombre: 'Centro',
@@ -88,7 +86,6 @@ void main() {
 
     Future<String> armar({String? distribuidorId}) => repo.armarRuta(
       columnaId: centro,
-      origen: origen,
       sucursalId: sucursalStg,
       distribuidorId: distribuidorId,
     );

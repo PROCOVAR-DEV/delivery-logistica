@@ -1,8 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
-import 'package:reparto/pantallas/tablero/datos/consultas.dart';
-import 'package:reparto/pantallas/tablero/datos/modelos.dart';
 import 'package:reparto/pantallas/tablero/datos/repositorio.dart';
 
 import '../../apoyo/base_de_prueba.dart';
@@ -21,10 +19,8 @@ import 'apoyo.dart';
 /// una prueba, no con un comentario.
 void main() {
   late BaseLocal base;
-  late ConsultasTablero consultas;
   late ColaDeSalida cola;
   late RepositorioTablero repo;
-  late AlmacenOrigen origen;
   late String centro;
 
   const cliente = 'KIOSKO HABANA CLUB OMAR JIMENEZ MONTOYA L2';
@@ -32,13 +28,11 @@ void main() {
 
   setUp(() async {
     base = baseDePrueba();
-    consultas = ConsultasTablero(base);
     cola = ColaDeSalida(base);
     repo = RepositorioTablero(base, cola);
     await sembrarSucursal(base);
     await sembrarAlmacen(base);
     await sembrarCamion(base, id: 'v1', capacidad: 1000);
-    origen = await consultas.almacenDe(sucursalStg);
     centro = await repo.crearColumna(
       sucursalId: sucursalStg,
       nombre: 'Centro',
@@ -79,7 +73,6 @@ void main() {
 
     final rutaId = await repo.armarRuta(
       columnaId: centro,
-      origen: origen,
       sucursalId: sucursalStg,
     );
 
@@ -100,7 +93,6 @@ void main() {
 
     final rutaId = await repo.armarRuta(
       columnaId: centro,
-      origen: origen,
       sucursalId: sucursalStg,
     );
 

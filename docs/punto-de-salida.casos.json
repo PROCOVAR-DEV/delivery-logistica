@@ -1,0 +1,70 @@
+{
+  "queEsEsto": "DE QUÉ ALMACÉN SALE LA RUTA DE UNA ZONA (00020, Jose 15/10/2026). Cada zona del tablero (`board_columns.almacen_id`) puede tener su punto de salida: el id de un almacén de Accesos de SU sucursal. La regla se escribe DOS veces —en el servidor (`api/internal/api/tablero.go`, `puntoDeSalida` y `origenDeLaZona`) y en el aparato, que arma la ruta sin señal— y tienen que contestar lo mismo, o la misma zona sale de dos sitios según haya cobertura. Este fichero las ata (CLAUDE.md §3-bis: con una prueba, no con un comentario).",
+  "quienLoLee": [
+    "api/internal/api/punto_de_salida_casos_compartidos_test.go",
+    "la prueba gemela del aparato (app/test/pantallas/tablero/…), que tiene que leer ESTE fichero y no una copia"
+  ],
+  "laRegla": "1) Zona SIN punto (`almacenId` nulo o vacío): sale del principal de la sucursal, con la regla de siempre (`cotizar.ElegirAlmacen` / `AlmacenDeReferencia.elegir`: de los que sirven para medir —activo, con coordenadas y no (0,0)— el principal, y si no el primero por nombre). 2) Zona CON punto: sale de ESE almacén si está en la lista de su sucursal, activo y con coordenadas que no sean (0,0). 3) Si no, NO se cae al principal en silencio: se rechaza con `rechazo` al guardarlo (400 en PATCH/POST de la zona) y con `rechazoAlArmar` al armar la ruta (409). El orden de las comprobaciones es el de la lista: primero que exista en la sucursal, luego que esté activo, luego que tenga la ubicación.",
+  "comoSeLee": "Para cada caso, con la sucursal `sucursal`, la zona `zona` y la lista `almacenes` (tal como la da Accesos), una zona con `almacenId` sale de `saleDe` (el id del almacén) o se rechaza con esos dos literales exactos. `almacenId` ausente en el caso = nulo.",
+  "sucursal": "Santiago",
+  "zona": "Centro",
+  "almacenes": [
+    {"id": "alm-aurora", "nombre": "AURORA", "principal": false, "activo": true, "latitud": 20.0311, "longitud": -75.7902},
+    {"id": "alm-pv", "nombre": "PV-STGO", "principal": true, "activo": true, "latitud": 20.0247, "longitud": -75.8219},
+    {"id": "alm-sin-punto", "nombre": "Parranda Oferta", "principal": false, "activo": true, "latitud": null, "longitud": null},
+    {"id": "alm-cero", "nombre": "Tiendas Parranda", "principal": false, "activo": true, "latitud": 0, "longitud": 0},
+    {"id": "alm-baja", "nombre": "Almacén viejo", "principal": false, "activo": false, "latitud": 20.0101, "longitud": -75.8105}
+  ],
+  "casos": [
+    {
+      "nombre": "sin-punto-sale-del-principal",
+      "nota": "Lo de antes de la 00020: toda zona vieja es así, y ninguna cambia de punto al desplegar. AURORA va primero en la lista y NO gana: gana el principal.",
+      "saleDe": "alm-pv"
+    },
+    {
+      "nombre": "vacio-es-sin-punto",
+      "nota": "Una cadena vacía no es un almacén: es «sin punto». La base la prohíbe (CHECK) y la API la convierte en nulo.",
+      "almacenId": "",
+      "saleDe": "alm-pv"
+    },
+    {
+      "nombre": "con-punto-sale-de-el",
+      "nota": "EL CASO DEL ENCARGO: la zona sale de AURORA aunque el principal sea PV-STGO.",
+      "almacenId": "alm-aurora",
+      "saleDe": "alm-aurora"
+    },
+    {
+      "nombre": "el-principal-elegido-a-mano",
+      "nota": "Elegir el principal a mano es elegirlo: sale de él igual que sin punto, pero ya no cambia si mañana el principal es otro.",
+      "almacenId": "alm-pv",
+      "saleDe": "alm-pv"
+    },
+    {
+      "nombre": "de-otra-sucursal",
+      "nota": "FALLA CERRADO: el almacén de Holguín no está en la lista de Santiago. Se contesta igual que si no existiera: decir «existe pero no es tuyo» ya es contar algo.",
+      "almacenId": "alm-holguin",
+      "rechazo": "No existe el almacén 'alm-holguin' en Santiago",
+      "rechazoAlArmar": "La zona «Centro» no puede salir de su punto de salida: No existe el almacén 'alm-holguin' en Santiago. Elige otro en «Punto de salida»."
+    },
+    {
+      "nombre": "dado-de-baja",
+      "almacenId": "alm-baja",
+      "rechazo": "«Almacén viejo» está dado de baja en Accesos",
+      "rechazoAlArmar": "La zona «Centro» no puede salir de su punto de salida: «Almacén viejo» está dado de baja en Accesos. Elige otro en «Punto de salida»."
+    },
+    {
+      "nombre": "sin-ubicacion",
+      "nota": "Seis de los catorce almacenes de verdad estuvieron así: dados de alta y sin el punto puesto.",
+      "almacenId": "alm-sin-punto",
+      "rechazo": "«Parranda Oferta» no tiene la ubicación puesta en Almacenes",
+      "rechazoAlArmar": "La zona «Centro» no puede salir de su punto de salida: «Parranda Oferta» no tiene la ubicación puesta en Almacenes. Elige otro en «Punto de salida»."
+    },
+    {
+      "nombre": "en-el-golfo-de-guinea",
+      "nota": "(0,0) no es una ubicación: es una sin poner.",
+      "almacenId": "alm-cero",
+      "rechazo": "«Tiendas Parranda» no tiene la ubicación puesta en Almacenes",
+      "rechazoAlArmar": "La zona «Centro» no puede salir de su punto de salida: «Tiendas Parranda» no tiene la ubicación puesta en Almacenes. Elige otro en «Punto de salida»."
+    }
+  ]
+}

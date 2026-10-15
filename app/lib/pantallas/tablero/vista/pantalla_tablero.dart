@@ -389,7 +389,19 @@ class _TiraState extends State<_Tira> {
                     behavior: ScrollConfiguration.of(context),
                     child: i == tablero.columnas.length
                         ? const _BotonNuevaColumna(ancho: 140)
-                        : _Zona(tablero: tablero, cual: i, ancho: 300),
+                        // Un hueco de más entre dos puntos de salida: las
+                        // zonas van agrupadas por el suyo (`zonasPorPunto`).
+                        : Padding(
+                            padding: EdgeInsets.only(
+                              left:
+                                  i > 0 &&
+                                      grupoDe(tablero.columnas[i]) !=
+                                          grupoDe(tablero.columnas[i - 1])
+                                  ? 16
+                                  : 0,
+                            ),
+                            child: _Zona(tablero: tablero, cual: i, ancho: 300),
+                          ),
                   ),
                 ),
               ),
@@ -1023,7 +1035,7 @@ class CabeceraDelTablero extends ConsumerWidget {
             ),
             const SizedBox(height: Aire.md),
             for (final a in almacenes)
-              _FilaDeAlmacen(
+              FilaDeAlmacen(
                 almacen: a,
                 elegido: a.nombre == almacen,
                 alElegir: a.sirveParaMedir
@@ -1048,8 +1060,9 @@ class CabeceraDelTablero extends ConsumerWidget {
 /// medio: medir desde un punto que no existe da un kilometraje creíble y
 /// equivocado, y con ese kilometraje se le cobra el domicilio al cliente. El
 /// fallo que más caro sale aquí es el número que se lee bien y está mal.
-class _FilaDeAlmacen extends StatelessWidget {
-  const _FilaDeAlmacen({
+class FilaDeAlmacen extends StatelessWidget {
+  const FilaDeAlmacen({
+    super.key,
     required this.almacen,
     required this.elegido,
     required this.alElegir,

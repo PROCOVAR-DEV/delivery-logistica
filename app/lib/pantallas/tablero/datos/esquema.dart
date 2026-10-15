@@ -64,6 +64,9 @@ CREATE TABLE IF NOT EXISTS $columnas (
   nombre      TEXT NOT NULL,
   posicion    INTEGER NOT NULL,
   vehicle_id  TEXT,
+  -- EL PUNTO DE SALIDA de la zona: el id del almacen de Accesos. NULL = el
+  -- principal. En las bases de antes lo anade la migracion 9 (`base.dart`).
+  almacen_id  TEXT,
   creado_por  TEXT,
   created_at  TEXT,
   updated_at  TEXT,

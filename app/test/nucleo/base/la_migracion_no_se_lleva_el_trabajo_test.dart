@@ -35,6 +35,7 @@ import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
+import 'package:reparto/pantallas/tablero/datos/esquema.dart';
 
 void main() {
   test('el trabajo sin subir sobrevive al salto de esquema', () async {
@@ -52,15 +53,17 @@ void main() {
     // esquema viejo era peor: lo que se probaría entonces es esa copia, no la
     // base que llevan los teléfonos.
     final ayer = BaseLocal.con(NativeDatabase(fichero));
-    await ayer.into(ayer.apuntes).insert(
-      ApuntesCompanion.insert(
-        clave: '01J8-la-zona-de-ayer',
-        hechoAt: DateTime(2026, 9, 26, 9),
-        metodo: 'POST',
-        ruta: '/api/board/columns',
-        cuerpo: '{"nombre":"Vista"}',
-      ),
-    );
+    await ayer
+        .into(ayer.apuntes)
+        .insert(
+          ApuntesCompanion.insert(
+            clave: '01J8-la-zona-de-ayer',
+            hechoAt: DateTime(2026, 9, 26, 9),
+            metodo: 'POST',
+            ruta: '/api/board/columns',
+            cuerpo: '{"nombre":"Vista"}',
+          ),
+        );
     await ayer.customStatement(
       'INSERT INTO orders (id, customer_name, address, weight, archivado) '
       "VALUES ('ped-1', 'Bodega La Esquina', 'Calle 4', 120.5, 0)",
@@ -154,60 +157,66 @@ void main() {
   // El caso más común: el teléfono que ya estaba en la 4 y sólo da los dos pasos
   // nuevos. Se prueba aparte porque `desde < 2`, `< 3` y `< 4` NO corren aquí, y el
   // fallo sería justo que la 5 o la 6 dependieran de que hubieran corrido.
-  test('desde la 4: quitar vehicle_id y añadir is_active conserva la cola',
-      () async {
-    final fichero = await _ficheroDePrueba();
-    addTearDown(() async {
-      if (fichero.existsSync()) await fichero.delete();
-    });
+  test(
+    'desde la 4: quitar vehicle_id y añadir is_active conserva la cola',
+    () async {
+      final fichero = await _ficheroDePrueba();
+      addTearDown(() async {
+        if (fichero.existsSync()) await fichero.delete();
+      });
 
-    final ayer = BaseLocal.con(NativeDatabase(fichero));
-    await ayer.into(ayer.apuntes).insert(
-      ApuntesCompanion.insert(
-        clave: '01J8-lo-de-la-4',
-        hechoAt: DateTime(2026, 10, 6, 9),
-        metodo: 'POST',
-        ruta: '/api/routes/r-1/results',
-        cuerpo: '{"resultados":[]}',
-      ),
-    );
-    await ayer.customStatement(
-      'INSERT INTO orders (id, customer_name, address, weight, archivado) '
-      "VALUES ('ped-4', 'Casa Marta', 'Calle 9', 80, 0)",
-    );
-    await ayer.customStatement('ALTER TABLE orders ADD COLUMN vehicle_id TEXT');
-    await ayer.customStatement("UPDATE orders SET vehicle_id = 'camion-viejo'");
-    await ayer.customStatement('ALTER TABLE vehicles DROP COLUMN is_active');
-    await ayer.customStatement(
-      "INSERT INTO vehicles (id, name) VALUES ('v-4', 'Camión de la 4')",
-    );
-    await ayer.customStatement('PRAGMA user_version = 4');
-    await ayer.close();
+      final ayer = BaseLocal.con(NativeDatabase(fichero));
+      await ayer
+          .into(ayer.apuntes)
+          .insert(
+            ApuntesCompanion.insert(
+              clave: '01J8-lo-de-la-4',
+              hechoAt: DateTime(2026, 10, 6, 9),
+              metodo: 'POST',
+              ruta: '/api/routes/r-1/results',
+              cuerpo: '{"resultados":[]}',
+            ),
+          );
+      await ayer.customStatement(
+        'INSERT INTO orders (id, customer_name, address, weight, archivado) '
+        "VALUES ('ped-4', 'Casa Marta', 'Calle 9', 80, 0)",
+      );
+      await ayer.customStatement(
+        'ALTER TABLE orders ADD COLUMN vehicle_id TEXT',
+      );
+      await ayer.customStatement(
+        "UPDATE orders SET vehicle_id = 'camion-viejo'",
+      );
+      await ayer.customStatement('ALTER TABLE vehicles DROP COLUMN is_active');
+      await ayer.customStatement(
+        "INSERT INTO vehicles (id, name) VALUES ('v-4', 'Camión de la 4')",
+      );
+      await ayer.customStatement('PRAGMA user_version = 4');
+      await ayer.close();
 
-    final nueva = BaseLocal.con(NativeDatabase(fichero));
-    addTearDown(nueva.close);
+      final nueva = BaseLocal.con(NativeDatabase(fichero));
+      addTearDown(nueva.close);
 
-    expect(
-      (await nueva.select(nueva.apuntes).get()).map((a) => a.clave),
-      ['01J8-lo-de-la-4'],
-      reason: 'la cola sin subir sobrevive a un DROP COLUMN',
-    );
-    expect(
-      (await nueva.select(nueva.orders).get()).single.customerName,
-      'Casa Marta',
-    );
-    final columnas = await nueva
-        .customSelect('PRAGMA table_info(orders)')
-        .get();
-    expect(
-      columnas.map((f) => f.read<String>('name')),
-      isNot(contains('vehicle_id')),
-    );
-    expect(
-      (await nueva.select(nueva.vehicles).get()).single.isActive,
-      isTrue,
-    );
-  });
+      expect((await nueva.select(nueva.apuntes).get()).map((a) => a.clave), [
+        '01J8-lo-de-la-4',
+      ], reason: 'la cola sin subir sobrevive a un DROP COLUMN');
+      expect(
+        (await nueva.select(nueva.orders).get()).single.customerName,
+        'Casa Marta',
+      );
+      final columnas = await nueva
+          .customSelect('PRAGMA table_info(orders)')
+          .get();
+      expect(
+        columnas.map((f) => f.read<String>('name')),
+        isNot(contains('vehicle_id')),
+      );
+      expect(
+        (await nueva.select(nueva.vehicles).get()).single.isActive,
+        isTrue,
+      );
+    },
+  );
 
   // EL FICHERO RICO, con la columna y SIN ella.
   //
@@ -236,15 +245,17 @@ void main() {
           ('01J8-b-patch', 'PATCH', '/api/routes/r-1'),
           ('01J8-c-delete', 'DELETE', '/api/routes/r-1/stops/ped-1'),
         ]) {
-          await ayer.into(ayer.apuntes).insert(
-            ApuntesCompanion.insert(
-              clave: clave,
-              hechoAt: DateTime(2026, 10, 7, 9),
-              metodo: metodo,
-              ruta: ruta,
-              cuerpo: '{"v":"$clave"}',
-            ),
-          );
+          await ayer
+              .into(ayer.apuntes)
+              .insert(
+                ApuntesCompanion.insert(
+                  clave: clave,
+                  hechoAt: DateTime(2026, 10, 7, 9),
+                  metodo: metodo,
+                  ruta: ruta,
+                  cuerpo: '{"v":"$clave"}',
+                ),
+              );
         }
         await ayer.customStatement(
           "INSERT INTO vehicles (id, name, capacity) VALUES ('v-1', 'Camión rico', 3000)",
@@ -267,9 +278,13 @@ void main() {
           );
         }
         // Lo que el esquema 6 trae y el 4 no.
-        await ayer.customStatement('ALTER TABLE vehicles DROP COLUMN is_active');
+        await ayer.customStatement(
+          'ALTER TABLE vehicles DROP COLUMN is_active',
+        );
         if (conLaColumna) {
-          await ayer.customStatement('ALTER TABLE orders ADD COLUMN vehicle_id TEXT');
+          await ayer.customStatement(
+            'ALTER TABLE orders ADD COLUMN vehicle_id TEXT',
+          );
           await ayer.customStatement("UPDATE orders SET vehicle_id = 'v-1'");
         }
         await ayer.customStatement('PRAGMA user_version = 4');
@@ -280,7 +295,9 @@ void main() {
         addTearDown(nueva.close);
 
         expect(
-          (await nueva.select(nueva.apuntes).get()).map((a) => (a.metodo, a.clave)),
+          (await nueva.select(nueva.apuntes).get()).map(
+            (a) => (a.metodo, a.clave),
+          ),
           [
             ('POST', '01J8-a-post'),
             ('PATCH', '01J8-b-patch'),
@@ -294,9 +311,14 @@ void main() {
         final ruta = (await nueva.select(nueva.routes).get()).single;
         expect((ruta.routeCode, ruta.vehicleId), ('RT-20261007-001', 'v-1'));
         final pedido = (await nueva.select(nueva.orders).get()).single;
-        expect((pedido.customerName, pedido.routeId), ('Bodega La Rica', 'r-1'));
         expect(
-          (await nueva.select(nueva.orderItems).get()).map((r) => r.description),
+          (pedido.customerName, pedido.routeId),
+          ('Bodega La Rica', 'r-1'),
+        );
+        expect(
+          (await nueva.select(nueva.orderItems).get()).map(
+            (r) => r.description,
+          ),
           unorderedEquals(['Arroz', 'Aceite']),
           reason: 'los renglones cuelgan del pedido y viajan con él',
         );
@@ -316,11 +338,14 @@ void main() {
               .read<int>('foreign_keys'),
           1,
         );
-        final indices = (await nueva
-                .customSelect("SELECT name FROM sqlite_master WHERE type = 'index'")
-                .get())
-            .map((f) => f.read<String>('name'))
-            .toSet();
+        final indices =
+            (await nueva
+                    .customSelect(
+                      "SELECT name FROM sqlite_master WHERE type = 'index'",
+                    )
+                    .get())
+                .map((f) => f.read<String>('name'))
+                .toSet();
         expect(
           indices,
           containsAll([
@@ -354,7 +379,7 @@ void main() {
     'revisado_at',
     'motivo_revision',
   ];
-  
+
   for (final yaEstaban in [false, true]) {
     test(
       'desde la 6: la bandeja de revisión ${yaEstaban ? 'CON' : 'SIN'} las columnas ya puestas '
@@ -364,22 +389,24 @@ void main() {
         addTearDown(() async {
           if (fichero.existsSync()) await fichero.delete();
         });
-  
+
         final ayer = BaseLocal.con(NativeDatabase(fichero));
         for (final (clave, estado, motivo) in const [
           ('01J8-pendiente', 'pendiente', null),
           ('01J8-rechazado', 'rechazado', 'Ese pedido ya va en otra ruta'),
           ('01J8-descartado', 'descartado', 'Se rehízo en la web'),
         ]) {
-          await ayer.into(ayer.apuntes).insert(
-            ApuntesCompanion.insert(
-              clave: clave,
-              hechoAt: DateTime(2026, 10, 8, 9),
-              metodo: 'POST',
-              ruta: '/routes/r-1/results',
-              cuerpo: '{"v":"$clave"}',
-            ),
-          );
+          await ayer
+              .into(ayer.apuntes)
+              .insert(
+                ApuntesCompanion.insert(
+                  clave: clave,
+                  hechoAt: DateTime(2026, 10, 8, 9),
+                  metodo: 'POST',
+                  ruta: '/routes/r-1/results',
+                  cuerpo: '{"v":"$clave"}',
+                ),
+              );
           await ayer.customStatement(
             'UPDATE apuntes SET estado = ?1, motivo = ?2 WHERE clave = ?3',
             [estado, motivo, clave],
@@ -387,22 +414,29 @@ void main() {
         }
         if (!yaEstaban) {
           for (final columna in columnasDeLaRevision) {
-            await ayer.customStatement('ALTER TABLE apuntes DROP COLUMN $columna');
+            await ayer.customStatement(
+              'ALTER TABLE apuntes DROP COLUMN $columna',
+            );
           }
         }
         await ayer.customStatement('PRAGMA user_version = 6');
         await ayer.close();
-  
+
         final nueva = BaseLocal.con(NativeDatabase(fichero));
         addTearDown(nueva.close);
-  
-        final cola = await (nueva.select(nueva.apuntes)
-              ..orderBy([(a) => OrderingTerm.asc(a.orden)]))
-            .get();
+
+        final cola = await (nueva.select(
+          nueva.apuntes,
+        )..orderBy([(a) => OrderingTerm.asc(a.orden)])).get();
         expect(
           cola.map((a) => (a.clave, a.estado, a.motivo, a.cuerpo)),
           [
-            ('01J8-pendiente', EstadoApunte.pendiente, null, '{"v":"01J8-pendiente"}'),
+            (
+              '01J8-pendiente',
+              EstadoApunte.pendiente,
+              null,
+              '{"v":"01J8-pendiente"}',
+            ),
             (
               '01J8-rechazado',
               EstadoApunte.rechazado,
@@ -420,11 +454,16 @@ void main() {
         );
         // Y las cuatro columnas existen, preguntándoselo a SQLite (un nulo y una columna
         // que no está se leen igual desde Dart).
-        final hay = (await nueva.customSelect('PRAGMA table_info(apuntes)').get())
-            .map((f) => f.read<String>('name'));
+        final hay =
+            (await nueva.customSelect('PRAGMA table_info(apuntes)').get()).map(
+              (f) => f.read<String>('name'),
+            );
         expect(hay, containsAll(columnasDeLaRevision));
-        expect(cola.every((a) => a.revision == null && a.revisadoPor == null), isTrue);
-  
+        expect(
+          cola.every((a) => a.revision == null && a.revisadoPor == null),
+          isTrue,
+        );
+
         // Y SE PUEDE ESCRIBIR LO NUEVO: el estado nuevo y las columnas nuevas viajan.
         await nueva.customStatement(
           "UPDATE apuntes SET estado = 'enRevision', revision = 'ent-1', "
@@ -437,7 +476,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 8);
+        expect(nueva.schemaVersion, 9);
       },
     );
   }
@@ -473,15 +512,17 @@ void main() {
           ('01J8-b-patch', 'PATCH', '/api/routes/r-1'),
           ('01J8-c-delete', 'DELETE', '/api/routes/r-1/stops/ped-1'),
         ]) {
-          await ayer.into(ayer.apuntes).insert(
-            ApuntesCompanion.insert(
-              clave: clave,
-              hechoAt: DateTime(2026, 10, 13, 9),
-              metodo: metodo,
-              ruta: ruta,
-              cuerpo: '{"v":"$clave"}',
-            ),
-          );
+          await ayer
+              .into(ayer.apuntes)
+              .insert(
+                ApuntesCompanion.insert(
+                  clave: clave,
+                  hechoAt: DateTime(2026, 10, 13, 9),
+                  metodo: metodo,
+                  ruta: ruta,
+                  cuerpo: '{"v":"$clave"}',
+                ),
+              );
         }
         await ayer.customStatement(
           "INSERT INTO vehicles (id, name, capacity) VALUES ('v-1', 'Camión rico', 3000)",
@@ -520,22 +561,28 @@ void main() {
 
         // LA COLA, entera y en su orden.
         expect(
-          (await nueva.select(nueva.apuntes).get()).map((a) => (a.metodo, a.clave)),
+          (await nueva.select(nueva.apuntes).get()).map(
+            (a) => (a.metodo, a.clave),
+          ),
           [
             ('POST', '01J8-a-post'),
             ('PATCH', '01J8-b-patch'),
             ('DELETE', '01J8-c-delete'),
           ],
-          reason: 'la cola sin subir es el trabajo del día: una migración que se la lleve '
+          reason:
+              'la cola sin subir es el trabajo del día: una migración que se la lleve '
               'no se nota hasta que alguien la reclama',
         );
         final ruta = (await nueva.select(nueva.routes).get()).single;
-        expect((ruta.routeCode, ruta.vehicleId, ruta.branchId),
-            ('RT-20261013-001', 'v-1', 'suc-1'));
+        expect(
+          (ruta.routeCode, ruta.vehicleId, ruta.branchId),
+          ('RT-20261013-001', 'v-1', 'suc-1'),
+        );
         expect(
           ruta.distribuidorId,
           isNull,
-          reason: 'una ruta de antes de la 8 no tiene distribuidor, y la migración no le '
+          reason:
+              'una ruta de antes de la 8 no tiene distribuidor, y la migración no le '
               'inventa uno: un hueco se ve y se rellena, un nombre puesto no',
         );
         expect(
@@ -543,34 +590,46 @@ void main() {
           'Bodega La Rica',
         );
         expect(
-          (await nueva.select(nueva.orderItems).get()).map((r) => r.description),
+          (await nueva.select(nueva.orderItems).get()).map(
+            (r) => r.description,
+          ),
           unorderedEquals(['Arroz', 'Aceite']),
         );
 
         // LA TABLA Y LA COLUMNA EXISTEN, preguntándoselo a SQLite (un nulo y una columna
         // que no está se leen igual desde Dart).
-        final tablas = (await nueva
-                .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
-                .get())
-            .map((f) => f.read<String>('name'));
+        final tablas =
+            (await nueva
+                    .customSelect(
+                      "SELECT name FROM sqlite_master WHERE type = 'table'",
+                    )
+                    .get())
+                .map((f) => f.read<String>('name'));
         expect(tablas, contains('distribuidores'));
-        final deRutas = (await nueva.customSelect('PRAGMA table_info(routes)').get())
-            .map((f) => f.read<String>('name'));
+        final deRutas =
+            (await nueva.customSelect('PRAGMA table_info(routes)').get()).map(
+              (f) => f.read<String>('name'),
+            );
         expect(deRutas, contains('distribuidor_id'));
 
         // Y SE PUEDE USAR: se escribe, se lee y la ruta lo apunta.
-        await nueva.into(nueva.distribuidores).insert(
-          DistribuidoresCompanion.insert(
-            id: 'd-1',
-            nombre: 'Juan Pérez',
-            branchId: const Value('suc-1'),
-          ),
-        );
+        await nueva
+            .into(nueva.distribuidores)
+            .insert(
+              DistribuidoresCompanion.insert(
+                id: 'd-1',
+                nombre: 'Juan Pérez',
+                branchId: const Value('suc-1'),
+              ),
+            );
         await (nueva.update(nueva.routes)..where((r) => r.id.equals('r-1')))
             .write(const RoutesCompanion(distribuidorId: Value('d-1')));
         final d = (await nueva.select(nueva.distribuidores).get()).single;
-        expect((d.nombre, d.activo), ('Juan Pérez', true),
-            reason: 'un distribuidor nace ACTIVO: leerlo al reves esconderia a toda la sucursal');
+        expect(
+          (d.nombre, d.activo),
+          ('Juan Pérez', true),
+          reason: 'un distribuidor nace ACTIVO: leerlo al reves esconderia a toda la sucursal',
+        );
         expect(
           (await nueva.select(nueva.routes).get()).single.distribuidorId,
           'd-1',
@@ -581,9 +640,156 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 8);
+        expect(nueva.schemaVersion, 9);
       },
     );
+  }
+
+  // LA 9: EL PUNTO DE SALIDA DE CADA ZONA (15/10/2026).
+  //
+  // `board_columns` gana `almacen_id`. Esa tabla NO es de Drift (la crea `EsquemaTablero`
+  // al abrir el Tablero), así que la migración sólo la toca si existe y le falta la columna.
+  // Se prueba con un fichero RICO —la cola con gestos del tablero, una zona con su camión y
+  // una tarjeta puesta— en las formas que puede tener el aparato de ayer:
+  //
+  //  · en la 8, con el tablero y SIN la columna (el de verdad);
+  //  · en la 7 y en la 6 (desde ≤7 también llega, con los pasos de en medio);
+  //  · en la 8 SIN tablero (nunca lo abrió): no hay nada que tocar y no revienta;
+  //  · en la 8 CON la columna ya puesta (copia nacida nueva y `user_version` atrás): un
+  //    `ADD COLUMN` repetido LANZA y la base no abriría.
+  for (final (desde, conTablero, conLaColumna) in const [
+    (8, true, false),
+    (7, true, false),
+    (6, true, false),
+    (8, false, false),
+    (8, true, true),
+  ]) {
+    final forma = !conTablero
+        ? 'que nunca se abrió'
+        : (conLaColumna ? 'con almacen_id ya puesto' : 'sin almacen_id');
+    test('desde la $desde: el tablero $forma abre y no pierde nada', () async {
+      final fichero = await _ficheroDePrueba();
+      addTearDown(() async {
+        if (fichero.existsSync()) await fichero.delete();
+      });
+
+      final ayer = BaseLocal.con(NativeDatabase(fichero));
+      for (final (clave, metodo, ruta) in const [
+        ('01J8-a-zona', 'POST', '/board/columns?branchId=suc-1'),
+        ('01J8-b-puesta', 'PUT', '/board/placements/ped-1'),
+        ('01J8-c-camion', 'PATCH', '/board/columns/z-1'),
+      ]) {
+        await ayer
+            .into(ayer.apuntes)
+            .insert(
+              ApuntesCompanion.insert(
+                clave: clave,
+                hechoAt: DateTime(2026, 10, 15, 9),
+                metodo: metodo,
+                ruta: ruta,
+                cuerpo: '{"v":"$clave"}',
+              ),
+            );
+      }
+      await ayer.customStatement(
+        'INSERT INTO orders (id, customer_name, address, weight, archivado) '
+        "VALUES ('ped-1', 'Bodega La Rica', 'Calle 1', 75, 0)",
+      );
+      if (conTablero) {
+        await EsquemaTablero.asegurar(ayer);
+        await ayer.customStatement(
+          'INSERT INTO board_columns (id, branch_id, nombre, posicion, '
+          "vehicle_id, nacio_aqui) VALUES ('z-1', 'suc-1', 'Centro', 1, 'v-1', 1)",
+        );
+        await ayer.customStatement(
+          'INSERT INTO board_placements (order_id, column_id, posicion, '
+          "nacio_aqui) VALUES ('ped-1', 'z-1', 1, 1)",
+        );
+        if (!conLaColumna) {
+          await ayer.customStatement(
+            'ALTER TABLE board_columns DROP COLUMN almacen_id',
+          );
+        }
+      }
+      await ayer.customStatement('PRAGMA user_version = $desde');
+      await ayer.close();
+
+      final nueva = BaseLocal.con(NativeDatabase(fichero));
+      addTearDown(nueva.close);
+
+      expect(
+        (await nueva.select(nueva.apuntes).get()).map(
+          (a) => (a.metodo, a.clave),
+        ),
+        [
+          ('POST', '01J8-a-zona'),
+          ('PUT', '01J8-b-puesta'),
+          ('PATCH', '01J8-c-camion'),
+        ],
+        reason:
+            'la cola sin subir es el trabajo del día: una migración que se '
+            'la lleve no se nota hasta que alguien la reclama',
+      );
+      expect(
+        (await nueva.customSelect('PRAGMA user_version').getSingle()).read<int>(
+          'user_version',
+        ),
+        9,
+      );
+
+      // LA COLUMNA EXISTE, preguntándoselo a SQLite, ANTES de que el Tablero
+      // vuelva a pasar por `EsquemaTablero` (que sólo crea lo que no existe).
+      if (conTablero) {
+        final deZonas =
+            (await nueva.customSelect('PRAGMA table_info(board_columns)').get())
+                .map((f) => f.read<String>('name'));
+        expect(
+          deZonas,
+          contains('almacen_id'),
+          reason: 'sin ella, leer o guardar el punto de una zona revienta',
+        );
+        final zona = await nueva
+            .customSelect(
+              'SELECT nombre, vehicle_id, almacen_id, nacio_aqui FROM board_columns',
+            )
+            .getSingle();
+        expect(
+          (
+            zona.read<String>('nombre'),
+            zona.readNullable<String>('vehicle_id'),
+            zona.readNullable<String>('almacen_id'),
+            zona.read<int>('nacio_aqui'),
+          ),
+          ('Centro', 'v-1', null, 1),
+          reason:
+              'la zona de ayer sigue con su camión y su marca; sin punto = '
+              'el principal, que es de donde salía',
+        );
+        expect(
+          (await nueva
+                  .customSelect('SELECT column_id FROM board_placements')
+                  .getSingle())
+              .read<String>('column_id'),
+          'z-1',
+        );
+      }
+
+      // Y SE PUEDE USAR (también donde el tablero nace ahora).
+      await EsquemaTablero.asegurar(nueva);
+      await nueva.customStatement(
+        'INSERT INTO board_columns (id, branch_id, nombre, posicion, almacen_id) '
+        "VALUES ('z-2', 'suc-1', 'Aurora', 2, 'alm-aurora')",
+      );
+      expect(
+        (await nueva
+                .customSelect(
+                  "SELECT almacen_id FROM board_columns WHERE id = 'z-2'",
+                )
+                .getSingle())
+            .read<String>('almacen_id'),
+        'alm-aurora',
+      );
+    });
   }
 }
 

@@ -18,6 +18,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../diseno/colores.dart';
+import '../../../diseno/lista_que_se_recoloca.dart';
 import '../../../nucleo/base/base.dart';
 import '../datos/acciones_rutas.dart';
 import '../datos/formato_de_la_ruta.dart';
@@ -185,44 +186,50 @@ class _ParadasOrdenablesState extends State<ParadasOrdenables> {
         // se podría llevar la parada 15 a la 1 en un teléfono).
         SizedBox(
           height: MediaQuery.sizeOf(context).height * 0.65,
-          child: ReorderableListView.builder(
-            buildDefaultDragHandles: false,
-            itemCount: enOrden.length,
-            // `onReorderItem`: `hasta` ya viene corregido por la que se saca.
-            onReorderItem: (desde, hasta) {
-              if (_enVuelo) return;
-              final nuevo = [for (final p in enOrden) p.id];
-              final movida = nuevo.removeAt(desde);
-              nuevo.insert(hasta, movida);
-              if (_iguales(nuevo, [for (final p in enOrden) p.id])) return;
-              _aplicar(orden: nuevo);
-            },
-            itemBuilder: (context, i) {
-              final parada = enOrden[i];
-              return KeyedSubtree(
-                key: ValueKey(parada.id),
-                child: widget.tarjeta(
-                  parada,
-                  i + 1,
-                  _enVuelo
-                      ? Icon(Icons.drag_handle, color: Colores.gris)
-                      : ReorderableDragStartListener(
-                          key: claveDelAsa(parada.id),
-                          index: i,
-                          child: const MouseRegion(
-                            cursor: SystemMouseCursors.grab,
-                            child: Tooltip(
-                              message: 'Arrastrar para cambiar el orden',
-                              child: Padding(
-                                padding: EdgeInsets.all(8),
-                                child: Icon(Icons.drag_handle),
+          // «Ordenar por cercanía» las desliza a su orden nuevo; el arrastre
+          // anima solo y aquí no mueve nada (la soltada no está montada).
+          child: ListaQueSeRecoloca(
+            claves: [for (final p in enOrden) p.id],
+            child: ReorderableListView.builder(
+              buildDefaultDragHandles: false,
+              itemCount: enOrden.length,
+              // `onReorderItem`: `hasta` ya viene corregido por la que se saca.
+              onReorderItem: (desde, hasta) {
+                if (_enVuelo) return;
+                final nuevo = [for (final p in enOrden) p.id];
+                final movida = nuevo.removeAt(desde);
+                nuevo.insert(hasta, movida);
+                if (_iguales(nuevo, [for (final p in enOrden) p.id])) return;
+                _aplicar(orden: nuevo);
+              },
+              itemBuilder: (context, i) {
+                final parada = enOrden[i];
+                return SeRecoloca(
+                  key: ValueKey(parada.id),
+                  clave: parada.id,
+                  child: widget.tarjeta(
+                    parada,
+                    i + 1,
+                    _enVuelo
+                        ? Icon(Icons.drag_handle, color: Colores.gris)
+                        : ReorderableDragStartListener(
+                            key: claveDelAsa(parada.id),
+                            index: i,
+                            child: const MouseRegion(
+                              cursor: SystemMouseCursors.grab,
+                              child: Tooltip(
+                                message: 'Arrastrar para cambiar el orden',
+                                child: Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Icon(Icons.drag_handle),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                ),
-              );
-            },
+                  ),
+                );
+              },
+            ),
           ),
         ),
         // Las que ya bajaron del camión con un resultado: se ven, no se ordenan.

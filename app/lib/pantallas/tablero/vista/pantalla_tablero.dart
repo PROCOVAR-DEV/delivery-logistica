@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../diseno/lista_que_se_recoloca.dart';
 import '../../../diseno/pestanas.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/plataforma.dart';
@@ -167,7 +168,10 @@ class _PantallaTableroState extends ConsumerState<PantallaTablero> {
             // extremo el de fuera no recoge el gesto: quedaria una zona de la
             // que no se puede salir con el dedo.
             final cuantas = 1 + _cuantasZonas(tablero);
-            final pagina = _pagina.clamp(_sinColocar, cuantas - 1);
+            final pagina = _seguirALaZona(
+              tablero,
+              _pagina.clamp(_sinColocar, cuantas - 1),
+            );
             return Column(
               children: [
                 Padding(
@@ -253,7 +257,29 @@ class _PantallaTableroState extends ConsumerState<PantallaTablero> {
 
   void _irA(int pagina) {
     if (pagina == _pagina) return;
-    setState(() => _pagina = pagina);
+    setState(() {
+      _pagina = pagina;
+      _zonaALaVista = null;
+    });
+  }
+
+  /// LA ZONA QUE SE ESTABA MIRANDO EN EL MOVIL. Si cambia de sitio —otro punto
+  /// de salida la manda a otro grupo—, la pagina la sigue: `CuerpoDeslizable`
+  /// se desliza hasta ella en vez de quedarse enseñando la que ocupó su hueco.
+  String? _zonaALaVista;
+
+  int _seguirALaZona(Tablero tablero, int pagina) {
+    final ids = [for (final c in tablero.columnas) c.id];
+    final vista = _zonaALaVista;
+    final aqui = pagina >= 1 && pagina <= ids.length ? ids[pagina - 1] : null;
+    if (vista != null && aqui != vista && ids.contains(vista)) {
+      // En el build y sin setState: es el estado de ESTE dibujo.
+      pagina = _pagina = ids.indexOf(vista) + 1;
+    }
+    _zonaALaVista = pagina >= 1 && pagina <= ids.length
+        ? ids[pagina - 1]
+        : null;
+    return pagina;
   }
 
   void _moverTarjeta(Tablero tablero, TarjetaPedido pedido) {
@@ -376,32 +402,45 @@ class _TiraState extends State<_Tira> {
                 trackVisibility: true,
                 interactive: true,
                 scrollbarOrientation: ScrollbarOrientation.bottom,
-                child: ListView.builder(
-                  controller: _mando,
-                  primary: false,
-                  scrollDirection: Axis.horizontal,
-                  // Dejar la barra fuera de las tarjetas y sus listas verticales.
-                  padding: const EdgeInsets.fromLTRB(4, 4, 4, 20),
-                  itemCount: tablero.columnas.length + 1,
-                  // Restaurar las barras verticales propias de cada zona: sólo
-                  // se sustituye la barra automática de la tira horizontal.
-                  itemBuilder: (contexto, i) => ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(context),
-                    child: i == tablero.columnas.length
-                        ? const _BotonNuevaColumna(ancho: 140)
-                        // Un hueco de más entre dos puntos de salida: las
-                        // zonas van agrupadas por el suyo (`zonasPorPunto`).
-                        : Padding(
-                            padding: EdgeInsets.only(
-                              left:
-                                  i > 0 &&
-                                      grupoDe(tablero.columnas[i]) !=
-                                          grupoDe(tablero.columnas[i - 1])
-                                  ? 16
-                                  : 0,
+                // Al cambiar el punto de salida de una zona, se desliza a su
+                // grupo nuevo en vez de saltar (Jose, 15/10/2026).
+                child: ListaQueSeRecoloca(
+                  claves: [for (final c in tablero.columnas) c.id],
+                  child: ListView.builder(
+                    controller: _mando,
+                    primary: false,
+                    scrollDirection: Axis.horizontal,
+                    // Dejar la barra fuera de las tarjetas y sus listas verticales.
+                    padding: const EdgeInsets.fromLTRB(4, 4, 4, 20),
+                    itemCount: tablero.columnas.length + 1,
+                    // Restaurar las barras verticales propias de cada zona: sólo
+                    // se sustituye la barra automática de la tira horizontal.
+                    itemBuilder: (contexto, i) => ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(context),
+                      child: i == tablero.columnas.length
+                          ? const _BotonNuevaColumna(ancho: 140)
+                          // Un hueco de más entre dos puntos de salida: las
+                          // zonas van agrupadas por el suyo (`zonasPorPunto`).
+                          : Padding(
+                              padding: EdgeInsets.only(
+                                left:
+                                    i > 0 &&
+                                        grupoDe(tablero.columnas[i]) !=
+                                            grupoDe(tablero.columnas[i - 1])
+                                    ? 16
+                                    : 0,
+                              ),
+                              child: SeRecoloca(
+                                key: ValueKey(tablero.columnas[i].id),
+                                clave: tablero.columnas[i].id,
+                                child: _Zona(
+                                  tablero: tablero,
+                                  cual: i,
+                                  ancho: 300,
+                                ),
+                              ),
                             ),
-                            child: _Zona(tablero: tablero, cual: i, ancho: 300),
-                          ),
+                    ),
                   ),
                 ),
               ),

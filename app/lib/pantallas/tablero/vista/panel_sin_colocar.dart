@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/caja_de_numero.dart';
+import '../../../diseno/lista_que_se_recoloca.dart';
 import '../../../diseno/rango_de_fechas.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/proveedores.dart' show relojProvider;
@@ -191,17 +192,26 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
                         ),
                       ),
                     )
-                  : ListView.builder(
-                      itemCount: izquierda.pedidos.length,
-                      // Sólo la primera tarjeta se deja senalar: hay una por
-                      // pedido sin colocar y pueden ser setecientas.
-                      itemBuilder: (contexto, i) => ControlSenalado(
-                        nombre: Senalado.tableroTarjetaDePedido,
-                        senalable: i == 0,
-                        child: TarjetaDePedido(
-                          pedido: izquierda.pedidos[i],
-                          onTap: () =>
-                              widget.alPulsarTarjeta(izquierda.pedidos[i]),
+                  // Al cambiar el almacén, los filtros o al colocar una, las
+                  // tarjetas se deslizan a su sitio nuevo (Jose, 15/10/2026).
+                  : ListaQueSeRecoloca(
+                      claves: [for (final p in izquierda.pedidos) p.pedidoId],
+                      child: ListView.builder(
+                        itemCount: izquierda.pedidos.length,
+                        // Sólo la primera tarjeta se deja senalar: hay una por
+                        // pedido sin colocar y pueden ser setecientas.
+                        itemBuilder: (contexto, i) => SeRecoloca(
+                          key: ValueKey(izquierda.pedidos[i].pedidoId),
+                          clave: izquierda.pedidos[i].pedidoId,
+                          child: ControlSenalado(
+                            nombre: Senalado.tableroTarjetaDePedido,
+                            senalable: i == 0,
+                            child: TarjetaDePedido(
+                              pedido: izquierda.pedidos[i],
+                              onTap: () =>
+                                  widget.alPulsarTarjeta(izquierda.pedidos[i]),
+                            ),
+                          ),
                         ),
                       ),
                     ),

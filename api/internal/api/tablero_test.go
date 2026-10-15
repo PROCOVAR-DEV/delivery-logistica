@@ -177,7 +177,9 @@ type tableroFalso struct {
 	// Lo que se vio pasar al armar la ruta: es lo que se comprueba.
 	rutaCreada  *sqlc.CrearRutaParams
 	enganchados []uuid.UUID
-	totales     *sqlc.FijarTotalesDeRutaParams
+	// Cada parada tal como se escribió, con su `segment_km`: es lo que se cobra.
+	paradas []sqlc.EngancharPedidoARutaParams
+	totales *sqlc.FijarTotalesDeRutaParams
 }
 
 func nuevoTablero() *tableroFalso {
@@ -1459,6 +1461,7 @@ func (q *tableroFalso) EngancharPedidoARuta(_ context.Context, arg sqlc.Engancha
 	p.ruta = &ruta
 	q.pedidos[arg.PedidoID] = p
 	q.enganchados = append(q.enganchados, arg.PedidoID)
+	q.paradas = append(q.paradas, arg)
 	return 1, nil
 }
 

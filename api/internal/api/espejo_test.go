@@ -797,7 +797,12 @@ func TestLaBajadaTraeLaMarcaDelServidor(t *testing.T) {
 // El tablero de la bajada es POR SUCURSAL: al Super Admin sin elegir no se le mandan las
 // ocho mezcladas, se le dice que falta elegir.
 func TestLaBajadaDelTableroPideSucursal(t *testing.T) {
-	h := montarTab(t, nuevoEspejo())
+	q := nuevoEspejo()
+	aurora := "alm-aurora"
+	centro := q.columnas[colCentro]
+	centro.AlmacenID = &aurora
+	q.columnas[colCentro] = centro
+	h := montarTab(t, q)
 
 	w := pedirTab(t, h, http.MethodGet, "/api/sync/cambios", tokenTab(t, ""), "")
 	m := leerTab(t, w)
@@ -813,6 +818,17 @@ func TestLaBajadaDelTableroPideSucursal(t *testing.T) {
 	}
 	if len(cols.(map[string]any)["puestos"].([]any)) != 3 {
 		t.Fatalf("columnas: %s", w.Body.String())
+	}
+	// EL PUNTO DE SALIDA VIAJA (00020), y el nulo también: es «sale del principal».
+	for _, c := range cols.(map[string]any)["puestos"].([]any) {
+		m := c.(map[string]any)
+		quiero := any(nil)
+		if m["id"] == colCentro.String() {
+			quiero = "alm-aurora"
+		}
+		if v, hay := m["almacenId"]; !hay || v != quiero {
+			t.Fatalf("la zona %v baja con almacenId=%v (presente: %v) y tiene %v", m["nombre"], v, hay, quiero)
+		}
 	}
 }
 

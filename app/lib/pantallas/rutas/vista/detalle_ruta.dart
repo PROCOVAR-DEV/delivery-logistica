@@ -134,6 +134,12 @@ class DetalleDeRuta extends ConsumerWidget {
                   .value?[conTodo.ruta.vehicleId],
         seSabeLaOcupacion: ref.watch(camionesOcupadosProvider).value != null,
       ),
+      // QUIÉN REPARTE (issue 7): el nombre sale de la tabla local, así un renombrado se ve
+      // aquí sin tocar la ruta. Va FUERA de `LineaDeDatosDeLaRuta` a propósito: esa cabecera
+      // se prueba suelta, sin `ProviderScope`, y este renglón lee un provider (15/10/2026: la
+      // fusión lo metió dentro y once pruebas de la cabecera reventaron).
+      const SizedBox(height: 4),
+      DistribuidorDeLaRuta(distribuidorId: conTodo.ruta.distribuidorId),
       const SizedBox(height: 12),
       // EL MAPA, con sus cuatro gestos —abrir en Google Maps, WhatsApp,
       // compartir y copiar. Antes aqui habia medio gesto: un boton que
@@ -714,10 +720,6 @@ class LineaDeDatosDeLaRuta extends StatelessWidget {
           '${tiempoDeLaRuta(arranco: r.startedAt, termino: r.finishedAt, ahora: ahora)}',
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        // QUIÉN REPARTE (issue 7): el nombre sale de la tabla local, así un
-        // renombrado se ve aquí sin tocar la ruta.
-        const SizedBox(height: 4),
-        DistribuidorDeLaRuta(distribuidorId: r.distribuidorId),
         // Y DEBAJO, QUE HACER. El `— (2 de 5 sin cotizar)` de arriba dice que no
         // se sabe; esto dice a donde ir a arreglarlo, que es lo unico que sirve
         // a quien lo lee. Sale **solo cuando falta alguna**: un aviso que sale
@@ -818,9 +820,8 @@ class _PreDespacho extends ConsumerWidget {
     // `null` mientras no ha llegado: la vista dice «Cargando...» y no «Sin
     // productos», que sería afirmar que la ruta va vacía.
     final pre = ref.watch(preDespachoDeLaRutaProvider(ruta.ruta.id)).value;
-    final titulo = Theme.of(
-      context,
-    ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold);
+    final titulo = Theme.of(context).textTheme.titleSmall
+        ?.copyWith(fontWeight: FontWeight.bold);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

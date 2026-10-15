@@ -48,7 +48,6 @@ void main() {
 
     final rutaId = await repo.armarRuta(
       columnaId: centro,
-      origen: origen,
       sucursalId: sucursalStg,
     );
 
@@ -135,7 +134,6 @@ void main() {
 
     final rutaId = await repo.armarRuta(
       columnaId: centro,
-      origen: origen,
       sucursalId: sucursalStg,
     );
 
@@ -178,7 +176,6 @@ void main() {
 
     await repo.armarRuta(
       columnaId: centro,
-      origen: origen,
       sucursalId: sucursalStg,
     );
 
@@ -204,7 +201,6 @@ void main() {
       await expectLater(
         repo.armarRuta(
           columnaId: centro,
-          origen: origen,
           sucursalId: sucursalStg,
         ),
         throwsA(
@@ -252,7 +248,6 @@ void main() {
 
     await repo.armarRuta(
       columnaId: centro,
-      origen: origen,
       sucursalId: sucursalStg,
     );
 
@@ -288,7 +283,6 @@ void main() {
 
     await repo.armarRuta(
       columnaId: centro,
-      origen: origen,
       sucursalId: sucursalStg,
     );
 
@@ -339,7 +333,6 @@ void main() {
     await expectLater(
       repo.armarRuta(
         columnaId: sinCamion,
-        origen: origen,
         sucursalId: sucursalStg,
       ),
       throwsA(
@@ -397,7 +390,6 @@ void main() {
 
     final rutaId = await repo.armarRuta(
       columnaId: conCamion,
-      origen: origen,
       sucursalId: sucursalStg,
     );
 
@@ -433,7 +425,6 @@ void main() {
       await expectLater(
         repo.armarRuta(
           columnaId: sinNada,
-          origen: origen,
           sucursalId: sucursalStg,
         ),
         throwsA(

@@ -174,8 +174,13 @@ class BaseLocal extends _$BaseLocal {
   /// Tabla nueva `distribuidores` (el nomenclador de cada sucursal) y `routes`
   /// gana `distribuidor_id`, nula. Las dos son ADITIVAS: la cola de `apuntes` no se
   /// toca. Ver el `desde < 8`.
+  ///
+  /// ## 9 — el punto de salida de cada zona (15/10/2026)
+  ///
+  /// `board_columns` gana `almacen_id`, nula (= sale del principal). Esa tabla no
+  /// es de Drift: la crea `EsquemaTablero` al abrir el Tablero. Ver el `desde < 9`.
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -274,6 +279,21 @@ class BaseLocal extends _$BaseLocal {
             .toSet();
         if (!deRutas.contains(routes.distribuidorId.name)) {
           await m.addColumn(routes, routes.distribuidorId);
+        }
+      }
+      if (desde < 9) {
+        // EL PUNTO DE SALIDA DE CADA ZONA. `board_columns` no es de Drift: la crea
+        // `EsquemaTablero.asegurar` la primera vez que se abre el Tablero, y ya con
+        // la columna. Aqui solo se le pone a la que YA existe, y solo si le falta:
+        // un `ADD COLUMN` repetido LANZA y la base no abre (la cola, secuestrada).
+        // Nula = sale del principal, que es lo que hacia toda zona de antes.
+        final deZonas = (await customSelect(
+          'PRAGMA table_info(board_columns)',
+        ).get()).map((f) => f.read<String>('name')).toSet();
+        if (deZonas.isNotEmpty && !deZonas.contains('almacen_id')) {
+          await customStatement(
+            'ALTER TABLE board_columns ADD COLUMN almacen_id TEXT',
+          );
         }
       }
     },

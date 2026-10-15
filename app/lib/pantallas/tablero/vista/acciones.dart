@@ -19,6 +19,7 @@ import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 import '../datos/modelos.dart';
 import '../estado/proveedores.dart';
 import 'kit.dart';
+import 'pantalla_tablero.dart' show FilaDeAlmacen;
 
 /// Los gestos que no son arrastrar.
 ///
@@ -224,6 +225,24 @@ abstract final class AccionesTablero {
               },
             ),
           ),
+          // DE DÓNDE SALE ESTA ZONA — Jose, 15/10/2026: «cada columna se pueda
+          // configurar de dónde sale, así los tableros quedan preparados para
+          // cada punto sin estar cambiando arriba de lado a lado».
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.warehouse_outlined),
+            title: const Text('Punto de salida'),
+            subtitle: Text(switch (columna.sale) {
+              final sale? when columna.almacenId == null =>
+                'El principal: ${sale.nombre}',
+              final sale? => sale.nombre,
+              null => columna.noPuedeSalir ?? 'Sin punto de salida',
+            }),
+            onTap: () {
+              Navigator.of(contexto).pop();
+              _elegirPunto(context, ref, columna: columna, tablero: tablero);
+            },
+          ),
           ControlSenalado(
             nombre: Senalado.tableroVaciar,
             child: ListTile(
@@ -354,6 +373,67 @@ abstract final class AccionesTablero {
       deLaPantalla: context,
       refDeLaPantalla: ref,
     ),
+  );
+
+  /// EL CAJÓN DEL «PUNTO DE SALIDA»: el principal (`null`) o un almacén DE ESTA
+  /// SUCURSAL (`tablero.almacenes`, ya sin los de baja). Los que no tienen la
+  /// ubicación salen apagados y con su motivo, como en la cabecera de arriba:
+  /// de ahí no se puede medir ni salir.
+  static Future<void> _elegirPunto(
+    BuildContext context,
+    WidgetRef ref, {
+    required ColumnaTablero columna,
+    required Tablero tablero,
+  }) => mostrarCajon<void>(
+    context: context,
+    titulo: 'Punto de salida de «${columna.nombre}»',
+    contenido: (contexto) {
+      void poner(String? almacenId) {
+        Navigator.of(contexto).pop();
+        unawaited(
+          hacer(
+            context,
+            ref,
+            () => ref
+                .read(tableroProvider.notifier)
+                .elegirPuntoDeSalida(columna.id, almacenId),
+          ),
+        );
+      }
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'De aquí sale la ruta de esta zona, y desde aquí se miden los '
+            'kilómetros de sus pedidos.',
+            style: Theme.of(contexto).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            key: const ValueKey('punto-el-principal'),
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              columna.almacenId == null
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              size: 20,
+              color: Colores.primario,
+            ),
+            title: const Text('El principal'),
+            subtitle: const Text('El que Accesos marca como principal'),
+            onTap: () => poner(null),
+          ),
+          for (final a in tablero.almacenes)
+            FilaDeAlmacen(
+              almacen: a,
+              elegido: a.id == columna.almacenId,
+              alElegir: a.sirveParaMedir ? () => poner(a.id) : null,
+            ),
+        ],
+      );
+    },
   );
 
   static Future<void> _elegirDestino(

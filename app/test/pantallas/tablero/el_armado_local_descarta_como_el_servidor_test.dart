@@ -124,7 +124,6 @@ void main() {
       List<String>? fuera;
       final rutaId = await repo.armarRuta(
         columnaId: centro,
-        origen: origen,
         sucursalId: sucursalStg,
         alDejarFuera: (f) => fuera = f,
       );
@@ -169,7 +168,6 @@ void main() {
       List<String>? fuera;
       await repo.armarRuta(
         columnaId: centro,
-        origen: origen,
         sucursalId: sucursalStg,
         alDejarFuera: (f) => fuera = f,
       );
@@ -194,7 +192,6 @@ void main() {
     await expectLater(
       repo.armarRuta(
         columnaId: centro,
-        origen: origen,
         sucursalId: sucursalStg,
         alDejarFuera: (_) => avisado = true,
       ),
@@ -236,7 +233,6 @@ void main() {
     var avisado = false;
     final rutaId = await repo.armarRuta(
       columnaId: centro,
-      origen: origen,
       sucursalId: sucursalStg,
       alDejarFuera: (_) => avisado = true,
     );
@@ -291,7 +287,6 @@ void main() {
     List<String>? fuera;
     await enLaWeb.armarRuta(
       columnaId: centro,
-      origen: origen,
       sucursalId: sucursalStg,
       alDejarFuera: (f) => fuera = f,
     );
@@ -326,7 +321,6 @@ void main() {
       // entrega, y el `null` que se le pone al armar es de cinturon.
       await repo.armarRuta(
         columnaId: centro,
-        origen: origen,
         sucursalId: sucursalStg,
       );
 
@@ -353,7 +347,6 @@ void main() {
       List<String>? fuera;
       await repo.armarRuta(
         columnaId: centro,
-        origen: origen,
         sucursalId: sucursalStg,
         alDejarFuera: (f) => fuera = f,
       );

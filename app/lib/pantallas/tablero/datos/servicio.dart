@@ -150,8 +150,8 @@ class ServicioTablero {
           // ya esta arriba. Es lo que hace que una zona creada aqui se limpie
           // sola en cuanto sube, sin que nadie tenga que acordarse.
           '(id, branch_id, nombre, posicion, vehicle_id, creado_por, '
-          ' created_at, updated_at, nacio_aqui) '
-          'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)',
+          ' created_at, updated_at, nacio_aqui, almacen_id) '
+          'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9)',
           [
             c['id'] as String,
             (c['branchId'] as String?) ?? sucursalId,
@@ -161,6 +161,13 @@ class ServicioTablero {
             c['creadoPor'] as String?,
             _fecha(c['createdAt'] as String?),
             _fecha(c['updatedAt'] as String?),
+            // El punto de salida. La foto es entera en cada bajada, asi que las
+            // zonas que ya estaban lo traen la proxima vez sin rebajar nada.
+            // "" es «sin punto», igual que en el servidor.
+            switch (c['almacenId']) {
+              final String id when id.isNotEmpty => id,
+              _ => null,
+            },
           ],
         );
       }

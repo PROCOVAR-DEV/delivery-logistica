@@ -154,7 +154,6 @@ void main() {
       await expectLater(
         repo.armarRuta(
           columnaId: centro,
-          origen: origen,
           sucursalId: sucursalStg,
         ),
         throwsA(
@@ -178,7 +177,6 @@ void main() {
 
       final rutaId = await repo.armarRuta(
         columnaId: centro,
-        origen: origen,
         sucursalId: sucursalStg,
       );
 
@@ -198,7 +196,6 @@ void main() {
 
       final rutaId = await repo.armarRuta(
         columnaId: centro,
-        origen: origen,
         sucursalId: sucursalStg,
       );
 

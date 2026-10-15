@@ -12,6 +12,7 @@ import '../../rutas/datos/importe_de_la_ruta.dart';
 import 'consultas.dart';
 import 'esquema.dart';
 import 'modelos.dart';
+import 'punto_de_salida.dart';
 
 /// LAS ESCRITURAS DEL TABLERO.
 ///
@@ -393,12 +394,17 @@ class RepositorioTablero {
     required String sucursalId,
     required String nombre,
     String? vehiculoId,
+
+    /// El punto de salida con el que nace (el elegido arriba), o `null` = el
+    /// principal.
+    String? almacenId,
   }) async {
     await _listo();
     final limpio = nombre.trim();
     if (limpio.isEmpty) {
       throw const RechazoDelTablero('La columna necesita un nombre');
     }
+    await _comprobarPunto(sucursalId, almacenId);
     // El id DEFINITIVO, puesto aqui: el servidor lo acepta y lo usa tal cual, asi
     // que reintentar la subida no crea una segunda zona. Ver `nuevoIdReal`.
     final id = Provisionales.nuevoIdReal();
@@ -418,8 +424,8 @@ class RepositorioTablero {
           // fila nacio de este lado.
           'INSERT INTO $_tablaColumnas '
           '(id, branch_id, nombre, posicion, vehicle_id, created_at, updated_at, '
-          ' nacio_aqui) '
-          'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7)',
+          ' nacio_aqui, almacen_id) '
+          'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7, ?8)',
           [
             id,
             sucursalId,
@@ -428,6 +434,7 @@ class RepositorioTablero {
             vehiculoId,
             _ahora,
             _nacioAqui,
+            almacenId,
           ],
         );
         await _mandarOEncolar(
@@ -447,6 +454,7 @@ class RepositorioTablero {
             'id': id,
             'nombre': limpio,
             'vehiculoId': ?vehiculoId,
+            'almacenId': ?almacenId,
           },
           // Se sigue anotando como `provisional` aunque ya no haya nada que
           // sustituir: es lo que ata este apunte a su fila, y lo que deja saber
@@ -537,6 +545,46 @@ class RepositorioTablero {
       );
     });
     EsquemaTablero.avisarDeCambio(_base);
+  }
+
+  /// EL PUNTO DE SALIDA de la zona: el id de un almacén de su sucursal, o
+  /// `null` = el principal. Igual que el camión: se escribe aquí y sale por la
+  /// cola (o al servidor en la web), con el campo SIEMPRE presente —`null` es
+  /// «quítamelo», ausente sería «no lo toques»—.
+  Future<void> elegirPuntoDeSalida(String columnaId, String? almacenId) async {
+    await _listo();
+    final zona = await _base
+        .customSelect(
+          'SELECT branch_id FROM $_tablaColumnas WHERE id = ?1',
+          variables: [Variable<String>(columnaId)],
+        )
+        .getSingleOrNull();
+    if (zona != null) {
+      await _comprobarPunto(zona.read<String>('branch_id'), almacenId);
+    }
+    await _base.transaction(() async {
+      await _base.customStatement(
+        'UPDATE $_tablaColumnas SET almacen_id = ?1, updated_at = ?2, '
+        'nacio_aqui = CASE WHEN almacen_id IS NOT ?1 THEN ?4 ELSE nacio_aqui END '
+        'WHERE id = ?3',
+        [almacenId, _ahora, columnaId, _nacioAqui],
+      );
+      await _mandarOEncolar(
+        metodo: 'PATCH',
+        ruta: '/board/columns/$columnaId',
+        cuerpo: <String, Object?>{'almacenId': almacenId},
+      );
+    });
+    EsquemaTablero.avisarDeCambio(_base);
+  }
+
+  /// El mismo «no» que daría el servidor al guardar (400), dicho ANTES de
+  /// encolar: sin señal llegaría horas después a la bandeja.
+  Future<void> _comprobarPunto(String sucursalId, String? almacenId) async {
+    if (almacenId == null || almacenId.isEmpty) return;
+    final no = (await ConsultasTablero(_base).puntosDe(sucursalId))(almacenId)
+        .no;
+    if (no != null) throw RechazoDelTablero(no);
   }
 
   /// Reordena el tablero entero: llega la lista de ids en el orden nuevo.
@@ -696,7 +744,6 @@ class RepositorioTablero {
   /// Devuelve el id provisional de la ruta.
   Future<String> armarRuta({
     required String columnaId,
-    required AlmacenOrigen origen,
     required String sucursalId,
     String? nombre,
 
@@ -720,10 +767,25 @@ class RepositorioTablero {
   }) async {
     await _listo();
     final consultas = ConsultasTablero(_base);
-    final puestas = (await consultas.colocados(
-      sucursalId,
-      origen,
-    )).where((t) => t.columnaId == columnaId).toList();
+    final columna = (await consultas.columnas(sucursalId))
+        .where((c) => c.id == columnaId)
+        .firstOrNull;
+
+    // DE DÓNDE SALE: del punto de SU zona (`null` = el principal, no el de
+    // arriba), con la regla y las palabras del servidor y ANTES que «no hay nada
+    // repartible» y que el camión, en su mismo orden (`punto_de_salida.dart`).
+    final origen = columna?.sale;
+    if (columna != null && origen == null) {
+      throw RechazoDelTablero(
+        noSalePorSuPunto(columna.nombre, columna.noPuedeSalir ?? ''),
+      );
+    }
+    final puestas = origen == null
+        ? const <TarjetaColocada>[]
+        : (await consultas.colocados(
+            sucursalId,
+            origen,
+          )).where((t) => t.columnaId == columnaId).toList();
     if (puestas.isEmpty) {
       throw const RechazoDelTablero(
         'La columna no tiene ningún pedido que se pueda repartir hoy',
@@ -749,10 +811,8 @@ class RepositorioTablero {
         detalles: descartados,
       );
     }
-
-    final columna = (await consultas.columnas(sucursalId))
-        .where((c) => c.id == columnaId)
-        .firstOrNull;
+    // Aquí la zona existe y tiene de dónde salir: si no, `puestas` vino vacía.
+    final salida = origen!;
 
     // -------------------------------------------------------------------------
     // NINGUNA RUTA SIN CAMIÓN — 28/09/2026
@@ -987,9 +1047,9 @@ class RepositorioTablero {
               name: Value(nombre ?? columna?.nombre),
               distribuidorId: Value(distribuidor?.id),
               status: const Value(EstadoRuta.planificada),
-              originLat: Value(origen.lat),
-              originLng: Value(origen.lng),
-              originAddress: Value(origen.nombre),
+              originLat: Value(salida.lat),
+              originLng: Value(salida.lng),
+              originAddress: Value(salida.nombre),
               // LOS KILOMETROS, CALCULADOS AQUI — 17/09/2026.
               //
               // Esto no se ponia, asi que una ruta armada desde el tablero nacia
@@ -1007,7 +1067,7 @@ class RepositorioTablero {
               // `kmDelCircuito` son los tramos MAS el regreso al almacen, que es
               // justo lo que dice el rotulo de la pantalla.
               totalDistance: Value(
-                kmDelCircuito(Punto(origen.lat, origen.lng), paradas),
+                kmDelCircuito(Punto(salida.lat, salida.lng), paradas),
               ),
               totalWeight: Value(
                 buenos.fold<double>(0, (a, t) => a + t.pedido.weight),
@@ -1090,7 +1150,7 @@ class RepositorioTablero {
             segmentKm: Value(
               donde == null
                   ? null
-                  : haversineKm(Punto(origen.lat, origen.lng), donde),
+                  : haversineKm(Punto(salida.lat, salida.lng), donde),
             ),
           ),
         );

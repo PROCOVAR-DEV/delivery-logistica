@@ -294,6 +294,36 @@ class _Cabecera extends ConsumerWidget {
                     insigniaAviso('sin subir'),
                 ],
               ),
+              // DE DÓNDE SALE SU RUTA, y por eso de dónde se miden sus km. Si
+              // su punto no sirve se dice el porqué, en ámbar: armar va a decir
+              // que no con esas mismas palabras.
+              Row(
+                children: [
+                  Icon(
+                    Icons.warehouse_outlined,
+                    size: 14,
+                    color: columna.sale == null
+                        ? ColoresTablero.ambar
+                        : tema.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      switch (columna.sale) {
+                        final sale? => 'desde ${sale.nombre}',
+                        null => columna.noPuedeSalir ?? 'sin punto de salida',
+                      },
+                      style: tema.textTheme.bodySmall?.copyWith(
+                        color: columna.sale == null
+                            ? ColoresTablero.ambar
+                            : tema.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

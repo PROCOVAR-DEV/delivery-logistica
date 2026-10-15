@@ -121,6 +121,9 @@ COPY docs/armado-rechazado.casos.json /docs/armado-rechazado.casos.json
 #    se nota si falta; se copia igual para que el día que vuelva `flutter test` no muera al
 #    cargar.
 COPY docs/numero-de-factura.casos.json /docs/numero-de-factura.casos.json
+#  * `docs/punto-de-salida.casos.json` — el SEXTO (15/10/2026): de qué almacén sale cada zona
+#    del tablero. Lo lee `el_punto_de_salida_de_la_zona_test.dart` y su gemelo de Go.
+COPY docs/punto-de-salida.casos.json /docs/punto-de-salida.casos.json
 
 # LAS PRUEBAS, ANTES DE CONSTRUIR. Como en `Dockerfile.api` y `Dockerfile.sync`.
 #

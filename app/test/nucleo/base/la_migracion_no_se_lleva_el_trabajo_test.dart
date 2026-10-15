@@ -35,6 +35,7 @@ import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
+import 'package:reparto/pantallas/tablero/datos/esquema.dart';
 
 void main() {
   test('el trabajo sin subir sobrevive al salto de esquema', () async {
@@ -500,7 +501,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 8);
+        expect(nueva.schemaVersion, 9);
       },
     );
   }
@@ -664,9 +665,156 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 8);
+        expect(nueva.schemaVersion, 9);
       },
     );
+  }
+
+  // LA 9: EL PUNTO DE SALIDA DE CADA ZONA (15/10/2026).
+  //
+  // `board_columns` gana `almacen_id`. Esa tabla NO es de Drift (la crea `EsquemaTablero`
+  // al abrir el Tablero), así que la migración sólo la toca si existe y le falta la columna.
+  // Se prueba con un fichero RICO —la cola con gestos del tablero, una zona con su camión y
+  // una tarjeta puesta— en las formas que puede tener el aparato de ayer:
+  //
+  //  · en la 8, con el tablero y SIN la columna (el de verdad);
+  //  · en la 7 y en la 6 (desde ≤7 también llega, con los pasos de en medio);
+  //  · en la 8 SIN tablero (nunca lo abrió): no hay nada que tocar y no revienta;
+  //  · en la 8 CON la columna ya puesta (copia nacida nueva y `user_version` atrás): un
+  //    `ADD COLUMN` repetido LANZA y la base no abriría.
+  for (final (desde, conTablero, conLaColumna) in const [
+    (8, true, false),
+    (7, true, false),
+    (6, true, false),
+    (8, false, false),
+    (8, true, true),
+  ]) {
+    final forma = !conTablero
+        ? 'que nunca se abrió'
+        : (conLaColumna ? 'con almacen_id ya puesto' : 'sin almacen_id');
+    test('desde la $desde: el tablero $forma abre y no pierde nada', () async {
+      final fichero = await _ficheroDePrueba();
+      addTearDown(() async {
+        if (fichero.existsSync()) await fichero.delete();
+      });
+
+      final ayer = BaseLocal.con(NativeDatabase(fichero));
+      for (final (clave, metodo, ruta) in const [
+        ('01J8-a-zona', 'POST', '/board/columns?branchId=suc-1'),
+        ('01J8-b-puesta', 'PUT', '/board/placements/ped-1'),
+        ('01J8-c-camion', 'PATCH', '/board/columns/z-1'),
+      ]) {
+        await ayer
+            .into(ayer.apuntes)
+            .insert(
+              ApuntesCompanion.insert(
+                clave: clave,
+                hechoAt: DateTime(2026, 10, 15, 9),
+                metodo: metodo,
+                ruta: ruta,
+                cuerpo: '{"v":"$clave"}',
+              ),
+            );
+      }
+      await ayer.customStatement(
+        'INSERT INTO orders (id, customer_name, address, weight, archivado) '
+        "VALUES ('ped-1', 'Bodega La Rica', 'Calle 1', 75, 0)",
+      );
+      if (conTablero) {
+        await EsquemaTablero.asegurar(ayer);
+        await ayer.customStatement(
+          'INSERT INTO board_columns (id, branch_id, nombre, posicion, '
+          "vehicle_id, nacio_aqui) VALUES ('z-1', 'suc-1', 'Centro', 1, 'v-1', 1)",
+        );
+        await ayer.customStatement(
+          'INSERT INTO board_placements (order_id, column_id, posicion, '
+          "nacio_aqui) VALUES ('ped-1', 'z-1', 1, 1)",
+        );
+        if (!conLaColumna) {
+          await ayer.customStatement(
+            'ALTER TABLE board_columns DROP COLUMN almacen_id',
+          );
+        }
+      }
+      await ayer.customStatement('PRAGMA user_version = $desde');
+      await ayer.close();
+
+      final nueva = BaseLocal.con(NativeDatabase(fichero));
+      addTearDown(nueva.close);
+
+      expect(
+        (await nueva.select(nueva.apuntes).get()).map(
+          (a) => (a.metodo, a.clave),
+        ),
+        [
+          ('POST', '01J8-a-zona'),
+          ('PUT', '01J8-b-puesta'),
+          ('PATCH', '01J8-c-camion'),
+        ],
+        reason:
+            'la cola sin subir es el trabajo del día: una migración que se '
+            'la lleve no se nota hasta que alguien la reclama',
+      );
+      expect(
+        (await nueva.customSelect('PRAGMA user_version').getSingle()).read<int>(
+          'user_version',
+        ),
+        9,
+      );
+
+      // LA COLUMNA EXISTE, preguntándoselo a SQLite, ANTES de que el Tablero
+      // vuelva a pasar por `EsquemaTablero` (que sólo crea lo que no existe).
+      if (conTablero) {
+        final deZonas =
+            (await nueva.customSelect('PRAGMA table_info(board_columns)').get())
+                .map((f) => f.read<String>('name'));
+        expect(
+          deZonas,
+          contains('almacen_id'),
+          reason: 'sin ella, leer o guardar el punto de una zona revienta',
+        );
+        final zona = await nueva
+            .customSelect(
+              'SELECT nombre, vehicle_id, almacen_id, nacio_aqui FROM board_columns',
+            )
+            .getSingle();
+        expect(
+          (
+            zona.read<String>('nombre'),
+            zona.readNullable<String>('vehicle_id'),
+            zona.readNullable<String>('almacen_id'),
+            zona.read<int>('nacio_aqui'),
+          ),
+          ('Centro', 'v-1', null, 1),
+          reason:
+              'la zona de ayer sigue con su camión y su marca; sin punto = '
+              'el principal, que es de donde salía',
+        );
+        expect(
+          (await nueva
+                  .customSelect('SELECT column_id FROM board_placements')
+                  .getSingle())
+              .read<String>('column_id'),
+          'z-1',
+        );
+      }
+
+      // Y SE PUEDE USAR (también donde el tablero nace ahora).
+      await EsquemaTablero.asegurar(nueva);
+      await nueva.customStatement(
+        'INSERT INTO board_columns (id, branch_id, nombre, posicion, almacen_id) '
+        "VALUES ('z-2', 'suc-1', 'Aurora', 2, 'alm-aurora')",
+      );
+      expect(
+        (await nueva
+                .customSelect(
+                  "SELECT almacen_id FROM board_columns WHERE id = 'z-2'",
+                )
+                .getSingle())
+            .read<String>('almacen_id'),
+        'alm-aurora',
+      );
+    });
   }
 }
 

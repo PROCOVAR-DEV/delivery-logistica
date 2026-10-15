@@ -160,12 +160,25 @@ class ColumnaTablero {
     this.vehiculoCapacidad,
     this.sinSubir = false,
     this.rechazada = false,
+    this.almacenId,
+    this.sale,
+    this.noPuedeSalir,
   });
 
   final String id;
   final String branchId;
   final String nombre;
   final int posicion;
+
+  /// EL PUNTO DE SALIDA guardado: el id del almacén de Accesos, o `null` = el
+  /// principal. De ahí sale su ruta (`datos/punto_de_salida.dart`).
+  final String? almacenId;
+
+  /// El almacén del que sale de verdad, ya resuelto, o `null` si su punto no
+  /// sirve; entonces [noPuedeSalir] dice por qué, con las palabras del servidor.
+  final AlmacenOrigen? sale;
+  final String? noPuedeSalir;
+
   final String? vehiculoId;
   final String? vehiculoNombre;
   final String? vehiculoMatricula;
@@ -200,6 +213,34 @@ class ColumnaTablero {
   /// despues se renombro sin senal tambien tiene trabajo sin subir, y con el id
   /// de verdad puesto se daba por entregada.
   bool get faltaPorSubir => sinSubir || rechazada;
+}
+
+/// El grupo de una zona: el almacén del que sale, o el que tiene puesto aunque
+/// no sirva (así se ve, en su sitio). Filtrar por punto es `where` sobre esto.
+String grupoDe(ColumnaTablero c) => c.sale?.id ?? c.almacenId ?? '';
+
+/// LAS ZONAS AGRUPADAS POR SU PUNTO DE SALIDA — Jose, 15/10/2026: «organizar
+/// las zonas por el punto de inicio, para que estén agrupadas y sepa cuál tocar
+/// y cuál no».
+///
+/// Primero el grupo del principal ([principalId]: las zonas sin punto y las que
+/// lo eligieron a mano), luego cada almacén por su nombre; dentro de cada grupo,
+/// el orden de siempre. Es estable: reordenar dentro de un grupo se respeta.
+List<ColumnaTablero> zonasPorPunto(
+  List<ColumnaTablero> columnas,
+  String? principalId,
+) {
+  String nombre(ColumnaTablero c) => c.sale?.nombre ?? c.almacenId ?? '';
+  final orden = [...columnas.indexed]
+    ..sort((a, b) {
+      final (ka, kb) = (grupoDe(a.$2), grupoDe(b.$2));
+      if (ka == kb) return a.$1.compareTo(b.$1);
+      if (ka == principalId) return -1;
+      if (kb == principalId) return 1;
+      final porNombre = nombre(a.$2).compareTo(nombre(b.$2));
+      return porNombre != 0 ? porNombre : ka.compareTo(kb);
+    });
+  return [for (final (_, c) in orden) c];
 }
 
 /// Por que una tarjeta dejo de servir. **Se marca, no se esconde** (§7.2).

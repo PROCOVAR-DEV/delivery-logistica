@@ -235,6 +235,13 @@ class Orders extends Table {
   /// trae las de la factura. Son dos preguntas distintas.
   TextColumn get itemsOrigen => text().nullable()();
 
+  /// EL ALMACÉN DEL QUE SALE, el código que manda PEDIDO (`almacen_salida_codigo`,
+  /// 00012 del servidor; en un pedido mezclado, el del almacén que pone más
+  /// renglones). Con un almacén elegido arriba en el Tablero, «Sin colocar» pone
+  /// primero los suyos (Jose, 15/10/2026, `docs/orden-sin-colocar.casos.json`).
+  /// Nulo es «PEDIDO no lo mandó»: no es de ningún almacén.
+  TextColumn get almacenSalidaCodigo => text().nullable()();
+
   TextColumn get customerPhone => text().nullable()();
 
   IntColumn get stopOrder => integer().nullable()();
@@ -364,6 +371,12 @@ class Distribuidores extends Table {
 class Warehouses extends Table {
   TextColumn get id => text()();
   TextColumn get sucursalCodigo => text()();
+
+  /// El código del almacén en Accesos (el `objectCode` de Ventra): con la
+  /// sucursal, su identidad. Es lo que casa con `orders.almacen_salida_codigo`.
+  /// Nulo = Accesos no se lo ha puesto, y entonces no se sabe qué pedidos son
+  /// suyos (nunca se empareja por nombre: `PV-STGO` está en dos sucursales).
+  TextColumn get codigo => text().nullable()();
   TextColumn get nombre => text()();
   TextColumn get direccion => text().nullable()();
   RealColumn get lat => real().nullable()();

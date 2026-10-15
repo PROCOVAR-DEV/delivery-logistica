@@ -8,8 +8,10 @@ package api
 // PEDIR DE NINGUNA MANERA. `Truncated` avisaba y no llevaba a ningún sitio.
 //
 // Desde el 14/10/2026 la lista va del más viejo al más reciente por la fecha de la factura
-// (issue 6 de Amado) y el cursor es la pareja `fecha|id` de ese `ORDER BY`. Lo que ataca
-// el orden contra Postgres de verdad es `TestMotorReal_SinColocarCronologico`.
+// (issue 6 de Amado), y desde el 15/10/2026 con los del almacén elegido arriba primero; el
+// cursor es la terna `cercania|fecha|id` de ese `ORDER BY`. Lo que ataca el orden contra
+// Postgres de verdad es `TestMotorReal_SinColocarCronologico` y
+// `TestMotorReal_SinColocarConAlmacenElegido`.
 //
 // Es el §3 del CLAUDE.md —pedir un tope y no comprobar el resultado— y el fallo que más
 // caro sale en este proyecto, porque no se ve: la pantalla se queda perfectamente normal.
@@ -352,13 +354,22 @@ func TestUnCursorRotoEs400YNoUnaListaVacia(t *testing.T) {
 
 	for _, malo := range []string{
 		"cualquier-cosa",
-		"2026-09-16T10:00:00Z|",
-		"no-es-una-fecha|6e000000-0000-0000-0000-000000000001",
-		"2026-09-16T10:00:00Z|no-es-un-uuid",
-		// EL CURSOR DE ANTES DEL 14/10/2026 (`km|fecha|id`, tres trozos) tiene que ser un
-		// 400 y no leerse con el orden nuevo: se repetirían o se saltarían pedidos.
-		"12.5|2026-09-16T10:00:00Z|6e000000-0000-0000-0000-000000000001",
-		"12.5||6e000000-0000-0000-0000-000000000001",
+		"+Inf|2026-09-16T10:00:00Z|",
+		"+Inf|no-es-una-fecha|6e000000-0000-0000-0000-000000000001",
+		"+Inf|2026-09-16T10:00:00Z|no-es-un-uuid",
+		// EL CURSOR DEL 14 AL 15/10/2026 (`fecha|id`, dos trozos) tiene que ser un 400 y
+		// no leerse con el orden nuevo: se repetirían o se saltarían pedidos.
+		"2026-09-16T10:00:00Z|6e000000-0000-0000-0000-000000000001",
+		"|6e000000-0000-0000-0000-000000000001",
+		// Dos trozos con un número delante: sin mirar cuántos trozos hay, se leería el
+		// tercero, que no existe.
+		"12.5|6e000000-0000-0000-0000-000000000001",
+		// La cercanía es una distancia o el infinito de «los demás», y nada más: vacía, una
+		// palabra, NaN o negativa dejarían la comparación del SQL sin sentido.
+		"|2026-09-16T10:00:00Z|6e000000-0000-0000-0000-000000000001",
+		"cerca|2026-09-16T10:00:00Z|6e000000-0000-0000-0000-000000000001",
+		"NaN|2026-09-16T10:00:00Z|6e000000-0000-0000-0000-000000000001",
+		"-1|2026-09-16T10:00:00Z|6e000000-0000-0000-0000-000000000001",
 	} {
 		w := pedirTab(t, h, http.MethodGet,
 			"/api/board/unplaced?desde="+url.QueryEscape(malo), jwt, "")

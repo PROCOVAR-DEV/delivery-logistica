@@ -63,6 +63,8 @@ ordenadas de más a menos pedidos pendientes.
 
 1. **Comprueba arriba desde qué almacén se mide** («Granma · desde Bayamo
    (Granma)»). Ese punto decide los kilómetros de cada tarjeta y lo que se cobra.
+   Si vas a preparar la zona de otro almacén, elígelo ahí: sus pedidos salen
+   primero en «Sin colocar», del más cercano al más lejano.
 2. **Mira los avisos rojos**, si los hay: «3 archivados en PEDIDO», «2 ya en otra
    ruta». Son pedidos ya colocados que hoy no salen.
 3. **Filtra la izquierda** si te conviene: por municipio, por vendedor, por día o

@@ -95,7 +95,9 @@ arregla:
 2. **Comprueba arriba desde dónde se mide**: pone la sucursal y, si hace falta, el
    almacén: **«Granma · desde Bayamo (Granma)»**. Si hay más de un almacén sale una
    flechita ▾: **tócala** y elige el correcto. Ese punto decide los kilómetros de
-   cada tarjeta y lo que se cobra.
+   cada tarjeta y lo que se cobra. Si eliges otro que no es el de por defecto, **sus
+   pedidos salen primero** en «Sin colocar», del más cercano al más lejano (también sin
+   señal).
 3. **Mira si hay avisos rojos** debajo: «3 archivados en PEDIDO», «2 ya en otra
    ruta», «5 sin factura o sin cotejar». Son pedidos **que ya tienes colocados** y
    que hoy no salen.

@@ -1142,9 +1142,9 @@ type Querier interface {
 	// QUÉ SE PIERDE, y conviene saberlo: ya no hay un «lo más cerca arriba», y los pedidos de un
 	// mismo cliente o edificio ya no caen seguidos. Los kilómetros siguen en cada tarjeta y en el
 	// filtro `km_max`, pero para ver de un golpe lo cercano ya no basta con mirar la cabeza de la
-	// lista. Si Amado y Jose quieren las dos cosas, lo que falta es un selector de orden en la
-	// pantalla: el cambio sería de esta consulta, de su cursor y del orden local de la aplicación,
-	// los tres juntos.
+	// lista. Las dos cosas a la vez llegaron el 15/10/2026 por la cabecera: elegir arriba otro
+	// almacén pone primero los suyos por cercanía (ver más abajo), y cambió esta consulta, su
+	// cursor y el orden local de la aplicación, los tres juntos.
 	//
 	// LA FECHA ES `coalesce(factura_at, order_date)`. `factura_at` es cuándo PEDIDO anotó el
 	// cotejo contra la factura (lo escribe `new Date()` en su sondeo, así que ronda la hora en
@@ -1155,12 +1155,23 @@ type Querier interface {
 	//
 	// EL DESEMPATE ES EL ID, y no es adorno. Dos facturas anotadas en el mismo instante dan la
 	// misma fecha, y sin un segundo criterio el orden cambia entre dos llamadas y las tarjetas
-	// bailan solas delante de quien las está arrastrando. Antes eran los km y luego la fecha:
-	// ahora el segundo criterio es el id y la distancia ya no entra.
+	// bailan solas delante de quien las está arrastrando. Y lo mismo dentro de los del almacén
+	// elegido: a igual distancia (el mismo edificio) manda la fecha y luego el id.
 	//
 	// El origen de la distancia (`origen_lat`, `origen_lng`) sigue llegando por parámetro: el
-	// almacén vive en Accesos, no en esta base, y no se copia aquí a propósito. Ya no ordena, pero
-	// se calcula para enseñar los kilómetros de cada tarjeta y para el filtro `km_max`.
+	// almacén vive en Accesos, no en esta base, y no se copia aquí a propósito. Se calcula para
+	// enseñar los kilómetros de cada tarjeta y para el filtro `km_max`.
+	//
+	// Y CON UN ALMACÉN ELEGIDO ARRIBA, LOS SUYOS PRIMERO (Jose, 15/10/2026). Si en la cabecera del
+	// tablero se elige un almacén que no es el de por defecto, `primero_codigo` trae su código y
+	// van PRIMERO los pedidos que salen de él (`almacen_salida_codigo`, el que manda PEDIDO, y en
+	// un mezclado el del almacén que pone más renglones), del más cercano al más lejano a él, y
+	// DESPUÉS los demás en el orden de siempre. Es UNA sola clave, `cercania_de_orden`: la
+	// distancia para los suyos e infinito para los demás, que así van detrás todos empatados y
+	// entre ellos los ordena la fecha. Sin almacén elegido (`primero_codigo` nulo) la comparación
+	// da NULL, todos valen infinito y el orden es exactamente el de antes. El código se compara
+	// sin espacios y en mayúsculas, igual que `cotizar.ElegirOrigenDelPedido`. Los casos, y la
+	// misma regla en el aparato, en `docs/orden-sin-colocar.casos.json`.
 	//
 	// Las condiciones de «repartible» son LAS MISMAS de `ListarPedidosDisponibles`, ni una más
 	// ni una menos: sin ruta, sin entregar, con coordenadas, facturado (`igual` o `cambiado`),

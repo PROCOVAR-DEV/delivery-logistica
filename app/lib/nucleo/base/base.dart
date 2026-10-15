@@ -179,8 +179,17 @@ class BaseLocal extends _$BaseLocal {
   ///
   /// `board_columns` gana `almacen_id`, nula (= sale del principal). Esa tabla no
   /// es de Drift: la crea `EsquemaTablero` al abrir el Tablero. Ver el `desde < 9`.
+  ///
+  /// ## 10 — de qué almacén sale cada pedido (15/10/2026, 1.0.37)
+  ///
+  /// `orders` gana `almacen_salida_codigo` y `warehouses` gana `codigo`, nulas las
+  /// dos: con ellas «Sin colocar» pone primero los pedidos del almacén elegido
+  /// arriba también sin señal (`docs/orden-sin-colocar.casos.json`). ADITIVAS: la
+  /// cola de `apuntes` no se toca. Lo que ya estaba se rellena una vez por aparato:
+  /// los pedidos con una bajada entera (`RegistroDeFrescura.rebajarLosPedidosPorSuAlmacen`)
+  /// y los almacenes en el primer ciclo (`Bajada.almacenes`). Ver el `desde < 10`.
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -295,6 +304,23 @@ class BaseLocal extends _$BaseLocal {
             'ALTER TABLE board_columns ADD COLUMN almacen_id TEXT',
           );
         }
+      }
+      if (desde < 10) {
+        // DE QUÉ ALMACÉN SALE CADA PEDIDO, y el código de cada almacén. Nulas: es
+        // «no se sabe» hasta que baje. **Solo las que faltan**, por lo mismo que la
+        // 5, la 7 y la 8: un `ADD COLUMN` repetido LANZA y la base no abre.
+        Future<void> siFalta(
+          TableInfo<Table, Object?> t,
+          GeneratedColumn c,
+        ) async {
+          final hay = (await customSelect(
+            'PRAGMA table_info(${t.actualTableName})',
+          ).get()).map((f) => f.read<String>('name')).toSet();
+          if (!hay.contains(c.name)) await m.addColumn(t, c);
+        }
+
+        await siFalta(orders, orders.almacenSalidaCodigo);
+        await siFalta(warehouses, warehouses.codigo);
       }
     },
     beforeOpen: (detalles) async {

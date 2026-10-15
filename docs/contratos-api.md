@@ -2041,6 +2041,24 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
   fecha mal escrita no acota. La lista y su `total` llevan el mismo rango
   (`TestSinColocarPorRangoDeFechas`, `TestMotorReal_SinColocarPorRangoDeFechas`). La aplicación
   no los manda —filtra «Sin colocar» en su base, también en la web—: son para otros clientes.
+- **`?almacenId=` — el almacén elegido arriba (Jose, 15/10/2026).** En `GET /api/board` y
+  `GET /api/board/unplaced`: se mide desde ese almacén (`almacen` de la cabecera, `kmAlAlmacen`
+  y `kmMax`) y, si **no** es el de por defecto (`cotizar.ElegirAlmacen`), en «sin colocar» van
+  **primero los pedidos de ese almacén** (`orders.almacen_salida_codigo` igual a su `codigo` de
+  Accesos, sin espacios y en mayúsculas; en un mezclado, el que pone más renglones) del más
+  cercano al más lejano, y **después los demás** por la fecha de siempre. Sin él, o con el de
+  por defecto, el orden es el cronológico de arriba; un almacén sin `codigo` se mide pero no
+  tiene pedidos suyos. Uno que no es de la sucursal, de baja o sin ubicación: `400` con el
+  motivo literal de `puntoDeSalida`. `total` no cambia con el almacén. Los casos, en
+  `docs/orden-sin-colocar.casos.json` (servidor, Postgres y aparato).
+  **El cursor vuelve a ser una terna: `cercania|fecha|id`** (`ORDER BY cercania_de_orden,
+  fecha, id`). `cercania` son los km al almacén elegido para los suyos y `+Inf` para los demás
+  (todos, sin almacén elegido); va con todos sus decimales y se compara por igualdad. El cursor
+  de dos trozos (`fecha|id`, del 14 al 15/10/2026) da `400`. Un cursor sólo vale con el mismo
+  `almacenId` y filtros con que se pidió.
+- La bajada (`GET /api/sync/cambios`) manda en cada pedido **`almacenSalidaCodigo`** y
+  `GET /api/almacenes` el **`codigo`** de cada almacén: con los dos, la APK y el escritorio
+  ordenan igual sin señal.
 
 ## `POST /api/board/columns/{id}/route` — armar una zona
 

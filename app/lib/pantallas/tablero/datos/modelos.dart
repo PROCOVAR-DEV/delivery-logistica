@@ -9,12 +9,19 @@ class AlmacenOrigen {
     required this.nombre,
     required this.lat,
     required this.lng,
+    this.primeroLosDe,
   });
 
   final String id;
   final String nombre;
   final double lat;
   final double lng;
+
+  /// El código del almacén cuyos pedidos van PRIMERO en «Sin colocar», o `null`
+  /// = el orden de siempre. Sólo lo pone `ConsultasTablero.almacenDe` cuando se
+  /// eligió arriba un almacén que NO es el de por defecto y tiene código (Jose,
+  /// 15/10/2026, `docs/orden-sin-colocar.casos.json`).
+  final String? primeroLosDe;
 }
 
 /// UN ALMACEN DE LA SUCURSAL, PARA PODER ELEGIRLO — 26/09/2026.

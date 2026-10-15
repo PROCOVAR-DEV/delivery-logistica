@@ -172,6 +172,8 @@ class Bajada {
     await _frescura.rebajarLosPedidosUnaVez();
     // Y otra, propia, por el `distribuidorId` de las rutas que ya estaban (frescura.dart).
     await _frescura.rebajarLasRutasUnaVez();
+    // Y otra por el almacén del que sale cada pedido (frescura.dart, 15/10/2026).
+    await _frescura.rebajarLosPedidosPorSuAlmacen();
 
     for (var vuelta = 0; vuelta < maximoDeTandas; vuelta++) {
       final desde = await _frescura.desde(Colecciones.pedidos);
@@ -347,7 +349,14 @@ class Bajada {
     int tanda = 1,
     bool forzar = false,
   }) async {
-    if (!forzar && !await _hacenFaltaLosAlmacenes()) {
+    // UNA VEZ POR APARATO se piden aunque sean recientes: los de antes del 15/10/2026
+    // llegaron sin `codigo` (frescura.dart, `yaBajadosLosAlmacenesConCodigo`).
+    final sinCodigo =
+        await _frescura.leer(
+          RegistroDeFrescura.yaBajadosLosAlmacenesConCodigo,
+        ) ==
+        null;
+    if (!forzar && !sinCodigo && !await _hacenFaltaLosAlmacenes()) {
       Registro.info('almacenes: recientes, no se piden');
       return 0;
     }
@@ -385,6 +394,9 @@ class Bajada {
                 WarehousesCompanion.insert(
                   id: id,
                   sucursalCodigo: codigo,
+                  // El del almacén (no el de la sucursal): casa con el
+                  // `almacenSalidaCodigo` de cada pedido.
+                  codigo: Value(_texto(a['codigo'])),
                   nombre: _texto(a['nombre']) ?? '',
                   direccion: Value(_texto(a['direccion'])),
                   lat: Value(_numero(a['latitud'])),
@@ -410,6 +422,13 @@ class Bajada {
         )..where((w) => w.id.isNotIn(vistos))).go();
       }
       await _marcar(const [Colecciones.almacenes], hasta: null, completa: true);
+      await _base
+          .into(_base.frescura)
+          .insertOnConflictUpdate(
+            FrescuraCompanion.insert(
+              coleccion: RegistroDeFrescura.yaBajadosLosAlmacenesConCodigo,
+            ),
+          );
     });
     return puestos;
   }
@@ -770,6 +789,10 @@ class Bajada {
             facturaEstado: Value(_texto(j['facturaEstado'])),
             // DE DÓNDE SON LOS RENGLONES Y EL PESO. Ver `Orders.itemsOrigen`.
             itemsOrigen: Value(_texto(j['itemsOrigen'])),
+            // El almacén del que sale: pone primero los suyos en «Sin colocar» con un
+            // almacén elegido arriba (15/10/2026). Lo ata
+            // `la_bajada_no_pierde_campos_test.dart`.
+            almacenSalidaCodigo: Value(_texto(j['almacenSalidaCodigo'])),
             facturaNumero: Value(_texto(j['facturaNumero'])),
             // Cuándo anotó PEDIDO el cotejo con la factura. NADIE lo escribía y la
             // columna valía NULL en todo el aparato: sin él «Sin colocar» no puede ir

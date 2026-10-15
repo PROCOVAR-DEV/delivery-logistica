@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -102,6 +103,9 @@ type pedidoFalso struct {
 	// entonces la cotización no se exige (issue 10 de Amado, 15/10/2026). Al revés a propósito,
 	// como las dos de arriba: el valor cero es «marcado», el caso de casi todas las pruebas.
 	noMarcoDomicilio bool
+	// almacen es `almacen_salida_codigo`, el código del almacén del que sale (00012). Vacío es
+	// NULL: PEDIDO no lo mandó. Decide si va primero con un almacén elegido arriba.
+	almacen string
 }
 
 // requiere: lo que el SQL devuelve en `requiere_domicilio`.
@@ -749,6 +753,13 @@ func (q *tableroFalso) ListarPedidosSinColocar(_ context.Context, arg sqlc.Lista
 		fila := sqlc.ListarPedidosSinColocarRow{
 			ID: p.id, CustomerName: p.nombre, Weight: p.peso,
 			KmAlAlmacen: kmHaversine(arg.OrigenLat, arg.OrigenLng, p.lat, p.lng),
+			// `CASE WHEN upper(btrim(almacen_salida_codigo)) = upper(btrim(primero_codigo))
+			// THEN km ELSE 'Infinity' END`: un NULL de cualquiera de los dos lados no casa.
+			CercaniaDeOrden: math.Inf(1),
+		}
+		if p.almacen != "" && arg.PrimeroCodigo != nil &&
+			strings.ToUpper(strings.TrimSpace(p.almacen)) == strings.ToUpper(strings.TrimSpace(*arg.PrimeroCodigo)) {
+			fila.CercaniaDeOrden = fila.KmAlAlmacen
 		}
 		if p.fecha != nil {
 			fila.OrderDate = pgtype.Timestamptz{Time: *p.fecha, Valid: true}
@@ -787,8 +798,11 @@ func (q *tableroFalso) ListarPedidosSinColocar(_ context.Context, arg sqlc.Lista
 	return tanda, nil
 }
 
-// vaAntes repite `ORDER BY fecha_cronologica ASC NULLS LAST, o.id ASC`.
+// vaAntes repite `ORDER BY cercania_de_orden ASC, fecha_cronologica ASC NULLS LAST, o.id ASC`.
 func vaAntes(a, b sqlc.ListarPedidosSinColocarRow) bool {
+	if a.CercaniaDeOrden != b.CercaniaDeOrden {
+		return a.CercaniaDeOrden < b.CercaniaDeOrden // los del almacén elegido, del más cerca
+	}
 	if a.FechaCronologica.Valid != b.FechaCronologica.Valid {
 		return a.FechaCronologica.Valid // las que no tienen fecha van al final
 	}
@@ -804,6 +818,13 @@ func vaAntes(a, b sqlc.ListarPedidosSinColocarRow) bool {
 func despuesDelCursor(f sqlc.ListarPedidosSinColocarRow, arg sqlc.ListarPedidosSinColocarParams) bool {
 	if !arg.DesdeID.Valid {
 		return true // desde el principio
+	}
+	// La cercanía primero: un cursor sin ella deja la comparación en NULL y no sale nada.
+	if arg.DesdeCercania == nil {
+		return false
+	}
+	if f.CercaniaDeOrden != *arg.DesdeCercania {
+		return f.CercaniaDeOrden > *arg.DesdeCercania
 	}
 	switch {
 	case arg.DesdeFecha.Valid && f.FechaCronologica.Valid &&

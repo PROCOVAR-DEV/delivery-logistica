@@ -1596,12 +1596,17 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 			// enseña un número y no puede decir cuál de los dos es, que es justo lo que
 			// hay que saber para no cargar de más. Ver
 			// `00009_de_donde_son_los_renglones.sql`.
-			"itemsOrigen":   f.ItemsOrigen,
-			"stopOrder":     f.StopOrder,
-			"deliveredAt":   hora(f.DeliveredAt),
-			"resultado":     textoDe(f.Resultado),
-			"resultadoNota": f.ResultadoNota,
-			"items":         items,
+			"itemsOrigen": f.ItemsOrigen,
+			// EL ALMACÉN DEL QUE SALE (el código que manda PEDIDO, 00012). Con él, «Sin
+			// colocar» pone primero los del almacén elegido arriba también sin señal (Jose,
+			// 15/10/2026, `docs/orden-sin-colocar.casos.json`). Lo ata
+			// `la_bajada_no_pierde_campos_test.go` y su gemela en Dart.
+			"almacenSalidaCodigo": f.AlmacenSalidaCodigo,
+			"stopOrder":           f.StopOrder,
+			"deliveredAt":         hora(f.DeliveredAt),
+			"resultado":           textoDe(f.Resultado),
+			"resultadoNota":       f.ResultadoNota,
+			"items":               items,
 			// La marca que el aparato guarda para la próxima vez. Es `cambiado_at` y NO
 			// `updated_at`: con la del pedido a secas, un pedido al que sólo le cambió un
 			// renglón volvería a salir en cada bajada para siempre.

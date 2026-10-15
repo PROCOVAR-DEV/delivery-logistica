@@ -127,6 +127,10 @@ COPY docs/punto-de-salida.casos.json /docs/punto-de-salida.casos.json
 #  * `docs/reordenar-paradas.casos.json` — el SÉPTIMO (15/10/2026): reordenar las paradas de
 #    una ruta. Lo lee `reordenar_paradas_casos_compartidos_test.dart` y su gemelo de Go.
 COPY docs/reordenar-paradas.casos.json /docs/reordenar-paradas.casos.json
+#  * `docs/orden-sin-colocar.casos.json` — el OCTAVO (15/10/2026): el orden de «Sin colocar»
+#    con un almacén elegido arriba. Lo lee `orden_sin_colocar_con_almacen_test.dart` y sus
+#    gemelos de Go.
+COPY docs/orden-sin-colocar.casos.json /docs/orden-sin-colocar.casos.json
 
 # LAS PRUEBAS, ANTES DE CONSTRUIR. Como en `Dockerfile.api` y `Dockerfile.sync`.
 #

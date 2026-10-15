@@ -1139,7 +1139,7 @@ marcados AS (
         o.archivado, o.fecha_comprometida, o.requiere_domicilio, o.pedido_costo,
         o.municipio, o.vendedor, o.sucursal_codigo, o.factura_estado,
         o.factura_numero, o.factura_at, o.factura_domicilio, o.factura_corregido_at,
-        o.items_origen,
+        o.items_origen, o.almacen_salida_codigo,
         o.stop_order, o.delivered_at, o.resultado, o.resultado_at, o.resultado_nota,
         o.created_at, o.updated_at,
         GREATEST(
@@ -1163,7 +1163,9 @@ SELECT
     pedido_updated_at, estado, archivado, fecha_comprometida, requiere_domicilio,
     pedido_costo, municipio, vendedor, sucursal_codigo, factura_estado,
     factura_numero, factura_at, factura_domicilio, factura_corregido_at,
-    items_origen,
+    -- El almacén del que sale el pedido: con él, el aparato pone primero en «Sin colocar» los
+    -- del almacén elegido arriba sin preguntar a nadie (`docs/orden-sin-colocar.casos.json`).
+    items_origen, almacen_salida_codigo,
     stop_order, delivered_at, resultado, resultado_at, resultado_nota,
     created_at, updated_at, cambiado_at
 FROM marcados

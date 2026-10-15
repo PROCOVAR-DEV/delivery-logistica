@@ -435,20 +435,23 @@ WHERE
     -- casa. El cursor va por VALORES, no por posición: lo que ya está colocado sale de la
     -- lista sin mover a los demás de sitio.
     --
-    -- La pareja es la del ` + "`" + `ORDER BY` + "`" + ` —` + "`" + `fecha ASC NULLS LAST, id ASC` + "`" + `— y tiene que ser la
-    -- misma o el corte no es estable. Desde el 14/10/2026 son DOS trozos y no tres: los km
-    -- salieron del orden y por eso salieron también del cursor. Se lee «lo que va DESPUÉS de
-    -- esta fila»:
-    --   · una fecha más reciente, o
-    --   · sin fecha (las sin fecha van al final, y por eso una fecha nula es «después» de
-    --     cualquier fecha), o
-    --   · la misma fecha y el id más grande. Con el cursor sobre una fila SIN fecha, la
-    --     «misma fecha» es otra sin fecha: por eso se compara con ` + "`" + `IS NOT DISTINCT FROM` + "`" + `.
+    -- La terna es la del ` + "`" + `ORDER BY` + "`" + ` —` + "`" + `cercania ASC, fecha ASC NULLS LAST, id ASC` + "`" + `— y tiene
+    -- que ser la misma o el corte no es estable. Del 14/10/2026 al 15/10/2026 fue una pareja
+    -- (` + "`" + `fecha|id` + "`" + `): la cercanía volvió el 15/10/2026, y sólo para los pedidos del almacén
+    -- elegido arriba (ver arriba). Se lee «lo que va DESPUÉS de esta fila»:
+    --   · una cercanía mayor (los de otro almacén valen infinito y van detrás), o
+    --   · la misma cercanía y una fecha más reciente, o
+    --   · la misma cercanía y sin fecha (las sin fecha van al final, y por eso una fecha
+    --     nula es «después» de cualquier fecha), o
+    --   · la misma cercanía, la misma fecha y el id más grande. Con el cursor sobre una fila
+    --     SIN fecha, la «misma fecha» es otra sin fecha: por eso ` + "`" + `IS NOT DISTINCT FROM` + "`" + `.
+    -- La cercanía nunca es nula: los de arriba exigen coordenadas, y los demás valen
+    -- infinito, que en Postgres es igual a sí mismo.
     --
-    -- La fecha se escribe aquí entera, ` + "`" + `coalesce(o.factura_at, o.order_date)` + "`" + `, y no con el
-    -- nombre ` + "`" + `fecha_cronologica` + "`" + ` de arriba: un alias de la lista de columnas no se puede usar
-    -- en el ` + "`" + `WHERE` + "`" + `. Lo que ata esa copia con la del ` + "`" + `ORDER BY` + "`" + ` es una prueba
-    -- (` + "`" + `internal/store/contador_y_lista_test.go` + "`" + `) y la del motor real, que pagina de uno en
+    -- La fecha y la cercanía se escriben aquí enteras, y no con los nombres
+    -- ` + "`" + `fecha_cronologica` + "`" + ` y ` + "`" + `cercania_de_orden` + "`" + ` de arriba: un alias de la lista de columnas no
+    -- se puede usar en el ` + "`" + `WHERE` + "`" + `. Lo que ata esas copias con las del ` + "`" + `ORDER BY` + "`" + ` es una prueba
+    -- (` + "`" + `internal/store/orden_y_cursor_test.go` + "`" + `) y la del motor real, que pagina de uno en
     -- uno y compara con la lista entera.
     --
     -- OJO CON LOS PUNTOS Y COMA EN ESTOS COMENTARIOS: no puede haber NINGUNO, ni siquiera
@@ -460,37 +463,46 @@ WHERE
     -- (` + "`" + `internal/store/consultas_enteras_test.go` + "`" + `).
     --
     -- ` + "`" + `desde_id` + "`" + ` nulo es «desde el principio». La fecha SÍ puede ser nula con un id puesto
-    -- (el cursor está sobre un pedido sin fecha), pero el id es obligatorio en cualquier
-    -- cursor. Lo comprueba quien llama, y un cursor sin id es un 400 y no una lista vacía.
+    -- (el cursor está sobre un pedido sin fecha), pero el id y la cercanía son obligatorios
+    -- en cualquier cursor. Lo comprueba quien llama, y un cursor sin ellos es un 400 y no
+    -- una lista vacía.
     AND (
         $11::uuid IS NULL
+        OR (CASE WHEN upper(btrim(o.almacen_salida_codigo)) = upper(btrim($12::text)) THEN km_haversine($9, $10, o.end_lat, o.end_lng) ELSE 'Infinity'::float8 END)::float8 > $13::float8
         OR (
-            $12::timestamptz IS NOT NULL
+            (CASE WHEN upper(btrim(o.almacen_salida_codigo)) = upper(btrim($12::text)) THEN km_haversine($9, $10, o.end_lat, o.end_lng) ELSE 'Infinity'::float8 END)::float8 = $13::float8
             AND (
-                coalesce(o.factura_at, o.order_date) > $12::timestamptz
-                OR coalesce(o.factura_at, o.order_date) IS NULL
+                (
+                    $14::timestamptz IS NOT NULL
+                    AND (
+                        coalesce(o.factura_at, o.order_date) > $14::timestamptz
+                        OR coalesce(o.factura_at, o.order_date) IS NULL
+                    )
+                )
+                OR (
+                    coalesce(o.factura_at, o.order_date) IS NOT DISTINCT FROM $14::timestamptz
+                    AND o.id > $11::uuid
+                )
             )
-        )
-        OR (
-            coalesce(o.factura_at, o.order_date) IS NOT DISTINCT FROM $12::timestamptz
-            AND o.id > $11::uuid
         )
     )
 `
 
 type ContarPedidosSinColocarParams struct {
-	BranchID   uuid.UUID          `json:"branch_id"`
-	Sucursal   pgtype.UUID        `json:"sucursal"`
-	Q          *string            `json:"q"`
-	Municipio  *string            `json:"municipio"`
-	Vendedor   *string            `json:"vendedor"`
-	DiaDesde   pgtype.Timestamptz `json:"dia_desde"`
-	DiaHasta   pgtype.Timestamptz `json:"dia_hasta"`
-	KmMax      *float64           `json:"km_max"`
-	OrigenLat  float64            `json:"origen_lat"`
-	OrigenLng  float64            `json:"origen_lng"`
-	DesdeID    pgtype.UUID        `json:"desde_id"`
-	DesdeFecha pgtype.Timestamptz `json:"desde_fecha"`
+	BranchID      uuid.UUID          `json:"branch_id"`
+	Sucursal      pgtype.UUID        `json:"sucursal"`
+	Q             *string            `json:"q"`
+	Municipio     *string            `json:"municipio"`
+	Vendedor      *string            `json:"vendedor"`
+	DiaDesde      pgtype.Timestamptz `json:"dia_desde"`
+	DiaHasta      pgtype.Timestamptz `json:"dia_hasta"`
+	KmMax         *float64           `json:"km_max"`
+	OrigenLat     float64            `json:"origen_lat"`
+	OrigenLng     float64            `json:"origen_lng"`
+	DesdeID       pgtype.UUID        `json:"desde_id"`
+	PrimeroCodigo *string            `json:"primero_codigo"`
+	DesdeCercania *float64           `json:"desde_cercania"`
+	DesdeFecha    pgtype.Timestamptz `json:"desde_fecha"`
 }
 
 // El contador de la mitad izquierda: el MISMO `WHERE`, sin tope ni orden. Tiene que ser el
@@ -529,6 +541,8 @@ func (q *Queries) ContarPedidosSinColocar(ctx context.Context, arg ContarPedidos
 		arg.OrigenLat,
 		arg.OrigenLng,
 		arg.DesdeID,
+		arg.PrimeroCodigo,
+		arg.DesdeCercania,
 		arg.DesdeFecha,
 	)
 	var count int64
@@ -918,7 +932,10 @@ SELECT
     -- de la tanda siguiente se arme con el MISMO valor que ordenó la lista y no con otro
     -- que alguien recalcule en Go: dos cuentas de la misma fecha acaban distintas.
     coalesce(o.factura_at, o.order_date)::timestamptz AS fecha_cronologica,
-    km_haversine($1, $2, o.end_lat, o.end_lng) AS km_al_almacen
+    km_haversine($1, $2, o.end_lat, o.end_lng) AS km_al_almacen,
+    -- La primera clave del orden y del cursor (ver arriba). Se devuelve por lo mismo que la
+    -- fecha: el cursor se arma con el valor que ordenó, no con uno recalculado en Go.
+    (CASE WHEN upper(btrim(o.almacen_salida_codigo)) = upper(btrim($3::text)) THEN km_haversine($1, $2, o.end_lat, o.end_lng) ELSE 'Infinity'::float8 END)::float8 AS cercania_de_orden
 FROM orders o
 WHERE
     o.source = 'pedido'
@@ -969,42 +986,42 @@ WHERE
     -- el parámetro como anulable en Go. Uno vacío dejaría la comparación en NULL y la lista
     -- saldría vacía con 200 y sin una traza — el mismo agujero que filtrar por una sucursal
     -- que ya no existe.
-    AND o.branch_id = $3::uuid
-    AND ($4::uuid IS NULL OR o.branch_id = $4::uuid)
+    AND o.branch_id = $4::uuid
+    AND ($5::uuid IS NULL OR o.branch_id = $5::uuid)
     -- Una sola caja de búsqueda, la misma de la lista de pedidos: quien la usa no se para
     -- a pensar en qué campo está lo que recuerda. El EXISTS es la pregunta del despacho:
     -- «¿qué pedidos llevan malta?».
     AND (
-        $5::text IS NULL
-        OR o.customer_name    ILIKE '%' || $5::text || '%'
-        OR o.operation_number ILIKE '%' || $5::text || '%'
-        OR o.factura_numero   ILIKE '%' || $5::text || '%'
-        OR o.end_address      ILIKE '%' || $5::text || '%'
-        OR o.address          ILIKE '%' || $5::text || '%'
-        OR o.municipio        ILIKE '%' || $5::text || '%'
-        OR o.vendedor         ILIKE '%' || $5::text || '%'
+        $6::text IS NULL
+        OR o.customer_name    ILIKE '%' || $6::text || '%'
+        OR o.operation_number ILIKE '%' || $6::text || '%'
+        OR o.factura_numero   ILIKE '%' || $6::text || '%'
+        OR o.end_address      ILIKE '%' || $6::text || '%'
+        OR o.address          ILIKE '%' || $6::text || '%'
+        OR o.municipio        ILIKE '%' || $6::text || '%'
+        OR o.vendedor         ILIKE '%' || $6::text || '%'
         OR EXISTS (
             SELECT 1 FROM order_items oi
             WHERE oi.order_id = o.id
-              AND oi.description ILIKE '%' || $5::text || '%'
+              AND oi.description ILIKE '%' || $6::text || '%'
         )
     )
-    AND ($6::text IS NULL OR o.municipio = $6::text)
-    AND ($7::text  IS NULL OR o.vendedor  = $7::text)
+    AND ($7::text IS NULL OR o.municipio = $7::text)
+    AND ($8::text  IS NULL OR o.vendedor  = $8::text)
     -- La fecha DEL PEDIDO (y ` + "`" + `created_at` + "`" + ` si no la tiene), medio abierta por arriba. Se
     -- ofrece porque un tablero con el histórico entero no se puede preparar: son 1.700
     -- tarjetas. Desde el 15/10/2026 es un RANGO (issue 13 de Amado) y cada extremo va por
     -- su lado: «desde el 3» sin «hasta» es un filtro de verdad. ` + "`" + `dia_hasta` + "`" + ` llega ya como
     -- el día SIGUIENTE al último pedido, así que ese último entra entero (` + "`" + `rangoDelPedido` + "`" + `).
     AND (
-        $8::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL AND o.order_date >= $8::timestamptz)
-        OR (o.order_date IS NULL AND o.created_at >= $8::timestamptz)
+        $9::timestamptz IS NULL
+        OR (o.order_date IS NOT NULL AND o.order_date >= $9::timestamptz)
+        OR (o.order_date IS NULL AND o.created_at >= $9::timestamptz)
     )
     AND (
-        $9::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL AND o.order_date < $9::timestamptz)
-        OR (o.order_date IS NULL AND o.created_at < $9::timestamptz)
+        $10::timestamptz IS NULL
+        OR (o.order_date IS NOT NULL AND o.order_date < $10::timestamptz)
+        OR (o.order_date IS NULL AND o.created_at < $10::timestamptz)
     )
     -- El corte por distancia SÍ va aquí, al revés que en ` + "`" + `/api/orders/available` + "`" + `, donde se
     -- aplica después de la consulta para no descuadrar ` + "`" + `total` + "`" + ` y ` + "`" + `truncated` + "`" + `. Aquí el
@@ -1012,9 +1029,9 @@ WHERE
     -- descuadra nada y evita traerse los 40 km de más por la conexión de allá.
     -- Un pedido sin distancia no existe: los filtros de arriba ya exigen coordenadas.
     AND (
-        $10::double precision IS NULL
+        $11::double precision IS NULL
         OR km_haversine($1, $2, o.end_lat, o.end_lng)
-           <= $10::double precision
+           <= $11::double precision
     )
     -- LA TANDA SIGUIENTE. El cursor por la MISMA PAREJA del ` + "`" + `ORDER BY` + "`" + `.
     --
@@ -1033,20 +1050,23 @@ WHERE
     -- casa. El cursor va por VALORES, no por posición: lo que ya está colocado sale de la
     -- lista sin mover a los demás de sitio.
     --
-    -- La pareja es la del ` + "`" + `ORDER BY` + "`" + ` —` + "`" + `fecha ASC NULLS LAST, id ASC` + "`" + `— y tiene que ser la
-    -- misma o el corte no es estable. Desde el 14/10/2026 son DOS trozos y no tres: los km
-    -- salieron del orden y por eso salieron también del cursor. Se lee «lo que va DESPUÉS de
-    -- esta fila»:
-    --   · una fecha más reciente, o
-    --   · sin fecha (las sin fecha van al final, y por eso una fecha nula es «después» de
-    --     cualquier fecha), o
-    --   · la misma fecha y el id más grande. Con el cursor sobre una fila SIN fecha, la
-    --     «misma fecha» es otra sin fecha: por eso se compara con ` + "`" + `IS NOT DISTINCT FROM` + "`" + `.
+    -- La terna es la del ` + "`" + `ORDER BY` + "`" + ` —` + "`" + `cercania ASC, fecha ASC NULLS LAST, id ASC` + "`" + `— y tiene
+    -- que ser la misma o el corte no es estable. Del 14/10/2026 al 15/10/2026 fue una pareja
+    -- (` + "`" + `fecha|id` + "`" + `): la cercanía volvió el 15/10/2026, y sólo para los pedidos del almacén
+    -- elegido arriba (ver arriba). Se lee «lo que va DESPUÉS de esta fila»:
+    --   · una cercanía mayor (los de otro almacén valen infinito y van detrás), o
+    --   · la misma cercanía y una fecha más reciente, o
+    --   · la misma cercanía y sin fecha (las sin fecha van al final, y por eso una fecha
+    --     nula es «después» de cualquier fecha), o
+    --   · la misma cercanía, la misma fecha y el id más grande. Con el cursor sobre una fila
+    --     SIN fecha, la «misma fecha» es otra sin fecha: por eso ` + "`" + `IS NOT DISTINCT FROM` + "`" + `.
+    -- La cercanía nunca es nula: los de arriba exigen coordenadas, y los demás valen
+    -- infinito, que en Postgres es igual a sí mismo.
     --
-    -- La fecha se escribe aquí entera, ` + "`" + `coalesce(o.factura_at, o.order_date)` + "`" + `, y no con el
-    -- nombre ` + "`" + `fecha_cronologica` + "`" + ` de arriba: un alias de la lista de columnas no se puede usar
-    -- en el ` + "`" + `WHERE` + "`" + `. Lo que ata esa copia con la del ` + "`" + `ORDER BY` + "`" + ` es una prueba
-    -- (` + "`" + `internal/store/contador_y_lista_test.go` + "`" + `) y la del motor real, que pagina de uno en
+    -- La fecha y la cercanía se escriben aquí enteras, y no con los nombres
+    -- ` + "`" + `fecha_cronologica` + "`" + ` y ` + "`" + `cercania_de_orden` + "`" + ` de arriba: un alias de la lista de columnas no
+    -- se puede usar en el ` + "`" + `WHERE` + "`" + `. Lo que ata esas copias con las del ` + "`" + `ORDER BY` + "`" + ` es una prueba
+    -- (` + "`" + `internal/store/orden_y_cursor_test.go` + "`" + `) y la del motor real, que pagina de uno en
     -- uno y compara con la lista entera.
     --
     -- OJO CON LOS PUNTOS Y COMA EN ESTOS COMENTARIOS: no puede haber NINGUNO, ni siquiera
@@ -1058,40 +1078,49 @@ WHERE
     -- (` + "`" + `internal/store/consultas_enteras_test.go` + "`" + `).
     --
     -- ` + "`" + `desde_id` + "`" + ` nulo es «desde el principio». La fecha SÍ puede ser nula con un id puesto
-    -- (el cursor está sobre un pedido sin fecha), pero el id es obligatorio en cualquier
-    -- cursor. Lo comprueba quien llama, y un cursor sin id es un 400 y no una lista vacía.
+    -- (el cursor está sobre un pedido sin fecha), pero el id y la cercanía son obligatorios
+    -- en cualquier cursor. Lo comprueba quien llama, y un cursor sin ellos es un 400 y no
+    -- una lista vacía.
     AND (
-        $11::uuid IS NULL
+        $12::uuid IS NULL
+        OR (CASE WHEN upper(btrim(o.almacen_salida_codigo)) = upper(btrim($3::text)) THEN km_haversine($1, $2, o.end_lat, o.end_lng) ELSE 'Infinity'::float8 END)::float8 > $13::float8
         OR (
-            $12::timestamptz IS NOT NULL
+            (CASE WHEN upper(btrim(o.almacen_salida_codigo)) = upper(btrim($3::text)) THEN km_haversine($1, $2, o.end_lat, o.end_lng) ELSE 'Infinity'::float8 END)::float8 = $13::float8
             AND (
-                coalesce(o.factura_at, o.order_date) > $12::timestamptz
-                OR coalesce(o.factura_at, o.order_date) IS NULL
+                (
+                    $14::timestamptz IS NOT NULL
+                    AND (
+                        coalesce(o.factura_at, o.order_date) > $14::timestamptz
+                        OR coalesce(o.factura_at, o.order_date) IS NULL
+                    )
+                )
+                OR (
+                    coalesce(o.factura_at, o.order_date) IS NOT DISTINCT FROM $14::timestamptz
+                    AND o.id > $12::uuid
+                )
             )
         )
-        OR (
-            coalesce(o.factura_at, o.order_date) IS NOT DISTINCT FROM $12::timestamptz
-            AND o.id > $11::uuid
-        )
     )
-ORDER BY fecha_cronologica ASC NULLS LAST, o.id ASC
-LIMIT $13
+ORDER BY cercania_de_orden ASC, fecha_cronologica ASC NULLS LAST, o.id ASC
+LIMIT $15
 `
 
 type ListarPedidosSinColocarParams struct {
-	OrigenLat  float64            `json:"origen_lat"`
-	OrigenLng  float64            `json:"origen_lng"`
-	BranchID   uuid.UUID          `json:"branch_id"`
-	Sucursal   pgtype.UUID        `json:"sucursal"`
-	Q          *string            `json:"q"`
-	Municipio  *string            `json:"municipio"`
-	Vendedor   *string            `json:"vendedor"`
-	DiaDesde   pgtype.Timestamptz `json:"dia_desde"`
-	DiaHasta   pgtype.Timestamptz `json:"dia_hasta"`
-	KmMax      *float64           `json:"km_max"`
-	DesdeID    pgtype.UUID        `json:"desde_id"`
-	DesdeFecha pgtype.Timestamptz `json:"desde_fecha"`
-	Limite     int32              `json:"limite"`
+	OrigenLat     float64            `json:"origen_lat"`
+	OrigenLng     float64            `json:"origen_lng"`
+	PrimeroCodigo *string            `json:"primero_codigo"`
+	BranchID      uuid.UUID          `json:"branch_id"`
+	Sucursal      pgtype.UUID        `json:"sucursal"`
+	Q             *string            `json:"q"`
+	Municipio     *string            `json:"municipio"`
+	Vendedor      *string            `json:"vendedor"`
+	DiaDesde      pgtype.Timestamptz `json:"dia_desde"`
+	DiaHasta      pgtype.Timestamptz `json:"dia_hasta"`
+	KmMax         *float64           `json:"km_max"`
+	DesdeID       pgtype.UUID        `json:"desde_id"`
+	DesdeCercania *float64           `json:"desde_cercania"`
+	DesdeFecha    pgtype.Timestamptz `json:"desde_fecha"`
+	Limite        int32              `json:"limite"`
 }
 
 type ListarPedidosSinColocarRow struct {
@@ -1119,6 +1148,7 @@ type ListarPedidosSinColocarRow struct {
 	BranchID          pgtype.UUID        `json:"branch_id"`
 	FechaCronologica  pgtype.Timestamptz `json:"fecha_cronologica"`
 	KmAlAlmacen       float64            `json:"km_al_almacen"`
+	CercaniaDeOrden   float64            `json:"cercania_de_orden"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1137,9 +1167,9 @@ type ListarPedidosSinColocarRow struct {
 // QUÉ SE PIERDE, y conviene saberlo: ya no hay un «lo más cerca arriba», y los pedidos de un
 // mismo cliente o edificio ya no caen seguidos. Los kilómetros siguen en cada tarjeta y en el
 // filtro `km_max`, pero para ver de un golpe lo cercano ya no basta con mirar la cabeza de la
-// lista. Si Amado y Jose quieren las dos cosas, lo que falta es un selector de orden en la
-// pantalla: el cambio sería de esta consulta, de su cursor y del orden local de la aplicación,
-// los tres juntos.
+// lista. Las dos cosas a la vez llegaron el 15/10/2026 por la cabecera: elegir arriba otro
+// almacén pone primero los suyos por cercanía (ver más abajo), y cambió esta consulta, su
+// cursor y el orden local de la aplicación, los tres juntos.
 //
 // LA FECHA ES `coalesce(factura_at, order_date)`. `factura_at` es cuándo PEDIDO anotó el
 // cotejo contra la factura (lo escribe `new Date()` en su sondeo, así que ronda la hora en
@@ -1150,12 +1180,23 @@ type ListarPedidosSinColocarRow struct {
 //
 // EL DESEMPATE ES EL ID, y no es adorno. Dos facturas anotadas en el mismo instante dan la
 // misma fecha, y sin un segundo criterio el orden cambia entre dos llamadas y las tarjetas
-// bailan solas delante de quien las está arrastrando. Antes eran los km y luego la fecha:
-// ahora el segundo criterio es el id y la distancia ya no entra.
+// bailan solas delante de quien las está arrastrando. Y lo mismo dentro de los del almacén
+// elegido: a igual distancia (el mismo edificio) manda la fecha y luego el id.
 //
 // El origen de la distancia (`origen_lat`, `origen_lng`) sigue llegando por parámetro: el
-// almacén vive en Accesos, no en esta base, y no se copia aquí a propósito. Ya no ordena, pero
-// se calcula para enseñar los kilómetros de cada tarjeta y para el filtro `km_max`.
+// almacén vive en Accesos, no en esta base, y no se copia aquí a propósito. Se calcula para
+// enseñar los kilómetros de cada tarjeta y para el filtro `km_max`.
+//
+// Y CON UN ALMACÉN ELEGIDO ARRIBA, LOS SUYOS PRIMERO (Jose, 15/10/2026). Si en la cabecera del
+// tablero se elige un almacén que no es el de por defecto, `primero_codigo` trae su código y
+// van PRIMERO los pedidos que salen de él (`almacen_salida_codigo`, el que manda PEDIDO, y en
+// un mezclado el del almacén que pone más renglones), del más cercano al más lejano a él, y
+// DESPUÉS los demás en el orden de siempre. Es UNA sola clave, `cercania_de_orden`: la
+// distancia para los suyos e infinito para los demás, que así van detrás todos empatados y
+// entre ellos los ordena la fecha. Sin almacén elegido (`primero_codigo` nulo) la comparación
+// da NULL, todos valen infinito y el orden es exactamente el de antes. El código se compara
+// sin espacios y en mayúsculas, igual que `cotizar.ElegirOrigenDelPedido`. Los casos, y la
+// misma regla en el aparato, en `docs/orden-sin-colocar.casos.json`.
 //
 // Las condiciones de «repartible» son LAS MISMAS de `ListarPedidosDisponibles`, ni una más
 // ni una menos: sin ruta, sin entregar, con coordenadas, facturado (`igual` o `cambiado`),
@@ -1175,6 +1216,7 @@ func (q *Queries) ListarPedidosSinColocar(ctx context.Context, arg ListarPedidos
 	rows, err := q.db.Query(ctx, listarPedidosSinColocar,
 		arg.OrigenLat,
 		arg.OrigenLng,
+		arg.PrimeroCodigo,
 		arg.BranchID,
 		arg.Sucursal,
 		arg.Q,
@@ -1184,6 +1226,7 @@ func (q *Queries) ListarPedidosSinColocar(ctx context.Context, arg ListarPedidos
 		arg.DiaHasta,
 		arg.KmMax,
 		arg.DesdeID,
+		arg.DesdeCercania,
 		arg.DesdeFecha,
 		arg.Limite,
 	)
@@ -1219,6 +1262,7 @@ func (q *Queries) ListarPedidosSinColocar(ctx context.Context, arg ListarPedidos
 			&i.BranchID,
 			&i.FechaCronologica,
 			&i.KmAlAlmacen,
+			&i.CercaniaDeOrden,
 		); err != nil {
 			return nil, err
 		}

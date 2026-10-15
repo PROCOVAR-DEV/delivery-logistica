@@ -157,6 +157,15 @@ class ConsultasTablero {
   /// preferido invalido significa que el dato cambio DESPUES de elegirlo. No se
   /// calla: se deja dicho en el registro, porque de otro modo los kilometros
   /// cambian solos y nadie sabe por que.
+  ///
+  /// ## Y SI NO ES EL DE POR DEFECTO, SUS PEDIDOS VAN PRIMERO — 15/10/2026
+  ///
+  /// Jose: elegido arriba otro almacén, «Sin colocar» enseña primero los pedidos
+  /// que salen de él, del más cercano al más lejano, y luego los demás por fecha.
+  /// Lo marca [AlmacenOrigen.primeroLosDe] con su código. Volver a elegir el de por
+  /// defecto es volver al orden de siempre (la cabecera no tiene «ninguno»), y un
+  /// almacén sin código no tiene pedidos suyos. La misma regla que el servidor
+  /// (`almacenDeLaCabecera`), atada por `docs/orden-sin-colocar.casos.json`.
   Future<AlmacenOrigen> almacenDe(
     String sucursalId, {
     String? preferido,
@@ -185,6 +194,10 @@ class ConsultasTablero {
           nombre: sirve.nombre,
           lat: sirve.lat!,
           lng: sirve.lng!,
+          // Un código vacío no casa con nada: lo descarta `_codigoDeAlmacen`.
+          primeroLosDe: AlmacenDeReferencia.elegir(filas)?.id == sirve.id
+              ? null
+              : sirve.codigo,
         );
       }
       Registro.aviso(
@@ -539,9 +552,11 @@ WHERE c.branch_id = ?1''',
   /// porque cuesta poco; lo que esta lejos espera al dia en que haya suficiente
   /// para ese lado—. **Lo que se pierde:** ya no hay un «lo mas cerca arriba».
   /// Los kilometros siguen en cada tarjeta y en el filtro `kmMax`, pero ver lo
-  /// cercano de un golpe ya no es mirar la cabeza de la lista. Si hacen falta
-  /// las dos cosas, lo que falta es un selector de orden: este metodo, el SQL del
-  /// servidor y su cursor cambian juntos.
+  /// cercano de un golpe ya no es mirar la cabeza de la lista. Las dos cosas a la
+  /// vez llegaron el 15/10/2026 por la cabecera: con otro almacén elegido arriba
+  /// ([AlmacenOrigen.primeroLosDe]) van primero sus pedidos, del más cercano al
+  /// más lejano, y después los demás por fecha. Cambiaron juntos este método, el
+  /// SQL del servidor y su cursor.
   ///
   /// **El orden se hace aqui, en el aparato**, y no en la consulta, porque la
   /// pantalla tiene que dar el mismo orden sin conexion: es la hora a la que se
@@ -661,7 +676,25 @@ WHERE c.branch_id = ?1''',
     final filas = await consulta.get();
     // El orden, sobre las filas y antes de armar las tarjetas: el filtro por
     // kilometros de mas abajo quita elementos pero no reordena.
-    filas.sort(_porFechaDeFactura);
+    //
+    // PRIMERO LOS DEL ALMACÉN ELEGIDO ARRIBA, si lo hay (15/10/2026): su cercanía
+    // es la distancia a él, la de la tarjeta, y la de los demás es infinito, así
+    // que van detrás todos empatados y entre ellos manda la fecha. Es la misma
+    // clave que el servidor (`cercania_de_orden`), con los mismos casos
+    // (`docs/orden-sin-colocar.casos.json`).
+    final primero = _codigoDeAlmacen(origen.primeroLosDe);
+    final cercania = <String, double>{
+      for (final p in filas)
+        p.id:
+            primero != null &&
+                _codigoDeAlmacen(p.almacenSalidaCodigo) == primero
+            ? _km(origen, p.endLat, p.endLng)
+            : double.infinity,
+    };
+    filas.sort((a, b) {
+      final porCercania = cercania[a.id]!.compareTo(cercania[b.id]!);
+      return porCercania != 0 ? porCercania : _porFechaDeFactura(a, b);
+    });
 
     final repes = <String, int>{};
     for (final p in filas) {
@@ -770,6 +803,14 @@ WHERE c.branch_id = ?1''',
       return -1;
     }
     return a.id.compareTo(b.id);
+  }
+
+  /// El código de un almacén tal como se compara: sin espacios y en mayúsculas,
+  /// igual que `upper(btrim(…))` en el servidor. Vacío es `null`: un almacén sin
+  /// código no casa con un pedido sin almacén.
+  static String? _codigoDeAlmacen(String? codigo) {
+    final c = codigo?.trim().toUpperCase();
+    return (c == null || c.isEmpty) ? null : c;
   }
 
   /// Sin coordenadas no hay distancia. `infinity` y no `0`: un pedido sin

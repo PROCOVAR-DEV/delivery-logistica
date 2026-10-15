@@ -56,7 +56,7 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 	facturadoEl := time.Date(2026, 10, 12, 9, 30, 0, 0, time.UTC)
 	q.sync = append(q.sync, pedidoSync{
 		id: ped1, sucursal: sucStg, nombre: "Facturado", marca: time.Now().UTC().Add(-1 * time.Hour),
-		facturaNumero: "1024237", facturaAt: &facturadoEl,
+		facturaNumero: "1024237", facturaAt: &facturadoEl, almacenCodigo: "2",
 	})
 
 	cambios := bajadaDe(t, q, tokenTab(t, sucStg.String()),
@@ -85,12 +85,18 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 	exigirClaves(t, cambios, "orders", []string{
 		"id", "operationNumber", "orderDate", "createdAt",
 		"facturaEstado", "facturaNumero", "facturaAt", "facturaDomicilio",
+		// El almacén del que sale (15/10/2026): sin él, «Sin colocar» no puede poner primero
+		// los del almacén elegido arriba en la APK y el escritorio.
+		"almacenSalidaCodigo",
 	})
 	// Y no basta con la clave: `"facturaAt": nil` también la tiene. El valor tiene que ser
 	// el del pedido, en el formato de las demás fechas.
 	pedido := cambios["cambios"].(map[string]any)["orders"].(map[string]any)["puestos"].([]any)[0].(map[string]any)
 	if pedido["facturaNumero"] != "1024237" {
 		t.Errorf("orders: facturaNumero = %v, tendría que ser 1024237", pedido["facturaNumero"])
+	}
+	if pedido["almacenSalidaCodigo"] != "2" {
+		t.Errorf("orders: almacenSalidaCodigo = %v, tendría que ser 2", pedido["almacenSalidaCodigo"])
 	}
 	llego, _ := pedido["facturaAt"].(string)
 	esperada := facturadoEl.Format(time.RFC3339Nano)

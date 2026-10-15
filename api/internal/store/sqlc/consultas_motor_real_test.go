@@ -1586,6 +1586,7 @@ func TestMotorReal_SinColocarCronologico(t *testing.T) {
 		}
 		if desde != nil {
 			arg.DesdeID = pgtype.UUID{Bytes: desde.id, Valid: true}
+			arg.DesdeCercania = &desde.cercania
 			arg.DesdeFecha = desde.fecha
 		}
 		filas, err := b.q.ListarPedidosSinColocar(b.ctx, arg)
@@ -1656,18 +1657,21 @@ func TestMotorReal_SinColocarCronologico(t *testing.T) {
 				}
 				salida = append(salida, nombres(filas)...)
 				ultima := filas[len(filas)-1]
-				// El cursor, como lo arma `mitadIzquierda`: la fecha por la que se ordenó y el id.
-				desde = &FilaDeCursor{id: ultima.ID, fecha: ultima.FechaCronologica}
+				// El cursor, como lo arma `mitadIzquierda`: la cercanía y la fecha por las que se
+				// ordenó y el id.
+				desde = &FilaDeCursor{id: ultima.ID, cercania: ultima.CercaniaDeOrden, fecha: ultima.FechaCronologica}
 			}
 			igualesTxt(t, "las tandas unidas", salida, esperado)
 		})
 	}
 }
 
-// FilaDeCursor es el cursor de «sin colocar»: la fecha por la que se ordenó y el id.
+// FilaDeCursor es el cursor de «sin colocar»: la cercanía y la fecha por las que se ordenó, y
+// el id.
 type FilaDeCursor struct {
-	id    uuid.UUID
-	fecha pgtype.Timestamptz
+	id       uuid.UUID
+	cercania float64
+	fecha    pgtype.Timestamptz
 }
 
 // ---------------------------------------------------------------------------

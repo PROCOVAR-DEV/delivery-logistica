@@ -4589,6 +4589,17 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _almacenSalidaCodigoMeta =
+      const VerificationMeta('almacenSalidaCodigo');
+  @override
+  late final GeneratedColumn<String> almacenSalidaCodigo =
+      GeneratedColumn<String>(
+        'almacen_salida_codigo',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _customerPhoneMeta = const VerificationMeta(
     'customerPhone',
   );
@@ -4717,6 +4728,7 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
     facturaDomicilio,
     facturaCorregidoAt,
     itemsOrigen,
+    almacenSalidaCodigo,
     customerPhone,
     stopOrder,
     deliveredAt,
@@ -5014,6 +5026,15 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
         ),
       );
     }
+    if (data.containsKey('almacen_salida_codigo')) {
+      context.handle(
+        _almacenSalidaCodigoMeta,
+        almacenSalidaCodigo.isAcceptableOrUnknown(
+          data['almacen_salida_codigo']!,
+          _almacenSalidaCodigoMeta,
+        ),
+      );
+    }
     if (data.containsKey('customer_phone')) {
       context.handle(
         _customerPhoneMeta,
@@ -5235,6 +5256,10 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
         DriftSqlType.string,
         data['${effectivePrefix}items_origen'],
       ),
+      almacenSalidaCodigo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}almacen_salida_codigo'],
+      ),
       customerPhone: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}customer_phone'],
@@ -5346,6 +5371,13 @@ class Pedido extends DataClass implements Insertable<Pedido> {
   /// factura a ESTE pedido se queda con las del pedido, y un `igual` también
   /// trae las de la factura. Son dos preguntas distintas.
   final String? itemsOrigen;
+
+  /// EL ALMACÉN DEL QUE SALE, el código que manda PEDIDO (`almacen_salida_codigo`,
+  /// 00012 del servidor; en un pedido mezclado, el del almacén que pone más
+  /// renglones). Con un almacén elegido arriba en el Tablero, «Sin colocar» pone
+  /// primero los suyos (Jose, 15/10/2026, `docs/orden-sin-colocar.casos.json`).
+  /// Nulo es «PEDIDO no lo mandó»: no es de ningún almacén.
+  final String? almacenSalidaCodigo;
   final String? customerPhone;
   final int? stopOrder;
   final DateTime? deliveredAt;
@@ -5393,6 +5425,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     this.facturaDomicilio,
     this.facturaCorregidoAt,
     this.itemsOrigen,
+    this.almacenSalidaCodigo,
     this.customerPhone,
     this.stopOrder,
     this.deliveredAt,
@@ -5504,6 +5537,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     }
     if (!nullToAbsent || itemsOrigen != null) {
       map['items_origen'] = Variable<String>(itemsOrigen);
+    }
+    if (!nullToAbsent || almacenSalidaCodigo != null) {
+      map['almacen_salida_codigo'] = Variable<String>(almacenSalidaCodigo);
     }
     if (!nullToAbsent || customerPhone != null) {
       map['customer_phone'] = Variable<String>(customerPhone);
@@ -5630,6 +5666,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       itemsOrigen: itemsOrigen == null && nullToAbsent
           ? const Value.absent()
           : Value(itemsOrigen),
+      almacenSalidaCodigo: almacenSalidaCodigo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(almacenSalidaCodigo),
       customerPhone: customerPhone == null && nullToAbsent
           ? const Value.absent()
           : Value(customerPhone),
@@ -5707,6 +5746,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
         json['facturaCorregidoAt'],
       ),
       itemsOrigen: serializer.fromJson<String?>(json['itemsOrigen']),
+      almacenSalidaCodigo: serializer.fromJson<String?>(
+        json['almacenSalidaCodigo'],
+      ),
       customerPhone: serializer.fromJson<String?>(json['customerPhone']),
       stopOrder: serializer.fromJson<int?>(json['stopOrder']),
       deliveredAt: serializer.fromJson<DateTime?>(json['deliveredAt']),
@@ -5759,6 +5801,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       'facturaDomicilio': serializer.toJson<double?>(facturaDomicilio),
       'facturaCorregidoAt': serializer.toJson<DateTime?>(facturaCorregidoAt),
       'itemsOrigen': serializer.toJson<String?>(itemsOrigen),
+      'almacenSalidaCodigo': serializer.toJson<String?>(almacenSalidaCodigo),
       'customerPhone': serializer.toJson<String?>(customerPhone),
       'stopOrder': serializer.toJson<int?>(stopOrder),
       'deliveredAt': serializer.toJson<DateTime?>(deliveredAt),
@@ -5809,6 +5852,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     Value<double?> facturaDomicilio = const Value.absent(),
     Value<DateTime?> facturaCorregidoAt = const Value.absent(),
     Value<String?> itemsOrigen = const Value.absent(),
+    Value<String?> almacenSalidaCodigo = const Value.absent(),
     Value<String?> customerPhone = const Value.absent(),
     Value<int?> stopOrder = const Value.absent(),
     Value<DateTime?> deliveredAt = const Value.absent(),
@@ -5878,6 +5922,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
         ? facturaCorregidoAt.value
         : this.facturaCorregidoAt,
     itemsOrigen: itemsOrigen.present ? itemsOrigen.value : this.itemsOrigen,
+    almacenSalidaCodigo: almacenSalidaCodigo.present
+        ? almacenSalidaCodigo.value
+        : this.almacenSalidaCodigo,
     customerPhone: customerPhone.present
         ? customerPhone.value
         : this.customerPhone,
@@ -5965,6 +6012,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       itemsOrigen: data.itemsOrigen.present
           ? data.itemsOrigen.value
           : this.itemsOrigen,
+      almacenSalidaCodigo: data.almacenSalidaCodigo.present
+          ? data.almacenSalidaCodigo.value
+          : this.almacenSalidaCodigo,
       customerPhone: data.customerPhone.present
           ? data.customerPhone.value
           : this.customerPhone,
@@ -6025,6 +6075,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           ..write('facturaDomicilio: $facturaDomicilio, ')
           ..write('facturaCorregidoAt: $facturaCorregidoAt, ')
           ..write('itemsOrigen: $itemsOrigen, ')
+          ..write('almacenSalidaCodigo: $almacenSalidaCodigo, ')
           ..write('customerPhone: $customerPhone, ')
           ..write('stopOrder: $stopOrder, ')
           ..write('deliveredAt: $deliveredAt, ')
@@ -6077,6 +6128,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     facturaDomicilio,
     facturaCorregidoAt,
     itemsOrigen,
+    almacenSalidaCodigo,
     customerPhone,
     stopOrder,
     deliveredAt,
@@ -6128,6 +6180,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           other.facturaDomicilio == this.facturaDomicilio &&
           other.facturaCorregidoAt == this.facturaCorregidoAt &&
           other.itemsOrigen == this.itemsOrigen &&
+          other.almacenSalidaCodigo == this.almacenSalidaCodigo &&
           other.customerPhone == this.customerPhone &&
           other.stopOrder == this.stopOrder &&
           other.deliveredAt == this.deliveredAt &&
@@ -6177,6 +6230,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
   final Value<double?> facturaDomicilio;
   final Value<DateTime?> facturaCorregidoAt;
   final Value<String?> itemsOrigen;
+  final Value<String?> almacenSalidaCodigo;
   final Value<String?> customerPhone;
   final Value<int?> stopOrder;
   final Value<DateTime?> deliveredAt;
@@ -6225,6 +6279,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     this.facturaDomicilio = const Value.absent(),
     this.facturaCorregidoAt = const Value.absent(),
     this.itemsOrigen = const Value.absent(),
+    this.almacenSalidaCodigo = const Value.absent(),
     this.customerPhone = const Value.absent(),
     this.stopOrder = const Value.absent(),
     this.deliveredAt = const Value.absent(),
@@ -6274,6 +6329,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     this.facturaDomicilio = const Value.absent(),
     this.facturaCorregidoAt = const Value.absent(),
     this.itemsOrigen = const Value.absent(),
+    this.almacenSalidaCodigo = const Value.absent(),
     this.customerPhone = const Value.absent(),
     this.stopOrder = const Value.absent(),
     this.deliveredAt = const Value.absent(),
@@ -6325,6 +6381,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     Expression<double>? facturaDomicilio,
     Expression<DateTime>? facturaCorregidoAt,
     Expression<String>? itemsOrigen,
+    Expression<String>? almacenSalidaCodigo,
     Expression<String>? customerPhone,
     Expression<int>? stopOrder,
     Expression<DateTime>? deliveredAt,
@@ -6376,6 +6433,8 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
       if (facturaCorregidoAt != null)
         'factura_corregido_at': facturaCorregidoAt,
       if (itemsOrigen != null) 'items_origen': itemsOrigen,
+      if (almacenSalidaCodigo != null)
+        'almacen_salida_codigo': almacenSalidaCodigo,
       if (customerPhone != null) 'customer_phone': customerPhone,
       if (stopOrder != null) 'stop_order': stopOrder,
       if (deliveredAt != null) 'delivered_at': deliveredAt,
@@ -6427,6 +6486,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     Value<double?>? facturaDomicilio,
     Value<DateTime?>? facturaCorregidoAt,
     Value<String?>? itemsOrigen,
+    Value<String?>? almacenSalidaCodigo,
     Value<String?>? customerPhone,
     Value<int?>? stopOrder,
     Value<DateTime?>? deliveredAt,
@@ -6476,6 +6536,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
       facturaDomicilio: facturaDomicilio ?? this.facturaDomicilio,
       facturaCorregidoAt: facturaCorregidoAt ?? this.facturaCorregidoAt,
       itemsOrigen: itemsOrigen ?? this.itemsOrigen,
+      almacenSalidaCodigo: almacenSalidaCodigo ?? this.almacenSalidaCodigo,
       customerPhone: customerPhone ?? this.customerPhone,
       stopOrder: stopOrder ?? this.stopOrder,
       deliveredAt: deliveredAt ?? this.deliveredAt,
@@ -6607,6 +6668,11 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     if (itemsOrigen.present) {
       map['items_origen'] = Variable<String>(itemsOrigen.value);
     }
+    if (almacenSalidaCodigo.present) {
+      map['almacen_salida_codigo'] = Variable<String>(
+        almacenSalidaCodigo.value,
+      );
+    }
     if (customerPhone.present) {
       map['customer_phone'] = Variable<String>(customerPhone.value);
     }
@@ -6678,6 +6744,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
           ..write('facturaDomicilio: $facturaDomicilio, ')
           ..write('facturaCorregidoAt: $facturaCorregidoAt, ')
           ..write('itemsOrigen: $itemsOrigen, ')
+          ..write('almacenSalidaCodigo: $almacenSalidaCodigo, ')
           ..write('customerPhone: $customerPhone, ')
           ..write('stopOrder: $stopOrder, ')
           ..write('deliveredAt: $deliveredAt, ')
@@ -8544,6 +8611,15 @@ class $WarehousesTable extends Warehouses
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _codigoMeta = const VerificationMeta('codigo');
+  @override
+  late final GeneratedColumn<String> codigo = GeneratedColumn<String>(
+    'codigo',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _nombreMeta = const VerificationMeta('nombre');
   @override
   late final GeneratedColumn<String> nombre = GeneratedColumn<String>(
@@ -8636,6 +8712,7 @@ class $WarehousesTable extends Warehouses
   List<GeneratedColumn> get $columns => [
     id,
     sucursalCodigo,
+    codigo,
     nombre,
     direccion,
     lat,
@@ -8672,6 +8749,12 @@ class $WarehousesTable extends Warehouses
       );
     } else if (isInserting) {
       context.missing(_sucursalCodigoMeta);
+    }
+    if (data.containsKey('codigo')) {
+      context.handle(
+        _codigoMeta,
+        codigo.isAcceptableOrUnknown(data['codigo']!, _codigoMeta),
+      );
     }
     if (data.containsKey('nombre')) {
       context.handle(
@@ -8740,6 +8823,10 @@ class $WarehousesTable extends Warehouses
         DriftSqlType.string,
         data['${effectivePrefix}sucursal_codigo'],
       )!,
+      codigo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}codigo'],
+      ),
       nombre: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}nombre'],
@@ -8784,6 +8871,12 @@ class $WarehousesTable extends Warehouses
 class Almacen extends DataClass implements Insertable<Almacen> {
   final String id;
   final String sucursalCodigo;
+
+  /// El código del almacén en Accesos (el `objectCode` de Ventra): con la
+  /// sucursal, su identidad. Es lo que casa con `orders.almacen_salida_codigo`.
+  /// Nulo = Accesos no se lo ha puesto, y entonces no se sabe qué pedidos son
+  /// suyos (nunca se empareja por nombre: `PV-STGO` está en dos sucursales).
+  final String? codigo;
   final String nombre;
   final String? direccion;
   final double? lat;
@@ -8798,6 +8891,7 @@ class Almacen extends DataClass implements Insertable<Almacen> {
   const Almacen({
     required this.id,
     required this.sucursalCodigo,
+    this.codigo,
     required this.nombre,
     this.direccion,
     this.lat,
@@ -8812,6 +8906,9 @@ class Almacen extends DataClass implements Insertable<Almacen> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['sucursal_codigo'] = Variable<String>(sucursalCodigo);
+    if (!nullToAbsent || codigo != null) {
+      map['codigo'] = Variable<String>(codigo);
+    }
     map['nombre'] = Variable<String>(nombre);
     if (!nullToAbsent || direccion != null) {
       map['direccion'] = Variable<String>(direccion);
@@ -8837,6 +8934,9 @@ class Almacen extends DataClass implements Insertable<Almacen> {
     return WarehousesCompanion(
       id: Value(id),
       sucursalCodigo: Value(sucursalCodigo),
+      codigo: codigo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(codigo),
       nombre: Value(nombre),
       direccion: direccion == null && nullToAbsent
           ? const Value.absent()
@@ -8862,6 +8962,7 @@ class Almacen extends DataClass implements Insertable<Almacen> {
     return Almacen(
       id: serializer.fromJson<String>(json['id']),
       sucursalCodigo: serializer.fromJson<String>(json['sucursalCodigo']),
+      codigo: serializer.fromJson<String?>(json['codigo']),
       nombre: serializer.fromJson<String>(json['nombre']),
       direccion: serializer.fromJson<String?>(json['direccion']),
       lat: serializer.fromJson<double?>(json['lat']),
@@ -8878,6 +8979,7 @@ class Almacen extends DataClass implements Insertable<Almacen> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'sucursalCodigo': serializer.toJson<String>(sucursalCodigo),
+      'codigo': serializer.toJson<String?>(codigo),
       'nombre': serializer.toJson<String>(nombre),
       'direccion': serializer.toJson<String?>(direccion),
       'lat': serializer.toJson<double?>(lat),
@@ -8892,6 +8994,7 @@ class Almacen extends DataClass implements Insertable<Almacen> {
   Almacen copyWith({
     String? id,
     String? sucursalCodigo,
+    Value<String?> codigo = const Value.absent(),
     String? nombre,
     Value<String?> direccion = const Value.absent(),
     Value<double?> lat = const Value.absent(),
@@ -8903,6 +9006,7 @@ class Almacen extends DataClass implements Insertable<Almacen> {
   }) => Almacen(
     id: id ?? this.id,
     sucursalCodigo: sucursalCodigo ?? this.sucursalCodigo,
+    codigo: codigo.present ? codigo.value : this.codigo,
     nombre: nombre ?? this.nombre,
     direccion: direccion.present ? direccion.value : this.direccion,
     lat: lat.present ? lat.value : this.lat,
@@ -8918,6 +9022,7 @@ class Almacen extends DataClass implements Insertable<Almacen> {
       sucursalCodigo: data.sucursalCodigo.present
           ? data.sucursalCodigo.value
           : this.sucursalCodigo,
+      codigo: data.codigo.present ? data.codigo.value : this.codigo,
       nombre: data.nombre.present ? data.nombre.value : this.nombre,
       direccion: data.direccion.present ? data.direccion.value : this.direccion,
       lat: data.lat.present ? data.lat.value : this.lat,
@@ -8934,6 +9039,7 @@ class Almacen extends DataClass implements Insertable<Almacen> {
     return (StringBuffer('Almacen(')
           ..write('id: $id, ')
           ..write('sucursalCodigo: $sucursalCodigo, ')
+          ..write('codigo: $codigo, ')
           ..write('nombre: $nombre, ')
           ..write('direccion: $direccion, ')
           ..write('lat: $lat, ')
@@ -8950,6 +9056,7 @@ class Almacen extends DataClass implements Insertable<Almacen> {
   int get hashCode => Object.hash(
     id,
     sucursalCodigo,
+    codigo,
     nombre,
     direccion,
     lat,
@@ -8965,6 +9072,7 @@ class Almacen extends DataClass implements Insertable<Almacen> {
       (other is Almacen &&
           other.id == this.id &&
           other.sucursalCodigo == this.sucursalCodigo &&
+          other.codigo == this.codigo &&
           other.nombre == this.nombre &&
           other.direccion == this.direccion &&
           other.lat == this.lat &&
@@ -8978,6 +9086,7 @@ class Almacen extends DataClass implements Insertable<Almacen> {
 class WarehousesCompanion extends UpdateCompanion<Almacen> {
   final Value<String> id;
   final Value<String> sucursalCodigo;
+  final Value<String?> codigo;
   final Value<String> nombre;
   final Value<String?> direccion;
   final Value<double?> lat;
@@ -8990,6 +9099,7 @@ class WarehousesCompanion extends UpdateCompanion<Almacen> {
   const WarehousesCompanion({
     this.id = const Value.absent(),
     this.sucursalCodigo = const Value.absent(),
+    this.codigo = const Value.absent(),
     this.nombre = const Value.absent(),
     this.direccion = const Value.absent(),
     this.lat = const Value.absent(),
@@ -9003,6 +9113,7 @@ class WarehousesCompanion extends UpdateCompanion<Almacen> {
   WarehousesCompanion.insert({
     required String id,
     required String sucursalCodigo,
+    this.codigo = const Value.absent(),
     required String nombre,
     this.direccion = const Value.absent(),
     this.lat = const Value.absent(),
@@ -9018,6 +9129,7 @@ class WarehousesCompanion extends UpdateCompanion<Almacen> {
   static Insertable<Almacen> custom({
     Expression<String>? id,
     Expression<String>? sucursalCodigo,
+    Expression<String>? codigo,
     Expression<String>? nombre,
     Expression<String>? direccion,
     Expression<double>? lat,
@@ -9031,6 +9143,7 @@ class WarehousesCompanion extends UpdateCompanion<Almacen> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (sucursalCodigo != null) 'sucursal_codigo': sucursalCodigo,
+      if (codigo != null) 'codigo': codigo,
       if (nombre != null) 'nombre': nombre,
       if (direccion != null) 'direccion': direccion,
       if (lat != null) 'lat': lat,
@@ -9046,6 +9159,7 @@ class WarehousesCompanion extends UpdateCompanion<Almacen> {
   WarehousesCompanion copyWith({
     Value<String>? id,
     Value<String>? sucursalCodigo,
+    Value<String?>? codigo,
     Value<String>? nombre,
     Value<String?>? direccion,
     Value<double?>? lat,
@@ -9059,6 +9173,7 @@ class WarehousesCompanion extends UpdateCompanion<Almacen> {
     return WarehousesCompanion(
       id: id ?? this.id,
       sucursalCodigo: sucursalCodigo ?? this.sucursalCodigo,
+      codigo: codigo ?? this.codigo,
       nombre: nombre ?? this.nombre,
       direccion: direccion ?? this.direccion,
       lat: lat ?? this.lat,
@@ -9079,6 +9194,9 @@ class WarehousesCompanion extends UpdateCompanion<Almacen> {
     }
     if (sucursalCodigo.present) {
       map['sucursal_codigo'] = Variable<String>(sucursalCodigo.value);
+    }
+    if (codigo.present) {
+      map['codigo'] = Variable<String>(codigo.value);
     }
     if (nombre.present) {
       map['nombre'] = Variable<String>(nombre.value);
@@ -9115,6 +9233,7 @@ class WarehousesCompanion extends UpdateCompanion<Almacen> {
     return (StringBuffer('WarehousesCompanion(')
           ..write('id: $id, ')
           ..write('sucursalCodigo: $sucursalCodigo, ')
+          ..write('codigo: $codigo, ')
           ..write('nombre: $nombre, ')
           ..write('direccion: $direccion, ')
           ..write('lat: $lat, ')
@@ -13361,6 +13480,7 @@ typedef $$OrdersTableCreateCompanionBuilder =
       Value<double?> facturaDomicilio,
       Value<DateTime?> facturaCorregidoAt,
       Value<String?> itemsOrigen,
+      Value<String?> almacenSalidaCodigo,
       Value<String?> customerPhone,
       Value<int?> stopOrder,
       Value<DateTime?> deliveredAt,
@@ -13411,6 +13531,7 @@ typedef $$OrdersTableUpdateCompanionBuilder =
       Value<double?> facturaDomicilio,
       Value<DateTime?> facturaCorregidoAt,
       Value<String?> itemsOrigen,
+      Value<String?> almacenSalidaCodigo,
       Value<String?> customerPhone,
       Value<int?> stopOrder,
       Value<DateTime?> deliveredAt,
@@ -13617,6 +13738,11 @@ class $$OrdersTableFilterComposer extends Composer<_$BaseLocal, $OrdersTable> {
 
   ColumnFilters<String> get itemsOrigen => $composableBuilder(
     column: $table.itemsOrigen,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get almacenSalidaCodigo => $composableBuilder(
+    column: $table.almacenSalidaCodigo,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13860,6 +13986,11 @@ class $$OrdersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get almacenSalidaCodigo => $composableBuilder(
+    column: $table.almacenSalidaCodigo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get customerPhone => $composableBuilder(
     column: $table.customerPhone,
     builder: (column) => ColumnOrderings(column),
@@ -14058,6 +14189,11 @@ class $$OrdersTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get almacenSalidaCodigo => $composableBuilder(
+    column: $table.almacenSalidaCodigo,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get customerPhone => $composableBuilder(
     column: $table.customerPhone,
     builder: (column) => column,
@@ -14157,6 +14293,7 @@ class $$OrdersTableTableManager
                 Value<double?> facturaDomicilio = const Value.absent(),
                 Value<DateTime?> facturaCorregidoAt = const Value.absent(),
                 Value<String?> itemsOrigen = const Value.absent(),
+                Value<String?> almacenSalidaCodigo = const Value.absent(),
                 Value<String?> customerPhone = const Value.absent(),
                 Value<int?> stopOrder = const Value.absent(),
                 Value<DateTime?> deliveredAt = const Value.absent(),
@@ -14205,6 +14342,7 @@ class $$OrdersTableTableManager
                 facturaDomicilio: facturaDomicilio,
                 facturaCorregidoAt: facturaCorregidoAt,
                 itemsOrigen: itemsOrigen,
+                almacenSalidaCodigo: almacenSalidaCodigo,
                 customerPhone: customerPhone,
                 stopOrder: stopOrder,
                 deliveredAt: deliveredAt,
@@ -14255,6 +14393,7 @@ class $$OrdersTableTableManager
                 Value<double?> facturaDomicilio = const Value.absent(),
                 Value<DateTime?> facturaCorregidoAt = const Value.absent(),
                 Value<String?> itemsOrigen = const Value.absent(),
+                Value<String?> almacenSalidaCodigo = const Value.absent(),
                 Value<String?> customerPhone = const Value.absent(),
                 Value<int?> stopOrder = const Value.absent(),
                 Value<DateTime?> deliveredAt = const Value.absent(),
@@ -14303,6 +14442,7 @@ class $$OrdersTableTableManager
                 facturaDomicilio: facturaDomicilio,
                 facturaCorregidoAt: facturaCorregidoAt,
                 itemsOrigen: itemsOrigen,
+                almacenSalidaCodigo: almacenSalidaCodigo,
                 customerPhone: customerPhone,
                 stopOrder: stopOrder,
                 deliveredAt: deliveredAt,
@@ -15149,6 +15289,7 @@ typedef $$WarehousesTableCreateCompanionBuilder =
     WarehousesCompanion Function({
       required String id,
       required String sucursalCodigo,
+      Value<String?> codigo,
       required String nombre,
       Value<String?> direccion,
       Value<double?> lat,
@@ -15163,6 +15304,7 @@ typedef $$WarehousesTableUpdateCompanionBuilder =
     WarehousesCompanion Function({
       Value<String> id,
       Value<String> sucursalCodigo,
+      Value<String?> codigo,
       Value<String> nombre,
       Value<String?> direccion,
       Value<double?> lat,
@@ -15190,6 +15332,11 @@ class $$WarehousesTableFilterComposer
 
   ColumnFilters<String> get sucursalCodigo => $composableBuilder(
     column: $table.sucursalCodigo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get codigo => $composableBuilder(
+    column: $table.codigo,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -15253,6 +15400,11 @@ class $$WarehousesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get codigo => $composableBuilder(
+    column: $table.codigo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get nombre => $composableBuilder(
     column: $table.nombre,
     builder: (column) => ColumnOrderings(column),
@@ -15311,6 +15463,9 @@ class $$WarehousesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get codigo =>
+      $composableBuilder(column: $table.codigo, builder: (column) => column);
+
   GeneratedColumn<String> get nombre =>
       $composableBuilder(column: $table.nombre, builder: (column) => column);
 
@@ -15366,6 +15521,7 @@ class $$WarehousesTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> sucursalCodigo = const Value.absent(),
+                Value<String?> codigo = const Value.absent(),
                 Value<String> nombre = const Value.absent(),
                 Value<String?> direccion = const Value.absent(),
                 Value<double?> lat = const Value.absent(),
@@ -15378,6 +15534,7 @@ class $$WarehousesTableTableManager
               }) => WarehousesCompanion(
                 id: id,
                 sucursalCodigo: sucursalCodigo,
+                codigo: codigo,
                 nombre: nombre,
                 direccion: direccion,
                 lat: lat,
@@ -15392,6 +15549,7 @@ class $$WarehousesTableTableManager
               ({
                 required String id,
                 required String sucursalCodigo,
+                Value<String?> codigo = const Value.absent(),
                 required String nombre,
                 Value<String?> direccion = const Value.absent(),
                 Value<double?> lat = const Value.absent(),
@@ -15404,6 +15562,7 @@ class $$WarehousesTableTableManager
               }) => WarehousesCompanion.insert(
                 id: id,
                 sucursalCodigo: sucursalCodigo,
+                codigo: codigo,
                 nombre: nombre,
                 direccion: direccion,
                 lat: lat,

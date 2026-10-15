@@ -517,8 +517,12 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   camión sigue en el detalle. Trampa: la columna Factura se esconde bajo 1024 px (desde el 14/10/2026 el
   número baja bajo el folio entre 768 y 1023 px y sube a la cabecera de la tarjeta del teléfono: issue 8 de
   Amado). **«Sin colocar» va del más viejo al más reciente por la fecha de la factura**
-  (`coalesce(factura_at, order_date)`, issue 6; antes por cercanía al almacén, decisión que Amado cambió) y el
-  cursor del servidor es la pareja `fecha|id` de ese `ORDER BY` (`internal/store/orden_y_cursor_test.go`). «Factura»
+  (`coalesce(factura_at, order_date)`, issue 6; antes por cercanía al almacén, decisión que Amado cambió), y **con
+  otro almacén elegido arriba (no el de por defecto) van PRIMERO los de ese almacén del más cercano al más lejano y
+  después los demás por fecha** (Jose, 15/10/2026: `orders.almacen_salida_codigo` = `codigo` del almacén en Accesos;
+  volver al de por defecto devuelve el orden de siempre). El cursor del servidor es la terna `cercania|fecha|id` de ese
+  `ORDER BY` (`internal/store/orden_y_cursor_test.go`), y los dos lados los ata `docs/orden-sin-colocar.casos.json`
+  (Go, Postgres y Dart). La APK necesita `orders.almacen_salida_codigo` y `warehouses.codigo` (esquema 10). «Factura»
   es `factura_numero` (el de Ventra), no `operation_number` (el folio, el «conduce»): `numeroDeFactura`.
 - **Cajón siempre**, también en escritorio (excepción aprobada para este
   proyecto el 05/09/2026). Sin emojis en la interfaz.

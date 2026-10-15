@@ -65,11 +65,12 @@ class LineaPreDespacho {
 
 /// UNA FACTURA DEL PRE-DESPACHO: lo que lleva un pedido, producto a producto.
 ///
-/// Es el insumo de la tabla «Por factura» (Amado, issue 8): el almacén rebaja
-/// las tarjetas de estiba **por cantidades Y facturas** —«se sacaron 20 blister,
-/// 10 de una factura y 10 de otra: en la tarjeta no se pone 20, se ponen 10 y
-/// 10 poniendo la factura que provocó la salida»—, así que el total por
-/// producto no le sirve para esa tarea y hace falta el reparto.
+/// Es el insumo de la tabla «Por producto y factura» (Amado, issue 8,
+/// `por_producto_y_factura.dart`): el almacén rebaja las tarjetas de estiba
+/// **por cantidades Y facturas** —«se sacaron 20 blister, 10 de una factura y 10
+/// de otra: en la tarjeta no se pone 20, se ponen 10 y 10 poniendo la factura que
+/// provocó la salida»—, así que el total por producto no le sirve para esa tarea
+/// y hace falta el reparto.
 ///
 /// [lineas] son LAS MISMAS [LineaPreDespacho] de la hoja, calculadas con la misma
 /// regla (empaques, unidades y los tres escalones del peso) pero sobre UN solo
@@ -77,20 +78,12 @@ class LineaPreDespacho {
 /// Quien las arma es `pantallas/rutas/datos/pre_despacho_de_la_ruta.dart`; aquí
 /// sólo se guardan.
 class FacturaDelPreDespacho {
-  const FacturaDelPreDespacho({
-    required this.numero,
-    required this.cliente,
-    required this.lineas,
-  });
+  const FacturaDelPreDespacho({required this.numero, required this.lineas});
 
   /// El número de la factura (el `factura_numero` de Ventra), o `null` si el pedido
   /// no trae ninguno. Lo decide `NumeroDeFactura.de` (`nucleo/numero_de_factura.dart`):
   /// sin factura NO se cae al folio. Con varias, `1024237, 1024240` en una sola.
   final String? numero;
-
-  /// A quién se le entrega. Sale en la tarjeta del teléfono y es lo que
-  /// distingue dos facturas sin número.
-  final String cliente;
 
   final List<LineaPreDespacho> lineas;
 
@@ -132,7 +125,7 @@ class HojaPreDespacho {
   final List<LineaPreDespacho> lineas;
 
   /// El reparto de [lineas] por factura. **Vacío = la hoja no lleva la tabla
-  /// «Por factura»**: es lo que pasa en las hojas que se arman sin saber de qué
+  /// «Por producto y factura»**: es lo que pasa en las hojas que se arman sin saber de qué
   /// factura sale cada cosa (la de Pedidos, que suma lo filtrado). Dentro de una
   /// ruta sí se sabe, y entonces la hoja la trae. Ya vienen en el orden en que
   /// se imprimen; la hoja no las reordena.
@@ -282,10 +275,10 @@ class TotalesPreDespacho {
       TotalesPreDespacho.deLineas(h.lineas, pesoDeLosPedidos: h.pesoKg);
 
   /// LA SUMA DE UNAS LÍNEAS, sea cual sea el papel donde van. La hoja entera la
-  /// usa para su pie, y la tabla «Por factura» para el subtotal de cada factura y
-  /// para su total: **una sola suma, con una sola regla del `≥` y del cero**. Si
-  /// los subtotales se sumaran con otro código, el total de «Por factura» y el de
-  /// la tabla de arriba podrían decir dos cosas el día que se toque uno solo.
+  /// usa para su pie, y la tabla «Por producto y factura» para el subtotal de cada
+  /// producto: **una sola suma, con una sola regla del `≥` y del cero**. Si los
+  /// subtotales se sumaran con otro código, el subtotal de un producto y su fila
+  /// de la tabla de arriba podrían decir dos cosas el día que se toque uno solo.
   factory TotalesPreDespacho.deLineas(
     List<LineaPreDespacho> lineas, {
     num pesoDeLosPedidos = 0,

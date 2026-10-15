@@ -4702,20 +4702,25 @@ al elegir los pedidos en el asistente: la tabla producto a producto (empaques,
 unidades y kilos), los dos pesos con su rótulo, y el botón **«Ver e imprimir»**,
 que abre la hoja con la que se baja al almacén.
 
-Debajo, la tabla **«Por factura»**: **una fila por cada factura y producto**, con
-el **número de factura** (el número de operación, el «conduce»), el producto, los
-**blister**, las unidades y el peso, y **el subtotal de cada factura** más el total
-al final. Es la que sirve para rebajar las tarjetas de estiba por cantidad y
-factura: si salieron 20 blister de malta, 10 de una factura y 10 de otra, aquí lo
-ves como «10» y «10» con la factura de cada una, y no como «20». Las facturas van
-por orden de número. La hoja impresa lleva la misma tabla.
+Debajo, la tabla **«Por producto y factura»**, igual que la hoja que se lleva al
+almacén para las tarjetas de estiba: **un bloque por producto** y, dentro, **una
+fila por cada factura que lo lleva**, con el **número de factura** (el de Ventra),
+el producto, la **cantidad** (en empaques: los blister, que es como se carga) y los
+**kilos**; al final de cada bloque, **el subtotal del producto**. Si salieron 20
+blister de cerveza, 10 de una factura y 10 de otra, aquí lo ves como «10» y «10»
+con la factura de cada una, y el «20» en el subtotal. Los productos van en el mismo
+orden que la tabla de arriba (los que más se cargan primero) y, dentro de cada uno,
+las facturas por número. La hoja impresa lleva la misma tabla.
 
 Dos cosas que conviene saber:
 
-- Una cifra con **«≥»** delante es un mínimo: a algún renglón le falta el dato
-  (casi siempre el peso) y lo que ves es lo que sí se sabe.
-- Si una factura no trae número sale como **«Sin número»**, y si no trae ni un
-  renglón, como **«Sin renglones»**: no desaparece de la tabla.
+- Un peso que no se sabe sale **«—»**, y un subtotal con **«≥»** delante es un
+  mínimo: a alguna factura le falta el peso y lo que ves es lo que sí se sabe.
+- Si un pedido no trae número de factura sale como **«Sin número»** al final de su
+  producto (nunca con el número del pedido), y si una factura no trae ni un
+  renglón sale al final de la tabla como **«Sin renglones»**: no desaparece. Un
+  pedido con dos facturas lleva las dos en la misma fila, porque no se sabe qué
+  renglón es de cuál.
 
 ---
 

@@ -20,7 +20,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'estilo.dart';
 import 'hoja.dart';
 import 'piezas.dart';
-import 'por_factura.dart';
+import 'por_producto_y_factura.dart';
 
 /// Los literales de la hoja. Van en espanol y nunca pasaron por la capa de
 /// idiomas que hubo en `lib/textos/` (quitada entera el 24/09/2026,
@@ -66,8 +66,9 @@ abstract final class TextoPreDespacho {
   static const String sinPesoEnElCatalogo = 'sin peso en los pedidos';
 
   /// El título de la segunda tabla (issue 8 de Amado). Las columnas no están
-  /// aquí sino en `columnasPorFactura` (`por_factura.dart`): un solo sitio.
-  static const String porFactura = 'Por factura';
+  /// aquí sino en `columnasPorProductoYFactura` (`por_producto_y_factura.dart`):
+  /// un solo sitio.
+  static const String porProductoYFactura = 'Por producto y factura';
 }
 
 /// El peso **de los productos** tal como sale en el papel: la suma de la
@@ -150,13 +151,13 @@ Future<Uint8List> pdfPreDespacho(
         // Sin líneas no hay ninguna de las dos cuentas que separar, igual que
         // en la pantalla, que sólo pinta los totales si hay tabla encima.
         if (h.lineas.isNotEmpty) _losDosPesos(totales),
-        // «POR FACTURA»: lo mismo de arriba repartido entre las facturas que lo
-        // piden, para rebajar las tarjetas de estiba por cantidad Y factura. Sólo
-        // si la hoja sabe de qué factura sale cada cosa (la de una ruta); la de
-        // Pedidos suma lo filtrado y no lo sabe.
+        // «POR PRODUCTO Y FACTURA»: cada producto de arriba repartido entre las
+        // facturas que lo piden, para rebajar las tarjetas de estiba por cantidad
+        // Y factura. Sólo si la hoja sabe de qué factura sale cada cosa (la de una
+        // ruta); la de Pedidos suma lo filtrado y no lo sabe.
         if (h.facturas.isNotEmpty) ...<pw.Widget>[
-          tituloDeSeccion(TextoPreDespacho.porFactura),
-          tablaPorFactura(h.facturas),
+          tituloDeSeccion(TextoPreDespacho.porProductoYFactura),
+          tablaPorProductoYFactura(h.lineas, h.facturas),
         ],
         firmas(TextoPreDespacho.firmaSaco, TextoPreDespacho.firmaRecibio),
       ],
@@ -240,18 +241,22 @@ pw.Widget _tabla(HojaPreDespacho h, TotalesPreDespacho t) => pw.Table(
   ],
 );
 
-/// La tabla «Por factura». Cada celda sale de `filasPorFactura`, o sea que el
-/// papel dice letra por letra lo que dice la pantalla; aquí sólo se decide el
-/// dibujo.
+/// La tabla «Por producto y factura». Cada celda sale de
+/// `filasPorProductoYFactura`, o sea que el papel dice letra por letra lo que dice
+/// la pantalla; aquí sólo se decide el dibujo. [productos] son las líneas de la
+/// tabla de arriba, que dan el orden de los bloques.
 ///
 /// **Es pública para poder probar la cabecera repetida**: un PDF de varias
 /// páginas no se deja leer entero, y con 25 facturas la tabla pasa de página.
-pw.Table tablaPorFactura(List<FacturaDelPreDespacho> facturas) {
-  final columnas = columnasPorFactura;
+pw.Table tablaPorProductoYFactura(
+  List<LineaPreDespacho> productos,
+  List<FacturaDelPreDespacho> facturas,
+) {
+  final columnas = columnasPorProductoYFactura;
   return pw.Table(
     columnWidths: <int, pw.TableColumnWidth>{
       for (final (i, c) in columnas.indexed)
-        i: c.ancha
+        i: c.esElProducto
             ? const pw.FlexColumnWidth()
             : const pw.IntrinsicColumnWidth(),
     },
@@ -264,28 +269,20 @@ pw.Table tablaPorFactura(List<FacturaDelPreDespacho> facturas) {
             celdaCabecera(c.titulo, derecha: c.alDerecha),
         ],
       ),
-      for (final fila in filasPorFactura(facturas))
+      for (final fila in filasPorProductoYFactura(productos, facturas))
         pw.TableRow(
-          decoration: switch (fila.tipo) {
-            TipoDeFilaPorFactura.detalle => decoracionFila,
-            TipoDeFilaPorFactura.subtotal => _decoracionSubtotal,
-            TipoDeFilaPorFactura.total => decoracionPie,
-          },
+          decoration: fila.subtotal ? _decoracionSubtotal : decoracionFila,
           children: <pw.Widget>[
             for (final (i, c) in columnas.indexed)
-              celda(
-                fila.celdas[i],
-                derecha: c.alDerecha,
-                negrita: fila.tipo != TipoDeFilaPorFactura.detalle,
-              ),
+              celda(fila.celdas[i], derecha: c.alDerecha, negrita: fila.subtotal),
           ],
         ),
     ],
   );
 }
 
-/// El subtotal de una factura: negrita y un fondo suave, para que se vea dónde
-/// acaba una factura y empieza la siguiente.
+/// El subtotal de un producto: negrita y un fondo suave, para que se vea dónde
+/// acaba un producto y empieza el siguiente.
 const pw.BoxDecoration _decoracionSubtotal = pw.BoxDecoration(
   color: Tinta.cabeceraFondo,
   border: pw.Border(

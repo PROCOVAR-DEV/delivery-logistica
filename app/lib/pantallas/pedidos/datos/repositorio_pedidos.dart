@@ -735,7 +735,11 @@ class ConsultasPedidos {
           // que en el servidor.
           ..where(filtro & producto.trim().equals('').not())
           ..groupBy([producto])
-          ..orderBy([OrderingTerm.desc(empaques)]);
+          // A igualdad de empaques, por nombre: sin desempate el orden de dos
+          // productos con los mismos empaques lo decide SQLite, y la tabla «Por
+          // producto y factura» (que sigue este orden) podía salir distinta en
+          // dos aperturas de la misma ruta.
+          ..orderBy([OrderingTerm.desc(empaques), OrderingTerm.asc(producto)]);
 
     final filas = await consulta.get();
     final (cuantos, kilos) = await _cabeceraDeLaHoja(filtro);

@@ -6,7 +6,7 @@
 /// pantalla de Reparto decía `1024237` en un sitio y `PTB25-261005-1479` en otro **para el
 /// mismo pedido**. Decisión de Jose: «factura» es `orders.factura_numero` en TODA la app, y
 /// aquí se decide, una vez. Nadie más lo repite: tablero, Pedidos, Reportes (pantalla y Excel)
-/// y la tabla «Por factura» llaman a [NumeroDeFactura.de].
+/// y la tabla «Por producto y factura» llaman a [NumeroDeFactura.de].
 ///
 /// ## QUÉ ES «EL NÚMERO DE FACTURA»: `orders.factura_numero`, NO `operation_number`
 ///

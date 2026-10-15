@@ -27,14 +27,15 @@
 // juego de pedidos da las mismas líneas por el camino del asistente y por el de
 // la ruta, venga ésta de donde venga.
 //
-// ## «Por factura»
+// ## «Por producto y factura»
 //
-// La tabla nueva (`impresion/por_factura.dart`) es el pre-despacho de CADA
-// pedido por separado, uno tras otro. No es un cálculo aparte: es la misma
-// pregunta —`preDespachoDe`— hecha con un pedido cada vez. Así la regla de los
-// empaques, las unidades y el peso sigue siendo una, y que la suma de las
-// facturas cuadre con la tabla de arriba se ata con una prueba y no con un
-// comentario.
+// La tabla nueva (`impresion/por_producto_y_factura.dart`: un bloque por
+// producto, una fila por factura y su subtotal, como la hoja de Amado) sale del
+// pre-despacho de CADA pedido por separado. No es un cálculo aparte: es la misma
+// pregunta —`preDespachoDe`— hecha con un pedido cada vez, y la tabla sólo lo
+// reparte. Así la regla de los empaques y el peso sigue siendo una, y que los
+// subtotales de cada producto cuadren con la tabla de arriba se ata con una
+// prueba y no con un comentario.
 //
 // **«La factura» es `orders.factura_numero`** (el de Ventra, `1024237`), por la misma regla
 // que el tablero, Pedidos y los reportes: `NumeroDeFactura` (`nucleo/numero_de_factura.dart`).
@@ -42,11 +43,11 @@
 // el almacén leía en el papel un número que el resto de la aplicación no llamaba factura. Sin
 // `factura_numero` la fila dice «Sin número»; NO cae al folio.
 //
-// **Un pedido con varias facturas (`1024237, 1024240`) es UNA fila-grupo con las dos, no dos.**
+// **Un pedido con varias facturas (`1024237, 1024240`) es UNA fila con las dos, no dos.**
 // `order_items` no dice qué renglón salió de qué factura, así que separar el pedido en dos
-// facturas obliga a repetir sus renglones en cada una: la suma de «Por factura» dejaría de
-// cuadrar con la tabla de arriba (lo ata la prueba de las ataduras) y el almacén rebajaría
-// DOS veces la misma mercancía de sus tarjetas de estiba. Cuando el renglón sepa su factura,
+// facturas obliga a repetir sus renglones en cada una: los subtotales dejarían de cuadrar
+// con la tabla de arriba (lo ata la prueba de las ataduras) y el almacén rebajaría DOS
+// veces la misma mercancía de sus tarjetas de estiba. Cuando el renglón sepa su factura,
 // el cambio es `NumeroDeFactura.separar` aquí.
 //
 // Funciona igual sin conexión (APK y escritorio: la base local) y en la web (su
@@ -58,8 +59,8 @@ import '../../../nucleo/base/base.dart';
 import '../../../nucleo/numero_de_factura.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 
-/// El pre-despacho de una ruta: la tabla de producto a producto y el reparto por
-/// factura.
+/// El pre-despacho de una ruta: la tabla de producto a producto y lo que lleva
+/// cada factura (el insumo de «Por producto y factura»).
 class PreDespachoDeLaRuta {
   const PreDespachoDeLaRuta({required this.totales, required this.facturas});
 
@@ -105,7 +106,6 @@ Future<PreDespachoDeLaRuta> preDespachoDeLaRuta(
     facturas.add(
       papel.FacturaDelPreDespacho(
         numero: NumeroDeFactura.de(parada.facturaNumero),
-        cliente: parada.customerName,
         lineas: lineasDelPapel(suyo),
       ),
     );
@@ -115,8 +115,9 @@ Future<PreDespachoDeLaRuta> preDespachoDeLaRuta(
 
 /// LAS LÍNEAS DE LA PANTALLA, PASADAS AL PAPEL. **Sólo hay esta traducción.**
 ///
-/// Las usa la tabla de producto a producto y cada factura de «Por factura»; si
-/// cada una tuviera la suya, el papel podría decir una cosa arriba y otra abajo.
+/// Las usa la tabla de producto a producto y cada factura de «Por producto y
+/// factura»; si cada una tuviera la suya, el papel podría decir una cosa arriba y
+/// otra abajo.
 List<papel.LineaPreDespacho> lineasDelPapel(TotalesPreDespacho totales) => [
   for (final linea in totales.lineas)
     papel.LineaPreDespacho(
@@ -165,7 +166,7 @@ List<papel.LineaPreDespacho> lineasDelPapel(TotalesPreDespacho totales) => [
 ///
 /// Suelta, la cubre una prueba. Dentro del widget no la cubria nada.
 ///
-/// [facturas] vacío = sin la tabla «Por factura» (el paso 4 del asistente todavía
+/// [facturas] vacío = sin la tabla «Por producto y factura» (el paso 4 del asistente todavía
 /// no tiene paradas de las que sacarla).
 papel.HojaPreDespacho hojaDePreDespachoDeLaRuta({
   required TotalesPreDespacho totales,

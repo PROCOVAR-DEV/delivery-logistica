@@ -41,7 +41,7 @@ import '../datos/repositorio_rutas.dart';
 import '../estado/proveedores_rutas.dart';
 import 'cierre_de_ruta.dart';
 import 'mapa_de_la_ruta.dart';
-import 'tabla_por_factura.dart';
+import 'tabla_por_producto_y_factura.dart';
 
 /// EL RELLENO DE ABAJO DEL TODO.
 ///
@@ -800,8 +800,8 @@ class _Paradas extends ConsumerWidget {
 /// mano y la que sale de una zona del tablero. «Carga total», encima, se queda
 /// como estaba.
 ///
-/// Debajo va la tabla «Por factura» —una fila por factura y producto, con
-/// subtotales—, porque el almacén rebaja las tarjetas de estiba por cantidad Y
+/// Debajo va la tabla «Por producto y factura» —un bloque por producto, una fila
+/// por factura y el subtotal—, porque el almacén rebaja las tarjetas de estiba por cantidad Y
 /// factura, y la cuenta por producto no se lo dice.
 class _PreDespacho extends ConsumerWidget {
   const _PreDespacho({required this.ruta});
@@ -837,9 +837,12 @@ class _PreDespacho extends ConsumerWidget {
         VistaPreDespacho(totales: pre?.totales),
         if (pre != null && pre.facturas.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Text(PorFactura.titulo, style: titulo),
+          Text(PorProductoYFactura.titulo, style: titulo),
           const SizedBox(height: 6),
-          TablaPorFactura(facturas: pre.facturas),
+          TablaPorProductoYFactura(
+            productos: lineasDelPapel(pre.totales),
+            facturas: pre.facturas,
+          ),
         ],
       ],
     );

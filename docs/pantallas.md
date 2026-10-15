@@ -346,7 +346,7 @@ sale de `startedAt`/`finishedAt`; tooltip con las horas).
 **Pre-despacho de la ruta (issue 8 de Amado; hecho el 14/10/2026).** Debajo de `Carga total` (que se
 mantiene), el detalle de **toda** ruta —armada a mano o desde una zona del tablero— trae la
 sección `Pre-despacho`: la misma vista que el paso 4 del asistente y que Pedidos
-(`VistaPreDespacho`), el botón `Ver e imprimir` y, debajo, la tabla `Por factura`. Antes el
+(`VistaPreDespacho`), el botón `Ver e imprimir` y, debajo, la tabla `Por producto y factura`. Antes el
 pre-despacho sólo existía dentro del asistente, y una ruta del tablero (que va derecha al
 detalle) no lo tenía. La suma es **una sola** para las tres entradas:
 `ConsultasPedidos.preDespachoDe`; `app/lib/pantallas/rutas/datos/pre_despacho_de_la_ruta.dart`
@@ -1000,22 +1000,26 @@ Datos de entrada: `sucursal`, `vehiculo`, `dia` (`AAAA-MM-DD`, opcional), `pedid
    Los tres literales están **atados a los de la pantalla con una prueba**, no con
    un comentario (`app/test/impresion/los_dos_pesos_del_pre_despacho_test.dart`),
    que es la regla del §3-bis del `CLAUDE.md`.
-5. **`Por factura` (issue 8 de Amado, hecho el 14/10/2026; no existe en Next).** Sólo si la hoja sabe de
-   qué factura sale cada cosa —la que se imprime desde el detalle de una ruta; la de Pedidos
-   no la lleva—. El almacén rebaja las tarjetas de estiba por cantidad **y factura**: de 20
-   blister, 10 son de una factura y 10 de otra. Título `POR FACTURA` y una tabla con **una
-   fila por (factura, producto)**, ordenada por número de factura, un subtotal en negrita por
-   factura y el total:
+5. **`Por producto y factura` (issue 8 de Amado, hecho el 14/10/2026 y rehecho el 15/10/2026 con
+   la hoja que Amado adjuntó; no existe en Next).** Sólo si la hoja sabe de qué factura sale cada
+   cosa —la que se imprime desde el detalle de una ruta; la de Pedidos no la lleva—. La tarjeta de
+   estiba es por producto y sus salidas se rebajan por cantidad **y factura**: de 20 blister, 10 son
+   de una factura y 10 de otra. Título `POR PRODUCTO Y FACTURA` y una tabla con **un bloque por
+   producto** (en el orden de la tabla de arriba: más empaques primero y, a igualdad, por nombre),
+   **una fila por factura** que lo lleva (por número; `Sin número` al final del bloque) y el
+   **subtotal del producto** en negrita, sin total general (lo da la tabla de arriba):
 
-   | `Factura` | `Producto` | `Blister` | `Unidades` | `Peso (kg)` |
-   |---|---|---|---|---|
+   | `Factura` | `Producto` | `Cant.` | `Kg` |
+   |---|---|---|---|
 
-   **La imagen que Amado adjuntó al issue no se pudo ver al escribir esto**: las columnas son
-   una propuesta. Se cambian en **un solo sitio**, la lista `columnasPorFactura`
-   (`app/lib/impresion/por_factura.dart`), que leen la pantalla (`tabla_por_factura.dart`) y
-   este PDF. La factura es `orders.operation_number` (el conduce; si falta, `factura_numero`;
-   si tampoco, `Sin número`) y se decide en `numeroDeFactura`. Cada cifra sigue la regla de
-   la tabla de arriba (`≥` si falta algún renglón, `—` si no se sabe, el cero no es un peso).
+   Sin columna de unidades (Amado no la pone). `Cant.` son empaques. La fila del subtotal dice
+   `Subtotal` en la columna de la factura y deja el producto en blanco. Las columnas se cambian en
+   **un solo sitio**, la lista `columnasPorProductoYFactura` (`app/lib/impresion/por_producto_y_factura.dart`),
+   que leen la pantalla (`tabla_por_producto_y_factura.dart`; bajo 640 px, una tarjeta por producto)
+   y este PDF. La factura es `orders.factura_numero` (`NumeroDeFactura.de`): sin él, `Sin número`,
+   nunca el folio; un pedido con dos facturas lleva las dos en su fila. Cada cifra sigue la regla de
+   la tabla de arriba (`≥` si falta algún renglón, `—` si no se sabe, el cero no es un peso), y una
+   factura sin renglones sale al final como `Sin renglones`.
 6. Firmas, dos huecos con línea superior: `Sacó del almacén` · `Recibió (chofer)`.
 
 Las líneas vienen ya ordenadas de más a menos empaques. Los caracteres `& < > "` se

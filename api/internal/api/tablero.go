@@ -558,7 +558,7 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 	desde, hasta := diaDelPedido(q.Get("dia"))
 
 	// EL CURSOR DE LA TANDA SIGUIENTE. Un cursor que no se entiende es un 400 y no una
-	// lista vacía: los tres trozos van juntos o la comparación queda en NULL y la consulta
+	// lista vacía: los dos trozos (`fecha|id`) van juntos o la comparación queda en NULL y la consulta
 	// devuelve CERO filas con un 200 limpio, que aquí es el modo de fallo caro — parecería
 	// «ya no queda nada» justo cuando quedan cien.
 	cursor, err := cursorDeLaTanda(q.Get("desde"))
@@ -1218,7 +1218,7 @@ func (s *Servidor) colocarPedido(w http.ResponseWriter, r *http.Request) {
 // `params_del_contador_test.go`, campo por campo y por reflexión, así que un
 // campo NUEVO en la consulta también entra sin que haya que acordarse.
 //
-// Los tres `Desde…` se dejan a cero A PROPÓSITO y no por olvido: el número de
+// Los `Desde…` del cursor se dejan a cero A PROPÓSITO y no por olvido: el número de
 // arriba es el TOTAL —«Sin colocar (300)»— y no puede bajar a 100 porque alguien
 // haya pedido la tanda siguiente. La prueba conoce esa excepción por su nombre.
 func paramsDelContador(arg sqlc.ListarPedidosSinColocarParams) sqlc.ContarPedidosSinColocarParams {

@@ -303,6 +303,36 @@ void main() {
       await cerrar(tester);
     });
 
+    // Cotejada pero SIN `facturaNumero`: la frase de la banda dice «—», y el folio
+    // (`X-2992`) sigue en su sitio, el subtítulo, sin colarse como factura.
+    for (final (estado, frase) in const [
+      (
+        EstadoFactura.igual,
+        'Cuadra con la factura — de Ventra: se puede repartir tal cual.',
+      ),
+      (
+        EstadoFactura.cambiado,
+        'Se facturó algo distinto de lo pedido (factura —). '
+            'No cuadra con la factura, así que no entra a una ruta.',
+      ),
+    ]) {
+      testWidgets('cotejada ($estado) y sin número, la banda dice «—» y no el '
+          'folio', (tester) async {
+        await abrir(tester, pedido(estadoFactura: estado, numero: null), [
+          linea(),
+        ]);
+
+        expect(find.text(frase), findsOneWidget);
+        expect(
+          find.textContaining('factura X-2992'),
+          findsNothing,
+          reason: 'el folio salió como número de factura',
+        );
+        expect(find.text('X-2992'), findsOneWidget, reason: 'el subtítulo');
+        await cerrar(tester);
+      });
+    }
+
     testWidgets('las cantidades van en empaques primero, luego las unidades y '
         'luego el peso', (tester) async {
       await abrir(tester, pedido(), [linea()]);

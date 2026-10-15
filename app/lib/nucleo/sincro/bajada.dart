@@ -168,6 +168,9 @@ class Bajada {
     // no podia cumplir: se pedia la tanda siguiente y llegaba la misma.
     String? continuar;
 
+    // Una sola vez por aparato: la copia vieja no traía `facturaAt` (frescura.dart).
+    await _frescura.rebajarLosPedidosUnaVez();
+
     for (var vuelta = 0; vuelta < maximoDeTandas; vuelta++) {
       final desde = await _frescura.desde(Colecciones.pedidos);
 

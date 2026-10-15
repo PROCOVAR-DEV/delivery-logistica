@@ -632,10 +632,16 @@ func TestQuienEntraPorLaCaidaDeRolesQuedaApuntado(t *testing.T) {
 		!strings.Contains(registro.String(), "log@procovar.cu") {
 		t.Fatalf("quien entra por la caída no quedó apuntado (con quién es):\n%s", registro.String())
 	}
+	// Ni entero, ni un trozo, ni RECORTADO (CLAUDE.md §3-septies): 12 caracteres de la firma
+	// ya bastan para buscarla. Y el `sub` tampoco, si hay correo con que decir quién es.
 	for _, trozo := range append(strings.Split(viejo, "."), viejo) {
-		if strings.Contains(registro.String(), trozo) {
+		if strings.Contains(registro.String(), trozo) ||
+			(len(trozo) >= 12 && strings.Contains(registro.String(), trozo[:12])) {
 			t.Errorf("el token se filtró en el registro (%.12s…)", trozo)
 		}
+	}
+	if strings.Contains(registro.String(), "p-log") {
+		t.Errorf("el registro lleva el `sub` aunque hay correo:\n%s", registro.String())
 	}
 
 	h2, registro2 := montarConRegistro(t)

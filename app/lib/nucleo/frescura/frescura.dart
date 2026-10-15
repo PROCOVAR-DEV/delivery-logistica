@@ -61,6 +61,29 @@ class RegistroDeFrescura {
         .write(const FrescuraCompanion(hasta: Value(null)));
   }
 
+  /// LOS PEDIDOS SE VUELVEN A BAJAR ENTEROS UNA VEZ POR APARATO — 15/10/2026 (1.0.35).
+  ///
+  /// Desde la 1.0.35 la bajada lee `facturaAt`, la fecha de la factura: ordena «Sin colocar»
+  /// y sale en el detalle del pedido. Pero la bajada es POR DIFERENCIAS: un pedido que no
+  /// cambia no vuelve a viajar, así que en una APK o un escritorio que ya tenían la copia
+  /// esos pedidos se quedarían sin fecha PARA SIEMPRE, y «Sin colocar» saldría en otro orden
+  /// que en la web sin que nada fallara (auditoría del 15/10/2026). Se olvida el cursor de
+  /// pedidos una sola vez y se deja escrito que ya se hizo en esta misma tabla, con una fila
+  /// que no es una colección y que ninguna pantalla lee: todas las lecturas filtran por
+  /// colección. En la web no cambia nada: su base nace vacía y baja entera en cada carga.
+  static const yaRebajadosPorLaFechaDeFactura =
+      'una-vez:pedidos-con-factura-at';
+
+  Future<void> rebajarLosPedidosUnaVez() => _base.transaction(() async {
+    if (await leer(yaRebajadosPorLaFechaDeFactura) != null) return;
+    await olvidarElCursor(const [Colecciones.pedidos]);
+    await _base
+        .into(_base.frescura)
+        .insertOnConflictUpdate(
+          FrescuraCompanion.insert(coleccion: yaRebajadosPorLaFechaDeFactura),
+        );
+  });
+
   Future<FilaFrescura?> leer(String coleccion) => (_base.select(
     _base.frescura,
   )..where((f) => f.coleccion.equals(coleccion))).getSingleOrNull();

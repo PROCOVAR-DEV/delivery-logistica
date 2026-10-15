@@ -401,8 +401,10 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
    la derecha.
 
    Filtros de la lista de disponibles:
-   - Selector `Sucursal de la ruta` (repetido) + campo fecha `Día de los pedidos` +
-     botón `Todos los días`.
+   - Selector `Sucursal de la ruta` (repetido) + los controles de fecha de Pedidos:
+     `Desde (fecha del pedido)` / `Hasta (fecha del pedido)` / `sólo ese día` / ✕ (los dos días
+     incluidos; hasta el 15/10/2026 era un solo `Día de los pedidos` con `Todos los días`,
+     issue 13 de Amado).
    - Selector `Vendedor del pedido` / `Todos los vendedores` (con buscador siempre).
    - `km máx.` (número) y `costo mín.` (número).
    - Selector `Estado del pedido en PEDIDO` / `Cualquier estado`: `En proceso`=`en_proceso`,

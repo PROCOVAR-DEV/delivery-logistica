@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 
 import '../../../nucleo/almacenes/almacen_de_referencia.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/fecha_del_pedido.dart';
 import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/registro/registro.dart';
 import 'esquema.dart';
@@ -13,7 +14,8 @@ import 'punto_de_salida.dart';
 /// Los filtros de la mitad izquierda (§3 «Filtros de la mitad izquierda»).
 class FiltrosSinColocar {
   const FiltrosSinColocar({
-    this.dia,
+    this.desde,
+    this.hasta,
     this.q,
     this.municipio,
     this.vendedor,
@@ -22,8 +24,11 @@ class FiltrosSinColocar {
     this.limite = 200,
   });
 
-  /// El dia del pedido, medio abierto por arriba igual que en el armador.
-  final DateTime? dia;
+  /// La fecha DEL PEDIDO (no la de la factura, que es la del orden), de [desde]
+  /// a [hasta], los dos dias incluidos y cada uno opcional. Era UN dia hasta el
+  /// 15/10/2026; Amado pidio el rango (issue 13): `nucleo/fecha_del_pedido.dart`.
+  final DateTime? desde;
+  final DateTime? hasta;
 
   /// La misma caja de la lista de pedidos: cliente, operacion, direccion,
   /// municipio, vendedor y el CONTENIDO DE LOS RENGLONES — «¿que pedidos llevan
@@ -65,20 +70,23 @@ class FiltrosSinColocar {
   static const tanda = 200;
 
   FiltrosSinColocar copiaCon({
-    DateTime? dia,
+    DateTime? desde,
+    DateTime? hasta,
     String? q,
     String? municipio,
     String? vendedor,
     double? kmMax,
     bool? conCobroDeDomicilio,
     int? limite,
-    bool quitarDia = false,
+    bool quitarDesde = false,
+    bool quitarHasta = false,
     bool quitarMunicipio = false,
     bool quitarVendedor = false,
     bool quitarKmMax = false,
     bool quitarCobroDeDomicilio = false,
   }) => FiltrosSinColocar(
-    dia: quitarDia ? null : (dia ?? this.dia),
+    desde: quitarDesde ? null : (desde ?? this.desde),
+    hasta: quitarHasta ? null : (hasta ?? this.hasta),
     q: q ?? this.q,
     municipio: quitarMunicipio ? null : (municipio ?? this.municipio),
     vendedor: quitarVendedor ? null : (vendedor ?? this.vendedor),
@@ -90,7 +98,8 @@ class FiltrosSinColocar {
   );
 
   bool get hayAlguno =>
-      dia != null ||
+      desde != null ||
+      hasta != null ||
       (q != null && q!.trim().isNotEmpty) ||
       municipio != null ||
       vendedor != null ||
@@ -644,23 +653,10 @@ WHERE c.branch_id = ?1''',
         (t) => conCobro ? t.pedidoCosto.isNotNull() : t.pedidoCosto.isNull(),
       );
     }
-    final dia = filtros.dia;
-    if (dia != null) {
-      final desde = DateTime(dia.year, dia.month, dia.day);
-      final hasta = desde.add(const Duration(days: 1));
-      // Medio abierto por arriba, igual que en el armador. Y con `created_at`
-      // de repuesto: un pedido sin fecha de PEDIDO no puede desaparecer del
-      // filtro del dia en que entro.
-      consulta.where(
-        (t) =>
-            (t.orderDate.isNotNull() &
-                t.orderDate.isBiggerOrEqualValue(desde) &
-                t.orderDate.isSmallerThanValue(hasta)) |
-            (t.orderDate.isNull() &
-                t.createdAt.isBiggerOrEqualValue(desde) &
-                t.createdAt.isSmallerThanValue(hasta)),
-      );
-    }
+    // Con `created_at` de repuesto: un pedido sin fecha de PEDIDO no puede
+    // desaparecer del rango en que entro. La regla vive en un sitio.
+    final fecha = fechaDelPedidoEntre(o, filtros.desde, filtros.hasta);
+    if (fecha != null) consulta.where((_) => fecha);
 
     final filas = await consulta.get();
     // El orden, sobre las filas y antes de armar las tarjetas: el filtro por

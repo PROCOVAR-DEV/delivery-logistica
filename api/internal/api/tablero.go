@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -659,7 +660,7 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 	if n, err := strconv.Atoi(strings.TrimSpace(q.Get("limite"))); err == nil && n > 0 && n < TopeSinColocar {
 		limite = int32(n)
 	}
-	desde, hasta := diaDelPedido(q.Get("dia"))
+	desde, hasta := rangoDelPedido(q)
 
 	// EL CURSOR DE LA TANDA SIGUIENTE. Un cursor que no se entiende es un 400 y no una
 	// lista vacía: los dos trozos (`fecha|id`) van juntos o la comparación queda en NULL y la consulta
@@ -2282,6 +2283,22 @@ func diaDelPedido(crudo string) (pgtype.Timestamptz, pgtype.Timestamptz) {
 	}
 	return pgtype.Timestamptz{Time: d, Valid: true},
 		pgtype.Timestamptz{Time: d.AddDate(0, 0, 1), Valid: true}
+}
+
+// rangoDelPedido lee la fecha del pedido de «Sin colocar»: `diaDesde`/`diaHasta` (el rango,
+// los dos días incluidos, cada uno opcional: issue 13 de Amado, 15/10/2026) y `dia`, el día
+// suelto de antes, que se sigue aceptando para quien ya lo manda. No son `desde`/`hasta`
+// como en `/api/orders` porque aquí `desde` es el cursor de la tanda. Si vienen los dos, se
+// cumplen los dos (se queda el tramo común): un filtro de más nunca enseña MÁS.
+func rangoDelPedido(q url.Values) (pgtype.Timestamptz, pgtype.Timestamptz) {
+	desde, hasta := diaDelPedido(q.Get("dia"))
+	if d, _ := diaDelPedido(q.Get("diaDesde")); d.Valid && (!desde.Valid || d.Time.After(desde.Time)) {
+		desde = d
+	}
+	if _, h := diaDelPedido(q.Get("diaHasta")); h.Valid && (!hasta.Valid || h.Time.Before(hasta.Time)) {
+		hasta = h
+	}
+	return desde, hasta
 }
 
 func textoOpcional(v string) *string {

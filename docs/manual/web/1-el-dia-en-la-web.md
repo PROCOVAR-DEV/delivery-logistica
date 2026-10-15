@@ -159,9 +159,11 @@ tarjeta: eso es el teléfono, que no tiene las dos mitades a la vez.
 
 1. **Haz clic en el icono del embudo** para acotar lo que vas a repartir.
    <!-- señala: tablero-sin-colocar-filtros -->
-   - Los filtros son **«Día del pedido»**, **«Municipio»**, **«Vendedor»**, **«Hasta
-     cuántos km del almacén»** (se aplica al salir del campo o con intro) y **«Cobro
-     del domicilio»**. Para quitarlos, **«Quitar todos los filtros»**.
+   - Los filtros son **«Desde (fecha del pedido)»** / **«Hasta (fecha del pedido)»**
+     (los dos días entran; para un solo día, pon «Desde» y pulsa **«sólo ese día»**),
+     **«Municipio»**, **«Vendedor»**, **«Hasta cuántos km del almacén»** (se aplica al
+     salir del campo o con intro) y **«Cobro del domicilio»**. Para quitarlos,
+     **«Quitar todos los filtros»**.
 2. O usa **el buscador**, que dice «Cliente, operación, factura, dirección, artículo…» y
    **filtra mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
    - Si pone **«Se ven 200 de 308.»**, haz clic en **«Ver 108 más»**.

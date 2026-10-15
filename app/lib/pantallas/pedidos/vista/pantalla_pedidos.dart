@@ -24,6 +24,7 @@ import '../../../impresion/hoja.dart' as papel;
 import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
 import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/fecha_del_pedido.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/proveedores.dart';
@@ -493,17 +494,9 @@ class _BarraDeFiltros extends ConsumerWidget {
   }
 }
 
-/// El dia tal y como lo escribe la hoja: `AAAA-MM-DD`, y **sólo cuando el rango
-/// es un dia**, igual que la de Next. Con un rango de varios dias la cabecera
-/// no dice ninguno: escribir uno de los dos seria mentir sobre lo que hay
-/// debajo.
-String? diaDeLaHoja(FiltrosPedidos f) {
-  final desde = f.desde;
-  if (desde == null || desde != f.hasta) return null;
-  return '${desde.year.toString().padLeft(4, '0')}-'
-      '${desde.month.toString().padLeft(2, '0')}-'
-      '${desde.day.toString().padLeft(2, '0')}';
-}
+/// El dia que escribe la hoja, sólo cuando el rango es un dia: la regla, en
+/// `nucleo/fecha_del_pedido.dart`.
+String? diaDeLaHoja(FiltrosPedidos f) => diaDeLaHojaEntre(f.desde, f.hasta);
 
 /// La hoja que se manda al PDF, como funcion pura.
 ///

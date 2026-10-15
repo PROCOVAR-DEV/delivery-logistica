@@ -26,6 +26,7 @@ import '../../../diseno/tema.dart';
 import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
 import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/fecha_del_pedido.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../almacenes/vista/almacenes_de_la_ultima_bajada.dart';
 import '../../ayuda/datos/controles_senalados.dart';
@@ -946,23 +947,6 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       // «No hay pedidos disponibles para rutear», con el selector diciendo «3
       // pedidos · 61 kg» diez pixeles mas arriba. Dos verdades en la misma
       // pantalla y ninguna explicando a la otra.
-      // EL CALENDARIO DE LA CASA, no `showDatePicker`. El mismo motivo y las
-      // mismas reglas que el del paso 3, unos cientos de lineas mas arriba: no
-      // hay modales en esta aplicacion, y las cuatro ventanas de fechas que
-      // habia son ahora una sola (2020 → año que viene).
-      CampoDeFecha(
-        titulo: 'Día de los pedidos',
-        valor: _filtros.dia,
-        alElegir: (d) => _ponerFiltros(_filtros.copiarCon(dia: d)),
-      ),
-      // «Todos los días» es un boton propio y no la opcion vacia del anterior:
-      // un selector de fecha no tiene forma de decir «ninguna».
-      OutlinedButton(
-        onPressed: _filtros.dia == null
-            ? null
-            : () => _ponerFiltros(_filtros.copiarCon(limpiarDia: true)),
-        child: const Text('Todos los días'),
-      ),
       // La MISMA caja que Pedidos, Clientes, Vehiculos, Rutas y el Tablero.
       // `ancho: null` porque el ancho lo da el `Wrap` de arriba con `caja()`.
       ControlSenalado(
@@ -1063,6 +1047,27 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         deQueSucursal,
+        const SizedBox(height: Aire.sm),
+        // LA FECHA DEL PEDIDO, DESDE/HASTA (issue 13 de Amado, 15/10/2026): era
+        // UN `Día de los pedidos` con su `Todos los días`. Los mismos controles
+        // que Pedidos —`sólo ese día` es el día suelto de antes y la ✕ vuelve a
+        // «todos»— y en su propia fila, como allí: son dos campos y dos botones
+        // y en una caja de `anchoFiltro` se apilarían.
+        RangoDeFechas(
+          desde: _filtros.desde,
+          hasta: _filtros.hasta,
+          tituloDesde: 'Desde (fecha del pedido)',
+          tituloHasta: 'Hasta (fecha del pedido)',
+          hoy: ref.watch(relojProvider)(),
+          alCambiar: (desde, hasta) => _ponerFiltros(
+            _filtros.copiarCon(
+              desde: desde,
+              limpiarDesde: desde == null,
+              hasta: hasta,
+              limpiarHasta: hasta == null,
+            ),
+          ),
+        ),
         const SizedBox(height: Aire.sm),
         Wrap(
           spacing: Aire.sm,
@@ -1337,7 +1342,8 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       sucursal: sucursales.where((s) => s.id == _sucursalId).firstOrNull?.name,
       vehiculo: _vehiculo?.name,
       distribuidorId: _distribuidorId,
-      dia: _filtros.dia,
+      // La hoja lleva un dia sólo cuando el rango ES un dia, como en Pedidos.
+      dia: diaDeLaHojaEntre(_filtros.desde, _filtros.hasta),
     );
 
     // Dos columnas —lista a la izquierda, pre-despacho a la derecha— y una sola
@@ -1734,15 +1740,10 @@ class _PreDespachoLateral extends ConsumerWidget {
 
   /// El elegido en el paso 3: la hoja dice a quién se entrega la carga.
   final String? distribuidorId;
-  final DateTime? dia;
 
-  /// El dia tal y como lo escribe la hoja de Next: `AAAA-MM-DD`. Se compara
-  /// caracter a caracter con la suya, asi que no pasa por `DateFormat` local.
-  String? get _diaDeLaHoja => dia == null
-      ? null
-      : '${dia!.year.toString().padLeft(4, '0')}-'
-            '${dia!.month.toString().padLeft(2, '0')}-'
-            '${dia!.day.toString().padLeft(2, '0')}';
+  /// El dia de la hoja, `AAAA-MM-DD`, o nada si el filtro no es UN dia
+  /// ([diaDeLaHojaEntre]).
+  final String? dia;
 
   /// La suma, en vivo. `null` mientras no hay nada elegido o todavía se está
   /// sumando.
@@ -1869,7 +1870,7 @@ class _PreDespachoLateral extends ConsumerWidget {
       totales: totales,
       sucursal: sucursal ?? '',
       vehiculo: vehiculo ?? '',
-      dia: _diaDeLaHoja,
+      dia: dia,
       pedidos: elegidos.length,
       pesoKg: pesoKg,
     );

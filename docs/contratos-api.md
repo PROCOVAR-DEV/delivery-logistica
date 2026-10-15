@@ -2031,6 +2031,16 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
   **El cursor `?desde=` cambió de forma**: era `km|fecha|id` y es `fecha|id` (la pareja del
   `ORDER BY`; `fecha` vacía = el pedido no tiene ninguna). Un cursor viejo, de tres trozos, da
   `400` con el mensaje de siempre y hay que volver a pedir la primera tanda sin `desde`.
+- **«Sin colocar» se acota por un RANGO de la fecha del pedido desde el 15/10/2026** (Amado,
+  issue 13, punto 1). `GET /api/board` y `GET /api/board/unplaced` aceptan `diaDesde` y
+  `diaHasta` (`YYYY-MM-DD`, cada uno opcional, **los dos días incluidos**) además del `dia`
+  suelto de antes, que se sigue aceptando tal cual. No se llaman `desde`/`hasta` como en
+  `/api/orders` porque aquí `desde` es el cursor. La fecha es la **del pedido**: `order_date` y,
+  si no tiene, `created_at` (no la de la factura, que es la del orden). Un día suelto es
+  `diaDesde = diaHasta`. Si vienen `dia` y el rango, se cumplen los dos (el tramo común). Una
+  fecha mal escrita no acota. La lista y su `total` llevan el mismo rango
+  (`TestSinColocarPorRangoDeFechas`, `TestMotorReal_SinColocarPorRangoDeFechas`). La aplicación
+  no los manda —filtra «Sin colocar» en su base, también en la web—: son para otros clientes.
 
 ## `POST /api/board/columns/{id}/route` — armar una zona
 

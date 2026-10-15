@@ -116,7 +116,8 @@ mismas palabras que el servidor) y no horas después, desde la bandeja de rechaz
 contador y la lista tienen que decir lo mismo: lo ata una prueba (CLAUDE.md §3-bis), no
 este párrafo.
 
-Filtros de la mitad izquierda: día del pedido, búsqueda libre (la misma caja de la lista de
+Filtros de la mitad izquierda: fecha del pedido desde/hasta (un rango, los dos días
+incluidos; hasta el 15/10/2026 era un solo día, issue 13 de Amado), búsqueda libre (la misma caja de la lista de
 pedidos: cliente, operación, factura, dirección, municipio, vendedor y el **contenido de los
 renglones** — «¿qué pedidos llevan malta?»), municipio, vendedor y un corte por kilómetros.
 

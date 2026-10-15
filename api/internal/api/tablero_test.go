@@ -743,6 +743,9 @@ func (q *tableroFalso) ListarPedidosSinColocar(_ context.Context, arg sqlc.Lista
 		if _, puesto := q.colocadas[p.id]; puesto {
 			continue
 		}
+		if !fechaEnRango(p.fecha, arg.DiaDesde, arg.DiaHasta) {
+			continue
+		}
 		fila := sqlc.ListarPedidosSinColocarRow{
 			ID: p.id, CustomerName: p.nombre, Weight: p.peso,
 			KmAlAlmacen: kmHaversine(arg.OrigenLat, arg.OrigenLng, p.lat, p.lng),
@@ -829,9 +832,25 @@ func (q *tableroFalso) ContarPedidosSinColocar(_ context.Context, arg sqlc.Conta
 		if _, puesto := q.colocadas[p.id]; puesto {
 			continue
 		}
+		if !fechaEnRango(p.fecha, arg.DiaDesde, arg.DiaHasta) {
+			continue
+		}
 		n++
 	}
 	return n, nil
+}
+
+// fechaEnRango repite el rango de la fecha del pedido de las dos consultas de «Sin colocar»:
+// cada extremo por su lado y `dia_hasta` EXCLUIDO (llega ya como el día siguiente). El doble
+// no tiene `created_at`, así que un pedido sin fecha queda fuera en cuanto hay un extremo.
+func fechaEnRango(fecha *time.Time, desde, hasta pgtype.Timestamptz) bool {
+	if desde.Valid && (fecha == nil || fecha.Before(desde.Time)) {
+		return false
+	}
+	if hasta.Valid && (fecha == nil || !fecha.Before(hasta.Time)) {
+		return false
+	}
+	return true
 }
 
 // --------------------------------------------------------------------------- montaje

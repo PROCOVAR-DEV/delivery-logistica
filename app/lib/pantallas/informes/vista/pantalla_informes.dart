@@ -16,11 +16,11 @@ import '../../../diseno/tabla_ancha.dart';
 import '../../../diseno/tarjeta.dart';
 import '../../../navegacion/estado_navegacion.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
+import '../../../nucleo/numero_de_factura.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
 import '../datos/consultas_informes.dart';
-import '../datos/numero_de_factura.dart';
 import '../estado/informes_estado.dart';
 import 'boton_exportar.dart';
 

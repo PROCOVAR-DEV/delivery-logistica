@@ -78,7 +78,10 @@ Future<void> _sembrarLosPedidos(BaseLocal base) async {
     base,
     id: 'o1',
     cliente: 'Ana',
-    folio: 'F-100',
+    // La factura es el número de Ventra, no el folio: los dos distintos a
+    // propósito para que la tabla «Por factura» no pueda salir del folio.
+    folio: 'PTB25-261015-0001',
+    facturaNumero: 'F-100',
     rutaId: 'R1',
     orden: 1,
     peso: 150,
@@ -89,7 +92,8 @@ Future<void> _sembrarLosPedidos(BaseLocal base) async {
     base,
     id: 'o2',
     cliente: 'Beto',
-    folio: 'F-200',
+    folio: 'PTB25-261015-0002',
+    facturaNumero: 'F-200',
     rutaId: 'R1',
     orden: 0,
     peso: 100,
@@ -413,57 +417,60 @@ void main() {
       return c.future.timeout(const Duration(seconds: 10));
     }
 
-    test('LA RUTA ARMADA A MANO Y LA QUE SALE DEL TABLERO dan el mismo '
-        'pre-despacho: por el asistente y por el detalle es la misma suma', () async {
-      // Local: no hay dos tipos de ruta. Las dos acaban siendo pedidos con
-      // `route_id`, y lo que cambiaba era DÓNDE se enseñaba. Lo que se ata es que
-      // el camino del asistente (la ruta que se va a armar, por ids) y el del
-      // detalle (la ruta ya armada, por sus paradas) lleguen a lo mismo.
-      await _sembrarLasFacturas(base);
+    test(
+      'LA RUTA ARMADA A MANO Y LA QUE SALE DEL TABLERO dan el mismo '
+      'pre-despacho: por el asistente y por el detalle es la misma suma',
+      () async {
+        // Local: no hay dos tipos de ruta. Las dos acaban siendo pedidos con
+        // `route_id`, y lo que cambiaba era DÓNDE se enseñaba. Lo que se ata es que
+        // el camino del asistente (la ruta que se va a armar, por ids) y el del
+        // detalle (la ruta ya armada, por sus paradas) lleguen a lo mismo.
+        await _sembrarLasFacturas(base);
 
-      final delAsistente = await contenedor.read(
-        preDespachoDeLoElegidoEnElAsistenteProvider('o1,o2').future,
-      );
-      final deLaRuta = await laDeLaRuta();
+        final delAsistente = await contenedor.read(
+          preDespachoDeLoElegidoEnElAsistenteProvider('o1,o2').future,
+        );
+        final deLaRuta = await laDeLaRuta();
 
-      expect(
-        _comoTexto(deLaRuta.totales),
-        _comoTexto(delAsistente),
-        reason:
-            'el pre-despacho de la ruta y el del asistente dicen cosas '
-            'distintas con los mismos pedidos: son DOS papeles para el mismo '
-            'almacén',
-      );
+        expect(
+          _comoTexto(deLaRuta.totales),
+          _comoTexto(delAsistente),
+          reason:
+              'el pre-despacho de la ruta y el del asistente dicen cosas '
+              'distintas con los mismos pedidos: son DOS papeles para el mismo '
+              'almacén',
+        );
 
-      // Y la hoja que se imprime por cada camino es la misma, línea a línea.
-      final hojaAsistente = hojaDePreDespachoDeLaRuta(
-        totales: delAsistente,
-        sucursal: 'Camagüey',
-        vehiculo: 'Camión 1',
-        dia: null,
-        pedidos: 2,
-        pesoKg: 250,
-      );
-      final hojaRuta = hojaDePreDespachoDeLaRuta(
-        totales: deLaRuta.totales,
-        sucursal: 'Camagüey',
-        vehiculo: 'Camión 1',
-        dia: null,
-        pedidos: 2,
-        pesoKg: 250,
-        facturas: deLaRuta.facturas,
-      );
-      String linea(papel.LineaPreDespacho l) =>
-          '${l.producto}|${l.formatos}|${l.unidades}|${l.pesoKg}|'
-          '${l.lineasSinUnidades}|${l.lineasSinPeso}';
-      expect(
-        hojaRuta.lineas.map(linea).toList(),
-        hojaAsistente.lineas.map(linea).toList(),
-      );
-      // Lo único que la hoja de la ruta tiene de más es la tabla nueva.
-      expect(hojaAsistente.facturas, isEmpty);
-      expect(hojaRuta.facturas, hasLength(2));
-    });
+        // Y la hoja que se imprime por cada camino es la misma, línea a línea.
+        final hojaAsistente = hojaDePreDespachoDeLaRuta(
+          totales: delAsistente,
+          sucursal: 'Camagüey',
+          vehiculo: 'Camión 1',
+          dia: null,
+          pedidos: 2,
+          pesoKg: 250,
+        );
+        final hojaRuta = hojaDePreDespachoDeLaRuta(
+          totales: deLaRuta.totales,
+          sucursal: 'Camagüey',
+          vehiculo: 'Camión 1',
+          dia: null,
+          pedidos: 2,
+          pesoKg: 250,
+          facturas: deLaRuta.facturas,
+        );
+        String linea(papel.LineaPreDespacho l) =>
+            '${l.producto}|${l.formatos}|${l.unidades}|${l.pesoKg}|'
+            '${l.lineasSinUnidades}|${l.lineasSinPeso}';
+        expect(
+          hojaRuta.lineas.map(linea).toList(),
+          hojaAsistente.lineas.map(linea).toList(),
+        );
+        // Lo único que la hoja de la ruta tiene de más es la tabla nueva.
+        expect(hojaAsistente.facturas, isEmpty);
+        expect(hojaRuta.facturas, hasLength(2));
+      },
+    );
 
     test('LA SUMA DE LAS FACTURAS ES LA TABLA DE ARRIBA: cada producto y cada '
         'total', () async {
@@ -479,7 +486,9 @@ void main() {
         var blister = 0.0;
         var unidades = 0.0;
         for (final f in pre.facturas) {
-          for (final l in f.lineas.where((l) => l.producto == producto.producto)) {
+          for (final l in f.lineas.where(
+            (l) => l.producto == producto.producto,
+          )) {
             blister += l.formatos;
             unidades += l.unidades ?? 0;
           }

@@ -18,7 +18,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/pantallas/informes/datos/numero_de_factura.dart';
+import 'package:reparto/nucleo/numero_de_factura.dart';
 
 /// El MISMO fichero que lee la prueba del servidor.
 const _rutaDeLosCasos = '../docs/numero-de-factura.casos.json';
@@ -31,7 +31,7 @@ List<Map<String, dynamic>> _lista(String clave) =>
     (_casos()[clave] as List<dynamic>).cast<Map<String, dynamic>>();
 
 void main() {
-  group('resolver: el número de operación manda, el de la factura respalda', () {
+  group('resolver: la factura es `factura_numero` y sin él no hay número', () {
     final casos = _lista('resolver');
 
     test('el fichero de casos no está vacío ni le falta el caso principal', () {
@@ -40,26 +40,22 @@ void main() {
       expect(casos, isNotEmpty);
       expect(
         casos.map((c) => c['nombre']),
-        contains('con los dos gana el número de operación'),
-      );
-      expect(
-        casos.map((c) => c['nombre']),
-        contains('sin número de operación vale el de la factura'),
+        contains('un número de Ventra se dice tal cual'),
       );
     });
 
     for (final c in casos) {
       test(c['nombre'] as String, () {
-        final salio = NumeroDeFactura.de(
-          operationNumber: c['operationNumber'] as String?,
-          facturaNumero: c['facturaNumero'] as String?,
+        final salio = NumeroDeFactura.de(c['facturaNumero'] as String?);
+        expect(
+          NumeroDeFactura.separar(c['facturaNumero'] as String?),
+          (c['separadas'] as List<dynamic>).cast<String>(),
         );
         expect(
           salio,
           c['esperado'],
           reason:
-              'Con operationNumber=${jsonEncode(c['operationNumber'])} y '
-              'facturaNumero=${jsonEncode(c['facturaNumero'])} el número tiene '
+              'Con facturaNumero=${jsonEncode(c['facturaNumero'])} el número tiene '
               'que ser ${jsonEncode(c['esperado'])} y salió ${jsonEncode(salio)}. '
               'Es la misma regla que `numeroDeFactura` en '
               'api/internal/api/informes.go: si cambia, cambian los DOS lados y '
@@ -79,10 +75,7 @@ void main() {
         final numeros = [
           for (final p
               in (c['pedidos'] as List<dynamic>).cast<Map<String, dynamic>>())
-            NumeroDeFactura.de(
-              operationNumber: p['operationNumber'] as String?,
-              facturaNumero: p['facturaNumero'] as String?,
-            ),
+            NumeroDeFactura.de(p['facturaNumero'] as String?),
         ];
         final g = NumeroDeFactura.agrupar(numeros);
         expect(g.facturas, (c['facturas'] as List<dynamic>).cast<String>());

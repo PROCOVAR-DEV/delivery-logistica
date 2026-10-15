@@ -139,8 +139,14 @@ VALUES ($1, 'calle 1', 10, $2, $3, $4, $4, $5, $6, $7)`,
 		}
 		crudas[f.CustomerName] = [2]string{op, fac}
 	}
-	if got := crudas["Cliente a"]; got != [2]string{"PTB25-261005-1479", "F-OTRA"} {
+	if got := crudas["Cliente a"]; got != [2]string{"PTB25-261005-1479", "1024237"} {
 		t.Errorf("la consulta tiene que sacar operation_number Y factura_numero tal cual; "+
 			"del pedido a salió %q", got)
+	}
+	// Con la comilla de Excel puesta: limpiarla es cosa de `numeroDeFactura`, no del SQL. Si la
+	// consulta la limpiara, la regla estaría escrita tres veces.
+	if got := crudas["Cliente b"]; got[1] != "'1024240" {
+		t.Errorf("la consulta tiene que sacar factura_numero tal cual, con su comilla; del pedido b "+
+			"salió %q", got[1])
 	}
 }

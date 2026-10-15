@@ -1,147 +1,196 @@
 {
-  "queEsEsto": "Qué número sale en la columna «Factura» de los Reportes, y cómo se juntan los de un camión en «Por Vehículo». Se escribe DOS VECES: en el servidor (`api/internal/api/informes.go`, `numeroDeFactura` y `agruparFacturas`, que contestan GET /api/reports) y en el aparato (`app/lib/pantallas/informes/datos/numero_de_factura.dart`, `NumeroDeFactura.de` y `NumeroDeFactura.agrupar`, que arman el informe de la APK, del escritorio y de la web con su base local). Tienen que dar EXACTAMENTE lo mismo o el mismo informe lleva un número en la pantalla y otro en el Excel que baja el servidor, y eso no lo enseña ninguna pantalla. Este fichero es lo que las ata (CLAUDE.md §3-bis: se atan con una prueba, no con un comentario).",
+  "queEsEsto": "Qué es «el número de factura» de un pedido, en TODA la aplicación: tablero, Pedidos, Reportes (pantalla, Excel y GET /api/reports) y la tabla «Por factura» del pre-despacho. Se escribe DOS VECES: en el servidor (`api/internal/api/informes.go`: `numeroDeFactura`, `numerosDeFactura` y `agruparFacturas`, que contestan GET /api/reports) y en el aparato (`app/lib/nucleo/numero_de_factura.dart`: `NumeroDeFactura.de`, `.separar` y `.agrupar`, de los que cuelgan las cuatro pantallas con su base local). Tienen que dar EXACTAMENTE lo mismo o el mismo pedido lleva un número en una pantalla y otro en el Excel que baja el servidor, y eso no lo enseña ninguna pantalla. Este fichero es lo que las ata (CLAUDE.md §3-bis: se atan con una prueba, no con un comentario).",
   "quienLoLee": [
     "api/internal/api/numero_de_factura_casos_compartidos_test.go",
     "api/internal/api/informes_motor_real_test.go",
-    "app/test/pantallas/informes/el_numero_de_factura_test.dart",
-    "app/test/pantallas/informes/la_factura_en_los_reportes_test.dart"
+    "app/test/nucleo/el_numero_de_factura_test.dart",
+    "app/test/pantallas/informes/la_factura_en_los_reportes_test.dart",
+    "app/test/pantallas/el_mismo_numero_de_factura_en_todas_las_pantallas_test.dart"
   ],
-  "deDondeSale": "Issue 9 de Amado (PROCOVAR-DEV/delivery-logistica): «Adicionar la factura como elemento de referencia importante: adicionar a los reportes la columna de facturas». El «conduce» de Amado es el NÚMERO DE OPERACIÓN de la factura (`orders.operation_number`; Jose, 07/10/2026). `orders.factura_numero` es el número con el que Ventra cuadró el pedido y sólo existe cuando hay factura; sirve de respaldo.",
-  "laRegla": "1) Principal: `operation_number`. 2) Si falta —nulo, vacío o sólo blancos—, `factura_numero`. 3) Si faltan los dos, NO hay número (null): nunca un texto inventado. En todos los casos se quitan los blancos de los extremos (los Unicode también: NBSP, tabulador y el BOM U+FEFF). Dentro de un camión los números van sin repetir y EN EL ORDEN EN QUE APARECEN; los pedidos sin número no se esconden: se cuentan en `sinFactura`. Un mismo número en dos pedidos (la ida y la vuelta del mismo pedido) sale una sola vez, y eso NO toca la cuenta de órdenes ni los totales.",
+  "deDondeSale": "Amado (PROCOVAR-DEV/delivery-logistica) pidió «el número de factura» en tablero, pedidos, reportes y predespacho (issues 6, 8 y 9), y tres agentes lo resolvieron con criterios distintos: unos enseñaban `factura_numero` (el de Ventra, `1024237`) y otros `operation_number` (el folio, el «conduce», `PTB25-261005-1479`), de modo que la aplicación decía números distintos para lo mismo. Decisión de Jose (14/10/2026): «factura» = `orders.factura_numero` en toda la app. El folio NO es la factura: sigue donde estaba, con su rótulo de siempre.",
+  "laRegla": "1) El número de factura es `factura_numero`, y nada más. 2) SIN fallback al folio: sin `factura_numero` —nulo, vacío o sólo blancos— no hay número (null) y cada pantalla lo dice a su manera («—», «Sin número»); caer al folio es lo que generaba números distintos para lo mismo. 3) Se quitan los blancos de los extremos (los Unicode también: tabulador, NBSP y el BOM U+FEFF) y la comilla de Excel que pudo bajar delante (`'1024237`; `texto_de_fuera.dart` / `espejo.SinLaComillaDeExcel`). 4) Un pedido cubierto con varias facturas las trae separadas por coma (`1024237, 1024240`): se dicen tal cual, normalizadas a coma y espacio, y `separadas` las da una a una. 5) Dentro de un camión (Reportes, «Por Vehículo») cada FACTURA va una sola vez y EN EL ORDEN EN QUE APARECE, aunque venga en dos pedidos (la ida y la vuelta) o dentro de una lista; los pedidos sin ninguna se cuentan en `sinFactura` y no se esconden. Nada de eso toca la cuenta de órdenes ni los totales.",
   "resolver": [
     {
-      "nombre": "con los dos gana el número de operación",
-      "operationNumber": "PTB25-261005-1479",
+      "nombre": "un número de Ventra se dice tal cual",
+      "facturaNumero": "1024237",
+      "esperado": "1024237",
+      "separadas": ["1024237"]
+    },
+    {
+      "nombre": "con letras también: no tiene por qué ser sólo dígitos",
       "facturaNumero": "F-000123",
-      "esperado": "PTB25-261005-1479"
+      "esperado": "F-000123",
+      "separadas": ["F-000123"]
     },
     {
-      "nombre": "sin número de operación vale el de la factura",
-      "operationNumber": null,
-      "facturaNumero": "F-000123",
-      "esperado": "F-000123"
+      "nombre": "varias facturas del pedido se dicen tal cual, y separadas son dos",
+      "facturaNumero": "1024237, 1024240",
+      "esperado": "1024237, 1024240",
+      "separadas": ["1024237", "1024240"]
     },
     {
-      "nombre": "un número de operación vacío no tapa al de la factura",
-      "operationNumber": "",
-      "facturaNumero": "F-000123",
-      "esperado": "F-000123"
+      "nombre": "sin el espacio tras la coma se normaliza a coma y espacio",
+      "facturaNumero": "1024237,1024240",
+      "esperado": "1024237, 1024240",
+      "separadas": ["1024237", "1024240"]
     },
     {
-      "nombre": "un número de operación de sólo blancos tampoco",
-      "operationNumber": "   ",
-      "facturaNumero": "F-000123",
-      "esperado": "F-000123"
+      "nombre": "los espacios de más entre facturas se quitan",
+      "facturaNumero": "1024237 ,   1024240",
+      "esperado": "1024237, 1024240",
+      "separadas": ["1024237", "1024240"]
     },
     {
-      "nombre": "sin ninguno de los dos no hay número",
-      "operationNumber": null,
-      "facturaNumero": null,
-      "esperado": null
+      "nombre": "un trozo vacío entre comas no es una factura",
+      "facturaNumero": "1024237,, 1024240,",
+      "esperado": "1024237, 1024240",
+      "separadas": ["1024237", "1024240"]
     },
     {
-      "nombre": "los dos vacíos o en blanco tampoco son un número",
-      "operationNumber": "",
-      "facturaNumero": "  ",
-      "esperado": null
+      "nombre": "la comilla de Excel se quita",
+      "facturaNumero": "'1024237",
+      "esperado": "1024237",
+      "separadas": ["1024237"]
+    },
+    {
+      "nombre": "la comilla de Excel de una lista también",
+      "facturaNumero": "'1024237, 1024240",
+      "esperado": "1024237, 1024240",
+      "separadas": ["1024237", "1024240"]
+    },
+    {
+      "nombre": "una comilla que vino detrás de un blanco también se quita",
+      "facturaNumero": "  '1024237",
+      "esperado": "1024237",
+      "separadas": ["1024237"]
     },
     {
       "nombre": "se quitan los blancos de los extremos",
-      "operationNumber": "  PTB25-261005-1479 ",
+      "facturaNumero": "  1024237 ",
+      "esperado": "1024237",
+      "separadas": ["1024237"]
+    },
+    {
+      "nombre": "los blancos raros de Unicode (tabulador, NBSP y BOM) cuentan como blancos",
+      "facturaNumero": "\t 1024237﻿",
+      "esperado": "1024237",
+      "separadas": ["1024237"]
+    },
+    {
+      "nombre": "nulo no es un número",
       "facturaNumero": null,
-      "esperado": "PTB25-261005-1479"
+      "esperado": null,
+      "separadas": []
     },
     {
-      "nombre": "también los de la factura cuando es la que vale",
-      "operationNumber": null,
-      "facturaNumero": "\t F-000123 ",
-      "esperado": "F-000123"
+      "nombre": "vacío tampoco",
+      "facturaNumero": "",
+      "esperado": null,
+      "separadas": []
     },
     {
-      "nombre": "los blancos raros de Unicode (NBSP y BOM) cuentan como blancos",
-      "operationNumber": " ﻿",
-      "facturaNumero": " F-000123﻿",
-      "esperado": "F-000123"
+      "nombre": "sólo blancos tampoco, NBSP y BOM incluidos",
+      "facturaNumero": " \t ﻿ ",
+      "esperado": null,
+      "separadas": []
+    },
+    {
+      "nombre": "sólo comas y blancos tampoco",
+      "facturaNumero": " , ,  ",
+      "esperado": null,
+      "separadas": []
     },
     {
       "nombre": "un cero es un número, no un hueco",
-      "operationNumber": "0",
-      "facturaNumero": "F-000123",
-      "esperado": "0"
+      "facturaNumero": "0",
+      "esperado": "0",
+      "separadas": ["0"]
     }
   ],
   "agrupar": [
     {
       "nombre": "dos pedidos distintos salen en el orden en que aparecen",
       "pedidos": [
-        { "operationNumber": "PTB25-261005-1480", "facturaNumero": null },
-        { "operationNumber": "PTB25-261005-1479", "facturaNumero": null }
+        { "operationNumber": "PTB25-261005-1480", "facturaNumero": "1024240" },
+        { "operationNumber": "PTB25-261005-1479", "facturaNumero": "1024237" }
       ],
-      "facturas": ["PTB25-261005-1480", "PTB25-261005-1479"],
+      "facturas": ["1024240", "1024237"],
       "sinFactura": 0
     },
     {
-      "nombre": "el mismo número en dos pedidos sale UNA vez",
+      "nombre": "la misma factura en dos pedidos sale UNA vez",
       "pedidos": [
-        { "operationNumber": "PTB25-261005-1479", "facturaNumero": null },
-        { "operationNumber": "PTB25-261005-1480", "facturaNumero": null },
-        { "operationNumber": " PTB25-261005-1479", "facturaNumero": null }
+        { "operationNumber": "PTB25-261005-1479", "facturaNumero": "1024237" },
+        { "operationNumber": "PTB25-261005-1480", "facturaNumero": "1024240" },
+        { "operationNumber": "PTB25-261005-1481", "facturaNumero": "  1024237 " }
       ],
-      "facturas": ["PTB25-261005-1479", "PTB25-261005-1480"],
+      "facturas": ["1024237", "1024240"],
+      "sinFactura": 0
+    },
+    {
+      "nombre": "un pedido con varias facturas aporta cada una, y una que ya salió no se repite",
+      "pedidos": [
+        { "operationNumber": "PTB25-261005-1479", "facturaNumero": "1024237, 1024240" },
+        { "operationNumber": "PTB25-261005-1480", "facturaNumero": "1024240" },
+        { "operationNumber": "PTB25-261005-1481", "facturaNumero": "1024251,1024237" }
+      ],
+      "facturas": ["1024237", "1024240", "1024251"],
+      "sinFactura": 0
+    },
+    {
+      "nombre": "con y sin comilla de Excel es la misma factura",
+      "pedidos": [
+        { "operationNumber": "PTB25-261005-1479", "facturaNumero": "'1024237" },
+        { "operationNumber": "PTB25-261005-1480", "facturaNumero": "1024237" }
+      ],
+      "facturas": ["1024237"],
       "sinFactura": 0
     },
     {
       "nombre": "un pedido sin número no se esconde: se cuenta aparte",
       "pedidos": [
-        { "operationNumber": "PTB25-261005-1479", "facturaNumero": null },
-        { "operationNumber": null, "facturaNumero": null },
-        { "operationNumber": "", "facturaNumero": "  " }
+        { "operationNumber": "PTB25-261005-1479", "facturaNumero": "1024237" },
+        { "operationNumber": "PTB25-261005-1480", "facturaNumero": null },
+        { "operationNumber": "PTB25-261005-1481", "facturaNumero": " ﻿" }
       ],
-      "facturas": ["PTB25-261005-1479"],
+      "facturas": ["1024237"],
       "sinFactura": 2
     },
     {
-      "nombre": "mezcla de operación y de factura de respaldo",
+      "nombre": "el folio NO hace de factura: todos sin factura_numero, lista vacía y todos contados",
       "pedidos": [
-        { "operationNumber": null, "facturaNumero": "F-000123" },
-        { "operationNumber": "PTB25-261005-1479", "facturaNumero": "F-000999" }
-      ],
-      "facturas": ["F-000123", "PTB25-261005-1479"],
-      "sinFactura": 0
-    },
-    {
-      "nombre": "todos sin número: lista vacía y todos contados",
-      "pedidos": [
-        { "operationNumber": null, "facturaNumero": null },
-        { "operationNumber": null, "facturaNumero": null }
+        { "operationNumber": "PTB25-261005-1479", "facturaNumero": null },
+        { "operationNumber": "PTB25-261005-1480", "facturaNumero": "" }
       ],
       "facturas": [],
       "sinFactura": 2
     }
   ],
   "informe": {
-    "queEs": "UN INFORME ENTERO, de punta a punta: cinco pedidos de UN camión, del más nuevo al más viejo (así los devuelven la consulta del servidor, `ORDER BY created_at DESC`, y la del aparato). Se siembran en la base local (prueba de Dart), en una base de Postgres de verdad y en el doble del servidor (pruebas de Go), y los tres tienen que dar `esperado`. `a` lleva número de operación Y de factura (manda la operación); `b` sólo el de la factura (el respaldo); `c` ninguno; `d` repite el número de `a` (la ida y la vuelta); `e` es otro. Los totales (5 órdenes, 80 de ingresos) NO se mueven por la columna de facturas.",
+    "queEs": "UN INFORME ENTERO, de punta a punta, y los MISMOS pedidos de ejemplo para las cuatro pantallas: seis pedidos de UN camión, del más nuevo al más viejo (así los devuelven la consulta del servidor, `ORDER BY created_at DESC`, y la del aparato). Se siembran en la base local (pruebas de Dart: reportes, tablero, Pedidos y pre-despacho), en una base de Postgres de verdad y en el doble del servidor (pruebas de Go), y todos tienen que dar `esperado`. TODOS llevan un folio (`operationNumber`) DISTINTO de su factura a propósito: con el mismo valor en los dos, pintar uno por otro saldría en verde. `a` tiene su factura; `b` la trae con la comilla de Excel; `c` no tiene factura_numero (y SU folio no la sustituye); `d` repite la factura de `a` (la ida y la vuelta); `e` tiene dos facturas con blancos de más; `f` sólo tiene blancos Unicode. Los totales (6 órdenes, 84 de ingresos) NO se mueven por la columna de facturas.",
     "camion": "Ford 600",
     "pedidos": [
-      { "cliente": "Cliente a", "operationNumber": "PTB25-261005-1479", "facturaNumero": "F-OTRA", "ingreso": 30 },
-      { "cliente": "Cliente b", "operationNumber": null, "facturaNumero": "F-000777", "ingreso": 10 },
-      { "cliente": "Cliente c", "operationNumber": null, "facturaNumero": null, "ingreso": 5 },
-      { "cliente": "Cliente d", "operationNumber": "PTB25-261005-1479", "facturaNumero": null, "ingreso": 20 },
-      { "cliente": "Cliente e", "operationNumber": "PTB25-261005-1500", "facturaNumero": null, "ingreso": 15 }
+      { "cliente": "Cliente a", "operationNumber": "PTB25-261005-1479", "facturaNumero": "1024237", "ingreso": 30 },
+      { "cliente": "Cliente b", "operationNumber": "PTB25-261005-1480", "facturaNumero": "'1024240", "ingreso": 10 },
+      { "cliente": "Cliente c", "operationNumber": "PTB25-261005-1481", "facturaNumero": null, "ingreso": 5 },
+      { "cliente": "Cliente d", "operationNumber": "PTB25-261005-1482", "facturaNumero": "1024237", "ingreso": 20 },
+      { "cliente": "Cliente e", "operationNumber": "PTB25-261005-1500", "facturaNumero": " 1024251, 1024299 ", "ingreso": 15 },
+      { "cliente": "Cliente f", "operationNumber": "PTB25-261005-1501", "facturaNumero": " ﻿ ", "ingreso": 4 }
     ],
     "esperado": {
       "porPedido": {
-        "Cliente a": "PTB25-261005-1479",
-        "Cliente b": "F-000777",
+        "Cliente a": "1024237",
+        "Cliente b": "1024240",
         "Cliente c": null,
-        "Cliente d": "PTB25-261005-1479",
-        "Cliente e": "PTB25-261005-1500"
+        "Cliente d": "1024237",
+        "Cliente e": "1024251, 1024299",
+        "Cliente f": null
       },
       "camion": {
-        "ordenes": 5,
-        "ingresos": 80,
-        "facturas": ["PTB25-261005-1479", "F-000777", "PTB25-261005-1500"],
-        "sinFactura": 1
+        "ordenes": 6,
+        "ingresos": 84,
+        "facturas": ["1024237", "1024240", "1024251", "1024299"],
+        "sinFactura": 2
       }
     }
   }

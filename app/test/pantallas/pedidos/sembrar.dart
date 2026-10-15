@@ -80,6 +80,9 @@ Future<void> sembrarPedido(
   required String id,
   required String cliente,
   String? folio,
+
+  /// El número de la factura de Ventra (`factura_numero`), que NO es el folio.
+  String? facturaNumero = 'FA-1',
   String municipio = 'Camagüey',
   String vendedor = 'Luis',
   String? facturaEstado = EstadoFactura.igual,
@@ -120,7 +123,7 @@ Future<void> sembrarPedido(
         municipio: Value(municipio),
         vendedor: Value(vendedor),
         facturaEstado: Value(facturaEstado),
-        facturaNumero: const Value('FA-1'),
+        facturaNumero: Value(facturaNumero),
         archivado: Value(archivado),
         pedidoCosto: Value(pedidoCosto),
         facturaDomicilio: Value(facturaDomicilio),

@@ -273,7 +273,7 @@ class TarjetaPedido {
 
   /// El número de la FACTURA de Ventra (`1024237`), no el folio del pedido
   /// ([operationNumber]). Cuál se enseña como «Factura» y por qué, en
-  /// `numeroDeFactura` (`pedidos/datos/formato.dart`). Sin pasar por él no se pinta.
+  /// `NumeroDeFactura` (`nucleo/numero_de_factura.dart`). Sin pasar por él no se pinta.
   final String? facturaNumero;
 
   /// Cuándo anotó PEDIDO el cotejo con la factura: la hora de facturación, con el retraso

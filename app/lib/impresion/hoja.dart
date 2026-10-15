@@ -83,9 +83,9 @@ class FacturaDelPreDespacho {
     required this.lineas,
   });
 
-  /// El número de la factura, o `null` si el pedido no trae ninguno (ver
-  /// `numeroDeFactura`, en `pantallas/rutas/datos/pre_despacho_de_la_ruta.dart`,
-  /// que decide cuál de los dos números del pedido es).
+  /// El número de la factura (el `factura_numero` de Ventra), o `null` si el pedido
+  /// no trae ninguno. Lo decide `NumeroDeFactura.de` (`nucleo/numero_de_factura.dart`):
+  /// sin factura NO se cae al folio. Con varias, `1024237, 1024240` en una sola.
   final String? numero;
 
   /// A quién se le entrega. Sale en la tarjeta del teléfono y es lo que

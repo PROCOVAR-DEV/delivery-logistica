@@ -615,3 +615,38 @@ func TestElSinPermisoPorEntradasNoFiltraNiCambia(t *testing.T) {
 		t.Errorf("/api/me: %d %s", m.Code, m.Body.String())
 	}
 }
+
+// QUIÉN ENTRA TODAVÍA POR LA CAÍDA DE ROLES (15/10/2026). Antes de quitar
+// `auth.CaidaPorRolesDeTransicion` hay que saber si alguien depende de ella, y el registro sólo
+// apuntaba los rechazos. EN PAREJA: un token SIN `entradas` que entra por su rol deja el renglón;
+// uno CON `entradas` que entra por su llave no lo deja (si saliera siempre, nadie lo leería).
+func TestQuienEntraPorLaCaidaDeRolesQuedaApuntado(t *testing.T) {
+	h, registro := montarConRegistro(t)
+	viejo := token(t, map[string]any{
+		"sub": "p-log", "email": "log@procovar.cu", "role": "LOGISTICO", "branchId": stg.String(),
+	})
+	if w := servir(h, conBearer(http.MethodGet, "/api/vehicles", viejo)); w.Code != http.StatusOK {
+		t.Fatalf("un LOGISTICO sin `entradas` tiene que entrar mientras dure la caída: %d %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(registro.String(), "entró por la caída de roles") ||
+		!strings.Contains(registro.String(), "log@procovar.cu") {
+		t.Fatalf("quien entra por la caída no quedó apuntado (con quién es):\n%s", registro.String())
+	}
+	for _, trozo := range append(strings.Split(viejo, "."), viejo) {
+		if strings.Contains(registro.String(), trozo) {
+			t.Errorf("el token se filtró en el registro (%.12s…)", trozo)
+		}
+	}
+
+	h2, registro2 := montarConRegistro(t)
+	nuevo := token(t, map[string]any{
+		"sub": "p-log", "email": "log@procovar.cu", "role": "LOGISTICO", "branchId": stg.String(),
+		"entradas": []string{"delivery.entrar"},
+	})
+	if w := servir(h2, conBearer(http.MethodGet, "/api/vehicles", nuevo)); w.Code != http.StatusOK {
+		t.Fatalf("con la llave tiene que entrar: %d %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(registro2.String(), "entró por la caída de roles") {
+		t.Errorf("un token CON `entradas` no entra por la caída y no debe apuntarse:\n%s", registro2.String())
+	}
+}

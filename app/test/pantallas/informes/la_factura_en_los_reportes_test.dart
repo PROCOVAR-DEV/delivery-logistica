@@ -71,12 +71,12 @@ Map<String, dynamic> _informeDelFichero() =>
             as Map<String, dynamic>)['informe']
         as Map<String, dynamic>;
 
-// Los números de la siembra (son los del fichero de arriba). Dos con forma de
-// «conduce» (el de operación) y uno que sólo existe como número de la factura
-// de Ventra.
-const _op1479 = 'PTB25-261005-1479';
-const _op1500 = 'PTB25-261005-1500';
-const _soloFactura = 'F-000777';
+// Los números de la siembra (son los del fichero de arriba): «factura» es el
+// número de Ventra (`factura_numero`), nunca el folio (decisión del 14/10/2026).
+const _f1 = '1024237'; // pedidos a y d
+const _f2 = '1024240'; // pedido b (venía con la comilla de Excel)
+const _f3 = '1024251, 1024299'; // pedido e: dos facturas
+const _porVehiculoPantalla = '$_f1, $_f2 y 2 más · 2 sin número';
 
 void main() {
   setUpAll(() => initializeDateFormatting('es'));
@@ -108,14 +108,14 @@ void main() {
   /// Un camión con una ruta, y los cinco pedidos de esa ruta que trae el fichero
   /// compartido, del más nuevo al más viejo:
   ///
-  ///  * `a`  — operación `_op1479`, y además un número de factura DISTINTO
-  ///           (manda la operación);
-  ///  * `b`  — sin operación, sólo el número de la factura (el respaldo);
-  ///  * `c`  — sin ninguno de los dos;
-  ///  * `d`  — el MISMO número que `a` (no se repite en la lista del camión);
-  ///  * `e`  — `_op1500`.
+  ///  * `a`  — factura `_f1`;
+  ///  * `b`  — factura `_f2`, que llegó con la comilla de Excel;
+  ///  * `c`  — sin factura (su folio NO se enseña como factura);
+  ///  * `d`  — la MISMA factura que `a` (no se repite en la lista del camión);
+  ///  * `e`  — dos facturas (`_f3`);
+  ///  * `f`  — factura sólo con blancos raros: cuenta como sin número.
   ///
-  /// Importes 30 + 10 + 5 + 20 + 15 = 80.
+  /// Los importes y lo esperado salen del fichero compartido.
   Future<void> sembrar() async {
     final informe = _informeDelFichero();
     await base
@@ -294,9 +294,9 @@ void main() {
       expect(find.text('Factura'), findsOneWidget);
       // Los dos pedidos con el mismo número lo enseñan los dos: en el detalle
       // es UN número por orden, que es para lo que sirve de referencia.
-      expect(find.text(_op1479), findsNWidgets(2));
-      expect(find.text(_soloFactura), findsOneWidget);
-      expect(find.text(_op1500), findsOneWidget);
+      expect(find.text(_f1), findsNWidgets(2));
+      expect(find.text(_f2), findsOneWidget);
+      expect(find.text(_f3), findsOneWidget);
       // Y el que no tiene ninguno lo dice con la raya, no en blanco.
       expect(
         find.descendant(of: laFilaDe('Cliente c'), matching: find.text('—')),
@@ -306,21 +306,21 @@ void main() {
             'tiene que decir «—» como las otras columnas que faltan.',
       );
       // El número es para copiarlo: se lee ENTERO, no cortado con «…».
-      seLeEntero(tester, _op1479);
-      // Los totales, intactos: 5 órdenes que suman 80, y el pie sigue siendo el
+      seLeEntero(tester, _f1);
+      // Los totales, intactos: 6 órdenes que suman 84, y el pie sigue siendo el
       // pie.
       expect(find.text('Totales:'), findsOneWidget);
-      expect(find.text('80,00 USD'), findsOneWidget);
+      expect(find.text('84,00 USD'), findsOneWidget);
       // Y cada total bajo SU columna: la de las facturas es una celda más en
       // cada fila, y el pie que se queda una celda corta corre el total del
       // Precio un hueco a la izquierda sin que ninguna cifra cambie.
       expect(
-        tester.getTopLeft(find.text('80,00 USD')).dx,
+        tester.getTopLeft(find.text('84,00 USD')).dx,
         tester.getTopLeft(find.text('Precio')).dx,
         reason: 'El total del pie ya no cae bajo la columna «Precio».',
       );
       expect(
-        tester.getTopLeft(find.text(_soloFactura)).dx,
+        tester.getTopLeft(find.text(_f2)).dx,
         tester.getTopLeft(find.text('Factura')).dx,
         reason: 'Los números de factura no caen bajo la cabecera «Factura».',
       );
@@ -341,23 +341,19 @@ void main() {
 
       expect(find.text('Facturas'), findsOneWidget);
       expect(
-        find.text('$_op1479, $_soloFactura y 1 más · 1 sin número'),
+        find.text(_porVehiculoPantalla),
         findsOneWidget,
         reason:
             'La celda del camión tiene que decir sus dos primeras facturas, '
             'cuántas quedan fuera y cuántos pedidos no tienen número. El mismo '
             'número de `a` y `d` cuenta UNA vez.',
       );
-      seLeEntero(tester, '$_op1479, $_soloFactura y 1 más · 1 sin número');
+      seLeEntero(tester, _porVehiculoPantalla);
       // Las órdenes y el total del camión, como siempre.
       expect(find.text('Ford 600'), findsOneWidget);
-      expect(find.text('80,00 USD'), findsWidgets);
+      expect(find.text('84,00 USD'), findsWidgets);
       expect(
-        tester
-            .getTopLeft(
-              find.text('$_op1479, $_soloFactura y 1 más · 1 sin número'),
-            )
-            .dx,
+        tester.getTopLeft(find.text(_porVehiculoPantalla)).dx,
         tester.getTopLeft(find.text('Facturas')).dx,
         reason: 'La lista del camión no cae bajo la cabecera «Facturas».',
       );
@@ -380,20 +376,17 @@ void main() {
       await tester.tap(find.byKey(ClavesDePestanas.adelante));
       await tester.pumpAndSettle();
       expect(find.text('Facturas'), findsOneWidget);
-      expect(
-        find.text('$_op1479, $_soloFactura y 1 más · 1 sin número'),
-        findsOneWidget,
-      );
-      seLeEntero(tester, '$_op1479, $_soloFactura y 1 más · 1 sin número');
+      expect(find.text(_porVehiculoPantalla), findsOneWidget);
+      seLeEntero(tester, _porVehiculoPantalla);
       expect(tester.takeException(), isNull);
 
       await tester.tap(find.byKey(ClavesDePestanas.adelante));
       await tester.pumpAndSettle();
       expect(find.text('Factura'), findsOneWidget);
-      expect(find.text(_op1479), findsNWidgets(2));
+      expect(find.text(_f1), findsNWidgets(2));
       // La tabla es ancha y se desplaza de lado; el número tiene que caber en
       // su columna, que se mide aunque la parte visible sea de 390 px.
-      seLeEntero(tester, _op1479);
+      seLeEntero(tester, _f1);
       // `RenderFlex overflowed` y compañía llegan aquí como excepción.
       expect(tester.takeException(), isNull);
 
@@ -425,20 +418,21 @@ void main() {
       final clientes = detalle.first.indexOf('Cliente');
       expect(
         {
-          for (final fila in detalle.skip(1).take(5))
+          for (final fila in detalle.skip(1).take(6))
             fila[clientes]: fila[columna],
         },
         {
-          'Cliente a': _op1479,
-          'Cliente b': _soloFactura,
+          'Cliente a': _f1,
+          'Cliente b': _f2,
           'Cliente c': '—',
-          'Cliente d': _op1479,
-          'Cliente e': _op1500,
+          'Cliente d': _f1,
+          'Cliente e': _f3,
+          'Cliente f': '—',
         },
       );
       // El pie sigue en su sitio y con su total.
       expect(detalle.last.first, 'Totales:');
-      expect(detalle.last.last, 80);
+      expect(detalle.last.last, 84);
 
       // Por Vehículo: la lista ENTERA, sin el «y 1 más» de la pantalla.
       final porVehiculo = libro['Por Vehículo']!;
@@ -446,9 +440,9 @@ void main() {
       expect(facturas, isNonNegative);
       expect(
         porVehiculo[1][facturas],
-        '$_op1479, $_soloFactura, $_op1500 · 1 sin número',
+        '1024237, 1024240, 1024251, 1024299 · 2 sin número',
       );
-      expect(porVehiculo[1][2], 5, reason: 'las órdenes del camión cambiaron');
+      expect(porVehiculo[1][2], 6, reason: 'las órdenes del camión cambiaron');
 
       await desmontar(tester);
     });

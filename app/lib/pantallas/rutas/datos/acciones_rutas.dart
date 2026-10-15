@@ -111,6 +111,55 @@ const msgSoloSeRetiranDeRutaPlanificada =
 const msgParadaNoPerteneceAPlanificada =
     'El pedido no pertenece a una ruta planificada o ya fue retirado';
 
+/// Los «no» de REORDENAR (issue 11 de Amado), LETRA POR LETRA los del servidor
+/// (`ordenarParadas` y `motivoDelOrden`, `api/internal/api/rutas.go`). Los ata
+/// `docs/reordenar-paradas.casos.json`, que leen las pruebas de los dos lados.
+String msgOrdenRepetido(String parada) =>
+    'El nuevo orden repite la parada $parada: cada parada va una sola vez.';
+String msgOrdenNoCuadra(String que) =>
+    'El nuevo orden no coincide con las paradas de la ruta ($que). '
+    'Vuelve a abrir la ruta y ordénala otra vez.';
+const msgRutaSinOrigen =
+    'La ruta no tiene punto de salida: sin él no se pueden medir los km ni '
+    'ordenar por cercanía.';
+
+/// Una parada CARGADA en la ruta, con lo justo para nombrarla en un rechazo.
+typedef ParadaCargada = ({String id, String? conduce, String cliente});
+
+/// Por qué [pedido] no vale como orden nuevo de [cargadas], o `null` si es la
+/// lista exacta. Nada de reordenar a medias: una parada que faltara se quedaría
+/// con su número viejo, repetido con el de otra. Gemela de `motivoDelOrden` del
+/// servidor: las que faltan se nombran por su conduce; las que sobran se cuentan.
+({int codigo, String motivo})? motivoDelOrden(
+  List<String> pedido,
+  List<ParadaCargada> cargadas,
+) {
+  String quien(ParadaCargada p) =>
+      (p.conduce ?? '').isNotEmpty ? p.conduce! : p.cliente;
+  final porId = {for (final p in cargadas) p.id: p};
+  final visto = <String>{};
+  var sobran = 0;
+  for (final id in pedido) {
+    if (!visto.add(id)) {
+      final p = porId[id];
+      return (codigo: 400, motivo: msgOrdenRepetido(p == null ? id : quien(p)));
+    }
+    if (!porId.containsKey(id)) sobran++;
+  }
+  final faltan = [
+    for (final p in cargadas)
+      if (!visto.contains(p.id)) quien(p),
+  ];
+  final partes = [
+    if (faltan.length == 1) 'falta ${faltan.first}',
+    if (faltan.length > 1) 'faltan ${faltan.join(', ')}',
+    if (sobran == 1) 'sobra 1 pedido que no va en ella',
+    if (sobran > 1) 'sobran $sobran pedidos que no van en ella',
+  ];
+  if (partes.isEmpty) return null;
+  return (codigo: 409, motivo: msgOrdenNoCuadra(partes.join('; ')));
+}
+
 /// El «no» de armar con un camión dado de baja, el literal del servidor
 /// (`api/internal/api/rutas.go`, `armarRuta`). Con el camión en `isActive =
 /// false` el servidor contesta 400 con esto; el aparato lo dice antes para que
@@ -1159,6 +1208,153 @@ class AccionesDeRuta {
         }
       });
 
+  /// REORDENAR LAS PARADAS de una ruta no completada (issue 11 de Amado).
+  ///
+  /// [orden] es la lista ENTERA de las paradas cargadas (`routeId`) en el orden
+  /// nuevo; sin él se ordena por cercanía desde el origen de la ruta. Lo que sale
+  /// es lo mismo que en el servidor (`PUT /api/routes/{id}/stops`): `stopOrder`,
+  /// el km en recta de cada parada, los km del circuito y la firma `optimized`.
+  ///
+  /// En la web va al servidor y sólo se pinta lo que él guardó; un «no» sale con
+  /// su motivo literal y no se mueve nada. En la APK y el escritorio se escribe
+  /// aquí con LAS MISMAS cuentas del armado (`ordenDeVisita`, `kmDelCircuito`) y
+  /// se encola el mismo cuerpo; al subir, la bajada trae la verdad del servidor.
+  Future<void> reordenar(
+    String rutaId, {
+    List<String>? orden,
+  }) => _unaSola('reordenar:$rutaId', () async {
+    final ruta = await _ruta(rutaId);
+    if (ruta == null) throw const RechazoLocal('No encontrada');
+    _exigirRutaEditable(ruta);
+    final origenLat = ruta.originLat;
+    final origenLng = ruta.originLng;
+    if (origenLat == null || origenLng == null) {
+      throw const RechazoLocal(msgRutaSinOrigen);
+    }
+    // Las cargadas, en el orden del servidor (`stop_order ASC NULLS LAST,
+    // created_at`): es «el orden que traían» de las que no tienen punto.
+    final cargadas =
+        await (_base.select(_base.orders)
+              ..where((o) => o.routeId.equals(rutaId))
+              ..orderBy([
+                (o) => OrderingTerm.asc(o.stopOrder, nulls: NullsOrder.last),
+                (o) => OrderingTerm.asc(o.createdAt),
+              ]))
+            .get();
+    final origen = Punto(origenLat, origenLng);
+    final conPunto = <Parada>[];
+    final sinPunto = <String>[];
+    for (final p in cargadas) {
+      final lat = p.endLat;
+      final lng = p.endLng;
+      if (lat != null && lng != null && puntoDelPlaneta(lat, lng)) {
+        conPunto.add(Parada(p.id, lat, lng));
+      } else {
+        sinPunto.add(p.id);
+      }
+    }
+    if (orden != null) {
+      final no = motivoDelOrden(orden, [
+        for (final p in cargadas)
+          (id: p.id, conduce: p.operationNumber, cliente: p.customerName),
+      ]);
+      if (no != null) throw RechazoLocal(no.motivo);
+    }
+    final porCercania = orden == null;
+    final cuerpo = <String, Object?>{
+      if (porCercania) 'porCercania': true else 'orden': orden,
+    };
+
+    final enVivo = _enVivo;
+    if (enVivo != null) {
+      final respuesta = await _mandar(
+        enVivo,
+        metodo: 'PUT',
+        ruta: '/routes/$rutaId/stops',
+        cuerpo: cuerpo,
+      );
+      await _reflejarElOrden(rutaId, respuesta);
+      return;
+    }
+
+    final nuevo = orden ?? ordenPorCercania(origen, conPunto, sinPunto);
+    final porId = {for (final p in conPunto) p.id: p};
+    final ordenadas = [
+      for (final id in nuevo)
+        if (porId[id] != null) porId[id]!,
+    ];
+    final ahora = _reloj();
+    await _base.transaction(() async {
+      for (var i = 0; i < nuevo.length; i++) {
+        final punto = porId[nuevo[i]]?.punto;
+        await (_base.update(_base.orders)
+              ..where((o) => o.id.equals(nuevo[i]) & o.routeId.equals(rutaId)))
+            .write(
+              OrdersCompanion(
+                stopOrder: Value(i + 1),
+                // La RADIAL, como al armar; sin punto, un hueco y no un cero.
+                segmentKm: Value(
+                  punto == null ? null : haversineKm(origen, punto),
+                ),
+                updatedAt: Value(ahora),
+              ),
+            );
+      }
+      await (_base.update(
+        _base.routes,
+      )..where((r) => r.id.equals(rutaId))).write(
+        RoutesCompanion(
+          totalDistance: Value(kmDelCircuito(origen, ordenadas)),
+          optimized: Value(porCercania),
+          updatedAt: Value(ahora),
+        ),
+      );
+    });
+    await _cola.encolar(
+      metodo: 'PUT',
+      ruta: '/routes/$rutaId/stops',
+      cuerpo: cuerpo,
+    );
+  });
+
+  /// LO QUE EL SERVIDOR GUARDÓ al reordenar, reflejado en la base de la pestaña
+  /// (la web): el orden y el km de cada parada, los km de la ruta y su firma. Sólo
+  /// eso: en una ruta en curso puede haber marcas que no son de este gesto.
+  Future<void> _reflejarElOrden(String rutaId, Object? respuesta) async {
+    final ruta = _laRutaDe(respuesta);
+    if (ruta == null) {
+      Registro.fallo('el orden se guardo y la respuesta llego sin la ruta');
+      throw const RechazoLocal(
+        'El orden se guardó en el servidor, pero la respuesta llegó sin la '
+        'ruta. Recarga la pantalla para verla.',
+      );
+    }
+    final total = _numero(ruta['totalDistance']);
+    final paradas = ruta['orders'];
+    await _base.transaction(() async {
+      await (_base.update(
+        _base.routes,
+      )..where((r) => r.id.equals(rutaId))).write(
+        RoutesCompanion(
+          totalDistance: total == null ? const Value.absent() : Value(total),
+          optimized: Value(ruta['optimized'] == true),
+        ),
+      );
+      if (paradas is! List) return;
+      for (final cruda in paradas) {
+        if (cruda is! Map<Object?, Object?>) continue;
+        final id = _texto(cruda['id']);
+        if (id == null) continue;
+        await (_base.update(_base.orders)..where((o) => o.id.equals(id))).write(
+          OrdersCompanion(
+            stopOrder: Value(_entero(cruda['stopOrder'])),
+            segmentKm: Value(_numero(cruda['segmentKm'])),
+          ),
+        );
+      }
+    });
+  }
+
   Future<void> _eliminar(String rutaId) async {
     final ruta = await _ruta(rutaId);
     if (ruta == null) throw const RechazoLocal('No encontrada');
@@ -1410,8 +1606,9 @@ class AccionesDeRuta {
   ///
   /// `numeroOperacion` de cada rechazada lo añadió la 1.0.29; un servidor viejo
   /// no lo manda y la parada se nombra por su `orderId` (`ParadaRechazada`).
-  ({Set<String> aplicados, List<ParadaRechazada> rechazadas})?
-  _cierreParcialDe(RechazoDelServidor rechazo) {
+  ({Set<String> aplicados, List<ParadaRechazada> rechazadas})? _cierreParcialDe(
+    RechazoDelServidor rechazo,
+  ) {
     final cuerpo = rechazo.cuerpo;
     if (cuerpo is! Map ||
         cuerpo['aplicados'] is! List ||

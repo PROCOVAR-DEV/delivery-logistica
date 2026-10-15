@@ -294,7 +294,8 @@ marcados**, y la aplicación los nombra por su conduce (ver
 desaparece el trabajo de nadie.
 
 **El orden que va en la ruta es el que dejaste en la zona.** La aplicación no lo
-reordena.
+reordena. Ya armada, se puede cambiar en Rutas → «Ver paradas» (arrastrando o con
+«Ordenar por cercanía»).
 
 ### Si borras la ruta, las facturas vuelven a su zona
 

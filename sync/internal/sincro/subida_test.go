@@ -190,6 +190,39 @@ func TestElCierreDeLaRutaVaAlIdDeVerdadYNoAlLocal(t *testing.T) {
 	}
 }
 
+// REORDENAR SIN SEÑAL una ruta armada sin señal (issue 11): el `PUT …/stops` sube al id de
+// verdad y su `orden` (ids de pedidos, que ya son del servidor) llega tal cual. La subida
+// normal no tiene lista blanca de rutas; la de la bandeja de revisión sí, y la ata
+// `TestLaListaBlancaDeMetodoYRuta`.
+func TestReordenarUnaRutaArmadaSinSenalSubeAlIdDeVerdad(t *testing.T) {
+	b := montar(t)
+	rutaCreada := uuid.New()
+	b.aplicador.responde = func(p Peticion) (*uuid.UUID, error) {
+		if p.Ruta == "/api/routes" {
+			return &rutaCreada, nil
+		}
+		return nil, nil
+	}
+	arma := apunteEntrada{
+		Clave: "01J8R001", Hecho: enPunto(t, "2026-10-15T09:10:00Z"),
+		Metodo: http.MethodPost, Ruta: "/api/routes",
+		Cuerpo: json.RawMessage(`{"vehicleId":"v1","orderIds":["p1","p2"]}`), Provisional: "local-9f3a",
+	}
+	ordena := apunteEntrada{
+		Clave: "01J8R002", Hecho: enPunto(t, "2026-10-15T09:12:00Z"),
+		Metodo: http.MethodPut, Ruta: "/api/routes/local-9f3a/stops",
+		Cuerpo: json.RawMessage(`{"orden":["p2","p1"]}`),
+	}
+	_, res := b.subir([]apunteEntrada{arma, ordena}, b.quien)
+	if len(res) != 2 || res[1].Estado != EstadoAplicado {
+		t.Fatalf("el reordenar tenía que aplicarse: %+v", res)
+	}
+	if got := b.aplicador.llamadas[1]; got.Metodo != http.MethodPut || got.Ruta != "/api/routes/"+rutaCreada.String()+"/stops" ||
+		string(got.Cuerpo) != `{"orden":["p2","p1"]}` {
+		t.Fatalf("el reordenar subió como %s %s %s", got.Metodo, got.Ruta, got.Cuerpo)
+	}
+}
+
 // Y el que no se puede traducir NO se pierde con un 404: se rechaza con un motivo que se
 // entiende y queda en la bandeja.
 func TestUnProvisionalQueNoExisteSeRechazaConMotivo(t *testing.T) {

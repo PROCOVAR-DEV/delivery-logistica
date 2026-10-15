@@ -225,6 +225,7 @@ acción **se hizo**; un rechazo no deja «lo hizo».
 | Mensaje | Dónde | Campos |
 |---|---|---|
 | `parada quitada de una ruta planificada` | `DELETE /api/routes/{id}/stops/{orderId}` | `ruta`, `pedido` |
+| `ruta: paradas reordenadas` | `PUT /api/routes/{id}/stops` | `ruta`, `por_cercania` |
 | `ruta borrada` | `DELETE /api/routes/{id}` | `ruta`, `estado`, `vehiculo` |
 | `ruta: estado cambiado` | `PATCH /api/routes/{id}` con `status` (despachar / completar) | `ruta`, `de`, `a` |
 | `ruta: camión cambiado` | `PATCH /api/routes/{id}` con `vehicleId` | `ruta`, `vehiculo_antes`, `vehiculo_ahora` |
@@ -603,6 +604,52 @@ la ruta entera. **No existe en delivery (Next): es propio del reparto.**
 | 409 | `El pedido no pertenece a una ruta planificada o ya fue retirado` | el pedido no va en esa ruta, ya tiene resultado o ya se entregó. Quitar dos veces la misma parada da este `409` |
 
 - Avisa en vivo a `rutas`, `pedidos` y `tablero` de la sucursal de la ruta.
+
+## `PUT /api/routes/{id}/stops` — reordenar las paradas (15/10/2026)
+
+Issue 11 de Amado: «que las paradas se puedan reordenar utilizando la interfaz con drag/drop
+[…] El reordenamiento debe impactar en el diseño de la ruta». **Propia del reparto.**
+
+- **Auth**: usuario. **Alcance**: sí (falla cerrado, como el resto de `/api/routes`).
+- **Cuerpo**, UNA de las dos formas:
+
+```json
+{ "orden": ["<id de pedido>", "..."] }
+{ "porCercania": true }
+```
+
+  `orden` es la lista **ENTERA** de las paradas cargadas (`route_id` = la ruta) en el orden
+  nuevo: ni falta ni sobra ni se repite ninguna (nada de reordenar a medias). `porCercania`
+  ordena desde el **origen de la ruta** (`origin_lat/lng`) con `ordenDeVisita` —el mismo
+  algoritmo que arma la ruta—; las paradas sin coordenadas (o fuera del planeta) van al
+  final en el orden que traían. `"orden": []` vale para una ruta sin paradas.
+- **Planificada o en curso**, sí; `completed` es histórico y se rechaza bajo el bloqueo de la
+  fila. Las paradas que ya soltaron la ruta con un resultado (un devuelto) no se ordenan.
+- **En la misma transacción**: `stop_order` 1..n; `segment_km` de cada parada = la RADIAL desde
+  el origen (no cambia con el orden; sin coordenadas, `NULL`); `total_distance` = el circuito
+  cerrado origen → paradas → origen (`kmDelRecorrido`, la cuenta del armado);
+  `optimized` = `true` si se pidió `porCercania`, `false` con `orden` (lo puso una persona).
+  No toca `resultado`, `price` ni `trip_leg`.
+- **200**: la ruta releída (`RutaSalida`), con `orders` en el orden nuevo.
+- **Errores**:
+
+| Código | Mensaje | Cuándo |
+|---|---|---|
+| 400 | ``Manda `orden` con todas las paradas de la ruta en su nuevo orden, o `porCercania: true`.`` | ni una forma ni otra, o las dos |
+| 400 | `Identificador de pedido no válido` | un id de `orden` no es un uuid |
+| 400 | `El nuevo orden repite la parada <conduce>: cada parada va una sola vez.` | un id repetido |
+| 404 | `No encontrado` | la ruta no existe o no es de tu sucursal |
+| 409 | `El nuevo orden no coincide con las paradas de la ruta (<falta X \| faltan X, Y>; <sobra 1 pedido que no va en ella \| sobran N pedidos que no van en ella>). Vuelve a abrir la ruta y ordénala otra vez.` | la lista no es exactamente la de las paradas cargadas (también si una se fue mientras se ordenaba: `una parada dejó la ruta mientras se ordenaba`) |
+| 409 | `La ruta no tiene punto de salida: sin él no se pueden medir los km ni ordenar por cercanía.` | `origin_lat/lng` nulos |
+| 409 | `La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico.` | ruta `completed` |
+
+  Las paradas que faltan se nombran por su conduce (`operation_number`, o el cliente si no
+  tiene); las que sobran sólo se cuentan. Los literales y la cuenta de cercanía los ata
+  `docs/reordenar-paradas.casos.json` con la app, que hace lo mismo sin señal.
+- **APK y escritorio**: se aplica en la base local con las mismas cuentas y se encola
+  `PUT /routes/{id}/stops` con el MISMO cuerpo; el sincronizador lo reenvía (y la bandeja de
+  revisión lo admite por forma).
+- Avisa en vivo a `rutas` de la sucursal de la ruta.
 
 ## `POST /api/routes/[id]/results` — cierre de ruta (detallado)
 
@@ -2135,8 +2182,8 @@ Montadas en el mux público de `sync/cmd/sync/main.go` (`RutasDeRevision`), cada
 `Token`; (2) tasa, 60 peticiones por minuto **por persona**; (3) el aparato **existe** (nunca se da de alta en modo
 entrega) y es de **esta persona y de esta sucursal**; (4) **cada** apunte, entero, antes de guardar ninguno (una
 entrega con un solo apunte malo no guarda ninguno): `clave` `^[A-Za-z0-9_.:-]{1,100}$` y no repetida en el envío,
-método `POST|PUT|PATCH|DELETE`, **ruta de la lista blanca POR FORMA**: solo las ocho que la API tiene de escritura —`/routes`,
-`/routes/{id}`, `/routes/{id}/stops/{pedido}`, `/routes/{id}/results`, `/board/columns`, `/board/columns/{id}`,
+método `POST|PUT|PATCH|DELETE`, **ruta de la lista blanca POR FORMA**: solo las nueve que la API tiene de escritura —`/routes`,
+`/routes/{id}`, `/routes/{id}/stops` (reordenar, 15/10/2026), `/routes/{id}/stops/{pedido}`, `/routes/{id}/results`, `/board/columns`, `/board/columns/{id}`,
 `/board/columns/{id}/route` y `/board/placements/{pedido}`—, con `{id}` = letras, números, `_` y `-` (un uuid, un `local-…`,
 `orden`; **nunca un punto**) y, a continuación, una query opcional de pares simples. La forma es la profundidad exacta: `POST /board`
 suelto, `/routes/.` o `/routes/a/b/c/d` dan 422 (antes valía «lo que venga detrás» y esas rutas entraban, el reparto contestaba 404
@@ -2400,6 +2447,7 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | `/api/routes/{id}/stops/{orderId}` DELETE | 400 | `Identificador de pedido no válido` |
 | `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `Sólo se pueden retirar paradas de una ruta planificada` |
 | `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `El pedido no pertenece a una ruta planificada o ya fue retirado` |
+| `/api/routes/{id}/stops` PUT | 400/409 | los de su sección («reordenar las paradas») |
 | `/api/board/placements/[id]` PUT | 409 | `No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.` |
 | `/api/board/placements/[id]` PUT | 409 | `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` |
 | `/api/routes/[id]` GET/PATCH/DELETE | 404 | `No encontrado` |
@@ -2488,6 +2536,7 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | 28 | `/api/routes` | GET, POST | usuario | sí | Route, Order |
 | 29 | `/api/routes/[id]` | GET, PATCH, DELETE | usuario | sí | Route, Vehicle, Order |
 | 29-bis | `/api/routes/{id}/stops/{orderId}` | DELETE (propia del reparto, 07/10/2026) | usuario | sí | Order, board_placements, board_route_origins |
+| 29-ter | `/api/routes/{id}/stops` | PUT (propia del reparto, 15/10/2026: reordenar) | usuario | sí | Route, Order |
 | 30 | `/api/routes/[id]/results` | POST | usuario | sí | Order |
 | 31 | `/api/settings` | GET, PUT | usuario | no | Settings |
 | 32 | `/api/tasa` | GET | usuario | sí | no |

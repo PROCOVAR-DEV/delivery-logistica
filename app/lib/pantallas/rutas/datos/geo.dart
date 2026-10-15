@@ -282,6 +282,21 @@ class _Circuito {
   }
 }
 
+/// Si una coordenada se puede medir. Gemela de `puntoDelPlaneta` del servidor:
+/// una fuera del planeta da un NaN que se come los km de la ruta entera.
+bool puntoDelPlaneta(double lat, double lng) =>
+    lat.isFinite && lng.isFinite && lat.abs() <= 90 && lng.abs() <= 180;
+
+/// «ORDENAR POR CERCANIA» una ruta ya armada (issue 11 de Amado): las paradas
+/// CON punto por [ordenDeVisita] desde el origen; las que no lo tienen, al final
+/// y en el orden que traian. Gemela de `ordenPorCercania` en
+/// `api/internal/api/rutas.go`; las ata `docs/reordenar-paradas.casos.json`.
+List<String> ordenPorCercania(
+  Punto origen,
+  List<Parada> conPunto,
+  List<String> sinPunto,
+) => [...ordenDeVisita(origen, conPunto), ...sinPunto];
+
 /// Las distancias consecutivas `origen→p1, p1→p2, …`, una por parada.
 ///
 /// **No cierra el circuito**: el regreso al origen lo suma quien llame, porque

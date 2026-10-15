@@ -516,7 +516,7 @@ func TestLaListaBlancaDeMetodoYRuta(t *testing.T) {
 			{"clave": strings.Repeat("x", 101)},
 			// LA LISTA BLANCA ES POR FORMA (auditoría B3): ni un punto como segmento, ni más profundidad.
 			{"ruta": "/routes/."}, {"ruta": "/routes/a/./b"}, {"ruta": "/routes/a.b"}, {"ruta": "/routes/a/b/c/d"},
-			{"ruta": "/routes/a/stops"}, {"ruta": "/routes/a/stops/b/c"}, {"ruta": "/routes/a/results/x"},
+			{"ruta": "/routes/a/stops/"}, {"ruta": "/routes/a/stops/b/c"}, {"ruta": "/routes/a/results/x"},
 			{"ruta": "/board"}, {"ruta": "/board/unplaced"}, {"ruta": "/board/columns/a/b"}, {"ruta": "/board/columns/a/route/x"},
 			{"ruta": "/board/placements"}, {"ruta": "/board/placements/a/b"}, {"ruta": "/board/columns?x=.."},
 			{"provisional": "local-"},
@@ -539,6 +539,8 @@ func TestLaListaBlancaDeMetodoYRuta(t *testing.T) {
 		buenos := []struct{ metodo, ruta string }{
 			{"POST", "/routes"}, {"PUT", "/routes/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, {"DELETE", "/routes/local-9f3a"},
 			{"PUT", "/routes/local-9f3a/stops/6f9619ff-8b86-d011-b42d-00c04fc964ff"},
+			// REORDENAR LAS PARADAS (issue 11): `PUT /api/routes/{id}/stops`, también sobre una ruta armada sin señal.
+			{"PUT", "/routes/6f9619ff-8b86-d011-b42d-00c04fc964ff/stops"}, {"PUT", "/routes/local-9f3a/stops"},
 			{"POST", "/routes/6f9619ff-8b86-d011-b42d-00c04fc964ff/results"},
 			{"PUT", "/board/placements/6f9619ff-8b86-d011-b42d-00c04fc964ff"},
 			{"POST", "/board/columns?branchId=6f9619ff-8b86-d011-b42d-00c04fc964ff"},

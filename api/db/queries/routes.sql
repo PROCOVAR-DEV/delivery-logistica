@@ -436,6 +436,18 @@ RETURNING id, name, route_code, status, origin_address, origin_lat, origin_lng,
           total_distance, total_weight, total_price, paradas_sin_cotizar, delivery_date, vehicle_id,
           branch_id, started_at, finished_at, optimized, created_at, updated_at;
 
+-- REORDENAR UNA PARADA (`PUT /api/routes/{id}/stops`, issue 11 de Amado). Sólo el orden y su
+-- `segment_km`; NADA de `resultado`, `price` ni `trip_leg`: en una ruta en curso puede haber
+-- marcas que no se tocan. Cero filas = ese pedido ya no va cargado en esta ruta (`route_id`)
+-- o no es de tu sucursal, y el manejador deshace la transacción entera: a medias no vale.
+-- name: FijarOrdenDeParada :execrows
+UPDATE orders SET
+    stop_order = sqlc.arg('stop_order'),
+    segment_km = sqlc.narg('segment_km')
+WHERE id = sqlc.arg('pedido_id')
+  AND route_id = sqlc.arg('ruta_id')
+  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
+
 -- ---------------------------------------------------------------------------
 -- Cambios de estado de la ruta  (PATCH /api/routes/[id])
 -- ---------------------------------------------------------------------------

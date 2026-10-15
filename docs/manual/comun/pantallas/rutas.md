@@ -165,6 +165,11 @@ Si la ruta pesa más que el camión, una insignia:
 
 > «Peso total (1250.5 kg) supera capacidad (1000 kg)»
 
+En una ruta **no completada**, debajo del camión, una línea dice cómo está ordenada:
+**«Orden de visita: por cercanía al punto de salida»** (la calculó la aplicación) o
+**«Orden de visita: a mano (el de la zona del tablero, o arrastrado)»**. En una
+completada no sale.
+
 ### Los dos kilometrajes, que NO son el mismo
 
 1. **`68.0 km (incl. regreso)`** de la línea de datos son **los del camión**: el
@@ -207,6 +212,42 @@ conduce, ése es el número que buscas.
 
 En una ruta **planificada**, cada parada lleva además el botón **«Quitar de ruta»**
 (ver abajo). En una ruta en curso o completada ese botón no sale.
+
+### Reordenar las paradas — arrastrando o «Ordenar por cercanía»
+
+En una ruta **planificada o en curso**, «Ver paradas» deja cambiar el orden de visita:
+
+- **Arrastrando**: cada parada lleva a la izquierda un **asa** (tres rayas). Se coge
+  por el asa —con el dedo o con el ratón, sin esperar— y se suelta en su sitio nuevo.
+  La lista se desplaza sola al llegar al borde.
+- **«Ordenar por cercanía»** (arriba, con su flecha): la aplicación las ordena desde
+  el punto de salida de la ruta, con la misma cuenta con que arma las rutas. Las
+  paradas sin coordenadas van al final, en el orden que tenían.
+
+Arriba se lee cómo está ordenada ahora («a mano» después de arrastrar, «por cercanía»
+después del botón).
+
+Lo que cambia al soltar: los **números** de las paradas, el **croquis** y el enlace de
+**Google Maps** (las paradas van en el orden nuevo), los **km de la ruta** de la línea de
+datos (el circuito con la vuelta, medido en el orden nuevo) y el orden del
+**post-despacho**. Los km «en recta» de cada parada **no cambian**: son la línea recta
+desde la salida, que no depende del orden. El pre-despacho va por número de factura y
+tampoco cambia.
+
+- **En la web** se guarda al instante en el servidor. Si dice que no, sale su motivo
+  tal cual en el cajón y **la parada vuelve a su sitio**.
+- **En la APK y el escritorio** se guarda en el aparato y sube cuando haya señal; al
+  subir, el servidor rehace la misma cuenta. Si mientras tanto alguien quitó o metió
+  una parada en esa ruta, el servidor lo rechaza y sale en la bandeja con su motivo.
+
+Los «no» posibles, letra por letra:
+
+- «La ruta está completada y no se puede modificar ni eliminar: se conserva como
+  histórico.» — en una completada ni siquiera salen el asa ni el botón.
+- «El nuevo orden no coincide con las paradas de la ruta (falta PTB-…). Vuelve a abrir
+  la ruta y ordénala otra vez.» — otra persona quitó o añadió una parada entretanto.
+- «La ruta no tiene punto de salida: sin él no se pueden medir los km ni ordenar por
+  cercanía.» — rutas antiguas sin coordenadas de salida.
 
 ### «Quitar de ruta» — sacar UNA parada sin borrar la ruta
 
@@ -686,7 +727,8 @@ El tope es de **25 paradas**, y lo que se queda fuera se dice en el propio mensa
   **marcarlo como devuelto o cancelado en el cierre** o **eliminar la ruta entera**;
   en una completada no se toca nada (es histórico). En todos los casos el pedido
   vuelve a estar disponible.
-- **No se pueden reordenar las paradas a mano** desde esta pantalla.
+- **No se reordena una ruta completada**: es histórico. Las demás, sí (ver «Reordenar las
+  paradas»).
 - **No se le puede cambiar el camión a una ruta ya armada.** No hay ese botón, ni
   aquí ni en Vehículos. Si todavía no ha salido: elimínala, cámbiale el **«Camión
   previsto»** a la zona en el Tablero y vuelve a armarla. Si ya está «En curso», se

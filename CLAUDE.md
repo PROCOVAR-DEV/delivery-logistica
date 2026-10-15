@@ -457,7 +457,7 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   reparto y tienen que ser cero): el payload de alguien sin permiso no se ejecuta con la autoridad de nadie hasta que una persona
   lo decide. **Quién revisa: ADMINISTRADOR de esa sucursal, SUPER ADMIN y DESARROLLADOR, y nadie revisa lo suyo** (Jose, 08/10/2026;
   por nombre de rol, `identidad.RolDeRevisor`; LOGISTICO no revisa). Aplicar reenvía por la misma tubería que la subida, con el token
-  **del revisor** (jamás uno de servicio), la lista blanca de ruta POR FORMA (las ocho rutas de escritura de `/routes` y `/board`) y `X-Sucursal-Id` forzada; un 4xx del reparto
+  **del revisor** (jamás uno de servicio), la lista blanca de ruta POR FORMA (las nueve rutas de escritura de `/routes` y `/board`; la novena, `PUT /routes/{id}/stops`, reordenar, 15/10/2026) y `X-Sucursal-Id` forzada; un 4xx del reparto
   deja el apunte `rechazado` con el motivo LITERAL y a la vista, un 5xx o la red no es un rechazo; «aplicar todo en orden» **se
   detiene** en el primer fallo; un `aplicando` de más de 10 minutos sale `interrumpido` y se reintenta solo confirmándolo a mano (la
   API no lee `X-Apunte`). **Descartar se ESCRIBE, no se borra** —motivo de ≥5 letras con nombre y hora; lo exigen el `CHECK` y los

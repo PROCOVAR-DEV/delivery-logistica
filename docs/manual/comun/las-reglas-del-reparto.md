@@ -135,14 +135,28 @@ El camión pasa a estar ocupado cuando la ruta **se inicia**, y se libera cuando
 
 ---
 
-## 7. El orden de las paradas lo pone la aplicación, pero manda el tuyo
+## 7. El orden de las paradas: el tuyo o el de la aplicación, y se puede cambiar
 
-Cuando una ruta se arma desde el Tablero, **el orden que va es el que dejó el
-logístico** en la columna. La aplicación no lo reordena.
+Cómo se arma el orden, según de dónde sale la ruta:
 
-Cuando se arma sin ese orden, la aplicación ordena por **la parada más cercana
-cada vez**, empezando desde el almacén de origen. No mira atrás ni busca el mejor
-recorrido posible: es una primera propuesta, no una optimización.
+- **Desde una zona del Tablero**: va **en el orden de las tarjetas de la zona**, el
+  que dejó el logístico arrastrándolas. La aplicación no lo reordena. (Si las
+  tarjetas entraron en la zona por orden de factura, la ruta sale por orden de
+  factura: es el orden de la zona, no un cálculo.)
+- **Desde el asistente «Nueva Ruta»**: la aplicación ordena **por cercanía**
+  empezando en el punto de salida: primero la parada más cercana, y después
+  corrige el recorrido entero (deshace cruces y recoloca paradas sueltas) contando
+  **la vuelta al almacén**. La lista de pedidos del asistente va por fecha de
+  factura, pero ese orden no es el de la ruta.
+
+En el detalle de una ruta no completada, debajo del camión, una línea dice cuál es:
+**«Orden de visita: por cercanía al punto de salida»** o **«Orden de visita: a mano
+(el de la zona del tablero, o arrastrado)»**.
+
+**Y se puede cambiar después**, mientras la ruta no esté completada: en «Ver
+paradas», arrastrando cada parada por su asa, o con **«Ordenar por cercanía»**
+(ver «Rutas → Reordenar las paradas»). Al cambiarlo cambian el croquis, el enlace
+de Google Maps, los km de la ruta y el orden del post-despacho.
 
 Los kilómetros son **en línea recta sobre el mapa**, no por carretera. El camión
 hará más.

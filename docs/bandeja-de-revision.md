@@ -791,7 +791,7 @@ token `web:true` (el de la cookie que la bandeja web usa como Bearer) no vale si
 en el navegador, 401 en `/sync/*` (`identidad/token.go`). (2) **Migración nueva `00004_nombre_de_aparato_acotado.sql`**
 (recorta a 200 los nombres que ya hubiera y añade `CHECK (char_length(nombre) <= 200) NOT VALID`); `POST /sync/aparato` limpia y recorta el nombre a 80 (`aparato.go`,
 `topeNombreDeAparato`) y la bandeja del revisor lo recorta a 200 al leerlo; **`ExigirMigraciones` espera ya la 4**. (3) **Lista blanca
-de ruta POR FORMA** (`revision_limites.go`): las ocho rutas de escritura que la API tiene de rutas y tablero, con `{id}` sin puntos;
+de ruta POR FORMA** (`revision_limites.go`): las nueve rutas de escritura que la API tiene de rutas y tablero (la novena, `PUT /routes/{id}/stops`, reordenar, 15/10/2026), con `{id}` sin puntos;
 `POST /board` suelto ya no entra (422). (4) **`aplicar` mira el libro `apuntes`** tras reclamar (B6): si la subida normal ya había
 aplicado la clave, cierra `aplicado` sin reenviar; si la rechazó, `rechazado`; y copia lo que aplica al libro con
 `CopiarApunteAplicadoAlLibro` (`ON CONFLICT DO NOTHING`). (5) Pruebas nuevas: `TestReclamarUnAplicandoInterrumpidoTambienExigeOtraPersonaYElAlcance`,

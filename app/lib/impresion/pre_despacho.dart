@@ -21,6 +21,7 @@ import 'estilo.dart';
 import 'hoja.dart';
 import 'piezas.dart';
 import 'por_producto_y_factura.dart';
+import 'post_despacho.dart' show conElDistribuidor;
 
 /// Los literales de la hoja. Van en espanol y nunca pasaron por la capa de
 /// idiomas que hubo en `lib/textos/` (quitada entera el 24/09/2026,
@@ -127,9 +128,12 @@ Future<Uint8List> pdfPreDespacho(
           izquierda: <pw.Widget>[
             titulo(TextoPreDespacho.titulo),
             lineaDeCabecera(
-              h.vehiculo.isNotEmpty
-                  ? '${h.sucursal} · ${h.vehiculo}'
-                  : h.sucursal,
+              conElDistribuidor(
+                h.vehiculo.isNotEmpty
+                    ? '${h.sucursal} · ${h.vehiculo}'
+                    : h.sucursal,
+                h.distribuidor,
+              ),
             ),
             if (h.dia != null && h.dia!.isNotEmpty)
               lineaDeCabecera('${TextoPreDespacho.pedidosDel}${h.dia}'),

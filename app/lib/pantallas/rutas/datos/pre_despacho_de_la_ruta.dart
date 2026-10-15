@@ -177,6 +177,8 @@ papel.HojaPreDespacho hojaDePreDespachoDeLaRuta({
   required double pesoKg,
   List<papel.FacturaDelPreDespacho> facturas =
       const <papel.FacturaDelPreDespacho>[],
+  // Quien reparte, ya resuelto con `nombreDelDistribuidorParaLaHoja`; vacío = no consta.
+  String distribuidor = '',
 }) => papel.HojaPreDespacho(
   sucursal: sucursal,
   vehiculo: vehiculo,
@@ -185,4 +187,5 @@ papel.HojaPreDespacho hojaDePreDespachoDeLaRuta({
   pesoKg: pesoKg,
   lineas: lineasDelPapel(totales),
   facturas: facturas,
+  distribuidor: distribuidor,
 );

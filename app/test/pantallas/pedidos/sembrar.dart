@@ -194,6 +194,7 @@ Future<void> sembrarRuta(
   String? vehiculoId = 'V1',
   String? sucursal = 'B1',
   DateTime? creada,
+  String? distribuidorId,
 }) => base
     .into(base.routes)
     .insert(
@@ -206,6 +207,7 @@ Future<void> sembrarRuta(
         originLat: const Value(0),
         originLng: const Value(0),
         createdAt: Value(creada ?? hoy),
+        distribuidorId: Value(distribuidorId),
       ),
     );
 

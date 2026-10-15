@@ -11,7 +11,9 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdf/pdf.dart';
 import 'package:reparto/idioma.dart';
+import 'package:reparto/impresion/vista_previa.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/nucleo/frescura/frescura.dart';
@@ -20,6 +22,8 @@ import 'package:reparto/pantallas/distribuidores/vista/selector_de_distribuidor.
 import 'package:reparto/pantallas/rutas/vista/asistente_nueva_ruta.dart';
 
 import '../../apoyo/base_de_prueba.dart';
+import '../../impresion/los_dos_pesos_del_pre_despacho_test.dart'
+    show leerElPapel;
 import '../pedidos/sembrar.dart';
 
 Future<void> asentar(WidgetTester tester) async {
@@ -99,8 +103,8 @@ void main() {
     await asentar(tester);
   }
 
-  /// Del paso 3 hasta pulsar «Generar Ruta»: camion, [distribuidor] si se pide, pedido.
-  Future<void> generar(WidgetTester tester, {String? distribuidor}) async {
+  /// Del paso 3 hasta elegir el pedido del paso 4: camion, [distribuidor] si se pide, pedido.
+  Future<void> hastaElPedido(WidgetTester tester, {String? distribuidor}) async {
     expect(find.byKey(AsistenteNuevaRuta.claveDelPaso(3)), findsOneWidget);
     await tester.tap(find.text('Elige el vehículo…'));
     await asentar(tester);
@@ -119,8 +123,22 @@ void main() {
     expect(find.byKey(AsistenteNuevaRuta.claveDelPaso(4)), findsOneWidget);
     await tester.tap(find.byType(CheckboxListTile).first);
     await asentar(tester);
+  }
+
+  /// Y pulsar «Generar Ruta».
+  Future<void> generar(WidgetTester tester, {String? distribuidor}) async {
+    await hastaElPedido(tester, distribuidor: distribuidor);
     await tester.tap(find.widgetWithText(FilledButton, 'Generar Ruta'));
     await asentar(tester);
+  }
+
+  /// Lo que dice la hoja del pre-despacho del paso 4 («Ver e imprimir»).
+  Future<String> laHojaDelPreDespacho(WidgetTester tester) async {
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Ver e imprimir'));
+    await asentar(tester);
+    final vista = tester.widget<VistaPreviaPdf>(find.byType(VistaPreviaPdf));
+    final bytes = (await tester.runAsync(() => vista.armar(PdfPageFormat.a4)))!;
+    return leerElPapel(bytes).renglones.map((r) => r.texto).join('\n');
   }
 
   testWidgets('el paso del vehiculo ofrece el distribuidor, con SOLO los de la sucursal y en activo', (tester) async {
@@ -175,6 +193,31 @@ void main() {
     // El selector muestra al de la ultima ruta elegido, sin tocar nada.
     expect(find.text('Juan Pérez'), findsOneWidget);
     expect(find.byKey(SelectorDeDistribuidor.claveDelAvisoSinElegir), findsNothing);
+    await desmontar(tester);
+  });
+
+  // LA HOJA DEL PRE-DESPACHO DICE A QUIEN SE ENTREGA LA CARGA (Jose, 15/10/2026), en pareja.
+  testWidgets('la hoja del pre-despacho lleva al distribuidor elegido', (tester) async {
+    await sembrarTodo();
+    await pintar(tester);
+    await hastaElPedido(tester, distribuidor: 'Juan Pérez');
+
+    expect(
+      await laHojaDelPreDespacho(tester),
+      contains('Camagüey · Camión 1 · Distribuidor Juan Pérez'),
+      reason: 'el almacen tiene que saber a quien entrega la carga',
+    );
+    await desmontar(tester);
+  });
+
+  testWidgets('sin elegir, la hoja del pre-despacho no inventa un distribuidor', (tester) async {
+    await sembrarTodo();
+    await pintar(tester);
+    await hastaElPedido(tester);
+
+    final hoja = await laHojaDelPreDespacho(tester);
+    expect(hoja, contains('Camagüey · Camión 1'), reason: 'no se leyo la cabecera');
+    expect(hoja, isNot(contains('Distribuidor')));
     await desmontar(tester);
   });
 }

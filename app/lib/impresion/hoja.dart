@@ -105,10 +105,16 @@ class HojaPreDespacho {
     required this.lineas,
     this.dia,
     this.facturas = const <FacturaDelPreDespacho>[],
+    this.distribuidor = '',
   });
 
   final String sucursal;
   final String vehiculo;
+
+  /// Quien reparte la ruta: el almacén tiene que saber a quién entrega la carga.
+  /// Vacío = no consta y no se imprime, igual que en [HojaPostDespacho]. La hoja
+  /// de Pedidos no es de una ruta y lo deja vacío.
+  final String distribuidor;
 
   /// El dia de los pedidos, `AAAA-MM-DD`, si se filtro por uno. Va tal cual: es
   /// lo que escribe la de Next y se compara caracter a caracter.

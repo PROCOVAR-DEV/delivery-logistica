@@ -26,3 +26,19 @@ String textoDelDistribuidor(String? id, Map<String, Distribuidor> conocidos) {
   if (d == null) return textoDistribuidorSinBajar;
   return d.activo ? d.nombre : '${d.nombre} · retirado';
 }
+
+/// QUIEN REPARTE, PARA LAS HOJAS IMPRESAS (pre y post-despacho): su nombre, o
+/// vacio si la ruta no tiene o el aparato no lo ha bajado. En un papel que se
+/// firma no se imprime «sin distribuidor» ni se inventa nadie.
+///
+/// Se lee de la base EN SECO y por id, no de `distribuidoresDeLaBarraProvider`:
+/// un `StreamProvider` que nadie observa da `.value == null` y la hoja salia sin
+/// el distribuidor (el cierre abierto sin pasar por el detalle). Lo atan
+/// `test/pantallas/rutas/el_distribuidor_va_en_las_hojas_test.dart`.
+Future<String> nombreDelDistribuidorParaLaHoja(BaseLocal base, String? id) async {
+  if (id == null || id.isEmpty) return '';
+  final d = await (base.select(
+    base.distribuidores,
+  )..where((x) => x.id.equals(id))).getSingleOrNull();
+  return d?.nombre ?? '';
+}

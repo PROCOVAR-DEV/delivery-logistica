@@ -18,7 +18,8 @@ import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
-import '../../distribuidores/estado/proveedores_distribuidores.dart';
+import '../../../nucleo/proveedores.dart';
+import '../../distribuidores/datos/distribuidor_de_la_ruta.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/vista/kit.dart';
@@ -631,13 +632,6 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
     );
   }
 
-  String _nombreDelDistribuidor(String? id) {
-    if (id == null || id.isEmpty) return '';
-    final conocidos =
-        ref.read(distribuidoresDeLaBarraProvider).value ?? const <Distribuidor>[];
-    return conocidos.where((d) => d.id == id).firstOrNull?.nombre ?? '';
-  }
-
   /// La hoja imprimible del post-despacho, **con lo marcado en este momento**
   /// aunque todavia no se haya guardado: es lo que quien descarga tiene en la
   /// mano mientras cuenta, y esperar a guardar seria pedirle que cuente de
@@ -652,11 +646,16 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
   /// `datos/post_despacho.dart` —empaques con respaldo a unidades, lo sin
   /// marcar cuenta como que sigue arriba—, y las dos estan probadas contra los
   /// mismos numeros.
-  void _verPostDespacho({
+  Future<void> _verPostDespacho({
     required RutaConTodo? ruta,
     required List<Pedido> paradas,
     required Map<String, List<RenglonConPeso>> renglones,
-  }) {
+  }) async {
+    final distribuidor = await nombreDelDistribuidorParaLaHoja(
+      ref.read(baseProvider),
+      ruta?.ruta.distribuidorId,
+    );
+    if (!mounted) return;
     final hoja = papel.armarPostDespacho(
       papel.DatosDeRuta(
         ruta: ruta?.ruta.routeCode ?? ruta?.ruta.name ?? widget.rutaId,
@@ -665,7 +664,7 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
         // Quien reparte (issue 7): su nombre, o vacio si la ruta no tiene uno o el
         // aparato aun no lo ha bajado — en un papel que se firma no se imprime
         // «sin distribuidor» ni se inventa nadie.
-        distribuidor: _nombreDelDistribuidor(ruta?.ruta.distribuidorId),
+        distribuidor: distribuidor,
         // Sin salida no se escribe linea de horario, y el regreso no va solo:
         // igual que en la de Next.
         salida: ruta?.ruta.startedAt == null
@@ -693,7 +692,7 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
       ],
     );
 
-    abrirCajon<void>(
+    await abrirCajon<void>(
       context,
       (contexto) => Cajon(
         titulo: 'Post-despacho',

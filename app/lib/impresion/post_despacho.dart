@@ -145,11 +145,15 @@ Future<Uint8List> pdfPostDespacho(
 String lineaDeLaRuta(HojaPostDespacho h) {
   final base = '${h.ruta} · ${h.sucursal}';
   final conCamion = h.vehiculo.isNotEmpty ? '$base · ${h.vehiculo}' : base;
-  // Quien reparte (issue 7): en el mismo renglon, y solo si consta.
-  return h.distribuidor.isNotEmpty
-      ? '$conCamion${TextoPostDespacho.distribuidor}${h.distribuidor}'
-      : conCamion;
+  return conElDistribuidor(conCamion, h.distribuidor);
 }
+
+/// Quien reparte (issue 7): al final del renglon de la ruta, y solo si consta.
+/// La usan las DOS hojas (también `pdfPreDespacho`): una sola forma de decirlo.
+String conElDistribuidor(String renglon, String distribuidor) =>
+    distribuidor.isNotEmpty
+    ? '$renglon${TextoPostDespacho.distribuidor}$distribuidor'
+    : renglon;
 
 /// `Salió <cuando>` y, si tambien se sabe, ` · volvió <cuando>`. El regreso no
 /// se escribe solo: sin salida no hay linea, igual que en la de Next.

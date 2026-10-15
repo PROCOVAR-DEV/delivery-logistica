@@ -30,6 +30,7 @@ import '../../../nucleo/proveedores.dart';
 import '../../almacenes/vista/almacenes_de_la_ultima_bajada.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
+import '../../distribuidores/datos/distribuidor_de_la_ruta.dart';
 import '../../distribuidores/vista/selector_de_distribuidor.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
@@ -1334,6 +1335,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       capacidad: capacidad,
       sucursal: sucursales.where((s) => s.id == _sucursalId).firstOrNull?.name,
       vehiculo: _vehiculo?.name,
+      distribuidorId: _distribuidorId,
       dia: _filtros.dia,
     );
 
@@ -1719,6 +1721,7 @@ class _PreDespachoLateral extends ConsumerWidget {
     required this.capacidad,
     required this.sucursal,
     required this.vehiculo,
+    required this.distribuidorId,
     required this.dia,
   });
 
@@ -1727,6 +1730,9 @@ class _PreDespachoLateral extends ConsumerWidget {
   final double? capacidad;
   final String? sucursal;
   final String? vehiculo;
+
+  /// El elegido en el paso 3: la hoja dice a quién se entrega la carga.
+  final String? distribuidorId;
   final DateTime? dia;
 
   /// El dia tal y como lo escribe la hoja de Next: `AAAA-MM-DD`. Se compara
@@ -1760,7 +1766,7 @@ class _PreDespachoLateral extends ConsumerWidget {
         pie: totales == null ? null : _resumen(),
         alImprimir: totales == null
             ? null
-            : () => _verEImprimir(contexto, totales),
+            : () => _verEImprimir(contexto, ref, totales),
       );
     },
   );
@@ -1832,7 +1838,7 @@ class _PreDespachoLateral extends ConsumerWidget {
               OutlinedButton(
                 onPressed: totales == null
                     ? null
-                    : () => _verEImprimir(context, totales),
+                    : () => _verEImprimir(context, ref, totales),
                 child: const Text('Ver e imprimir'),
               ),
             ],
@@ -1847,8 +1853,18 @@ class _PreDespachoLateral extends ConsumerWidget {
   /// La hoja con la que alguien baja al almacen. Se mira primero y se imprime
   /// desde la propia vista previa: es el orden que tenia la de Next y el que
   /// tiene sentido cuando el que saca la mercancia es otra persona.
-  void _verEImprimir(BuildContext context, TotalesPreDespacho totales) {
+  Future<void> _verEImprimir(
+    BuildContext context,
+    WidgetRef ref,
+    TotalesPreDespacho totales,
+  ) async {
+    final distribuidor = await nombreDelDistribuidorParaLaHoja(
+      ref.read(baseProvider),
+      distribuidorId,
+    );
+    if (!context.mounted) return;
     final hoja = hojaDePreDespachoDeLaRuta(
+      distribuidor: distribuidor,
       totales: totales,
       sucursal: sucursal ?? '',
       vehiculo: vehiculo ?? '',
@@ -1857,7 +1873,7 @@ class _PreDespachoLateral extends ConsumerWidget {
       pesoKg: pesoKg,
     );
 
-    abrirCajon<void>(
+    await abrirCajon<void>(
       context,
       (contexto) => Cajon(
         // `Hoja de pre-despacho`: la vista previa del PDF se abre ENCIMA de la

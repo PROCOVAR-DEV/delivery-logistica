@@ -29,6 +29,7 @@ import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
+import '../../distribuidores/datos/distribuidor_de_la_ruta.dart';
 import '../../distribuidores/vista/distribuidor_de_la_ruta.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
@@ -856,13 +857,20 @@ class _PreDespacho extends ConsumerWidget {
 
   /// La hoja con la que alguien baja al almacén. Se mira primero y se imprime
   /// desde su vista previa, como en el asistente.
-  void _verEImprimir(
+  Future<void> _verEImprimir(
     BuildContext context,
     WidgetRef ref,
     PreDespachoDeLaRuta pre,
-  ) {
+  ) async {
+    // El almacén tiene que saber a quién entrega la carga.
+    final distribuidor = await nombreDelDistribuidorParaLaHoja(
+      ref.read(baseProvider),
+      ruta.ruta.distribuidorId,
+    );
+    if (!context.mounted) return;
     final fecha = ruta.ruta.deliveryDate;
     final hoja = hojaDePreDespachoDeLaRuta(
+      distribuidor: distribuidor,
       totales: pre.totales,
       sucursal: ruta.sucursal?.name ?? '',
       vehiculo: ruta.vehiculo?.name ?? '',
@@ -877,7 +885,7 @@ class _PreDespacho extends ConsumerWidget {
       facturas: pre.facturas,
     );
     final impresoEn = ref.read(relojProvider)();
-    abrirCajon<void>(
+    await abrirCajon<void>(
       context,
       (contexto) => Cajon(
         titulo: PreDespacho.tituloDeLaHoja,

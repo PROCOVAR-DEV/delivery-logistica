@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../datos/modelos.dart';
 import '../../../diseno/tema.dart';
-import '../../pedidos/datos/formato.dart' show etiquetaDeFactura;
+import '../../pedidos/vista/kit.dart' show FacturaYCliente;
 import 'kit.dart';
 
 /// Lo que viaja mientras se arrastra: el pedido y de donde sale.
@@ -155,36 +155,14 @@ class TarjetaDePedido extends ConsumerWidget {
                   ),
                 ],
               ),
-              // EL NUMERO DE FACTURA, A LA VISTA — Amado, 14/10/2026 (issue 8): «los
-              // logisticos operan con numero de factura, debe ser una informacion
-              // importante a mostrar en los CARDS de pedidos». Una sola linea con
-              // elipsis, debajo del folio y encima del cliente: no cambia el ancho de
-              // la tarjeta, que es la misma en las dos mitades y en el feedback del
-              // arrastre (280 px), y suma una linea de alto. Sin numero no sale nada:
-              // «Sin factura» / «Sin cotejar» ya lo dicen las marcas de abajo. El
-              // folio de arriba es OTRO numero (el conduce): ver `NumeroDeFactura`
-              // (`nucleo/numero_de_factura.dart`).
-              if (etiquetaDeFactura(pedido.facturaNumero) case final factura?)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Text(
-                    factura,
-                    key: const ValueKey('tarjeta-factura'),
-                    style: tema.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: tema.colorScheme.onSurface,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              Text(
-                pedido.customerName,
-                style: tema.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              // EL NUMERO DE FACTURA ES EL TITULO Y EL CLIENTE VA DEBAJO — Amado,
+              // issue 8 (14/10/2026: que se vea) e issue 12 (15/10/2026: que mande
+              // sobre el cliente). Debajo del folio, que es OTRO numero (el conduce).
+              // Los estilos y el «Sin numero de factura» viven en `FacturaYCliente`.
+              FacturaYCliente(
+                facturaNumero: pedido.facturaNumero,
+                cliente: pedido.customerName,
+                claveDeLaFactura: const ValueKey('tarjeta-factura'),
               ),
               Text(
                 pedido.address,

@@ -89,10 +89,12 @@ De arriba abajo:
 1. **Los kilómetros al almacén** si está sin colocar («0,4 km»), o **su número de
    orden** si ya está en una zona («3.»). A la derecha, el número de operación.
    Si el pedido no tiene coordenadas, en vez de los km pone **«sin ubicar»**.
-2. **El número de factura**, en negrita: `Factura 1024237`. Es el de la factura de
-   Ventra y **no es el número de operación** de la derecha. Si el pedido todavía no
-   tiene factura, no sale nada.
-3. **El cliente.**
+2. **El número de factura**, que es el título de la tarjeta, lo más grande:
+   `Factura 1024237`. Es el de la factura de Ventra y **no es el número de
+   operación** de la derecha. Si son varias, van todas (`Factura 47061, 47062`) y
+   saltan de línea si no caben. Si el pedido todavía no tiene número de factura, en
+   su sitio pone **«Sin número de factura»**, en gris.
+3. **El cliente**, debajo, en negrita y del tamaño de la dirección.
 4. **La dirección.**
 5. **Una línea de datos** separada por puntos: peso, costo del domicilio,
    municipio, y los km si ya está colocada. Por ejemplo:

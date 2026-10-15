@@ -21,6 +21,7 @@ import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/proveedores.dart';
+import '../datos/formato.dart' show etiquetaDeFactura;
 
 /// La paleta y los anchos de cajon son los de `lib/diseno/`, punto. Se
 /// reexportan para no tocar los `import` de las ocho pantallas que los leen
@@ -280,6 +281,73 @@ Future<T?> abrirCajon<T>(BuildContext context, WidgetBuilder construir) {
 // -----------------------------------------------------------------------------
 // Piezas sueltas
 // -----------------------------------------------------------------------------
+
+/// LA FACTURA ES EL TÍTULO DE LA TARJETA DE UN PEDIDO, Y EL CLIENTE VA DEBAJO — issue 12
+/// de Amado, 15/10/2026: «para él, más importante que el nombre del cliente es la factura…
+/// que la factura tenga el puntaje que tiene el cliente y bajar el cliente al puntaje
+/// normal, pero dejarlo bold».
+///
+/// La factura se queda con lo que tenía el cliente (`bodyMedium` en semi-negrita) y el
+/// cliente baja al cuerpo de la tarjeta (`bodySmall`, el de la dirección) en negrita. La
+/// usan la tarjeta del Tablero y la del teléfono en Pedidos: en un sitio, para que las dos
+/// no se separen.
+///
+/// **Sin número** sale «Sin número de factura» en el sitio del título, del mismo tamaño
+/// (la tarjeta no salta de alto) y con el color y el peso de un dato que falta. No se cae
+/// al folio (`NumeroDeFactura`) ni dice «Sin factura»: un pedido sin cotejar puede estar
+/// facturado, y el estado ya lo dicen las marcas de la tarjeta.
+class FacturaYCliente extends StatelessWidget {
+  const FacturaYCliente({
+    required this.facturaNumero,
+    required this.cliente,
+    this.claveDeLaFactura,
+    super.key,
+  });
+
+  /// `factura_numero` tal como está en la base: lo limpia `etiquetaDeFactura`.
+  final String? facturaNumero;
+  final String cliente;
+
+  /// La llave del texto de la factura, sólo cuando hay número.
+  final Key? claveDeLaFactura;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final factura = etiquetaDeFactura(facturaNumero);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Dos líneas y luego elipsis: varias facturas («Factura 47061, 47062») saltan
+        // de línea antes de cortarse.
+        Text(
+          factura ?? 'Sin número de factura',
+          key: factura == null ? null : claveDeLaFactura,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: factura == null
+              ? tema.textTheme.bodyMedium?.copyWith(
+                  color: tema.colorScheme.onSurfaceVariant,
+                )
+              : tema.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: tema.colorScheme.onSurface,
+                ),
+        ),
+        Text(
+          cliente,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: tema.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: tema.colorScheme.onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 /// Una insignia de color con su texto. Nada de emojis: color y palabra.
 class Insignia extends StatelessWidget {

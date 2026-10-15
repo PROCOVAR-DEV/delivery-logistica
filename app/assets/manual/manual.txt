@@ -3995,10 +3995,11 @@ Cambia según las fechas que tengas puestas: «· del 28/9/2026», «· desde el
 | **«Entrega»** | El estado de reparto |
 
 En pantalla estrecha no hay tabla: cada pedido es una tarjeta, y la cabecera dice
-«Elegir los 50 de esta página». **En la tarjeta, justo debajo del nombre, sale el número
-de factura** en negrita (`Factura 1024237`, el de Ventra; el número de operación va a su
-lado y es otro). Lo de la columna «Factura» queda en una insignia que solo dice el estado:
-**«Cuadra»** en verde o **«Cambió !»** en ámbar.
+«Elegir los 50 de esta página». **El título de la tarjeta es el número de factura**
+(`Factura 1024237`, el de Ventra), y debajo va el cliente, en negrita y más pequeño; luego
+el número de operación, que es otro, y la fecha. Sin número de factura, el título dice
+**«Sin número de factura»**, en gris. Lo de la columna «Factura» queda en una insignia que
+solo dice el estado: **«Cuadra»** en verde o **«Cambió !»** en ámbar.
 
 ---
 
@@ -4064,8 +4065,8 @@ sí lo lleva, porque se puede volver a meter en otra ruta.
 
 La columna «Factura» no sale en pantallas de menos de 1024 px de ancho. **El número de
 factura no desaparece con ella**: entre 768 y 1023 px baja a la celda del cliente, debajo del
-número de operación, como `Factura 1024237`; en el teléfono va en la cabecera de la tarjeta
-y la marca del domicilio dentro de ella.
+número de operación, como `Factura 1024237`; en el teléfono es **el título de la tarjeta**,
+y la marca del domicilio va en la insignia de abajo.
 
 ---
 
@@ -5354,10 +5355,12 @@ De arriba abajo:
 1. **Los kilómetros al almacén** si está sin colocar («0,4 km»), o **su número de
    orden** si ya está en una zona («3.»). A la derecha, el número de operación.
    Si el pedido no tiene coordenadas, en vez de los km pone **«sin ubicar»**.
-2. **El número de factura**, en negrita: `Factura 1024237`. Es el de la factura de
-   Ventra y **no es el número de operación** de la derecha. Si el pedido todavía no
-   tiene factura, no sale nada.
-3. **El cliente.**
+2. **El número de factura**, que es el título de la tarjeta, lo más grande:
+   `Factura 1024237`. Es el de la factura de Ventra y **no es el número de
+   operación** de la derecha. Si son varias, van todas (`Factura 47061, 47062`) y
+   saltan de línea si no caben. Si el pedido todavía no tiene número de factura, en
+   su sitio pone **«Sin número de factura»**, en gris.
+3. **El cliente**, debajo, en negrita y del tamaño de la dirección.
 4. **La dirección.**
 5. **Una línea de datos** separada por puntos: peso, costo del domicilio,
    municipio, y los km si ya está colocada. Por ejemplo:

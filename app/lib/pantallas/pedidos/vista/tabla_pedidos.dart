@@ -544,11 +544,14 @@ class _Tarjeta extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const SizedBox(height: 6),
-                    Text(
-                      pedido.customerName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Tipos.texto(tamano: 14, peso: FontWeight.w600),
+                    // EL NÚMERO DE FACTURA ES EL TÍTULO DE LA TARJETA — Amado, issue 8
+                    // (14/10/2026: «los logísticos operan con número de factura») e
+                    // issue 12 (15/10/2026: más importante que el cliente). El cliente
+                    // va debajo, en negrita y al tamaño del cuerpo: `FacturaYCliente`.
+                    FacturaYCliente(
+                      facturaNumero: pedido.facturaNumero,
+                      cliente: pedido.customerName,
+                      claveDeLaFactura: ValueKey('tarjeta-factura-${pedido.id}'),
                     ),
                     const SizedBox(height: 2),
                     // Folio y fecha en la misma linea mientras quepan, y en dos
@@ -563,24 +566,6 @@ class _Tarjeta extends StatelessWidget {
                             style: Tipos.mono(
                               tamano: 11.5,
                               color: Colores.tintaSuave,
-                            ),
-                          ),
-                        // EL NÚMERO DE FACTURA, EN LA CABECERA DE LA TARJETA — Amado,
-                        // 14/10/2026 (issue 8): «los logísticos operan con número de
-                        // factura, debe ser una información importante a mostrar en
-                        // los CARDS». Antes sólo salía como una insignia más, la
-                        // quinta de un `Wrap` de abajo, y sólo con la factura `igual`
-                        // o `cambiado`. Es un hijo del `Wrap` y salta de línea ENTERO
-                        // si no cabe, como el folio y la fecha: no rompe a 390 px.
-                        if (etiquetaDeFactura(pedido.facturaNumero)
-                            case final factura?)
-                          Text(
-                            factura,
-                            key: ValueKey('tarjeta-factura-${pedido.id}'),
-                            style: Tipos.mono(
-                              tamano: 12,
-                              peso: FontWeight.w700,
-                              color: Colores.tinta,
                             ),
                           ),
                         _Fecha(pedido: pedido),

@@ -250,6 +250,8 @@ class TarjetaPedido {
     this.vendedor,
     this.orderDate,
     this.facturaEstado,
+    this.facturaNumero,
+    this.facturaAt,
     this.facturaDomicilio,
     this.archivado = false,
     this.rutaId,
@@ -268,6 +270,16 @@ class TarjetaPedido {
   final String? vendedor;
   final DateTime? orderDate;
   final String? facturaEstado;
+
+  /// El número de la FACTURA de Ventra (`1024237`), no el folio del pedido
+  /// ([operationNumber]). Cuál se enseña como «Factura» y por qué, en
+  /// `numeroDeFactura` (`pedidos/datos/formato.dart`). Sin pasar por él no se pinta.
+  final String? facturaNumero;
+
+  /// Cuándo anotó PEDIDO el cotejo con la factura: la hora de facturación, con el retraso
+  /// de su sondeo. Sólo vale como «facturada el» si hay [facturaNumero] (ver
+  /// `etiquetaDeFactura`) y es la fecha por la que se ordena «Sin colocar».
+  final DateTime? facturaAt;
 
   /// Lo que la factura cobro de domicilio. `null` y cero son lo mismo aqui:
   /// «no esta cobrado» (ver [motivoDeNoSubir]).
@@ -388,7 +400,8 @@ class PedidoDesaparecido {
   final String? columna;
 }
 
-/// La mitad izquierda: los pedidos sin colocar, ordenados por cercania.
+/// La mitad izquierda: los pedidos sin colocar, del mas viejo al mas reciente por la fecha de
+/// su factura (Amado, 14/10/2026; antes iban por cercania al almacen).
 class MitadIzquierda {
   const MitadIzquierda({required this.pedidos, required this.total});
 

@@ -1697,11 +1697,22 @@ la sucursal DEL DISTRIBUIDOR.
 
 ```json
 {
-  "orders": [ { "id","customerName","address","endAddress","weight","price","segmentKm","createdAt","routeName","vehicleName","vehiclePlate" } ],
+  "orders": [ { "id","customerName","address","endAddress","weight","price","segmentKm","createdAt","routeName","vehicleName","vehiclePlate","invoiceNumber" } ],
   "summary": { "totalOrders": 0, "totalRevenue": 0, "totalWeight": 0, "avgPrice": 0 },
-  "byVehicle": [ { "name": "...", "plate": "..."|null, "count": 0, "revenue": 0, "weight": 0 } ]
+  "byVehicle": [ { "name": "...", "plate": "..."|null, "count": 0, "revenue": 0, "weight": 0, "invoiceNumbers": ["..."], "withoutInvoice": 0 } ]
 }
 ```
+
+  - **`invoiceNumber`** (issue 9 de Amado, 14/10/2026; el Next no lo tiene): el número de
+    factura del pedido = su número de operación (`operationNumber`, el «conduce» de Amado) y,
+    si falta, el de la factura de Ventra (`facturaNumero`); sin blancos en los extremos; `null`
+    si faltan los dos. **No es `facturaNumero` a secas**: ese sólo existe cuando hay factura.
+  - **`invoiceNumbers`** (en `byVehicle`): los números de sus pedidos, SIN REPETIR y en el
+    orden en que salen en `orders`; **`withoutInvoice`**: cuántos de sus `count` pedidos no
+    tienen número. Es sólo una lista de referencias: no cambia `count` ni ningún total. Sale
+    `[]` y no `null` cuando no hay ninguno.
+  - La regla está escrita en Go (`informes.go`, `numeroDeFactura` y `agruparFacturas`) y en
+    el aparato (`numero_de_factura.dart`), y las ata `docs/numero-de-factura.casos.json`.
 
   - `routeName = route.routeCode || route.name || null`.
   - `avgPrice = orders.length > 0 ? totalRevenue / orders.length : 0`.
@@ -1947,6 +1958,14 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
 - «Sin colocar» (`GET /api/board`, mitad izquierda) y su contador sólo ofrecen lo que esto
   acepta por las dos condiciones de Amado, y por eso nunca ofrecen una tarjeta que acabe en
   el `409` de arriba.
+- **El orden de «sin colocar» (`GET /api/board`, `GET /api/board/unplaced`) es cronológico
+  desde el 14/10/2026** (Amado, issue 6, punto 2): del más viejo al más reciente por
+  `coalesce(factura_at, order_date)`, sin fecha al final, desempate por id. Hasta ese día era
+  por cercanía al almacén. Cada pedido trae ahora `facturaNumero`, `facturaAt` y `fechaDeOrden`
+  (la fecha por la que va ordenado), además de `orderDate` y `kmAlAlmacen`, que ya no ordena.
+  **El cursor `?desde=` cambió de forma**: era `km|fecha|id` y es `fecha|id` (la pareja del
+  `ORDER BY`; `fecha` vacía = el pedido no tiene ninguna). Un cursor viejo, de tres trozos, da
+  `400` con el mensaje de siempre y hay que volver a pedir la primera tanda sin `desde`.
 
 ## `POST /api/board/columns/{id}/route` — armar una zona
 

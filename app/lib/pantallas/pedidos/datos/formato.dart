@@ -12,6 +12,8 @@
 
 import 'package:intl/intl.dart';
 
+import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcelODejarlo;
+
 final _fechaCorta = DateFormat('d/M/y');
 final _fechaYHora = DateFormat('d/M/y, H:mm');
 
@@ -20,6 +22,61 @@ String fechaCorta(DateTime? cuando) =>
 
 String fechaYHora(DateTime? cuando) =>
     cuando == null ? '—' : _fechaYHora.format(cuando);
+
+/// EL NÚMERO DE FACTURA QUE SE ENSEÑA, o `null` si el pedido no lo tiene — 14/10/2026.
+///
+/// Amado, issues 6 y 8 (14/10/2026): «el detalle del pedido debe incluir la fecha de
+/// facturación y el número de factura» y «los logísticos operan con número de factura,
+/// debe ser una información importante a mostrar en los CARDS de pedidos».
+///
+/// ## QUÉ ES «EL NÚMERO DE FACTURA»: `orders.factura_numero`, NO `operation_number`
+///
+/// Hay dos números en el pedido y no son lo mismo:
+///
+///  * **`operation_number`** es el FOLIO DEL PEDIDO en PEDIDO (`PTB25-261005-1479`,
+///    `pedido.folio`). Es lo que desde el 07/10/2026 se llama «conduce» (Jose: «el conduce
+///    es el número de operación de la factura») y ya es el título de cada tarjeta y de
+///    cada rechazo. Existe desde que el pedido se toma, antes de facturar.
+///  * **`factura_numero`** es el número de la FACTURA de Ventra: el `operNumber` de las
+///    líneas facturadas (`1024237`; varias líneas lo comparten, y si el pedido se cubrió
+///    con más de una factura PEDIDO las junta con coma: `1024237, 1024240`). Lo escribe el
+///    cotejo de PEDIDO (`cotejarFactura.ts`: `numero = [...new Set(operNumber)].sort().join(', ')`)
+///    y por eso no existe hasta que el pedido se factura. En PEDIDO, en Ventra y en
+///    `modelo-datos.md` se llama «número de factura» y no se edita a mano.
+///
+/// Se enseña `factura_numero` bajo el rótulo «Factura» **porque el folio ya salía en todas
+/// las tarjetas y Amado pide la factura como cosa APARTE**: si fueran el mismo número no
+/// habría nada que pedir. El folio (el conduce) se queda donde estaba, como título. Si Amado
+/// quisiera ver como «Factura» el folio, el cambio es esta función y nada más; queda dicho
+/// en el informe de la entrega como pregunta abierta.
+///
+/// ## Y la comilla de Excel se quita aquí también
+///
+/// `a_mano/comilla_de_excel.sql` lista `factura_numero` entre las columnas que pudieron
+/// bajar con un `'` delante (`'77`). Es la segunda línea de defensa de siempre
+/// (`nucleo/texto_de_fuera.dart`): el servidor ya limpia lo que entra, pero lo que bajó antes
+/// sigue en la base de este aparato.
+String? numeroDeFactura(String? crudo) {
+  final limpio = sinLaComillaDeExcelODejarlo(crudo)?.trim();
+  return limpio == null || limpio.isEmpty ? null : limpio;
+}
+
+/// «Factura 1024237», o «Factura 1024237 · facturada el 12/10/2026» si se pasa la fecha.
+/// `null` si el pedido no tiene número de factura.
+///
+/// **La fecha sólo sale CON número.** `factura_at` la escribe el cotejo de PEDIDO cada vez
+/// que cambia el resultado, también cuando el resultado es `sin_factura`: ahí es la hora en
+/// que se miró y no se encontró nada, no la de una factura. Una fecha de facturación sin
+/// factura sería un dato inventado con aspecto de verdadero. Y aun con número, es cuándo
+/// PEDIDO anotó el cotejo —en la práctica, la hora a la que se facturó, con el retraso de su
+/// sondeo— y no la fecha impresa en la factura de Ventra; por eso dice «facturada el» y no
+/// «fecha de la factura».
+String? etiquetaDeFactura(String? crudo, {DateTime? facturadaEl}) {
+  final numero = numeroDeFactura(crudo);
+  if (numero == null) return null;
+  if (facturadaEl == null) return 'Factura $numero';
+  return 'Factura $numero · facturada el ${fechaCorta(facturadaEl)}';
+}
 
 /// Kilos con un decimal: es lo que se lee en el almacen y lo que usa el mensaje
 /// literal de sobrepeso del servidor.

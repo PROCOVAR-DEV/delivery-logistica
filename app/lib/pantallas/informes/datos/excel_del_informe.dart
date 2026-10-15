@@ -40,6 +40,13 @@
 //     tablas, con los mismos totales que el pie de la pantalla. Sin ella, quien
 //     cuadra caja tiene que volver a sumar 300 filas a mano; y una suma a mano
 //     sobre una hoja que ya trae el total es de donde salen las diferencias.
+//  4. **La factura (issue 9 de Amado).** `Detalle de Órdenes` lleva la columna
+//     `Factura`, justo despues de la fecha, y `Por Vehículo` la lista de las de
+//     cada camion (`Facturas`, la ultima). El numero lo resuelve
+//     [NumeroDeFactura], el mismo que la pantalla y que `GET /api/reports`. La
+//     lista de un camion va ENTERA aqui —la pantalla solo ensena las dos
+//     primeras— con un techo: una celda de mas de 32.767 letras hace que Excel
+//     no abra el fichero, y entonces se corta DICIENDO cuantas quedan fuera.
 
 import 'dart:typed_data';
 
@@ -47,6 +54,7 @@ import 'package:intl/intl.dart';
 
 import 'consultas_informes.dart';
 import 'hoja_de_calculo.dart';
+import 'numero_de_factura.dart';
 
 /// La moneda en la que se escribe el fichero, con lo que hace falta para
 /// llegar a ella.
@@ -215,6 +223,7 @@ abstract final class ExcelDelInforme {
           'Ingresos $m',
           'Peso (kg)',
           'Promedio/Orden $m',
+          'Facturas',
         ],
         for (final v in informe.porVehiculo)
           [
@@ -224,6 +233,10 @@ abstract final class ExcelDelInforme {
             c.convertir(v.ingresos),
             _kg(v.peso),
             c.convertir(v.promedioPorOrden),
+            NumeroDeFactura.texto((
+              facturas: v.facturas,
+              sinFactura: v.sinFactura,
+            ), maxCaracteres: _techoDeUnaCelda),
           ],
         // El pie de la pantalla, con las mismas palabras. Y si falta algun
         // importe, la celda del total va VACIA y el rotulo dice cuantos faltan:
@@ -234,6 +247,7 @@ abstract final class ExcelDelInforme {
           ordenes,
           c.convertir(ingresos),
           _kg(peso),
+          '',
           '',
         ],
       ],
@@ -256,6 +270,7 @@ abstract final class ExcelDelInforme {
       filas: [
         [
           'Fecha',
+          'Factura',
           'Cliente',
           'Ruta',
           'Destino',
@@ -267,6 +282,9 @@ abstract final class ExcelDelInforme {
         for (final f in informe.filas)
           [
             _dia(f.fecha),
+            // Sin numero, la raya como en `Ruta` y `Vehículo`: es texto, no un
+            // importe, y un hueco aqui se leeria como una celda que se olvido.
+            f.factura ?? '—',
             f.cliente,
             f.ruta ?? '—',
             f.destino,
@@ -286,12 +304,17 @@ abstract final class ExcelDelInforme {
           '',
           '',
           '',
+          '',
           _kg(peso),
           c.convertir(total),
         ],
       ],
     );
   }
+
+  /// Lo que cabe en una celda de Excel son 32.767 letras; se deja el resto para
+  /// el «y N más» y los «sin número». Ver [NumeroDeFactura.texto].
+  static const _techoDeUnaCelda = 30000;
 
   // --- Los formatos, los mismos que la pantalla -----------------------------
 

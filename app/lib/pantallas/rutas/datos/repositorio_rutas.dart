@@ -143,12 +143,17 @@ class FiltrosRutas {
   final DateTime? desde;
   final DateTime? hasta;
 
-  bool get hayAlguno =>
-      q.isNotEmpty ||
-      vehiculoId.isNotEmpty ||
-      ubicacionSalida.isNotEmpty ||
-      desde != null ||
-      hasta != null;
+  /// CUÁNTOS FILTROS HAY PUESTOS. Es lo que dice el encabezado de la sección de
+  /// filtros cuando está plegada: plegarla no puede esconder que la lista está
+  /// acotada (la fecha desde y la fecha hasta cuentan cada una).
+  int get cuantos =>
+      (q.isNotEmpty ? 1 : 0) +
+      (vehiculoId.isNotEmpty ? 1 : 0) +
+      (ubicacionSalida.isNotEmpty ? 1 : 0) +
+      (desde != null ? 1 : 0) +
+      (hasta != null ? 1 : 0);
+
+  bool get hayAlguno => cuantos > 0;
 
   /// Copiar cambiando lo justo.
   ///

@@ -427,7 +427,10 @@ void main() {
     ) async {
       await pintar(tester, ancho: 390, pedidos: [pedido(domicilio: 0.46)]);
 
-      expect(find.text('F-1001'), findsOneWidget);
+      // El número ya no va en la insignia de la tarjeta sino en su cabecera, con el
+      // rótulo «Factura» (Amado, issue 8, 14/10/2026): ver
+      // `el_numero_de_factura_en_los_pedidos_test.dart`.
+      expect(find.text('Factura F-1001'), findsOneWidget);
       final marca = tester.getRect(find.text('Dom. \$0.46'));
       expect(marca.right, lessThanOrEqualTo(390));
       expect(tester.takeException(), isNull);

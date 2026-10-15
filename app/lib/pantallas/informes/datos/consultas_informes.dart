@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import 'numero_de_factura.dart';
 
 /// Lo que se le pide al informe. Sin valores por defecto: arranca sin rango y
 /// sin vehiculo (pliego §7).
@@ -52,6 +53,7 @@ class FilaDeInforme {
     this.vehiculo,
     this.placa,
     this.kmDesdePartida,
+    this.factura,
   });
 
   final String id;
@@ -82,6 +84,11 @@ class FilaDeInforme {
   final String? vehiculo;
   final String? placa;
   final double? kmDesdePartida;
+
+  /// El número de factura del pedido (issue 9 de Amado). Sale de
+  /// [NumeroDeFactura.de] y de ningún otro sitio. `null` = el pedido no tiene
+  /// número, y se pinta con la raya: nunca en blanco ni inventado.
+  final String? factura;
 }
 
 class ResumenDeInforme {
@@ -119,6 +126,8 @@ class FilaDeVehiculo {
     required this.peso,
     this.placa,
     this.sinCotizar = 0,
+    this.facturas = const [],
+    this.sinFactura = 0,
   });
 
   /// El vehiculo, por su identificador. Dos camiones homonimos son dos filas.
@@ -135,6 +144,15 @@ class FilaDeVehiculo {
 
   /// Cuantas de sus [ordenes] entraron sin importe.
   final int sinCotizar;
+
+  /// Los números de factura de sus órdenes, sin repetir y en el orden en que
+  /// salen (issue 9 de Amado). **Es sólo la lista de referencias**: no cambia
+  /// [ordenes] ni ningún total.
+  final List<String> facturas;
+
+  /// Cuántas de sus [ordenes] no tienen número de factura. Se dice y no se
+  /// calla: una lista que parece completa y no lo es esconde facturas.
+  final int sinFactura;
 
   /// `null` arrastra: sin la suma no hay promedio. Con cero ordenes no se
   /// divide por cero, pero eso aqui no pasa —una fila existe porque tiene al
@@ -190,6 +208,7 @@ class ConsultasInformes {
     const sql = '''
 SELECT o.id, o.customer_name, o.address, o.end_address, o.weight,
        o.price, o.pedido_costo, o.segment_km, o.created_at,
+       o.operation_number, o.factura_numero,
        COALESCE(r.route_code, r.name) AS ruta_nombre,
        v.id    AS vehiculo_id,
        v.name  AS vehiculo_nombre,
@@ -310,6 +329,10 @@ SELECT o.id, o.customer_name, o.address, o.end_address, o.weight,
           vehiculo: f.read<String?>('vehiculo_nombre'),
           placa: f.read<String?>('vehiculo_placa'),
           kmDesdePartida: f.read<double?>('segment_km'),
+          factura: NumeroDeFactura.de(
+            operationNumber: f.read<String?>('operation_number'),
+            facturaNumero: f.read<String?>('factura_numero'),
+          ),
         ),
       );
     }
@@ -377,9 +400,14 @@ SELECT o.id, o.customer_name, o.address, o.end_address, o.weight,
   /// cosa.
   static List<FilaDeVehiculo> agruparPorVehiculo(List<FilaDeInforme> filas) {
     final porId = <String, FilaDeVehiculo>{};
+    // Los numeros de factura de cada camion, tal cual salen, para juntarlos al
+    // final con `NumeroDeFactura.agrupar` (una sola regla, la del fichero de
+    // casos compartidos con el servidor).
+    final numeros = <String, List<String?>>{};
     for (final f in filas) {
       final id = f.vehiculoId;
       if (id == null) continue; // sin vehiculo no entra (contrato §9)
+      (numeros[id] ??= []).add(f.factura);
       final previo = porId[id];
       // Una sola orden sin cotizar deja SU CAMION sin total, y el `null` ya no
       // se recupera aunque las siguientes si tengan importe: es la misma regla
@@ -410,6 +438,20 @@ SELECT o.id, o.customer_name, o.address, o.end_address, o.weight,
           a.ingresos ?? double.negativeInfinity,
         ),
       );
-    return lista;
+    // Las facturas se juntan al final, ya en su orden: no cuentan para ordenar.
+    return lista.map((v) {
+      final g = NumeroDeFactura.agrupar(numeros[v.id]!);
+      return FilaDeVehiculo(
+        id: v.id,
+        nombre: v.nombre,
+        placa: v.placa,
+        ordenes: v.ordenes,
+        ingresos: v.ingresos,
+        peso: v.peso,
+        sinCotizar: v.sinCotizar,
+        facturas: g.facturas,
+        sinFactura: g.sinFactura,
+      );
+    }).toList();
   }
 }

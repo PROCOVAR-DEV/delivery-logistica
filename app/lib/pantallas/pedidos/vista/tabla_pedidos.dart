@@ -318,6 +318,25 @@ class _Fila extends StatelessWidget {
                         color: Colores.tintaSuave,
                       ),
                     ),
+                    // LA COLUMNA «FACTURA» SE ESCONDE BAJO 1024 PX, Y CON ELLA
+                    // DESAPARECÍA EL NÚMERO DE FACTURA — Amado, 14/10/2026 (issue 8:
+                    // «los logísticos operan con número de factura»). Entre 768 y
+                    // 1023 no hay tarjeta (es tabla) ni columna, así que el número
+                    // baja a esta celda, bajo el folio. Con la columna a la vista NO
+                    // se repite: dos veces el mismo número en una fila es ruido.
+                    if (etiquetaDeFactura(pedido.facturaNumero)
+                        case final factura? when !columnas.factura)
+                      Text(
+                        factura,
+                        key: ValueKey('fila-factura-${pedido.id}'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Tipos.mono(
+                          tamano: 11.5,
+                          peso: FontWeight.w700,
+                          color: Colores.tinta,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -545,6 +564,24 @@ class _Tarjeta extends StatelessWidget {
                               color: Colores.tintaSuave,
                             ),
                           ),
+                        // EL NÚMERO DE FACTURA, EN LA CABECERA DE LA TARJETA — Amado,
+                        // 14/10/2026 (issue 8): «los logísticos operan con número de
+                        // factura, debe ser una información importante a mostrar en
+                        // los CARDS». Antes sólo salía como una insignia más, la
+                        // quinta de un `Wrap` de abajo, y sólo con la factura `igual`
+                        // o `cambiado`. Es un hijo del `Wrap` y salta de línea ENTERO
+                        // si no cabe, como el folio y la fecha: no rompe a 390 px.
+                        if (etiquetaDeFactura(pedido.facturaNumero)
+                            case final factura?)
+                          Text(
+                            factura,
+                            key: ValueKey('tarjeta-factura-${pedido.id}'),
+                            style: Tipos.mono(
+                              tamano: 12,
+                              peso: FontWeight.w700,
+                              color: Colores.tinta,
+                            ),
+                          ),
                         _Fecha(pedido: pedido),
                       ],
                     ),
@@ -587,7 +624,10 @@ class _Tarjeta extends StatelessWidget {
                         ),
                         if (codigoDeRuta != null)
                           Insignia(codigoDeRuta!, color: Colores.enCurso),
-                        _Factura(pedido: pedido),
+                        // Sin el número: ya está arriba, con su rótulo. La insignia
+                        // se queda con lo que SÓLO ella dice, que es el estado
+                        // (verde cuadra, ámbar cambió) y la marca del domicilio.
+                        _Factura(pedido: pedido, conNumero: false),
                       ],
                     ),
                   ],
@@ -662,9 +702,13 @@ class _Articulos extends StatelessWidget {
 }
 
 class _Factura extends StatelessWidget {
-  const _Factura({required this.pedido});
+  const _Factura({required this.pedido, this.conNumero = true});
 
   final Pedido pedido;
+
+  /// Si la insignia lleva el número (la tabla) o sólo el estado (la tarjeta del teléfono,
+  /// donde el número ya sale en la cabecera con su rótulo «Factura»).
+  final bool conNumero;
 
   @override
   Widget build(BuildContext context) {
@@ -674,7 +718,7 @@ class _Factura extends StatelessWidget {
         return _ConCobro(
           pedido: pedido,
           numero: Insignia(
-            numero,
+            conNumero ? numero : 'Cuadra',
             color: Colores.verde,
             tooltip: 'Cuadra con lo pedido: se puede repartir tal cual.',
           ),
@@ -683,7 +727,7 @@ class _Factura extends StatelessWidget {
         return _ConCobro(
           pedido: pedido,
           numero: Insignia(
-            '$numero !',
+            conNumero ? '$numero !' : 'Cambió !',
             color: Colores.ambar,
             tooltip:
                 'Se facturó algo distinto de lo pedido. '

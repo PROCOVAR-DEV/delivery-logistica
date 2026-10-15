@@ -343,7 +343,7 @@ class RepositorioTablero {
   }
 
   /// De vuelta a «sin colocar», que es de donde salio. La lista de la izquierda
-  /// lo recoloca sola por cercania.
+  /// lo recoloca sola por la fecha de su factura.
   Future<void> quitar(String pedidoId) async {
     await _listo();
     await _base.transaction(() async {

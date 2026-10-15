@@ -20,6 +20,7 @@ import '../../../nucleo/proveedores.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
 import '../datos/consultas_informes.dart';
+import '../datos/numero_de_factura.dart';
 import '../estado/informes_estado.dart';
 import 'boton_exportar.dart';
 
@@ -753,8 +754,12 @@ class _PorVehiculo extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: TablaAncha(
-        anchoMinimo: 720,
+        anchoMinimo: 1160,
         child: _Tabla(
+          // `Facturas` pesa el triple: lleva dos números, «y N más» y «M sin
+          // número», y medido necesita ~322 px. Con menos la celda se corta con
+          // «…» y se pierde justo lo que avisa de que faltan.
+          pesos: const [2, 2, 2, 2, 2, 2, 6],
           cabeceras: const [
             'Vehículo',
             'Placa',
@@ -762,6 +767,7 @@ class _PorVehiculo extends StatelessWidget {
             'Ingresos',
             'Peso Total',
             'Promedio/Orden',
+            'Facturas',
           ],
           filas: [
             for (final v in informe.porVehiculo)
@@ -774,6 +780,14 @@ class _PorVehiculo extends StatelessWidget {
                     : importe(v.ingresos),
                 Numeros.kg(v.peso),
                 v.promedioPorOrden == null ? '—' : importe(v.promedioPorOrden),
+                // LAS FACTURAS DEL CAMION (issue 9 de Amado). Aqui van las dos
+                // primeras y cuantas quedan fuera —un camion lleva decenas y la
+                // celda no es una hoja—; la lista ENTERA esta en la hoja «Por
+                // Vehículo» del Excel y, una por una, en «Detalle de Órdenes».
+                NumeroDeFactura.texto((
+                  facturas: v.facturas,
+                  sinFactura: v.sinFactura,
+                ), visibles: 2),
               ],
           ],
           pie: [
@@ -784,6 +798,8 @@ class _PorVehiculo extends StatelessWidget {
                 ? Numeros.totalIncompleto(sinCotizar)
                 : importe(ingresos),
             Numeros.kg(peso),
+            '',
+            // Sin total de facturas: es una lista de referencias, no una suma.
             '',
           ],
         ),
@@ -818,10 +834,15 @@ class _Detalle extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: TablaAncha(
-        anchoMinimo: 860,
+        anchoMinimo: 1040,
         child: _Tabla(
+          // `Factura` pesa mas: `PTB25-261005-1479` mide ~121 px y una celda
+          // mas estrecha lo CORTA con «…» —el `Text` de la fila es de una
+          // linea—, y un numero para copiar cortado es peor que no tenerlo.
+          pesos: const [2, 3, 2, 2, 2, 2, 2, 2],
           cabeceras: const [
             'Fecha',
+            'Factura',
             'Cliente',
             'Ruta',
             'Destino',
@@ -835,6 +856,9 @@ class _Detalle extends StatelessWidget {
                 f.fecha == null
                     ? '—'
                     : DateFormat('d/M/y', 'es').format(f.fecha!),
+                // LA FACTURA (issue 9 de Amado): el numero de operacion, o el
+                // de la factura si falta, o la raya. Nunca en blanco.
+                f.factura ?? '—',
                 f.cliente,
                 f.ruta ?? '—',
                 f.destino,
@@ -848,6 +872,7 @@ class _Detalle extends StatelessWidget {
           ],
           pie: [
             sinCotizar == 0 ? 'Totales:' : 'Totales: ($sinCotizar sin cotizar)',
+            '',
             '',
             '',
             '',
@@ -866,10 +891,20 @@ class _Detalle extends StatelessWidget {
 /// Una tabla sencilla de textos. No usa `DataTable` porque `DataTable` reparte
 /// la anchura sobrante a su manera y aqui el ancho lo fija `TablaAncha`.
 class _Tabla extends StatelessWidget {
-  const _Tabla({required this.cabeceras, required this.filas, this.pie});
+  const _Tabla({
+    required this.cabeceras,
+    required this.filas,
+    required this.pesos,
+    this.pie,
+  });
 
   final List<String> cabeceras;
   final List<List<String>> filas;
+
+  /// Lo que pesa cada columna al repartir el ancho (un `Expanded` por celda).
+  /// Una por cabecera: es lo que deja a la columna de las facturas ser mas ancha
+  /// que las demas sin que su numero se parta.
+  final List<int> pesos;
   final List<String>? pie;
 
   @override
@@ -880,6 +915,7 @@ class _Tabla extends StatelessWidget {
       children: [
         // La cabecera en versalitas sobre papel, como todas las de delivery.
         _Fila(
+          pesos: pesos,
           celdas: cabeceras,
           estilo: Tipos.texto(
             tamano: 11,
@@ -891,10 +927,16 @@ class _Tabla extends StatelessWidget {
         ),
         Divider(height: 1, thickness: 1, color: Colores.linea),
         for (final f in filas)
-          _Fila(celdas: f, estilo: tema.textTheme.bodySmall, conLinea: true),
+          _Fila(
+            pesos: pesos,
+            celdas: f,
+            estilo: tema.textTheme.bodySmall,
+            conLinea: true,
+          ),
         if (pie != null) ...[
           Divider(height: 1, thickness: 1, color: Colores.linea),
           _Fila(
+            pesos: pesos,
             celdas: pie!,
             estilo: Tipos.texto(
               tamano: 13,
@@ -912,12 +954,14 @@ class _Tabla extends StatelessWidget {
 class _Fila extends StatelessWidget {
   const _Fila({
     required this.celdas,
+    required this.pesos,
     this.estilo,
     this.fondo,
     this.conLinea = false,
   });
 
   final List<String> celdas;
+  final List<int> pesos;
   final TextStyle? estilo;
   final Color? fondo;
 
@@ -935,9 +979,14 @@ class _Fila extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 9, horizontal: Aire.sm),
     child: Row(
       children: [
-        for (final c in celdas)
+        for (var i = 0; i < celdas.length; i++)
           Expanded(
-            child: Text(c, style: estilo, overflow: TextOverflow.ellipsis),
+            flex: pesos[i],
+            child: Text(
+              celdas[i],
+              style: estilo,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
       ],
     ),

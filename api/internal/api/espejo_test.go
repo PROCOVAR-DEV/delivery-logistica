@@ -89,6 +89,10 @@ type pedidoSync struct {
 	archivado bool
 	marca     time.Time // el `updated_at` del pedido
 	renglones []renglonSync
+
+	// La factura: `factura_numero` y `factura_at`. Vacíos son un pedido sin facturar.
+	facturaNumero string
+	facturaAt     *time.Time
 }
 
 // cambiadoAt es el `GREATEST(o.updated_at, max(oi.updated_at))` de la consulta.
@@ -130,7 +134,7 @@ func (q *espejoFalso) DiferenciasDePedidos(_ context.Context, arg sqlc.Diferenci
 		if p.archivado && !arg.ConArchivados {
 			continue
 		}
-		filas = append(filas, sqlc.DiferenciasDePedidosRow{
+		fila := sqlc.DiferenciasDePedidosRow{
 			ID:           p.id,
 			CustomerName: p.nombre,
 			Address:      "una calle",
@@ -138,7 +142,15 @@ func (q *espejoFalso) DiferenciasDePedidos(_ context.Context, arg sqlc.Diferenci
 			BranchID:     pgtype.UUID{Bytes: [16]byte(p.sucursal), Valid: true},
 			UpdatedAt:    pgtype.Timestamptz{Time: p.marca, Valid: true},
 			CambiadoAt:   pgtype.Timestamptz{Time: cambiado, Valid: true},
-		})
+		}
+		if p.facturaNumero != "" {
+			numero := p.facturaNumero
+			fila.FacturaNumero = &numero
+		}
+		if p.facturaAt != nil {
+			fila.FacturaAt = pgtype.Timestamptz{Time: *p.facturaAt, Valid: true}
+		}
+		filas = append(filas, fila)
 	}
 	sort.Slice(filas, func(i, j int) bool {
 		if filas[i].CambiadoAt.Time.Equal(filas[j].CambiadoAt.Time) {

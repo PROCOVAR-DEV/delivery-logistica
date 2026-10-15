@@ -22,6 +22,7 @@ import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/pantallas/distribuidores/datos/distribuidor_de_la_ruta.dart';
 import 'package:reparto/pantallas/distribuidores/vista/distribuidor_de_la_ruta.dart';
 import 'package:reparto/pantallas/rutas/datos/repositorio_rutas.dart';
+import 'package:reparto/pantallas/rutas/vista/detalle_ruta.dart';
 import 'package:reparto/pantallas/rutas/vista/lista_rutas.dart';
 
 import '../../apoyo/base_de_prueba.dart';
@@ -137,6 +138,22 @@ void main() {
   testWidgets('y sin distribuidor el renglon suelto dice «Sin distribuidor»', (tester) async {
     await pintar(tester, const DistribuidorDeLaRuta(distribuidorId: null));
     expect(find.text(textoSinDistribuidor), findsOneWidget);
+    await desmontar(tester);
+  });
+
+  // EL DETALLE de la ruta también dice quién la reparte, en pareja: con su nombre y sin nadie.
+  testWidgets('el detalle de la ruta dice su distribuidor', (tester) async {
+    await sembrarTodo();
+    await pintar(tester, const DetalleDeRuta(rutaId: 'R-con'));
+    expect(find.text('Distribuidor: Juan Pérez'), findsOneWidget);
+    await desmontar(tester);
+  });
+
+  testWidgets('la pareja: el detalle de una ruta sin distribuidor dice «Sin distribuidor»', (tester) async {
+    await sembrarTodo();
+    await pintar(tester, const DetalleDeRuta(rutaId: 'R-sin'));
+    expect(find.text(textoSinDistribuidor), findsOneWidget);
+    expect(find.textContaining('Juan Pérez'), findsNothing);
     await desmontar(tester);
   });
 

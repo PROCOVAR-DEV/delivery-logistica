@@ -1,0 +1,148 @@
+{
+  "queEsEsto": "Qué número sale en la columna «Factura» de los Reportes, y cómo se juntan los de un camión en «Por Vehículo». Se escribe DOS VECES: en el servidor (`api/internal/api/informes.go`, `numeroDeFactura` y `agruparFacturas`, que contestan GET /api/reports) y en el aparato (`app/lib/pantallas/informes/datos/numero_de_factura.dart`, `NumeroDeFactura.de` y `NumeroDeFactura.agrupar`, que arman el informe de la APK, del escritorio y de la web con su base local). Tienen que dar EXACTAMENTE lo mismo o el mismo informe lleva un número en la pantalla y otro en el Excel que baja el servidor, y eso no lo enseña ninguna pantalla. Este fichero es lo que las ata (CLAUDE.md §3-bis: se atan con una prueba, no con un comentario).",
+  "quienLoLee": [
+    "api/internal/api/numero_de_factura_casos_compartidos_test.go",
+    "api/internal/api/informes_motor_real_test.go",
+    "app/test/pantallas/informes/el_numero_de_factura_test.dart",
+    "app/test/pantallas/informes/la_factura_en_los_reportes_test.dart"
+  ],
+  "deDondeSale": "Issue 9 de Amado (PROCOVAR-DEV/delivery-logistica): «Adicionar la factura como elemento de referencia importante: adicionar a los reportes la columna de facturas». El «conduce» de Amado es el NÚMERO DE OPERACIÓN de la factura (`orders.operation_number`; Jose, 07/10/2026). `orders.factura_numero` es el número con el que Ventra cuadró el pedido y sólo existe cuando hay factura; sirve de respaldo.",
+  "laRegla": "1) Principal: `operation_number`. 2) Si falta —nulo, vacío o sólo blancos—, `factura_numero`. 3) Si faltan los dos, NO hay número (null): nunca un texto inventado. En todos los casos se quitan los blancos de los extremos (los Unicode también: NBSP, tabulador y el BOM U+FEFF). Dentro de un camión los números van sin repetir y EN EL ORDEN EN QUE APARECEN; los pedidos sin número no se esconden: se cuentan en `sinFactura`. Un mismo número en dos pedidos (la ida y la vuelta del mismo pedido) sale una sola vez, y eso NO toca la cuenta de órdenes ni los totales.",
+  "resolver": [
+    {
+      "nombre": "con los dos gana el número de operación",
+      "operationNumber": "PTB25-261005-1479",
+      "facturaNumero": "F-000123",
+      "esperado": "PTB25-261005-1479"
+    },
+    {
+      "nombre": "sin número de operación vale el de la factura",
+      "operationNumber": null,
+      "facturaNumero": "F-000123",
+      "esperado": "F-000123"
+    },
+    {
+      "nombre": "un número de operación vacío no tapa al de la factura",
+      "operationNumber": "",
+      "facturaNumero": "F-000123",
+      "esperado": "F-000123"
+    },
+    {
+      "nombre": "un número de operación de sólo blancos tampoco",
+      "operationNumber": "   ",
+      "facturaNumero": "F-000123",
+      "esperado": "F-000123"
+    },
+    {
+      "nombre": "sin ninguno de los dos no hay número",
+      "operationNumber": null,
+      "facturaNumero": null,
+      "esperado": null
+    },
+    {
+      "nombre": "los dos vacíos o en blanco tampoco son un número",
+      "operationNumber": "",
+      "facturaNumero": "  ",
+      "esperado": null
+    },
+    {
+      "nombre": "se quitan los blancos de los extremos",
+      "operationNumber": "  PTB25-261005-1479 ",
+      "facturaNumero": null,
+      "esperado": "PTB25-261005-1479"
+    },
+    {
+      "nombre": "también los de la factura cuando es la que vale",
+      "operationNumber": null,
+      "facturaNumero": "\t F-000123 ",
+      "esperado": "F-000123"
+    },
+    {
+      "nombre": "los blancos raros de Unicode (NBSP y BOM) cuentan como blancos",
+      "operationNumber": " ﻿",
+      "facturaNumero": " F-000123﻿",
+      "esperado": "F-000123"
+    },
+    {
+      "nombre": "un cero es un número, no un hueco",
+      "operationNumber": "0",
+      "facturaNumero": "F-000123",
+      "esperado": "0"
+    }
+  ],
+  "agrupar": [
+    {
+      "nombre": "dos pedidos distintos salen en el orden en que aparecen",
+      "pedidos": [
+        { "operationNumber": "PTB25-261005-1480", "facturaNumero": null },
+        { "operationNumber": "PTB25-261005-1479", "facturaNumero": null }
+      ],
+      "facturas": ["PTB25-261005-1480", "PTB25-261005-1479"],
+      "sinFactura": 0
+    },
+    {
+      "nombre": "el mismo número en dos pedidos sale UNA vez",
+      "pedidos": [
+        { "operationNumber": "PTB25-261005-1479", "facturaNumero": null },
+        { "operationNumber": "PTB25-261005-1480", "facturaNumero": null },
+        { "operationNumber": " PTB25-261005-1479", "facturaNumero": null }
+      ],
+      "facturas": ["PTB25-261005-1479", "PTB25-261005-1480"],
+      "sinFactura": 0
+    },
+    {
+      "nombre": "un pedido sin número no se esconde: se cuenta aparte",
+      "pedidos": [
+        { "operationNumber": "PTB25-261005-1479", "facturaNumero": null },
+        { "operationNumber": null, "facturaNumero": null },
+        { "operationNumber": "", "facturaNumero": "  " }
+      ],
+      "facturas": ["PTB25-261005-1479"],
+      "sinFactura": 2
+    },
+    {
+      "nombre": "mezcla de operación y de factura de respaldo",
+      "pedidos": [
+        { "operationNumber": null, "facturaNumero": "F-000123" },
+        { "operationNumber": "PTB25-261005-1479", "facturaNumero": "F-000999" }
+      ],
+      "facturas": ["F-000123", "PTB25-261005-1479"],
+      "sinFactura": 0
+    },
+    {
+      "nombre": "todos sin número: lista vacía y todos contados",
+      "pedidos": [
+        { "operationNumber": null, "facturaNumero": null },
+        { "operationNumber": null, "facturaNumero": null }
+      ],
+      "facturas": [],
+      "sinFactura": 2
+    }
+  ],
+  "informe": {
+    "queEs": "UN INFORME ENTERO, de punta a punta: cinco pedidos de UN camión, del más nuevo al más viejo (así los devuelven la consulta del servidor, `ORDER BY created_at DESC`, y la del aparato). Se siembran en la base local (prueba de Dart), en una base de Postgres de verdad y en el doble del servidor (pruebas de Go), y los tres tienen que dar `esperado`. `a` lleva número de operación Y de factura (manda la operación); `b` sólo el de la factura (el respaldo); `c` ninguno; `d` repite el número de `a` (la ida y la vuelta); `e` es otro. Los totales (5 órdenes, 80 de ingresos) NO se mueven por la columna de facturas.",
+    "camion": "Ford 600",
+    "pedidos": [
+      { "cliente": "Cliente a", "operationNumber": "PTB25-261005-1479", "facturaNumero": "F-OTRA", "ingreso": 30 },
+      { "cliente": "Cliente b", "operationNumber": null, "facturaNumero": "F-000777", "ingreso": 10 },
+      { "cliente": "Cliente c", "operationNumber": null, "facturaNumero": null, "ingreso": 5 },
+      { "cliente": "Cliente d", "operationNumber": "PTB25-261005-1479", "facturaNumero": null, "ingreso": 20 },
+      { "cliente": "Cliente e", "operationNumber": "PTB25-261005-1500", "facturaNumero": null, "ingreso": 15 }
+    ],
+    "esperado": {
+      "porPedido": {
+        "Cliente a": "PTB25-261005-1479",
+        "Cliente b": "F-000777",
+        "Cliente c": null,
+        "Cliente d": "PTB25-261005-1479",
+        "Cliente e": "PTB25-261005-1500"
+      },
+      "camion": {
+        "ordenes": 5,
+        "ingresos": 80,
+        "facturas": ["PTB25-261005-1479", "F-000777", "PTB25-261005-1500"],
+        "sinFactura": 1
+      }
+    }
+  }
+}

@@ -82,7 +82,10 @@ Cambia según las fechas que tengas puestas: «· del 28/9/2026», «· desde el
 | **«Entrega»** | El estado de reparto |
 
 En pantalla estrecha no hay tabla: cada pedido es una tarjeta, y la cabecera dice
-«Elegir los 50 de esta página».
+«Elegir los 50 de esta página». **En la tarjeta, justo debajo del nombre, sale el número
+de factura** en negrita (`Factura 1024237`, el de Ventra; el número de operación va a su
+lado y es otro). Lo de la columna «Factura» queda en una insignia que solo dice el estado:
+**«Cuadra»** en verde o **«Cambió !»** en ámbar.
 
 ---
 
@@ -146,8 +149,10 @@ entregó o que está archivado no tiene nada que colocar, así que lleva sólo e
 factura (o el «Dom.» verde, si la factura sí cobró el domicilio). Un devuelto o cancelado
 sí lo lleva, porque se puede volver a meter en otra ruta.
 
-La columna «Factura» no sale en pantallas de menos de 1024 px de ancho; en el teléfono la
-marca va dentro de la tarjeta.
+La columna «Factura» no sale en pantallas de menos de 1024 px de ancho. **El número de
+factura no desaparece con ella**: entre 768 y 1023 px baja a la celda del cliente, debajo del
+número de operación, como `Factura 1024237`; en el teléfono va en la cabecera de la tarjeta
+y la marca del domicilio dentro de ella.
 
 ---
 
@@ -228,7 +233,10 @@ Lleva, en este orden:
 1. **«Entrega»** — dirección, coordenadas y teléfono del cliente.
 2. **«Recorrido»** — «Del almacén (ALMACÉN CENTRAL) al cliente.» o «Sin
    coordenadas GPS para esta ruta».
-3. **La banda de la factura**:
+3. **La banda de la factura**, que empieza por **el número y cuándo se facturó**, en
+   negrita: `Factura F-2992 · facturada el 12/10/2026` (la fecha es la del cotejo contra
+   Ventra, que ronda la hora en que se facturó; sin número de factura no sale), y sigue
+   con el estado:
    - Verde: «Cuadra con la factura F-2992 de Ventra: se puede repartir tal cual.»
    - Ámbar: «Se facturó algo distinto de lo pedido (factura F-2992). Lo que va en
      el camión es lo facturado.» **Pero un pedido que no cuadra no sube a una ruta**:
@@ -242,9 +250,12 @@ Lleva, en este orden:
      del almacén al cliente.»
    - Sin precio: «El costo lo pone el repartidor desde Entrega; hasta entonces este
      pedido no tiene precio de domicilio.»
-5. **«Productos (6)»** — una línea por renglón: «MALTA GUAJIRA CAJA 24U · 240
-   unidades · ×10 empaques · 88.5 kg». Si el renglón no trae peso, pone «sin
-   peso».
+5. **«Productos (6)»** — una línea por renglón, **con los empaques primero** (el blíster,
+   la caja, la paca: lo que se carga y se transporta) y las unidades detrás: «MALTA
+   GUAJIRA CAJA 24U · 10 empaques · 240 unidades · 88.5 kg». Si el renglón no trae
+   peso, pone «sin peso». Las unidades solo salen cuando se pueden afirmar: si la
+   cifra que manda Ventra queda por debajo de los empaques («SERVILLETA PROSITO PACA
+   24P · 7 empaques · 4») no son unidades de nada y la línea solo dice los empaques.
 6. **«Ruta»** — sólo si va en una: el código, el camión y la fecha de entrega.
 
 ---

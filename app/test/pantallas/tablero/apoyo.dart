@@ -105,6 +105,12 @@ Future<void> sembrarPedido(
   bool? domicilio = true,
   String sucursal = sucursalStg,
   DateTime? fecha,
+
+  /// LA FACTURA: su número (`1024237`, el de Ventra, que NO es el folio de
+  /// [operacion]) y cuándo se anotó. `null` en las dos es lo de siempre.
+  /// [facturaAt] manda sobre [fecha] en el orden de «sin colocar».
+  String? facturaNumero,
+  DateTime? facturaAt,
   bool conCoordenadas = true,
 }) => base
     .into(base.orders)
@@ -123,6 +129,8 @@ Future<void> sembrarPedido(
         municipio: Value(municipio),
         vendedor: Value(vendedor),
         facturaEstado: Value(facturaEstado),
+        facturaNumero: Value(facturaNumero),
+        facturaAt: Value(facturaAt),
         archivado: Value(archivado),
         routeId: Value(rutaId),
         source: Value(fuente),
@@ -138,6 +146,12 @@ Future<void> sembrarRenglon(
   required String id,
   required String pedidoId,
   required String descripcion,
+
+  /// Lo que Ventra manda como `quantity` (unidades, casi siempre) y como `packs`
+  /// (los empaques: el blíster, la caja, la paca). Por defecto uno y sin empaques,
+  /// que es lo que había antes de que hiciera falta distinguirlos.
+  double cantidad = 1,
+  double? empaques,
 }) => base
     .into(base.orderItems)
     .insert(
@@ -146,6 +160,7 @@ Future<void> sembrarRenglon(
         orderId: pedidoId,
         linea: 1,
         description: descripcion,
-        quantity: 1,
+        quantity: cantidad,
+        packs: Value(empaques),
       ),
     );

@@ -273,7 +273,7 @@ real», **las dos se saltan en silencio sin su variable** (también en los `Dock
 
 | Variable | Base | Serie de migraciones | Qué corre |
 |---|---|---|---|
-| `REPARTO_MOTOR_REAL_DSN` | `verif_reparto` | `api/db/migrations` (hasta la 00018) | `api/internal/store/sqlc/consultas_motor_real_test.go` (incluye `TestMotorReal_Migracion00018…`, que sube y baja esa migración DENTRO de su transacción: bloquea `vehicle_types` mientras dura, así que no se corre contra una base que esté usando otro) |
+| `REPARTO_MOTOR_REAL_DSN` | `verif_reparto` | `api/db/migrations` (hasta la 00018) | `api/internal/store/sqlc/consultas_motor_real_test.go` y `api/internal/api/informes_motor_real_test.go` (el informe con su columna de facturas, `GET /api/reports` entero contra la base; `comprobar.sh` corre las dos carpetas) (incluye `TestMotorReal_Migracion00018…`, que sube y baja esa migración DENTRO de su transacción: bloquea `vehicle_types` mientras dura, así que no se corre contra una base que esté usando otro) |
 | `SYNC_MOTOR_REAL_DSN` | `verif_sync` | `sync/db/migrations` (hasta la 00004; la prueba exige versión ≥ 4) | `sync/internal/sincro/revision_motor_real_test.go` (la bandeja de revisión) |
 
 Sin la variable, `./comprobar.sh` dice `SALTADO (exporta REPARTO_MOTOR_REAL_DSN: CLAUDE.md §5)` y

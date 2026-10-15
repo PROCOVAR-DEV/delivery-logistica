@@ -67,10 +67,17 @@ No es un fallo. Es para que lo de allá no pise lo que hiciste aquí. Sube prime
 
 Cuando hay filtros puestos, el embudo lleva un punto.
 
+### El orden de la lista
+
+**De la factura más vieja a la más reciente.** Lo primero que ves es lo que lleva más
+tiempo esperando. (Hasta el 14/10/2026 iba por cercanía al almacén; los kilómetros siguen
+en cada tarjeta y en el filtro «Hasta cuántos km del almacén», pero ya no ordenan.) Un
+pedido que no tiene fecha de ningún tipo va al final.
+
 ### La lista sale acotada a 200
 
 Si hay más, lo dice: **«Se ven 200 de 308.»** y al lado el botón **«Ver 108 más»**,
-que sube el tope de 200 en 200.
+que sube el tope de 200 en 200. Lo que queda fuera son las facturas más recientes.
 
 ---
 
@@ -81,17 +88,20 @@ De arriba abajo:
 1. **Los kilómetros al almacén** si está sin colocar («0,4 km»), o **su número de
    orden** si ya está en una zona («3.»). A la derecha, el número de operación.
    Si el pedido no tiene coordenadas, en vez de los km pone **«sin ubicar»**.
-2. **El cliente.**
-3. **La dirección.**
-4. **Una línea de datos** separada por puntos: peso, costo del domicilio,
+2. **El número de factura**, en negrita: `Factura 1024237`. Es el de la factura de
+   Ventra y **no es el número de operación** de la derecha. Si el pedido todavía no
+   tiene factura, no sale nada.
+3. **El cliente.**
+4. **La dirección.**
+5. **Una línea de datos** separada por puntos: peso, costo del domicilio,
    municipio, y los km si ya está colocada. Por ejemplo:
    `12 kg · 0,04 USD · Songo-La Maya · 3,7 km`
    Si el pedido no tiene costo, en su sitio no sale nada.
-5. **Las marcas**, si las tiene: «Archivado en PEDIDO», «Ya va en otra ruta»,
+6. **Las marcas**, si las tiene: «Archivado en PEDIDO», «Ya va en otra ruta»,
    «Sin cotejar», «Sin factura» y «Cambió en la factura» (las cinco en rojo). Ver
    [Las reglas del reparto](../las-reglas-del-reparto.md). **Ninguna de las cinco
    entra en la ruta**: en el camión sólo sube lo que cuadra con la factura.
-6. **Si el cliente repite hoy**: «2 pedidos de este cliente hoy». **Las tarjetas
+7. **Si el cliente repite hoy**: «2 pedidos de este cliente hoy». **Las tarjetas
    no se juntan**: sólo se avisa, para que los metas en la misma zona a propósito.
 
 ---
@@ -136,9 +146,13 @@ lista.
 
 Al tocar una tarjeta se abre con:
 
-- El detalle del pedido: dirección, municipio, teléfono, vendedor, y la línea de
-  peso, km y costo: `12,5 kg · 3,7 km · $0.04`.
-- Los artículos (hasta cuatro, y luego «y 3 artículo(s) más»).
+- El detalle del pedido: dirección, municipio, teléfono, vendedor, **la factura y
+  cuándo se facturó** (`Factura 1024237 · facturada el 12/10/2026`, o «Sin número de
+  factura»), y la línea de peso, km y costo: `12,5 kg · 3,7 km · $0.04`.
+- Los artículos (hasta cuatro, y luego «y 3 artículo(s) más»), con las cantidades
+  **en empaques primero**: `MALTA GUAJIRA 330 ML BLISTER 6U · 20 empaques · 120 uds`. El
+  empaque (el blíster, la caja, la paca) es como se carga y se transporta; las unidades
+  van detrás y solo salen cuando se pueden afirmar.
 - Las marcas del pedido, si las tiene.
 - Si ya está colocada: **«Subir una posición»**, **«Bajar una posición»** y
   **«Devolver a sin colocar»**.

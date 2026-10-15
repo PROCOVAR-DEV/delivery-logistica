@@ -219,8 +219,8 @@ de delivery, y resultado del cierre de ruta.
 | `municipio` | String? | sí | — | copiado de `meta` para poder filtrar |
 | `productosTexto` | String? | sí | — | nombres de items concatenados con `" · "` (§5) |
 | `facturaEstado` | String? | sí | — | §3.8 |
-| `facturaNumero` | String? | sí | — | |
-| `facturaAt` | DateTime? | sí | — | |
+| `facturaNumero` | String? | sí | — | **el número de la FACTURA de Ventra** (`operNumber`, p. ej. `1024237`; con más de una factura, PEDIDO las junta con coma). No es `operationNumber`, que es el folio del pedido (`PTB25-261005-1479`, el «conduce»). Es lo que la app enseña como «Factura …» (`numeroDeFactura`, `app/lib/pantallas/pedidos/datos/formato.dart`) |
+| `facturaAt` | DateTime? | sí | — | cuándo anotó PEDIDO el cotejo con la factura (su `new Date()`): ronda la hora a la que se facturó, **no** la fecha impresa en la factura. También se escribe con `sin_factura`, y entonces no es una fecha de facturación (la app solo la enseña con número). Desde el 14/10/2026 viaja en la bajada (`GET /api/sync/cambios`, clave `facturaAt`) y es la fecha por la que va ordenado «Sin colocar» (`coalesce(facturaAt, orderDate)`) |
 | `facturaDomicilio` | Float? | sí | — | lo que la factura cobró por reparto |
 | `facturaCorregidoAt` | DateTime? | sí | — | cuándo PEDIDO reescribió el pedido según factura |
 | `vendedor` | String? | sí | — | copiado de `meta` |

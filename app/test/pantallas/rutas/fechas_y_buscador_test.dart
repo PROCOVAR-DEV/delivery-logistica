@@ -17,6 +17,7 @@ import 'package:reparto/idioma.dart';
 
 import '../../apoyo/base_de_prueba.dart';
 import '../pedidos/sembrar.dart';
+import 'desplegar_los_filtros.dart';
 
 Future<void> asentar(WidgetTester tester) async {
   for (var i = 0; i < 12; i++) {
@@ -76,6 +77,9 @@ void main() {
       ),
     );
     await asentar(tester);
+    // Con los dos paneles la sección de filtros arranca plegada (issue 6 de
+    // Amado): se abre, como haría una persona, para tocar las fechas y el buscador.
+    await desplegarLosFiltros(tester);
   }
 
   testWidgets('poner `Desde` deja fuera las rutas mas viejas', (tester) async {

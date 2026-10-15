@@ -20,6 +20,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'estilo.dart';
 import 'hoja.dart';
 import 'piezas.dart';
+import 'por_factura.dart';
 
 /// Los literales de la hoja. Van en espanol y nunca pasaron por la capa de
 /// idiomas que hubo en `lib/textos/` (quitada entera el 24/09/2026,
@@ -63,6 +64,10 @@ abstract final class TextoPreDespacho {
   /// que es lo que convierte una raya muda en algo que alguien puede ir a
   /// arreglar.
   static const String sinPesoEnElCatalogo = 'sin peso en los pedidos';
+
+  /// El título de la segunda tabla (issue 8 de Amado). Las columnas no están
+  /// aquí sino en `columnasPorFactura` (`por_factura.dart`): un solo sitio.
+  static const String porFactura = 'Por factura';
 }
 
 /// El peso **de los productos** tal como sale en el papel: la suma de la
@@ -145,6 +150,14 @@ Future<Uint8List> pdfPreDespacho(
         // Sin líneas no hay ninguna de las dos cuentas que separar, igual que
         // en la pantalla, que sólo pinta los totales si hay tabla encima.
         if (h.lineas.isNotEmpty) _losDosPesos(totales),
+        // «POR FACTURA»: lo mismo de arriba repartido entre las facturas que lo
+        // piden, para rebajar las tarjetas de estiba por cantidad Y factura. Sólo
+        // si la hoja sabe de qué factura sale cada cosa (la de una ruta); la de
+        // Pedidos suma lo filtrado y no lo sabe.
+        if (h.facturas.isNotEmpty) ...<pw.Widget>[
+          tituloDeSeccion(TextoPreDespacho.porFactura),
+          tablaPorFactura(h.facturas),
+        ],
         firmas(TextoPreDespacho.firmaSaco, TextoPreDespacho.firmaRecibio),
       ],
     ),
@@ -225,6 +238,59 @@ pw.Widget _tabla(HojaPreDespacho h, TotalesPreDespacho t) => pw.Table(
       ],
     ),
   ],
+);
+
+/// La tabla «Por factura». Cada celda sale de `filasPorFactura`, o sea que el
+/// papel dice letra por letra lo que dice la pantalla; aquí sólo se decide el
+/// dibujo.
+///
+/// **Es pública para poder probar la cabecera repetida**: un PDF de varias
+/// páginas no se deja leer entero, y con 25 facturas la tabla pasa de página.
+pw.Table tablaPorFactura(List<FacturaDelPreDespacho> facturas) {
+  final columnas = columnasPorFactura;
+  return pw.Table(
+    columnWidths: <int, pw.TableColumnWidth>{
+      for (final (i, c) in columnas.indexed)
+        i: c.ancha
+            ? const pw.FlexColumnWidth()
+            : const pw.IntrinsicColumnWidth(),
+    },
+    children: <pw.TableRow>[
+      pw.TableRow(
+        decoration: decoracionCabecera,
+        repeat: true, // si la tabla pasa de página, la cabecera va otra vez
+        children: <pw.Widget>[
+          for (final c in columnas)
+            celdaCabecera(c.titulo, derecha: c.alDerecha),
+        ],
+      ),
+      for (final fila in filasPorFactura(facturas))
+        pw.TableRow(
+          decoration: switch (fila.tipo) {
+            TipoDeFilaPorFactura.detalle => decoracionFila,
+            TipoDeFilaPorFactura.subtotal => _decoracionSubtotal,
+            TipoDeFilaPorFactura.total => decoracionPie,
+          },
+          children: <pw.Widget>[
+            for (final (i, c) in columnas.indexed)
+              celda(
+                fila.celdas[i],
+                derecha: c.alDerecha,
+                negrita: fila.tipo != TipoDeFilaPorFactura.detalle,
+              ),
+          ],
+        ),
+    ],
+  );
+}
+
+/// El subtotal de una factura: negrita y un fondo suave, para que se vea dónde
+/// acaba una factura y empieza la siguiente.
+const pw.BoxDecoration _decoracionSubtotal = pw.BoxDecoration(
+  color: Tinta.cabeceraFondo,
+  border: pw.Border(
+    bottom: pw.BorderSide(color: Tinta.lineaFirma, width: px),
+  ),
 );
 
 /// LOS DOS PESOS, EN DOS RENGLONES Y CON SU RÓTULO — 23/09/2026.

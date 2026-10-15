@@ -202,6 +202,10 @@ Columnas por orden (la etiqueta literal es la que se pinta):
     tooltip `Se facturó algo distinto de lo pedido. No puede ir en una ruta hasta que se corrija.`;
     `sin_factura` → `sin facturar`; nulo → `sin cotejar` con tooltip
     `El cotejo contra Ventra no ha pasado por este pedido todavía.` Oculta bajo 1024 px.
+    **El número de factura no se pierde con la columna** (Amado, issue 8, 14/10/2026: «los
+    logísticos operan con número de factura»): entre 768 y 1023 px baja a la celda del cliente,
+    bajo el folio (`Factura 1024237`); en la tarjeta del teléfono sube a la cabecera con su rótulo
+    y la insignia queda solo con el estado (`Cuadra` / `Cambió !`).
     **Con factura `igual` o `cambiado`, junto al número, una segunda marca con el cobro del
     domicilio** (Amado, 08/10/2026: «en la tabla no está claro qué pedidos han sido facturados
     y cobrados»): `Dom. $0.46` en verde, con el importe, cuando `facturaDomicilio > 0`; y
@@ -328,9 +332,25 @@ Cabecera: código, nombre y etiqueta con la sucursal. Botones:
 - `Marcar como completada` (sólo `in_progress`; mientras: `Completando...`).
 - Insignia `Peso total (<w> kg) supera capacidad (<c> kg)` si procede.
 
+**Sección de filtros plegable (issue 6.3 de Amado; hecho el 14/10/2026).** Los filtros de la lista
+(buscar, `Rutas de un camión`, `Ubicación de salida`, `Desde`/`Hasta`, `Limpiar`) viven
+tras un botón `Filtros` (icono de ajustes, chevrón `v`/`^`) que los pliega y despliega. Con
+los dos paneles arranca **plegada**; en el teléfono, **desplegada**. Lo elegido se recuerda
+mientras la aplicación está abierta (`filtrosPlegadosProvider`, no se guarda en el aparato).
+Plegada, el botón dice `Filtros · <n> activo(s)` y muestra su propio `Limpiar`.
+
 Línea de datos: estado, `<km> km (incl. regreso)`, `<kg> kg`, importe total, vehículo
 `Nombre · Placa`, fecha de entrega, `Carga total: <n>` y la **duración** («3 h 20 min»,
 sale de `startedAt`/`finishedAt`; tooltip con las horas).
+
+**Pre-despacho de la ruta (issue 8 de Amado; hecho el 14/10/2026).** Debajo de `Carga total` (que se
+mantiene), el detalle de **toda** ruta —armada a mano o desde una zona del tablero— trae la
+sección `Pre-despacho`: la misma vista que el paso 4 del asistente y que Pedidos
+(`VistaPreDespacho`), el botón `Ver e imprimir` y, debajo, la tabla `Por factura`. Antes el
+pre-despacho sólo existía dentro del asistente, y una ruta del tablero (que va derecha al
+detalle) no lo tenía. La suma es **una sola** para las tres entradas:
+`ConsultasPedidos.preDespachoDe`; `app/lib/pantallas/rutas/datos/pre_despacho_de_la_ruta.dart`
+sólo la reparte pedido a pedido. Ver §10.1 para la tabla.
 
 Compartir: enlace `Abrir en Google Maps` (origen = almacén, paradas en orden, **destino =
 el mismo almacén**, `travelmode=driving&dir_action=navigate`), botón `copiar enlace` que
@@ -693,20 +713,28 @@ insignia). Cargando: `Cargando reporte...`
 placa e `<importe> · <n> órdenes`. Si no hay órdenes: `No hay órdenes para los filtros seleccionados.`
 
 **Por Vehículo** — tabla:
-`Vehículo` | `Placa` | `Órdenes` | `Ingresos` | `Peso Total` | `Promedio/Orden`;
-fila de pie `Totales` con la suma de órdenes, ingresos y peso.
+`Vehículo` | `Placa` | `Órdenes` | `Ingresos` | `Peso Total` | `Promedio/Orden` | `Facturas`;
+fila de pie `Totales` con la suma de órdenes, ingresos y peso (sin total de facturas: es una
+lista de referencias, no una suma). `Facturas` (issue 9 de Amado) dice las DOS primeras
+facturas del camión y cuántas quedan fuera —`PTB25-261005-1479, F-000777 y 1 más`— y, aparte,
+cuántos de sus pedidos no tienen número —`· 1 sin número`—; la lista entera está en el Excel.
+Un número que se repite en dos pedidos (la ida y la vuelta) cuenta una vez; las `Órdenes` y los
+totales no se mueven.
 Vacío: `No hay datos de vehículos para los filtros seleccionados.`
 
 **Detalle de Órdenes** — tabla:
-`Fecha` | `Cliente` | `Ruta` | `Destino` | `Vehículo` | `Peso` | `Precio`;
-fila de pie `Totales:` con peso total (`<n.n> kg`) e importe total.
+`Fecha` | `Factura` | `Cliente` | `Ruta` | `Destino` | `Vehículo` | `Peso` | `Precio`;
+fila de pie `Totales:` con peso total (`<n.n> kg`) e importe total. `Factura` (issue 9 de
+Amado) es el número de factura del pedido —ver «El número de factura de los reportes» en `reglas-negocio.md`
+§15.13—; sin número, la raya `—`, nunca en blanco.
 Vacío: `No hay órdenes para los filtros seleccionados.`
 
 ### Endpoints
 
 - `GET /api/vehicles` — para el selector.
 - `GET /api/reports?from=&to=&vehicleId=` — `{orders[], summary:{totalOrders, totalRevenue,
-  totalWeight, avgPrice}, byVehicle:[{name, plate, count, revenue, weight}]}`.
+  totalWeight, avgPrice}, byVehicle:[{name, plate, count, revenue, weight, invoiceNumbers,
+  withoutInvoice}]}`; cada `orders[]` lleva además `invoiceNumber` (`null` si no tiene).
   El rango se aplica sobre `createdAt`; `to` incluye el día entero.
   **Ingreso de un pedido = `price` si lo tiene, si no `pedidoCosto`.**
 
@@ -717,8 +745,10 @@ Fichero `reporte-procovar-AAAA-MM-DD.xlsx`, tres hojas:
    `Filtro fecha` = `<desde|—> - <hasta|—>`; `Moneda` = código; luego `Total Órdenes`,
    `Ingresos Totales (<MONEDA>)`, `Precio Promedio (<MONEDA>)`, `Peso Total (kg)`.
 2. **`Por Vehículo`**: `Vehículo`, `Placa`, `Órdenes`, `Ingresos (<MONEDA>)`, `Peso (kg)`,
-   `Promedio/Orden (<MONEDA>)`.
-3. **`Detalle de Órdenes`**: `Fecha`, `Cliente`, `Ruta`, `Destino`, `Vehículo`,
+   `Promedio/Orden (<MONEDA>)`, `Facturas` (la lista ENTERA de los números del camión,
+   separados por coma; con un techo de 30.000 letras por celda —Excel no abre una celda de más
+   de 32.767— y, si se llega, se corta por números enteros diciendo `y N más`).
+3. **`Detalle de Órdenes`**: `Fecha`, `Factura`, `Cliente`, `Ruta`, `Destino`, `Vehículo`,
    `Km desde partida`, `Peso (kg)`, `Precio (<MONEDA>)`.
 
 Los importes se convierten a la moneda mostrada y se redondean a 2 decimales; los pesos a
@@ -970,7 +1000,23 @@ Datos de entrada: `sucursal`, `vehiculo`, `dia` (`AAAA-MM-DD`, opcional), `pedid
    Los tres literales están **atados a los de la pantalla con una prueba**, no con
    un comentario (`app/test/impresion/los_dos_pesos_del_pre_despacho_test.dart`),
    que es la regla del §3-bis del `CLAUDE.md`.
-5. Firmas, dos huecos con línea superior: `Sacó del almacén` · `Recibió (chofer)`.
+5. **`Por factura` (issue 8 de Amado, hecho el 14/10/2026; no existe en Next).** Sólo si la hoja sabe de
+   qué factura sale cada cosa —la que se imprime desde el detalle de una ruta; la de Pedidos
+   no la lleva—. El almacén rebaja las tarjetas de estiba por cantidad **y factura**: de 20
+   blister, 10 son de una factura y 10 de otra. Título `POR FACTURA` y una tabla con **una
+   fila por (factura, producto)**, ordenada por número de factura, un subtotal en negrita por
+   factura y el total:
+
+   | `Factura` | `Producto` | `Blister` | `Unidades` | `Peso (kg)` |
+   |---|---|---|---|---|
+
+   **La imagen que Amado adjuntó al issue no se pudo ver al escribir esto**: las columnas son
+   una propuesta. Se cambian en **un solo sitio**, la lista `columnasPorFactura`
+   (`app/lib/impresion/por_factura.dart`), que leen la pantalla (`tabla_por_factura.dart`) y
+   este PDF. La factura es `orders.operation_number` (el conduce; si falta, `factura_numero`;
+   si tampoco, `Sin número`) y se decide en `numeroDeFactura`. Cada cifra sigue la regla de
+   la tabla de arriba (`≥` si falta algún renglón, `—` si no se sabe, el cero no es un peso).
+6. Firmas, dos huecos con línea superior: `Sacó del almacén` · `Recibió (chofer)`.
 
 Las líneas vienen ya ordenadas de más a menos empaques. Los caracteres `& < > "` se
 escapan.

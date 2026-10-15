@@ -25,7 +25,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/impresion/hoja.dart' as papel;
 import 'package:reparto/pantallas/pedidos/datos/repositorio_pedidos.dart';
-import 'package:reparto/pantallas/rutas/vista/asistente_nueva_ruta.dart';
+import 'package:reparto/pantallas/rutas/datos/pre_despacho_de_la_ruta.dart';
 
 void main() {
   /// La forma real del incidente: MALTA GUAJIRA con 21 de sus 1.149 renglones

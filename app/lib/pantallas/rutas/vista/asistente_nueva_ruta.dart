@@ -23,7 +23,6 @@ import '../../../diseno/cajon.dart' show AtrasDelCajon;
 import '../../../diseno/numeros.dart';
 import '../../../diseno/rango_de_fechas.dart';
 import '../../../diseno/tema.dart';
-import '../../../impresion/hoja.dart' as papel;
 import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
 import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
@@ -40,6 +39,7 @@ import '../../pedidos/vista/vista_pre_despacho.dart';
 import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
 import '../datos/acciones_rutas.dart';
 import '../datos/meter_la_zona.dart';
+import '../datos/pre_despacho_de_la_ruta.dart' show hojaDePreDespachoDeLaRuta;
 import '../datos/repositorio_rutas.dart';
 import '../datos/zona_en_el_asistente.dart';
 import '../estado/proveedores_rutas.dart';
@@ -2109,63 +2109,3 @@ class _CabeceraDeZona extends StatelessWidget {
     );
   }
 }
-
-/// LA HOJA DEL PRE-DESPACHO DEL ASISTENTE, como funcion pura.
-///
-/// Va aparte del widget por lo mismo que su gemela de Pedidos
-/// (`pedidos/vista/pantalla_pedidos.dart`, `hojaDePreDespacho`): es lo que de
-/// verdad lleva los numeros al papel, y asi se comprueba sin pintar nada.
-///
-/// ## Por que existe: este camino imprimia OTRA hoja — 28/09/2026
-///
-/// Lo de aqui dentro estaba escrito a mano dentro de `_verEImprimir`, y cuando
-/// el 28/09/2026 el pre-despacho cambio de regla —lo que no se sabe ya no borra
-/// la fila: se imprime lo que si se sabe marcado con `≥` y con cuantos renglones
-/// faltan— sólo se actualizo el camino de Pedidos. Por este otro, la misma fila
-/// salia `26320.0 kg` a secas, como si fueran los kilos enteros de 4.949
-/// empaques de MALTA GUAJIRA, mientras la vista del mismo cajon decia
-/// `≥ 26320.0 kg (21 renglones sin peso)`. Dos papeles distintos para lo mismo
-/// (`CLAUDE.md` §3-bis), y lo que baja al almacen es el papel.
-///
-/// Suelta, la cubre una prueba. Dentro del widget no la cubria nada.
-papel.HojaPreDespacho hojaDePreDespachoDeLaRuta({
-  required TotalesPreDespacho totales,
-  required String sucursal,
-  required String vehiculo,
-  required String? dia,
-  required int pedidos,
-  required double pesoKg,
-}) => papel.HojaPreDespacho(
-  sucursal: sucursal,
-  vehiculo: vehiculo,
-  dia: dia,
-  pedidos: pedidos,
-  pesoKg: pesoKg,
-  lineas: [
-    for (final linea in totales.lineas)
-      papel.LineaPreDespacho(
-        producto: linea.producto,
-        formatos: linea.empaques,
-        unidades: linea.unidades,
-        // EL PESO VA TAL CUAL, CON SU NULO — 28/09/2026.
-        //
-        // Aqui habia un `?? 0` con este comentario: «en el papel el peso es
-        // un numero: un producto sin peso resuelto suma cero kilos a la
-        // hoja, que es lo que pesa lo que no sabemos». Era verdad cuando la
-        // hoja no sabia imprimir un nulo; ya no lo es, y mientras tanto es
-        // el cero creible de siempre: en el papel, `0 kg` no se distingue
-        // de un producto que de verdad no pesa, y con esta hoja alguien
-        // baja al almacen a cargar un camion.
-        pesoKg: linea.pesoKg,
-        // LOS CONTADORES VIAJAN AL PAPEL, igual que por el otro camino
-        // (`pedidos/vista/pantalla_pedidos.dart`). Sin ellos esta hoja
-        // imprimia la suma de lo que se sabe COMO SI FUERA EL TOTAL: el
-        // mismo filtro decia `≥ 26320.0 kg (21 renglones sin peso)` en la
-        // pantalla y `26320.0 kg` a secas en el papel. Dos papeles distintos
-        // para lo mismo es el §3-bis, y lo que se lleva al almacen es el
-        // papel.
-        lineasSinUnidades: linea.lineasSinUnidades,
-        lineasSinPeso: linea.lineasSinPeso,
-      ),
-  ],
-);

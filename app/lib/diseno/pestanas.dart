@@ -367,8 +367,21 @@ class PestanasQueCaben extends StatelessWidget {
     required this.alCambiar,
     this.rotulo,
     this.anchoParaTodas,
+    this.detras = const [],
     super.key,
   });
+
+  /// LO QUE VA EN LA MISMA FILA, DETRÁS DE LA ÚLTIMA PESTAÑA — 15/10/2026.
+  ///
+  /// Issue 13 de Amado: en el Planificador de Rutas los mandos de la lista se
+  /// llevaban media pantalla, uno debajo de otro. Con esto el botón de los
+  /// filtros entra en el mismo `Wrap` que las pastillas y ocupa el hueco que deja
+  /// la última, en vez de gastar un renglón suyo. Un `Wrap` dentro de otro no
+  /// sirve: el de dentro se mide entero y no comparte renglón con nadie.
+  ///
+  /// En el carrusel no hay renglón de pastillas que compartir: van debajo, no se
+  /// tiran.
+  final List<Widget> detras;
 
   /// El ancho a partir del cual caben todas. Es el mismo que usa el Tablero
   /// para partirse en dos mitades: si cabe un tablero de dos columnas, caben
@@ -408,7 +421,7 @@ class PestanasQueCaben extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, medidas) {
       if (medidas.maxWidth < (anchoParaTodas ?? anchoDeLasPestanas)) {
-        return CarruselDePestanas(
+        final carrusel = CarruselDePestanas(
           indice: indice,
           cuantas: etiquetas.length,
           titulo: etiquetas[indice],
@@ -416,10 +429,19 @@ class PestanasQueCaben extends StatelessWidget {
           rotulo: rotulo,
           alCambiar: alCambiar,
         );
+        if (detras.isEmpty) return carrusel;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            carrusel,
+            Wrap(spacing: 8, children: detras),
+          ],
+        );
       }
       return Wrap(
         spacing: 8,
         runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           for (var i = 0; i < etiquetas.length; i++)
             _Pestana(
@@ -427,6 +449,7 @@ class PestanasQueCaben extends StatelessWidget {
               elegida: i == indice,
               alPulsar: () => alCambiar(i),
             ),
+          ...detras,
         ],
       );
     },

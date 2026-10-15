@@ -4488,10 +4488,18 @@ puestos, ese número y las tarjetas que ves pueden no coincidir.
 ## Buscar y filtrar
 
 Los filtros viven en una sección que **se pliega y se despliega** con el botón
-**«Filtros»** (el del embudo, justo encima de la lista). Con los dos paneles (la
-lista a un lado y el detalle al otro) **arranca plegada**, para que las rutas
-ocupen el sitio; en el teléfono arranca desplegada. Lo que elijas se recuerda
-mientras tengas la aplicación abierta: cambiar de pestaña no la vuelve a plegar.
+**«Filtros»**. En el teléfono está justo encima de la lista. Con los dos paneles
+(la lista a un lado y el detalle al otro) va en el mismo renglón que las
+pestañas, detrás de «Historial», y **«+ Nueva Ruta»** va arriba a la derecha, al
+lado del título: así los botones ocupan dos renglones y no media pantalla. Con
+los dos paneles la sección **arranca plegada**, para que las rutas ocupen el
+sitio; en el teléfono arranca desplegada. Lo que elijas se recuerda mientras
+tengas la aplicación abierta: cambiar de pestaña no la vuelve a plegar.
+
+Desplegada, la sección **no se lleva más de un tercio** del sitio que queda
+debajo de los botones: si no le cabe entera, se desplaza ella sola (rueda del
+ratón o el dedo dentro de ella) y la lista de rutas se queda siempre con el
+resto. Abrir los filtros ya no echa las rutas fuera de la pantalla.
 
 Plegada no esconde que la lista está acotada: el botón dice cuántos filtros hay
 puestos («Filtros · 2 activos») y trae su propio **«Limpiar»** para quitarlos sin

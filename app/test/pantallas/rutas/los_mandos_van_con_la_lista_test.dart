@@ -186,14 +186,25 @@ void main() {
             'lista que crea. Jose: «por q el boton se queda a la mitad el de '
             'crear una nueva ruta»',
       );
+      // Y VA AL BORDE DERECHO DEL PANEL, EN EL RENGLÓN DEL TÍTULO — issue 13 de
+      // Amado, 15/10/2026. Hasta entonces bajaba a su línea y se estiraba a lo
+      // ancho del panel: un renglón entero de 48 px para una sola acción, en la
+      // pantalla de la que Amado decía «los botones se llevan casi la mitad».
+      // Las medidas, en `la_cabecera_deja_sitio_a_las_rutas_test.dart`.
       expect(
-        boton.width,
-        greaterThan(400),
+        boton.right,
+        greaterThan(raya - 24),
         reason:
-            'y dentro del panel ocupa su ancho: la cabecera mide ~530 px, o sea '
-            'por debajo de `Anchos.idioma`, así que el botón baja a su línea y '
-            'se estira — es lo que lo deja pegado a la lista y no colgando de '
-            'una esquina',
+            'el botón tiene que quedar pegado al borde derecho del panel de la '
+            'lista, que es donde se busca la acción',
+      );
+      final titulo = tester.getRect(find.text('Planificador de Rutas'));
+      expect(
+        titulo.center.dy,
+        inInclusiveRange(boton.top, boton.bottom),
+        reason:
+            'y en el MISMO renglón que el título: debajo es un renglón de 48 px '
+            'que se le quita a la lista',
       );
 
       await desmontar(tester);

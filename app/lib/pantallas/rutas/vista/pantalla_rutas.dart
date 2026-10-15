@@ -179,75 +179,113 @@ class PantallaRutas extends ConsumerWidget {
             // si hay sitio para dos columnas.
             final enEscritorio = medidas.maxWidth >= anchoEscritorio;
 
+            // LAS TRES PESTANAS, SEGUN EL SITIO QUE HAYA: carrusel cuando
+            // la columna es estrecha, las tres a la vez cuando cabe (ver
+            // `PestanasQueCaben`).
+            //
+            // Antes eran tres botones sueltos dentro del `Wrap` del titulo,
+            // y en un telefono las tres etiquetas con sus cuentas no caben
+            // en una linea. Ahora sale el rotulo de la que se esta mirando
+            // y, debajo, tres bolitas. Se cambia deslizando la lista, con
+            // las bolitas o con las flechas.
+            final pestanas = PestanasQueCaben(
+              indice: pestana.index,
+              etiquetas: [
+                for (final cual in PestanaRutas.values)
+                  '${cual.etiqueta} (${contadores[cual] ?? 0})',
+              ],
+              // AQUÍ CABEN CON MENOS DE 900 — 28/09/2026.
+              //
+              // Los mandos de esta pantalla viven dentro del panel de la
+              // lista, que en un monitor mide unos 530 px. Las tres
+              // —`Planificadas (0) · En curso (1) · Historial (0)`— miden
+              // unas 420 juntas, así que con el umbral común salían en
+              // carrusel teniendo sitio de sobra: dos de tres escondidas
+              // detrás de unas bolitas para nada.
+              //
+              // NO ES EL ANCHO, ES SI HAY DOS PANELES — 28/09/2026.
+              //
+              // Esto empezó siendo un número y se probaron dos, 460 y
+              // 400, y los dos estaban mal por el mismo motivo: el panel
+              // de la lista en un monitor (~433 px, porque la barra
+              // lateral se lleva 255) y la pantalla de un teléfono grande
+              // (~404 px a 420) **miden casi lo mismo**, así que ningún
+              // umbral de ancho separa los dos casos sin acertar por los
+              // pelos. Con 460 seguía saliendo el carrusel en el monitor;
+              // con 400 salían las pastillas en un teléfono de 420.
+              //
+              // Y no hacía falta adivinarlo: quien construye esto YA SABE
+              // si está en escritorio, que es lo mismo que decide si hay
+              // dos columnas. En escritorio caben las tres —y si un día
+              // no caben, el `Wrap` las baja de renglón, que sigue siendo
+              // mejor que esconder dos detrás de unas bolitas—; en un
+              // teléfono el carrusel es lo correcto y se queda con el
+              // umbral común de `PestanasQueCaben`.
+              anchoParaTodas: enEscritorio ? 0 : null,
+              alCambiar: irALaPestana,
+              // En escritorio el botón de los filtros va en el hueco que
+              // deja la última pastilla, no en un renglón suyo (issue 13).
+              detras: enEscritorio
+                  ? const [_MandoDeLosFiltros(enEscritorio: true)]
+                  : const [],
+            );
+
             // EL PANEL DE LA LISTA: su cabecera, sus pestañas, sus filtros y
             // ella. En movil es la pantalla entera; en escritorio es la columna
-            // de la izquierda. El mismo arbol en los dos sitios.
+            // de la izquierda.
+            //
+            // LOS MANDOS EN DOS RENGLONES EN ESCRITORIO — issue 13 de Amado,
+            // 15/10/2026: «los botones se llevan casi la mitad de la pantalla
+            // [...] si se expande desaparecen por completo [las rutas]».
+            // Medido a 1366x768 (barra superior y lateral del armazón
+            // descontadas): título, reloj, `+ Nueva Ruta` a todo lo ancho, las
+            // pastillas en dos renglones y `Filtros` en otro se llevaban 265 px
+            // plegados y 446 desplegados, de 704. Ahora son título y botón en un
+            // renglón, y pastillas y `Filtros` en el siguiente (dos si la
+            // columna no da para las tres pastillas, como a 1366). Lo medido
+            // está en `la_cabecera_deja_sitio_a_las_rutas_test.dart`.
+            //
+            // El teléfono no cambia: ahí no hubo queja y es lo que Jose aprobó.
             final panelDeLaLista = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _CabeceraDeLaLista(),
-                // LAS TRES PESTANAS, SEGUN EL SITIO QUE HAYA: carrusel cuando
-                // la columna es estrecha, las tres a la vez cuando cabe (ver
-                // `PestanasQueCaben`).
-                //
-                // Antes eran tres botones sueltos dentro del `Wrap` del titulo,
-                // y en un telefono las tres etiquetas con sus cuentas no caben
-                // en una linea. Ahora sale el rotulo de la que se esta mirando
-                // y, debajo, tres bolitas. Se cambia deslizando la lista, con
-                // las bolitas o con las flechas.
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Aire.sm),
-                  child: PestanasQueCaben(
-                    indice: pestana.index,
-                    etiquetas: [
-                      for (final cual in PestanaRutas.values)
-                        '${cual.etiqueta} (${contadores[cual] ?? 0})',
-                    ],
-                    // AQUÍ CABEN CON MENOS DE 900 — 28/09/2026.
-                    //
-                    // Los mandos de esta pantalla viven dentro del panel de la
-                    // lista, que en un monitor mide unos 530 px. Las tres
-                    // —`Planificadas (0) · En curso (1) · Historial (0)`— miden
-                    // unas 420 juntas, así que con el umbral común salían en
-                    // carrusel teniendo sitio de sobra: dos de tres escondidas
-                    // detrás de unas bolitas para nada.
-                    //
-                    // NO ES EL ANCHO, ES SI HAY DOS PANELES — 28/09/2026.
-                    //
-                    // Esto empezó siendo un número y se probaron dos, 460 y
-                    // 400, y los dos estaban mal por el mismo motivo: el panel
-                    // de la lista en un monitor (~433 px, porque la barra
-                    // lateral se lleva 255) y la pantalla de un teléfono grande
-                    // (~404 px a 420) **miden casi lo mismo**, así que ningún
-                    // umbral de ancho separa los dos casos sin acertar por los
-                    // pelos. Con 460 seguía saliendo el carrusel en el monitor;
-                    // con 400 salían las pastillas en un teléfono de 420.
-                    //
-                    // Y no hacía falta adivinarlo: quien construye esto YA SABE
-                    // si está en escritorio, que es lo mismo que decide si hay
-                    // dos columnas. En escritorio caben las tres —y si un día
-                    // no caben, el `Wrap` las baja de renglón, que sigue siendo
-                    // mejor que esconder dos detrás de unas bolitas—; en un
-                    // teléfono el carrusel es lo correcto y se queda con el
-                    // umbral común de `PestanasQueCaben`.
-                    anchoParaTodas: enEscritorio ? 0 : null,
-                    alCambiar: irALaPestana,
+                if (enEscritorio)
+                  Padding(
+                    padding: const EdgeInsets.all(Aire.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _CabeceraDeLaLista(enEscritorio: true),
+                        const SizedBox(height: Aire.sm),
+                        pestanas,
+                      ],
+                    ),
+                  )
+                else ...[
+                  const _CabeceraDeLaLista(enEscritorio: false),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: Aire.sm),
+                    child: pestanas,
                   ),
-                ),
-                _FiltrosDeLaLista(enEscritorio: enEscritorio),
+                  const _MandoDeLosFiltros(enEscritorio: false),
+                ],
                 Expanded(
-                  // LA LISTA, QUE SE CAMBIA DESLIZANDO EL DEDO.
-                  //
-                  // Las tres pestanas son tres listas del mismo tamano puestas
-                  // en fila; deslizar a lo ancho pasa de una a la siguiente y el
-                  // botoncito de arriba se enciende solo. El desplazamiento de
-                  // cada lista es vertical, asi que los dos gestos no se pisan.
-                  child: CuerpoDeslizable(
-                    indice: pestana.index,
-                    cuantas: PestanaRutas.values.length,
-                    alCambiar: alDeslizar,
-                    pagina: (contexto, i) =>
-                        ListaDeRutas(deLaPestana: PestanaRutas.values[i]),
+                  child: _LaListaBajoSusFiltros(
+                    enEscritorio: enEscritorio,
+                    // LA LISTA, QUE SE CAMBIA DESLIZANDO EL DEDO.
+                    //
+                    // Las tres pestanas son tres listas del mismo tamano puestas
+                    // en fila; deslizar a lo ancho pasa de una a la siguiente y
+                    // el botoncito de arriba se enciende solo. El desplazamiento
+                    // de cada lista es vertical, asi que los dos gestos no se
+                    // pisan.
+                    lista: CuerpoDeslizable(
+                      indice: pestana.index,
+                      cuantas: PestanaRutas.values.length,
+                      alCambiar: alDeslizar,
+                      pagina: (contexto, i) =>
+                          ListaDeRutas(deLaPestana: PestanaRutas.values[i]),
+                    ),
                   ),
                 ),
               ],
@@ -305,98 +343,136 @@ class PantallaRutas extends ConsumerWidget {
 /// `Spacer` no tiene nada que dar: el botón se pegaba al título otra vez, que es
 /// literalmente la queja del 25/09 de vuelta.
 ///
-/// Por debajo de [Anchos.idioma] de columna el botón baja a su propia línea y
-/// ocupa TODO el ancho del panel, que es lo que lo hace fácil de acertar con el
-/// pulgar en un teléfono y lo que lo deja pegado a la lista que crea en un
-/// monitor. Por encima, se va al extremo derecho DEL PANEL, que es donde se
-/// busca la acción y que ahora es un borde de verdad y no el otro lado de la
-/// pantalla.
+/// En el teléfono, por debajo de [Anchos.idioma] de columna, el botón baja a su
+/// propia línea y ocupa TODO el ancho, que es lo que lo hace fácil de acertar
+/// con el pulgar. Por encima, se va al extremo derecho, que es donde se busca la
+/// acción. **Con los dos paneles va siempre al extremo derecho DEL PANEL, en el
+/// renglón del título** (issue 13 de Amado, 15/10/2026): a todo lo ancho era un
+/// renglón de 48 px que se le quitaba a la lista.
 class _CabeceraDeLaLista extends StatelessWidget {
-  const _CabeceraDeLaLista();
+  const _CabeceraDeLaLista({required this.enEscritorio});
+
+  /// Con los dos paneles: título y botón en UN renglón (issue 13).
+  final bool enEscritorio;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(Aire.lg),
-    child: LayoutBuilder(
-      builder: (contexto, medidas) {
-        final estrecho = medidas.maxWidth < Anchos.idioma;
+  Widget build(BuildContext context) {
+    const titulo = Text(
+      'Planificador de Rutas',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontWeight: FontWeight.bold),
+    );
+    // El reloj de datos de las colecciones de esta pantalla. La franja del
+    // armazon da la frescura global; esta da la de lo que se esta mirando.
+    const reloj = BarraDeDatos(colecciones: ColeccionesDePantalla.rutas);
+    // EL GLIFO ES EL DE UNA RUTA Y NO UN `+`, aunque la accion sea crear:
+    // el rotulo del pliego ya empieza por `+` («+ Nueva Ruta», y se conserva
+    // letra a letra), asi que un `Icons.add` al lado seria el mismo signo
+    // dos veces y el boton no diria de que es la ruta. Es el mismo glifo con
+    // el que el tablero arma la ruta de una zona.
+    final boton = ControlSenalado(
+      nombre: Senalado.rutasNuevaRuta,
+      child: BotonPrincipal(
+        icono: Icons.route_outlined,
+        texto: '+ Nueva Ruta',
+        alPulsar: () =>
+            abrirCajon<void>(context, (_) => const AsistenteNuevaRuta()),
+      ),
+    );
 
-        const titulo = Text(
-          'Planificador de Rutas',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        );
-        // El reloj de datos de las colecciones de esta pantalla. La franja del
-        // armazon da la frescura global; esta da la de lo que se esta mirando.
-        const reloj = BarraDeDatos(colecciones: ColeccionesDePantalla.rutas);
-        // EL GLIFO ES EL DE UNA RUTA Y NO UN `+`, aunque la accion sea crear:
-        // el rotulo del pliego ya empieza por `+` («+ Nueva Ruta», y se conserva
-        // letra a letra), asi que un `Icons.add` al lado seria el mismo signo
-        // dos veces y el boton no diria de que es la ruta. Es el mismo glifo con
-        // el que el tablero arma la ruta de una zona.
-        final boton = ControlSenalado(
-          nombre: Senalado.rutasNuevaRuta,
-          child: BotonPrincipal(
-            icono: Icons.route_outlined,
-            texto: '+ Nueva Ruta',
-            alPulsar: () =>
-                abrirCajon<void>(context, (_) => const AsistenteNuevaRuta()),
+    // EN ESCRITORIO, EL BOTÓN AL LADO DEL TÍTULO Y NO DEBAJO — issue 13.
+    //
+    // En la columna de ~370 px de un 1366 el botón a todo lo ancho era un
+    // renglón de 48 px entero para una sola acción. Aquí va al borde derecho
+    // del panel y el título y el reloj se apilan a su izquierda, que caben en
+    // los 48 del botón. El reloj NO sabe encoger (ver la nota de la fila de
+    // abajo), así que va en un `FittedBox`: si un día no le llega el ancho se
+    // achica en vez de salirse con la cebra.
+    if (enEscritorio) {
+      return Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                titulo,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: reloj,
+                ),
+              ],
+            ),
           ),
-        );
+          const SizedBox(width: Aire.sm),
+          boton,
+        ],
+      );
+    }
 
-        if (estrecho) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Padding(
+      padding: const EdgeInsets.all(Aire.lg),
+      child: LayoutBuilder(
+        builder: (contexto, medidas) {
+          final estrecho = medidas.maxWidth < Anchos.idioma;
+
+          if (estrecho) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [titulo, reloj],
+                ),
+                const SizedBox(height: Aire.md),
+                // `stretch` de la columna: el botón a todo lo ancho.
+                boton,
+              ],
+            );
+          }
+
+          // `Expanded` PARA EL TÍTULO Y NADA DE `Spacer` — 28/09/2026.
+          //
+          // Era `Flexible(titulo+reloj)` + `Spacer()` + botón, y los dos flexibles
+          // se repartían el hueco libre **a la mitad cada uno**. Eso aquí es un
+          // desbordamiento de verdad: el reloj de datos es un
+          // `Row(mainAxisSize: min)` sin ningún hijo flexible dentro
+          // (`nucleo/frescura/reloj_de_datos.dart`), así que no encoge — si su
+          // mitad no le llega, se sale por el lado y sale la cebra amarilla y
+          // negra encima del título.
+          //
+          // Medido: a 700 px de cabecera le tocaban 219,4 px y pedía 260,4. **Ya
+          // pasaba antes de mover nada** —a esos anchos no había ninguna prueba
+          // que montara esta pantalla—, y al meter la cabecera dentro del panel
+          // de la lista habría vuelto a pasar en un monitor de 2560, donde la
+          // columna pasa de 640 px y esta rama se vuelve a usar.
+          //
+          // Con `Expanded` y sin `Spacer` el hueco libre es entero para el título
+          // y su reloj —que es quien no sabe encoger—, y el botón se queda
+          // igualmente pegado al borde derecho porque el `Expanded` lo empuja
+          // hasta allí. A 700 px pasa de 219,4 a 439.
+          return Row(
             children: [
-              const Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [titulo, reloj],
+              const Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [titulo, reloj],
+                ),
               ),
-              const SizedBox(height: Aire.md),
-              // `stretch` de la columna: el botón a todo lo ancho.
+              const SizedBox(width: Aire.md),
               boton,
             ],
           );
-        }
-
-        // `Expanded` PARA EL TÍTULO Y NADA DE `Spacer` — 28/09/2026.
-        //
-        // Era `Flexible(titulo+reloj)` + `Spacer()` + botón, y los dos flexibles
-        // se repartían el hueco libre **a la mitad cada uno**. Eso aquí es un
-        // desbordamiento de verdad: el reloj de datos es un
-        // `Row(mainAxisSize: min)` sin ningún hijo flexible dentro
-        // (`nucleo/frescura/reloj_de_datos.dart`), así que no encoge — si su
-        // mitad no le llega, se sale por el lado y sale la cebra amarilla y
-        // negra encima del título.
-        //
-        // Medido: a 700 px de cabecera le tocaban 219,4 px y pedía 260,4. **Ya
-        // pasaba antes de mover nada** —a esos anchos no había ninguna prueba
-        // que montara esta pantalla—, y al meter la cabecera dentro del panel
-        // de la lista habría vuelto a pasar en un monitor de 2560, donde la
-        // columna pasa de 640 px y esta rama se vuelve a usar.
-        //
-        // Con `Expanded` y sin `Spacer` el hueco libre es entero para el título
-        // y su reloj —que es quien no sabe encoger—, y el botón se queda
-        // igualmente pegado al borde derecho porque el `Expanded` lo empuja
-        // hasta allí. A 700 px pasa de 219,4 a 439.
-        return Row(
-          children: [
-            const Expanded(
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [titulo, reloj],
-              ),
-            ),
-            const SizedBox(width: Aire.md),
-            boton,
-          ],
-        );
-      },
-    ),
-  );
+        },
+      ),
+    );
+  }
 }
 
 /// LA LISTA DEL MÓVIL, QUE ABRE EL DETALLE EN UN CAJÓN.
@@ -531,10 +607,23 @@ abstract final class TextosDeLosFiltrosDeRutas {
 ///    ([filtrosPlegadosProvider]): cambiar de pestaña o de ruta no la repliega.
 ///    Pliega de verdad —la barra no se construye—, no se esconde con altura 0: lo
 ///    que no se ve no tiene que ocupar sitio ni foco.
-class _FiltrosDeLaLista extends ConsumerWidget {
-  const _FiltrosDeLaLista({required this.enEscritorio});
+///
+/// ## Y desplegada NO empuja la lista fuera — issue 13 de Amado, 15/10/2026
+///
+/// «Si se expande desaparecen por completo [las rutas]». En un 1366x768 la
+/// barra se apilaba entera encima de la lista y en la ventana de un portátil no
+/// quedaba ni una tarjeta. Ahora la barra va en su propio desplazamiento y no
+/// pasa de [_LaListaBajoSusFiltros.parteParaLosFiltros] del sitio que queda bajo
+/// los mandos: la lista se queda SIEMPRE con el resto.
+///
+/// Son dos piezas: el botón que pliega ([_MandoDeLosFiltros], que en escritorio
+/// va en la fila de las pestañas) y la barra con la lista debajo
+/// ([_LaListaBajoSusFiltros]).
+class _MandoDeLosFiltros extends ConsumerWidget {
+  const _MandoDeLosFiltros({required this.enEscritorio});
 
-  /// Los dos paneles: lo que decide el valor por defecto.
+  /// Los dos paneles: lo que decide el valor por defecto, y que el botón va
+  /// dentro de la fila de las pestañas y no en un renglón suyo.
   final bool enEscritorio;
 
   @override
@@ -542,67 +631,107 @@ class _FiltrosDeLaLista extends ConsumerWidget {
     final cuantos = ref.watch(filtrosRutasProvider.select((f) => f.cuantos));
     final plegados = ref.watch(filtrosPlegadosProvider) ?? enEscritorio;
 
-    // El margen se mide con el ancho de ESTE panel, como la barra de debajo.
-    return LayoutBuilder(
-      builder: (contexto, medidas) {
-        final lateral = medidas.maxWidth < Anchos.idioma ? Aire.sm : Aire.lg;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    final plegar = Tooltip(
+      message: plegados ? 'Mostrar los filtros' : 'Ocultar los filtros',
+      child: TextButton.icon(
+        key: TextosDeLosFiltrosDeRutas.clavePlegar,
+        onPressed: () =>
+            ref.read(filtrosPlegadosProvider.notifier).poner(!plegados),
+        icon: const Icon(Icons.tune, size: 18),
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: lateral),
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Tooltip(
-                      message: plegados
-                          ? 'Mostrar los filtros'
-                          : 'Ocultar los filtros',
-                      child: TextButton.icon(
-                        key: TextosDeLosFiltrosDeRutas.clavePlegar,
-                        onPressed: () => ref
-                            .read(filtrosPlegadosProvider.notifier)
-                            .poner(!plegados),
-                        icon: const Icon(Icons.tune, size: 18),
-                        label: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                TextosDeLosFiltrosDeRutas.encabezado(cuantos),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              plegados ? Icons.expand_more : Icons.expand_less,
-                              size: 18,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  // Con la sección desplegada, `Limpiar` es el de la barra
-                  // (dentro de ella, alineado con los filtros); aquí sólo cuando
-                  // la barra no está y no habría otro.
-                  if (plegados && cuantos > 0)
-                    TextButton.icon(
-                      key: TextosDeLosFiltrosDeRutas.claveLimpiarPlegado,
-                      onPressed: () =>
-                          ref.read(filtrosRutasProvider.notifier).limpiar(),
-                      icon: const Icon(Icons.close, size: 16),
-                      label: const Text('Limpiar'),
-                    ),
-                ],
+            Flexible(
+              child: Text(
+                TextosDeLosFiltrosDeRutas.encabezado(cuantos),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (!plegados) const _BarraDeFiltrosDeRutas(),
+            const SizedBox(width: 4),
+            Icon(plegados ? Icons.expand_more : Icons.expand_less, size: 18),
           ],
-        );
-      },
+        ),
+      ),
+    );
+    // Con la sección desplegada, `Limpiar` es el de la barra (dentro de ella,
+    // alineado con los filtros); aquí sólo cuando la barra no está y no habría
+    // otro.
+    final limpiar = plegados && cuantos > 0
+        ? TextButton.icon(
+            key: TextosDeLosFiltrosDeRutas.claveLimpiarPlegado,
+            onPressed: () => ref.read(filtrosRutasProvider.notifier).limpiar(),
+            icon: const Icon(Icons.close, size: 16),
+            label: const Text('Limpiar'),
+          )
+        : null;
+
+    if (enEscritorio) {
+      return Wrap(
+        spacing: Aire.sm,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [plegar, ?limpiar],
+      );
+    }
+
+    // El margen se mide con el ancho de ESTE panel, como la barra de debajo.
+    return LayoutBuilder(
+      builder: (contexto, medidas) => Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: medidas.maxWidth < Anchos.idioma ? Aire.sm : Aire.lg,
+        ),
+        child: Row(
+          children: [
+            Flexible(child: plegar),
+            const Spacer(),
+            ?limpiar,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// LA BARRA DE FILTROS, SI ESTÁ DESPLEGADA, Y LA LISTA DEBAJO.
+///
+/// La barra no pasa de [parteParaLosFiltros] del alto que hay aquí (lo que queda
+/// bajo los mandos) y se desplaza ella sola si no le cabe; la lista se queda
+/// siempre, como poco, con el resto. Antes iba en el flujo y empujaba la lista
+/// hacia abajo hasta sacarla de la pantalla.
+class _LaListaBajoSusFiltros extends ConsumerWidget {
+  const _LaListaBajoSusFiltros({
+    required this.enEscritorio,
+    required this.lista,
+  });
+
+  /// Lo más que se lleva la barra desplegada: un tercio, y la lista dos.
+  static const parteParaLosFiltros = 1 / 3;
+
+  final bool enEscritorio;
+  final Widget lista;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final plegados = ref.watch(filtrosPlegadosProvider) ?? enEscritorio;
+    return LayoutBuilder(
+      builder: (contexto, medidas) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Pliega de verdad —la barra no se construye—: lo que no se ve no
+          // tiene que ocupar sitio ni foco. Y la lista va la ÚLTIMA y siempre en
+          // el mismo sitio, para que plegar no le tire el desplazamiento.
+          if (!plegados)
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: medidas.maxHeight * parteParaLosFiltros,
+              ),
+              child: const SingleChildScrollView(
+                child: _BarraDeFiltrosDeRutas(),
+              ),
+            ),
+          Expanded(child: lista),
+        ],
+      ),
     );
   }
 }

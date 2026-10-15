@@ -298,9 +298,9 @@ WHERE c.branch_id = sqlc.arg('branch_id')
 -- QUÉ SE PIERDE, y conviene saberlo: ya no hay un «lo más cerca arriba», y los pedidos de un
 -- mismo cliente o edificio ya no caen seguidos. Los kilómetros siguen en cada tarjeta y en el
 -- filtro `km_max`, pero para ver de un golpe lo cercano ya no basta con mirar la cabeza de la
--- lista. Si Amado y Jose quieren las dos cosas, lo que falta es un selector de orden en la
--- pantalla: el cambio sería de esta consulta, de su cursor y del orden local de la aplicación,
--- los tres juntos.
+-- lista. Las dos cosas a la vez llegaron el 15/10/2026 por la cabecera: elegir arriba otro
+-- almacén pone primero los suyos por cercanía (ver más abajo), y cambió esta consulta, su
+-- cursor y el orden local de la aplicación, los tres juntos.
 --
 -- LA FECHA ES `coalesce(factura_at, order_date)`. `factura_at` es cuándo PEDIDO anotó el
 -- cotejo contra la factura (lo escribe `new Date()` en su sondeo, así que ronda la hora en
@@ -311,12 +311,23 @@ WHERE c.branch_id = sqlc.arg('branch_id')
 --
 -- EL DESEMPATE ES EL ID, y no es adorno. Dos facturas anotadas en el mismo instante dan la
 -- misma fecha, y sin un segundo criterio el orden cambia entre dos llamadas y las tarjetas
--- bailan solas delante de quien las está arrastrando. Antes eran los km y luego la fecha:
--- ahora el segundo criterio es el id y la distancia ya no entra.
+-- bailan solas delante de quien las está arrastrando. Y lo mismo dentro de los del almacén
+-- elegido: a igual distancia (el mismo edificio) manda la fecha y luego el id.
 --
 -- El origen de la distancia (`origen_lat`, `origen_lng`) sigue llegando por parámetro: el
--- almacén vive en Accesos, no en esta base, y no se copia aquí a propósito. Ya no ordena, pero
--- se calcula para enseñar los kilómetros de cada tarjeta y para el filtro `km_max`.
+-- almacén vive en Accesos, no en esta base, y no se copia aquí a propósito. Se calcula para
+-- enseñar los kilómetros de cada tarjeta y para el filtro `km_max`.
+--
+-- Y CON UN ALMACÉN ELEGIDO ARRIBA, LOS SUYOS PRIMERO (Jose, 15/10/2026). Si en la cabecera del
+-- tablero se elige un almacén que no es el de por defecto, `primero_codigo` trae su código y
+-- van PRIMERO los pedidos que salen de él (`almacen_salida_codigo`, el que manda PEDIDO, y en
+-- un mezclado el del almacén que pone más renglones), del más cercano al más lejano a él, y
+-- DESPUÉS los demás en el orden de siempre. Es UNA sola clave, `cercania_de_orden`: la
+-- distancia para los suyos e infinito para los demás, que así van detrás todos empatados y
+-- entre ellos los ordena la fecha. Sin almacén elegido (`primero_codigo` nulo) la comparación
+-- da NULL, todos valen infinito y el orden es exactamente el de antes. El código se compara
+-- sin espacios y en mayúsculas, igual que `cotizar.ElegirOrigenDelPedido`. Los casos, y la
+-- misma regla en el aparato, en `docs/orden-sin-colocar.casos.json`.
 --
 -- Las condiciones de «repartible» son LAS MISMAS de `ListarPedidosDisponibles`, ni una más
 -- ni una menos: sin ruta, sin entregar, con coordenadas, facturado (`igual` o `cambiado`),
@@ -340,7 +351,10 @@ SELECT
     -- de la tanda siguiente se arme con el MISMO valor que ordenó la lista y no con otro
     -- que alguien recalcule en Go: dos cuentas de la misma fecha acaban distintas.
     coalesce(o.factura_at, o.order_date)::timestamptz AS fecha_cronologica,
-    km_haversine(sqlc.arg('origen_lat'), sqlc.arg('origen_lng'), o.end_lat, o.end_lng) AS km_al_almacen
+    km_haversine(sqlc.arg('origen_lat'), sqlc.arg('origen_lng'), o.end_lat, o.end_lng) AS km_al_almacen,
+    -- La primera clave del orden y del cursor (ver arriba). Se devuelve por lo mismo que la
+    -- fecha: el cursor se arma con el valor que ordenó, no con uno recalculado en Go.
+    (CASE WHEN upper(btrim(o.almacen_salida_codigo)) = upper(btrim(sqlc.narg('primero_codigo')::text)) THEN km_haversine(sqlc.arg('origen_lat'), sqlc.arg('origen_lng'), o.end_lat, o.end_lng) ELSE 'Infinity'::float8 END)::float8 AS cercania_de_orden
 FROM orders o
 WHERE
     o.source = 'pedido'
@@ -451,20 +465,23 @@ WHERE
     -- casa. El cursor va por VALORES, no por posición: lo que ya está colocado sale de la
     -- lista sin mover a los demás de sitio.
     --
-    -- La pareja es la del `ORDER BY` —`fecha ASC NULLS LAST, id ASC`— y tiene que ser la
-    -- misma o el corte no es estable. Desde el 14/10/2026 son DOS trozos y no tres: los km
-    -- salieron del orden y por eso salieron también del cursor. Se lee «lo que va DESPUÉS de
-    -- esta fila»:
-    --   · una fecha más reciente, o
-    --   · sin fecha (las sin fecha van al final, y por eso una fecha nula es «después» de
-    --     cualquier fecha), o
-    --   · la misma fecha y el id más grande. Con el cursor sobre una fila SIN fecha, la
-    --     «misma fecha» es otra sin fecha: por eso se compara con `IS NOT DISTINCT FROM`.
+    -- La terna es la del `ORDER BY` —`cercania ASC, fecha ASC NULLS LAST, id ASC`— y tiene
+    -- que ser la misma o el corte no es estable. Del 14/10/2026 al 15/10/2026 fue una pareja
+    -- (`fecha|id`): la cercanía volvió el 15/10/2026, y sólo para los pedidos del almacén
+    -- elegido arriba (ver arriba). Se lee «lo que va DESPUÉS de esta fila»:
+    --   · una cercanía mayor (los de otro almacén valen infinito y van detrás), o
+    --   · la misma cercanía y una fecha más reciente, o
+    --   · la misma cercanía y sin fecha (las sin fecha van al final, y por eso una fecha
+    --     nula es «después» de cualquier fecha), o
+    --   · la misma cercanía, la misma fecha y el id más grande. Con el cursor sobre una fila
+    --     SIN fecha, la «misma fecha» es otra sin fecha: por eso `IS NOT DISTINCT FROM`.
+    -- La cercanía nunca es nula: los de arriba exigen coordenadas, y los demás valen
+    -- infinito, que en Postgres es igual a sí mismo.
     --
-    -- La fecha se escribe aquí entera, `coalesce(o.factura_at, o.order_date)`, y no con el
-    -- nombre `fecha_cronologica` de arriba: un alias de la lista de columnas no se puede usar
-    -- en el `WHERE`. Lo que ata esa copia con la del `ORDER BY` es una prueba
-    -- (`internal/store/contador_y_lista_test.go`) y la del motor real, que pagina de uno en
+    -- La fecha y la cercanía se escriben aquí enteras, y no con los nombres
+    -- `fecha_cronologica` y `cercania_de_orden` de arriba: un alias de la lista de columnas no
+    -- se puede usar en el `WHERE`. Lo que ata esas copias con las del `ORDER BY` es una prueba
+    -- (`internal/store/orden_y_cursor_test.go`) y la del motor real, que pagina de uno en
     -- uno y compara con la lista entera.
     --
     -- OJO CON LOS PUNTOS Y COMA EN ESTOS COMENTARIOS: no puede haber NINGUNO, ni siquiera
@@ -476,26 +493,33 @@ WHERE
     -- (`internal/store/consultas_enteras_test.go`).
     --
     -- `desde_id` nulo es «desde el principio». La fecha SÍ puede ser nula con un id puesto
-    -- (el cursor está sobre un pedido sin fecha), pero el id es obligatorio en cualquier
-    -- cursor. Lo comprueba quien llama, y un cursor sin id es un 400 y no una lista vacía.
+    -- (el cursor está sobre un pedido sin fecha), pero el id y la cercanía son obligatorios
+    -- en cualquier cursor. Lo comprueba quien llama, y un cursor sin ellos es un 400 y no
+    -- una lista vacía.
     AND (
         sqlc.narg('desde_id')::uuid IS NULL
+        OR (CASE WHEN upper(btrim(o.almacen_salida_codigo)) = upper(btrim(sqlc.narg('primero_codigo')::text)) THEN km_haversine(sqlc.arg('origen_lat'), sqlc.arg('origen_lng'), o.end_lat, o.end_lng) ELSE 'Infinity'::float8 END)::float8 > sqlc.narg('desde_cercania')::float8
         OR (
-            sqlc.narg('desde_fecha')::timestamptz IS NOT NULL
+            (CASE WHEN upper(btrim(o.almacen_salida_codigo)) = upper(btrim(sqlc.narg('primero_codigo')::text)) THEN km_haversine(sqlc.arg('origen_lat'), sqlc.arg('origen_lng'), o.end_lat, o.end_lng) ELSE 'Infinity'::float8 END)::float8 = sqlc.narg('desde_cercania')::float8
             AND (
-                coalesce(o.factura_at, o.order_date) > sqlc.narg('desde_fecha')::timestamptz
-                OR coalesce(o.factura_at, o.order_date) IS NULL
+                (
+                    sqlc.narg('desde_fecha')::timestamptz IS NOT NULL
+                    AND (
+                        coalesce(o.factura_at, o.order_date) > sqlc.narg('desde_fecha')::timestamptz
+                        OR coalesce(o.factura_at, o.order_date) IS NULL
+                    )
+                )
+                OR (
+                    coalesce(o.factura_at, o.order_date) IS NOT DISTINCT FROM sqlc.narg('desde_fecha')::timestamptz
+                    AND o.id > sqlc.narg('desde_id')::uuid
+                )
             )
-        )
-        OR (
-            coalesce(o.factura_at, o.order_date) IS NOT DISTINCT FROM sqlc.narg('desde_fecha')::timestamptz
-            AND o.id > sqlc.narg('desde_id')::uuid
         )
     )
 -- El desempate por id no es adorno: dos facturas anotadas en el mismo instante dan la
 -- misma fecha, y sin un segundo criterio el orden cambia entre dos llamadas y las tarjetas
 -- bailan solas delante de quien las está arrastrando.
-ORDER BY fecha_cronologica ASC NULLS LAST, o.id ASC
+ORDER BY cercania_de_orden ASC, fecha_cronologica ASC NULLS LAST, o.id ASC
 LIMIT sqlc.arg('limite');
 
 -- El contador de la mitad izquierda: el MISMO `WHERE`, sin tope ni orden. Tiene que ser el
@@ -610,20 +634,23 @@ WHERE
     -- casa. El cursor va por VALORES, no por posición: lo que ya está colocado sale de la
     -- lista sin mover a los demás de sitio.
     --
-    -- La pareja es la del `ORDER BY` —`fecha ASC NULLS LAST, id ASC`— y tiene que ser la
-    -- misma o el corte no es estable. Desde el 14/10/2026 son DOS trozos y no tres: los km
-    -- salieron del orden y por eso salieron también del cursor. Se lee «lo que va DESPUÉS de
-    -- esta fila»:
-    --   · una fecha más reciente, o
-    --   · sin fecha (las sin fecha van al final, y por eso una fecha nula es «después» de
-    --     cualquier fecha), o
-    --   · la misma fecha y el id más grande. Con el cursor sobre una fila SIN fecha, la
-    --     «misma fecha» es otra sin fecha: por eso se compara con `IS NOT DISTINCT FROM`.
+    -- La terna es la del `ORDER BY` —`cercania ASC, fecha ASC NULLS LAST, id ASC`— y tiene
+    -- que ser la misma o el corte no es estable. Del 14/10/2026 al 15/10/2026 fue una pareja
+    -- (`fecha|id`): la cercanía volvió el 15/10/2026, y sólo para los pedidos del almacén
+    -- elegido arriba (ver arriba). Se lee «lo que va DESPUÉS de esta fila»:
+    --   · una cercanía mayor (los de otro almacén valen infinito y van detrás), o
+    --   · la misma cercanía y una fecha más reciente, o
+    --   · la misma cercanía y sin fecha (las sin fecha van al final, y por eso una fecha
+    --     nula es «después» de cualquier fecha), o
+    --   · la misma cercanía, la misma fecha y el id más grande. Con el cursor sobre una fila
+    --     SIN fecha, la «misma fecha» es otra sin fecha: por eso `IS NOT DISTINCT FROM`.
+    -- La cercanía nunca es nula: los de arriba exigen coordenadas, y los demás valen
+    -- infinito, que en Postgres es igual a sí mismo.
     --
-    -- La fecha se escribe aquí entera, `coalesce(o.factura_at, o.order_date)`, y no con el
-    -- nombre `fecha_cronologica` de arriba: un alias de la lista de columnas no se puede usar
-    -- en el `WHERE`. Lo que ata esa copia con la del `ORDER BY` es una prueba
-    -- (`internal/store/contador_y_lista_test.go`) y la del motor real, que pagina de uno en
+    -- La fecha y la cercanía se escriben aquí enteras, y no con los nombres
+    -- `fecha_cronologica` y `cercania_de_orden` de arriba: un alias de la lista de columnas no
+    -- se puede usar en el `WHERE`. Lo que ata esas copias con las del `ORDER BY` es una prueba
+    -- (`internal/store/orden_y_cursor_test.go`) y la del motor real, que pagina de uno en
     -- uno y compara con la lista entera.
     --
     -- OJO CON LOS PUNTOS Y COMA EN ESTOS COMENTARIOS: no puede haber NINGUNO, ni siquiera
@@ -635,20 +662,27 @@ WHERE
     -- (`internal/store/consultas_enteras_test.go`).
     --
     -- `desde_id` nulo es «desde el principio». La fecha SÍ puede ser nula con un id puesto
-    -- (el cursor está sobre un pedido sin fecha), pero el id es obligatorio en cualquier
-    -- cursor. Lo comprueba quien llama, y un cursor sin id es un 400 y no una lista vacía.
+    -- (el cursor está sobre un pedido sin fecha), pero el id y la cercanía son obligatorios
+    -- en cualquier cursor. Lo comprueba quien llama, y un cursor sin ellos es un 400 y no
+    -- una lista vacía.
     AND (
         sqlc.narg('desde_id')::uuid IS NULL
+        OR (CASE WHEN upper(btrim(o.almacen_salida_codigo)) = upper(btrim(sqlc.narg('primero_codigo')::text)) THEN km_haversine(sqlc.arg('origen_lat'), sqlc.arg('origen_lng'), o.end_lat, o.end_lng) ELSE 'Infinity'::float8 END)::float8 > sqlc.narg('desde_cercania')::float8
         OR (
-            sqlc.narg('desde_fecha')::timestamptz IS NOT NULL
+            (CASE WHEN upper(btrim(o.almacen_salida_codigo)) = upper(btrim(sqlc.narg('primero_codigo')::text)) THEN km_haversine(sqlc.arg('origen_lat'), sqlc.arg('origen_lng'), o.end_lat, o.end_lng) ELSE 'Infinity'::float8 END)::float8 = sqlc.narg('desde_cercania')::float8
             AND (
-                coalesce(o.factura_at, o.order_date) > sqlc.narg('desde_fecha')::timestamptz
-                OR coalesce(o.factura_at, o.order_date) IS NULL
+                (
+                    sqlc.narg('desde_fecha')::timestamptz IS NOT NULL
+                    AND (
+                        coalesce(o.factura_at, o.order_date) > sqlc.narg('desde_fecha')::timestamptz
+                        OR coalesce(o.factura_at, o.order_date) IS NULL
+                    )
+                )
+                OR (
+                    coalesce(o.factura_at, o.order_date) IS NOT DISTINCT FROM sqlc.narg('desde_fecha')::timestamptz
+                    AND o.id > sqlc.narg('desde_id')::uuid
+                )
             )
-        )
-        OR (
-            coalesce(o.factura_at, o.order_date) IS NOT DISTINCT FROM sqlc.narg('desde_fecha')::timestamptz
-            AND o.id > sqlc.narg('desde_id')::uuid
         )
     );
 

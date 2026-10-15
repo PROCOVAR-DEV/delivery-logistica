@@ -501,7 +501,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 9);
+        expect(nueva.schemaVersion, 10);
       },
     );
   }
@@ -665,7 +665,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 9);
+        expect(nueva.schemaVersion, 10);
       },
     );
   }
@@ -759,7 +759,7 @@ void main() {
         (await nueva.customSelect('PRAGMA user_version').getSingle()).read<int>(
           'user_version',
         ),
-        9,
+        10,
       );
 
       // LA COLUMNA EXISTE, preguntándoselo a SQLite, ANTES de que el Tablero
@@ -815,6 +815,91 @@ void main() {
         'alm-aurora',
       );
     });
+  }
+
+  // LA 10: DE QUÉ ALMACÉN SALE CADA PEDIDO (15/10/2026, 1.0.37).
+  //
+  // `orders` gana `almacen_salida_codigo` y `warehouses` gana `codigo`. Las formas que puede
+  // tener el aparato de ayer: en la 9 SIN las dos (el de verdad), en la 8 sin ellas (llega con
+  // los pasos de en medio) y en la 9 CON las dos ya puestas (copia nacida nueva y
+  // `user_version` atrás): un `ADD COLUMN` repetido LANZA y la base no abriría.
+  for (final (desde, yaEstaban) in const [(9, false), (8, false), (9, true)]) {
+    test(
+      'desde la $desde: el almacén de cada pedido ${yaEstaban ? 'CON' : 'SIN'} las '
+      'columnas abre y no pierde nada',
+      () async {
+        final fichero = await _ficheroDePrueba();
+        addTearDown(() async {
+          if (fichero.existsSync()) await fichero.delete();
+        });
+
+        final ayer = BaseLocal.con(NativeDatabase(fichero));
+        await ayer
+            .into(ayer.apuntes)
+            .insert(
+              ApuntesCompanion.insert(
+                clave: '01J8-puesta',
+                hechoAt: DateTime(2026, 10, 15, 9),
+                metodo: 'PUT',
+                ruta: '/board/placements/ped-1',
+                cuerpo: '{"v":"01J8-puesta"}',
+              ),
+            );
+        await ayer.customStatement(
+          'INSERT INTO orders (id, customer_name, address, weight, archivado) '
+          "VALUES ('ped-1', 'Bodega La Rica', 'Calle 1', 75, 0)",
+        );
+        await ayer.customStatement(
+          'INSERT INTO warehouses (id, sucursal_codigo, nombre, principal, activo) '
+          "VALUES ('alm-aurora', 'STG', 'AURORA', 0, 1)",
+        );
+        if (!yaEstaban) {
+          await ayer.customStatement(
+            'ALTER TABLE orders DROP COLUMN almacen_salida_codigo',
+          );
+          await ayer.customStatement(
+            'ALTER TABLE warehouses DROP COLUMN codigo',
+          );
+        }
+        await ayer.customStatement('PRAGMA user_version = $desde');
+        await ayer.close();
+
+        final nueva = BaseLocal.con(NativeDatabase(fichero));
+        addTearDown(nueva.close);
+
+        expect(
+          (await nueva.select(nueva.apuntes).get()).map((a) => a.clave),
+          ['01J8-puesta'],
+          reason:
+              'la cola sin subir es el trabajo del día y sobrevive al salto',
+        );
+        final pedido = await nueva.select(nueva.orders).getSingle();
+        expect(
+          (pedido.customerName, pedido.almacenSalidaCodigo),
+          ('Bodega La Rica', null),
+          reason: 'el pedido de ayer sigue, y su almacén es «no se sabe» hasta que baje',
+        );
+        final almacen = await nueva.select(nueva.warehouses).getSingle();
+        expect((almacen.nombre, almacen.codigo), ('AURORA', null));
+        expect(
+          (await nueva.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          10,
+        );
+
+        // Y SE PUEDE ESCRIBIR: es lo que hará la bajada.
+        await (nueva.update(nueva.orders)..where((o) => o.id.equals('ped-1')))
+            .write(const OrdersCompanion(almacenSalidaCodigo: Value('2')));
+        await (nueva.update(nueva.warehouses)
+              ..where((w) => w.id.equals('alm-aurora')))
+            .write(const WarehousesCompanion(codigo: Value('2')));
+        expect(
+          (await nueva.select(nueva.orders).getSingle()).almacenSalidaCodigo,
+          '2',
+        );
+        expect((await nueva.select(nueva.warehouses).getSingle()).codigo, '2');
+      },
+    );
   }
 }
 

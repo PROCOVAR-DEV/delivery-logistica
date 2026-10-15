@@ -104,7 +104,8 @@ ruta.**
    y a la derecha la tira de zonas.
 3. **Comprueba arriba desde dónde se mide**: **«Granma · desde Bayamo (Granma)»**. Si
    hay más de un almacén sale una flechita ▾: haz clic y elige. Ese punto decide los
-   kilómetros de cada tarjeta y lo que se cobra.
+   kilómetros de cada tarjeta y lo que se cobra. Si eliges otro que no es el de por
+   defecto, **sus pedidos salen primero** en «Sin colocar», del más cercano al más lejano.
 4. **Mira los avisos rojos** si los hay: «3 archivados en PEDIDO», «2 ya en otra
    ruta», «5 sin factura o sin cotejar». Son pedidos **ya colocados** que hoy no
    salen.

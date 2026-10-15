@@ -153,6 +153,9 @@ COPY docs/punto-de-salida.casos.json /docs/punto-de-salida.casos.json
 # `internal/api/reordenar_paradas_casos_compartidos_test.go` lee `docs/reordenar-paradas.casos.json`
 # (issue 11, 15/10/2026): reordenar las paradas de una ruta, la misma regla que el aparato.
 COPY docs/reordenar-paradas.casos.json /docs/reordenar-paradas.casos.json
+# `internal/api/orden_sin_colocar_casos_compartidos_test.go` lee `docs/orden-sin-colocar.casos.json`
+# (Jose, 15/10/2026): «Sin colocar» con un almacén elegido arriba, el mismo orden que el aparato.
+COPY docs/orden-sin-colocar.casos.json /docs/orden-sin-colocar.casos.json
 
 # Y EL COMPOSE, POR LA MISMA RAZÓN — 24/09/2026
 #

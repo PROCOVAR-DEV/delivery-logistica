@@ -93,6 +93,8 @@ type pedidoSync struct {
 	// La factura: `factura_numero` y `factura_at`. Vacíos son un pedido sin facturar.
 	facturaNumero string
 	facturaAt     *time.Time
+	// El código del almacén del que sale (`almacen_salida_codigo`). Vacío es NULL.
+	almacenCodigo string
 }
 
 // cambiadoAt es el `GREATEST(o.updated_at, max(oi.updated_at))` de la consulta.
@@ -149,6 +151,10 @@ func (q *espejoFalso) DiferenciasDePedidos(_ context.Context, arg sqlc.Diferenci
 		}
 		if p.facturaAt != nil {
 			fila.FacturaAt = pgtype.Timestamptz{Time: *p.facturaAt, Valid: true}
+		}
+		if p.almacenCodigo != "" {
+			codigo := p.almacenCodigo
+			fila.AlmacenSalidaCodigo = &codigo
 		}
 		filas = append(filas, fila)
 	}

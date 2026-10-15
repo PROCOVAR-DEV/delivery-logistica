@@ -30,7 +30,8 @@ después una página por zona, y al final «Nueva columna».
 ## La barra de arriba del tablero
 
 - **La sucursal y desde qué almacén se mide**: «Granma · desde Bayamo (Granma)».
-  Si hay más de un almacén, se toca y se elige.
+  Si hay más de un almacén, se toca y se elige. Elegir uno que **no** es el de por
+  defecto pone **primero** sus pedidos en «Sin colocar» (ver «El orden de la lista»).
 - **De cuándo es la copia** (sólo APK y escritorio): «Visto por última vez a las
   10:41».
 - **Los contadores de avisos**, que cuentan **pedidos ya colocados** en alguna
@@ -71,14 +72,27 @@ Cuando hay filtros puestos, el embudo lleva un punto.
 ### El orden de la lista
 
 **De la factura más vieja a la más reciente.** Lo primero que ves es lo que lleva más
-tiempo esperando. (Hasta el 14/10/2026 iba por cercanía al almacén; los kilómetros siguen
-en cada tarjeta y en el filtro «Hasta cuántos km del almacén», pero ya no ordenan.) Un
-pedido que no tiene fecha de ningún tipo va al final.
+tiempo esperando. Un pedido que no tiene fecha de ningún tipo va al final. Es el orden
+cuando arriba está el almacén de por defecto (el principal), que es como abre el tablero.
+
+**Con otro almacén elegido arriba, primero los suyos.** Si tocas la cabecera y eliges,
+por ejemplo, «AURORA», la lista enseña **todos** los pedidos igual, pero **primero los que
+salen de AURORA, del más cercano al más lejano** (los mismos kilómetros de la tarjeta), y
+**después todos los demás** de la factura más vieja a la más reciente. Así se prepara la
+zona de ese almacén sin buscar entre los de los otros.
+
+- **Qué pedidos son «de ese almacén»**: los que PEDIDO manda con ese almacén de salida.
+  Un pedido que sale de dos almacenes va con el que pone más artículos.
+- **Para volver al orden de siempre**, se vuelve a elegir arriba el almacén de por defecto.
+- Si el almacén elegido **no tiene código en Accesos**, no se sabe qué pedidos salen de
+  él: se miden los kilómetros desde él, pero la lista se queda en el orden de siempre.
+- El número de «Sin colocar» no cambia: el orden no esconde a nadie.
 
 ### La lista sale acotada a 200
 
 Si hay más, lo dice: **«Se ven 200 de 308.»** y al lado el botón **«Ver 108 más»**,
-que sube el tope de 200 en 200. Lo que queda fuera son las facturas más recientes.
+que sube el tope de 200 en 200. Lo que queda fuera son las facturas más recientes (con
+un almacén elegido, las más recientes de los otros almacenes).
 
 ---
 

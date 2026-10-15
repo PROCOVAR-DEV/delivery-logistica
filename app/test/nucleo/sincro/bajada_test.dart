@@ -236,6 +236,7 @@ void main() {
       test('el aparato que ya la hizo no la repite', () async {
         await frescura.rebajarLosPedidosUnaVez();
         await frescura.rebajarLasRutasUnaVez();
+        await frescura.rebajarLosPedidosPorSuAlmacen();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -254,6 +255,7 @@ void main() {
       // PAREJA: quien ya hizo la de la factura (1.0.35) hace ESTA una vez, y luego no.
       test('las rutas se rebajan enteras una vez aunque ya se hiciera la de la factura', () async {
         await frescura.rebajarLosPedidosUnaVez();
+        await frescura.rebajarLosPedidosPorSuAlmacen();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -270,6 +272,36 @@ void main() {
           reason:
               'el `desde` de /sync/cambios es UNO para todas (el de pedidos): sin olvidarlo, '
               'las rutas que ya estaban se quedan sin su distribuidor para siempre',
+        );
+        expect(
+          peticiones.last.parametros['desde'],
+          '2026-10-15T01:00:00.000Z',
+          reason: 'una sola vez: luego, por diferencias',
+        );
+      });
+
+      // 15/10/2026: los pedidos que ya estaban no traen su `almacenSalidaCodigo` por
+      // diferencias, y sin él «Sin colocar» no pone primero los del almacén elegido arriba en
+      // la APK. EN PAREJA: quien ya hizo las otras dos hace ESTA una vez, y luego no.
+      test('los pedidos se rebajan enteros una vez por su almacén aunque ya se hicieran las otras', () async {
+        await frescura.rebajarLosPedidosUnaVez();
+        await frescura.rebajarLasRutasUnaVez();
+        await frescura.marcar(
+          Colecciones.pedidos,
+          hasta: '2026-10-14T00:00:00.000Z',
+        );
+        final peticiones = <PeticionVista>[];
+        final bajada = contando(peticiones);
+
+        await bajada.ciclo();
+        await bajada.ciclo();
+
+        expect(
+          peticiones.first.parametros['desde'],
+          isNull,
+          reason:
+              'sin olvidar el cursor, los pedidos que ya estaban se quedan sin su almacén para '
+              'siempre y la APK ordena «Sin colocar» distinto que la web',
         );
         expect(
           peticiones.last.parametros['desde'],

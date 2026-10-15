@@ -60,6 +60,7 @@ void main() {
               'almacenes': <Object?>[
                 <String, Object?>{
                   'id': 'alm-1',
+                  'codigo': '1',
                   'nombre': 'PV-STGO',
                   'latitud': 20.02,
                   'longitud': -75.82,
@@ -146,4 +147,35 @@ void main() {
           'plazo no llegaría nunca a un aparato que ya tiene los suyos',
     );
   });
+
+  // 15/10/2026 (1.0.37): los almacenes de antes llegaron SIN su `codigo`, y sin él «Sin
+  // colocar» no sabe qué pedidos son del almacén elegido arriba. EN PAREJA: el aparato con
+  // almacenes recientes de antes los pide UNA vez aunque no toque, y luego ya no.
+  test(
+    'el aparato con almacenes de antes del código los pide UNA vez aunque sean '
+    'recientes, y trae el código',
+    () async {
+      final frescura = RegistroDeFrescura(base, reloj: () => ahora);
+      await frescura.marcar(Colecciones.almacenes, hasta: null, completa: true);
+      final bajada = montar();
+
+      await bajada.almacenes();
+      expect(
+        pedidasDeAlmacenes(),
+        1,
+        reason:
+            'eran recientes, pero sin código: sin pedirlos una vez, el aparato se queda una '
+            'hora ordenando «Sin colocar» distinto que la web',
+      );
+      expect((await base.select(base.warehouses).getSingle()).codigo, '1');
+
+      ahora = ahora.add(const Duration(minutes: 2));
+      await bajada.almacenes();
+      expect(
+        pedidasDeAlmacenes(),
+        1,
+        reason: 'una sola vez: después vuelven a ir por su plazo',
+      );
+    },
+  );
 }

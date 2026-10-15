@@ -147,6 +147,7 @@ void main() {
     Future<void> yaSincronizoAyer() async {
       await frescura.rebajarLosPedidosUnaVez();
       await frescura.rebajarLasRutasUnaVez();
+      await frescura.rebajarLosPedidosPorSuAlmacen();
       await frescura.marcar(
         Colecciones.pedidos,
         hasta: '2026-10-13T08:00:00.000Z',

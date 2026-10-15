@@ -33,7 +33,9 @@ func TestElContadorRecibeLosMismosFiltrosQueLaLista(t *testing.T) {
 	noSeCopian := map[string]string{
 		"DesdeID":    "el cursor: el total no se pagina, o el número bajaría al desplazarse",
 		"DesdeFecha": "el cursor: ídem",
-		"Limite":     "el tope es de la lista; el contador cuenta todo",
+		// La cercanía del cursor (15/10/2026). `PrimeroCodigo` SÍ se copia: es del `WHERE`.
+		"DesdeCercania": "el cursor: ídem",
+		"Limite":        "el tope es de la lista; el contador cuenta todo",
 	}
 
 	lista := reflect.New(reflect.TypeOf(sqlc.ListarPedidosSinColocarParams{})).Elem()

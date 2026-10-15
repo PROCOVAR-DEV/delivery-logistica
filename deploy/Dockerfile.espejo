@@ -138,6 +138,9 @@ COPY docs/punto-de-salida.casos.json /docs/punto-de-salida.casos.json
 # `internal/api/reordenar_paradas_casos_compartidos_test.go` lee `docs/reordenar-paradas.casos.json`
 # (issue 11, 15/10/2026): reordenar las paradas de una ruta, la misma regla que el aparato.
 COPY docs/reordenar-paradas.casos.json /docs/reordenar-paradas.casos.json
+# `internal/api/orden_sin_colocar_casos_compartidos_test.go` lee `docs/orden-sin-colocar.casos.json`
+# (Jose, 15/10/2026): «Sin colocar» con un almacén elegido arriba, el mismo orden que el aparato.
+COPY docs/orden-sin-colocar.casos.json /docs/orden-sin-colocar.casos.json
 
 # LAS PRUEBAS, ANTES DE CONSTRUIR. Los CUATRO Dockerfile lo hacen; éste era el que
 # faltaba, y es el que más pintaba tenerlo.

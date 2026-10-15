@@ -631,7 +631,7 @@ marcados AS (
         o.archivado, o.fecha_comprometida, o.requiere_domicilio, o.pedido_costo,
         o.municipio, o.vendedor, o.sucursal_codigo, o.factura_estado,
         o.factura_numero, o.factura_at, o.factura_domicilio, o.factura_corregido_at,
-        o.items_origen,
+        o.items_origen, o.almacen_salida_codigo,
         o.stop_order, o.delivered_at, o.resultado, o.resultado_at, o.resultado_nota,
         o.created_at, o.updated_at,
         GREATEST(
@@ -655,7 +655,9 @@ SELECT
     pedido_updated_at, estado, archivado, fecha_comprometida, requiere_domicilio,
     pedido_costo, municipio, vendedor, sucursal_codigo, factura_estado,
     factura_numero, factura_at, factura_domicilio, factura_corregido_at,
-    items_origen,
+    -- El almacén del que sale el pedido: con él, el aparato pone primero en «Sin colocar» los
+    -- del almacén elegido arriba sin preguntar a nadie (` + "`" + `docs/orden-sin-colocar.casos.json` + "`" + `).
+    items_origen, almacen_salida_codigo,
     stop_order, delivered_at, resultado, resultado_at, resultado_nota,
     created_at, updated_at, cambiado_at
 FROM marcados
@@ -675,53 +677,54 @@ type DiferenciasDePedidosParams struct {
 }
 
 type DiferenciasDePedidosRow struct {
-	ID                 uuid.UUID          `json:"id"`
-	OperationNumber    *string            `json:"operation_number"`
-	CustomerName       string             `json:"customer_name"`
-	CustomerPhone      *string            `json:"customer_phone"`
-	Address            string             `json:"address"`
-	EndAddress         *string            `json:"end_address"`
-	EndLat             *float64           `json:"end_lat"`
-	EndLng             *float64           `json:"end_lng"`
-	Lat                *float64           `json:"lat"`
-	Lng                *float64           `json:"lng"`
-	Weight             float64            `json:"weight"`
-	Status             OrderStatus        `json:"status"`
-	TripLeg            TripLeg            `json:"trip_leg"`
-	Notes              *string            `json:"notes"`
-	RouteID            pgtype.UUID        `json:"route_id"`
-	UltimaRutaID       pgtype.UUID        `json:"ultima_ruta_id"`
-	Price              *float64           `json:"price"`
-	SegmentKm          *float64           `json:"segment_km"`
-	DeliveryPrice      *float64           `json:"delivery_price"`
-	DeliveryDistanceKm *float64           `json:"delivery_distance_km"`
-	BranchID           pgtype.UUID        `json:"branch_id"`
-	Source             *Procedencia       `json:"source"`
-	ExternalID         *string            `json:"external_id"`
-	OrderDate          pgtype.Timestamptz `json:"order_date"`
-	PedidoUpdatedAt    pgtype.Timestamptz `json:"pedido_updated_at"`
-	Estado             *PedidoEstado      `json:"estado"`
-	Archivado          bool               `json:"archivado"`
-	FechaComprometida  pgtype.Timestamptz `json:"fecha_comprometida"`
-	RequiereDomicilio  *bool              `json:"requiere_domicilio"`
-	PedidoCosto        *float64           `json:"pedido_costo"`
-	Municipio          *string            `json:"municipio"`
-	Vendedor           *string            `json:"vendedor"`
-	SucursalCodigo     *string            `json:"sucursal_codigo"`
-	FacturaEstado      *FacturaEstado     `json:"factura_estado"`
-	FacturaNumero      *string            `json:"factura_numero"`
-	FacturaAt          pgtype.Timestamptz `json:"factura_at"`
-	FacturaDomicilio   *float64           `json:"factura_domicilio"`
-	FacturaCorregidoAt pgtype.Timestamptz `json:"factura_corregido_at"`
-	ItemsOrigen        *string            `json:"items_origen"`
-	StopOrder          *int32             `json:"stop_order"`
-	DeliveredAt        pgtype.Timestamptz `json:"delivered_at"`
-	Resultado          *StopResult        `json:"resultado"`
-	ResultadoAt        pgtype.Timestamptz `json:"resultado_at"`
-	ResultadoNota      *string            `json:"resultado_nota"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	CambiadoAt         pgtype.Timestamptz `json:"cambiado_at"`
+	ID                  uuid.UUID          `json:"id"`
+	OperationNumber     *string            `json:"operation_number"`
+	CustomerName        string             `json:"customer_name"`
+	CustomerPhone       *string            `json:"customer_phone"`
+	Address             string             `json:"address"`
+	EndAddress          *string            `json:"end_address"`
+	EndLat              *float64           `json:"end_lat"`
+	EndLng              *float64           `json:"end_lng"`
+	Lat                 *float64           `json:"lat"`
+	Lng                 *float64           `json:"lng"`
+	Weight              float64            `json:"weight"`
+	Status              OrderStatus        `json:"status"`
+	TripLeg             TripLeg            `json:"trip_leg"`
+	Notes               *string            `json:"notes"`
+	RouteID             pgtype.UUID        `json:"route_id"`
+	UltimaRutaID        pgtype.UUID        `json:"ultima_ruta_id"`
+	Price               *float64           `json:"price"`
+	SegmentKm           *float64           `json:"segment_km"`
+	DeliveryPrice       *float64           `json:"delivery_price"`
+	DeliveryDistanceKm  *float64           `json:"delivery_distance_km"`
+	BranchID            pgtype.UUID        `json:"branch_id"`
+	Source              *Procedencia       `json:"source"`
+	ExternalID          *string            `json:"external_id"`
+	OrderDate           pgtype.Timestamptz `json:"order_date"`
+	PedidoUpdatedAt     pgtype.Timestamptz `json:"pedido_updated_at"`
+	Estado              *PedidoEstado      `json:"estado"`
+	Archivado           bool               `json:"archivado"`
+	FechaComprometida   pgtype.Timestamptz `json:"fecha_comprometida"`
+	RequiereDomicilio   *bool              `json:"requiere_domicilio"`
+	PedidoCosto         *float64           `json:"pedido_costo"`
+	Municipio           *string            `json:"municipio"`
+	Vendedor            *string            `json:"vendedor"`
+	SucursalCodigo      *string            `json:"sucursal_codigo"`
+	FacturaEstado       *FacturaEstado     `json:"factura_estado"`
+	FacturaNumero       *string            `json:"factura_numero"`
+	FacturaAt           pgtype.Timestamptz `json:"factura_at"`
+	FacturaDomicilio    *float64           `json:"factura_domicilio"`
+	FacturaCorregidoAt  pgtype.Timestamptz `json:"factura_corregido_at"`
+	ItemsOrigen         *string            `json:"items_origen"`
+	AlmacenSalidaCodigo *string            `json:"almacen_salida_codigo"`
+	StopOrder           *int32             `json:"stop_order"`
+	DeliveredAt         pgtype.Timestamptz `json:"delivered_at"`
+	Resultado           *StopResult        `json:"resultado"`
+	ResultadoAt         pgtype.Timestamptz `json:"resultado_at"`
+	ResultadoNota       *string            `json:"resultado_nota"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	CambiadoAt          pgtype.Timestamptz `json:"cambiado_at"`
 }
 
 // ---------------------------------------------------------------------------
@@ -817,6 +820,7 @@ func (q *Queries) DiferenciasDePedidos(ctx context.Context, arg DiferenciasDePed
 			&i.FacturaDomicilio,
 			&i.FacturaCorregidoAt,
 			&i.ItemsOrigen,
+			&i.AlmacenSalidaCodigo,
 			&i.StopOrder,
 			&i.DeliveredAt,
 			&i.Resultado,

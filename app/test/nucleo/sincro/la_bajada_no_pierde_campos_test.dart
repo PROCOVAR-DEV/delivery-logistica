@@ -166,6 +166,59 @@ void main() {
     );
   });
 
+  test('el pedido llega con el almacén del que sale (15/10/2026)', () async {
+    // Con él, «Sin colocar» pone primero los del almacén elegido arriba también sin
+    // señal. Sin copiarlo, la columna se queda nula y la APK ordena distinto que la web.
+    await conEsto(<String, Object?>{
+      'orders': conjunto([
+        <String, Object?>{
+          'id': 'p-1',
+          'customerName': 'Bodega El Cruce',
+          'address': 'Km 8',
+          'weight': 800.0,
+          'status': 'pending',
+          'almacenSalidaCodigo': '2',
+          'updatedAt': '2026-10-12T09:30:00.000Z',
+        },
+      ]),
+    }).ciclo();
+
+    final p = await (base.select(
+      base.orders,
+    )..where((t) => t.id.equals('p-1'))).getSingle();
+    expect(p.almacenSalidaCodigo, '2');
+  });
+
+  test('el almacén llega con su código, que no es el de la sucursal', () async {
+    final bajada = Bajada(
+      cliente: clienteFalso((PeticionVista p) async {
+        return RespuestaFalsa(200, <String, Object?>{
+          'sucursales': <Object?>[
+            <String, Object?>{
+              'codigo': 'STG',
+              'almacenes': <Object?>[
+                <String, Object?>{
+                  'id': 'alm-aurora',
+                  'codigo': '2',
+                  'nombre': 'AURORA',
+                  'latitud': 20.05,
+                  'longitud': -75.78,
+                },
+              ],
+            },
+          ],
+        });
+      }),
+      base: base,
+      frescura: RegistroDeFrescura(base, reloj: () => ahora),
+      reloj: () => ahora,
+    );
+    await bajada.almacenes();
+
+    final a = await base.select(base.warehouses).getSingle();
+    expect((a.sucursalCodigo, a.codigo), ('STG', '2'));
+  });
+
   test('el cliente llega con su origen, y no como «Manual»', () async {
     await conEsto(<String, Object?>{
       'customers': conjunto([

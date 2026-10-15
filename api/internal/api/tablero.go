@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -261,8 +262,8 @@ type TarjetaSalida struct {
 }
 
 // SinColocarSalida es una tarjeta de la mitad izquierda. La lista sale del más viejo al más
-// reciente por la fecha de su factura (`fechaDeOrden`, ver `ListarPedidosSinColocar`) y
-// `kmAlAlmacen` ya no ordena: se manda para enseñarlo y para el filtro por distancia.
+// reciente por la fecha de su factura (`fechaDeOrden`, ver `ListarPedidosSinColocar`); con un
+// almacén elegido arriba (`?almacenId=`) van antes los suyos, por `kmAlAlmacen`.
 type SinColocarSalida struct {
 	ID              uuid.UUID  `json:"id"`
 	OperationNumber *string    `json:"operationNumber"`
@@ -358,6 +359,9 @@ type tableroCtx struct {
 	// Todos los almacenes de la sucursal en Accesos: de aquí salen el nombre y las
 	// coordenadas del punto de salida de cada zona.
 	almacenes []Almacen
+	// primero es el código del almacén elegido arriba cuyos pedidos van primero en «Sin
+	// colocar», o nil = el orden de siempre. Lo pone sólo `almacenDeLaCabecera`.
+	primero *string
 }
 
 func (s *Servidor) tableroDe(w http.ResponseWriter, r *http.Request, a *alcance.Acotado) (tableroCtx, bool) {
@@ -587,6 +591,41 @@ func almacenesConPunto(crudos []Almacen) []cotizar.Almacen {
 	return salida
 }
 
+// almacenDeLaCabecera aplica el `?almacenId=` de las dos lecturas del tablero: el almacén
+// elegido arriba en la pantalla (Jose, 15/10/2026). Hace lo mismo que el aparato con su
+// `almacenElegidoProvider` (`ConsultasTablero.almacenDe`): se mide desde él —la cabecera, los
+// km de las tarjetas y el filtro `kmMax`— y, si NO es el de por defecto, sus pedidos van
+// primero en «Sin colocar» (`primero`). Volver a elegir el de por defecto es volver al orden
+// de siempre: la cabecera no tiene «ninguno», y así lo que dice decide el orden.
+//
+// Sólo en las dos lecturas (`GET /api/board` y `/api/board/unplaced`) y no en `tableroDe`:
+// de `t.almacen` sale también la ruta de una zona sin punto al armarla, y un parámetro de
+// lectura no puede cambiar de dónde sale un camión.
+//
+// Un id que no sirve —no es de la sucursal, de baja, sin ubicación— es un 400 con el motivo
+// literal de `puntoDeSalida`, no un «se mide desde otro» callado. Un almacén sin código se
+// mide pero no tiene pedidos suyos (un nulo no casa con otro). Los casos, en
+// `docs/orden-sin-colocar.casos.json`.
+func almacenDeLaCabecera(w http.ResponseWriter, r *http.Request, t *tableroCtx) bool {
+	id := strings.TrimSpace(r.URL.Query().Get("almacenId"))
+	if id == "" {
+		return true
+	}
+	a, motivo := puntoDeSalida(t.almacenes, id, t.nombre)
+	if motivo != "" {
+		httpx.Error(w, r, http.StatusBadRequest, motivo)
+		return false
+	}
+	t.almacen = AlmacenSalida{Nombre: a.Nombre, Lat: *a.Latitud, Lng: *a.Longitud}
+	if porDefecto := cotizar.ElegirAlmacen(almacenesConPunto(t.almacenes)); porDefecto != nil && porDefecto.ID == id {
+		return true
+	}
+	if a.Codigo != nil && strings.TrimSpace(*a.Codigo) != "" {
+		t.primero = a.Codigo
+	}
+	return true
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/board
 // ---------------------------------------------------------------------------
@@ -597,7 +636,7 @@ func (s *Servidor) tablero(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, ok := s.tableroDe(w, r, a)
-	if !ok {
+	if !ok || !almacenDeLaCabecera(w, r, &t) {
 		return
 	}
 
@@ -643,7 +682,7 @@ func (s *Servidor) tableroSinColocar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, ok := s.tableroDe(w, r, a)
-	if !ok {
+	if !ok || !almacenDeLaCabecera(w, r, &t) {
 		return
 	}
 	izquierda, ok := s.mitadIzquierda(w, r, a, t)
@@ -662,7 +701,7 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 	desde, hasta := diaDelPedido(q.Get("dia"))
 
 	// EL CURSOR DE LA TANDA SIGUIENTE. Un cursor que no se entiende es un 400 y no una
-	// lista vacía: los dos trozos (`fecha|id`) van juntos o la comparación queda en NULL y la consulta
+	// lista vacía: los tres trozos (`cercania|fecha|id`) van juntos o la comparación queda en NULL y la consulta
 	// devuelve CERO filas con un 200 limpio, que aquí es el modo de fallo caro — parecería
 	// «ya no queda nada» justo cuando quedan cien.
 	cursor, err := cursorDeLaTanda(q.Get("desde"))
@@ -672,17 +711,20 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 	}
 
 	arg := sqlc.ListarPedidosSinColocarParams{
-		OrigenLat:  t.almacen.Lat,
-		OrigenLng:  t.almacen.Lng,
-		BranchID:   t.sucursal,
-		Q:          textoOpcional(q.Get("q")),
-		Municipio:  textoOpcional(q.Get("municipio")),
-		Vendedor:   textoOpcional(q.Get("vendedor")),
-		DiaDesde:   desde,
-		DiaHasta:   hasta,
-		KmMax:      numeroOpcional(q.Get("kmMax")),
-		DesdeID:    cursor.id,
-		DesdeFecha: cursor.fecha,
+		OrigenLat: t.almacen.Lat,
+		OrigenLng: t.almacen.Lng,
+		// Los del almacén elegido arriba, primero (`almacenDeLaCabecera`). Nil = el orden de siempre.
+		PrimeroCodigo: t.primero,
+		BranchID:      t.sucursal,
+		Q:             textoOpcional(q.Get("q")),
+		Municipio:     textoOpcional(q.Get("municipio")),
+		Vendedor:      textoOpcional(q.Get("vendedor")),
+		DiaDesde:      desde,
+		DiaHasta:      hasta,
+		KmMax:         numeroOpcional(q.Get("kmMax")),
+		DesdeID:       cursor.id,
+		DesdeCercania: cursor.cercania,
+		DesdeFecha:    cursor.fecha,
 		// UNA FILA DE MÁS. Es lo que convierte «truncado» en un dato y no en una
 		// sospecha: si vuelve, hay otra tanda; si no vuelve, ésta era la última. Restar
 		// del total no sirve —el total es de TODOS, no de los que quedan— y daba
@@ -730,7 +772,7 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 	var siguiente *string
 	if hayMas && len(filas) > 0 {
 		ultima := filas[len(filas)-1]
-		c := cursorHacia(ultima.FechaCronologica, ultima.ID)
+		c := cursorHacia(ultima.CercaniaDeOrden, ultima.FechaCronologica, ultima.ID)
 		siguiente = &c
 	}
 	return MitadIzquierda{
@@ -743,13 +785,14 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 // El cursor de la mitad izquierda
 // ---------------------------------------------------------------------------
 
-// tandaDesde son los dos trozos del cursor, ya en el tipo que espera sqlc.
+// tandaDesde son los tres trozos del cursor, ya en el tipo que espera sqlc.
 type tandaDesde struct {
-	fecha pgtype.Timestamptz
-	id    pgtype.UUID
+	cercania *float64
+	fecha    pgtype.Timestamptz
+	id       pgtype.UUID
 }
 
-// EL FORMATO ES «fecha|id», en texto plano y a propósito.
+// EL FORMATO ES «cercania|fecha|id», en texto plano y a propósito.
 //
 // Ni base64 ni JSON cifrado: esto se lee en un registro de acceso y en la barra del
 // navegador cuando alguien dice «me faltan pedidos», y un cursor opaco obliga a
@@ -757,25 +800,33 @@ type tandaDesde struct {
 // vacía cuando el pedido no tiene ni `factura_at` ni `order_date` —que es un caso real y va
 // al final de la lista, no al principio—.
 //
-// HASTA EL 14/10/2026 ERA «km|fecha|id»: la lista iba por cercanía al almacén y el cursor
-// tenía que llevar la misma terna que su `ORDER BY`. Amado pidió el orden cronológico
-// (issue 6, punto 2), la terna pasó a ser una pareja y los km salieron del cursor con ella.
-// Un cursor viejo, que lleva tres trozos, se rechaza con el 400 de siempre: lo único que se
+// LA CERCANÍA es la primera clave del `ORDER BY` (`cercania_de_orden`): los km al almacén
+// elegido arriba para sus pedidos, e infinito (`+Inf`) para los demás —todos, cuando no se
+// eligió ninguno—. Va con `strconv.FormatFloat(…, 'g', -1, 64)`, que vuelve EXACTO al
+// leerlo: el corte compara por igualdad y un decimal perdido saltaría el edificio entero.
+//
+// HASTA EL 14/10/2026 ERA «km|fecha|id» y del 14 al 15/10/2026 «fecha|id» (Amado pidió el
+// orden cronológico, issue 6). El 15/10/2026 volvió la cercanía, sólo para los del almacén
+// elegido arriba. Un cursor de dos trozos se rechaza con el 400 de siempre: lo único que se
 // pierde es la tanda en curso de quien estaba paginando en ese instante, que vuelve a pedir
 // la primera. Aceptarlo y leerlo con el orden nuevo habría repetido o saltado pedidos, que
 // es lo que un cursor no puede hacer jamás.
 //
 // No lleva firma ni caducidad porque no concede nada: el alcance no sale de aquí, sale de
 // quién pregunta, y con un cursor inventado lo peor que se consigue es empezar a leer la
-// lista propia por otro sitio.
+// lista propia por otro sitio. ponytail: tampoco lleva el `almacenId` ni los filtros con
+// que se pidió, igual que antes: un cursor sólo vale con la misma petición (la aplicación
+// no pagina contra el servidor; si alguien lo hiciera y cambiara de almacén a medias,
+// tendría que volver a la primera tanda).
 const separadorDeTanda = "|"
 
-func cursorHacia(fecha pgtype.Timestamptz, id uuid.UUID) string {
+func cursorHacia(cercania float64, fecha pgtype.Timestamptz, id uuid.UUID) string {
 	texto := ""
 	if fecha.Valid {
 		texto = fecha.Time.UTC().Format(time.RFC3339Nano)
 	}
-	return texto + separadorDeTanda + id.String()
+	return strconv.FormatFloat(cercania, 'g', -1, 64) + separadorDeTanda +
+		texto + separadorDeTanda + id.String()
 }
 
 func cursorDeLaTanda(crudo string) (tandaDesde, error) {
@@ -784,16 +835,21 @@ func cursorDeLaTanda(crudo string) (tandaDesde, error) {
 		return tandaDesde{}, nil // desde el principio
 	}
 	trozos := strings.Split(crudo, separadorDeTanda)
-	if len(trozos) != 2 {
+	if len(trozos) != 3 {
 		return tandaDesde{}, errCursorRoto
 	}
-	id, err := uuid.Parse(trozos[1])
+	// Una distancia o el infinito de «los demás». Ni NaN ni negativa: no salen de la consulta.
+	cercania, err := strconv.ParseFloat(trozos[0], 64)
+	if err != nil || math.IsNaN(cercania) || cercania < 0 {
+		return tandaDesde{}, errCursorRoto
+	}
+	id, err := uuid.Parse(trozos[2])
 	if err != nil {
 		return tandaDesde{}, errCursorRoto
 	}
-	salida := tandaDesde{id: pgtype.UUID{Bytes: [16]byte(id), Valid: true}}
-	if trozos[0] != "" {
-		t, err := time.Parse(time.RFC3339Nano, trozos[0])
+	salida := tandaDesde{cercania: &cercania, id: pgtype.UUID{Bytes: [16]byte(id), Valid: true}}
+	if trozos[1] != "" {
+		t, err := time.Parse(time.RFC3339Nano, trozos[1])
 		if err != nil {
 			return tandaDesde{}, errCursorRoto
 		}
@@ -1375,6 +1431,8 @@ func paramsDelContador(arg sqlc.ListarPedidosSinColocarParams) sqlc.ContarPedido
 		KmMax:     arg.KmMax,
 		OrigenLat: arg.OrigenLat,
 		OrigenLng: arg.OrigenLng,
+		// Sin cursor no cambia la cuenta, pero va: es parte del mismo `WHERE`.
+		PrimeroCodigo: arg.PrimeroCodigo,
 	}
 }
 

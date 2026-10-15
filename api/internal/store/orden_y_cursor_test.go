@@ -7,34 +7,39 @@ import (
 	"testing"
 )
 
-// EL ORDEN DE LA LISTA Y SU CURSOR TIENEN QUE SER LA MISMA PAREJA.
+// EL ORDEN DE LA LISTA Y SU CURSOR TIENEN QUE SER LA MISMA TERNA.
 //
 // Desde el 14/10/2026 la mitad izquierda del tablero va del más viejo al más reciente por la
-// fecha de la factura (issue 6 de Amado, punto 2): `ORDER BY fecha_cronologica ASC NULLS
-// LAST, o.id ASC`, con `fecha_cronologica = coalesce(o.factura_at, o.order_date)`. Antes era
-// `km ASC, order_date DESC NULLS LAST, id ASC` y el cursor llevaba esa terna.
+// fecha de la factura (issue 6 de Amado, punto 2), con `fecha_cronologica =
+// coalesce(o.factura_at, o.order_date)`. Y desde el 15/10/2026 (Jose), con un almacén elegido
+// arriba, van PRIMERO los pedidos de ese almacén del más cercano al más lejano: la primera
+// clave es `cercania_de_orden`, la distancia para los suyos e infinito para los demás. El
+// `ORDER BY` es `cercania_de_orden ASC, fecha_cronologica ASC NULLS LAST, o.id ASC` y el
+// cursor lleva esa terna.
 //
-// Un cursor que no es la pareja del `ORDER BY` es el fallo que más caro sale en esta casa
+// Un cursor que no es la terna del `ORDER BY` es el fallo que más caro sale en esta casa
 // (CLAUDE.md §3: pedir un tope y no poder seguir): la tanda siguiente repite una fila o se
 // salta otra, y la pantalla se queda perfectamente normal. Por eso esto es una prueba y no
 // un comentario (§3-bis).
 //
 // Lo que ata ESTA prueba es textual y corre en cualquier sitio: que el `ORDER BY` sea el
-// esperado, que la fecha del cursor sea la MISMA expresión que la de la columna por la que
-// se ordena, y que ni los km ni el viejo `desde_km` hayan vuelto. Que la lista REALMENTE
-// salga en ese orden y que pagine entera sin repetir ni saltar lo ata, contra Postgres de
-// verdad, `TestMotorReal_SinColocarCronologico` (`internal/store/sqlc`).
+// esperado, y que la cercanía y la fecha del cursor sean las MISMAS expresiones que las
+// columnas por las que se ordena. Que la lista REALMENTE salga en ese orden y que pagine
+// entera sin repetir ni saltar —también a través de la frontera entre los del almacén y los
+// demás— lo atan, contra Postgres de verdad, `TestMotorReal_SinColocarCronologico` y
+// `TestMotorReal_SinColocarConAlmacenElegido` (`internal/store/sqlc`).
 //
 // Está en una función aparte (`problemasDeOrdenYCursor`) para poder probarla EN PAREJA: una
 // SQL sana no da problemas y la misma SQL rota de varias maneras los da. Una guarda que no
 // se ha visto fallar no es una guarda.
 
 var (
-	columnaDeOrden = regexp.MustCompile(`(?m)^\s*(coalesce\([^)]*\))::timestamptz AS fecha_cronologica`)
-	clausulaOrden  = regexp.MustCompile(`(?m)^ORDER BY (.+)$`)
+	columnaDeOrden    = regexp.MustCompile(`(?m)^\s*(coalesce\([^)]*\))::timestamptz AS fecha_cronologica`)
+	columnaDeCercania = regexp.MustCompile(`(?m)^\s*(\(CASE .+ END\)::float8) AS cercania_de_orden`)
+	clausulaOrden     = regexp.MustCompile(`(?m)^ORDER BY (.+)$`)
 )
 
-const ordenEsperado = "fecha_cronologica ASC NULLS LAST, o.id ASC"
+const ordenEsperado = "cercania_de_orden ASC, fecha_cronologica ASC NULLS LAST, o.id ASC"
 
 // problemasDeOrdenYCursor devuelve lo que está mal en el SQL de la lista, o nada.
 func problemasDeOrdenYCursor(sql string) []string {
@@ -48,15 +53,30 @@ func problemasDeOrdenYCursor(sql string) []string {
 		problemas = append(problemas, "el ORDER BY es «"+strings.TrimSpace(orden[1])+
 			"» y tendría que ser «"+ordenEsperado+"»")
 	}
-	if strings.Contains(orden[1], "km") {
-		problemas = append(problemas, "los kilómetros han vuelto al ORDER BY: Amado pidió cronológico")
-	}
 
 	col := columnaDeOrden.FindStringSubmatch(sql)
 	if col == nil {
 		return append(problemas, "la lista no define `fecha_cronologica` como coalesce(...)::timestamptz")
 	}
 	expresion := col[1]
+
+	cer := columnaDeCercania.FindStringSubmatch(sql)
+	if cer == nil {
+		return append(problemas, "la lista no define `cercania_de_orden` como (CASE ... END)::float8 en una línea")
+	}
+	cercania := cer[1]
+	// Lo que hace la cercanía, pieza por pieza: los del código elegido miden desde el origen,
+	// y los demás valen infinito, que es lo que los manda DETRÁS con la fecha como orden.
+	for _, pieza := range []string{
+		"upper(btrim(o.almacen_salida_codigo)) = upper(btrim(sqlc.narg('primero_codigo')::text))",
+		"THEN km_haversine(sqlc.arg('origen_lat'), sqlc.arg('origen_lng'), o.end_lat, o.end_lng)",
+		"ELSE 'Infinity'::float8 END",
+	} {
+		if !strings.Contains(cercania, pieza) {
+			problemas = append(problemas, "la cercanía de orden no lleva «"+pieza+"»: "+
+				"los del almacén elegido van primero por su distancia y los demás valen infinito")
+		}
+	}
 
 	// El cursor es la condición que empieza en `desde_id IS NULL` y llega hasta el ORDER BY.
 	i := strings.Index(sql, "sqlc.narg('desde_id')::uuid IS NULL")
@@ -67,8 +87,16 @@ func problemasDeOrdenYCursor(sql string) []string {
 	if j := strings.Index(cursor, "ORDER BY"); j >= 0 {
 		cursor = cursor[:j]
 	}
-	if strings.Contains(cursor, "desde_km") || strings.Contains(cursor, "km_haversine") {
-		problemas = append(problemas, "el cursor todavía compara kilómetros: ya no son parte del orden")
+	// La cercanía del cursor es la misma expresión que la de la columna: «mayor» y «empate».
+	if n := strings.Count(cursor, cercania); n < 2 {
+		problemas = append(problemas, "el cursor usa la cercanía por la que se ordena solo "+
+			strconv.Itoa(n)+" veces y hacen falta 2 (mayor y empate)")
+	}
+	if !strings.Contains(cursor, cercania+" > sqlc.narg('desde_cercania')::float8") {
+		problemas = append(problemas, "el cursor no pasa a los de cercanía MAYOR (`>`): el orden es ascendente")
+	}
+	if !strings.Contains(cursor, cercania+" = sqlc.narg('desde_cercania')::float8") {
+		problemas = append(problemas, "el cursor no mira la fecha y el id DENTRO de la misma cercanía (`=`)")
 	}
 	// La fecha del cursor es la misma expresión que la de la columna: se compara con ella,
 	// se pregunta si es nula y se pregunta `IS NOT DISTINCT FROM`. Tres usos.
@@ -107,12 +135,25 @@ func TestLaGuardaDelOrdenYCursorSabeFallar(t *testing.T) {
 	}
 
 	roturas := map[string]string{
-		"vuelven los km al ORDER BY": strings.Replace(sana,
-			"ORDER BY fecha_cronologica ASC NULLS LAST, o.id ASC",
-			"ORDER BY km_al_almacen ASC, fecha_cronologica ASC NULLS LAST, o.id ASC", 1),
+		"la cercanía sale del ORDER BY": strings.Replace(sana,
+			"ORDER BY cercania_de_orden ASC, fecha_cronologica ASC NULLS LAST, o.id ASC",
+			"ORDER BY fecha_cronologica ASC NULLS LAST, o.id ASC", 1),
+		"se ordena por los km de todos y no por la cercanía de los del almacén": strings.Replace(sana,
+			"ORDER BY cercania_de_orden ASC,", "ORDER BY km_al_almacen ASC,", 1),
+		"la cercanía va descendente": strings.Replace(sana,
+			"ORDER BY cercania_de_orden ASC,", "ORDER BY cercania_de_orden DESC,", 1),
 		"se ordena descendente": strings.Replace(sana,
-			"ORDER BY fecha_cronologica ASC NULLS LAST, o.id ASC",
-			"ORDER BY fecha_cronologica DESC NULLS LAST, o.id ASC", 1),
+			"fecha_cronologica ASC NULLS LAST, o.id ASC",
+			"fecha_cronologica DESC NULLS LAST, o.id ASC", 1),
+		"los demás ya no van detrás (cero en vez de infinito)": strings.ReplaceAll(sana,
+			"ELSE 'Infinity'::float8 END", "ELSE 0::float8 END"),
+		"la cercanía del cursor se mide desde otro sitio": strings.Replace(sana,
+			"THEN km_haversine(sqlc.arg('origen_lat'), sqlc.arg('origen_lng')",
+			"THEN km_haversine(sqlc.arg('origen_lng'), sqlc.arg('origen_lat')", 1),
+		"el cursor repite la última fila de la cercanía (>=)": strings.Replace(sana,
+			"> sqlc.narg('desde_cercania')", ">= sqlc.narg('desde_cercania')", 1),
+		"el cursor no mira la fecha dentro de la misma cercanía": strings.Replace(sana,
+			"= sqlc.narg('desde_cercania')::float8\n", "<> sqlc.narg('desde_cercania')::float8\n", 1),
 		"el cursor ordena por otra fecha": strings.Replace(sana,
 			"coalesce(o.factura_at, o.order_date) > sqlc.narg('desde_fecha')",
 			"o.order_date > sqlc.narg('desde_fecha')", 1),

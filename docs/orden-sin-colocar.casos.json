@@ -1,0 +1,56 @@
+{
+  "queEsEsto": "EL ORDEN DE «SIN COLOCAR» CON UN ALMACÉN ELEGIDO ARRIBA (Jose, 15/10/2026, 1.0.37). La regla se escribe DOS veces —en el servidor (`ListarPedidosSinColocar` de `api/db/queries/tablero.sql`, con su cursor, y `almacenDeLaCabecera` de `api/internal/api/tablero.go`) y en el aparato (`ConsultasTablero.almacenDe` y `sinColocar`, `app/lib/pantallas/tablero/datos/consultas.dart`), que ordena sin señal— y tienen que dar el MISMO orden, o la lista sale distinta en la web y en la APK. Este fichero las ata (CLAUDE.md §3-bis: con una prueba, no con un comentario).",
+  "quienLoLee": [
+    "api/internal/store/sqlc/consultas_motor_real_test.go (TestMotorReal_SinColocarConAlmacenElegido: el SQL de verdad, y paginando por el cursor a través de la frontera entre los dos grupos)",
+    "api/internal/api/orden_sin_colocar_casos_compartidos_test.go (de qué almacén van primero: `almacenDeLaCabecera`)",
+    "app/test/pantallas/tablero/orden_sin_colocar_con_almacen_test.dart (el aparato, contra su base local)"
+  ],
+  "laRegla": "1) SIN almacén elegido, o con el que se elige solo (el principal con coordenadas, o si no el primero que las tenga: `cotizar.ElegirAlmacen` / `AlmacenDeReferencia.elegir`), el orden es el de siempre: por la fecha de la factura (`coalesce(factura_at, order_date)`) del más viejo al más reciente, sin fecha al final, y a igual fecha por id. 2) Con OTRO almacén elegido arriba, van PRIMERO los pedidos de ESE almacén —el de `orders.almacen_salida_codigo`, que es el código que manda PEDIDO; en un pedido mezclado es el del almacén que pone más renglones— del más cercano al más lejano a él (la misma distancia de la tarjeta, medida desde el elegido), a igual distancia por la fecha y luego por el id; y DESPUÉS todos los demás en el orden de siempre. 3) «De ese almacén» es el CÓDIGO del almacén en Accesos igual al del pedido, sin espacios y en mayúsculas en los dos lados; un almacén elegido SIN código no tiene pedidos suyos (un nulo no casa con otro nulo) y la lista se queda en el orden de siempre. 4) Nunca se esconde nadie: el contador es el mismo con almacén y sin él.",
+  "comoSeLee": "Para cada caso, con la sucursal de `almacenes` y los `pedidos` (todos repartibles y sin colocar), el almacén `elegido` arriba (su id, o null = ninguno) deja `primeroLosDe` (el código del almacén cuyos pedidos van primero, o null = ninguno) y la lista sale exactamente en el orden `esperado` (los `id` de los pedidos). Los ids están puestos para que el orden por id NO coincida con ninguno de los esperados, y el pedido `p1` está más cerca de AURORA que cualquiera de los suyos sin ser suyo: si se agrupara por cercanía y no por código, se vería.",
+  "almacenes": [
+    {"id": "alm-pv-stgo", "codigo": "1", "nombre": "PV-STGO", "principal": true, "latitud": 20.0247, "longitud": -75.8219},
+    {"id": "alm-aurora", "codigo": "2", "nombre": "AURORA", "principal": false, "latitud": 20.05, "longitud": -75.78},
+    {"id": "alm-sin-codigo", "codigo": null, "nombre": "Parranda Oferta", "principal": false, "latitud": 20.04, "longitud": -75.80}
+  ],
+  "pedidos": [
+    {"nombre": "a1", "id": "0e000000-0000-4000-8000-000000000007", "almacenCodigo": "2", "latitud": 20.35, "longitud": -75.78, "facturaAt": "2026-10-01T09:30:00Z", "orderDate": "2026-10-14T09:30:00Z", "nota": "de AURORA y el más lejano (0,30 grados): el último de los suyos aunque su factura sea la más vieja de AURORA"},
+    {"nombre": "a2", "id": "0e000000-0000-4000-8000-000000000003", "almacenCodigo": "2", "latitud": 20.06, "longitud": -75.78, "facturaAt": "2026-10-12T09:30:00Z", "orderDate": "2026-10-12T09:30:00Z", "nota": "de AURORA, en el MISMO punto que a4 y a5: a igual distancia manda la fecha"},
+    {"nombre": "a3", "id": "0e000000-0000-4000-8000-000000000009", "almacenCodigo": "2", "latitud": 20.15, "longitud": -75.78, "facturaAt": null, "orderDate": "2026-10-05T09:30:00Z", "nota": "de AURORA, a media distancia y sin factura: su fecha es la del pedido"},
+    {"nombre": "a4", "id": "0e000000-0000-4000-8000-000000000001", "almacenCodigo": "2 ", "mezclado": true, "latitud": 20.06, "longitud": -75.78, "facturaAt": "2026-10-03T09:30:00Z", "orderDate": "2026-10-03T09:30:00Z", "nota": "MEZCLADO (sale de dos almacenes) y con el código con un espacio: va con AURORA, que es el que pone más renglones, y el código se compara sin espacios"},
+    {"nombre": "a5", "id": "0e000000-0000-4000-8000-000000000002", "almacenCodigo": "2", "latitud": 20.06, "longitud": -75.78, "facturaAt": "2026-10-12T09:30:00Z", "orderDate": "2026-10-12T09:30:00Z", "nota": "igual que a2 en punto y en fecha: sólo el id los separa"},
+    {"nombre": "p1", "id": "0e000000-0000-4000-8000-000000000006", "almacenCodigo": "1", "latitud": 20.055, "longitud": -75.78, "facturaAt": "2026-10-02T09:30:00Z", "orderDate": "2026-10-02T09:30:00Z", "nota": "de PV-STGO pero el MÁS CERCANO a AURORA de todos: no es de AURORA y va con los demás"},
+    {"nombre": "p2", "id": "0e000000-0000-4000-8000-000000000008", "almacenCodigo": null, "latitud": 20.0447, "longitud": -75.8219, "facturaAt": "2026-10-04T09:30:00Z", "orderDate": "2026-10-04T09:30:00Z", "nota": "PEDIDO no mandó el almacén: no es de nadie, ni siquiera del almacén sin código (un nulo no casa con otro nulo, y si casara saldría el primero)"},
+    {"nombre": "p3", "id": "0e000000-0000-4000-8000-000000000004", "almacenCodigo": "1", "latitud": 20.0347, "longitud": -75.8219, "facturaAt": null, "orderDate": null, "nota": "sin ninguna fecha: el último de todos"},
+    {"nombre": "p4", "id": "0e000000-0000-4000-8000-000000000005", "almacenCodigo": "1", "latitud": 20.0547, "longitud": -75.8219, "facturaAt": "2026-10-02T09:30:00Z", "orderDate": "2026-10-02T09:30:00Z", "nota": "misma factura que p1: sólo el id los separa"}
+  ],
+  "casos": [
+    {
+      "nombre": "sin-almacen-elegido-el-orden-de-siempre",
+      "nota": "Nadie ha tocado la cabecera: por la fecha de la factura, del más viejo al más reciente. Es el orden de Amado (issue 6) y no cambia.",
+      "elegido": null,
+      "primeroLosDe": null,
+      "esperado": ["a1", "p4", "p1", "a4", "p2", "a3", "a5", "a2", "p3"]
+    },
+    {
+      "nombre": "el-de-por-defecto-elegido-a-mano-es-el-orden-de-siempre",
+      "nota": "La cabecera no tiene «ninguno»: volver a elegir el que sale solo (el principal) es VOLVER al orden de siempre. Así lo que dice la cabecera decide el orden, y no cómo se llegó a ella.",
+      "elegido": "alm-pv-stgo",
+      "primeroLosDe": null,
+      "esperado": ["a1", "p4", "p1", "a4", "p2", "a3", "a5", "a2", "p3"]
+    },
+    {
+      "nombre": "aurora-elegido-los-suyos-por-cercania-y-luego-los-demas-por-fecha",
+      "nota": "Los cinco de AURORA, del más cercano al más lejano (a4, a5 y a2 están en el mismo punto: por fecha y luego por id), y después los demás por la fecha de su factura. p1 es el más cercano a AURORA y no es suyo.",
+      "elegido": "alm-aurora",
+      "primeroLosDe": "2",
+      "esperado": ["a4", "a5", "a2", "a3", "a1", "p4", "p1", "p2", "p3"]
+    },
+    {
+      "nombre": "un-almacen-sin-codigo-no-tiene-pedidos-suyos",
+      "nota": "Se mide desde él, pero sin código no se sabe qué pedidos salen de él: el orden de siempre. p2, que tampoco trae almacén, NO se le junta.",
+      "elegido": "alm-sin-codigo",
+      "primeroLosDe": null,
+      "esperado": ["a1", "p4", "p1", "a4", "p2", "a3", "a5", "a2", "p3"]
+    }
+  ]
+}

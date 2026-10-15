@@ -62,8 +62,16 @@ issue 6, punto 2: «la lista de facturas (pedidos) debe salir ordenada cronológ
 más viejo a lo más reciente»).** La fecha es `factura_at` y, si el pedido no la trae,
 `order_date`; un pedido sin ninguna de las dos va **al final**, no al principio; el desempate
 es el id (`coalesce(factura_at, order_date) ASC NULLS LAST, id ASC`). El servidor
-(`ListarPedidosSinColocar`) y el aparato (`ConsultasTablero.sinColocar`) ordenan igual, y el
-cursor de la paginación es la pareja `fecha|id` de ese mismo `ORDER BY`.
+(`ListarPedidosSinColocar`) y el aparato (`ConsultasTablero.sinColocar`) ordenan igual.
+
+**Con otro almacén elegido arriba, primero los suyos — 15/10/2026 (Jose).** Si en la cabecera
+se elige un almacén que no es el de por defecto, la lista enseña TODOS los pedidos, pero
+primero los de ese almacén (`orders.almacen_salida_codigo` = su `codigo` de Accesos; en un
+mezclado, el que pone más renglones) del más cercano al más lejano, y después los demás en el
+orden de arriba. Volver a elegir el de por defecto devuelve el orden cronológico. Es UNA clave,
+`cercania_de_orden` (la distancia para los suyos, infinito para los demás), y el cursor de la
+paginación es la terna `cercania|fecha|id` de ese `ORDER BY`. Los casos, para los dos lados y
+Postgres, en `docs/orden-sin-colocar.casos.json`.
 
 > **Hasta ese día iba por cercanía al almacén, el más cerca primero**, y era deliberado: es
 > como se decide qué se reparte hoy cuando no cabe todo —lo que está cerca sale igual, porque

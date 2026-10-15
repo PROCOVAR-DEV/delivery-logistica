@@ -87,7 +87,9 @@ da por malo**:
 2. **Ves las dos mitades a la vez**: a la izquierda **«Sin colocar (308)»**, a la
    derecha la tira de zonas.
 3. **Comprueba arriba desde dónde se mide**: **«Granma · desde Bayamo (Granma)»**. Con
-   más de un almacén sale una flechita ▾: clic y elige.
+   más de un almacén sale una flechita ▾: clic y elige. Si eliges otro que no es el de
+   por defecto, **sus pedidos salen primero** en «Sin colocar», del más cercano al más
+   lejano (también sin conexión).
 4. **Mira de cuándo es tu copia**, al lado: **«Visto por última vez a las 10:41»**.
 5. **Mira los avisos rojos** si los hay: «3 archivados en PEDIDO», «2 ya en otra
    ruta».

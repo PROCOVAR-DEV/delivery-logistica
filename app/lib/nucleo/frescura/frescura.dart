@@ -83,6 +83,15 @@ class RegistroDeFrescura {
   /// UNA sola bajada entera (las dos olvidan el mismo cursor antes de pedir).
   static const yaRebajadasPorElDistribuidor = 'una-vez:rutas-con-distribuidor';
 
+  /// LOS PEDIDOS Y LOS ALMACENES, OTRA VEZ, POR SU ALMACÉN — 15/10/2026 (1.0.37).
+  ///
+  /// Lo mismo con `almacenSalidaCodigo` (el almacén del que sale cada pedido) y con el
+  /// `codigo` de cada almacén: sin ellos «Sin colocar» no puede poner primero los del
+  /// almacén elegido arriba, y no fallaría nada — saldría en el orden de siempre en la
+  /// APK y con los suyos arriba en la web. Marcas PROPIAS, como la de arriba.
+  static const yaRebajadosPorSuAlmacen = 'una-vez:pedidos-con-su-almacen';
+  static const yaBajadosLosAlmacenesConCodigo = 'una-vez:almacenes-con-codigo';
+
   /// Olvida el cursor de [colecciones] UNA vez por aparato, y deja escrito en [marca]
   /// que ya se hizo.
   ///
@@ -106,6 +115,9 @@ class RegistroDeFrescura {
     yaRebajadasPorElDistribuidor,
     const [Colecciones.pedidos, Colecciones.rutas],
   );
+
+  Future<void> rebajarLosPedidosPorSuAlmacen() =>
+      rebajarUnaVez(yaRebajadosPorSuAlmacen, const [Colecciones.pedidos]);
 
   Future<FilaFrescura?> leer(String coleccion) => (_base.select(
     _base.frescura,

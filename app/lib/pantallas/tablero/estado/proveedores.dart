@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../navegacion/portero.dart' show sucursalDeLaSesionProvider;
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../../nucleo/refresco_en_vivo.dart';
@@ -87,27 +88,54 @@ final servicioTableroProvider = Provider<ServicioTablero>(
 ///    sucursal, que es justo lo que caza
 ///    `el_filtro_no_pide_al_servidor_test.dart`.
 ///  * **La de la sesion** es un CODIGO (`CAM`), y esa si hay que traducirla.
-Future<String?> _idDeLaSesion(BaseLocal base, String codigoOId) async {
-  // Una sesion guardada de antes —o la de la web— puede traer ya el id. Se
-  // respeta: lo que se busca es el id del reparto, venga escrito como venga.
-  final porId = await (base.select(
-    base.branches,
-  )..where((b) => b.id.equals(codigoOId))).getSingleOrNull();
-  if (porId != null) return porId.id;
-
-  final porCodigo = await (base.select(
-    base.branches,
-  )..where((b) => b.externalId.equals(codigoOId))).getSingleOrNull();
-  return porCodigo?.id;
-}
+///
+/// ## LA SESION DEL PORTERO Y LA TABLA, NO UNA LECTURA — 15/10/2026
+///
+/// Leia la sesion del almacen y las sucursales UNA vez. Sin sesion devolvia
+/// `null` antes de mirar la base, asi que no volvia a calcularse nunca: la sesion
+/// murio con el tablero delante, la misma persona volvio a entrar y el tablero
+/// siguio en «Elige una sucursal» con Santiago en la barra. Y en la primera
+/// entrada, con las sucursales llegando despues, lo mismo (§3-ter). Ahora mira la
+/// sesion vigente ([sucursalDeLaSesionProvider]) y el `Stream` de `branches`, y se
+/// resuelve en cuanto llega lo que falta. Lo vigila
+/// `test/pantallas/tablero/la_sucursal_del_tablero_se_entera_test.dart`.
+///
+/// Y el `Stream` es una suscripcion PROPIA, no un `StreamProvider`, a proposito:
+/// en Riverpod 3 un provider que nadie escucha esta en pausa, y esperar su
+/// `.future` desde un `ref.read` en seco (`EnvioAlTablero`, y muchas pruebas) no
+/// se completa nunca: un gesto colgado sin error. La primera respuesta de la
+/// tabla es la del provider; si despues cambia el id, se vuelve a calcular.
+String? _idDeLaSesion(List<Sucursal> sucursales, String codigoOId) =>
+    // Una sesion guardada de antes —o la de la web— puede traer ya el id. Se
+    // respeta: lo que se busca es el id del reparto, venga escrito como venga.
+    (sucursales.where((b) => b.id == codigoOId).firstOrNull ??
+            sucursales.where((b) => b.externalId == codigoOId).firstOrNull)
+        ?.id;
 
 final sucursalDelTableroProvider = FutureProvider<String?>((ref) async {
   final mirada = ref.watch(sucursalMiradaProvider);
   if (mirada != null && mirada.isNotEmpty) return mirada;
-  final sesion = await ref.watch(almacenSesionProvider).leer();
-  final suya = sesion?.sucursalId;
+  final suya = ref.watch(sucursalDeLaSesionProvider);
   if (suya == null || suya.isEmpty) return null;
-  return _idDeLaSesion(ref.watch(baseProvider), suya);
+  final base = ref.watch(baseProvider);
+  final primera = Completer<String?>();
+  final sub = base
+      .select(base.branches)
+      .watch()
+      .map((sucursales) => _idDeLaSesion(sucursales, suya))
+      // Solo si cambia el id: una bajada que reescribe la sucursal no es otra
+      // sucursal, y el tablero entero volveria a leerse con su rueda.
+      .distinct()
+      .listen(
+        (id) => primera.isCompleted
+            ? ref.invalidateSelf()
+            : primera.complete(id),
+        onError: (Object e, StackTrace pila) {
+          if (!primera.isCompleted) primera.completeError(e, pila);
+        },
+      );
+  ref.onDispose(sub.cancel);
+  return primera.future;
 });
 
 /// Los filtros de la mitad izquierda.
@@ -229,9 +257,13 @@ final almacenElegidoProvider =
 /// tablero sin sus tarjetas. Aqui se corta de raiz: se vigila la tabla.
 final camionesProvider = StreamProvider<List<Vehiculo>>((ref) {
   final base = ref.watch(baseProvider);
+  // LA SUCURSAL SE MIRA, no se lee una vez (15/10/2026): si llega despues, con
+  // `read` se quedaba la flota de todas hasta que cambiara un camion.
+  final sucursal = ref.watch(sucursalDelTableroProvider);
+  if (sucursal.isLoading) return const Stream<List<Vehiculo>>.empty();
+  final sucursalId = sucursal.value;
 
   Future<List<Vehiculo>> mirar() async {
-    final sucursalId = await ref.read(sucursalDelTableroProvider.future);
     final todos = await base.select(base.vehicles).get();
     // SOLO LOS QUE SE OFRECEN PARA RUTAS NUEVAS: los activos
     // (`seOfreceParaRutasNuevas`); el del taller SI sale, con su aviso. Este

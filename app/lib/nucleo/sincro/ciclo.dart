@@ -17,7 +17,10 @@ import 'subida.dart';
 ///
 ///  * **renovar antes de subir**: ocho horas sin cobertura dejan el token de
 ///    acceso caducado. Si la cola sale con el viejo, todo responde 401 y se para
-///    con el trabajo del dia dentro.
+///    con el trabajo del dia dentro. **Pero sólo si hace falta** (15/10/2026):
+///    renovar en cada vuelta rotaba el refresh cada 15–60 s y una respuesta
+///    perdida le costó a Santiago todas sus sesiones. Ver
+///    `Renovador.margenParaRenovar`.
 ///  * **subir antes de bajar**: bajar primero mete en la base la foto del
 ///    servidor, que todavia no sabe nada de lo que se hizo por la tarde, y pisa
 ///    lo que el aparato tiene sin subir.
@@ -253,7 +256,8 @@ class CicloDeSincronizacion {
       // No se marca nada aqui: si este aviso traia trabajo, al terminar la
       // vuelta quedara en la cola y de eso se encarga `_haceFaltaOtraVuelta`.
       // Marcarlo aqui daria una vuelta de mas por cada aviso repetido —la
-      // antena que coge y suelta dos veces— y cada vuelta es una renovacion.
+      // antena que coge y suelta dos veces— y cada vuelta es una ida y vuelta
+      // por la conexion de alla.
       Registro.info('ciclo: ya hay uno en vuelo, no se lanza otro ($motivo)');
       return yaVa;
     }
@@ -359,22 +363,28 @@ class CicloDeSincronizacion {
 
     _alEmpezar?.call();
     try {
-      // 1 · RENOVAR. Primero, SIEMPRE.
+      // 1 · RENOVAR. Primero, y SÓLO SI HACE FALTA: sin saber cuánto le queda
+      // al token, o con menos de `Renovador.margenParaRenovar`. Tras ocho horas
+      // sin señal está caducado y se renueva antes de subir, como siempre.
       _alAvanzar?.call(const AvanceDelCiclo(PasoDelCiclo.renovar));
       if (yaSeRenovo) {
         Registro.info('ciclo: el par es de hace un instante, no se renueva');
       } else {
         final Sesion? guardada = await _almacen.leer();
         if (guardada != null) {
-          await _renovador.renovar(guardada);
+          if (await _renovador.renovarSiHaceFalta(guardada)) {
+            pasos.add(PasoDelCiclo.renovar);
+          } else {
+            Registro.info('ciclo: al token le queda, no se renueva');
+          }
         } else {
           // En web el almacen devuelve `null` siempre: alli la sesion es la
           // cookie y quien la renueva es auth por su cuenta (`identidad.md`).
           // No es un fallo y no para el ciclo — pararlo dejaria la web sin
           // subir nunca.
           Registro.info('ciclo: sin par guardado, manda la cookie (web)');
+          pasos.add(PasoDelCiclo.renovar);
         }
-        pasos.add(PasoDelCiclo.renovar);
       }
 
       // 2 · COMPROBAR LA DIFERENCIA antes de subir: lo que este aparato tiene y

@@ -533,6 +533,23 @@ final porteroProvider = Provider<Portero>((ref) {
   return portero;
 });
 
+/// LA SUCURSAL DE QUIEN ESTÁ DENTRO, y se ENTERA cuando entra o sale alguien —
+/// 15/10/2026.
+///
+/// Sale del portero y no de leer el almacén: el almacén es un objeto que no cambia
+/// al entrar, así que quien lo leía se quedaba con la respuesta del instante en que
+/// se pintó. El tablero la leyó con la sesión recién muerta y siguió diciendo
+/// «Elige una sucursal» después de que la misma persona volviera a entrar (el
+/// logístico de Santiago, escritorio 1.0.35). Y en la web, donde la sesión es la
+/// cookie y el almacén devuelve `null`, la del portero es la única que hay.
+final sucursalDeLaSesionProvider = Provider<String?>((ref) {
+  final portero = ref.watch(porteroProvider);
+  void cambio() => ref.invalidateSelf();
+  portero.addListener(cambio);
+  ref.onDispose(() => portero.removeListener(cambio));
+  return portero.sesion?.sucursalId;
+});
+
 /// La ruta de la pantalla de acceso. Vive aquí y no en su `registro.dart` para
 /// que el portero no tenga que importar la pantalla.
 const rutaDeAcceso = '/acceso';

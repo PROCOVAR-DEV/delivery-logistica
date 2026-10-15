@@ -20,9 +20,13 @@ class Sesion {
     this.nombre = '',
     this.correo = '',
     this.rol = '',
+    this.pedidoA,
   });
 
-  factory Sesion.deJson(Map<String, Object?> json) {
+  /// [pedidoA] se pasa SOLO con un par recién llegado del servidor (`/token`,
+  /// `/refresh`): la hora del aparato justo ANTES de pedirlo. Lo guardado lo trae
+  /// dentro.
+  factory Sesion.deJson(Map<String, Object?> json, {DateTime? pedidoA}) {
     final token = json['token'] as String?;
     // Auth contesta `refresh_token` en las tres puertas (`/api/auth/token`,
     // `/refresh` y `/logout`). `refresh` se sigue admitiendo porque es como se
@@ -55,6 +59,7 @@ class Sesion {
       nombre: _texto(json['nombre'] ?? carga['name']),
       correo: _texto(json['correo'] ?? carga['email']),
       rol: _texto(json['rol'] ?? carga['role']),
+      pedidoA: pedidoA ?? DateTime.tryParse(_texto(json['pedidoA'])),
     );
   }
 
@@ -112,6 +117,32 @@ class Sesion {
   /// aquel es la lista con la que se decide que se puede hacer, este es la
   /// palabra que se pinta debajo del nombre.
   final String rol;
+
+  /// CUÁNDO SE PIDIÓ ESTE PAR, con el reloj del APARATO. `null` = no se sabe
+  /// (un par guardado antes de que esto existiera, o la cookie de la web).
+  ///
+  /// Es la hora de ANTES de la petición, no la de la respuesta: Accesos lo firmó
+  /// después, así que el token es, como mucho, así de viejo. Ver [leQueda].
+  final DateTime? pedidoA;
+
+  /// CUÁNTO LE QUEDA AL TOKEN DE ACCESO, o `null` si no se puede saber — 15/10/2026.
+  ///
+  /// No se compara su `exp` con la hora del aparato: ese reloj puede ir desfasado
+  /// minutos u horas. Se cuenta lo que dura según quien lo firmó (`exp − iat`, los
+  /// dos del servidor) desde [pedidoA], y el aparato sólo mide cuánto pasó desde
+  /// entonces con SU reloj: el desfase se anula. Un reloj que va hacia atrás
+  /// (`ahora` antes de [pedidoA]) da `null`; uno que salta hacia delante sólo
+  /// adelanta una renovación. Y si aun así se equivoca, el 401 renueva y reintenta.
+  Duration? leQueda(DateTime ahora) {
+    final desde = pedidoA;
+    final carga = _cargaDelToken(token);
+    final iat = carga['iat'];
+    final exp = carga['exp'];
+    if (desde == null || iat is! num || exp is! num || ahora.isBefore(desde)) {
+      return null;
+    }
+    return Duration(seconds: (exp - iat).toInt()) - ahora.difference(desde);
+  }
 
   bool get esSuperAdmin => tieneAlguno(const ['SUPER ADMIN']);
 
@@ -172,6 +203,7 @@ class Sesion {
     'nombre': nombre,
     'correo': correo,
     'rol': rol,
+    'pedidoA': pedidoA?.toUtc().toIso8601String(),
   };
 
   @override

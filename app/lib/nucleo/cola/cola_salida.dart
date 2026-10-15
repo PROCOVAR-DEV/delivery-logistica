@@ -6,6 +6,7 @@ import 'package:ulid/ulid.dart';
 import '../base/base.dart';
 import '../registro/registro.dart';
 import '../reloj.dart';
+import '../sincro/huerfanos.dart' show Huerfanos;
 import 'apunte.dart';
 import 'provisionales.dart';
 
@@ -13,6 +14,16 @@ import 'provisionales.dart';
 /// el campo vacio: un `motivoRevision` nulo en un `enRevision` es «todavia sin
 /// intentar», y vacio no distingue «no pudo aplicarlo».
 const textoSinMotivoDeRevision = 'El servidor no dio el motivo.';
+
+/// La zona que nombra `/board/columns/{id}` (su PATCH o su DELETE), o `null`.
+/// `/board/columns/orden` y `/board/columns/{id}/route` no nombran asi a ninguna.
+/// Es la misma pregunta que `Huerfanos` hace en SQL (`a.ruta = '/board/columns/' || t.id`).
+String? _zonaQueNombra(String ruta) {
+  const prefijo = '/board/columns/';
+  if (!ruta.startsWith(prefijo)) return null;
+  final id = ruta.substring(prefijo.length).split('?').first;
+  return id.isEmpty || id.contains('/') || id == 'orden' ? null : id;
+}
 
 /// LA COLA DE SALIDA. Es la pieza que hace verdad la regla 2: toda accion se
 /// guarda en el aparato y se pinta como hecha; la subida va por detras.
@@ -553,20 +564,33 @@ class ColaDeSalida {
 
   /// Quita la marca de «solo existe aqui» a lo que este apunte acaba de subir.
   ///
-  /// Se identifica por donde el apunte lo nombra, que son dos sitios y nada mas:
+  /// Se identifica por donde el apunte lo nombra, que son tres sitios y nada mas:
   ///
   ///  * `provisional` — la zona que el apunte CREA.
+  ///  * la ruta `/board/columns/{zona}` — la zona que CAMBIA (nombre, camion,
+  ///    punto de salida). Faltaba, y descartar un punto rechazado dejaba la zona
+  ///    marcada para siempre: la bajada no volvia y la cabecera seguia diciendo
+  ///    «desde AURORA» con el servidor en nulo (auditoria de la 1.0.37).
   ///  * la ruta `/board/placements/{pedido}` — la tarjeta que coloca.
+  ///
+  /// LA ZONA SE SUELTA SOLO SI NINGUN OTRO APUNTE VIVO LA NOMBRA: una zona creada
+  /// sin señal con su alta rechazada y sin decidir sigue protegida aunque se
+  /// descarte (o suba) su punto, o la bajada borra lo que solo existe aqui.
   ///
   /// Silencioso a proposito si las tablas no existen: un aparato que nunca abrio
   /// el Tablero no las tiene, y eso no puede tumbar la subida del dia.
   Future<void> _yaNoNacioAqui(Apunte apunte) async {
     try {
-      final provisional = apunte.provisional;
-      if (provisional != null) {
+      for (final zona in {
+        apunte.provisional,
+        _zonaQueNombra(apunte.ruta),
+      }.nonNulls) {
         await _base.customStatement(
-          'UPDATE board_columns SET nacio_aqui = 0 WHERE id = ?1',
-          [provisional],
+          'UPDATE board_columns SET nacio_aqui = 0 WHERE id = ?1 '
+          'AND NOT EXISTS (SELECT 1 FROM apuntes a WHERE a.clave <> ?2 '
+          '  AND a.estado IN ${Huerfanos.vivosEnSql} '
+          "  AND (a.provisional = ?1 OR a.ruta = '/board/columns/' || ?1))",
+          [zona, apunte.clave],
         );
       }
       const prefijo = '/board/placements/';

@@ -328,6 +328,22 @@ void main() {
           ),
           reason: 'los km de la parada, desde el punto de su zona',
         );
+        // EL CIRCUITO, que es lo que se cobra: ida a la única parada y vuelta a
+        // AURORA. Desde el principal saldrían 2,2 km y no 6,6.
+        final ida = kmHaversine(
+          20.0311,
+          -75.7902,
+          almacenLat + 0.01,
+          almacenLng,
+        );
+        expect(
+          ruta.totalDistance,
+          closeTo(2 * ida, 1e-6),
+          reason:
+              'totalDistance tiene que ser el circuito desde AURORA (${2 * ida} '
+              'km); desde el principal serían '
+              '${2 * kmHaversine(almacenLat, almacenLng, almacenLat + 0.01, almacenLng)}',
+        );
       });
 
       test('y sin punto, del principal (PV-STGO)', () async {
@@ -335,6 +351,19 @@ void main() {
         expect(
           (ruta.originLat, ruta.originLng, ruta.originAddress),
           (20.0247, -75.8219, 'PV-STGO'),
+        );
+        expect(
+          ruta.totalDistance,
+          closeTo(
+            2 *
+                kmHaversine(
+                  almacenLat,
+                  almacenLng,
+                  almacenLat + 0.01,
+                  almacenLng,
+                ),
+            1e-6,
+          ),
         );
       });
 
@@ -473,6 +502,23 @@ void main() {
         expect([for (final c in orden) c.id], ['B', 'D', 'A', 'C']);
       },
     );
+
+    test('detrás del principal, cada almacén por su NOMBRE', () {
+      // El id de ZETA va ANTES que el de AURORA y ZETA aparece primero: así ni
+      // ordenar por id ni por aparición sale igual que ordenar por nombre.
+      const zeta = AlmacenOrigen(id: 'alm-a', nombre: 'ZETA', lat: 3, lng: 3);
+      final orden = zonasPorPunto([
+        z('Z1', sale: zeta, almacenId: 'alm-a'),
+        z('A1', sale: aurora, almacenId: 'alm-aurora'),
+        z('P', sale: pv),
+        z('Z2', sale: zeta, almacenId: 'alm-a'),
+      ], 'alm-pv');
+      expect(
+        [for (final c in orden) c.id],
+        ['P', 'A1', 'Z1', 'Z2'],
+        reason: 'el principal primero, luego AURORA y luego ZETA, por nombre',
+      );
+    });
 
     test('en pareja: con todas del mismo punto, el orden de siempre', () {
       final orden = zonasPorPunto([

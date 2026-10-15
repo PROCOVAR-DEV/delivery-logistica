@@ -2694,6 +2694,12 @@ func TestMotorReal_PuntoDeSalidaDeLaZona(t *testing.T) {
 	if err != nil || len(filas) != 1 || filas[0].AlmacenID == nil || *filas[0].AlmacenID != "alm-aurora" {
 		t.Fatalf("la lista no trae el punto: %+v err=%v", filas, err)
 	}
+	// CON EL PUNTO PUESTO: de aquí lo lee armar la ruta, y un nulo aquí la saca del principal.
+	if c, err := b.q.ObtenerColumna(b.ctx, ObtenerColumnaParams{ID: id, Sucursal: alcance(suc)}); err != nil ||
+		c.AlmacenID == nil || *c.AlmacenID != "alm-aurora" {
+		t.Fatalf("ObtenerColumna no trae el punto de salida de la zona (armar la ruta saldría del "+
+			"principal): almacen_id=%v err=%v", c.AlmacenID, err)
+	}
 
 	quitada, err := b.q.ActualizarColumna(b.ctx, ActualizarColumnaParams{
 		ID: id, TocarAlmacen: true, AlmacenID: nil, Sucursal: alcance(suc),

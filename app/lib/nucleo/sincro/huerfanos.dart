@@ -75,7 +75,8 @@ class Huerfanos {
     // Mirando la marca, el ciclo la reencola, sube, la bajada la pone a 0 y el
     // atasco se deshace solo.
     Sitio('board_columns', 'zona del tablero', 'zonas del tablero',
-        condicion: 'nacio_aqui = 1', seReconstruye: true),
+        condicion: 'nacio_aqui = 1', seReconstruye: true,
+        rutaDeSusApuntes: '/board/columns/'),
     // Las demas siguen con el provisional: ahi el servidor todavia no deja que
     // el aparato ponga el id, asi que `local-…` sigue siendo la senal buena.
     //
@@ -134,6 +135,10 @@ class Huerfanos {
     EstadoApunte.descartadoPorRevisor,
   ];
 
+  /// [_vivos] para SQL. La cola lo usa para no soltar una zona que OTRO apunte
+  /// vivo sigue nombrando (`ColaDeSalida._yaNoNacioAqui`): la misma lista, no una copia.
+  static final vivosEnSql = _lista(_vivos);
+
   /// `('pendiente', 'rechazado', …)` con los NOMBRES del enum.
   static String _lista(List<EstadoApunte> estados) =>
       '(${estados.map((e) => "'${e.name}'").join(', ')})';
@@ -179,11 +184,17 @@ class Huerfanos {
   ///     que eso espera «hasta que una persona decida», y no habia con que
   ///     decidir. Ahora se puede dar por perdido ([darPorPerdido]), y esa
   ///     decision se anota en `renuncias`.
+  ///
+  ///     Y un apunte NOMBRA a la fila por su `provisional` (la que crea) o, si el
+  ///     sitio la tiene, por su ruta (la que CAMBIA: el PATCH de una zona). Sin la
+  ///     ruta, una zona con un PATCH pendiente o rechazado se daba por huérfana y
+  ///     se reencolaba un POST con su cambio: al servidor que ya dijo que no se le
+  ///     volvía a insistir, y el rechazo volvía a la bandeja con clave nueva.
   static String _esHuerfana(Sitio sitio) =>
       '${sitio.condicion} '
       'AND NOT EXISTS (SELECT 1 FROM equivalencias e WHERE e.provisional = t.id) '
       'AND NOT EXISTS ('
-      '  SELECT 1 FROM apuntes a WHERE a.provisional = t.id '
+      '  SELECT 1 FROM apuntes a WHERE ${_laNombra(sitio)} '
       '  AND a.estado IN ${_lista(_vivos)}'
       ') '
       'AND NOT EXISTS ('
@@ -215,9 +226,14 @@ class Huerfanos {
   static String _sePuedeReencolar(Sitio sitio) =>
       '${_esHuerfana(sitio)} '
       'AND NOT EXISTS ('
-      '  SELECT 1 FROM apuntes a WHERE a.provisional = t.id '
+      '  SELECT 1 FROM apuntes a WHERE ${_laNombra(sitio)} '
       '  AND a.estado IN ${_lista(_decididos)}'
       ')';
+
+  static String _laNombra(Sitio sitio) => switch (sitio.rutaDeSusApuntes) {
+    null => 'a.provisional = t.id',
+    final ruta => "(a.provisional = t.id OR a.ruta = '$ruta' || t.id)",
+  };
 
   /// Cuenta lo huerfano, por tipo. Vacio = no hay nada colgado.
   Future<List<TrabajoHuerfano>> mirar() async {
@@ -308,6 +324,7 @@ class Huerfanos {
     'zona del tablero',
     'zonas del tablero',
     condicion: 'nacio_aqui = 1',
+    rutaDeSusApuntes: '/board/columns/',
   );
 
   /// VUELVE A ENCOLAR lo que se quedo colgado, reconstruyendo el apunte **desde
@@ -478,9 +495,14 @@ class Sitio {
     this.varios, {
     this.condicion = "t.id LIKE 'local-%'",
     this.seReconstruye = false,
+    this.rutaDeSusApuntes,
   });
 
   final String tabla;
+
+  /// La ruta con la que un apunte que CAMBIA la fila la nombra (`<ruta><id>`),
+  /// o `null` si sólo la nombra el que la crea (`provisional`).
+  final String? rutaDeSusApuntes;
 
   /// Que significa, EN ESTA TABLA, «esto todavia no esta arriba».
   ///

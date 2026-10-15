@@ -212,6 +212,60 @@ void main() {
     await desmontar(tester);
   });
 
+  // «EL PRINCIPAL» QUITA EL PUNTO: la zona vuelve a salir del principal y a la
+  // cola va `almacenId: null` (presente: «quítamelo»).
+  testWidgets('«El principal» quita el punto de la zona y viaja null', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(_escritorio);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await sembrar();
+    await tester.pumpWidget(montar());
+    await asentar(tester);
+    expect(find.text('desde AURORA'), findsOneWidget);
+
+    // «Aurora» es la última: su grupo va detrás del principal.
+    await tester.tap(find.byTooltip('Opciones de la columna').last);
+    await asentar(tester);
+    await tester.tap(find.text('Punto de salida'));
+    await asentar(tester);
+    expect(find.text('Punto de salida de «Aurora»'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('punto-el-principal')));
+    await asentar(tester);
+
+    // Se lee todo y se DESMONTA antes de comprobar: un `expect` que falla con el
+    // tablero montado deja sus streams vivos y la prueba se cuelga en vez de
+    // fallar (§5).
+    final cajonAbierto = find
+        .text('Punto de salida de «Aurora»')
+        .evaluate()
+        .isNotEmpty;
+    final desdeAurora = find.text('desde AURORA').evaluate().length;
+    final fila = await base
+        .customSelect(
+          "SELECT id, almacen_id FROM board_columns WHERE nombre = 'Aurora'",
+        )
+        .getSingle();
+    final ultimo = (await ColaDeSalida(base).lote()).last;
+    await desmontar(tester);
+
+    expect(cajonAbierto, isFalse, reason: 'elegir cierra el cajón');
+    expect(
+      fila.read<String?>('almacen_id'),
+      isNull,
+      reason: 'pulsar «El principal» tenía que quitarle el punto a la zona',
+    );
+    expect(
+      (ultimo.metodo, ultimo.ruta),
+      ('PATCH', '/board/columns/${fila.read<String>('id')}'),
+    );
+    expect(jsonDecode(ultimo.cuerpo), {
+      'almacenId': null,
+    }, reason: 'a la cola tiene que ir «quítamelo» (null presente)');
+    expect(desdeAurora, 0, reason: 'la cabecera sigue diciendo «desde AURORA»');
+  });
+
   // El nombre lo da la copia de `warehouses`: si AURORA cambia de nombre en
   // Accesos y baja, la cabecera lo dice sin volver a montar nada (§3-ter).
   testWidgets('el «desde» sigue al almacén cuando baja con otro nombre', (

@@ -1205,7 +1205,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 			puestos = append(puestos, map[string]any{
 				"id": c.ID, "branchId": c.BranchID, "nombre": c.Nombre,
 				"posicion": c.Posicion, "vehiculoId": idOpcional(c.VehicleID),
-				"updatedAt": hora(c.UpdatedAt),
+				"almacenId": c.AlmacenID, "updatedAt": hora(c.UpdatedAt),
 			})
 		}
 		// AQUÍ SÍ VA LA SUCURSAL PEDIDA (`ventana`, no `ventanaDelAlcance`): las dos

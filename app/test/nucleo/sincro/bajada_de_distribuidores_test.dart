@@ -142,11 +142,36 @@ void main() {
   });
 
   group('el aparato que ya habia sincronizado', () {
-    Future<void> yaSincronizoAyer() => frescura.marcar(
-      Colecciones.pedidos,
-      hasta: '2026-10-13T08:00:00.000Z',
-      completa: true,
-    );
+    // Ya hizo tambien las rebajadas de una vez (frescura.dart): si no, la primera
+    // peticion iria sin `desde` y no habria nada que pedir `completas`.
+    Future<void> yaSincronizoAyer() async {
+      await frescura.rebajarLosPedidosUnaVez();
+      await frescura.rebajarLasRutasUnaVez();
+      await frescura.marcar(
+        Colecciones.pedidos,
+        hasta: '2026-10-13T08:00:00.000Z',
+        completa: true,
+      );
+    }
+
+    // Una api ANTERIOR a la 00019 no manda `distribuidores`. EN PAREJA con el de arriba
+    // (con la clave, se marca y no se vuelve a pedir): sin la clave NO se marca, y el
+    // ciclo siguiente la sigue pidiendo entera.
+    test('si la api no manda la coleccion, no se da por bajada y se sigue pidiendo', () async {
+      await yaSincronizoAyer();
+      final peticiones = <PeticionVista>[];
+      final bajada = contra([
+        <String, Object?>{'orders': conjunto()},
+        <String, Object?>{'orders': conjunto()},
+      ], peticiones);
+
+      await bajada.ciclo();
+      expect(await frescura.seDescargo(Colecciones.distribuidores), isFalse,
+          reason: 'no vino: marcarla es tirar la lista para siempre');
+      await bajada.ciclo();
+      expect(peticiones.last.parametros['completas'], Colecciones.distribuidores,
+          reason: 'cuando la api se actualice, los tiene que pedir enteros');
+    });
 
     test('pide los distribuidores ENTEROS (completas) hasta que los baja', () async {
       await yaSincronizoAyer();

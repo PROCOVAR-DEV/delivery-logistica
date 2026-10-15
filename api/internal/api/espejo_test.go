@@ -350,11 +350,16 @@ func (q *espejoFalso) ListarVehiculos(_ context.Context, sucursal pgtype.UUID) (
 	return salida, nil
 }
 
-// ListarDistribuidores repite el `(sucursal IS NULL OR d.branch_id = sucursal)` del SQL.
+// ListarDistribuidores repite el `(sucursal IS NULL OR d.branch_id = sucursal)` del SQL Y su
+// `solo_activos`: sin él, una bajada que pidiera sólo los activos saldría verde y el aparato
+// perdería el nombre de quien repartió las rutas viejas (auditoría del 15/10/2026).
 func (q *espejoFalso) ListarDistribuidores(_ context.Context, arg sqlc.ListarDistribuidoresParams) ([]sqlc.ListarDistribuidoresRow, error) {
 	var salida []sqlc.ListarDistribuidoresRow
 	for _, d := range q.distribuidoresDelEspejo {
 		if arg.Sucursal.Valid && d.BranchID != uuid.UUID(arg.Sucursal.Bytes) {
+			continue
+		}
+		if arg.SoloActivos != nil && *arg.SoloActivos && !d.Activo {
 			continue
 		}
 		salida = append(salida, d)

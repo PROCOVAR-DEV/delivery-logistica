@@ -760,3 +760,24 @@ func TestLasRutasDeDistribuidoresEstanEnElRouterDeVerdad(t *testing.T) {
 		})
 	}
 }
+
+// UNA RUTA SIN SUCURSAL NO ADMITE DISTRIBUIDOR (auditoría del 15/10/2026). Quien ve las ocho
+// alcanza a cualquiera, y sin la sucursal de la ruta no hay con qué comparar: falla cerrado. La
+// pareja: el mismo distribuidor, con la sucursal de su ruta, pasa.
+func TestUnaRutaSinSucursalNoAdmiteDistribuidor(t *testing.T) {
+	d, _, _ := nuevoDobleDeDistribuidores()
+	a := acotadoDeBuzon(d) // SUPER ADMIN en modo «todas»: el alcance no acota.
+
+	w := httptest.NewRecorder()
+	if _, ok := distribuidorDeLaRuta(w, httptest.NewRequest(http.MethodPost, "/api/routes", nil), a,
+		distJuanStg.String(), pgtype.UUID{}); ok || w.Code != http.StatusBadRequest {
+		t.Fatalf("sin sucursal de la ruta tenía que ser 400 y fue ok=%v código %d: %s", ok, w.Code, w.Body.String())
+	}
+
+	w = httptest.NewRecorder()
+	id, ok := distribuidorDeLaRuta(w, httptest.NewRequest(http.MethodPost, "/api/routes", nil), a,
+		distJuanStg.String(), pgDe(stgDeRutas))
+	if !ok || id != pgDe(distJuanStg) {
+		t.Fatalf("con la sucursal de su ruta tenía que pasar: ok=%v id=%v %s", ok, id, w.Body.String())
+	}
+}

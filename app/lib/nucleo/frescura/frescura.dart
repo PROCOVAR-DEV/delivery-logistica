@@ -74,15 +74,38 @@ class RegistroDeFrescura {
   static const yaRebajadosPorLaFechaDeFactura =
       'una-vez:pedidos-con-factura-at';
 
-  Future<void> rebajarLosPedidosUnaVez() => _base.transaction(() async {
-    if (await leer(yaRebajadosPorLaFechaDeFactura) != null) return;
-    await olvidarElCursor(const [Colecciones.pedidos]);
-    await _base
-        .into(_base.frescura)
-        .insertOnConflictUpdate(
-          FrescuraCompanion.insert(coleccion: yaRebajadosPorLaFechaDeFactura),
-        );
-  });
+  /// LAS RUTAS SE VUELVEN A BAJAR ENTERAS UNA VEZ POR APARATO — 15/10/2026 (issue 7).
+  ///
+  /// Lo mismo que la fecha de factura, con `distribuidorId`: una ruta que ya estaba en el
+  /// aparato y no cambia no vuelve a viajar, y se quedaria «Sin distribuidor» para
+  /// siempre aunque el servidor lo tenga. Marca PROPIA: un aparato que ya hizo la de
+  /// la factura tiene que hacer esta tambien, y uno que estrena las dos a la vez hace
+  /// UNA sola bajada entera (las dos olvidan el mismo cursor antes de pedir).
+  static const yaRebajadasPorElDistribuidor = 'una-vez:rutas-con-distribuidor';
+
+  /// Olvida el cursor de [colecciones] UNA vez por aparato, y deja escrito en [marca]
+  /// que ya se hizo.
+  ///
+  /// OJO con que cursor se olvida: `/sync/cambios` lleva UN solo `desde` para todas
+  /// las colecciones, y es el de `orders` (`Bajada.ciclo`). Olvidar solo el de
+  /// `routes` no cambiaria la peticion: para rebajar rutas hay que olvidar tambien el
+  /// de pedidos, y entonces baja todo entero.
+  Future<void> rebajarUnaVez(String marca, List<String> colecciones) =>
+      _base.transaction(() async {
+        if (await leer(marca) != null) return;
+        await olvidarElCursor(colecciones);
+        await _base
+            .into(_base.frescura)
+            .insertOnConflictUpdate(FrescuraCompanion.insert(coleccion: marca));
+      });
+
+  Future<void> rebajarLosPedidosUnaVez() =>
+      rebajarUnaVez(yaRebajadosPorLaFechaDeFactura, const [Colecciones.pedidos]);
+
+  Future<void> rebajarLasRutasUnaVez() => rebajarUnaVez(
+    yaRebajadasPorElDistribuidor,
+    const [Colecciones.pedidos, Colecciones.rutas],
+  );
 
   Future<FilaFrescura?> leer(String coleccion) => (_base.select(
     _base.frescura,

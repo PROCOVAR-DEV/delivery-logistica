@@ -170,6 +170,8 @@ class Bajada {
 
     // Una sola vez por aparato: la copia vieja no traía `facturaAt` (frescura.dart).
     await _frescura.rebajarLosPedidosUnaVez();
+    // Y otra, propia, por el `distribuidorId` de las rutas que ya estaban (frescura.dart).
+    await _frescura.rebajarLasRutasUnaVez();
 
     for (var vuelta = 0; vuelta < maximoDeTandas; vuelta++) {
       final desde = await _frescura.desde(Colecciones.pedidos);
@@ -454,8 +456,17 @@ class Bajada {
       }
 
       // La marca, DENTRO de la misma transaccion que las filas.
+      //
+      // `distribuidores` SOLO si vino en `cambios`. Una api anterior a la 00019 no la
+      // manda, y marcarla igual la daria por bajada: el ciclo siguiente ya no pediria
+      // `completas` y el aparato se quedaria sin distribuidores para siempre, sin un
+      // error (auditoria del 15/10/2026). Sin marca, el cartel de «no bajo» lo dice.
       await _marcar(
-        <String>[...colecciones, Colecciones.renglones],
+        <String>[
+          for (final c in colecciones)
+            if (c != Colecciones.distribuidores || cambios.containsKey(c)) c,
+          Colecciones.renglones,
+        ],
         hasta: hasta,
         completa: completa,
       );

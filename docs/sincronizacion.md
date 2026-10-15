@@ -77,7 +77,15 @@ tienen marca: la marca `desde` es de todas a la vez, y un aparato que sincroniz�
 anterior la avanzó con los distribuidores ya creados en el servidor, así que «lo que cambió desde
 ayer» no se los traería nunca. Por eso la app pide `completas=distribuidores` (esa colección entera,
 sin lápidas) mientras no la tenga marcada como bajada, y después va por diferencias como las demás.
-Una colección nueva en el futuro necesita lo mismo.
+Una colección nueva en el futuro necesita lo mismo. Y la colección **sólo se marca si vino** en
+`cambios`: contra una api anterior a la 00019 se quedaría marcada sin haber bajado y no se volvería
+a pedir nunca.
+
+**Las rutas que ya estaban** tampoco traerían su `distribuidorId` por diferencias, así que el
+aparato se rebaja entero UNA vez (`RegistroDeFrescura.rebajarUnaVez`, marca
+`una-vez:rutas-con-distribuidor`, igual que `una-vez:pedidos-con-factura-at`). Olvida el cursor de
+`orders` además del de `routes` porque **`/sync/cambios` lleva un solo `desde` para todas las
+colecciones, y es el de `orders`**: olvidar sólo el de rutas no cambiaría la petición.
 
 **`truncado`** existe porque la primera bajada de una sucursal grande no cabe de una vez en
 la conexión de allá. Se pide por tandas hasta que venga `false`.

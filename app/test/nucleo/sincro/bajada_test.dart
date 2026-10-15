@@ -89,6 +89,8 @@ void main() {
         'truncado': false,
         'cambios': <String, Object?>{
           'orders': conjunto(puestos: [unPedido('p-1')]),
+          // Desde la 00019 la api la manda siempre; sin ella no se marca (bajada.dart).
+          'distribuidores': conjunto(),
           'branches': conjunto(
             puestos: [
               <String, Object?>{
@@ -233,6 +235,7 @@ void main() {
 
       test('el aparato que ya la hizo no la repite', () async {
         await frescura.rebajarLosPedidosUnaVez();
+        await frescura.rebajarLasRutasUnaVez();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -244,6 +247,34 @@ void main() {
         expect(
           peticiones.first.parametros['desde'],
           '2026-10-14T00:00:00.000Z',
+        );
+      });
+
+      // Issue 7: las rutas que ya estaban no traen su `distribuidorId` por diferencias. EN
+      // PAREJA: quien ya hizo la de la factura (1.0.35) hace ESTA una vez, y luego no.
+      test('las rutas se rebajan enteras una vez aunque ya se hiciera la de la factura', () async {
+        await frescura.rebajarLosPedidosUnaVez();
+        await frescura.marcar(
+          Colecciones.pedidos,
+          hasta: '2026-10-14T00:00:00.000Z',
+        );
+        final peticiones = <PeticionVista>[];
+        final bajada = contando(peticiones);
+
+        await bajada.ciclo();
+        await bajada.ciclo();
+
+        expect(
+          peticiones.first.parametros['desde'],
+          isNull,
+          reason:
+              'el `desde` de /sync/cambios es UNO para todas (el de pedidos): sin olvidarlo, '
+              'las rutas que ya estaban se quedan sin su distribuidor para siempre',
+        );
+        expect(
+          peticiones.last.parametros['desde'],
+          '2026-10-15T01:00:00.000Z',
+          reason: 'una sola vez: luego, por diferencias',
         );
       });
     },

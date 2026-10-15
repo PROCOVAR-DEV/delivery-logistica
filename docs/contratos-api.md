@@ -1544,6 +1544,8 @@ Reparto, también `LOGISTICO`, igual que los tipos de vehículo.
   nombre que la sucursal ya tiene (mayúsculas y espacios aparte, retirados incluidos) →
   `409 {"error":"Ya existe un distribuidor con ese nombre en esta sucursal"}`.
 - `PATCH /api/distribuidores/{id}` `{nombre?, activo?}` → `200`. Mismo 400/409/404. La sucursal no se cambia nunca.
+  **`rutas` sólo es real en el `GET`**: la respuesta del `POST` y del `PATCH` lo trae a `0` (en el
+  `POST` es verdad; en el `PATCH` no se cuenta). El cajón vuelve a pedir la lista tras cada gesto.
 - `DELETE /api/distribuidores/{id}` → `200 {"success":true,"retirado":false}` si no lo usa ninguna ruta
   (se borra de verdad) o `{"success":true,"retirado":true}` si alguna lo usa (se retira).
 

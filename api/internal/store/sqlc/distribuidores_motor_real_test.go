@@ -13,6 +13,7 @@ package sqlc
 // (Up sobre rutas que ya existían, Down que la deja como estaba).
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -403,6 +404,24 @@ func TestMotorReal_Migracion00019Distribuidores(t *testing.T) {
 		}
 		if err := b.tx.QueryRow(b.ctx, `SELECT confdeltype::text FROM pg_constraint WHERE conrelid = 'distribuidores'::regclass AND contype = 'f' AND confrelid = 'branches'::regclass`).Scan(&accion); err != nil || accion != "a" {
 			t.Fatalf("la clave ajena de distribuidores.branch_id es %q (%v) y tiene que ser 'a'", accion, err)
+		}
+	})
+
+	// Sin sucursal no hay dueño: lo rechaza la BASE (NOT NULL de la 00019), no sólo la API. La
+	// pareja: con sucursal, el mismo alta entra.
+	t.Run("sin_sucursal_lo_rechaza_la_base", func(t *testing.T) {
+		err := b.intento(func() error {
+			_, err := b.tx.Exec(b.ctx, `INSERT INTO distribuidores (branch_id, nombre) VALUES (NULL, 'Sin dueño')`)
+			return err
+		})
+		if err == nil || !strings.Contains(err.Error(), "23502") {
+			t.Fatalf("un distribuidor sin sucursal tenía que dar 23502 (NOT NULL) y dio %v", err)
+		}
+		if err := b.intento(func() error {
+			_, err := b.tx.Exec(b.ctx, `INSERT INTO distribuidores (branch_id, nombre) VALUES ($1, 'Sin dueño')`, a)
+			return err
+		}); err != nil {
+			t.Fatalf("con sucursal el mismo alta tenía que entrar: %v", err)
 		}
 	})
 

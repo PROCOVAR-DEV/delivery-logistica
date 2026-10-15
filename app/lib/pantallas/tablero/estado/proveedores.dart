@@ -302,7 +302,16 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
     if (sucursalId == null) {
       return const Tablero.imposible('Elige una sucursal para ver su tablero');
     }
-    final filtros = ref.watch(filtrosTableroProvider);
+    // LOS FILTROS SE ESCUCHAN, NO SE MIRAN — issue 10 de Amado, 15/10/2026: «en el filtro
+    // del tablero cada vez que se teclea un carácter pierde el foco». Con `ref.watch`, cada
+    // búsqueda volvía a ejecutar este `build`, el tablero pasaba a «cargando» y la pantalla
+    // pintaba la rueda EN LUGAR del tablero: la caja de buscar se desmontaba con su foco.
+    // `invalidateSelf` vuelve a ejecutar `build` igual, pero Riverpod lo cuenta como
+    // REFRESCO y no como recarga, y `when` (`skipLoadingOnRefresh`) sigue pintando el
+    // tablero de antes mientras lee: el árbol no cambia y el foco se queda donde estaba.
+    // Cambiar de SUCURSAL sí sigue pasando por la rueda, que es lo que toca.
+    final filtros = ref.read(filtrosTableroProvider);
+    ref.listen(filtrosTableroProvider, (_, _) => ref.invalidateSelf());
     // El almacén elegido a mano. Se MIRA aquí para que cambiarlo vuelva a leer
     // el tablero entero: de ese punto salen los kilómetros de cada tarjeta y el
     // orden de la lista de sin colocar, así que no basta con repintar la
@@ -321,8 +330,8 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
     //
     // ## POR SUCURSAL Y NO POR CADA `build`
     //
-    // `build` mira tambien `filtrosTableroProvider`, asi que **cada filtro lo
-    // vuelve a ejecutar**. Sin esta guarda, abrir el cajon de filtros y tocar
+    // `build` se vuelve a ejecutar con cada cambio de lo que mira y con cada
+    // filtro (arriba). Sin esta guarda, abrir el cajon de filtros y tocar
     // cuatro cosas eran cuatro descargas completas del tablero: la pantalla en
     // blanco, la rueda girando y una ida y vuelta por la conexion de alla —que el
     // propio cliente documenta en 55 s en el caso normal y 115 s en el peor—

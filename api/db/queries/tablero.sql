@@ -404,6 +404,7 @@ WHERE
         sqlc.narg('q')::text IS NULL
         OR o.customer_name    ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.operation_number ILIKE '%' || sqlc.narg('q')::text || '%'
+        OR o.factura_numero   ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.end_address      ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.address          ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.municipio        ILIKE '%' || sqlc.narg('q')::text || '%'
@@ -575,6 +576,7 @@ WHERE
         sqlc.narg('q')::text IS NULL
         OR o.customer_name    ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.operation_number ILIKE '%' || sqlc.narg('q')::text || '%'
+        OR o.factura_numero   ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.end_address      ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.address          ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.municipio        ILIKE '%' || sqlc.narg('q')::text || '%'

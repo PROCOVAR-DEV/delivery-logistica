@@ -355,6 +355,7 @@ class ConsultasPedidos {
       final enElPedido =
           o.customerName.lower().contains(q) |
           o.operationNumber.lower().contains(q) |
+          o.facturaNumero.lower().contains(q) |
           o.endAddress.lower().contains(q) |
           o.address.lower().contains(q) |
           o.municipio.lower().contains(q) |

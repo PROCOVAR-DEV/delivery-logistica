@@ -97,10 +97,13 @@ WHERE
     AND (sqlc.narg('branch_id')::uuid IS NULL OR o.branch_id = sqlc.narg('branch_id')::uuid)
     -- Una sola caja de búsqueda: quien la usa no se para a pensar en qué campo está lo
     -- que recuerda. El EXISTS es la pregunta del despacho: «¿qué pedidos llevan malta?».
+    -- La factura es `factura_numero` (Ventra), no el folio; con dos («47061, 47062») el ILIKE
+    -- encuentra cualquiera de las dos (issue 10 de Amado, 15/10/2026).
     AND (
         sqlc.narg('q')::text IS NULL
         OR o.customer_name    ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.operation_number ILIKE '%' || sqlc.narg('q')::text || '%'
+        OR o.factura_numero   ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.end_address      ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.address          ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.municipio        ILIKE '%' || sqlc.narg('q')::text || '%'
@@ -225,6 +228,7 @@ WHERE
         sqlc.narg('q')::text IS NULL
         OR o.customer_name    ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.operation_number ILIKE '%' || sqlc.narg('q')::text || '%'
+        OR o.factura_numero   ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.end_address      ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.address          ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.municipio        ILIKE '%' || sqlc.narg('q')::text || '%'
@@ -340,6 +344,7 @@ WHERE
         sqlc.narg('q')::text IS NULL
         OR o.customer_name    ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.operation_number ILIKE '%' || sqlc.narg('q')::text || '%'
+        OR o.factura_numero   ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.end_address      ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.address          ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.municipio        ILIKE '%' || sqlc.narg('q')::text || '%'
@@ -418,6 +423,7 @@ WHERE
         sqlc.narg('q')::text IS NULL
         OR o.customer_name    ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.operation_number ILIKE '%' || sqlc.narg('q')::text || '%'
+        OR o.factura_numero   ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.end_address      ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.address          ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.municipio        ILIKE '%' || sqlc.narg('q')::text || '%'

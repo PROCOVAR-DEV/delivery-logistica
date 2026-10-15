@@ -612,6 +612,8 @@ WHERE c.branch_id = ?1''',
         (t) =>
             t.customerName.like(patron) |
             t.operationNumber.like(patron) |
+            // La factura de Ventra; con dos («47061, 47062») el LIKE encuentra cualquiera.
+            t.facturaNumero.like(patron) |
             t.endAddress.like(patron) |
             t.address.like(patron) |
             t.municipio.like(patron) |

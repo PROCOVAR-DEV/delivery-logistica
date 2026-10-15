@@ -573,6 +573,7 @@ class ConsultasRutas {
           donde &
           (o.customerName.lower().contains(busca) |
               o.operationNumber.lower().contains(busca) |
+              o.facturaNumero.lower().contains(busca) |
               o.endAddress.lower().contains(busca) |
               o.address.lower().contains(busca));
     }

@@ -278,7 +278,7 @@ aplica `trim()`. `q` además se pasa a minúsculas. Los usan `/api/orders` y
 
 | Param | Valores | Significado en el `WHERE` |
 |---|---|---|
-| `q` | texto libre | `OR` con `contains` insensitive sobre `customerName`, `operationNumber`, `endAddress`, `address`, `municipio`, `vendedor`, `productosTexto` |
+| `q` | texto libre | `OR` con `contains` insensitive sobre `customerName`, `operationNumber`, `facturaNumero` (la de Ventra; «47062» encuentra «47061, 47062»), `endAddress`, `address`, `municipio`, `vendedor`, `productosTexto` |
 | `estado` | `completada` \| `en_proceso` \| `expirada` | ver abajo |
 | `archivado` | `1` \| `0` | `archivado = true` / `archivado = false` |
 | `domicilio` | `1` \| `0` | `requiereDomicilio = true` / `OR[requiereDomicilio null, false]` |

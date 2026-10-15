@@ -396,6 +396,7 @@ WHERE
         $3::text IS NULL
         OR o.customer_name    ILIKE '%' || $3::text || '%'
         OR o.operation_number ILIKE '%' || $3::text || '%'
+        OR o.factura_numero   ILIKE '%' || $3::text || '%'
         OR o.end_address      ILIKE '%' || $3::text || '%'
         OR o.address          ILIKE '%' || $3::text || '%'
         OR o.municipio        ILIKE '%' || $3::text || '%'
@@ -988,6 +989,7 @@ WHERE
         $5::text IS NULL
         OR o.customer_name    ILIKE '%' || $5::text || '%'
         OR o.operation_number ILIKE '%' || $5::text || '%'
+        OR o.factura_numero   ILIKE '%' || $5::text || '%'
         OR o.end_address      ILIKE '%' || $5::text || '%'
         OR o.address          ILIKE '%' || $5::text || '%'
         OR o.municipio        ILIKE '%' || $5::text || '%'

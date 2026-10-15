@@ -37,7 +37,8 @@ paquete: eso la aplicación lo detecta.
 - **Crear zonas y ponerles camión**
 - **Colocar pedidos en zonas, moverlos, subirlos, bajarlos, sacarlos**
 - **Armar la ruta de una zona**, con **la misma regla que el servidor**: sólo entran los
-  pedidos facturados que cuadran, con el domicilio cobrado y cotizado; los demás se
+  pedidos facturados (cuadren o no), con el domicilio cobrado y, si el vendedor lo
+  marcó, cotizado; los demás se
   descartan y se nombran por su conduce, y si no entra ninguno no se arma la ruta
 - Ver Rutas, filtrar, buscar, abrir el detalle
 - **Armar una ruta con el asistente «Nueva Ruta»**

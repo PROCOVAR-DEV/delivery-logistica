@@ -21,14 +21,18 @@ Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
 6. **Si no tiene coordenadas de entrega**, no entra en el Tablero ni en «Pedidos
    sin ruta». Se ve en Pedidos, marcado.
 7. **Si no tiene el domicilio cobrado o cotizado.** A las rutas nuevas, al Tablero
-   («Sin colocar») y al recuento de «Pedidos sin ruta» del Panel sólo llega la factura
-   que **cuadra**, con el **domicilio cobrado** (importe mayor que cero en la factura)
-   y **cotizado en Entrega**. Un pedido al que le falte una de las tres sigue
-   existiendo —se ve en Pedidos— pero no se ofrece para repartir. En la marca de
-   «Factura» de Pedidos se ve si falta el cobro: «Sin cobro de domicilio» en ámbar, o
-   «Dom. $0.46» en verde si está cobrado. No es un fallo: se
-   arregla cobrando o cotizando en Entrega. Ver
+   («Sin colocar») y al recuento de «Pedidos sin ruta» del Panel sólo llega lo
+   **facturado** (cuadre o haya cambiado en la factura), con el **domicilio cobrado**
+   (importe mayor que cero en la factura) y, si el vendedor marcó domicilio,
+   **cotizado en Entrega**. Un pedido al que le falte algo de eso sigue existiendo —se
+   ve en Pedidos— pero no se ofrece para repartir. En la marca de «Factura» de Pedidos
+   se ve si falta el cobro: «Sin cobro de domicilio» en ámbar, o «Dom. $0.46» en verde
+   si está cobrado; y la ficha del pedido dice en una línea si puede ir a una ruta y,
+   si no, por qué. No es un fallo: se arregla cobrando o cotizando en Entrega. Ver
    [Las reglas del reparto](las-reglas-del-reparto.md).
+8. **En el asistente de Rutas, el filtro «Sólo con domicilio»**, que es como arranca,
+   esconde los pedidos que el vendedor no marcó a domicilio aunque la factura lo
+   cobre. Pon «Con y sin domicilio».
 
 ---
 
@@ -52,9 +56,9 @@ Por orden de probabilidad:
 | **«La zona «Centro» no tiene camión previsto, y sin camión no se arma su ruta»** | El cajón se queda abierto. Toca **«Camión previsto»** y elige uno. Vuelve a armar |
 | **«Se requiere un vehículo para crear la ruta»** | Lo mismo, pero en el asistente: paso 3 |
 | **«La columna no tiene ningún pedido que se pueda repartir hoy»** | Debajo te dice por qué se cayó cada uno. Casi siempre es factura |
-| **«En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Esos pedidos no van hoy: la factura no existe, no está cotejada o cambió. Quítalos y arma con el resto |
+| **«En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Esos pedidos no van hoy: la factura no existe o no está cotejada. Quítalos y arma con el resto. (Si la factura cambió, sí entra: va lo facturado) |
 | **«En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen: PTB25-261005-1480…»** | La factura de esos pedidos no trae importe de domicilio. No van hoy. Quítalos |
-| **«No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1480…»** | Entrega todavía no le puso costo a ese domicilio. Hay que cotizarlo allí; mientras tanto, quítalos |
+| **«No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1480…»** | El vendedor marcó domicilio y Entrega todavía no le puso costo. Hay que cotizarlo allí; mientras tanto, quítalos |
 | **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión se dio de baja. Elige otro, o actívalo en Vehículos si ha vuelto |
 | **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Alguien se te adelantó, o el pedido cambió. Quítalo y vuelve |
 | **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Saca pedidos o cambia de camión |
@@ -65,7 +69,7 @@ Por orden de probabilidad:
 | **«Camión 1 está marcado EN EL TALLER. La ruta se arma igual…»** | Es un aviso en ámbar, no un error: la ruta se arma. Si el camión ya volvió, sácalo del taller en Vehículos |
 
 Y si lo que echas en falta son **pedidos** en la lista del asistente: sólo trae lo
-facturado que cuadra, con el domicilio cobrado y cotizado. Lee
+facturado con el domicilio cobrado, y cotizado si el vendedor lo marcó. Lee
 [Un pedido no aparece](#un-pedido-no-aparece) antes de buscar un error.
 
 ---
@@ -78,7 +82,7 @@ sale uno de estos motivos:
 | El aviso | Qué significa |
 |---|---|
 | **«No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.»** | La factura no cobró domicilio. No se coloca. En **Pedidos**, la marca de «Factura» lo enseña antes de marcar: «Sin cobro de domicilio» en ámbar |
-| **«No se puede asociar al tablero: primero cotiza el domicilio del pedido.»** | Falta el costo de Entrega. Cotízalo allí y vuelve |
+| **«No se puede asociar al tablero: primero cotiza el domicilio del pedido.»** | El vendedor marcó domicilio y falta el costo de Entrega. Cotízalo allí y vuelve |
 | **«Ese pedido ya se entregó»** | Ya se repartió |
 | **«Ese pedido ya está en una ruta»** | Se lo llevó otra ruta |
 

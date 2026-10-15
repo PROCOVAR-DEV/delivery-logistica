@@ -365,14 +365,13 @@ void main() {
       });
     });
 
-    // `cambiado` NO ENTRA — Jose, 07/10/2026: «en el camión sólo sube lo que
-    // cuadra con la factura». Codex lo había dejado pasar (968679f) y esta
-    // prueba se reescribió para darle la razón; aquí vuelve la de siempre, con
-    // el literal del servidor (`mensajeNoFacturados`, `api/internal/api/
-    // rutas.go`). Los textos van escritos a mano, no copiados del código.
-    test('en una ruta sólo entra lo facturado y que cuadre', () async {
+    // SOLO ENTRA LO FACTURADO, con el literal del servidor (`mensajeNoFacturados`,
+    // `api/internal/api/rutas.go`). Los textos van escritos a mano, no copiados
+    // del código. `cambiado` SÍ entra desde el 15/10/2026 (issue 10 de Amado):
+    // sus renglones ya son los de la factura.
+    test('en una ruta sólo entra lo facturado', () async {
       await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
-        const OrdersCompanion(facturaEstado: Value(EstadoFactura.cambiado)),
+        const OrdersCompanion(facturaEstado: Value(EstadoFactura.sinFactura)),
       );
       await (base.update(base.orders)..where((o) => o.id.equals('q3'))).write(
         const OrdersCompanion(facturaEstado: Value(null)),
@@ -380,27 +379,27 @@ void main() {
 
       await esperaRechazo(
         ['q1', 'q2', 'q3'],
-        'En una ruta sólo entra lo facturado y que cuadre. 2 no cumplen: '
-        'F-002 (cambió en la factura), F-003 (sin cotejar).',
-      );
-    });
-
-    test('UNA factura cambiada sola tampoco entra', () async {
-      // La pareja de la de arriba: sin ella, un `cambiado` que dejara pasar a
-      // todos menos al no cotejado seguiria en verde.
-      await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
-        const OrdersCompanion(facturaEstado: Value(EstadoFactura.cambiado)),
-      );
-      await esperaRechazo(
-        ['q1', 'q2', 'q3'],
-        'En una ruta sólo entra lo facturado y que cuadre. 1 no cumplen: '
-        'F-002 (cambió en la factura).',
+        'En una ruta sólo entra lo facturado. 2 no cumplen: '
+        'F-002 (sin facturar), F-003 (sin cotejar).',
       );
       expect(
         await base.select(base.routes).get(),
         isEmpty,
         reason: 'un rechazo no deja una ruta a medias',
       );
+    });
+
+    test('UNA factura cambiada SÍ entra: al camión va lo facturado', () async {
+      // La pareja de la de arriba: sin ella, un armado que rechazara todo lo
+      // que no es `igual` seguiria en verde.
+      await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
+        const OrdersCompanion(facturaEstado: Value(EstadoFactura.cambiado)),
+      );
+      final rutaId = await armarLasTres();
+      final q2 = await (base.select(
+        base.orders,
+      )..where((o) => o.id.equals('q2'))).getSingle();
+      expect(q2.routeId, rutaId);
     });
 
     // LO NUEVO DE AMADO SE CONSERVA (07/10/2026, incidencias 2 y 6): factura con
@@ -428,6 +427,19 @@ void main() {
         'No se puede crear la ruta: 1 pedidos no tienen cotizado el '
         'domicilio en Entrega: F-002.',
       );
+    });
+
+    // ISSUE 10 DE AMADO (15/10/2026): la cotización sólo se exige si el
+    // vendedor marcó domicilio. La pareja es la de arriba (marcado y sin cotizar
+    // no entra).
+    test('sin marcar domicilio, sin cotizar SÍ entra', () async {
+      await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
+        const OrdersCompanion(
+          pedidoCosto: Value(null),
+          requiereDomicilio: Value(false),
+        ),
+      );
+      expect(await armarLasTres(), startsWith('local-'));
     });
 
     test('un domicilio cotizado en CERO si entra: cero es un precio', () async {

@@ -4,6 +4,7 @@ import '../../../nucleo/base/base.dart';
 import '../../../nucleo/cola/cola_salida.dart';
 import '../../../nucleo/cola/provisionales.dart';
 import '../../../nucleo/red/escritura_en_vivo.dart';
+import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/reloj.dart';
 import '../../distribuidores/datos/distribuidor_valido.dart';
 import '../../rutas/datos/acciones_rutas.dart' show msgVehiculoInactivo;
@@ -115,7 +116,8 @@ const msgSinCotizarElDomicilio =
 /// primero el entregado y despues la ruta —un entregado conserva su `route_id`
 /// mientras la ruta exista, y decir «ya esta en una ruta» de algo que ya se
 /// repartio manda a esperar un cierre que no hace falta—, y despues el domicilio
-/// cobrado y su cotizacion.
+/// cobrado y su cotizacion, esta solo si el vendedor marco domicilio (issue 10
+/// de Amado, 15/10/2026: `nucleo/regla_de_entrada.dart`).
 ///
 /// ## Por que existe aqui y no solo en el servidor — 07/10/2026
 ///
@@ -129,9 +131,9 @@ const msgSinCotizarElDomicilio =
 /// `MandarAlTablero`, y los dos tienen que decir lo mismo.
 ///
 /// **NO mira `factura_estado`, y es a proposito**: `ColocarPedido` del servidor
-/// tampoco lo mira (la lista de «Sin colocar» ya ofrece `igual` y `cambiado`, y
-/// la ruta que sale de la zona descarta con su motivo —«cambió en la factura»—
-/// lo que no cuadre). Espejar aqui un corte que el servidor no hace seria el
+/// tampoco lo mira (la lista de «Sin colocar» ya ofrece solo `igual` y
+/// `cambiado`, y la ruta que sale de la zona descarta con su motivo lo que no
+/// este facturado). Espejar aqui un corte que el servidor no hace seria el
 /// rechazo inventado al reves: la APK negaria lo que la nube permite.
 String? porQueNoSePuedeColocar(Pedido pedido) {
   if (pedido.deliveredAt != null ||
@@ -139,9 +141,15 @@ String? porQueNoSePuedeColocar(Pedido pedido) {
     return msgYaSeEntrego;
   }
   if (pedido.routeId != null) return msgYaVaEnUnaRuta;
-  final domicilio = pedido.facturaDomicilio;
-  if (domicilio == null || domicilio <= 0) return msgSinDomicilioCobrado;
-  if (pedido.pedidoCosto == null) return msgSinCotizarElDomicilio;
+  if (domicilioSinCobrar(pedido.facturaDomicilio)) {
+    return msgSinDomicilioCobrado;
+  }
+  if (faltaLaCotizacion(
+    pedidoCosto: pedido.pedidoCosto,
+    requiereDomicilio: pedido.requiereDomicilio,
+  )) {
+    return msgSinCotizarElDomicilio;
+  }
   return null;
 }
 
@@ -792,8 +800,9 @@ class RepositorioTablero {
       );
     }
 
-    // LA REGLA DEL SERVIDOR, NO UNA MAS FLOJA — 1.0.29. Entra lo facturado y que
-    // cuadre, con domicilio cobrado y cotizado (`TarjetaPedido.motivoDeNoSubir`);
+    // LA REGLA DEL SERVIDOR, NI MAS FLOJA NI MAS DURA — 1.0.29. Entra lo
+    // facturado (`igual` o `cambiado`, issue 10 de Amado), con domicilio cobrado
+    // y, si se marco, cotizado (`TarjetaPedido.motivoDeNoSubir`);
     // lo demas se queda puesto y se NOMBRA, igual que lo nombra el servidor en
     // `descartados`. Antes el aparato armaba con todo lo que no tuviera una marca
     // grave y el servidor descartaba lo que el aparato ya habia subido al camion.

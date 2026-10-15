@@ -258,8 +258,9 @@ WHERE c.branch_id = sqlc.arg('branch_id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)
 ORDER BY c.posicion ASC, p.posicion ASC;
 
--- Cuántas tarjetas puestas ya no se pueden repartir. Es el aviso de arriba del tablero:
--- «3 de los que tienes puestos ya no salen». Se cuenta en la base porque la pantalla no
+-- Cuántas tarjetas puestas ya no se pueden repartir, y cuántas cambiaron en la factura (ésas
+-- SÍ salen desde el 15/10/2026, con lo facturado: es un aviso ámbar, no un bloqueo). Es el
+-- aviso de arriba del tablero: «3 de los que tienes puestos ya no salen». Se cuenta en la base porque la pantalla no
 -- tiene todas las tarjetas cargadas y un aviso que sólo aparece si has bajado hasta la
 -- columna de abajo no es un aviso.
 --
@@ -320,7 +321,8 @@ WHERE c.branch_id = sqlc.arg('branch_id')
 -- Las condiciones de «repartible» son LAS MISMAS de `ListarPedidosDisponibles`, ni una más
 -- ni una menos: sin ruta, sin entregar, con coordenadas, facturado (`igual` o `cambiado`),
 -- no archivado, y desde el 07/10/2026 (Amado) con el domicilio COBRADO en la factura
--- (`factura_domicilio > 0`) y COTIZADO en Entrega (`pedido_costo` no nulo). Si el tablero
+-- (`factura_domicilio > 0`) y COTIZADO en Entrega (`pedido_costo` no nulo) si el vendedor
+-- marcó domicilio (`requiere_domicilio`, issue 10 de Amado, 15/10/2026). Si el tablero
 -- ofreciera algo que `ColocarPedido` o el armador luego rechazan, el logístico prepararía
 -- una columna entera para que la ruta le diga que no al final del día. Y eso fue
 -- exactamente lo que pasó con las dos últimas: se añadieron a `ColocarPedido` y no aquí,
@@ -362,7 +364,7 @@ WHERE
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
     AND o.factura_domicilio > 0
-    AND o.pedido_costo IS NOT NULL
+    AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
     -- Sin colocar = no está en ninguna columna. Del tablero de NADIE: un pedido es de una
     -- sucursal y sólo puede estar en el suyo, así que si aparece puesto, puesto está.
     -- ARCHIVADO EN PEDIDO = NO SE REPARTE.
@@ -375,21 +377,15 @@ WHERE
     -- `archivado` es el borrado blando de PEDIDO y son la INMENSA MAYORIA del historico
     -- (50.810 de 55.622), asi que olvidarlo no es un detalle: es ofrecer el archivo entero.
     AND NOT o.archivado
-    -- SIN DOMICILIO NO SE COLOCA: NO HAY NADA QUE LLEVAR A CASA DE NADIE.
+    -- SIN DOMICILIO NO SE COLOCA, Y LO QUE DICE «LLEVA DOMICILIO» ES EL COBRO DE LA FACTURA.
     --
-    -- El tablero es la preparacion de las rutas, y una ruta reparte a domicilio.
-    -- Sin este filtro, con los datos reales del 25/09/2026, Santiago ofrecia 246
-    -- pedidos sin colocar de los cuales **183 no eran de domicilio**: tres de
-    -- cada cuatro. El logistico podia armar una zona entera con ellos —y se
-    -- armo, probandolo—, y despues el asistente de rutas no se la aceptaba,
-    -- porque alli el filtro si estaba. Preparar el dia para que luego no sirva
-    -- es peor que no poder prepararlo. Jose, 25/09/2026: «sin domicilio no los
-    -- pongas, por que eso no lleva domicilio».
-    --
-    -- `IS TRUE` y no `= true` a proposito: la columna admite NULL —un pedido que
-    -- nadie ha marcado todavia— y `AND o.requiere_domicilio` con NULL deja la
-    -- fila fuera igual, pero leyendolo no se sabe. Asi se lee.
-    AND o.requiere_domicilio IS TRUE
+    -- Desde el 25/09/2026 aquí iba `requiere_domicilio IS TRUE` (Jose: «sin domicilio no los
+    -- pongas, por que eso no lleva domicilio», con 183 de 246 pedidos de Santiago que no lo
+    -- eran). Se quitó el 15/10/2026 (issue 10 de Amado): la casilla la marca el vendedor y
+    -- Ventra cobra el domicilio aunque no la marque —PBF26-2610131268, sin marcar y con 1.31
+    -- de «ENTREGA A DOMICILIO»—, y con la casilla aquí ese pedido no salía en el tablero
+    -- nunca. Lo que deja fuera a los que no llevan domicilio es `factura_domicilio > 0`, de
+    -- arriba, y la casilla sólo decide si hace falta la cotización de Entrega.
     AND NOT EXISTS (SELECT 1 FROM board_placements p WHERE p.order_id = o.id)
     -- El `::uuid` no es adorno: `orders.branch_id` admite NULL, y sin el molde sqlc daría
     -- el parámetro como anulable en Go. Uno vacío dejaría la comparación en NULL y la lista
@@ -550,25 +546,19 @@ WHERE
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
     AND o.factura_domicilio > 0
-    AND o.pedido_costo IS NOT NULL
+    AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
     -- La misma línea que la lista, y en el mismo sitio para que se vean juntas al
     -- compararlas a ojo.
     AND NOT o.archivado
-    -- SIN DOMICILIO NO SE COLOCA: NO HAY NADA QUE LLEVAR A CASA DE NADIE.
+    -- SIN DOMICILIO NO SE COLOCA, Y LO QUE DICE «LLEVA DOMICILIO» ES EL COBRO DE LA FACTURA.
     --
-    -- El tablero es la preparacion de las rutas, y una ruta reparte a domicilio.
-    -- Sin este filtro, con los datos reales del 25/09/2026, Santiago ofrecia 246
-    -- pedidos sin colocar de los cuales **183 no eran de domicilio**: tres de
-    -- cada cuatro. El logistico podia armar una zona entera con ellos —y se
-    -- armo, probandolo—, y despues el asistente de rutas no se la aceptaba,
-    -- porque alli el filtro si estaba. Preparar el dia para que luego no sirva
-    -- es peor que no poder prepararlo. Jose, 25/09/2026: «sin domicilio no los
-    -- pongas, por que eso no lleva domicilio».
-    --
-    -- `IS TRUE` y no `= true` a proposito: la columna admite NULL —un pedido que
-    -- nadie ha marcado todavia— y `AND o.requiere_domicilio` con NULL deja la
-    -- fila fuera igual, pero leyendolo no se sabe. Asi se lee.
-    AND o.requiere_domicilio IS TRUE
+    -- Desde el 25/09/2026 aquí iba `requiere_domicilio IS TRUE` (Jose: «sin domicilio no los
+    -- pongas, por que eso no lleva domicilio», con 183 de 246 pedidos de Santiago que no lo
+    -- eran). Se quitó el 15/10/2026 (issue 10 de Amado): la casilla la marca el vendedor y
+    -- Ventra cobra el domicilio aunque no la marque —PBF26-2610131268, sin marcar y con 1.31
+    -- de «ENTREGA A DOMICILIO»—, y con la casilla aquí ese pedido no salía en el tablero
+    -- nunca. Lo que deja fuera a los que no llevan domicilio es `factura_domicilio > 0`, de
+    -- arriba, y la casilla sólo decide si hace falta la cotización de Entrega.
     AND NOT EXISTS (SELECT 1 FROM board_placements p WHERE p.order_id = o.id)
     AND o.branch_id = sqlc.arg('branch_id')::uuid
     AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
@@ -686,13 +676,12 @@ WHERE
 --
 -- La condición de `factura_estado` NO está: un pedido colocado que deja de ser repartible
 -- se queda puesto y marcado (ver `ListarPedidosColocados`), así que volver a colocarlo
--- tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador. Se llegó
--- a añadir el 07/10/2026 y se quitó ese mismo día: `cambiado` no entra a una ruta, pero sí
--- se puede preparar en una zona, y el corte a `igual` se hace al armar, con su motivo.
+-- tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador con su
+-- motivo (sin factura o sin cotejar). `cambiado` sí sube desde el 15/10/2026.
 --
--- SÍ están las dos que pidió Amado el 07/10/2026: `factura_domicilio > 0` y
--- `pedido_costo IS NOT NULL`. El domicilio ya es un servicio que se cobra, y sin cobrarse y
--- sin cotizarse no hay nada que preparar. Tienen que ser las mismas de
+-- SÍ están las dos que pidió Amado el 07/10/2026: `factura_domicilio > 0` y la cotización
+-- de Entrega, que desde el 15/10/2026 (issue 10) sólo se exige si el vendedor marcó domicilio
+-- (`pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE`). Tienen que ser las mismas de
 -- `ListarPedidosSinColocar`, que es la que ofrece las tarjetas: lo que esa lista ofrece,
 -- esta sentencia lo tiene que aceptar. Cero filas lo traduce `porQueNoSePudoColocar`.
 --
@@ -732,7 +721,7 @@ WITH puesta AS (
       AND o.delivered_at IS NULL
       AND (o.resultado IS NULL OR o.resultado <> 'entregado')
       AND o.factura_domicilio > 0
-      AND o.pedido_costo IS NOT NULL
+      AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
       AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)
     ON CONFLICT (order_id) DO UPDATE SET
         column_id    = excluded.column_id,
@@ -809,14 +798,14 @@ JOIN board_columns c ON c.id = q.column_id;
 -- entre que se pintó el tablero y se pulsó el botón, y de ahí sale el «N de los M ya están
 -- en otra ruta».
 --
--- `factura_estado` deja pasar `igual` y `cambiado` por lo mismo que en `routes.sql`: el
--- corte a sólo `igual` lo hace el handler DESPUÉS, para poder nombrar cuál falla y por qué.
--- Un WHERE que los descarte aquí deja el mismo rechazo sin nada que decir, y el logístico
--- se queda mirando una columna de doce que produce una ruta de nueve sin explicación.
--- `cambiado` NO entra a una ruta (en el camión sólo sube lo que cuadra con la factura).
--- Lo de Amado del 07/10/2026 se suma: `factura_domicilio` y `pedido_costo` salen como DATO
--- y `armarRutaDeColumna` los nombra en `descartados` si el domicilio no está cobrado o no
--- está cotizado.
+-- `factura_estado` sale como DATO por lo mismo que en `routes.sql`: el corte (sin factura,
+-- sin cotejar) lo hace el handler DESPUÉS, para poder nombrar cuál falla y por qué. Un
+-- WHERE que los descarte aquí deja el mismo rechazo sin nada que decir, y el logístico se
+-- queda mirando una columna de doce que produce una ruta de nueve sin explicación.
+-- `cambiado` SÍ entra desde el 15/10/2026 (issue 10 de Amado): sus renglones ya son los de
+-- la factura. Lo de Amado del 07/10/2026 se suma: `factura_domicilio`, `pedido_costo` y
+-- `requiere_domicilio` salen como DATO y `motivoDeCorteDelArmado` los nombra en
+-- `descartados` si el domicilio no está cobrado, o si se marcó y no está cotizado.
 --
 -- `posicion` sale para que el armador pueda RESPETAR el orden del logístico: él conoce las
 -- calles de su distrito y el vecino más próximo no. Quién de los dos manda lo decide el
@@ -825,7 +814,7 @@ JOIN board_columns c ON c.id = q.column_id;
 SELECT
     o.id, o.operation_number, o.customer_name, o.end_lat, o.end_lng,
     o.weight, o.pedido_costo, o.factura_estado, o.factura_domicilio, o.branch_id,
-    o.external_id, o.source, o.archivado,
+    o.external_id, o.source, o.archivado, o.requiere_domicilio,
     -- SE ENTREGA EL DATO, NO SE FILTRA AQUÍ, igual que `factura_estado` y por lo mismo:
     -- un `WHERE` que los descarte deja el descarte sin nada que decir, y el logístico se
     -- queda mirando una columna de doce que produce una ruta de nueve sin explicación.

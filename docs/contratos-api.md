@@ -421,26 +421,33 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
    | `no existe o no es de tu sucursal` | la consulta no devuelve fila. **No se dice cuál de las dos**, igual que en `GET /api/routes/{id}`: decir «existe pero es de Holguín» ya es contar algo de Holguín. |
    | `no es un identificador de pedido` | el texto ni siquiera es un uuid. |
    | `cambió mientras se armaba` | ninguna de las anteriores. Un motivo equivocado es peor que ninguno. |
-6. **Sólo se reparte lo facturado y que cuadra**: `noFacturados = orders.filter(o => o.facturaEstado !== 'igual')`.
-   Si hay alguno → `409` con mensaje compuesto:
-   - `motivo(e)`: `'cambiado'` → `cambió en la factura`; `'sin_factura'` → `sin facturar`;
-     cualquier otro (incl. `null`) → `sin cotejar`.
+6. **Sólo se reparte lo facturado** (`facturaQueEntra`): `noFacturados = orders.filter(o =>
+   !['igual','cambiado'].includes(o.facturaEstado))`. Si hay alguno → `409` con mensaje
+   compuesto:
+   - `motivo(e)`: `'sin_factura'` → `sin facturar`; cualquier otro (incl. `null`) →
+     `sin cotejar`.
    - `detalle` = los 5 primeros como `` `${o.operationNumber || o.customerName} (${motivo})` ``
      unidos por `, `.
-   - Mensaje: `"En una ruta sólo entra lo facturado y que cuadre. <N> no cumplen: <detalle>"`
+   - Mensaje: `"En una ruta sólo entra lo facturado. <N> no cumplen: <detalle>"`
      seguido de `" y <N-5> más."` si `N > 5`, o de `"."` si `N <= 5`.
-   - Nota: el filtro previo de disponibles permite `igual` y `cambiado` en
-     `/api/orders/available`, pero **aquí sólo pasa `igual`**. **`cambiado` NO entra a una
-     ruta** (Jose: «en el camión sólo sube lo que cuadra con la factura»). El 07/10/2026 se
-     aceptó `cambiado` aquí «porque también es una factura» y se volvió a `igual` el mismo
-     día: Amado pidió sumar lo de abajo, no aflojar esto.
+   - **`cambiado` ENTRA desde el 15/10/2026** (issue 10 de Amado, punto 3): sus renglones ya
+     son los de la factura (PEDIDO los manda en cuanto hay cotejo), así que al camión sube lo
+     facturado. El caso que lo motivó: Santiago, `PBF26-2610131268`, factura 47061; se pidió
+     «PARRANDA 0.33L ×20» sin marcar domicilio y Ventra facturó «CERVEZA PARRANDA 500 ML
+     BLISTER 6U ×20» con «ENTREGA A DOMICILIO» 1.31. Hasta ese día el mensaje era
+     `"En una ruta sólo entra lo facturado y que cuadre. …"` y tenía el motivo
+     `cambió en la factura` (`cambiado` no entraba: «en el camión sólo sube lo que cuadra con
+     la factura», Jose, 07/10/2026); ese motivo ya no existe.
 6-bis. **Domicilio cobrado** (Amado, 07/10/2026, incidencia 6): todo pedido tiene que traer
    `facturaDomicilio > 0` (lo cobrado en el mostrador). Si alguno no → `409`
    `"En una ruta sólo entra lo facturado con domicilio cobrado. <N> no cumplen: <detalle>"`,
    con el mismo formato de cinco nombrados + `" y <N-5> más."` / `"."`. El cero y los
    negativos no demuestran que se cobró.
-6-ter. **Domicilio cotizado** (Amado, 07/10/2026): todo pedido tiene que traer `pedidoCosto`
-   no nulo (el cero SÍ vale; nulo no). Si alguno no → `409`
+6-ter. **Domicilio cotizado, si el vendedor lo marcó** (Amado, 07/10/2026; acotado el
+   15/10/2026, issue 10): todo pedido con `requiereDomicilio = true` tiene que traer
+   `pedidoCosto` no nulo (el cero SÍ vale; nulo no). Uno sin marcar (`false` o `null`) no
+   lo necesita: Entrega sólo cotiza los marcados, y exigírselo lo dejaba fuera para siempre
+   (`faltaLaCotizacion`). Si alguno marcado no lo trae → `409`
    `"No se puede crear la ruta: <N> pedidos no tienen cotizado el domicilio en Entrega: <detalle>"`
    (mismo formato). **Bloquea, no avisa**: hasta el 07/10/2026 esto era un aviso («AVISO, no
    portazo») y la respuesta del `201` podía llevar `{"ruta":…,"avisos":{"sinCosto":N}}`. Esa
@@ -448,7 +455,8 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
    Los tres cortes (6, 6-bis, 6-ter) van en ese orden y cada pedido sale **por su número de
    operación** (ver «El conduce» más abajo).
    La misma condición se repite, como segunda llave, en el `UPDATE` que engancha cada
-   pedido (`factura_domicilio > 0 AND pedido_costo IS NOT NULL`); si un pedido la perdió
+   pedido (`factura_domicilio > 0 AND (pedido_costo IS NOT NULL OR requiere_domicilio IS NOT
+   TRUE)`); si un pedido la perdió
    entre la validación y el enganche, la ruta entera se deshace con el `409` de siempre.
 7. Capacidad: `totalW = Σ orders.weight (|| 0)`. Si hay `vehicleId` y el vehículo existe y
    `totalW > vehicle.capacity` →
@@ -469,8 +477,8 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
 ese número se puede usar y mostrar como conduce. Todos los rechazos del armado de una ruta
 (`409` de arriba, `descartados` del tablero) **nombran cada pedido por ese número** y sólo
 caen al nombre del cliente si falta. Un cobro a domicilio «que sale como conduce» no es un
-caso aparte: es un pedido más, y entra o no según la regla de arriba (facturado `igual`,
-domicilio cobrado y cotizado).
+caso aparte: es un pedido más, y entra o no según la regla de arriba (facturado `igual` o
+`cambiado`, domicilio cobrado, y cotizado si el vendedor lo marcó).
 
 ### Cálculo y escritura
 
@@ -492,7 +500,9 @@ domicilio cobrado y cotizado).
 - `totalWeight = Σ weight`, `totalPrice = Σ pedidoCosto` de las cotizadas. **No los escribe
   el armador**: los mantiene la base en cada cambio de paradas (00014), junto con
   `paradasSinCotizar`. El armador sí suma el peso para validar la capacidad antes de crear
-  nada, y lo devuelve en la respuesta.
+  nada, y lo devuelve en la respuesta. **Abierto (15/10/2026):** una parada sin marcar
+  domicilio y sin cotizar entra (6-ter ya no la frena) con `price = 0` y cuenta en
+  `paradasSinCotizar`, así que esa ruta no enseña total mientras nadie le ponga precio.
 - Actualiza cada `Order`: `routeId`, `ultimaRutaId` (ambos = id de la ruta), `stopOrder =
   i+1`, `tripLeg = 'outbound'`, `segmentKm`, `price = pedidoCosto || 0`.
   - **Reasignar es un intento nuevo (1.0.29, I-2).** Además deja a `NULL` **`resultado`,
@@ -782,12 +792,15 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
   - Para ambos: cadena vacía o no numérica → se ignora el filtro.
 - **Condiciones fijas, no negociables**: `source = 'pedido'`, `routeId IS NULL`,
   `endLat IS NOT NULL`, `endLng IS NOT NULL`, `facturaEstado IN ('igual','cambiado')` y, desde
-  el 07/10/2026 (Amado), **`facturaDomicilio > 0`** (domicilio cobrado) y **`pedidoCosto IS NOT
-  NULL`** (domicilio cotizado). La lista ofrece `cambiado` (para que se vea y se revise) pero
-  una ruta **no** lo acepta; lo que no puede pasar es lo contrario: que se ofrezca algo que
-  el armador rechaza por domicilio o cotización. Por eso `cotizado=false` ya sólo puede dar
-  una lista vacía. **El mismo listón** lo aplican «Sin colocar» del tablero, su contador, el
-  `ColocarPedido` y los recuentos del panel (`sin_ruta`, `peso_pendiente`, por sucursal).
+  el 07/10/2026 (Amado), **`facturaDomicilio > 0`** (domicilio cobrado) y, desde el
+  15/10/2026 (issue 10), **`pedidoCosto IS NOT NULL OR requiereDomicilio IS NOT TRUE`**
+  (domicilio cotizado sólo si el vendedor lo marcó; antes `pedidoCosto IS NOT NULL` siempre).
+  **La lista ofrece exactamente lo que una ruta acepta, `cambiado` incluido** (hasta el
+  15/10/2026 ofrecía `cambiado` y el armador lo rechazaba). Por eso `cotizado=0` sólo puede
+  traer pedidos sin marcar, y junto a `domicilio=1` da una lista vacía; y `domicilio=1` (el
+  defecto del asistente) esconde los no marcados que sí entran. **El mismo listón** lo
+  aplican «Sin colocar» del tablero, su contador, el `ColocarPedido` (la parte del domicilio)
+  y los recuentos del panel (`sin_ruta`, `peso_pendiente`, por sucursal).
 - **Orden**: `orderDate desc nulls last`, luego `createdAt desc`. **`take = 2000`** (TOPE).
 - **Campos por fila**: `id, orderDate, createdAt, operationNumber, customerName, address,
   endAddress, endLat, endLng, weight, deliveryPrice, deliveryDistanceKm, items, estado,
@@ -1653,8 +1666,10 @@ la sucursal DEL DISTRIBUIDOR.
 
 - **Auth**: usuario. **Alcance**: sí (`scopeWhere` en todas las consultas).
 - **Query**: ninguna.
-- `REPARTIBLE` = `routeId: null AND endLat != null AND facturaEstado IN ('igual','cambiado')`
-  — el mismo listón que el armador de rutas.
+- `REPARTIBLE` = `routeId: null AND endLat != null AND facturaEstado IN ('igual','cambiado')
+  AND facturaDomicilio > 0 AND (pedidoCosto != null OR requiereDomicilio IS NOT TRUE)` — el
+  mismo listón que el armador de rutas (la cotización sólo para los marcados desde el
+  15/10/2026, issue 10 de Amado).
 - `hoy` = fecha actual con `setHours(0,0,0,0)` (hora local del servidor).
 - **200**:
 
@@ -1946,15 +1961,15 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
 | 409 | `Ese pedido ya se entregó` | `deliveredAt` o `resultado = 'entregado'`. Va **primero**: un entregado no está esperando a nada. |
 | 409 | `Ese pedido ya está en una ruta` | `routeId` puesto |
 | 409 | `No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.` | `facturaDomicilio` nulo o `<= 0` (Amado, 07/10/2026) |
-| 409 | `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` | `pedidoCosto` nulo (Amado, 07/10/2026) |
+| 409 | `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` | `pedidoCosto` nulo **y** `requiereDomicilio = true` (Amado, 07/10/2026; sólo los marcados desde el 15/10/2026, issue 10) |
 | 404 | `Esa zona del tablero ya no existe` | el pedido existe y está libre: lo que no cuadra es la columna |
 | 404 | `Ese pedido no existe o no es de tu sucursal` | no existe **o** es de otra sucursal (no se distingue) |
 | 409 | `Otro aparato puso una tarjeta en ese mismo sitio en el mismo momento. Vuelve a intentarlo.` | choque de posición al confirmar |
 
 - **`facturaEstado` NO es condición de colocar.** Se llegó a exigir `igual`/`cambiado`
   («primero coteja la factura del pedido») y se quitó el mismo día: un pedido `cambiado` o sin
-  cotejar se puede preparar en una zona. **Lo corta el armado**, con su motivo. Y `cambiado`
-  **no entra a una ruta**.
+  cotejar se puede preparar en una zona. **Lo corta el armado**, con su motivo. `cambiado`
+  **sí entra a una ruta** desde el 15/10/2026 (issue 10 de Amado): al camión va lo facturado.
 - Un rechazo **no mueve la tarjeta**: la transacción se deshace y el pedido sigue en la
   columna de la que venía.
 - «Sin colocar» (`GET /api/board`, mitad izquierda) y su contador sólo ofrecen lo que esto
@@ -1975,8 +1990,10 @@ Lo que no puede subir se cae **nombrado** en `descartados[]` (`pedidoId`, `opera
 —el conduce—, `customerName`, `motivo`, `queHacer`) y la ruta sale con el resto; si no queda
 ninguno, `409` con `descartados` dentro. Motivos de la factura y el domicilio, en este orden
 (tras `ya se entregó` y `archivado en PEDIDO`): `sin cotejar` (nulo), `sin factura`,
-`cambió en la factura` (**`cambiado` no sube**), **`la factura no tiene domicilio cobrado`** y
-**`domicilio sin cotizar`** (los dos últimos, Amado 07/10/2026).
+**`la factura no tiene domicilio cobrado`** y **`domicilio sin cotizar`** (los dos últimos,
+Amado 07/10/2026; `domicilio sin cotizar` sólo si `requiereDomicilio = true` desde el
+15/10/2026). **`cambiado` sube** desde el 15/10/2026 (issue 10 de Amado): el motivo
+`cambió en la factura` ya no existe.
 
 **Lo que el aparato no eligió se nombra con su motivo VERDADERO (1.0.29).** Cuando la APK manda
 `pedidoIds`/`orderIds` con las buenas solamente, una tarjeta de la zona que no se puede cargar
@@ -2392,7 +2409,7 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | `/api/routes` POST | 400 | ``Una ruta se arma eligiendo pedidos ya existentes. Manda `orderIds`.`` |
 | `/api/routes` POST | 400 | `Los pedidos seleccionados ya no están disponibles: <detalle>` |
 | `/api/routes` POST | 409 | `<N> de los <M> pedidos elegidos no pueden ir en esta ruta: <detalle>[ y <K> más.\|.]` |
-| `/api/routes` POST | 409 | `En una ruta sólo entra lo facturado y que cuadre. <N> no cumplen: <detalle>[ y <K> más.|.]` |
+| `/api/routes` POST | 409 | `En una ruta sólo entra lo facturado. <N> no cumplen: <conduce> (sin facturar\|sin cotejar)[ y <K> más.\|.]` |
 | `/api/routes` POST | 409 | `En una ruta sólo entra lo facturado con domicilio cobrado. <N> no cumplen: <detalle>[ y <K> más.\|.]` |
 | `/api/routes` POST | 409 | `No se puede crear la ruta: <N> pedidos no tienen cotizado el domicilio en Entrega: <detalle>[ y <K> más.\|.]` |
 | `/api/routes` POST, `/api/routes/[id]` PATCH, `/api/board/columns/[id]/route` | 400 | `El vehículo está inactivo y no se puede asignar a una ruta.` |

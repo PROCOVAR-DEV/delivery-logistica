@@ -35,8 +35,8 @@ domicilio y la tasa de cambio.
 **Espejo** — la copia de los pedidos de PEDIDO que esta aplicación trae y mantiene
 al día. Por eso los pedidos no se dan de alta aquí.
 
-**Factura que cuadra** — que lo facturado coincide con lo pedido. Sólo lo
-facturado y que cuadra sube a un camión.
+**Factura que cuadra** — que lo facturado coincide con lo pedido. Si no cuadra
+(«Cambió en la factura»), el pedido sube igual a un camión, pero con lo facturado.
 
 **Folio** — el número del pedido, tipo `X-2992`. **El sufijo es nuestro**:
 `X-2992` y `X-2992-2` son dos pedidos distintos, no el mismo repetido.
@@ -69,7 +69,8 @@ producto, con sus empaques y su peso.
 que el peso del pre-despacho salga con `≥`.
 
 **Repartible** — un pedido que hoy puede subir a un camión: no está en otra ruta,
-tiene coordenadas de entrega, y está facturado y cuadra.
+tiene coordenadas de entrega, está facturado (cuadre o no), la factura cobra el
+domicilio y, si el vendedor lo marcó, Entrega ya lo cotizó.
 
 **Ruta en curso** — la que salió y va en el camión ahora mismo.
 

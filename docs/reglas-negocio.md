@@ -343,11 +343,12 @@ anteriores en silencio**. Si no hay ninguna condición → `{}`.
      un pedido roto**: se facturó distinto de como se pidió, y lo que sube al camión son las líneas
      de la FACTURA (PEDIDO ya las manda así, con `itemsOrigen: 'factura'`), así que se reparte igual
      de bien. Quedan fuera `sin_factura` (no hay nada que llevar) y el NULL.
-   - **Pero `cambiado` NO entra a una ruta** (Jose: «en el camión sólo sube lo que cuadra con la
-     factura»): esta lista lo OFRECE para que se vea y se revise, y el armado lo rechaza
-     nombrándolo (§15.3). Y desde el **07/10/2026 (Amado)** la lista de disponibles, «Sin colocar»
-     del tablero, su contador, `ColocarPedido` y los recuentos del panel exigen además **domicilio
-     cobrado** (`factura_domicilio > 0`) y **cotizado** (`pedido_costo` no nulo): ver §15.13.
+   - **Y `cambiado` entra a una ruta** desde el 15/10/2026 (issue 10 de Amado; del 07/10 al
+     15/10 el armado lo rechazaba: «en el camión sólo sube lo que cuadra con la factura»). Desde
+     el **07/10/2026 (Amado)** la lista de disponibles, «Sin colocar» del tablero, su contador,
+     `ColocarPedido` y los recuentos del panel exigen además **domicilio cobrado**
+     (`factura_domicilio > 0`) y, desde el 15/10/2026, **cotizado si el vendedor lo marcó**
+     (`pedido_costo` no nulo o `requiere_domicilio IS NOT TRUE`): ver §15.13.
    - `cuadra` → `facturaEstado = 'igual'` (sólo lo comprobado y coincidente).
    - `sin_cotejar` → `facturaEstado IS NULL`.
    - cualquier otro valor no vacío → `facturaEstado = <valor>`.
@@ -1025,35 +1026,41 @@ recién elegidos. **Es el mismo fallo ya corregido para LEER (`scopeWhere`) que 
 
    Y los **repetidos ya no cuentan como faltantes**: mandar dos veces el mismo id daba `1 < 2` y
    contestaba 409 sobre un pedido que estaba libre.
-3. **Facturación — `noFacturados = orders.filter(o => o.facturaEstado !== 'igual')`. Si hay alguno →
-   409.** Mensaje:
-   `` `En una ruta sólo entra lo facturado y que cuadre. ${n} no cumplen: ` + detalle + (n > 5 ? ` y ${n-5} más.` : '.') ``
+3. **Facturación — `noFacturados = orders.filter(o => !['igual','cambiado'].includes(o.facturaEstado))`.
+   Si hay alguno → 409.** Mensaje:
+   `` `En una ruta sólo entra lo facturado. ${n} no cumplen: ` + detalle + (n > 5 ? ` y ${n-5} más.` : '.') ``
    donde `detalle` son **los 5 primeros**, `` `${operationNumber || customerName} (${motivo})` ``
-   unidos por `', '`, y `motivo` = `'cambió en la factura'` si `cambiado`, `'sin facturar'` si
-   `sin_factura`, **`'sin cotejar'` en cualquier otro caso (incluido `null`)**.
+   unidos por `', '`, y `motivo` = `'sin facturar'` si `sin_factura`, **`'sin cotejar'` en
+   cualquier otro caso (incluido `null`)**.
    **POR QUÉ se comprueba aquí aunque la pantalla ya filtre:** *una pantalla no es una garantía;
    basta con que alguien mande los ids a mano, o con que un pedido se coteje otra vez entre que se
    eligió y se generó la ruta. Lo que se carga tiene que ser lo que se cobró.* Y se dice CUÁLES:
    *un «no se pudo» a secas obliga a adivinar cuál de los quince pedidos es el que sobra.*
-   > Nota de coherencia: el armado exige **estrictamente `facturaEstado === 'igual'`**, más duro que
-   > el filtro `con_factura` de `filtrosPedido.ts`, que admite también `cambiado`.
-   > **`cambiado` NO entra a una ruta, y se confirmó el 07/10/2026**: ese día se llegó a aceptar
-   > «porque también es una factura» y se volvió a `igual` el mismo día. La regla es de Jose y
-   > Amado no pidió cambiarla.
+   > **`cambiado` ENTRA desde el 15/10/2026** (issue 10 de Amado, punto 3), igual que el filtro
+   > `con_factura`: sus renglones ya son los de la factura, así que al camión sube lo facturado.
+   > Del 07/10 al 15/10/2026 el armado exigía estrictamente `igual` («en el camión sólo sube lo
+   > que cuadra con la factura», Jose), con el mensaje `En una ruta sólo entra lo facturado y que
+   > cuadre.` y el motivo `cambió en la factura`, que ya no existe. Lo cambió un caso real de
+   > Santiago: `PBF26-2610131268`, factura 47061, pedido «PARRANDA 0.33L ×20» sin marcar
+   > domicilio, facturado «CERVEZA PARRANDA 500 ML BLISTER 6U ×20» con «ENTREGA A DOMICILIO» 1.31.
 3-bis. **Domicilio cobrado — 409** (Amado, 07/10/2026). Todo pedido tiene que traer
    `facturaDomicilio > 0`. Mensaje:
    `` `En una ruta sólo entra lo facturado con domicilio cobrado. ${n} no cumplen: ` + detalle + (n > 5 ? ` y ${n-5} más.` : '.') ``
    con el `detalle` de siempre (5 primeros por número de operación). Nulo, cero y negativo no
    cuentan como cobrado.
-3-ter. **Domicilio cotizado — 409** (Amado, 07/10/2026). Todo pedido tiene que traer `pedidoCosto`
-   no nulo (el cero SÍ es una cotización; el nulo no). Mensaje:
+3-ter. **Domicilio cotizado, si el vendedor lo marcó — 409** (Amado, 07/10/2026; acotado el
+   15/10/2026, issue 10). Todo pedido con `requiereDomicilio = true` tiene que traer `pedidoCosto`
+   no nulo (el cero SÍ es una cotización; el nulo no). Uno sin marcar no lo necesita: Entrega
+   sólo cotiza los marcados, y exigírselo lo dejaba fuera para siempre. Mensaje:
    `` `No se puede crear la ruta: ${n} pedidos no tienen cotizado el domicilio en Entrega: ` + detalle + (n > 5 ? ` y ${n-5} más.` : '.') ``
    **BLOQUEA, NO AVISA.** Hasta el 07/10/2026 esto era «aviso, no portazo» (decisión de Jose del
    14/09/2026, con los datos delante: 657 de 686 sin costo porque la APK de Entrega no estaba
    encendida) y el pedido entraba valiendo cero con el total de la ruta más bajo. Amado lo
    cambió: el domicilio ya es un servicio que se cobra y dejar entrar cualquier pedido es una
-   vulnerabilidad. **Si vuelve a haber pedidos sin costo en masa, la respuesta es cotizarlos en
-   Entrega, no abrir la puerta.** Ver §15.13.
+   vulnerabilidad. **Si vuelve a haber pedidos marcados sin costo en masa, la respuesta es
+   cotizarlos en Entrega, no abrir la puerta.** Ver §15.13. **Abierto (15/10/2026):** un pedido
+   sin marcar y sin cotizar entra con `price = 0` y cuenta en `paradasSinCotizar`, así que la
+   ruta no enseña total mientras nadie le ponga precio.
 4. **Capacidad por peso:** `totalW = Σ (o.weight || 0)` (un peso sin resolver cuenta **0 kg**).
    `vehicle = vehicleId ? Vehicle.findFirst({id}) : null`.
    **Si `vehicle` existe y `totalW > vehicle.capacity` → 400**
@@ -1178,7 +1185,7 @@ pasa a **EN CURSO** y se libera al **completarla**.
 | Clave de Ventra en el match por contención | longitud ≥ 4 | `emparejarVentra.ts` |
 | Formato de código de ruta | `RT-YYYYMMDD-NNN` (UTC, `count+1`) | `routes/route.ts` |
 
-### 15.13 La regla de entrada a una ruta — Amado, 07/10/2026 (`docs/incidencias-reparto.md`, puntos 2 y 6)
+### 15.13 La regla de entrada a una ruta — Amado, 07/10/2026 y 15/10/2026 (`docs/incidencias-reparto.md`, puntos 2 y 6; issue 10, punto 3)
 
 > «Al crear una nueva ruta, solo deben considerarse los pedidos "facturados" que tengan
 > domicilio, ya que el domicilio ahora es un servicio que se cobra. Si se permite cualquier
@@ -1186,10 +1193,33 @@ pasa a **EN CURSO** y se libera al **completarla**.
 
 **Entra a una ruta, o a una zona del tablero, el pedido que cumple LAS TRES:**
 
-1. **Facturado y que cuadre**: `facturaEstado = 'igual'`. (La lista de disponibles y «Sin
-   colocar» también ofrecen `cambiado` para que se revise; **una ruta no lo acepta**.)
-2. **Domicilio cobrado**: `facturaDomicilio > 0`.
-3. **Domicilio cotizado en Entrega**: `pedidoCosto` no nulo.
+```
+entra ⇔ factura_estado IN ('igual','cambiado')
+        AND factura_domicilio > 0
+        AND (pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE)
+```
+
+1. **Facturado**: `facturaEstado IN ('igual','cambiado')`. `cambiado` entra desde el
+   15/10/2026: sus renglones ya son los de la factura, así que al camión sube lo facturado
+   (del 07/10 al 15/10 sólo entraba `igual`). Siguen fuera `sin_factura` y el NULL (sin cotejar).
+2. **Domicilio cobrado**: `facturaDomicilio > 0`. Es la señal de que va a domicilio: sale del
+   mostrador, no de la casilla que marca el vendedor.
+3. **Domicilio cotizado en Entrega, sólo si el vendedor lo marcó**: `pedidoCosto` no nulo o
+   `requiereDomicilio` distinto de `true`. Entrega sólo cotiza los marcados; hasta el 15/10/2026
+   se exigía siempre y dejaba fuera para siempre a los no marcados con domicilio cobrado.
+
+El caso que cambió 1 y 3 (issue 10 de Amado, 15/10/2026): Santiago, `PBF26-2610131268`, factura
+47061. Se pidió «PARRANDA 0.33L ×20» sin marcar domicilio, Ventra facturó «CERVEZA PARRANDA 500
+ML BLISTER 6U ×20» con «ENTREGA A DOMICILIO» 1.31. Era `cambiado` y no tenía cotización: no
+entraba por ninguna de las dos. Ahora entra.
+
+La regla vive en el servidor (SQL de las listas, `rechazoDelArmado`, `motivoDeCorteDelArmado`,
+`ColocarPedido`, `EngancharPedidoARuta`) y en el aparato (`app/lib/nucleo/regla_de_entrada.dart`:
+`facturaQueEntra`, `domicilioSinCobrar`, `faltaLaCotizacion`, `entraEnRuta`, `entraEnRutaSql`), atados
+por la clave `reglaDeEntrada` de `docs/armado-rechazado.casos.json`.
+
+**Abierto:** una parada sin marcar y sin cotizar entra con `price = 0` y cuenta en
+`paradasSinCotizar` de la ruta: esa ruta no enseña su total mientras nadie le ponga precio.
 
 **Bloquea, no avisa.** Sustituye a «los avisos del armador son aviso, no bloqueo» (Jose,
 14/09/2026), que se escribió con el 96 % de los pedidos sin costo porque la APK de Entrega no
@@ -1201,18 +1231,20 @@ a `ColocarPedido` y no a «Sin colocar», y el tablero ofrecía tarjetas que el 
 
 | Sitio | Condiciones |
 |---|---|
-| `GET /api/orders/available` y su contador | `igual`/`cambiado` + las dos |
-| «Sin colocar» del tablero y su contador | `igual`/`cambiado` + las dos |
-| `PUT /api/board/placements/{id}` (`ColocarPedido`) | **sólo las dos** (no mira `facturaEstado`) |
-| Armar una zona (`descartados`) | `igual` + las dos |
-| `POST /api/routes` (validación y `UPDATE` que engancha) | `igual` + las dos (el `UPDATE` sólo las dos) |
-| Panel: `sin_ruta`, `peso_pendiente`, por sucursal | `igual`/`cambiado` + las dos |
+| `GET /api/orders/available` y su contador | las tres |
+| «Sin colocar» del tablero y su contador | las tres (desde el 15/10/2026 sin `requiere_domicilio IS TRUE`) |
+| `PUT /api/board/placements/{id}` (`ColocarPedido`) | **sólo 2 y 3** (no mira `facturaEstado`) |
+| Armar una zona (`descartados`) | las tres |
+| `POST /api/routes` (validación y `UPDATE` que engancha) | las tres (el `UPDATE` sólo 2 y 3) |
+| Panel: `sin_ruta`, `peso_pendiente`, por sucursal | las tres |
 
-> **Divergencia conocida, PENDIENTE de decidir (07/10/2026):** el Panel del SERVIDOR cuenta
-> `igual`/`cambiado` + las dos (decisión D2: no se tocó su criterio de `factura_estado`), pero el
-> Panel de la APLICACIÓN lo calcula en local (`consultas_panel.dart`, `_repartible`) y cuenta
-> sólo `igual`. Las dos cifras pueden diferir en los pedidos `cambiado`. Antes de que se noten
-> hay que elegir un criterio para las dos; no se resolvió aquí.
+> **La divergencia del Panel (07/10/2026) quedó resuelta el 15/10/2026:** el Panel del servidor
+> contaba `igual`/`cambiado` y el de la aplicación (`consultas_panel.dart`, `_repartible`) sólo
+> `igual`. Ahora los dos usan la regla de arriba (la aplicación, `entraEnRutaSql`).
+>
+> **«Sin colocar» ya NO exige la casilla de domicilio** (`requiere_domicilio IS TRUE`, puesta el
+> 25/09/2026): la marca el vendedor y Ventra cobra el domicilio aunque no la marque, así que lo
+> que dice que un pedido va a domicilio es `factura_domicilio > 0`.
 
 Lo ata `api/internal/store/sqlc/consultas_motor_real_test.go` contra Postgres de verdad y
 `api/internal/store/guardas_del_reparto_test.go` por su texto.

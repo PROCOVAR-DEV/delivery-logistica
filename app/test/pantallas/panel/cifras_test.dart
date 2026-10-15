@@ -60,6 +60,8 @@ void main() {
     // `pedido_costo` no nulo, y un cero no suma en `totalDomicilios` ni en nada.
     double? costo = 0,
     double? domicilioCobrado = 1,
+    // Por defecto MARCADO a domicilio, el caso en que la cotizacion se exige.
+    bool? requiere = true,
     double? endLng = -75.0,
     String? origen = 'pedido',
     DateTime? entregadoEn,
@@ -79,6 +81,7 @@ void main() {
           facturaDomicilio: Value(domicilioCobrado),
           weight: Value(peso),
           pedidoCosto: Value(costo),
+          requiereDomicilio: Value(requiere),
           deliveredAt: Value(entregadoEn),
         ),
       );
@@ -113,8 +116,8 @@ void main() {
     setUp(() async {
       // 1. repartible de verdad
       await pedido('p1', peso: 100, costo: 5);
-      // 2. factura `cambiado`: NO entra a una ruta («en el camion solo sube lo
-      //    que cuadra con la factura», Jose 07/10/2026), asi que tampoco cuenta
+      // 2. factura `cambiado`: SI entra a una ruta desde el 15/10/2026 (issue 10
+      //    de Amado: al camion va lo facturado), asi que cuenta
       await pedido('p2', factura: 'cambiado', peso: 50, costo: 5);
       // 3. sin ruta pero SIN endLat: no se puede repartir lo que no se sabe donde va
       await pedido('p3', endLat: null, peso: 999, costo: 5);
@@ -126,29 +129,40 @@ void main() {
       await pedido('p6', rutaId: 'r1', peso: 999, costo: 5);
       // 7. SIN DOMICILIO COBRADO en la factura (Amado, 07/10/2026)
       await pedido('p7', domicilioCobrado: 0, peso: 999, costo: 5);
-      // 8. SIN COTIZAR el domicilio en Entrega (Amado, 07/10/2026)
+      // 8. MARCADO a domicilio y SIN COTIZAR en Entrega (Amado, 07/10/2026)
       await pedido('p8', peso: 999, costo: null);
       // 9. no vino de PEDIDO, y 10. sin punto de entrega completo: la lista de
       //    disponibles de Rutas tampoco los ofrece
       await pedido('p9', origen: null, peso: 999, costo: 5);
       await pedido('p10', endLng: null, peso: 999, costo: 5);
+      // 11. EL CASO REAL DEL ISSUE 10 (PBF26-2610131268): cambiado, cobrado,
+      //     SIN MARCAR domicilio y sin cotizar. Entra: Entrega solo cotiza los
+      //     marcados (la pareja es p8).
+      await pedido(
+        'p11',
+        factura: 'cambiado',
+        domicilioCobrado: 1.31,
+        requiere: false,
+        peso: 25,
+        costo: null,
+      );
     });
 
-    test('sinRuta cuenta 1, no 10', () async {
+    test('sinRuta cuenta 3 (p1, p2 y p11), no 11', () async {
       final c = await panel.cifras().first;
-      expect(c.sinRuta, 1);
-      expect(c.totalPedidos, 10);
+      expect(c.sinRuta, 3);
+      expect(c.totalPedidos, 11);
     });
 
     test('pesoPendiente suma SOLO lo repartible', () async {
       final c = await panel.cifras().first;
-      expect(c.pesoPendiente, 100);
+      expect(c.pesoPendiente, 100 + 50 + 25);
     });
 
     test('totalDomicilios suma TODO el alcance, repartible o no', () async {
       // Es lo cobrado en PEDIDO, no lo que queda por mover.
       final c = await panel.cifras().first;
-      // p1..p6 a 5, p7 a 5, p9 a 5 y p10 a 5; p8 no esta cotizado y no suma.
+      // p1..p6 a 5, p7 a 5, p9 a 5 y p10 a 5; p8 y p11 no estan cotizados.
       expect(c.totalDomicilios, 45);
     });
 
@@ -158,7 +172,7 @@ void main() {
     test('el Panel cuenta EXACTAMENTE lo que ofrece la lista de disponibles', () async {
       final c = await panel.cifras(sucursalId: 'stg').first;
       final lista = await ConsultasRutas(base).disponibles(sucursalId: 'stg');
-      expect(lista.map((p) => p.id).toList(), ['p1']);
+      expect(lista.map((p) => p.id).toSet(), {'p1', 'p2', 'p11'});
       expect(c.sinRuta, lista.length);
       expect(
         c.pesoPendiente,

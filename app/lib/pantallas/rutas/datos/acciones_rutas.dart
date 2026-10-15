@@ -47,6 +47,7 @@ import '../../../nucleo/base/base.dart';
 import '../../../nucleo/cola/cola_salida.dart';
 import '../../../nucleo/cola/provisionales.dart';
 import '../../../nucleo/red/escritura_en_vivo.dart';
+import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/registro/registro.dart';
 import '../../../nucleo/reloj.dart';
 import '../../distribuidores/datos/distribuidor_valido.dart';
@@ -370,28 +371,33 @@ class AccionesDeRuta {
       );
     }
 
-    // SOLO LO QUE CUADRA CON LA FACTURA, `igual`, y `cambiado` NO entra —
-    // 07/10/2026, Jose: «en el camión sólo sube lo que cuadra con la factura».
-    // Es la regla de siempre y el servidor la sigue diciendo (`mensajeNoFacturados`
-    // en `api/internal/api/rutas.go`); lo nuevo de Amado (domicilio cobrado y
-    // cotización) se suma debajo, no sustituye a esto.
+    // LA REGLA DE ENTRADA, la del servidor (`rechazoDelArmado` en
+    // `api/internal/api/rutas.go`) en su mismo orden y con sus mismas palabras
+    // (`nucleo/regla_de_entrada.dart`): facturado —`igual` o `cambiado`, que
+    // entra desde el 15/10/2026 (issue 10 de Amado) porque sus renglones ya son
+    // los de la factura—, domicilio cobrado y, si el vendedor lo marco,
+    // cotizado en Entrega.
     final noFacturados = [
       for (final p in pedidos)
-        if (p.facturaEstado != EstadoFactura.igual) p,
+        if (!facturaQueEntra(p.facturaEstado)) p,
     ];
     if (noFacturados.isNotEmpty) {
       throw RechazoLocal(_mensajeDeFactura(noFacturados));
     }
     final sinDomicilioCobrado = [
       for (final p in pedidos)
-        if (p.facturaDomicilio == null || p.facturaDomicilio! <= 0) p,
+        if (domicilioSinCobrar(p.facturaDomicilio)) p,
     ];
     if (sinDomicilioCobrado.isNotEmpty) {
       throw RechazoLocal(_mensajeDeDomicilioSinCobrar(sinDomicilioCobrado));
     }
     final sinCotizacion = [
       for (final p in pedidos)
-        if (p.pedidoCosto == null) p,
+        if (faltaLaCotizacion(
+          pedidoCosto: p.pedidoCosto,
+          requiereDomicilio: p.requiereDomicilio,
+        ))
+          p,
     ];
     if (sinCotizacion.isNotEmpty) {
       throw RechazoLocal(_mensajeSinCotizacion(sinCotizacion));
@@ -930,8 +936,8 @@ class AccionesDeRuta {
   /// El mensaje compuesto de los no facturados, letra a letra como el servidor:
   /// los 5 primeros con su motivo y, si hay mas, ` y <n> más.`
   String _mensajeDeFactura(List<Pedido> noFacturados) {
+    // `cambiado` no llega aqui: entra (15/10/2026).
     String motivo(Pedido p) => switch (p.facturaEstado) {
-      EstadoFactura.cambiado => 'cambió en la factura',
       EstadoFactura.sinFactura => 'sin facturar',
       // NULL y cualquier otro valor: sin cotejar.
       _ => 'sin cotejar',
@@ -943,7 +949,7 @@ class AccionesDeRuta {
         .map((p) => '${p.operationNumber ?? p.customerName} (${motivo(p)})')
         .join(', ');
     final cola = n > 5 ? ' y ${n - 5} más.' : '.';
-    return 'En una ruta sólo entra lo facturado y que cuadre. '
+    return 'En una ruta sólo entra lo facturado. '
         '$n no cumplen: $detalle$cola';
   }
 

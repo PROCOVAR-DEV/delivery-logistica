@@ -449,24 +449,22 @@ void main() {
     );
   });
 
-  // EL TABLERO SOLO OFRECE LO QUE VA A DOMICILIO.
+  // EL TABLERO SOLO OFRECE LO QUE VA A DOMICILIO, Y LO QUE LO DICE ES EL COBRO.
   //
-  // El tablero es la preparacion de las rutas, y una ruta reparte a casa del
-  // cliente. Sin este filtro, con los datos reales de Santiago del 25/09/2026,
-  // se ofrecian 246 pedidos sin colocar de los que **183 no eran de domicilio**:
-  // tres de cada cuatro. Se armo una zona entera con ellos probandolo, y despues
-  // el asistente de rutas no la aceptaba, porque alli el filtro si estaba.
-  // Preparar el dia para que luego no sirva es peor que no poder prepararlo.
+  // Desde el 25/09/2026 lo decia la casilla del vendedor (`requiereDomicilio`):
+  // con los datos de Santiago se ofrecian 246 pedidos de los que 183 no eran de
+  // domicilio (Jose: «sin domicilio no los pongas, por que eso no lleva
+  // domicilio»). Desde el 07/10/2026 hay una prueba mejor, la linea «ENTREGA A
+  // DOMICILIO» cobrada en la factura (`facturaDomicilio > 0`), y el 15/10/2026
+  // (issue 10 de Amado) la casilla dejo de mandar: PBF26-2610131268 venia SIN
+  // marcar, con 1.31 de domicilio cobrado, y no salia nunca en el tablero.
   //
-  // Jose, 25/09/2026: «sin domicilio no los pongas, por que eso no lleva
-  // domicilio».
-  //
-  // LA PRUEBA VA EN PAREJA, y hace falta: con solo la mitad de «no sale el que
-  // no lleva domicilio» se cumpliria igual devolviendo SIEMPRE cero.
-  group('sin domicilio no se coloca', () {
-    test('el que va a domicilio sale, y el que no, no', () async {
+  // LAS PRUEBAS VAN EN PAREJA: con solo la mitad de «no sale» se cumpliria igual
+  // devolviendo SIEMPRE cero.
+  group('sin domicilio cobrado no se coloca', () {
+    test('el que cobro el domicilio sale, y el que no, no', () async {
       await sembrarPedido(base, id: 'con-domicilio');
-      await sembrarPedido(base, id: 'sin-domicilio', domicilio: false);
+      await sembrarPedido(base, id: 'sin-domicilio', facturaDomicilio: null);
 
       final mitad = await consultas.sinColocar(sucursalStg, origen);
       final ids = mitad.pedidos.map((p) => p.pedidoId).toSet();
@@ -482,31 +480,42 @@ void main() {
         ids,
         isNot(contains('sin-domicilio')),
         reason:
-            'sale un pedido que no lleva domicilio. Se puede colocar en una '
-            'zona y despues el asistente de rutas no lo acepta: el dia se '
-            'prepara para nada',
+            'sale un pedido sin domicilio cobrado. Se puede colocar en una '
+            'zona y despues la ruta no lo acepta: el dia se prepara para nada',
       );
     });
 
-    // `null` no es `false`: es «nadie lo ha marcado todavia». Tampoco se
-    // reparte, y por eso tampoco se ofrece — pero se comprueba aparte, porque en
-    // SQL un `= true` y un `IS TRUE` tratan el nulo distinto y es justo el borde
-    // donde se cuela.
-    test('el que nadie ha marcado tampoco sale', () async {
-      await sembrarPedido(base, id: 'con-domicilio');
-      await sembrarPedido(base, id: 'sin-marcar', domicilio: null);
+    // EL CASO REAL DEL ISSUE 10: sin marcar (falso o nulo, «nadie lo marco») y
+    // sin cotizar en Entrega —que solo cotiza los marcados—, con el domicilio
+    // cobrado. Sale. Y la pareja: el MARCADO y sin cotizar no sale.
+    for (final marca in const [false, null]) {
+      test('sin marcar ($marca), cobrado y sin cotizar SI sale', () async {
+        await sembrarPedido(
+          base,
+          id: 'sin-marcar',
+          domicilio: marca,
+          costo: null,
+          facturaEstado: EstadoFactura.cambiado,
+          facturaDomicilio: 1.31,
+        );
+        await sembrarPedido(base, id: 'marcado-sin-cotizar', costo: null);
 
-      final mitad = await consultas.sinColocar(sucursalStg, origen);
-      final ids = mitad.pedidos.map((p) => p.pedidoId).toSet();
+        final mitad = await consultas.sinColocar(sucursalStg, origen);
+        final ids = mitad.pedidos.map((p) => p.pedidoId).toSet();
 
-      expect(ids, contains('con-domicilio'));
-      expect(
-        ids,
-        isNot(contains('sin-marcar')),
-        reason:
-            'un pedido sin marcar salio como si fuera de domicilio: `null` no '
-            'es `true`',
-      );
-    });
+        expect(
+          ids,
+          contains('sin-marcar'),
+          reason:
+              'PBF26-2610131268 otra vez: sin marcar y cobrado no sale en el '
+              'tablero, y no hay otra forma de ponerlo en una ruta',
+        );
+        expect(
+          ids,
+          isNot(contains('marcado-sin-cotizar')),
+          reason: 'la cotizacion se dejo de exigir tambien a los marcados',
+        );
+      });
+    }
   });
 }

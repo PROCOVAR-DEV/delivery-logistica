@@ -145,8 +145,9 @@ type Querier interface {
 	// entren otros. `FOR UPDATE SKIP LOCKED` para que dos procesos del reparto —la api y el
 	// espejo— no manden el mismo dos veces.
 	AvisosAPedidoPendientes(ctx context.Context, tope int32) ([]AvisosAPedidoPendientesRow, error)
-	// Cuántas tarjetas puestas ya no se pueden repartir. Es el aviso de arriba del tablero:
-	// «3 de los que tienes puestos ya no salen». Se cuenta en la base porque la pantalla no
+	// Cuántas tarjetas puestas ya no se pueden repartir, y cuántas cambiaron en la factura (ésas
+	// SÍ salen desde el 15/10/2026, con lo facturado: es un aviso ámbar, no un bloqueo). Es el
+	// aviso de arriba del tablero: «3 de los que tienes puestos ya no salen». Se cuenta en la base porque la pantalla no
 	// tiene todas las tarjetas cargadas y un aviso que sólo aparece si has bajado hasta la
 	// columna de abajo no es un aviso.
 	//
@@ -317,13 +318,12 @@ type Querier interface {
 	//
 	// La condición de `factura_estado` NO está: un pedido colocado que deja de ser repartible
 	// se queda puesto y marcado (ver `ListarPedidosColocados`), así que volver a colocarlo
-	// tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador. Se llegó
-	// a añadir el 07/10/2026 y se quitó ese mismo día: `cambiado` no entra a una ruta, pero sí
-	// se puede preparar en una zona, y el corte a `igual` se hace al armar, con su motivo.
+	// tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador con su
+	// motivo (sin factura o sin cotejar). `cambiado` sí sube desde el 15/10/2026.
 	//
-	// SÍ están las dos que pidió Amado el 07/10/2026: `factura_domicilio > 0` y
-	// `pedido_costo IS NOT NULL`. El domicilio ya es un servicio que se cobra, y sin cobrarse y
-	// sin cotizarse no hay nada que preparar. Tienen que ser las mismas de
+	// SÍ están las dos que pidió Amado el 07/10/2026: `factura_domicilio > 0` y la cotización
+	// de Entrega, que desde el 15/10/2026 (issue 10) sólo se exige si el vendedor marcó domicilio
+	// (`pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE`). Tienen que ser las mismas de
 	// `ListarPedidosSinColocar`, que es la que ofrece las tarjetas: lo que esa lista ofrece,
 	// esta sentencia lo tiene que aceptar. Cero filas lo traduce `porQueNoSePudoColocar`.
 	//
@@ -648,16 +648,17 @@ type Querier interface {
 	// El alcance va aquí también: sin él, mandar el id de un pedido de otra sucursal en
 	// `orderIds` lo subiría a tu camión.
 	//
-	// LA SEGUNDA LLAVE DEL DOMICILIO Y LA COTIZACIÓN. `factura_domicilio > 0` y
-	// `pedido_costo IS NOT NULL` se comprueban también aquí (07/10/2026, Amado) porque la
-	// validación de `PedidosParaArmarRuta` se hizo hace unos milisegundos, y el espejo repasa
-	// `pedido_costo` cada minuto: un pedido que perdió su cotización entre medias no puede
-	// entrar con el importe a cero. Cero filas lo devuelve el manejador como 409.
+	// LA SEGUNDA LLAVE DEL DOMICILIO Y LA COTIZACIÓN. `factura_domicilio > 0` y la cotización
+	// se comprueban también aquí (07/10/2026, Amado) porque la validación de
+	// `PedidosParaArmarRuta` se hizo hace unos milisegundos, y el espejo repasa `pedido_costo`
+	// cada minuto: un pedido marcado a domicilio que perdió su cotización entre medias no puede
+	// entrar con el importe a cero. Uno que el vendedor NO marcó entra sin cotización (issue 10,
+	// 15/10/2026: Entrega sólo cotiza los marcados) y su parada vale cero. Cero filas lo devuelve
+	// el manejador como 409.
 	//
-	// `factura_estado` NO está aquí, y es a propósito: el corte a sólo `igual` lo hace el
-	// manejador (`mensajeNoFacturados`, `armarRutaDeColumna`) para poder nombrar cuál falla y
-	// por qué. Aquí `cambiado` pasaría igual que antes, y por eso la regla «en el camión sólo
-	// sube lo que cuadra» vive en esos dos manejadores y los vigilan sus pruebas.
+	// `factura_estado` NO está aquí, y es a propósito: el corte (sin factura, sin cotejar) lo
+	// hace el manejador (`mensajeNoFacturados`, `motivoDeCorteDelArmado`) para poder nombrar
+	// cuál falla y por qué, y lo vigilan sus pruebas.
 	//
 	// # REASIGNAR ES UN INTENTO NUEVO — 08/10/2026 (auditoría de la 1.0.28, I-2)
 	//
@@ -1091,15 +1092,17 @@ type Querier interface {
 	//     significa NO SE SABE: con un NULL colado se armó una ruta sin facturar el 2/09.
 	//   * `factura_domicilio > 0`  — EL DOMICILIO COBRADO (07/10/2026, Amado: el domicilio ya
 	//     es un servicio que se cobra, y dejar entrar cualquier pedido es una vulnerabilidad).
-	//   * `pedido_costo IS NOT NULL` — EL DOMICILIO COTIZADO en Entrega: sin importe fiable que
-	//     asignar a la parada no se ofrece.
+	//   * `pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE` — EL DOMICILIO COTIZADO
+	//     en Entrega, pero SÓLO si el vendedor marcó domicilio: Entrega sólo cotiza los marcados,
+	//     y exigírselo a uno no marcado lo dejaba fuera para siempre (issue 10 de Amado,
+	//     15/10/2026: PBF26-2610131268 no venía marcado y Ventra cobró 1.31 de domicilio).
 	//
-	// OJO, QUE ESTA LISTA OFRECE MÁS QUE LO QUE UNA RUTA ACEPTA: ofrece `cambiado` y el armador
-	// sólo deja subir lo que cuadra (`igual`). Se ofrece a propósito, para que el logístico lo
-	// vea y lo revise, y el armador lo rechaza nombrándolo. Lo que NO puede pasar es lo
-	// contrario: que se ofrezca algo que el armador rechaza por domicilio o por cotización.
-	// Estas MISMAS dos condiciones están en `ListarPedidosSinColocar`, en `ColocarPedido`, en
-	// `EngancharPedidoARuta` y en los recuentos del Panel, y las ata `consultas_motor_real_test.go`.
+	// ESTA LISTA OFRECE LO MISMO QUE UNA RUTA ACEPTA, `cambiado` incluido desde el 15/10/2026: sus
+	// renglones ya son los de la factura (PEDIDO los manda en cuanto hay cotejo), así que al camión
+	// sube lo facturado. La regla ENTERA está en `ListarPedidosSinColocar`, en los recuentos del
+	// Panel y en los manejadores del armado (`rechazoDelArmado`, `motivoDeCorteDelArmado`), y la
+	// parte del domicilio también en `ColocarPedido` y `EngancharPedidoARuta`. Las ata
+	// `consultas_motor_real_test.go` con los casos de `docs/armado-rechazado.casos.json`.
 	//
 	// `km_max` y `costo_min` NO están aquí a propósito: el contrato los aplica después de la
 	// consulta, y `total`/`truncated` se calculan ANTES que ellos. Bajarlos al SQL cambiaría
@@ -1157,7 +1160,8 @@ type Querier interface {
 	// Las condiciones de «repartible» son LAS MISMAS de `ListarPedidosDisponibles`, ni una más
 	// ni una menos: sin ruta, sin entregar, con coordenadas, facturado (`igual` o `cambiado`),
 	// no archivado, y desde el 07/10/2026 (Amado) con el domicilio COBRADO en la factura
-	// (`factura_domicilio > 0`) y COTIZADO en Entrega (`pedido_costo` no nulo). Si el tablero
+	// (`factura_domicilio > 0`) y COTIZADO en Entrega (`pedido_costo` no nulo) si el vendedor
+	// marcó domicilio (`requiere_domicilio`, issue 10 de Amado, 15/10/2026). Si el tablero
 	// ofreciera algo que `ColocarPedido` o el armador luego rechazan, el logístico prepararía
 	// una columna entera para que la ruta le diga que no al final del día. Y eso fue
 	// exactamente lo que pasó con las dos últimas: se añadieron a `ColocarPedido` y no aquí,
@@ -1450,8 +1454,9 @@ type Querier interface {
 	// Los siete números del panel en UNA consulta.
 	//
 	// REPARTIBLE es el mismo listón del armador de rutas —sin ruta, con coordenadas, con
-	// factura que se puede llevar y, desde el 07/10/2026, con el domicilio cobrado y cotizado
-	// (`factura_domicilio > 0` y `pedido_costo` no nulo, Amado)—: si el panel contara otra
+	// factura que se puede llevar (`igual` o `cambiado`) y, desde el 07/10/2026, con el domicilio
+	// cobrado (`factura_domicilio > 0`) y cotizado si el vendedor lo marcó (`pedido_costo` no
+	// nulo o `requiere_domicilio` no marcado, issue 10 de Amado, 15/10/2026)—: si el panel contara otra
 	// cosa, diría «40 por repartir» y el armador ofrecería 12, y la respuesta correcta sería
 	// «ninguno de los dos». `sin_ruta` y `peso_pendiente` llevan las mismas condiciones que
 	// `PanelPorSucursal` y que `ContarPedidosDisponibles`.
@@ -1468,14 +1473,14 @@ type Querier interface {
 	// entre que se pintó el tablero y se pulsó el botón, y de ahí sale el «N de los M ya están
 	// en otra ruta».
 	//
-	// `factura_estado` deja pasar `igual` y `cambiado` por lo mismo que en `routes.sql`: el
-	// corte a sólo `igual` lo hace el handler DESPUÉS, para poder nombrar cuál falla y por qué.
-	// Un WHERE que los descarte aquí deja el mismo rechazo sin nada que decir, y el logístico
-	// se queda mirando una columna de doce que produce una ruta de nueve sin explicación.
-	// `cambiado` NO entra a una ruta (en el camión sólo sube lo que cuadra con la factura).
-	// Lo de Amado del 07/10/2026 se suma: `factura_domicilio` y `pedido_costo` salen como DATO
-	// y `armarRutaDeColumna` los nombra en `descartados` si el domicilio no está cobrado o no
-	// está cotizado.
+	// `factura_estado` sale como DATO por lo mismo que en `routes.sql`: el corte (sin factura,
+	// sin cotejar) lo hace el handler DESPUÉS, para poder nombrar cuál falla y por qué. Un
+	// WHERE que los descarte aquí deja el mismo rechazo sin nada que decir, y el logístico se
+	// queda mirando una columna de doce que produce una ruta de nueve sin explicación.
+	// `cambiado` SÍ entra desde el 15/10/2026 (issue 10 de Amado): sus renglones ya son los de
+	// la factura. Lo de Amado del 07/10/2026 se suma: `factura_domicilio`, `pedido_costo` y
+	// `requiere_domicilio` salen como DATO y `motivoDeCorteDelArmado` los nombra en
+	// `descartados` si el domicilio no está cobrado, o si se marcó y no está cotizado.
 	//
 	// `posicion` sale para que el armador pueda RESPETAR el orden del logístico: él conoce las
 	// calles de su distrito y el vecino más próximo no. Quién de los dos manda lo decide el
@@ -1492,15 +1497,16 @@ type Querier interface {
 	// rutas a la vez eso pasa de verdad — y de ahí sale el 409 con «N de los M ya están en
 	// otra ruta». Comprobarlo en Go sobre una lectura anterior es mirar una foto vieja.
 	//
-	// `factura_estado` se deja pasar `igual` y `cambiado` porque es el mismo listón de la
-	// lista de disponibles. El corte a sólo `igual` lo hace el handler DESPUÉS, para poder
-	// nombrar en el error cuál falla y por qué («cambió en la factura» / «sin cotejar»).
-	// Un WHERE que los descarte aquí deja el mismo 409 sin nada que decir.
+	// `factura_estado` sale como DATO y no filtra aquí: el corte (`igual` o `cambiado`, nada
+	// más) lo hace el handler DESPUÉS, para poder nombrar en el error cuál falla y por qué
+	// («sin facturar» / «sin cotejar»). Un WHERE que los descarte aquí deja el mismo 409 sin
+	// nada que decir.
 	//
-	// `cambiado` NO entra a una ruta (Jose, reglas-negocio.md): en el camión sólo sube lo que
-	// cuadra con la factura. Lo que se añadió el 07/10/2026 (Amado) es aparte y se SUMA: el
+	// `cambiado` ENTRA desde el 15/10/2026 (issue 10 de Amado): sus renglones ya son los de la
+	// factura, así que al camión sube lo facturado. Lo del 07/10/2026 (Amado) se SUMA: el
 	// domicilio cobrado (`factura_domicilio > 0`) y cotizado en Entrega (`pedido_costo` no
-	// nulo). Esos dos salen también como DATO y los corta el handler, por la misma razón.
+	// nulo) si el vendedor marcó domicilio (`requiere_domicilio`). Salen también como DATO y
+	// los corta el handler (`rechazoDelArmado`), por la misma razón.
 	PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmarRutaParams) ([]PedidosParaArmarRutaRow, error)
 	// LO QUE SE FUE DE LA SUCURSAL, para `quitados`.
 	//

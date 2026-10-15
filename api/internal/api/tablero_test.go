@@ -98,7 +98,20 @@ type pedidoFalso struct {
 	// las dos condiciones que Amado añadió el 07/10/2026. Al revés a propósito: el valor cero
 	// es «cobrado y cotizado», que es lo que necesitan casi todas las pruebas.
 	sinCobrar, sinCotizar bool
+	// noMarcoDomicilio deja `requiere_domicilio` en false: el vendedor no marcó domicilio, y
+	// entonces la cotización no se exige (issue 10 de Amado, 15/10/2026). Al revés a propósito,
+	// como las dos de arriba: el valor cero es «marcado», el caso de casi todas las pruebas.
+	noMarcoDomicilio bool
 }
+
+// requiere: lo que el SQL devuelve en `requiere_domicilio`.
+func (p pedidoFalso) requiere() *bool {
+	v := !p.noMarcoDomicilio
+	return &v
+}
+
+// faltaCotizar repite `NOT (pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE)`.
+func (p pedidoFalso) faltaCotizar() bool { return p.sinCotizar && !p.noMarcoDomicilio }
 
 func tableroFloatPtr(v float64) *float64 { return &v }
 
@@ -541,9 +554,9 @@ func (q *tableroFalso) ColocarPedido(_ context.Context, arg sqlc.ColocarPedidoPa
 	if !ok || !ok2 || p.sucursal != c.BranchID || p.ruta != nil || p.entregado {
 		return sqlc.ColocarPedidoRow{}, pgx.ErrNoRows
 	}
-	// LAS DOS DE AMADO (`factura_domicilio > 0` y `pedido_costo IS NOT NULL`). `factura_estado`
-	// NO está en el `WHERE` de `ColocarPedido` y no puede estar aquí.
-	if p.sinCobrar || p.sinCotizar {
+	// LAS DOS DE AMADO (`factura_domicilio > 0` y la cotización, sólo si se marcó domicilio).
+	// `factura_estado` NO está en el `WHERE` de `ColocarPedido` y no puede estar aquí.
+	if p.sinCobrar || p.faltaCotizar() {
 		return sqlc.ColocarPedidoRow{}, pgx.ErrNoRows
 	}
 	if arg.Sucursal.Valid && c.BranchID != uuid.UUID(arg.Sucursal.Bytes) {
@@ -655,7 +668,7 @@ func (q *tableroFalso) ObtenerPedido(_ context.Context, arg sqlc.ObtenerPedidoPa
 	domicilio, costo := p.domicilioYCosto()
 	fila := sqlc.ObtenerPedidoRow{ID: p.id, CustomerName: p.nombre, Weight: p.peso,
 		FacturaEstado: p.factura, FacturaDomicilio: domicilio, PedidoCosto: costo,
-		DeliveredAt: p.entregadoEn(), Resultado: p.suResultado()}
+		RequiereDomicilio: p.requiere(), DeliveredAt: p.entregadoEn(), Resultado: p.suResultado()}
 	if p.ruta != nil {
 		fila.RouteID = pgtype.UUID{Bytes: [16]byte(*p.ruta), Valid: true}
 	}
@@ -721,7 +734,7 @@ func (q *tableroFalso) AvisosDelTablero(_ context.Context, arg sqlc.AvisosDelTab
 func (q *tableroFalso) ListarPedidosSinColocar(_ context.Context, arg sqlc.ListarPedidosSinColocarParams) ([]sqlc.ListarPedidosSinColocarRow, error) {
 	var salida []sqlc.ListarPedidosSinColocarRow
 	for _, p := range q.pedidos {
-		if p.sucursal != arg.BranchID || p.ruta != nil || p.entregado || p.sinCobrar || p.sinCotizar {
+		if p.sucursal != arg.BranchID || p.ruta != nil || p.entregado || p.sinCobrar || p.faltaCotizar() {
 			continue
 		}
 		if !deLaSucursal(p.sucursal, arg.Sucursal) {
@@ -807,7 +820,7 @@ func (q *tableroFalso) ContarPedidosSinColocar(_ context.Context, arg sqlc.Conta
 	for _, p := range q.pedidos {
 		// EL MISMO FILTRO QUE LA LISTA, entregados incluidos: si aquí se olvidara,
 		// el doble reproduciría el «Sin colocar (722) encima de una lista de 293».
-		if p.sucursal != arg.BranchID || p.ruta != nil || p.entregado || p.sinCobrar || p.sinCotizar {
+		if p.sucursal != arg.BranchID || p.ruta != nil || p.entregado || p.sinCobrar || p.faltaCotizar() {
 			continue
 		}
 		if !deLaSucursal(p.sucursal, arg.Sucursal) {
@@ -1427,7 +1440,7 @@ func (q *tableroFalso) PedidosDeColumnaParaArmarRuta(_ context.Context, arg sqlc
 		fila := sqlc.PedidosDeColumnaParaArmarRutaRow{
 			ID: p.id, CustomerName: p.nombre, Weight: p.peso,
 			EndLat: &lat, EndLng: &lng, FacturaEstado: p.factura, Posicion: c.posicion,
-			FacturaDomicilio: domicilio, PedidoCosto: costo,
+			FacturaDomicilio: domicilio, PedidoCosto: costo, RequiereDomicilio: p.requiere(),
 			// Como en el SQL: `delivered_at` y `resultado` salen como DATO y no
 			// filtran aquí. Quien corta y nombra la tarjeta es `armarRutaDeColumna`.
 			DeliveredAt: p.entregadoEn(), Resultado: p.suResultado(),

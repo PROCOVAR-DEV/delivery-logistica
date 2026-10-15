@@ -138,16 +138,36 @@ concreto. Ya hay tres así:
 - ~~**Los avisos del armador son aviso, no bloqueo.**~~ **REEMPLAZADO el 07/10/2026
   por Amado** (`docs/incidencias-reparto.md`, punto 6): el domicilio ya es un servicio
   que se cobra y dejar entrar cualquier pedido es una vulnerabilidad. Ahora el armador
-  BLOQUEA, y lo mismo la lista de disponibles y el tablero: sólo entra lo **facturado y
-  que cuadre** (`factura_estado = 'igual'`; `cambiado` NO entra —es la regla vieja de
-  Jose, «en el camión sólo sube lo que cuadra con la factura», y Amado no pidió
-  cambiarla—), con **domicilio cobrado** (`factura_domicilio > 0`) y **cotizado en
-  Entrega** (`pedido_costo` no nulo). Lo que se rechaza se nombra por su número de
-  operación. Con los datos reales del 07/10/2026, de 1.914 pedidos repartibles sólo 29
-  cumplían las tres cosas (64 con domicilio cobrado, 33 cotizados): la lista de
-  disponibles se queda corta hasta que Entrega cotice más, y es lo que Amado pidió. El argumento de antes (657 de 686 sin costo el 14/09) era cierto
-  mientras la APK de Entrega no estaba encendida; si vuelve a haber pedidos sin costo
-  en masa, la respuesta es cotizarlos en Entrega, no abrir la puerta. **El «conduce» de Amado
+  BLOQUEA, y lo mismo la lista de disponibles y el tablero. **La regla, desde el 15/10/2026
+  (issue 10 de Amado, punto 3):**
+  `entra ⇔ factura_estado IN ('igual','cambiado') AND factura_domicilio > 0 AND (pedido_costo
+  IS NOT NULL OR requiere_domicilio IS NOT TRUE)`. Es decir: **facturado** (`cambiado`
+  ENTRA: sus renglones ya son los de la factura —PEDIDO los manda en cuanto hay cotejo,
+  `ItemsOrigen`—, así que al camión sube lo facturado), con **domicilio cobrado** en la
+  factura y **cotizado en Entrega sólo si el vendedor marcó domicilio** (Entrega sólo cotiza
+  los marcados: exigírselo a uno no marcado lo dejaba fuera para siempre). Un marcado sin
+  cotizar sigue frenado con el literal de siempre. El caso que lo cambió: Santiago,
+  `PBF26-2610131268`, factura 47061, pedido «PARRANDA 0.33L ×20» sin marcar domicilio,
+  facturado «CERVEZA PARRANDA 500 ML BLISTER 6U ×20» con «ENTREGA A DOMICILIO» 1.31 →
+  `cambiado`, cobrado y sin cotizar: no se podía poner en ruta. Amado: «si la factura tiene
+  identificado un domicilio y no coincide con el pedido, debería ajustarse el pedido con los
+  datos reales, o al menos que sí se pueda incluir en las que se pueden poner en las rutas».
+  En los 20 días anteriores había 29 `cambiado` con domicilio cobrado (13 sin costo) y 269
+  `igual` con domicilio cobrado (113 sin costo). Con ello «Sin colocar» dejó de exigir
+  `requiere_domicilio IS TRUE` (25/09): lo que dice que un pedido va a domicilio es el cobro
+  de la factura. Hasta el 15/10 `cambiado` NO entraba (la regla vieja de Jose, «en el camión
+  sólo sube lo que cuadra con la factura») y la cotización se exigía a todos. Vive en
+  `rechazoDelArmado`/`motivoDeCorteDelArmado`/`faltaLaCotizacion` (api), en el SQL de las
+  listas, el Panel, `ColocarPedido` y `EngancharPedidoARuta`, y en el aparato en
+  `app/lib/nucleo/regla_de_entrada.dart`; la atan los casos `reglaDeEntrada` de
+  `docs/armado-rechazado.casos.json` (Go, Postgres y Dart). Lo que se rechaza se nombra por
+  su número de operación. **Lo que queda:** una parada sin marcar y sin cotizar entra con
+  `price` 0 y cuenta en `paradas_sin_cotizar` de la ruta (el cobro de la factura no se copia
+  a la parada). Con los datos reales del 07/10/2026, de 1.914 pedidos repartibles sólo 29
+  cumplían la regla de entonces (64 con domicilio cobrado, 33 cotizados). El argumento de
+  antes (657 de 686 sin costo el 14/09) era cierto mientras la APK de Entrega no estaba
+  encendida; si vuelve a haber pedidos MARCADOS sin costo en masa, la respuesta es cotizarlos
+  en Entrega, no abrir la puerta. **El «conduce» de Amado
   es el NÚMERO DE OPERACIÓN de la factura** (`orders.operation_number`; aclarado por
   Jose el 07/10/2026): no hay dato ni columna aparte, y por eso todo rechazo nombra al
   pedido por ese número. Un cobro a domicilio que sale como conduce se identifica con él.
@@ -369,10 +389,15 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   error y se revirtió en la 1.0.29): una sucursal con UN camión olvidado en `maintenance` se
   quedaría sin poder armar rutas. Se ofrece con un aviso ámbar «en el taller». Lo que NUNCA se
   ofrece es un camión INACTIVO (`is_active`, el que pidió Amado), y el servidor lo rechaza.
-- **El armado local y el del servidor son la MISMA regla**: sólo entra a una ruta una factura
-  `igual` con domicilio cobrado y cotizado; las demás se descartan y se NOMBRAN por su conduce
-  (el número de operación). Los literales de lo que se descarta están en
-  `docs/armado-rechazado.casos.json`, que leen las pruebas de los dos lados.
+- **El armado local y el del servidor son la MISMA regla** (la de §2, desde el 15/10/2026, issue
+  10 de Amado): entra a una ruta una factura `igual` o `cambiado` (al camión va lo facturado), con
+  domicilio cobrado y, si el vendedor marcó domicilio, cotizado en Entrega; las demás se descartan
+  y se NOMBRAN por su conduce (el número de operación). En el aparato vive en UN sitio,
+  `app/lib/nucleo/regla_de_entrada.dart`, y la usan el asistente, la zona, colocar, «Sin colocar»,
+  los disponibles, el Panel y la ficha del pedido (que sólo dice «No entra a una ruta» cuando de
+  verdad no entra, preguntando a `porQueNoSePuedeColocar`). Los casos (`reglaDeEntrada`, con el
+  real PBF26-2610131268) y los literales de lo que se descarta están en
+  `docs/armado-rechazado.casos.json`, que leen las pruebas de los dos lados y la del motor real.
 - **Reasignar un pedido devuelto o cancelado a otra ruta es un intento nuevo**: sin su
   `resultado`, nota ni hora de entrega, en el servidor (`EngancharPedidoARuta`) y en los dos
   armados locales. Un `entregado` no se puede reasignar nunca.
@@ -486,8 +511,9 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   o `cambiado`, «Dom. $0.46» (verde, `facturaDomicilio > 0`) o «Sin cobro de domicilio» (ámbar), con
   el tooltip que explica la consecuencia; el ámbar sólo sale si ese es lo que frena al pedido
   (`frenaElDomicilioSinCobrar`, que pregunta a `porQueNoSePuedeColocar` y no repite la regla; con
-  ruta, entregado o archivado va sólo el número o el verde). La regla NO cambió: la marca la hace
-  visible. La columna «Vehículo» se quitó entera (desde la 1.0.28 `orders.vehicle_id` no existe); el
+  ruta, entregado o archivado va sólo el número o el verde). La regla NO cambió aquel día: la marca
+  la hace visible (la regla cambió el 15/10/2026, §2; el `!` ámbar de `cambiado` ya no dice que no
+  puede ir a una ruta). La columna «Vehículo» se quitó entera (desde la 1.0.28 `orders.vehicle_id` no existe); el
   camión sigue en el detalle. Trampa: la columna Factura se esconde bajo 1024 px (desde el 14/10/2026 el
   número baja bajo el folio entre 768 y 1023 px y sube a la cabecera de la tarjeta del teléfono: issue 8 de
   Amado). **«Sin colocar» va del más viejo al más reciente por la fecha de la factura**

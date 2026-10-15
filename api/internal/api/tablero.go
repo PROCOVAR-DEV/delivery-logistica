@@ -1409,14 +1409,15 @@ func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	// LAS DOS DE AMADO (07/10/2026), en el orden en que se arreglan: primero se cobra el
-	// domicilio en la factura y después se cotiza en Entrega. Son las dos condiciones de
-	// `ColocarPedido` que dependen del dato del pedido, y la tercera sin factura no está: lo
-	// que `ColocarPedido` no exige no se puede explicar aquí.
+	// domicilio en la factura y después se cotiza en Entrega, esto último sólo si el vendedor
+	// marcó domicilio (issue 10, 15/10/2026). Son las dos condiciones de `ColocarPedido` que
+	// dependen del dato del pedido, y la de la factura no está: lo que `ColocarPedido` no
+	// exige no se puede explicar aquí.
 	if p.FacturaDomicilio == nil || *p.FacturaDomicilio <= 0 {
 		httpx.Error(w, r, http.StatusConflict, msgTableroSinDomicilioCobrado)
 		return
 	}
-	if p.PedidoCosto == nil {
+	if faltaLaCotizacion(p.PedidoCosto, p.RequiereDomicilio) {
 		httpx.Error(w, r, http.StatusConflict, msgTableroSinCotizar)
 		return
 	}
@@ -1654,8 +1655,8 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	// nombran con su motivo de verdad y la ruta se arma con el resto. Es la regla de la
 	// casa —«nada se descarta en silencio»—: la zona se arma con lo que SÍ puede ir y cada
 	// tarjeta que se cae sale en `descartados`, nombrada por su número de operación y con
-	// qué hacer. Lo que se cae lo decide la regla de entrada a una ruta (facturado y que
-	// cuadre, domicilio cobrado y cotizado): ahí NO hay aviso que deje pasar, bloquea.
+	// qué hacer. Lo que se cae lo decide la regla de entrada a una ruta (facturado, con el
+	// domicilio cobrado y, si se marcó, cotizado): ahí NO hay aviso que deje pasar, bloquea.
 	//
 	// La carrera de verdad sigue cubierta, y en el único sitio donde se puede cubrir: el
 	// `EngancharPedidoARuta` de la transacción devuelve cero filas si alguien se llevó el
@@ -1759,8 +1760,8 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 
 	// El corte por factura, domicilio y cotización se hace AQUÍ y no en el SQL, para poder
 	// nombrar cuál falla y por qué. Un WHERE que los descartara en la consulta deja el mismo
-	// rechazo sin nada que decir. `cambiado` NO sube (en el camión sólo va lo que cuadra con
-	// la factura) y las dos últimas son de Amado, 07/10/2026.
+	// rechazo sin nada que decir. `cambiado` SÍ sube (issue 10, 15/10/2026: al camión va lo
+	// facturado) y las dos últimas son de Amado, 07/10/2026.
 	var buenos []sqlc.PedidosDeColumnaParaArmarRutaRow
 	for _, p := range candidatos {
 		// Si el aparato dijo qué iba, lo que él no eligió NO sube: ya se nombró arriba.
@@ -2345,16 +2346,15 @@ func motivoDeCorteDelArmado(p sqlc.PedidosDeColumnaParaArmarRutaRow) (motivo, qu
 		// 2/09; por eso se nombra distinto de `sin_factura`.
 		motivo = "sin cotejar"
 		queHacer = "Nadie ha cotejado su factura todavía. Se cotea y vuelve a armar."
-	case *p.FacturaEstado == sqlc.FacturaEstadoSinFactura:
+	case !facturaQueEntra(p.FacturaEstado):
+		// `cambiado` NO cae aquí: entra desde el 15/10/2026 (issue 10 de Amado) y al camión
+		// sube lo facturado. Lo que queda es sin factura.
 		motivo = "sin factura"
 		queHacer = "No tiene factura. Se le hace en PEDIDO y vuelve a armar."
-	case *p.FacturaEstado == sqlc.FacturaEstadoCambiado:
-		motivo = "cambió en la factura"
-		queHacer = "La factura ya no es la que era: repásala antes de cargar."
 	case p.FacturaDomicilio == nil || *p.FacturaDomicilio <= 0:
 		motivo = "la factura no tiene domicilio cobrado"
 		queHacer = "Corrige o coteja la factura para registrar el cobro del domicilio antes de crear la ruta."
-	case p.PedidoCosto == nil:
+	case faltaLaCotizacion(p.PedidoCosto, p.RequiereDomicilio):
 		motivo = "domicilio sin cotizar"
 		queHacer = "Cotiza el domicilio del pedido antes de crear la ruta."
 	}

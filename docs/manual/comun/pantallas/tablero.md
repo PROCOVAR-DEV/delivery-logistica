@@ -15,8 +15,8 @@ tablero de «todas».
 ## Las dos mitades
 
 - **Izquierda: «Sin colocar (308)»** — los pedidos que todavía no están en ninguna
-  zona. El número cuenta **pedidos**. Sólo salen los que **llevan domicilio, con el
-  domicilio cobrado en la factura y ya cotizado en Entrega** (ver
+  zona. El número cuenta **pedidos**. Sólo salen los que tienen **el domicilio cobrado
+  en la factura** y, si el vendedor lo marcó, **ya cotizado en Entrega** (ver
   [Qué se puede colocar](#qué-se-puede-colocar-en-una-zona)).
 - **Derecha: las zonas** — «Centro», «Vista Alegre», «Carretera»… Las pones tú,
   con los nombres que se usen en tu sucursal.
@@ -38,7 +38,8 @@ después una página por zona, y al final «Nueva columna».
   - «3 archivados en PEDIDO» (rojo)
   - «2 ya en otra ruta» (rojo)
   - «5 sin factura o sin cotejar» (rojo)
-  - «1 cambiaron en la factura» (ámbar)
+  - «1 cambiaron en la factura» (ámbar: es un aviso, esos pedidos sí salen con lo
+    facturado)
 - **El botón de refrescar**, con el rótulo **«Traer lo del servidor»**.
 
 ### El tablero se niega a refrescar si tienes algo sin subir
@@ -98,9 +99,10 @@ De arriba abajo:
    `12 kg · 0,04 USD · Songo-La Maya · 3,7 km`
    Si el pedido no tiene costo, en su sitio no sale nada.
 6. **Las marcas**, si las tiene: «Archivado en PEDIDO», «Ya va en otra ruta»,
-   «Sin cotejar», «Sin factura» y «Cambió en la factura» (las cinco en rojo). Ver
-   [Las reglas del reparto](../las-reglas-del-reparto.md). **Ninguna de las cinco
-   entra en la ruta**: en el camión sólo sube lo que cuadra con la factura.
+   «Sin cotejar» y «Sin factura» (las cuatro en rojo), y «Cambió en la factura» (en
+   ámbar). Ver [Las reglas del reparto](../las-reglas-del-reparto.md). **Las cuatro
+   rojas no entran en la ruta**. La ámbar sí: sólo avisa de que al camión va lo
+   facturado y no lo que se pidió.
 7. **Si el cliente repite hoy**: «2 pedidos de este cliente hoy». **Las tarjetas
    no se juntan**: sólo se avisa, para que los metas en la misma zona a propósito.
 
@@ -176,13 +178,16 @@ Si todavía no hay zonas:
 
 ## Qué se puede colocar en una zona
 
-A una zona sólo se coloca una factura **con el domicilio cobrado y cotizado**. Son las
-mismas condiciones de la lista de disponibles de Rutas, y se piden por una razón: el
-domicilio es un servicio que se cobra, y una zona entera no se debe preparar con
-facturas que luego la ruta no va a aceptar.
+A una zona sólo se coloca una factura **con el domicilio cobrado** (y **cotizado**, si
+el vendedor marcó domicilio). Son las mismas condiciones de la lista de disponibles de
+Rutas, y se piden por una razón: el domicilio es un servicio que se cobra, y una zona
+entera no se debe preparar con facturas que luego la ruta no va a aceptar.
 
 1. **Domicilio cobrado**: la factura trae un importe de domicilio **mayor que cero**.
-2. **Domicilio cotizado**: Entrega ya le puso el costo.
+   Es lo que dice que el pedido va a domicilio, aunque el vendedor no marcara la
+   casilla.
+2. **Domicilio cotizado, si el vendedor lo marcó**: Entrega ya le puso el costo. Si no
+   lo marcó, no se pide: Entrega sólo cotiza los marcados.
 3. **Que no se haya entregado ya ni vaya en otra ruta.**
 
 Lo que no cumple **no sale en «Sin colocar»**. Y si se intenta colocar igualmente
@@ -192,7 +197,7 @@ claro** y la tarjeta se queda donde estaba:
 | Mensaje | Qué pasa |
 |---|---|
 | «No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.» | La factura no cobró domicilio |
-| «No se puede asociar al tablero: primero cotiza el domicilio del pedido.» | Entrega todavía no le puso costo |
+| «No se puede asociar al tablero: primero cotiza el domicilio del pedido.» | El vendedor marcó domicilio y Entrega todavía no le puso costo |
 | «Ese pedido ya se entregó» | Ya se repartió |
 | «Ese pedido ya está en una ruta» | Se lo llevó otra ruta |
 
@@ -200,15 +205,13 @@ claro** y la tarjeta se queda donde estaba:
 el momento, antes de colocar, para que el «no» no te llegue horas después a la
 bandeja de rechazados con la zona ya preparada.
 
-**La factura que «Cambió» sí se puede colocar, pero no sube.** Sale en «Sin colocar» con
-su marca roja, y si la pones en una zona, **al armar la ruta se descarta** con el
-motivo «Cambió en la factura» y se queda en la zona, marcada. En el camión sólo sube lo
-que cuadra con la factura.
+**La factura que «Cambió» se coloca y sube.** Sale en «Sin colocar» con su marca
+ámbar, y al armar la ruta **entra** como cualquier otra: al camión va lo facturado, no
+lo que se pidió. La marca se queda para que se vea.
 
 Si te falta un pedido que esperabas, probablemente es éste el motivo: **no se ha
-cobrado o no se ha cotizado el domicilio**. Se arregla cobrando o cotizando en
-Entrega, no aquí. (Con los datos del 07/10/2026, de 1.914 pedidos repartibles sólo 29
-cumplían las tres condiciones.)
+cobrado el domicilio en la factura, o el vendedor lo marcó y Entrega no lo ha
+cotizado**. Se arregla cobrando o cotizando en Entrega, no aquí.
 
 ---
 
@@ -286,9 +289,10 @@ trabaja dice **«Armando…»**; si falló, el botón pasa a **«Volver a intent
 la ruta nueva ya elegida.
 
 **Lo que entra en la ruta:** sólo los pedidos de esa zona que se pueden repartir, con
-**la misma regla que usa el servidor**, **con señal y sin ella**: facturados y que
-cuadran (no «Cambió en la factura»), con el **domicilio cobrado** en la factura y
-**cotizado** en Entrega. Los demás se **descartan**: **se quedan puestos en la zona y
+**la misma regla que usa el servidor**, **con señal y sin ella**: facturados (también
+los que «Cambió en la factura», que suben con lo facturado), con el **domicilio
+cobrado** en la factura y, si el vendedor lo marcó, **cotizado** en Entrega. Los demás
+se **descartan**: **se quedan puestos en la zona y
 marcados**, y la aplicación los nombra por su conduce (ver
 [Si la ruta sale con menos pedidos](#si-la-ruta-sale-con-menos-pedidos)). No
 desaparece el trabajo de nadie.
@@ -334,15 +338,16 @@ número de operación de la factura):
 
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
-PTB25-261005-1502 · ANA MARTÍNEZ: Cambió en la factura
+PTB25-261005-1502 · ANA MARTÍNEZ: Sin factura
 PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
 PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
 ```
 
 Los motivos posibles, por este orden de prioridad: «Archivado en PEDIDO», «Ya va en otra
-ruta», «Sin cotejar», «Sin factura», «Cambió en la factura» (las cinco son las marcas de
-la tarjeta), «ya se entregó», «la factura no tiene domicilio cobrado» y «domicilio sin
-cotizar». Son los mismos con señal y sin ella.
+ruta», «Sin cotejar», «Sin factura» (las cuatro son las marcas rojas de la tarjeta), «ya
+se entregó», «la factura no tiene domicilio cobrado» y «domicilio sin cotizar» (sólo si
+el vendedor marcó domicilio). Son los mismos con señal y sin ella. «Cambió en la
+factura» ya no descarta: ese pedido entra.
 
 ### Si la ruta sale con menos pedidos
 

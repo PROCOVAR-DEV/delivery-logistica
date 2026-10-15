@@ -351,7 +351,7 @@ WHERE
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
     AND o.factura_domicilio > 0
-    AND o.pedido_costo IS NOT NULL
+    AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
     -- ARCHIVADO EN PEDIDO = NO SE REPARTE. Ver el porqué en ListarPedidosDisponibles.
     -- Aquí importa el doble: este recuento es el ` + "`" + `total` + "`" + ` que la pantalla enseña encima de
     -- la lista, así que sin esto diría «2.771 disponibles» sobre una lista de 1.423.
@@ -1476,7 +1476,7 @@ WHERE
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
     AND o.factura_domicilio > 0
-    AND o.pedido_costo IS NOT NULL
+    AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
     -- ARCHIVADO EN PEDIDO = NO SE REPARTE.
     --
     -- Faltaba, y con los datos reales del 15/09/2026 eso metia 1.348 pedidos archivados
@@ -1675,15 +1675,17 @@ type ListarPedidosDisponiblesRow struct {
 //     significa NO SE SABE: con un NULL colado se armó una ruta sin facturar el 2/09.
 //   - `factura_domicilio > 0`  — EL DOMICILIO COBRADO (07/10/2026, Amado: el domicilio ya
 //     es un servicio que se cobra, y dejar entrar cualquier pedido es una vulnerabilidad).
-//   - `pedido_costo IS NOT NULL` — EL DOMICILIO COTIZADO en Entrega: sin importe fiable que
-//     asignar a la parada no se ofrece.
+//   - `pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE` — EL DOMICILIO COTIZADO
+//     en Entrega, pero SÓLO si el vendedor marcó domicilio: Entrega sólo cotiza los marcados,
+//     y exigírselo a uno no marcado lo dejaba fuera para siempre (issue 10 de Amado,
+//     15/10/2026: PBF26-2610131268 no venía marcado y Ventra cobró 1.31 de domicilio).
 //
-// OJO, QUE ESTA LISTA OFRECE MÁS QUE LO QUE UNA RUTA ACEPTA: ofrece `cambiado` y el armador
-// sólo deja subir lo que cuadra (`igual`). Se ofrece a propósito, para que el logístico lo
-// vea y lo revise, y el armador lo rechaza nombrándolo. Lo que NO puede pasar es lo
-// contrario: que se ofrezca algo que el armador rechaza por domicilio o por cotización.
-// Estas MISMAS dos condiciones están en `ListarPedidosSinColocar`, en `ColocarPedido`, en
-// `EngancharPedidoARuta` y en los recuentos del Panel, y las ata `consultas_motor_real_test.go`.
+// ESTA LISTA OFRECE LO MISMO QUE UNA RUTA ACEPTA, `cambiado` incluido desde el 15/10/2026: sus
+// renglones ya son los de la factura (PEDIDO los manda en cuanto hay cotejo), así que al camión
+// sube lo facturado. La regla ENTERA está en `ListarPedidosSinColocar`, en los recuentos del
+// Panel y en los manejadores del armado (`rechazoDelArmado`, `motivoDeCorteDelArmado`), y la
+// parte del domicilio también en `ColocarPedido` y `EngancharPedidoARuta`. Las ata
+// `consultas_motor_real_test.go` con los casos de `docs/armado-rechazado.casos.json`.
 //
 // `km_max` y `costo_min` NO están aquí a propósito: el contrato los aplica después de la
 // consulta, y `total`/`truncated` se calculan ANTES que ellos. Bajarlos al SQL cambiaría
@@ -2216,7 +2218,7 @@ WHERE o.route_id IS NULL
   AND o.end_lat IS NOT NULL
   AND o.factura_estado IN ('igual','cambiado')
   AND o.factura_domicilio > 0
-  AND o.pedido_costo IS NOT NULL
+  AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
   AND ($1::uuid IS NULL OR o.branch_id = $1::uuid)
 GROUP BY o.branch_id, b.name
 ORDER BY pedidos DESC
@@ -2264,13 +2266,13 @@ SELECT
                        AND o.end_lat IS NOT NULL
                        AND o.factura_estado IN ('igual','cambiado')
                        AND o.factura_domicilio > 0
-                       AND o.pedido_costo IS NOT NULL)               AS sin_ruta,
+                       AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)) AS sin_ruta,
     count(*) FILTER (WHERE o.delivered_at >= $1::timestamptz) AS entregados_hoy,
     coalesce(sum(o.weight) FILTER (WHERE o.route_id IS NULL
                        AND o.end_lat IS NOT NULL
                        AND o.factura_estado IN ('igual','cambiado')
                        AND o.factura_domicilio > 0
-                       AND o.pedido_costo IS NOT NULL), 0)::double precision AS peso_pendiente,
+                       AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)), 0)::double precision AS peso_pendiente,
     coalesce(sum(o.pedido_costo), 0)::double precision              AS total_domicilios
 FROM orders o
 WHERE ($2::uuid IS NULL OR o.branch_id = $2::uuid)
@@ -2295,8 +2297,9 @@ type PanelResumenRow struct {
 // Los siete números del panel en UNA consulta.
 //
 // REPARTIBLE es el mismo listón del armador de rutas —sin ruta, con coordenadas, con
-// factura que se puede llevar y, desde el 07/10/2026, con el domicilio cobrado y cotizado
-// (`factura_domicilio > 0` y `pedido_costo` no nulo, Amado)—: si el panel contara otra
+// factura que se puede llevar (`igual` o `cambiado`) y, desde el 07/10/2026, con el domicilio
+// cobrado (`factura_domicilio > 0`) y cotizado si el vendedor lo marcó (`pedido_costo` no
+// nulo o `requiere_domicilio` no marcado, issue 10 de Amado, 15/10/2026)—: si el panel contara otra
 // cosa, diría «40 por repartir» y el armador ofrecería 12, y la respuesta correcta sería
 // «ninguno de los dos». `sin_ruta` y `peso_pendiente` llevan las mismas condiciones que
 // `PanelPorSucursal` y que `ContarPedidosDisponibles`.

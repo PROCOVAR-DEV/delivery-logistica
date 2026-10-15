@@ -137,7 +137,8 @@ PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el dom
 
 Cada pedido sale por su **conduce** (el número de operación de la factura). Los motivos
 son los mismos que daría el servidor: ya entregado, ya en una ruta, **sin domicilio
-cobrado en la factura** o **sin cotizar en Entrega**, además de «Archivado en PEDIDO»,
+cobrado en la factura** o **marcado a domicilio y sin cotizar en Entrega**, además de
+«Archivado en PEDIDO»,
 «Sin cotejar», «Sin factura», «Sin coordenadas de entrega» o «Es de otra sucursal».
 
 **Los que sí fueron pierden la marca; los que no, se quedan marcados** para que
@@ -249,9 +250,11 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
    <!-- señala: rutas-asistente-buscar -->
    - En el teléfono los filtros van **uno por línea**: sucursal, día, buscador,
      vendedor, municipio, «km máx.», «costo mín.», estado, domicilio y cotización.
-   - **Sólo salen los pedidos facturados que cuadran, con el domicilio cobrado y
-     cotizado en Entrega.** Si te falta alguno, es casi seguro por eso: se arregla
-     cobrando o cotizando en Entrega, no aquí.
+   - **Sólo salen los pedidos facturados (cuadren o no), con el domicilio cobrado y,
+     si el vendedor lo marcó, cotizado en Entrega.** Si te falta alguno, es casi
+     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. O por el
+     filtro de domicilio: arranca en «Sólo con domicilio», que esconde los que el
+     vendedor no marcó; pon «Con y sin domicilio» para verlos.
    - **Mira la barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»**
      y **«Camión lleno — no cabe más»**.
    - **Las filas de los pedidos que ya no caben se apagan**, con el motivo: «No cabe
@@ -277,9 +280,9 @@ más comunes:
 | Aviso | Qué hacer |
 |---|---|
 | **«Se requiere un vehículo para crear la ruta»** | Vuelve al paso «Vehículo» |
-| **«En una ruta sólo entra lo facturado y que cuadre. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Desmarca esos tres |
+| **«En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Desmarca esos tres |
 | **«En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen: PTB25-261005-1480…»** | La factura no cobró domicilio. Desmarca ésos |
-| **«No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1480…»** | Entrega no ha cotizado el domicilio. Desmarca ésos |
+| **«No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1480…»** | Se marcó domicilio y Entrega no lo ha cotizado. Desmarca ésos |
 | **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión está dado de baja. Elige otro |
 | **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Desmarca ésos |
 | **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Quita pedidos o cambia de camión |

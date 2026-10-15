@@ -596,7 +596,7 @@ WHERE id = $5
   AND resultado IS DISTINCT FROM 'entregado'::stop_result
   AND delivered_at IS NULL
   AND factura_domicilio > 0
-  AND pedido_costo IS NOT NULL
+  AND (pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE)
   AND ($6::uuid IS NULL OR branch_id = $6::uuid)
 `
 
@@ -622,16 +622,17 @@ type EngancharPedidoARutaParams struct {
 // El alcance va aquí también: sin él, mandar el id de un pedido de otra sucursal en
 // `orderIds` lo subiría a tu camión.
 //
-// LA SEGUNDA LLAVE DEL DOMICILIO Y LA COTIZACIÓN. `factura_domicilio > 0` y
-// `pedido_costo IS NOT NULL` se comprueban también aquí (07/10/2026, Amado) porque la
-// validación de `PedidosParaArmarRuta` se hizo hace unos milisegundos, y el espejo repasa
-// `pedido_costo` cada minuto: un pedido que perdió su cotización entre medias no puede
-// entrar con el importe a cero. Cero filas lo devuelve el manejador como 409.
+// LA SEGUNDA LLAVE DEL DOMICILIO Y LA COTIZACIÓN. `factura_domicilio > 0` y la cotización
+// se comprueban también aquí (07/10/2026, Amado) porque la validación de
+// `PedidosParaArmarRuta` se hizo hace unos milisegundos, y el espejo repasa `pedido_costo`
+// cada minuto: un pedido marcado a domicilio que perdió su cotización entre medias no puede
+// entrar con el importe a cero. Uno que el vendedor NO marcó entra sin cotización (issue 10,
+// 15/10/2026: Entrega sólo cotiza los marcados) y su parada vale cero. Cero filas lo devuelve
+// el manejador como 409.
 //
-// `factura_estado` NO está aquí, y es a propósito: el corte a sólo `igual` lo hace el
-// manejador (`mensajeNoFacturados`, `armarRutaDeColumna`) para poder nombrar cuál falla y
-// por qué. Aquí `cambiado` pasaría igual que antes, y por eso la regla «en el camión sólo
-// sube lo que cuadra» vive en esos dos manejadores y los vigilan sus pruebas.
+// `factura_estado` NO está aquí, y es a propósito: el corte (sin factura, sin cotejar) lo
+// hace el manejador (`mensajeNoFacturados`, `motivoDeCorteDelArmado`) para poder nombrar
+// cuál falla y por qué, y lo vigilan sus pruebas.
 //
 // # REASIGNAR ES UN INTENTO NUEVO — 08/10/2026 (auditoría de la 1.0.28, I-2)
 //
@@ -1655,8 +1656,9 @@ SELECT
     -- que cero el pedido no entra en una ruta (Amado: el domicilio ya es un servicio que
     -- se cobra). Sale como DATO y no como filtro, igual que ` + "`" + `factura_estado` + "`" + `: lo nombra
     -- ` + "`" + `mensajeDomicilioSinCobrar` + "`" + ` en el manejador. ` + "`" + `requiere_domicilio` + "`" + `, la casilla que se
-    -- marca al tomar el pedido, ya no se lee aquí: no manda nada sobre lo que se cobró.
-    o.factura_domicilio
+    -- marca al tomar el pedido, no manda nada sobre lo que se cobró, pero SÍ decide si hace
+    -- falta la cotización de Entrega (issue 10, 15/10/2026): la lee ` + "`" + `mensajeSinCalcular` + "`" + `.
+    o.factura_domicilio, o.requiere_domicilio
 FROM orders o
 WHERE o.id = ANY($1::uuid[])
   AND o.source = 'pedido'
@@ -1683,20 +1685,21 @@ type PedidosParaArmarRutaParams struct {
 }
 
 type PedidosParaArmarRutaRow struct {
-	ID               uuid.UUID          `json:"id"`
-	OperationNumber  *string            `json:"operation_number"`
-	CustomerName     string             `json:"customer_name"`
-	EndLat           *float64           `json:"end_lat"`
-	EndLng           *float64           `json:"end_lng"`
-	Weight           float64            `json:"weight"`
-	PedidoCosto      *float64           `json:"pedido_costo"`
-	FacturaEstado    *FacturaEstado     `json:"factura_estado"`
-	BranchID         pgtype.UUID        `json:"branch_id"`
-	ExternalID       *string            `json:"external_id"`
-	Source           *Procedencia       `json:"source"`
-	DeliveredAt      pgtype.Timestamptz `json:"delivered_at"`
-	Resultado        *StopResult        `json:"resultado"`
-	FacturaDomicilio *float64           `json:"factura_domicilio"`
+	ID                uuid.UUID          `json:"id"`
+	OperationNumber   *string            `json:"operation_number"`
+	CustomerName      string             `json:"customer_name"`
+	EndLat            *float64           `json:"end_lat"`
+	EndLng            *float64           `json:"end_lng"`
+	Weight            float64            `json:"weight"`
+	PedidoCosto       *float64           `json:"pedido_costo"`
+	FacturaEstado     *FacturaEstado     `json:"factura_estado"`
+	BranchID          pgtype.UUID        `json:"branch_id"`
+	ExternalID        *string            `json:"external_id"`
+	Source            *Procedencia       `json:"source"`
+	DeliveredAt       pgtype.Timestamptz `json:"delivered_at"`
+	Resultado         *StopResult        `json:"resultado"`
+	FacturaDomicilio  *float64           `json:"factura_domicilio"`
+	RequiereDomicilio *bool              `json:"requiere_domicilio"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1710,15 +1713,16 @@ type PedidosParaArmarRutaRow struct {
 // rutas a la vez eso pasa de verdad — y de ahí sale el 409 con «N de los M ya están en
 // otra ruta». Comprobarlo en Go sobre una lectura anterior es mirar una foto vieja.
 //
-// `factura_estado` se deja pasar `igual` y `cambiado` porque es el mismo listón de la
-// lista de disponibles. El corte a sólo `igual` lo hace el handler DESPUÉS, para poder
-// nombrar en el error cuál falla y por qué («cambió en la factura» / «sin cotejar»).
-// Un WHERE que los descarte aquí deja el mismo 409 sin nada que decir.
+// `factura_estado` sale como DATO y no filtra aquí: el corte (`igual` o `cambiado`, nada
+// más) lo hace el handler DESPUÉS, para poder nombrar en el error cuál falla y por qué
+// («sin facturar» / «sin cotejar»). Un WHERE que los descarte aquí deja el mismo 409 sin
+// nada que decir.
 //
-// `cambiado` NO entra a una ruta (Jose, reglas-negocio.md): en el camión sólo sube lo que
-// cuadra con la factura. Lo que se añadió el 07/10/2026 (Amado) es aparte y se SUMA: el
+// `cambiado` ENTRA desde el 15/10/2026 (issue 10 de Amado): sus renglones ya son los de la
+// factura, así que al camión sube lo facturado. Lo del 07/10/2026 (Amado) se SUMA: el
 // domicilio cobrado (`factura_domicilio > 0`) y cotizado en Entrega (`pedido_costo` no
-// nulo). Esos dos salen también como DATO y los corta el handler, por la misma razón.
+// nulo) si el vendedor marcó domicilio (`requiere_domicilio`). Salen también como DATO y
+// los corta el handler (`rechazoDelArmado`), por la misma razón.
 func (q *Queries) PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmarRutaParams) ([]PedidosParaArmarRutaRow, error) {
 	rows, err := q.db.Query(ctx, pedidosParaArmarRuta, arg.PedidoIds, arg.Sucursal)
 	if err != nil {
@@ -1743,6 +1747,7 @@ func (q *Queries) PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmar
 			&i.DeliveredAt,
 			&i.Resultado,
 			&i.FacturaDomicilio,
+			&i.RequiereDomicilio,
 		); err != nil {
 			return nil, err
 		}

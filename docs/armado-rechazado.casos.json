@@ -2,7 +2,10 @@
   "queEsEsto": "La cabecera del «no» que sale al armar una ruta cuando alguno de los pedidos elegidos no puede ir. Se redacta DOS VECES: en el servidor (`api/internal/api/rutas.go`, `encabezadoDelArmado`) y en el aparato (`app/lib/pantallas/rutas/datos/acciones_rutas.dart`, `encabezadoDelArmado`), porque la ruta se arma en el patio del almacen sin señal y ahi el rechazo lo escribe el telefono. Tienen que decir EXACTAMENTE lo mismo o el mismo «no» se lee de dos maneras segun haya cobertura, y eso no lo enseña ninguna pantalla. Este fichero es lo que las ata (CLAUDE.md §3-bis: se atan con una prueba, no con un comentario).",
   "quienLoLee": [
     "api/internal/api/armado_rechazado_casos_compartidos_test.go",
-    "app/test/pantallas/rutas/encabezado_del_armado_test.dart"
+    "api/internal/store/sqlc/consultas_motor_real_test.go",
+    "app/test/pantallas/rutas/encabezado_del_armado_test.dart",
+    "app/test/pantallas/tablero/el_armado_local_descarta_como_el_servidor_test.dart",
+    "app/test/pantallas/rutas/la_regla_de_entrada_es_la_del_servidor_test.dart"
   ],
   "deDondeSale": "El 28/09/2026 la cabecera decia «1 de los 1 pedidos elegidos no pueden ir en esta ruta»: tres faltas en siete palabras y en el caso mas comun de todos, elegir un pedido y que no entre. Estaba mal en los dos lados a la vez, y a proposito: arreglarlo en uno solo habria roto la paridad, que es peor. Se arreglo en los dos el 29/09/2026 y este fichero nacio con el arreglo.",
   "laRegla": "Son DOS concordancias distintas porque los dos numeros cuentan cosas distintas. El VERBO va con `seCaen`, que es el sujeto de la frase: «1 ... no PUEDE ir», «3 ... no PUEDEN ir». El SUSTANTIVO va con `seEligieron`, los que la persona marco en la pantalla. Y cuando `seEligieron` es 1 los dos numeros son forzosamente el mismo, asi que decirlos no informa de nada y la frase va sin ellos.",
@@ -129,6 +132,127 @@
         "nombre": "zona-sin-cotizar",
         "motivo": "domicilio sin cotizar",
         "queHacer": "Cotiza el domicilio del pedido antes de crear la ruta."
+      }
+    ]
+  },
+  "reglaDeEntrada": {
+    "queEsEsto": "LA REGLA DE ENTRADA A UNA RUTA, la misma en el servidor y en el aparato (issue 10 de Amado, 15/10/2026): entra si y sólo si la factura es `igual` o `cambiado`, `facturaDomicilio > 0` y (`pedidoCosto` no nulo o `requiereDomicilio` distinto de true). `cambiado` entra porque sus renglones ya son los de la factura (PEDIDO los manda en cuanto hay cotejo): al camión sube lo facturado. La cotización de Entrega sólo se exige si el vendedor marcó domicilio, porque Entrega sólo cotiza los marcados y exigírsela a uno no marcado lo dejaba fuera para siempre. Cada caso dice si entra y, si no, el «no» del asistente con ese pedido solo (`mensaje`: el 409 de POST /api/routes y el RechazoLocal del aparato, letra por letra). Lo comprueban: los manejadores (`rechazoDelArmado`, `motivoDeCorteDelArmado`), el SQL contra Postgres (las listas, el contador, el Panel, `ColocarPedido` y `EngancharPedidoARuta`) y el aparato (asistente, zona, colocar, Sin colocar, disponibles y Panel).",
+    "casos": [
+      {
+        "nombre": "caso-real-PBF26-2610131268",
+        "nota": "EL CASO DE PRODUCCIÓN, Santiago, factura 47061: se pidió PARRANDA 0.33L x20 sin marcar domicilio, Ventra facturó CERVEZA PARRANDA 500 ML BLISTER 6U x20 y cobró ENTREGA A DOMICILIO 1.31, y Entrega no lo cotizó. Hasta el 15/10/2026 no se podía poner en ruta. Entra.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "cambiado",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": null,
+        "requiereDomicilio": false,
+        "entra": true
+      },
+      {
+        "nombre": "igual-marcado-sin-cotizar",
+        "nota": "La pareja del caso real: marcado a domicilio y sin cotizar se queda fuera con el literal de siempre.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": null,
+        "requiereDomicilio": true,
+        "entra": false,
+        "mensaje": "No se puede crear la ruta: 1 pedidos no tienen cotizado el domicilio en Entrega: PBF26-2610131268."
+      },
+      {
+        "nombre": "cambiado-marcado-sin-cotizar",
+        "nota": "Lo mismo con la factura cambiada: lo que entra es `cambiado`, no la falta de cotización.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "cambiado",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": null,
+        "requiereDomicilio": true,
+        "entra": false,
+        "mensaje": "No se puede crear la ruta: 1 pedidos no tienen cotizado el domicilio en Entrega: PBF26-2610131268."
+      },
+      {
+        "nombre": "cambiado-sin-domicilio-cobrado",
+        "nota": "Sin la línea ENTREGA A DOMICILIO en la factura no entra, tampoco si la factura cambió y aunque no esté marcado.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "cambiado",
+        "facturaDomicilio": null,
+        "pedidoCosto": null,
+        "requiereDomicilio": false,
+        "entra": false,
+        "mensaje": "En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: PBF26-2610131268."
+      },
+      {
+        "nombre": "cambiado-domicilio-en-cero",
+        "nota": "Un cero no demuestra que se cobró.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "cambiado",
+        "facturaDomicilio": 0,
+        "pedidoCosto": 5,
+        "requiereDomicilio": true,
+        "entra": false,
+        "mensaje": "En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: PBF26-2610131268."
+      },
+      {
+        "nombre": "sin-factura",
+        "nota": "Sin factura no hay nada que llevar, aunque el domicilio esté cobrado y cotizado.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "sin_factura",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": 5,
+        "requiereDomicilio": true,
+        "entra": false,
+        "mensaje": "En una ruta sólo entra lo facturado. 1 no cumplen: PBF26-2610131268 (sin facturar)."
+      },
+      {
+        "nombre": "sin-cotejar",
+        "nota": "Factura NULL no es «cuadra»: es que nadie la ha mirado.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": null,
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": 5,
+        "requiereDomicilio": true,
+        "entra": false,
+        "mensaje": "En una ruta sólo entra lo facturado. 1 no cumplen: PBF26-2610131268 (sin cotejar)."
+      },
+      {
+        "nombre": "igual-marcado-cotizado",
+        "nota": "Lo de siempre: entra.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": 5,
+        "requiereDomicilio": true,
+        "entra": true
+      },
+      {
+        "nombre": "cambiado-marcado-cotizado",
+        "nota": "Cambiado con todo lo demás en regla: entra (antes del 15/10/2026 no).",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "cambiado",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": 5,
+        "requiereDomicilio": true,
+        "entra": true
+      },
+      {
+        "nombre": "igual-sin-marca-sin-cotizar",
+        "nota": "`requiereDomicilio` nulo es «nadie lo marcó», no «marcado»: la cotización no se exige y entra.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": null,
+        "requiereDomicilio": null,
+        "entra": true
+      },
+      {
+        "nombre": "igual-marcado-cotizado-en-cero",
+        "nota": "Un costo de cero SÍ es una cotización: cero es un precio puesto, nulo es que falta.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": 0,
+        "requiereDomicilio": true,
+        "entra": true
       }
     ]
   }

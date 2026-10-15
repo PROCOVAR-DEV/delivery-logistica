@@ -733,9 +733,11 @@ class _Factura extends StatelessWidget {
           numero: Insignia(
             conNumero ? '$numero !' : 'Cambió !',
             color: Colores.ambar,
+            // Ya no dice «no puede ir en una ruta» (issue 10 de Amado, 15/10/2026):
+            // `cambiado` entra y al camión sube lo facturado.
             tooltip:
-                'Se facturó algo distinto de lo pedido. '
-                'No puede ir en una ruta hasta que se corrija.',
+                'Se facturó algo distinto de lo pedido: al camión va lo '
+                'facturado.',
           ),
         );
       case EstadoFactura.sinFactura:

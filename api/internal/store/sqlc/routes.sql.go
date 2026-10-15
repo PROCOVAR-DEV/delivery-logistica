@@ -26,9 +26,13 @@ UPDATE routes SET
         WHEN $2::route_status = 'in_progress' THEN NULL
         WHEN $2::route_status = 'completed'   THEN now()
         ELSE finished_at
-    END
-WHERE id = $3
-  AND ($4::uuid IS NULL OR branch_id = $4::uuid)
+    END,
+    -- ` + "`" + `tocar_distribuidor` + "`" + ` distingue «no lo mandaron» de «mandaron null»: lo segundo QUITA al
+    -- distribuidor de la ruta (la misma forma que ` + "`" + `tocar_costo` + "`" + ` en los tipos de vehículo).
+    distribuidor_id = CASE WHEN $3::boolean
+                           THEN $4::uuid ELSE distribuidor_id END
+WHERE id = $5
+  AND ($6::uuid IS NULL OR branch_id = $6::uuid)
 RETURNING id, name, route_code, status, vehicle_id, branch_id,
           started_at, finished_at, total_distance, total_weight, total_price,
           delivery_date, created_at, updated_at
@@ -42,10 +46,12 @@ SELECT id, name, route_code, status, vehicle_id, branch_id, started_at, finished
 `
 
 type ActualizarEstadoDeRutaParams struct {
-	Name     *string      `json:"name"`
-	Status   *RouteStatus `json:"status"`
-	ID       uuid.UUID    `json:"id"`
-	Sucursal pgtype.UUID  `json:"sucursal"`
+	Name              *string      `json:"name"`
+	Status            *RouteStatus `json:"status"`
+	TocarDistribuidor bool         `json:"tocar_distribuidor"`
+	DistribuidorID    pgtype.UUID  `json:"distribuidor_id"`
+	ID                uuid.UUID    `json:"id"`
+	Sucursal          pgtype.UUID  `json:"sucursal"`
 }
 
 type ActualizarEstadoDeRutaRow struct {
@@ -79,6 +85,8 @@ func (q *Queries) ActualizarEstadoDeRuta(ctx context.Context, arg ActualizarEsta
 	row := q.db.QueryRow(ctx, actualizarEstadoDeRuta,
 		arg.Name,
 		arg.Status,
+		arg.TocarDistribuidor,
+		arg.DistribuidorID,
 		arg.ID,
 		arg.Sucursal,
 	)
@@ -245,19 +253,23 @@ const cambiarVehiculoDeRuta = `-- name: CambiarVehiculoDeRuta :one
 UPDATE routes SET
     vehicle_id = $1,
     name       = coalesce($2::text, name),
-    status     = coalesce($3::route_status, status)
-WHERE id = $4
-  AND ($5::uuid IS NULL OR branch_id = $5::uuid)
+    status     = coalesce($3::route_status, status),
+    distribuidor_id = CASE WHEN $4::boolean
+                           THEN $5::uuid ELSE distribuidor_id END
+WHERE id = $6
+  AND ($7::uuid IS NULL OR branch_id = $7::uuid)
 RETURNING id, name, route_code, status, vehicle_id, branch_id,
           started_at, finished_at, created_at, updated_at
 `
 
 type CambiarVehiculoDeRutaParams struct {
-	VehicleID pgtype.UUID  `json:"vehicle_id"`
-	Name      *string      `json:"name"`
-	Status    *RouteStatus `json:"status"`
-	ID        uuid.UUID    `json:"id"`
-	Sucursal  pgtype.UUID  `json:"sucursal"`
+	VehicleID         pgtype.UUID  `json:"vehicle_id"`
+	Name              *string      `json:"name"`
+	Status            *RouteStatus `json:"status"`
+	TocarDistribuidor bool         `json:"tocar_distribuidor"`
+	DistribuidorID    pgtype.UUID  `json:"distribuidor_id"`
+	ID                uuid.UUID    `json:"id"`
+	Sucursal          pgtype.UUID  `json:"sucursal"`
 }
 
 type CambiarVehiculoDeRutaRow struct {
@@ -280,6 +292,8 @@ func (q *Queries) CambiarVehiculoDeRuta(ctx context.Context, arg CambiarVehiculo
 		arg.VehicleID,
 		arg.Name,
 		arg.Status,
+		arg.TocarDistribuidor,
+		arg.DistribuidorID,
 		arg.ID,
 		arg.Sucursal,
 	)
@@ -385,11 +399,12 @@ func (q *Queries) ContarRutasDelDia(ctx context.Context, prefijo string) (int64,
 const crearRuta = `-- name: CrearRuta :one
 INSERT INTO routes (
     name, route_code, origin_address, origin_lat, origin_lng,
-    delivery_date, vehicle_id, branch_id, creado_por
+    delivery_date, vehicle_id, branch_id, creado_por, distribuidor_id
 ) VALUES (
     $1, $2, $3,
     $4, $5, $6,
-    $7, $8, $9
+    $7, $8, $9,
+    $10
 )
 RETURNING id, name, route_code, status, origin_address, origin_lat, origin_lng,
           total_distance, total_weight, total_price, delivery_date, vehicle_id,
@@ -398,15 +413,16 @@ RETURNING id, name, route_code, status, origin_address, origin_lat, origin_lng,
 `
 
 type CrearRutaParams struct {
-	Name          *string            `json:"name"`
-	RouteCode     *string            `json:"route_code"`
-	OriginAddress *string            `json:"origin_address"`
-	OriginLat     *float64           `json:"origin_lat"`
-	OriginLng     *float64           `json:"origin_lng"`
-	DeliveryDate  pgtype.Timestamptz `json:"delivery_date"`
-	VehicleID     pgtype.UUID        `json:"vehicle_id"`
-	BranchID      pgtype.UUID        `json:"branch_id"`
-	CreadoPor     *string            `json:"creado_por"`
+	Name           *string            `json:"name"`
+	RouteCode      *string            `json:"route_code"`
+	OriginAddress  *string            `json:"origin_address"`
+	OriginLat      *float64           `json:"origin_lat"`
+	OriginLng      *float64           `json:"origin_lng"`
+	DeliveryDate   pgtype.Timestamptz `json:"delivery_date"`
+	VehicleID      pgtype.UUID        `json:"vehicle_id"`
+	BranchID       pgtype.UUID        `json:"branch_id"`
+	CreadoPor      *string            `json:"creado_por"`
+	DistribuidorID pgtype.UUID        `json:"distribuidor_id"`
 }
 
 type CrearRutaRow struct {
@@ -434,6 +450,9 @@ type CrearRutaRow struct {
 // La ruta nace `planned` y `optimized` en false: los totales y el orden de visita se
 // calculan después, con las paradas ya enganchadas, y se fijan con `FijarTotalesDeRuta`.
 //
+// `distribuidor_id` es QUIÉN REPARTE (issue 7): opcional, y el manejador ya comprobó que es de la
+// sucursal de la ruta y que sigue en activo. La FK sola no sabe de sucursales.
+//
 // `creado_por` es el id de la persona EN AUTH y es CONSTANCIA, no un filtro: aquí nada
 // pertenece a nadie. Filtrar por el creador fue lo que dejó los 3.528 pedidos importados a
 // nombre del Super Admin y escondió los de Holguín a sus propios compañeros de Holguín.
@@ -448,6 +467,7 @@ func (q *Queries) CrearRuta(ctx context.Context, arg CrearRutaParams) (CrearRuta
 		arg.VehicleID,
 		arg.BranchID,
 		arg.CreadoPor,
+		arg.DistribuidorID,
 	)
 	var i CrearRutaRow
 	err := row.Scan(
@@ -1307,6 +1327,9 @@ SELECT
     r.paradas_sin_cotizar,
     r.delivery_date, r.vehicle_id, r.branch_id, r.creado_por,
     r.started_at, r.finished_at, r.optimized, r.created_at, r.updated_at,
+    -- QUIÉN REPARTE (issue 7, 00019). Nulo = ruta histórica o armada sin distribuidor.
+    r.distribuidor_id,
+    dist.nombre   AS distribuidor_nombre,
     b.name        AS sucursal_nombre,
     b.external_id AS sucursal_codigo,
     v.name        AS vehiculo_nombre,
@@ -1319,6 +1342,7 @@ FROM routes r
 LEFT JOIN branches      b  ON b.id  = r.branch_id
 LEFT JOIN vehicles      v  ON v.id  = r.vehicle_id
 LEFT JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
+LEFT JOIN distribuidores dist ON dist.id = r.distribuidor_id
 WHERE ($1::uuid IS NULL OR r.branch_id = $1::uuid)
   AND ($2::route_status IS NULL OR r.status = $2::route_status)
 ORDER BY r.created_at DESC
@@ -1330,33 +1354,35 @@ type ListarRutasParams struct {
 }
 
 type ListarRutasRow struct {
-	ID                uuid.UUID          `json:"id"`
-	Name              *string            `json:"name"`
-	RouteCode         *string            `json:"route_code"`
-	Status            RouteStatus        `json:"status"`
-	OriginAddress     *string            `json:"origin_address"`
-	OriginLat         *float64           `json:"origin_lat"`
-	OriginLng         *float64           `json:"origin_lng"`
-	TotalDistance     float64            `json:"total_distance"`
-	TotalWeight       float64            `json:"total_weight"`
-	TotalPrice        float64            `json:"total_price"`
-	ParadasSinCotizar *int32             `json:"paradas_sin_cotizar"`
-	DeliveryDate      pgtype.Timestamptz `json:"delivery_date"`
-	VehicleID         pgtype.UUID        `json:"vehicle_id"`
-	BranchID          pgtype.UUID        `json:"branch_id"`
-	CreadoPor         *string            `json:"creado_por"`
-	StartedAt         pgtype.Timestamptz `json:"started_at"`
-	FinishedAt        pgtype.Timestamptz `json:"finished_at"`
-	Optimized         bool               `json:"optimized"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
-	SucursalNombre    *string            `json:"sucursal_nombre"`
-	SucursalCodigo    *string            `json:"sucursal_codigo"`
-	VehiculoNombre    *string            `json:"vehiculo_nombre"`
-	VehiculoMatricula *string            `json:"vehiculo_matricula"`
-	VehiculoCapacidad *float64           `json:"vehiculo_capacidad"`
-	VehiculoTipo      *string            `json:"vehiculo_tipo"`
-	Paradas           int64              `json:"paradas"`
+	ID                 uuid.UUID          `json:"id"`
+	Name               *string            `json:"name"`
+	RouteCode          *string            `json:"route_code"`
+	Status             RouteStatus        `json:"status"`
+	OriginAddress      *string            `json:"origin_address"`
+	OriginLat          *float64           `json:"origin_lat"`
+	OriginLng          *float64           `json:"origin_lng"`
+	TotalDistance      float64            `json:"total_distance"`
+	TotalWeight        float64            `json:"total_weight"`
+	TotalPrice         float64            `json:"total_price"`
+	ParadasSinCotizar  *int32             `json:"paradas_sin_cotizar"`
+	DeliveryDate       pgtype.Timestamptz `json:"delivery_date"`
+	VehicleID          pgtype.UUID        `json:"vehicle_id"`
+	BranchID           pgtype.UUID        `json:"branch_id"`
+	CreadoPor          *string            `json:"creado_por"`
+	StartedAt          pgtype.Timestamptz `json:"started_at"`
+	FinishedAt         pgtype.Timestamptz `json:"finished_at"`
+	Optimized          bool               `json:"optimized"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	DistribuidorID     pgtype.UUID        `json:"distribuidor_id"`
+	DistribuidorNombre *string            `json:"distribuidor_nombre"`
+	SucursalNombre     *string            `json:"sucursal_nombre"`
+	SucursalCodigo     *string            `json:"sucursal_codigo"`
+	VehiculoNombre     *string            `json:"vehiculo_nombre"`
+	VehiculoMatricula  *string            `json:"vehiculo_matricula"`
+	VehiculoCapacidad  *float64           `json:"vehiculo_capacidad"`
+	VehiculoTipo       *string            `json:"vehiculo_tipo"`
+	Paradas            int64              `json:"paradas"`
 }
 
 // Rutas: el tablero, el detalle con sus paradas y sus renglones, el armado y el cierre.
@@ -1398,6 +1424,8 @@ func (q *Queries) ListarRutas(ctx context.Context, arg ListarRutasParams) ([]Lis
 			&i.Optimized,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DistribuidorID,
+			&i.DistribuidorNombre,
 			&i.SucursalNombre,
 			&i.SucursalCodigo,
 			&i.VehiculoNombre,
@@ -1510,6 +1538,9 @@ SELECT
     r.paradas_sin_cotizar,
     r.delivery_date, r.vehicle_id, r.branch_id, r.creado_por,
     r.started_at, r.finished_at, r.optimized, r.created_at, r.updated_at,
+    -- QUIÉN REPARTE (issue 7, 00019). Nulo = ruta histórica o armada sin distribuidor.
+    r.distribuidor_id,
+    dist.nombre   AS distribuidor_nombre,
     b.name        AS sucursal_nombre,
     b.external_id AS sucursal_codigo,
     v.name        AS vehiculo_nombre,
@@ -1521,6 +1552,7 @@ FROM routes r
 LEFT JOIN branches      b  ON b.id  = r.branch_id
 LEFT JOIN vehicles      v  ON v.id  = r.vehicle_id
 LEFT JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
+LEFT JOIN distribuidores dist ON dist.id = r.distribuidor_id
 WHERE r.id = $1
   AND ($2::uuid IS NULL OR r.branch_id = $2::uuid)
 `
@@ -1531,33 +1563,35 @@ type ObtenerRutaParams struct {
 }
 
 type ObtenerRutaRow struct {
-	ID                uuid.UUID          `json:"id"`
-	Name              *string            `json:"name"`
-	RouteCode         *string            `json:"route_code"`
-	Status            RouteStatus        `json:"status"`
-	OriginAddress     *string            `json:"origin_address"`
-	OriginLat         *float64           `json:"origin_lat"`
-	OriginLng         *float64           `json:"origin_lng"`
-	TotalDistance     float64            `json:"total_distance"`
-	TotalWeight       float64            `json:"total_weight"`
-	TotalPrice        float64            `json:"total_price"`
-	ParadasSinCotizar *int32             `json:"paradas_sin_cotizar"`
-	DeliveryDate      pgtype.Timestamptz `json:"delivery_date"`
-	VehicleID         pgtype.UUID        `json:"vehicle_id"`
-	BranchID          pgtype.UUID        `json:"branch_id"`
-	CreadoPor         *string            `json:"creado_por"`
-	StartedAt         pgtype.Timestamptz `json:"started_at"`
-	FinishedAt        pgtype.Timestamptz `json:"finished_at"`
-	Optimized         bool               `json:"optimized"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
-	SucursalNombre    *string            `json:"sucursal_nombre"`
-	SucursalCodigo    *string            `json:"sucursal_codigo"`
-	VehiculoNombre    *string            `json:"vehiculo_nombre"`
-	VehiculoMatricula *string            `json:"vehiculo_matricula"`
-	VehiculoCapacidad *float64           `json:"vehiculo_capacidad"`
-	VehiculoEstado    *VehicleStatus     `json:"vehiculo_estado"`
-	VehiculoTipo      *string            `json:"vehiculo_tipo"`
+	ID                 uuid.UUID          `json:"id"`
+	Name               *string            `json:"name"`
+	RouteCode          *string            `json:"route_code"`
+	Status             RouteStatus        `json:"status"`
+	OriginAddress      *string            `json:"origin_address"`
+	OriginLat          *float64           `json:"origin_lat"`
+	OriginLng          *float64           `json:"origin_lng"`
+	TotalDistance      float64            `json:"total_distance"`
+	TotalWeight        float64            `json:"total_weight"`
+	TotalPrice         float64            `json:"total_price"`
+	ParadasSinCotizar  *int32             `json:"paradas_sin_cotizar"`
+	DeliveryDate       pgtype.Timestamptz `json:"delivery_date"`
+	VehicleID          pgtype.UUID        `json:"vehicle_id"`
+	BranchID           pgtype.UUID        `json:"branch_id"`
+	CreadoPor          *string            `json:"creado_por"`
+	StartedAt          pgtype.Timestamptz `json:"started_at"`
+	FinishedAt         pgtype.Timestamptz `json:"finished_at"`
+	Optimized          bool               `json:"optimized"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	DistribuidorID     pgtype.UUID        `json:"distribuidor_id"`
+	DistribuidorNombre *string            `json:"distribuidor_nombre"`
+	SucursalNombre     *string            `json:"sucursal_nombre"`
+	SucursalCodigo     *string            `json:"sucursal_codigo"`
+	VehiculoNombre     *string            `json:"vehiculo_nombre"`
+	VehiculoMatricula  *string            `json:"vehiculo_matricula"`
+	VehiculoCapacidad  *float64           `json:"vehiculo_capacidad"`
+	VehiculoEstado     *VehicleStatus     `json:"vehiculo_estado"`
+	VehiculoTipo       *string            `json:"vehiculo_tipo"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1589,6 +1623,8 @@ func (q *Queries) ObtenerRuta(ctx context.Context, arg ObtenerRutaParams) (Obten
 		&i.Optimized,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DistribuidorID,
+		&i.DistribuidorNombre,
 		&i.SucursalNombre,
 		&i.SucursalCodigo,
 		&i.VehiculoNombre,

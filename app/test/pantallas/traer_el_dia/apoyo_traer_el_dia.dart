@@ -123,6 +123,11 @@ Map<String, Object?> cambiosCompletos({
       ],
       'quitados': <Object?>[],
     },
+    // Desde la 00019 la api la manda siempre; sin ella no se marca (bajada.dart).
+    Colecciones.distribuidores: <String, Object?>{
+      'puestos': <Object?>[],
+      'quitados': <Object?>[],
+    },
     Colecciones.sucursales: <String, Object?>{
       'puestos': <Object?>[
         <String, Object?>{

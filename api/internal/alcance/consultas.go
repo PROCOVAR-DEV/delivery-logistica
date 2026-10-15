@@ -227,6 +227,49 @@ func (a *Acotado) SembrarTiposDeVehiculoEnSucursal(ctx context.Context, sucursal
 }
 
 // ---------------------------------------------------------------------------
+// Distribuidores
+// ---------------------------------------------------------------------------
+//
+// POR SUCURSAL desde la 00019 (issue 7 de Amado, 14/10/2026). El filtro es el de las rutas: quien
+// tiene sucursal ve y toca los de esa y los de otra son un 404; quien está en modo «todas» (SUPER
+// ADMIN / DESARROLLADOR sin sucursal elegida) ve todas las listas, y cada fila dice de qué sucursal
+// es. NO hay «de todas»: `branch_id` es NOT NULL. `CrearDistribuidor` no se llama en modo «todas»:
+// el manejador contesta 400 (un distribuidor sin sucursal no tiene dueño).
+
+func (a *Acotado) ListarDistribuidores(ctx context.Context, soloActivos *bool) ([]sqlc.ListarDistribuidoresRow, error) {
+	return a.q.ListarDistribuidores(ctx, sqlc.ListarDistribuidoresParams{SoloActivos: soloActivos, Sucursal: a.sucursalPg()})
+}
+
+// ObtenerDistribuidor: cero filas es «no existe O no es de tu sucursal».
+func (a *Acotado) ObtenerDistribuidor(ctx context.Context, id uuid.UUID) (sqlc.ObtenerDistribuidorRow, error) {
+	return a.q.ObtenerDistribuidor(ctx, sqlc.ObtenerDistribuidorParams{ID: id, Sucursal: a.sucursalPg()})
+}
+
+// CrearDistribuidor: el distribuidor NACE en la sucursal del alcance, y lo que traiga `arg.BranchID`
+// se pisa. El manejador no llama sin sucursal (modo «todas»).
+func (a *Acotado) CrearDistribuidor(ctx context.Context, arg sqlc.CrearDistribuidorParams) (sqlc.Distribuidore, error) {
+	arg.BranchID = uuid.UUID(a.sucursalPg().Bytes)
+	return a.q.CrearDistribuidor(ctx, arg)
+}
+
+func (a *Acotado) ActualizarDistribuidor(ctx context.Context, arg sqlc.ActualizarDistribuidorParams) (sqlc.Distribuidore, error) {
+	arg.Sucursal = a.sucursalPg()
+	return a.q.ActualizarDistribuidor(ctx, arg)
+}
+
+// RetirarDistribuidor y BorrarDistribuidorSinUso devuelven LA SUCURSAL DEL DISTRIBUIDOR, no el número
+// de filas: es de donde sale el aviso en vivo, y cuando se avisa la fila ya no está (el borrado).
+// `pgx.ErrNoRows` es «no existe o no es de tu sucursal» —el 404— y, en el borrado, también «lo usa
+// una ruta».
+func (a *Acotado) RetirarDistribuidor(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	return a.q.RetirarDistribuidor(ctx, sqlc.RetirarDistribuidorParams{ID: id, Sucursal: a.sucursalPg()})
+}
+
+func (a *Acotado) BorrarDistribuidorSinUso(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	return a.q.BorrarDistribuidorSinUso(ctx, sqlc.BorrarDistribuidorSinUsoParams{ID: id, Sucursal: a.sucursalPg()})
+}
+
+// ---------------------------------------------------------------------------
 // SIN ALCANCE, a propósito
 // ---------------------------------------------------------------------------
 //

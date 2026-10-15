@@ -49,6 +49,7 @@ import '../../../nucleo/cola/provisionales.dart';
 import '../../../nucleo/red/escritura_en_vivo.dart';
 import '../../../nucleo/registro/registro.dart';
 import '../../../nucleo/reloj.dart';
+import '../../distribuidores/datos/distribuidor_valido.dart';
 import 'geo.dart';
 import 'importe_de_la_ruta.dart';
 
@@ -330,6 +331,11 @@ class AccionesDeRuta {
     String? sucursalId,
     DateTime? fechaDeEntrega,
     bool optimizar = true,
+
+    /// QUIEN REPARTE (issue 7, 14/10/2026). Opcional: `null` o vacio = la ruta sale
+    /// sin distribuidor. Si viene, es de la sucursal de la ruta y esta en activo, o
+    /// la ruta se rechaza con las palabras del servidor.
+    String? distribuidorId,
   }) async {
     // Las validaciones van en el ORDEN ESTRICTO del servidor: si dos fallan a la
     // vez, la persona tiene que leer el mismo mensaje en los dos sitios.
@@ -414,6 +420,14 @@ class AccionesDeRuta {
       );
     }
 
+    // QUIEN REPARTE, DESPUES de la capacidad: es el orden del servidor
+    // (`distribuidorDeLaRuta` va detras de los cortes del camion). El aparato lo dice
+    // con las mismas palabras para que el «no» no llegue horas despues a la bandeja.
+    final distribuidor = await _distribuidorParaLaRuta(
+      distribuidorId,
+      sucursalId ?? pedidos.first.branchId,
+    );
+
     final origen = Punto(origenLat, origenLng);
     final paradas = [
       for (final p in pedidos)
@@ -463,6 +477,9 @@ class AccionesDeRuta {
       'originAddress': origenDireccion,
       'originLat': origenLat,
       'originLng': origenLng,
+      // QUIEN REPARTE. Solo viaja si hay uno: el servidor lee su ausencia como «sin
+      // distribuidor», que es lo que esta ruta es.
+      'distribuidorId': ?distribuidor?.id,
       // `orderIds` en el ORDEN CALCULADO aqui. Con `optimizar: true` el servidor
       // recalcula el suyo —hacen la misma cuenta y lo demuestran contra
       // `docs/orden-de-paradas.casos.json`—; con `false` este orden ES el dato,
@@ -518,6 +535,7 @@ class AccionesDeRuta {
               ),
               deliveryDate: Value(fechaDeEntrega),
               vehicleId: Value(vehiculoId),
+              distribuidorId: Value(distribuidor?.id),
               branchId: Value(sucursalDeLaRuta),
               optimized: Value(optimizar),
               createdAt: Value(ahora),
@@ -582,6 +600,23 @@ class AccionesDeRuta {
     );
 
     return rutaId;
+  }
+
+  /// El distribuidor de una ruta nueva, comprobado como lo comprueba el servidor y
+  /// con sus palabras (`distribuidorParaUnaRuta`). Su «no» es el de Rutas.
+  Future<Distribuidor?> _distribuidorParaLaRuta(
+    String? id,
+    String? sucursalDeLaRuta,
+  ) async {
+    try {
+      return await distribuidorParaUnaRuta(
+        _base,
+        id: id,
+        sucursalDeLaRuta: sucursalDeLaRuta,
+      );
+    } on DistribuidorNoValido catch (no) {
+      throw RechazoLocal(no.mensaje);
+    }
   }
 
   /// LO QUE EL SERVIDOR GUARDO, reflejado tal cual en la base de la pestana.
@@ -652,6 +687,8 @@ class AccionesDeRuta {
               totalPrice: Value(_numero(ruta['totalPrice']) ?? 0),
               deliveryDate: Value(_fecha(ruta['deliveryDate'])),
               vehicleId: Value(_texto(ruta['vehicleId'])),
+              // QUIEN REPARTE, tal como lo guardo el servidor.
+              distribuidorId: Value(_texto(ruta['distribuidorId'])),
               creadoPor: Value(_texto(ruta['creadoPor'])),
               branchId: Value(_texto(ruta['branchId'])),
               // LA FIRMA DE QUIEN ORDENO, que es un dato y no un adorno: quien

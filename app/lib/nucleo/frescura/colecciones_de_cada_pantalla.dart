@@ -65,10 +65,15 @@ abstract final class ColeccionesDePantalla {
   /// Rutas: las rutas, sus pedidos, los camiones y **los almacenes**, que aqui si
   /// entran —de ellos sale el punto de partida de cada ruta—. Esta pantalla si
   /// puede decir «datos de hace 1 h» con razon.
+  ///
+  /// Y **los distribuidores** (issue 7, 14/10/2026): de ellos sale el nombre de
+  /// quien reparte cada ruta, en la lista, en el detalle y en el selector de «Nueva
+  /// ruta».
   static const rutas = <String>[
     Colecciones.rutas,
     Colecciones.pedidos,
     Colecciones.vehiculos,
+    Colecciones.distribuidores,
     Colecciones.almacenes,
   ];
 
@@ -108,7 +113,7 @@ abstract final class ColeccionesDePantalla {
     Colecciones.vehiculos,
   ];
 
-  /// EL PANEL: las NUEVE, y **a proposito**.
+  /// EL PANEL: TODAS, y **a proposito**.
   ///
   /// No es el caso perezoso: es que la pregunta del Panel es exactamente «¿le
   /// falta algo a este aparato?». Ahi manda la bajada mas vieja de todas, porque

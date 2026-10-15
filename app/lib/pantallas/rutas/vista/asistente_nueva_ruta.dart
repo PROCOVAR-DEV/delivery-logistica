@@ -30,6 +30,7 @@ import '../../../nucleo/proveedores.dart';
 import '../../almacenes/vista/almacenes_de_la_ultima_bajada.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
+import '../../distribuidores/vista/selector_de_distribuidor.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/estado/proveedores_pedidos.dart';
@@ -140,6 +141,11 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
   String? _sucursalId;
   Almacen? _salida;
   String? _vehiculoId;
+
+  /// QUIEN REPARTE (issue 7, 14/10/2026). `null` = la ruta sale sin distribuidor.
+  /// Opcional pero a la vista, en el paso del vehiculo, y recordado por sucursal:
+  /// el porque entero esta en `SelectorDeDistribuidor`.
+  String? _distribuidorId;
 
   /// LA FECHA DE ENTREGA ARRANCA EN HOY, no vacía — 28/09/2026.
   ///
@@ -273,6 +279,8 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
     _elegidos.clear();
     _filtros = FiltrosDisponibles(sucursalId: _sucursalId);
     _camionAMano = false;
+    // Un distribuidor es de UNA sucursal: el de la anterior no vale en la nueva.
+    _distribuidorId = null;
   });
 
   @override
@@ -728,6 +736,14 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
                   ?.copyWith(color: Colores.ambar),
             ),
           ),
+        const SizedBox(height: 12),
+        // QUIEN REPARTE, a la vista en este mismo paso: opcional, recordado, y con
+        // un enlace a crearlos si la sucursal no tiene ninguno (issue 7).
+        SelectorDeDistribuidor(
+          sucursalId: _sucursalId,
+          elegido: _distribuidorId,
+          alElegir: (id) => setState(() => _distribuidorId = id),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: _nombre,
@@ -1402,6 +1418,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
             origenDireccion: _salida?.direccion ?? _salida?.nombre,
             sucursalId: _sucursalId,
             fechaDeEntrega: _fechaDeEntrega,
+            distribuidorId: _distribuidorId,
           );
       // Se selecciona sola, igual que en la de Next.
       ref.read(rutaElegidaProvider.notifier).elegir(rutaId);

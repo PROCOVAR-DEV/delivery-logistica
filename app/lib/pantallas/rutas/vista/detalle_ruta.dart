@@ -29,6 +29,7 @@ import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
+import '../../distribuidores/vista/distribuidor_de_la_ruta.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/vista/kit.dart';
@@ -713,6 +714,10 @@ class LineaDeDatosDeLaRuta extends StatelessWidget {
           '${tiempoDeLaRuta(arranco: r.startedAt, termino: r.finishedAt, ahora: ahora)}',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        // QUIÉN REPARTE (issue 7): el nombre sale de la tabla local, así un
+        // renombrado se ve aquí sin tocar la ruta.
+        const SizedBox(height: 4),
+        DistribuidorDeLaRuta(distribuidorId: r.distribuidorId),
         // Y DEBAJO, QUE HACER. El `— (2 de 5 sin cotizar)` de arriba dice que no
         // se sabe; esto dice a donde ir a arreglarlo, que es lo unico que sirve
         // a quien lo lee. Sale **solo cuando falta alguna**: un aviso que sale

@@ -29,6 +29,9 @@ SELECT
     r.paradas_sin_cotizar,
     r.delivery_date, r.vehicle_id, r.branch_id, r.creado_por,
     r.started_at, r.finished_at, r.optimized, r.created_at, r.updated_at,
+    -- QUIÉN REPARTE (issue 7, 00019). Nulo = ruta histórica o armada sin distribuidor.
+    r.distribuidor_id,
+    dist.nombre   AS distribuidor_nombre,
     b.name        AS sucursal_nombre,
     b.external_id AS sucursal_codigo,
     v.name        AS vehiculo_nombre,
@@ -41,6 +44,7 @@ FROM routes r
 LEFT JOIN branches      b  ON b.id  = r.branch_id
 LEFT JOIN vehicles      v  ON v.id  = r.vehicle_id
 LEFT JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
+LEFT JOIN distribuidores dist ON dist.id = r.distribuidor_id
 WHERE (sqlc.narg('sucursal')::uuid IS NULL OR r.branch_id = sqlc.narg('sucursal')::uuid)
   AND (sqlc.narg('estado')::route_status IS NULL OR r.status = sqlc.narg('estado')::route_status)
 ORDER BY r.created_at DESC;
@@ -71,6 +75,9 @@ SELECT
     r.paradas_sin_cotizar,
     r.delivery_date, r.vehicle_id, r.branch_id, r.creado_por,
     r.started_at, r.finished_at, r.optimized, r.created_at, r.updated_at,
+    -- QUIÉN REPARTE (issue 7, 00019). Nulo = ruta histórica o armada sin distribuidor.
+    r.distribuidor_id,
+    dist.nombre   AS distribuidor_nombre,
     b.name        AS sucursal_nombre,
     b.external_id AS sucursal_codigo,
     v.name        AS vehiculo_nombre,
@@ -82,6 +89,7 @@ FROM routes r
 LEFT JOIN branches      b  ON b.id  = r.branch_id
 LEFT JOIN vehicles      v  ON v.id  = r.vehicle_id
 LEFT JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
+LEFT JOIN distribuidores dist ON dist.id = r.distribuidor_id
 WHERE r.id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR r.branch_id = sqlc.narg('sucursal')::uuid);
 
@@ -303,17 +311,21 @@ WHERE r.route_code LIKE sqlc.arg('prefijo')::text || '%';
 -- La ruta nace `planned` y `optimized` en false: los totales y el orden de visita se
 -- calculan después, con las paradas ya enganchadas, y se fijan con `FijarTotalesDeRuta`.
 --
+-- `distribuidor_id` es QUIÉN REPARTE (issue 7): opcional, y el manejador ya comprobó que es de la
+-- sucursal de la ruta y que sigue en activo. La FK sola no sabe de sucursales.
+--
 -- `creado_por` es el id de la persona EN AUTH y es CONSTANCIA, no un filtro: aquí nada
 -- pertenece a nadie. Filtrar por el creador fue lo que dejó los 3.528 pedidos importados a
 -- nombre del Super Admin y escondió los de Holguín a sus propios compañeros de Holguín.
 -- name: CrearRuta :one
 INSERT INTO routes (
     name, route_code, origin_address, origin_lat, origin_lng,
-    delivery_date, vehicle_id, branch_id, creado_por
+    delivery_date, vehicle_id, branch_id, creado_por, distribuidor_id
 ) VALUES (
     sqlc.narg('name'), sqlc.arg('route_code'), sqlc.narg('origin_address'),
     sqlc.arg('origin_lat'), sqlc.arg('origin_lng'), sqlc.narg('delivery_date'),
-    sqlc.narg('vehicle_id'), sqlc.narg('branch_id'), sqlc.narg('creado_por')
+    sqlc.narg('vehicle_id'), sqlc.narg('branch_id'), sqlc.narg('creado_por'),
+    sqlc.narg('distribuidor_id')
 )
 RETURNING id, name, route_code, status, origin_address, origin_lat, origin_lng,
           total_distance, total_weight, total_price, delivery_date, vehicle_id,
@@ -448,7 +460,11 @@ UPDATE routes SET
         WHEN sqlc.narg('status')::route_status = 'in_progress' THEN NULL
         WHEN sqlc.narg('status')::route_status = 'completed'   THEN now()
         ELSE finished_at
-    END
+    END,
+    -- `tocar_distribuidor` distingue «no lo mandaron» de «mandaron null»: lo segundo QUITA al
+    -- distribuidor de la ruta (la misma forma que `tocar_costo` en los tipos de vehículo).
+    distribuidor_id = CASE WHEN sqlc.arg('tocar_distribuidor')::boolean
+                           THEN sqlc.narg('distribuidor_id')::uuid ELSE distribuidor_id END
 WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
 RETURNING id, name, route_code, status, vehicle_id, branch_id,
@@ -468,7 +484,9 @@ SELECT * FROM actualizada;
 UPDATE routes SET
     vehicle_id = sqlc.narg('vehicle_id'),
     name       = coalesce(sqlc.narg('name')::text, name),
-    status     = coalesce(sqlc.narg('status')::route_status, status)
+    status     = coalesce(sqlc.narg('status')::route_status, status),
+    distribuidor_id = CASE WHEN sqlc.arg('tocar_distribuidor')::boolean
+                           THEN sqlc.narg('distribuidor_id')::uuid ELSE distribuidor_id END
 WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
 RETURNING id, name, route_code, status, vehicle_id, branch_id,

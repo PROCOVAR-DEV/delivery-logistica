@@ -157,6 +157,9 @@ func (s *Servidor) Rutas() http.Handler {
 	rt.ManejarFunc(http.MethodPatch, "/api/vehicle-types/{id}", s.actualizarTipoDeVehiculo, sesion...)
 	rt.ManejarFunc(http.MethodDelete, "/api/vehicle-types/{id}", s.borrarTipoDeVehiculo, sesion...)
 
+	// Distribuidores: quién reparte, POR SUCURSAL (issue 7, `distribuidores.go`).
+	s.rutasDeDistribuidores(rt, sesion)
+
 	// Ajustes. Globales: llevan sesión pero el alcance no pinta nada (y aun así se monta,
 	// porque es por donde se llega a las consultas).
 	rt.ManejarFunc(http.MethodGet, "/api/settings", s.obtenerAjustes, sesion...)

@@ -316,12 +316,42 @@ class Routes extends Table {
   RealColumn get totalPrice => real().withDefault(const Constant(0))();
   DateTimeColumn get deliveryDate => dateTime().nullable()();
   TextColumn get vehicleId => text().nullable()();
+
+  /// QUIÉN REPARTE (issue 7 de Amado, 14/10/2026): el distribuidor de la ruta, de
+  /// la tabla [Distribuidores]. **Nulo = ruta histórica o armada sin distribuidor**,
+  /// y se queda así: no se inventa uno. Solo el id; el nombre se resuelve contra
+  /// [Distribuidores] al pintar, así un renombrado no obliga a reescribir rutas.
+  TextColumn get distribuidorId => text().nullable()();
   TextColumn get creadoPor => text().nullable()();
   TextColumn get branchId => text().nullable()();
   DateTimeColumn get startedAt => dateTime().nullable()();
   DateTimeColumn get finishedAt => dateTime().nullable()();
   BoolColumn get optimized => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().nullable()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Los DISTRIBUIDORES de cada sucursal (issue 7 de Amado): la persona responsable
+/// de la entrega y de devolver las facturas entregadas. Se elige AL CREAR LA RUTA,
+/// y la APK y el escritorio la crean sin conexion, asi que el nomenclador baja con
+/// el dia (coleccion `distribuidores` de `GET /api/sync/cambios`).
+///
+/// Bajan TAMBIEN los retirados (`activo = false`): una ruta vieja enseña el nombre
+/// de quien la repartio aunque ya no este en activo. El selector de una ruta nueva
+/// los esconde (`activo`), y el cajon que los mantiene los ensena aparte.
+///
+/// Es de SOLO LECTURA aqui: se mantiene con conexion (`pantallas/distribuidores`) y
+/// vuelve por la bajada. Escribir en esta tabla desde el aparato sin que el
+/// servidor lo sepa seria inventar a alguien que ninguna otra sucursal ve.
+@DataClassName('Distribuidor')
+class Distribuidores extends Table {
+  TextColumn get id => text()();
+  TextColumn get nombre => text()();
+  BoolColumn get activo => boolean().withDefault(const Constant(true))();
+  TextColumn get branchId => text().nullable()();
   DateTimeColumn get updatedAt => dateTime().nullable()();
 
   @override

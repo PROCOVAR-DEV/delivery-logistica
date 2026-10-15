@@ -744,6 +744,19 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// POR DÓNDE VA LA CADENA. En la primera tanda viene vacío.
 	seguir := leerPorDondeSeguir(q.Get("continuar"))
 
+	// LAS COLECCIONES QUE EL APARATO PIDE ENTERAS aunque mande `desde` (`?completas=a,b`).
+	// Hoy sólo `distribuidores` (issue 7, 14/10/2026). Se usa UNA vez por aparato: la marca
+	// `desde` es de todas las colecciones a la vez, y un aparato que sincronizó con la
+	// versión anterior de la aplicación —que no conocía los distribuidores— la avanzó con
+	// ellos ya creados y los tiró: «lo que cambió desde ayer» no los trae nunca. Pedirlos
+	// enteros es lo único que los entrega sin rehacer la carga de pedidos y clientes (que
+	// además no trae lápidas). Un nombre que no se conoce se ignora: no es un error de quien
+	// lo manda, es una colección de más.
+	completas := map[string]bool{}
+	for _, c := range strings.Split(q.Get("completas"), ",") {
+		completas[strings.TrimSpace(c)] = true
+	}
+
 	// EL `desde` DE LA PETICIÓN VALE PARA TODAS LAS COLECCIONES, incluidas las dos que se
 	// continúan por cursor. Aquí vivía un `desdeDelPadron` que conservaba el `desde` de la
 	// primera tanda dentro del propio cursor, y ya no hace falta: el cursor es ahora
@@ -912,6 +925,51 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	anotarCorte(corteVeh)
 	salida.Cambios["vehicles"] = conjuntoCon(puestos, quitados)
 
+	// --- Distribuidores -----------------------------------------------------
+	//
+	// QUIÉN REPARTE (issue 7, 14/10/2026). Baja con el día porque la APK y el escritorio eligen el
+	// distribuidor SIN CONEXIÓN al crear la ruta, y el nombre se pinta en la lista y el detalle de
+	// las rutas. Salen TAMBIÉN los retirados (`activos` sin filtrar): una ruta vieja enseña el
+	// nombre de quien la repartió aunque ya no esté en activo, y el selector de una ruta nueva
+	// ya los esconde él (`activo`). Es una lista chica (decenas por sucursal), como los camiones.
+	//
+	// La misma lista que `GET /api/distribuidores` —el mismo método del alcance—, para que la
+	// pantalla de mantenimiento y el selector del aparato no puedan contradecirse.
+	distribuidores, err := a.ListarDistribuidores(r.Context(), nil)
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	puestos = nil
+	vivas = make(map[string]bool, len(distribuidores))
+	// `completas`: sin `desde` para ESTA colección, y sin lápidas (`quitadosDe` no pregunta
+	// sin `Desde`: un aparato que pide la lista entera no tiene nada que quitar).
+	desdeDeDistribuidores, ventanaDeDistribuidores := desde, ventanaDelAlcance
+	if completas["distribuidores"] {
+		desdeDeDistribuidores, ventanaDeDistribuidores.Desde = nil, nil
+	}
+	for _, d := range distribuidores {
+		vivas[d.ID.String()] = true
+		if !cambioDesde(d.UpdatedAt, desdeDeDistribuidores) {
+			continue
+		}
+		puestos = append(puestos, map[string]any{
+			"id": d.ID, "nombre": d.Nombre, "activo": d.Activo,
+			"branchId": d.BranchID, "updatedAt": hora(d.UpdatedAt),
+		})
+	}
+	// `sinSucursalTambien` en FALSE: `ListarDistribuidores` filtra `d.branch_id = <la mía>` a secas
+	// y un distribuidor siempre tiene sucursal (NOT NULL); la lápida lleva la del distribuidor que
+	// se fue, que es el aparato al que hay que avisar. Mismo alcance que su lista.
+	quitados, corteDist, err := s.quitadosDe(r, a,
+		sqlc.ColeccionDeLaBajadaDistribuidores, ventanaDeDistribuidores, false, vivas)
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	anotarCorte(corteDist)
+	salida.Cambios["distribuidores"] = conjuntoCon(puestos, quitados)
+
 	// --- Rutas --------------------------------------------------------------
 	//
 	// LA QUE EMPEZÓ TODO ESTO. El 17/09/2026 se borró una ruta desde la web y el teléfono
@@ -955,8 +1013,12 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 			"totalWeight": rt.TotalWeight, "totalDistance": rt.TotalDistance,
 			"totalPrice": rt.TotalPrice, "deliveryDate": hora(rt.DeliveryDate),
 			"vehicleId": idOpcional(rt.VehicleID), "branchId": idOpcional(rt.BranchID),
-			"creadoPor": rt.CreadoPor,
-			"startedAt": hora(rt.StartedAt), "finishedAt": hora(rt.FinishedAt),
+			// QUIÉN REPARTE (issue 7). Sólo el id: el nombre sale de la colección
+			// `distribuidores`, que baja en la misma tanda, y así un renombrado no obliga a
+			// reescribir todas sus rutas. Nulo = ruta histórica o armada sin distribuidor.
+			"distribuidorId": idOpcional(rt.DistribuidorID),
+			"creadoPor":      rt.CreadoPor,
+			"startedAt":      hora(rt.StartedAt), "finishedAt": hora(rt.FinishedAt),
 			"createdAt": hora(rt.CreatedAt),
 			"paradas":   rt.Paradas, "updatedAt": hora(rt.UpdatedAt),
 		})

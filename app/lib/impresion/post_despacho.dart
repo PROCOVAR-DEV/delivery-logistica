@@ -35,6 +35,7 @@ abstract final class TextoPostDespacho {
   static const String titulo = 'Post-despacho';
   static const String salio = 'Salió ';
   static const String volvio = ' · volvió ';
+  static const String distribuidor = ' · Distribuidor ';
 
   /// El `(s)` va DENTRO del literal, como en el pliego. Nada de ICU.
   static const String entregadas = ' entregada(s)';
@@ -108,7 +109,7 @@ Future<Uint8List> pdfPostDespacho(
         cabecera(
           izquierda: <pw.Widget>[
             titulo(TextoPostDespacho.titulo),
-            lineaDeCabecera(_lineaRuta(h)),
+            lineaDeCabecera(lineaDeLaRuta(h)),
             if (h.salida != null && h.salida!.isNotEmpty)
               lineaDeCabecera(_lineaHorario(h)),
           ],
@@ -139,9 +140,15 @@ Future<Uint8List> pdfPostDespacho(
   return doc.save();
 }
 
-String _lineaRuta(HojaPostDespacho h) {
+/// El renglon de la ruta de la cabecera. Publico para poder probarlo sin abrir un PDF
+/// (el texto va comprimido): `ruta · sucursal · camion · Distribuidor X`.
+String lineaDeLaRuta(HojaPostDespacho h) {
   final base = '${h.ruta} · ${h.sucursal}';
-  return h.vehiculo.isNotEmpty ? '$base · ${h.vehiculo}' : base;
+  final conCamion = h.vehiculo.isNotEmpty ? '$base · ${h.vehiculo}' : base;
+  // Quien reparte (issue 7): en el mismo renglon, y solo si consta.
+  return h.distribuidor.isNotEmpty
+      ? '$conCamion${TextoPostDespacho.distribuidor}${h.distribuidor}'
+      : conCamion;
 }
 
 /// `Salió <cuando>` y, si tambien se sabe, ` · volvió <cuando>`. El regreso no

@@ -980,6 +980,9 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
     /// servidor SÍ armó la ruta pero dejó tarjetas atrás. Sólo se llama cuando
     /// se cayó alguien.
     void Function(List<String> descartados)? alDejarFuera,
+
+    /// Ver `RepositorioTablero.armarRuta`: quien reparte la ruta (opcional).
+    String? distribuidorId,
   }) async {
     final tablero = state.value;
     if (tablero == null || tablero.problema != null) {
@@ -993,6 +996,7 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
           sucursalId: tablero.sucursalId,
           nombre: nombre,
           alDejarFuera: alDejarFuera,
+          distribuidorId: distribuidorId,
         );
     await refrescar();
     return rutaId;

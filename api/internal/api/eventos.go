@@ -540,6 +540,11 @@ func init() {
 	avisarCambioDeTiposDeVehiculo = func(_ context.Context, sucursal string) {
 		busEventos.AvisarDe(CambioVehiculos, sucursal, nil)
 	}
+	// Los distribuidores publican el MISMO tipo que la flota (ver `distribuidores.go`) y van
+	// acotados a la sucursal del distribuidor, como los tipos desde la 00018.
+	avisarCambioDeDistribuidores = func(_ context.Context, sucursal string) {
+		busEventos.AvisarDe(CambioVehiculos, sucursal, nil)
+	}
 
 	// LOS DE TODAS. Van por `Avisar` —sin sucursal— a propósito; el porqué de cada uno,
 	// en la tabla de arriba. No se les pasa ninguna sucursal aunque quien los toque

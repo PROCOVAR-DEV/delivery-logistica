@@ -10,6 +10,7 @@ import '../../../nucleo/registro/registro.dart';
 import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcel;
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
+import '../../distribuidores/vista/selector_de_distribuidor.dart';
 import '../../pedidos/datos/formato.dart' show etiquetaDeFactura;
 import '../../rutas/datos/repositorio_rutas.dart' show PestanaRutas;
 import '../../rutas/estado/proveedores_rutas.dart'
@@ -1049,6 +1050,11 @@ class _ArmarLaRutaState extends ConsumerState<_ArmarLaRuta> {
   RechazoDelTablero? _no;
   bool _armando = false;
 
+  /// QUIEN REPARTE (issue 7, 14/10/2026). `null` = la ruta sale sin distribuidor.
+  /// Se elige AQUI, al armar, y la zona no lo guarda como guarda el camion previsto:
+  /// el distribuidor es de la ruta que sale hoy, no de la zona.
+  String? _distribuidorId;
+
   Future<void> _intentar() async {
     setState(() {
       _armando = true;
@@ -1068,6 +1074,7 @@ class _ArmarLaRutaState extends ConsumerState<_ArmarLaRuta> {
           .armarRuta(
             widget.columna.id,
             alDejarFuera: (fuera) => seQuedaronFuera = fuera,
+            distribuidorId: _distribuidorId,
           );
       if (!mounted) return;
       // Sólo aquí se cierra. Y el «sí» se dice DESPUÉS de cerrar, con el
@@ -1197,6 +1204,14 @@ class _ArmarLaRutaState extends ConsumerState<_ArmarLaRuta> {
             ),
           ),
         ],
+        // QUIEN REPARTE, justo encima del boton que arma: opcional, recordado, y con un
+        // enlace a crearlos si la sucursal no tiene ninguno (`SelectorDeDistribuidor`).
+        SelectorDeDistribuidor(
+          sucursalId: widget.columna.branchId,
+          elegido: _distribuidorId,
+          alElegir: (id) => setState(() => _distribuidorId = id),
+        ),
+        const SizedBox(height: 12),
         ControlSenalado(
           nombre: Senalado.tableroArmarLaRuta,
           child: FilledButton.icon(

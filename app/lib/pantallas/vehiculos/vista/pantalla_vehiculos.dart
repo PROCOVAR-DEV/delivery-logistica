@@ -17,6 +17,7 @@ import '../../../diseno/tema.dart';
 import '../../../navegacion/estado_navegacion.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
+import '../../distribuidores/vista/cajon_distribuidores.dart';
 import '../datos/vehiculo_api.dart';
 import '../estado/estado_vehiculos.dart';
 import 'ficha_vehiculo.dart';
@@ -195,7 +196,8 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
           // boton «Tipos de vehiculo». Ahora lo dice.
           Text(
             'Gestiona tu flota. El costo por kilómetro de cada tipo de camión '
-            'se pone en «Tipos de vehículo», aquí al lado.',
+            'se pone en «Tipos de vehículo», aquí al lado. Quién reparte cada '
+            'ruta se mantiene en «Distribuidores».',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
@@ -229,6 +231,14 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
                   onPressed: _abrirTipos,
                   child: const Text('Tipos de vehículo'),
                 ),
+              ),
+              // QUIEN REPARTE (issue 7, 14/10/2026): el nomenclador de distribuidores de
+              // la sucursal vive al lado de los tipos de vehiculo — quien da de alta un
+              // triciclo es quien da de alta a su chofer — y se elige al crear la ruta.
+              OutlinedButton.icon(
+                onPressed: () => abrirCajonDeDistribuidores(context),
+                icon: const Icon(Icons.badge_outlined),
+                label: const Text('Distribuidores'),
               ),
               ControlSenalado(
                 nombre: Senalado.vehiculosAgregar,

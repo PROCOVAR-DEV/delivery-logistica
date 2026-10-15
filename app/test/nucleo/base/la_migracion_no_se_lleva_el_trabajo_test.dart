@@ -13,6 +13,10 @@
 // El 09/10/2026 se subió a la 7 (la bandeja de revisión: cuatro columnas nuevas en `apuntes`, la
 // tabla de la cola sin subir): ver el final de este fichero.
 //
+// El 14/10/2026 se subió a la 8 (los distribuidores, issue 7 de Amado: una tabla nueva y
+// `routes.distribuidor_id`): ver el último grupo de este fichero. Es la primera subida que CREA
+// una tabla en vez de añadir una columna, y se prueba igual, con la cola dentro.
+//
 // El 07/10/2026 se subió a la 6: la 5 quita `orders.vehicle_id` (el camión de un pedido es el
 // de su ruta, y la copia se desactualizaba) con `DROP COLUMN`, y la 6 añade
 // `vehicles.is_active`. Es la primera migración que QUITA algo y por eso la prueba mira dos
@@ -27,7 +31,7 @@
 
 import 'dart:io';
 
-import 'package:drift/drift.dart' show OrderingTerm;
+import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
@@ -431,13 +435,156 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          7,
+          nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 7);
+        expect(nueva.schemaVersion, 8);
       },
     );
   }
-  
+
+  // LA 8: LOS DISTRIBUIDORES (14/10/2026, issue 7 de Amado).
+  //
+  // Una TABLA nueva (`distribuidores`) y una columna nueva (`routes.distribuidor_id`). Se prueba
+  // con un fichero RICO —la cola de los tres verbos, un camión, una ruta con su pedido y sus
+  // renglones— porque lo que se defiende es lo de siempre: que la base abra y que la cola sin
+  // subir siga ahí. Y por triplicado, que es el caso que protege la guarda de `desde < 8`:
+  //
+  //  · SIN la tabla ni la columna (el aparato de ayer, de verdad);
+  //  · CON las dos ya puestas (una copia nacida con el esquema nuevo y el `user_version` atrás):
+  //    un `CREATE TABLE` de una que existe LANZA, la migración no termina y la base no abre;
+  //  · sólo la tabla, o sólo la columna (un salto interrumpido a la mitad).
+  for (final (nombre, quitaLaTabla, quitaLaColumna) in const [
+    ('SIN la tabla ni la columna', true, true),
+    ('CON la tabla y la columna ya puestas', false, false),
+    ('con la tabla pero SIN la columna', false, true),
+    ('con la columna pero SIN la tabla', true, false),
+  ]) {
+    test(
+      'desde la 7: los distribuidores $nombre abren y no pierden nada',
+      () async {
+        final fichero = await _ficheroDePrueba();
+        addTearDown(() async {
+          if (fichero.existsSync()) await fichero.delete();
+        });
+
+        final ayer = BaseLocal.con(NativeDatabase(fichero));
+        for (final (clave, metodo, ruta) in const [
+          ('01J8-a-post', 'POST', '/api/routes'),
+          ('01J8-b-patch', 'PATCH', '/api/routes/r-1'),
+          ('01J8-c-delete', 'DELETE', '/api/routes/r-1/stops/ped-1'),
+        ]) {
+          await ayer.into(ayer.apuntes).insert(
+            ApuntesCompanion.insert(
+              clave: clave,
+              hechoAt: DateTime(2026, 10, 13, 9),
+              metodo: metodo,
+              ruta: ruta,
+              cuerpo: '{"v":"$clave"}',
+            ),
+          );
+        }
+        await ayer.customStatement(
+          "INSERT INTO vehicles (id, name, capacity) VALUES ('v-1', 'Camión rico', 3000)",
+        );
+        await ayer.customStatement(
+          'INSERT INTO routes (id, route_code, status, vehicle_id, branch_id) '
+          "VALUES ('r-1', 'RT-20261013-001', 'planned', 'v-1', 'suc-1')",
+        );
+        await ayer.customStatement(
+          'INSERT INTO orders (id, customer_name, address, weight, archivado, route_id) '
+          "VALUES ('ped-1', 'Bodega La Rica', 'Calle 1', 75, 0, 'r-1')",
+        );
+        for (final (id, linea, descripcion) in const [
+          ('ri-1', 1, 'Arroz'),
+          ('ri-2', 2, 'Aceite'),
+        ]) {
+          await ayer.customStatement(
+            'INSERT INTO order_items (id, order_id, linea, description, quantity) '
+            "VALUES ('$id', 'ped-1', $linea, '$descripcion', 10)",
+          );
+        }
+        // Lo de la 8, tal como lo tiene o no tiene el aparato de ayer.
+        if (quitaLaTabla) {
+          await ayer.customStatement('DROP TABLE distribuidores');
+        }
+        if (quitaLaColumna) {
+          await ayer.customStatement(
+            'ALTER TABLE routes DROP COLUMN distribuidor_id',
+          );
+        }
+        await ayer.customStatement('PRAGMA user_version = 7');
+        await ayer.close();
+
+        final nueva = BaseLocal.con(NativeDatabase(fichero));
+        addTearDown(nueva.close);
+
+        // LA COLA, entera y en su orden.
+        expect(
+          (await nueva.select(nueva.apuntes).get()).map((a) => (a.metodo, a.clave)),
+          [
+            ('POST', '01J8-a-post'),
+            ('PATCH', '01J8-b-patch'),
+            ('DELETE', '01J8-c-delete'),
+          ],
+          reason: 'la cola sin subir es el trabajo del día: una migración que se la lleve '
+              'no se nota hasta que alguien la reclama',
+        );
+        final ruta = (await nueva.select(nueva.routes).get()).single;
+        expect((ruta.routeCode, ruta.vehicleId, ruta.branchId),
+            ('RT-20261013-001', 'v-1', 'suc-1'));
+        expect(
+          ruta.distribuidorId,
+          isNull,
+          reason: 'una ruta de antes de la 8 no tiene distribuidor, y la migración no le '
+              'inventa uno: un hueco se ve y se rellena, un nombre puesto no',
+        );
+        expect(
+          (await nueva.select(nueva.orders).get()).single.customerName,
+          'Bodega La Rica',
+        );
+        expect(
+          (await nueva.select(nueva.orderItems).get()).map((r) => r.description),
+          unorderedEquals(['Arroz', 'Aceite']),
+        );
+
+        // LA TABLA Y LA COLUMNA EXISTEN, preguntándoselo a SQLite (un nulo y una columna
+        // que no está se leen igual desde Dart).
+        final tablas = (await nueva
+                .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .get())
+            .map((f) => f.read<String>('name'));
+        expect(tablas, contains('distribuidores'));
+        final deRutas = (await nueva.customSelect('PRAGMA table_info(routes)').get())
+            .map((f) => f.read<String>('name'));
+        expect(deRutas, contains('distribuidor_id'));
+
+        // Y SE PUEDE USAR: se escribe, se lee y la ruta lo apunta.
+        await nueva.into(nueva.distribuidores).insert(
+          DistribuidoresCompanion.insert(
+            id: 'd-1',
+            nombre: 'Juan Pérez',
+            branchId: const Value('suc-1'),
+          ),
+        );
+        await (nueva.update(nueva.routes)..where((r) => r.id.equals('r-1')))
+            .write(const RoutesCompanion(distribuidorId: Value('d-1')));
+        final d = (await nueva.select(nueva.distribuidores).get()).single;
+        expect((d.nombre, d.activo), ('Juan Pérez', true),
+            reason: 'un distribuidor nace ACTIVO: leerlo al reves esconderia a toda la sucursal');
+        expect(
+          (await nueva.select(nueva.routes).get()).single.distribuidorId,
+          'd-1',
+        );
+
+        expect(
+          (await nueva.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          nueva.schemaVersion,
+        );
+        expect(nueva.schemaVersion, 8);
+      },
+    );
+  }
 }
 
 Future<File> _ficheroDePrueba() async {

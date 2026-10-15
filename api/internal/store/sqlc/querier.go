@@ -24,6 +24,9 @@ type Querier interface {
 	// son dos órdenes distintas y las dos llegan con el campo vacío: sin la bandera, dejar el
 	// nombre en blanco desasignaría el camión de paso.
 	ActualizarColumna(ctx context.Context, arg ActualizarColumnaParams) (BoardColumn, error)
+	// Renombrar o volver a activar/retirar. La sucursal de un distribuidor NO se cambia nunca: una
+	// ruta ya firmada por él seguiría apuntando a quien dejó de ser de su sucursal.
+	ActualizarDistribuidor(ctx context.Context, arg ActualizarDistribuidorParams) (Distribuidore, error)
 	// ---------------------------------------------------------------------------
 	// Cambios de estado de la ruta  (PATCH /api/routes/[id])
 	// ---------------------------------------------------------------------------
@@ -200,6 +203,13 @@ type Querier interface {
 	// recuerdo y borrar la ruta después sencillamente no restaura nada en una zona que ya no
 	// existe: el pedido vuelve a la lista de «sin colocar», que es donde tiene que estar.
 	BorrarColumna(ctx context.Context, arg BorrarColumnaParams) (int64, error)
+	// Sólo se borra de verdad al que no usa ninguna ruta. Se comprueba aquí, en la misma sentencia, y
+	// no con un conteo antes: entre el conteo y el borrado cabe una ruta nueva.
+	//
+	// Cero filas NO es el 404: es «no existe, no es tuyo, o lo usa una ruta», y el manejador lo
+	// distingue intentando retirarlo (que también va acotado). Devuelve la sucursal del borrado,
+	// porque cuando se avisa la fila ya no está.
+	BorrarDistribuidorSinUso(ctx context.Context, arg BorrarDistribuidorSinUsoParams) (uuid.UUID, error)
 	BorrarOrigen(ctx context.Context, arg BorrarOrigenParams) (int64, error)
 	// :one y no :exec: «no existe O no es de tu sucursal» es el 404, y con :exec no hay forma
 	// de distinguirlo de un borrado hecho. `pgx.ErrNoRows` es ese caso.
@@ -440,6 +450,9 @@ type Querier interface {
 	// Va acotada igual que el `INSERT`: sin el `branch_id` aquí, mandar el id de la zona de
 	// otra sucursal la devolvería, y eso es enseñar lo que no es de uno.
 	CrearColumna(ctx context.Context, arg CrearColumnaParams) (CrearColumnaRow, error)
+	// Nace en la sucursal de quien llama (`branch_id` lo rellena `alcance.Acotado`). El manejador no
+	// llama a esta consulta sin sucursal: en modo «todas» contesta 400.
+	CrearDistribuidor(ctx context.Context, arg CrearDistribuidorParams) (Distribuidore, error)
 	CrearOrigen(ctx context.Context, arg CrearOrigenParams) (SavedOrigin, error)
 	// LA CONSTANCIA DEL PESO, que estaba dada de alta y no la escribía nadie.
 	//
@@ -467,6 +480,9 @@ type Querier interface {
 	CrearRenglonDePedido(ctx context.Context, arg CrearRenglonDePedidoParams) (CrearRenglonDePedidoRow, error)
 	// La ruta nace `planned` y `optimized` en false: los totales y el orden de visita se
 	// calculan después, con las paradas ya enganchadas, y se fijan con `FijarTotalesDeRuta`.
+	//
+	// `distribuidor_id` es QUIÉN REPARTE (issue 7): opcional, y el manejador ya comprobó que es de la
+	// sucursal de la ruta y que sigue en activo. La FK sola no sabe de sucursales.
 	//
 	// `creado_por` es el id de la persona EN AUTH y es CONSTANCIA, no un filtro: aquí nada
 	// pertenece a nadie. Filtrar por el creador fue lo que dejó los 3.528 pedidos importados a
@@ -944,6 +960,25 @@ type Querier interface {
 	// todavía no se sabe, y pintar «cabe» cuando nadie ha dicho en qué va es peor que no
 	// pintar nada.
 	ListarColumnasDelTablero(ctx context.Context, arg ListarColumnasDelTableroParams) ([]ListarColumnasDelTableroRow, error)
+	// Los distribuidores: el nomenclador de QUIÉN REPARTE, POR SUCURSAL (issue 7 de Amado, 14/10/2026).
+	//
+	// Es la persona responsable de la entrega y de devolver las facturas entregadas: el chofer
+	// mismo si va en triciclo, un empleado de Procovar si el vehículo es rentado. Se asocia a la
+	// ruta AL CREARLA (`routes.distribuidor_id`, nulo = ruta histórica o armada sin él).
+	//
+	// El filtro es el de siempre en las rutas: `sucursal` NULL = «todas» (SUPER ADMIN y
+	// DESARROLLADOR sin sucursal elegida) y no acota; con sucursal, un distribuidor de otra es un
+	// 404 y no un 403, igual que un id que no existe. A diferencia de los tipos de vehículo NO hay
+	// «de todas»: `branch_id` es NOT NULL y quien ve todas ve todas las listas (cada fila dice de qué
+	// sucursal es). Lo que NO hace el modo «todas» es CREAR: nacería sin dueño (el manejador contesta
+	// 400 pidiendo elegir sucursal).
+	// La lista. Por defecto salen TODOS, activos y retirados: la usan la pantalla de mantenimiento
+	// (tiene que ver lo retirado para volver a activarlo) y la BAJADA del aparato (una ruta vieja
+	// enseña el nombre de quien la repartió aunque ya esté retirado). `solo_activos` es para el
+	// selector de una ruta nueva, que sólo ofrece a quien sigue en activo.
+	//
+	// `rutas` dice cuántas rutas lo usan: de ahí sale «se retira, no se borra».
+	ListarDistribuidores(ctx context.Context, arg ListarDistribuidoresParams) ([]ListarDistribuidoresRow, error)
 	ListarEnviosDelWebhook(ctx context.Context, tope int32) ([]EnviosDelWebhook, error)
 	// ---------------------------------------------------------------------------
 	// Monedas
@@ -1365,6 +1400,9 @@ type Querier interface {
 	// Cero filas es «no existe O no es de tu sucursal»: desde fuera son lo mismo, y tienen que
 	// serlo, porque decir «existe pero no es tuya» ya es contar algo.
 	ObtenerColumna(ctx context.Context, arg ObtenerColumnaParams) (BoardColumn, error)
+	// Uno, para validar el `distribuidorId` que viene en el cuerpo de una ruta. Cero filas es «no
+	// existe O no es de tu sucursal»: desde fuera son lo mismo.
+	ObtenerDistribuidor(ctx context.Context, arg ObtenerDistribuidorParams) (ObtenerDistribuidorRow, error)
 	// Una factura entera. `oper_number` ES la factura: varias líneas comparten número, y el
 	// que las agrupa es ése y no `ventra_id`, que identifica la LÍNEA.
 	ObtenerFacturaPorOperacion(ctx context.Context, arg ObtenerFacturaPorOperacionParams) ([]ObtenerFacturaPorOperacionRow, error)
@@ -1653,6 +1691,10 @@ type Querier interface {
 	// mentira. El peso sale ahora del catálogo (`products.weight`), que es el mismo dato con
 	// el que PEDIDO cotiza: el `pesoLineaKg` que venía dentro del JSON de `items` ya no existe.
 	ResumenPreDespacho(ctx context.Context, arg ResumenPreDespachoParams) ([]ResumenPreDespachoRow, error)
+	// Retirar NO es borrar: se desactiva. Deja de ofrecerse en una ruta nueva y las rutas que ya lo
+	// llevan siguen diciendo quién las repartió. DEVUELVE LA SUCURSAL del distribuidor, de donde sale
+	// el aviso en vivo. `:one`: cero filas es «no existe O no es de tu sucursal», o sea el 404.
+	RetirarDistribuidor(ctx context.Context, arg RetirarDistribuidorParams) (uuid.UUID, error)
 	// Retirar un tipo NO es borrarlo. Se desactiva: deja de ofrecerse en el desplegable y los
 	// camiones que ya lo tienen siguen funcionando. Un DELETE choca contra la clave ajena de
 	// `vehicles.vehicle_type_id`, y hacerlo a la fuerza dejaría camiones sin tipo, que es un

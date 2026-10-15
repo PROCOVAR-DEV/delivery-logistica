@@ -68,6 +68,7 @@ abstract final class TextosDeTraerElDia {
     Colecciones.clientes => 'Clientes',
     Colecciones.productos => 'Productos',
     Colecciones.vehiculos => 'Vehículos',
+    Colecciones.distribuidores => 'Distribuidores',
     Colecciones.sucursales => 'Sucursales',
     Colecciones.almacenes => 'Almacenes',
     Colecciones.ajustes => 'Ajustes',
@@ -141,10 +142,11 @@ abstract final class TextosDeTraerElDia {
     return lineas == 1 ? 'con 1 línea' : 'con ${Numeros.entero(lineas)} líneas';
   }
 
-  /// LO DE SIEMPRE, en UNA linea. Menos de veinte filas entre las cuatro: no
-  /// merecen cuatro renglones, pero hacen falta las cuatro.
+  /// LO DE SIEMPRE, en UNA linea. Menos de veinte filas entre las cinco: no
+  /// merecen cinco renglones, pero hacen falta las cinco.
   static const loDeSiempre =
-      'Y lo de siempre: vehículos, sucursales, almacenes y ajustes.';
+      'Y lo de siempre: vehículos, distribuidores, sucursales, almacenes y '
+      'ajustes.';
 
   static String loDeSiempreCuantas(RecuentoDeLoQueHay r) {
     final total = Faltas.loDeSiempre.fold<int>(

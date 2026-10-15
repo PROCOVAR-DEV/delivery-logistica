@@ -144,6 +144,8 @@ void main() {
 
         expect(enTarjeta, findsNothing);
         expect(find.textContaining('Factura'), findsNothing);
+        // El título no se queda vacío (issue 12): dice que falta el número.
+        expect(find.text('Sin número de factura'), findsOneWidget);
         expect(
           find.text(nombre),
           findsOneWidget,

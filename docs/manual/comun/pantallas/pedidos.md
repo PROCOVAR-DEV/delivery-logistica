@@ -82,10 +82,11 @@ Cambia según las fechas que tengas puestas: «· del 28/9/2026», «· desde el
 | **«Entrega»** | El estado de reparto |
 
 En pantalla estrecha no hay tabla: cada pedido es una tarjeta, y la cabecera dice
-«Elegir los 50 de esta página». **En la tarjeta, justo debajo del nombre, sale el número
-de factura** en negrita (`Factura 1024237`, el de Ventra; el número de operación va a su
-lado y es otro). Lo de la columna «Factura» queda en una insignia que solo dice el estado:
-**«Cuadra»** en verde o **«Cambió !»** en ámbar.
+«Elegir los 50 de esta página». **El título de la tarjeta es el número de factura**
+(`Factura 1024237`, el de Ventra), y debajo va el cliente, en negrita y más pequeño; luego
+el número de operación, que es otro, y la fecha. Sin número de factura, el título dice
+**«Sin número de factura»**, en gris. Lo de la columna «Factura» queda en una insignia que
+solo dice el estado: **«Cuadra»** en verde o **«Cambió !»** en ámbar.
 
 ---
 
@@ -151,8 +152,8 @@ sí lo lleva, porque se puede volver a meter en otra ruta.
 
 La columna «Factura» no sale en pantallas de menos de 1024 px de ancho. **El número de
 factura no desaparece con ella**: entre 768 y 1023 px baja a la celda del cliente, debajo del
-número de operación, como `Factura 1024237`; en el teléfono va en la cabecera de la tarjeta
-y la marca del domicilio dentro de ella.
+número de operación, como `Factura 1024237`; en el teléfono es **el título de la tarjeta**,
+y la marca del domicilio va en la insignia de abajo.
 
 ---
 

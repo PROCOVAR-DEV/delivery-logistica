@@ -188,8 +188,19 @@ void main() {
     ) async {
       await abrirElCajonDe(tester, facturaNumero: null);
 
+      // Se busca en el renglón de la factura del cajón: desde el issue 12 la tarjeta
+      // de detrás también dice «Sin número de factura» en su título.
+      final renglonDeLaFactura = find
+          .ancestor(
+            of: find.byIcon(Icons.receipt_long_outlined),
+            matching: find.byType(Row),
+          )
+          .first;
       expect(
-        find.text('Sin número de factura'),
+        find.descendant(
+          of: renglonDeLaFactura,
+          matching: find.text('Sin número de factura'),
+        ),
         findsOneWidget,
         reason: 'un pedido sin número tiene que decirlo, no dejar un hueco',
       );
@@ -371,7 +382,7 @@ void main() {
     for (final vacio in const <String?>[null, '', '   ']) {
       testWidgets(
         'sin número de factura (${vacio == null ? 'nulo' : "'$vacio'"}) '
-        'no sale la línea',
+        'no sale «Factura» y el título dice que falta (issue 12)',
         (tester) async {
           await pintar(
             tester,
@@ -385,6 +396,7 @@ void main() {
             reason: 'sin factura no se pinta un «Factura» vacío',
           );
           expect(find.text('Factura'), findsNothing);
+          expect(find.text('Sin número de factura'), findsOneWidget);
         },
       );
     }

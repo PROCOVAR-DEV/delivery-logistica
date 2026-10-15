@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
@@ -193,6 +195,26 @@ void main() {
         ],
         reason: 'y en el orden en que se colocaron, que es el orden de visita',
       );
+    });
+
+    test('la zona rehecha lleva su punto de salida, y sin punto no lo inventa', () async {
+      await zonaLocal('local-aurora');
+      await base.customStatement(
+        "UPDATE board_columns SET almacen_id = 'alm-aurora' WHERE id = 'local-aurora'",
+      );
+      await zonaLocal('local-sin-punto', nombre: 'Otra');
+
+      await huerfanos.volverAEncolar(cola);
+      final cuerpos = {
+        for (final a in await base.select(base.apuntes).get())
+          a.provisional: jsonDecode(a.cuerpo) as Map<String, Object?>,
+      };
+      expect(
+        cuerpos['local-aurora']!['almacenId'],
+        'alm-aurora',
+        reason: 'sin el punto, sus rutas saldrían del principal',
+      );
+      expect(cuerpos['local-sin-punto']!.containsKey('almacenId'), isFalse);
     });
 
     test('una zona vacía sube sola, sin inventarse pedidos', () async {

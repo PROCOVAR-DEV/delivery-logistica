@@ -349,7 +349,7 @@ class Huerfanos {
     for (final id in await idsParaReencolar(zonasDelTablero)) {
       final columna = await _base
           .customSelect(
-            'SELECT branch_id, nombre, vehicle_id FROM board_columns '
+            'SELECT branch_id, nombre, vehicle_id, almacen_id FROM board_columns '
             'WHERE id = ?1',
             variables: [Variable<String>(id)],
           )
@@ -372,6 +372,8 @@ class Huerfanos {
           'id': id,
           'nombre': columna.read<String>('nombre'),
           'vehiculoId': ?columna.read<String?>('vehicle_id'),
+          // Sin él la zona rehecha sube sin su punto y sus rutas salen del principal.
+          'almacenId': ?columna.read<String?>('almacen_id'),
         },
         provisional: id,
       );

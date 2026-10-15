@@ -212,6 +212,19 @@ type ColumnaSalida struct {
 	ExcedeCamion *bool      `json:"excedeCamion"`
 	CreatedAt    *time.Time `json:"createdAt"`
 	UpdatedAt    *time.Time `json:"updatedAt"`
+	// EL PUNTO DE SALIDA DE LA ZONA (00020, Jose 15/10/2026): el id del almacén de Accesos del
+	// que sale su ruta, o nulo = sale del principal de la sucursal, como antes. `Almacen` es ese
+	// almacén con su nombre; nulo si la zona no tiene punto o si Accesos ya no lo tiene en su
+	// sucursal —y entonces `almacenId` SIGUE puesto: un hueco se ve y se arregla, y armar la
+	// ruta lo dice con su motivo (`origenDeLaZona`)—.
+	AlmacenID *string        `json:"almacenId"`
+	Almacen   *PuntoDeSalida `json:"almacen"`
+}
+
+// PuntoDeSalida es el almacén de una zona tal como lo enseña la cabecera: «desde AURORA».
+type PuntoDeSalida struct {
+	ID     string `json:"id"`
+	Nombre string `json:"nombre"`
 }
 
 // TarjetaSalida es un pedido YA COLOCADO.
@@ -342,6 +355,9 @@ type tableroCtx struct {
 	sucursal uuid.UUID
 	nombre   string
 	almacen  AlmacenSalida
+	// Todos los almacenes de la sucursal en Accesos: de aquí salen el nombre y las
+	// coordenadas del punto de salida de cada zona.
+	almacenes []Almacen
 }
 
 func (s *Servidor) tableroDe(w http.ResponseWriter, r *http.Request, a *alcance.Acotado) (tableroCtx, bool) {
@@ -378,11 +394,11 @@ func (s *Servidor) tableroDe(w http.ResponseWriter, r *http.Request, a *alcance.
 		return ctx, false
 	}
 
-	origen, ok := s.almacenDe(w, r, suc)
+	origen, lista, ok := s.almacenDe(w, r, suc)
 	if !ok {
 		return ctx, false
 	}
-	return tableroCtx{sucursal: id, nombre: suc.Name, almacen: origen}, true
+	return tableroCtx{sucursal: id, nombre: suc.Name, almacen: origen, almacenes: lista}, true
 }
 
 // almacenDe resuelve el punto desde el que se mide, y NO se inventa ninguno.
@@ -424,9 +440,11 @@ func (s *Servidor) tableroDe(w http.ResponseWriter, r *http.Request, a *alcance.
 // que decidir es si una zona con dos almacenes son dos rutas o una ruta con dos recogidas, y eso
 // lo decide Jose, no este fichero. Está apuntado en `docs/integracion-pendiente.md`.
 //
-// MIENTRAS TANTO, LO QUE PASA: una ruta armada sólo con pedidos de AURORA se arma desde PV-STGO,
-// así que sus km no cuadran con el `delivery_distance_km` de sus propios pedidos. Los dos números
-// existen y son distintos; lo que NO puede pasar es que nadie lo sepa, y por eso está escrito.
+// LO DECIDIÓ EL 15/10/2026 (migración 00020): cada ZONA elige de qué almacén sale
+// (`board_columns.almacen_id`, `origenDeLaZona`), y su ruta sale de ahí. Éste sigue siendo el de
+// la cabecera del tablero, el de «Sin colocar» y el de toda zona sin punto (nulo). Una zona de
+// pedidos de AURORA que se deje en nulo sigue armándose desde PV-STGO, con km que no cuadran con
+// el `delivery_distance_km` de sus pedidos: ahora se arregla eligiéndole el punto a la zona.
 //
 // # ACCESOS CAÍDO NO ES «NO TIENE ALMACÉN»
 //
@@ -435,32 +453,118 @@ func (s *Servidor) tableroDe(w http.ResponseWriter, r *http.Request, a *alcance.
 // sucursal no tiene almacén cuando lo que pasa es que Accesos no contesta le manda a
 // arreglar algo que no está roto. Eso es un 502 con el nombre de quien no contestó, igual
 // que en `GET /api/almacenes`.
-func (s *Servidor) almacenDe(w http.ResponseWriter, r *http.Request, suc sqlc.Branch) (AlmacenSalida, bool) {
-	codigo := ""
-	if suc.ExternalID != nil {
-		codigo = strings.TrimSpace(*suc.ExternalID)
+//
+// Devuelve también la LISTA ENTERA de la sucursal: es la que dice de dónde sale cada zona que
+// tiene su propio punto (`origenDeLaZona`) y la que valida el que se le pone (`puntoDeSalida`).
+func (s *Servidor) almacenDe(w http.ResponseWriter, r *http.Request, suc sqlc.Branch) (AlmacenSalida, []Almacen, bool) {
+	lista, ok := s.almacenesDe(w, r, suc)
+	if !ok {
+		return AlmacenSalida{}, nil, false
 	}
-
-	var lista []Almacen
-	if codigo != "" {
-		crudos, err := s.accesos.AlmacenesDeSucursal(r.Context(), codigo)
-		if err != nil {
-			httpx.Error(w, r, http.StatusBadGateway,
-				fmt.Sprintf("No se pudieron traer los almacenes de Accesos: %s", err))
-			return AlmacenSalida{}, false
-		}
-		lista = crudos
-	}
-	// Una sucursal sin código no tiene a quién preguntarle: no se adivina nada y se dice
-	// lo mismo que si no tuviera almacén, que es lo que le pasa de hecho.
-
 	elegido := cotizar.ElegirAlmacen(almacenesConPunto(lista))
 	if elegido == nil {
 		httpx.Error(w, r, http.StatusConflict,
 			fmt.Sprintf(msgSinAlmacenF, suc.Name))
-		return AlmacenSalida{}, false
+		return AlmacenSalida{}, nil, false
 	}
-	return AlmacenSalida{Nombre: elegido.Nombre, Lat: *elegido.Latitud, Lng: *elegido.Longitud}, true
+	return AlmacenSalida{Nombre: elegido.Nombre, Lat: *elegido.Latitud, Lng: *elegido.Longitud}, lista, true
+}
+
+// almacenesDe trae de Accesos los almacenes de la sucursal. Accesos caído es un 502, no «no
+// tiene almacén» (ver arriba).
+func (s *Servidor) almacenesDe(w http.ResponseWriter, r *http.Request, suc sqlc.Branch) ([]Almacen, bool) {
+	codigo := ""
+	if suc.ExternalID != nil {
+		codigo = strings.TrimSpace(*suc.ExternalID)
+	}
+	// Una sucursal sin código no tiene a quién preguntarle: no se adivina nada y se dice
+	// lo mismo que si no tuviera almacén, que es lo que le pasa de hecho.
+	if codigo == "" {
+		return nil, true
+	}
+	lista, err := s.accesos.AlmacenesDeSucursal(r.Context(), codigo)
+	if err != nil {
+		httpx.Error(w, r, http.StatusBadGateway,
+			fmt.Sprintf("No se pudieron traer los almacenes de Accesos: %s", err))
+		return nil, false
+	}
+	return lista, true
+}
+
+// ---------------------------------------------------------------------------
+// El punto de salida de cada zona (00020, Jose 15/10/2026)
+// ---------------------------------------------------------------------------
+
+// puntoDeSalida busca el almacén [id] en la lista de SU sucursal y dice si sirve de punto de
+// salida. `motivo` vacío = sirve.
+//
+// FALLA CERRADO: lo que no está en la lista de la sucursal de la zona —un almacén de otra
+// sucursal, uno inventado, uno que Accesos borró— no se acepta, y se contesta lo mismo que si
+// no existiera (decir «existe pero no es tuyo» ya es contar algo). Activo y con coordenadas
+// que no sean (0,0): la misma pregunta que hace `ElegirAlmacen` (`SirveParaMedir`), separada
+// en sus dos mitades para que el motivo diga cuál falta.
+//
+// LA MISMA REGLA QUE EL APARATO, con los mismos literales: `docs/punto-de-salida.casos.json`.
+func puntoDeSalida(lista []Almacen, id, sucursal string) (Almacen, string) {
+	for _, a := range lista {
+		if a.ID == nil || *a.ID != id {
+			continue
+		}
+		if !a.Activo {
+			return a, fmt.Sprintf("«%s» está dado de baja en Accesos", a.Nombre)
+		}
+		if !deAlmacenDeAccesos(a).SirveParaMedir() {
+			return a, fmt.Sprintf("«%s» no tiene la ubicación puesta en Almacenes", a.Nombre)
+		}
+		return a, ""
+	}
+	return Almacen{}, fmt.Sprintf("No existe el almacén '%s' en %s", id, sucursal)
+}
+
+// origenDeLaZona: de dónde sale la ruta de una zona. Sin punto (nulo o vacío), del
+// [principal] de la sucursal, que es lo de antes de la 00020. Con punto, de ése; y si ya no
+// sirve, NO se cae al principal en silencio —la cabecera de la zona dice «desde AURORA» y la
+// ruta saldría de otro sitio sin que nadie lo supiera—: devuelve el «no» con su motivo.
+func origenDeLaZona(principal AlmacenSalida, lista []Almacen, almacenID *string, zona, sucursal string) (AlmacenSalida, string) {
+	if almacenID == nil || strings.TrimSpace(*almacenID) == "" {
+		return principal, ""
+	}
+	a, motivo := puntoDeSalida(lista, *almacenID, sucursal)
+	if motivo != "" {
+		return AlmacenSalida{}, fmt.Sprintf(
+			"La zona «%s» no puede salir de su punto de salida: %s. Elige otro en «Punto de salida».",
+			zona, motivo)
+	}
+	return AlmacenSalida{Nombre: a.Nombre, Lat: *a.Latitud, Lng: *a.Longitud}, ""
+}
+
+// almacenDelCuerpo traduce el `almacenId` del cuerpo de crear o cambiar una zona. Vacío o
+// null es «sale del principal» (nulo); un id tiene que pasar `puntoDeSalida` contra la lista
+// de la sucursal de LA ZONA, o 400 con el motivo literal.
+func almacenDelCuerpo(w http.ResponseWriter, r *http.Request, lista []Almacen, sucursal string, v httpx.Opcional[string]) (*string, bool) {
+	id := strings.TrimSpace(v.Con(""))
+	if id == "" {
+		return nil, true
+	}
+	if _, motivo := puntoDeSalida(lista, id, sucursal); motivo != "" {
+		httpx.Error(w, r, http.StatusBadRequest, motivo)
+		return nil, false
+	}
+	return &id, true
+}
+
+// puntoDe pone nombre al punto de salida de una zona para enseñarlo. Nulo si no tiene o si
+// Accesos ya no lo tiene en la sucursal.
+func puntoDe(id *string, lista []Almacen) *PuntoDeSalida {
+	if id == nil {
+		return nil
+	}
+	for _, a := range lista {
+		if a.ID != nil && *a.ID == *id {
+			return &PuntoDeSalida{ID: *id, Nombre: a.Nombre}
+		}
+	}
+	return nil
 }
 
 // almacenesConPunto traduce lo que da Accesos a lo que entiende la fórmula y deja fuera
@@ -522,8 +626,8 @@ func (s *Servidor) tablero(w http.ResponseWriter, r *http.Request) {
 	salida := TableroSalida{
 		Sucursal:   SucursalDelTablero{ID: t.sucursal, Nombre: t.nombre},
 		Almacen:    t.almacen,
-		Columnas:   deColumnas(columnas),
-		Colocados:  deTarjetas(colocados),
+		Columnas:   deColumnas(columnas, t.almacenes),
+		Colocados:  kmDesdeSuZona(deTarjetas(colocados), colocados, columnas, t),
 		Avisos:     AvisosSalida(avisos),
 		SinColocar: izquierda,
 		VistoAt:    time.Now().UTC(),
@@ -711,6 +815,9 @@ var errCursorRoto = errors.New(
 type cuerpoColumna struct {
 	Nombre     httpx.Opcional[string] `json:"nombre"`
 	VehiculoID httpx.Opcional[string] `json:"vehiculoId"`
+	// El punto de salida de la zona (00020): el id del almacén de Accesos. Ver
+	// `almacenDelCuerpo`.
+	AlmacenID httpx.Opcional[string] `json:"almacenId"`
 
 	// EL ID QUE PONE EL APARATO. Opcional: sin él lo pone la base, como siempre.
 	//
@@ -750,6 +857,12 @@ func (s *Servidor) crearColumna(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// EL PUNTO DE SALIDA, si lo trae: una zona nueva nace con el que esté elegido arriba en la
+	// pantalla. Validado contra los almacenes de ESTA sucursal, que `tableroDe` ya trajo.
+	almacen, ok := almacenDelCuerpo(w, r, t.almacenes, t.nombre, c.AlmacenID)
+	if !ok {
+		return
+	}
 
 	// EL ID DEL APARATO, si lo trae. Se exige que sea un uuid: uno que no lo sea es un
 	// `local-…` de una versión anterior, y aceptarlo a ciegas metería en la base un id que
@@ -767,7 +880,7 @@ func (s *Servidor) crearColumna(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fila, err := a.CrearColumna(r.Context(), sqlc.CrearColumnaParams{
-		ID: id, Nombre: nombre, VehicleID: veh, BranchID: t.sucursal,
+		ID: id, Nombre: nombre, VehicleID: veh, BranchID: t.sucursal, AlmacenID: almacen,
 	})
 	// Dos «Vista Alegre» en el mismo tablero es colocar la mitad de los pedidos en la
 	// equivocada y no enterarse hasta que salen dos camiones al mismo barrio. Lo impide
@@ -805,7 +918,7 @@ func (s *Servidor) crearColumna(w http.ResponseWriter, r *http.Request) {
 	// DE LA FILA, no del alcance: la zona se acaba de escribir con `BranchID: t.sucursal`
 	// tres líneas más arriba, así que la sucursal del aviso es la que lleva dentro.
 	avisarCambioDelTablero(r.Context(), deLaFila(fila.BranchID))
-	httpx.JSON(w, r, http.StatusCreated, deColumnaPelada(fila))
+	httpx.JSON(w, r, http.StatusCreated, deColumnaPelada(fila, t.almacenes))
 }
 
 // PATCH /api/board/columns/{id} — renombrar y elegir camión.
@@ -843,6 +956,35 @@ func (s *Servidor) actualizarColumna(w http.ResponseWriter, r *http.Request) {
 		}
 		arg.VehicleID = veh
 	}
+	// EL PUNTO DE SALIDA (00020), con la misma bandera y por lo mismo: ausente es «no me lo
+	// toques», null o "" es «vuelve a salir del principal». Se valida contra los almacenes de
+	// la sucursal DE LA ZONA —no la del cuerpo ni la de quien pregunta—, que se lee con alcance:
+	// una zona de otra sucursal es el 404 de siempre. A Accesos sólo se le pregunta si el campo
+	// viene: renombrar no puede dejar de funcionar porque Accesos no conteste.
+	var almacenes []Almacen
+	if c.AlmacenID.Presente {
+		arg.TocarAlmacen = true
+		columna, err := a.ObtenerColumna(r.Context(), id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			httpx.Error(w, r, http.StatusNotFound, msgZonaNoEsta)
+			return
+		}
+		if err != nil {
+			httpx.ErrorInterno(w, r, err)
+			return
+		}
+		suc, err := a.ObtenerSucursal(r.Context(), columna.BranchID)
+		if err != nil {
+			httpx.ErrorInterno(w, r, err)
+			return
+		}
+		if almacenes, ok = s.almacenesDe(w, r, suc); !ok {
+			return
+		}
+		if arg.AlmacenID, ok = almacenDelCuerpo(w, r, almacenes, suc.Name, c.AlmacenID); !ok {
+			return
+		}
+	}
 
 	fila, err := a.ActualizarColumna(r.Context(), arg)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -859,7 +1001,7 @@ func (s *Servidor) actualizarColumna(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	avisarCambioDelTablero(r.Context(), deLaFila(fila.BranchID))
-	httpx.JSON(w, r, http.StatusOK, deColumnaPelada(fila))
+	httpx.JSON(w, r, http.StatusOK, deColumnaPelada(fila, almacenes))
 }
 
 type cuerpoOrden struct {
@@ -930,7 +1072,7 @@ func (s *Servidor) reordenarColumnas(w http.ResponseWriter, r *http.Request) {
 	avisarCambioDelTablero(r.Context(), deLaFila(t.sucursal))
 	httpx.JSON(w, r, http.StatusOK, map[string]any{
 		"reordenadas": n,
-		"columnas":    deColumnas(columnas),
+		"columnas":    deColumnas(columnas, t.almacenes),
 	})
 }
 
@@ -1471,8 +1613,17 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	almacen, ok := s.almacenDe(w, r, suc)
+	principal, almacenes, ok := s.almacenDe(w, r, suc)
 	if !ok {
+		return
+	}
+	// LA RUTA SALE DEL PUNTO DE SALIDA DE LA ZONA (00020), y si no tiene, del principal como
+	// antes. De aquí salen el `origin_*` de la ruta, el orden por cercanía, el `segment_km` de
+	// cada parada y el circuito. Un punto que ya no sirve es un 409 con su motivo, ANTES de
+	// mirar los pedidos —lo mismo que hace el aparato—: no se cae al principal en silencio.
+	almacen, motivo := origenDeLaZona(principal, almacenes, columna.AlmacenID, columna.Nombre, suc.Name)
+	if motivo != "" {
+		httpx.Error(w, r, http.StatusConflict, motivo)
 		return
 	}
 
@@ -1933,7 +2084,7 @@ func (s *Servidor) codigoDeRuta(r *http.Request, a *alcance.Acotado) (string, er
 // Ayudas
 // ---------------------------------------------------------------------------
 
-func deColumnas(filas []sqlc.ListarColumnasDelTableroRow) []ColumnaSalida {
+func deColumnas(filas []sqlc.ListarColumnasDelTableroRow, almacenes []Almacen) []ColumnaSalida {
 	salida := make([]ColumnaSalida, 0, len(filas))
 	for _, f := range filas {
 		salida = append(salida, ColumnaSalida{
@@ -1945,6 +2096,7 @@ func deColumnas(filas []sqlc.ListarColumnasDelTableroRow) []ColumnaSalida {
 			Pedidos:           f.Pedidos, PesoKg: f.PesoKg, CostoUsd: f.CostoUsd,
 			ExcedeCamion: f.ExcedeCamion,
 			CreatedAt:    hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
+			AlmacenID: f.AlmacenID, Almacen: puntoDe(f.AlmacenID, almacenes),
 		})
 	}
 	return salida
@@ -1952,12 +2104,39 @@ func deColumnas(filas []sqlc.ListarColumnasDelTableroRow) []ColumnaSalida {
 
 // deColumnaPelada es la columna recién creada o recién tocada, sin totales: no los tiene
 // todavía, y devolver ceros diría «esta columna está vacía» de una que puede no estarlo.
-func deColumnaPelada(c sqlc.BoardColumn) ColumnaSalida {
+//
+// `almacenes` es la lista con la que se validó el punto de salida, si este gesto lo tocó; si
+// no, va vacía y `almacen` sale nulo aunque haya `almacenId` (lo resuelve `GET /api/board`).
+func deColumnaPelada(c sqlc.BoardColumn, almacenes []Almacen) ColumnaSalida {
 	return ColumnaSalida{
 		ID: c.ID, BranchID: c.BranchID, Nombre: c.Nombre, Posicion: c.Posicion,
 		VehicleID: idOpcional(c.VehicleID),
 		CreatedAt: hora(c.CreatedAt), UpdatedAt: hora(c.UpdatedAt),
+		AlmacenID: c.AlmacenID, Almacen: puntoDe(c.AlmacenID, almacenes),
 	}
+}
+
+// kmDesdeSuZona: la tarjeta puesta en una zona con punto de salida propio mide sus km desde
+// ESE punto, que es el que dice la cabecera de la zona («desde AURORA») y del que va a salir
+// su ruta. Las demás, desde el de arriba, como antes. Un punto que ya no sirve no mide nada y
+// la tarjeta se queda con el de arriba (el «no» lo da armar la ruta). [tarjetas] sale de
+// [filas] en el mismo orden (`deTarjetas`).
+func kmDesdeSuZona(tarjetas []TarjetaSalida, filas []sqlc.ListarPedidosColocadosRow, columnas []sqlc.ListarColumnasDelTableroRow, t tableroCtx) []TarjetaSalida {
+	desde := map[uuid.UUID]AlmacenSalida{}
+	for _, c := range columnas {
+		if c.AlmacenID == nil {
+			continue
+		}
+		if o, motivo := origenDeLaZona(t.almacen, t.almacenes, c.AlmacenID, c.Nombre, t.nombre); motivo == "" {
+			desde[c.ID] = o
+		}
+	}
+	for i, f := range filas {
+		if o, ok := desde[f.ColumnID]; ok && f.EndLat != nil && f.EndLng != nil {
+			tarjetas[i].KmAlAlmacen = kmHaversine(o.Lat, o.Lng, *f.EndLat, *f.EndLng)
+		}
+	}
+	return tarjetas
 }
 
 func deTarjetas(filas []sqlc.ListarPedidosColocadosRow) []TarjetaSalida {

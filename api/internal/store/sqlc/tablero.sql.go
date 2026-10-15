@@ -43,28 +43,35 @@ const actualizarColumna = `-- name: ActualizarColumna :one
 UPDATE board_columns SET
     nombre     = coalesce($1::text, nombre),
     vehicle_id = CASE WHEN $2::boolean
-                      THEN $3::uuid ELSE vehicle_id END
-WHERE id = $4
-  AND ($5::uuid IS NULL OR branch_id = $5::uuid)
-RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at
+                      THEN $3::uuid ELSE vehicle_id END,
+    almacen_id = CASE WHEN $4::boolean
+                      THEN $5::text ELSE almacen_id END
+WHERE id = $6
+  AND ($7::uuid IS NULL OR branch_id = $7::uuid)
+RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id
 `
 
 type ActualizarColumnaParams struct {
 	Nombre        *string     `json:"nombre"`
 	TocarVehiculo bool        `json:"tocar_vehiculo"`
 	VehicleID     pgtype.UUID `json:"vehicle_id"`
+	TocarAlmacen  bool        `json:"tocar_almacen"`
+	AlmacenID     *string     `json:"almacen_id"`
 	ID            uuid.UUID   `json:"id"`
 	Sucursal      pgtype.UUID `json:"sucursal"`
 }
 
-// Renombrar y elegir camión. `tocar_vehiculo` existe porque «no me lo toques» y «quítamelo»
-// son dos órdenes distintas y las dos llegan con el campo vacío: sin la bandera, dejar el
-// nombre en blanco desasignaría el camión de paso.
+// Renombrar, elegir camión y elegir punto de salida. `tocar_vehiculo` existe porque «no me lo
+// toques» y «quítamelo» son dos órdenes distintas y las dos llegan con el campo vacío: sin la
+// bandera, dejar el nombre en blanco desasignaría el camión de paso. `tocar_almacen`, lo mismo
+// para el punto de salida (00020): nulo es «vuelve a salir del principal».
 func (q *Queries) ActualizarColumna(ctx context.Context, arg ActualizarColumnaParams) (BoardColumn, error) {
 	row := q.db.QueryRow(ctx, actualizarColumna,
 		arg.Nombre,
 		arg.TocarVehiculo,
 		arg.VehicleID,
+		arg.TocarAlmacen,
+		arg.AlmacenID,
 		arg.ID,
 		arg.Sucursal,
 	)
@@ -78,6 +85,7 @@ func (q *Queries) ActualizarColumna(ctx context.Context, arg ActualizarColumnaPa
 		&i.CreadoPor,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AlmacenID,
 	)
 	return i, err
 }
@@ -534,30 +542,31 @@ func (q *Queries) ContarPedidosSinColocar(ctx context.Context, arg ContarPedidos
 
 const crearColumna = `-- name: CrearColumna :one
 WITH nueva AS (
-    INSERT INTO board_columns (id, branch_id, nombre, posicion, vehicle_id, creado_por)
+    INSERT INTO board_columns (id, branch_id, nombre, posicion, vehicle_id, creado_por, almacen_id)
     SELECT
         coalesce($1::uuid, gen_random_uuid()),
         b.id,
         $2,
         coalesce((SELECT max(c.posicion) + 1 FROM board_columns c WHERE c.branch_id = b.id), 1),
         $3,
-        $4
+        $4,
+        $5
     FROM branches b
-    WHERE b.id = $5
-      AND ($6::uuid IS NULL OR b.id = $6::uuid)
+    WHERE b.id = $6
+      AND ($7::uuid IS NULL OR b.id = $7::uuid)
     ON CONFLICT (id) DO NOTHING
-    RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at
+    RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id
 )
-SELECT id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at
+SELECT id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id
 FROM nueva
 UNION ALL
 SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-       c.created_at, c.updated_at
+       c.created_at, c.updated_at, c.almacen_id
 FROM board_columns c
 WHERE $1::uuid IS NOT NULL
   AND c.id = $1::uuid
-  AND c.branch_id = $5
-  AND ($6::uuid IS NULL OR c.branch_id = $6::uuid)
+  AND c.branch_id = $6
+  AND ($7::uuid IS NULL OR c.branch_id = $7::uuid)
 LIMIT 1
 `
 
@@ -566,6 +575,7 @@ type CrearColumnaParams struct {
 	Nombre    string      `json:"nombre"`
 	VehicleID pgtype.UUID `json:"vehicle_id"`
 	CreadoPor *string     `json:"creado_por"`
+	AlmacenID *string     `json:"almacen_id"`
 	BranchID  uuid.UUID   `json:"branch_id"`
 	Sucursal  pgtype.UUID `json:"sucursal"`
 }
@@ -579,6 +589,7 @@ type CrearColumnaRow struct {
 	CreadoPor *string            `json:"creado_por"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	AlmacenID *string            `json:"almacen_id"`
 }
 
 // La posición se calcula aquí y no la manda la pantalla: una columna nueva va al final,
@@ -617,6 +628,7 @@ func (q *Queries) CrearColumna(ctx context.Context, arg CrearColumnaParams) (Cre
 		arg.Nombre,
 		arg.VehicleID,
 		arg.CreadoPor,
+		arg.AlmacenID,
 		arg.BranchID,
 		arg.Sucursal,
 	)
@@ -630,6 +642,7 @@ func (q *Queries) CrearColumna(ctx context.Context, arg CrearColumnaParams) (Cre
 		&i.CreadoPor,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AlmacenID,
 	)
 	return i, err
 }
@@ -639,7 +652,7 @@ const listarColumnasDelTablero = `-- name: ListarColumnasDelTablero :many
 
 SELECT
     c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-    c.created_at, c.updated_at,
+    c.created_at, c.updated_at, c.almacen_id,
     v.name     AS vehiculo_nombre,
     v.plate    AS vehiculo_matricula,
     v.capacity AS vehiculo_capacidad,
@@ -680,6 +693,7 @@ type ListarColumnasDelTableroRow struct {
 	CreadoPor         *string            `json:"creado_por"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	AlmacenID         *string            `json:"almacen_id"`
 	VehiculoNombre    *string            `json:"vehiculo_nombre"`
 	VehiculoMatricula *string            `json:"vehiculo_matricula"`
 	VehiculoCapacidad *float64           `json:"vehiculo_capacidad"`
@@ -736,6 +750,7 @@ func (q *Queries) ListarColumnasDelTablero(ctx context.Context, arg ListarColumn
 			&i.CreadoPor,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AlmacenID,
 			&i.VehiculoNombre,
 			&i.VehiculoMatricula,
 			&i.VehiculoCapacidad,
@@ -1255,7 +1270,7 @@ func (q *Queries) MoverPedidosDeColumna(ctx context.Context, arg MoverPedidosDeC
 
 const obtenerColumna = `-- name: ObtenerColumna :one
 SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-       c.created_at, c.updated_at
+       c.created_at, c.updated_at, c.almacen_id
 FROM board_columns c
 WHERE c.id = $1
   AND ($2::uuid IS NULL OR c.branch_id = $2::uuid)
@@ -1280,6 +1295,7 @@ func (q *Queries) ObtenerColumna(ctx context.Context, arg ObtenerColumnaParams) 
 		&i.CreadoPor,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AlmacenID,
 	)
 	return i, err
 }

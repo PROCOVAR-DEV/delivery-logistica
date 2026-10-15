@@ -571,6 +571,7 @@ type BoardColumn struct {
 	CreadoPor *string            `json:"creado_por"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	AlmacenID *string            `json:"almacen_id"`
 }
 
 type BoardPlacement struct {

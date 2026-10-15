@@ -1506,6 +1506,55 @@ ruta**. El valor del enum se queda (Postgres no sabe quitarlo) y no estorba.
 
 ---
 
+## 4-quinquies. La migración 00020 (punto de salida de cada zona): orden y ventana
+
+Jose, 15/10/2026: cada zona del tablero guarda de qué almacén sale su ruta. **Sólo AÑADE** una
+columna nula, `board_columns.almacen_id` (texto: el id del almacén de Accesos; `CHECK` contra la
+cadena en blanco). Las zonas que ya hay quedan en nulo = siguen saliendo del principal, como hoy:
+ninguna cambia de punto al desplegar. Contrato en `docs/contratos-api.md` §11, «El punto de salida
+de una zona».
+
+**Orden**:
+
+```
+1. migración 00020                       (§2.1, pasos 2 a 7; `status` primero, como siempre)
+2. Deploy de reparto-api                 (§4) — después de migrar, nunca antes
+3. Deploy de la web y publicación de la APK/escritorio — después de la api, nunca antes
+```
+
+Sin volcado previo (no cambia ni borra nada). `sync` no cambia: el `almacenId` viaja dentro del cuerpo
+de `POST /board/columns` y `PATCH /board/columns/{id}`, que el sincronizador no interpreta y cuyas
+formas de ruta ya están en su lista blanca. El espejo no toca `board_columns`, pero su imagen corre
+las pruebas de la api y por eso copia `docs/punto-de-salida.casos.json` (igual que `Dockerfile.api`;
+lo vigila `TestLosDockerfileCopianTodosLosCasosQueLasPruebasLeen`).
+
+**La ventana:**
+
+- **api VIEJA con la base NUEVA** (lo normal entre 1 y 2): nada cambia; sus consultas nombran las
+  columnas una a una y no ven la nueva.
+- **api NUEVA con la base VIEJA** (si se despliega antes de migrar): todo el tablero contesta **500**
+  (`column c.almacen_id does not exist`), también crear, renombrar y armar zonas. En voz alta: por
+  eso se migra primero.
+- **App nueva con api VIEJA** — la que NO avisa, y por eso la app va la ÚLTIMA: la api vieja **ignora**
+  el campo `almacenId` (`LeerJSON` no rechaza campos que no conoce) y contesta **200** sin guardar
+  nada. El punto elegido se vería en el aparato hasta la siguiente bajada del tablero y desaparecería
+  sin un aviso, y una APK lo daría por subido.
+- **APK vieja con api nueva**: no manda `almacenId`, así que sus zonas nuevas nacen en nulo (salen del
+  principal) y renombrar no toca el punto (campo ausente = no tocar). Ignora `almacenId`/`almacen` de
+  `GET /api/board`. **Pero arma su ruta LOCAL desde el almacén de arriba**, y el servidor la arma desde
+  el punto de la zona: si una persona con la web pone un punto a una zona y otra arma esa zona con
+  una APK vieja, la ruta local enseña los km del de arriba hasta que la bajada traiga la del servidor.
+
+**El `Down`** quita la columna: **pierde el punto de cada zona**, y todas vuelven a salir del principal,
+que es lo que hace la api anterior.
+
+**Antes de desplegar**, contra Postgres de verdad (base migrada hasta la 00020):
+`TestMotorReal_PuntoDeSalidaDeLaZona` (crear —también por la rama del reintento—, renombrar sin
+tocarlo, quitarlo, el `CHECK`). Up, Down y Up otra vez se probaron con zonas sembradas el 15/10/2026
+contra `reparto-postgres-1`.
+
+---
+
 ## 5. Cómo se comprueba que están vivos
 
 Lo primero, siempre, lo que dice `docs/DOKPLOY-NUEVO-PROYECTO.md` Parte 7: **un build que

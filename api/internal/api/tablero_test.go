@@ -280,6 +280,7 @@ func (q *tableroFalso) ListarColumnasDelTablero(_ context.Context, arg sqlc.List
 		}
 		fila := sqlc.ListarColumnasDelTableroRow{
 			ID: c.ID, BranchID: c.BranchID, Nombre: c.Nombre, Posicion: c.Posicion,
+			AlmacenID: c.AlmacenID,
 		}
 		for ped, col := range q.colocadas {
 			if col.columna == c.ID {
@@ -356,7 +357,8 @@ func (q *tableroFalso) CrearColumna(_ context.Context, arg sqlc.CrearColumnaPara
 	if arg.ID.Valid {
 		id = uuid.UUID(arg.ID.Bytes)
 	}
-	nueva := sqlc.BoardColumn{ID: id, BranchID: arg.BranchID, Nombre: arg.Nombre, Posicion: pos}
+	nueva := sqlc.BoardColumn{ID: id, BranchID: arg.BranchID, Nombre: arg.Nombre, Posicion: pos,
+		AlmacenID: arg.AlmacenID}
 	q.columnas[nueva.ID] = nueva
 	q.creadas = append(q.creadas, arg.Nombre)
 	return filaDeColumna(nueva), nil
@@ -366,7 +368,7 @@ func filaDeColumna(c sqlc.BoardColumn) sqlc.CrearColumnaRow {
 	return sqlc.CrearColumnaRow{
 		ID: c.ID, BranchID: c.BranchID, Nombre: c.Nombre, Posicion: c.Posicion,
 		VehicleID: c.VehicleID, CreadoPor: c.CreadoPor,
-		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
+		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, AlmacenID: c.AlmacenID,
 	}
 }
 
@@ -399,6 +401,9 @@ func (q *tableroFalso) ActualizarColumna(_ context.Context, arg sqlc.ActualizarC
 	}
 	if arg.TocarVehiculo {
 		c.VehicleID = arg.VehicleID
+	}
+	if arg.TocarAlmacen {
+		c.AlmacenID = arg.AlmacenID
 	}
 	q.columnas[arg.ID] = c
 	return c, nil

@@ -147,6 +147,24 @@ Las coordenadas resueltas se pasan a la consulta (`origen_lat`, `origen_lng`) y 
 ordena. Ordenar 1.700 filas en Go para quedarse con 200 es bajar el municipio entero por la
 conexión de allá para tirar el 95%.
 
+**Y cada zona puede salir de SU almacén — 15/10/2026 (Jose, migración 00020).** «Para cambiar el
+destino de un tablero lo cambiamos arriba; quisiera que cada columna se pudiera configurar de dónde
+sale, así los tableros quedan preparados para cada punto o almacén sin estar cambiando de lado a
+lado.» Hasta ese día el «desde PV-STGO» de la cabecera era UNO para todo el tablero: el servidor
+medía y armaba siempre desde el principal, y el almacén que se elegía arriba sólo existía en la
+pantalla —ni se guardaba ni viajaba—, así que una ruta armada con conexión salía del principal
+aunque arriba dijera otro.
+
+Ahora `board_columns.almacen_id` guarda el id del almacén de Accesos de cada zona. **Nulo = el de
+antes**, el principal. Con punto, de esa zona salen la ruta (`origin_*`, el orden por cercanía, el
+`segment_km` de cada parada y el circuito) y los km de sus tarjetas; la mitad izquierda («Sin
+colocar») sigue midiendo desde el de arriba, porque sus pedidos todavía no tienen zona. El punto
+tiene que ser un almacén **de la sucursal de la zona**, activo y con ubicación (falla cerrado: 400);
+y si deja de servir después —Accesos lo da de baja o le quita la ubicación— armar esa zona es un 409
+que lo dice, **no** el principal en silencio: la cabecera de la zona diría «desde AURORA» y el
+camión saldría de otro sitio. La regla y sus literales, compartidos con el aparato, en
+`docs/punto-de-salida.casos.json`; el contrato en `docs/contratos-api.md` §11.
+
 ## 4 · Cómo se usa
 
 | Gesto | Qué pasa |
@@ -176,7 +194,8 @@ una lista de casillas marcadas:
 2. Se descartan los que no cuadran con la factura, **nombrándolos**: quién falla y por qué
    («cambió en la factura» / «sin cotejar»). Una columna de doce que produce una ruta de
    nueve sin explicación es la manera más rápida de que el logístico deje de fiarse.
-3. El origen es el almacén; el camión, el previsto de la columna si lo hay.
+3. El origen es el punto de salida de la zona y, si no tiene, el almacén principal (§3, 00020); el
+   camión, el previsto de la columna si lo hay.
 4. **El orden de visita.** El logístico ya propuso uno arrastrando, y él conoce las calles
    de su distrito; el vecino más próximo no. Por defecto **se respeta su orden** y la ruta
    nace con `optimized = false`; hay un botón de «reordenar por cercanía» que aplica el
@@ -486,7 +505,7 @@ alcance manda y `branchId` estrecha, nunca amplía.
 | `GET /api/board` | El tablero entero: columnas con totales, tarjetas puestas, avisos, y la primera página de sin colocar. **Una sola ida y vuelta**, porque la conexión de allá no da para cinco |
 | `GET /api/board/unplaced` | Sólo la mitad izquierda, para paginar y filtrar sin recargar el resto |
 | `POST /api/board/columns` | Crea una columna. Va al final; la posición la calcula la base |
-| `PATCH /api/board/columns/[id]` | Renombrar y elegir camión |
+| `PATCH /api/board/columns/[id]` | Renombrar, elegir camión y elegir punto de salida (`almacenId`; `null` = el principal) |
 | `PUT /api/board/columns/orden` | Reordena el tablero: llega la lista de ids en el orden nuevo, **una sola sentencia** |
 | `DELETE /api/board/columns/[id]` | Con `?vaciar=1` o `?destino=<id>`; sin ninguno y con pedidos dentro, `409` (§7.6) |
 | `PUT /api/board/placements/[pedidoId]` | Colocar o mover: `{columnaId, posicion}` |
@@ -510,6 +529,8 @@ Errores propios, literales:
 | Pedir el tablero de una sucursal que no es tuya | `404 {"error":"Esa sucursal no existe o no es tuya"}` |
 | Armar una columna sin nada repartible | `409` con la lista de por qué se cayó cada uno |
 | Dos columnas con el mismo nombre | `409 {"error":"Ya hay una columna «<nombre>» en este tablero"}` |
+| Poner de punto de salida un almacén que no es de la sucursal de la zona, de baja o sin ubicación | `400` con el motivo (`docs/contratos-api.md` §11) |
+| Armar una zona cuyo punto de salida ya no sirve | `409 {"error":"La zona «<zona>» no puede salir de su punto de salida: <motivo>. Elige otro en «Punto de salida»."}` |
 
 ## 9 · Lo que toca fuera del tablero
 

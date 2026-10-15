@@ -392,7 +392,7 @@ Los filtros:
 | «km máx.» | sin tope. Se aplica al salir del campo |
 | «costo mín.» | sin tope |
 | «Estado del pedido en PEDIDO» | «Cualquier estado» |
-| «Si el pedido lleva entrega a domicilio» | **«Sólo con domicilio»** |
+| «Si lleva domicilio: marcado por el vendedor o cobrado en la factura» | **«Sólo con domicilio»** |
 | «Si Entrega ya le puso costo de domicilio» | «Cotizados y sin cotizar» |
 
 **«Limpiar»** vuelve a «Sólo con domicilio», no a «sin nada».
@@ -416,15 +416,16 @@ ofrecen, y no hay filtro que los haga salir:
    Entrega sólo cotiza los marcados, y lo que dice que va a domicilio es el cobro de la
    factura.
 
-Esto no se puede cambiar con los filtros. Los dos del final («Si el pedido lleva entrega
-a domicilio» y «Si Entrega ya le puso costo de domicilio») **sólo recortan lo que ya
-cumple las tres**:
+Esto no se puede cambiar con los filtros. Los dos del final («Si lleva domicilio» y
+«Si Entrega ya le puso costo de domicilio») **sólo recortan lo que ya cumple las tres**:
 
-- **«Sólo con domicilio», que es como arranca, deja fuera los que el vendedor no
-  marcó**, aunque la factura cobre el domicilio y puedan ir. Para verlos, pon «Con y
-  sin domicilio».
-- **«Sin cotizar» sólo puede traer pedidos que el vendedor no marcó**, así que junto a
-  «Sólo con domicilio» deja la lista vacía.
+- **«Con domicilio» es marcado por el vendedor O cobrado en la factura**, y «Sin
+  domicilio» es ni lo uno ni lo otro. Como aquí todo trae el domicilio cobrado, **«Sólo
+  con domicilio», que es como arranca, no deja fuera a nadie**, tampoco a los que el
+  vendedor no marcó (hasta el 15/10/2026 sí los escondía), y «Sólo sin domicilio» sale
+  vacío.
+- **«Sin cotizar» sólo puede traer pedidos que el vendedor no marcó** (los marcados sin
+  cotizar no entran).
 
 **Por eso la lista puede salir corta**, sobre todo mientras Entrega no haya cotizado
 más domicilios. No es un fallo: lo que falta no se ha cobrado o no se ha cotizado, y se

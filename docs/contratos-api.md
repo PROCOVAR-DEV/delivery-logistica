@@ -281,7 +281,7 @@ aplica `trim()`. `q` además se pasa a minúsculas. Los usan `/api/orders` y
 | `q` | texto libre | `OR` con `contains` insensitive sobre `customerName`, `operationNumber`, `facturaNumero` (la de Ventra; «47062» encuentra «47061, 47062»), `endAddress`, `address`, `municipio`, `vendedor`, `productosTexto` |
 | `estado` | `completada` \| `en_proceso` \| `expirada` | ver abajo |
 | `archivado` | `1` \| `0` | `archivado = true` / `archivado = false` |
-| `domicilio` | `1` \| `0` | `requiereDomicilio = true` / `OR[requiereDomicilio null, false]` |
+| `domicilio` | `1` \| `0` | «lleva domicilio» = `requiereDomicilio IS TRUE OR facturaDomicilio > 0` / el contrario exacto, `requiereDomicilio IS NOT TRUE AND (facturaDomicilio IS NULL OR facturaDomicilio <= 0)` (desde el 15/10/2026, issue 10; casos `filtroDeDomicilio` de `docs/armado-rechazado.casos.json`) |
 | `cotizado` | `1` \| `0` | `pedidoCosto != null` / `pedidoCosto = null` |
 | `municipio` | texto | `municipio = valor` (exacto) |
 | `vendedor` | texto | `vendedor = valor` (exacto) |
@@ -797,8 +797,9 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
   (domicilio cotizado sólo si el vendedor lo marcó; antes `pedidoCosto IS NOT NULL` siempre).
   **La lista ofrece exactamente lo que una ruta acepta, `cambiado` incluido** (hasta el
   15/10/2026 ofrecía `cambiado` y el armador lo rechazaba). Por eso `cotizado=0` sólo puede
-  traer pedidos sin marcar, y junto a `domicilio=1` da una lista vacía; y `domicilio=1` (el
-  defecto del asistente) esconde los no marcados que sí entran. **El mismo listón** lo
+  traer pedidos sin marcar; y como todo lo de aquí trae el domicilio cobrado, `domicilio=1`
+  (el defecto del asistente) no deja fuera a ninguno —tampoco a los no marcados que entran,
+  que hasta el 15/10/2026 escondía— y `domicilio=0` sale vacío. **El mismo listón** lo
   aplican «Sin colocar» del tablero, su contador, el `ColocarPedido` (la parte del domicilio)
   y los recuentos del panel (`sin_ruta`, `peso_pendiente`, por sucursal).
 - **Orden**: `orderDate desc nulls last`, luego `createdAt desc`. **`take = 2000`** (TOPE).

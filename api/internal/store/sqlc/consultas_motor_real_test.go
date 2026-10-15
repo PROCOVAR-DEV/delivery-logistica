@@ -2153,6 +2153,111 @@ func TestMotorReal_LaReglaDeEntradaEsLaDelFichero(t *testing.T) {
 	}
 }
 
+// TestMotorReal_ElFiltroDeDomicilioEsElDelFichero siembra cada caso de `filtroDeDomicilio` y
+// pregunta a las cuatro consultas con `domicilio` = nada, `1` y `0`: el catálogo (lista y total)
+// lo enseña si y sólo si el filtro casa con `conDomicilio`, y los disponibles (lista y total)
+// si además entra a una ruta. Issue 10 de Amado, 15/10/2026: con sólo la casilla del vendedor,
+// «Sólo con domicilio» —el arranque del asistente— escondía PBF26-2610131268.
+func TestMotorReal_ElFiltroDeDomicilioEsElDelFichero(t *testing.T) {
+	pool := motorReal(t)
+	const ruta = "../../../../docs/armado-rechazado.casos.json"
+	crudo, err := os.ReadFile(ruta)
+	if err != nil {
+		t.Fatalf("no se pudo leer %s: %v", ruta, err)
+	}
+	var fichero struct {
+		Filtro struct {
+			Casos []struct {
+				Nombre            string   `json:"nombre"`
+				Nota              string   `json:"nota"`
+				FacturaEstado     *string  `json:"facturaEstado"`
+				FacturaDomicilio  *float64 `json:"facturaDomicilio"`
+				PedidoCosto       *float64 `json:"pedidoCosto"`
+				RequiereDomicilio *bool    `json:"requiereDomicilio"`
+				ConDomicilio      bool     `json:"conDomicilio"`
+			} `json:"casos"`
+		} `json:"filtroDeDomicilio"`
+	}
+	if err := json.Unmarshal(crudo, &fichero); err != nil {
+		t.Fatal(err)
+	}
+	casos := fichero.Filtro.Casos
+	if len(casos) == 0 {
+		t.Fatalf("%s no trae `filtroDeDomicilio`: una prueba sobre una lista vacía sale verde sin mirar nada", ruta)
+	}
+	conYSin := map[bool]int{}
+	ofrecidos := 0
+	for _, c := range casos {
+		conYSin[c.ConDomicilio]++
+		t.Run(c.Nombre, func(t *testing.T) {
+			b := nuevoBanco(t, pool)
+			suc := b.sucursal()
+			s := listo(c.Nombre, suc)
+			s.Factura, s.Domicilio, s.Costo = c.FacturaEstado, c.FacturaDomicilio, c.PedidoCosto
+			s.Requiere = c.RequiereDomicilio != nil && *c.RequiereDomicilio
+			p := b.pedido(s)
+			if c.RequiereDomicilio == nil {
+				b.exec(`UPDATE orders SET requiere_domicilio = NULL WHERE id = $1`, p)
+			}
+			disponibles := func(d *bool) (int64, int64) {
+				t.Helper()
+				l, err := b.q.ListarPedidosDisponibles(b.ctx, ListarPedidosDisponiblesParams{BranchID: alcance(suc), Domicilio: d, Limite: 10})
+				if err != nil {
+					t.Fatal(err)
+				}
+				n, err := b.q.ContarPedidosDisponibles(b.ctx, ContarPedidosDisponiblesParams{BranchID: alcance(suc), Domicilio: d})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return int64(len(l)), n
+			}
+			_, entra := disponibles(nil)
+			if entra == 1 {
+				ofrecidos++
+			}
+			for _, d := range []*bool{nil, ptrBool(true), ptrBool(false)} {
+				casa := d == nil || *d == c.ConDomicilio
+				que := "Con y sin domicilio"
+				if d != nil && *d {
+					que = "Sólo con domicilio"
+				} else if d != nil {
+					que = "Sólo sin domicilio"
+				}
+				uno := func(si bool) int64 {
+					if si {
+						return 1
+					}
+					return 0
+				}
+				l, err := b.q.ListarPedidos(b.ctx, ListarPedidosParams{BranchID: alcance(suc), Domicilio: d, Limite: 10})
+				if err != nil {
+					t.Fatal(err)
+				}
+				n, err := b.q.ContarPedidos(b.ctx, ContarPedidosParams{BranchID: alcance(suc), Domicilio: d})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if int64(len(l)) != uno(casa) || n != uno(casa) {
+					t.Errorf("«%s» en el catálogo: lista=%d total=%d, esperaba %d (conDomicilio=%v)\n%s",
+						que, len(l), n, uno(casa), c.ConDomicilio, c.Nota)
+				}
+				dl, dn := disponibles(d)
+				if dl != uno(casa && entra == 1) || dn != dl {
+					t.Errorf("«%s» en los disponibles: lista=%d total=%d, esperaba %d (conDomicilio=%v, entra=%v)\n%s",
+						que, dl, dn, uno(casa && entra == 1), c.ConDomicilio, entra == 1, c.Nota)
+				}
+			}
+		})
+	}
+	// Sin casos de los dos lados, o sin ninguno que entre a una ruta, la mitad de esto no mira nada.
+	if conYSin[true] == 0 || conYSin[false] == 0 || ofrecidos == 0 {
+		t.Fatalf("el fichero tiene %d casos con domicilio, %d sin y %d que entran: hacen falta de los tres",
+			conYSin[true], conYSin[false], ofrecidos)
+	}
+}
+
+func ptrBool(v bool) *bool { return &v }
+
 // ---------------------------------------------------------------------------
 // 10. Lo que se ofrece y lo que se cuenta dicen lo mismo (D2)
 // ---------------------------------------------------------------------------

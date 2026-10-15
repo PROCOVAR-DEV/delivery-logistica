@@ -64,8 +64,9 @@ enum EstadoDelPedido {
   final String etiqueta;
 }
 
-/// `domicilio` — si el pedido lleva entrega a domicilio. **Arranca en `1`**
-/// (pliego §3, paso 4): una ruta se arma con lo que hay que llevar a casa.
+/// `domicilio` — si el pedido lleva entrega a domicilio: marcado por el vendedor
+/// o cobrado en la factura ([conDomicilio], issue 10, 15/10/2026). **Arranca en
+/// `1`** (pliego §3, paso 4): una ruta se arma con lo que hay que llevar a casa.
 enum DomicilioFiltro {
   cualquiera('', 'Con y sin domicilio'),
   soloCon('1', 'Sólo con domicilio'),
@@ -486,10 +487,9 @@ class ConsultasRutas {
   /// (`facturaDomicilio > 0`) y, si el vendedor lo marco, cotizado en Entrega.
   /// Ofrecer aqui lo que alli se rechaza es fabricar rechazos tardios.
   ///
-  /// OJO con el filtro [domicilio] de la pantalla: arranca en «Sólo con
-  /// domicilio» (la casilla del vendedor) y esconde los pedidos SIN MARCAR que
-  /// la regla deja entrar, como PBF26-2610131268. Salen con «Con y sin
-  /// domicilio», y en «Sin colocar» del tablero salen siempre.
+  /// El filtro [domicilio] arranca en «Sólo con domicilio» y cuenta lo cobrado
+  /// en la factura además de la casilla del vendedor ([conDomicilio]): así no
+  /// esconde los SIN MARCAR que la regla deja entrar, como PBF26-2610131268.
   /// [estado], [domicilio] y [cotizado] llevan **los mismos valores que los
   /// query params del servidor** (`contratos-api.md`, «Filtros compartidos»):
   /// `''` es sin filtro. Se escriben asi, como texto, y no como enums propios,
@@ -528,15 +528,13 @@ class ConsultasRutas {
     if (municipio.isNotEmpty) donde = donde & o.municipio.equals(municipio);
     if (vendedor.isNotEmpty) donde = donde & o.vendedor.equals(vendedor);
 
-    // `domicilio=0` incluye los NULL a proposito: un pedido al que nadie le dijo
-    // si lleva domicilio NO lleva domicilio. Es lo que hace el servidor, y si
-    // aqui se tratara el nulo como «no se sabe» las dos listas no cuadrarian.
+    // LLEVA DOMICILIO = marcado O cobrado en la factura (`conDomicilio`, issue
+    // 10, 15/10/2026), como el servidor; `0` es el contrario exacto, NULL
+    // incluido: a quien nadie se lo marcó ni se lo cobró no se le lleva.
     if (domicilio == '1') {
-      donde = donde & o.requiereDomicilio.equals(true);
+      donde = donde & conDomicilio(o);
     } else if (domicilio == '0') {
-      donde =
-          donde &
-          (o.requiereDomicilio.isNull() | o.requiereDomicilio.equals(false));
+      donde = donde & conDomicilio(o).not();
     }
 
     // Cotizado mira `pedidoCosto`, y **un nulo no es un cero**: cero es un precio

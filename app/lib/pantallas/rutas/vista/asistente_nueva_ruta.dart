@@ -1026,7 +1026,8 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
         alElegir: (e) => _ponerFiltros(_filtros.copiarCon(estado: e)),
       ),
       Selector<DomicilioFiltro>(
-        titulo: 'Si el pedido lleva entrega a domicilio',
+        // Cuenta el cobro de la factura, no sólo la casilla del vendedor (issue 10).
+        titulo: 'Si lleva domicilio: marcado por el vendedor o cobrado en la factura',
         valor: _filtros.domicilio,
         opciones: [
           for (final d in DomicilioFiltro.values) OpcionSelector(d, d.etiqueta),

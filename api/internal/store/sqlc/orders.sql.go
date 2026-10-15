@@ -254,9 +254,11 @@ WHERE
     AND ($5::boolean IS NULL OR o.archivado = $5::boolean)
     AND (
         $6::boolean IS NULL
-        OR ($6::boolean AND o.requiere_domicilio)
+        OR ($6::boolean
+            AND (o.requiere_domicilio IS TRUE OR o.factura_domicilio > 0))
         OR (NOT $6::boolean
-            AND (o.requiere_domicilio IS NULL OR NOT o.requiere_domicilio))
+            AND o.requiere_domicilio IS NOT TRUE
+            AND (o.factura_domicilio IS NULL OR o.factura_domicilio <= 0))
     )
     AND (
         $7::boolean IS NULL
@@ -386,9 +388,11 @@ WHERE
     AND ($5::boolean IS NULL OR o.archivado = $5::boolean)
     AND (
         $6::boolean IS NULL
-        OR ($6::boolean AND o.requiere_domicilio)
+        OR ($6::boolean
+            AND (o.requiere_domicilio IS TRUE OR o.factura_domicilio > 0))
         OR (NOT $6::boolean
-            AND (o.requiere_domicilio IS NULL OR NOT o.requiere_domicilio))
+            AND o.requiere_domicilio IS NOT TRUE
+            AND (o.factura_domicilio IS NULL OR o.factura_domicilio <= 0))
     )
     AND (
         $7::boolean IS NULL
@@ -1249,9 +1253,11 @@ WHERE
     AND ($5::boolean IS NULL OR o.archivado = $5::boolean)
     AND (
         $6::boolean IS NULL
-        OR ($6::boolean AND o.requiere_domicilio)
+        OR ($6::boolean
+            AND (o.requiere_domicilio IS TRUE OR o.factura_domicilio > 0))
         OR (NOT $6::boolean
-            AND (o.requiere_domicilio IS NULL OR NOT o.requiere_domicilio))
+            AND o.requiere_domicilio IS NOT TRUE
+            AND (o.factura_domicilio IS NULL OR o.factura_domicilio <= 0))
     )
     AND (
         $7::boolean IS NULL
@@ -1526,12 +1532,21 @@ WHERE
             AND o.fecha_comprometida < now())
     )
     AND ($5::boolean IS NULL OR o.archivado = $5::boolean)
-    -- «Sin domicilio» incluye los que no traen el dato: no saberlo no es llevarlo.
+    -- LLEVA DOMICILIO si el vendedor lo marcó O la factura lo cobró (` + "`" + `factura_domicilio > 0` + "`" + `).
+    -- Sólo con la casilla, el asistente —que arranca en «Sólo con domicilio»— escondía el caso
+    -- del issue 10 de Amado (15/10/2026): PBF26-2610131268 sin marcar y con 1.31 de
+    -- «ENTREGA A DOMICILIO» en la factura. «Sin domicilio» es el contrario exacto: ni marcado
+    -- ni cobrado (no saberlo no es llevarlo, y un cobro en cero no es cobro). Las cuatro
+    -- consultas de pedidos lo escriben igual y en el aparato vive en ` + "`" + `conDomicilio` + "`" + `
+    -- (` + "`" + `nucleo/regla_de_entrada.dart` + "`" + `); lo atan los casos ` + "`" + `filtroDeDomicilio` + "`" + ` de
+    -- ` + "`" + `docs/armado-rechazado.casos.json` + "`" + `.
     AND (
         $6::boolean IS NULL
-        OR ($6::boolean AND o.requiere_domicilio)
+        OR ($6::boolean
+            AND (o.requiere_domicilio IS TRUE OR o.factura_domicilio > 0))
         OR (NOT $6::boolean
-            AND (o.requiere_domicilio IS NULL OR NOT o.requiere_domicilio))
+            AND o.requiere_domicilio IS NOT TRUE
+            AND (o.factura_domicilio IS NULL OR o.factura_domicilio <= 0))
     )
     AND (
         $7::boolean IS NULL

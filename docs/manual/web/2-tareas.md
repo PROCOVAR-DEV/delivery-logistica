@@ -179,9 +179,9 @@ Es el camino largo, para cuando la ruta no sale de una zona entera.
      **«Camión lleno — no cabe más»**.
    - **Sólo salen los pedidos facturados (cuadren o no), con el domicilio cobrado y,
      si el vendedor lo marcó, cotizado en Entrega.** Si te falta alguno, es casi
-     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. O por el
-     filtro de domicilio: arranca en «Sólo con domicilio», que esconde los que el
-     vendedor no marcó; pon «Con y sin domicilio» para verlos.
+     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. El filtro de
+     domicilio arranca en «Sólo con domicilio», que cuenta lo marcado por el vendedor
+     **y** lo cobrado en la factura: no esconde a los que el vendedor no marcó.
    - **Las filas que ya no caben se apagan**, con el motivo «No cabe en el camión».
    - Puedes marcar **una zona entera del tablero** con su casilla. Te dirá qué entró:
      **«9 de 12 de «Vista» · 1 ya estaban · 1 ya no se pueden repartir hoy · 1 no caben

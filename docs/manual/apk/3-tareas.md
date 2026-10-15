@@ -252,9 +252,9 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
      vendedor, municipio, «km máx.», «costo mín.», estado, domicilio y cotización.
    - **Sólo salen los pedidos facturados (cuadren o no), con el domicilio cobrado y,
      si el vendedor lo marcó, cotizado en Entrega.** Si te falta alguno, es casi
-     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. O por el
-     filtro de domicilio: arranca en «Sólo con domicilio», que esconde los que el
-     vendedor no marcó; pon «Con y sin domicilio» para verlos.
+     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. El filtro de
+     domicilio arranca en «Sólo con domicilio», que cuenta lo marcado por el vendedor
+     **y** lo cobrado en la factura: no esconde a los que el vendedor no marcó.
    - **Mira la barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»**
      y **«Camión lleno — no cabe más»**.
    - **Las filas de los pedidos que ya no caben se apagan**, con el motivo: «No cabe

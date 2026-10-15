@@ -119,15 +119,22 @@ void main() {
     expect(await ids(), ['d1', 'd3', 'd4']);
   });
 
+  // El caso por caso, con el real del issue 10, está en
+  // `el_filtro_de_domicilio_cuenta_lo_cobrado_test.dart`.
   group('domicilio', () {
-    test('`1` deja fuera al que no lleva domicilio', () async {
-      expect(await ids(domicilio: '1'), ['d1', 'd3']);
-    });
+    test(
+      '`1` cuenta lo cobrado en la factura: el SIN MARCAR también sale',
+      () async {
+        // `d4` no está marcado, pero su factura cobra el domicilio (issue 10 de
+        // Amado, 15/10/2026). Con sólo la casilla, el arranque del asistente lo
+        // escondía.
+        expect(await ids(domicilio: '1'), ['d1', 'd3', 'd4']);
+      },
+    );
 
-    test('`0` es «no lleva», y ahi entran tambien los NULOS', () async {
-      // Un pedido al que nadie le dijo si lleva domicilio NO lleva domicilio: es
-      // lo que hace el servidor, y tratarlo aqui como «no se sabe» dejaria las
-      // dos listas descuadradas.
+    test('`0` es el contrario exacto, y aqui sale vacío', () async {
+      // Todo lo que se ofrece trae el domicilio cobrado (regla de entrada), así
+      // que nada de esta lista va «sin domicilio», tampoco un NULO cobrado.
       await sembrarPedido(
         base,
         id: 'd5',
@@ -136,7 +143,8 @@ void main() {
         endLng: -77.8,
         requiereDomicilio: null,
       );
-      expect(await ids(domicilio: '0'), ['d4', 'd5']);
+      expect(await ids(), contains('d5'));
+      expect(await ids(domicilio: '0'), isEmpty);
     });
   });
 

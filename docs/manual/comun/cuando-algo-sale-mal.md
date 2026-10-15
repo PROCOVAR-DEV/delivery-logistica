@@ -31,8 +31,10 @@ Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
    si no, por qué. No es un fallo: se arregla cobrando o cotizando en Entrega. Ver
    [Las reglas del reparto](las-reglas-del-reparto.md).
 8. **En el asistente de Rutas, el filtro «Sólo con domicilio»**, que es como arranca,
-   esconde los pedidos que el vendedor no marcó a domicilio aunque la factura lo
-   cobre. Pon «Con y sin domicilio».
+   ya NO esconde los pedidos que el vendedor no marcó a domicilio si la factura lo
+   cobra (desde el 15/10/2026): «con domicilio» es marcado **o** cobrado. Si aun así
+   falta uno, no está facturado, no tiene el domicilio cobrado o, marcado, no está
+   cotizado en Entrega.
 
 ---
 

@@ -1077,9 +1077,9 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
      vendedor, municipio, «km máx.», «costo mín.», estado, domicilio y cotización.
    - **Sólo salen los pedidos facturados (cuadren o no), con el domicilio cobrado y,
      si el vendedor lo marcó, cotizado en Entrega.** Si te falta alguno, es casi
-     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. O por el
-     filtro de domicilio: arranca en «Sólo con domicilio», que esconde los que el
-     vendedor no marcó; pon «Con y sin domicilio» para verlos.
+     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. El filtro de
+     domicilio arranca en «Sólo con domicilio», que cuenta lo marcado por el vendedor
+     **y** lo cobrado en la factura: no esconde a los que el vendedor no marcó.
    - **Mira la barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»**
      y **«Camión lleno — no cabe más»**.
    - **Las filas de los pedidos que ya no caben se apagan**, con el motivo: «No cabe
@@ -2123,8 +2123,10 @@ Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
    si no, por qué. No es un fallo: se arregla cobrando o cotizando en Entrega. Ver
    [Las reglas del reparto](las-reglas-del-reparto.md).
 8. **En el asistente de Rutas, el filtro «Sólo con domicilio»**, que es como arranca,
-   esconde los pedidos que el vendedor no marcó a domicilio aunque la factura lo
-   cobre. Pon «Con y sin domicilio».
+   ya NO esconde los pedidos que el vendedor no marcó a domicilio si la factura lo
+   cobra (desde el 15/10/2026): «con domicilio» es marcado **o** cobrado. Si aun así
+   falta uno, no está facturado, no tiene el domicilio cobrado o, marcado, no está
+   cotizado en Entrega.
 
 ---
 
@@ -4837,7 +4839,7 @@ Los filtros:
 | «km máx.» | sin tope. Se aplica al salir del campo |
 | «costo mín.» | sin tope |
 | «Estado del pedido en PEDIDO» | «Cualquier estado» |
-| «Si el pedido lleva entrega a domicilio» | **«Sólo con domicilio»** |
+| «Si lleva domicilio: marcado por el vendedor o cobrado en la factura» | **«Sólo con domicilio»** |
 | «Si Entrega ya le puso costo de domicilio» | «Cotizados y sin cotizar» |
 
 **«Limpiar»** vuelve a «Sólo con domicilio», no a «sin nada».
@@ -4861,15 +4863,16 @@ ofrecen, y no hay filtro que los haga salir:
    Entrega sólo cotiza los marcados, y lo que dice que va a domicilio es el cobro de la
    factura.
 
-Esto no se puede cambiar con los filtros. Los dos del final («Si el pedido lleva entrega
-a domicilio» y «Si Entrega ya le puso costo de domicilio») **sólo recortan lo que ya
-cumple las tres**:
+Esto no se puede cambiar con los filtros. Los dos del final («Si lleva domicilio» y
+«Si Entrega ya le puso costo de domicilio») **sólo recortan lo que ya cumple las tres**:
 
-- **«Sólo con domicilio», que es como arranca, deja fuera los que el vendedor no
-  marcó**, aunque la factura cobre el domicilio y puedan ir. Para verlos, pon «Con y
-  sin domicilio».
-- **«Sin cotizar» sólo puede traer pedidos que el vendedor no marcó**, así que junto a
-  «Sólo con domicilio» deja la lista vacía.
+- **«Con domicilio» es marcado por el vendedor O cobrado en la factura**, y «Sin
+  domicilio» es ni lo uno ni lo otro. Como aquí todo trae el domicilio cobrado, **«Sólo
+  con domicilio», que es como arranca, no deja fuera a nadie**, tampoco a los que el
+  vendedor no marcó (hasta el 15/10/2026 sí los escondía), y «Sólo sin domicilio» sale
+  vacío.
+- **«Sin cotizar» sólo puede traer pedidos que el vendedor no marcó** (los marcados sin
+  cotizar no entran).
 
 **Por eso la lista puede salir corta**, sobre todo mientras Entrega no haya cotizado
 más domicilios. No es un fallo: lo que falta no se ha cobrado o no se ha cotizado, y se
@@ -8965,9 +8968,9 @@ Es el camino largo, para cuando la ruta no sale de una zona entera.
      **«Camión lleno — no cabe más»**.
    - **Sólo salen los pedidos facturados (cuadren o no), con el domicilio cobrado y,
      si el vendedor lo marcó, cotizado en Entrega.** Si te falta alguno, es casi
-     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. O por el
-     filtro de domicilio: arranca en «Sólo con domicilio», que esconde los que el
-     vendedor no marcó; pon «Con y sin domicilio» para verlos.
+     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. El filtro de
+     domicilio arranca en «Sólo con domicilio», que cuenta lo marcado por el vendedor
+     **y** lo cobrado en la factura: no esconde a los que el vendedor no marcó.
    - **Las filas que ya no caben se apagan**, con el motivo «No cabe en el camión».
    - Puedes marcar **una zona entera del tablero** con su casilla. Te dirá qué entró:
      **«9 de 12 de «Vista» · 1 ya estaban · 1 ya no se pueden repartir hoy · 1 no caben

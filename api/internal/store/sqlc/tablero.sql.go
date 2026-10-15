@@ -405,12 +405,13 @@ WHERE
     AND ($5::text  IS NULL OR o.vendedor  = $5::text)
     AND (
         $6::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL
-            AND o.order_date >= $6::timestamptz
-            AND o.order_date <  $7::timestamptz)
-        OR (o.order_date IS NULL
-            AND o.created_at >= $6::timestamptz
-            AND o.created_at <  $7::timestamptz)
+        OR (o.order_date IS NOT NULL AND o.order_date >= $6::timestamptz)
+        OR (o.order_date IS NULL AND o.created_at >= $6::timestamptz)
+    )
+    AND (
+        $7::timestamptz IS NULL
+        OR (o.order_date IS NOT NULL AND o.order_date < $7::timestamptz)
+        OR (o.order_date IS NULL AND o.created_at < $7::timestamptz)
     )
     AND (
         $8::double precision IS NULL
@@ -990,16 +991,20 @@ WHERE
     )
     AND ($6::text IS NULL OR o.municipio = $6::text)
     AND ($7::text  IS NULL OR o.vendedor  = $7::text)
-    -- El día del pedido, medio abierto por arriba, igual que en el armador. Se ofrece
-    -- porque un tablero con el histórico entero no se puede preparar: son 1.700 tarjetas.
+    -- La fecha DEL PEDIDO (y ` + "`" + `created_at` + "`" + ` si no la tiene), medio abierta por arriba. Se
+    -- ofrece porque un tablero con el histórico entero no se puede preparar: son 1.700
+    -- tarjetas. Desde el 15/10/2026 es un RANGO (issue 13 de Amado) y cada extremo va por
+    -- su lado: «desde el 3» sin «hasta» es un filtro de verdad. ` + "`" + `dia_hasta` + "`" + ` llega ya como
+    -- el día SIGUIENTE al último pedido, así que ese último entra entero (` + "`" + `rangoDelPedido` + "`" + `).
     AND (
         $8::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL
-            AND o.order_date >= $8::timestamptz
-            AND o.order_date <  $9::timestamptz)
-        OR (o.order_date IS NULL
-            AND o.created_at >= $8::timestamptz
-            AND o.created_at <  $9::timestamptz)
+        OR (o.order_date IS NOT NULL AND o.order_date >= $8::timestamptz)
+        OR (o.order_date IS NULL AND o.created_at >= $8::timestamptz)
+    )
+    AND (
+        $9::timestamptz IS NULL
+        OR (o.order_date IS NOT NULL AND o.order_date < $9::timestamptz)
+        OR (o.order_date IS NULL AND o.created_at < $9::timestamptz)
     )
     -- El corte por distancia SÍ va aquí, al revés que en ` + "`" + `/api/orders/available` + "`" + `, donde se
     -- aplica después de la consulta para no descuadrar ` + "`" + `total` + "`" + ` y ` + "`" + `truncated` + "`" + `. Aquí el

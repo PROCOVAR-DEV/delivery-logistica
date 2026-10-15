@@ -402,14 +402,78 @@ void main() {
       );
     });
 
-    test('el día del pedido', () async {
-      final izquierda = await consultas.sinColocar(
-        sucursalStg,
-        origen,
-        filtros: FiltrosSinColocar(dia: DateTime(2026, 9, 13)),
-      );
-      expect(izquierda.pedidos.single.pedidoId, 'p2');
-    });
+    // DESDE/HASTA Y NO UN DÍA (issue 13 de Amado, 15/10/2026). `p2` es del 13
+    // a las 10 y `p1` del 14 a las 8: los dos bordes entran, lo de fuera no.
+    group(
+      'la fecha del pedido, de desde a hasta con los dos días incluidos',
+      () {
+        Future<List<String>> salen(DateTime? desde, DateTime? hasta) async {
+          final izquierda = await consultas.sinColocar(
+            sucursalStg,
+            origen,
+            filtros: FiltrosSinColocar(desde: desde, hasta: hasta),
+          );
+          expect(
+            izquierda.total,
+            izquierda.pedidos.length,
+            reason: 'el número de arriba es el de la misma lista',
+          );
+          return [for (final p in izquierda.pedidos) p.pedidoId]..sort();
+        }
+
+        test('entra lo de dentro, en los dos bordes', () async {
+          expect(await salen(DateTime(2026, 9, 13), DateTime(2026, 9, 14)), [
+            'p1',
+            'p2',
+          ]);
+          expect(await salen(DateTime(2026, 9, 14), null), ['p1']);
+          expect(await salen(null, DateTime(2026, 9, 13)), ['p2']);
+        });
+
+        test('un día suelto es desde = hasta, el día entero', () async {
+          expect(await salen(DateTime(2026, 9, 13), DateTime(2026, 9, 13)), [
+            'p2',
+          ]);
+        });
+
+        test('no entra lo de fuera, por arriba ni por abajo', () async {
+          expect(await salen(DateTime(2026, 9, 15), null), isEmpty);
+          expect(await salen(null, DateTime(2026, 9, 12)), isEmpty);
+        });
+
+        test('sin fecha de PEDIDO va por la de copia, no desaparece', () async {
+          await sembrarPedido(base, id: 'p3', cliente: 'Sin fecha');
+          await (base.update(
+            base.orders,
+          )..where((o) => o.id.equals('p3'))).write(
+            OrdersCompanion(
+              orderDate: const Value(null),
+              createdAt: Value(DateTime(2026, 9, 12, 23, 30)),
+            ),
+          );
+          expect(await salen(DateTime(2026, 9, 12), DateTime(2026, 9, 12)), [
+            'p3',
+          ]);
+          expect(await salen(DateTime(2026, 9, 13), null), ['p1', 'p2']);
+          // Y el hasta también lo corta a él: creado el 12, fuera de «hasta el 11».
+          expect(await salen(null, DateTime(2026, 9, 11)), isEmpty);
+        });
+
+        test('con sólo desde o sólo hasta HAY filtro puesto', () {
+          // Es lo que enciende el punto del embudo y cambia «No queda ningún
+          // pedido por colocar» por «Ningún pedido con estos filtros».
+          expect(
+            FiltrosSinColocar(desde: DateTime(2026, 9, 13)).hayAlguno,
+            isTrue,
+          );
+          expect(
+            FiltrosSinColocar(hasta: DateTime(2026, 9, 13)).hayAlguno,
+            isTrue,
+          );
+          expect(const FiltrosSinColocar().hayAlguno, isFalse);
+        });
+      },
+    );
 
     test('el total es el de los mismos filtros, no el de la página', () async {
       final izquierda = await consultas.sinColocar(

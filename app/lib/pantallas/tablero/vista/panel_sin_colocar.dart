@@ -5,6 +5,7 @@ import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/caja_de_numero.dart';
 import '../../../diseno/rango_de_fechas.dart';
 import '../../../diseno/tema.dart';
+import '../../../nucleo/proveedores.dart' show relojProvider;
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
 import '../datos/modelos.dart';
@@ -252,25 +253,23 @@ class _Filtros extends ConsumerWidget {
         // Informes abría desde `año−5` y el asistente desde `hoy−30 días`. Las
         // cuatro son ahora la de la casa: 2020 → año que viene.
         //
-        // La ✕ se queda como estaba: `CampoDeFecha` sólo entrega fechas de
-        // verdad, así que volver a «Todos» necesita su propio botón.
-        Row(
-          children: [
-            Expanded(
-              child: CampoDeFecha(
-                titulo: 'Día del pedido',
-                valor: filtros.dia,
-                alElegir: (d) => poner(filtros.copiaCon(dia: d)),
-              ),
+        // DESDE/HASTA Y NO UN DÍA (issue 13 de Amado, 15/10/2026): los mismos
+        // controles y la misma fecha DEL PEDIDO que Pedidos, `sólo ese día` para
+        // el día suelto de antes y la ✕ para volver a «todos».
+        RangoDeFechas(
+          desde: filtros.desde,
+          hasta: filtros.hasta,
+          tituloDesde: 'Desde (fecha del pedido)',
+          tituloHasta: 'Hasta (fecha del pedido)',
+          hoy: ref.watch(relojProvider)(),
+          alCambiar: (desde, hasta) => poner(
+            filtros.copiaCon(
+              desde: desde,
+              quitarDesde: desde == null,
+              hasta: hasta,
+              quitarHasta: hasta == null,
             ),
-            if (filtros.dia != null)
-              IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                tooltip: 'Quitar el día',
-                visualDensity: VisualDensity.compact,
-                onPressed: () => poner(filtros.copiaCon(quitarDia: true)),
-              ),
-          ],
+          ),
         ),
         const SizedBox(height: 8),
         // LOS DOS DESPLEGABLES DE AQUI VAN CON `isExpanded` — 26/09/2026.

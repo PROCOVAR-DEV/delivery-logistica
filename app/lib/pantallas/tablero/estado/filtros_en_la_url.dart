@@ -67,6 +67,12 @@ abstract final class FiltrosEnLaUrl {
   static const claveQ = 'q';
   static const claveMunicipio = 'municipio';
   static const claveVendedor = 'vendedor';
+  static const claveDesde = 'desde';
+  static const claveHasta = 'hasta';
+
+  /// El dia suelto de antes del rango (issue 13 de Amado, 15/10/2026). Ya no se
+  /// escribe, pero un enlace viejo con `?dia=` sigue llevando a ese dia: se lee
+  /// como `desde` = `hasta` = ese dia.
   static const claveDia = 'dia';
   static const claveKmMax = 'kmMax';
   static const claveCobro = 'cobro';
@@ -81,14 +87,14 @@ abstract final class FiltrosEnLaUrl {
   static LecturaDeLaUrl leer(Map<String, String> parametros) {
     final fuera = <String>[];
 
-    DateTime? dia() {
-      final crudo = parametros[claveDia];
+    DateTime? fecha(String clave) {
+      final crudo = parametros[clave];
       if (crudo == null || crudo.isEmpty) return null;
       final d = DateTime.tryParse(crudo);
       if (d == null) {
         // `31-12-2026` no lo traga: devuelve `null`, que es lo que hay que
         // DECIR y no tirar.
-        fuera.add('$claveDia=$crudo');
+        fuera.add('$clave=$crudo');
         return null;
       }
       // Y el 31 de febrero SI lo traga: desborda al 3 de marzo. Lo unico que lo
@@ -96,11 +102,13 @@ abstract final class FiltrosEnLaUrl {
       final comoSeEscribio =
           '${_cuatro(d.year)}-${_dos(d.month)}-${_dos(d.day)}';
       if (!crudo.startsWith(comoSeEscribio)) {
-        fuera.add('$claveDia=$crudo');
+        fuera.add('$clave=$crudo');
         return null;
       }
       return DateTime(d.year, d.month, d.day);
     }
+
+    final diaViejo = fecha(claveDia);
 
     double? kmMax() {
       final crudo = parametros[claveKmMax];
@@ -132,7 +140,8 @@ abstract final class FiltrosEnLaUrl {
         q: parametros[claveQ],
         municipio: parametros[claveMunicipio],
         vendedor: parametros[claveVendedor],
-        dia: dia(),
+        desde: fecha(claveDesde) ?? diaViejo,
+        hasta: fecha(claveHasta) ?? diaViejo,
         kmMax: kmMax(),
         conCobroDeDomicilio: cobro(),
       ),
@@ -141,14 +150,13 @@ abstract final class FiltrosEnLaUrl {
   }
 
   static Map<String, String> escribir(FiltrosSinColocar f) {
-    final dia = f.dia;
     final km = f.kmMax;
     return <String, String>{
       if (f.q != null && f.q!.trim().isNotEmpty) claveQ: f.q!.trim(),
       if (f.municipio != null) claveMunicipio: f.municipio!,
       if (f.vendedor != null) claveVendedor: f.vendedor!,
-      if (dia != null)
-        claveDia: '${_cuatro(dia.year)}-${_dos(dia.month)}-${_dos(dia.day)}',
+      if (f.desde != null) claveDesde: _dia(f.desde!),
+      if (f.hasta != null) claveHasta: _dia(f.hasta!),
       if (km != null) claveKmMax: '$km',
       if (f.conCobroDeDomicilio != null)
         claveCobro: f.conCobroDeDomicilio! ? 'si' : 'no',
@@ -175,6 +183,9 @@ abstract final class FiltrosEnLaUrl {
       Uri(path: camino, queryParameters: escribir(filtros)).toString(),
     );
   }
+
+  static String _dia(DateTime d) =>
+      '${_cuatro(d.year)}-${_dos(d.month)}-${_dos(d.day)}';
 
   static String _dos(int n) => n.toString().padLeft(2, '0');
 

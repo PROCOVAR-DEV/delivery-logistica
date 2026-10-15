@@ -413,16 +413,20 @@ WHERE
     )
     AND (sqlc.narg('municipio')::text IS NULL OR o.municipio = sqlc.narg('municipio')::text)
     AND (sqlc.narg('vendedor')::text  IS NULL OR o.vendedor  = sqlc.narg('vendedor')::text)
-    -- El día del pedido, medio abierto por arriba, igual que en el armador. Se ofrece
-    -- porque un tablero con el histórico entero no se puede preparar: son 1.700 tarjetas.
+    -- La fecha DEL PEDIDO (y `created_at` si no la tiene), medio abierta por arriba. Se
+    -- ofrece porque un tablero con el histórico entero no se puede preparar: son 1.700
+    -- tarjetas. Desde el 15/10/2026 es un RANGO (issue 13 de Amado) y cada extremo va por
+    -- su lado: «desde el 3» sin «hasta» es un filtro de verdad. `dia_hasta` llega ya como
+    -- el día SIGUIENTE al último pedido, así que ese último entra entero (`rangoDelPedido`).
     AND (
         sqlc.narg('dia_desde')::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL
-            AND o.order_date >= sqlc.narg('dia_desde')::timestamptz
-            AND o.order_date <  sqlc.narg('dia_hasta')::timestamptz)
-        OR (o.order_date IS NULL
-            AND o.created_at >= sqlc.narg('dia_desde')::timestamptz
-            AND o.created_at <  sqlc.narg('dia_hasta')::timestamptz)
+        OR (o.order_date IS NOT NULL AND o.order_date >= sqlc.narg('dia_desde')::timestamptz)
+        OR (o.order_date IS NULL AND o.created_at >= sqlc.narg('dia_desde')::timestamptz)
+    )
+    AND (
+        sqlc.narg('dia_hasta')::timestamptz IS NULL
+        OR (o.order_date IS NOT NULL AND o.order_date < sqlc.narg('dia_hasta')::timestamptz)
+        OR (o.order_date IS NULL AND o.created_at < sqlc.narg('dia_hasta')::timestamptz)
     )
     -- El corte por distancia SÍ va aquí, al revés que en `/api/orders/available`, donde se
     -- aplica después de la consulta para no descuadrar `total` y `truncated`. Aquí el
@@ -581,12 +585,13 @@ WHERE
     AND (sqlc.narg('vendedor')::text  IS NULL OR o.vendedor  = sqlc.narg('vendedor')::text)
     AND (
         sqlc.narg('dia_desde')::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL
-            AND o.order_date >= sqlc.narg('dia_desde')::timestamptz
-            AND o.order_date <  sqlc.narg('dia_hasta')::timestamptz)
-        OR (o.order_date IS NULL
-            AND o.created_at >= sqlc.narg('dia_desde')::timestamptz
-            AND o.created_at <  sqlc.narg('dia_hasta')::timestamptz)
+        OR (o.order_date IS NOT NULL AND o.order_date >= sqlc.narg('dia_desde')::timestamptz)
+        OR (o.order_date IS NULL AND o.created_at >= sqlc.narg('dia_desde')::timestamptz)
+    )
+    AND (
+        sqlc.narg('dia_hasta')::timestamptz IS NULL
+        OR (o.order_date IS NOT NULL AND o.order_date < sqlc.narg('dia_hasta')::timestamptz)
+        OR (o.order_date IS NULL AND o.created_at < sqlc.narg('dia_hasta')::timestamptz)
     )
     AND (
         sqlc.narg('km_max')::double precision IS NULL

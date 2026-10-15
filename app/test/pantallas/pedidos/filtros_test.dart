@@ -149,6 +149,10 @@ void main() {
         ),
         1,
       );
+      // Cada extremo por su lado (issue 13 de Amado): sólo «hasta el 2» son o1,
+      // o2 y o11 (de agosto, por su `createdAt`); sólo «desde el 9», o9 y o10.
+      expect(await cuantos(sinNada.copiarCon(hasta: DateTime(2026, 9, 2))), 3);
+      expect(await cuantos(sinNada.copiarCon(desde: DateTime(2026, 9, 9))), 2);
       // o11 no tiene `orderDate`: se acota por su `createdAt` de agosto.
       expect(
         await cuantos(

@@ -58,7 +58,9 @@ No es un fallo. Es para que lo de allá no pise lo que hiciste aquí. Sube prime
 - **El buscador** dice «Cliente, operación, factura, dirección, artículo…» y **filtra al
   escribir**, sin darle a Intro.
 - **El embudo** abre los filtros:
-  - **«Día del pedido»**
+  - **«Desde (fecha del pedido)»** / **«Hasta (fecha del pedido)»**: los dos días
+    entran. Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las
+    dos, y la **✕** quita las fechas. Es la fecha del pedido, no la de la factura.
   - **«Municipio»** (por defecto «Todos»)
   - **«Vendedor»** (por defecto «Todos»)
   - **«Hasta cuántos km del almacén»** (por defecto «Sin tope»). Se aplica al

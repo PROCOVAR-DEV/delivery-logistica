@@ -23,7 +23,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
+import 'package:reparto/navegacion/portero.dart'
+    show sucursalDeLaSesionProvider;
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
 import 'package:reparto/nucleo/identidad/sesion.dart';
@@ -55,7 +56,8 @@ void main() {
         'q': 'malta',
         'municipio': 'Songo',
         'vendedor': 'Ana',
-        'dia': '2026-09-14',
+        'desde': '2026-09-12',
+        'hasta': '2026-09-14',
         'kmMax': '10',
         'cobro': 'si',
       });
@@ -63,28 +65,43 @@ void main() {
       expect(l.filtros.q, 'malta');
       expect(l.filtros.municipio, 'Songo');
       expect(l.filtros.vendedor, 'Ana');
-      expect(l.filtros.dia, DateTime(2026, 9, 14));
+      expect(l.filtros.desde, DateTime(2026, 9, 12));
+      expect(l.filtros.hasta, DateTime(2026, 9, 14));
       expect(l.filtros.kmMax, 10);
       expect(l.filtros.conCobroDeDomicilio, isTrue);
     });
 
+    test(
+      'un enlace viejo con `?dia=` lleva a ese día: desde y hasta iguales',
+      () {
+        // Hasta el 15/10/2026 el filtro era UN día (issue 13 de Amado). Los
+        // enlaces que ya circulan no pueden dejar de llevar a donde llevaban.
+        final l = FiltrosEnLaUrl.leer(const {'dia': '2026-09-14'});
+        expect(l.noSePudieron, isEmpty);
+        expect(l.filtros.desde, DateTime(2026, 9, 14));
+        expect(l.filtros.hasta, DateTime(2026, 9, 14));
+      },
+    );
+
     test('una fecha que no es una fecha SE DICE, con su valor', () {
-      final l = FiltrosEnLaUrl.leer(const {'dia': '31-12-2026'});
-      expect(
-        l.filtros.dia,
-        isNull,
-        reason: 'no se inventa un día; lo que se hace es decirlo',
-      );
-      expect(l.noSePudieron, ['dia=31-12-2026']);
+      for (final clave in ['dia', 'desde', 'hasta']) {
+        final l = FiltrosEnLaUrl.leer({clave: '31-12-2026'});
+        expect(
+          [l.filtros.desde, l.filtros.hasta],
+          [null, null],
+          reason: 'no se inventa un día; lo que se hace es decirlo',
+        );
+        expect(l.noSePudieron, ['$clave=31-12-2026']);
+      }
     });
 
     test('el 31 de febrero tampoco es una fecha, aunque `tryParse` lo trague', () {
       // `DateTime.tryParse('1900-02-31')` devuelve el 3 de marzo de 1900. Sin
       // esta comprobación, el tablero salía acotado por un día que nadie pidió.
       expect(DateTime.tryParse('1900-02-31'), DateTime(1900, 3, 3));
-      final l = FiltrosEnLaUrl.leer(const {'dia': '1900-02-31'});
-      expect(l.filtros.dia, isNull);
-      expect(l.noSePudieron, ['dia=1900-02-31']);
+      final l = FiltrosEnLaUrl.leer(const {'desde': '1900-02-31'});
+      expect(l.filtros.desde, isNull);
+      expect(l.noSePudieron, ['desde=1900-02-31']);
     });
 
     test('`kmMax` que no es un tope: NaN, Infinity y los negativos', () {
@@ -133,25 +150,51 @@ void main() {
   });
 
   group('escribir la dirección', () {
-    test('ida y vuelta: lo que la pantalla escribe sabe leerlo la pantalla', () {
-      final casos = <FiltrosSinColocar>[
-        const FiltrosSinColocar(),
-        const FiltrosSinColocar(
-          q: 'malta',
-          municipio: 'Songo',
-          vendedor: 'Ana',
-          kmMax: 12.5,
-          conCobroDeDomicilio: false,
+    test('el rango va entero al enlace, cada extremo con su clave', () {
+      // La ida y vuelta de abajo compara lo ESCRITO de los dos lados, así que
+      // un extremo que no se escribiera se perdería en los dos y saldría igual.
+      expect(
+        FiltrosEnLaUrl.escribir(
+          FiltrosSinColocar(
+            desde: DateTime(2026, 9, 12),
+            hasta: DateTime(2026, 9, 14),
+          ),
         ),
-        FiltrosSinColocar(dia: DateTime(2026, 9, 14)),
-      ];
-      for (final f in casos) {
-        final ida = FiltrosEnLaUrl.escribir(f);
-        final vuelta = FiltrosEnLaUrl.leer(ida);
-        expect(vuelta.noSePudieron, isEmpty, reason: '$ida');
-        expect(FiltrosEnLaUrl.iguales(vuelta.filtros, f), isTrue, reason: '$ida');
-      }
+        {'desde': '2026-09-12', 'hasta': '2026-09-14'},
+      );
     });
+
+    test(
+      'ida y vuelta: lo que la pantalla escribe sabe leerlo la pantalla',
+      () {
+        final casos = <FiltrosSinColocar>[
+          const FiltrosSinColocar(),
+          const FiltrosSinColocar(
+            q: 'malta',
+            municipio: 'Songo',
+            vendedor: 'Ana',
+            kmMax: 12.5,
+            conCobroDeDomicilio: false,
+          ),
+          FiltrosSinColocar(
+            desde: DateTime(2026, 9, 12),
+            hasta: DateTime(2026, 9, 14),
+          ),
+          FiltrosSinColocar(desde: DateTime(2026, 9, 12)),
+          FiltrosSinColocar(hasta: DateTime(2026, 9, 14)),
+        ];
+        for (final f in casos) {
+          final ida = FiltrosEnLaUrl.escribir(f);
+          final vuelta = FiltrosEnLaUrl.leer(ida);
+          expect(vuelta.noSePudieron, isEmpty, reason: '$ida');
+          expect(
+            FiltrosEnLaUrl.iguales(vuelta.filtros, f),
+            isTrue,
+            reason: '$ida',
+          );
+        }
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -221,9 +264,7 @@ void main() {
           ],
           child: MaterialApp(
             home: Scaffold(
-              body: PantallaTablero(
-                lectura: FiltrosEnLaUrl.leer(consulta),
-              ),
+              body: PantallaTablero(lectura: FiltrosEnLaUrl.leer(consulta)),
             ),
           ),
         ),

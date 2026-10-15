@@ -13,6 +13,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/fecha_del_pedido.dart';
 import 'filtros_pedidos.dart';
 import 'formato.dart' show cantidad;
 
@@ -483,19 +484,10 @@ class ConsultasPedidos {
       );
     }
 
-    final rango = _rangoDeFechas(f);
-    if (rango != null) {
-      final (desde, hasta) = rango;
-      // El mismo OR del servidor: un pedido sin `orderDate` se acota por la
-      // fecha en que se copio, o desapareceria de todos los rangos.
-      anadir(
-        (o.orderDate.isBiggerOrEqualValue(desde) &
-                o.orderDate.isSmallerOrEqualValue(hasta)) |
-            (o.orderDate.isNull() &
-                o.createdAt.isBiggerOrEqualValue(desde) &
-                o.createdAt.isSmallerOrEqualValue(hasta)),
-      );
-    }
+    // La regla, con su porque, en `nucleo/fecha_del_pedido.dart`: es la misma
+    // de «Sin colocar» y del asistente.
+    final fecha = fechaDelPedidoEntre(o, f.desde, f.hasta);
+    if (fecha != null) anadir(fecha);
 
     return todo;
   }
@@ -511,21 +503,6 @@ class ConsultasPedidos {
             ..addColumns([_base.routes.id])
             ..where(_base.routes.status.equals(estadoRuta)),
         );
-  }
-
-  /// `hasta` incluye el dia entero. Sin esto, filtrar «del 3 al 3» no devuelve
-  /// nada y parece que no hubo pedidos ese dia.
-  (DateTime, DateTime)? _rangoDeFechas(FiltrosPedidos f) {
-    final desde = f.desde;
-    final hasta = f.hasta;
-    if (desde == null && hasta == null) return null;
-    final inicio = desde == null
-        ? DateTime.fromMillisecondsSinceEpoch(0)
-        : DateTime(desde.year, desde.month, desde.day);
-    final fin = hasta == null
-        ? DateTime(9999)
-        : DateTime(hasta.year, hasta.month, hasta.day, 23, 59, 59, 999);
-    return (inicio, fin);
   }
 
   // --------------------------------------------------------------------------

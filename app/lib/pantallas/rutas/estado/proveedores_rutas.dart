@@ -371,7 +371,8 @@ class FiltrosDisponibles {
     this.estado = EstadoDelPedido.cualquiera,
     this.domicilio = DomicilioFiltro.soloCon,
     this.cotizado = CotizadoDelDomicilio.cualquiera,
-    this.dia,
+    this.desde,
+    this.hasta,
     this.kmMax,
     this.costoMin,
   });
@@ -387,7 +388,11 @@ class FiltrosDisponibles {
   final DomicilioFiltro domicilio;
 
   final CotizadoDelDomicilio cotizado;
-  final DateTime? dia;
+
+  /// La fecha DEL PEDIDO, los dos dias incluidos y cada uno opcional. Era UN dia
+  /// hasta el 15/10/2026 (issue 13 de Amado): `nucleo/fecha_del_pedido.dart`.
+  final DateTime? desde;
+  final DateTime? hasta;
   final double? kmMax;
   final double? costoMin;
 
@@ -403,8 +408,10 @@ class FiltrosDisponibles {
     EstadoDelPedido? estado,
     DomicilioFiltro? domicilio,
     CotizadoDelDomicilio? cotizado,
-    DateTime? dia,
-    bool limpiarDia = false,
+    DateTime? desde,
+    bool limpiarDesde = false,
+    DateTime? hasta,
+    bool limpiarHasta = false,
     double? kmMax,
     bool limpiarKmMax = false,
     double? costoMin,
@@ -417,7 +424,8 @@ class FiltrosDisponibles {
     estado: estado ?? this.estado,
     domicilio: domicilio ?? this.domicilio,
     cotizado: cotizado ?? this.cotizado,
-    dia: limpiarDia ? null : (dia ?? this.dia),
+    desde: limpiarDesde ? null : (desde ?? this.desde),
+    hasta: limpiarHasta ? null : (hasta ?? this.hasta),
     // Sin el `limpiar…` no habria forma de BORRAR un tope: pasar `null` es
     // indistinguible de «no lo toques», y el `km máx.` se quedaria puesto para
     // siempre.
@@ -436,7 +444,8 @@ class FiltrosDisponibles {
           other.estado == estado &&
           other.domicilio == domicilio &&
           other.cotizado == cotizado &&
-          other.dia == dia &&
+          other.desde == desde &&
+          other.hasta == hasta &&
           other.kmMax == kmMax &&
           other.costoMin == costoMin;
 
@@ -449,7 +458,8 @@ class FiltrosDisponibles {
     estado,
     domicilio,
     cotizado,
-    dia,
+    desde,
+    hasta,
     kmMax,
     costoMin,
   );
@@ -481,7 +491,8 @@ final disponiblesProvider =
         estado: filtros.estado.param,
         domicilio: filtros.domicilio.param,
         cotizado: filtros.cotizado.param,
-        dia: filtros.dia,
+        desde: filtros.desde,
+        hasta: filtros.hasta,
         kmMax: filtros.kmMax,
         costoMin: filtros.costoMin,
         ahora: ahora,

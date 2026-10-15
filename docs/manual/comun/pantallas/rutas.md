@@ -426,7 +426,7 @@ Los filtros:
 | Filtro | Por defecto |
 |---|---|
 | «Sucursal de la ruta» | la del paso 1 |
-| «Día de los pedidos» + «Todos los días» | — |
+| «Desde (fecha del pedido)» / «Hasta (fecha del pedido)» | vacías. Los dos días entran; con «Desde» puesto aparece «sólo ese día», y la ✕ las quita |
 | «Buscar pedido...» | vacío |
 | «Vendedor del pedido» | «Todos los vendedores» |
 | «Municipio del cliente» | «Todos los municipios» |

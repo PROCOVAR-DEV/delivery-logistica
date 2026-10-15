@@ -95,7 +95,8 @@ void main() {
     String estado = '',
     String domicilio = '',
     String cotizado = '',
-    DateTime? dia,
+    DateTime? desde,
+    DateTime? hasta,
     double? kmMax,
     double? costoMin,
   }) async {
@@ -107,7 +108,8 @@ void main() {
       estado: estado,
       domicilio: domicilio,
       cotizado: cotizado,
-      dia: dia,
+      desde: desde,
+      hasta: hasta,
       kmMax: kmMax,
       costoMin: costoMin,
       ahora: ahora,
@@ -197,8 +199,29 @@ void main() {
     expect(await ids(vendedor: 'Luis'), ['d1', 'd3']);
   });
 
-  test('el dia acota el dia natural entero', () async {
-    expect(await ids(dia: DateTime(2026, 9, 13)), isEmpty);
+  // DESDE/HASTA Y NO UN DÍA (issue 13 de Amado, 15/10/2026). Los elegibles son
+  // del 14 a las 8, 9 y 10; `d2` (del 13) no es elegible y no sale nunca.
+  group('la fecha del pedido, de desde a hasta con los dos días incluidos', () {
+    test('entra lo de dentro, y un día suelto es desde = hasta', () async {
+      final dia = DateTime(2026, 9, 14);
+      expect(await ids(desde: dia, hasta: dia), ['d1', 'd3', 'd4']);
+      expect(await ids(desde: DateTime(2026, 9, 1), hasta: dia), [
+        'd1',
+        'd3',
+        'd4',
+      ]);
+      expect(await ids(desde: dia), ['d1', 'd3', 'd4']);
+      expect(await ids(hasta: dia), ['d1', 'd3', 'd4']);
+    });
+
+    test('no entra lo de fuera, por arriba ni por abajo', () async {
+      expect(await ids(desde: DateTime(2026, 9, 15)), isEmpty);
+      expect(await ids(hasta: DateTime(2026, 9, 13)), isEmpty);
+      expect(
+        await ids(desde: DateTime(2026, 9, 10), hasta: DateTime(2026, 9, 13)),
+        isEmpty,
+      );
+    });
   });
 
   test('`km máx.` y `costo mín.` recortan por arriba y por abajo', () async {

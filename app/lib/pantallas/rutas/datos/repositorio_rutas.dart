@@ -6,6 +6,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/fecha_del_pedido.dart';
 import '../../../nucleo/regla_de_entrada.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 
@@ -506,7 +507,8 @@ class ConsultasRutas {
     String estado = '',
     String domicilio = '',
     String cotizado = '',
-    DateTime? dia,
+    DateTime? desde,
+    DateTime? hasta,
     double? kmMax,
     double? costoMin,
     DateTime? ahora,
@@ -579,18 +581,10 @@ class ConsultasRutas {
               o.endAddress.lower().contains(busca) |
               o.address.lower().contains(busca));
     }
-    if (dia != null) {
-      // Un dia natural completo, igual que el servidor.
-      final inicio = DateTime(dia.year, dia.month, dia.day);
-      final fin = inicio.add(const Duration(days: 1));
-      donde =
-          donde &
-          ((o.orderDate.isBiggerOrEqualValue(inicio) &
-                  o.orderDate.isSmallerThanValue(fin)) |
-              (o.orderDate.isNull() &
-                  o.createdAt.isBiggerOrEqualValue(inicio) &
-                  o.createdAt.isSmallerThanValue(fin)));
-    }
+    // La fecha del pedido, de [desde] a [hasta] con los dos dias incluidos: lo
+    // mismo que `desde`/`hasta` de `/api/orders/available` (issue 13 de Amado).
+    final fecha = fechaDelPedidoEntre(o, desde, hasta);
+    if (fecha != null) donde = donde & fecha;
 
     final consulta = _base.select(_base.orders)
       ..where((_) => donde)

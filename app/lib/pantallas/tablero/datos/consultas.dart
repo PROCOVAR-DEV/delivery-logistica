@@ -685,9 +685,15 @@ WHERE c.branch_id = ?1''',
     // decision de alguien, no un hueco.
     final conCobro = filtros.conCobroDeDomicilio;
     if (conCobro != null) {
-      consulta.where(
-        (t) => conCobro ? t.pedidoCosto.isNotNull() : t.pedidoCosto.isNull(),
-      );
+      // Desde el 16/10/2026 (Jose, con la regla «entra todo lo facturado»): «con cobro» es el precio
+      // de Entrega O lo cobrado en la factura (`facturaDomicilio > 0`); «sin cobro», ninguno de los dos.
+      consulta.where((t) {
+        // `coalesce`: un cobro vacío no es «desconocido» sino «sin cobro» (si no, el `not` lo pierde).
+        final cobrado = t.pedidoCosto.isNotNull() |
+            coalesce([t.facturaDomicilio, const Constant<double>(0)])
+                .isBiggerThanValue(0);
+        return conCobro ? cobrado : cobrado.not();
+      });
     }
     // Con `created_at` de repuesto: un pedido sin fecha de PEDIDO no puede
     // desaparecer del rango en que entro. La regla vive en un sitio.

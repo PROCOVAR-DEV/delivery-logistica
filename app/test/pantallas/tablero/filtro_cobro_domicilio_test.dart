@@ -34,9 +34,11 @@ void main() {
     consultas = ConsultasTablero(base);
     await sembrarSucursal(base);
     await sembrarAlmacen(base);
-    await sembrarPedido(base, id: 'con-cobro', costo: 12.5);
-    await sembrarPedido(base, id: 'de-cero', costo: 0);
-    await sembrarPedido(base, id: 'sin-poner', costo: null);
+    await sembrarPedido(base, id: 'con-cobro', costo: 12.5, facturaDomicilio: null);
+    await sembrarPedido(base, id: 'de-cero', costo: 0, facturaDomicilio: null);
+    await sembrarPedido(base, id: 'sin-poner', costo: null, facturaDomicilio: null);
+    // Cobrado SÓLO en la factura (sin cotizar en Entrega): el caso PCC25-261014-1435.
+    await sembrarPedido(base, id: 'cobrado-en-factura', costo: null, facturaDomicilio: 0.05);
     origen = await consultas.almacenDe(sucursalStg);
   });
 
@@ -62,14 +64,19 @@ void main() {
   // logístico buscar sólo los cobrados: «todos» trae los tres, «con cobro» los cotizados y
   // «sin cobro» el que falta.
   test('sin el filtro (todos) salen los tres, también el sin poner', () async {
-    expect(await conFiltro(null), ['con-cobro', 'de-cero', 'sin-poner']);
+    expect(await conFiltro(null), unorderedEquals(['con-cobro', 'de-cero', 'sin-poner', 'cobrado-en-factura']));
   });
 
   test('«con cobro» incluye el de CERO, que no es un hueco', () async {
     // Un domicilio de cero es una decisión de alguien —se lleva gratis—, no un
     // dato que falte. Preguntar por «> 0» lo escondería, y ese pedido SÍ se
     // puede repartir hoy.
-    expect(await conFiltro(true), ['con-cobro', 'de-cero']);
+    expect(await conFiltro(true), unorderedEquals(['con-cobro', 'de-cero', 'cobrado-en-factura']));
+  });
+
+  test('lo cobrado en la factura cuenta como «con cobro» y no como «sin cobro» (16/10/2026)', () async {
+    expect(await conFiltro(true), contains('cobrado-en-factura'));
+    expect(await conFiltro(false), isNot(contains('cobrado-en-factura')));
   });
 
   test('«sin cobro» trae el sin poner: ahora sí se coloca', () async {

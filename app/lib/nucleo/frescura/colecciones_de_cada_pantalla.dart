@@ -93,6 +93,8 @@ abstract final class ColeccionesDePantalla {
   /// sus pedidos— mas los ajustes, de donde sale el costo por km.
   static const vehiculos = <String>[
     Colecciones.vehiculos,
+    Colecciones.tiposDeVehiculo,
+    Colecciones.distribuidores,
     Colecciones.rutas,
     Colecciones.pedidos,
     Colecciones.ajustes,

@@ -1620,7 +1620,10 @@ activo (`400 El distribuidor está retirado y no se puede asignar a una ruta.`).
 
 **Bajada** (`GET /api/sync/cambios`): colección `distribuidores` (`id, nombre, activo, branchId,
 updatedAt`, retirados incluidos, con lápidas) y `distribuidorId` en cada ruta. `?completas=distribuidores`
-la manda entera aunque venga `desde` (la usa una vez el aparato que ya tenía marca de antes).
+la manda entera aunque venga `desde` (la usa una vez el aparato que ya tenía marca de antes). Desde el 16/10/2026
+(issue 14) `completas` también honra `vehicles` y `vehicle_types`; `vehicles` lleva además `vehicleTypeId`, `costoKmUsd`
+(el del camión, o null), `usarParaDomicilio`, `notes` y `createdAt`, y la colección `vehicle_types` lleva `id, nombre,
+costoKmUsd (o null), activo, branchId (null = «de todas»), createdAt, updatedAt` (activos y retirados, con lápidas).
 
 **Aviso en vivo**: las tres escrituras publican `vehiculos` (la pantalla es la de Vehículos) acotado a
 la sucursal DEL DISTRIBUIDOR.
@@ -2230,9 +2233,9 @@ Montadas en el mux público de `sync/cmd/sync/main.go` (`RutasDeRevision`), cada
 `Token`; (2) tasa, 60 peticiones por minuto **por persona**; (3) el aparato **existe** (nunca se da de alta en modo
 entrega) y es de **esta persona y de esta sucursal**; (4) **cada** apunte, entero, antes de guardar ninguno (una
 entrega con un solo apunte malo no guarda ninguno): `clave` `^[A-Za-z0-9_.:-]{1,100}$` y no repetida en el envío,
-método `POST|PUT|PATCH|DELETE`, **ruta de la lista blanca POR FORMA**: solo las nueve que la API tiene de escritura —`/routes`,
+método `POST|PUT|PATCH|DELETE`, **ruta de la lista blanca POR FORMA**: solo las quince que la API tiene de escritura —`/routes`,
 `/routes/{id}`, `/routes/{id}/stops` (reordenar, 15/10/2026), `/routes/{id}/stops/{pedido}`, `/routes/{id}/results`, `/board/columns`, `/board/columns/{id}`,
-`/board/columns/{id}/route` y `/board/placements/{pedido}`—, con `{id}` = letras, números, `_` y `-` (un uuid, un `local-…`,
+`/board/columns/{id}/route`, `/board/placements/{pedido}` y, desde el 16/10/2026 (issue 14, la flota sin señal), `/vehicles`, `/vehicle-types`, `/distribuidores` y sus `/{id}`—, con `{id}` = letras, números, `_` y `-` (un uuid, un `local-…`,
 `orden`; **nunca un punto**) y, a continuación, una query opcional de pares simples. La forma es la profundidad exacta: `POST /board`
 suelto, `/routes/.` o `/routes/a/b/c/d` dan 422 (antes valía «lo que venga detrás» y esas rutas entraban, el reparto contestaba 404
 y `Aplicar` lo tomaba por una caída que paraba «aplicar todo» en un apunte que jamás iba a entrar). Sin `..` ni `//`, ≤300 caracteres, `hecho` presente, no más de 24 h en el futuro ni más de 60 días en el pasado,

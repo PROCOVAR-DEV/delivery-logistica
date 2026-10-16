@@ -1,22 +1,43 @@
 import 'package:reparto/nucleo/red/cliente_api.dart';
 import 'package:reparto/nucleo/red/fallos.dart';
 
+import 'flota_local.dart';
 import 'vehiculo_api.dart';
 
-/// Vehiculos, contra el servidor y **sólo contra el servidor**.
+/// Vehiculos.
 ///
-/// Esta pantalla NO tiene base local y NO tiene cola, y eso es una decision, no
-/// un descuido: la flota se configura una vez y en la oficina. Encolar altas de
-/// camiones es complejidad —identificadores provisionales, sustituciones,
-/// rechazos que llegan tarde— a cambio de nada, porque nadie da de alta un
-/// camion en la calle. Sin red la pantalla lo dice; no finge que guardo.
+/// # EN LA WEB: contra el servidor y sólo contra el servidor
+///
+/// La web no tiene base local ni cola (`CLAUDE.md` §1). Sin red lo dice; no finge
+/// que guardo.
+///
+/// # EN LA APK Y EL ESCRITORIO: contra la base local y la cola — 16/10/2026
+///
+/// Decia aqui que la flota «se configura en la oficina y nadie da de alta un camion
+/// en la calle». Amado (issue 14) lo desmintio: el logistico de Santiago, con el
+/// escritorio de Windows y sin conexion, no veia ni camiones, ni tipos, ni
+/// distribuidores, y no podia crear ninguno. Con [_local] puesto, cada gesto escribe
+/// la fila local y encola su apunte (`FlotaLocal`). **Una excepcion**: quien ve las
+/// ocho sucursales (SUPER ADMIN, DESARROLLADOR) no tiene UNA sucursal a la que
+/// atribuir un alta hecha sin red, y la cola sube con su alcance de «todas»: un
+/// camion nacido asi saldria compartido. Sus altas van al servidor, como en la web.
 ///
 /// La verdad de si hay red **es si la peticion salio**: un `FalloDeRed` de
 /// `ClienteApi`. `connectivity_plus` es una pista y aqui ni se mira.
 class RepositorioVehiculos {
-  RepositorioVehiculos(this._api);
+  RepositorioVehiculos(this._api, [this._local]);
 
   final ClienteApi _api;
+
+  /// `null` en la web.
+  final FlotaLocal? _local;
+
+  /// ¿Este gesto va a la base local y la cola? Los ALTAS de quien ve las ocho no.
+  Future<bool> _alAparato({bool alta = false}) async {
+    final local = _local;
+    if (local == null) return false;
+    return !(alta && await local.veTodas());
+  }
 
   Future<List<VehiculoDeLaApi>> listar() async {
     final datos = await _api.pedir<List<Object?>>('/vehicles');
@@ -39,11 +60,15 @@ class RepositorioVehiculos {
     ];
   }
 
-  Future<void> crear(DatosVehiculo datos) =>
-      _api.mandar<Object?>('POST', '/vehicles', datos.aJson());
+  Future<void> crear(DatosVehiculo datos) async {
+    if (await _alAparato(alta: true)) return _local!.crearVehiculo(datos);
+    await _api.mandar<Object?>('POST', '/vehicles', datos.aJson());
+  }
 
-  Future<void> editar(String id, DatosVehiculo datos) =>
-      _api.mandar<Object?>('PATCH', '/vehicles/$id', datos.aJson());
+  Future<void> editar(String id, DatosVehiculo datos) async {
+    if (await _alAparato()) return _local!.editarVehiculo(id, datos);
+    await _api.mandar<Object?>('PATCH', '/vehicles/$id', datos.aJson());
+  }
 
   /// El servidor desasocia de rutas y pedidos antes de borrar, asi que el
   /// historico de lo repartido no se va con el camion.
@@ -52,23 +77,25 @@ class RepositorioVehiculos {
   /// de Next». La pregunta la pone la pantalla desde el 01/10/2026
   /// (`_Rejilla._borrarPreguntando`). Lo que el servidor conserva es el
   /// historico; lo que no devuelve nadie es el camion.
-  Future<void> eliminar(String id) =>
-      _api.mandar<Object?>('DELETE', '/vehicles/$id', null);
+  Future<void> eliminar(String id) async {
+    if (await _alAparato()) return _local!.eliminarVehiculo(id);
+    await _api.mandar<Object?>('DELETE', '/vehicles/$id', null);
+  }
 
-  Future<void> marcarDisponible(String id) => _api.mandar<Object?>(
-    'PATCH',
-    '/vehicles/$id',
-    <String, Object?>{'status': 'available'},
-  );
+  Future<void> marcarDisponible(String id) async {
+    const cambios = <String, Object?>{'status': 'available'};
+    if (await _alAparato()) return _local!.cambiarVehiculo(id, cambios);
+    await _api.mandar<Object?>('PATCH', '/vehicles/$id', cambios);
+  }
 
   /// La exclusividad —un solo vehiculo por tipo y sucursal— la resuelve el
   /// servidor en su transaccion. Aqui no se desmarca nada a mano: dos sitios
   /// decidiendo lo mismo es como se acaba con dos marcados.
-  Future<void> usarParaDomicilio(String id) => _api.mandar<Object?>(
-    'PATCH',
-    '/vehicles/$id',
-    <String, Object?>{'usarParaDomicilio': true},
-  );
+  Future<void> usarParaDomicilio(String id) async {
+    const cambios = <String, Object?>{'usarParaDomicilio': true};
+    if (await _alAparato()) return _local!.cambiarVehiculo(id, cambios);
+    await _api.mandar<Object?>('PATCH', '/vehicles/$id', cambios);
+  }
 
   /// Crea el tipo, o REACTIVA el retirado que ya se llama igual.
   ///
@@ -78,6 +105,7 @@ class RepositorioVehiculos {
   /// no se escribio uno**: el retirado puede tenerlo guardado y mandar `null`
   /// lo borraba (el costo por km es el que cotiza el domicilio).
   Future<void> crearTipo(TipoDeVehiculo tipo) async {
+    if (await _alAparato(alta: true)) return _local!.crearTipo(tipo);
     final retirado = (await _tipos())
         .where((t) => t.nombre == tipo.nombre && !t.activo)
         .firstOrNull;
@@ -122,6 +150,9 @@ class RepositorioVehiculos {
     List<TipoDeVehiculo> tipos, {
     required List<TipoDeVehiculo> abiertos,
   }) async {
+    if (await _alAparato()) {
+      return _guardarTiposEnElAparato(_local!, tipos, abiertos);
+    }
     final antes = {
       for (final t in abiertos)
         if (t.id != null) t.id!: t,
@@ -173,6 +204,36 @@ class RepositorioVehiculos {
       if (aplicadas > 0) throw GuardadoAMedias(e, aplicadas);
       rethrow;
     }
+  }
+}
+
+/// Lo mismo que `guardarTipos` contra el servidor, sobre la base local y la cola: se
+/// borra lo que estaba y ya no esta, se manda sólo lo que ESTA persona cambio, y lo
+/// nuevo se crea (o reactiva). Sin red no hay «a medias»: cada paso es local.
+Future<void> _guardarTiposEnElAparato(
+  FlotaLocal local,
+  List<TipoDeVehiculo> tipos,
+  List<TipoDeVehiculo> abiertos,
+) async {
+  final antes = {
+    for (final t in abiertos)
+      if (t.id != null) t.id!: t,
+  };
+  final siguen = {for (final t in tipos) t.id};
+  for (final id in antes.keys.where((id) => !siguen.contains(id))) {
+    await local.quitarTipo(id);
+  }
+  for (final t in tipos) {
+    final previo = antes[t.id];
+    if (previo == null) {
+      await local.crearTipo(t);
+      continue;
+    }
+    final cambios = <String, Object?>{
+      if (previo.nombre != t.nombre) 'nombre': t.nombre,
+      if (previo.costoKmUsd != t.costoKmUsd) 'costoKmUsd': t.costoKmUsd,
+    };
+    if (cambios.isNotEmpty) await local.cambiarTipo(t.id!, cambios);
   }
 }
 

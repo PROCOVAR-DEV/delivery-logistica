@@ -24,6 +24,10 @@ abstract final class Colecciones {
   /// vehiculos y delante de las sucursales, y `warehouses` sigue siendo la
   /// penultima de `todas` (`proveedores_rutas.dart` lo cuenta).
   static const distribuidores = 'distribuidores';
+
+  /// Los tipos de vehiculo de cada sucursal (issue 14 de Amado, 16/10/2026): bajan con
+  /// el dia para poder elegirlos y mantenerlos SIN conexion.
+  static const tiposDeVehiculo = 'vehicle_types';
   static const sucursales = 'branches';
   static const almacenes = 'warehouses';
   static const ajustes = 'settings';
@@ -36,6 +40,7 @@ abstract final class Colecciones {
     productos,
     vehiculos,
     distribuidores,
+    tiposDeVehiculo,
     sucursales,
     almacenes,
     ajustes,
@@ -188,8 +193,15 @@ class BaseLocal extends _$BaseLocal {
   /// cola de `apuntes` no se toca. Lo que ya estaba se rellena una vez por aparato:
   /// los pedidos con una bajada entera (`RegistroDeFrescura.rebajarLosPedidosPorSuAlmacen`)
   /// y los almacenes en el primer ciclo (`Bajada.almacenes`). Ver el `desde < 10`.
+  ///
+  /// ## 11 — la flota se mantiene sin conexión (16/10/2026, issue 14 de Amado)
+  ///
+  /// `vehicle_types` gana `branch_id` y `vehicles` gana `tipo_nombre`, nulas las dos.
+  /// ADITIVAS: la cola de `apuntes` no se toca. Lo que ya estaba se rellena por
+  /// la bajada, una vez por aparato (`completas=vehicles,vehicle_types`, ver
+  /// `Bajada.ciclo`). Ver el `desde < 11`.
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -321,6 +333,22 @@ class BaseLocal extends _$BaseLocal {
 
         await siFalta(orders, orders.almacenSalidaCodigo);
         await siFalta(warehouses, warehouses.codigo);
+      }
+      if (desde < 11) {
+        // LA FLOTA SIN CONEXION. Nulas: «no se sabe» hasta que baje. **Solo las que
+        // faltan**, por lo mismo que la 5, la 7, la 8 y la 10.
+        Future<void> siFalta(
+          TableInfo<Table, Object?> t,
+          GeneratedColumn c,
+        ) async {
+          final hay = (await customSelect(
+            'PRAGMA table_info(${t.actualTableName})',
+          ).get()).map((f) => f.read<String>('name')).toSet();
+          if (!hay.contains(c.name)) await m.addColumn(t, c);
+        }
+
+        await siFalta(vehicleTypes, vehicleTypes.branchId);
+        await siFalta(vehicles, vehicles.tipoNombre);
       }
     },
     beforeOpen: (detalles) async {

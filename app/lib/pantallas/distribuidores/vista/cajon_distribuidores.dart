@@ -6,6 +6,7 @@ import '../../../diseno/cajon.dart';
 import '../../../diseno/preguntar_antes_de_borrar.dart';
 import '../../../diseno/tema.dart';
 import '../../../diseno/colores.dart';
+import '../../../nucleo/plataforma.dart';
 import '../../../nucleo/red/fallos.dart';
 import '../../../nucleo/registro/registro.dart';
 import '../datos/repositorio_distribuidores.dart';
@@ -237,6 +238,28 @@ class _CajonDeDistribuidoresState
     final lista = ref.watch(distribuidoresDelServidorProvider);
     final hayFallo = lista.hasError;
     final tema = Theme.of(context);
+    // En el aparato, SIN BAJAR no es «esta sucursal no tiene distribuidores»: se
+    // arregla trayendo el dia, no dando de alta (CLAUDE.md §3 y §4).
+    final copia = ref.watch(trabajaSinConexionProvider)
+        ? ref.watch(distribuidoresEnElAparatoProvider).value
+        : null;
+    if (copia != null && !copia.seDescargo) {
+      return Cajon(
+        titulo: 'Distribuidores',
+        subtitulo: 'Quién reparte, por sucursal',
+        ancho: AnchoCajon.md,
+        child: const Padding(
+          padding: EdgeInsets.all(20),
+          child: Text(
+            'Este aparato no ha descargado los distribuidores todavía. No es que '
+            'la sucursal no tenga: es que no están aquí. Baja sola al traer el día '
+            'desde el Panel, con conexión. Sin ellos no se puede decir quién reparte '
+            'una ruta, y no se da de alta ninguno hasta entonces: podrías crear a '
+            'alguien que ya existe.',
+          ),
+        ),
+      );
+    }
     return Cajon(
       titulo: 'Distribuidores',
       subtitulo: 'Quién reparte, por sucursal',

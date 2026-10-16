@@ -519,11 +519,19 @@ func TestLaListaBlancaDeMetodoYRuta(t *testing.T) {
 			{"ruta": "/routes/a/stops/"}, {"ruta": "/routes/a/stops/b/c"}, {"ruta": "/routes/a/results/x"},
 			{"ruta": "/board"}, {"ruta": "/board/unplaced"}, {"ruta": "/board/columns/a/b"}, {"ruta": "/board/columns/a/route/x"},
 			{"ruta": "/board/placements"}, {"ruta": "/board/placements/a/b"}, {"ruta": "/board/columns?x=.."},
+			// LA FLOTA (issue 14): misma disciplina de forma. Ni más profundidad, ni punto, ni un prefijo pegado.
+			{"ruta": "/vehicles/a/b"}, {"ruta": "/vehicles/."}, {"ruta": "/vehicles/a.b"}, {"ruta": "/vehicles-extra"}, {"ruta": "/vehicles/"},
+			{"ruta": "/vehicle-types/x/y"}, {"ruta": "/vehicle-types/."}, {"ruta": "/vehicle-types-extra"}, {"ruta": "/vehicle-types/"},
+			{"ruta": "/distribuidores/x/y"}, {"ruta": "/distribuidores/."}, {"ruta": "/distribuidoresx"}, {"ruta": "/distribuidores/"},
+			{"ruta": "/vehicle"}, {"ruta": "/vehicle-typesx/a"}, {"ruta": "/vehicles?x=.."}, {"ruta": "/vehicles//a"},
 			{"provisional": "local-"},
 			{"provisional": "no-es-local"},
 			{"provisional": "local-a-b"},
 		}
-		for _, cambio := range malos {
+		for i, cambio := range malos {
+			if i > 0 && i%50 == 0 { // con tantas malas seguidas toparía con la tasa de 60 por minuto, que no es lo que se prueba
+				e.reloj = e.reloj.Add(2 * time.Minute)
+			}
 			w, _ := e.entregar(e.ap("L1", cambio))
 			if w.Code != http.StatusUnprocessableEntity {
 				t.Errorf("%v: contestó %d y tenía que ser 422: %s", cambio, w.Code, w.Body.String())
@@ -549,6 +557,10 @@ func TestLaListaBlancaDeMetodoYRuta(t *testing.T) {
 			{"PUT", "/board/columns/c1/route"}, {"POST", "/board/columns"}, {"PUT", "/board/placements/p9"},
 			{"DELETE", "/routes/6f9619ff-8b86-d011-b42d-00c04fc964ff/stops/6f9619ff-8b86-d011-b42d-00c04fc964ff"},
 			{"POST", "/board/columns/6f9619ff-8b86-d011-b42d-00c04fc964ff/route"},
+			// LA FLOTA SIN SEÑAL (issue 14): altas y ediciones de camiones, tipos y distribuidores, con id de verdad o `local-…`.
+			{"POST", "/vehicles"}, {"PATCH", "/vehicles/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, {"DELETE", "/vehicles/local-9f3a"},
+			{"POST", "/vehicle-types"}, {"PATCH", "/vehicle-types/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, {"DELETE", "/vehicle-types/local-9f3a"},
+			{"POST", "/distribuidores"}, {"PATCH", "/distribuidores/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, {"DELETE", "/distribuidores/local-9f3a"},
 		}
 		// OJO, cambio de significado respecto a S1: `POST /board` estaba aquí como buena y NO es una ruta de
 		// escritura de la API (sólo `GET /api/board`); la lista por forma la rechaza, y está arriba con las malas.

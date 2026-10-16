@@ -90,6 +90,11 @@ class RegistroDeFrescura {
   /// almacén elegido arriba, y no fallaría nada — saldría en el orden de siempre en la
   /// APK y con los suyos arriba en la web. Marcas PROPIAS, como la de arriba.
   static const yaRebajadosPorSuAlmacen = 'una-vez:pedidos-con-su-almacen';
+  /// LOS CAMIONES CON SU FICHA ENTERA — 16/10/2026 (issue 14). Hasta la 1.0.38 la bajada
+  /// guardaba de cada camion solo lo basico (sin tipo, costo por km, notas ni
+  /// «para domicilio»). Se piden ENTEROS (`completas=vehicles`) una vez, no con una
+  /// rebajada de pedidos: ver `Bajada.ciclo`.
+  static const yaBajadosLosVehiculosConSuFicha = 'una-vez:vehiculos-con-ficha';
   static const yaBajadosLosAlmacenesConCodigo = 'una-vez:almacenes-con-codigo';
 
   /// Olvida el cursor de [colecciones] UNA vez por aparato, y deja escrito en [marca]

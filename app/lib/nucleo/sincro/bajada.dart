@@ -138,9 +138,17 @@ class Bajada {
     // LOS DISTRIBUIDORES (issue 7, 14/10/2026): quien reparte cada ruta, por
     // sucursal. Baja con el dia porque se elige SIN conexion al crear la ruta.
     Colecciones.distribuidores,
+    // LOS TIPOS DE VEHICULO (issue 14, 16/10/2026): se eligen y se mantienen sin conexion.
+    Colecciones.tiposDeVehiculo,
     Colecciones.sucursales,
     Colecciones.ajustes,
   ];
+
+  /// Las que una api ANTERIOR no manda: solo se marcan si vinieron (ver `_aplicar`).
+  static const _quePuedenNoVenir = <String>{
+    Colecciones.distribuidores,
+    Colecciones.tiposDeVehiculo,
+  };
 
   /// Baja lo que haya cambiado y lo deja en la base local.
   ///
@@ -198,9 +206,20 @@ class Bajada {
       //
       // Sin marca de `orders` no se pide: la primera tanda ya es COMPLETA (un aparato nuevo
       // y la web, que nace vacia en cada carga) y trae todos.
+      //
+      // Y LO MISMO CON LA FLOTA (issue 14, 16/10/2026): los tipos de vehiculo nunca se
+      // bajaron, y los camiones se guardaban sin tipo, costo por km, notas ni «para
+      // domicilio». Sin esto un aparato que ya sincronizo veria la flota a medias y sin
+      // un solo tipo que ofrecer, sin ningun error.
       final completas = <String>[
         if (desde != null && !await _frescura.seDescargo(Colecciones.distribuidores))
           Colecciones.distribuidores,
+        if (desde != null && !await _frescura.seDescargo(Colecciones.tiposDeVehiculo))
+          Colecciones.tiposDeVehiculo,
+        if (desde != null &&
+            await _frescura.leer(RegistroDeFrescura.yaBajadosLosVehiculosConSuFicha) ==
+                null)
+          Colecciones.vehiculos,
       ];
 
       final datos = await _cliente.pedir<Map<String, Object?>>(
@@ -226,6 +245,7 @@ class Bajada {
         avisar: avisar,
         tanda: tandas,
         yaPuestas: puestos,
+        completas: completas,
       );
       puestos += cuenta.puestos;
       quitados += cuenta.quitados;
@@ -440,6 +460,7 @@ class Bajada {
     AvisoDeBajada? avisar,
     int tanda = 1,
     int yaPuestas = 0,
+    List<String> completas = const [],
   }) async {
     var puestos = 0;
     var quitados = 0;
@@ -483,12 +504,23 @@ class Bajada {
       await _marcar(
         <String>[
           for (final c in colecciones)
-            if (c != Colecciones.distribuidores || cambios.containsKey(c)) c,
+            if (!_quePuedenNoVenir.contains(c) || cambios.containsKey(c)) c,
           Colecciones.renglones,
         ],
         hasta: hasta,
         completa: completa,
       );
+      // La flota entera YA bajo. Solo si la api es de las que mandan los tipos: una
+      // anterior ignora `completas=vehicles` y mandaria la flota a medias.
+      if (cambios.containsKey(Colecciones.tiposDeVehiculo)) {
+        await _base
+            .into(_base.frescura)
+            .insertOnConflictUpdate(
+              FrescuraCompanion.insert(
+                coleccion: RegistroDeFrescura.yaBajadosLosVehiculosConSuFicha,
+              ),
+            );
+      }
     });
 
     return _Cuenta(puestos, quitados);
@@ -637,6 +669,29 @@ class Bajada {
                 // borra). Lo vigila `la_bajada_no_pierde_campos_test.dart`.
                 isActive: Value(j['isActive'] != false),
                 branchId: Value(_texto(j['branchId'])),
+                // LA FICHA ENTERA (issue 14): sin estos cinco la pantalla de Vehiculos no
+                // podia leerse de la base y pedia todo al servidor.
+                vehicleTypeId: Value(_texto(j['vehicleTypeId'])),
+                tipoNombre: Value(_texto(j['type'])),
+                costoKmUsd: Value(_numero(j['costoKmUsd'])),
+                usarParaDomicilio: Value(j['usarParaDomicilio'] == true),
+                notes: Value(_texto(j['notes'])),
+                createdAt: Value(_fecha(j['createdAt'])),
+                updatedAt: Value(_fecha(j['updatedAt'])),
+              ),
+            );
+      case Colecciones.tiposDeVehiculo:
+        await _base
+            .into(_base.vehicleTypes)
+            .insertOnConflictUpdate(
+              VehicleTypesCompanion.insert(
+                id: _texto(j['id'])!,
+                nombre: _texto(j['nombre']) ?? '',
+                // Vacio es VACIO, no cero (CLAUDE.md §2): un hueco se ve y se rellena.
+                costoKmUsd: Value(_numero(j['costoKmUsd'])),
+                activo: Value(j['activo'] != false),
+                branchId: Value(_texto(j['branchId'])),
+                createdAt: Value(_fecha(j['createdAt'])),
                 updatedAt: Value(_fecha(j['updatedAt'])),
               ),
             );
@@ -867,6 +922,10 @@ class Bajada {
         await (_base.delete(
           _base.distribuidores,
         )..where((d) => d.id.equals(id))).go();
+      case Colecciones.tiposDeVehiculo:
+        await (_base.delete(
+          _base.vehicleTypes,
+        )..where((t) => t.id.equals(id))).go();
       case Colecciones.sucursales:
         await (_base.delete(
           _base.branches,

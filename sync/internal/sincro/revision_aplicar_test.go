@@ -269,6 +269,9 @@ func TestAplicarVuelveAPasarLaListaBlanca(t *testing.T) {
 			"M7": {"POST", "/routes"},
 			// LA FORMA (auditoría B3): un punto como segmento y lo que cuelga de más profundidad.
 			"M8": {"PUT", "/routes/."}, "M9": {"PUT", "/routes/a/b/c/d"}, "M10": {"POST", "/board/placements"},
+			// Y la de la FLOTA (issue 14), con la misma forma.
+			"M11": {"PATCH", "/vehicles/a/b"}, "M12": {"POST", "/vehicles-extra"}, "M13": {"PATCH", "/vehicle-types/."},
+			"M14": {"DELETE", "/distribuidores/x/y"},
 		}
 		for clave, mr := range malos {
 			cu := `{}`
@@ -304,6 +307,39 @@ func TestAplicarVuelveAPasarLaListaBlanca(t *testing.T) {
 			t.Errorf("la bandeja: %+v", l.Entregas)
 		}
 		e.esperar(e.descartar(e.aparato.ID, "M1", map[string]string{"motivo": "ruta no admitida"}), http.StatusOK, "")
+	})
+}
+
+// LA FLOTA SE APLICA (issue 14): camiones, tipos y distribuidores entregados a revisión llegan al reparto con
+// el token del REVISOR, igual que las rutas. Es la pareja de los rechazos de arriba: la misma lista blanca,
+// vuelta a pasar al aplicar, que deja pasar la forma buena.
+func TestAplicarAdmiteLaFlota(t *testing.T) {
+	paraCadaMotor(t, func(t *testing.T, e *entorno) {
+		hecho := e.hechoHaceUnaHora()
+		crudo := fmt.Sprintf(`{"aparato":%q,"apuntes":[`+
+			`{"clave":"F1","hecho":%q,"metodo":"POST","ruta":"/vehicles","cuerpo":{"name":"Camión 1"}},`+
+			`{"clave":"F2","hecho":%q,"metodo":"PATCH","ruta":"/vehicle-types/6f9619ff-8b86-d011-b42d-00c04fc964ff","cuerpo":{"activo":false}},`+
+			`{"clave":"F3","hecho":%q,"metodo":"DELETE","ruta":"/distribuidores/6f9619ff-8b86-d011-b42d-00c04fc964ff"}]}`,
+			e.aparato.ID.String(), hecho, hecho, hecho)
+		w, _ := e.entregarCuerpo(crudo)
+		e.esperar(w, http.StatusOK, "")
+		e.sinAplicar()
+		e.comoRevisor("admin-cam", "ADMINISTRADOR", e.sucursal)
+		for _, clave := range []string{"F1", "F2", "F3"} {
+			w = e.aplicarUno(e.aparato.ID, clave, nil)
+			e.esperar(w, http.StatusOK, "")
+			if r := resultadosDe(t, w).Resultados; len(r) != 1 || r[0].Estado != EstadoAplicado {
+				t.Errorf("%s: tenía que aplicarse: %+v", clave, r)
+			}
+		}
+		if len(e.aplicador.llamadas) != 3 {
+			t.Fatalf("llegaron %d llamadas al reparto y eran 3", len(e.aplicador.llamadas))
+		}
+		for i, ruta := range []string{"/vehicles", "/vehicle-types/6f9619ff-8b86-d011-b42d-00c04fc964ff", "/distribuidores/6f9619ff-8b86-d011-b42d-00c04fc964ff"} {
+			if p := e.aplicador.llamadas[i]; p.Ruta != ruta || p.Token != "token-de-admin-cam" {
+				t.Errorf("llamada %d: ruta %q token %q", i, p.Ruta, p.Token)
+			}
+		}
 	})
 }
 

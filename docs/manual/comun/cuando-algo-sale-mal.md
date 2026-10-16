@@ -169,7 +169,7 @@ sin red no hay ninguno.
 - **«Abrir en Google Maps»** y mandar el enlace por WhatsApp.
 - **Buscar una dirección** en Almacenes (pero poner el punto en el mapa o escribir
   las coordenadas **sí** funciona).
-- **Vehículos** y **Almacenes** enteros: se configuran con conexión.
+- **Almacenes** entero: se configura con conexión. (Los vehículos, tipos y distribuidores sí funcionan sin ella, desde la 1.0.38.)
 - **Sincronización**: se lee del servidor cada vez.
 - **El fondo de calles del mapa**, si no descargaste el mapa de Cuba. Las paradas y
   el recorrido se siguen dibujando.

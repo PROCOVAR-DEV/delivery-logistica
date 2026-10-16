@@ -81,6 +81,7 @@ class Recontador {
       Colecciones.productos: await _cuantas(_base.products),
       Colecciones.vehiculos: await _cuantas(_base.vehicles),
       Colecciones.distribuidores: await _cuantas(_base.distribuidores),
+      Colecciones.tiposDeVehiculo: await _cuantas(_base.vehicleTypes),
       Colecciones.sucursales: await _cuantas(_base.branches),
       Colecciones.almacenes: await _cuantas(_base.warehouses),
       Colecciones.ajustes: await _cuantas(_base.settings),
@@ -188,6 +189,7 @@ abstract final class Faltas {
     Colecciones.rutas,
     Colecciones.vehiculos,
     Colecciones.distribuidores,
+    Colecciones.tiposDeVehiculo,
     Colecciones.ajustes,
   ];
 
@@ -216,6 +218,7 @@ abstract final class Faltas {
   static const loDeSiempre = <String>[
     Colecciones.vehiculos,
     Colecciones.distribuidores,
+    Colecciones.tiposDeVehiculo,
     Colecciones.sucursales,
     Colecciones.almacenes,
     Colecciones.ajustes,
@@ -301,6 +304,7 @@ abstract final class Faltas {
     Colecciones.productos => 'el catálogo de productos',
     Colecciones.vehiculos => 'los vehículos',
     Colecciones.distribuidores => 'los distribuidores',
+    Colecciones.tiposDeVehiculo => 'los tipos de vehículo',
     Colecciones.sucursales => 'las sucursales',
     Colecciones.almacenes => 'los almacenes',
     Colecciones.ajustes => 'los ajustes',
@@ -320,6 +324,8 @@ abstract final class Faltas {
     Colecciones.vehiculos => 'sin ellos no se puede asignar camión a una ruta',
     Colecciones.distribuidores =>
       'sin ellos no se puede decir quién reparte la ruta',
+    Colecciones.tiposDeVehiculo =>
+      'sin ellos no se puede elegir el tipo de un vehículo ni su costo por km',
     Colecciones.sucursales => 'sin ellas no hay punto de origen para medir',
     Colecciones.almacenes =>
       'sin ellos el domicilio se cobra desde el sitio equivocado',

@@ -5,6 +5,7 @@ import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
 import 'package:reparto/nucleo/identidad/renovador.dart';
 import 'package:reparto/nucleo/identidad/sesion.dart';
+import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/nucleo/red/cliente_api.dart';
 
@@ -43,6 +44,8 @@ class Banco {
     contenedor = ProviderContainer(
       overrides: [
         baseProvider.overrideWithValue(base),
+        // LA WEB: sin base local ni cola (el aparato: la_flota_sin_conexion_test.dart).
+        trabajaSinConexionProvider.overrideWithValue(false),
         clienteApiProvider.overrideWithValue(cliente),
       ],
     );

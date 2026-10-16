@@ -50,6 +50,10 @@ type espejoFalso struct {
 	// Los distribuidores de la bajada (00019). Se acotan como su lista de verdad: por la
 	// sucursal del alcance, SIN el `OR … IS NULL` de los camiones (no hay «de todas»).
 	distribuidoresDelEspejo []sqlc.ListarDistribuidoresRow
+	// Los tipos de vehículo de la bajada (issue 14). Se acotan como su lista de verdad:
+	// `branch_id IS NOT DISTINCT FROM <la mía>`, o sea que en modo «todas» salen SÓLO los
+	// «de todas» (`BranchID` nulo) y quien tiene sucursal no ve los «de todas».
+	tiposDelEspejo []sqlc.ListarTiposDeVehiculoRow
 
 	// El padrón de clientes de la bajada, entero. El doble lo sirve por tandas
 	// respetando `Limite` y `Desplazamiento`, como el SQL: lo que se comprueba es que el
@@ -369,6 +373,23 @@ func (q *espejoFalso) ListarDistribuidores(_ context.Context, arg sqlc.ListarDis
 			continue
 		}
 		salida = append(salida, d)
+	}
+	return salida, nil
+}
+
+// ListarTiposDeVehiculo repite el `branch_id IS NOT DISTINCT FROM sucursal` del SQL (NO el `OR … IS
+// NULL` de los camiones) y su `solo_activos`: con un `OR` de más, quien tiene sucursal vería los
+// tipos «de todas» y los reenviaría a su aparato.
+func (q *espejoFalso) ListarTiposDeVehiculo(_ context.Context, arg sqlc.ListarTiposDeVehiculoParams) ([]sqlc.ListarTiposDeVehiculoRow, error) {
+	var salida []sqlc.ListarTiposDeVehiculoRow
+	for _, t := range q.tiposDelEspejo {
+		if t.BranchID != arg.Sucursal {
+			continue
+		}
+		if arg.SoloActivos != nil && *arg.SoloActivos && !t.Activo {
+			continue
+		}
+		salida = append(salida, t)
 	}
 	return salida, nil
 }

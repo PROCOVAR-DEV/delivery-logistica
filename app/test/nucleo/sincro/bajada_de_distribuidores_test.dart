@@ -148,6 +148,16 @@ void main() {
       await frescura.rebajarLosPedidosUnaVez();
       await frescura.rebajarLasRutasUnaVez();
       await frescura.rebajarLosPedidosPorSuAlmacen();
+      // La flota (issue 14) tiene sus pruebas en `bajada_de_la_flota_test.dart`.
+      await frescura.marcar(
+        Colecciones.tiposDeVehiculo,
+        hasta: null,
+        completa: true,
+      );
+      await frescura.marcar(
+        RegistroDeFrescura.yaBajadosLosVehiculosConSuFicha,
+        hasta: null,
+      );
       await frescura.marcar(
         Colecciones.pedidos,
         hasta: '2026-10-13T08:00:00.000Z',

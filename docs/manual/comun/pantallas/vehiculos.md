@@ -237,10 +237,7 @@ calcular el domicilio.» · «Tipos guardados.»
 Sin conexión, **y no dice lo mismo en los tres sitios, a propósito**: mandar a mirar
 la señal a quien está sentado en la oficina es mandarlo a mirar donde no es.
 
-En la APK y el escritorio:
-
-> «Sin conexión: no se guardó nada. Los vehículos se configuran con conexión;
-> inténtalo otra vez cuando haya red.»
+En la APK y el escritorio no sale: **Desde la 1.0.38 los vehículos, los tipos de vehículo y los distribuidores funcionan SIN conexión** en la APK y el escritorio: se ven y se crean, se renombran y se quitan con lo que el aparato tiene bajado, y lo hecho sube solo cuando vuelve la señal. Un camión nuevo con un tipo nuevo sube en orden: primero el tipo. Si el aparato **no ha bajado** la flota, la pantalla lo dice («no ha descargado la flota todavía») y no deja dar de alta nada hasta traer el día con conexión. La excepción: quien ve las ocho sucursales (super administrador, desarrollador) da de alta con conexión, porque sin ella no hay una sucursal a la que atribuir el alta.
 
 En la web:
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/pantallas/vehiculos/vista/pantalla_vehiculos.dart';
 
@@ -24,6 +25,8 @@ void main() {
       ProviderScope(
         overrides: [
           baseProvider.overrideWithValue(banco.base),
+          // LA WEB: sin base local ni cola (el aparato: la_flota_sin_conexion_test.dart).
+          trabajaSinConexionProvider.overrideWithValue(false),
           clienteApiProvider.overrideWithValue(
             banco.contenedor.read(clienteApiProvider),
           ),
@@ -59,46 +62,15 @@ void main() {
     addTearDown(banco.cerrar);
     await pintar(tester, banco);
 
-    expect(find.textContaining('Sin conexión.'), findsOneWidget);
-    expect(
-      find.textContaining('aquí no se guarda nada en el aparato'),
-      findsOneWidget,
-    );
+    // LA WEB: el servidor no contesta (si la pagina cargo, conexion hay).
+    expect(find.textContaining('El servidor no contesta.'), findsOneWidget);
     // Y NO el vacio de «no hay vehiculos», que diria otra cosa muy distinta.
     expect(find.text('Sin vehículos'), findsNothing);
     expect(find.text('Reintentar'), findsOneWidget);
 
-    // SIN BAJAR: se dice que no estan aqui, no que no existan. Y se dice como
-    // se arregla, que es trayendo el dia — no dando de alta un camion.
-    expect(
-      find.textContaining('no ha descargado la flota todavía'),
-      findsOneWidget,
-    );
+    // (El cartel «este aparato no ha descargado la flota» es del APARATO y vive en
+    // `la_flota_sin_conexion_test.dart`: en la web no hay copia de la que hablar.)
     expect(find.text('Agregar Vehículo'), findsOneWidget); // sólo el de arriba
-
-    await desmontar(tester);
-  });
-
-  testWidgets('sin red, con la flota YA bajada, dice qué tiene dentro', (
-    tester,
-  ) async {
-    final banco = Banco.sinRed();
-    addTearDown(banco.cerrar);
-    await sembrarFlotaBajada(banco.base, cuantos: 3);
-
-    await pintar(tester, banco);
-
-    // El mismo «Sin conexión», pero la segunda linea es OTRA: aqui si hay con
-    // que trabajar, y decirlo evita que alguien dé por perdida la mañana.
-    expect(find.textContaining('Sin conexión.'), findsOneWidget);
-    expect(
-      find.textContaining('tiene 3 vehículo(s) de la última bajada'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('no ha descargado la flota todavía'),
-      findsNothing,
-    );
 
     await desmontar(tester);
   });

@@ -295,7 +295,7 @@ func (s *Servicio) aplicarYAnotar(ctx context.Context, quien identidad.Identidad
 	}
 	if !metodoAdmitidoEnRevision(a.Metodo) || !rutaAdmitidaEnRevision(a.Ruta) {
 		return s.cerrarRechazado(ctx, quien, rol, p, fmt.Sprintf(
-			"No se aplica: %s %s no está entre lo que la cola del aparato emite (sólo POST, PUT, PATCH y DELETE sobre /routes… y /board…). "+
+			"No se aplica: %s %s no está entre lo que la cola del aparato emite (sólo POST, PUT, PATCH y DELETE sobre /routes…, /board…, /vehicles…, /vehicle-types… y /distribuidores…). "+
 				"No se ha mandado nada al reparto.", a.Metodo, a.Ruta))
 	}
 

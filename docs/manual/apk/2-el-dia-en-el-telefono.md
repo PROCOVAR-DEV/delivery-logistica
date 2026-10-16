@@ -189,7 +189,7 @@ previsto».
    <!-- señala: tablero-carrusel-de-zonas -->
 2. Si quieres acotar, **toca el icono del embudo** y elige:
    <!-- señala: tablero-sin-colocar-filtros -->
-   - **«Desde (fecha del pedido)»** / **«Hasta (fecha del pedido)»** (los dos días
+   - **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** (los dos días
      entran; para un solo día, pon «Desde» y toca **«sólo ese día»**)
    - **«Municipio»**
    - **«Vendedor»**

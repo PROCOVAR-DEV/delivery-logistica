@@ -390,7 +390,7 @@ class FiltrosDisponibles {
   final CotizadoDelDomicilio cotizado;
 
   /// La fecha DEL PEDIDO, los dos dias incluidos y cada uno opcional. Era UN dia
-  /// hasta el 15/10/2026 (issue 13 de Amado): `nucleo/fecha_del_pedido.dart`.
+  /// hasta el 15/10/2026 (issue 13 de Amado): `nucleo/fecha_de_la_factura.dart`.
   final DateTime? desde;
   final DateTime? hasta;
   final double? kmMax;

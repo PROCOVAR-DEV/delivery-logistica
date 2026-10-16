@@ -59,9 +59,9 @@ No es un fallo. Es para que lo de allá no pise lo que hiciste aquí. Sube prime
 - **El buscador** dice «Cliente, operación, factura, dirección, artículo…» y **filtra al
   escribir**, sin darle a Intro.
 - **El embudo** abre los filtros:
-  - **«Desde (fecha del pedido)»** / **«Hasta (fecha del pedido)»**: los dos días
+  - **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»**: los dos días
     entran. Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las
-    dos, y la **✕** quita las fechas. Es la fecha del pedido, no la de la factura.
+    dos, y la **✕** quita las fechas. Es la fecha de la FACTURA (la del pedido si aún no tiene factura), contada en hora de Cuba: una factura del día 15 sale con «del 15 al 15» aunque su pedido sea del 14.
   - **«Municipio»** (por defecto «Todos»)
   - **«Vendedor»** (por defecto «Todos»)
   - **«Hasta cuántos km del almacén»** (por defecto «Sin tope»). Se aplica al
@@ -108,7 +108,8 @@ De arriba abajo:
 2. **El número de factura**, que es el título de la tarjeta, lo más grande:
    `Factura 1024237`. Es el de la factura de Ventra y **no es el número de
    operación** de la derecha. Si son varias, van todas (`Factura 47061, 47062`) y
-   saltan de línea si no caben. Si el pedido todavía no tiene número de factura, en
+   saltan de línea si no caben. Después del número va la **fecha de la factura**
+   (`Factura 1024237 · 15/10/2026`, en hora de Cuba); sin factura no se pone fecha. Si el pedido todavía no tiene número de factura, en
    su sitio pone **«Sin número de factura»**, en gris.
 3. **El cliente**, debajo, en negrita y del tamaño de la dirección.
 4. **La dirección.**

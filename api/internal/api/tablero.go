@@ -2327,36 +2327,15 @@ func vehiculoDelCuerpo(w http.ResponseWriter, r *http.Request, a *alcance.Acotad
 	return pgDe(id), true
 }
 
-// diaDelPedido convierte `dia=2026-09-14` en el intervalo MEDIO ABIERTO del día, igual
-// que en el armador. Medio abierto y no `<=` del último segundo: con `<=` se pierde lo
-// que cae en el mismo segundo del corte, que con marcas de microsegundos pasa.
-func diaDelPedido(crudo string) (pgtype.Timestamptz, pgtype.Timestamptz) {
-	crudo = strings.TrimSpace(crudo)
-	if crudo == "" {
-		return pgtype.Timestamptz{}, pgtype.Timestamptz{}
-	}
-	d, err := time.Parse("2006-01-02", crudo)
-	if err != nil {
-		return pgtype.Timestamptz{}, pgtype.Timestamptz{}
-	}
-	return pgtype.Timestamptz{Time: d, Valid: true},
-		pgtype.Timestamptz{Time: d.AddDate(0, 0, 1), Valid: true}
-}
-
-// rangoDelPedido lee la fecha del pedido de «Sin colocar»: `diaDesde`/`diaHasta` (el rango,
-// los dos días incluidos, cada uno opcional: issue 13 de Amado, 15/10/2026) y `dia`, el día
-// suelto de antes, que se sigue aceptando para quien ya lo manda. No son `desde`/`hasta`
-// como en `/api/orders` porque aquí `desde` es el cursor de la tanda. Si vienen los dos, se
-// cumplen los dos (se queda el tramo común): un filtro de más nunca enseña MÁS.
-func rangoDelPedido(q url.Values) (pgtype.Timestamptz, pgtype.Timestamptz) {
-	desde, hasta := diaDelPedido(q.Get("dia"))
-	if d, _ := diaDelPedido(q.Get("diaDesde")); d.Valid && (!desde.Valid || d.Time.After(desde.Time)) {
-		desde = d
-	}
-	if _, h := diaDelPedido(q.Get("diaHasta")); h.Valid && (!hasta.Valid || h.Time.Before(hasta.Time)) {
-		hasta = h
-	}
-	return desde, hasta
+// rangoDelPedido lee los días de la FACTURA de «Sin colocar»: `diaDesde`/`diaHasta` (el rango,
+// los dos días incluidos, cada uno opcional) y `dia`, el día suelto de antes, que se sigue
+// aceptando para quien ya lo manda. Los nombres se quedan (issue 13 de Amado, 15/10/2026) pero
+// la fecha es la de la factura y el día el de Cuba (issue 16, `diaDe`). No son `desde`/`hasta`
+// como en `/api/orders` porque aquí `desde` es el cursor de la tanda. Si vienen varios, se
+// cumplen todos (el tramo común, `entreDias`).
+func rangoDelPedido(q url.Values) (pgtype.Date, pgtype.Date) {
+	dia := diaDe(q.Get("dia"))
+	return entreDias(dia, dia, diaDe(q.Get("diaDesde")), diaDe(q.Get("diaHasta")))
 }
 
 func textoOpcional(v string) *string {

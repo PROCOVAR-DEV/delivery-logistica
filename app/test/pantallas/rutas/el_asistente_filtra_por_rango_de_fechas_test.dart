@@ -164,7 +164,7 @@ void main() {
 
   testWidgets('con UN día, la hoja del pre-despacho lo lleva', (tester) async {
     await alPaso4(tester, const Size(1440, 1100));
-    await elegir(tester, 'Desde (fecha del pedido)', '14');
+    await elegir(tester, 'Desde (fecha de la factura)', '14');
     await tester.tap(find.text('sólo ese día'));
     await _asentar(tester);
     expect(await laHoja(tester), contains('Pedidos del 2026-09-14'));
@@ -173,8 +173,8 @@ void main() {
 
   testWidgets('con un RANGO, la hoja no dice ningún día', (tester) async {
     await alPaso4(tester, const Size(1440, 1100));
-    await elegir(tester, 'Desde (fecha del pedido)', '10');
-    await elegir(tester, 'Hasta (fecha del pedido)', '14');
+    await elegir(tester, 'Desde (fecha de la factura)', '10');
+    await elegir(tester, 'Hasta (fecha de la factura)', '14');
     final hoja = await laHoja(tester);
     expect(hoja, contains('Camagüey · Camión 1'), reason: 'no se leyó la hoja');
     expect(hoja, isNot(contains('Pedidos del')));
@@ -194,12 +194,12 @@ void main() {
       expect(find.text('Todos los días'), findsNothing);
 
       // Desde el 12: sale el del 14 y NO el del 10.
-      await elegir(tester, 'Desde (fecha del pedido)', '12');
+      await elegir(tester, 'Desde (fecha de la factura)', '12');
       expect(find.textContaining('Doña Rosa'), findsWidgets);
       expect(find.textContaining('Don Pepe'), findsNothing);
 
       // Hasta el 14, incluido: el del 14 a las 9 sigue.
-      await elegir(tester, 'Hasta (fecha del pedido)', '14');
+      await elegir(tester, 'Hasta (fecha de la factura)', '14');
       expect(find.textContaining('Doña Rosa'), findsWidgets);
       expect(find.textContaining('Don Pepe'), findsNothing);
 

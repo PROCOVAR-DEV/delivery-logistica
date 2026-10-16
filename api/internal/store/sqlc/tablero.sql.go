@@ -404,14 +404,14 @@ WHERE
     AND ($4::text IS NULL OR o.municipio = $4::text)
     AND ($5::text  IS NULL OR o.vendedor  = $5::text)
     AND (
-        $6::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL AND o.order_date >= $6::timestamptz)
-        OR (o.order_date IS NULL AND o.created_at >= $6::timestamptz)
+        $6::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           >= $6::date
     )
     AND (
-        $7::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL AND o.order_date < $7::timestamptz)
-        OR (o.order_date IS NULL AND o.created_at < $7::timestamptz)
+        $7::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           <= $7::date
     )
     AND (
         $8::double precision IS NULL
@@ -494,8 +494,8 @@ type ContarPedidosSinColocarParams struct {
 	Q             *string            `json:"q"`
 	Municipio     *string            `json:"municipio"`
 	Vendedor      *string            `json:"vendedor"`
-	DiaDesde      pgtype.Timestamptz `json:"dia_desde"`
-	DiaHasta      pgtype.Timestamptz `json:"dia_hasta"`
+	DiaDesde      pgtype.Date        `json:"dia_desde"`
+	DiaHasta      pgtype.Date        `json:"dia_hasta"`
 	KmMax         *float64           `json:"km_max"`
 	OrigenLat     float64            `json:"origen_lat"`
 	OrigenLng     float64            `json:"origen_lng"`
@@ -1008,20 +1008,23 @@ WHERE
     )
     AND ($7::text IS NULL OR o.municipio = $7::text)
     AND ($8::text  IS NULL OR o.vendedor  = $8::text)
-    -- La fecha DEL PEDIDO (y ` + "`" + `created_at` + "`" + ` si no la tiene), medio abierta por arriba. Se
-    -- ofrece porque un tablero con el histórico entero no se puede preparar: son 1.700
-    -- tarjetas. Desde el 15/10/2026 es un RANGO (issue 13 de Amado) y cada extremo va por
-    -- su lado: «desde el 3» sin «hasta» es un filtro de verdad. ` + "`" + `dia_hasta` + "`" + ` llega ya como
-    -- el día SIGUIENTE al último pedido, así que ese último entra entero (` + "`" + `rangoDelPedido` + "`" + `).
+    -- LA FECHA DE LA FACTURA, EN HORA DE CUBA — issue 16 de Amado, 16/10/2026: el logístico
+    -- trabaja contra la factura, y una factura del 15 de un pedido tomado el 14 es «del 15».
+    -- Es ` + "`" + `coalesce(factura_at, order_date, created_at)` + "`" + ` (la de la ordenación, con el
+    -- ` + "`" + `created_at` + "`" + ` de red de seguridad para el pedido sin ninguna) y el DÍA es el de Cuba:
+    -- una factura de las 22:00 allí es del día siguiente en UTC. Los dos extremos son DÍAS
+    -- (` + "`" + `date` + "`" + `) y los dos van incluidos, cada uno por su lado: «del 15 al 15» es el 15
+    -- entero. Misma regla en ` + "`" + `ListarPedidos` + "`" + `/` + "`" + `ListarPedidosDisponibles` + "`" + ` y sus contadores, y
+    -- en el aparato (` + "`" + `docs/fecha-de-la-factura.casos.json` + "`" + `).
     AND (
-        $9::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL AND o.order_date >= $9::timestamptz)
-        OR (o.order_date IS NULL AND o.created_at >= $9::timestamptz)
+        $9::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           >= $9::date
     )
     AND (
-        $10::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL AND o.order_date < $10::timestamptz)
-        OR (o.order_date IS NULL AND o.created_at < $10::timestamptz)
+        $10::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           <= $10::date
     )
     -- El corte por distancia SÍ va aquí, al revés que en ` + "`" + `/api/orders/available` + "`" + `, donde se
     -- aplica después de la consulta para no descuadrar ` + "`" + `total` + "`" + ` y ` + "`" + `truncated` + "`" + `. Aquí el
@@ -1114,8 +1117,8 @@ type ListarPedidosSinColocarParams struct {
 	Q             *string            `json:"q"`
 	Municipio     *string            `json:"municipio"`
 	Vendedor      *string            `json:"vendedor"`
-	DiaDesde      pgtype.Timestamptz `json:"dia_desde"`
-	DiaHasta      pgtype.Timestamptz `json:"dia_hasta"`
+	DiaDesde      pgtype.Date        `json:"dia_desde"`
+	DiaHasta      pgtype.Date        `json:"dia_hasta"`
 	KmMax         *float64           `json:"km_max"`
 	DesdeID       pgtype.UUID        `json:"desde_id"`
 	DesdeCercania *float64           `json:"desde_cercania"`

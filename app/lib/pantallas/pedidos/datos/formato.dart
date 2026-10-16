@@ -10,6 +10,7 @@
 // proposito: es el mismo resultado en `es` y en `en`, y asi una prueba de widget
 // no depende de que alguien haya cargado los datos de localizacion antes.
 
+import '../../../nucleo/fecha_de_la_factura.dart' show diaDeLaFacturaEnCuba;
 import 'package:intl/intl.dart';
 
 import '../../../nucleo/numero_de_factura.dart';
@@ -38,7 +39,7 @@ String? etiquetaDeFactura(String? crudo, {DateTime? facturadaEl}) {
   final numero = NumeroDeFactura.de(crudo);
   if (numero == null) return null;
   if (facturadaEl == null) return 'Factura $numero';
-  return 'Factura $numero · facturada el ${fechaCorta(facturadaEl)}';
+  return 'Factura $numero · facturada el ${diaDeLaFacturaEnCuba(facturadaEl)}';
 }
 
 /// Kilos con un decimal: es lo que se lee en el almacen y lo que usa el mensaje

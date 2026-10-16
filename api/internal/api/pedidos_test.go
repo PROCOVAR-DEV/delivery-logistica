@@ -75,7 +75,13 @@ type dobleDePedidos struct {
 
 	// Lo que se vio pasar.
 	pesosEscritos []sqlc.ActualizarPesoDePedidoParams
-	ultimoPatch   sqlc.ActualizarPedidoParams
+	// Los parámetros de fecha de las cuatro consultas de pedidos: lo que de verdad llegó a la
+	// base. La lista y su contador los copian a mano en Go (CLAUDE.md §3-bis).
+	vistoListar     sqlc.ListarPedidosParams
+	vistoContar     sqlc.ContarPedidosParams
+	vistoDispLista  sqlc.ListarPedidosDisponiblesParams
+	vistoDispContar sqlc.ContarPedidosDisponiblesParams
+	ultimoPatch     sqlc.ActualizarPedidoParams
 }
 
 func (d *dobleDePedidos) ResolverSucursal(_ context.Context, id uuid.UUID) (sqlc.ResolverSucursalRow, error) {
@@ -113,6 +119,7 @@ func (d *dobleDePedidos) casaLaBusqueda(id uuid.UUID, cliente string, q *string)
 }
 
 func (d *dobleDePedidos) ListarPedidos(_ context.Context, arg sqlc.ListarPedidosParams) ([]sqlc.ListarPedidosRow, error) {
+	d.vistoListar = arg
 	var salida []sqlc.ListarPedidosRow
 	for _, p := range d.pedidos {
 		if pedidosEnAlcance(arg.Sucursal, p.BranchID) && d.casaLaBusqueda(p.ID, p.CustomerName, arg.Q) {
@@ -130,6 +137,7 @@ func (d *dobleDePedidos) ListarPedidos(_ context.Context, arg sqlc.ListarPedidos
 }
 
 func (d *dobleDePedidos) ContarPedidos(_ context.Context, arg sqlc.ContarPedidosParams) (int64, error) {
+	d.vistoContar = arg
 	var n int64
 	for _, p := range d.pedidos {
 		if pedidosEnAlcance(arg.Sucursal, p.BranchID) && d.casaLaBusqueda(p.ID, p.CustomerName, arg.Q) {
@@ -140,6 +148,7 @@ func (d *dobleDePedidos) ContarPedidos(_ context.Context, arg sqlc.ContarPedidos
 }
 
 func (d *dobleDePedidos) ListarPedidosDisponibles(_ context.Context, arg sqlc.ListarPedidosDisponiblesParams) ([]sqlc.ListarPedidosDisponiblesRow, error) {
+	d.vistoDispLista = arg
 	var salida []sqlc.ListarPedidosDisponiblesRow
 	for _, p := range d.disponibles {
 		if pedidosEnAlcance(arg.Sucursal, p.BranchID) {
@@ -152,7 +161,8 @@ func (d *dobleDePedidos) ListarPedidosDisponibles(_ context.Context, arg sqlc.Li
 	return salida, nil
 }
 
-func (d *dobleDePedidos) ContarPedidosDisponibles(_ context.Context, _ sqlc.ContarPedidosDisponiblesParams) (int64, error) {
+func (d *dobleDePedidos) ContarPedidosDisponibles(_ context.Context, arg sqlc.ContarPedidosDisponiblesParams) (int64, error) {
+	d.vistoDispContar = arg
 	return d.totalDisponibles, nil
 }
 

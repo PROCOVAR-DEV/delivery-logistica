@@ -100,7 +100,7 @@ void main() {
     // El arranque acotado: 8 de los 11.
     expect(find.textContaining('8 pedidos'), findsOneWidget);
 
-    await elegirDia(tester, 'Desde (fecha del pedido)', '2');
+    await elegirDia(tester, 'Desde (fecha de la factura)', '2');
 
     // Del 2 de septiembre en adelante quedan 6: o1 es del 1 y o11 se acota por
     // la fecha en que se copio (agosto).

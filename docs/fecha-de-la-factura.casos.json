@@ -1,0 +1,111 @@
+{
+  "queEsEsto": "EL DÍA DE LA FACTURA, EN HORA DE CUBA (issue 16 de Amado, 16/10/2026). Todos los filtros de fecha de pedidos —«Sin colocar» del Tablero, el paso de pedidos del asistente de nueva ruta y Desde/Hasta de Pedidos— filtran por la fecha de la FACTURA, no por la del pedido: «el logístico trabaja contra factura». Amado: «[el cliente] tiene 6 facturas el día 15, pero se generaron de pedidos creados los días 14 (4) y el 15 (2). Cuando se busca lo que hay que entregar el 15 solo salen 2 en lugar de 6». La regla se escribe DOS veces —en el servidor (SQL de `ListarPedidosSinColocar`/`ContarPedidosSinColocar`, `ListarPedidos`/`ContarPedidos` y `ListarPedidosDisponibles`/`ContarPedidosDisponibles`, `api/db/queries/`) y en el aparato (`app/lib/nucleo/fecha_de_la_factura.dart`), que filtra en su base local, también en la web— y tienen que contestar lo mismo, o el mismo rango da otra lista en la web y en la APK. Este fichero las ata (CLAUDE.md §3-bis: con una prueba, no con un comentario).",
+  "quienLoLee": [
+    "api/internal/store/sqlc/fecha_de_la_factura_motor_real_test.go (el SQL de verdad, las seis consultas; sin REPARTO_MOTOR_REAL_DSN se salta)",
+    "api/internal/api/fecha_de_la_factura_casos_compartidos_test.go (el manejador: que `dia`, `diaDesde`/`diaHasta`, `desde`/`hasta` y `fecha` llegan a la consulta como DÍAS)",
+    "app/test/nucleo/fecha_de_la_factura_casos_test.dart (el aparato, contra su base local, con el huso del aparato en UTC y en Cuba)"
+  ],
+  "laRegla": "1) LA FECHA DE UN PEDIDO ES `coalesce(factura_at, order_date, created_at)`: la de su factura si la tiene, si no la del pedido, y si no tiene ninguna la de su copia (`created_at`), para que no desaparezca de toda búsqueda por fechas. Es la misma por la que «Sin colocar» se ordena (que no usa `created_at`). 2) EL DÍA DE UN INSTANTE ES EL DE CUBA, `America/Havana`: UTC-5, y UTC-4 con el horario de verano —del segundo domingo de marzo al primer domingo de noviembre, los dos cambios a las 05:00 UTC—. Una factura de las 23:30 en Cuba (03:30 UTC del día siguiente) es del día en que se emitió; una de las 00:10 (04:10 UTC en verano) es del día siguiente. NUNCA el día de UTC ni el del huso del aparato. 3) `desde` y `hasta` son DÍAS, no instantes; cada uno es opcional y va por su lado, y LOS DOS ESTÁN INCLUIDOS: «del 15 al 15» es el 15 entero. Un `desde` mayor que el `hasta` no trae nada. 4) Un pedido sin ninguna fecha queda fuera en cuanto hay un extremo (en la base del servidor `created_at` nunca es nulo).",
+  "comoSeLee": "`pedidos` son los pedidos de una sucursal, cada uno con sus tres fechas (`facturaAt`, `orderDate`, `createdAt`; null = sin ella). Cada caso de `casos` pone `desde`/`hasta` (`AAAA-MM-DD` o null = abierto) y los pedidos que ENTRAN son exactamente `esperado` (por `nombre`, en cualquier orden). `instantes` dice qué día de Cuba es cada instante; `iniciosDeDia` dice a qué instante UTC empieza cada día de Cuba (el primero que ya es de ese día). Los pedidos del caso de Amado (`amado-1` a `amado-6`) son seis facturas del día 15 de pedidos de los días 14 (cuatro) y 15 (dos): por la fecha del pedido, «del 15 al 15» traía dos; por la de la factura, las seis. `real-47061` es el pedido real del 15/10/2026 (order_date 2026-10-13 12:00:00+00, factura_at 2026-10-15 14:48:22+00). Los `borde-*` son los que separan el día de Cuba del de UTC.",
+  "pedidos": [
+    {"nombre": "amado-1", "facturaAt": "2026-10-15T13:10:00Z", "orderDate": "2026-10-14T12:00:00Z", "createdAt": "2026-10-14T12:05:00Z"},
+    {"nombre": "amado-2", "facturaAt": "2026-10-15T13:40:00Z", "orderDate": "2026-10-14T12:00:00Z", "createdAt": "2026-10-14T12:05:00Z"},
+    {"nombre": "amado-3", "facturaAt": "2026-10-15T14:05:00Z", "orderDate": "2026-10-14T15:00:00Z", "createdAt": "2026-10-14T15:05:00Z"},
+    {"nombre": "amado-4", "facturaAt": "2026-10-15T14:30:00Z", "orderDate": "2026-10-14T15:00:00Z", "createdAt": "2026-10-14T15:05:00Z"},
+    {"nombre": "amado-5", "facturaAt": "2026-10-15T15:00:00Z", "orderDate": "2026-10-15T12:00:00Z", "createdAt": "2026-10-15T12:05:00Z"},
+    {"nombre": "amado-6", "facturaAt": "2026-10-15T15:20:00Z", "orderDate": "2026-10-15T12:00:00Z", "createdAt": "2026-10-15T12:05:00Z"},
+    {"nombre": "real-47061", "facturaAt": "2026-10-15T14:48:22Z", "orderDate": "2026-10-13T12:00:00Z", "createdAt": "2026-10-13T12:30:00Z"},
+    {"nombre": "borde-23-30-cuba-del-15", "facturaAt": "2026-10-16T03:30:00Z", "orderDate": "2026-10-14T12:00:00Z", "createdAt": "2026-10-14T12:05:00Z", "nota": "23:30 del día 15 en Cuba, 03:30 del 16 en UTC: es del 15"},
+    {"nombre": "borde-00-10-cuba-del-16", "facturaAt": "2026-10-16T04:10:00Z", "orderDate": "2026-10-14T12:00:00Z", "createdAt": "2026-10-14T12:05:00Z", "nota": "00:10 del día 16 en Cuba, 04:10 del 16 en UTC: es del 16"},
+    {"nombre": "borde-00-10-utc-del-14-en-cuba", "facturaAt": "2026-10-15T00:10:00Z", "orderDate": "2026-10-13T12:00:00Z", "createdAt": "2026-10-13T12:05:00Z", "nota": "00:10 del 15 en UTC pero 20:10 del 14 en Cuba: es del 14"},
+    {"nombre": "sin-factura-pedido-del-15", "facturaAt": null, "orderDate": "2026-10-15T20:00:00Z", "createdAt": "2026-10-15T20:05:00Z", "nota": "sin factura: manda la fecha del pedido (16:00 del 15 en Cuba)"},
+    {"nombre": "sin-factura-ni-fecha-copiado-el-15", "facturaAt": null, "orderDate": null, "createdAt": "2026-10-15T12:00:00Z", "nota": "sin factura ni fecha de pedido: manda `created_at`"},
+    {"nombre": "invierno-23-30-cuba-del-9", "facturaAt": "2026-12-10T04:30:00Z", "orderDate": "2026-12-01T12:00:00Z", "createdAt": "2026-12-01T12:05:00Z", "nota": "en invierno Cuba es UTC-5: 23:30 del 9 de diciembre"},
+    {"nombre": "invierno-00-10-cuba-del-10", "facturaAt": "2026-12-10T05:10:00Z", "orderDate": "2026-12-01T12:00:00Z", "createdAt": "2026-12-01T12:05:00Z", "nota": "00:10 del 10 de diciembre en Cuba"}
+  ],
+  "casos": [
+    {
+      "nombre": "del-15-al-15-salen-las-seis-de-amado-y-todo-lo-facturado-el-15",
+      "nota": "El caso de Amado. Con la fecha del pedido salían dos (amado-5 y amado-6), y con el huso del aparato en Cuba a veces ninguna.",
+      "desde": "2026-10-15", "hasta": "2026-10-15",
+      "esperado": ["amado-1", "amado-2", "amado-3", "amado-4", "amado-5", "amado-6", "real-47061", "borde-23-30-cuba-del-15", "sin-factura-pedido-del-15", "sin-factura-ni-fecha-copiado-el-15"]
+    },
+    {
+      "nombre": "del-14-al-14-solo-lo-que-en-cuba-es-del-14",
+      "nota": "Los pedidos del 14 de amado-1 a amado-4 NO entran: su factura es del 15. Entra la factura de las 00:10 UTC del 15, que en Cuba son las 20:10 del 14.",
+      "desde": "2026-10-14", "hasta": "2026-10-14",
+      "esperado": ["borde-00-10-utc-del-14-en-cuba"]
+    },
+    {
+      "nombre": "del-14-al-15-los-dos-dias-incluidos",
+      "desde": "2026-10-14", "hasta": "2026-10-15",
+      "esperado": ["amado-1", "amado-2", "amado-3", "amado-4", "amado-5", "amado-6", "real-47061", "borde-23-30-cuba-del-15", "borde-00-10-utc-del-14-en-cuba", "sin-factura-pedido-del-15", "sin-factura-ni-fecha-copiado-el-15"]
+    },
+    {
+      "nombre": "del-16-al-16-la-de-las-00-10-de-cuba",
+      "desde": "2026-10-16", "hasta": "2026-10-16",
+      "esperado": ["borde-00-10-cuba-del-16"]
+    },
+    {
+      "nombre": "solo-desde-el-16",
+      "desde": "2026-10-16", "hasta": null,
+      "esperado": ["borde-00-10-cuba-del-16", "invierno-23-30-cuba-del-9", "invierno-00-10-cuba-del-10"]
+    },
+    {
+      "nombre": "solo-hasta-el-14",
+      "desde": null, "hasta": "2026-10-14",
+      "esperado": ["borde-00-10-utc-del-14-en-cuba"]
+    },
+    {
+      "nombre": "del-9-al-9-de-diciembre-en-invierno-es-utc-menos-5",
+      "desde": "2026-12-09", "hasta": "2026-12-09",
+      "esperado": ["invierno-23-30-cuba-del-9"]
+    },
+    {
+      "nombre": "del-10-al-10-de-diciembre",
+      "desde": "2026-12-10", "hasta": "2026-12-10",
+      "esperado": ["invierno-00-10-cuba-del-10"]
+    },
+    {
+      "nombre": "un-rango-sin-nada-no-trae-nada",
+      "desde": "2026-10-17", "hasta": "2026-11-30",
+      "esperado": []
+    },
+    {
+      "nombre": "desde-mayor-que-hasta-no-trae-nada",
+      "desde": "2026-10-16", "hasta": "2026-10-15",
+      "esperado": []
+    },
+    {
+      "nombre": "sin-rango-entran-todos",
+      "desde": null, "hasta": null,
+      "esperado": ["amado-1", "amado-2", "amado-3", "amado-4", "amado-5", "amado-6", "real-47061", "borde-23-30-cuba-del-15", "borde-00-10-cuba-del-16", "borde-00-10-utc-del-14-en-cuba", "sin-factura-pedido-del-15", "sin-factura-ni-fecha-copiado-el-15", "invierno-23-30-cuba-del-9", "invierno-00-10-cuba-del-10"]
+    }
+  ],
+  "instantes": [
+    {"instante": "2026-10-16T03:59:59Z", "dia": "2026-10-15", "nota": "verano: 23:59:59 del 15"},
+    {"instante": "2026-10-16T04:00:00Z", "dia": "2026-10-16", "nota": "verano: la medianoche de Cuba son las 04:00 UTC"},
+    {"instante": "2026-12-10T04:59:59Z", "dia": "2026-12-09", "nota": "invierno: 23:59:59 del 9"},
+    {"instante": "2026-12-10T05:00:00Z", "dia": "2026-12-10", "nota": "invierno: la medianoche son las 05:00 UTC"},
+    {"instante": "2026-03-08T04:59:59Z", "dia": "2026-03-07", "nota": "el último segundo antes de adelantar el reloj: 23:59:59 del 7"},
+    {"instante": "2026-03-08T05:00:00Z", "dia": "2026-03-08", "nota": "el reloj salta de las 00:00 a las 01:00 del 8"},
+    {"instante": "2026-11-01T04:59:59Z", "dia": "2026-11-01", "nota": "00:59:59 con horario de verano: aún es 1 de noviembre"},
+    {"instante": "2026-11-01T05:00:00Z", "dia": "2026-11-01", "nota": "el reloj vuelve a las 00:00 del 1: la hora se repite y el día es el mismo"},
+    {"instante": "2026-11-02T04:59:59Z", "dia": "2026-11-01", "nota": "23:59:59 del 1, ya en invierno"},
+    {"instante": "2026-11-02T05:00:00Z", "dia": "2026-11-02"},
+    {"instante": "2027-03-14T04:59:59Z", "dia": "2027-03-13", "nota": "segundo domingo de marzo de 2027"},
+    {"instante": "2027-03-14T05:00:00Z", "dia": "2027-03-14"},
+    {"instante": "2027-11-07T04:59:59Z", "dia": "2027-11-07", "nota": "primer domingo de noviembre de 2027"},
+    {"instante": "2027-11-08T04:59:59Z", "dia": "2027-11-07"},
+    {"instante": "2027-11-08T05:00:00Z", "dia": "2027-11-08"}
+  ],
+  "iniciosDeDia": [
+    {"dia": "2026-10-15", "inicio": "2026-10-15T04:00:00Z"},
+    {"dia": "2026-12-09", "inicio": "2026-12-09T05:00:00Z"},
+    {"dia": "2026-03-07", "inicio": "2026-03-07T05:00:00Z"},
+    {"dia": "2026-03-08", "inicio": "2026-03-08T05:00:00Z", "nota": "ese día la 00:00 no existe: el primer instante es la 01:00 (05:00 UTC)"},
+    {"dia": "2026-03-09", "inicio": "2026-03-09T04:00:00Z"},
+    {"dia": "2026-11-01", "inicio": "2026-11-01T04:00:00Z", "nota": "la 00:00 existe dos veces; el día empieza en la primera (04:00 UTC)"},
+    {"dia": "2026-11-02", "inicio": "2026-11-02T05:00:00Z"}
+  ]
+}

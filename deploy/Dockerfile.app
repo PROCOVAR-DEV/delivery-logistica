@@ -131,6 +131,8 @@ COPY docs/reordenar-paradas.casos.json /docs/reordenar-paradas.casos.json
 #    con un almacén elegido arriba. Lo lee `orden_sin_colocar_con_almacen_test.dart` y sus
 #    gemelos de Go.
 COPY docs/orden-sin-colocar.casos.json /docs/orden-sin-colocar.casos.json
+# `docs/fecha-de-la-factura.casos.json` (16/10/2026): el día de la factura en hora de Cuba; lo leen las pruebas del servidor y del aparato.
+COPY docs/fecha-de-la-factura.casos.json /docs/fecha-de-la-factura.casos.json
 
 # LAS PRUEBAS, ANTES DE CONSTRUIR. Como en `Dockerfile.api` y `Dockerfile.sync`.
 #

@@ -156,6 +156,8 @@ COPY docs/reordenar-paradas.casos.json /docs/reordenar-paradas.casos.json
 # `internal/api/orden_sin_colocar_casos_compartidos_test.go` lee `docs/orden-sin-colocar.casos.json`
 # (Jose, 15/10/2026): «Sin colocar» con un almacén elegido arriba, el mismo orden que el aparato.
 COPY docs/orden-sin-colocar.casos.json /docs/orden-sin-colocar.casos.json
+# `docs/fecha-de-la-factura.casos.json` (16/10/2026): el día de la factura en hora de Cuba; lo leen las pruebas del servidor y del aparato.
+COPY docs/fecha-de-la-factura.casos.json /docs/fecha-de-la-factura.casos.json
 
 # Y EL COMPOSE, POR LA MISMA RAZÓN — 24/09/2026
 #

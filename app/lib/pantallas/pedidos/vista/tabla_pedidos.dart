@@ -26,6 +26,7 @@ import 'package:flutter/material.dart';
 
 import '../../../diseno/tema.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/fecha_de_la_factura.dart' show diaDeLaFacturaEnCuba;
 import '../../../nucleo/numero_de_factura.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
@@ -201,7 +202,7 @@ class _Cabecera extends StatelessWidget {
               ),
             ),
           ),
-          _celda(flex: 2, hijo: Text('Fecha', style: estilo)),
+          _celda(flex: 2, hijo: Text('Fecha pedido', style: estilo)),
           if (columnas.sucursal)
             _celda(flex: 2, hijo: Text('Sucursal', style: estilo)),
           _celda(flex: 2, hijo: Text('Pedido', style: estilo)),
@@ -328,7 +329,10 @@ class _Fila extends StatelessWidget {
                     if (etiquetaDeFactura(pedido.facturaNumero)
                         case final factura? when !columnas.factura)
                       Text(
-                        factura,
+                        [
+                          factura,
+                          ?diaDeLaFacturaEnCuba(pedido.facturaAt),
+                        ].join(' · '),
                         key: ValueKey('fila-factura-${pedido.id}'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -382,7 +386,30 @@ class _Fila extends StatelessWidget {
               // Flex 3 y no 2: la celda lleva DOS marcas, el numero y el cobro
               // del domicilio, y con 2 la segunda bajaba de linea hasta a 1440.
               if (columnas.factura)
-                _celda(flex: 3, hijo: _Factura(pedido: pedido)),
+                _celda(
+                  flex: 3,
+                  hijo: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _Factura(pedido: pedido),
+                      // La fecha de la factura (issue 16 de Amado), sólo con número.
+                      if (diaDeLaFacturaEnCuba(pedido.facturaAt) case final f?
+                          when NumeroDeFactura.de(pedido.facturaNumero) != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            f,
+                            key: ValueKey('fila-fecha-factura-${pedido.id}'),
+                            style: Tipos.mono(
+                              tamano: 11.5,
+                              color: Colores.tintaSuave,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               if (columnas.entrega)
                 _celda(
                   flex: 2,
@@ -551,6 +578,7 @@ class _Tarjeta extends StatelessWidget {
                     FacturaYCliente(
                       facturaNumero: pedido.facturaNumero,
                       cliente: pedido.customerName,
+                      facturadaEl: pedido.facturaAt,
                       claveDeLaFactura: ValueKey('tarjeta-factura-${pedido.id}'),
                     ),
                     const SizedBox(height: 2),

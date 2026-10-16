@@ -21,6 +21,7 @@ import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/proveedores.dart';
+import '../../../nucleo/fecha_de_la_factura.dart' show diaDeLaFacturaEnCuba;
 import '../datos/formato.dart' show etiquetaDeFactura;
 
 /// La paleta y los anchos de cajon son los de `lib/diseno/`, punto. Se
@@ -300,9 +301,15 @@ class FacturaYCliente extends StatelessWidget {
   const FacturaYCliente({
     required this.facturaNumero,
     required this.cliente,
+    this.facturadaEl,
     this.claveDeLaFactura,
     super.key,
   });
+
+  /// `factura_at`: cuándo se facturó. Si hay número, la fecha va DESPUÉS de él
+  /// (`Factura 47061 · 15/10/2026`, issue 16 de Amado): en el día de Cuba, el mismo por el que
+  /// filtran las listas. Sin número no se pone nada.
+  final DateTime? facturadaEl;
 
   /// `factura_numero` tal como está en la base: lo limpia `etiquetaDeFactura`.
   final String? facturaNumero;
@@ -315,25 +322,41 @@ class FacturaYCliente extends StatelessWidget {
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final factura = etiquetaDeFactura(facturaNumero);
+    final fecha = factura == null ? null : diaDeLaFacturaEnCuba(facturadaEl);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         // Dos líneas y luego elipsis: varias facturas («Factura 47061, 47062») saltan
-        // de línea antes de cortarse.
-        Text(
-          factura ?? 'Sin número de factura',
-          key: factura == null ? null : claveDeLaFactura,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: factura == null
-              ? tema.textTheme.bodyMedium?.copyWith(
+        // de línea antes de cortarse. La fecha va en un `Wrap` con el número: si no cabe al
+        // lado baja ENTERA a la línea siguiente, nunca se corta ni desborda.
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 6,
+          children: [
+            Text(
+              factura ?? 'Sin número de factura',
+              key: factura == null ? null : claveDeLaFactura,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: factura == null
+                  ? tema.textTheme.bodyMedium?.copyWith(
+                      color: tema.colorScheme.onSurfaceVariant,
+                    )
+                  : tema.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: tema.colorScheme.onSurface,
+                    ),
+            ),
+            if (fecha != null)
+              Text(
+                '· $fecha',
+                key: const ValueKey('tarjeta-factura-fecha'),
+                style: tema.textTheme.bodyMedium?.copyWith(
                   color: tema.colorScheme.onSurfaceVariant,
-                )
-              : tema.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: tema.colorScheme.onSurface,
                 ),
+              ),
+          ],
         ),
         Text(
           cliente,

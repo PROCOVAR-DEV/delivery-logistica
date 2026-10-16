@@ -32,7 +32,7 @@ import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
 import '../datos/estado_reparto.dart';
 import '../datos/formato.dart';
-import '../datos/mandar_al_tablero.dart' show frenaElDomicilioSinCobrar;
+import '../datos/mandar_al_tablero.dart' show domicilioSinCobroSenalado;
 import '../datos/repositorio_pedidos.dart';
 import 'kit.dart';
 
@@ -803,14 +803,14 @@ class _ConCobro extends StatelessWidget {
   Widget build(BuildContext context) {
     final importe = pedido.facturaDomicilio;
     final Widget? marca;
-    if (frenaElDomicilioSinCobrar(pedido)) {
+    if (domicilioSinCobroSenalado(pedido)) {
       marca = Insignia(
         'Sin cobro de domicilio',
-        color: Colores.ambar,
+        color: Colores.gris,
         tooltip:
-            'La factura no trae la línea ENTREGA A DOMICILIO: este pedido '
-            'no puede ir a una ruta ni a una zona del tablero hasta que el '
-            'domicilio se cobre en la factura.',
+            'La factura no trae la línea ENTREGA A DOMICILIO. No impide ir a '
+            'una ruta: en «Cobro del domicilio» se filtra por con cobro o sin '
+            'cobro.',
       );
     } else if (importe != null && importe > 0) {
       marca = Insignia(

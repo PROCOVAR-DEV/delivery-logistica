@@ -224,7 +224,6 @@ claro** y la tarjeta se queda donde estaba:
 
 | Mensaje | Qué pasa |
 |---|---|
-| «No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.» | La factura no cobró domicilio |
 | «No se puede asociar al tablero: primero cotiza el domicilio del pedido.» | El vendedor marcó domicilio y Entrega todavía no le puso costo |
 | «Ese pedido ya se entregó» | Ya se repartió |
 | «Ese pedido ya está en una ruta» | Se lo llevó otra ruta |
@@ -379,8 +378,8 @@ número de operación de la factura):
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
 PTB25-261005-1502 · ANA MARTÍNEZ: Sin factura
-PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
-PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
+PTB25-261005-1511 · LUIS PÉREZ: sin factura
+PTB25-261005-1523 · MARTA CRUZ: sin factura
 ```
 
 Los motivos posibles, por este orden de prioridad: «Archivado en PEDIDO», «Ya va en otra
@@ -396,8 +395,8 @@ y una franja roja lo dice en cuanto llegas a Rutas, con el conduce y el motivo d
 pedido que se quedó fuera:
 
 > Ruta armada de «Centro», pero 2 pedidos no entraron:
-> PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
-> PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
+> PTB25-261005-1511 · LUIS PÉREZ: sin factura
+> PTB25-261005-1523 · MARTA CRUZ: sin factura
 
 (Con uno solo dice «pero 1 pedido no entró». La franja se queda unos seis segundos:
 léela antes de que se vaya; los pedidos siguen marcados en la zona.) Esos pedidos **siguen en su zona**, marcados;

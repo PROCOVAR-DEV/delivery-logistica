@@ -20,6 +20,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
+import 'package:reparto/nucleo/regla_de_entrada.dart';
 import 'package:reparto/pantallas/panel/datos/consultas_panel.dart';
 import 'package:reparto/pantallas/rutas/datos/acciones_rutas.dart';
 import 'package:reparto/pantallas/rutas/datos/repositorio_rutas.dart';
@@ -41,10 +42,35 @@ void main() {
               as List<dynamic>)
           .cast<Map<String, dynamic>>();
 
+  // EL COSTO DE LA PARADA (Amado y Jose, 16/10/2026): cotizado manda; si no, lo cobrado en la
+  // factura; si no, nulo. Los mismos casos que lee el servidor (`TestElCostoDeLaParadaEsElDelFichero`).
+  final costos =
+      (((jsonDecode(File(_rutaDeLosCasos).readAsStringSync())
+                  as Map<String, dynamic>)['costoDeLaParada']
+              as Map<String, dynamic>)['casos']
+          as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+  test('costoDeLaParada: el fichero trae casos y el aparato los cumple', () {
+    expect(costos.length, greaterThanOrEqualTo(4));
+    for (final c in costos) {
+      expect(
+        costoDeLaParada(
+          (c['pedidoCosto'] as num?)?.toDouble(),
+          (c['facturaDomicilio'] as num?)?.toDouble(),
+        ),
+        (c['costo'] as num?)?.toDouble(),
+        reason: c['nombre'] as String,
+      );
+    }
+  });
+
   test('el fichero trae el caso real entrando y casos de los dos lados', () {
     expect(
       casos.where((c) => c['entra'] == true).map((c) => c['nombre']),
-      contains('caso-real-PBF26-2610131268'),
+      containsAll([
+        'caso-real-PBF26-2610131268',
+        'caso-real-PCC25-261014-1435',
+      ]),
     );
     expect(
       casos.where((c) => c['entra'] == false),

@@ -42,6 +42,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"procovar/reparto-api/internal/store/sqlc"
 )
 
 // ---------------------------------------------------------------------------
@@ -185,16 +187,17 @@ func TestArmarLaZonaRespetaLaListaDelAparatoYDiceLaDiferencia(t *testing.T) {
 
 // EL MOTIVO DE LO QUE EL APARATO NO ELIGIÓ TIENE QUE SER EL VERDADERO — 08/10/2026.
 // El aparato manda `pedidoIds` con las buenas solamente, así que una tarjeta de la zona que
-// no se puede cargar (aquí, sin cotizar) tampoco viene en su lista. El servidor le decía
+// no se puede cargar (aquí, sin cobrar) tampoco viene en su lista. El servidor le decía
 // «lo pusieron en la zona después de que armaras», que es FALSO: lleva ahí desde antes y lo
-// que le falta es la cotización. En PAREJA: la que sí sería buena y llegó después conserva su
+// que le falta es el cobro en la factura. En PAREJA: la que sí sería buena y llegó después conserva su
 // motivo de siempre; la mala dice el suyo, y el literal es el del bucle que arma.
 func TestLoQueElAparatoNoEligioDiceSuMotivoDeVerdad(t *testing.T) {
 	q := nuevoTablero()
 	q.capacidad = 1000
 	q.tresPuestas() // ped1, ped2 y ped3 en Centro
 	p2 := q.pedidos[ped2]
-	p2.sinCotizar = true // mala: sin cotizar. Tampoco la eligió el aparato (que filtra igual).
+	sinFactura := sqlc.FacturaEstadoSinFactura
+	p2.factura = &sinFactura // mala: sin factura. Tampoco la eligió el aparato (que filtra igual).
 	q.pedidos[ped2] = p2
 	// ped3 es buena y NO la eligió el aparato: llegó después.
 	h := montarTab(t, q)
@@ -212,8 +215,8 @@ func TestLoQueElAparatoNoEligioDiceSuMotivoDeVerdad(t *testing.T) {
 			porID[fmt.Sprint(d["pedidoId"])] = d
 		}
 	}
-	if mala := porID[ped2.String()]; mala == nil || mala["motivo"] != "domicilio sin cotizar" {
-		t.Errorf("la tarjeta sin cotizar tenía que decir su motivo de verdad (domicilio sin cotizar), y dice: %v", mala)
+	if mala := porID[ped2.String()]; mala == nil || mala["motivo"] != "sin factura" {
+		t.Errorf("la tarjeta sin factura tenía que decir su motivo de verdad (sin factura), y dice: %v", mala)
 	}
 	if buena := porID[ped3.String()]; buena == nil ||
 		!strings.Contains(fmt.Sprint(buena["motivo"]), "después de que armaras") {

@@ -1242,7 +1242,7 @@ func TestMotorReal_ParadasQueViajaronYSuResultado(t *testing.T) {
 func TestMotorReal_ColocarPedidoFactura(t *testing.T) {
 	pool := motorReal(t)
 
-	// LO QUE DECIDE COLOCAR ES EL DOMICILIO COBRADO Y COTIZADO (Amado, 07/10/2026) Y NO LA
+	// LO QUE DECIDE COLOCAR ES EL DOMICILIO COBRADO (Amado, 07/10/2026; la cotización dejó de exigirse el 16/10/2026) Y NO LA
 	// FACTURA. `factura_estado` no está en el `WHERE` de `ColocarPedido`: un pedido `cambiado`
 	// o sin cotejar se puede preparar en una zona, y el corte a `igual` lo hace el armador con
 	// su motivo. Se llegó a añadir el mismo día y se quitó (D1): estos casos son los que lo
@@ -1259,14 +1259,16 @@ func TestMotorReal_ColocarPedidoFactura(t *testing.T) {
 		{"cambiado_con_domicilio_pequeno", str("cambiado"), f64(0.01), f64(0), true}, // costo 0 NO es NULL
 		{"sin_factura_pero_cobrado_y_cotizado", str("sin_factura"), f64(5), f64(10), true},
 		{"factura_estado_null_pero_cobrado_y_cotizado", nil, f64(5), f64(10), true},
-		{"igual_con_domicilio_null", str("igual"), nil, f64(10), false},
-		{"igual_con_domicilio_cero", str("igual"), f64(0), f64(10), false},
-		{"cambiado_con_domicilio_null", str("cambiado"), nil, f64(10), false},
-		{"cambiado_con_domicilio_cero", str("cambiado"), f64(0), f64(10), false},
-		{"cambiado_con_domicilio_negativo", str("cambiado"), f64(-1), f64(10), false},
-		{"cambiado_sin_costo", str("cambiado"), f64(5), nil, false},
-		{"igual_sin_costo", str("igual"), f64(5), nil, false},
-		{"sin_factura_y_sin_cobrar", str("sin_factura"), nil, f64(10), false},
+		{"igual_con_domicilio_null", str("igual"), nil, f64(10), true},               // TEMPORAL 16/10/2026: el cobro no se exige
+		{"igual_con_domicilio_cero", str("igual"), f64(0), f64(10), true},            // TEMPORAL 16/10/2026: el cobro no se exige
+		{"cambiado_con_domicilio_null", str("cambiado"), nil, f64(10), true},         // TEMPORAL 16/10/2026: el cobro no se exige
+		{"cambiado_con_domicilio_cero", str("cambiado"), f64(0), f64(10), true},      // TEMPORAL 16/10/2026: el cobro no se exige
+		{"cambiado_con_domicilio_negativo", str("cambiado"), f64(-1), f64(10), true}, // TEMPORAL 16/10/2026: el cobro no se exige
+		// LA COTIZACIÓN YA NO SE EXIGE (Amado, 16/10/2026): cobrado y sin cotizar se coloca.
+		{"cambiado_sin_costo_pero_cobrado", str("cambiado"), f64(5), nil, true},
+		{"igual_sin_costo_pero_cobrado", str("igual"), f64(5), nil, true},
+		{"igual_sin_costo_y_sin_cobrar", str("igual"), nil, nil, true},       // TEMPORAL 16/10/2026: el cobro no se exige
+		{"sin_factura_y_sin_cobrar", str("sin_factura"), nil, f64(10), true}, // TEMPORAL 16/10/2026: el cobro no se exige
 	}
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
@@ -1446,7 +1448,7 @@ func TestMotorReal_ListasDelTableroYColocarDicenLoMismo(t *testing.T) {
 			{"a_igual_completo", "igual", f64(5), f64(10)},
 			{"b_igual_sin_domicilio", "igual", nil, f64(10)},
 			{"c_igual_domicilio_cero", "igual", f64(0), f64(10)},
-			{"d_cambiado_sin_costo", "cambiado", f64(5), nil},
+			{"d_cambiado_sin_costo", "cambiado", f64(5), nil}, // sin cotizar pero cobrado: SÍ (16/10/2026)
 			{"e_cambiado_completo", "cambiado", f64(5), f64(10)},
 			{"f_sin_factura", "sin_factura", f64(5), f64(10)},
 		} {
@@ -1457,7 +1459,7 @@ func TestMotorReal_ListasDelTableroYColocarDicenLoMismo(t *testing.T) {
 		return b, suc, col, ids
 	}
 
-	t.Run("disponibles_exige_domicilio_y_costo", func(t *testing.T) {
+	t.Run("disponibles_no_exige_ni_cobro_ni_cotizacion_pero_si_factura", func(t *testing.T) {
 		b, suc, _, _ := montar(t)
 		filas, err := b.q.ListarPedidosDisponibles(b.ctx, ListarPedidosDisponiblesParams{
 			BranchID: alcance(suc), Limite: 100})
@@ -1469,7 +1471,7 @@ func TestMotorReal_ListasDelTableroYColocarDicenLoMismo(t *testing.T) {
 			nombres = append(nombres, f.CustomerName)
 		}
 		sort.Strings(nombres)
-		igualesTxt(t, "ListarPedidosDisponibles", nombres, []string{"a_igual_completo", "e_cambiado_completo"})
+		igualesTxt(t, "ListarPedidosDisponibles", nombres, []string{"a_igual_completo", "b_igual_sin_domicilio", "c_igual_domicilio_cero", "d_cambiado_sin_costo", "e_cambiado_completo"})
 	})
 
 	t.Run("sin_colocar_solo_ofrece_lo_que_ColocarPedido_acepta", func(t *testing.T) {
@@ -1504,7 +1506,7 @@ func TestMotorReal_ListasDelTableroYColocarDicenLoMismo(t *testing.T) {
 		if len(rechazados) > 0 {
 			t.Errorf("la mitad izquierda del tablero ofrece %v y ColocarPedido los rechaza (409): "+
 				"ListarPedidosSinColocar/ContarPedidosSinColocar sólo exigen factura_estado IN ('igual','cambiado') "+
-				"y le faltan `factura_domicilio > 0` y `pedido_costo IS NOT NULL`, que ColocarPedido y "+
+				"y le falta `factura_domicilio > 0`, que ColocarPedido y "+
 				"ListarPedidosDisponibles sí exigen", rechazados)
 		}
 	})
@@ -2003,9 +2005,11 @@ func TestMotorReal_EngancharPedidoARuta(t *testing.T) {
 		// El SQL NO mira la factura: la corta el manejador (`rechazoDelArmado`), y `cambiado`
 		// entra desde el 15/10/2026 (issue 10).
 		{"cambiado_entra", str("cambiado"), f64(5), f64(10), true},
-		{"sin_cobrar", str("igual"), nil, f64(10), false},
-		{"domicilio_en_cero", str("igual"), f64(0), f64(10), false},
-		{"sin_cotizar", str("igual"), f64(5), nil, false},
+		{"sin_cobrar", str("igual"), nil, f64(10), true},           // TEMPORAL 16/10/2026: el cobro no se exige
+		{"domicilio_en_cero", str("igual"), f64(0), f64(10), true}, // TEMPORAL 16/10/2026: el cobro no se exige
+		// Sin cotizar y cobrado ENTRA (Amado, 16/10/2026, PCC25-261014-1435).
+		{"sin_cotizar_pero_cobrado", str("igual"), f64(5), nil, true},
+		{"sin_cotizar_y_sin_cobrar", str("igual"), nil, nil, true}, // TEMPORAL 16/10/2026: el cobro no se exige
 		{"costo_cero_no_es_null", str("igual"), f64(5), f64(0), true},
 	}
 	for _, c := range casos {
@@ -2282,7 +2286,7 @@ func TestMotorReal_DisponiblesPanelYSinColocarCuentanLoMismo(t *testing.T) {
 		{"b_cambiado_ok", "cambiado", f64(5), f64(10), 20},
 		{"c_sin_cobrar", "igual", nil, f64(10), 40},
 		{"d_domicilio_cero", "igual", f64(0), f64(10), 80},
-		{"e_sin_cotizar", "cambiado", f64(5), nil, 160},
+		{"e_sin_cotizar", "cambiado", f64(5), nil, 160}, // cobrado: ENTRA (16/10/2026)
 		{"f_sin_factura", "sin_factura", f64(5), f64(10), 320},
 		// El caso real del issue 10: cambiado, cobrado, sin cotizar y SIN MARCAR. Entra.
 		{"g_sin_marcar_sin_cotizar", "cambiado", f64(1.31), nil, 640},
@@ -2301,8 +2305,8 @@ func TestMotorReal_DisponiblesPanelYSinColocarCuentanLoMismo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if disp != 3 || len(lista) != 3 {
-		t.Fatalf("disponibles: contador=%d lista=%d, esperaba 3 y 3 (a, b y g)", disp, len(lista))
+	if disp != 6 || len(lista) != 6 {
+		t.Fatalf("disponibles: contador=%d lista=%d, esperaba 6 y 6 (todos menos f, sin factura)", disp, len(lista))
 	}
 
 	sin, err := b.q.ContarPedidosSinColocar(b.ctx, ContarPedidosSinColocarParams{BranchID: suc, Sucursal: sinAlcance})
@@ -2313,21 +2317,21 @@ func TestMotorReal_DisponiblesPanelYSinColocarCuentanLoMismo(t *testing.T) {
 		t.Fatalf("«Sin colocar» cuenta %d y los disponibles %d: el tablero ofrece algo que el armador no", sin, disp)
 	}
 
-	// El Panel: el mismo número y el mismo peso (10 + 20 + 640 = 670), por resumen y por sucursal.
+	// El Panel: el mismo número y el mismo peso (todos menos f: 950), por resumen y por sucursal.
 	hoy := pgtype.Timestamptz{Time: time.Now().Add(-24 * time.Hour), Valid: true}
 	resumen, err := b.q.PanelResumen(b.ctx, PanelResumenParams{Hoy: hoy, Sucursal: alcance(suc)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if int64(resumen.SinRuta) != disp || resumen.PesoPendiente != 670 {
-		t.Fatalf("PanelResumen: sin_ruta=%d peso_pendiente=%v, esperaba %d y 670", resumen.SinRuta, resumen.PesoPendiente, disp)
+	if int64(resumen.SinRuta) != disp || resumen.PesoPendiente != 950 {
+		t.Fatalf("PanelResumen: sin_ruta=%d peso_pendiente=%v, esperaba %d y 950", resumen.SinRuta, resumen.PesoPendiente, disp)
 	}
 	porSucursal, err := b.q.PanelPorSucursal(b.ctx, alcance(suc))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(porSucursal) != 1 || int64(porSucursal[0].Pedidos) != disp || porSucursal[0].PesoKg != 670 {
-		t.Fatalf("PanelPorSucursal: %+v, esperaba %d pedidos y 670 kg", porSucursal, disp)
+	if len(porSucursal) != 1 || int64(porSucursal[0].Pedidos) != disp || porSucursal[0].PesoKg != 950 {
+		t.Fatalf("PanelPorSucursal: %+v, esperaba %d pedidos y 950 kg", porSucursal, disp)
 	}
 }
 

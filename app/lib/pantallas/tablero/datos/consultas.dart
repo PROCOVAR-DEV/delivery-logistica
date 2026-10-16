@@ -375,7 +375,7 @@ SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.almacen_id,
        (SELECT coalesce(sum(o.weight), 0) FROM ${EsquemaTablero.colocaciones} p
           JOIN orders o ON o.id = p.order_id
          WHERE p.column_id = c.id) AS peso_kg,
-       (SELECT coalesce(sum(o.pedido_costo), 0) FROM ${EsquemaTablero.colocaciones} p
+       (SELECT coalesce(sum(${costoDeLaParadaSql('o.')}), 0) FROM ${EsquemaTablero.colocaciones} p
           JOIN orders o ON o.id = p.order_id
          WHERE p.column_id = c.id) AS costo_usd,
        -- «SIN SUBIR» SALE DE LA COLA, no del id.

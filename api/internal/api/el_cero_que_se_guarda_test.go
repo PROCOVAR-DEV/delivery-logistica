@@ -23,7 +23,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -50,19 +49,30 @@ func armarYLeer(t *testing.T, d *dobleDeRutas, h http.Handler, ids ...uuid.UUID)
 	return guardada, ruta
 }
 
-// 1. SIN COTIZACIÓN NO SE ARMA RUTA: ya no se permite guardar paradas con importe cero.
-func TestLaRutaNoAceptaParadasSinCotizar(t *testing.T) {
+// 1. SIN COTIZACIÓN SÍ SE ARMA RUTA si la factura cobró el domicilio (Amado, 16/10/2026), y la
+// parada vale LO COBRADO: ya no cuenta en `paradas_sin_cotizar` ni deja el importe en cero.
+// Antes era un 409 «no tienen cotizado el domicilio en Entrega».
+func TestLaRutaAceptaParadasSinCotizarYLasValoraPorLoCobrado(t *testing.T) {
 	d, stg, _ := datosDeReparto()
 	d.pedidos[stg[0]].costo = nil
 	d.pedidos[stg[1]].costo = nil
 	h := montarRutas(t, d)
-	w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
-		cuerpoDeArmado(camionStg.String(), stg[0], stg[1], stg[2]))
-	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "no tienen cotizado el domicilio") {
-		t.Fatalf("la ruta debe bloquear los pedidos sin cotización: %d %s", w.Code, w.Body.String())
+	guardada, ruta := armarYLeer(t, d, h, stg[0], stg[1], stg[2])
+	if guardada.sinCotizar == nil || *guardada.sinCotizar != 0 {
+		t.Fatalf("las dos están cobradas en la factura: no faltaba ninguna y se guardó %v", guardada.sinCotizar)
 	}
-	if len(d.rutas) != 0 {
-		t.Fatal("se guardó una ruta con pedidos sin cotización")
+	if ruta.ParadasSinCotizar == nil || *ruta.ParadasSinCotizar != 0 {
+		t.Fatalf("la respuesta tiene que llevar paradasSinCotizar=0 y llevó %v", ruta.ParadasSinCotizar)
+	}
+	// 1 + 1 cobrados en la factura (el doble cobra 1) y 10 cotizados en Entrega.
+	if guardada.precio != 12 {
+		t.Fatalf("total_price tenía que ser 12 (1+1 cobrados + 10 cotizado) y fue %v", guardada.precio)
+	}
+	if p := d.pedidos[stg[0]].precio; p == nil || *p != 1 {
+		t.Fatalf("el `price` de la parada sin cotizar tenía que ser lo cobrado (1) y fue %v", p)
+	}
+	if p := d.pedidos[stg[2]].precio; p == nil || *p != 10 {
+		t.Fatalf("el `price` de la parada cotizada manda el cotizado (10) y fue %v", p)
 	}
 }
 
@@ -88,16 +98,15 @@ func TestUnaRutaConTodoCotizadoGuardaCeroYNoUnNulo(t *testing.T) {
 	}
 }
 
-// 3. La misma guarda se aplica cuando no hay cotización de domicilio en ninguno.
-func TestNoSeCreaUnaRutaSiNingunPedidoTieneCotizacion(t *testing.T) {
+// 3. Ninguna cotizada pero TODAS cobradas: la ruta sale y vale lo cobrado, sin «—».
+func TestUnaRutaSinNingunaCotizacionPeroCobradaSale(t *testing.T) {
 	d, stg, _ := datosDeReparto()
 	d.pedidos[stg[0]].costo = nil
 	d.pedidos[stg[1]].costo = nil
 	d.pedidos[stg[2]].costo = nil
 	h := montarRutas(t, d)
-	w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
-		cuerpoDeArmado(camionStg.String(), stg[0], stg[1], stg[2]))
-	if w.Code != http.StatusConflict || len(d.rutas) != 0 {
-		t.Fatalf("no debió crearse la ruta sin ninguna cotización: %d %s", w.Code, w.Body.String())
+	guardada, _ := armarYLeer(t, d, h, stg[0], stg[1], stg[2])
+	if guardada.precio != 3 || guardada.sinCotizar == nil || *guardada.sinCotizar != 0 {
+		t.Fatalf("tres cobradas de 1 sin cotizar: total 3 y 0 sin cotizar; salió %v y %v", guardada.precio, guardada.sinCotizar)
 	}
 }

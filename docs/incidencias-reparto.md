@@ -173,3 +173,14 @@ Filtros de pedidos elegibles para nuevas rutas.
 
 Actualizar documentación técnica y de usuario si aplica.
 
+
+
+## Nota del 16/10/2026: la regla de entrada en ruta pasó a ser SOLO «facturado»
+
+Amado: «en la 37 no está funcional. Un domicilio en pedido que no fue calculado pero la factura
+sí tiene el cobro: hay que permitir que las facturas con domicilio cobrado entren» (caso real
+PCC25-261014-1435, factura 47073, marcado, sin cotizar, 0.05 cobrado). Primero se quitó la
+cotización de Entrega; después, TEMPORALMENTE (Jose: «por ahora que entren todos los pedidos con
+facturas»), también el cobro: entra todo lo facturado (`igual` o `cambiado`) y el logístico filtra
+por «Cobro del domicilio». La parada vale `pedido_costo` o, si no, lo cobrado en la factura.
+Detalle y cómo revertirlo: `CLAUDE.md` §2.

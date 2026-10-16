@@ -49,7 +49,9 @@ LEFT JOIN LATERAL (
         -- El costo del domicilio es el de PEDIDO (`pedido_costo`), que es el que puso el
         -- repartidor desde Entrega. `delivery_price` NO participa: es otro número —el
         -- viaje dedicado— y confundirlos es cobrar uno por el otro.
-        coalesce(sum(o.pedido_costo), 0)::double precision AS costo_usd
+        -- Y si no está cotizado, lo COBRADO en la factura (Amado, 16/10/2026): misma regla que
+        -- `costoDeLaParada` (Go) y `costoDeLaParada` (Dart).
+        coalesce(sum(coalesce(o.pedido_costo, CASE WHEN o.factura_domicilio > 0 THEN o.factura_domicilio END)), 0)::double precision AS costo_usd
     FROM board_placements p
     JOIN orders o ON o.id = p.order_id
     WHERE p.column_id = c.id
@@ -340,9 +342,8 @@ WHERE c.branch_id = sqlc.arg('branch_id')
 --
 -- Las condiciones de «repartible» son LAS MISMAS de `ListarPedidosDisponibles`, ni una más
 -- ni una menos: sin ruta, sin entregar, con coordenadas, facturado (`igual` o `cambiado`),
--- no archivado, y desde el 07/10/2026 (Amado) con el domicilio COBRADO en la factura
--- (`factura_domicilio > 0`) y COTIZADO en Entrega (`pedido_costo` no nulo) si el vendedor
--- marcó domicilio (`requiere_domicilio`, issue 10 de Amado, 15/10/2026). Si el tablero
+-- no archivado. El domicilio cobrado (`factura_domicilio > 0`, Amado 07/10/2026) y la
+-- cotización de Entrega YA NO se exigen (16/10/2026; TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)). Si el tablero
 -- ofreciera algo que `ColocarPedido` o el armador luego rechazan, el logístico prepararía
 -- una columna entera para que la ruta le diga que no al final del día. Y eso fue
 -- exactamente lo que pasó con las dos últimas: se añadieron a `ColocarPedido` y no aquí,
@@ -386,8 +387,8 @@ WHERE
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
-    AND o.factura_domicilio > 0
-    AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
+    -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
+    -- restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
     -- Sin colocar = no está en ninguna columna. Del tablero de NADIE: un pedido es de una
     -- sucursal y sólo puede estar en el suyo, así que si aparece puesto, puesto está.
     -- ARCHIVADO EN PEDIDO = NO SE REPARTE.
@@ -407,8 +408,8 @@ WHERE
     -- eran). Se quitó el 15/10/2026 (issue 10 de Amado): la casilla la marca el vendedor y
     -- Ventra cobra el domicilio aunque no la marque —PBF26-2610131268, sin marcar y con 1.31
     -- de «ENTREGA A DOMICILIO»—, y con la casilla aquí ese pedido no salía en el tablero
-    -- nunca. Lo que deja fuera a los que no llevan domicilio es `factura_domicilio > 0`, de
-    -- arriba, y la casilla sólo decide si hace falta la cotización de Entrega.
+    -- nunca. Desde el 16/10/2026 nada deja fuera a los que no llevan domicilio (ver el
+    -- rótulo TEMPORAL de arriba): ni la casilla ni el cobro mandan.
     AND NOT EXISTS (SELECT 1 FROM board_placements p WHERE p.order_id = o.id)
     -- El `::uuid` no es adorno: `orders.branch_id` admite NULL, y sin el molde sqlc daría
     -- el parámetro como anulable en Go. Uno vacío dejaría la comparación en NULL y la lista
@@ -585,8 +586,8 @@ WHERE
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
-    AND o.factura_domicilio > 0
-    AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
+    -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
+    -- restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
     -- La misma línea que la lista, y en el mismo sitio para que se vean juntas al
     -- compararlas a ojo.
     AND NOT o.archivado
@@ -597,8 +598,8 @@ WHERE
     -- eran). Se quitó el 15/10/2026 (issue 10 de Amado): la casilla la marca el vendedor y
     -- Ventra cobra el domicilio aunque no la marque —PBF26-2610131268, sin marcar y con 1.31
     -- de «ENTREGA A DOMICILIO»—, y con la casilla aquí ese pedido no salía en el tablero
-    -- nunca. Lo que deja fuera a los que no llevan domicilio es `factura_domicilio > 0`, de
-    -- arriba, y la casilla sólo decide si hace falta la cotización de Entrega.
+    -- nunca. Desde el 16/10/2026 nada deja fuera a los que no llevan domicilio (ver el
+    -- rótulo TEMPORAL de arriba): ni la casilla ni el cobro mandan.
     AND NOT EXISTS (SELECT 1 FROM board_placements p WHERE p.order_id = o.id)
     AND o.branch_id = sqlc.arg('branch_id')::uuid
     AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
@@ -730,9 +731,8 @@ WHERE
 -- tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador con su
 -- motivo (sin factura o sin cotejar). `cambiado` sí sube desde el 15/10/2026.
 --
--- SÍ están las dos que pidió Amado el 07/10/2026: `factura_domicilio > 0` y la cotización
--- de Entrega, que desde el 15/10/2026 (issue 10) sólo se exige si el vendedor marcó domicilio
--- (`pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE`). Tienen que ser las mismas de
+-- El cobro (`factura_domicilio > 0`, Amado 07/10/2026) y la cotización de Entrega YA NO se
+-- exigen (16/10/2026; TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)). Tiene que ser la misma condición de
 -- `ListarPedidosSinColocar`, que es la que ofrece las tarjetas: lo que esa lista ofrece,
 -- esta sentencia lo tiene que aceptar. Cero filas lo traduce `porQueNoSePudoColocar`.
 --
@@ -773,8 +773,8 @@ WITH puesta AS (
       -- los entregados. Quien lo traduce a un 409 con su motivo es `porQueNoSePudoColocar`.
       AND o.delivered_at IS NULL
       AND (o.resultado IS NULL OR o.resultado <> 'entregado')
-      AND o.factura_domicilio > 0
-      AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
+      -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
+      -- restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
       AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)
     -- `FOR SHARE OF c`: inactivar la zona (UPDATE) espera a que esta colocación acabe, o ésta
     -- espera a que aquélla acabe y entonces ve `activa = false`. Sin el candado, una tarjeta

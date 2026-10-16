@@ -49,8 +49,11 @@ void main() {
       cliente: 'Beto',
       vendedor: 'Marta',
       municipio: 'Florida',
-      // Sin cotizar: `pedidoCosto` NULO, que no es lo mismo que cero.
+      // Sin cotizar: `pedidoCosto` NULO, que no es lo mismo que cero. Y SIN FACTURA, para que
+      // no salga nunca (desde el 16/10/2026 sin cotizar ya no esconde a nadie: lo prueban
+      // `d13` y `d15` abajo); así los filtros de aquí no cambian de lista.
       pedidoCosto: null,
+      facturaEstado: EstadoFactura.sinFactura,
       endLat: 21.5,
       endLng: -78.2,
       fecha: DateTime(2026, 9, 13, 8),
@@ -297,8 +300,9 @@ void main() {
       expect(await ids(), isNot(contains('d10')));
     });
 
-    // LO NUEVO DE AMADO SE CONSERVA (07/10/2026): domicilio cobrado y cotizado.
-    test('sin domicilio cobrado en la factura no se ofrece', () async {
+    // TEMPORAL 16/10/2026 (Jose): entra todo lo facturado; ni el cobro ni la cotización se
+    // exigen (CLAUDE.md §2). La pareja es "sin factura no se ofrece", arriba.
+    test('sin domicilio cobrado en la factura SÍ se ofrece', () async {
       await sembrarPedido(
         base,
         id: 'd11',
@@ -315,11 +319,10 @@ void main() {
         endLat: 21.36,
         endLng: -77.86,
       );
-      expect(await ids(), isNot(contains('d11')));
-      expect(await ids(), isNot(contains('d12')));
+      expect(await ids(), containsAll(['d11', 'd12']));
     });
 
-    test('sin cotizar el domicilio no se ofrece', () async {
+    test('sin cotizar el domicilio SÍ se ofrece (Amado, PCC25-261014-1435)', () async {
       await sembrarPedido(
         base,
         id: 'd13',
@@ -328,7 +331,7 @@ void main() {
         endLat: 21.37,
         endLng: -77.87,
       );
-      expect(await ids(), isNot(contains('d13')));
+      expect(await ids(), contains('d13'));
     });
 
     test('sin cotizar y SIN MARCAR domicilio sí se ofrece (issue 10)', () async {

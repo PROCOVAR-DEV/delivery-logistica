@@ -265,8 +265,8 @@ Debajo te lista, uno a uno, por qué se cayó cada pedido:
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
 PTB25-261005-1502 · ANA MARTÍNEZ: Sin factura
-PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
-PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
+PTB25-261005-1511 · LUIS PÉREZ: sin factura
+PTB25-261005-1523 · MARTA CRUZ: sin factura
 ```
 
 Cada pedido sale por su **conduce** (el número de operación de la factura).
@@ -280,8 +280,8 @@ al llegar a Rutas, una franja roja nombra a los que se quedaron fuera, cada uno 
 conduce:
 
 > Ruta armada de «Centro», pero 2 pedidos no entraron:
-> PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
-> PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
+> PTB25-261005-1511 · LUIS PÉREZ: sin factura
+> PTB25-261005-1523 · MARTA CRUZ: sin factura
 
 **Si no entra ninguno, no se arma la ruta** y sale el recuadro rojo de arriba.
 

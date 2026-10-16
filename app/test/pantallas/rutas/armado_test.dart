@@ -402,31 +402,23 @@ void main() {
       expect(q2.routeId, rutaId);
     });
 
-    // LO NUEVO DE AMADO SE CONSERVA (07/10/2026, incidencias 2 y 6): factura con
-    // domicilio cobrado y domicilio cotizado en Entrega.
-    test('sin domicilio cobrado en la factura no entra', () async {
+    // TEMPORAL 16/10/2026 (Jose: «por ahora que entren todos los pedidos con facturas»): ni el
+    // domicilio cobrado ni la cotización de Entrega se exigen. La pareja es "sin factura no entra".
+    test('sin domicilio cobrado en la factura SÍ entra', () async {
       await (base.update(base.orders)..where((o) => o.id.equals('q1'))).write(
         const OrdersCompanion(facturaDomicilio: Value(0)),
       );
       await (base.update(base.orders)..where((o) => o.id.equals('q3'))).write(
         const OrdersCompanion(facturaDomicilio: Value(null)),
       );
-      await esperaRechazo(
-        ['q1', 'q2', 'q3'],
-        'En una ruta sólo entra lo facturado con domicilio cobrado. '
-        '2 no cumplen: F-001, F-003.',
-      );
+      expect(await armarLasTres(), startsWith('local-'));
     });
 
-    test('sin cotizar el domicilio en Entrega no entra', () async {
+    test('MARCADO y sin cotizar en Entrega SÍ entra (PCC25-261014-1435)', () async {
       await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
         const OrdersCompanion(pedidoCosto: Value(null)),
       );
-      await esperaRechazo(
-        ['q1', 'q2', 'q3'],
-        'No se puede crear la ruta: 1 pedidos no tienen cotizado el '
-        'domicilio en Entrega: F-002.',
-      );
+      expect(await armarLasTres(), startsWith('local-'));
     });
 
     // ISSUE 10 DE AMADO (15/10/2026): la cotización sólo se exige si el

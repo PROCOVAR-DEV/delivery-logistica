@@ -59,8 +59,6 @@ Por orden de probabilidad:
 | **«Se requiere un vehículo para crear la ruta»** | Lo mismo, pero en el asistente: paso 3 |
 | **«La columna no tiene ningún pedido que se pueda repartir hoy»** | Debajo te dice por qué se cayó cada uno. Casi siempre es factura |
 | **«En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Esos pedidos no van hoy: la factura no existe o no está cotejada. Quítalos y arma con el resto. (Si la factura cambió, sí entra: va lo facturado) |
-| **«En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen: PTB25-261005-1480…»** | La factura de esos pedidos no trae importe de domicilio. No van hoy. Quítalos |
-| **«No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1480…»** | El vendedor marcó domicilio y Entrega todavía no le puso costo. Hay que cotizarlo allí; mientras tanto, quítalos |
 | **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión se dio de baja. Elige otro, o actívalo en Vehículos si ha vuelto |
 | **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Alguien se te adelantó, o el pedido cambió. Quítalo y vuelve |
 | **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Saca pedidos o cambia de camión |
@@ -83,7 +81,6 @@ sale uno de estos motivos:
 
 | El aviso | Qué significa |
 |---|---|
-| **«No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.»** | La factura no cobró domicilio. No se coloca. En **Pedidos**, la marca de «Factura» lo enseña antes de marcar: «Sin cobro de domicilio» en ámbar |
 | **«No se puede asociar al tablero: primero cotiza el domicilio del pedido.»** | El vendedor marcó domicilio y falta el costo de Entrega. Cotízalo allí y vuelve |
 | **«Ese pedido ya se entregó»** | Ya se repartió |
 | **«Ese pedido ya está en una ruta»** | Se lo llevó otra ruta |

@@ -275,8 +275,8 @@ void main() {
   );
 
   test(
-    'sin domicilio cobrado, sin cotizar o ya entregado: se quedan con el '
-    'literal del servidor y los demás van',
+    'sin domicilio cobrado y sin cotizar VAN (TEMPORAL 16/10/2026); ya entregado '
+    'se queda con el literal del servidor',
     () async {
       await sembrarPedido(
         base,
@@ -331,13 +331,9 @@ void main() {
           .read(envioAlTableroProvider.notifier)
           .mandarLoMarcado(zona);
 
-      expect(resultado.fueron, ['bueno']);
-      expect(await enLaZona(zona), ['bueno']);
+      expect(resultado.fueron, ['bueno', 'sindom', 'sincot']);
+      expect(await enLaZona(zona), ['bueno', 'sindom', 'sincot']);
       expect(resultado.noFueron.map((q) => q.linea).toList(), [
-        'F-DOM · Dora: No se puede asociar al tablero: la factura no tiene un '
-            'cobro de domicilio registrado.',
-        'F-COT · Cira: No se puede asociar al tablero: primero cotiza el '
-            'domicilio del pedido.',
         'F-ENT · Eli: Ese pedido ya se entregó',
       ]);
     },

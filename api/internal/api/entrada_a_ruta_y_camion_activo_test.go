@@ -52,8 +52,10 @@ func errorDeTab(t *testing.T, w *httptest.ResponseRecorder) string {
 	return m.Error
 }
 
-// Los dos motivos de Amado, cada uno con su literal, y la pareja: con todo en regla SÍ se coloca.
-func TestColocarExigeElDomicilioCobradoYCotizado(t *testing.T) {
+// El motivo de Amado (domicilio cobrado), con su literal, y la pareja: con todo en regla SÍ se
+// coloca. La cotización de Entrega ya NO frena (Amado, 16/10/2026): sin cotizar, marcado o no,
+// se coloca si la factura cobra.
+func TestColocarNoExigeNiElCobroNiLaCotizacion(t *testing.T) {
 	casos := []struct {
 		nombre   string
 		prepara  func(p *pedidoFalso)
@@ -62,16 +64,14 @@ func TestColocarExigeElDomicilioCobradoYCotizado(t *testing.T) {
 		colocado bool
 	}{
 		{"cobrado y cotizado: se coloca", func(*pedidoFalso) {}, http.StatusOK, "", true},
-		{"sin cobrar", func(p *pedidoFalso) { p.sinCobrar = true }, http.StatusConflict, msgTableroSinDomicilioCobrado, false},
-		{"sin cotizar", func(p *pedidoFalso) { p.sinCotizar = true }, http.StatusConflict, msgTableroSinCotizar, false},
-		// ISSUE 10 DE AMADO (15/10/2026): sin marcar domicilio, la cotización no se exige.
+		{"sin cobrar: se coloca (TEMPORAL 16/10/2026)", func(p *pedidoFalso) { p.sinCobrar = true }, http.StatusOK, "", true},
+		// PCC25-261014-1435 (16/10/2026): marcado, sin cotizar y cobrado.
+		{"marcado, sin cotizar y cobrado: se coloca", func(p *pedidoFalso) { p.sinCotizar = true },
+			http.StatusOK, "", true},
 		{"sin cotizar y SIN MARCAR: se coloca", func(p *pedidoFalso) { p.sinCotizar, p.noMarcoDomicilio = true, true },
 			http.StatusOK, "", true},
-		{"sin cobrar y sin marcar: el cobro sigue mandando", func(p *pedidoFalso) { p.sinCobrar, p.noMarcoDomicilio = true, true },
-			http.StatusConflict, msgTableroSinDomicilioCobrado, false},
-		// Si faltan los dos, se dice el primero que se arregla: el cobro en la factura.
-		{"sin cobrar y sin cotizar", func(p *pedidoFalso) { p.sinCobrar, p.sinCotizar = true, true },
-			http.StatusConflict, msgTableroSinDomicilioCobrado, false},
+		{"sin cobrar, sin marcar y sin cotizar: se coloca", func(p *pedidoFalso) { p.sinCobrar, p.noMarcoDomicilio, p.sinCotizar = true, true, true },
+			http.StatusOK, "", true},
 	}
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
@@ -112,22 +112,19 @@ func TestColocarNoMiraLaFactura(t *testing.T) {
 	}
 }
 
-// D8 — LA PRIORIDAD DE LOS MOTIVOS. Un pedido que ya se entregó y al que además le falta la
-// cotización contestaba «primero cotiza el domicilio», un consejo imposible de seguir.
-// Entregado, después ruta, después domicilio, después cotización.
-func TestColocarDiceYaSeEntregoAntesQueLaCotizacion(t *testing.T) {
+// D8 — LA PRIORIDAD DE LOS MOTIVOS. Un pedido que ya se entregó y al que además le falta el
+// cobro contestaba el consejo del dato, imposible de seguir: el pedido está en casa del
+// cliente. Entregado, después ruta, después domicilio cobrado.
+func TestColocarDiceYaSeEntregoAntesQueElCobro(t *testing.T) {
 	ruta := colCentro // cualquier uuid: sólo importa que no sea nulo
 	casos := []struct {
 		nombre  string
 		prepara func(p *pedidoFalso)
 		mensaje string
 	}{
-		{"entregado y sin cotizar", func(p *pedidoFalso) { p.entregado, p.sinCotizar = true, true }, msgYaSeEntrego},
 		{"entregado y sin cobrar", func(p *pedidoFalso) { p.entregado, p.sinCobrar = true, true }, msgYaSeEntrego},
-		{"en una ruta y sin cotizar", func(p *pedidoFalso) { p.ruta, p.sinCotizar = &ruta, true }, msgYaVaEnUnaRuta},
+		{"en una ruta y sin cobrar", func(p *pedidoFalso) { p.ruta, p.sinCobrar = &ruta, true }, msgYaVaEnUnaRuta},
 		{"entregado y en una ruta: manda el entregado", func(p *pedidoFalso) { p.entregado, p.ruta = true, &ruta }, msgYaSeEntrego},
-		// Y la pareja: sin lo de arriba, es el motivo del dato el que sale.
-		{"libre y sin cotizar", func(p *pedidoFalso) { p.sinCotizar = true }, msgTableroSinCotizar},
 	}
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
@@ -143,11 +140,9 @@ func TestColocarDiceYaSeEntregoAntesQueLaCotizacion(t *testing.T) {
 	}
 }
 
-// EL MOTIVO DEL «NO» TAMPOCO EXIGE LA COTIZACIÓN A UN PEDIDO SIN MARCAR (issue 10). Si la zona
-// no existe, a un pedido sin marcar y sin cotizar se le dice que la zona no está, no «primero
-// cotiza el domicilio»: ese consejo no se puede seguir, Entrega sólo cotiza los marcados. Y la
-// pareja: al MARCADO sí se le dice que lo cotice.
-func TestColocarEnUnaZonaQueNoEstaNoPideCotizarAlSinMarcar(t *testing.T) {
+// EN UNA ZONA QUE NO ESTÁ SE DICE QUE LA ZONA NO ESTÁ, nunca «cotiza el domicilio»: la
+// cotización no se exige a nadie (16/10/2026), marcado o no.
+func TestColocarEnUnaZonaQueNoEstaNoPideCotizar(t *testing.T) {
 	for _, marcado := range []bool{false, true} {
 		t.Run(fmt.Sprintf("marcado=%v", marcado), func(t *testing.T) {
 			q := nuevoTablero()
@@ -155,14 +150,8 @@ func TestColocarEnUnaZonaQueNoEstaNoPideCotizarAlSinMarcar(t *testing.T) {
 			p.sinCotizar, p.noMarcoDomicilio = true, !marcado
 			q.pedidos[ped1] = p
 			codigo, mensaje := colocarEn(t, q, ped1, uuid.New())
-			if marcado {
-				if codigo != http.StatusConflict || mensaje != msgTableroSinCotizar {
-					t.Fatalf("marcado y sin cotizar: %d (%q)", codigo, mensaje)
-				}
-				return
-			}
 			if codigo != http.StatusNotFound || mensaje != msgZonaNoEsta {
-				t.Fatalf("sin marcar, en una zona que no existe: %d (%q), se esperaba 404 %q",
+				t.Fatalf("sin cotizar, en una zona que no existe: %d (%q), se esperaba 404 %q",
 					codigo, mensaje, msgZonaNoEsta)
 			}
 		})
@@ -176,11 +165,12 @@ func TestUnRechazoAlColocarNoSacaLaTarjetaDeDondeEstaba(t *testing.T) {
 	q := nuevoTablero()
 	q.colocadas[ped1] = colocacion{colVista, 1}
 	p := q.pedidos[ped1]
-	p.sinCotizar = true
+	ruta := colCentro // cualquier uuid: sólo importa que no sea nulo
+	p.ruta = &ruta
 	q.pedidos[ped1] = p
 
 	codigo, mensaje := colocarEn(t, q, ped1, colCentro)
-	if codigo != http.StatusConflict || mensaje != msgTableroSinCotizar {
+	if codigo != http.StatusConflict || mensaje != msgYaVaEnUnaRuta {
 		t.Fatalf("código %d (%q)", codigo, mensaje)
 	}
 	if got := q.colocadas[ped1]; got.columna != colVista || got.posicion != 1 {
@@ -196,8 +186,9 @@ func TestColocarUnPedidoQueNoExisteEs404(t *testing.T) {
 	}
 }
 
-// La mitad izquierda sólo ofrece lo que se puede colocar: la lista y su contador aplican las
-// mismas dos condiciones (§3-bis: dos preguntas, una prueba).
+// La mitad izquierda ofrece lo que se puede colocar: la lista y su contador aplican la misma
+// condición (§3-bis: dos preguntas, una prueba). Lo sin cobrar no sale; lo sin cotizar SÍ
+// (16/10/2026).
 func TestLaMitadIzquierdaNoOfreceLoQueColocarRechaza(t *testing.T) {
 	q := nuevoTablero()
 	for id, mod := range map[uuid.UUID]func(*pedidoFalso){
@@ -213,42 +204,44 @@ func TestLaMitadIzquierdaNoOfreceLoQueColocarRechaza(t *testing.T) {
 		t.Fatal(err)
 	}
 	total, _ := q.ContarPedidosSinColocar(context.Background(), sqlc.ContarPedidosSinColocarParams{BranchID: sucStg})
-	if len(filas) != 1 || filas[0].ID != ped1 || total != 1 {
-		t.Fatalf("la lista ofrece %d (%v) y el contador dice %d: sólo ped1 es colocable", len(filas), filas, total)
+	ofrecidos := map[uuid.UUID]bool{}
+	for _, f := range filas {
+		ofrecidos[f.ID] = true
+	}
+	if len(filas) != 3 || !ofrecidos[ped1] || !ofrecidos[ped2] || !ofrecidos[ped3] || total != 3 {
+		t.Fatalf("la lista ofrece %d (%v) y el contador dice %d: los tres son colocables (sin cobrar y sin cotizar también)", len(filas), filas, total)
 	}
 }
 
-// EL CASO REAL DEL ISSUE 10 EN UNA ZONA (Amado, 15/10/2026): PBF26-2610131268, `cambiado`, sin
-// marcar domicilio, cobrado en la factura y sin cotizar. Sube a la ruta de la zona. Y en la
-// misma zona, su pareja MARCADA y sin cotizar se queda fuera con «domicilio sin cotizar».
-func TestElCasoRealDelIssue10SubeDesdeLaZona(t *testing.T) {
+// EL COBRO EN LA FACTURA BASTA TAMBIÉN EN UNA ZONA (Amado, 16/10/2026). Los dos casos reales,
+// sin cotizar y cobrados: PBF26-2610131268 (`cambiado`, sin marcar; issue 10) y
+// PCC25-261014-1435 (`igual`, MARCADO; factura 47073, 0.05). Suben a la ruta de la zona. Y la
+// pareja: la tercera tarjeta, marcada y SIN cobro, se queda fuera con su motivo de verdad.
+func TestLosCasosRealesSinCotizarSubenDesdeLaZona(t *testing.T) {
 	q := nuevoTablero()
 	q.tresPuestas()
 	q.capacidad = 1000
 	cambiado := sqlc.FacturaEstadoCambiado
-	real, marcado := q.pedidos[ped1], q.pedidos[ped2]
-	real.folio, real.factura, real.sinCotizar, real.noMarcoDomicilio = "PBF26-2610131268", &cambiado, true, true
-	marcado.factura, marcado.sinCotizar = &cambiado, true
-	q.pedidos[ped1], q.pedidos[ped2] = real, marcado
+	pbf, pcc, sinCobro := q.pedidos[ped1], q.pedidos[ped2], q.pedidos[ped3]
+	pbf.folio, pbf.factura, pbf.sinCotizar, pbf.noMarcoDomicilio = "PBF26-2610131268", &cambiado, true, true
+	pcc.folio, pcc.sinCotizar = "PCC25-261014-1435", true
+	sinCobro.sinCotizar, sinCobro.sinCobrar = true, true
+	q.pedidos[ped1], q.pedidos[ped2], q.pedidos[ped3] = pbf, pcc, sinCobro
 
 	w := pedirTab(t, montarTab(t, q), "POST", "/api/board/columns/"+colCentro.String()+"/route",
 		tokenTab(t, sucStg.String()), `{}`)
 	if w.Code != http.StatusCreated {
-		t.Fatalf("la zona tenía que salir con el caso real dentro: %d %s", w.Code, w.Body.String())
+		t.Fatalf("la zona tenía que salir con los casos reales dentro: %d %s", w.Code, w.Body.String())
 	}
 	subio := map[uuid.UUID]bool{}
 	for _, id := range q.enganchados {
 		subio[id] = true
 	}
-	if !subio[ped1] {
-		t.Fatalf("el caso real no subió al camión: enganchados %v, respuesta %s", q.enganchados, w.Body.String())
+	if !subio[ped1] || !subio[ped2] {
+		t.Fatalf("los casos reales no subieron al camión: enganchados %v, respuesta %s", q.enganchados, w.Body.String())
 	}
-	if subio[ped2] {
-		t.Fatal("el marcado sin cotizar subió: la cotización se dejó de exigir a todos")
-	}
-	got := descartadoPorNombre(t, leerTab(t, w), q.pedidos[ped2].nombre)
-	if got["motivo"] != "domicilio sin cotizar" {
-		t.Fatalf("el marcado sin cotizar tenía que salir con «domicilio sin cotizar» y salió %v", got)
+	if !subio[ped3] {
+		t.Fatal("el marcado sin cobro no subió: por ahora entra todo lo facturado (TEMPORAL 16/10/2026)")
 	}
 }
 
@@ -403,17 +396,21 @@ func TestArmarUnaZonaConUnCamionInactivoSeRechaza(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// 2-bis. El tablero NO deja subir lo sin cobrar ni sin cotizar al armar una zona
+// 2-bis. El tablero NO deja subir lo sin cobrar al armar una zona (lo sin cotizar sí sube)
 // ---------------------------------------------------------------------------
 
-func TestArmarUnaZonaNombraLoQueNoTieneDomicilioCobradoNiCotizado(t *testing.T) {
+func TestArmarUnaZonaSubeLoSinCobrarYNombraLoSinFactura(t *testing.T) {
 	q := nuevoTablero()
 	q.tresPuestas()
 	q.capacidad = 1000
 	a, b := q.pedidos[ped2], q.pedidos[ped3]
 	a.sinCobrar, a.folio = true, "PTB25-261005-1479"
-	b.sinCotizar = true
+	b.sinCotizar = true // sin cotizar: sube (16/10/2026)
 	q.pedidos[ped2], q.pedidos[ped3] = a, b
+	sinFactura := sqlc.FacturaEstadoSinFactura
+	c := q.pedidos[ped1]
+	c.factura = &sinFactura
+	q.pedidos[ped1] = c
 	h := montarTab(t, q)
 
 	w := pedirTab(t, h, http.MethodPost, "/api/board/columns/"+colCentro.String()+"/route",
@@ -422,15 +419,11 @@ func TestArmarUnaZonaNombraLoQueNoTieneDomicilioCobradoNiCotizado(t *testing.T) 
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
 	m := leerTab(t, w)
-	if n, _ := m["paradas"].(float64); n != 1 {
-		t.Fatalf("paradas %v, se esperaba 1 (sólo Ana está cobrada y cotizada): %s", m["paradas"], w.Body.String())
+	if n, _ := m["paradas"].(float64); n != 2 {
+		t.Fatalf("paradas %v, se esperaba 2 (Beto sin cobrar y la sin cotizar suben; la sin factura no): %s", m["paradas"], w.Body.String())
 	}
-	d := descartadoPorNombre(t, m, "Beto")
-	if d["motivo"] != "la factura no tiene domicilio cobrado" || d["operationNumber"] != "PTB25-261005-1479" {
-		t.Fatalf("Beto: %v", d)
-	}
-	if d := descartadoPorNombre(t, m, "Ana"); d["motivo"] != "domicilio sin cotizar" {
-		t.Fatalf("la segunda Ana: %v", d)
+	if d := descartadoPorNombre(t, m, q.pedidos[ped1].nombre); d["motivo"] != "sin factura" {
+		t.Fatalf("la sin factura: %v", d)
 	}
 }
 

@@ -236,8 +236,8 @@ Debajo te lista por qué se cayó cada uno:
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
 PTB25-261005-1502 · ANA MARTÍNEZ: Sin factura
-PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
-PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
+PTB25-261005-1511 · LUIS PÉREZ: sin factura
+PTB25-261005-1523 · MARTA CRUZ: sin factura
 ```
 
 ### Qué entra y qué no
@@ -250,8 +250,8 @@ operación de la factura). **Si algunos entran y otros no**, la ruta se arma con
 entran y una franja roja dice quién se quedó fuera:
 
 > Ruta armada de «Centro», pero 2 pedidos no entraron:
-> PTB25-261005-1511 · LUIS PÉREZ: la factura no tiene domicilio cobrado
-> PTB25-261005-1523 · MARTA CRUZ: domicilio sin cotizar
+> PTB25-261005-1511 · LUIS PÉREZ: sin factura
+> PTB25-261005-1523 · MARTA CRUZ: sin factura
 
 **Si no entra ninguno, no se arma la ruta** y sale el recuadro rojo de arriba.
 

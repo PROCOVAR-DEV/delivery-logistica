@@ -321,9 +321,8 @@ type Querier interface {
 	// tampoco se prohíbe. Lo que no puede salir es la RUTA, y eso lo corta el armador con su
 	// motivo (sin factura o sin cotejar). `cambiado` sí sube desde el 15/10/2026.
 	//
-	// SÍ están las dos que pidió Amado el 07/10/2026: `factura_domicilio > 0` y la cotización
-	// de Entrega, que desde el 15/10/2026 (issue 10) sólo se exige si el vendedor marcó domicilio
-	// (`pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE`). Tienen que ser las mismas de
+	// El cobro (`factura_domicilio > 0`, Amado 07/10/2026) y la cotización de Entrega YA NO se
+	// exigen (16/10/2026; TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)). Tiene que ser la misma condición de
 	// `ListarPedidosSinColocar`, que es la que ofrece las tarjetas: lo que esa lista ofrece,
 	// esta sentencia lo tiene que aceptar. Cero filas lo traduce `porQueNoSePudoColocar`.
 	//
@@ -648,8 +647,8 @@ type Querier interface {
 	// El alcance va aquí también: sin él, mandar el id de un pedido de otra sucursal en
 	// `orderIds` lo subiría a tu camión.
 	//
-	// LA SEGUNDA LLAVE DEL DOMICILIO Y LA COTIZACIÓN. `factura_domicilio > 0` y la cotización
-	// se comprueban también aquí (07/10/2026, Amado) porque la validación de
+	// LA SEGUNDA LLAVE (hoy abierta: TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)).
+	// `factura_domicilio > 0` y la cotización se comprobaban también aquí (07/10/2026, Amado) porque la validación de
 	// `PedidosParaArmarRuta` se hizo hace unos milisegundos, y el espejo repasa `pedido_costo`
 	// cada minuto: un pedido marcado a domicilio que perdió su cotización entre medias no puede
 	// entrar con el importe a cero. Uno que el vendedor NO marcó entra sin cotización (issue 10,
@@ -1095,18 +1094,17 @@ type Querier interface {
 	//     roto: se facturó distinto de como se pidió y lo que sube al camión son las líneas de
 	//     la factura. Fuera quedan `sin_factura` (no hay nada que llevar) y el NULL, que
 	//     significa NO SE SABE: con un NULL colado se armó una ruta sin facturar el 2/09.
-	//   * `factura_domicilio > 0`  — EL DOMICILIO COBRADO (07/10/2026, Amado: el domicilio ya
-	//     es un servicio que se cobra, y dejar entrar cualquier pedido es una vulnerabilidad).
-	//   * `pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE` — EL DOMICILIO COTIZADO
-	//     en Entrega, pero SÓLO si el vendedor marcó domicilio: Entrega sólo cotiza los marcados,
-	//     y exigírselo a uno no marcado lo dejaba fuera para siempre (issue 10 de Amado,
-	//     15/10/2026: PBF26-2610131268 no venía marcado y Ventra cobró 1.31 de domicilio).
+	//   * NADA DE DOMICILIO (TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)). Desde el 07/10/2026 (Amado) se exigía `factura_domicilio > 0`
+	//     (el cobro) y la cotización de Entrega; la cotización se quitó el 16/10/2026 (Amado,
+	//     PCC25-261014-1435: marcado, sin cotizar y con 0.05 cobrado en la factura 47073) y el cobro
+	//     ese mismo día, por ahora (Jose: «que entren todos los pedidos con facturas»). La condición
+	//     está en cada consulta con el rótulo TEMPORAL, para restaurarla de un vistazo.
 	//
 	// ESTA LISTA OFRECE LO MISMO QUE UNA RUTA ACEPTA, `cambiado` incluido desde el 15/10/2026: sus
 	// renglones ya son los de la factura (PEDIDO los manda en cuanto hay cotejo), así que al camión
 	// sube lo facturado. La regla ENTERA está en `ListarPedidosSinColocar`, en los recuentos del
 	// Panel y en los manejadores del armado (`rechazoDelArmado`, `motivoDeCorteDelArmado`), y la
-	// parte del domicilio también en `ColocarPedido` y `EngancharPedidoARuta`. Las ata
+	// parte del domicilio (hoy sin exigir) también en `ColocarPedido` y `EngancharPedidoARuta`. Las ata
 	// `consultas_motor_real_test.go` con los casos de `docs/armado-rechazado.casos.json`.
 	//
 	// `km_max` y `costo_min` NO están aquí a propósito: el contrato los aplica después de la
@@ -1175,9 +1173,8 @@ type Querier interface {
 	//
 	// Las condiciones de «repartible» son LAS MISMAS de `ListarPedidosDisponibles`, ni una más
 	// ni una menos: sin ruta, sin entregar, con coordenadas, facturado (`igual` o `cambiado`),
-	// no archivado, y desde el 07/10/2026 (Amado) con el domicilio COBRADO en la factura
-	// (`factura_domicilio > 0`) y COTIZADO en Entrega (`pedido_costo` no nulo) si el vendedor
-	// marcó domicilio (`requiere_domicilio`, issue 10 de Amado, 15/10/2026). Si el tablero
+	// no archivado. El domicilio cobrado (`factura_domicilio > 0`, Amado 07/10/2026) y la
+	// cotización de Entrega YA NO se exigen (16/10/2026; TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)). Si el tablero
 	// ofreciera algo que `ColocarPedido` o el armador luego rechazan, el logístico prepararía
 	// una columna entera para que la ruta le diga que no al final del día. Y eso fue
 	// exactamente lo que pasó con las dos últimas: se añadieron a `ColocarPedido` y no aquí,
@@ -1471,10 +1468,9 @@ type Querier interface {
 	//
 	// REPARTIBLE es el mismo listón del armador de rutas —sin ruta, con coordenadas, con
 	// factura que se puede llevar (`igual` o `cambiado`) y, desde el 07/10/2026, con el domicilio
-	// cobrado (`factura_domicilio > 0`) y cotizado si el vendedor lo marcó (`pedido_costo` no
-	// nulo o `requiere_domicilio` no marcado, issue 10 de Amado, 15/10/2026)—: si el panel contara otra
-	// cosa, diría «40 por repartir» y el armador ofrecería 12, y la respuesta correcta sería
-	// «ninguno de los dos». `sin_ruta` y `peso_pendiente` llevan las mismas condiciones que
+	// cobrado (`factura_domicilio > 0`) y cotizado, que desde el 16/10/2026 NO se exigen — TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)—:
+	// si el panel contara otra cosa, diría «40 por repartir» y el armador ofrecería 12, y la
+	// respuesta correcta sería «ninguno de los dos». `sin_ruta` y `peso_pendiente` llevan las mismas condiciones que
 	// `PanelPorSucursal` y que `ContarPedidosDisponibles`.
 	PanelResumen(ctx context.Context, arg PanelResumenParams) (PanelResumenRow, error)
 	// ---------------------------------------------------------------------------
@@ -1520,9 +1516,9 @@ type Querier interface {
 	//
 	// `cambiado` ENTRA desde el 15/10/2026 (issue 10 de Amado): sus renglones ya son los de la
 	// factura, así que al camión sube lo facturado. Lo del 07/10/2026 (Amado) se SUMA: el
-	// domicilio cobrado (`factura_domicilio > 0`) y cotizado en Entrega (`pedido_costo` no
-	// nulo) si el vendedor marcó domicilio (`requiere_domicilio`). Salen también como DATO y
-	// los corta el handler (`rechazoDelArmado`), por la misma razón.
+	// domicilio cobrado (`factura_domicilio > 0`); la cotización de Entrega ya no se exige
+	// (16/10/2026). Sale también como DATO y lo corta el handler (`rechazoDelArmado`), por la
+	// misma razón.
 	PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmarRutaParams) ([]PedidosParaArmarRutaRow, error)
 	// LO QUE SE FUE DE LA SUCURSAL, para `quitados`.
 	//

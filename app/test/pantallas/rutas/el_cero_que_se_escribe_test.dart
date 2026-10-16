@@ -99,31 +99,23 @@ void main() {
       expect(paradas['q3'], 30);
     });
 
-    // Hasta el 07/10/2026 una parada SIN COTIZAR entraba y se grababa NULA, nunca
-    // con `price = 0`. Desde la regla de Amado (incidencia 6: sólo entra lo
-    // facturado, con domicilio cobrado y cotizado en Entrega) esa parada ya NO
-    // entra: el armado la rechaza con su número de operación y no escribe nada.
-    // La pareja de arriba sigue ahí: un cero COTIZADO sí entra y se queda en cero.
-    test('sin cotizar: no entra, se dice cuál y no se graba NADA', () async {
+    // AMADO, 16/10/2026 (PCC25-261014-1435): una parada SIN COTIZAR en Entrega entra y su
+    // `price` es LO COBRADO en la factura (`costoDeLaParada`; los pedidos de prueba cobran 1).
+    // La pareja de arriba sigue ahí: lo cotizado manda sobre lo cobrado, y un cero cotizado se
+    // queda en cero.
+    test('sin cotizar: entra y vale lo cobrado en la factura', () async {
       await sembrarLasTres(costo1: 10, costo2: null, costo3: 30);
-      await expectLater(
-        armarLasTres,
-        throwsA(
-          isA<RechazoLocal>().having(
-            (r) => r.mensaje,
-            'mensaje',
-            allOf(contains('F-q2'), contains('cotizado el domicilio')),
-          ),
-        ),
-      );
-      expect(await base.select(base.routes).get(), isEmpty,
-          reason: 'un rechazo no deja una ruta a medias');
+      final rutaId = await armarLasTres();
       final q2 = await (base.select(base.orders)
             ..where((o) => o.id.equals('q2')))
           .getSingle();
-      expect(q2.routeId, isNull);
-      expect(q2.price, isNull,
-          reason: 'y desde luego no se graba un cero en lo que no se armó');
+      expect(q2.routeId, rutaId);
+      expect(q2.price, 1,
+          reason: 'sin cotizar, la parada vale lo que cobró la factura');
+      final importes = await importePorRuta(base).first;
+      expect(importes[rutaId]!.sinCotizar, 0,
+          reason: 'cobrada en la factura: ya no cuenta como sin cotizar');
+      expect(importes[rutaId]!.total, 41);
     });
   });
 
@@ -159,7 +151,11 @@ void main() {
       await sembrarLasTres(costo1: 10, costo2: 20, costo3: 30);
       final rutaId = await armarLasTres();
       await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
-        const OrdersCompanion(price: Value(null), pedidoCosto: Value(null)),
+        const OrdersCompanion(
+          price: Value(null),
+          pedidoCosto: Value(null),
+          facturaDomicilio: Value(null),
+        ),
       );
 
       final importes = await importePorRuta(base).first;
@@ -260,11 +256,9 @@ void main() {
             'distintas al mismo filtro, sin que salte nada (CLAUDE.md §3-bis). '
             'Si hay que cambiarlo, se cambian los cuatro sitios a la vez.',
       );
-      // Desde el 07/10/2026 (incidencia 6 de Amado) el sin cotizar no aparece NI
-      // SIN filtro: la lista de disponibles sólo ofrece lo cotizado en Entrega.
-      expect(await conCostoMin(null), ['q1', 'q3'],
-          reason: 'lo sin cotizar ya no se ofrece para armar una ruta, '
-              'tenga o no filtro de costo');
+      // Desde el 16/10/2026 el sin cotizar SÍ sale sin filtro: la cotización no se exige.
+      expect(await conCostoMin(null), ['q1', 'q2', 'q3'],
+          reason: 'lo sin cotizar se ofrece para armar una ruta');
     });
   });
 

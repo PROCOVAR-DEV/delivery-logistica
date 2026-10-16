@@ -93,7 +93,7 @@ alta manual se retiró el 03/09/2026 (`POST /api/orders` ya no existe).
 La lista **arranca filtrada** a lo que puede subir a un camión: `factura=con_factura` y
 `archivado=0`. Mientras esos dos sigan exactamente así se muestra una franja azul:
 
-> `Enseñando sólo lo que tiene factura —cuadre o no— y sin archivar. A una ruta entra lo facturado con el domicilio cobrado, y cotizado en Entrega si el vendedor lo marcó: si la factura cambió, al camión va lo facturado.`
+> `Enseñando sólo lo que tiene factura —cuadre o no— y sin archivar. A una ruta entra todo lo facturado (por ahora, el domicilio cobrado ya no se exige): si la factura cambió, al camión va lo facturado.`
 
 con el botón `Ver todos los pedidos`, que pone ambos filtros a vacío.
 
@@ -477,9 +477,6 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
 - `En una ruta sólo entra lo facturado. <n> no cumplen: <conduce> (sin facturar|sin cotejar), … y <n> más.` (409)
   — desde el 15/10/2026; antes decía `lo facturado y que cuadre` y tenía el motivo
   `cambió en la factura`, que ya no existe: `cambiado` entra.
-- `En una ruta sólo entra lo facturado con domicilio cobrado. <n> no cumplen: <conduce>, … y <k> más.` (409)
-- `No se puede crear la ruta: <n> pedidos no tienen cotizado el domicilio en Entrega: <conduce>, … y <k> más.` (409)
-  — sólo nombra pedidos con `requiereDomicilio = true` (Entrega sólo cotiza los marcados).
 - `El vehículo está inactivo y no se puede asignar a una ruta.` (400)
 - `Peso total (<w> kg) supera la capacidad del vehículo (<c> kg)` (400)
 - `Una ruta se arma eligiendo pedidos ya existentes. Manda \`orderIds\`.`

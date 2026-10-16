@@ -58,24 +58,19 @@ void main() {
     expect((await cola.lote()).length, antes, reason: 'ni se encola nada');
   }
 
-  test('sin domicilio cobrado en la factura', () async {
+  // TEMPORAL 16/10/2026 (Jose): ni el cobro ni la cotización se exigen para colocar.
+  test('sin domicilio cobrado y sin cotizar SÍ se colocan', () async {
     await sembrar();
     await sembrarPedido(base, id: 'cero', facturaDomicilio: 0);
     await sembrarPedido(base, id: 'nulo', facturaDomicilio: null);
-    const motivo =
-        'No se puede asociar al tablero: la factura no tiene un cobro de '
-        'domicilio registrado.';
-    await rechaza('cero', motivo);
-    await rechaza('nulo', motivo);
-  });
-
-  test('sin cotizar el domicilio en Entrega', () async {
-    await sembrar();
     await sembrarPedido(base, id: 'sin', costo: null);
-    await rechaza(
-      'sin',
-      'No se puede asociar al tablero: primero cotiza el domicilio del pedido.',
-    );
+    for (final id in ['cero', 'nulo', 'sin']) {
+      await repo.colocar(pedidoId: id, columnaId: zona);
+    }
+    final n = await base
+        .customSelect('SELECT count(*) AS n FROM board_placements')
+        .getSingle();
+    expect(n.read<int>('n'), 3);
   });
 
   test('ya entregado: antes que «ya está en una ruta»', () async {
@@ -120,8 +115,10 @@ void main() {
     expect(lista.pedidos.map((p) => p.pedidoId).toList()..sort(), [
       'bueno',
       'cero',
+      'sin-cotizar',
+      'sin-domicilio',
     ]);
-    expect(lista.total, 2);
+    expect(lista.total, 4);
     // Y lo que ofrece, lo coloca.
     for (final p in lista.pedidos) {
       await repo.colocar(pedidoId: p.pedidoId, columnaId: zona);

@@ -110,7 +110,7 @@ SELECT
     o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status, o.weight,
     o.price, o.segment_km, o.stop_order, o.trip_leg, o.resultado,
     o.resultado_at, o.resultado_nota, o.delivered_at, o.municipio,
-    o.pedido_costo, o.external_id, o.source, o.branch_id
+    o.pedido_costo, o.factura_domicilio, o.external_id, o.source, o.branch_id
 FROM orders o
 WHERE o.route_id = sqlc.arg('ruta_id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
@@ -183,7 +183,7 @@ SELECT
     o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status, o.weight,
     o.price, o.segment_km, o.stop_order, o.trip_leg, o.resultado,
     o.resultado_at, o.resultado_nota, o.delivered_at, o.municipio,
-    o.pedido_costo, o.external_id, o.source, o.branch_id
+    o.pedido_costo, o.factura_domicilio, o.external_id, o.source, o.branch_id
 FROM orders o
 WHERE o.route_id = ANY(sqlc.arg('ruta_ids')::uuid[])
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
@@ -223,9 +223,9 @@ ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC;
 --
 -- `cambiado` ENTRA desde el 15/10/2026 (issue 10 de Amado): sus renglones ya son los de la
 -- factura, así que al camión sube lo facturado. Lo del 07/10/2026 (Amado) se SUMA: el
--- domicilio cobrado (`factura_domicilio > 0`) y cotizado en Entrega (`pedido_costo` no
--- nulo) si el vendedor marcó domicilio (`requiere_domicilio`). Salen también como DATO y
--- los corta el handler (`rechazoDelArmado`), por la misma razón.
+-- domicilio cobrado (`factura_domicilio > 0`); la cotización de Entrega ya no se exige
+-- (16/10/2026). Sale también como DATO y lo corta el handler (`rechazoDelArmado`), por la
+-- misma razón.
 -- name: PedidosParaArmarRuta :many
 SELECT
     o.id, o.operation_number, o.customer_name, o.end_lat, o.end_lng,
@@ -244,9 +244,8 @@ SELECT
     -- que cero el pedido no entra en una ruta (Amado: el domicilio ya es un servicio que
     -- se cobra). Sale como DATO y no como filtro, igual que `factura_estado`: lo nombra
     -- `mensajeDomicilioSinCobrar` en el manejador. `requiere_domicilio`, la casilla que se
-    -- marca al tomar el pedido, no manda nada sobre lo que se cobró, pero SÍ decide si hace
-    -- falta la cotización de Entrega (issue 10, 15/10/2026): la lee `mensajeSinCalcular`.
-    o.factura_domicilio, o.requiere_domicilio
+    -- marca al tomar el pedido, no manda nada: ni sobre lo que se cobró ni sobre si entra.
+    o.factura_domicilio
 FROM orders o
 WHERE o.id = ANY(sqlc.arg('pedido_ids')::uuid[])
   AND o.source = 'pedido'
@@ -347,8 +346,8 @@ RETURNING id, name, route_code, status, origin_address, origin_lat, origin_lng,
 -- El alcance va aquí también: sin él, mandar el id de un pedido de otra sucursal en
 -- `orderIds` lo subiría a tu camión.
 --
--- LA SEGUNDA LLAVE DEL DOMICILIO Y LA COTIZACIÓN. `factura_domicilio > 0` y la cotización
--- se comprueban también aquí (07/10/2026, Amado) porque la validación de
+-- LA SEGUNDA LLAVE (hoy abierta: TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)).
+-- `factura_domicilio > 0` y la cotización se comprobaban también aquí (07/10/2026, Amado) porque la validación de
 -- `PedidosParaArmarRuta` se hizo hace unos milisegundos, y el espejo repasa `pedido_costo`
 -- cada minuto: un pedido marcado a domicilio que perdió su cotización entre medias no puede
 -- entrar con el importe a cero. Uno que el vendedor NO marcó entra sin cotización (issue 10,
@@ -402,8 +401,8 @@ WHERE id = sqlc.arg('pedido_id')
   AND route_id IS NULL
   AND resultado IS DISTINCT FROM 'entregado'::stop_result
   AND delivered_at IS NULL
-  AND factura_domicilio > 0
-  AND (pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE)
+  -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
+  -- restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
 
 -- El recorrido y la firma de quién ordenó, ya con las paradas puestas.

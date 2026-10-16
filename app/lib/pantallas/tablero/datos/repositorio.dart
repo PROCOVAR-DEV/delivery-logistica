@@ -97,18 +97,13 @@ List<String> descartadosDeLaRespuesta(
   return detalles;
 }
 
-/// LOS CUATRO «NO» DE COLOCAR UNA TARJETA, **LETRA POR LETRA los del servidor**
+/// LOS TRES «NO» DE COLOCAR UNA TARJETA, **LETRA POR LETRA los del servidor**
 /// (`porQueNoSePudoColocar`, `api/internal/api/tablero.go`).
 ///
 /// Sin senal los dice el aparato y con ella la nube; si no se leen igual, el
 /// mismo rechazo enseña dos idiomas (`CLAUDE.md` §3-quinquies).
 const msgYaSeEntrego = 'Ese pedido ya se entregó';
 const msgYaVaEnUnaRuta = 'Ese pedido ya está en una ruta';
-const msgSinDomicilioCobrado =
-    'No se puede asociar al tablero: la factura no tiene un cobro de '
-    'domicilio registrado.';
-const msgSinCotizarElDomicilio =
-    'No se puede asociar al tablero: primero cotiza el domicilio del pedido.';
 
 /// POR QUE ESTE PEDIDO NO SE PUEDE PONER EN UNA ZONA, o `null` si se puede.
 ///
@@ -116,8 +111,8 @@ const msgSinCotizarElDomicilio =
 /// primero el entregado y despues la ruta —un entregado conserva su `route_id`
 /// mientras la ruta exista, y decir «ya esta en una ruta» de algo que ya se
 /// repartio manda a esperar un cierre que no hace falta—, y despues el domicilio
-/// cobrado y su cotizacion, esta solo si el vendedor marco domicilio (issue 10
-/// de Amado, 15/10/2026: `nucleo/regla_de_entrada.dart`).
+/// cobrado (la cotizacion de Entrega ya no se exige: Amado, 16/10/2026,
+/// `nucleo/regla_de_entrada.dart`).
 ///
 /// ## Por que existe aqui y no solo en el servidor — 07/10/2026
 ///
@@ -141,15 +136,6 @@ String? porQueNoSePuedeColocar(Pedido pedido) {
     return msgYaSeEntrego;
   }
   if (pedido.routeId != null) return msgYaVaEnUnaRuta;
-  if (domicilioSinCobrar(pedido.facturaDomicilio)) {
-    return msgSinDomicilioCobrado;
-  }
-  if (faltaLaCotizacion(
-    pedidoCosto: pedido.pedidoCosto,
-    requiereDomicilio: pedido.requiereDomicilio,
-  )) {
-    return msgSinCotizarElDomicilio;
-  }
   return null;
 }
 
@@ -653,7 +639,9 @@ class RepositorioTablero {
         )
         .getSingleOrNull();
     if (fila != null) {
-      throw RechazoDelTablero('La zona «${fila.read<String>('nombre')}» está inactiva');
+      throw RechazoDelTablero(
+        'La zona «${fila.read<String>('nombre')}» está inactiva',
+      );
     }
   }
 
@@ -1171,7 +1159,12 @@ class RepositorioTablero {
               // si alguna pantalla vuelve a leer `totalPrice`.
               totalPrice: Value(
                 ImporteDeRuta.espejoDelTotalDelServidor(
-                  buenos.map((t) => t.pedido.pedidoCosto),
+                  buenos.map(
+                    (t) => costoDeLaParada(
+                      t.pedido.pedidoCosto,
+                      t.pedido.facturaDomicilio,
+                    ),
+                  ),
                 ),
               ),
               vehicleId: Value(columna?.vehiculoId),

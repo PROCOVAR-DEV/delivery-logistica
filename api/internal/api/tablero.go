@@ -138,16 +138,9 @@ const (
 	msgPedidoNoEsta   = "Ese pedido no existe o no es de tu sucursal"
 	msgSucursalNoEsta = "Esa sucursal no existe o no es tuya"
 
-	msgYaSeEntrego = "Ese pedido ya se entregó"
-	// LOS DOS 409 QUE AÑADIÓ AMADO EL 07/10/2026 a colocar una tarjeta (incidencia 2): el
-	// domicilio ya es un servicio que se cobra, así que no se prepara en una zona lo que no
-	// se ha cobrado ni cotizado. Son los dos únicos motivos de `ColocarPedido` que dependen
-	// del dato del pedido y no del tablero. El de la factura sin cotejar NO está aquí: se
-	// añadió y se quitó el mismo día (ver el comentario de `ColocarPedido`).
-	msgTableroSinDomicilioCobrado = "No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado."
-	msgTableroSinCotizar          = "No se puede asociar al tablero: primero cotiza el domicilio del pedido."
-	msgColumnaSinNada             = "La columna no tiene ningún pedido que se pueda repartir hoy"
-	msgNombreRequerido            = "La columna necesita un nombre"
+	msgYaSeEntrego     = "Ese pedido ya se entregó"
+	msgColumnaSinNada  = "La columna no tiene ningún pedido que se pueda repartir hoy"
+	msgNombreRequerido = "La columna necesita un nombre"
 	// La lista de pedidos vino VACÍA. No es lo mismo que no mandarla: mandarla vacía es
 	// un aparato diciendo que no eligió nada, y armar entonces con todo lo que haya
 	// puesto es exactamente el fallo que la lista viene a tapar.
@@ -1359,13 +1352,13 @@ func (s *Servidor) colocarPedido(w http.ResponseWriter, r *http.Request) {
 		posicion = *c.Posicion
 	}
 	// NO HAY COMPROBACIÓN PREVIA DEL PEDIDO, y es a propósito. Aquí hubo una —leer el pedido
-	// y rechazar por factura, domicilio o cotización ANTES de abrir la transacción— y
+	// y rechazar por factura o domicilio ANTES de abrir la transacción— y
 	// estaba mal por dos razones:
 	//
 	//  · EL ORDEN DE LOS MOTIVOS. Un pedido ya entregado al que además le faltaba la
-	//    cotización contestaba «primero cotiza el domicilio», un consejo imposible de
+	//    cotización contestaba «primero cotiza el domicilio» (motivo que ya no existe, 16/10/2026), un consejo imposible de
 	//    seguir: el pedido está en casa del cliente. La prioridad de los mensajes está
-	//    escrita en UN sitio, `porQueNoSePudoColocar` (entregado, ruta, domicilio, cotización,
+	//    escrita en UN sitio, `porQueNoSePudoColocar` (entregado, ruta, domicilio,
 	//    zona), y una segunda lista de comprobaciones antes de ella es una segunda prioridad.
 	//  · LA REGLA ESTABA TRES VECES: en el `WHERE` de `ColocarPedido`, en esta lectura y en
 	//    `porQueNoSePudoColocar`. La que manda es la sentencia, que comprueba y escribe en el
@@ -1482,8 +1475,7 @@ func paramsDelContador(arg sqlc.ListarPedidosSinColocarParams) sqlc.ContarPedido
 // porQueNoSePudoColocar traduce el «cero filas» del INSERT.
 //
 // Cero filas puede ser seis cosas —el pedido no existe, es de otra sucursal, la columna no
-// es suya, el pedido ya va en un camión o ya se entregó, o su domicilio no está cobrado ni
-// cotizado— y no se responden igual: que ya vaya en una ruta es un 409 que la persona puede
+// es suya, el pedido ya va en un camión o ya se entregó, o su domicilio no está cobrado— y no se responden igual: que ya vaya en una ruta es un 409 que la persona puede
 // arreglar; que sea de otra sucursal es un 404 y NO se dice que existe, porque decirlo ya es
 // contar algo.
 func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, pedido, columna uuid.UUID) {
@@ -1509,19 +1501,8 @@ func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request,
 		httpx.Error(w, r, http.StatusConflict, msgYaVaEnUnaRuta)
 		return
 	}
-	// LAS DOS DE AMADO (07/10/2026), en el orden en que se arreglan: primero se cobra el
-	// domicilio en la factura y después se cotiza en Entrega, esto último sólo si el vendedor
-	// marcó domicilio (issue 10, 15/10/2026). Son las dos condiciones de `ColocarPedido` que
-	// dependen del dato del pedido, y la de la factura no está: lo que `ColocarPedido` no
-	// exige no se puede explicar aquí.
-	if p.FacturaDomicilio == nil || *p.FacturaDomicilio <= 0 {
-		httpx.Error(w, r, http.StatusConflict, msgTableroSinDomicilioCobrado)
-		return
-	}
-	if faltaLaCotizacion(p.PedidoCosto, p.RequiereDomicilio) {
-		httpx.Error(w, r, http.StatusConflict, msgTableroSinCotizar)
-		return
-	}
+	// Ya no hay motivo de dato (el cobro del domicilio y la cotización de Entrega se dejaron de
+	// exigir el 16/10/2026, TEMPORAL por Jose): `ColocarPedido` no exige nada del pedido.
 	// El pedido existe y está libre: entonces lo que no cuadra es la columna. Si existe y es de tu
 	// alcance pero está apagada (00022) es un 409 con su motivo; si no se puede leer, el 404.
 	if z, err := a.ObtenerColumna(r.Context(), columna); err == nil && !z.Activa {
@@ -1767,7 +1748,7 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	// casa —«nada se descarta en silencio»—: la zona se arma con lo que SÍ puede ir y cada
 	// tarjeta que se cae sale en `descartados`, nombrada por su número de operación y con
 	// qué hacer. Lo que se cae lo decide la regla de entrada a una ruta (facturado, con el
-	// domicilio cobrado y, si se marcó, cotizado): ahí NO hay aviso que deje pasar, bloquea.
+	// domicilio cobrado): ahí NO hay aviso que deje pasar, bloquea.
 	//
 	// La carrera de verdad sigue cubierta, y en el único sitio donde se puede cubrir: el
 	// `EngancharPedidoARuta` de la transacción devuelve cero filas si alguien se llevó el
@@ -1843,10 +1824,10 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		//
 		// PERO SÓLO SE DICE «LO PUSIERON DESPUÉS» DE LAS QUE SERÍAN BUENAS — 08/10/2026. El
 		// aparato manda `pedidoIds` con las buenas solamente (replica estas mismas reglas), así
-		// que una tarjeta de la zona sin cotizar o sin domicilio cobrado NO viene en su lista y
+		// que una tarjeta de la zona sin domicilio cobrado NO viene en su lista y
 		// caía aquí con un motivo FALSO: «lo pusieron después de que armaras», cuando lleva ahí
 		// desde antes y lo que le pasa es que no se puede cargar. Quien lo leía en el cajón de la
-		// APK iba a buscar quién la había puesto, y el arreglo es cotizarla. Ahora esas se
+		// APK iba a buscar quién la había puesto, y el arreglo es cobrarlo en la factura. Ahora esas se
 		// nombran con SU motivo de verdad (`motivoDeCorteDelArmado`, el mismo del bucle de abajo).
 		porID := make(map[uuid.UUID]sqlc.PedidosDeColumnaParaArmarRutaRow, len(candidatos))
 		for _, p := range candidatos {
@@ -1869,10 +1850,10 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// El corte por factura, domicilio y cotización se hace AQUÍ y no en el SQL, para poder
+	// El corte por factura y domicilio cobrado se hace AQUÍ y no en el SQL, para poder
 	// nombrar cuál falla y por qué. Un WHERE que los descartara en la consulta deja el mismo
 	// rechazo sin nada que decir. `cambiado` SÍ sube (issue 10, 15/10/2026: al camión va lo
-	// facturado) y las dos últimas son de Amado, 07/10/2026.
+	// facturado) y el cobro es de Amado, 07/10/2026 (la cotización se dejó de exigir el 16/10/2026).
 	var buenos []sqlc.PedidosDeColumnaParaArmarRutaRow
 	for _, p := range candidatos {
 		// Si el aparato dijo qué iba, lo que él no eligió NO sube: ya se nombró arriba.
@@ -1941,8 +1922,8 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	costoTotal := 0.0
 	for _, p := range buenos {
 		pesoTotal += p.Weight
-		if p.PedidoCosto != nil {
-			costoTotal += *p.PedidoCosto
+		if c := costoDeLaParada(p.PedidoCosto, p.FacturaDomicilio); c != nil {
+			costoTotal += *c
 		}
 	}
 
@@ -2429,7 +2410,7 @@ func resultado(v *sqlc.StopResult) *string {
 }
 
 // motivoDeCorteDelArmado dice por qué una tarjeta de la zona NO puede subir a un camión, o ""
-// si puede. Es el corte por entregado, archivado, factura, domicilio cobrado y cotización, UNA
+// si puede. Es el corte por entregado, archivado, factura y domicilio cobrado, UNA
 // sola vez: lo usan el bucle que arma y el que nombra lo que el aparato no eligió, y si
 // tuvieran cada uno su copia, uno de los dos acabaría diciendo un motivo que no es.
 func motivoDeCorteDelArmado(p sqlc.PedidosDeColumnaParaArmarRutaRow) (motivo, queHacer string) {
@@ -2459,12 +2440,6 @@ func motivoDeCorteDelArmado(p sqlc.PedidosDeColumnaParaArmarRutaRow) (motivo, qu
 		// sube lo facturado. Lo que queda es sin factura.
 		motivo = "sin factura"
 		queHacer = "No tiene factura. Se le hace en PEDIDO y vuelve a armar."
-	case p.FacturaDomicilio == nil || *p.FacturaDomicilio <= 0:
-		motivo = "la factura no tiene domicilio cobrado"
-		queHacer = "Corrige o coteja la factura para registrar el cobro del domicilio antes de crear la ruta."
-	case faltaLaCotizacion(p.PedidoCosto, p.RequiereDomicilio):
-		motivo = "domicilio sin cotizar"
-		queHacer = "Cotiza el domicilio del pedido antes de crear la ruta."
 	}
 	return motivo, queHacer
 }

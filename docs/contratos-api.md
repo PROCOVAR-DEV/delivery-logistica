@@ -445,21 +445,17 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
    `"En una ruta sólo entra lo facturado con domicilio cobrado. <N> no cumplen: <detalle>"`,
    con el mismo formato de cinco nombrados + `" y <N-5> más."` / `"."`. El cero y los
    negativos no demuestran que se cobró.
-6-ter. **Domicilio cotizado, si el vendedor lo marcó** (Amado, 07/10/2026; acotado el
-   15/10/2026, issue 10): todo pedido con `requiereDomicilio = true` tiene que traer
-   `pedidoCosto` no nulo (el cero SÍ vale; nulo no). Uno sin marcar (`false` o `null`) no
-   lo necesita: Entrega sólo cotiza los marcados, y exigírselo lo dejaba fuera para siempre
-   (`faltaLaCotizacion`). Si alguno marcado no lo trae → `409`
-   `"No se puede crear la ruta: <N> pedidos no tienen cotizado el domicilio en Entrega: <detalle>"`
-   (mismo formato). **Bloquea, no avisa**: hasta el 07/10/2026 esto era un aviso («AVISO, no
-   portazo») y la respuesta del `201` podía llevar `{"ruta":…,"avisos":{"sinCosto":N}}`. Esa
-   forma **ya no existe**: la respuesta es siempre la ruta sola, con el id en la raíz.
-   Los tres cortes (6, 6-bis, 6-ter) van en ese orden y cada pedido sale **por su número de
-   operación** (ver «El conduce» más abajo).
-   La misma condición se repite, como segunda llave, en el `UPDATE` que engancha cada
-   pedido (`factura_domicilio > 0 AND (pedido_costo IS NOT NULL OR requiere_domicilio IS NOT
-   TRUE)`); si un pedido la perdió
-   entre la validación y el enganche, la ruta entera se deshace con el `409` de siempre.
+6-ter. **El domicilio cobrado (6-bis) y el cotizado ya NO se exigen** — TEMPORAL 16/10/2026 (Jose: «por ahora que entren todos los pedidos con facturas»; Amado: «lo que manda es el cobro en la factura»; ver CLAUDE.md §2). Entra todo lo
+   facturado (`igual` o `cambiado`); ni `factura_domicilio > 0`, ni `requiereDomicilio`, ni
+   `pedidoCosto` deciden. Los literales «…con domicilio cobrado…» y «…no tienen cotizado el
+   domicilio en Entrega…» **desaparecieron**. Para volver a exigir el cobro, restaurar
+   `factura_domicilio > 0` donde está el rótulo `TEMPORAL 16/10/2026 (Jose)` del SQL.
+   **El costo de la parada** (`costoDeLaParada`): `pedidoCosto` si existe y, si no,
+   `factura_domicilio` cuando es > 0; si no, nulo = sin cotizar (y sólo ese cuenta en
+   `paradas_sin_cotizar`). Es el `price` que se copia al enganchar y el `pedidoCosto` que
+   devuelven las paradas de la ruta. La respuesta del `201` es siempre la ruta sola, con el id en
+   la raíz (hasta el 07/10/2026 podía llevar `{"ruta":…,"avisos":{"sinCosto":N}}`).
+   Cada pedido que se rechaza sale **por su número de operación** (ver «El conduce» más abajo).
 7. Capacidad: `totalW = Σ orders.weight (|| 0)`. Si hay `vehicleId` y el vehículo existe y
    `totalW > vehicle.capacity` →
    `400 {"error":"Peso total (<totalW.toFixed(1)> kg) supera la capacidad del vehículo (<vehicle.capacity> kg)"}`
@@ -2543,8 +2539,6 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | `/api/routes` POST | 400 | `Los pedidos seleccionados ya no están disponibles: <detalle>` |
 | `/api/routes` POST | 409 | `<N> de los <M> pedidos elegidos no pueden ir en esta ruta: <detalle>[ y <K> más.\|.]` |
 | `/api/routes` POST | 409 | `En una ruta sólo entra lo facturado. <N> no cumplen: <conduce> (sin facturar\|sin cotejar)[ y <K> más.\|.]` |
-| `/api/routes` POST | 409 | `En una ruta sólo entra lo facturado con domicilio cobrado. <N> no cumplen: <detalle>[ y <K> más.\|.]` |
-| `/api/routes` POST | 409 | `No se puede crear la ruta: <N> pedidos no tienen cotizado el domicilio en Entrega: <detalle>[ y <K> más.\|.]` |
 | `/api/routes` POST, `/api/routes/[id]` PATCH, `/api/board/columns/[id]/route` | 400 | `El vehículo está inactivo y no se puede asignar a una ruta.` |
 | `/api/routes` POST | 400 | `Peso total (<X.X> kg) supera la capacidad del vehículo (<C> kg)` |
 | `/api/routes/{id}/stops/{orderId}` DELETE | 400 | `Identificador de pedido no válido` |

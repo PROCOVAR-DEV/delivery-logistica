@@ -60,8 +60,8 @@ class PantallaPedidos extends ConsumerStatefulWidget {
   /// El texto literal de la franja azul del arranque acotado.
   static const franjaAzul =
       'Enseñando sólo lo que tiene factura —cuadre o no— y sin archivar. A una '
-      'ruta entra lo facturado con el domicilio cobrado, y cotizado en Entrega '
-      'si el vendedor lo marcó: si la factura cambió, al camión va lo facturado.';
+      'ruta entra lo facturado con el domicilio cobrado: si la factura cambió, '
+      'al camión va lo facturado.';
 
   /// El gesto de la barra de lo marcado que abre el cajón del tablero. Literal
   /// aquí arriba para que la prueba busque lo que lee quien está delante.

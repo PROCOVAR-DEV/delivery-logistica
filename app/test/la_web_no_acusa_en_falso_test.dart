@@ -701,11 +701,16 @@ void main() {
         const PantallaVehiculos(),
       );
 
-      expect(find.textContaining('Sin conexión.'), findsOneWidget);
+      // Issue 14 (16/10/2026): en el aparato la flota sale de la BASE LOCAL, no
+      // del servidor, así que ya no hay «Sin conexión.» (no se preguntó a nadie);
+      // lo que sigue diciéndose, y es lo que esta prueba vigila, es que el aparato
+      // no la ha descargado: no «no hay vehículos».
       expect(
         find.textContaining('no ha descargado la flota todavía'),
         findsOneWidget,
       );
+      expect(find.textContaining('Sin conexión.'), findsNothing);
+      expect(find.text('Sin vehículos'), findsNothing);
 
       await desmontar(tester);
     });

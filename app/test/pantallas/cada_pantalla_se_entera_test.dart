@@ -24,6 +24,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
+import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
+import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/nucleo/red/eventos.dart' show avisoDeQueVolvimos;
 import 'package:reparto/nucleo/refresco_en_vivo.dart';
@@ -82,7 +84,11 @@ void main() {
   // 1. VEHÍCULOS
   // -------------------------------------------------------------------------
 
-  Future<void> pintarVehiculos(WidgetTester tester, veh.Banco banco) async {
+  Future<void> pintarVehiculos(
+    WidgetTester tester,
+    veh.Banco banco, {
+    bool web = true,
+  }) async {
     tester.view.physicalSize = const Size(1440, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -91,6 +97,15 @@ void main() {
       ProviderScope(
         overrides: [
           baseProvider.overrideWithValue(banco.base),
+          // LA WEB: desde el issue 14 (16/10/2026) el aparato lee la flota de su
+          // base y se repinta por Drift (`la_flota_sin_conexion_test.dart`); lo
+          // que aquí se vigila —el aviso en vivo vuelve a PEDIR— es el camino
+          // directo al servidor, que es el de la web.
+          if (web) trabajaSinConexionProvider.overrideWithValue(false),
+          if (!web)
+            almacenSesionProvider.overrideWithValue(
+              AlmacenEnMemoria(veh.sesionDePrueba),
+            ),
           clienteApiProvider.overrideWithValue(
             banco.contenedor.read(clienteApiProvider),
           ),
@@ -183,6 +198,41 @@ void main() {
   // esto se sume SOLO al tipo de cada pantalla, sin que nadie tenga que
   // acordarse: olvidarlo no falla, y ése es justo el modo de fallo que hay que
   // cerrar.
+  // EL APARATO (§3-ter): monta con la base VACÍA y la bajada llega DESPUÉS, sin
+  // volver a montar. Es lo que sustituye, en la APK y el escritorio, a «el aviso
+  // vuelve a pedir» de arriba: aquí el ciclo escribe en la base y Drift repinta.
+  testWidgets(
+    'Vehículos, en el APARATO: la flota que baja después se pinta sola',
+    (tester) async {
+      final banco = veh.Banco.sinRed();
+      addTearDown(banco.cerrar);
+      await pintarVehiculos(tester, banco, web: false);
+      expect(
+        find.textContaining('no ha descargado la flota todavía'),
+        findsOneWidget,
+      );
+      expect(find.text('Camión #0'), findsNothing);
+
+      // Esto es lo que deja el ciclo al aplicar la bajada.
+      await veh.sembrarFlotaBajada(banco.base);
+      await asentar(tester);
+
+      expect(
+        find.text('Camión #0'),
+        findsOneWidget,
+        reason:
+            'el aparato lee la flota de la base con un stream: si la bajada no la '
+            'repinta, el aviso en vivo no sirve de nada aunque llegue',
+      );
+      expect(
+        find.textContaining('no ha descargado la flota todavía'),
+        findsNothing,
+      );
+
+      await desmontar(tester);
+    },
+  );
+
   testWidgets('Vehículos: al volver el canal se pone al día, aunque no haya '
       'llegado ningún aviso suyo', (tester) async {
     var nombre = 'Camión viejo';

@@ -31,6 +31,7 @@ abstract final class EsquemaTablero {
   static const columnas = 'board_columns';
   static const colocaciones = 'board_placements';
   static const desaparecidos = 'board_desaparecidos';
+  static const sinPedido = 'board_sin_pedido';
 
   /// Las dos colecciones que la sincronizacion gana en `cambios`
   /// (`docs/tablero.md` §9). Se usan como clave en la tabla `frescura`, que es
@@ -126,6 +127,19 @@ CREATE TABLE IF NOT EXISTS $desaparecidos (
   customer_name    TEXT,
   columna          TEXT,
   visto_at         TEXT
+)''',
+    // LAS TARJETAS QUE EL SERVIDOR TIENE PUESTAS Y ESTE APARATO NO PUEDE
+    // GUARDAR, porque su pedido no esta en esta base (archivado en PEDIDO, o
+    // todavia sin bajar). No son tarjetas —no se pintan, no pesan, no se
+    // arrastran—, pero SIGUEN PUESTAS arriba, y arriba borrar la zona las
+    // cuenta. Sin esta tabla, una zona con nueve de esas se veia vacia, se
+    // borraba de la pantalla, el servidor contestaba 409 «tiene 9 pedidos
+    // puestos» y la zona volvia (issue 15 de Amado, 16/10/2026). Se llena entera
+    // en cada bajada del tablero y solo sirve para CONTAR.
+    '''
+CREATE TABLE IF NOT EXISTS $sinPedido (
+  order_id  TEXT NOT NULL PRIMARY KEY,
+  column_id TEXT NOT NULL
 )''',
     // El disparador va sobre `orders` y es BEFORE DELETE porque despues del
     // borrado ya no queda nada que copiar: ni el numero de operacion ni de que

@@ -512,7 +512,10 @@ abstract final class AccionesTablero {
     // Se pregunta en un CAJÓN y no en una ventana modal, que es la regla de la
     // casa desde el 05/09/2026. Y el botón de borrar va en rojo y nombra la
     // zona: «Sí, borrar X» dice qué se va; «Aceptar» no dice nada.
-    if (columna.pedidos == 0) {
+    // LOS QUE CUENTA EL SERVIDOR, no sólo las tarjetas que se ven: ver
+    // `ColumnaTablero.sinPedido`.
+    final puestos = columna.pedidos + columna.sinPedido;
+    if (puestos == 0) {
       final seguro = await mostrarCajon<bool>(
         context: context,
         titulo: 'Borrar «${columna.nombre}»',
@@ -563,19 +566,33 @@ abstract final class AccionesTablero {
       // tenía abierto otro agente el día que se hizo esto, así que queda
       // apuntado en vez de tocado — y es el §3-bis: dos copias de la misma
       // frase que ya no dicen lo mismo.
-      titulo: columna.pedidos == 1
+      titulo: puestos == 1
           ? '«${columna.nombre}» tiene 1 pedido puesto'
-          : '«${columna.nombre}» tiene ${columna.pedidos} pedidos puestos',
+          : '«${columna.nombre}» tiene $puestos pedidos puestos',
       contenido: (contexto) => Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text('¿Qué se hace con ellos?'),
+          if (columna.sinPedido > 0) ...[
+            const SizedBox(height: 4),
+            // Que el número no desconcierte: la zona enseña menos tarjetas que
+            // las que cuenta el servidor.
+            Text(
+              '${columna.sinPedido} de ellos no se ven en este aparato '
+              '(sus pedidos no están cargados aquí, por ejemplo porque los '
+              'archivaron), pero siguen puestos en el servidor.',
+              style: Theme.of(contexto).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: 12),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.undo),
-            title: const Text('Devolverlos a «sin colocar» y borrar'),
+            title: Text(
+              'Devolver ${puestos == 1 ? 'el pedido' : 'los $puestos pedidos'} '
+              'a «Sin colocar» y borrar',
+            ),
             onTap: () {
               Navigator.of(contexto).pop();
               hacer(
@@ -590,7 +607,10 @@ abstract final class AccionesTablero {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.drive_file_move_outlined),
-            title: const Text('Mandarlos a otra columna y borrar'),
+            title: Text(
+              'Mover ${puestos == 1 ? 'el pedido' : 'los $puestos pedidos'} '
+              'a otra zona y borrar',
+            ),
             onTap: () {
               Navigator.of(contexto).pop();
               _elegirDestino(

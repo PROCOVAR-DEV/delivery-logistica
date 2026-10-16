@@ -700,7 +700,12 @@ class RepositorioTablero {
     String? destinoId,
   }) async {
     await _listo();
-    final dentro = await _cuantosEn(columnaId);
+    // LO MISMO QUE CUENTA EL SERVIDOR: las tarjetas de aqui MAS las que arriba
+    // estan puestas y este aparato no puede guardar (`board_sin_pedido`). Contar
+    // solo las primeras dejaba borrar «Versalles (0)» con nueve puestas arriba:
+    // el servidor decia 409 y la zona volvia (issue 15 de Amado).
+    final dentro =
+        await _cuantosEn(columnaId) + await _cuantosSinPedido(columnaId);
     if (dentro > 0 && !vaciar && destinoId == null) {
       final nombre = await _nombreDe(columnaId);
       throw RechazoDelTablero(
@@ -718,6 +723,10 @@ class RepositorioTablero {
       await _base.customStatement('DELETE FROM $_tablaColumnas WHERE id = ?1', [
         columnaId,
       ]);
+      await _base.customStatement(
+        'DELETE FROM ${EsquemaTablero.sinPedido} WHERE column_id = ?1',
+        [columnaId],
+      );
       final cola = destinoId != null
           ? '?destino=$destinoId'
           : (vaciar ? '?vaciar=1' : '');
@@ -1246,6 +1255,20 @@ class RepositorioTablero {
     final fila = await _base
         .customSelect(
           'SELECT count(*) AS n FROM $_tablaColocaciones WHERE column_id = ?1',
+          variables: [Variable<String>(columnaId)],
+        )
+        .getSingle();
+    return fila.read<int>('n');
+  }
+
+  /// Las puestas arriba que este aparato no puede enseñar; las que ya tienen su
+  /// pedido aqui no cuentan dos veces.
+  Future<int> _cuantosSinPedido(String columnaId) async {
+    final fila = await _base
+        .customSelect(
+          'SELECT count(*) AS n FROM ${EsquemaTablero.sinPedido} s '
+          'WHERE s.column_id = ?1 AND NOT EXISTS '
+          '(SELECT 1 FROM $_tablaColocaciones p WHERE p.order_id = s.order_id)',
           variables: [Variable<String>(columnaId)],
         )
         .getSingle();

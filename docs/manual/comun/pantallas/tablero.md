@@ -143,8 +143,13 @@ desde PV-STGO
 - **«no cabe»** en ámbar cuando el peso pasa de la capacidad del camión. **Es un
   aviso, no un bloqueo**: la ruta se puede armar igual.
 - **«Camión: F-350»** o **«Camión: —»**.
-- **«sin subir»** o **«rechazada»** en ámbar, cuando esa zona tiene trabajo que no
-  ha llegado al servidor.
+- **«sin subir»** o **«rechazada: ver por qué»** en ámbar (solo APK y escritorio),
+  cuando esa zona tiene trabajo que no ha llegado al servidor. Tocar «rechazada»
+  abre un cajón con **lo que dijo el servidor, tal cual** (por ejemplo «Centro»
+  tiene 8 pedidos puestos) y dos botones: **Reintentar** y **Descartar**.
+  Descartar deja la zona como está en el servidor. Si lo rechazado era borrar la
+  zona, no sirve reintentar: abre «Borrar la columna» y elige qué hacer con sus
+  pedidos.
 - **«desde PV-STGO»** — el almacén del que sale la ruta de esa zona (su **punto de
   salida**) y desde el que se miden los km de sus pedidos. Si el punto elegido ya no
   sirve, en su lugar sale el motivo en ámbar, por ejemplo «AURORA está dado de baja en
@@ -291,8 +296,8 @@ Hay dos diálogos distintos:
   no se pierde trabajo del día, pero la zona hay que volver a crearla a mano con su
   nombre.» Botones: **«Sí, borrar «Centro»»** y **«No, dejarla»**.
 - **Zona con pedidos** — «**«Centro» tiene 8 pedidos puestos**. ¿Qué se hace con
-  ellos?» y dos salidas: **«Devolverlos a «sin colocar» y borrar»** o **«Mandarlos
-  a otra columna y borrar»**.
+  ellos?» y dos salidas: **«Devolver los 8 pedidos a «Sin colocar» y borrar»** o **«Mover los 8 pedidos
+  a otra zona y borrar»**. Cuenta los que cuenta el servidor, también los que este aparato no ve (por ejemplo, pedidos ya archivados): lo dice debajo.
 
 **No se puede borrar una zona con pedidos sin decidir antes qué pasa con ellos.**
 

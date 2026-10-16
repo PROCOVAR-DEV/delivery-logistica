@@ -143,6 +143,9 @@ COPY docs/reordenar-paradas.casos.json /docs/reordenar-paradas.casos.json
 COPY docs/orden-sin-colocar.casos.json /docs/orden-sin-colocar.casos.json
 # `docs/fecha-de-la-factura.casos.json` (16/10/2026): el día de la factura en hora de Cuba; lo leen las pruebas del servidor y del aparato.
 COPY docs/fecha-de-la-factura.casos.json /docs/fecha-de-la-factura.casos.json
+# `internal/api/zonas_inactivas_casos_compartidos_test.go` lee `docs/zonas-inactivas.casos.json`
+# (00022, 16/10/2026): el motivo de una zona inactiva, el mismo literal que el aparato.
+COPY docs/zonas-inactivas.casos.json /docs/zonas-inactivas.casos.json
 
 # LAS PRUEBAS, ANTES DE CONSTRUIR. Los CUATRO Dockerfile lo hacen; éste era el que
 # faltaba, y es el que más pintaba tenerlo.

@@ -1254,14 +1254,28 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 		salida.Faltan = append(salida.Faltan, "boardColumns", "boardPlacements")
 		salida.Aviso = "para bajar el tablero hace falta decir la sucursal (?sucursal=<id>)"
 	} else {
-		columnas, err := a.ListarColumnasDelTablero(r.Context(), *sucursal)
+		// ZONAS INACTIVAS (00022): por defecto NO bajan, y `?incluirInactivas=1` las trae todas.
+		// Se lee siempre la lista entera (con las apagadas) para poder decir algo de las que se
+		// acaban de apagar: sin eso, el aparato que ya tenía la zona no se enteraría nunca de que
+		// dejó de estar, porque lo que no se manda no borra nada.
+		todasLasZonas := incluirInactivas(r)
+		columnas, err := a.ListarColumnasDelTablero(r.Context(), *sucursal, true)
 		if err != nil {
 			httpx.ErrorInterno(w, r, err)
 			return
 		}
 		puestos = nil
 		vivas = make(map[string]bool, len(columnas))
+		apagadas := []string{}
 		for _, c := range columnas {
+			if !c.Activa && !todasLasZonas {
+				// Una apagada que cambió desde la marca (se apagó, o se renombró apagada) sale en
+				// `quitados`: el aparato la borra de su copia. Las que no cambiaron, ya las borró.
+				if cambioDesde(c.UpdatedAt, desde) && desde != nil {
+					apagadas = append(apagadas, c.ID.String())
+				}
+				continue
+			}
 			vivas[c.ID.String()] = true
 			if !cambioDesde(c.UpdatedAt, desde) {
 				continue
@@ -1269,7 +1283,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 			puestos = append(puestos, map[string]any{
 				"id": c.ID, "branchId": c.BranchID, "nombre": c.Nombre,
 				"posicion": c.Posicion, "vehiculoId": idOpcional(c.VehicleID),
-				"almacenId": c.AlmacenID, "updatedAt": hora(c.UpdatedAt),
+				"almacenId": c.AlmacenID, "activa": c.Activa, "updatedAt": hora(c.UpdatedAt),
 			})
 		}
 		// AQUÍ SÍ VA LA SUCURSAL PEDIDA (`ventana`, no `ventanaDelAlcance`): las dos
@@ -1283,7 +1297,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		anotarCorte(corteCol)
-		salida.Cambios["boardColumns"] = conjuntoCon(puestos, quitadas)
+		salida.Cambios["boardColumns"] = conjuntoCon(puestos, append(quitadas, apagadas...))
 
 		// El origen va en (0,0) A PROPÓSITO: el `km_al_almacen` de esta consulta no se
 		// usa en la bajada. El aparato recalcula la cercanía él mismo con el almacén que

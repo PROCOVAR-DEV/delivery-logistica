@@ -573,6 +573,7 @@ type BoardColumn struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 	AlmacenID *string            `json:"almacen_id"`
+	Activa    bool               `json:"activa"`
 }
 
 type BoardPlacement struct {

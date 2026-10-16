@@ -32,7 +32,7 @@
 -- name: ListarColumnasDelTablero :many
 SELECT
     c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-    c.created_at, c.updated_at, c.almacen_id,
+    c.created_at, c.updated_at, c.almacen_id, c.activa,
     v.name     AS vehiculo_nombre,
     v.plate    AS vehiculo_matricula,
     v.capacity AS vehiculo_capacidad,
@@ -56,13 +56,17 @@ LEFT JOIN LATERAL (
 ) t ON true
 WHERE c.branch_id = sqlc.arg('branch_id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)
+  -- ZONAS INACTIVAS (00022): sólo salen si se piden (`?incluirInactivas=1`). Esta es LA lista de
+  -- zonas del tablero —`GET /api/board`, el reorden y la bajada del aparato—: filtrar aquí y no
+  -- en cada manejador es lo que impide que una pantalla se olvide.
+  AND (c.activa OR sqlc.arg('incluir_inactivas')::boolean)
 ORDER BY c.posicion ASC, c.created_at ASC;
 
 -- Cero filas es «no existe O no es de tu sucursal»: desde fuera son lo mismo, y tienen que
 -- serlo, porque decir «existe pero no es tuya» ya es contar algo.
 -- name: ObtenerColumna :one
 SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-       c.created_at, c.updated_at, c.almacen_id
+       c.created_at, c.updated_at, c.almacen_id, c.activa
 FROM board_columns c
 WHERE c.id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid);
@@ -107,9 +111,9 @@ WITH nueva AS (
     WHERE b.id = sqlc.arg('branch_id')
       AND (sqlc.narg('sucursal')::uuid IS NULL OR b.id = sqlc.narg('sucursal')::uuid)
     ON CONFLICT (id) DO NOTHING
-    RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id
+    RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id, activa
 )
-SELECT id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id
+SELECT id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id, activa
 FROM nueva
 UNION ALL
 -- LA QUE YA ESTABA. Es la rama del reintento: el aparato mandó dos veces el mismo id
@@ -118,7 +122,7 @@ UNION ALL
 -- Va acotada igual que el `INSERT`: sin el `branch_id` aquí, mandar el id de la zona de
 -- otra sucursal la devolvería, y eso es enseñar lo que no es de uno.
 SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-       c.created_at, c.updated_at, c.almacen_id
+       c.created_at, c.updated_at, c.almacen_id, c.activa
 FROM board_columns c
 WHERE sqlc.narg('id')::uuid IS NOT NULL
   AND c.id = sqlc.narg('id')::uuid
@@ -136,10 +140,13 @@ UPDATE board_columns SET
     vehicle_id = CASE WHEN sqlc.arg('tocar_vehiculo')::boolean
                       THEN sqlc.narg('vehicle_id')::uuid ELSE vehicle_id END,
     almacen_id = CASE WHEN sqlc.arg('tocar_almacen')::boolean
-                      THEN sqlc.narg('almacen_id')::text ELSE almacen_id END
+                      THEN sqlc.narg('almacen_id')::text ELSE almacen_id END,
+    -- `activa` (00022): nulo = «no me lo toques», como el nombre. Inactivar sus pedidos lo hace
+    -- el manejador en la MISMA transacción (`VaciarColumna` + esta sentencia).
+    activa     = coalesce(sqlc.narg('activa')::boolean, activa)
 WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
-RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id;
+RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id, activa;
 
 -- Reordenar el tablero entero de una vez: llega la lista de ids en el orden nuevo y la
 -- posición de cada uno es su sitio en esa lista.
@@ -195,6 +202,8 @@ WHERE p.column_id = origen.id
   AND origen.id  = sqlc.arg('columna_origen')
   AND destino.id = sqlc.arg('columna_destino')
   AND origen.branch_id = destino.branch_id
+  -- Una zona inactiva no recibe tarjetas (00022): cero filas y el manejador lo dice.
+  AND destino.activa
   AND (sqlc.narg('sucursal')::uuid IS NULL OR origen.branch_id = sqlc.narg('sucursal')::uuid);
 
 -- Con `ON DELETE RESTRICT` en las colocaciones, esto falla si la columna tiene algo dentro.
@@ -756,6 +765,8 @@ WITH puesta AS (
     WHERE o.id = sqlc.arg('pedido_id')
       AND c.id = sqlc.arg('columna_id')
       AND o.branch_id = c.branch_id
+      -- Una zona inactiva no admite tarjetas (00022). Quien lo traduce al 409 es `porQueNoSePudoColocar`.
+      AND c.activa
       AND o.route_id IS NULL
       -- Y NO SE PUEDE COLOCAR LO QUE YA SE ENTREGÓ. `route_id IS NULL` no lo cubre: la
       -- clave ajena es `ON DELETE SET NULL`, así que borrar la ruta de ayer deja sueltos a
@@ -765,6 +776,10 @@ WITH puesta AS (
       AND o.factura_domicilio > 0
       AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
       AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)
+    -- `FOR SHARE OF c`: inactivar la zona (UPDATE) espera a que esta colocación acabe, o ésta
+    -- espera a que aquélla acabe y entonces ve `activa = false`. Sin el candado, una tarjeta
+    -- podía colarse en una zona recién apagada, donde no la vería nadie ni «Sin colocar».
+    FOR SHARE OF c
     ON CONFLICT (order_id) DO UPDATE SET
         column_id    = excluded.column_id,
         posicion     = excluded.posicion,

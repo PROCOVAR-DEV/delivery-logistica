@@ -45,10 +45,13 @@ UPDATE board_columns SET
     vehicle_id = CASE WHEN $2::boolean
                       THEN $3::uuid ELSE vehicle_id END,
     almacen_id = CASE WHEN $4::boolean
-                      THEN $5::text ELSE almacen_id END
-WHERE id = $6
-  AND ($7::uuid IS NULL OR branch_id = $7::uuid)
-RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id
+                      THEN $5::text ELSE almacen_id END,
+    -- ` + "`" + `activa` + "`" + ` (00022): nulo = «no me lo toques», como el nombre. Inactivar sus pedidos lo hace
+    -- el manejador en la MISMA transacción (` + "`" + `VaciarColumna` + "`" + ` + esta sentencia).
+    activa     = coalesce($6::boolean, activa)
+WHERE id = $7
+  AND ($8::uuid IS NULL OR branch_id = $8::uuid)
+RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id, activa
 `
 
 type ActualizarColumnaParams struct {
@@ -57,6 +60,7 @@ type ActualizarColumnaParams struct {
 	VehicleID     pgtype.UUID `json:"vehicle_id"`
 	TocarAlmacen  bool        `json:"tocar_almacen"`
 	AlmacenID     *string     `json:"almacen_id"`
+	Activa        *bool       `json:"activa"`
 	ID            uuid.UUID   `json:"id"`
 	Sucursal      pgtype.UUID `json:"sucursal"`
 }
@@ -72,6 +76,7 @@ func (q *Queries) ActualizarColumna(ctx context.Context, arg ActualizarColumnaPa
 		arg.VehicleID,
 		arg.TocarAlmacen,
 		arg.AlmacenID,
+		arg.Activa,
 		arg.ID,
 		arg.Sucursal,
 	)
@@ -86,6 +91,7 @@ func (q *Queries) ActualizarColumna(ctx context.Context, arg ActualizarColumnaPa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AlmacenID,
+		&i.Activa,
 	)
 	return i, err
 }
@@ -206,6 +212,8 @@ WITH puesta AS (
     WHERE o.id = $3
       AND c.id = $4
       AND o.branch_id = c.branch_id
+      -- Una zona inactiva no admite tarjetas (00022). Quien lo traduce al 409 es ` + "`" + `porQueNoSePudoColocar` + "`" + `.
+      AND c.activa
       AND o.route_id IS NULL
       -- Y NO SE PUEDE COLOCAR LO QUE YA SE ENTREGÓ. ` + "`" + `route_id IS NULL` + "`" + ` no lo cubre: la
       -- clave ajena es ` + "`" + `ON DELETE SET NULL` + "`" + `, así que borrar la ruta de ayer deja sueltos a
@@ -215,6 +223,10 @@ WITH puesta AS (
       AND o.factura_domicilio > 0
       AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
       AND ($5::uuid IS NULL OR c.branch_id = $5::uuid)
+    -- ` + "`" + `FOR SHARE OF c` + "`" + `: inactivar la zona (UPDATE) espera a que esta colocación acabe, o ésta
+    -- espera a que aquélla acabe y entonces ve ` + "`" + `activa = false` + "`" + `. Sin el candado, una tarjeta
+    -- podía colarse en una zona recién apagada, donde no la vería nadie ni «Sin colocar».
+    FOR SHARE OF c
     ON CONFLICT (order_id) DO UPDATE SET
         column_id    = excluded.column_id,
         posicion     = excluded.posicion,
@@ -565,13 +577,13 @@ WITH nueva AS (
     WHERE b.id = $6
       AND ($7::uuid IS NULL OR b.id = $7::uuid)
     ON CONFLICT (id) DO NOTHING
-    RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id
+    RETURNING id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id, activa
 )
-SELECT id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id
+SELECT id, branch_id, nombre, posicion, vehicle_id, creado_por, created_at, updated_at, almacen_id, activa
 FROM nueva
 UNION ALL
 SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-       c.created_at, c.updated_at, c.almacen_id
+       c.created_at, c.updated_at, c.almacen_id, c.activa
 FROM board_columns c
 WHERE $1::uuid IS NOT NULL
   AND c.id = $1::uuid
@@ -600,6 +612,7 @@ type CrearColumnaRow struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 	AlmacenID *string            `json:"almacen_id"`
+	Activa    bool               `json:"activa"`
 }
 
 // La posición se calcula aquí y no la manda la pantalla: una columna nueva va al final,
@@ -653,6 +666,7 @@ func (q *Queries) CrearColumna(ctx context.Context, arg CrearColumnaParams) (Cre
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AlmacenID,
+		&i.Activa,
 	)
 	return i, err
 }
@@ -662,7 +676,7 @@ const listarColumnasDelTablero = `-- name: ListarColumnasDelTablero :many
 
 SELECT
     c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-    c.created_at, c.updated_at, c.almacen_id,
+    c.created_at, c.updated_at, c.almacen_id, c.activa,
     v.name     AS vehiculo_nombre,
     v.plate    AS vehiculo_matricula,
     v.capacity AS vehiculo_capacidad,
@@ -686,12 +700,17 @@ LEFT JOIN LATERAL (
 ) t ON true
 WHERE c.branch_id = $1
   AND ($2::uuid IS NULL OR c.branch_id = $2::uuid)
+  -- ZONAS INACTIVAS (00022): sólo salen si se piden (` + "`" + `?incluirInactivas=1` + "`" + `). Esta es LA lista de
+  -- zonas del tablero —` + "`" + `GET /api/board` + "`" + `, el reorden y la bajada del aparato—: filtrar aquí y no
+  -- en cada manejador es lo que impide que una pantalla se olvide.
+  AND (c.activa OR $3::boolean)
 ORDER BY c.posicion ASC, c.created_at ASC
 `
 
 type ListarColumnasDelTableroParams struct {
-	BranchID uuid.UUID   `json:"branch_id"`
-	Sucursal pgtype.UUID `json:"sucursal"`
+	BranchID         uuid.UUID   `json:"branch_id"`
+	Sucursal         pgtype.UUID `json:"sucursal"`
+	IncluirInactivas bool        `json:"incluir_inactivas"`
 }
 
 type ListarColumnasDelTableroRow struct {
@@ -704,6 +723,7 @@ type ListarColumnasDelTableroRow struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	AlmacenID         *string            `json:"almacen_id"`
+	Activa            bool               `json:"activa"`
 	VehiculoNombre    *string            `json:"vehiculo_nombre"`
 	VehiculoMatricula *string            `json:"vehiculo_matricula"`
 	VehiculoCapacidad *float64           `json:"vehiculo_capacidad"`
@@ -743,7 +763,7 @@ type ListarColumnasDelTableroRow struct {
 // todavía no se sabe, y pintar «cabe» cuando nadie ha dicho en qué va es peor que no
 // pintar nada.
 func (q *Queries) ListarColumnasDelTablero(ctx context.Context, arg ListarColumnasDelTableroParams) ([]ListarColumnasDelTableroRow, error) {
-	rows, err := q.db.Query(ctx, listarColumnasDelTablero, arg.BranchID, arg.Sucursal)
+	rows, err := q.db.Query(ctx, listarColumnasDelTablero, arg.BranchID, arg.Sucursal, arg.IncluirInactivas)
 	if err != nil {
 		return nil, err
 	}
@@ -761,6 +781,7 @@ func (q *Queries) ListarColumnasDelTablero(ctx context.Context, arg ListarColumn
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.AlmacenID,
+			&i.Activa,
 			&i.VehiculoNombre,
 			&i.VehiculoMatricula,
 			&i.VehiculoCapacidad,
@@ -1287,6 +1308,8 @@ WHERE p.column_id = origen.id
   AND origen.id  = $1
   AND destino.id = $2
   AND origen.branch_id = destino.branch_id
+  -- Una zona inactiva no recibe tarjetas (00022): cero filas y el manejador lo dice.
+  AND destino.activa
   AND ($3::uuid IS NULL OR origen.branch_id = $3::uuid)
 `
 
@@ -1313,7 +1336,7 @@ func (q *Queries) MoverPedidosDeColumna(ctx context.Context, arg MoverPedidosDeC
 
 const obtenerColumna = `-- name: ObtenerColumna :one
 SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.creado_por,
-       c.created_at, c.updated_at, c.almacen_id
+       c.created_at, c.updated_at, c.almacen_id, c.activa
 FROM board_columns c
 WHERE c.id = $1
   AND ($2::uuid IS NULL OR c.branch_id = $2::uuid)
@@ -1339,6 +1362,7 @@ func (q *Queries) ObtenerColumna(ctx context.Context, arg ObtenerColumnaParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.AlmacenID,
+		&i.Activa,
 	)
 	return i, err
 }

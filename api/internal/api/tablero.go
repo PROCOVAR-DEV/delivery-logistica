@@ -167,11 +167,24 @@ const (
 	// arregla; aquí el camión es el PREVISTO DE LA ZONA y se pone en otro sitio —«Camión
 	// previsto», en las opciones de la zona—, así que el «no» tiene que decir dónde. Un
 	// rechazo que no dice dónde se arregla es un rechazo permanente.
+	// UNA ZONA INACTIVA (00022, 1.0.38) no admite tarjetas ni arma rutas. El literal, con su
+	// `%s` = nombre de la zona, está también en `docs/zonas-inactivas.casos.json`, que lee el
+	// aparato: si lo cambias, cambia los dos (una prueba los ata).
+	msgZonaInactiva  = "La zona «%s» está inactiva"
 	msgZonaSinCamion = "La zona no tiene camión previsto, y sin camión no se arma su ruta. " +
 		"Elígelo en «Camión previsto», en las opciones de la zona, y vuelve a armar: sin " +
 		"camión no hay capacidad contra la que medir la carga ni costo por km con el que " +
 		"cotizar el domicilio."
 )
+
+// zonaInactiva es el motivo literal de [msgZonaInactiva] con el nombre de la zona puesto.
+func zonaInactiva(nombre string) string { return fmt.Sprintf(msgZonaInactiva, nombre) }
+
+// incluirInactivas lee `?incluirInactivas=1` (o `true`): por defecto las zonas apagadas no salen.
+func incluirInactivas(r *http.Request) bool {
+	v := r.URL.Query().Get("incluirInactivas")
+	return v == "1" || v == "true"
+}
 
 // TopeSinColocar es el tope por defecto de la mitad izquierda. Se puede bajar por query,
 // no subir: la conexión de allá no da para más.
@@ -221,6 +234,8 @@ type ColumnaSalida struct {
 	// ruta lo dice con su motivo (`origenDeLaZona`)—.
 	AlmacenID *string        `json:"almacenId"`
 	Almacen   *PuntoDeSalida `json:"almacen"`
+	// ZONA ACTIVA O APAGADA (00022). Las apagadas sólo salen con `?incluirInactivas=1`.
+	Activa bool `json:"activa"`
 }
 
 // PuntoDeSalida es el almacén de una zona tal como lo enseña la cabecera: «desde AURORA».
@@ -641,7 +656,7 @@ func (s *Servidor) tablero(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	columnas, err := a.ListarColumnasDelTablero(r.Context(), t.sucursal)
+	columnas, err := a.ListarColumnasDelTablero(r.Context(), t.sucursal, incluirInactivas(r))
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
@@ -875,6 +890,8 @@ type cuerpoColumna struct {
 	// El punto de salida de la zona (00020): el id del almacén de Accesos. Ver
 	// `almacenDelCuerpo`.
 	AlmacenID httpx.Opcional[string] `json:"almacenId"`
+	// Activar o inactivar la zona (00022). Ausente o null = no se toca.
+	Activa httpx.Opcional[bool] `json:"activa"`
 
 	// EL ID QUE PONE EL APARATO. Opcional: sin él lo pone la base, como siempre.
 	//
@@ -1043,7 +1060,23 @@ func (s *Servidor) actualizarColumna(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fila, err := a.ActualizarColumna(r.Context(), arg)
+	// INACTIVAR (00022): las tarjetas vuelven a «Sin colocar» —lo mismo que `?vaciar=1` del
+	// borrado— y la zona queda apagada, en UNA transacción: o pasa todo o no pasa nada. Si la zona
+	// no es de tu alcance `ActualizarColumna` da cero filas y el 404 deshace el vaciado. ACTIVAR
+	// sólo enciende: se enciende vacía porque al apagarse se vació.
+	arg.Activa = c.Activa.Valor
+	var fila sqlc.BoardColumn
+	err := a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
+		var err error
+		fila, err = tx.ActualizarColumna(r.Context(), arg)
+		if err != nil {
+			return err
+		}
+		if arg.Activa != nil && !*arg.Activa {
+			_, err = tx.VaciarColumna(r.Context(), id)
+		}
+		return err
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		httpx.Error(w, r, http.StatusNotFound, msgZonaNoEsta)
 		return
@@ -1118,7 +1151,7 @@ func (s *Servidor) reordenarColumnas(w http.ResponseWriter, r *http.Request) {
 	// Se devuelve el tablero recolocado y no un `{"ok":true}`: quien reordena quiere ver
 	// el resultado, y si alguno de los ids no era de este tablero (`n` < los mandados)
 	// la lista de vuelta lo enseña sin tener que pedirla otra vez.
-	columnas, err := a.ListarColumnasDelTablero(r.Context(), t.sucursal)
+	columnas, err := a.ListarColumnasDelTablero(r.Context(), t.sucursal, false)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
@@ -1178,6 +1211,15 @@ func (s *Servidor) borrarColumna(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
+	}
+
+	// Una zona inactiva no recibe tarjetas (00022): se dice con su motivo y no con el genérico de
+	// «no existe o es de otra sucursal». Si no se puede leer, lo dice `errDestinoNoVale` más abajo.
+	if destino != nil {
+		if d, err := a.ObtenerColumna(r.Context(), *destino); err == nil && !d.Activa {
+			httpx.Error(w, r, http.StatusConflict, zonaInactiva(d.Nombre))
+			return
+		}
 	}
 
 	var dentro int64
@@ -1362,7 +1404,7 @@ func (s *Servidor) colocarPedido(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		s.porQueNoSePudoColocar(w, r, a, pedido)
+		s.porQueNoSePudoColocar(w, r, a, pedido, columna)
 		return
 	}
 	// EL CHOQUE DE POSICIÓN ES UN 409 REINTENTABLE, NO UN 500.
@@ -1444,7 +1486,7 @@ func paramsDelContador(arg sqlc.ListarPedidosSinColocarParams) sqlc.ContarPedido
 // cotizado— y no se responden igual: que ya vaya en una ruta es un 409 que la persona puede
 // arreglar; que sea de otra sucursal es un 404 y NO se dice que existe, porque decirlo ya es
 // contar algo.
-func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, pedido uuid.UUID) {
+func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, pedido, columna uuid.UUID) {
 	p, err := a.TableroObtenerPedido(r.Context(), pedido)
 	if err != nil {
 		// Si no se puede leer —no existe, o es de otra sucursal—, 404 y punto.
@@ -1480,7 +1522,12 @@ func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request,
 		httpx.Error(w, r, http.StatusConflict, msgTableroSinCotizar)
 		return
 	}
-	// El pedido existe y está libre: entonces lo que no cuadra es la columna.
+	// El pedido existe y está libre: entonces lo que no cuadra es la columna. Si existe y es de tu
+	// alcance pero está apagada (00022) es un 409 con su motivo; si no se puede leer, el 404.
+	if z, err := a.ObtenerColumna(r.Context(), columna); err == nil && !z.Activa {
+		httpx.Error(w, r, http.StatusConflict, zonaInactiva(z.Nombre))
+		return
+	}
 	httpx.Error(w, r, http.StatusNotFound, msgZonaNoEsta)
 }
 
@@ -1666,6 +1713,11 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	// Una zona inactiva no arma ruta (00022), y se dice ANTES de pedirle nada a Accesos.
+	if !columna.Activa {
+		httpx.Error(w, r, http.StatusConflict, zonaInactiva(columna.Nombre))
 		return
 	}
 	suc, err := a.ObtenerSucursal(r.Context(), columna.BranchID)
@@ -2157,6 +2209,7 @@ func deColumnas(filas []sqlc.ListarColumnasDelTableroRow, almacenes []Almacen) [
 			ExcedeCamion: f.ExcedeCamion,
 			CreatedAt:    hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
 			AlmacenID: f.AlmacenID, Almacen: puntoDe(f.AlmacenID, almacenes),
+			Activa: f.Activa,
 		})
 	}
 	return salida
@@ -2173,6 +2226,7 @@ func deColumnaPelada(c sqlc.BoardColumn, almacenes []Almacen) ColumnaSalida {
 		VehicleID: idOpcional(c.VehicleID),
 		CreatedAt: hora(c.CreatedAt), UpdatedAt: hora(c.UpdatedAt),
 		AlmacenID: c.AlmacenID, Almacen: puntoDe(c.AlmacenID, almacenes),
+		Activa: c.Activa,
 	}
 }
 

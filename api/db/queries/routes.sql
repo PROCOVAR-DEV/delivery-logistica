@@ -671,14 +671,19 @@ WITH liberada AS (
       AND o.order_id = sqlc.arg('pedido_id')
       AND EXISTS (SELECT 1 FROM liberada)
     RETURNING o.order_id, o.column_id, o.posicion, o.colocado_por
+), origen_vivo AS (
+    -- El origen se borra siempre, pero sólo se RESTAURA a una zona activa (00022).
+    SELECT o.order_id, o.column_id, o.posicion, o.colocado_por
+    FROM origen o
+    JOIN board_columns zona ON zona.id = o.column_id AND zona.activa
 ), corrimientos AS (
     UPDATE board_placements p SET posicion = p.posicion + 1
-    FROM origen o
+    FROM origen_vivo o
     WHERE p.column_id = o.column_id AND p.posicion >= o.posicion
     RETURNING p.order_id
 ), restaurada AS (
     INSERT INTO board_placements (order_id, column_id, posicion, colocado_por)
-    SELECT order_id, column_id, posicion, colocado_por FROM origen
+    SELECT order_id, column_id, posicion, colocado_por FROM origen_vivo
     ON CONFLICT (order_id) DO NOTHING
     RETURNING order_id
 )
@@ -696,6 +701,9 @@ WITH origenes AS (
     FROM board_route_origins o
     JOIN routes r ON r.id = o.route_id
     JOIN orders pedido ON pedido.id = o.order_id
+    -- Y A UNA ZONA INACTIVA NO VUELVE (00022): el pedido se queda en «Sin colocar», que es donde
+    -- se ve. Puesto en una zona apagada no lo vería nadie y tampoco saldría en la lista de sin colocar.
+    JOIN board_columns zona ON zona.id = o.column_id AND zona.activa
     WHERE o.route_id = sqlc.arg('ruta_id')
       AND r.status <> 'completed'
       AND pedido.route_id = o.route_id

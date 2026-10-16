@@ -1,0 +1,16 @@
+{
+  "queEsEsto": "INACTIVAR Y ACTIVAR ZONAS DEL TABLERO (00022, Jose 16/10/2026, versión 1.0.38). El «no» de una zona inactiva —al colocar una tarjeta, al armar su ruta o al mandarle tarjetas al borrar otra— es un 409 con un motivo LITERAL que la pantalla enseña tal cual. Se escribe DOS veces —en el servidor (`api/internal/api/tablero.go`, `msgZonaInactiva`) y en el aparato, que rechaza lo mismo sin señal— y tienen que decir lo mismo. Este fichero las ata (CLAUDE.md §3-bis: con una prueba, no con un comentario).",
+  "quienLoLee": [
+    "api/internal/api/zonas_inactivas_casos_compartidos_test.go",
+    "la prueba gemela del aparato (app/test/…), que tiene que leer ESTE fichero y no una copia"
+  ],
+  "laRegla": "Una zona inactiva (`activa: false`) no sale en GET /api/board ni en la bajada de GET /api/sync/cambios (colección `boardColumns`) salvo con `?incluirInactivas=1`; no admite tarjetas (PUT /api/board/placements/{id} -> 409), no arma ruta (POST /api/board/columns/{id}/route -> 409) y no es destino de un mover (DELETE /api/board/columns/{id}?destino=<id> -> 409). El motivo de esos tres 409 es `motivo` con %s = el nombre de la zona, sin recortar ni cambiar mayúsculas. PATCH /api/board/columns/{id} con {\"activa\": false} devuelve sus pedidos a «Sin colocar» y la deja apagada; con {\"activa\": true} la enciende VACÍA. Borrarla sigue como siempre (409 si tiene pedidos, `?destino=` o `?vaciar=1` lo resuelven; una inactiva no tiene pedidos).",
+  "comoSeLee": "Para cada caso: el motivo es `motivo` con el nombre puesto, y es exactamente `esperado`. Las comillas son « » (U+00AB, U+00BB).",
+  "motivo": "La zona «%s» está inactiva",
+  "casos": [
+    { "nombre": "Centro", "esperado": "La zona «Centro» está inactiva" },
+    { "nombre": "Vista Alegre", "esperado": "La zona «Vista Alegre» está inactiva" },
+    { "nombre": "Zona «A»", "esperado": "La zona «Zona «A»» está inactiva" },
+    { "nombre": "100% Norte", "esperado": "La zona «100% Norte» está inactiva" }
+  ]
+}

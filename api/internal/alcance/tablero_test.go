@@ -259,7 +259,7 @@ var consultasDelTablero = []struct {
 		return err
 	}},
 	{"ListarColumnasDelTablero", func(ctx context.Context, a *alcance.Acotado) error {
-		_, err := a.ListarColumnasDelTablero(ctx, stg)
+		_, err := a.ListarColumnasDelTablero(ctx, stg, false)
 		return err
 	}},
 	{"ObtenerColumna", func(ctx context.Context, a *alcance.Acotado) error {

@@ -142,6 +142,14 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
     final porPagina = ref.watch(porPaginaVehiculosProvider);
     final pagina = ref.watch(paginaVehiculosProvider);
     final filtro = ref.watch(filtroAndarProvider);
+    // EN LA APK Y EL ESCRITORIO la flota sale de la base del aparato. Si el aparato
+    // NO la ha bajado nunca, eso no es «no hay vehiculos»: se dice (CLAUDE.md §3,
+    // «una respuesta vacia no es una respuesta buena»), y no se invita a dar de alta
+    // lo que quiza ya existe.
+    final copia = ref.watch(trabajaSinConexionProvider)
+        ? ref.watch(flotaEnElAparatoProvider).value
+        : null;
+    final sinBajar = copia != null && !copia.seDescargo;
 
     // Los avisos de escritura salen en la barra de abajo, no en el sitio de la
     // lista: la lista no cambio.
@@ -245,13 +253,25 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
                 child: BotonPrincipal(
                   icono: Icons.add,
                   texto: 'Agregar Vehículo',
-                  alPulsar: () => _abrirFicha(),
+                  alPulsar: sinBajar ? null : () => _abrirFicha(),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          if (lista.error case final fallo?)
+          if (sinBajar)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: LoQueTieneElAparato(
+                texto:
+                    'Este aparato no ha descargado la flota todavía. No es que no '
+                    'haya vehículos: es que no están aquí. Baja sola al traer el '
+                    'día desde el Panel, con conexión. Hasta entonces no se da de '
+                    'alta ninguno: podrías crear uno que ya existe.',
+                enAmbar: true,
+              ),
+            )
+          else if (lista.error case final fallo?)
             _Fallo(
               fallo: fallo,
               // QUE TIENE EL APARATO DENTRO. Sin esto, «Sin conexión» deja sin

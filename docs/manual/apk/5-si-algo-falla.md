@@ -153,10 +153,9 @@ no lo has perdido. Búscalo en la carpeta de la aplicación o vuelve a exportarl
 
 ## Vehículos o Almacenes no cargan
 
-Las dos pantallas **necesitan conexión**. Sin ella:
+Los vehículos **funcionan sin conexión** en la APK.
 
-> «Sin conexión. Los vehículos se configuran con conexión: aquí no se guarda nada en
-> el aparato. Vuelve a intentarlo cuando haya red.»
+**Desde la 1.0.38 los vehículos, los tipos de vehículo y los distribuidores funcionan SIN conexión** en la APK y el escritorio: se ven y se crean, se renombran y se quitan con lo que el aparato tiene bajado, y lo hecho sube solo cuando vuelve la señal. Un camión nuevo con un tipo nuevo sube en orden: primero el tipo. Si el aparato **no ha bajado** la flota, la pantalla lo dice («no ha descargado la flota todavía») y no deja dar de alta nada hasta traer el día con conexión. La excepción: quien ve las ocho sucursales (super administrador, desarrollador) da de alta con conexión, porque sin ella no hay una sucursal a la que atribuir el alta.
 
 **Pero debajo te dice lo que sí tienes**, que es lo que importa para poder trabajar:
 

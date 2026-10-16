@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/pantallas/vehiculos/datos/vehiculo_api.dart';
 import 'package:reparto/pantallas/vehiculos/estado/estado_vehiculos.dart';
@@ -166,6 +167,8 @@ void main() {
         ProviderScope(
           overrides: [
             baseProvider.overrideWithValue(banco.base),
+            // LA WEB: sin base local ni cola (el aparato: la_flota_sin_conexion_test.dart).
+            trabajaSinConexionProvider.overrideWithValue(false),
             clienteApiProvider.overrideWithValue(
               banco.contenedor.read(clienteApiProvider),
             ),

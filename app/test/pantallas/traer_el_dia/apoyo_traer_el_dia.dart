@@ -128,6 +128,11 @@ Map<String, Object?> cambiosCompletos({
       'puestos': <Object?>[],
       'quitados': <Object?>[],
     },
+    // Desde la 00021 (issue 14) la api manda tambien los tipos de vehiculo.
+    Colecciones.tiposDeVehiculo: <String, Object?>{
+      'puestos': <Object?>[],
+      'quitados': <Object?>[],
+    },
     Colecciones.sucursales: <String, Object?>{
       'puestos': <Object?>[
         <String, Object?>{

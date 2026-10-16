@@ -55,13 +55,22 @@ func metodoAdmitidoEnRevision(m string) bool {
 }
 
 // LA LISTA BLANCA DE RUTAS, POR FORMA (auditoría final, B3, 09/10/2026). La cola SÓLO emite estas, que son las
-// ÚNICAS rutas de escritura de `reparto-api` sobre rutas y tablero (`api/internal/api/rutas.go` y `tablero.go`),
-// con el `/api` que pone `reparto.Aplicar`:
+// ÚNICAS rutas de escritura de `reparto-api` sobre rutas, tablero y —desde el 16/10/2026, issue 14 de Amado— el
+// mantenimiento de la flota (camiones, tipos y distribuidores), con el `/api` que pone `reparto.Aplicar`:
 //
 //	/routes                       /routes/{id}            /routes/{id}/stops/{pedido}     /routes/{id}/results
 //	/routes/{id}/stops            (PUT, reordenar las paradas: issue 11, 15/10/2026)
 //	/board/columns                /board/columns/{id}     /board/columns/{id}/route
 //	/board/placements/{pedido}
+//	/vehicles                     /vehicles/{id}
+//	/vehicle-types                /vehicle-types/{id}
+//	/distribuidores               /distribuidores/{id}
+//
+// POR QUÉ ENTRAN LAS TRES FAMILIAS DE LA FLOTA: la APK y el escritorio ya crean y editan camiones, tipos y
+// distribuidores SIN CONEXIÓN, y su cola lleva esos apuntes. Quien pierde el rol con altas de camión en la cola
+// las entrega a revisión, y con la lista de antes la entrega ENTERA salía 422 (un solo apunte fuera de la lista
+// tumba los 25). La autoridad prestada es la misma que ya se presta con rutas y tablero: al aplicar, la API
+// vuelve a acotar con el token del REVISOR y `X-Sucursal-Id`, no con la de quien lo escribió.
 //
 // `{id}` es un uuid o un `local-…` (lo que armó el aparato sin conexión) —también `orden`, que es
 // `/board/columns/orden`—: letras, números, `_` y `-`; NUNCA un punto. La forma es la profundidad exacta, no un
@@ -77,6 +86,7 @@ var reRutaDeRevision = regexp.MustCompile(`^(?:` +
 	`/routes(?:/` + idDeRutaEnRevision + `(?:/stops(?:/` + idDeRutaEnRevision + `)?|/results)?)?` +
 	`|/board/columns(?:/` + idDeRutaEnRevision + `(?:/route)?)?` +
 	`|/board/placements/` + idDeRutaEnRevision +
+	`|/(?:vehicles|vehicle-types|distribuidores)(?:/` + idDeRutaEnRevision + `)?` +
 	`)(?:\?[A-Za-z0-9._~=&,+:-]*)?$`)
 
 // Ojo: `..` y `//` ya los rechaza la forma en el camino (un segmento no lleva puntos ni va vacío), pero `..` sigue

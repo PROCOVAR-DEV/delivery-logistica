@@ -968,6 +968,17 @@ class $VehicleTypesTable extends VehicleTypes
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _branchIdMeta = const VerificationMeta(
+    'branchId',
+  );
+  @override
+  late final GeneratedColumn<String> branchId = GeneratedColumn<String>(
+    'branch_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -996,6 +1007,7 @@ class $VehicleTypesTable extends VehicleTypes
     nombre,
     costoKmUsd,
     activo,
+    branchId,
     createdAt,
     updatedAt,
   ];
@@ -1039,6 +1051,12 @@ class $VehicleTypesTable extends VehicleTypes
         activo.isAcceptableOrUnknown(data['activo']!, _activoMeta),
       );
     }
+    if (data.containsKey('branch_id')) {
+      context.handle(
+        _branchIdMeta,
+        branchId.isAcceptableOrUnknown(data['branch_id']!, _branchIdMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -1076,6 +1094,10 @@ class $VehicleTypesTable extends VehicleTypes
         DriftSqlType.bool,
         data['${effectivePrefix}activo'],
       )!,
+      branchId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}branch_id'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -1098,6 +1120,7 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
   final String nombre;
   final double? costoKmUsd;
   final bool activo;
+  final String? branchId;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   const TipoVehiculo({
@@ -1105,6 +1128,7 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
     required this.nombre,
     this.costoKmUsd,
     required this.activo,
+    this.branchId,
     this.createdAt,
     this.updatedAt,
   });
@@ -1117,6 +1141,9 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
       map['costo_km_usd'] = Variable<double>(costoKmUsd);
     }
     map['activo'] = Variable<bool>(activo);
+    if (!nullToAbsent || branchId != null) {
+      map['branch_id'] = Variable<String>(branchId);
+    }
     if (!nullToAbsent || createdAt != null) {
       map['created_at'] = Variable<DateTime>(createdAt);
     }
@@ -1134,6 +1161,9 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
           ? const Value.absent()
           : Value(costoKmUsd),
       activo: Value(activo),
+      branchId: branchId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(branchId),
       createdAt: createdAt == null && nullToAbsent
           ? const Value.absent()
           : Value(createdAt),
@@ -1153,6 +1183,7 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
       nombre: serializer.fromJson<String>(json['nombre']),
       costoKmUsd: serializer.fromJson<double?>(json['costoKmUsd']),
       activo: serializer.fromJson<bool>(json['activo']),
+      branchId: serializer.fromJson<String?>(json['branchId']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
     );
@@ -1165,6 +1196,7 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
       'nombre': serializer.toJson<String>(nombre),
       'costoKmUsd': serializer.toJson<double?>(costoKmUsd),
       'activo': serializer.toJson<bool>(activo),
+      'branchId': serializer.toJson<String?>(branchId),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'updatedAt': serializer.toJson<DateTime?>(updatedAt),
     };
@@ -1175,6 +1207,7 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
     String? nombre,
     Value<double?> costoKmUsd = const Value.absent(),
     bool? activo,
+    Value<String?> branchId = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
     Value<DateTime?> updatedAt = const Value.absent(),
   }) => TipoVehiculo(
@@ -1182,6 +1215,7 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
     nombre: nombre ?? this.nombre,
     costoKmUsd: costoKmUsd.present ? costoKmUsd.value : this.costoKmUsd,
     activo: activo ?? this.activo,
+    branchId: branchId.present ? branchId.value : this.branchId,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
     updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
   );
@@ -1193,6 +1227,7 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
           ? data.costoKmUsd.value
           : this.costoKmUsd,
       activo: data.activo.present ? data.activo.value : this.activo,
+      branchId: data.branchId.present ? data.branchId.value : this.branchId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -1205,6 +1240,7 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
           ..write('nombre: $nombre, ')
           ..write('costoKmUsd: $costoKmUsd, ')
           ..write('activo: $activo, ')
+          ..write('branchId: $branchId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1212,8 +1248,15 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, nombre, costoKmUsd, activo, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+    id,
+    nombre,
+    costoKmUsd,
+    activo,
+    branchId,
+    createdAt,
+    updatedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1222,6 +1265,7 @@ class TipoVehiculo extends DataClass implements Insertable<TipoVehiculo> {
           other.nombre == this.nombre &&
           other.costoKmUsd == this.costoKmUsd &&
           other.activo == this.activo &&
+          other.branchId == this.branchId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -1231,6 +1275,7 @@ class VehicleTypesCompanion extends UpdateCompanion<TipoVehiculo> {
   final Value<String> nombre;
   final Value<double?> costoKmUsd;
   final Value<bool> activo;
+  final Value<String?> branchId;
   final Value<DateTime?> createdAt;
   final Value<DateTime?> updatedAt;
   final Value<int> rowid;
@@ -1239,6 +1284,7 @@ class VehicleTypesCompanion extends UpdateCompanion<TipoVehiculo> {
     this.nombre = const Value.absent(),
     this.costoKmUsd = const Value.absent(),
     this.activo = const Value.absent(),
+    this.branchId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1248,6 +1294,7 @@ class VehicleTypesCompanion extends UpdateCompanion<TipoVehiculo> {
     required String nombre,
     this.costoKmUsd = const Value.absent(),
     this.activo = const Value.absent(),
+    this.branchId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1258,6 +1305,7 @@ class VehicleTypesCompanion extends UpdateCompanion<TipoVehiculo> {
     Expression<String>? nombre,
     Expression<double>? costoKmUsd,
     Expression<bool>? activo,
+    Expression<String>? branchId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -1267,6 +1315,7 @@ class VehicleTypesCompanion extends UpdateCompanion<TipoVehiculo> {
       if (nombre != null) 'nombre': nombre,
       if (costoKmUsd != null) 'costo_km_usd': costoKmUsd,
       if (activo != null) 'activo': activo,
+      if (branchId != null) 'branch_id': branchId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -1278,6 +1327,7 @@ class VehicleTypesCompanion extends UpdateCompanion<TipoVehiculo> {
     Value<String>? nombre,
     Value<double?>? costoKmUsd,
     Value<bool>? activo,
+    Value<String?>? branchId,
     Value<DateTime?>? createdAt,
     Value<DateTime?>? updatedAt,
     Value<int>? rowid,
@@ -1287,6 +1337,7 @@ class VehicleTypesCompanion extends UpdateCompanion<TipoVehiculo> {
       nombre: nombre ?? this.nombre,
       costoKmUsd: costoKmUsd ?? this.costoKmUsd,
       activo: activo ?? this.activo,
+      branchId: branchId ?? this.branchId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -1308,6 +1359,9 @@ class VehicleTypesCompanion extends UpdateCompanion<TipoVehiculo> {
     if (activo.present) {
       map['activo'] = Variable<bool>(activo.value);
     }
+    if (branchId.present) {
+      map['branch_id'] = Variable<String>(branchId.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1327,6 +1381,7 @@ class VehicleTypesCompanion extends UpdateCompanion<TipoVehiculo> {
           ..write('nombre: $nombre, ')
           ..write('costoKmUsd: $costoKmUsd, ')
           ..write('activo: $activo, ')
+          ..write('branchId: $branchId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -1364,6 +1419,17 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehiculo> {
   @override
   late final GeneratedColumn<String> vehicleTypeId = GeneratedColumn<String>(
     'vehicle_type_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _tipoNombreMeta = const VerificationMeta(
+    'tipoNombre',
+  );
+  @override
+  late final GeneratedColumn<String> tipoNombre = GeneratedColumn<String>(
+    'tipo_nombre',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -1488,6 +1554,7 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehiculo> {
     id,
     name,
     vehicleTypeId,
+    tipoNombre,
     plate,
     capacity,
     costoKmUsd,
@@ -1531,6 +1598,12 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehiculo> {
           data['vehicle_type_id']!,
           _vehicleTypeIdMeta,
         ),
+      );
+    }
+    if (data.containsKey('tipo_nombre')) {
+      context.handle(
+        _tipoNombreMeta,
+        tipoNombre.isAcceptableOrUnknown(data['tipo_nombre']!, _tipoNombreMeta),
       );
     }
     if (data.containsKey('plate')) {
@@ -1620,6 +1693,10 @@ class $VehiclesTable extends Vehicles with TableInfo<$VehiclesTable, Vehiculo> {
         DriftSqlType.string,
         data['${effectivePrefix}vehicle_type_id'],
       ),
+      tipoNombre: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tipo_nombre'],
+      ),
       plate: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}plate'],
@@ -1673,6 +1750,11 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
   final String id;
   final String name;
   final String? vehicleTypeId;
+
+  /// El NOMBRE del tipo, tal cual lo manda el servidor (`type`). Hace falta ademas del
+  /// id porque un camion COMPARTIDO (sin sucursal) es de un tipo «de todas», y esos no
+  /// bajan a quien tiene sucursal: sin el nombre aqui, su tarjeta saldria sin tipo.
+  final String? tipoNombre;
   final String? plate;
   final double capacity;
   final double? costoKmUsd;
@@ -1692,6 +1774,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
     required this.id,
     required this.name,
     this.vehicleTypeId,
+    this.tipoNombre,
     this.plate,
     required this.capacity,
     this.costoKmUsd,
@@ -1710,6 +1793,9 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
     map['name'] = Variable<String>(name);
     if (!nullToAbsent || vehicleTypeId != null) {
       map['vehicle_type_id'] = Variable<String>(vehicleTypeId);
+    }
+    if (!nullToAbsent || tipoNombre != null) {
+      map['tipo_nombre'] = Variable<String>(tipoNombre);
     }
     if (!nullToAbsent || plate != null) {
       map['plate'] = Variable<String>(plate);
@@ -1743,6 +1829,9 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
       vehicleTypeId: vehicleTypeId == null && nullToAbsent
           ? const Value.absent()
           : Value(vehicleTypeId),
+      tipoNombre: tipoNombre == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tipoNombre),
       plate: plate == null && nullToAbsent
           ? const Value.absent()
           : Value(plate),
@@ -1777,6 +1866,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       vehicleTypeId: serializer.fromJson<String?>(json['vehicleTypeId']),
+      tipoNombre: serializer.fromJson<String?>(json['tipoNombre']),
       plate: serializer.fromJson<String?>(json['plate']),
       capacity: serializer.fromJson<double>(json['capacity']),
       costoKmUsd: serializer.fromJson<double?>(json['costoKmUsd']),
@@ -1796,6 +1886,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'vehicleTypeId': serializer.toJson<String?>(vehicleTypeId),
+      'tipoNombre': serializer.toJson<String?>(tipoNombre),
       'plate': serializer.toJson<String?>(plate),
       'capacity': serializer.toJson<double>(capacity),
       'costoKmUsd': serializer.toJson<double?>(costoKmUsd),
@@ -1813,6 +1904,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
     String? id,
     String? name,
     Value<String?> vehicleTypeId = const Value.absent(),
+    Value<String?> tipoNombre = const Value.absent(),
     Value<String?> plate = const Value.absent(),
     double? capacity,
     Value<double?> costoKmUsd = const Value.absent(),
@@ -1829,6 +1921,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
     vehicleTypeId: vehicleTypeId.present
         ? vehicleTypeId.value
         : this.vehicleTypeId,
+    tipoNombre: tipoNombre.present ? tipoNombre.value : this.tipoNombre,
     plate: plate.present ? plate.value : this.plate,
     capacity: capacity ?? this.capacity,
     costoKmUsd: costoKmUsd.present ? costoKmUsd.value : this.costoKmUsd,
@@ -1847,6 +1940,9 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
       vehicleTypeId: data.vehicleTypeId.present
           ? data.vehicleTypeId.value
           : this.vehicleTypeId,
+      tipoNombre: data.tipoNombre.present
+          ? data.tipoNombre.value
+          : this.tipoNombre,
       plate: data.plate.present ? data.plate.value : this.plate,
       capacity: data.capacity.present ? data.capacity.value : this.capacity,
       costoKmUsd: data.costoKmUsd.present
@@ -1870,6 +1966,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('vehicleTypeId: $vehicleTypeId, ')
+          ..write('tipoNombre: $tipoNombre, ')
           ..write('plate: $plate, ')
           ..write('capacity: $capacity, ')
           ..write('costoKmUsd: $costoKmUsd, ')
@@ -1889,6 +1986,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
     id,
     name,
     vehicleTypeId,
+    tipoNombre,
     plate,
     capacity,
     costoKmUsd,
@@ -1907,6 +2005,7 @@ class Vehiculo extends DataClass implements Insertable<Vehiculo> {
           other.id == this.id &&
           other.name == this.name &&
           other.vehicleTypeId == this.vehicleTypeId &&
+          other.tipoNombre == this.tipoNombre &&
           other.plate == this.plate &&
           other.capacity == this.capacity &&
           other.costoKmUsd == this.costoKmUsd &&
@@ -1923,6 +2022,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
   final Value<String> id;
   final Value<String> name;
   final Value<String?> vehicleTypeId;
+  final Value<String?> tipoNombre;
   final Value<String?> plate;
   final Value<double> capacity;
   final Value<double?> costoKmUsd;
@@ -1938,6 +2038,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.vehicleTypeId = const Value.absent(),
+    this.tipoNombre = const Value.absent(),
     this.plate = const Value.absent(),
     this.capacity = const Value.absent(),
     this.costoKmUsd = const Value.absent(),
@@ -1954,6 +2055,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
     required String id,
     required String name,
     this.vehicleTypeId = const Value.absent(),
+    this.tipoNombre = const Value.absent(),
     this.plate = const Value.absent(),
     this.capacity = const Value.absent(),
     this.costoKmUsd = const Value.absent(),
@@ -1971,6 +2073,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? vehicleTypeId,
+    Expression<String>? tipoNombre,
     Expression<String>? plate,
     Expression<double>? capacity,
     Expression<double>? costoKmUsd,
@@ -1987,6 +2090,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (vehicleTypeId != null) 'vehicle_type_id': vehicleTypeId,
+      if (tipoNombre != null) 'tipo_nombre': tipoNombre,
       if (plate != null) 'plate': plate,
       if (capacity != null) 'capacity': capacity,
       if (costoKmUsd != null) 'costo_km_usd': costoKmUsd,
@@ -2005,6 +2109,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
     Value<String>? id,
     Value<String>? name,
     Value<String?>? vehicleTypeId,
+    Value<String?>? tipoNombre,
     Value<String?>? plate,
     Value<double>? capacity,
     Value<double?>? costoKmUsd,
@@ -2021,6 +2126,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
       id: id ?? this.id,
       name: name ?? this.name,
       vehicleTypeId: vehicleTypeId ?? this.vehicleTypeId,
+      tipoNombre: tipoNombre ?? this.tipoNombre,
       plate: plate ?? this.plate,
       capacity: capacity ?? this.capacity,
       costoKmUsd: costoKmUsd ?? this.costoKmUsd,
@@ -2046,6 +2152,9 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
     }
     if (vehicleTypeId.present) {
       map['vehicle_type_id'] = Variable<String>(vehicleTypeId.value);
+    }
+    if (tipoNombre.present) {
+      map['tipo_nombre'] = Variable<String>(tipoNombre.value);
     }
     if (plate.present) {
       map['plate'] = Variable<String>(plate.value);
@@ -2089,6 +2198,7 @@ class VehiclesCompanion extends UpdateCompanion<Vehiculo> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('vehicleTypeId: $vehicleTypeId, ')
+          ..write('tipoNombre: $tipoNombre, ')
           ..write('plate: $plate, ')
           ..write('capacity: $capacity, ')
           ..write('costoKmUsd: $costoKmUsd, ')
@@ -11897,6 +12007,7 @@ typedef $$VehicleTypesTableCreateCompanionBuilder =
       required String nombre,
       Value<double?> costoKmUsd,
       Value<bool> activo,
+      Value<String?> branchId,
       Value<DateTime?> createdAt,
       Value<DateTime?> updatedAt,
       Value<int> rowid,
@@ -11907,6 +12018,7 @@ typedef $$VehicleTypesTableUpdateCompanionBuilder =
       Value<String> nombre,
       Value<double?> costoKmUsd,
       Value<bool> activo,
+      Value<String?> branchId,
       Value<DateTime?> createdAt,
       Value<DateTime?> updatedAt,
       Value<int> rowid,
@@ -11938,6 +12050,11 @@ class $$VehicleTypesTableFilterComposer
 
   ColumnFilters<bool> get activo => $composableBuilder(
     column: $table.activo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get branchId => $composableBuilder(
+    column: $table.branchId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11981,6 +12098,11 @@ class $$VehicleTypesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get branchId => $composableBuilder(
+    column: $table.branchId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -12014,6 +12136,9 @@ class $$VehicleTypesTableAnnotationComposer
 
   GeneratedColumn<bool> get activo =>
       $composableBuilder(column: $table.activo, builder: (column) => column);
+
+  GeneratedColumn<String> get branchId =>
+      $composableBuilder(column: $table.branchId, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -12057,6 +12182,7 @@ class $$VehicleTypesTableTableManager
                 Value<String> nombre = const Value.absent(),
                 Value<double?> costoKmUsd = const Value.absent(),
                 Value<bool> activo = const Value.absent(),
+                Value<String?> branchId = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -12065,6 +12191,7 @@ class $$VehicleTypesTableTableManager
                 nombre: nombre,
                 costoKmUsd: costoKmUsd,
                 activo: activo,
+                branchId: branchId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -12075,6 +12202,7 @@ class $$VehicleTypesTableTableManager
                 required String nombre,
                 Value<double?> costoKmUsd = const Value.absent(),
                 Value<bool> activo = const Value.absent(),
+                Value<String?> branchId = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -12083,6 +12211,7 @@ class $$VehicleTypesTableTableManager
                 nombre: nombre,
                 costoKmUsd: costoKmUsd,
                 activo: activo,
+                branchId: branchId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -12117,6 +12246,7 @@ typedef $$VehiclesTableCreateCompanionBuilder =
       required String id,
       required String name,
       Value<String?> vehicleTypeId,
+      Value<String?> tipoNombre,
       Value<String?> plate,
       Value<double> capacity,
       Value<double?> costoKmUsd,
@@ -12134,6 +12264,7 @@ typedef $$VehiclesTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> name,
       Value<String?> vehicleTypeId,
+      Value<String?> tipoNombre,
       Value<String?> plate,
       Value<double> capacity,
       Value<double?> costoKmUsd,
@@ -12168,6 +12299,11 @@ class $$VehiclesTableFilterComposer
 
   ColumnFilters<String> get vehicleTypeId => $composableBuilder(
     column: $table.vehicleTypeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tipoNombre => $composableBuilder(
+    column: $table.tipoNombre,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12246,6 +12382,11 @@ class $$VehiclesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get tipoNombre => $composableBuilder(
+    column: $table.tipoNombre,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get plate => $composableBuilder(
     column: $table.plate,
     builder: (column) => ColumnOrderings(column),
@@ -12317,6 +12458,11 @@ class $$VehiclesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get tipoNombre => $composableBuilder(
+    column: $table.tipoNombre,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get plate =>
       $composableBuilder(column: $table.plate, builder: (column) => column);
 
@@ -12383,6 +12529,7 @@ class $$VehiclesTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String?> vehicleTypeId = const Value.absent(),
+                Value<String?> tipoNombre = const Value.absent(),
                 Value<String?> plate = const Value.absent(),
                 Value<double> capacity = const Value.absent(),
                 Value<double?> costoKmUsd = const Value.absent(),
@@ -12398,6 +12545,7 @@ class $$VehiclesTableTableManager
                 id: id,
                 name: name,
                 vehicleTypeId: vehicleTypeId,
+                tipoNombre: tipoNombre,
                 plate: plate,
                 capacity: capacity,
                 costoKmUsd: costoKmUsd,
@@ -12415,6 +12563,7 @@ class $$VehiclesTableTableManager
                 required String id,
                 required String name,
                 Value<String?> vehicleTypeId = const Value.absent(),
+                Value<String?> tipoNombre = const Value.absent(),
                 Value<String?> plate = const Value.absent(),
                 Value<double> capacity = const Value.absent(),
                 Value<double?> costoKmUsd = const Value.absent(),
@@ -12430,6 +12579,7 @@ class $$VehiclesTableTableManager
                 id: id,
                 name: name,
                 vehicleTypeId: vehicleTypeId,
+                tipoNombre: tipoNombre,
                 plate: plate,
                 capacity: capacity,
                 costoKmUsd: costoKmUsd,

@@ -745,13 +745,16 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	seguir := leerPorDondeSeguir(q.Get("continuar"))
 
 	// LAS COLECCIONES QUE EL APARATO PIDE ENTERAS aunque mande `desde` (`?completas=a,b`).
-	// Hoy sólo `distribuidores` (issue 7, 14/10/2026). Se usa UNA vez por aparato: la marca
-	// `desde` es de todas las colecciones a la vez, y un aparato que sincronizó con la
-	// versión anterior de la aplicación —que no conocía los distribuidores— la avanzó con
-	// ellos ya creados y los tiró: «lo que cambió desde ayer» no los trae nunca. Pedirlos
-	// enteros es lo único que los entrega sin rehacer la carga de pedidos y clientes (que
-	// además no trae lápidas). Un nombre que no se conoce se ignora: no es un error de quien
-	// lo manda, es una colección de más.
+	// Hoy `distribuidores` (issue 7, 14/10/2026), `vehicles` y `vehicle_types` (issue 14,
+	// 16/10/2026). Se usa UNA vez por aparato: la marca `desde` es de todas las colecciones
+	// a la vez, y un aparato que sincronizó con la versión anterior de la aplicación la
+	// avanzó SIN lo que esa versión no conocía: no conocía los distribuidores; bajó
+	// `vehicles` sin `vehicleTypeId`, `costoKmUsd`, `usarParaDomicilio`, `notes` ni
+	// `createdAt`; y nunca bajó `vehicle_types`. «Lo que cambió desde ayer» no se los trae
+	// jamás. Pedirlos enteros es lo único que los entrega sin rehacer la carga de pedidos y
+	// clientes (que además no trae lápidas). Una colección en `completas` se sirve ENTERA y
+	// SIN lápidas: con la lista entera no hay nada que quitar. Un nombre que no se conoce se
+	// ignora: no es un error de quien lo manda, es una colección de más.
 	completas := map[string]bool{}
 	for _, c := range strings.Split(q.Get("completas"), ",") {
 		completas[strings.TrimSpace(c)] = true
@@ -894,14 +897,27 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	}
 	puestos = nil
 	vivas = make(map[string]bool, len(vehiculos))
+	// `completas`: sin `desde` para ESTA colección y sin lápidas (ver arriba).
+	desdeDeVehiculos, ventanaDeVehiculos := desde, ventanaDelAlcance
+	if completas["vehicles"] {
+		desdeDeVehiculos, ventanaDeVehiculos.Desde = nil, nil
+	}
 	for _, v := range vehiculos {
 		vivas[v.ID.String()] = true
-		if !cambioDesde(v.UpdatedAt, desde) {
+		if !cambioDesde(v.UpdatedAt, desdeDeVehiculos) {
 			continue
 		}
 		puestos = append(puestos, map[string]any{
 			"id": v.ID, "name": v.Name, "type": v.TipoNombre, "plate": v.Plate,
 			"capacity": v.Capacity, "status": string(v.Status),
+			// LO QUE FALTABA PARA CREAR Y EDITAR UN CAMIÓN SIN CONEXIÓN (issue 14, 16/10/2026).
+			// `vehicleTypeId` es la clave del tipo (el `type` de arriba es su NOMBRE, que se
+			// renombra); `costoKmUsd` es el DEL CAMIÓN y puede ser nulo —NO el del tipo, que
+			// baja en `vehicle_types`—: un nulo es «usa el del tipo», y mandar el del tipo aquí
+			// lo congelaría como propio.
+			"vehicleTypeId": v.VehicleTypeID, "costoKmUsd": v.CostoKmUsd,
+			"usarParaDomicilio": v.UsarParaDomicilio, "notes": v.Notes,
+			"createdAt": hora(v.CreatedAt),
 			// `isActive` BAJA CON EL CAMIÓN (incidencia 4 de Amado, 07/10/2026). Es lo que deja
 			// al aparato filtrar la selección de camiones de una ruta NUEVA sin preguntarle
 			// al servidor, también sin señal: sin este campo la APK no distingue un camión
@@ -917,13 +933,61 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// que cuando se da de baja hay que quitárselo a los ocho. Puesto en false, ese camión
 	// se queda en los ocho teléfonos para siempre.
 	quitados, corteVeh, err := s.quitadosDe(r, a,
-		sqlc.ColeccionDeLaBajadaVehicles, ventanaDelAlcance, true, vivas)
+		sqlc.ColeccionDeLaBajadaVehicles, ventanaDeVehiculos, true, vivas)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
 	anotarCorte(corteVeh)
 	salida.Cambios["vehicles"] = conjuntoCon(puestos, quitados)
+
+	// --- Tipos de vehículo --------------------------------------------------
+	//
+	// EL CATÁLOGO QUE EL CAMIÓN ELIGE (issue 14, 16/10/2026). Sin conexión se crea un camión y se
+	// crea un tipo, y los dos tienen que salir de la copia local. Salen activos Y retirados: un
+	// camión viejo sigue siendo de un tipo retirado, y la pantalla de mantenimiento tiene que
+	// poder reactivarlo.
+	//
+	// La MISMA lista que `GET /api/vehicle-types` —el mismo método, con el mismo alcance—: la
+	// sucursal propia, o sólo los «de todas» en modo «todas» (`IS NOT DISTINCT FROM`, NO el
+	// `OR … IS NULL` de los camiones). Si fueran distintas, la pantalla de mantenimiento y el
+	// selector del aparato se contradirían.
+	tipos, err := a.ListarTiposDeVehiculo(r.Context(), nil)
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	puestos = nil
+	vivas = make(map[string]bool, len(tipos))
+	desdeDeTipos, ventanaDeTipos := desde, ventanaDelAlcance
+	if completas["vehicle_types"] {
+		desdeDeTipos, ventanaDeTipos.Desde = nil, nil
+	}
+	for _, t := range tipos {
+		vivas[t.ID.String()] = true
+		if !cambioDesde(t.UpdatedAt, desdeDeTipos) {
+			continue
+		}
+		puestos = append(puestos, map[string]any{
+			"id": t.ID, "nombre": t.Nombre, "costoKmUsd": t.CostoKmUsd, "activo": t.Activo,
+			"branchId":  idOpcional(t.BranchID),
+			"createdAt": hora(t.CreatedAt), "updatedAt": hora(t.UpdatedAt),
+		})
+	}
+	// `sinSucursalTambien` en FALSE, y razonado: `ListarTiposDeVehiculo` NO deja pasar los «de
+	// todas» a quien tiene sucursal, así que la lápida de uno de ésos (`branch_id` nulo; sólo lo
+	// borran migraciones, la API no lo permite) sería una orden sobre algo que nunca fue de ese
+	// aparato. Quien ve «todas» (sucursal nula) recibe todas las lápidas de todos modos, y ahí
+	// sí le sirven: su lista son justo los «de todas». Un tipo no se muda de sucursal: sin
+	// `movido`.
+	quitados, corteTip, err := s.quitadosDe(r, a,
+		sqlc.ColeccionDeLaBajadaVehicleTypes, ventanaDeTipos, false, vivas)
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	anotarCorte(corteTip)
+	salida.Cambios["vehicle_types"] = conjuntoCon(puestos, quitados)
 
 	// --- Distribuidores -----------------------------------------------------
 	//

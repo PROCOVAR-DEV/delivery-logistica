@@ -91,6 +91,7 @@ void main() {
           'orders': conjunto(puestos: [unPedido('p-1')]),
           // Desde la 00019 la api la manda siempre; sin ella no se marca (bajada.dart).
           'distribuidores': conjunto(),
+          'vehicle_types': conjunto(),
           'branches': conjunto(
             puestos: [
               <String, Object?>{

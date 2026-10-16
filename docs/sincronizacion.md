@@ -81,6 +81,14 @@ Una colección nueva en el futuro necesita lo mismo. Y la colección **sólo se 
 `cambios`: contra una api anterior a la 00019 se quedaría marcada sin haber bajado y no se volvería
 a pedir nunca.
 
+**`vehicle_types` y los campos nuevos de `vehicles`** (16/10/2026, issue 14: tipos, camiones y
+distribuidores se listan y se crean sin conexión) caen en el mismo caso, así que `completas` también
+acepta `vehicles` y `vehicle_types` (enteras, sin lápidas): los aparatos con marca bajaron `vehicles`
+sin `vehicleTypeId`, `costoKmUsd` (el DEL CAMIÓN), `usarParaDomicilio`, `notes` ni `createdAt`, y nunca
+bajaron `vehicle_types` (`id, nombre, costoKmUsd, activo, branchId, createdAt, updatedAt`; la MISMA lista
+y alcance que `GET /api/vehicle-types`: en modo «todas», sólo los «de todas»). Su lápida es la 00021
+(`DELETE` solamente; un tipo «de todas» deja `branch_id` nulo y sólo la recibe quien ve «todas»).
+
 **Las rutas que ya estaban** tampoco traerían su `distribuidorId` por diferencias, así que el
 aparato se rebaja entero UNA vez (`RegistroDeFrescura.rebajarUnaVez`, marca
 `una-vez:rutas-con-distribuidor`, igual que `una-vez:pedidos-con-factura-at`). Olvida el cursor de
@@ -313,7 +321,7 @@ una frase que dice qué hacer:
 
 | Límite | Valor |
 |---|---|
-| Método y ruta | `POST/PUT/PATCH/DELETE` sobre las nueve rutas de escritura que la API tiene de rutas y tablero, **por forma** (`/routes`, `/routes/{id}`, `…/stops` (reordenar), `…/stops/{pedido}`, `…/results`, `/board/columns`, `/board/columns/{id}`, `…/route`, `/board/placements/{pedido}`; `{id}` sin puntos; `POST /board` suelto da 422; ni `..` ni `//` ni `%`; ≤300 caracteres). **Es la defensa contra la autoridad prestada** y se vuelve a pasar al aplicar |
+| Método y ruta | `POST/PUT/PATCH/DELETE` sobre las quince rutas de escritura que la API tiene de rutas, tablero y flota, **por forma** (`/routes`, `/routes/{id}`, `…/stops` (reordenar), `…/stops/{pedido}`, `…/results`, `/board/columns`, `/board/columns/{id}`, `…/route`, `/board/placements/{pedido}`, y desde el 16/10/2026 `/vehicles`, `/vehicle-types`, `/distribuidores` y sus `/{id}`; `{id}` sin puntos; `POST /board` suelto da 422; ni `..` ni `//` ni `%`; ≤300 caracteres). **Es la defensa contra la autoridad prestada** y se vuelve a pasar al aplicar |
 | Un apunte | `cuerpo` ≤128 KiB y JSON válido; petición ≤512 KiB; ≤25 apuntes por petición (la app manda 1) |
 | Hora del aparato | `hecho` ≤ ahora+24 h y ≥ ahora−60 días |
 | `provisional` | Opcional: `local-` y de 1 a 94 letras o números, o un UUID (el id definitivo que pone el aparato al crear una zona del Tablero). La subida normal no valida su forma, solo traduce los `local-…` |

@@ -1,50 +1,113 @@
-import '../../../nucleo/plataforma.dart';
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/frescura/copia_bajada.dart';
+import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/nucleo/red/fallos.dart';
 import 'package:reparto/nucleo/registro/registro.dart';
 import 'package:reparto/nucleo/refresco_en_vivo.dart';
 
+import '../datos/flota_local.dart';
 import '../datos/repositorio_vehiculos.dart';
 import '../datos/vehiculo_api.dart';
 
-final repositorioVehiculosProvider = Provider<RepositorioVehiculos>(
-  (ref) => RepositorioVehiculos(ref.watch(clienteApiProvider)),
+/// LA FLOTA EN EL APARATO: la base local y la cola. **`null` en la web**, que va
+/// directa al servidor (`CLAUDE.md` §1). Issue 14 de Amado, 16/10/2026: sin esto la
+/// APK y el escritorio no veian ni creaban camiones, tipos ni distribuidores sin red.
+final flotaLocalProvider = Provider<FlotaLocal?>(
+  (ref) => ref.watch(trabajaSinConexionProvider)
+      ? FlotaLocal(
+          ref.watch(baseProvider),
+          ref.watch(colaProvider),
+          sucursalMirada: () => ref.read(sucursalMiradaProvider),
+          veTodas: () async {
+            final sesion = await ref.read(almacenSesionProvider).leer();
+            return sesion?.tieneAlguno(const ['SUPER ADMIN', 'DESARROLLADOR']) ??
+                false;
+          },
+        )
+      : null,
 );
 
-/// La flota. Es una peticion y no un stream sobre la base **porque aqui no hay
-/// base**: lo que se ve es lo que hay en el servidor ahora mismo, o no se ve.
+final repositorioVehiculosProvider = Provider<RepositorioVehiculos>(
+  (ref) => RepositorioVehiculos(
+    ref.watch(clienteApiProvider),
+    ref.watch(flotaLocalProvider),
+  ),
+);
+
+/// La flota. **En la APK y el escritorio sale de la base local** (un `Stream`: la
+/// bajada la rellena y la cola la cambia, §3-ter) y funciona sin conexion. En la web
+/// es una peticion, porque alli no hay base de la que leer.
 ///
-/// Y por eso mismo **el ciclo de sincronizacion no la repinta**: el ciclo escribe
-/// en la base, y aqui no se lee de la base. Hasta el 17/09/2026 lo unico que
-/// actualizaba esta pantalla era salir de ella y volver a entrar, aunque el aviso
-/// en vivo del servidor estuviera llegando. El mismo fallo del Tablero, en otra
-/// pantalla. Ver `nucleo/refresco_en_vivo.dart`.
-final vehiculosProvider = FutureProvider.autoDispose<List<VehiculoDeLaApi>>((
+/// En la web el ciclo no la repinta (no lee de la base): hasta el 17/09/2026 lo
+/// unico que la actualizaba era salir y volver a entrar, aunque el aviso en vivo
+/// estuviera llegando. Ver `nucleo/refresco_en_vivo.dart`.
+final vehiculosProvider = StreamProvider.autoDispose<List<VehiculoDeLaApi>>((
   ref,
 ) {
   // Al cambiar de sucursal en la barra se vuelve a pedir: el alcance lo
   // resuelve el servidor con la cabecera `x-sucursal-id`.
-  ref.watch(sucursalMiradaProvider);
+  final mirada = ref.watch(sucursalMiradaProvider);
+  final local = ref.watch(flotaLocalProvider);
+  if (local != null) return local.vehiculos(sucursal: mirada);
   refrescarConElAviso(ref, const [CambioEnVivo.vehiculos]);
-  return ref.watch(repositorioVehiculosProvider).listar();
+  return Stream.fromFuture(ref.watch(repositorioVehiculosProvider).listar());
 });
 
 /// La moneda y el costo por km. Escucha DOS tipos porque la pantalla enseña las
 /// dos cosas: los tipos de vehiculo con su costo (`vehiculos`) y la tasa con la
 /// que se convierten los importes (`ajustes`).
-final ajustesVehiculosProvider = FutureProvider.autoDispose<AjustesDeLaApi>((
+final ajustesVehiculosProvider = StreamProvider.autoDispose<AjustesDeLaApi>((
   ref,
 ) {
+  final local = ref.watch(flotaLocalProvider);
+  if (local != null) {
+    final mirada = ref.watch(sucursalMiradaProvider);
+    // Los tipos y la tasa, de la base del aparato: dos streams, se repinta con cualquiera.
+    final controlador = StreamController<AjustesDeLaApi>();
+    List<TipoDeVehiculo>? tipos;
+    double? tasa;
+    void emitir() {
+      final t = tipos, c = tasa;
+      if (t != null && c != null && !controlador.isClosed) {
+        controlador.add(AjustesDeLaApi(tipos: t, cupRate: c));
+      }
+    }
+
+    final a = local.tipos(sucursal: mirada).listen((v) {
+      tipos = v;
+      emitir();
+    }, onError: controlador.addError);
+    final b = local.cupRate().listen((v) {
+      tasa = v;
+      emitir();
+    }, onError: controlador.addError);
+    ref.onDispose(() {
+      a.cancel();
+      b.cancel();
+      controlador.close();
+    });
+    return controlador.stream;
+  }
   refrescarConElAviso(ref, const [
     CambioEnVivo.ajustes,
     CambioEnVivo.vehiculos,
   ]);
-  return ref.watch(repositorioVehiculosProvider).ajustes();
+  return Stream.fromFuture(ref.watch(repositorioVehiculosProvider).ajustes());
 });
+
+/// Si el aparato bajo alguna vez los TIPOS de vehiculo, y cuantos tiene: separa «no
+/// hay ninguno» de «no se han descargado» (se arreglan al reves).
+final tiposEnElAparatoProvider = StreamProvider<CopiaBajada>(
+  (ref) => copiaBajada(
+    ref.watch(baseProvider),
+    coleccion: Colecciones.tiposDeVehiculo,
+    tabla: ref.watch(baseProvider).vehicleTypes,
+  ),
+);
 
 /// LO QUE EL APARATO TIENE BAJADO de la flota.
 ///

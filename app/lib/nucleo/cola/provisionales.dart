@@ -34,6 +34,12 @@ class Provisionales {
     ('orders', 'route_id'),
     ('orders', 'ultima_ruta_id'),
     ('vehicles', 'id'),
+    // La flota sin conexion (issue 14): un tipo o un distribuidor nuevo y lo que
+    // ya apunta a ellos (un camion a su tipo, una ruta a su distribuidor).
+    ('vehicle_types', 'id'),
+    ('vehicles', 'vehicle_type_id'),
+    ('distribuidores', 'id'),
+    ('routes', 'distribuidor_id'),
     ('warehouses', 'id'),
     // EL TABLERO, que faltaba y costo caro. Sus dos tablas NO son de Drift —las
     // crea la propia pantalla la primera vez que se abre— y por eso se quedaron

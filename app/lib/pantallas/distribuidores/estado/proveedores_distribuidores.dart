@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/frescura/copia_bajada.dart';
 import '../../../nucleo/proveedores.dart';
+import '../../vehiculos/estado/estado_vehiculos.dart' show flotaLocalProvider;
 import '../../../nucleo/refresco_en_vivo.dart';
 import '../datos/repositorio_distribuidores.dart';
 
@@ -11,26 +12,32 @@ final repositorioDistribuidoresProvider = Provider<RepositorioDistribuidores>(
   (ref) => RepositorioDistribuidores(
     ref.watch(clienteApiProvider),
     ref.watch(baseProvider),
+    ref.watch(flotaLocalProvider),
   ),
 );
 
-/// LA LISTA DEL SERVIDOR, para el cajon que los mantiene.
+/// LA LISTA PARA EL CAJON QUE LOS MANTIENE, con sus retirados y cuantas rutas usa cada uno.
 ///
-/// Una peticion y no un stream sobre la base, a proposito: el cajon enseña lo que
-/// el servidor tiene AHORA, con sus retirados y cuantas rutas usa cada uno, y sin
-/// conexion no finge enseñar una lista vieja que no puede cambiar. (El selector de
-/// «Nueva ruta» es otra cosa y SI mira la base: [distribuidoresParaRutaNuevaProvider].)
+/// **En la APK y el escritorio sale de la base local** (issue 14 de Amado, 16/10/2026):
+/// antes era una peticion y sin red el cajon no enseñaba a nadie. En la web sigue
+/// siendo una peticion al servidor.
 ///
 /// Se vuelve a pedir con el aviso `vehiculos`, que es el que publica el servidor
 /// al tocar el nomenclador (`api/internal/api/distribuidores.go`): lo que cambie
 /// otra persona mientras el cajon esta abierto aparece solo.
 final distribuidoresDelServidorProvider =
-    FutureProvider.autoDispose<List<DistribuidorDelServidor>>((ref) {
+    StreamProvider.autoDispose<List<DistribuidorDelServidor>>((ref) {
       // Al cambiar de sucursal en la barra se vuelve a pedir: el alcance lo
       // resuelve el servidor con la cabecera `x-sucursal-id`.
-      ref.watch(sucursalMiradaProvider);
+      final mirada = ref.watch(sucursalMiradaProvider);
+      // EN LA APK Y EL ESCRITORIO sale de la base local y funciona sin conexion
+      // (issue 14 de Amado, 16/10/2026). En la web, del servidor.
+      final local = ref.watch(flotaLocalProvider);
+      if (local != null) return local.distribuidores(sucursal: mirada);
       refrescarConElAviso(ref, const [CambioEnVivo.vehiculos]);
-      return ref.watch(repositorioDistribuidoresProvider).listar();
+      return Stream.fromFuture(
+        ref.watch(repositorioDistribuidoresProvider).listar(),
+      );
     });
 
 /// TODOS los distribuidores que el aparato tiene bajados de la sucursal que se

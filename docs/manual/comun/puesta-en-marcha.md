@@ -185,9 +185,8 @@ El aviso **no es el mismo en el teléfono que en la web**, y eso es a propósito
 mandar a mirar la señal a quien está sentado en la oficina es mandarlo a mirar donde
 no es.
 
-- **En el teléfono y en el escritorio:** «Sin conexión: no se guardó nada. Los
-  vehículos se configuran con conexión; inténtalo otra vez cuando haya red.» — busca
-  señal y repítelo.
+- **En el teléfono y en el escritorio:** no sale: los vehículos se guardan en el
+  aparato y suben solos. Si el servidor rechaza uno al subir, queda en la bandeja con su motivo.
 - **En la web:** «Sin conexión con el servidor: no se guardó nada. La página cargó,
   así que conexión hay: el que no contesta es el servidor. Prueba otra vez y, si
   sigue igual, avisa a la oficina.» — **no mires tu internet**: el que no contesta es

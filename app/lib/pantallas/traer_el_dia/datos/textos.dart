@@ -69,6 +69,7 @@ abstract final class TextosDeTraerElDia {
     Colecciones.productos => 'Productos',
     Colecciones.vehiculos => 'Vehículos',
     Colecciones.distribuidores => 'Distribuidores',
+    Colecciones.tiposDeVehiculo => 'Tipos de vehículo',
     Colecciones.sucursales => 'Sucursales',
     Colecciones.almacenes => 'Almacenes',
     Colecciones.ajustes => 'Ajustes',

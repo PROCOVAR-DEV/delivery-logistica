@@ -66,6 +66,7 @@ const (
 	ColeccionDeLaBajadaBoardColumns    ColeccionDeLaBajada = "boardColumns"
 	ColeccionDeLaBajadaBoardPlacements ColeccionDeLaBajada = "boardPlacements"
 	ColeccionDeLaBajadaDistribuidores  ColeccionDeLaBajada = "distribuidores"
+	ColeccionDeLaBajadaVehicleTypes    ColeccionDeLaBajada = "vehicle_types"
 )
 
 func (e *ColeccionDeLaBajada) Scan(src interface{}) error {

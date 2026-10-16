@@ -86,6 +86,8 @@ class Huerfanos {
     // renunciar, sube sola en cuanto haya senal.
     Sitio('routes', 'ruta', 'rutas'),
     Sitio('vehicles', 'vehículo', 'vehículos'),
+    Sitio('vehicle_types', 'tipo de vehículo', 'tipos de vehículo'),
+    Sitio('distribuidores', 'distribuidor', 'distribuidores'),
     Sitio('warehouses', 'almacén', 'almacenes'),
   ];
 

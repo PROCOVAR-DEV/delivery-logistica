@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/red/cliente_api.dart';
+import '../../vehiculos/datos/flota_local.dart';
 
 /// Un distribuidor tal como lo cuenta `GET /api/distribuidores`.
 ///
@@ -63,14 +64,26 @@ enum ResultadoDeQuitar { borrado, retirado }
 /// hace es que el selector de «Nueva ruta», que mira la base, lo vea en el acto y
 /// no cuando termine el ciclo que dispara el aviso en vivo.
 class RepositorioDistribuidores {
-  RepositorioDistribuidores(this._api, this._base);
+  RepositorioDistribuidores(this._api, this._base, [this._local]);
 
   final ClienteApi _api;
   final BaseLocal _base;
 
+  /// Base local y cola: **solo en la APK y el escritorio** (issue 14 de Amado,
+  /// 16/10/2026). Con ella el nomenclador se lee y se mantiene SIN conexion; las
+  /// altas de quien ve las ocho sucursales van al servidor (ver `RepositorioVehiculos`).
+  final FlotaLocal? _local;
+
+  Future<bool> _alAparato({bool alta = false}) async {
+    final local = _local;
+    if (local == null) return false;
+    return !(alta && await local.veTodas());
+  }
+
   /// Todos, activos y retirados: el cajon tiene que ver lo retirado para volver
   /// a activarlo.
   Future<List<DistribuidorDelServidor>> listar() async {
+    if (await _alAparato()) return _local!.listarDistribuidores();
     final datos = await _api.pedir<List<Object?>>('/distribuidores');
     return [
       for (final d in datos.whereType<Map<Object?, Object?>>())
@@ -79,6 +92,7 @@ class RepositorioDistribuidores {
   }
 
   Future<DistribuidorDelServidor> crear(String nombre) async {
+    if (await _alAparato(alta: true)) return _local!.crearDistribuidor(nombre);
     final dato = await _api.mandar<Map<String, Object?>>(
       'POST',
       '/distribuidores',
@@ -93,6 +107,10 @@ class RepositorioDistribuidores {
     String? nombre,
     bool? activo,
   }) async {
+    if (await _alAparato()) {
+      await _local!.cambiarDistribuidor(id, nombre: nombre, activo: activo);
+      return (await listar()).firstWhere((d) => d.id == id);
+    }
     final dato = await _api.mandar<Map<String, Object?>>(
       'PATCH',
       '/distribuidores/$id',
@@ -104,6 +122,7 @@ class RepositorioDistribuidores {
   /// Borra si ninguna ruta lo usa; si no, lo retira. El servidor decide, y la
   /// respuesta lo dice.
   Future<ResultadoDeQuitar> quitar(String id) async {
+    if (await _alAparato()) return _local!.quitarDistribuidor(id);
     final dato = await _api.mandar<Map<String, Object?>>(
       'DELETE',
       '/distribuidores/$id',

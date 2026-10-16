@@ -71,12 +71,23 @@ class Branches extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Los TIPOS de vehiculo de cada sucursal (00018 del servidor, 14/10/2026).
+///
+/// Bajan con el dia (coleccion `vehicle_types` de `GET /api/sync/cambios`, issue 14
+/// de Amado, 16/10/2026) y se mantienen SIN conexion con la cola, como los camiones:
+/// antes esta tabla existia y NO LA LLENABA NADIE, asi que la pantalla de Vehiculos
+/// pedia los tipos al servidor y sin red no habia ninguno que ofrecer.
+///
+/// `branch_id` es de quien es el tipo; **nulo = «de todas»** (los cinco de fabrica,
+/// que solo usan los camiones compartidos). Sin esta columna no se sabria de que
+/// sucursal es cada fila al cambiar de sucursal arriba.
 @DataClassName('TipoVehiculo')
 class VehicleTypes extends Table {
   TextColumn get id => text()();
   TextColumn get nombre => text()();
   RealColumn get costoKmUsd => real().nullable()();
   BoolColumn get activo => boolean().withDefault(const Constant(true))();
+  TextColumn get branchId => text().nullable()();
   DateTimeColumn get createdAt => dateTime().nullable()();
   DateTimeColumn get updatedAt => dateTime().nullable()();
 
@@ -89,6 +100,11 @@ class Vehicles extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get vehicleTypeId => text().nullable()();
+
+  /// El NOMBRE del tipo, tal cual lo manda el servidor (`type`). Hace falta ademas del
+  /// id porque un camion COMPARTIDO (sin sucursal) es de un tipo «de todas», y esos no
+  /// bajan a quien tiene sucursal: sin el nombre aqui, su tarjeta saldria sin tipo.
+  TextColumn get tipoNombre => text().nullable()();
   TextColumn get plate => text().nullable()();
   RealColumn get capacity => real().withDefault(const Constant(1000))();
   RealColumn get costoKmUsd => real().nullable()();
@@ -350,9 +366,11 @@ class Routes extends Table {
 /// de quien la repartio aunque ya no este en activo. El selector de una ruta nueva
 /// los esconde (`activo`), y el cajon que los mantiene los ensena aparte.
 ///
-/// Es de SOLO LECTURA aqui: se mantiene con conexion (`pantallas/distribuidores`) y
-/// vuelve por la bajada. Escribir en esta tabla desde el aparato sin que el
-/// servidor lo sepa seria inventar a alguien que ninguna otra sucursal ve.
+/// SE MANTIENE TAMBIEN SIN CONEXION (issue 14 de Amado, 16/10/2026): el logistico da
+/// de alta, renombra y retira desde el aparato; la fila se escribe aqui con un id
+/// `local-…` y su apunte queda en la cola, y la bajada la deja como la tiene el
+/// servidor cuando sube. Hasta ese dia el cajon pedia la lista al servidor y sin
+/// red no habia ninguna.
 @DataClassName('Distribuidor')
 class Distribuidores extends Table {
   TextColumn get id => text()();

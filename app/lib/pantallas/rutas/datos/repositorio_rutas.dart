@@ -503,7 +503,7 @@ class ConsultasRutas {
     String? sucursalId,
     String q = '',
     String municipio = '',
-    String vendedor = '',
+    List<String> vendedores = const [],
     String estado = '',
     String domicilio = '',
     String cotizado = '',
@@ -528,7 +528,7 @@ class ConsultasRutas {
       donde = donde & o.branchId.equals(sucursalId);
     }
     if (municipio.isNotEmpty) donde = donde & o.municipio.equals(municipio);
-    if (vendedor.isNotEmpty) donde = donde & o.vendedor.equals(vendedor);
+    if (vendedores.isNotEmpty) donde = donde & o.vendedor.isIn(vendedores);
 
     // LLEVA DOMICILIO = marcado O cobrado en la factura (`conDomicilio`, issue
     // 10, 15/10/2026), como el servidor; `0` es el contrario exacto, NULL

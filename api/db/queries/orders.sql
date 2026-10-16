@@ -153,7 +153,7 @@ WHERE
         OR (NOT sqlc.narg('cotizado')::boolean AND o.pedido_costo IS NULL)
     )
     AND (sqlc.narg('municipio')::text IS NULL OR o.municipio = sqlc.narg('municipio')::text)
-    AND (sqlc.narg('vendedor')::text  IS NULL OR o.vendedor  = sqlc.narg('vendedor')::text)
+    AND (sqlc.narg('vendedores')::text[] IS NULL OR o.vendedor = ANY(sqlc.narg('vendedores')::text[]))
     -- El estado de REPARTO es propio del reparto: no tiene nada que ver con el estado del
     -- pedido en PEDIDO ni con el de la factura. Manda el RESULTADO de la parada y NO el
     -- estado de la ruta: una ruta completada no dice nada de cada parada, y darlo por
@@ -268,7 +268,7 @@ WHERE
         OR (NOT sqlc.narg('cotizado')::boolean AND o.pedido_costo IS NULL)
     )
     AND (sqlc.narg('municipio')::text IS NULL OR o.municipio = sqlc.narg('municipio')::text)
-    AND (sqlc.narg('vendedor')::text  IS NULL OR o.vendedor  = sqlc.narg('vendedor')::text)
+    AND (sqlc.narg('vendedores')::text[] IS NULL OR o.vendedor = ANY(sqlc.narg('vendedores')::text[]))
     AND (
         sqlc.narg('reparto')::text IS NULL
         OR (sqlc.narg('reparto')::text = 'sin_entregar'
@@ -378,7 +378,7 @@ WHERE
         OR (NOT sqlc.narg('cotizado')::boolean AND o.pedido_costo IS NULL)
     )
     AND (sqlc.narg('municipio')::text IS NULL OR o.municipio = sqlc.narg('municipio')::text)
-    AND (sqlc.narg('vendedor')::text  IS NULL OR o.vendedor  = sqlc.narg('vendedor')::text)
+    AND (sqlc.narg('vendedores')::text[] IS NULL OR o.vendedor = ANY(sqlc.narg('vendedores')::text[]))
     AND (
         sqlc.narg('reparto')::text IS NULL
         OR (sqlc.narg('reparto')::text = 'sin_entregar'
@@ -460,7 +460,7 @@ WHERE
         OR (NOT sqlc.narg('cotizado')::boolean AND o.pedido_costo IS NULL)
     )
     AND (sqlc.narg('municipio')::text IS NULL OR o.municipio = sqlc.narg('municipio')::text)
-    AND (sqlc.narg('vendedor')::text  IS NULL OR o.vendedor  = sqlc.narg('vendedor')::text)
+    AND (sqlc.narg('vendedores')::text[] IS NULL OR o.vendedor = ANY(sqlc.narg('vendedores')::text[]))
     AND (
         sqlc.narg('reparto')::text IS NULL
         OR (sqlc.narg('reparto')::text = 'sin_entregar'

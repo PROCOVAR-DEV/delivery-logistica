@@ -91,7 +91,7 @@ void main() {
   Future<List<String>> ids({
     String q = '',
     String municipio = '',
-    String vendedor = '',
+    List<String> vendedores = const [],
     String estado = '',
     String domicilio = '',
     String cotizado = '',
@@ -104,7 +104,7 @@ void main() {
       sucursalId: 'B1',
       q: q,
       municipio: municipio,
-      vendedor: vendedor,
+      vendedores: vendedores,
       estado: estado,
       domicilio: domicilio,
       cotizado: cotizado,
@@ -196,7 +196,10 @@ void main() {
 
   test('municipio y vendedor son exactos', () async {
     expect(await ids(municipio: 'Florida'), isEmpty);
-    expect(await ids(vendedor: 'Luis'), ['d1', 'd3']);
+    expect(await ids(vendedores: ['Luis']), ['d1', 'd3']);
+    // VARIOS = la unión (issue 18 de Amado, 16/10/2026).
+    expect(await ids(vendedores: ['Luis', 'Marta']), ['d1', 'd3', 'd4']);
+    expect(await ids(vendedores: ['Nadie']), isEmpty);
   });
 
   // DESDE/HASTA Y NO UN DÍA (issue 13 de Amado, 15/10/2026). Los elegibles son
@@ -231,7 +234,7 @@ void main() {
 
   test('los filtros se suman entre si', () async {
     expect(
-      await ids(vendedor: 'Luis', domicilio: '1', cotizado: '1', kmMax: 5),
+      await ids(vendedores: ['Luis'], domicilio: '1', cotizado: '1', kmMax: 5),
       ['d1'],
     );
   });

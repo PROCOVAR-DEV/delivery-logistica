@@ -18,6 +18,7 @@ import '../../../diseno/anchos.dart';
 import '../../../diseno/barra_de_filtros.dart';
 import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/rango_de_fechas.dart';
+import '../../../diseno/selector_multiple.dart';
 import '../../../diseno/tabla_ancha.dart';
 import '../../../diseno/tema.dart';
 import '../../../impresion/hoja.dart' as papel;
@@ -42,11 +43,19 @@ import 'tabla_pedidos.dart';
 import 'vista_pre_despacho.dart';
 
 class PantallaPedidos extends ConsumerStatefulWidget {
-  const PantallaPedidos({this.consulta = const <String, String>{}, super.key});
+  const PantallaPedidos({
+    this.consulta = const <String, String>{},
+    this.vendedoresEnLaUrl,
+    super.key,
+  });
 
   /// Lo que venía en la dirección (`estado.uri.queryParameters`). Vacío cuando
   /// se pinta la pantalla suelta en una prueba, que es el caso de siempre.
   final Map<String, String> consulta;
+
+  /// Todos los `vendedor=` de la dirección (`consulta` se queda con uno). Nulo =
+  /// se lee el de `consulta`, que es el enlace de antes de que fuera de varios.
+  final List<String>? vendedoresEnLaUrl;
 
   /// El texto literal de la franja azul del arranque acotado.
   static const franjaAzul =
@@ -70,7 +79,10 @@ class _PantallaPedidosState extends ConsumerState<PantallaPedidos> {
   @override
   void initState() {
     super.initState();
-    final lectura = FiltrosEnLaUrl.leer(widget.consulta);
+    final lectura = FiltrosEnLaUrl.leer(
+      widget.consulta,
+      vendedores: widget.vendedoresEnLaUrl,
+    );
     _noSePudieron = lectura.noSePudieron;
     // FUERA DEL `build`. Tocar un provider mientras se pinta es el error que
     // Riverpod corta en seco; y va sólo si el enlace traía algo, para que abrir
@@ -407,16 +419,19 @@ class _BarraDeFiltros extends ConsumerWidget {
           ],
           alElegir: (c) => notas.cambiar((f) => f.copiarCon(cotizado: c)),
         ),
-        Selector<String>(
+        // VARIOS VENDEDORES A LA VEZ (issue 18 de Amado, 16/10/2026): salen los pedidos
+        // de CUALQUIERA de los marcados. Cajón con casillas, no el `Selector` del kit.
+        SelectorMultiple(
           key: const ValueKey('Vendedor del pedido'),
           titulo: 'Vendedor del pedido',
-          valor: filtros.vendedor,
+          todos: 'Todos los vendedores',
+          plural: 'vendedores',
           opciones: [
-            const OpcionSelector('', 'Todos los vendedores'),
             for (final v in facetas.vendedores)
-              OpcionSelector(v.valor, v.valor, nota: '${v.pedidos}'),
+              OpcionMultiple(v.valor, nota: '${v.pedidos}'),
           ],
-          alElegir: (v) => notas.cambiar((f) => f.copiarCon(vendedor: v)),
+          seleccion: filtros.vendedores,
+          alCambiar: (v) => notas.cambiar((f) => f.copiarCon(vendedores: v)),
         ),
         ControlSenalado(
           nombre: Senalado.pedidosOrden,

@@ -23,6 +23,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -72,6 +73,7 @@ type pedidoFalso struct {
 	id       uuid.UUID
 	sucursal uuid.UUID
 	nombre   string
+	vendedor string
 	folio    string
 	peso     float64
 	ruta     *uuid.UUID
@@ -764,6 +766,9 @@ func (q *tableroFalso) ListarPedidosSinColocar(_ context.Context, arg sqlc.Lista
 		if !fechaEnRango(p, arg.DiaDesde, arg.DiaHasta) {
 			continue
 		}
+		if len(arg.Vendedores) > 0 && !slices.Contains(arg.Vendedores, p.vendedor) {
+			continue
+		}
 		fila := sqlc.ListarPedidosSinColocarRow{
 			ID: p.id, CustomerName: p.nombre, Weight: p.peso,
 			KmAlAlmacen: kmHaversine(arg.OrigenLat, arg.OrigenLng, p.lat, p.lng),
@@ -868,6 +873,9 @@ func (q *tableroFalso) ContarPedidosSinColocar(_ context.Context, arg sqlc.Conta
 			continue
 		}
 		if !fechaEnRango(p, arg.DiaDesde, arg.DiaHasta) {
+			continue
+		}
+		if len(arg.Vendedores) > 0 && !slices.Contains(arg.Vendedores, p.vendedor) {
 			continue
 		}
 		n++

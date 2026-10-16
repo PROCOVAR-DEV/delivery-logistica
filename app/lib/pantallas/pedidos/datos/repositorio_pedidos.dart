@@ -390,7 +390,7 @@ class ConsultasPedidos {
     }
 
     if (f.municipio.isNotEmpty) anadir(o.municipio.equals(f.municipio));
-    if (f.vendedor.isNotEmpty) anadir(o.vendedor.equals(f.vendedor));
+    if (f.vendedores.isNotEmpty) anadir(o.vendedor.isIn(f.vendedores));
 
     switch (f.factura) {
       case FacturaFiltro.cualquiera:

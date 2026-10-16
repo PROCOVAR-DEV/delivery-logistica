@@ -67,7 +67,7 @@ ordenadas de más a menos pedidos pendientes.
    primero en «Sin colocar», del más cercano al más lejano.
 2. **Mira los avisos rojos**, si los hay: «3 archivados en PEDIDO», «2 ya en otra
    ruta». Son pedidos ya colocados que hoy no salen.
-3. **Filtra la izquierda** si te conviene: por municipio, por vendedor, por día o
+3. **Filtra la izquierda** si te conviene: por municipio, por vendedor (uno o varios), por día o
    por «Hasta cuántos km del almacén».
 4. **Crea las zonas** con el botón **«Nueva columna»** (lleva un `+`): «Centro»,
    «Vista Alegre», «Carretera»… **Los nombres de tu sucursal, no los de nadie más.**

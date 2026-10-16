@@ -18,7 +18,7 @@ class FiltrosSinColocar {
     this.hasta,
     this.q,
     this.municipio,
-    this.vendedor,
+    this.vendedores = const [],
     this.kmMax,
     this.conCobroDeDomicilio,
     this.limite = 200,
@@ -36,7 +36,11 @@ class FiltrosSinColocar {
   /// recuerda.
   final String? q;
   final String? municipio;
-  final String? vendedor;
+
+  /// UNO O VARIOS vendedores (issue 18 de Amado, 16/10/2026: «pueden haber pocos
+  /// domicilios y se combinan los de ambos»): salen los pedidos de CUALQUIERA de
+  /// ellos. Vacía = todos.
+  final List<String> vendedores;
 
   /// El corte por kilometros.
   final double? kmMax;
@@ -74,14 +78,13 @@ class FiltrosSinColocar {
     DateTime? hasta,
     String? q,
     String? municipio,
-    String? vendedor,
+    List<String>? vendedores,
     double? kmMax,
     bool? conCobroDeDomicilio,
     int? limite,
     bool quitarDesde = false,
     bool quitarHasta = false,
     bool quitarMunicipio = false,
-    bool quitarVendedor = false,
     bool quitarKmMax = false,
     bool quitarCobroDeDomicilio = false,
   }) => FiltrosSinColocar(
@@ -89,7 +92,7 @@ class FiltrosSinColocar {
     hasta: quitarHasta ? null : (hasta ?? this.hasta),
     q: q ?? this.q,
     municipio: quitarMunicipio ? null : (municipio ?? this.municipio),
-    vendedor: quitarVendedor ? null : (vendedor ?? this.vendedor),
+    vendedores: vendedores ?? this.vendedores,
     kmMax: quitarKmMax ? null : (kmMax ?? this.kmMax),
     conCobroDeDomicilio: quitarCobroDeDomicilio
         ? null
@@ -102,7 +105,7 @@ class FiltrosSinColocar {
       hasta != null ||
       (q != null && q!.trim().isNotEmpty) ||
       municipio != null ||
-      vendedor != null ||
+      vendedores.isNotEmpty ||
       kmMax != null ||
       conCobroDeDomicilio != null;
 }
@@ -665,9 +668,8 @@ WHERE c.branch_id = ?1''',
     if (municipio != null && municipio.isNotEmpty) {
       consulta.where((t) => t.municipio.equals(municipio));
     }
-    final vendedor = filtros.vendedor;
-    if (vendedor != null && vendedor.isNotEmpty) {
-      consulta.where((t) => t.vendedor.equals(vendedor));
+    if (filtros.vendedores.isNotEmpty) {
+      consulta.where((t) => t.vendedor.isIn(filtros.vendedores));
     }
     // EL COBRO DEL DOMICILIO es `pedidoCosto`, el que puso el repartidor desde
     // Entrega, y es el MISMO numero que la tarjeta ensena al lado del peso.

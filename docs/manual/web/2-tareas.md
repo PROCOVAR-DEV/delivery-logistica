@@ -45,7 +45,7 @@ Los filtros van en una fila bajo la cabecera:
 | **«Estado de reparto en delivery»** | «Cualquier reparto» |
 | **«Municipio del cliente»** | «Todos los municipios» |
 | **«Precio del domicilio»** | «Cualquier precio» |
-| **«Vendedor del pedido»** | «Todos los vendedores» |
+| **«Vendedor del pedido»** | «Todos los vendedores». Uno o varios: casillas en un cajón, salen los de cualquiera de los marcados |
 | **«Cómo se ordena esta página»** | «Más recientes» |
 | **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías |
 

@@ -7,7 +7,7 @@
 // repositorio a SQL y lo que se compara en las pruebas de paridad contra la de
 // Next. Si vivieran dentro del widget no se podrian probar sin pintar.
 
-import 'package:flutter/foundation.dart' show immutable;
+import 'package:flutter/foundation.dart' show immutable, listEquals;
 
 /// `reparto` — el estado de reparto EN DELIVERY. Manda `resultado` de la parada,
 /// nunca el estado de la ruta: una ruta completada no convierte en entregado un
@@ -100,7 +100,7 @@ class FiltrosPedidos {
     this.q = '',
     this.reparto = RepartoFiltro.cualquiera,
     this.municipio = '',
-    this.vendedor = '',
+    this.vendedores = const [],
     this.cotizado = CotizadoFiltro.cualquiera,
     this.factura = FacturaFiltro.conFactura,
     this.archivado = ArchivadoFiltro.no,
@@ -118,7 +118,7 @@ class FiltrosPedidos {
     : q = '',
       reparto = RepartoFiltro.cualquiera,
       municipio = '',
-      vendedor = '',
+      vendedores = const [],
       cotizado = CotizadoFiltro.cualquiera,
       factura = FacturaFiltro.cualquiera,
       archivado = ArchivadoFiltro.cualquiera,
@@ -132,7 +132,10 @@ class FiltrosPedidos {
   final String q;
   final RepartoFiltro reparto;
   final String municipio;
-  final String vendedor;
+
+  /// UNO O VARIOS vendedores (issue 18 de Amado, 16/10/2026): salen los pedidos de
+  /// CUALQUIERA de ellos. Vacía = todos.
+  final List<String> vendedores;
   final CotizadoFiltro cotizado;
   final FacturaFiltro factura;
   final ArchivadoFiltro archivado;
@@ -172,7 +175,7 @@ class FiltrosPedidos {
       q.isNotEmpty ||
       reparto != RepartoFiltro.cualquiera ||
       municipio.isNotEmpty ||
-      vendedor.isNotEmpty ||
+      vendedores.isNotEmpty ||
       cotizado != CotizadoFiltro.cualquiera ||
       factura != FacturaFiltro.cualquiera ||
       archivado != ArchivadoFiltro.cualquiera ||
@@ -187,7 +190,7 @@ class FiltrosPedidos {
     String? q,
     RepartoFiltro? reparto,
     String? municipio,
-    String? vendedor,
+    List<String>? vendedores,
     CotizadoFiltro? cotizado,
     FacturaFiltro? factura,
     ArchivadoFiltro? archivado,
@@ -206,7 +209,7 @@ class FiltrosPedidos {
         q != null ||
         reparto != null ||
         municipio != null ||
-        vendedor != null ||
+        vendedores != null ||
         cotizado != null ||
         factura != null ||
         archivado != null ||
@@ -223,7 +226,7 @@ class FiltrosPedidos {
       q: q ?? this.q,
       reparto: reparto ?? this.reparto,
       municipio: municipio ?? this.municipio,
-      vendedor: vendedor ?? this.vendedor,
+      vendedores: vendedores ?? this.vendedores,
       cotizado: cotizado ?? this.cotizado,
       factura: factura ?? this.factura,
       archivado: archivado ?? this.archivado,
@@ -247,7 +250,7 @@ class FiltrosPedidos {
           other.q == q &&
           other.reparto == reparto &&
           other.municipio == municipio &&
-          other.vendedor == vendedor &&
+          listEquals(other.vendedores, vendedores) &&
           other.cotizado == cotizado &&
           other.factura == factura &&
           other.archivado == archivado &&
@@ -263,7 +266,7 @@ class FiltrosPedidos {
     q,
     reparto,
     municipio,
-    vendedor,
+    Object.hashAll(vendedores),
     cotizado,
     factura,
     archivado,
@@ -278,7 +281,7 @@ class FiltrosPedidos {
   @override
   String toString() =>
       'FiltrosPedidos(q: $q, reparto: ${reparto.param}, municipio: $municipio, '
-      'vendedor: $vendedor, cotizado: ${cotizado.param}, '
+      'vendedores: $vendedores, cotizado: ${cotizado.param}, '
       'factura: ${factura.param}, archivado: ${archivado.param}, '
       'desde: $desde, hasta: $hasta, '
       'entregadoDesde: $entregadoDesde, entregadoHasta: $entregadoHasta, '

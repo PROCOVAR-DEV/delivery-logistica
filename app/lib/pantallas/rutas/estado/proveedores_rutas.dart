@@ -7,7 +7,7 @@
 // nucleo.
 
 import 'package:drift/drift.dart' show TableUpdateQuery;
-import 'package:flutter/foundation.dart' show immutable;
+import 'package:flutter/foundation.dart' show immutable, listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../nucleo/base/base.dart';
@@ -367,7 +367,7 @@ class FiltrosDisponibles {
     this.sucursalId,
     this.q = '',
     this.municipio = '',
-    this.vendedor = '',
+    this.vendedores = const [],
     this.estado = EstadoDelPedido.cualquiera,
     this.domicilio = DomicilioFiltro.soloCon,
     this.cotizado = CotizadoDelDomicilio.cualquiera,
@@ -380,7 +380,10 @@ class FiltrosDisponibles {
   final String? sucursalId;
   final String q;
   final String municipio;
-  final String vendedor;
+
+  /// UNO O VARIOS vendedores (issue 18 de Amado, 16/10/2026): entran los pedidos de
+  /// CUALQUIERA de ellos. Vacía = todos.
+  final List<String> vendedores;
   final EstadoDelPedido estado;
 
   /// **Arranca en `Sólo con domicilio`** (pliego §3, paso 4), y `Limpiar` vuelve
@@ -404,7 +407,7 @@ class FiltrosDisponibles {
     String? sucursalId,
     String? q,
     String? municipio,
-    String? vendedor,
+    List<String>? vendedores,
     EstadoDelPedido? estado,
     DomicilioFiltro? domicilio,
     CotizadoDelDomicilio? cotizado,
@@ -420,7 +423,7 @@ class FiltrosDisponibles {
     sucursalId: sucursalId ?? this.sucursalId,
     q: q ?? this.q,
     municipio: municipio ?? this.municipio,
-    vendedor: vendedor ?? this.vendedor,
+    vendedores: vendedores ?? this.vendedores,
     estado: estado ?? this.estado,
     domicilio: domicilio ?? this.domicilio,
     cotizado: cotizado ?? this.cotizado,
@@ -440,7 +443,7 @@ class FiltrosDisponibles {
           other.sucursalId == sucursalId &&
           other.q == q &&
           other.municipio == municipio &&
-          other.vendedor == vendedor &&
+          listEquals(other.vendedores, vendedores) &&
           other.estado == estado &&
           other.domicilio == domicilio &&
           other.cotizado == cotizado &&
@@ -454,7 +457,7 @@ class FiltrosDisponibles {
     sucursalId,
     q,
     municipio,
-    vendedor,
+    Object.hashAll(vendedores),
     estado,
     domicilio,
     cotizado,
@@ -487,7 +490,7 @@ final disponiblesProvider =
         sucursalId: filtros.sucursalId,
         q: filtros.q,
         municipio: filtros.municipio,
-        vendedor: filtros.vendedor,
+        vendedores: filtros.vendedores,
         estado: filtros.estado.param,
         domicilio: filtros.domicilio.param,
         cotizado: filtros.cotizado.param,
@@ -529,7 +532,7 @@ final opcionesDeDisponiblesProvider =
       final pedidos = ref
           .watch(
             disponiblesProvider(
-              filtros.copiarCon(q: '', vendedor: '', municipio: ''),
+              filtros.copiarCon(q: '', vendedores: const [], municipio: ''),
             ),
           )
           .value;

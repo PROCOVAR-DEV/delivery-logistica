@@ -298,6 +298,57 @@ void main() {
   );
 
   testWidgets(
+    'VARIOS vendedores en el paso 4 (issue 18 de Amado): se marcan dos y entran '
+    'los pedidos de cualquiera de ellos, no del tercero',
+    (tester) async {
+      await loQueBajaPrimero();
+      await llegaElAlmacen();
+      await pintar(tester);
+      await llegarAlPaso4(tester);
+
+      for (final (id, cliente, vendedor) in [
+        ('o1', 'Doña Rosa', 'Chaplin'),
+        ('o2', 'Don Pepe', 'Marta'),
+        ('o3', 'Bar Lolita', 'Luis'),
+      ]) {
+        await sembrarPedido(
+          base,
+          id: id,
+          cliente: cliente,
+          vendedor: vendedor,
+          municipio: 'Vertientes',
+          endLat: 21.38,
+          endLng: -77.91,
+          fecha: ahora,
+        );
+      }
+      await asentar(tester);
+      expect(find.textContaining('Doña Rosa'), findsWidgets);
+      expect(find.textContaining('Bar Lolita'), findsWidgets);
+
+      await tester.tap(find.text('Todos los vendedores'));
+      await asentar(tester);
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Chaplin'));
+      await asentar(tester);
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Marta'));
+      await asentar(tester);
+      await tester.tap(find.byIcon(Icons.close).last);
+      await asentar(tester);
+
+      expect(find.text('2 vendedores'), findsOneWidget);
+      expect(find.textContaining('Doña Rosa'), findsWidgets);
+      expect(find.textContaining('Don Pepe'), findsWidgets);
+      expect(
+        find.textContaining('Bar Lolita'),
+        findsNothing,
+        reason: 'Luis no está entre los marcados',
+      );
+
+      await desmontar(tester);
+    },
+  );
+
+  testWidgets(
     'y los renglones, que bajan DESPUÉS de los pedidos, también: los artículos '
     'de cada fila salen solos',
     (tester) async {

@@ -5,6 +5,7 @@ import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/caja_de_numero.dart';
 import '../../../diseno/lista_que_se_recoloca.dart';
 import '../../../diseno/rango_de_fechas.dart';
+import '../../../diseno/selector_multiple.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/proveedores.dart' show relojProvider;
 import '../../ayuda/datos/controles_senalados.dart';
@@ -326,26 +327,25 @@ class _Filtros extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          isExpanded: false,
-          initialValue: filtros.vendedor,
-          decoration: const InputDecoration(
-            labelText: 'Vendedor',
-            border: OutlineInputBorder(),
-          ),
-          items: [
-            const DropdownMenuItem<String>(child: Text('Todos')),
-            for (final v in vendedores)
-              DropdownMenuItem<String>(
-                value: v,
-                child: Text(v, maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: (valor) => poner(
-            valor == null
-                ? filtros.copiaCon(quitarVendedor: true)
-                : filtros.copiaCon(vendedor: valor),
-          ),
+        // VARIOS VENDEDORES A LA VEZ (issue 18 de Amado, 16/10/2026): «pueden haber
+        // pocos domicilios y se combinan los de ambos». Salen los pedidos de CUALQUIERA
+        // de los marcados. Es un cajón con casillas (`SelectorMultiple`), y de paso se
+        // va el `isExpanded: false` del desplegable de antes, que desbordaba a 390 px.
+        Text(
+          'Vendedor',
+          style: Tipos.texto(tamano: 12, color: Colores.tintaSuave),
+        ),
+        const SizedBox(height: 6),
+        SelectorMultiple(
+          key: const ValueKey('Vendedor del pedido'),
+          titulo: 'Vendedor del pedido',
+          todos: 'Todos los vendedores',
+          plural: 'vendedores',
+          expandido: true,
+          opciones: [for (final v in vendedores) OpcionMultiple(v)],
+          seleccion: filtros.vendedores,
+          alCambiar: (elegidos) =>
+              poner(filtros.copiaCon(vendedores: elegidos)),
         ),
         const SizedBox(height: 12),
         // EL TOPE DE KM, SIN PEDIR INTRO — 22/09/2026.

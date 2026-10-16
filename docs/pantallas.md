@@ -108,7 +108,7 @@ y siempre `, del más nuevo al más viejo`. Indicador giratorio mientras refresc
 | Selector | `Estado de reparto en delivery` | `Cualquier reparto` (por defecto) | `Sin entregar`=`sin_entregar`, `En despacho`=`en_despacho`, `En ruta`=`en_ruta`, `Entregado`=`entregado`, `Devuelto o cancelado`=`devuelto` | `reparto` |
 | Selector | `Municipio del cliente` | `Todos los municipios` (defecto) | de facetas, con el nº de pedidos como nota | `municipio` |
 | Selector | `Precio del domicilio` | `Cualquier precio` (defecto) | `Con precio puesto`=`1`, `Sin cotizar`=`0` | `cotizado` |
-| Selector | `Vendedor del pedido` | `Todos los vendedores` (defecto) | de facetas, con nº de pedidos | `vendedor` |
+| Selector **de varios** (cajón con casillas, `SelectorMultiple`; issue 18 de Amado) | `Vendedor del pedido` | `Todos los vendedores` (defecto); «3 vendedores» si hay varios | de facetas, con nº de pedidos | `vendedor` repetido (o `vendedores=a,b`) |
 | Dos fechas | tooltip `Desde (fecha del pedido)` / `Hasta (fecha del pedido)` | vacías | `desde` acota el `max` de `hasta` y viceversa | `desde`, `hasta` |
 | Botón | `sólo ese día` | — | aparece si `desde` y `desde ≠ hasta`; copia `desde` en `hasta` | — |
 | Botón (icono ✕) | tooltip `Quitar el filtro de fechas` | — | limpia ambas | — |
@@ -405,7 +405,7 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
      `Desde (fecha del pedido)` / `Hasta (fecha del pedido)` / `sólo ese día` / ✕ (los dos días
      incluidos; hasta el 15/10/2026 era un solo `Día de los pedidos` con `Todos los días`,
      issue 13 de Amado).
-   - Selector `Vendedor del pedido` / `Todos los vendedores` (con buscador siempre).
+   - Selector **de varios** `Vendedor del pedido` / `Todos los vendedores` (con buscador siempre; issue 18 de Amado).
    - `km máx.` (número) y `costo mín.` (número).
    - Selector `Estado del pedido en PEDIDO` / `Cualquier estado`: `En proceso`=`en_proceso`,
      `Completada`=`completada`, `Expirada`=`expirada`.

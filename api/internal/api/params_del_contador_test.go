@@ -108,6 +108,8 @@ func rellenar(campo reflect.Value, nombre string) {
 	case *string:
 		s := "valor de " + nombre
 		campo.Set(reflect.ValueOf(&s))
+	case []string:
+		campo.Set(reflect.ValueOf([]string{"valor de " + nombre, "otro de " + nombre}))
 	case *float64:
 		f := 10 + float64(huella)
 		campo.Set(reflect.ValueOf(&f))

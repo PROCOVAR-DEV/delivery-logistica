@@ -285,7 +285,7 @@ aplica `trim()`. `q` además se pasa a minúsculas. Los usan `/api/orders` y
 | `domicilio` | `1` \| `0` | «lleva domicilio» = `requiereDomicilio IS TRUE OR facturaDomicilio > 0` / el contrario exacto, `requiereDomicilio IS NOT TRUE AND (facturaDomicilio IS NULL OR facturaDomicilio <= 0)` (desde el 15/10/2026, issue 10; casos `filtroDeDomicilio` de `docs/armado-rechazado.casos.json`) |
 | `cotizado` | `1` \| `0` | `pedidoCosto != null` / `pedidoCosto = null` |
 | `municipio` | texto | `municipio = valor` (exacto) |
-| `vendedor` | texto | `vendedor = valor` (exacto) |
+| `vendedor` / `vendedores` | texto, **uno o varios** | `vendedor = ANY(lista)` (exacto): salen los pedidos de CUALQUIERA de ellos (unión). Se pueden mandar `vendedor=Ana&vendedor=Luis` (repetido), `vendedores=Ana,Luis` (separado por comas) o `vendedor=Ana` (el de UN vendedor de siempre, que las APK instaladas siguen mandando); si vienen de las dos formas se unen, sin repetidos y sin vacíos. Un nombre con coma sólo viaja entero en la forma repetida. Ninguno = todos (nunca «ninguno»: la lista vacía es `NULL`, no `{}`). Desde el 16/10/2026 (issue 18 de Amado) |
 | `branchId` | id | `branchId = valor`, **AND** con el alcance (no lo amplía) |
 | `reparto` | `sin_entregar` \| `en_despacho` \| `en_ruta` \| `entregado` \| `devuelto` | ver abajo |
 | `factura` | `con_factura` \| `cuadra` \| `sin_cotejar` \| otro | ver abajo |
@@ -2036,6 +2036,17 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
   **El cursor `?desde=` cambió de forma**: era `km|fecha|id` y es `fecha|id` (la pareja del
   `ORDER BY`; `fecha` vacía = el pedido no tiene ninguna). Un cursor viejo, de tres trozos, da
   `400` con el mensaje de siempre y hay que volver a pedir la primera tanda sin `desde`.
+- **«Sin colocar» se filtra por UNO O VARIOS vendedores desde el 16/10/2026** (Amado, issue 18:
+  «pueden haber pocos domicilios y se combinan los de ambos»). `GET /api/board` y
+  `GET /api/board/unplaced` aceptan `vendedor` repetido (`?vendedor=Ana&vendedor=Luis`) o
+  `vendedores` separado por comas (`?vendedores=Ana,Luis`); el `vendedor` de UNO solo de antes
+  se mantiene tal cual para las APK instaladas. Salen los pedidos de cualquiera de ellos y el
+  `total` cuenta lo mismo (`paramsDelContador`, `ListarPedidosSinColocar`/`ContarPedidosSinColocar`
+  con `o.vendedor = ANY($vendedores::text[])`). Lo mismo en `GET /api/orders` y
+  `GET /api/orders/available` (filtros compartidos, arriba). En el aparato (web, APK y escritorio) el filtro lo hace la base
+  local, y la dirección del Tablero y de Pedidos lleva `vendedor` repetido; el enlace viejo con un
+  solo `vendedor` se sigue leyendo. Pruebas: `TestMotorReal_VendedoresMultiples` (Postgres),
+  `TestSinColocarFiltraPorUnoOVariosVendedores`, `TestPedidosYDisponiblesPasanLosVendedoresALaListaYAlContador`.
 - **«Sin colocar» se acota por un RANGO de la fecha del pedido desde el 15/10/2026** (Amado,
   issue 13, punto 1). `GET /api/board` y `GET /api/board/unplaced` aceptan `diaDesde` y
   `diaHasta` (`YYYY-MM-DD`, cada uno opcional, **los dos días incluidos**) además del `dia`

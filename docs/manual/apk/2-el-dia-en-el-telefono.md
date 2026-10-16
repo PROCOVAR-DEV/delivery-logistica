@@ -192,7 +192,7 @@ previsto».
    - **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** (los dos días
      entran; para un solo día, pon «Desde» y toca **«sólo ese día»**)
    - **«Municipio»**
-   - **«Vendedor»**
+   - **«Vendedor»**: uno o varios. Marca las casillas que quieras y salen los pedidos de cualquiera de ellos; «Todos los vendedores» lo quita
    - **«Hasta cuántos km del almacén»** (escribe el número y **sal del campo**, o dale
      a intro)
    - **«Cobro del domicilio»**: «Todos» / «Con cobro» / «Sin cobro»

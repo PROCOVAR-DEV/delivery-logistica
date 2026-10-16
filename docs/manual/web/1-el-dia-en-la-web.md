@@ -162,7 +162,7 @@ tarjeta: eso es el teléfono, que no tiene las dos mitades a la vez.
    <!-- señala: tablero-sin-colocar-filtros -->
    - Los filtros son **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»**
      (los dos días entran; para un solo día, pon «Desde» y pulsa **«sólo ese día»**),
-     **«Municipio»**, **«Vendedor»**, **«Hasta cuántos km del almacén»** (se aplica al
+     **«Municipio»**, **«Vendedor»** (uno o varios: salen los de cualquiera de los marcados), **«Hasta cuántos km del almacén»** (se aplica al
      salir del campo o con intro) y **«Cobro del domicilio»**. Para quitarlos,
      **«Quitar todos los filtros»**.
 2. O usa **el buscador**, que dice «Cliente, operación, factura, dirección, artículo…» y

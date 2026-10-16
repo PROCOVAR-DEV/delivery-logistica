@@ -19,6 +19,8 @@
 //  * el relleno de abajo (ver `rellenoAlFinalDelDetalle`) deja la ultima linea
 //    por encima de la barra del sistema del telefono.
 
+import '../../../nucleo/regla_de_entrada.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -708,7 +710,9 @@ class LineaDeDatosDeLaRuta extends StatelessWidget {
     // pantalla (`RT-20260921-007`, 22/09/2026). Las paradas si saben decir
     // `null`. Ver `datos/importe_de_la_ruta.dart`.
     final importe = ImporteDeRuta.deLasParadas(
-      ruta.paradas.map((p) => p.pedidoCosto),
+      ruta.paradas.map(
+        (p) => costoDeLaParada(p.pedidoCosto, p.facturaDomicilio),
+      ),
     );
     final queFalta = importe.queFalta;
     return Column(
@@ -1124,7 +1128,7 @@ class TarjetaDeParada extends StatelessWidget {
           // buscar aquí, y alineado a la derecha los de todas las paradas caen
           // en la misma columna: así se recorren con el ojo sin leer.
           Text(
-            usd(parada.pedidoCosto),
+            usd(costoDeLaParada(parada.pedidoCosto, parada.facturaDomicilio)),
             style: Tipos.mono(
               tamano: 15,
               peso: FontWeight.w700,

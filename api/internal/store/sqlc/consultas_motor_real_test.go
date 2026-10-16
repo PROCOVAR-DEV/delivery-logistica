@@ -1710,6 +1710,10 @@ func (b *banco) viajera(sucursal, ruta uuid.UUID, nombre string, orden int32, pe
 	s := listo(nombre, sucursal)
 	s.Ruta, s.UltimaRuta = alcance(ruta), alcance(ruta)
 	s.StopOrder, s.Peso, s.Costo = i32(orden), f64(peso), costo
+	if costo == nil {
+		// «Sin cotizar» de verdad: ni cotizada en Entrega ni cobrada en la factura (00023, 16/10/2026).
+		s.Domicilio = nil
+	}
 	p := b.pedido(s)
 	b.exec(`INSERT INTO order_items (order_id, linea, description, quantity) VALUES ($1, 1, $2, 1)`, p, "renglon de "+nombre)
 	return p
@@ -2949,4 +2953,35 @@ func TestMotorReal_PuntoDeSalidaDeLaZona(t *testing.T) {
 		t.Fatalf("un punto en blanco tenía que chocar con el CHECK (23514) y llegó %v", err)
 	}
 	b.exec(`ROLLBACK TO SAVEPOINT antes_del_blanco`)
+}
+
+// El importe de la ruta suma lo cotizado y, si no, lo cobrado en la factura (00023, 16/10/2026): una
+// parada sin cotizar PERO cobrada (el caso PCC25-261014-1435, 0.05) suma su cobro y no cuenta como
+// «sin cotizar»; la cotizada manda sobre lo cobrado; la que no tiene ninguno de los dos cuenta.
+func TestMotorReal_LosTotalesDeLaRutaSumanLoCobrado(t *testing.T) {
+	pool := motorReal(t)
+	b := nuevoBanco(t, pool)
+	suc := b.sucursal()
+	ruta := b.ruta(suc, RouteStatusPlanned)
+
+	cobrada := b.viajera(suc, ruta, "cobrada", 1, 10, nil)
+	b.exec(`UPDATE orders SET factura_domicilio = 0.05 WHERE id = $1`, cobrada)
+	if got := b.totales(ruta).String(); got != "{peso=10 precio=0.05 sin_cotizar=0}" {
+		t.Fatalf("sin cotizar y cobrada: %s (el cobro debe sumar y no contar como sin cotizar)", got)
+	}
+
+	b.viajera(suc, ruta, "cotizada", 2, 20, f64(3))
+	if got := b.totales(ruta).String(); got != "{peso=30 precio=3.05 sin_cotizar=0}" {
+		t.Fatalf("más una cotizada: %s", got)
+	}
+
+	b.exec(`UPDATE orders SET factura_domicilio = 9 WHERE customer_name = 'cotizada'`)
+	if got := b.totales(ruta).String(); got != "{peso=30 precio=3.05 sin_cotizar=0}" {
+		t.Fatalf("la cotizada manda sobre lo cobrado: %s", got)
+	}
+
+	b.viajera(suc, ruta, "sin-nada", 3, 5, nil)
+	if got := b.totales(ruta).String(); got != "{peso=35 precio=3.05 sin_cotizar=1}" {
+		t.Fatalf("sin cotizar ni cobrada: %s", got)
+	}
 }

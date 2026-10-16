@@ -26,7 +26,7 @@ import '../../../diseno/tema.dart';
 import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
 import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
-import '../../../nucleo/fecha_del_pedido.dart';
+import '../../../nucleo/fecha_de_la_factura.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../almacenes/vista/almacenes_de_la_ultima_bajada.dart';
 import '../../ayuda/datos/controles_senalados.dart';
@@ -1056,8 +1056,8 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
         RangoDeFechas(
           desde: _filtros.desde,
           hasta: _filtros.hasta,
-          tituloDesde: 'Desde (fecha del pedido)',
-          tituloHasta: 'Hasta (fecha del pedido)',
+          tituloDesde: 'Desde (fecha de la factura)',
+          tituloHasta: 'Hasta (fecha de la factura)',
           hoy: ref.watch(relojProvider)(),
           alCambiar: (desde, hasta) => _ponerFiltros(
             _filtros.copiarCon(

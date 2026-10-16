@@ -3,7 +3,7 @@ import 'package:drift/drift.dart';
 
 import '../../../nucleo/almacenes/almacen_de_referencia.dart';
 import '../../../nucleo/base/base.dart';
-import '../../../nucleo/fecha_del_pedido.dart';
+import '../../../nucleo/fecha_de_la_factura.dart';
 import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/registro/registro.dart';
 import 'esquema.dart';
@@ -26,7 +26,7 @@ class FiltrosSinColocar {
 
   /// La fecha DEL PEDIDO (no la de la factura, que es la del orden), de [desde]
   /// a [hasta], los dos dias incluidos y cada uno opcional. Era UN dia hasta el
-  /// 15/10/2026; Amado pidio el rango (issue 13): `nucleo/fecha_del_pedido.dart`.
+  /// 15/10/2026; Amado pidio el rango (issue 13): `nucleo/fecha_de_la_factura.dart`.
   final DateTime? desde;
   final DateTime? hasta;
 
@@ -670,7 +670,7 @@ WHERE c.branch_id = ?1''',
     }
     // Con `created_at` de repuesto: un pedido sin fecha de PEDIDO no puede
     // desaparecer del rango en que entro. La regla vive en un sitio.
-    final fecha = fechaDelPedidoEntre(o, filtros.desde, filtros.hasta);
+    final fecha = fechaDeLaFacturaEntre(o, filtros.desde, filtros.hasta);
     if (fecha != null) consulta.where((_) => fecha);
 
     final filas = await consulta.get();

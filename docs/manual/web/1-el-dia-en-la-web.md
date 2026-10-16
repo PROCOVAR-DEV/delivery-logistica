@@ -160,7 +160,7 @@ tarjeta: eso es el teléfono, que no tiene las dos mitades a la vez.
 
 1. **Haz clic en el icono del embudo** para acotar lo que vas a repartir.
    <!-- señala: tablero-sin-colocar-filtros -->
-   - Los filtros son **«Desde (fecha del pedido)»** / **«Hasta (fecha del pedido)»**
+   - Los filtros son **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»**
      (los dos días entran; para un solo día, pon «Desde» y pulsa **«sólo ese día»**),
      **«Municipio»**, **«Vendedor»**, **«Hasta cuántos km del almacén»** (se aplica al
      salir del campo o con intro) y **«Cobro del domicilio»**. Para quitarlos,

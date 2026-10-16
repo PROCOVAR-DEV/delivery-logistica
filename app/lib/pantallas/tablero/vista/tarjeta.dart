@@ -162,6 +162,7 @@ class TarjetaDePedido extends ConsumerWidget {
               FacturaYCliente(
                 facturaNumero: pedido.facturaNumero,
                 cliente: pedido.customerName,
+                facturadaEl: pedido.facturaAt,
                 claveDeLaFactura: const ValueKey('tarjeta-factura'),
               ),
               Text(

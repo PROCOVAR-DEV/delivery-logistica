@@ -182,29 +182,22 @@ WHERE
         OR (sqlc.narg('factura')::text NOT IN ('con_factura', 'cuadra', 'sin_cotejar')
             AND o.factura_estado::text = sqlc.narg('factura')::text)
     )
-    -- La segunda rama es para los pedidos anteriores a que se guardara `order_date`:
-    -- con sólo la primera desaparecerían de toda búsqueda por fechas, y desaparecer sin
-    -- decir nada es peor que salir con la fecha aproximada, que la pantalla ya marca.
-    -- `hasta` lo manda el llamante ya como fin de día: quien escribe el 24 quiere los del 24.
+    -- LA FECHA DE LA FACTURA, EN HORA DE CUBA (issue 16 de Amado, 16/10/2026): el logístico
+    -- trabaja contra la factura. `coalesce(factura_at, order_date, created_at)` —un pedido
+    -- sin factura va por la fecha del pedido, y uno sin ninguna por `created_at`, para que no
+    -- desaparezca de toda búsqueda por fechas— y el DÍA es el de Cuba, no el de UTC. `desde`
+    -- y `hasta` son DÍAS (`date`) y los dos van incluidos: quien escribe el 24 quiere los del
+    -- 24. Misma regla que «Sin colocar» y que el aparato: `docs/fecha-de-la-factura.casos.json`.
+    -- `fecha` (un día suelto de los disponibles) llega ya mezclado en este mismo rango.
     AND (
-        (sqlc.narg('desde')::timestamptz IS NULL AND sqlc.narg('hasta')::timestamptz IS NULL)
-        OR (o.order_date IS NOT NULL
-            AND (sqlc.narg('desde')::timestamptz IS NULL OR o.order_date >= sqlc.narg('desde')::timestamptz)
-            AND (sqlc.narg('hasta')::timestamptz IS NULL OR o.order_date <= sqlc.narg('hasta')::timestamptz))
-        OR (o.order_date IS NULL
-            AND (sqlc.narg('desde')::timestamptz IS NULL OR o.created_at >= sqlc.narg('desde')::timestamptz)
-            AND (sqlc.narg('hasta')::timestamptz IS NULL OR o.created_at <= sqlc.narg('hasta')::timestamptz))
+        sqlc.narg('desde')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           >= sqlc.narg('desde')::date
     )
-    -- `fecha` acota UN día natural, medio abierto por arriba. Es otro filtro que el rango:
-    -- la pantalla del armador ofrece los dos y se combinan en AND.
     AND (
-        sqlc.narg('dia_desde')::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL
-            AND o.order_date >= sqlc.narg('dia_desde')::timestamptz
-            AND o.order_date <  sqlc.narg('dia_hasta')::timestamptz)
-        OR (o.order_date IS NULL
-            AND o.created_at >= sqlc.narg('dia_desde')::timestamptz
-            AND o.created_at <  sqlc.narg('dia_hasta')::timestamptz)
+        sqlc.narg('hasta')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           <= sqlc.narg('hasta')::date
     )
 ORDER BY o.order_date DESC NULLS LAST, o.created_at DESC
 LIMIT sqlc.arg('limite');
@@ -299,22 +292,14 @@ WHERE
             AND o.factura_estado::text = sqlc.narg('factura')::text)
     )
     AND (
-        (sqlc.narg('desde')::timestamptz IS NULL AND sqlc.narg('hasta')::timestamptz IS NULL)
-        OR (o.order_date IS NOT NULL
-            AND (sqlc.narg('desde')::timestamptz IS NULL OR o.order_date >= sqlc.narg('desde')::timestamptz)
-            AND (sqlc.narg('hasta')::timestamptz IS NULL OR o.order_date <= sqlc.narg('hasta')::timestamptz))
-        OR (o.order_date IS NULL
-            AND (sqlc.narg('desde')::timestamptz IS NULL OR o.created_at >= sqlc.narg('desde')::timestamptz)
-            AND (sqlc.narg('hasta')::timestamptz IS NULL OR o.created_at <= sqlc.narg('hasta')::timestamptz))
+        sqlc.narg('desde')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           >= sqlc.narg('desde')::date
     )
     AND (
-        sqlc.narg('dia_desde')::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL
-            AND o.order_date >= sqlc.narg('dia_desde')::timestamptz
-            AND o.order_date <  sqlc.narg('dia_hasta')::timestamptz)
-        OR (o.order_date IS NULL
-            AND o.created_at >= sqlc.narg('dia_desde')::timestamptz
-            AND o.created_at <  sqlc.narg('dia_hasta')::timestamptz)
+        sqlc.narg('hasta')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           <= sqlc.narg('hasta')::date
     );
 
 -- ---------------------------------------------------------------------------
@@ -415,13 +400,14 @@ WHERE
             AND o.factura_estado::text = sqlc.narg('factura')::text)
     )
     AND (
-        (sqlc.narg('desde')::timestamptz IS NULL AND sqlc.narg('hasta')::timestamptz IS NULL)
-        OR (o.order_date IS NOT NULL
-            AND (sqlc.narg('desde')::timestamptz IS NULL OR o.order_date >= sqlc.narg('desde')::timestamptz)
-            AND (sqlc.narg('hasta')::timestamptz IS NULL OR o.order_date <= sqlc.narg('hasta')::timestamptz))
-        OR (o.order_date IS NULL
-            AND (sqlc.narg('desde')::timestamptz IS NULL OR o.created_at >= sqlc.narg('desde')::timestamptz)
-            AND (sqlc.narg('hasta')::timestamptz IS NULL OR o.created_at <= sqlc.narg('hasta')::timestamptz))
+        sqlc.narg('desde')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           >= sqlc.narg('desde')::date
+    )
+    AND (
+        sqlc.narg('hasta')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           <= sqlc.narg('hasta')::date
     )
 ORDER BY o.order_date DESC NULLS LAST, o.created_at DESC
 LIMIT sqlc.arg('limite') OFFSET sqlc.arg('desplazamiento');
@@ -496,13 +482,14 @@ WHERE
             AND o.factura_estado::text = sqlc.narg('factura')::text)
     )
     AND (
-        (sqlc.narg('desde')::timestamptz IS NULL AND sqlc.narg('hasta')::timestamptz IS NULL)
-        OR (o.order_date IS NOT NULL
-            AND (sqlc.narg('desde')::timestamptz IS NULL OR o.order_date >= sqlc.narg('desde')::timestamptz)
-            AND (sqlc.narg('hasta')::timestamptz IS NULL OR o.order_date <= sqlc.narg('hasta')::timestamptz))
-        OR (o.order_date IS NULL
-            AND (sqlc.narg('desde')::timestamptz IS NULL OR o.created_at >= sqlc.narg('desde')::timestamptz)
-            AND (sqlc.narg('hasta')::timestamptz IS NULL OR o.created_at <= sqlc.narg('hasta')::timestamptz))
+        sqlc.narg('desde')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           >= sqlc.narg('desde')::date
+    )
+    AND (
+        sqlc.narg('hasta')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           <= sqlc.narg('hasta')::date
     );
 
 -- ---------------------------------------------------------------------------

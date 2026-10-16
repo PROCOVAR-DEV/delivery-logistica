@@ -382,7 +382,7 @@ void main() {
       await tester.pumpWidget(
         pantalla(
           CampoDeFecha(
-            titulo: 'Desde (fecha del pedido)',
+            titulo: 'Desde (fecha de la factura)',
             valor: null,
             // El «hoy» entra por parámetro y no del reloj del sistema: dos
             // relojes son dos «hoy» distintos y la prueba cambiaría de mes sola
@@ -399,7 +399,7 @@ void main() {
     testWidgets('a 390 px se abre un CAJÓN', (tester) async {
       await montar(tester, tamano: telefono);
 
-      await tester.tap(find.text('Desde (fecha del pedido)'));
+      await tester.tap(find.text('Desde (fecha de la factura)'));
       await tester.pumpAndSettle();
 
       expect(
@@ -425,7 +425,7 @@ void main() {
       // abre es el cajón de la casa, con su cabecera y su ✕.
       await montar(tester, tamano: escritorio);
 
-      await tester.tap(find.text('Desde (fecha del pedido)'));
+      await tester.tap(find.text('Desde (fecha de la factura)'));
       await tester.pumpAndSettle();
 
       expect(
@@ -445,7 +445,7 @@ void main() {
     ) async {
       final elegido = await montar(tester, tamano: telefono);
 
-      await tester.tap(find.text('Desde (fecha del pedido)'));
+      await tester.tap(find.text('Desde (fecha de la factura)'));
       await tester.pumpAndSettle();
 
       final equis = find.descendant(
@@ -471,7 +471,7 @@ void main() {
     ) async {
       final elegido = await montar(tester, tamano: telefono);
 
-      await tester.tap(find.text('Desde (fecha del pedido)'));
+      await tester.tap(find.text('Desde (fecha de la factura)'));
       await tester.pumpAndSettle();
 
       // Septiembre de 2026, día 15. Los días se pintan como texto suelto.
@@ -508,7 +508,7 @@ void main() {
       // `PrimaryScrollController.none`; el cajón lo necesita igual.
       await montar(tester, tamano: telefono);
 
-      await tester.tap(find.text('Desde (fecha del pedido)'));
+      await tester.tap(find.text('Desde (fecha de la factura)'));
       await tester.pumpAndSettle();
 
       await tester.tap(
@@ -538,7 +538,7 @@ void main() {
       // Escape cierra. Lo da el `ModalBarrier` del cajón.
       final elegido = await montar(tester, tamano: telefono);
 
-      await tester.tap(find.text('Desde (fecha del pedido)'));
+      await tester.tap(find.text('Desde (fecha de la factura)'));
       await tester.pumpAndSettle();
 
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);

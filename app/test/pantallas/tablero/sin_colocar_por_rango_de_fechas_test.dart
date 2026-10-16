@@ -76,15 +76,15 @@ void main() {
 
       await tester.tap(find.byTooltip('Filtros'));
       await tester.pumpAndSettle();
-      expect(find.text('Desde (fecha del pedido)'), findsOneWidget);
-      expect(find.text('Hasta (fecha del pedido)'), findsOneWidget);
+      expect(find.text('Desde (fecha de la factura)'), findsOneWidget);
+      expect(find.text('Hasta (fecha de la factura)'), findsOneWidget);
       expect(
         find.text('Día del pedido'),
         findsNothing,
         reason: 'el día suelto de antes es ahora `sólo ese día`',
       );
 
-      await tester.tap(find.text('Desde (fecha del pedido)'));
+      await tester.tap(find.text('Desde (fecha de la factura)'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('12').last);
       await tester.pumpAndSettle();
@@ -95,7 +95,7 @@ void main() {
         reason: 'sólo desde: hasta queda abierto',
       );
 
-      await tester.tap(find.text('Hasta (fecha del pedido)'));
+      await tester.tap(find.text('Hasta (fecha de la factura)'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('14').last);
       await tester.pumpAndSettle();

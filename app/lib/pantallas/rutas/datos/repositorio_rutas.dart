@@ -6,7 +6,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
-import '../../../nucleo/fecha_del_pedido.dart';
+import '../../../nucleo/fecha_de_la_factura.dart';
 import '../../../nucleo/regla_de_entrada.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 
@@ -581,9 +581,9 @@ class ConsultasRutas {
               o.endAddress.lower().contains(busca) |
               o.address.lower().contains(busca));
     }
-    // La fecha del pedido, de [desde] a [hasta] con los dos dias incluidos: lo
+    // La fecha de la factura, de [desde] a [hasta] con los dos dias incluidos: lo
     // mismo que `desde`/`hasta` de `/api/orders/available` (issue 13 de Amado).
-    final fecha = fechaDelPedidoEntre(o, desde, hasta);
+    final fecha = fechaDeLaFacturaEntre(o, desde, hasta);
     if (fecha != null) donde = donde & fecha;
 
     final consulta = _base.select(_base.orders)

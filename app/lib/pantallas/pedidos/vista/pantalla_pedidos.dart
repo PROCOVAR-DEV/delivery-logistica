@@ -24,7 +24,7 @@ import '../../../impresion/hoja.dart' as papel;
 import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
 import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
-import '../../../nucleo/fecha_del_pedido.dart';
+import '../../../nucleo/fecha_de_la_factura.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/proveedores.dart';
@@ -459,8 +459,8 @@ class _BarraDeFiltros extends ConsumerWidget {
             RangoDeFechas(
               desde: filtros.desde,
               hasta: filtros.hasta,
-              tituloDesde: 'Desde (fecha del pedido)',
-              tituloHasta: 'Hasta (fecha del pedido)',
+              tituloDesde: 'Desde (fecha de la factura)',
+              tituloHasta: 'Hasta (fecha de la factura)',
               hoy: ref.watch(relojProvider)(),
               alCambiar: notas.ponerFechas,
             ),
@@ -495,7 +495,7 @@ class _BarraDeFiltros extends ConsumerWidget {
 }
 
 /// El dia que escribe la hoja, sólo cuando el rango es un dia: la regla, en
-/// `nucleo/fecha_del_pedido.dart`.
+/// `nucleo/fecha_de_la_factura.dart`.
 String? diaDeLaHoja(FiltrosPedidos f) => diaDeLaHojaEntre(f.desde, f.hasta);
 
 /// La hoja que se manda al PDF, como funcion pura.

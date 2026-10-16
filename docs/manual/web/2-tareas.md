@@ -47,7 +47,7 @@ Los filtros van en una fila bajo la cabecera:
 | **«Precio del domicilio»** | «Cualquier precio» |
 | **«Vendedor del pedido»** | «Todos los vendedores» |
 | **«Cómo se ordena esta página»** | «Más recientes» |
-| **«Desde (fecha del pedido)»** / **«Hasta (fecha del pedido)»** | vacías |
+| **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías |
 
 Con «Desde» puesto aparece un botón **«sólo ese día»**, que copia la fecha en las
 dos. Y una equis de quitar («Quitar el filtro de fechas») que limpia las dos.

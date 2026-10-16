@@ -269,8 +269,8 @@ class _Filtros extends ConsumerWidget {
         RangoDeFechas(
           desde: filtros.desde,
           hasta: filtros.hasta,
-          tituloDesde: 'Desde (fecha del pedido)',
-          tituloHasta: 'Hasta (fecha del pedido)',
+          tituloDesde: 'Desde (fecha de la factura)',
+          tituloHasta: 'Hasta (fecha de la factura)',
           hoy: ref.watch(relojProvider)(),
           alCambiar: (desde, hasta) => poner(
             filtros.copiaCon(

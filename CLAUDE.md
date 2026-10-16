@@ -516,7 +516,11 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   puede ir a una ruta). La columna «Vehículo» se quitó entera (desde la 1.0.28 `orders.vehicle_id` no existe); el
   camión sigue en el detalle. Trampa: la columna Factura se esconde bajo 1024 px (desde el 14/10/2026 el
   número baja bajo el folio entre 768 y 1023 px y sube a la cabecera de la tarjeta del teléfono: issue 8 de
-  Amado). **«Sin colocar» va del más viejo al más reciente por la fecha de la factura**
+  Amado). **Los filtros de fecha de pedidos (Sin colocar, el paso de pedidos del asistente y Desde/Hasta de Pedidos)
+  filtran por la fecha de la FACTURA en hora de Cuba** (issue 16, 16/10/2026): `coalesce(factura_at, order_date,
+  created_at)` pasado al día de `America/Havana`, los dos días incluidos; la tarjeta dice `Factura N · d/M/aaaa`. En
+  servidor lo hace Postgres (`AT TIME ZONE`; la imagen de Go no lleva husos) y en el aparato `nucleo/fecha_de_la_factura.dart`;
+  los ata `docs/fecha-de-la-factura.casos.json`. **«Sin colocar» va del más viejo al más reciente por la fecha de la factura**
   (`coalesce(factura_at, order_date)`, issue 6; antes por cercanía al almacén, decisión que Amado cambió), y **con
   otro almacén elegido arriba (no el de por defecto) van PRIMERO los de ese almacén del más cercano al más lejano y
   después los demás por fecha** (Jose, 15/10/2026: `orders.almacen_salida_codigo` = `codigo` del almacén en Accesos;

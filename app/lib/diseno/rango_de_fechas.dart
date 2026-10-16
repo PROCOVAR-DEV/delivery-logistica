@@ -41,7 +41,7 @@ class CampoDeFecha extends StatefulWidget {
   });
 
   /// El tooltip, y la etiqueta cuando no hay fecha puesta. Literales del pliego:
-  /// `Desde (fecha del pedido)` / `Hasta (fecha del pedido)`.
+  /// `Desde (fecha de la factura)` / `Hasta (fecha del pedido)`.
   final String titulo;
 
   /// La etiqueta corta del boton cuando no hay nada: `Desde` / `Hasta`.

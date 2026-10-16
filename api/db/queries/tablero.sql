@@ -427,20 +427,23 @@ WHERE
     )
     AND (sqlc.narg('municipio')::text IS NULL OR o.municipio = sqlc.narg('municipio')::text)
     AND (sqlc.narg('vendedor')::text  IS NULL OR o.vendedor  = sqlc.narg('vendedor')::text)
-    -- La fecha DEL PEDIDO (y `created_at` si no la tiene), medio abierta por arriba. Se
-    -- ofrece porque un tablero con el histórico entero no se puede preparar: son 1.700
-    -- tarjetas. Desde el 15/10/2026 es un RANGO (issue 13 de Amado) y cada extremo va por
-    -- su lado: «desde el 3» sin «hasta» es un filtro de verdad. `dia_hasta` llega ya como
-    -- el día SIGUIENTE al último pedido, así que ese último entra entero (`rangoDelPedido`).
+    -- LA FECHA DE LA FACTURA, EN HORA DE CUBA — issue 16 de Amado, 16/10/2026: el logístico
+    -- trabaja contra la factura, y una factura del 15 de un pedido tomado el 14 es «del 15».
+    -- Es `coalesce(factura_at, order_date, created_at)` (la de la ordenación, con el
+    -- `created_at` de red de seguridad para el pedido sin ninguna) y el DÍA es el de Cuba:
+    -- una factura de las 22:00 allí es del día siguiente en UTC. Los dos extremos son DÍAS
+    -- (`date`) y los dos van incluidos, cada uno por su lado: «del 15 al 15» es el 15
+    -- entero. Misma regla en `ListarPedidos`/`ListarPedidosDisponibles` y sus contadores, y
+    -- en el aparato (`docs/fecha-de-la-factura.casos.json`).
     AND (
-        sqlc.narg('dia_desde')::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL AND o.order_date >= sqlc.narg('dia_desde')::timestamptz)
-        OR (o.order_date IS NULL AND o.created_at >= sqlc.narg('dia_desde')::timestamptz)
+        sqlc.narg('dia_desde')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           >= sqlc.narg('dia_desde')::date
     )
     AND (
-        sqlc.narg('dia_hasta')::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL AND o.order_date < sqlc.narg('dia_hasta')::timestamptz)
-        OR (o.order_date IS NULL AND o.created_at < sqlc.narg('dia_hasta')::timestamptz)
+        sqlc.narg('dia_hasta')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           <= sqlc.narg('dia_hasta')::date
     )
     -- El corte por distancia SÍ va aquí, al revés que en `/api/orders/available`, donde se
     -- aplica después de la consulta para no descuadrar `total` y `truncated`. Aquí el
@@ -608,14 +611,14 @@ WHERE
     AND (sqlc.narg('municipio')::text IS NULL OR o.municipio = sqlc.narg('municipio')::text)
     AND (sqlc.narg('vendedor')::text  IS NULL OR o.vendedor  = sqlc.narg('vendedor')::text)
     AND (
-        sqlc.narg('dia_desde')::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL AND o.order_date >= sqlc.narg('dia_desde')::timestamptz)
-        OR (o.order_date IS NULL AND o.created_at >= sqlc.narg('dia_desde')::timestamptz)
+        sqlc.narg('dia_desde')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           >= sqlc.narg('dia_desde')::date
     )
     AND (
-        sqlc.narg('dia_hasta')::timestamptz IS NULL
-        OR (o.order_date IS NOT NULL AND o.order_date < sqlc.narg('dia_hasta')::timestamptz)
-        OR (o.order_date IS NULL AND o.created_at < sqlc.narg('dia_hasta')::timestamptz)
+        sqlc.narg('dia_hasta')::date IS NULL
+        OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+           <= sqlc.narg('dia_hasta')::date
     )
     AND (
         sqlc.narg('km_max')::double precision IS NULL

@@ -40,7 +40,7 @@ reparto](../las-reglas-del-reparto.md).
 | **«Precio del domicilio»** | «Cualquier precio» | «Con precio puesto» o «Sin cotizar» |
 | **«Vendedor del pedido»** | «Todos los vendedores» | Cada vendedor con cuántos pedidos |
 | **«Cómo se ordena esta página»** | «Más recientes» | «Más antiguos», «Precio: mayor a menor», «Precio: menor a mayor», «Distancia: más larga», «Peso: mayor» |
-| **«Desde (fecha del pedido)»** / **«Hasta (fecha del pedido)»** | vacías | Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las dos |
+| **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías | Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las dos. Filtran por la **fecha de la factura** (la del pedido si aún no tiene factura), contada en hora de Cuba, los dos días incluidos |
 
 **Cuidado con el orden:** «Cómo se ordena esta página» ordena **sólo la página que
 estás viendo**, no los 246 pedidos enteros.
@@ -83,9 +83,9 @@ Cambia según las fechas que tengas puestas: «· del 28/9/2026», «· desde el
 
 En pantalla estrecha no hay tabla: cada pedido es una tarjeta, y la cabecera dice
 «Elegir los 50 de esta página». **El título de la tarjeta es el número de factura**
-(`Factura 1024237`, el de Ventra), y debajo va el cliente, en negrita y más pequeño; luego
+(`Factura 1024237 · 15/10/2026`: el número de Ventra y, después, la fecha en que se facturó, en hora de Cuba; sin factura no se pone fecha), y debajo va el cliente, en negrita y más pequeño; luego
 el número de operación, que es otro, y la fecha. Sin número de factura, el título dice
-**«Sin número de factura»**, en gris. Lo de la columna «Factura» queda en una insignia que
+**«Sin número de factura»**, en gris. La tabla de escritorio pone la fecha de la factura bajo el número, y la columna «Fecha» pasa a llamarse **«Fecha pedido»**: es la del pedido, no la que filtra. Lo de la columna «Factura» queda en una insignia que
 solo dice el estado: **«Cuadra»** en verde o **«Cambió !»** en ámbar.
 
 ---

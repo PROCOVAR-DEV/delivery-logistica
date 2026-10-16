@@ -558,7 +558,9 @@ func (s *Servidor) pedidosDisponibles(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	f := leerFiltros(r)
-	diaDesde, diaHasta := diaNatural(strings.TrimSpace(q.Get("fecha")))
+	// `fecha` (un día) se cumple a la vez que `desde`/`hasta`: el tramo común.
+	dia := diaDe(q.Get("fecha"))
+	desde, hasta := entreDias(f.Desde, f.Hasta, dia, dia)
 
 	// EL ORDEN IMPORTA Y ES EL DEL CONTRATO: primero el conteo y la lista con el WHERE
 	// del SQL, y sólo DESPUÉS `kmMax` y `costoMin`. `total` y `truncated` salen de este
@@ -568,7 +570,7 @@ func (s *Servidor) pedidosDisponibles(w http.ResponseWriter, r *http.Request) {
 		BranchID: f.BranchID, Q: f.Q, Estado: f.Estado, Archivado: f.Archivado,
 		Domicilio: f.Domicilio, Cotizado: f.Cotizado, Municipio: f.Municipio,
 		Vendedor: f.Vendedor, Reparto: f.Reparto, Factura: f.Factura,
-		Desde: f.Desde, Hasta: f.Hasta, DiaDesde: diaDesde, DiaHasta: diaHasta,
+		Desde: desde, Hasta: hasta,
 	})
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
@@ -578,7 +580,7 @@ func (s *Servidor) pedidosDisponibles(w http.ResponseWriter, r *http.Request) {
 		BranchID: f.BranchID, Q: f.Q, Estado: f.Estado, Archivado: f.Archivado,
 		Domicilio: f.Domicilio, Cotizado: f.Cotizado, Municipio: f.Municipio,
 		Vendedor: f.Vendedor, Reparto: f.Reparto, Factura: f.Factura,
-		Desde: f.Desde, Hasta: f.Hasta, DiaDesde: diaDesde, DiaHasta: diaHasta,
+		Desde: desde, Hasta: hasta,
 		Limite: TopeDisponibles,
 	})
 	if err != nil {
@@ -1132,8 +1134,9 @@ type filtrosPedido struct {
 	BranchID  pgtype.UUID
 	Reparto   *string
 	Factura   *string
-	Desde     pgtype.Timestamptz
-	Hasta     pgtype.Timestamptz
+	// Días de la FACTURA en hora de Cuba, los dos incluidos (`diaDe`).
+	Desde pgtype.Date
+	Hasta pgtype.Date
 }
 
 func leerFiltros(r *http.Request) filtrosPedido {
@@ -1158,8 +1161,8 @@ func leerFiltros(r *http.Request) filtrosPedido {
 		// valor no vacío se compara tal cual contra `factura_estado`. La última rama del
 		// SQL es justo ésa.
 		Factura: opcional(valorDe("factura")),
-		Desde:   inicioDelDia(valorDe("desde")),
-		Hasta:   finalDelDia(valorDe("hasta")),
+		Desde:   diaDe(valorDe("desde")),
+		Hasta:   diaDe(valorDe("hasta")),
 	}
 
 	// `branchId` es UN FILTRO MÁS, nunca el alcance. Va en AND con él en el SQL, así que
@@ -1182,52 +1185,37 @@ func leerFiltros(r *http.Request) filtrosPedido {
 
 var esFecha = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
-// inicioDelDia: `<fecha>T00:00:00` en la hora LOCAL del servidor, como el contrato. Si no
-// casa el patrón, no hay filtro.
-func inicioDelDia(s string) pgtype.Timestamptz {
-	d, ok := diaLocal(s)
-	if !ok {
-		return pgtype.Timestamptz{}
-	}
-	return pgtype.Timestamptz{Time: d, Valid: true}
-}
-
-// finalDelDia: `<fecha>T23:59:59.999`. EL `hasta` INCLUYE EL DÍA ENTERO — quien escribe
-// el 24 quiere los del 24, no los del 24 a las 00:00. Cortar a medianoche deja fuera la
-// jornada completa de ese día, que es el día que se está mirando.
-func finalDelDia(s string) pgtype.Timestamptz {
-	d, ok := diaLocal(s)
-	if !ok {
-		return pgtype.Timestamptz{}
-	}
-	return pgtype.Timestamptz{Time: d.Add(24*time.Hour - time.Millisecond), Valid: true}
-}
-
-// diaNatural es el `fecha=YYYY-MM-DD` de los disponibles: un día completo, medio abierto
-// por arriba. Es OTRO filtro distinto del rango `desde`/`hasta` —la pantalla del armador
-// ofrece los dos y se combinan en AND—, y por eso tiene sus propios parámetros.
+// diaDe lee un `AAAA-MM-DD` como DÍA —sin hora ni huso— o, si no casa, como «no filtra».
 //
-// Devuelve los dos extremos o ninguno: el SQL comprueba sólo el primero para saber si
-// aplica el filtro, así que dejar uno puesto y el otro vacío compararía contra NULL y la
-// condición no casaría nunca.
-func diaNatural(s string) (pgtype.Timestamptz, pgtype.Timestamptz) {
-	d, ok := diaLocal(s)
-	if !ok {
-		return pgtype.Timestamptz{}, pgtype.Timestamptz{}
+// LA FECHA DE LA FACTURA SE CUENTA EN DÍAS DE CUBA (issue 16 de Amado, 16/10/2026) y el paso
+// de instante a día lo hace la base (`AT TIME ZONE 'America/Havana'`), no Go: la imagen del
+// contenedor no lleva la base de husos (ver `FranjaDeTrabajoDesde`) y un
+// `time.LoadLocation` fallaría dentro y funcionaría en el portátil. Antes `desde`/`hasta`
+// eran instantes en la hora local del servidor (UTC) y `fecha` otro corte distinto: tres
+// maneras de decir «el 15», y ninguna la de Cuba.
+func diaDe(s string) pgtype.Date {
+	s = strings.TrimSpace(s)
+	if !esFecha.MatchString(s) {
+		return pgtype.Date{}
 	}
-	return pgtype.Timestamptz{Time: d, Valid: true},
-		pgtype.Timestamptz{Time: d.AddDate(0, 0, 1), Valid: true}
+	d, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return pgtype.Date{}
+	}
+	return pgtype.Date{Time: d, Valid: true}
 }
 
-func diaLocal(s string) (time.Time, bool) {
-	if !esFecha.MatchString(s) {
-		return time.Time{}, false
+// entreDias deja el tramo común de dos rangos de días, cada extremo opcional y los dos
+// incluidos: un filtro de más nunca enseña MÁS. Es lo que mezcla `desde`/`hasta` con `fecha`
+// (un día suelto, de los disponibles) y `dia` con `diaDesde`/`diaHasta` (Sin colocar).
+func entreDias(desde, hasta, otroDesde, otroHasta pgtype.Date) (pgtype.Date, pgtype.Date) {
+	if otroDesde.Valid && (!desde.Valid || otroDesde.Time.After(desde.Time)) {
+		desde = otroDesde
 	}
-	d, err := time.ParseInLocation("2006-01-02", s, time.Local)
-	if err != nil {
-		return time.Time{}, false
+	if otroHasta.Valid && (!hasta.Valid || otroHasta.Time.Before(hasta.Time)) {
+		hasta = otroHasta
 	}
-	return d, true
+	return desde, hasta
 }
 
 // ---------------------------------------------------------------------------

@@ -308,9 +308,10 @@ aplica `trim()`. `q` además se pasa a minúsculas. Los usan `/api/orders` y
   - `cuadra` → `facturaEstado = 'igual'`.
   - `sin_cotejar` → `facturaEstado = null`.
   - cualquier otro valor no vacío → `facturaEstado = <valor>`.
-- Fechas: sólo si `desde`/`hasta` casan `^\d{4}-\d{2}-\d{2}$`.
-  `gte = <desde>T00:00:00`, `lte = <hasta>T23:59:59.999` (hora local del servidor), y se
-  aplica como `OR[{orderDate: rango}, {orderDate: null, createdAt: rango}]`.
+- Fechas: sólo si `desde`/`hasta` casan `^\d{4}-\d{2}-\d{2}$`. **Desde el 16/10/2026 (issue 16
+  de Amado) son DÍAS de la FACTURA en hora de Cuba, los dos incluidos**: el día de
+  `coalesce(factura_at, order_date, created_at)` en `America/Havana`
+  (`docs/fecha-de-la-factura.casos.json`). Antes eran instantes de `order_date` en la hora del servidor.
 
 ### Eventos en vivo (`avisarCambio`)
 
@@ -827,9 +828,9 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
 - **Query**:
   - Todos los filtros compartidos: `q`, `estado`, `archivado`, `domicilio`, `cotizado`,
     `municipio`, `vendedor`, `branchId`, `reparto`, `factura`, `desde`, `hasta`.
-  - `fecha`: `YYYY-MM-DD`, opcional. Si casa el patrón, acota **un día natural completo**
-    en hora local: `gte = fecha T00:00:00`, `lt = fecha+1 día T00:00:00`, aplicado como
-    `OR[{orderDate: rango}, {orderDate:null, createdAt: rango}]`. Si no casa, se ignora.
+  - `fecha`: `YYYY-MM-DD`, opcional. Si casa el patrón, acota **un día** de la fecha de la
+    factura en hora de Cuba (igual que `desde = hasta = fecha`; se cumple a la vez que
+    `desde`/`hasta`: el tramo común). Si no casa, se ignora.
   - `branchId` (además de su papel en los filtros): sólo se aplica aquí
     **si no hay alcance o coincide con el alcance** (puede estrechar, nunca ampliar).
   - `kmMax`: número, opcional. Se filtra en memoria (post-consulta):
@@ -2035,11 +2036,12 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
   issue 13, punto 1). `GET /api/board` y `GET /api/board/unplaced` aceptan `diaDesde` y
   `diaHasta` (`YYYY-MM-DD`, cada uno opcional, **los dos días incluidos**) además del `dia`
   suelto de antes, que se sigue aceptando tal cual. No se llaman `desde`/`hasta` como en
-  `/api/orders` porque aquí `desde` es el cursor. La fecha es la **del pedido**: `order_date` y,
-  si no tiene, `created_at` (no la de la factura, que es la del orden). Un día suelto es
+  `/api/orders` porque aquí `desde` es el cursor. Desde el 16/10/2026 (issue 16) la fecha es la **de la factura en hora de Cuba**:
+  `coalesce(factura_at, order_date, created_at)` pasado al día de `America/Havana`
+  (`docs/fecha-de-la-factura.casos.json`); `dia`, `diaDesde` y `diaHasta` se mantienen por compatibilidad. Un día suelto es
   `diaDesde = diaHasta`. Si vienen `dia` y el rango, se cumplen los dos (el tramo común). Una
   fecha mal escrita no acota. La lista y su `total` llevan el mismo rango
-  (`TestSinColocarPorRangoDeFechas`, `TestMotorReal_SinColocarPorRangoDeFechas`). La aplicación
+  (`TestSinColocarPorLaFechaDeLaFacturaEsLaDelFichero`, `TestMotorReal_LaFechaDeLaFacturaEsElDiaDeCuba`). La aplicación
   no los manda —filtra «Sin colocar» en su base, también en la web—: son para otros clientes.
 - **`?almacenId=` — el almacén elegido arriba (Jose, 15/10/2026).** En `GET /api/board` y
   `GET /api/board/unplaced`: se mide desde ese almacén (`almacen` de la cabecera, `kmAlAlmacen`

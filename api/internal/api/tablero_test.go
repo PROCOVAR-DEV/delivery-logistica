@@ -27,6 +27,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -88,6 +89,9 @@ type pedidoFalso struct {
 	// de Amado): manda sobre `fecha` cuando existe. facturaNumero es `factura_numero`.
 	facturaAt     *time.Time
 	facturaNumero string
+	// creado es `created_at`, la última red de la fecha de la factura
+	// (`coalesce(factura_at, order_date, created_at)`, issue 16 de Amado). Nil = sin ella.
+	creado *time.Time
 	// entregado es `delivered_at` + `resultado = 'entregado'`, las dos columnas que
 	// `MarcarResultadoDeParada` escribe y limpia JUNTAS. Con `ruta` a nil es el caso que
 	// da miedo y que en producción llega solo: la clave ajena de `orders.route_id` es
@@ -747,7 +751,7 @@ func (q *tableroFalso) ListarPedidosSinColocar(_ context.Context, arg sqlc.Lista
 		if _, puesto := q.colocadas[p.id]; puesto {
 			continue
 		}
-		if !fechaEnRango(p.fecha, arg.DiaDesde, arg.DiaHasta) {
+		if !fechaEnRango(p, arg.DiaDesde, arg.DiaHasta) {
 			continue
 		}
 		fila := sqlc.ListarPedidosSinColocarRow{
@@ -853,7 +857,7 @@ func (q *tableroFalso) ContarPedidosSinColocar(_ context.Context, arg sqlc.Conta
 		if _, puesto := q.colocadas[p.id]; puesto {
 			continue
 		}
-		if !fechaEnRango(p.fecha, arg.DiaDesde, arg.DiaHasta) {
+		if !fechaEnRango(p, arg.DiaDesde, arg.DiaHasta) {
 			continue
 		}
 		n++
@@ -861,17 +865,45 @@ func (q *tableroFalso) ContarPedidosSinColocar(_ context.Context, arg sqlc.Conta
 	return n, nil
 }
 
-// fechaEnRango repite el rango de la fecha del pedido de las dos consultas de «Sin colocar»:
-// cada extremo por su lado y `dia_hasta` EXCLUIDO (llega ya como el día siguiente). El doble
-// no tiene `created_at`, así que un pedido sin fecha queda fuera en cuanto hay un extremo.
-func fechaEnRango(fecha *time.Time, desde, hasta pgtype.Timestamptz) bool {
-	if desde.Valid && (fecha == nil || fecha.Before(desde.Time)) {
+// fechaEnRango repite el rango de la fecha de la FACTURA de las dos consultas de «Sin colocar»
+// (issue 16 de Amado): `coalesce(factura_at, order_date, created_at)` pasado al DÍA de Cuba, y
+// cada extremo por su lado con los dos días incluidos. Un pedido sin ninguna fecha queda fuera
+// en cuanto hay un extremo (en la base `created_at` nunca es nulo).
+func fechaEnRango(p pedidoFalso, desde, hasta pgtype.Date) bool {
+	if !desde.Valid && !hasta.Valid {
+		return true
+	}
+	var cuando *time.Time
+	for _, c := range []*time.Time{p.facturaAt, p.fecha, p.creado} {
+		if c != nil {
+			cuando = c
+			break
+		}
+	}
+	if cuando == nil {
 		return false
 	}
-	if hasta.Valid && (fecha == nil || !fecha.Before(hasta.Time)) {
+	dia := diaDeCuba(*cuando)
+	if desde.Valid && dia.Before(desde.Time) {
+		return false
+	}
+	if hasta.Valid && dia.After(hasta.Time) {
 		return false
 	}
 	return true
+}
+
+// diaDeCuba es el día de Cuba de un instante, a medianoche UTC para poder compararlo con un
+// `pgtype.Date`. `time/tzdata` va en la prueba y no en el servicio: el servicio no calcula
+// husos (lo hace Postgres) y la imagen no los lleva; aquí sólo hace falta que no dependa de
+// que el portátil los tenga.
+func diaDeCuba(t time.Time) time.Time {
+	l, err := time.LoadLocation("America/Havana")
+	if err != nil {
+		panic(err)
+	}
+	a, m, d := t.In(l).Date()
+	return time.Date(a, m, d, 0, 0, 0, 0, time.UTC)
 }
 
 // --------------------------------------------------------------------------- montaje

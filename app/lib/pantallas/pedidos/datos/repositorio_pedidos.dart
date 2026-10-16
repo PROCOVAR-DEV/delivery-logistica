@@ -13,7 +13,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
-import '../../../nucleo/fecha_del_pedido.dart';
+import '../../../nucleo/fecha_de_la_factura.dart';
 import 'filtros_pedidos.dart';
 import 'formato.dart' show cantidad;
 
@@ -484,9 +484,9 @@ class ConsultasPedidos {
       );
     }
 
-    // La regla, con su porque, en `nucleo/fecha_del_pedido.dart`: es la misma
+    // La regla, con su porque, en `nucleo/fecha_de_la_factura.dart`: es la misma
     // de «Sin colocar» y del asistente.
-    final fecha = fechaDelPedidoEntre(o, f.desde, f.hasta);
+    final fecha = fechaDeLaFacturaEntre(o, f.desde, f.hasta);
     if (fecha != null) anadir(fecha);
 
     return todo;

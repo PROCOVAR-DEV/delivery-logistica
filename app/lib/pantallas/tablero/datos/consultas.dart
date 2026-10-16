@@ -355,6 +355,13 @@ SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.almacen_id,
        v.capacity AS vehiculo_capacidad,
        (SELECT count(*) FROM ${EsquemaTablero.colocaciones} p
          WHERE p.column_id = c.id) AS pedidos,
+       -- Las que arriba SI estan puestas y este aparato no puede guardar por no
+       -- tener el pedido. No suman a `pedidos` (no hay tarjeta que pintar) pero
+       -- borrar la zona las cuenta, igual que el servidor.
+       (SELECT count(*) FROM ${EsquemaTablero.sinPedido} s
+         WHERE s.column_id = c.id
+           AND NOT EXISTS (SELECT 1 FROM ${EsquemaTablero.colocaciones} p
+                            WHERE p.order_id = s.order_id)) AS sin_pedido,
        (SELECT coalesce(sum(o.weight), 0) FROM ${EsquemaTablero.colocaciones} p
           JOIN orders o ON o.id = p.order_id
          WHERE p.column_id = c.id) AS peso_kg,
@@ -414,6 +421,7 @@ ORDER BY c.posicion ASC, c.created_at ASC''',
             vehiculoMatricula: f.readNullable<String>('vehiculo_matricula'),
             vehiculoCapacidad: f.readNullable<double>('vehiculo_capacidad'),
             pedidos: f.read<int>('pedidos'),
+            sinPedido: f.read<int>('sin_pedido'),
             pesoKg: f.read<double>('peso_kg'),
             costoUsd: f.read<double>('costo_usd'),
             sinSubir: f.read<bool>('sin_subir'),

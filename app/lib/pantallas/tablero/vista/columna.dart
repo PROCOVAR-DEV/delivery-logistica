@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
 import '../datos/modelos.dart';
 import 'kit.dart';
+import 'rechazos_de_la_zona.dart';
 import 'tarjeta.dart';
 
 /// Lo que viaja cuando se arrastra una columna entera por su cabecera.
@@ -288,8 +291,22 @@ class _Cabecera extends ConsumerWidget {
                   ),
                   // Una columna creada sin senal se puede usar igual; lo unico
                   // que se dice es que todavia no ha subido.
+                  // LA INSIGNIA SE TOCA: dice el motivo literal del servidor y
+                  // deja reintentar o descartar (issue 15 de Amado). Antes era
+                  // una etiqueta muda.
                   if (columna.rechazada)
-                    insigniaAviso('rechazada')
+                    InkWell(
+                      key: const ValueKey('zona-rechazada'),
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () => unawaited(
+                        abrirLosRechazosDeLaZona(
+                          context,
+                          columnaId: columna.id,
+                          nombre: columna.nombre,
+                        ),
+                      ),
+                      child: insigniaAviso('rechazada: ver por qué'),
+                    )
                   else if (columna.sinSubir)
                     insigniaAviso('sin subir'),
                 ],

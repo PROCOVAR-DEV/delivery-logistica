@@ -196,8 +196,8 @@ Botones: **«Sí, borrar «Centro»»** y **«No, dejarla»**.
 
 > **«Centro» tiene 8 pedidos puestos** — ¿Qué se hace con ellos?
 
-Y dos salidas: **«Devolverlos a «sin colocar» y borrar»** o **«Mandarlos a otra
-columna y borrar»**.
+Y dos salidas: **«Devolver los 8 pedidos a «Sin colocar» y borrar»** o **«Mover los 8 pedidos a otra
+zona y borrar»**. Cuenta los que cuenta el servidor, también los que este aparato no ve (por ejemplo, pedidos ya archivados): lo dice debajo.
 
 ---
 

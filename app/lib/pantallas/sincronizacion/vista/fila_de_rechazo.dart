@@ -120,8 +120,11 @@ class FilaDeRechazo extends StatelessWidget {
           ),
           if (alDescartar != null || alReintentar != null) ...[
             const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            // `Wrap` y no `Row`: a 390 px (cajón de 316) «Reintentar» y
+            // «Descartar» juntos se desbordaban 58 px.
+            Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (alReintentar != null)
                   ControlSenalado(

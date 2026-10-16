@@ -138,6 +138,12 @@ class ServicioTablero {
         '(SELECT id FROM ${EsquemaTablero.columnas} WHERE branch_id = ?1)',
         [sucursalId],
       );
+      // Y las que no cupieron la vez anterior: se vuelven a contar enteras.
+      await _base.customStatement(
+        'DELETE FROM ${EsquemaTablero.sinPedido} WHERE column_id IN '
+        '(SELECT id FROM ${EsquemaTablero.columnas} WHERE branch_id = ?1)',
+        [sucursalId],
+      );
       await _base.customStatement(
         'DELETE FROM ${EsquemaTablero.columnas} WHERE branch_id = ?1',
         [sucursalId],
@@ -198,7 +204,16 @@ class ServicioTablero {
               variables: [Variable<String>(t['pedidoId'] as String)],
             )
             .getSingle();
-        if (cuantas.read<int>('n') == 0) huerfanas++;
+        if (cuantas.read<int>('n') == 0) {
+          huerfanas++;
+          // No cabe, pero sigue puesta arriba: se APUNTA para poder contarla al
+          // borrar la zona (`board_sin_pedido`, esquema.dart).
+          await _base.customStatement(
+            'INSERT OR REPLACE INTO ${EsquemaTablero.sinPedido} '
+            '(order_id, column_id) VALUES (?1, ?2)',
+            [t['pedidoId'] as String, t['columnaId'] as String],
+          );
+        }
       }
       if (huerfanas > 0) {
         Registro.aviso(

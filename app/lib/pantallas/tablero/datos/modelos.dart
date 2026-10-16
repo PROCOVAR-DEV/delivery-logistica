@@ -168,6 +168,7 @@ class ColumnaTablero {
     this.vehiculoCapacidad,
     this.sinSubir = false,
     this.rechazada = false,
+    this.sinPedido = 0,
     this.almacenId,
     this.sale,
     this.noPuedeSalir,
@@ -192,6 +193,11 @@ class ColumnaTablero {
   final String? vehiculoMatricula;
   final double? vehiculoCapacidad;
   final int pedidos;
+
+  /// Puestos arriba en esta zona y que este aparato no puede enseñar porque no
+  /// tiene el pedido (`board_sin_pedido`). No están en [pedidos], pero SÍ cuentan
+  /// para borrarla: el servidor las cuenta y dice «tiene N pedidos puestos».
+  final int sinPedido;
   final double pesoKg;
   final double costoUsd;
 

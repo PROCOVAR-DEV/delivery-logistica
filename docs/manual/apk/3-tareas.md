@@ -199,6 +199,11 @@ Botones: **«Sí, borrar «Centro»»** y **«No, dejarla»**.
 Y dos salidas: **«Devolver los 8 pedidos a «Sin colocar» y borrar»** o **«Mover los 8 pedidos a otra
 zona y borrar»**. Cuenta los que cuenta el servidor, también los que este aparato no ve (por ejemplo, pedidos ya archivados): lo dice debajo.
 
+Y una tercera, **«Inactivar la zona»**: la quita del tablero y sus pedidos vuelven a
+«Sin colocar», pero **se conserva** (con su nombre y su historia de rutas). Para
+volver a usarla, arriba **«Zonas inactivas»** y **«Activar»**; vuelve vacía. Funciona
+sin señal y sube después.
+
 ---
 
 ## Reordenar las zonas

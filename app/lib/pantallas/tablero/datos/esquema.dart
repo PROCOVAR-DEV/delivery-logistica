@@ -82,7 +82,11 @@ CREATE TABLE IF NOT EXISTS $columnas (
   -- que viene del servidor viene, por definicion, de arriba. Asi que una zona
   -- que sube bien se queda en 0 sola en la siguiente bajada, sin que nadie
   -- tenga que acordarse de limpiarla.
-  nacio_aqui  INTEGER NOT NULL DEFAULT 0
+  nacio_aqui  INTEGER NOT NULL DEFAULT 0,
+  -- ZONA ACTIVA (16/10/2026, issue 15 de Amado). 0 = inactiva: no sale en el
+  -- tablero ni se ofrece al colocar, pero se conserva (nombre, camion, punto) y
+  -- se puede activar. Entra a 1: ninguna zona cambia al actualizar la app.
+  activa      INTEGER NOT NULL DEFAULT 1
 )''',
     // Dos «Vista Alegre» en el mismo tablero es colocar la mitad de los pedidos
     // en la equivocada y no enterarse hasta que salen dos camiones al mismo
@@ -210,6 +214,18 @@ END''',
         // fallo: la columna esta, que es lo que se queria.
         if (!'$e'.contains('duplicate column')) rethrow;
         Registro.info('la columna $columna de $tabla ya estaba: $e');
+      }
+    }
+    // `activa`, que entra a 1 (todas las zonas de antes siguen activas). Va aparte
+    // del bucle de arriba porque su valor por defecto es otro, y NO dispara el
+    // rescate de lo que «solo esta aqui»: una zona activa no es trabajo sin subir.
+    if (!await _tieneColumna(base, columnas, 'activa')) {
+      try {
+        await base.customStatement(
+          'ALTER TABLE $columnas ADD COLUMN activa INTEGER NOT NULL DEFAULT 1',
+        );
+      } on Object catch (e) {
+        if (!'$e'.contains('duplicate column')) rethrow;
       }
     }
     // SOLO CUANDO LA COLUMNA ACABA DE ENTRAR, o sea una vez en la vida de esta

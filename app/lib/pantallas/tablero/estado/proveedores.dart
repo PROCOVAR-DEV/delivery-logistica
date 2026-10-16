@@ -1030,6 +1030,19 @@ class TableroDelDia extends AsyncNotifier<Tablero> {
     await refrescar();
   }
 
+  Future<int> inactivarColumna(String columnaId) async {
+    final cuantos = await ref
+        .read(repositorioTableroProvider)
+        .inactivarColumna(columnaId);
+    await refrescar();
+    return cuantos;
+  }
+
+  Future<void> activarColumna(String columnaId) async {
+    await ref.read(repositorioTableroProvider).activarColumna(columnaId);
+    await refrescar();
+  }
+
   Future<String> armarRuta(
     String columnaId, {
     String? nombre,
@@ -1113,6 +1126,23 @@ final renglonesDelPedidoProvider = StreamProvider.autoDispose
             .tableUpdates(
               TableUpdateQuery.onAllTables([base.orderItems, base.products]),
             )
+            .asyncMap((_) => mirar());
+      }();
+    });
+
+/// LAS ZONAS INACTIVAS de una sucursal (issue 15 de Amado, 16/10/2026), para el
+/// cajón «Zonas inactivas». Un `Stream` sobre la tabla y no un `Future` (§3-ter):
+/// al activar una, desaparece de la lista en el acto.
+final zonasInactivasProvider = StreamProvider.autoDispose
+    .family<List<ColumnaTablero>, String>((ref, sucursalId) {
+      final base = ref.watch(baseProvider);
+      final consultas = ConsultasTablero(base);
+      Future<List<ColumnaTablero>> mirar() =>
+          consultas.columnas(sucursalId, inactivas: true);
+      return () async* {
+        yield await mirar();
+        yield* base
+            .tableUpdates(TableUpdateQuery.onTableName(EsquemaTablero.columnas))
             .asyncMap((_) => mirar());
       }();
     });

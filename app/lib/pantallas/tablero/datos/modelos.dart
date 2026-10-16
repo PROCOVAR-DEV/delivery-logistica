@@ -169,6 +169,7 @@ class ColumnaTablero {
     this.sinSubir = false,
     this.rechazada = false,
     this.sinPedido = 0,
+    this.activa = true,
     this.almacenId,
     this.sale,
     this.noPuedeSalir,
@@ -198,6 +199,9 @@ class ColumnaTablero {
   /// tiene el pedido (`board_sin_pedido`). No están en [pedidos], pero SÍ cuentan
   /// para borrarla: el servidor las cuenta y dice «tiene N pedidos puestos».
   final int sinPedido;
+
+  /// `false` = inactiva: no sale en el tablero, pero se conserva y se puede activar.
+  final bool activa;
   final double pesoKg;
   final double costoUsd;
 

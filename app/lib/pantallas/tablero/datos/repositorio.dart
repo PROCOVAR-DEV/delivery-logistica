@@ -293,6 +293,7 @@ class RepositorioTablero {
     )..where((o) => o.id.equals(pedidoId))).getSingleOrNull();
     final motivo = pedido == null ? null : porQueNoSePuedeColocar(pedido);
     if (motivo != null) throw RechazoDelTablero(motivo);
+    await _noSiEstaInactiva(columnaId);
     await _base.transaction(() async {
       final anterior = await _base
           .customSelect(
@@ -586,6 +587,76 @@ class RepositorioTablero {
     EsquemaTablero.avisarDeCambio(_base);
   }
 
+  /// INACTIVAR UNA ZONA (issue 15 de Amado, 16/10/2026): en vez de borrarla, que es
+  /// lo que el servidor niega cuando la zona tiene pedidos puestos o ya se armó
+  /// una ruta desde ella. Sus pedidos vuelven a «Sin colocar» (como vaciarla) y
+  /// la zona deja de salir en el tablero, al colocar y al armar; se conserva.
+  ///
+  /// UN solo apunte `PATCH {activa:false}` y no uno por tarjeta: el servidor
+  /// devuelve los pedidos en la misma transacción que la marca (contrato), y
+  /// reaplicarlo no es un error. Devuelve cuántos pedidos volvieron.
+  Future<int> inactivarColumna(String columnaId) async {
+    await _listo();
+    final dentro = await _cuantosEn(columnaId);
+    await _base.transaction(() async {
+      await _base.customStatement(
+        'DELETE FROM $_tablaColocaciones WHERE column_id = ?1',
+        [columnaId],
+      );
+      await _base.customStatement(
+        'DELETE FROM ${EsquemaTablero.sinPedido} WHERE column_id = ?1',
+        [columnaId],
+      );
+      await _base.customStatement(
+        'UPDATE $_tablaColumnas SET activa = 0, updated_at = ?2, '
+        'nacio_aqui = CASE WHEN activa <> 0 THEN ?3 ELSE nacio_aqui END '
+        'WHERE id = ?1',
+        [columnaId, _ahora, _nacioAqui],
+      );
+      await _mandarOEncolar(
+        metodo: 'PATCH',
+        ruta: '/board/columns/$columnaId',
+        cuerpo: const <String, Object?>{'activa': false},
+      );
+    });
+    EsquemaTablero.avisarDeCambio(_base);
+    return dentro;
+  }
+
+  /// ACTIVAR otra vez una zona inactiva: vuelve VACÍA (sus pedidos ya volvieron a
+  /// «Sin colocar» al inactivarla).
+  Future<void> activarColumna(String columnaId) async {
+    await _listo();
+    await _base.transaction(() async {
+      await _base.customStatement(
+        'UPDATE $_tablaColumnas SET activa = 1, updated_at = ?2, '
+        'nacio_aqui = CASE WHEN activa <> 1 THEN ?3 ELSE nacio_aqui END '
+        'WHERE id = ?1',
+        [columnaId, _ahora, _nacioAqui],
+      );
+      await _mandarOEncolar(
+        metodo: 'PATCH',
+        ruta: '/board/columns/$columnaId',
+        cuerpo: const <String, Object?>{'activa': true},
+      );
+    });
+    EsquemaTablero.avisarDeCambio(_base);
+  }
+
+  /// El «no» del servidor para colocar o armar en una zona inactiva, con sus
+  /// palabras: «La zona «X» está inactiva». Dicho ANTES de tocar nada.
+  Future<void> _noSiEstaInactiva(String columnaId) async {
+    final fila = await _base
+        .customSelect(
+          'SELECT nombre FROM $_tablaColumnas WHERE id = ?1 AND activa = 0',
+          variables: [Variable<String>(columnaId)],
+        )
+        .getSingleOrNull();
+    if (fila != null) {
+      throw RechazoDelTablero('La zona «${fila.read<String>('nombre')}» está inactiva');
+    }
+  }
+
   /// El mismo «no» que daría el servidor al guardar (400), dicho ANTES de
   /// encolar: sin señal llegaría horas después a la bandeja.
   Future<void> _comprobarPunto(String sucursalId, String? almacenId) async {
@@ -783,6 +854,7 @@ class RepositorioTablero {
     String? distribuidorId,
   }) async {
     await _listo();
+    await _noSiEstaInactiva(columnaId);
     final consultas = ConsultasTablero(_base);
     final columna = (await consultas.columnas(sucursalId))
         .where((c) => c.id == columnaId)

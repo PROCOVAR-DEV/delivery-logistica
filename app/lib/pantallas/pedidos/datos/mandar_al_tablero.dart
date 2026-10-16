@@ -194,13 +194,18 @@ class MandarAlTablero {
     await EsquemaTablero.asegurar(_base);
     final fila = await _base
         .customSelect(
-          'SELECT branch_id, nombre FROM ${EsquemaTablero.columnas} '
+          'SELECT branch_id, nombre, activa FROM ${EsquemaTablero.columnas} '
           'WHERE id = ?1',
           variables: [Variable<String>(columnaId)],
         )
         .getSingleOrNull();
     if (fila == null) {
       throw const RechazoDelTablero('Esa zona ya no está en el tablero');
+    }
+    if (fila.read<int>('activa') == 0) {
+      throw RechazoDelTablero(
+        'La zona «${fila.read<String>('nombre')}» está inactiva',
+      );
     }
     if (fila.read<String>('branch_id') != sucursalId) {
       throw const RechazoDelTablero('Esa zona es de otra sucursal');

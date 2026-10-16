@@ -297,7 +297,18 @@ Hay dos diálogos distintos:
   nombre.» Botones: **«Sí, borrar «Centro»»** y **«No, dejarla»**.
 - **Zona con pedidos** — «**«Centro» tiene 8 pedidos puestos**. ¿Qué se hace con
   ellos?» y dos salidas: **«Devolver los 8 pedidos a «Sin colocar» y borrar»** o **«Mover los 8 pedidos
-  a otra zona y borrar»**. Cuenta los que cuenta el servidor, también los que este aparato no ve (por ejemplo, pedidos ya archivados): lo dice debajo.
+  a otra zona y borrar»**, o **«Inactivar la zona»**. Cuenta los que cuenta el
+  servidor, también los que este aparato no ve (por ejemplo, pedidos ya archivados):
+  lo dice debajo.
+
+**Inactivar en vez de borrar.** Una zona con historia (rutas armadas desde ella) no
+hace falta perderla: **«Inactivar la zona»** (también se ofrece en la zona vacía,
+como «Inactivar en vez de borrar») la quita del tablero, de la lista de zonas al
+colocar y del armado de rutas, y **sus pedidos vuelven a «Sin colocar»**. Se
+conserva con su nombre, su camión y su punto de salida. Para verlas y volver a
+usarlas, en la barra de arriba toca **«Zonas inactivas»** y **«Activar»**: la zona
+vuelve **vacía**. Colocar o armar en una inactiva da «La zona «Centro» está
+inactiva».
 
 **No se puede borrar una zona con pedidos sin decidir antes qué pasa con ellos.**
 

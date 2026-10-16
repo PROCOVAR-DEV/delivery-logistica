@@ -344,7 +344,14 @@ class ConsultasTablero {
 
   /// Las columnas con sus totales. Los totales salen de la BASE y no de sumar
   /// las tarjetas pintadas (§3).
-  Future<List<ColumnaTablero>> columnas(String sucursalId) async {
+  ///
+  /// **Sólo las ACTIVAS**, salvo con [inactivas]: una zona inactiva no sale en el
+  /// tablero, ni al colocar, ni al armar (issue 15 de Amado). Todo el que quiera
+  /// «las zonas» pasa por aquí, y por eso el filtro vive aquí y en ningún otro sitio.
+  Future<List<ColumnaTablero>> columnas(
+    String sucursalId, {
+    bool inactivas = false,
+  }) async {
     await _listo();
     final filas = await _base
         .customSelect(
@@ -397,9 +404,12 @@ SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.almacen_id,
                   AND a.estado = 'rechazado') AS rechazada
 FROM ${EsquemaTablero.columnas} c
 LEFT JOIN vehicles v ON v.id = c.vehicle_id
-WHERE c.branch_id = ?1
+WHERE c.branch_id = ?1 AND c.activa = ?2
 ORDER BY c.posicion ASC, c.created_at ASC''',
-          variables: [Variable<String>(sucursalId)],
+          variables: [
+            Variable<String>(sucursalId),
+            Variable<int>(inactivas ? 0 : 1),
+          ],
         )
         .get();
 
@@ -422,6 +432,7 @@ ORDER BY c.posicion ASC, c.created_at ASC''',
             vehiculoCapacidad: f.readNullable<double>('vehiculo_capacidad'),
             pedidos: f.read<int>('pedidos'),
             sinPedido: f.read<int>('sin_pedido'),
+            activa: !inactivas,
             pesoKg: f.read<double>('peso_kg'),
             costoUsd: f.read<double>('costo_usd'),
             sinSubir: f.read<bool>('sin_subir'),

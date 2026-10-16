@@ -115,7 +115,12 @@ class ServicioTablero {
   Future<ResultadoDeBajarElTablero> _traerLaFoto(String sucursalId) async {
     final datos = await _cliente.pedir<Map<String, Object?>>(
       '/board',
-      params: <String, Object?>{'branchId': sucursalId},
+      // Las inactivas TAMBIEN bajan: se guardan con `activa = 0` para poder
+      // enseñarlas y activarlas sin conexion; las lecturas del tablero las filtran.
+      params: <String, Object?>{
+        'branchId': sucursalId,
+        'incluirInactivas': '1',
+      },
     );
 
     final columnas = (datos['columnas'] as List<Object?>? ?? const [])
@@ -156,8 +161,8 @@ class ServicioTablero {
           // ya esta arriba. Es lo que hace que una zona creada aqui se limpie
           // sola en cuanto sube, sin que nadie tenga que acordarse.
           '(id, branch_id, nombre, posicion, vehicle_id, creado_por, '
-          ' created_at, updated_at, nacio_aqui, almacen_id) '
-          'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9)',
+          ' created_at, updated_at, nacio_aqui, almacen_id, activa) '
+          'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, ?9, ?10)',
           [
             c['id'] as String,
             (c['branchId'] as String?) ?? sucursalId,
@@ -174,6 +179,8 @@ class ServicioTablero {
               final String id when id.isNotEmpty => id,
               _ => null,
             },
+            // Sin el campo (servidor anterior a la 00022) = activa.
+            c['activa'] == false ? 0 : 1,
           ],
         );
       }

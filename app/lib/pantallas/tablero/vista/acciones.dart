@@ -484,6 +484,19 @@ abstract final class AccionesTablero {
     );
   }
 
+  /// Inactivar la zona (issue 15 de Amado): se dice qué pasó, con las palabras de
+  /// la casa, y el no del servidor —si lo hubiera— sale por [hacer] con su motivo.
+  static Future<void> _inactivar(
+    BuildContext context,
+    WidgetRef ref,
+    ColumnaTablero columna,
+  ) => hacer(
+    context,
+    ref,
+    () => ref.read(tableroProvider.notifier).inactivarColumna(columna.id),
+    exito: '«${columna.nombre}» quedó inactiva. Se activa desde «Zonas inactivas».',
+  );
+
   /// Borrar.
   ///
   /// Con pedidos dentro **la base se niega**, y lo que se hace no es insistir:
@@ -516,7 +529,7 @@ abstract final class AccionesTablero {
     // `ColumnaTablero.sinPedido`.
     final puestos = columna.pedidos + columna.sinPedido;
     if (puestos == 0) {
-      final seguro = await mostrarCajon<bool>(
+      final seguro = await mostrarCajon<String>(
         context: context,
         titulo: 'Borrar «${columna.nombre}»',
         contenido: (contexto) => Column(
@@ -537,17 +550,29 @@ abstract final class AccionesTablero {
             // no vive aqui, vive en `diseno/tema.dart`.
             BotonDestructivo(
               texto: 'Sí, borrar «${columna.nombre}»',
-              alPulsar: () => Navigator.of(contexto).pop(true),
+              alPulsar: () => Navigator.of(contexto).pop('borrar'),
             ),
             const SizedBox(height: 8),
+            // Una zona vacía puede tener HISTORIA (rutas armadas desde ella):
+            // en vez de perderla se inactiva y se puede activar otra vez.
+            TextButton.icon(
+              onPressed: () => Navigator.of(contexto).pop('inactivar'),
+              icon: const Icon(Icons.inventory_2_outlined, size: 18),
+              label: const Text('Inactivar en vez de borrar'),
+            ),
             TextButton(
-              onPressed: () => Navigator.of(contexto).pop(false),
+              onPressed: () => Navigator.of(contexto).pop('dejar'),
               child: const Text('No, dejarla'),
             ),
           ],
         ),
       );
-      if (seguro != true || !context.mounted) return;
+      if (!context.mounted) return;
+      if (seguro == 'inactivar') {
+        await _inactivar(context, ref, columna);
+        return;
+      }
+      if (seguro != 'borrar') return;
       await hacer(
         context,
         ref,
@@ -586,6 +611,21 @@ abstract final class AccionesTablero {
             ),
           ],
           const SizedBox(height: 12),
+          // INACTIVAR: la salida cuando la zona tiene historia y no se quiere
+          // perder. Sus pedidos vuelven a «Sin colocar» y la zona se conserva.
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.inventory_2_outlined),
+            title: const Text('Inactivar la zona'),
+            subtitle: Text(
+              'Sale del tablero; ${puestos == 1 ? 'el pedido vuelve' : 'los $puestos pedidos vuelven'} '
+              'a «Sin colocar». Se puede activar después.',
+            ),
+            onTap: () {
+              Navigator.of(contexto).pop();
+              unawaited(_inactivar(context, ref, columna));
+            },
+          ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.undo),

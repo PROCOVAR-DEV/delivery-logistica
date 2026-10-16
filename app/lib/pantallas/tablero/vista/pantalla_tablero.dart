@@ -17,6 +17,7 @@ import 'columna.dart';
 import 'kit.dart';
 import 'panel_sin_colocar.dart';
 import 'tarjeta.dart';
+import 'zonas_inactivas.dart';
 
 /// EL TABLERO DE PREPARACION.
 ///
@@ -784,6 +785,16 @@ class _BarraDeArriba extends ConsumerWidget {
                 if (avisos.cambiados > 0)
                   insigniaAviso('${avisos.cambiados} cambiaron en la factura'),
               ],
+            ),
+          ),
+          // LAS ZONAS INACTIVAS (issue 15 de Amado): no salen en el tablero, y
+          // por eso hace falta un sitio donde verlas y activarlas.
+          IconButton(
+            icon: const Icon(Icons.inventory_2_outlined),
+            tooltip: 'Zonas inactivas',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => unawaited(
+              abrirLasZonasInactivas(context, sucursalId: tablero.sucursalId),
             ),
           ),
           _BotonDeTraer(sucursalId: tablero.sucursalId),

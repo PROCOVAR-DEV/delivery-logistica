@@ -223,9 +223,9 @@ func nuevoTablero() *tableroFalso {
 		// ejercite.
 		columnas: map[uuid.UUID]sqlc.BoardColumn{
 			colCentro: {ID: colCentro, BranchID: sucStg, Nombre: "Centro", Posicion: 1,
-				VehicleID: pgDe(vehStgTab)},
-			colVista: {ID: colVista, BranchID: sucStg, Nombre: "Vista Alegre", Posicion: 2},
-			colVacia: {ID: colVacia, BranchID: sucStg, Nombre: "Carretera", Posicion: 3},
+				VehicleID: pgDe(vehStgTab), Activa: true},
+			colVista: {ID: colVista, BranchID: sucStg, Nombre: "Vista Alegre", Posicion: 2, Activa: true},
+			colVacia: {ID: colVacia, BranchID: sucStg, Nombre: "Carretera", Posicion: 3, Activa: true},
 		},
 		pedidos: map[uuid.UUID]pedidoFalso{
 			ped1:    {id: ped1, sucursal: sucStg, nombre: "Ana", peso: 30, lat: 20.02, lng: -75.82, factura: &igual},
@@ -301,9 +301,13 @@ func (q *tableroFalso) ListarColumnasDelTablero(_ context.Context, arg sqlc.List
 		if arg.Sucursal.Valid && c.BranchID != uuid.UUID(arg.Sucursal.Bytes) {
 			continue
 		}
+		// El `AND (c.activa OR incluir_inactivas)` del SQL.
+		if !c.Activa && !arg.IncluirInactivas {
+			continue
+		}
 		fila := sqlc.ListarColumnasDelTableroRow{
 			ID: c.ID, BranchID: c.BranchID, Nombre: c.Nombre, Posicion: c.Posicion,
-			AlmacenID: c.AlmacenID,
+			AlmacenID: c.AlmacenID, Activa: c.Activa, UpdatedAt: c.UpdatedAt,
 		}
 		for ped, col := range q.colocadas {
 			if col.columna == c.ID {
@@ -381,7 +385,7 @@ func (q *tableroFalso) CrearColumna(_ context.Context, arg sqlc.CrearColumnaPara
 		id = uuid.UUID(arg.ID.Bytes)
 	}
 	nueva := sqlc.BoardColumn{ID: id, BranchID: arg.BranchID, Nombre: arg.Nombre, Posicion: pos,
-		AlmacenID: arg.AlmacenID}
+		AlmacenID: arg.AlmacenID, Activa: true}
 	q.columnas[nueva.ID] = nueva
 	q.creadas = append(q.creadas, arg.Nombre)
 	return filaDeColumna(nueva), nil
@@ -391,7 +395,7 @@ func filaDeColumna(c sqlc.BoardColumn) sqlc.CrearColumnaRow {
 	return sqlc.CrearColumnaRow{
 		ID: c.ID, BranchID: c.BranchID, Nombre: c.Nombre, Posicion: c.Posicion,
 		VehicleID: c.VehicleID, CreadoPor: c.CreadoPor,
-		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, AlmacenID: c.AlmacenID,
+		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, AlmacenID: c.AlmacenID, Activa: c.Activa,
 	}
 }
 
@@ -428,6 +432,11 @@ func (q *tableroFalso) ActualizarColumna(_ context.Context, arg sqlc.ActualizarC
 	if arg.TocarAlmacen {
 		c.AlmacenID = arg.AlmacenID
 	}
+	if arg.Activa != nil {
+		c.Activa = *arg.Activa
+	}
+	// El disparador `trg_board_columns_updated`: toda escritura mueve la marca de la bajada.
+	c.UpdatedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
 	q.columnas[arg.ID] = c
 	return c, nil
 }
@@ -505,7 +514,8 @@ func (q *tableroFalso) VaciarColumna(_ context.Context, arg sqlc.VaciarColumnaPa
 func (q *tableroFalso) MoverPedidosDeColumna(_ context.Context, arg sqlc.MoverPedidosDeColumnaParams) (int64, error) {
 	origen, ok1 := q.columnas[arg.ColumnaOrigen]
 	destino, ok2 := q.columnas[arg.ColumnaDestino]
-	if !ok1 || !ok2 || origen.BranchID != destino.BranchID {
+	// `AND destino.activa`: una zona apagada no recibe tarjetas.
+	if !ok1 || !ok2 || origen.BranchID != destino.BranchID || !destino.Activa {
 		return 0, nil
 	}
 	if !deLaSucursal(origen.BranchID, arg.Sucursal) {
@@ -559,7 +569,7 @@ func (q *tableroFalso) ColocarPedido(_ context.Context, arg sqlc.ColocarPedidoPa
 	c, ok2 := q.columnas[arg.ColumnaID]
 	// Las condiciones del `WHERE` del INSERT de verdad. La de `delivered_at` es la que
 	// `route_id IS NULL` no cubre: un entregado cuya ruta se borró está suelto.
-	if !ok || !ok2 || p.sucursal != c.BranchID || p.ruta != nil || p.entregado {
+	if !ok || !ok2 || p.sucursal != c.BranchID || !c.Activa || p.ruta != nil || p.entregado {
 		return sqlc.ColocarPedidoRow{}, pgx.ErrNoRows
 	}
 	// LAS DOS DE AMADO (`factura_domicilio > 0` y la cotización, sólo si se marcó domicilio).

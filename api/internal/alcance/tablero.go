@@ -36,9 +36,11 @@ import (
 // `branch_id` estrecha: pedir el tablero de Holguín desde Santiago devuelve cero filas
 // porque las dos condiciones tienen que cumplirse a la vez.
 
-func (a *Acotado) ListarColumnasDelTablero(ctx context.Context, sucursal uuid.UUID) ([]sqlc.ListarColumnasDelTableroRow, error) {
+// `incluirInactivas` (00022) false = sólo las zonas activas, que es lo que ve todo el mundo; true
+// trae también las apagadas (`?incluirInactivas=1`).
+func (a *Acotado) ListarColumnasDelTablero(ctx context.Context, sucursal uuid.UUID, incluirInactivas bool) ([]sqlc.ListarColumnasDelTableroRow, error) {
 	return a.q.ListarColumnasDelTablero(ctx, sqlc.ListarColumnasDelTableroParams{
-		BranchID: sucursal, Sucursal: a.sucursalPg(),
+		BranchID: sucursal, Sucursal: a.sucursalPg(), IncluirInactivas: incluirInactivas,
 	})
 }
 
@@ -71,6 +73,7 @@ func (a *Acotado) CrearColumna(ctx context.Context, arg sqlc.CrearColumnaParams)
 		CreatedAt: fila.CreatedAt,
 		UpdatedAt: fila.UpdatedAt,
 		AlmacenID: fila.AlmacenID,
+		Activa:    fila.Activa,
 	}, nil
 }
 

@@ -133,6 +133,8 @@ COPY docs/reordenar-paradas.casos.json /docs/reordenar-paradas.casos.json
 COPY docs/orden-sin-colocar.casos.json /docs/orden-sin-colocar.casos.json
 # `docs/fecha-de-la-factura.casos.json` (16/10/2026): el día de la factura en hora de Cuba; lo leen las pruebas del servidor y del aparato.
 COPY docs/fecha-de-la-factura.casos.json /docs/fecha-de-la-factura.casos.json
+# `docs/zonas-inactivas.casos.json` (16/10/2026): el motivo literal de una zona inactiva; lo leen las pruebas del servidor y del aparato.
+COPY docs/zonas-inactivas.casos.json /docs/zonas-inactivas.casos.json
 
 # LAS PRUEBAS, ANTES DE CONSTRUIR. Como en `Dockerfile.api` y `Dockerfile.sync`.
 #

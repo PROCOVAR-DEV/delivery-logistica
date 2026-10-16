@@ -2014,6 +2014,7 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
 | 409 | `Ese pedido ya está en una ruta` | `routeId` puesto |
 | 409 | `No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.` | `facturaDomicilio` nulo o `<= 0` (Amado, 07/10/2026) |
 | 409 | `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` | `pedidoCosto` nulo **y** `requiereDomicilio = true` (Amado, 07/10/2026; sólo los marcados desde el 15/10/2026, issue 10) |
+| 409 | `La zona «<nombre>» está inactiva` | el pedido existe y está libre, y la zona es de tu alcance pero está apagada (`activa = false`, 00022; ver «Zonas inactivas»). Va **antes** que el 404 de la zona |
 | 404 | `Esa zona del tablero ya no existe` | el pedido existe y está libre: lo que no cuadra es la columna |
 | 404 | `Ese pedido no existe o no es de tu sucursal` | no existe **o** es de otra sucursal (no se distingue) |
 | 409 | `Otro aparato puso una tarjeta en ese mismo sitio en el mismo momento. Vuelve a intentarlo.` | choque de posición al confirmar |
@@ -2122,6 +2123,46 @@ app crea las zonas nuevas.
   de mirar los pedidos y el camión.
 - La regla y sus literales están en `docs/punto-de-salida.casos.json`, que leen las pruebas del
   servidor y del aparato (el aparato arma sin señal con la misma regla).
+
+## Zonas inactivas (migración 00022, Jose 16/10/2026, versión 1.0.38)
+
+Una zona que hoy no se usa se **apaga** en vez de borrarse: `board_columns.activa boolean NOT NULL
+DEFAULT true` (las existentes siguen activas).
+
+- **`PATCH /api/board/columns/{id}`** acepta `{"activa": false|true}` (ausente o `null` = no tocar; otra
+  cosa que un booleano, `400`). Se combina con los demás campos. **Inactivar**: en **una transacción** los
+  pedidos puestos en la zona vuelven a «Sin colocar» (lo mismo que `?vaciar=1` del borrado) y la zona
+  queda `activa=false`. **Activar**: `activa=true`, **vacía** (los pedidos no vuelven a ella). Responde
+  `200` con la zona (`"activa"` incluido). Zona de otra sucursal o inexistente: `404 Esa zona del
+  tablero ya no existe`, y no se vacía nada.
+- **`GET /api/board`**: cada columna lleva `"activa": bool`. **Sólo salen las activas**; con
+  `?incluirInactivas=1` (o `true`) salen todas. Los totales, «Sin colocar» y su contador no se ven
+  afectados (los pedidos de una zona apagada están en «Sin colocar»). `PUT /api/board/columns/orden`
+  sólo reordena y devuelve las activas.
+- **`GET /api/sync/cambios`** (colección `boardColumns`): cada zona lleva `"activa"` y **sólo bajan las
+  activas**; con `?incluirInactivas=1` bajan todas. **Además**, una zona que se apagó (o cambió estando
+  apagada) **desde la marca `desde`** viaja en `quitados` con su id, para que el aparato que ya la tenía
+  la borre de su copia (sin eso, lo que no se manda no borra nada). Con `incluirInactivas=1` no hay
+  `quitados` de zonas apagadas: viajan en `puestos` con `"activa": false`. En la carga inicial no hay
+  `quitados`.
+- **Lo que una zona inactiva no admite**, todos `409` con el motivo literal
+  **`La zona «<nombre>» está inactiva`** (`<nombre>` tal cual, sin recortar), atado en
+  `docs/zonas-inactivas.casos.json` (lo leen las pruebas del servidor y del aparato):
+
+  | Gesto | Cuándo se dice |
+  |---|---|
+  | `PUT /api/board/placements/{pedidoId}` a la zona | tras las razones del pedido (entregado, ruta, domicilio, cotización) y antes del `404` de la zona |
+  | `POST /api/board/columns/{id}/route` | antes de pedirle nada a Accesos |
+  | `DELETE /api/board/columns/{id}?destino=<id>` con `destino` apagada | antes de mover nada |
+
+- **Una ruta que se borra o a la que se le quita una parada ya no devuelve la tarjeta a una zona
+  inactiva**: el pedido se queda en «Sin colocar» (`board_route_origins` se gasta igual).
+- **Borrar una zona inactiva** funciona como siempre (`409 «X» tiene N pedidos puestos` si los tuviera,
+  `?destino=`, `?vaciar=1`); una inactiva no tiene pedidos puestos.
+- **La lista blanca del sincronizador** ya admite `PATCH /board/columns/{id}` (la cola de la APK y la
+  bandeja de revisión): `sync/internal/sincro/revision_limites.go`, probado con ese `PATCH`.
+- **Limitación conocida**: el nombre de una zona inactiva sigue ocupando el único `(sucursal, nombre)`:
+  no se puede crear otra «Centro» mientras la inactiva se llame así.
 
 ## Borrar una zona
 

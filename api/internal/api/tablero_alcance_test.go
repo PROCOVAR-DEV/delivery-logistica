@@ -37,7 +37,7 @@ var colHol = uuid.MustParse("c0000000-0000-0000-0000-0000000000f1")
 
 func conHolguin(q *tableroFalso) *tableroFalso {
 	q.columnas[colHol] = sqlc.BoardColumn{
-		ID: colHol, BranchID: sucHol, Nombre: "Centro de Holguín", Posicion: 1,
+		ID: colHol, BranchID: sucHol, Nombre: "Centro de Holguín", Posicion: 1, Activa: true,
 	}
 	q.colocadas[pedHol] = colocacion{colHol, 1}
 	return q

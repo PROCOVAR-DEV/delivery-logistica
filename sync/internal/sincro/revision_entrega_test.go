@@ -553,6 +553,8 @@ func TestLaListaBlancaDeMetodoYRuta(t *testing.T) {
 			{"PUT", "/board/placements/6f9619ff-8b86-d011-b42d-00c04fc964ff"},
 			{"POST", "/board/columns?branchId=6f9619ff-8b86-d011-b42d-00c04fc964ff"},
 			{"PATCH", "/board/columns/orden?branchId=6f9619ff-8b86-d011-b42d-00c04fc964ff"},
+			// INACTIVAR / ACTIVAR UNA ZONA (00022, 1.0.38): `PATCH /board/columns/{id}` con `{"activa":false}`, con id de verdad o `local-…`.
+			{"PATCH", "/board/columns/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, {"PATCH", "/board/columns/local-9f3a"},
 			{"DELETE", "/board/columns/c1?destino=c2"}, {"DELETE", "/board/columns/c1?vaciar=1"},
 			{"PUT", "/board/columns/c1/route"}, {"POST", "/board/columns"}, {"PUT", "/board/placements/p9"},
 			{"DELETE", "/routes/6f9619ff-8b86-d011-b42d-00c04fc964ff/stops/6f9619ff-8b86-d011-b42d-00c04fc964ff"},

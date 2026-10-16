@@ -435,7 +435,7 @@ WHERE
         )
     )
     AND (sqlc.narg('municipio')::text IS NULL OR o.municipio = sqlc.narg('municipio')::text)
-    AND (sqlc.narg('vendedor')::text  IS NULL OR o.vendedor  = sqlc.narg('vendedor')::text)
+    AND (sqlc.narg('vendedores')::text[] IS NULL OR o.vendedor = ANY(sqlc.narg('vendedores')::text[]))
     -- LA FECHA DE LA FACTURA, EN HORA DE CUBA — issue 16 de Amado, 16/10/2026: el logístico
     -- trabaja contra la factura, y una factura del 15 de un pedido tomado el 14 es «del 15».
     -- Es `coalesce(factura_at, order_date, created_at)` (la de la ordenación, con el
@@ -618,7 +618,7 @@ WHERE
         )
     )
     AND (sqlc.narg('municipio')::text IS NULL OR o.municipio = sqlc.narg('municipio')::text)
-    AND (sqlc.narg('vendedor')::text  IS NULL OR o.vendedor  = sqlc.narg('vendedor')::text)
+    AND (sqlc.narg('vendedores')::text[] IS NULL OR o.vendedor = ANY(sqlc.narg('vendedores')::text[]))
     AND (
         sqlc.narg('dia_desde')::date IS NULL
         OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date

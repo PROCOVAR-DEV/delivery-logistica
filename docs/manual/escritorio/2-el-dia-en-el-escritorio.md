@@ -143,7 +143,7 @@ cada tarjeta y se elige la zona en el cajón.
    <!-- señala: tablero-sin-colocar-filtros -->
    - Abre **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** (los dos días
      entran; para un solo día, «Desde» y **«sólo ese día»**), **«Municipio»**,
-     **«Vendedor»**, **«Hasta cuántos km del almacén»** (se aplica al salir del campo o
+     **«Vendedor»** (uno o varios: salen los de cualquiera de los marcados), **«Hasta cuántos km del almacén»** (se aplica al salir del campo o
      con intro) y **«Cobro del domicilio»**.
 2. O usa **el buscador** («Cliente, operación, factura, dirección, artículo…»), que **filtra
    mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->

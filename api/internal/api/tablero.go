@@ -734,7 +734,7 @@ func (s *Servidor) mitadIzquierda(w http.ResponseWriter, r *http.Request, a *alc
 		BranchID:      t.sucursal,
 		Q:             textoOpcional(q.Get("q")),
 		Municipio:     textoOpcional(q.Get("municipio")),
-		Vendedor:      textoOpcional(q.Get("vendedor")),
+		Vendedores:    vendedoresDe(q),
 		DiaDesde:      desde,
 		DiaHasta:      hasta,
 		KmMax:         numeroOpcional(q.Get("kmMax")),
@@ -1464,16 +1464,16 @@ func (s *Servidor) colocarPedido(w http.ResponseWriter, r *http.Request) {
 // haya pedido la tanda siguiente. La prueba conoce esa excepción por su nombre.
 func paramsDelContador(arg sqlc.ListarPedidosSinColocarParams) sqlc.ContarPedidosSinColocarParams {
 	return sqlc.ContarPedidosSinColocarParams{
-		BranchID:  arg.BranchID,
-		Sucursal:  arg.Sucursal,
-		Q:         arg.Q,
-		Municipio: arg.Municipio,
-		Vendedor:  arg.Vendedor,
-		DiaDesde:  arg.DiaDesde,
-		DiaHasta:  arg.DiaHasta,
-		KmMax:     arg.KmMax,
-		OrigenLat: arg.OrigenLat,
-		OrigenLng: arg.OrigenLng,
+		BranchID:   arg.BranchID,
+		Sucursal:   arg.Sucursal,
+		Q:          arg.Q,
+		Municipio:  arg.Municipio,
+		Vendedores: arg.Vendedores,
+		DiaDesde:   arg.DiaDesde,
+		DiaHasta:   arg.DiaHasta,
+		KmMax:      arg.KmMax,
+		OrigenLat:  arg.OrigenLat,
+		OrigenLng:  arg.OrigenLng,
 		// Sin cursor no cambia la cuenta, pero va: es parte del mismo `WHERE`.
 		PrimeroCodigo: arg.PrimeroCodigo,
 	}

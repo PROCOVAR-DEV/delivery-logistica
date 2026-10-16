@@ -97,7 +97,14 @@ abstract final class FiltrosEnLaUrl {
   ///
   /// Sin ningún parámetro devuelve exactamente ese arranque, así que abrir
   /// `/orders` a secas se comporta igual que antes de que esto existiera.
-  static LecturaDeLaUrl leer(Map<String, String> parametros) {
+  /// [vendedores] son los `vendedor=` de la dirección, TODOS (`vendedor=Ana&vendedor=Luis`):
+  /// un `Map<String, String>` se queda con uno solo. Sin ellos se lee el de
+  /// `parametros`, que es el enlace de antes de que fuera de varios (issue 18 de
+  /// Amado, 16/10/2026) y sigue valiendo.
+  static LecturaDeLaUrl leer(
+    Map<String, String> parametros, {
+    List<String>? vendedores,
+  }) {
     final fuera = <String>[];
 
     // `clave=` VACÍA NO ES «no venía»: es `cualquiera`, cuyo `param` es la
@@ -189,7 +196,14 @@ abstract final class FiltrosEnLaUrl {
             deEnum(claveReparto, RepartoFiltro.values, (v) => v.param) ??
             base.reparto,
         municipio: parametros[claveMunicipio] ?? base.municipio,
-        vendedor: parametros[claveVendedor] ?? base.vendedor,
+        vendedores: [
+          for (final v
+              in (vendedores ?? [?parametros[claveVendedor]])
+                  .map((v) => v.trim())
+                  .where((v) => v.isNotEmpty)
+                  .toSet())
+            v,
+        ],
         cotizado:
             deEnum(claveCotizado, CotizadoFiltro.values, (v) => v.param) ??
             base.cotizado,
@@ -217,13 +231,16 @@ abstract final class FiltrosEnLaUrl {
   ///
   /// **`factura` y `archivado` sí salen cuando no son los del arranque**, que
   /// es como se manda «mira también los archivados».
-  static Map<String, String> escribir(FiltrosPedidos f) {
+  ///
+  /// Los vendedores van como un `vendedor` repetido por cada uno (`Uri` lo escribe
+  /// así si el valor es una lista), así que un nombre con coma viaja entero.
+  static Map<String, Object> escribir(FiltrosPedidos f) {
     const base = FiltrosPedidos();
-    return <String, String>{
+    return <String, Object>{
       if (f.q.trim().isNotEmpty) claveQ: f.q.trim(),
       if (f.reparto != base.reparto) claveReparto: f.reparto.param,
       if (f.municipio.isNotEmpty) claveMunicipio: f.municipio,
-      if (f.vendedor.isNotEmpty) claveVendedor: f.vendedor,
+      if (f.vendedores.isNotEmpty) claveVendedor: f.vendedores,
       if (f.cotizado != base.cotizado) claveCotizado: f.cotizado.param,
       if (f.factura != base.factura) claveFactura: f.factura.param,
       if (f.archivado != base.archivado) claveArchivado: f.archivado.param,

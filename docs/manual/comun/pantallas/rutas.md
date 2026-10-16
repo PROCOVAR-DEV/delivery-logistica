@@ -444,7 +444,7 @@ Los filtros:
 | «Sucursal de la ruta» | la del paso 1 |
 | «Desde (fecha de la factura)» / «Hasta (fecha de la factura)» | vacías. Los dos días entran; con «Desde» puesto aparece «sólo ese día», y la ✕ las quita |
 | «Buscar pedido...» | vacío |
-| «Vendedor del pedido» | «Todos los vendedores» |
+| «Vendedor del pedido» | «Todos los vendedores». **Uno o varios**: casillas en un cajón, entran los pedidos de cualquiera de los marcados, y la caja dice «3 vendedores» |
 | «Municipio del cliente» | «Todos los municipios» |
 | «km máx.» | sin tope. Se aplica al salir del campo |
 | «costo mín.» | sin tope |

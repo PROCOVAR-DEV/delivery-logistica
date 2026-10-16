@@ -63,7 +63,11 @@ No es un fallo. Es para que lo de allá no pise lo que hiciste aquí. Sube prime
     entran. Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las
     dos, y la **✕** quita las fechas. Es la fecha de la FACTURA (la del pedido si aún no tiene factura), contada en hora de Cuba: una factura del día 15 sale con «del 15 al 15» aunque su pedido sea del 14.
   - **«Municipio»** (por defecto «Todos»)
-  - **«Vendedor»** (por defecto «Todos»)
+  - **«Vendedor»** (por defecto «Todos los vendedores»): **uno o varios**. Se abre un cajón
+    con una casilla por vendedor; marca los que quieras y salen los pedidos de **cualquiera**
+    de ellos (se suman, no se restan). «Todos los vendedores», arriba, quita la selección. La
+    caja resume lo marcado: el nombre si es uno, «3 vendedores» si son varios. El filtro viaja
+    en el enlace.
   - **«Hasta cuántos km del almacén»** (por defecto «Sin tope»). Se aplica al
     salir del campo o con Intro.
   - **«Cobro del domicilio»**: «Todos» · «Con cobro» · «Sin cobro»

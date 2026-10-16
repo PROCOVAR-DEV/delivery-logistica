@@ -22,6 +22,7 @@ import '../../../diseno/caja_de_numero.dart';
 import '../../../diseno/cajon.dart' show AtrasDelCajon;
 import '../../../diseno/numeros.dart';
 import '../../../diseno/rango_de_fechas.dart';
+import '../../../diseno/selector_multiple.dart';
 import '../../../diseno/tema.dart';
 import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
 import '../../../impresion/vista_previa.dart';
@@ -958,17 +959,18 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
           alBuscar: _buscar,
         ),
       ),
-      Selector<String>(
+      // VARIOS VENDEDORES A LA VEZ (issue 18 de Amado, 16/10/2026): entran los pedidos
+      // de CUALQUIERA de los marcados. Con buscador SIEMPRE: en una sucursal grande
+      // son decenas de vendedores y bajar la lista a mano no es buscar.
+      SelectorMultiple(
+        key: const ValueKey('Vendedor del pedido'),
         titulo: 'Vendedor del pedido',
-        valor: _filtros.vendedor,
-        // Con buscador SIEMPRE: en una sucursal grande son decenas de
-        // vendedores y bajar la lista a mano no es buscar.
-        buscadorSiempre: true,
-        opciones: [
-          const OpcionSelector('', 'Todos los vendedores'),
-          for (final v in opciones.vendedores) OpcionSelector(v, v),
-        ],
-        alElegir: (v) => _ponerFiltros(_filtros.copiarCon(vendedor: v)),
+        todos: 'Todos los vendedores',
+        plural: 'vendedores',
+        desdeCuantasBusca: 1,
+        opciones: [for (final v in opciones.vendedores) OpcionMultiple(v)],
+        seleccion: _filtros.vendedores,
+        alCambiar: (v) => _ponerFiltros(_filtros.copiarCon(vendedores: v)),
       ),
       Selector<String>(
         titulo: 'Municipio del cliente',

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -435,7 +436,7 @@ func (s *Servidor) listarPedidos(w http.ResponseWriter, r *http.Request) {
 	total, err := a.ContarPedidos(r.Context(), sqlc.ContarPedidosParams{
 		BranchID: f.BranchID, Q: f.Q, Estado: f.Estado, Archivado: f.Archivado,
 		Domicilio: f.Domicilio, Cotizado: f.Cotizado, Municipio: f.Municipio,
-		Vendedor: f.Vendedor, Reparto: f.Reparto, Factura: f.Factura,
+		Vendedores: f.Vendedores, Reparto: f.Reparto, Factura: f.Factura,
 		Desde: f.Desde, Hasta: f.Hasta,
 	})
 	if err != nil {
@@ -446,7 +447,7 @@ func (s *Servidor) listarPedidos(w http.ResponseWriter, r *http.Request) {
 	filas, err := a.ListarPedidos(r.Context(), sqlc.ListarPedidosParams{
 		BranchID: f.BranchID, Q: f.Q, Estado: f.Estado, Archivado: f.Archivado,
 		Domicilio: f.Domicilio, Cotizado: f.Cotizado, Municipio: f.Municipio,
-		Vendedor: f.Vendedor, Reparto: f.Reparto, Factura: f.Factura,
+		Vendedores: f.Vendedores, Reparto: f.Reparto, Factura: f.Factura,
 		Desde: f.Desde, Hasta: f.Hasta,
 		Desplazamiento: int32((pagina - 1) * porPagina),
 		Limite:         int32(porPagina),
@@ -511,7 +512,7 @@ func (s *Servidor) preDespacho(r *http.Request, a *alcance.Acotado, f filtrosPed
 	todos, err := a.ListarPedidos(r.Context(), sqlc.ListarPedidosParams{
 		BranchID: f.BranchID, Q: f.Q, Estado: f.Estado, Archivado: f.Archivado,
 		Domicilio: f.Domicilio, Cotizado: f.Cotizado, Municipio: f.Municipio,
-		Vendedor: f.Vendedor, Reparto: f.Reparto, Factura: f.Factura,
+		Vendedores: f.Vendedores, Reparto: f.Reparto, Factura: f.Factura,
 		Desde: f.Desde, Hasta: f.Hasta,
 		Desplazamiento: 0,
 		Limite:         int32(total),
@@ -569,7 +570,7 @@ func (s *Servidor) pedidosDisponibles(w http.ResponseWriter, r *http.Request) {
 	total, err := a.ContarPedidosDisponibles(r.Context(), sqlc.ContarPedidosDisponiblesParams{
 		BranchID: f.BranchID, Q: f.Q, Estado: f.Estado, Archivado: f.Archivado,
 		Domicilio: f.Domicilio, Cotizado: f.Cotizado, Municipio: f.Municipio,
-		Vendedor: f.Vendedor, Reparto: f.Reparto, Factura: f.Factura,
+		Vendedores: f.Vendedores, Reparto: f.Reparto, Factura: f.Factura,
 		Desde: desde, Hasta: hasta,
 	})
 	if err != nil {
@@ -579,7 +580,7 @@ func (s *Servidor) pedidosDisponibles(w http.ResponseWriter, r *http.Request) {
 	filas, err := a.ListarPedidosDisponibles(r.Context(), sqlc.ListarPedidosDisponiblesParams{
 		BranchID: f.BranchID, Q: f.Q, Estado: f.Estado, Archivado: f.Archivado,
 		Domicilio: f.Domicilio, Cotizado: f.Cotizado, Municipio: f.Municipio,
-		Vendedor: f.Vendedor, Reparto: f.Reparto, Factura: f.Factura,
+		Vendedores: f.Vendedores, Reparto: f.Reparto, Factura: f.Factura,
 		Desde: desde, Hasta: hasta,
 		Limite: TopeDisponibles,
 	})
@@ -1130,13 +1131,41 @@ type filtrosPedido struct {
 	Domicilio *bool
 	Cotizado  *bool
 	Municipio *string
-	Vendedor  *string
-	BranchID  pgtype.UUID
-	Reparto   *string
-	Factura   *string
+	// UNO O VARIOS (issue 18 de Amado): la unión de los pedidos de cualquiera. nil = todos.
+	Vendedores []string
+	BranchID   pgtype.UUID
+	Reparto    *string
+	Factura    *string
 	// Días de la FACTURA en hora de Cuba, los dos incluidos (`diaDe`).
 	Desde pgtype.Date
 	Hasta pgtype.Date
+}
+
+// vendedoresDe lee el filtro de vendedor, que puede venir de tres maneras y se UNEN:
+// `vendedor=a&vendedor=b` (repetido), `vendedor=a` (el de UN vendedor de siempre, que las
+// APK instaladas siguen mandando) y `vendedores=a,b` (separado por comas). Los repetidos
+// se conservan enteros —un nombre puede llevar coma—; sólo `vendedores` se parte.
+//
+// NIL cuando no hay ninguno, NUNCA un vacío: `= ANY('{}')` no casa con nada, así que un
+// `[]string{}` convertiría «todos» en «ninguno» sin un error (§3).
+func vendedoresDe(q url.Values) []string {
+	var salida []string
+	visto := map[string]bool{}
+	poner := func(v string) {
+		if v = strings.TrimSpace(v); v != "" && !visto[v] {
+			visto[v] = true
+			salida = append(salida, v)
+		}
+	}
+	for _, v := range q["vendedor"] {
+		poner(v)
+	}
+	for _, lista := range q["vendedores"] {
+		for _, v := range strings.Split(lista, ",") {
+			poner(v)
+		}
+	}
+	return salida
 }
 
 func leerFiltros(r *http.Request) filtrosPedido {
@@ -1149,14 +1178,14 @@ func leerFiltros(r *http.Request) filtrosPedido {
 		// `q` va en minúsculas como en el contrato. Da igual para el ILIKE del SQL, que
 		// ya es insensible, pero se conserva para que el valor que llega a la consulta
 		// sea EL MISMO que llegaba en delivery y una comparación de registros cuadre.
-		Q:         opcional(strings.ToLower(valorDe("q"))),
-		Estado:    deLaLista(valorDe("estado"), "completada", "en_proceso", "expirada"),
-		Archivado: unoOCero(valorDe("archivado")),
-		Domicilio: unoOCero(valorDe("domicilio")),
-		Cotizado:  unoOCero(valorDe("cotizado")),
-		Municipio: opcional(valorDe("municipio")),
-		Vendedor:  opcional(valorDe("vendedor")),
-		Reparto:   deLaLista(valorDe("reparto"), "sin_entregar", "en_despacho", "en_ruta", "entregado", "devuelto"),
+		Q:          opcional(strings.ToLower(valorDe("q"))),
+		Estado:     deLaLista(valorDe("estado"), "completada", "en_proceso", "expirada"),
+		Archivado:  unoOCero(valorDe("archivado")),
+		Domicilio:  unoOCero(valorDe("domicilio")),
+		Cotizado:   unoOCero(valorDe("cotizado")),
+		Municipio:  opcional(valorDe("municipio")),
+		Vendedores: vendedoresDe(q),
+		Reparto:    deLaLista(valorDe("reparto"), "sin_entregar", "en_despacho", "en_ruta", "entregado", "devuelto"),
 		// `factura` NO se valida contra una lista: el contrato dice que cualquier otro
 		// valor no vacío se compara tal cual contra `factura_estado`. La última rama del
 		// SQL es justo ésa.

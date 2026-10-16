@@ -51,6 +51,34 @@ void main() {
       expect(l.filtros.hayAlguno, isFalse);
     });
 
+    test('VARIOS vendedores: un `vendedor` por cada uno, y el enlace viejo con UNO se lee', () {
+      // Issue 18 de Amado (16/10/2026).
+      final direccion = Uri(
+        path: FiltrosEnLaUrl.camino,
+        queryParameters: FiltrosEnLaUrl.escribir(
+          const FiltrosSinColocar(vendedores: ['Ana', 'Pérez, Juan']),
+        ),
+      );
+      expect(direccion.toString(), contains('vendedor=Ana&vendedor=P'));
+      expect(direccion.queryParametersAll['vendedor'], ['Ana', 'Pérez, Juan']);
+      expect(
+        FiltrosEnLaUrl.leerDeUri(direccion).filtros.vendedores,
+        ['Ana', 'Pérez, Juan'],
+        reason: 'un nombre con coma viaja entero',
+      );
+      // El enlace de antes, con UN vendedor, sigue valiendo.
+      expect(
+        FiltrosEnLaUrl.leerDeUri(Uri.parse('/tablero?vendedor=Ana')).filtros.vendedores,
+        ['Ana'],
+      );
+      // Sin repetidos ni vacíos; y sin el parámetro, ninguno (= todos).
+      expect(
+        FiltrosEnLaUrl.leerDeUri(Uri.parse('/tablero?vendedor=Ana&vendedor=&vendedor=Ana')).filtros.vendedores,
+        ['Ana'],
+      );
+      expect(FiltrosEnLaUrl.leerDeUri(Uri.parse('/tablero')).filtros.vendedores, isEmpty);
+    });
+
     test('lo que se entiende, se aplica', () {
       final l = FiltrosEnLaUrl.leer(const {
         'q': 'malta',
@@ -64,7 +92,7 @@ void main() {
       expect(l.noSePudieron, isEmpty);
       expect(l.filtros.q, 'malta');
       expect(l.filtros.municipio, 'Songo');
-      expect(l.filtros.vendedor, 'Ana');
+      expect(l.filtros.vendedores, ['Ana']);
       expect(l.filtros.desde, DateTime(2026, 9, 12));
       expect(l.filtros.hasta, DateTime(2026, 9, 14));
       expect(l.filtros.kmMax, 10);
@@ -172,7 +200,7 @@ void main() {
           const FiltrosSinColocar(
             q: 'malta',
             municipio: 'Songo',
-            vendedor: 'Ana',
+            vendedores: ['Ana', 'Pérez, Juan'],
             kmMax: 12.5,
             conCobroDeDomicilio: false,
           ),
@@ -185,8 +213,14 @@ void main() {
         ];
         for (final f in casos) {
           final ida = FiltrosEnLaUrl.escribir(f);
-          final vuelta = FiltrosEnLaUrl.leer(ida);
+          // Por una dirección DE VERDAD (con su codificación), no por el mapa.
+          final vuelta = FiltrosEnLaUrl.leerDeUri(
+            Uri(path: FiltrosEnLaUrl.camino, queryParameters: ida),
+          );
           expect(vuelta.noSePudieron, isEmpty, reason: '$ida');
+          // `iguales` compara lo que ESCRIBE `escribir`: si éste olvidara un campo, los
+          // dos lados lo olvidarían igual. Los vendedores se miran de frente.
+          expect(vuelta.filtros.vendedores, f.vendedores, reason: '$ida');
           expect(
             FiltrosEnLaUrl.iguales(vuelta.filtros, f),
             isTrue,

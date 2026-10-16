@@ -84,7 +84,20 @@ abstract final class FiltrosEnLaUrl {
   static const yPorEsoLaListaNoEstaAcotada =
       'La lista que estás viendo NO está acotada por ellos.';
 
-  static LecturaDeLaUrl leer(Map<String, String> parametros) {
+  /// [vendedores] son los `vendedor=` de la dirección, TODOS (`vendedor=Ana&vendedor=Luis`):
+  /// un `Map<String, String>` se queda con uno solo. Sin ellos se lee el de
+  /// `parametros`, que es el enlace de antes de que fuera de varios (issue 18 de
+  /// Amado, 16/10/2026) y sigue valiendo.
+  /// Lo que lee la pantalla: los `vendedor=` salen de TODOS los de la dirección.
+  static LecturaDeLaUrl leerDeUri(Uri uri) => leer(
+    uri.queryParameters,
+    vendedores: uri.queryParametersAll[claveVendedor],
+  );
+
+  static LecturaDeLaUrl leer(
+    Map<String, String> parametros, {
+    List<String>? vendedores,
+  }) {
     final fuera = <String>[];
 
     DateTime? fecha(String clave) {
@@ -139,7 +152,7 @@ abstract final class FiltrosEnLaUrl {
       FiltrosSinColocar(
         q: parametros[claveQ],
         municipio: parametros[claveMunicipio],
-        vendedor: parametros[claveVendedor],
+        vendedores: _vendedores(vendedores ?? [?parametros[claveVendedor]]),
         desde: fecha(claveDesde) ?? diaViejo,
         hasta: fecha(claveHasta) ?? diaViejo,
         kmMax: kmMax(),
@@ -149,12 +162,21 @@ abstract final class FiltrosEnLaUrl {
     );
   }
 
-  static Map<String, String> escribir(FiltrosSinColocar f) {
+  /// Sin vacíos ni repetidos, y en el orden en que venían.
+  static List<String> _vendedores(List<String> crudos) => [
+    for (final v
+        in crudos.map((v) => v.trim()).where((v) => v.isNotEmpty).toSet())
+      v,
+  ];
+
+  /// Un `vendedor` repetido por cada uno (`Uri` lo escribe así si el valor es una
+  /// lista), así que un nombre con coma viaja entero.
+  static Map<String, Object> escribir(FiltrosSinColocar f) {
     final km = f.kmMax;
-    return <String, String>{
+    return <String, Object>{
       if (f.q != null && f.q!.trim().isNotEmpty) claveQ: f.q!.trim(),
       if (f.municipio != null) claveMunicipio: f.municipio!,
-      if (f.vendedor != null) claveVendedor: f.vendedor!,
+      if (f.vendedores.isNotEmpty) claveVendedor: f.vendedores,
       if (f.desde != null) claveDesde: _dia(f.desde!),
       if (f.hasta != null) claveHasta: _dia(f.hasta!),
       if (km != null) claveKmMax: '$km',

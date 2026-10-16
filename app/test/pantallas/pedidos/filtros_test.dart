@@ -61,8 +61,19 @@ void main() {
     test('municipio y vendedor son exactos', () async {
       expect(await cuantos(sinNada.copiarCon(municipio: 'Camagüey')), 6);
       expect(await cuantos(sinNada.copiarCon(municipio: 'Florida')), 3);
-      expect(await cuantos(sinNada.copiarCon(vendedor: 'Luis')), 6);
-      expect(await cuantos(sinNada.copiarCon(vendedor: 'Marta')), 4);
+      expect(await cuantos(sinNada.copiarCon(vendedores: ['Luis'])), 6);
+      expect(await cuantos(sinNada.copiarCon(vendedores: ['Marta'])), 4);
+      // VARIOS = la unión (issue 18 de Amado): los de cualquiera de los dos.
+      expect(
+        await cuantos(sinNada.copiarCon(vendedores: ['Luis', 'Marta'])),
+        10,
+      );
+      // Uno sin pedidos suma cero; ninguno es todos.
+      expect(
+        await cuantos(sinNada.copiarCon(vendedores: ['Luis', 'Nadie'])),
+        6,
+      );
+      expect(await cuantos(sinNada.copiarCon(vendedores: ['Nadie'])), 0);
     });
 
     test('cotizado mira `pedidoCosto`, y un nulo NO es un cero', () async {
@@ -171,7 +182,7 @@ void main() {
     // busqueda: tiene que quedar o7 y nada mas.
     final todos = const FiltrosPedidos().copiarCon(
       municipio: 'Camagüey',
-      vendedor: 'Luis',
+      vendedores: ['Luis'],
       reparto: RepartoFiltro.enRuta,
       cotizado: CotizadoFiltro.conPrecio,
       desde: DateTime(2026, 9, 1),

@@ -385,7 +385,7 @@ previsto».
    - **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** (los dos días
      entran; para un solo día, pon «Desde» y toca **«sólo ese día»**)
    - **«Municipio»**
-   - **«Vendedor»**
+   - **«Vendedor»**: uno o varios. Marca las casillas que quieras y salen los pedidos de cualquiera de ellos; «Todos los vendedores» lo quita
    - **«Hasta cuántos km del almacén»** (escribe el número y **sal del campo**, o dale
      a intro)
    - **«Cobro del domicilio»**: «Todos» / «Con cobro» / «Sin cobro»
@@ -2546,7 +2546,7 @@ ordenadas de más a menos pedidos pendientes.
    primero en «Sin colocar», del más cercano al más lejano.
 2. **Mira los avisos rojos**, si los hay: «3 archivados en PEDIDO», «2 ya en otra
    ruta». Son pedidos ya colocados que hoy no salen.
-3. **Filtra la izquierda** si te conviene: por municipio, por vendedor, por día o
+3. **Filtra la izquierda** si te conviene: por municipio, por vendedor (uno o varios), por día o
    por «Hasta cuántos km del almacén».
 4. **Crea las zonas** con el botón **«Nueva columna»** (lleva un `+`): «Centro»,
    «Vista Alegre», «Carretera»… **Los nombres de tu sucursal, no los de nadie más.**
@@ -3976,7 +3976,7 @@ reparto](../las-reglas-del-reparto.md).
 | **«Estado de reparto en delivery»** | «Cualquier reparto» | «Sin entregar», «En despacho», «En ruta», «Entregado», «Devuelto o cancelado» |
 | **«Municipio del cliente»** | «Todos los municipios» | Cada municipio con cuántos pedidos tiene |
 | **«Precio del domicilio»** | «Cualquier precio» | «Con precio puesto» o «Sin cotizar» |
-| **«Vendedor del pedido»** | «Todos los vendedores» | Cada vendedor con cuántos pedidos |
+| **«Vendedor del pedido»** | «Todos los vendedores» | **Uno o varios**: un cajón con una casilla por vendedor (con cuántos pedidos tiene cada uno); salen los de cualquiera de los marcados. «Todos los vendedores» limpia, y la caja dice «3 vendedores» si hay varios |
 | **«Cómo se ordena esta página»** | «Más recientes» | «Más antiguos», «Precio: mayor a menor», «Precio: menor a mayor», «Distancia: más larga», «Peso: mayor» |
 | **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías | Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las dos. Filtran por la **fecha de la factura** (la del pedido si aún no tiene factura), contada en hora de Cuba, los dos días incluidos |
 
@@ -4914,7 +4914,7 @@ Los filtros:
 | «Sucursal de la ruta» | la del paso 1 |
 | «Desde (fecha de la factura)» / «Hasta (fecha de la factura)» | vacías. Los dos días entran; con «Desde» puesto aparece «sólo ese día», y la ✕ las quita |
 | «Buscar pedido...» | vacío |
-| «Vendedor del pedido» | «Todos los vendedores» |
+| «Vendedor del pedido» | «Todos los vendedores». **Uno o varios**: casillas en un cajón, entran los pedidos de cualquiera de los marcados, y la caja dice «3 vendedores» |
 | «Municipio del cliente» | «Todos los municipios» |
 | «km máx.» | sin tope. Se aplica al salir del campo |
 | «costo mín.» | sin tope |
@@ -5419,7 +5419,11 @@ No es un fallo. Es para que lo de allá no pise lo que hiciste aquí. Sube prime
     entran. Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las
     dos, y la **✕** quita las fechas. Es la fecha de la FACTURA (la del pedido si aún no tiene factura), contada en hora de Cuba: una factura del día 15 sale con «del 15 al 15» aunque su pedido sea del 14.
   - **«Municipio»** (por defecto «Todos»)
-  - **«Vendedor»** (por defecto «Todos»)
+  - **«Vendedor»** (por defecto «Todos los vendedores»): **uno o varios**. Se abre un cajón
+    con una casilla por vendedor; marca los que quieras y salen los pedidos de **cualquiera**
+    de ellos (se suman, no se restan). «Todos los vendedores», arriba, quita la selección. La
+    caja resume lo marcado: el nombre si es uno, «3 vendedores» si son varios. El filtro viaja
+    en el enlace.
   - **«Hasta cuántos km del almacén»** (por defecto «Sin tope»). Se aplica al
     salir del campo o con Intro.
   - **«Cobro del domicilio»**: «Todos» · «Con cobro» · «Sin cobro»
@@ -7480,7 +7484,7 @@ cada tarjeta y se elige la zona en el cajón.
    <!-- señala: tablero-sin-colocar-filtros -->
    - Abre **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** (los dos días
      entran; para un solo día, «Desde» y **«sólo ese día»**), **«Municipio»**,
-     **«Vendedor»**, **«Hasta cuántos km del almacén»** (se aplica al salir del campo o
+     **«Vendedor»** (uno o varios: salen los de cualquiera de los marcados), **«Hasta cuántos km del almacén»** (se aplica al salir del campo o
      con intro) y **«Cobro del domicilio»**.
 2. O usa **el buscador** («Cliente, operación, factura, dirección, artículo…»), que **filtra
    mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
@@ -8580,7 +8584,7 @@ tarjeta: eso es el teléfono, que no tiene las dos mitades a la vez.
    <!-- señala: tablero-sin-colocar-filtros -->
    - Los filtros son **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»**
      (los dos días entran; para un solo día, pon «Desde» y pulsa **«sólo ese día»**),
-     **«Municipio»**, **«Vendedor»**, **«Hasta cuántos km del almacén»** (se aplica al
+     **«Municipio»**, **«Vendedor»** (uno o varios: salen los de cualquiera de los marcados), **«Hasta cuántos km del almacén»** (se aplica al
      salir del campo o con intro) y **«Cobro del domicilio»**. Para quitarlos,
      **«Quitar todos los filtros»**.
 2. O usa **el buscador**, que dice «Cliente, operación, factura, dirección, artículo…» y
@@ -8960,7 +8964,7 @@ Los filtros van en una fila bajo la cabecera:
 | **«Estado de reparto en delivery»** | «Cualquier reparto» |
 | **«Municipio del cliente»** | «Todos los municipios» |
 | **«Precio del domicilio»** | «Cualquier precio» |
-| **«Vendedor del pedido»** | «Todos los vendedores» |
+| **«Vendedor del pedido»** | «Todos los vendedores». Uno o varios: casillas en un cajón, salen los de cualquiera de los marcados |
 | **«Cómo se ordena esta página»** | «Más recientes» |
 | **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías |
 

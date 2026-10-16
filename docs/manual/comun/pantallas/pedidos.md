@@ -38,7 +38,7 @@ reparto](../las-reglas-del-reparto.md).
 | **«Estado de reparto en delivery»** | «Cualquier reparto» | «Sin entregar», «En despacho», «En ruta», «Entregado», «Devuelto o cancelado» |
 | **«Municipio del cliente»** | «Todos los municipios» | Cada municipio con cuántos pedidos tiene |
 | **«Precio del domicilio»** | «Cualquier precio» | «Con precio puesto» o «Sin cotizar» |
-| **«Vendedor del pedido»** | «Todos los vendedores» | Cada vendedor con cuántos pedidos |
+| **«Vendedor del pedido»** | «Todos los vendedores» | **Uno o varios**: un cajón con una casilla por vendedor (con cuántos pedidos tiene cada uno); salen los de cualquiera de los marcados. «Todos los vendedores» limpia, y la caja dice «3 vendedores» si hay varios |
 | **«Cómo se ordena esta página»** | «Más recientes» | «Más antiguos», «Precio: mayor a menor», «Precio: menor a mayor», «Distancia: más larga», «Peso: mayor» |
 | **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías | Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las dos. Filtran por la **fecha de la factura** (la del pedido si aún no tiene factura), contada en hora de Cuba, los dos días incluidos |
 

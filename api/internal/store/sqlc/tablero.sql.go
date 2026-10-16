@@ -414,7 +414,7 @@ WHERE
         )
     )
     AND ($4::text IS NULL OR o.municipio = $4::text)
-    AND ($5::text  IS NULL OR o.vendedor  = $5::text)
+    AND ($5::text[] IS NULL OR o.vendedor = ANY($5::text[]))
     AND (
         $6::date IS NULL
         OR (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
@@ -505,7 +505,7 @@ type ContarPedidosSinColocarParams struct {
 	Sucursal      pgtype.UUID        `json:"sucursal"`
 	Q             *string            `json:"q"`
 	Municipio     *string            `json:"municipio"`
-	Vendedor      *string            `json:"vendedor"`
+	Vendedores    []string           `json:"vendedores"`
 	DiaDesde      pgtype.Date        `json:"dia_desde"`
 	DiaHasta      pgtype.Date        `json:"dia_hasta"`
 	KmMax         *float64           `json:"km_max"`
@@ -546,7 +546,7 @@ func (q *Queries) ContarPedidosSinColocar(ctx context.Context, arg ContarPedidos
 		arg.Sucursal,
 		arg.Q,
 		arg.Municipio,
-		arg.Vendedor,
+		arg.Vendedores,
 		arg.DiaDesde,
 		arg.DiaHasta,
 		arg.KmMax,
@@ -1028,7 +1028,7 @@ WHERE
         )
     )
     AND ($7::text IS NULL OR o.municipio = $7::text)
-    AND ($8::text  IS NULL OR o.vendedor  = $8::text)
+    AND ($8::text[] IS NULL OR o.vendedor = ANY($8::text[]))
     -- LA FECHA DE LA FACTURA, EN HORA DE CUBA — issue 16 de Amado, 16/10/2026: el logístico
     -- trabaja contra la factura, y una factura del 15 de un pedido tomado el 14 es «del 15».
     -- Es ` + "`" + `coalesce(factura_at, order_date, created_at)` + "`" + ` (la de la ordenación, con el
@@ -1137,7 +1137,7 @@ type ListarPedidosSinColocarParams struct {
 	Sucursal      pgtype.UUID        `json:"sucursal"`
 	Q             *string            `json:"q"`
 	Municipio     *string            `json:"municipio"`
-	Vendedor      *string            `json:"vendedor"`
+	Vendedores    []string           `json:"vendedores"`
 	DiaDesde      pgtype.Date        `json:"dia_desde"`
 	DiaHasta      pgtype.Date        `json:"dia_hasta"`
 	KmMax         *float64           `json:"km_max"`
@@ -1245,7 +1245,7 @@ func (q *Queries) ListarPedidosSinColocar(ctx context.Context, arg ListarPedidos
 		arg.Sucursal,
 		arg.Q,
 		arg.Municipio,
-		arg.Vendedor,
+		arg.Vendedores,
 		arg.DiaDesde,
 		arg.DiaHasta,
 		arg.KmMax,

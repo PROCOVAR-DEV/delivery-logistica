@@ -388,10 +388,24 @@ void main() {
         (await consultas.sinColocar(
           sucursalStg,
           origen,
-          filtros: const FiltrosSinColocar(vendedor: 'Luis'),
+          filtros: const FiltrosSinColocar(vendedores: ['Luis']),
         )).pedidos.single.pedidoId,
         'p2',
       );
+      // VARIOS vendedores = la unión (issue 18 de Amado, 16/10/2026): «pueden haber
+      // pocos domicilios y se combinan los de ambos».
+      Future<List<String>> con(List<String> vendedores) async => [
+        for (final p in (await consultas.sinColocar(
+          sucursalStg,
+          origen,
+          filtros: FiltrosSinColocar(vendedores: vendedores),
+        )).pedidos)
+          p.pedidoId,
+      ]..sort();
+      expect(await con(['Ana', 'Luis']), ['p1', 'p2']);
+      expect(await con(['Luis', 'Nadie']), ['p2']);
+      expect(await con(['Nadie']), isEmpty);
+      expect(await con([]), ['p1', 'p2']);
       expect(
         (await consultas.sinColocar(
           sucursalStg,

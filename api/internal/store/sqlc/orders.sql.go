@@ -266,7 +266,7 @@ WHERE
         OR (NOT $7::boolean AND o.pedido_costo IS NULL)
     )
     AND ($8::text IS NULL OR o.municipio = $8::text)
-    AND ($9::text  IS NULL OR o.vendedor  = $9::text)
+    AND ($9::text[] IS NULL OR o.vendedor = ANY($9::text[]))
     AND (
         $10::text IS NULL
         OR ($10::text = 'sin_entregar'
@@ -300,19 +300,19 @@ WHERE
 `
 
 type ContarPedidosParams struct {
-	Sucursal  pgtype.UUID `json:"sucursal"`
-	BranchID  pgtype.UUID `json:"branch_id"`
-	Q         *string     `json:"q"`
-	Estado    *string     `json:"estado"`
-	Archivado *bool       `json:"archivado"`
-	Domicilio *bool       `json:"domicilio"`
-	Cotizado  *bool       `json:"cotizado"`
-	Municipio *string     `json:"municipio"`
-	Vendedor  *string     `json:"vendedor"`
-	Reparto   *string     `json:"reparto"`
-	Factura   *string     `json:"factura"`
-	Desde     pgtype.Date `json:"desde"`
-	Hasta     pgtype.Date `json:"hasta"`
+	Sucursal   pgtype.UUID `json:"sucursal"`
+	BranchID   pgtype.UUID `json:"branch_id"`
+	Q          *string     `json:"q"`
+	Estado     *string     `json:"estado"`
+	Archivado  *bool       `json:"archivado"`
+	Domicilio  *bool       `json:"domicilio"`
+	Cotizado   *bool       `json:"cotizado"`
+	Municipio  *string     `json:"municipio"`
+	Vendedores []string    `json:"vendedores"`
+	Reparto    *string     `json:"reparto"`
+	Factura    *string     `json:"factura"`
+	Desde      pgtype.Date `json:"desde"`
+	Hasta      pgtype.Date `json:"hasta"`
 }
 
 // El total del catálogo, para la paginación. Mismo WHERE que `ListarPedidos`.
@@ -326,7 +326,7 @@ func (q *Queries) ContarPedidos(ctx context.Context, arg ContarPedidosParams) (i
 		arg.Domicilio,
 		arg.Cotizado,
 		arg.Municipio,
-		arg.Vendedor,
+		arg.Vendedores,
 		arg.Reparto,
 		arg.Factura,
 		arg.Desde,
@@ -401,7 +401,7 @@ WHERE
         OR (NOT $7::boolean AND o.pedido_costo IS NULL)
     )
     AND ($8::text IS NULL OR o.municipio = $8::text)
-    AND ($9::text  IS NULL OR o.vendedor  = $9::text)
+    AND ($9::text[] IS NULL OR o.vendedor = ANY($9::text[]))
     AND (
         $10::text IS NULL
         OR ($10::text = 'sin_entregar'
@@ -437,19 +437,19 @@ WHERE
 `
 
 type ContarPedidosDisponiblesParams struct {
-	Sucursal  pgtype.UUID `json:"sucursal"`
-	BranchID  pgtype.UUID `json:"branch_id"`
-	Q         *string     `json:"q"`
-	Estado    *string     `json:"estado"`
-	Archivado *bool       `json:"archivado"`
-	Domicilio *bool       `json:"domicilio"`
-	Cotizado  *bool       `json:"cotizado"`
-	Municipio *string     `json:"municipio"`
-	Vendedor  *string     `json:"vendedor"`
-	Reparto   *string     `json:"reparto"`
-	Factura   *string     `json:"factura"`
-	Desde     pgtype.Date `json:"desde"`
-	Hasta     pgtype.Date `json:"hasta"`
+	Sucursal   pgtype.UUID `json:"sucursal"`
+	BranchID   pgtype.UUID `json:"branch_id"`
+	Q          *string     `json:"q"`
+	Estado     *string     `json:"estado"`
+	Archivado  *bool       `json:"archivado"`
+	Domicilio  *bool       `json:"domicilio"`
+	Cotizado   *bool       `json:"cotizado"`
+	Municipio  *string     `json:"municipio"`
+	Vendedores []string    `json:"vendedores"`
+	Reparto    *string     `json:"reparto"`
+	Factura    *string     `json:"factura"`
+	Desde      pgtype.Date `json:"desde"`
+	Hasta      pgtype.Date `json:"hasta"`
 }
 
 // El `total` de la pantalla de disponibles: el mismo WHERE, sin tope ni orden.
@@ -464,7 +464,7 @@ func (q *Queries) ContarPedidosDisponibles(ctx context.Context, arg ContarPedido
 		arg.Domicilio,
 		arg.Cotizado,
 		arg.Municipio,
-		arg.Vendedor,
+		arg.Vendedores,
 		arg.Reparto,
 		arg.Factura,
 		arg.Desde,
@@ -1258,7 +1258,7 @@ WHERE
         OR (NOT $7::boolean AND o.pedido_costo IS NULL)
     )
     AND ($8::text IS NULL OR o.municipio = $8::text)
-    AND ($9::text  IS NULL OR o.vendedor  = $9::text)
+    AND ($9::text[] IS NULL OR o.vendedor = ANY($9::text[]))
     AND (
         $10::text IS NULL
         OR ($10::text = 'sin_entregar'
@@ -1302,7 +1302,7 @@ type ListarPedidosParams struct {
 	Domicilio      *bool       `json:"domicilio"`
 	Cotizado       *bool       `json:"cotizado"`
 	Municipio      *string     `json:"municipio"`
-	Vendedor       *string     `json:"vendedor"`
+	Vendedores     []string    `json:"vendedores"`
 	Reparto        *string     `json:"reparto"`
 	Factura        *string     `json:"factura"`
 	Desde          pgtype.Date `json:"desde"`
@@ -1373,7 +1373,7 @@ func (q *Queries) ListarPedidos(ctx context.Context, arg ListarPedidosParams) ([
 		arg.Domicilio,
 		arg.Cotizado,
 		arg.Municipio,
-		arg.Vendedor,
+		arg.Vendedores,
 		arg.Reparto,
 		arg.Factura,
 		arg.Desde,
@@ -1548,7 +1548,7 @@ WHERE
         OR (NOT $7::boolean AND o.pedido_costo IS NULL)
     )
     AND ($8::text IS NULL OR o.municipio = $8::text)
-    AND ($9::text  IS NULL OR o.vendedor  = $9::text)
+    AND ($9::text[] IS NULL OR o.vendedor = ANY($9::text[]))
     -- El estado de REPARTO es propio del reparto: no tiene nada que ver con el estado del
     -- pedido en PEDIDO ni con el de la factura. Manda el RESULTADO de la parada y NO el
     -- estado de la ruta: una ruta completada no dice nada de cada parada, y darlo por
@@ -1599,20 +1599,20 @@ LIMIT $14
 `
 
 type ListarPedidosDisponiblesParams struct {
-	Sucursal  pgtype.UUID `json:"sucursal"`
-	BranchID  pgtype.UUID `json:"branch_id"`
-	Q         *string     `json:"q"`
-	Estado    *string     `json:"estado"`
-	Archivado *bool       `json:"archivado"`
-	Domicilio *bool       `json:"domicilio"`
-	Cotizado  *bool       `json:"cotizado"`
-	Municipio *string     `json:"municipio"`
-	Vendedor  *string     `json:"vendedor"`
-	Reparto   *string     `json:"reparto"`
-	Factura   *string     `json:"factura"`
-	Desde     pgtype.Date `json:"desde"`
-	Hasta     pgtype.Date `json:"hasta"`
-	Limite    int32       `json:"limite"`
+	Sucursal   pgtype.UUID `json:"sucursal"`
+	BranchID   pgtype.UUID `json:"branch_id"`
+	Q          *string     `json:"q"`
+	Estado     *string     `json:"estado"`
+	Archivado  *bool       `json:"archivado"`
+	Domicilio  *bool       `json:"domicilio"`
+	Cotizado   *bool       `json:"cotizado"`
+	Municipio  *string     `json:"municipio"`
+	Vendedores []string    `json:"vendedores"`
+	Reparto    *string     `json:"reparto"`
+	Factura    *string     `json:"factura"`
+	Desde      pgtype.Date `json:"desde"`
+	Hasta      pgtype.Date `json:"hasta"`
+	Limite     int32       `json:"limite"`
 }
 
 type ListarPedidosDisponiblesRow struct {
@@ -1700,7 +1700,7 @@ func (q *Queries) ListarPedidosDisponibles(ctx context.Context, arg ListarPedido
 		arg.Domicilio,
 		arg.Cotizado,
 		arg.Municipio,
-		arg.Vendedor,
+		arg.Vendedores,
 		arg.Reparto,
 		arg.Factura,
 		arg.Desde,

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../navegacion/pantalla_registrada.dart';
 import '../../nucleo/frescura/colecciones_de_cada_pantalla.dart';
+import 'datos/filtros_en_la_url.dart';
 import 'vista/pantalla_pedidos.dart';
 
 export 'vista/pantalla_pedidos.dart' show PantallaPedidos;
@@ -35,4 +36,8 @@ PantallaRegistrada registrarPedidos() => const PantallaRegistrada(
 /// lo que pasa con un valor que no se entiende, en
 /// `datos/filtros_en_la_url.dart`.
 Widget _construir(BuildContext contexto, GoRouterState estado) =>
-    PantallaPedidos(consulta: estado.uri.queryParameters);
+    PantallaPedidos(
+      consulta: estado.uri.queryParameters,
+      vendedoresEnLaUrl:
+          estado.uri.queryParametersAll[FiltrosEnLaUrl.claveVendedor],
+    );

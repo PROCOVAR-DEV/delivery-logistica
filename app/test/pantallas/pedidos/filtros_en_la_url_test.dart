@@ -133,7 +133,7 @@ void main() {
         const FiltrosPedidos(
           q: 'Doña Rosa',
           municipio: 'Centro Habana',
-          vendedor: 'Ana Pérez',
+          vendedores: ['Ana Pérez', 'Pérez, Juan'],
           reparto: RepartoFiltro.enDespacho,
           cotizado: CotizadoFiltro.sinCotizar,
           factura: FacturaFiltro.cuadra,
@@ -145,7 +145,12 @@ void main() {
       ];
       for (final f in casos) {
         final ida = FiltrosEnLaUrl.escribir(f);
-        final vuelta = FiltrosEnLaUrl.leer(ida);
+        // Por una dirección DE VERDAD (con su codificación), no por el mapa.
+        final uri = Uri(path: FiltrosEnLaUrl.camino, queryParameters: ida);
+        final vuelta = FiltrosEnLaUrl.leer(
+          uri.queryParameters,
+          vendedores: uri.queryParametersAll[FiltrosEnLaUrl.claveVendedor],
+        );
         expect(
           vuelta.filtros,
           f,
@@ -162,7 +167,12 @@ void main() {
       final url = FiltrosEnLaUrl.escribir(todos);
       expect(url['factura'], '');
       expect(url['archivado'], '');
-      expect(FiltrosEnLaUrl.leer(url).filtros.arranqueAcotado, isFalse);
+      expect(
+        FiltrosEnLaUrl.leer({
+          for (final e in url.entries) e.key: '${e.value}',
+        }).filtros.arranqueAcotado,
+        isFalse,
+      );
     });
   });
 

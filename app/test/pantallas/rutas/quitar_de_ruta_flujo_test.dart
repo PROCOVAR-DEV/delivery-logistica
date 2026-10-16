@@ -144,6 +144,8 @@ void main() {
     // La pregunta, en un cajón, nombrando a quien sale. Nada se ha quitado aún.
     expect(find.text('Quitar de la ruta'), findsOneWidget);
     expect(find.text('Sí, quitar «Ana» de la ruta'), findsOneWidget);
+    // Issue 17 de Amado: la factura (la sembrada, FA-1) abre el subtítulo del cajón.
+    expect(find.text('Factura FA-1 · Ana · Conduce: F-p1'), findsOneWidget);
     expect(acciones.llamadas, isEmpty, reason: 'preguntar no quita');
 
     await tester.tap(find.text('Sí, quitar «Ana» de la ruta'));

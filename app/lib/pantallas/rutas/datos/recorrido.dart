@@ -23,6 +23,7 @@
 
 import '../../../nucleo/base/base.dart';
 import '../../informes/datos/consultas_informes.dart';
+import '../../pedidos/datos/formato.dart' show facturaConFecha;
 import 'geo.dart';
 import 'repositorio_rutas.dart';
 
@@ -32,6 +33,7 @@ class ParadaDelRecorrido {
     required this.id,
     required this.numero,
     required this.etiqueta,
+    this.factura,
     this.punto,
     this.importe,
     this.entregada = false,
@@ -46,6 +48,10 @@ class ParadaDelRecorrido {
 
   /// Lo que se lee en el globo: el nombre del cliente.
   final String etiqueta;
+
+  /// «Factura 47061 · 15/10/2026» (`facturaConFecha`), la primera línea del globo (issue 17
+  /// de Amado), o `null` = el pedido no tiene número: el globo dice «Sin número de factura».
+  final String? factura;
 
   /// `null` = esta parada no tiene coordenadas guardadas. Ni se dibuja ni entra
   /// en el enlace, y las dos cosas se dicen.
@@ -119,6 +125,7 @@ Recorrido recorridoDe(RutaConTodo ruta) {
           id: parada.id,
           numero: indice + 1,
           etiqueta: parada.customerName,
+          factura: facturaConFecha(parada.facturaNumero, parada.facturaAt),
           punto: (parada.endLat == null || parada.endLng == null)
               ? null
               : Punto(parada.endLat!, parada.endLng!),

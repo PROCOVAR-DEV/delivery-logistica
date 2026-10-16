@@ -1698,7 +1698,13 @@ class _FilaDisponible extends StatelessWidget {
       dense: true,
       value: marcado,
       onChanged: cabe ? (_) => alMarcar() : null,
-      title: Text(pedido.customerName),
+      // La factura y su fecha mandan sobre el cliente (issue 17 de Amado).
+      title: FacturaYCliente(
+        facturaNumero: pedido.facturaNumero,
+        facturadaEl: pedido.facturaAt,
+        cliente: pedido.customerName,
+        claveDeLaFactura: ValueKey('asistente-factura-${pedido.id}'),
+      ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -42,6 +42,17 @@ String? etiquetaDeFactura(String? crudo, {DateTime? facturadaEl}) {
   return 'Factura $numero · facturada el ${diaDeLaFacturaEnCuba(facturadaEl)}';
 }
 
+/// «Factura 1024237 · 15/10/2026» (día de Cuba), para donde la factura va en UNA línea de
+/// texto —el globo del croquis, el subtítulo de un cajón, el papel del post-despacho—
+/// (issue 17 de Amado). Sin número `null`: cada sitio dice a su manera «Sin número de
+/// factura» y ninguno cae al folio. Sin fecha sale sólo el número, nunca una fecha inventada.
+String? facturaConFecha(String? crudo, DateTime? facturadaEl) {
+  final numero = NumeroDeFactura.de(crudo);
+  if (numero == null) return null;
+  final dia = diaDeLaFacturaEnCuba(facturadaEl);
+  return dia == null ? 'Factura $numero' : 'Factura $numero · $dia';
+}
+
 /// Kilos con un decimal: es lo que se lee en el almacen y lo que usa el mensaje
 /// literal de sobrepeso del servidor.
 String kg(double? valor) =>

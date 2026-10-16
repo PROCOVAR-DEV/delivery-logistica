@@ -241,6 +241,56 @@ void main() {
     },
   );
 
+  // ISSUE 17 DE AMADO (16/10/2026): la fila de pedido del paso 4 lleva la factura y su fecha
+  // como valor primario, encima del cliente. En pareja, a 390 y a 1440 px.
+  for (final ancho in const [390.0, 1440.0]) {
+    testWidgets('a $ancho px, la fila lleva la factura y su fecha; sin número, la '
+        'frase de siempre', (tester) async {
+      await sembrarLoBasico();
+      await sembrarPedido(
+        base,
+        id: 'f1',
+        cliente: 'Con factura',
+        facturaNumero: '47061, 47062',
+        endLat: 21.38,
+        endLng: -77.91,
+        fecha: ahora,
+      );
+      await sembrarPedido(
+        base,
+        id: 'f2',
+        cliente: 'Sin factura',
+        facturaNumero: null,
+        facturaEstado: EstadoFactura.cambiado,
+        endLat: 21.38,
+        endLng: -77.91,
+        fecha: ahora.subtract(const Duration(minutes: 1)),
+      );
+      await (base.update(base.orders)..where((o) => o.id.equals('f1'))).write(
+        OrdersCompanion(facturaAt: Value(DateTime.utc(2026, 9, 14, 22))),
+      );
+      await pintar(tester, pantalla: Size(ancho, 1100));
+      await llegarAlPaso4(tester);
+
+      final con = find.byKey(const ValueKey('asistente-factura-f1'));
+      expect(tester.widget<Text>(con).data, 'Factura 47061, 47062');
+      expect(tester.widget<Text>(con).style!.fontWeight, FontWeight.w600);
+      expect(
+        tester.getTopLeft(con).dy,
+        lessThan(tester.getTopLeft(find.text('Con factura')).dy),
+        reason: 'la factura va encima del cliente',
+      );
+      expect(find.text('· 14/9/2026'), findsOneWidget);
+
+      expect(find.byKey(const ValueKey('asistente-factura-f2')), findsNothing);
+      expect(find.text('Sin número de factura'), findsOneWidget);
+      expect(find.text('Sin factura'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await desmontar(tester);
+    });
+  }
+
   testWidgets('la lista se desplaza DENTRO de su caja, sin mover nada más', (
     tester,
   ) async {

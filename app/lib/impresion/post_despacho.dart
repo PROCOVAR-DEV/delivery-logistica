@@ -67,6 +67,10 @@ abstract final class TextoPostDespacho {
   static const String etiquetaCancelado = 'Cancelado';
   static const String etiquetaSinMarcar = 'Sin marcar';
 
+  /// Lo que dice el papel de una parada sin número de factura (issue 17 de Amado): la
+  /// misma frase de las tarjetas, sin caer al folio ni inventar nada.
+  static const String sinNumeroDeFactura = 'Sin número de factura';
+
   static const String sinProductos = '—';
   static const String separadorProductos = ' · ';
   static const String por = ' × ';
@@ -280,6 +284,24 @@ pw.Widget _parada(ParadaPendiente p) => pw.Container(
   child: pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: <pw.Widget>[
+      // LA FACTURA Y SU FECHA, ARRIBA (issue 17 de Amado): el cliente trabaja por
+      // número de factura. Va en negrita y mayor que el cliente; sin número, la frase
+      // de siempre en gris.
+      pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 2 * px),
+        child: p.factura == null
+            ? pw.Text(
+                TextoPostDespacho.sinNumeroDeFactura,
+                style: const pw.TextStyle(fontSize: 12 * px, color: Tinta.gris),
+              )
+            : pw.Text(
+                p.factura!,
+                style: pw.TextStyle(
+                  fontSize: 15 * px,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+      ),
       pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: <pw.Widget>[

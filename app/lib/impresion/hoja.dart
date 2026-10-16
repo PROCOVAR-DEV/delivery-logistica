@@ -177,9 +177,13 @@ class ParadaPendiente {
     required this.resultado,
     required this.nota,
     required this.productos,
+    this.factura,
   });
 
   final String cliente;
+
+  /// La factura y su fecha, o `null` = sin número (`PedidoDeRuta.factura`).
+  final String? factura;
 
   /// `devuelto`, `cancelado`, o `null` si nadie la marco.
   final String? resultado;

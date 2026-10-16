@@ -31,12 +31,14 @@ ParadaDelRecorrido parada(
   double? lat,
   double? lng,
   double? precio,
+  String? factura,
   bool entregada = false,
   bool regreso = false,
 }) => ParadaDelRecorrido(
   id: 'p$n',
   numero: n,
   etiqueta: 'Cliente $n',
+  factura: factura,
   punto: (lat == null || lng == null) ? null : Punto(lat, lng),
   importe: precio,
   entregada: entregada,
@@ -346,7 +348,13 @@ void main() {
       origen: const Punto(21.0, -77.0),
       nombreDelOrigen: 'Camagüey',
       paradas: [
-        parada(1, lat: 21.1, lng: -77.1, precio: 12.5),
+        parada(
+          1,
+          lat: 21.1,
+          lng: -77.1,
+          precio: 12.5,
+          factura: 'Factura 47061 · 15/10/2026',
+        ),
         parada(2, lat: 21.2, lng: -77.2),
         parada(3, lat: 21.3, lng: -77.3, precio: 30, entregada: true),
       ],
@@ -671,6 +679,44 @@ void main() {
 
       expect(find.text('1. Cliente 1'), findsOneWidget);
       expect(find.text(r'$12.50'), findsOneWidget);
+    });
+
+    // ISSUE 17 DE AMADO (16/10/2026): el globo abre con la factura y su fecha, antes que el
+    // cliente. En pareja: con factura, y sin ella la frase de siempre.
+    testWidgets('el globo abre con la factura y su fecha, en negrita, y el '
+        'cliente debajo', (tester) async {
+      await pintar(tester, tresParadas);
+
+      final trazado = trazar(tresParadas, caja);
+      final esquina = tester.getTopLeft(find.byKey(CroquisDeRuta.clave));
+      await tester.tapAt(esquina + trazado.paradas.first.donde);
+      await tester.pump();
+
+      final factura = find.byKey(const ValueKey('globo-factura-p1'));
+      expect(tester.widget<Text>(factura).data, 'Factura 47061 · 15/10/2026');
+      expect(tester.widget<Text>(factura).style!.fontWeight, FontWeight.w800);
+      expect(
+        tester.getTopLeft(factura).dy,
+        lessThan(tester.getTopLeft(find.text('1. Cliente 1')).dy),
+        reason: 'la factura va encima del cliente',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('una parada sin factura dice «Sin número de factura» en el '
+        'globo', (tester) async {
+      await pintar(tester, tresParadas);
+
+      final trazado = trazar(tresParadas, caja);
+      final esquina = tester.getTopLeft(find.byKey(CroquisDeRuta.clave));
+      await tester.tapAt(esquina + trazado.paradas[1].donde);
+      await tester.pump();
+
+      final factura = find.byKey(const ValueKey('globo-factura-p2'));
+      expect(tester.widget<Text>(factura).data, 'Sin número de factura');
+      expect(tester.widget<Text>(factura).style!.fontWeight, FontWeight.w400);
+      expect(find.textContaining('Factura '), findsNothing);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('una parada sin precio dice «sin cotizar», no cero', (

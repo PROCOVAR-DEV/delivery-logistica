@@ -920,18 +920,18 @@ class _CroquisDeRutaState extends State<CroquisDeRuta> {
 
     // Se ancla por arriba y por la izquierda, y se sujeta dentro del recuadro:
     // una parada en el borde derecho sacaria el globo fuera del dibujo.
-    const ancho = 170.0;
+    const ancho = 200.0;
     final izquierda = (punto.donde.dx - ancho / 2)
         .clamp(4.0, math.max(4.0, tamano.width - ancho - 4))
         .toDouble();
-    final arriba = punto.donde.dy + 16 > tamano.height - 52
-        ? punto.donde.dy - 52
+    final arriba = punto.donde.dy + 16 > tamano.height - 84
+        ? punto.donde.dy - 84
         : punto.donde.dy + 16;
 
     return [
       Positioned(
         left: izquierda,
-        top: arriba.clamp(4.0, math.max(4.0, tamano.height - 48)).toDouble(),
+        top: arriba.clamp(4.0, math.max(4.0, tamano.height - 80)).toDouble(),
         width: ancho,
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -944,6 +944,23 @@ class _CroquisDeRutaState extends State<CroquisDeRuta> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // LA FACTURA PRIMERO, y su fecha (issue 17 de Amado).
+                Text(
+                  punto.parada.factura ?? 'Sin número de factura',
+                  key: ValueKey('globo-factura-${punto.parada.id}'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: punto.parada.factura == null
+                        ? Colores.blanco.withValues(alpha: 0.7)
+                        : Colores.blanco,
+                    fontSize: 14,
+                    height: 1.25,
+                    fontWeight: punto.parada.factura == null
+                        ? FontWeight.w400
+                        : FontWeight.w800,
+                  ),
+                ),
                 Text(
                   '${punto.parada.numero}. ${punto.parada.etiqueta}',
                   maxLines: 2,

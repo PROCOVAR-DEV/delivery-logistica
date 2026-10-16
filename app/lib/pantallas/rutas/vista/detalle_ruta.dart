@@ -565,6 +565,9 @@ class _Acciones extends ConsumerWidget {
       context,
       cliente: parada.customerName,
       conduce: parada.operationNumber,
+      factura:
+          facturaConFecha(parada.facturaNumero, parada.facturaAt) ??
+          'Sin número de factura',
     );
     if (!seguro) return;
     try {
@@ -595,14 +598,18 @@ Future<bool> preguntarAntesDeQuitar(
   BuildContext contexto, {
   required String cliente,
   String? conduce,
+  String? factura,
 }) async {
   final seguro = await abrirCajon<bool>(
     contexto,
     (contextoCajon) => Cajon(
       titulo: 'Quitar de la ruta',
-      subtitulo: (conduce ?? '').trim().isEmpty
-          ? cliente
-          : '$cliente · Conduce: $conduce',
+      // La factura va primero (issue 17 de Amado): es lo que identifica el pedido.
+      subtitulo: [
+        ?factura,
+        cliente,
+        if ((conduce ?? '').trim().isNotEmpty) 'Conduce: $conduce',
+      ].join(' · '),
       cuerpo: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1016,9 +1023,14 @@ class TarjetaDeParada extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  parada.customerName,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                // LA FACTURA MANDA, y su fecha (issue 17 de Amado, 16/10/2026): el cliente
+                // trabaja todo por número de factura y la fecha dice el atraso. El
+                // widget es el de las tarjetas del Tablero y de Pedidos.
+                FacturaYCliente(
+                  facturaNumero: parada.facturaNumero,
+                  facturadaEl: parada.facturaAt,
+                  cliente: parada.customerName,
+                  claveDeLaFactura: ValueKey('parada-factura-${parada.id}'),
                 ),
                 const SizedBox(height: 2),
                 Text(

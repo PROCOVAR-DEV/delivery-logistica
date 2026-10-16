@@ -54,12 +54,17 @@ num? _aNumero(Object? v) {
 class PedidoDeRuta {
   const PedidoDeRuta({
     required this.customerName,
+    this.factura,
     this.resultado,
     this.resultadoNota,
     this.items = const <ItemDePedido>[],
   });
 
   final String customerName;
+
+  /// «Factura 47061 · 15/10/2026» (`facturaConFecha`), o `null` si el pedido no tiene
+  /// número: el papel dice entonces «Sin número de factura». Issue 17 de Amado.
+  final String? factura;
 
   /// `entregado`, `devuelto`, `cancelado`, o nada si nadie lo marco al volver.
   final String? resultado;
@@ -208,6 +213,7 @@ HojaPostDespacho armarPostDespacho(
       pendientes.add(
         ParadaPendiente(
           cliente: p.customerName,
+          factura: p.factura,
           resultado: p.resultado,
           nota: p.resultadoNota,
           productos: suyas,

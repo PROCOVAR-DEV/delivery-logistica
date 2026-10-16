@@ -210,7 +210,10 @@ almacén de salida, **«sin punto de partida»**.
 ### «Ver paradas»
 
 Se abre un cajón titulado **«Paradas y precio por cliente (3)»**. Por cada parada:
-su número, el cliente, la dirección de entrega, los renglones que se bajan ahí
+su número, **el número de factura con su fecha** (en negrita y más grande que el
+cliente: `Factura 47061 · 15/10/2026`, la fecha en hora de Cuba; si son varias van
+todas, `Factura 47061, 47062`; sin número, en gris **«Sin número de factura»** y sin
+fecha), el cliente, la dirección de entrega, los renglones que se bajan ahí
 («12× MALTA GUAJIRA»), el peso, los km en recta, el conduce (**«Conduce:
 PTB25-261005-1480»**), y a la derecha **el importe en grande**: `$12.00` o **«sin
 cotizar»**.
@@ -265,8 +268,9 @@ Sirve para cuando sobra un pedido en una ruta que todavía no ha salido: ya no h
 falta eliminar la ruta entera y volver a armarla.
 
 1. En «Ver paradas», en la tarjeta de la parada, **«Quitar de ruta»**.
-2. **Pregunta antes**, en un cajón titulado **«Quitar de la ruta»**, con el cliente y su
-   conduce debajo («Casa Pérez · Conduce: PTB25-261005-1480»):
+2. **Pregunta antes**, en un cajón titulado **«Quitar de la ruta»**, con la factura, el
+   cliente y su conduce debajo («Factura 47061 · 15/10/2026 · Casa Pérez · Conduce:
+   PTB25-261005-1480»; sin número, «Sin número de factura · Casa Pérez · …»):
 
    > «Casa Pérez sale de esta ruta y vuelve a pedidos disponibles. La ruta se queda
    > con las demás paradas y su peso y su importe se recalculan sin él.
@@ -298,6 +302,10 @@ una ruta planificada o ya fue retirado». Para sacar un pedido de una ruta en cu
 marca como devuelto o cancelado en el cierre.
 
 ### «Recorrido» — el mapa
+
+Al tocar una parada en el croquis se abre un globo que empieza por **el número de factura
+con su fecha** (en negrita; «Sin número de factura» si no tiene), y debajo «1. Cliente» y
+el importe.
 
 Si todo va bien (calles y recorrido por carretera) **no dice nada**. Cuando no:
 
@@ -446,6 +454,10 @@ Los filtros:
 
 **«Limpiar»** vuelve a «Sólo con domicilio», no a «sin nada».
 
+**Cada pedido de la lista** lleva primero **el número de factura con su fecha** (en negrita:
+`Factura 47061 · 15/10/2026`; «Sin número de factura» en gris si no lo tiene) y debajo el
+cliente.
+
 **Cuidado con «costo mín.»:** un pedido sin cotizar cuenta como cero, así que
 cualquier «costo mín.» mayor que cero lo deja fuera.
 
@@ -589,7 +601,8 @@ parada(s)».
 
 ### Qué se pregunta en cada parada
 
-Cada parada trae el cliente, su dirección y, debajo, su conduce (**«Conduce:
+Cada parada trae **el número de factura con su fecha** arriba, en negrita (o «Sin número
+de factura», en gris), el cliente, su dirección y, debajo, su conduce (**«Conduce:
 PTB25-261005-1480»**), que es el número de operación de la factura: con él se cuadra
 lo que baja del camión contra el papel de quien lo recibe.
 
@@ -715,8 +728,9 @@ Lleva dos secciones:
 
 1. **«Tiene que quedar en el camión»** — tabla de «Producto» | «Salió» |
    «Entregado» | «Queda» | «Bajó» (la última en blanco, para contar a mano).
-2. **«De quién es lo que vuelve»** — una línea por parada no entregada, con
-   «Devuelto», «Cancelado» o «Sin marcar», y qué llevaba.
+2. **«De quién es lo que vuelve»** — una entrada por parada no entregada: arriba **el
+   número de factura con su fecha** (en negrita; «Sin número de factura» si no tiene),
+   debajo el cliente con «Devuelto», «Cancelado» o «Sin marcar», y qué llevaba.
 
 Y las firmas: **«Entregó (chofer)»** y **«Recibió en almacén»**.
 

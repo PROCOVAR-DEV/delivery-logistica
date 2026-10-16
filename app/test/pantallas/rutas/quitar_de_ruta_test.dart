@@ -245,8 +245,9 @@ void main() {
   group('la pregunta de antes de quitar', () {
     Future<bool?> preguntar(
       WidgetTester tester,
-      Future<void> Function() despues,
-    ) async {
+      Future<void> Function() despues, {
+      String? factura,
+    }) async {
       bool? respuesta;
       await tester.pumpWidget(
         MaterialApp(
@@ -258,6 +259,7 @@ void main() {
                     contexto,
                     cliente: 'Ana',
                     conduce: 'PTB25-261005-1479',
+                    factura: factura,
                   );
                 },
                 child: const Text('abrir'),
@@ -287,6 +289,31 @@ void main() {
         await tester.tap(find.text('No, dejarlo en la ruta'));
         await tester.pump(const Duration(milliseconds: 400));
       });
+    });
+
+    // ISSUE 17 DE AMADO: la factura y su fecha van primero en el subtítulo.
+    testWidgets('con factura, el subtítulo empieza por ella; sin número, por la '
+        'frase de siempre', (tester) async {
+      await preguntar(tester, () async {
+        expect(
+          find.text(
+            'Factura 47061 · 15/10/2026 · Ana · Conduce: PTB25-261005-1479',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('No, dejarlo en la ruta'));
+        await tester.pump(const Duration(milliseconds: 400));
+      }, factura: 'Factura 47061 · 15/10/2026');
+      await preguntar(tester, () async {
+        expect(
+          find.text(
+            'Sin número de factura · Ana · Conduce: PTB25-261005-1479',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('No, dejarlo en la ruta'));
+        await tester.pump(const Duration(milliseconds: 400));
+      }, factura: 'Sin número de factura');
     });
 
     testWidgets('«No» contesta que no', (tester) async {

@@ -678,6 +678,7 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
         for (final parada in paradas)
           papel.PedidoDeRuta(
             customerName: parada.customerName,
+            factura: facturaConFecha(parada.facturaNumero, parada.facturaAt),
             resultado: _resultados[parada.id],
             resultadoNota: _notas[parada.id]?.text,
             items: <papel.ItemDePedido>[
@@ -779,9 +780,12 @@ class _Parada extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        pedido.customerName,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      // La factura y su fecha mandan sobre el cliente (issue 17 de Amado).
+                      FacturaYCliente(
+                        facturaNumero: pedido.facturaNumero,
+                        facturadaEl: pedido.facturaAt,
+                        cliente: pedido.customerName,
+                        claveDeLaFactura: ValueKey('cierre-factura-${pedido.id}'),
                       ),
                       Text(
                         pedido.endAddress ?? pedido.address,

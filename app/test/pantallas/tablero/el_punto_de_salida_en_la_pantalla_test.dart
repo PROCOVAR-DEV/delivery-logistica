@@ -122,6 +122,9 @@ void main() {
     ) async {
       await tester.binding.setSurfaceSize(tamano);
       addTearDown(() => tester.binding.setSurfaceSize(null));
+      // Si un `expect` falla a medias, desmontar igual: con la pantalla viva la
+      // base no cierra y la prueba se CUELGA en vez de fallar (§5).
+      addTearDown(() => desmontar(tester));
       await sembrar();
       await tester.pumpWidget(montar());
       await asentar(tester);
@@ -170,9 +173,12 @@ void main() {
       expect(jsonDecode(ultimo.cuerpo), {'almacenId': 'alm-aurora'});
       if (tamano == _telefono) {
         // En el teléfono «Centro» se fue al grupo de AURORA, o sea a otra
-        // página: se va a buscarla (el carrusel no la sigue, ver el informe).
-        await tester.tap(find.byTooltip('Ir a «Centro»'));
-        await asentar(tester);
+        // página, y el carrusel LA SIGUE (`_seguirALaZona`, c550e4b): ya no hay
+        // que ir a buscarla, y por eso ya no existe un «Ir a «Centro»» (las
+        // flechas nombran a las vecinas). Si dejara de seguirla, se vería
+        // «Vista», no «Centro».
+        expect(find.byTooltip('Ir a «Centro»'), findsNothing);
+        expect(find.text('Centro (0)'), findsOneWidget);
       }
       expect(find.text('desde AURORA'), findsWidgets);
 

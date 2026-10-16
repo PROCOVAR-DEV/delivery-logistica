@@ -56,36 +56,12 @@
     }
   ],
   "mensajesDelServidor": {
-    "queEsEsto": "Los «no» NUEVOS del 07/10/2026 (Amado: domicilio cobrado y cotizado, camión inactivo, quitar una parada). La cabecera de arriba se redacta dos veces (servidor y aparato). Estos mensajes los escribe SÓLO el servidor, y el aparato, cuando tiene que mostrarlos, los COPIA TAL CUAL de la respuesta (`error` o `descartados[].motivo`): no los redacta. Se guardan aquí para que el texto que ve la persona no cambie sin que una prueba se ponga en rojo. Dos lados los leen o pueden leerlos: `api/internal/api/armado_rechazado_casos_compartidos_test.go` (los comprueba contra el servidor) y, si la app los quiere espejar sin red, `app/test/...` puede leer la misma clave. Ningún literal ya existente cambia de texto, con UNA excepción decidida por Amado (incidencia 4) y señalada en su caso: el de borrar un vehículo con rutas, que dejó de decir «Ponlo en mantenimiento» y dice «Márcalo como inactivo». Todo lo demás sólo se añade.",
-    "armadoDeRuta": [
-      {
-        "nombre": "sin-domicilio-cobrado-uno",
-        "nota": "El conduce es el número de operación de la factura: el pedido se nombra por él.",
-        "operationNumber": "PTB25-261005-1479",
-        "mensaje": "En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: PTB25-261005-1479."
-      },
-      {
-        "nombre": "sin-cotizar-uno",
-        "nota": "Bloquea, no avisa: antes era un aviso y el pedido entraba valiendo cero.",
-        "operationNumber": "PTB25-261005-1479",
-        "mensaje": "No se puede crear la ruta: 1 pedidos no tienen cotizado el domicilio en Entrega: PTB25-261005-1479."
-      }
-    ],
+    "queEsEsto": "Los «no» NUEVOS del 07/10/2026 (Amado: domicilio cobrado —la cotización de Entrega se dejó de exigir el 16/10/2026 y su literal se fue—, camión inactivo, quitar una parada). La cabecera de arriba se redacta dos veces (servidor y aparato). Estos mensajes los escribe SÓLO el servidor, y el aparato, cuando tiene que mostrarlos, los COPIA TAL CUAL de la respuesta (`error` o `descartados[].motivo`): no los redacta. Se guardan aquí para que el texto que ve la persona no cambie sin que una prueba se ponga en rojo. Dos lados los leen o pueden leerlos: `api/internal/api/armado_rechazado_casos_compartidos_test.go` (los comprueba contra el servidor) y, si la app los quiere espejar sin red, `app/test/...` puede leer la misma clave. Ningún literal ya existente cambia de texto, con UNA excepción decidida por Amado (incidencia 4) y señalada en su caso: el de borrar un vehículo con rutas, que dejó de decir «Ponlo en mantenimiento» y dice «Márcalo como inactivo». Todo lo demás sólo se añade.",
     "literalesFijos": [
       {
         "nombre": "camion-inactivo",
         "donde": "POST /api/routes, PATCH /api/routes/{id} con vehicleId, POST /api/board/columns/{id}/route, PUT/PATCH de la zona con vehiculoId",
         "literal": "El vehículo está inactivo y no se puede asignar a una ruta."
-      },
-      {
-        "nombre": "colocar-sin-domicilio-cobrado",
-        "donde": "PUT /api/board/placements/{id}, 409",
-        "literal": "No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado."
-      },
-      {
-        "nombre": "colocar-sin-cotizar",
-        "donde": "PUT /api/board/placements/{id}, 409",
-        "literal": "No se puede asociar al tablero: primero cotiza el domicilio del pedido."
       },
       {
         "nombre": "borrar-vehiculo-con-rutas",
@@ -122,22 +98,10 @@
         "donde": "Cualquier ruta con datos y GET /api/eventos (texto plano), 403, cuenta cuya sucursal del token Reparto no conoce (1.0.29). Aquí con el código de ejemplo MOA: el servidor pone el que traiga la cuenta",
         "literal": "tu sucursal MOA no está dada de alta en Reparto: pide en la oficina que la den de alta"
       }
-    ],
-    "descartadosDelTablero": [
-      {
-        "nombre": "zona-sin-domicilio-cobrado",
-        "motivo": "la factura no tiene domicilio cobrado",
-        "queHacer": "Corrige o coteja la factura para registrar el cobro del domicilio antes de crear la ruta."
-      },
-      {
-        "nombre": "zona-sin-cotizar",
-        "motivo": "domicilio sin cotizar",
-        "queHacer": "Cotiza el domicilio del pedido antes de crear la ruta."
-      }
     ]
   },
   "reglaDeEntrada": {
-    "queEsEsto": "LA REGLA DE ENTRADA A UNA RUTA, la misma en el servidor y en el aparato (issue 10 de Amado, 15/10/2026): entra si y sólo si la factura es `igual` o `cambiado`, `facturaDomicilio > 0` y (`pedidoCosto` no nulo o `requiereDomicilio` distinto de true). `cambiado` entra porque sus renglones ya son los de la factura (PEDIDO los manda en cuanto hay cotejo): al camión sube lo facturado. La cotización de Entrega sólo se exige si el vendedor marcó domicilio, porque Entrega sólo cotiza los marcados y exigírsela a uno no marcado lo dejaba fuera para siempre. Cada caso dice si entra y, si no, el «no» del asistente con ese pedido solo (`mensaje`: el 409 de POST /api/routes y el RechazoLocal del aparato, letra por letra). Lo comprueban: los manejadores (`rechazoDelArmado`, `motivoDeCorteDelArmado`), el SQL contra Postgres (las listas, el contador, el Panel, `ColocarPedido` y `EngancharPedidoARuta`) y el aparato (asistente, zona, colocar, Sin colocar, disponibles y Panel).",
+    "queEsEsto": "LA REGLA DE ENTRADA A UNA RUTA, la misma en el servidor y en el aparato. TEMPORAL 16/10/2026 (Jose: «por ahora que entren todos los pedidos con facturas»; el logístico filtra por «Cobro del domicilio»): entra si y sólo si la factura es `igual` o `cambiado`. Ni `facturaDomicilio`, ni `requiereDomicilio`, ni `pedidoCosto` deciden si entra; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md) y los casos de «sin cobro» a `entra: false`. Historia: hasta el 15/10/2026 `cambiado` no entraba (issue 10, PBF26-2610131268); hasta el 16/10/2026 se exigía el cobro y, si el vendedor marcó domicilio, la cotización de Entrega (PCC25-261014-1435, factura 47073, 0.05: marcado, sin cotizar y cobrado se quedaba fuera). Cada caso dice si entra y, si no, el «no» del asistente con ese pedido solo (`mensaje`: el 409 de POST /api/routes y el RechazoLocal del aparato, letra por letra). Lo comprueban: los manejadores (`rechazoDelArmado`, `motivoDeCorteDelArmado`), el SQL contra Postgres y el aparato.",
     "casos": [
       {
         "nombre": "caso-real-PBF26-2610131268",
@@ -150,48 +114,95 @@
         "entra": true
       },
       {
+        "nombre": "caso-real-PCC25-261014-1435",
+        "nota": "EL CASO DE PRODUCCIÓN DEL 16/10/2026 (Amado), Santiago, factura 47073: el vendedor marcó domicilio, Entrega no lo cotizó (`pedidoCosto` NULL) y la factura cobró 0.05. Ayer hizo rutas y este pedido no se incluyó. Entra.",
+        "operationNumber": "PCC25-261014-1435",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 0.05,
+        "pedidoCosto": null,
+        "requiereDomicilio": true,
+        "entra": true
+      },
+      {
+        "nombre": "marcado-sin-cobro-sin-cotizar",
+        "nota": "TEMPORAL 16/10/2026 (Jose): sin cobro en la factura ENTRA. Para volver a exigir el cobro, este caso vuelve a «no entra» con el literal «En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: <conduce>.»",
+        "operationNumber": "PCC25-261014-1435",
+        "facturaEstado": "igual",
+        "facturaDomicilio": null,
+        "pedidoCosto": null,
+        "requiereDomicilio": true,
+        "entra": true
+      },
+      {
+        "nombre": "marcado-cobro-en-cero-sin-cotizar",
+        "nota": "TEMPORAL 16/10/2026 (Jose): sin cobro en la factura ENTRA. Para volver a exigir el cobro, este caso vuelve a «no entra» con el literal «En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: <conduce>.»",
+        "operationNumber": "PCC25-261014-1435",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 0,
+        "pedidoCosto": null,
+        "requiereDomicilio": true,
+        "entra": true
+      },
+      {
+        "nombre": "no-marcado-cobrado-sin-cotizar",
+        "nota": "No marcado, cobrado y sin cotizar: entra (lo que dice que lleva domicilio es el cobro).",
+        "operationNumber": "PCC25-261014-1435",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 0.05,
+        "pedidoCosto": null,
+        "requiereDomicilio": false,
+        "entra": true
+      },
+      {
+        "nombre": "sin-factura-marcado-cobrado",
+        "nota": "Sin factura no entra aunque venga marcado y con un cobro.",
+        "operationNumber": "PCC25-261014-1435",
+        "facturaEstado": "sin_factura",
+        "facturaDomicilio": 0.05,
+        "pedidoCosto": null,
+        "requiereDomicilio": true,
+        "entra": false,
+        "mensaje": "En una ruta sólo entra lo facturado. 1 no cumplen: PCC25-261014-1435 (sin facturar)."
+      },
+      {
         "nombre": "igual-marcado-sin-cotizar",
-        "nota": "La pareja del caso real: marcado a domicilio y sin cotizar se queda fuera con el literal de siempre.",
+        "nota": "La pareja del caso real, CAMBIADA el 16/10/2026: marcado a domicilio, sin cotizar y CON cobro en la factura entra (antes se quedaba fuera con «no tienen cotizado el domicilio en Entrega»).",
         "operationNumber": "PBF26-2610131268",
         "facturaEstado": "igual",
         "facturaDomicilio": 1.31,
         "pedidoCosto": null,
         "requiereDomicilio": true,
-        "entra": false,
-        "mensaje": "No se puede crear la ruta: 1 pedidos no tienen cotizado el domicilio en Entrega: PBF26-2610131268."
+        "entra": true
       },
       {
         "nombre": "cambiado-marcado-sin-cotizar",
-        "nota": "Lo mismo con la factura cambiada: lo que entra es `cambiado`, no la falta de cotización.",
+        "nota": "Lo mismo con la factura cambiada: entra (antes, 16/10/2026, no).",
         "operationNumber": "PBF26-2610131268",
         "facturaEstado": "cambiado",
         "facturaDomicilio": 1.31,
         "pedidoCosto": null,
         "requiereDomicilio": true,
-        "entra": false,
-        "mensaje": "No se puede crear la ruta: 1 pedidos no tienen cotizado el domicilio en Entrega: PBF26-2610131268."
+        "entra": true
       },
       {
         "nombre": "cambiado-sin-domicilio-cobrado",
-        "nota": "Sin la línea ENTREGA A DOMICILIO en la factura no entra, tampoco si la factura cambió y aunque no esté marcado.",
+        "nota": "TEMPORAL 16/10/2026 (Jose): sin cobro en la factura ENTRA. Para volver a exigir el cobro, este caso vuelve a «no entra» con el literal «En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: <conduce>.»",
         "operationNumber": "PBF26-2610131268",
         "facturaEstado": "cambiado",
         "facturaDomicilio": null,
         "pedidoCosto": null,
         "requiereDomicilio": false,
-        "entra": false,
-        "mensaje": "En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: PBF26-2610131268."
+        "entra": true
       },
       {
         "nombre": "cambiado-domicilio-en-cero",
-        "nota": "Un cero no demuestra que se cobró.",
+        "nota": "TEMPORAL 16/10/2026 (Jose): sin cobro en la factura ENTRA. Para volver a exigir el cobro, este caso vuelve a «no entra» con el literal «En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: <conduce>.»",
         "operationNumber": "PBF26-2610131268",
         "facturaEstado": "cambiado",
         "facturaDomicilio": 0,
         "pedidoCosto": 5,
         "requiereDomicilio": true,
-        "entra": false,
-        "mensaje": "En una ruta sólo entra lo facturado con domicilio cobrado. 1 no cumplen: PBF26-2610131268."
+        "entra": true
       },
       {
         "nombre": "sin-factura",
@@ -254,7 +265,28 @@
         "pedidoCosto": 0,
         "requiereDomicilio": true,
         "entra": true
+      },
+      {
+        "nombre": "no-marcado-sin-cobro",
+        "nota": "TEMPORAL 16/10/2026 (Jose): no marcado, sin cobro y sin cotizar: ENTRA, se trae todo lo facturado.",
+        "operationNumber": "PCC25-261014-1435",
+        "facturaEstado": "igual",
+        "facturaDomicilio": null,
+        "pedidoCosto": null,
+        "requiereDomicilio": false,
+        "entra": true
       }
+    ]
+  },
+  "costoDeLaParada": {
+    "queEsEsto": "EL COSTO DEL DOMICILIO DE UNA PARADA (Amado y Jose, 16/10/2026: «lo que manda es el cobro en la factura»): `pedidoCosto` si Entrega lo cotizó y, si no, `facturaDomicilio` cuando es mayor que cero; si no hay ninguno, nulo = sin cotizar. Es el `price` que se copia a la parada al armar, lo que suma el importe de la ruta y lo que NO cuenta en `paradasSinCotizar`. Lo leen `costoDeLaParada` en Go (`api/internal/api/rutas.go`) y en Dart (`app/lib/nucleo/regla_de_entrada.dart`).",
+    "casos": [
+      {"nombre": "caso-real-PCC25-261014-1435", "nota": "EL CASO REAL del 16/10/2026: marcado, sin cotizar y 0.05 cobrado en la factura 47073. La parada vale lo cobrado y NO cuenta como sin cotizar.", "pedidoCosto": null, "facturaDomicilio": 0.05, "costo": 0.05},
+      {"nombre": "cotizado-manda-lo-cotizado", "nota": "Si Entrega cotizó, manda `pedidoCosto` aunque la factura cobre otra cosa.", "pedidoCosto": 10, "facturaDomicilio": 0.05, "costo": 10},
+      {"nombre": "cotizado-en-cero", "nota": "Un cero cotizado SÍ es un precio: no se pisa con lo cobrado.", "pedidoCosto": 0, "facturaDomicilio": 0.05, "costo": 0},
+      {"nombre": "sin-cotizar-sin-cobro", "nota": "Ni cotizado ni cobrado: sin cotizar de verdad (nulo).", "pedidoCosto": null, "facturaDomicilio": null, "costo": null},
+      {"nombre": "sin-cotizar-cobro-en-cero", "nota": "Un cobro en cero no es un cobro: sigue sin cotizar.", "pedidoCosto": null, "facturaDomicilio": 0, "costo": null},
+      {"nombre": "sin-cotizar-cobro-negativo", "nota": "Tampoco uno negativo.", "pedidoCosto": null, "facturaDomicilio": -1, "costo": null}
     ]
   },
   "filtroDeDomicilio": {

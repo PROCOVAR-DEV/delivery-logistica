@@ -139,7 +139,7 @@ en verde o con el `!`):
 | Qué se ve | Qué significa |
 |---|---|
 | **«Dom. $0.46»** en verde | La factura trae la línea «ENTREGA A DOMICILIO» y cobra ese importe: el domicilio está cobrado |
-| **«Sin cobro de domicilio»** en ámbar | «La factura no trae la línea ENTREGA A DOMICILIO: este pedido no puede ir a una ruta ni a una zona del tablero hasta que el domicilio se cobre en la factura.» |
+| **«Sin cobro de domicilio»** en gris | «La factura no trae la línea ENTREGA A DOMICILIO. No impide ir a una ruta: en «Cobro del domicilio» se filtra por con cobro o sin cobro.» |
 
 Así se ve **antes de marcar** por qué un pedido facturado no va a entrar en una ruta ni en
 una zona: hay factura, pero no cobró el domicilio. Con «sin facturar» o «sin cotejar»

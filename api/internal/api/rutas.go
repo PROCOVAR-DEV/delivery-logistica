@@ -749,7 +749,7 @@ func (s *Servidor) paradasPorRuta(r *http.Request, a *alcance.Acotado, rutas []u
 			CustomerPhone: p.CustomerPhone, Address: p.Address, EndAddress: p.EndAddress,
 			EndLat: p.EndLat, EndLng: p.EndLng, Lat: p.Lat, Lng: p.Lng,
 			Status: string(p.Status), Weight: p.Weight, Price: p.Price,
-			PedidoCosto: p.PedidoCosto, SegmentKm: p.SegmentKm, StopOrder: p.StopOrder,
+			PedidoCosto: costoDeLaParada(p.PedidoCosto, p.FacturaDomicilio), SegmentKm: p.SegmentKm, StopOrder: p.StopOrder,
 			TripLeg: string(p.TripLeg), Municipio: p.Municipio, ExternalID: p.ExternalID,
 			Resultado: textoDeResultado(p.Resultado), ResultadoAt: hora(p.ResultadoAt),
 			ResultadoNota: p.ResultadoNota, DeliveredAt: hora(p.DeliveredAt),
@@ -925,7 +925,7 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Sólo entra lo facturado, con domicilio cobrado y, si se marcó, cotizado -----
+	// --- Sólo entra lo facturado con domicilio cobrado ---------------------------
 	//
 	// Se comprueba aquí aunque la pantalla ya filtre: basta con que alguien mande los ids
 	// a mano, o con que un pedido se coteje otra vez entre que se eligió y se armó la
@@ -1126,9 +1126,9 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 				RutaID:    pgDe(creada.ID),
 				StopOrder: &parada,
 				SegmentKm: &km,
-				// `price` se COPIA de `pedidoCosto`, que es lo que puso el repartidor en
-				// PEDIDO; un `null` se guarda como 0. Aquí no se calcula ningún precio:
-				// eso lo hace la APK de Entrega y nadie más.
+				// `price` se COPIA de `pedidoCosto` (lo que puso el repartidor en PEDIDO) o,
+				// si no está cotizado, de lo que cobró la factura (`costoDeLaParada`); un
+				// `null` se guarda como 0. Aquí no se calcula ningún precio.
 				Price: costoDelPedido(pedidos, id),
 			})
 			if err != nil {
@@ -1200,9 +1200,9 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 
 	// La ruta sola, sin `avisos`. Hasta el 07/10/2026 la respuesta podía llevar
 	// `{"ruta": …, "avisos": {"sinCosto": N}}` para decir «el total no incluye N pedidos
-	// sin costo de domicilio». Un pedido MARCADO a domicilio sin cotizar no entra en una ruta
-	// (`mensajeSinCalcular`); uno sin marcar sí entra sin cotización (issue 10, 15/10/2026) y
-	// lo cuentan los totales de la ruta (`paradas_sin_cotizar`), no esta respuesta. La clave
+	// sin costo de domicilio». Un pedido sin cotizar entra en la ruta si su factura cobró el
+	// domicilio (Amado, 16/10/2026) y lo cuentan los totales de la ruta (`paradas_sin_cotizar`),
+	// no esta respuesta. La clave
 	// `avisos` se fue; los clientes leen el id de la ruta en la raíz o dentro de `ruta`, y la
 	// raíz es la que se contesta.
 	s.responderConLaRuta(w, r, ar, creada.ID, http.StatusCreated)
@@ -2720,36 +2720,23 @@ func valorO(v *float64) float64 {
 
 // rechazoDelArmado es LA REGLA DE ENTRADA A UNA RUTA del asistente, o "" si entran todos.
 //
-// SON TRES CORTES Y BLOQUEAN, NO AVISAN (Amado, 07/10/2026: el domicilio ya es un servicio
-// que se cobra, y dejar entrar cualquier pedido es una vulnerabilidad), en este orden:
+// UN SOLO CORTE Y BLOQUEA, NO AVISA: FACTURADO, `igual` o `cambiado`. `cambiado` entra desde el
+// 15/10/2026 (issue 10 de Amado, PBF26-2610131268): sus renglones ya son los de la factura
+// (`ItemsOrigen`), así que al camión sube lo facturado. Fuera quedan sin factura y sin cotejar.
 //
-//  1. FACTURADO: `igual` o `cambiado`. `cambiado` entra desde el 15/10/2026 (issue 10 de
-//     Amado, PBF26-2610131268): sus renglones ya son los de la factura (`ItemsOrigen`), así
-//     que al camión sube lo facturado. Fuera quedan sin factura y sin cotejar.
-//  2. Domicilio COBRADO en la factura (`factura_domicilio > 0`).
-//  3. Domicilio COTIZADO en Entrega, SÓLO si el vendedor marcó domicilio
-//     (`faltaLaCotizacion`): Entrega sólo cotiza los marcados, y exigírselo a uno no marcado
-//     lo dejaba fuera para siempre.
+// TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)
+// Hasta hoy se exigía además el domicilio cobrado en la factura (`factura_domicilio > 0`, Amado,
+// 07/10/2026) y su 409 «En una ruta sólo entra lo facturado con domicilio cobrado»; la
+// cotización de Entrega se quitó antes, el mismo día (Amado, PCC25-261014-1435: marcado, sin
+// cotizar y con 0.05 cobrado en la factura 47073). Jose: «por ahora que entren todos los pedidos
+// con facturas». Volver a exigirlo es añadir aquí ese corte, en `motivoDeCorteDelArmado`, en
+// `porQueNoSePudoColocar` y en el SQL (cada consulta lleva el rótulo TEMPORAL).
 //
 // La misma regla está en el SQL de las listas, en `motivoDeCorteDelArmado` (zonas) y en el
 // aparato, y la ata `docs/armado-rechazado.casos.json` (`reglaDeEntrada`). Cada rechazo
 // nombra a los pedidos por su número de operación, el de la hoja de ruta.
 func rechazoDelArmado(pedidos []sqlc.PedidosParaArmarRutaRow) string {
-	if m := mensajeNoFacturados(pedidos); m != "" {
-		return m
-	}
-	if m := mensajeDomicilioSinCobrar(pedidos); m != "" {
-		return m
-	}
-	return mensajeSinCalcular(pedidos)
-}
-
-// faltaLaCotizacion: el vendedor marcó domicilio (`requiere_domicilio IS TRUE`) y Entrega
-// todavía no lo cotizó. Sin marcar (falso o nulo) la cotización no se exige (issue 10 de
-// Amado, 15/10/2026). Es la mitad Go de `(pedido_costo IS NOT NULL OR requiere_domicilio IS
-// NOT TRUE)` y la usan el asistente, las zonas y colocar.
-func faltaLaCotizacion(costo *float64, requiere *bool) bool {
-	return costo == nil && requiere != nil && *requiere
+	return mensajeNoFacturados(pedidos)
 }
 
 // facturaQueEntra: `igual` o `cambiado`, la mitad Go de `factura_estado IN ('igual','cambiado')`.
@@ -2790,76 +2777,6 @@ func mensajeNoFacturados(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 	return mensaje + "."
 }
 
-// mensajeDomicilioSinCobrar arma el 409 de los pedidos cuya factura no registra un importe
-// positivo de domicilio (`factura_domicilio` nulo, cero o negativo), nombrados por su número
-// de operación. Es la regla de Amado del 07/10/2026: el domicilio ya es un servicio que se
-// cobra, y un pedido en cuya factura no consta el cobro no se carga.
-//
-// EL «CONDUCE» (aclaración de Jose, 07/10/2026, sobre el punto 6 de Amado): el conduce ES el
-// número de operación de la factura (`orders.operation_number`, p. ej. PTB25-261005-1479).
-// No hay dato ni columna aparte que lo distinga, y no hace falta: la identificación ya
-// existe. Por eso este rechazo, como los demás del armado, nombra cada pedido por su número
-// de operación: es el conduce que la persona tiene en el papel.
-func mensajeDomicilioSinCobrar(pedidos []sqlc.PedidosParaArmarRutaRow) string {
-	var malos []sqlc.PedidosParaArmarRutaRow
-	for _, p := range pedidos {
-		if p.FacturaDomicilio == nil || *p.FacturaDomicilio <= 0 {
-			malos = append(malos, p)
-		}
-	}
-	if len(malos) == 0 {
-		return ""
-	}
-	detalle := make([]string, 0, 5)
-	for _, p := range malos {
-		if len(detalle) == 5 {
-			break
-		}
-		quien := p.CustomerName
-		if p.OperationNumber != nil && strings.TrimSpace(*p.OperationNumber) != "" {
-			quien = strings.TrimSpace(*p.OperationNumber)
-		}
-		detalle = append(detalle, quien)
-	}
-	mensaje := fmt.Sprintf("En una ruta sólo entra lo facturado con domicilio cobrado. %d no cumplen: %s",
-		len(malos), strings.Join(detalle, ", "))
-	if len(malos) > 5 {
-		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
-	}
-	return mensaje + "."
-}
-
-// mensajeSinCalcular bloquea pedidos MARCADOS a domicilio sin la cotización de Entrega e
-// identifica cada uno por su número de operación visible. Uno sin marcar no la necesita.
-func mensajeSinCalcular(pedidos []sqlc.PedidosParaArmarRutaRow) string {
-	var malos []sqlc.PedidosParaArmarRutaRow
-	for _, p := range pedidos {
-		if faltaLaCotizacion(p.PedidoCosto, p.RequiereDomicilio) {
-			malos = append(malos, p)
-		}
-	}
-	if len(malos) == 0 {
-		return ""
-	}
-	detalle := make([]string, 0, 5)
-	for _, p := range malos {
-		if len(detalle) == 5 {
-			break
-		}
-		quien := p.CustomerName
-		if p.OperationNumber != nil && *p.OperationNumber != "" {
-			quien = *p.OperationNumber
-		}
-		detalle = append(detalle, quien)
-	}
-	mensaje := fmt.Sprintf("No se puede crear la ruta: %d pedidos no tienen cotizado el domicilio en Entrega: %s",
-		len(malos), strings.Join(detalle, ", "))
-	if len(malos) > 5 {
-		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
-	}
-	return mensaje + "."
-}
-
 // motivoDeFactura traduce el estado a lo que se lee en la pantalla. Un estado NULL es
 // «sin cotejar», igual que cualquier otro valor inesperado: lo que no se comprobó no se
 // carga, y decir «sin factura» cuando en realidad nadie la ha mirado sería mentir.
@@ -2871,12 +2788,28 @@ func motivoDeFactura(e *sqlc.FacturaEstado) string {
 	return "sin cotejar"
 }
 
-// costoDelPedido devuelve el `pedidoCosto` de ese pedido, que es lo que se copia a `price`.
-// NO se calcula aquí ningún precio: el del domicilio lo pone la APK de Entrega.
+// costoDeLaParada es EL COSTO DEL DOMICILIO DE UNA PARADA (Amado, 16/10/2026: «lo que manda es
+// el cobro en la factura»): el `pedido_costo` que cotizó Entrega y, si no lo hay, lo que la
+// factura cobró de domicilio (`factura_domicilio > 0`). Sin ninguno de los dos, nil: SIN
+// COTIZAR de verdad. NO se calcula ningún precio aquí. La misma regla está en el SQL
+// (`ListarParadasDeRuta`, `ListarParadasDeRutas`, `ListarTablero…` y el trigger de totales) y
+// en el aparato (`costoDeLaParada` de `regla_de_entrada.dart`); la atan los casos `costoDeLaParada`
+// de `docs/armado-rechazado.casos.json`.
+func costoDeLaParada(pedidoCosto, facturaDomicilio *float64) *float64 {
+	if pedidoCosto != nil {
+		return pedidoCosto
+	}
+	if facturaDomicilio != nil && *facturaDomicilio > 0 {
+		return facturaDomicilio
+	}
+	return nil
+}
+
+// costoDelPedido devuelve el costo de la parada de ese pedido, que es lo que se copia a `price`.
 func costoDelPedido(pedidos []sqlc.PedidosParaArmarRutaRow, id uuid.UUID) *float64 {
 	for _, p := range pedidos {
 		if p.ID == id {
-			return p.PedidoCosto
+			return costoDeLaParada(p.PedidoCosto, p.FacturaDomicilio)
 		}
 	}
 	return nil

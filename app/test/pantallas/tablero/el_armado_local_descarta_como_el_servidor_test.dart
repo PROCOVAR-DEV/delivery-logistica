@@ -17,7 +17,6 @@
 // todo es bueno. La base nace vacia y se siembra dentro del cuerpo.
 
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
@@ -34,20 +33,6 @@ import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/servidor_falso.dart';
 import 'apoyo.dart';
 
-/// El MISMO fichero que lee `api/internal/api/armado_rechazado_casos_compartidos_test.go`.
-const _rutaDeLosCasos = '../docs/armado-rechazado.casos.json';
-
-/// El `motivo` de un caso de `descartadosDelTablero`, por su nombre.
-String _motivoDelCaso(String nombre) {
-  final raiz = jsonDecode(File(_rutaDeLosCasos).readAsStringSync())
-      as Map<String, dynamic>;
-  final casos =
-      ((raiz['mensajesDelServidor'] as Map<String, dynamic>)['descartadosDelTablero']
-              as List<dynamic>)
-          .cast<Map<String, dynamic>>();
-  return casos.singleWhere((c) => c['nombre'] == nombre)['motivo'] as String;
-}
-
 void main() {
   late BaseLocal base;
   late ConsultasTablero consultas;
@@ -56,12 +41,7 @@ void main() {
   late AlmacenOrigen origen;
   late String centro;
 
-  late String sinDomicilioCobrado;
-  late String sinCotizar;
-
   setUp(() async {
-    sinDomicilioCobrado = _motivoDelCaso('zona-sin-domicilio-cobrado');
-    sinCotizar = _motivoDelCaso('zona-sin-cotizar');
     base = baseDePrueba();
     consultas = ConsultasTablero(base);
     cola = ColaDeSalida(base);
@@ -113,7 +93,9 @@ void main() {
   };
 
   group('una zona de cuatro: sube la buena y se NOMBRAN las otras tres', () {
-    test('sin factura, sin domicilio cobrado y sin cotizar se quedan fuera', () async {
+    // TEMPORAL 16/10/2026 (Jose): sin cobrar y sin cotizar SUBEN; sólo se queda fuera la que no
+    // tiene factura (la regla es `nucleo/regla_de_entrada.dart`).
+    test('sin factura se queda fuera; sin cobrar y sin cotizar suben', () async {
       await unaZona();
       await ponerEnLaZona('buena', aGrados: 0.01);
       await ponerEnLaZona(
@@ -123,6 +105,7 @@ void main() {
       );
       await ponerEnLaZona('sin-cobrar', aGrados: 0.03, domicilio: null);
       await ponerEnLaZona('sin-cotizar', aGrados: 0.04, costo: null);
+      await ponerEnLaZona('cero', aGrados: 0.05, domicilio: 0.0);
 
       List<String>? fuera;
       final rutaId = await repo.armarRuta(
@@ -132,42 +115,33 @@ void main() {
       );
 
       final porId = await pedidos();
-      expect(porId['buena']!.routeId, rutaId, reason: 'la buena sube');
-      for (final id in ['sin-factura', 'sin-cobrar', 'sin-cotizar']) {
-        expect(
-          porId[id]!.routeId,
-          isNull,
-          reason: '$id NO cumple la regla del servidor y no puede subir',
-        );
+      for (final id in ['buena', 'sin-cobrar', 'sin-cotizar', 'cero']) {
+        expect(porId[id]!.routeId, rutaId, reason: '$id sube: está facturada');
       }
+      expect(porId['sin-factura']!.routeId, isNull);
 
-      // NOMBRADAS, con el numero de operacion (el «conduce» de Amado) y el motivo
+      // NOMBRADA, con el numero de operacion (el «conduce» de Amado) y el motivo
       // del servidor, letra por letra.
-      expect(fuera, isNotNull, reason: 'se cayeron tres y hay que decirlo');
-      expect(fuera, unorderedEquals([
+      expect(fuera, [
         'sin-factura · Cliente sin-factura: ${MarcaTarjeta.sinFactura.texto}',
-        'sin-cobrar · Cliente sin-cobrar: $sinDomicilioCobrado',
-        'sin-cotizar · Cliente sin-cotizar: $sinCotizar',
-      ]));
+      ]);
 
       // Lo que se cae se QUEDA puesto, no desaparece el trabajo de nadie.
       final quedan = await consultas.colocados(sucursalStg, origen);
-      expect(
-        quedan.map((t) => t.pedido.pedidoId).toList()..sort(),
-        ['sin-cobrar', 'sin-cotizar', 'sin-factura'],
-      );
+      expect(quedan.map((t) => t.pedido.pedidoId).toList(), ['sin-factura']);
 
       // Y lo que SUBE al servidor es exactamente lo que subio al camion.
       final ultimo = (await cola.lote()).last;
       final cuerpo = jsonDecode(ultimo.cuerpo) as Map<String, Object?>;
-      expect(cuerpo['pedidoIds'], ['buena']);
+      expect(
+        cuerpo['pedidoIds'],
+        unorderedEquals(['buena', 'sin-cobrar', 'sin-cotizar', 'cero']),
+      );
     });
 
-    // EL CASO REAL DEL ISSUE 10 DE AMADO (15/10/2026): PBF26-2610131268,
-    // factura cambiada, domicilio cobrado (1.31), SIN MARCAR y sin cotizar. Sube
-    // al camion. Y su pareja, la misma tarjeta MARCADA y sin cotizar, se queda
-    // fuera con el motivo del servidor.
-    test('el caso real sube; marcado y sin cotizar se queda', () async {
+    // LOS DOS CASOS REALES (PBF26-2610131268, issue 10; PCC25-261014-1435, Amado
+    // 16/10/2026: MARCADO, sin cotizar y 0.05 cobrado) suben al camion.
+    test('los casos reales suben', () async {
       await unaZona();
       await ponerEnLaZona(
         'real',
@@ -177,13 +151,7 @@ void main() {
         costo: null,
         marcado: false,
       );
-      await ponerEnLaZona(
-        'marcada',
-        aGrados: 0.02,
-        facturaEstado: EstadoFactura.cambiado,
-        domicilio: 1.31,
-        costo: null,
-      );
+      await ponerEnLaZona('marcada', aGrados: 0.02, domicilio: 0.05, costo: null);
 
       List<String>? fuera;
       final rutaId = await repo.armarRuta(
@@ -193,28 +161,9 @@ void main() {
       );
 
       final porId = await pedidos();
-      expect(porId['real']!.routeId, rutaId, reason: 'el caso real sube');
-      expect(porId['marcada']!.routeId, isNull);
-      expect(fuera, ['marcada · Cliente marcada: $sinCotizar']);
-      final ultimo = (await cola.lote()).last;
-      final cuerpo = jsonDecode(ultimo.cuerpo) as Map<String, Object?>;
-      expect(cuerpo['pedidoIds'], ['real']);
-    });
-
-    test('un domicilio en CERO es lo mismo que sin cobrar', () async {
-      await unaZona();
-      await ponerEnLaZona('buena', aGrados: 0.01);
-      await ponerEnLaZona('cero', aGrados: 0.02, domicilio: 0.0);
-
-      List<String>? fuera;
-      await repo.armarRuta(
-        columnaId: centro,
-        sucursalId: sucursalStg,
-        alDejarFuera: (f) => fuera = f,
-      );
-
-      expect(fuera, ['cero · Cliente cero: $sinDomicilioCobrado']);
-      expect((await pedidos())['cero']!.routeId, isNull);
+      expect(porId['real']!.routeId, rutaId);
+      expect(porId['marcada']!.routeId, rutaId);
+      expect(fuera, isNull);
     });
   });
 
@@ -225,8 +174,11 @@ void main() {
       aGrados: 0.02,
       facturaEstado: EstadoFactura.sinFactura,
     );
-    await ponerEnLaZona('sin-cobrar', aGrados: 0.03, domicilio: null);
-    await ponerEnLaZona('sin-cotizar', aGrados: 0.04, costo: null);
+    await ponerEnLaZona(
+      'sin-cotejar',
+      aGrados: 0.03,
+      facturaEstado: null,
+    );
     final apuntesAntes = (await cola.lote()).length;
 
     var avisado = false;
@@ -248,8 +200,7 @@ void main() {
               'detalles',
               unorderedEquals([
                 'sin-factura · Cliente sin-factura: ${MarcaTarjeta.sinFactura.texto}',
-                'sin-cobrar · Cliente sin-cobrar: $sinDomicilioCobrado',
-                'sin-cotizar · Cliente sin-cotizar: $sinCotizar',
+                'sin-cotejar · Cliente sin-cotejar: ${MarcaTarjeta.sinCotejar.texto}',
               ]),
             ),
       ),
@@ -257,7 +208,7 @@ void main() {
 
     expect(avisado, isFalse, reason: 'un rechazo no es un «sí con avisos»');
     expect(await base.select(base.routes).get(), isEmpty);
-    expect((await consultas.colocados(sucursalStg, origen)).length, 3);
+    expect((await consultas.colocados(sucursalStg, origen)).length, 2);
     expect(
       (await cola.lote()).length,
       apuntesAntes,
@@ -300,9 +251,9 @@ void main() {
           'id': 'r-de-verdad',
           'descartados': [
             {
-              'pedidoId': 'sin-cobrar',
-              'operationNumber': 'sin-cobrar',
-              'customerName': 'Cliente sin-cobrar',
+              'pedidoId': 'sin-factura',
+              'operationNumber': 'sin-factura',
+              'customerName': 'Cliente sin-factura',
               'motivo': 'lo pusieron en la zona después de que armaras',
             },
             {
@@ -323,7 +274,11 @@ void main() {
     );
     await unaZona();
     await ponerEnLaZona('buena', aGrados: 0.01);
-    await ponerEnLaZona('sin-cobrar', aGrados: 0.02, domicilio: null);
+    await ponerEnLaZona(
+      'sin-factura',
+      aGrados: 0.02,
+      facturaEstado: EstadoFactura.sinFactura,
+    );
 
     List<String>? fuera;
     await enLaWeb.armarRuta(
@@ -333,7 +288,7 @@ void main() {
     );
 
     expect(fuera, [
-      'sin-cobrar · Cliente sin-cobrar: $sinDomicilioCobrado',
+      'sin-factura · Cliente sin-factura: ${MarcaTarjeta.sinFactura.texto}',
       'otro · Cliente otro: ya va en otra ruta',
     ]);
     // Y al servidor solo va lo que sube al camion.

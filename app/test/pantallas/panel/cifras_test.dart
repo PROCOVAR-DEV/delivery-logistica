@@ -148,15 +148,16 @@ void main() {
       );
     });
 
-    test('sinRuta cuenta 3 (p1, p2 y p11), no 11', () async {
+    // TEMPORAL 16/10/2026 (Jose): p7 (sin cobro) y p8 (marcado sin cotizar) ENTRAN.
+    test('sinRuta cuenta 5 (p1, p2, p7, p8 y p11), no 11', () async {
       final c = await panel.cifras().first;
-      expect(c.sinRuta, 3);
+      expect(c.sinRuta, 5);
       expect(c.totalPedidos, 11);
     });
 
     test('pesoPendiente suma SOLO lo repartible', () async {
       final c = await panel.cifras().first;
-      expect(c.pesoPendiente, 100 + 50 + 25);
+      expect(c.pesoPendiente, 100 + 50 + 999 + 999 + 25);
     });
 
     test('totalDomicilios suma TODO el alcance, repartible o no', () async {
@@ -172,7 +173,7 @@ void main() {
     test('el Panel cuenta EXACTAMENTE lo que ofrece la lista de disponibles', () async {
       final c = await panel.cifras(sucursalId: 'stg').first;
       final lista = await ConsultasRutas(base).disponibles(sucursalId: 'stg');
-      expect(lista.map((p) => p.id).toSet(), {'p1', 'p2', 'p11'});
+      expect(lista.map((p) => p.id).toSet(), {'p1', 'p2', 'p7', 'p8', 'p11'});
       expect(c.sinRuta, lista.length);
       expect(
         c.pesoPendiente,

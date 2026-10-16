@@ -33,18 +33,17 @@
 --     roto: se facturó distinto de como se pidió y lo que sube al camión son las líneas de
 --     la factura. Fuera quedan `sin_factura` (no hay nada que llevar) y el NULL, que
 --     significa NO SE SABE: con un NULL colado se armó una ruta sin facturar el 2/09.
---   * `factura_domicilio > 0`  — EL DOMICILIO COBRADO (07/10/2026, Amado: el domicilio ya
---     es un servicio que se cobra, y dejar entrar cualquier pedido es una vulnerabilidad).
---   * `pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE` — EL DOMICILIO COTIZADO
---     en Entrega, pero SÓLO si el vendedor marcó domicilio: Entrega sólo cotiza los marcados,
---     y exigírselo a uno no marcado lo dejaba fuera para siempre (issue 10 de Amado,
---     15/10/2026: PBF26-2610131268 no venía marcado y Ventra cobró 1.31 de domicilio).
+--   * NADA DE DOMICILIO (TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)). Desde el 07/10/2026 (Amado) se exigía `factura_domicilio > 0`
+--     (el cobro) y la cotización de Entrega; la cotización se quitó el 16/10/2026 (Amado,
+--     PCC25-261014-1435: marcado, sin cotizar y con 0.05 cobrado en la factura 47073) y el cobro
+--     ese mismo día, por ahora (Jose: «que entren todos los pedidos con facturas»). La condición
+--     está en cada consulta con el rótulo TEMPORAL, para restaurarla de un vistazo.
 --
 -- ESTA LISTA OFRECE LO MISMO QUE UNA RUTA ACEPTA, `cambiado` incluido desde el 15/10/2026: sus
 -- renglones ya son los de la factura (PEDIDO los manda en cuanto hay cotejo), así que al camión
 -- sube lo facturado. La regla ENTERA está en `ListarPedidosSinColocar`, en los recuentos del
 -- Panel y en los manejadores del armado (`rechazoDelArmado`, `motivoDeCorteDelArmado`), y la
--- parte del domicilio también en `ColocarPedido` y `EngancharPedidoARuta`. Las ata
+-- parte del domicilio (hoy sin exigir) también en `ColocarPedido` y `EngancharPedidoARuta`. Las ata
 -- `consultas_motor_real_test.go` con los casos de `docs/armado-rechazado.casos.json`.
 --
 -- `km_max` y `costo_min` NO están aquí a propósito: el contrato los aplica después de la
@@ -80,8 +79,8 @@ WHERE
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
-    AND o.factura_domicilio > 0
-    AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
+    -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
+    -- restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
     -- ARCHIVADO EN PEDIDO = NO SE REPARTE.
     --
     -- Faltaba, y con los datos reales del 15/09/2026 eso metia 1.348 pedidos archivados
@@ -220,8 +219,8 @@ WHERE
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
-    AND o.factura_domicilio > 0
-    AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
+    -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
+    -- restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
     -- ARCHIVADO EN PEDIDO = NO SE REPARTE. Ver el porqué en ListarPedidosDisponibles.
     -- Aquí importa el doble: este recuento es el `total` que la pantalla enseña encima de
     -- la lista, así que sin esto diría «2.771 disponibles» sobre una lista de 1.423.
@@ -991,25 +990,20 @@ WHERE o.source = 'pedido'
 --
 -- REPARTIBLE es el mismo listón del armador de rutas —sin ruta, con coordenadas, con
 -- factura que se puede llevar (`igual` o `cambiado`) y, desde el 07/10/2026, con el domicilio
--- cobrado (`factura_domicilio > 0`) y cotizado si el vendedor lo marcó (`pedido_costo` no
--- nulo o `requiere_domicilio` no marcado, issue 10 de Amado, 15/10/2026)—: si el panel contara otra
--- cosa, diría «40 por repartir» y el armador ofrecería 12, y la respuesta correcta sería
--- «ninguno de los dos». `sin_ruta` y `peso_pendiente` llevan las mismas condiciones que
+-- cobrado (`factura_domicilio > 0`) y cotizado, que desde el 16/10/2026 NO se exigen — TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)—:
+-- si el panel contara otra cosa, diría «40 por repartir» y el armador ofrecería 12, y la
+-- respuesta correcta sería «ninguno de los dos». `sin_ruta` y `peso_pendiente` llevan las mismas condiciones que
 -- `PanelPorSucursal` y que `ContarPedidosDisponibles`.
 -- name: PanelResumen :one
 SELECT
     count(*)                                                        AS total_pedidos,
     count(*) FILTER (WHERE o.route_id IS NULL
                        AND o.end_lat IS NOT NULL
-                       AND o.factura_estado IN ('igual','cambiado')
-                       AND o.factura_domicilio > 0
-                       AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)) AS sin_ruta,
+                       AND o.factura_estado IN ('igual','cambiado')) AS sin_ruta,
     count(*) FILTER (WHERE o.delivered_at >= sqlc.arg('hoy')::timestamptz) AS entregados_hoy,
     coalesce(sum(o.weight) FILTER (WHERE o.route_id IS NULL
                        AND o.end_lat IS NOT NULL
-                       AND o.factura_estado IN ('igual','cambiado')
-                       AND o.factura_domicilio > 0
-                       AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)), 0)::double precision AS peso_pendiente,
+                       AND o.factura_estado IN ('igual','cambiado')), 0)::double precision AS peso_pendiente,
     coalesce(sum(o.pedido_costo), 0)::double precision              AS total_domicilios
 FROM orders o
 WHERE (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid);
@@ -1027,8 +1021,8 @@ LEFT JOIN branches b ON b.id = o.branch_id
 WHERE o.route_id IS NULL
   AND o.end_lat IS NOT NULL
   AND o.factura_estado IN ('igual','cambiado')
-  AND o.factura_domicilio > 0
-  AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)
+  -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
+  -- restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
 GROUP BY o.branch_id, b.name
 ORDER BY pedidos DESC;

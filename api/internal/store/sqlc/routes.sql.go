@@ -595,8 +595,8 @@ WHERE id = $5
   AND route_id IS NULL
   AND resultado IS DISTINCT FROM 'entregado'::stop_result
   AND delivered_at IS NULL
-  AND factura_domicilio > 0
-  AND (pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE)
+  -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
+  -- restaurar ` + "`" + `factura_domicilio > 0` + "`" + ` (ver Notas/Pendiente/Delivery.md).
   AND ($6::uuid IS NULL OR branch_id = $6::uuid)
 `
 
@@ -622,8 +622,8 @@ type EngancharPedidoARutaParams struct {
 // El alcance va aquí también: sin él, mandar el id de un pedido de otra sucursal en
 // `orderIds` lo subiría a tu camión.
 //
-// LA SEGUNDA LLAVE DEL DOMICILIO Y LA COTIZACIÓN. `factura_domicilio > 0` y la cotización
-// se comprueban también aquí (07/10/2026, Amado) porque la validación de
+// LA SEGUNDA LLAVE (hoy abierta: TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md)).
+// `factura_domicilio > 0` y la cotización se comprobaban también aquí (07/10/2026, Amado) porque la validación de
 // `PedidosParaArmarRuta` se hizo hace unos milisegundos, y el espejo repasa `pedido_costo`
 // cada minuto: un pedido marcado a domicilio que perdió su cotización entre medias no puede
 // entrar con el importe a cero. Uno que el vendedor NO marcó entra sin cotización (issue 10,
@@ -932,7 +932,7 @@ SELECT
     o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status, o.weight,
     o.price, o.segment_km, o.stop_order, o.trip_leg, o.resultado,
     o.resultado_at, o.resultado_nota, o.delivered_at, o.municipio,
-    o.pedido_costo, o.external_id, o.source, o.branch_id
+    o.pedido_costo, o.factura_domicilio, o.external_id, o.source, o.branch_id
 FROM orders o
 WHERE o.route_id = $1
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
@@ -945,31 +945,32 @@ type ListarParadasDeRutaParams struct {
 }
 
 type ListarParadasDeRutaRow struct {
-	ID              uuid.UUID          `json:"id"`
-	OperationNumber *string            `json:"operation_number"`
-	CustomerName    string             `json:"customer_name"`
-	CustomerPhone   *string            `json:"customer_phone"`
-	Address         string             `json:"address"`
-	EndAddress      *string            `json:"end_address"`
-	EndLat          *float64           `json:"end_lat"`
-	EndLng          *float64           `json:"end_lng"`
-	Lat             *float64           `json:"lat"`
-	Lng             *float64           `json:"lng"`
-	Status          OrderStatus        `json:"status"`
-	Weight          float64            `json:"weight"`
-	Price           *float64           `json:"price"`
-	SegmentKm       *float64           `json:"segment_km"`
-	StopOrder       *int32             `json:"stop_order"`
-	TripLeg         TripLeg            `json:"trip_leg"`
-	Resultado       *StopResult        `json:"resultado"`
-	ResultadoAt     pgtype.Timestamptz `json:"resultado_at"`
-	ResultadoNota   *string            `json:"resultado_nota"`
-	DeliveredAt     pgtype.Timestamptz `json:"delivered_at"`
-	Municipio       *string            `json:"municipio"`
-	PedidoCosto     *float64           `json:"pedido_costo"`
-	ExternalID      *string            `json:"external_id"`
-	Source          *Procedencia       `json:"source"`
-	BranchID        pgtype.UUID        `json:"branch_id"`
+	ID               uuid.UUID          `json:"id"`
+	OperationNumber  *string            `json:"operation_number"`
+	CustomerName     string             `json:"customer_name"`
+	CustomerPhone    *string            `json:"customer_phone"`
+	Address          string             `json:"address"`
+	EndAddress       *string            `json:"end_address"`
+	EndLat           *float64           `json:"end_lat"`
+	EndLng           *float64           `json:"end_lng"`
+	Lat              *float64           `json:"lat"`
+	Lng              *float64           `json:"lng"`
+	Status           OrderStatus        `json:"status"`
+	Weight           float64            `json:"weight"`
+	Price            *float64           `json:"price"`
+	SegmentKm        *float64           `json:"segment_km"`
+	StopOrder        *int32             `json:"stop_order"`
+	TripLeg          TripLeg            `json:"trip_leg"`
+	Resultado        *StopResult        `json:"resultado"`
+	ResultadoAt      pgtype.Timestamptz `json:"resultado_at"`
+	ResultadoNota    *string            `json:"resultado_nota"`
+	DeliveredAt      pgtype.Timestamptz `json:"delivered_at"`
+	Municipio        *string            `json:"municipio"`
+	PedidoCosto      *float64           `json:"pedido_costo"`
+	FacturaDomicilio *float64           `json:"factura_domicilio"`
+	ExternalID       *string            `json:"external_id"`
+	Source           *Procedencia       `json:"source"`
+	BranchID         pgtype.UUID        `json:"branch_id"`
 }
 
 // Las paradas, en el orden en que el camión las visita.
@@ -1007,6 +1008,7 @@ func (q *Queries) ListarParadasDeRuta(ctx context.Context, arg ListarParadasDeRu
 			&i.DeliveredAt,
 			&i.Municipio,
 			&i.PedidoCosto,
+			&i.FacturaDomicilio,
 			&i.ExternalID,
 			&i.Source,
 			&i.BranchID,
@@ -1027,7 +1029,7 @@ SELECT
     o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status, o.weight,
     o.price, o.segment_km, o.stop_order, o.trip_leg, o.resultado,
     o.resultado_at, o.resultado_nota, o.delivered_at, o.municipio,
-    o.pedido_costo, o.external_id, o.source, o.branch_id
+    o.pedido_costo, o.factura_domicilio, o.external_id, o.source, o.branch_id
 FROM orders o
 WHERE o.route_id = ANY($1::uuid[])
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
@@ -1040,32 +1042,33 @@ type ListarParadasDeRutasParams struct {
 }
 
 type ListarParadasDeRutasRow struct {
-	RouteID         pgtype.UUID        `json:"route_id"`
-	ID              uuid.UUID          `json:"id"`
-	OperationNumber *string            `json:"operation_number"`
-	CustomerName    string             `json:"customer_name"`
-	CustomerPhone   *string            `json:"customer_phone"`
-	Address         string             `json:"address"`
-	EndAddress      *string            `json:"end_address"`
-	EndLat          *float64           `json:"end_lat"`
-	EndLng          *float64           `json:"end_lng"`
-	Lat             *float64           `json:"lat"`
-	Lng             *float64           `json:"lng"`
-	Status          OrderStatus        `json:"status"`
-	Weight          float64            `json:"weight"`
-	Price           *float64           `json:"price"`
-	SegmentKm       *float64           `json:"segment_km"`
-	StopOrder       *int32             `json:"stop_order"`
-	TripLeg         TripLeg            `json:"trip_leg"`
-	Resultado       *StopResult        `json:"resultado"`
-	ResultadoAt     pgtype.Timestamptz `json:"resultado_at"`
-	ResultadoNota   *string            `json:"resultado_nota"`
-	DeliveredAt     pgtype.Timestamptz `json:"delivered_at"`
-	Municipio       *string            `json:"municipio"`
-	PedidoCosto     *float64           `json:"pedido_costo"`
-	ExternalID      *string            `json:"external_id"`
-	Source          *Procedencia       `json:"source"`
-	BranchID        pgtype.UUID        `json:"branch_id"`
+	RouteID          pgtype.UUID        `json:"route_id"`
+	ID               uuid.UUID          `json:"id"`
+	OperationNumber  *string            `json:"operation_number"`
+	CustomerName     string             `json:"customer_name"`
+	CustomerPhone    *string            `json:"customer_phone"`
+	Address          string             `json:"address"`
+	EndAddress       *string            `json:"end_address"`
+	EndLat           *float64           `json:"end_lat"`
+	EndLng           *float64           `json:"end_lng"`
+	Lat              *float64           `json:"lat"`
+	Lng              *float64           `json:"lng"`
+	Status           OrderStatus        `json:"status"`
+	Weight           float64            `json:"weight"`
+	Price            *float64           `json:"price"`
+	SegmentKm        *float64           `json:"segment_km"`
+	StopOrder        *int32             `json:"stop_order"`
+	TripLeg          TripLeg            `json:"trip_leg"`
+	Resultado        *StopResult        `json:"resultado"`
+	ResultadoAt      pgtype.Timestamptz `json:"resultado_at"`
+	ResultadoNota    *string            `json:"resultado_nota"`
+	DeliveredAt      pgtype.Timestamptz `json:"delivered_at"`
+	Municipio        *string            `json:"municipio"`
+	PedidoCosto      *float64           `json:"pedido_costo"`
+	FacturaDomicilio *float64           `json:"factura_domicilio"`
+	ExternalID       *string            `json:"external_id"`
+	Source           *Procedencia       `json:"source"`
+	BranchID         pgtype.UUID        `json:"branch_id"`
 }
 
 // Las paradas de VARIAS rutas de una vez, para el tablero.
@@ -1109,6 +1112,7 @@ func (q *Queries) ListarParadasDeRutas(ctx context.Context, arg ListarParadasDeR
 			&i.DeliveredAt,
 			&i.Municipio,
 			&i.PedidoCosto,
+			&i.FacturaDomicilio,
 			&i.ExternalID,
 			&i.Source,
 			&i.BranchID,
@@ -1691,9 +1695,8 @@ SELECT
     -- que cero el pedido no entra en una ruta (Amado: el domicilio ya es un servicio que
     -- se cobra). Sale como DATO y no como filtro, igual que ` + "`" + `factura_estado` + "`" + `: lo nombra
     -- ` + "`" + `mensajeDomicilioSinCobrar` + "`" + ` en el manejador. ` + "`" + `requiere_domicilio` + "`" + `, la casilla que se
-    -- marca al tomar el pedido, no manda nada sobre lo que se cobró, pero SÍ decide si hace
-    -- falta la cotización de Entrega (issue 10, 15/10/2026): la lee ` + "`" + `mensajeSinCalcular` + "`" + `.
-    o.factura_domicilio, o.requiere_domicilio
+    -- marca al tomar el pedido, no manda nada: ni sobre lo que se cobró ni sobre si entra.
+    o.factura_domicilio
 FROM orders o
 WHERE o.id = ANY($1::uuid[])
   AND o.source = 'pedido'
@@ -1720,21 +1723,20 @@ type PedidosParaArmarRutaParams struct {
 }
 
 type PedidosParaArmarRutaRow struct {
-	ID                uuid.UUID          `json:"id"`
-	OperationNumber   *string            `json:"operation_number"`
-	CustomerName      string             `json:"customer_name"`
-	EndLat            *float64           `json:"end_lat"`
-	EndLng            *float64           `json:"end_lng"`
-	Weight            float64            `json:"weight"`
-	PedidoCosto       *float64           `json:"pedido_costo"`
-	FacturaEstado     *FacturaEstado     `json:"factura_estado"`
-	BranchID          pgtype.UUID        `json:"branch_id"`
-	ExternalID        *string            `json:"external_id"`
-	Source            *Procedencia       `json:"source"`
-	DeliveredAt       pgtype.Timestamptz `json:"delivered_at"`
-	Resultado         *StopResult        `json:"resultado"`
-	FacturaDomicilio  *float64           `json:"factura_domicilio"`
-	RequiereDomicilio *bool              `json:"requiere_domicilio"`
+	ID               uuid.UUID          `json:"id"`
+	OperationNumber  *string            `json:"operation_number"`
+	CustomerName     string             `json:"customer_name"`
+	EndLat           *float64           `json:"end_lat"`
+	EndLng           *float64           `json:"end_lng"`
+	Weight           float64            `json:"weight"`
+	PedidoCosto      *float64           `json:"pedido_costo"`
+	FacturaEstado    *FacturaEstado     `json:"factura_estado"`
+	BranchID         pgtype.UUID        `json:"branch_id"`
+	ExternalID       *string            `json:"external_id"`
+	Source           *Procedencia       `json:"source"`
+	DeliveredAt      pgtype.Timestamptz `json:"delivered_at"`
+	Resultado        *StopResult        `json:"resultado"`
+	FacturaDomicilio *float64           `json:"factura_domicilio"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1755,9 +1757,9 @@ type PedidosParaArmarRutaRow struct {
 //
 // `cambiado` ENTRA desde el 15/10/2026 (issue 10 de Amado): sus renglones ya son los de la
 // factura, así que al camión sube lo facturado. Lo del 07/10/2026 (Amado) se SUMA: el
-// domicilio cobrado (`factura_domicilio > 0`) y cotizado en Entrega (`pedido_costo` no
-// nulo) si el vendedor marcó domicilio (`requiere_domicilio`). Salen también como DATO y
-// los corta el handler (`rechazoDelArmado`), por la misma razón.
+// domicilio cobrado (`factura_domicilio > 0`); la cotización de Entrega ya no se exige
+// (16/10/2026). Sale también como DATO y lo corta el handler (`rechazoDelArmado`), por la
+// misma razón.
 func (q *Queries) PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmarRutaParams) ([]PedidosParaArmarRutaRow, error) {
 	rows, err := q.db.Query(ctx, pedidosParaArmarRuta, arg.PedidoIds, arg.Sucursal)
 	if err != nil {
@@ -1782,7 +1784,6 @@ func (q *Queries) PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmar
 			&i.DeliveredAt,
 			&i.Resultado,
 			&i.FacturaDomicilio,
-			&i.RequiereDomicilio,
 		); err != nil {
 			return nil, err
 		}

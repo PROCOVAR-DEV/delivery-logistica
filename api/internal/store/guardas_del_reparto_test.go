@@ -219,26 +219,29 @@ var guardasDelReparto = []guarda{
 			"hoy vuelve a una zona que no es la suya.",
 	},
 
-	// ---- LA REGLA DE AMADO (07/10/2026): domicilio cobrado Y cotizado, la cotización sólo si
-	// el vendedor marcó domicilio (issue 10, 15/10/2026). Las mismas dos condiciones en TODOS
-	// los sitios que ofrecen o aceptan un pedido para una ruta. ----
+	// ---- LA REGLA DE ENTRADA (TEMPORAL 16/10/2026, Jose): sólo la factura. Ni el cobro del
+	// domicilio (`factura_domicilio > 0`, Amado 07/10/2026) ni la cotización de Entrega se exigen:
+	// cada consulta lleva el rótulo TEMPORAL donde estaba el cobro (`enElCuerpo`) y `noEnElCuerpo`
+	// vigila que la cotización no vuelva. Restaurar el cobro = quitar el rótulo y poner la línea. ----
 	{
-		fichero:   "orders.sql",
-		consulta:  "ListarPedidosDisponibles",
-		enElWhere: []string{"o.factura_domicilio > 0", "(o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)"},
-		porQue:    "La lista del armador no puede ofrecer lo que el armador rechaza. Ver ColocarPedido.",
+		fichero:      "orders.sql",
+		consulta:     "ListarPedidosDisponibles",
+		enElWhere:    []string{"o.factura_estado IN ('igual', 'cambiado')"},
+		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR"},
+		porQue:       "La lista del armador no puede ofrecer lo que el armador rechaza. Ver ColocarPedido.",
 	},
 	{
-		fichero:   "orders.sql",
-		consulta:  "ContarPedidosDisponibles",
-		enElWhere: []string{"o.factura_domicilio > 0", "(o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)"},
-		porQue:    "El total de arriba de la lista de disponibles, que tiene que ser el de la lista.",
+		fichero:      "orders.sql",
+		consulta:     "ContarPedidosDisponibles",
+		enElWhere:    []string{"o.factura_estado IN ('igual', 'cambiado')"},
+		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR"},
+		porQue:       "El total de arriba de la lista de disponibles, que tiene que ser el de la lista.",
 	},
 	{
 		fichero:      "tablero.sql",
 		consulta:     "ListarPedidosSinColocar",
-		enElWhere:    []string{"o.factura_domicilio > 0", "(o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)"},
-		noEnElCuerpo: []string{"requiere_domicilio IS TRUE"},
+		enElWhere:    []string{"o.factura_estado IN ('igual', 'cambiado')"},
+		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR", "factura_domicilio > 0", "requiere_domicilio IS TRUE"},
 		porQue: "LA MITAD IZQUIERDA DEL TABLERO. Se añadieron a `ColocarPedido` y no aquí, y ofrecía\n" +
 			"tarjetas que el 409 devolvía: el logístico preparaba una zona para nada. Y SIN\n" +
 			"`requiere_domicilio IS TRUE` (issue 10, 15/10/2026): con él, un pedido sin marcar y con el\n" +
@@ -247,38 +250,38 @@ var guardasDelReparto = []guarda{
 	{
 		fichero:      "tablero.sql",
 		consulta:     "ContarPedidosSinColocar",
-		enElWhere:    []string{"o.factura_domicilio > 0", "(o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)"},
-		noEnElCuerpo: []string{"requiere_domicilio IS TRUE"},
+		enElWhere:    []string{"o.factura_estado IN ('igual', 'cambiado')"},
+		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR", "factura_domicilio > 0", "requiere_domicilio IS TRUE"},
 		porQue:       "El número de encima de esa lista. Ver contador_y_lista_test.go.",
 	},
 	{
 		fichero:      "tablero.sql",
 		consulta:     "ColocarPedido",
-		enElWhere:    []string{"o.factura_domicilio > 0", "(o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)"},
-		noEnElCuerpo: []string{"factura_estado"},
-		porQue: "Colocar exige el domicilio cobrado y cotizado (si se marcó) y NO mira `factura_estado`:\n" +
+		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR", "factura_estado", "factura_domicilio"},
+		porQue: "Colocar exige el domicilio cobrado (la cotización ya no) y NO mira `factura_estado`:\n" +
 			"lo que no esté facturado se puede preparar en una zona, y lo corta el armador con su\n" +
 			"motivo. Se llegó a añadir el 07/10/2026 y se quitó ese mismo día (D1).",
 	},
 	{
 		fichero:      "routes.sql",
 		consulta:     "EngancharPedidoARuta",
-		enElWhere:    []string{"factura_domicilio > 0", "(pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE)"},
-		noEnElCuerpo: []string{"factura_estado"},
+		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR", "factura_estado", "factura_domicilio"},
 		porQue: "LA SEGUNDA LLAVE de la regla de Amado al enganchar. `factura_estado` NO está: el corte\n" +
 			"lo hacen `rechazoDelArmado` y `motivoDeCorteDelArmado`, para poder nombrar cuál falla.",
 	},
 	{
-		fichero:   "orders.sql",
-		consulta:  "PanelPorSucursal",
-		enElWhere: []string{"o.factura_domicilio > 0", "(o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)"},
-		porQue:    "El panel cuenta lo repartible con el mismo listón que el armador, o dice «40 por repartir» y el armador ofrece 12.",
+		fichero:      "orders.sql",
+		consulta:     "PanelPorSucursal",
+		enElWhere:    []string{"o.factura_estado IN ('igual','cambiado')"},
+		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR", "factura_domicilio > 0"},
+		porQue:       "El panel cuenta lo repartible con el mismo listón que el armador, o dice «40 por repartir» y el armador ofrece 12.",
 	},
 	{
-		fichero:    "orders.sql",
-		consulta:   "PanelResumen",
-		enElCuerpo: []string{"AND o.factura_domicilio > 0 AND (o.pedido_costo IS NOT NULL OR o.requiere_domicilio IS NOT TRUE)) AS sin_ruta"},
-		porQue:     "`sin_ruta` del panel: mismo listón. `peso_pendiente` lo ata el motor real.",
+		fichero:      "orders.sql",
+		consulta:     "PanelResumen",
+		enElCuerpo:   []string{"AND o.factura_estado IN ('igual','cambiado')) AS sin_ruta"},
+		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR"},
+		porQue:       "`sin_ruta` del panel: mismo listón. `peso_pendiente` lo ata el motor real.",
 	},
 	{
 		fichero:   "orders.sql",

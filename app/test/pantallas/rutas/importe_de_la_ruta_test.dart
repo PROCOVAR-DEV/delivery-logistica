@@ -123,7 +123,7 @@ void main() {
       await sembrarRuta(base, id: 'R1');
       await sembrarRuta(base, id: 'R2');
       await sembrarPedido(base, id: 'p1', cliente: 'Ana', rutaId: 'R1', pedidoCosto: 12.5);
-      await sembrarPedido(base, id: 'p2', cliente: 'Beto', rutaId: 'R1', pedidoCosto: null);
+      await sembrarPedido(base, id: 'p2', cliente: 'Beto', rutaId: 'R1', pedidoCosto: null, facturaDomicilio: null);
       await sembrarPedido(base, id: 'p3', cliente: 'Cira', rutaId: 'R2', pedidoCosto: 7.5);
 
       final porRuta = await importePorRuta(base).first;
@@ -280,6 +280,8 @@ void main() {
           rutaId: 'R1',
           orden: i + 1,
           pedidoCosto: costos[i],
+          // Sin cotizar de verdad: tampoco cobrado en la factura (`costoDeLaParada`).
+          facturaDomicilio: null,
         );
       }
     }

@@ -138,36 +138,40 @@ concreto. Ya hay tres así:
 - ~~**Los avisos del armador son aviso, no bloqueo.**~~ **REEMPLAZADO el 07/10/2026
   por Amado** (`docs/incidencias-reparto.md`, punto 6): el domicilio ya es un servicio
   que se cobra y dejar entrar cualquier pedido es una vulnerabilidad. Ahora el armador
-  BLOQUEA, y lo mismo la lista de disponibles y el tablero. **La regla, desde el 15/10/2026
-  (issue 10 de Amado, punto 3):**
-  `entra ⇔ factura_estado IN ('igual','cambiado') AND factura_domicilio > 0 AND (pedido_costo
-  IS NOT NULL OR requiere_domicilio IS NOT TRUE)`. Es decir: **facturado** (`cambiado`
-  ENTRA: sus renglones ya son los de la factura —PEDIDO los manda en cuanto hay cotejo,
-  `ItemsOrigen`—, así que al camión sube lo facturado), con **domicilio cobrado** en la
-  factura y **cotizado en Entrega sólo si el vendedor marcó domicilio** (Entrega sólo cotiza
-  los marcados: exigírselo a uno no marcado lo dejaba fuera para siempre). Un marcado sin
-  cotizar sigue frenado con el literal de siempre. El caso que lo cambió: Santiago,
-  `PBF26-2610131268`, factura 47061, pedido «PARRANDA 0.33L ×20» sin marcar domicilio,
-  facturado «CERVEZA PARRANDA 500 ML BLISTER 6U ×20» con «ENTREGA A DOMICILIO» 1.31 →
-  `cambiado`, cobrado y sin cotizar: no se podía poner en ruta. Amado: «si la factura tiene
-  identificado un domicilio y no coincide con el pedido, debería ajustarse el pedido con los
-  datos reales, o al menos que sí se pueda incluir en las que se pueden poner en las rutas».
-  En los 20 días anteriores había 29 `cambiado` con domicilio cobrado (13 sin costo) y 269
-  `igual` con domicilio cobrado (113 sin costo). Con ello «Sin colocar» dejó de exigir
-  `requiere_domicilio IS TRUE` (25/09): lo que dice que un pedido va a domicilio es el cobro
-  de la factura. Hasta el 15/10 `cambiado` NO entraba (la regla vieja de Jose, «en el camión
-  sólo sube lo que cuadra con la factura») y la cotización se exigía a todos. Vive en
-  `rechazoDelArmado`/`motivoDeCorteDelArmado`/`faltaLaCotizacion` (api), en el SQL de las
-  listas, el Panel, `ColocarPedido` y `EngancharPedidoARuta`, y en el aparato en
-  `app/lib/nucleo/regla_de_entrada.dart`; la atan los casos `reglaDeEntrada` de
-  `docs/armado-rechazado.casos.json` (Go, Postgres y Dart). Lo que se rechaza se nombra por
-  su número de operación. **Lo que queda:** una parada sin marcar y sin cotizar entra con
-  `price` 0 y cuenta en `paradas_sin_cotizar` de la ruta (el cobro de la factura no se copia
-  a la parada). Con los datos reales del 07/10/2026, de 1.914 pedidos repartibles sólo 29
-  cumplían la regla de entonces (64 con domicilio cobrado, 33 cotizados). El argumento de
-  antes (657 de 686 sin costo el 14/09) era cierto mientras la APK de Entrega no estaba
-  encendida; si vuelve a haber pedidos MARCADOS sin costo en masa, la respuesta es cotizarlos
-  en Entrega, no abrir la puerta. **El «conduce» de Amado
+  BLOQUEA, y lo mismo la lista de disponibles y el tablero. **LA REGLA HOY — TEMPORAL, Jose,
+  16/10/2026 («por ahora que entren todos los pedidos con facturas»):**
+  `entra ⇔ factura_estado IN ('igual','cambiado')`. NADA MÁS: ni el cobro del domicilio
+  (`factura_domicilio > 0`), ni la casilla `requiere_domicilio`, ni la cotización de Entrega
+  (`pedido_costo`) deciden si entra. Para buscar sólo los cobrados el logístico usa el filtro
+  «Cobro del domicilio»; sin factura, `sin_factura` y sin cotejar siguen sin entrar (con el literal
+  «En una ruta sólo entra lo facturado. N no cumplen: <conduce> (sin facturar|sin cotejar)»).
+  **Para volver a exigir el cobro:** restaurar `factura_domicilio > 0` donde está el rótulo
+  `TEMPORAL 16/10/2026 (Jose)` en cada consulta (`ListarPedidosDisponibles`, su contador,
+  `ListarPedidosSinColocar`, su contador, `ColocarPedido`, `EngancharPedidoARuta`, `PanelResumen`,
+  `PanelPorSucursal`), y en Dart `entraEnRuta`/`entraEnRutaSql` (`nucleo/regla_de_entrada.dart`);
+  en Go, el corte por cobro de `rechazoDelArmado`, `motivoDeCorteDelArmado` y `porQueNoSePudoColocar`
+  (se quitaron enteros, con su literal, el 16/10/2026: `git log` los trae), y los casos «sin cobro» de
+  `docs/armado-rechazado.casos.json` vuelven a `entra: false` (ver `Notas/Pendiente/Delivery.md`).
+  **La historia, que es el porqué:** el 07/10/2026 Amado puso el cobro (el domicilio ya es un servicio
+  que se cobra) y la cotización. El 15/10/2026 (issue 10): `cambiado` ENTRA (sus renglones ya son los
+  de la factura, `ItemsOrigen`) y la cotización sólo se exigía si el vendedor marcó domicilio. El caso
+  de Santiago `PBF26-2610131268` (factura 47061, `cambiado`, sin marcar, 1.31 cobrado, sin cotizar).
+  El **16/10/2026 Amado** volvió: «en la 37 no está funcional… hay que permitir que las facturas con
+  domicilio cobrado entren. Ayer hizo varias rutas y en los despachos no se incluyeron esos pedidos»,
+  con `PCC25-261014-1435` (factura 47073, `igual`, **marcado**, `pedido_costo` NULL, 0.05 cobrado):
+  **lo que manda es el cobro en la factura**, no la cotización de Entrega. Y el mismo día Jose lo
+  llevó más lejos, por ahora: que entre todo lo facturado. Con los datos reales del 07/10/2026, de
+  1.914 pedidos repartibles sólo 29 cumplían la regla de entonces. **EL COSTO DE LA PARADA**
+  (`costoDeLaParada` en Go y Dart, atado por `costoDeLaParada` de `docs/armado-rechazado.casos.json`):
+  `pedido_costo` si existe y, si no, `factura_domicilio` cuando es > 0; si no, nulo = sin cotizar de
+  verdad (y sólo ese cuenta en `paradas_sin_cotizar`). Es el `price` que se copia al armar, lo que
+  suma el importe de la ruta, el costo de una zona y lo que enseña `ListarParadasDeRuta(s)`. **El
+  trigger `refrescar_totales_de_ruta` (00014) todavía suma sólo `pedido_costo`: hace falta una
+  migración con el mismo `coalesce` (ver el informe del 16/10/2026).** Vive en
+  `rechazoDelArmado`/`motivoDeCorteDelArmado` (api), en el SQL de las listas, el Panel,
+  `ColocarPedido` y `EngancharPedidoARuta`, y en el aparato en `app/lib/nucleo/regla_de_entrada.dart`;
+  la atan los casos `reglaDeEntrada` de `docs/armado-rechazado.casos.json` (Go, Postgres y Dart).
+  Lo que se rechaza se nombra por su número de operación. **El «conduce» de Amado
   es el NÚMERO DE OPERACIÓN de la factura** (`orders.operation_number`; aclarado por
   Jose el 07/10/2026): no hay dato ni columna aparte, y por eso todo rechazo nombra al
   pedido por ese número. Un cobro a domicilio que sale como conduce se identifica con él.
@@ -389,15 +393,18 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   error y se revirtió en la 1.0.29): una sucursal con UN camión olvidado en `maintenance` se
   quedaría sin poder armar rutas. Se ofrece con un aviso ámbar «en el taller». Lo que NUNCA se
   ofrece es un camión INACTIVO (`is_active`, el que pidió Amado), y el servidor lo rechaza.
-- **El armado local y el del servidor son la MISMA regla** (la de §2, desde el 15/10/2026, issue
-  10 de Amado): entra a una ruta una factura `igual` o `cambiado` (al camión va lo facturado), con
-  domicilio cobrado y, si el vendedor marcó domicilio, cotizado en Entrega; las demás se descartan
-  y se NOMBRAN por su conduce (el número de operación). En el aparato vive en UN sitio,
-  `app/lib/nucleo/regla_de_entrada.dart`, y la usan el asistente, la zona, colocar, «Sin colocar»,
-  los disponibles, el Panel y la ficha del pedido (que sólo dice «No entra a una ruta» cuando de
-  verdad no entra, preguntando a `porQueNoSePuedeColocar`). Los casos (`reglaDeEntrada`, con el
-  real PBF26-2610131268) y los literales de lo que se descarta están en
-  `docs/armado-rechazado.casos.json`, que leen las pruebas de los dos lados y la del motor real.
+- **El armado local y el del servidor son la MISMA regla** (la de §2, TEMPORAL desde el 16/10/2026,
+  Jose): entra a una ruta una factura `igual` o `cambiado` (al camión va lo facturado) y NADA más —ni el
+  cobro del domicilio ni la cotización de Entrega—; las demás se descartan y se NOMBRAN por su
+  conduce (el número de operación). Amado, 16/10/2026: «lo que manda es el cobro en la factura»
+  (PCC25-261014-1435), y por ahora entra todo lo facturado y el logístico filtra por «Cobro del
+  domicilio». En el aparato vive en UN sitio, `app/lib/nucleo/regla_de_entrada.dart` (`entraEnRuta`,
+  `entraEnRutaSql`, rotulados TEMPORAL), y la usan el asistente, la zona, colocar, «Sin colocar», los
+  disponibles, el Panel y la ficha del pedido (que sólo dice «No entra a una ruta» cuando de verdad no
+  entra, preguntando a `porQueNoSePuedeColocar`). «Sin cobro de domicilio» en la tabla de Pedidos es
+  un DATO gris, ya no frena. El costo de la parada es `costoDeLaParada` (§2). Los casos
+  (`reglaDeEntrada`, con los reales PBF26-2610131268 y PCC25-261014-1435) y `costoDeLaParada` están
+  en `docs/armado-rechazado.casos.json`, que leen las pruebas de los dos lados y la del motor real.
 - **Reasignar un pedido devuelto o cancelado a otra ruta es un intento nuevo**: sin su
   `resultado`, nota ni hora de entrega, en el servidor (`EngancharPedidoARuta`) y en los dos
   armados locales. Un `entregado` no se puede reasignar nunca.
@@ -512,8 +519,8 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   el tooltip que explica la consecuencia; el ámbar sólo sale si ese es lo que frena al pedido
   (`frenaElDomicilioSinCobrar`, que pregunta a `porQueNoSePuedeColocar` y no repite la regla; con
   ruta, entregado o archivado va sólo el número o el verde). La regla NO cambió aquel día: la marca
-  la hace visible (la regla cambió el 15/10/2026, §2; el `!` ámbar de `cambiado` ya no dice que no
-  puede ir a una ruta). La columna «Vehículo» se quitó entera (desde la 1.0.28 `orders.vehicle_id` no existe); el
+  la hace visible (la regla cambió el 15/10/2026 y el 16/10/2026, §2: desde entonces la marca es
+  gris y sólo informa, no frena). La columna «Vehículo» se quitó entera (desde la 1.0.28 `orders.vehicle_id` no existe); el
   camión sigue en el detalle. Trampa: la columna Factura se esconde bajo 1024 px (desde el 14/10/2026 el
   número baja bajo el folio entre 768 y 1023 px y sube a la cabecera de la tarjeta del teléfono: issue 8 de
   Amado). **Los filtros de fecha de pedidos (Sin colocar, el paso de pedidos del asistente y Desde/Hasta de Pedidos)

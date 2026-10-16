@@ -45,11 +45,11 @@ import 'package:reparto/pantallas/pedidos/vista/tabla_pedidos.dart';
 void main() {
   const alto = 900.0;
 
-  /// Lo que el tooltip del aviso ámbar tiene que explicar: la consecuencia.
+  /// El tooltip del aviso, que desde el 16/10/2026 (TEMPORAL, Jose) sólo INFORMA: no impide ir
+  /// a una ruta, y el aviso es gris, no ámbar.
   const consecuencia =
-      'La factura no trae la línea ENTREGA A DOMICILIO: este pedido no puede ir '
-      'a una ruta ni a una zona del tablero hasta que el domicilio se cobre en '
-      'la factura.';
+      'La factura no trae la línea ENTREGA A DOMICILIO. No impide ir a una '
+      'ruta: en «Cobro del domicilio» se filtra por con cobro o sin cobro.';
 
   Pedido pedido({
     String id = 'p1',
@@ -262,7 +262,7 @@ void main() {
             final texto = tester.widget<Text>(
               find.text('Sin cobro de domicilio'),
             );
-            expect(texto.style?.color, Colores.ambar);
+            expect(texto.style?.color, Colores.gris);
           });
         }
 

@@ -1,5 +1,4 @@
 import '../../../nucleo/base/base.dart';
-import '../../../nucleo/regla_de_entrada.dart';
 
 /// El punto desde el que se mide la cercania: el almacen principal de la
 /// sucursal (§3 «De donde sale la distancia»).
@@ -346,8 +345,8 @@ class TarjetaPedido {
   /// «no esta cobrado» (ver [motivoDeNoSubir]).
   final double? facturaDomicilio;
 
-  /// La casilla de domicilio que marco el vendedor. Solo decide si hace falta la
-  /// cotizacion de Entrega para subir (`faltaLaCotizacion`, issue 10 de Amado).
+  /// La casilla de domicilio que marco el vendedor. Ya no decide nada para subir
+  /// (Amado, 16/10/2026: lo que manda es el cobro en la factura).
   final bool? requiereDomicilio;
   final bool archivado;
   final String? rutaId;
@@ -383,9 +382,9 @@ class TarjetaPedido {
   /// 07/10/2026, incidencia 6).
   ///
   /// La regla vive en `nucleo/regla_de_entrada.dart`: facturado (`igual` o
-  /// `cambiado`, que es una marca ambar y SUBE), domicilio cobrado y, si el
-  /// vendedor lo marco, cotizado. Las marcas conservan su texto de siempre; los
-  /// dos de domicilio son los del servidor, letra por letra
+  /// `cambiado`, que es una marca ambar y SUBE) y domicilio cobrado; la
+  /// cotizacion de Entrega ya no se exige. Las marcas conservan su texto de
+  /// siempre; el de domicilio es el del servidor, letra por letra
   /// (`docs/armado-rechazado.casos.json`, `descartadosDelTablero`).
   ///
   /// `ya se entregó` va aqui aunque el servidor lo pregunte primero: al armar,
@@ -397,15 +396,6 @@ class TarjetaPedido {
     }
     if (deliveredAt != null || resultado == ResultadoParada.entregado) {
       return 'ya se entregó';
-    }
-    if (domicilioSinCobrar(facturaDomicilio)) {
-      return 'la factura no tiene domicilio cobrado';
-    }
-    if (faltaLaCotizacion(
-      pedidoCosto: pedidoCosto,
-      requiereDomicilio: requiereDomicilio,
-    )) {
-      return 'domicilio sin cotizar';
     }
     return null;
   }

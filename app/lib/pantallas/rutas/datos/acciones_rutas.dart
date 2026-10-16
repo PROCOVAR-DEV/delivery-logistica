@@ -424,32 +424,14 @@ class AccionesDeRuta {
     // `api/internal/api/rutas.go`) en su mismo orden y con sus mismas palabras
     // (`nucleo/regla_de_entrada.dart`): facturado —`igual` o `cambiado`, que
     // entra desde el 15/10/2026 (issue 10 de Amado) porque sus renglones ya son
-    // los de la factura—, domicilio cobrado y, si el vendedor lo marco,
-    // cotizado en Entrega.
+    // los de la factura—. Ni el cobro del domicilio ni la cotizacion de Entrega se
+    // exigen (TEMPORAL 16/10/2026, Jose: ver `nucleo/regla_de_entrada.dart`).
     final noFacturados = [
       for (final p in pedidos)
         if (!facturaQueEntra(p.facturaEstado)) p,
     ];
     if (noFacturados.isNotEmpty) {
       throw RechazoLocal(_mensajeDeFactura(noFacturados));
-    }
-    final sinDomicilioCobrado = [
-      for (final p in pedidos)
-        if (domicilioSinCobrar(p.facturaDomicilio)) p,
-    ];
-    if (sinDomicilioCobrado.isNotEmpty) {
-      throw RechazoLocal(_mensajeDeDomicilioSinCobrar(sinDomicilioCobrado));
-    }
-    final sinCotizacion = [
-      for (final p in pedidos)
-        if (faltaLaCotizacion(
-          pedidoCosto: p.pedidoCosto,
-          requiereDomicilio: p.requiereDomicilio,
-        ))
-          p,
-    ];
-    if (sinCotizacion.isNotEmpty) {
-      throw RechazoLocal(_mensajeSinCotizacion(sinCotizacion));
     }
 
     final pesoTotal = pedidos.fold<double>(0, (suma, p) => suma + p.weight);
@@ -585,7 +567,9 @@ class AccionesDeRuta {
               // El porqué entero está en `espejoDelTotalDelServidor`.
               totalPrice: Value(
                 ImporteDeRuta.espejoDelTotalDelServidor(
-                  pedidos.map((p) => p.pedidoCosto),
+                  pedidos.map(
+                    (p) => costoDeLaParada(p.pedidoCosto, p.facturaDomicilio),
+                  ),
                 ),
               ),
               deliveryDate: Value(fechaDeEntrega),
@@ -628,7 +612,11 @@ class AccionesDeRuta {
             // `ConsultasInformes.ingresoDe` —un `price` de cero sin
             // `pedidoCosto` no es un precio, es ese `coalesce`—, y es lo que
             // hace `recorrido.dart`.
-            price: Value(pedido.pedidoCosto),
+            // Y si no esta cotizado, LO COBRADO en la factura (Amado, 16/10/2026):
+            // `costoDeLaParada`, la misma regla que el servidor.
+            price: Value(
+              costoDeLaParada(pedido.pedidoCosto, pedido.facturaDomicilio),
+            ),
             // REASIGNAR UN DEVUELTO ES UN INTENTO NUEVO — 1.0.29. El pedido que
             // vuelve a una ruta no arrastra el resultado del intento anterior:
             // un «devuelto» con su nota colgando de la ruta nueva se leería como
@@ -1000,26 +988,6 @@ class AccionesDeRuta {
     final cola = n > 5 ? ' y ${n - 5} más.' : '.';
     return 'En una ruta sólo entra lo facturado. '
         '$n no cumplen: $detalle$cola';
-  }
-
-  String _mensajeDeDomicilioSinCobrar(List<Pedido> pedidos) {
-    final detalle = pedidos
-        .take(5)
-        .map((p) => p.operationNumber ?? p.customerName)
-        .join(', ');
-    final cola = pedidos.length > 5 ? ' y ${pedidos.length - 5} más.' : '.';
-    return 'En una ruta sólo entra lo facturado con domicilio cobrado. '
-        '${pedidos.length} no cumplen: $detalle$cola';
-  }
-
-  String _mensajeSinCotizacion(List<Pedido> pedidos) {
-    final detalle = pedidos
-        .take(5)
-        .map((p) => p.operationNumber ?? p.customerName)
-        .join(', ');
-    final cola = pedidos.length > 5 ? ' y ${pedidos.length - 5} más.' : '.';
-    return 'No se puede crear la ruta: ${pedidos.length} pedidos no tienen '
-        'cotizado el domicilio en Entrega: $detalle$cola';
   }
 
   /// `RT-YYYYMMDD-NNN-<aparato>`.

@@ -28,31 +28,31 @@ hoy; la última sólo avisa**:
 Un pedido puede llevar **varias marcas a la vez**: archivado y sin facturar es las
 dos cosas.
 
-### Y además: el domicilio tiene que estar cobrado (y cotizado, si se marcó)
+### El domicilio cobrado ya no se exige (por ahora)
 
-El domicilio ahora es un servicio que se cobra, y dejar entrar cualquier pedido sería
-repartir sin cobrar. Por eso, **para entrar en una ruta nueva, y para colocarse en una
-zona del Tablero, un pedido tiene que cumplir a la vez**:
+**Por ahora, para entrar en una ruta nueva y para colocarse en una zona del Tablero, a un
+pedido le basta con estar facturado** (cuadre o haya cambiado, lo de arriba). Ya no se
+exige que la factura cobre el domicilio, ni que Entrega lo haya cotizado, ni mira la casilla
+de domicilio del vendedor. Es una regla **temporal** (Jose, 16/10/2026: «por ahora que
+entren todos los pedidos con facturas»).
 
-1. **Facturado**, cuadre o haya cambiado (lo de arriba).
-2. **Con el domicilio cobrado**: el importe de domicilio de la factura es **mayor que
-   cero**. Esto es lo que dice que un pedido va a domicilio, aunque el vendedor no
-   marcara la casilla.
-3. **Cotizado en Entrega, si el vendedor marcó domicilio**: entonces el repartidor
-   tiene que haberle puesto ya el costo. Si no lo marcó, no hace falta: Entrega sólo
-   cotiza los pedidos marcados.
+**Por qué.** Amado, 16/10/2026: había pedidos con el domicilio cobrado en la factura que no
+entraban en las rutas porque Entrega no los había cotizado (por ejemplo PCC25-261014-1435,
+factura 47073, marcado a domicilio, 0.05 cobrado). Ayer se armaron rutas y esos pedidos no
+se incluyeron en los despachos. Lo que manda es el cobro de la factura; y por ahora entra
+todo lo facturado.
 
-**Ejemplo:** en Santiago, un pedido de «PARRANDA 0.33L ×20», sin la casilla de
-domicilio marcada, se facturó como «CERVEZA PARRANDA 500 ML BLISTER 6U ×20» con
-«ENTREGA A DOMICILIO» 1.31. Cambió en la factura y Entrega no lo cotizó, pero está
-facturado y el domicilio está cobrado: **entra**, y al camión sube la cerveza de 500 ml.
+**Para ver sólo los cobrados** está el filtro **«Cobro del domicilio»** de «Sin colocar» y
+el de domicilio del asistente de rutas: **«con cobro»** deja los que la factura cobra,
+**«sin cobro»** los otros y **«todos»** los trae todos.
 
-Lo que no cumple **no se ofrece** en la lista de disponibles de Rutas, y si se intenta
-meter igualmente **se rechaza diciendo cuál es**, por su conduce. Los mensajes están en
-[Cuando algo sale mal](cuando-algo-sale-mal.md#no-me-deja-armar-la-ruta).
+**Cuánto vale la parada.** El costo de domicilio de una parada es el que cotizó Entrega y,
+si Entrega no lo cotizó, **lo que cobró la factura**. Sólo si no hay ninguno de los dos
+queda «sin cotizar». Un cero cotizado sí es un precio.
 
-**Un pedido sin cotizar o sin cobro de domicilio no está «mal»: está pendiente.** Se
-arregla cobrando o cotizando donde toca (Entrega), y entonces aparece solo.
+Lo que no esté facturado **no se ofrece** en la lista de disponibles de Rutas, y si se
+intenta meter igualmente **se rechaza diciendo cuál es**, por su conduce. Los mensajes están
+en [Cuando algo sale mal](cuando-algo-sale-mal.md#no-me-deja-armar-la-ruta).
 
 ### El conduce
 

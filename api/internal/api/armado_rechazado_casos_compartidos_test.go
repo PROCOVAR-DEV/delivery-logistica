@@ -23,6 +23,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/store/sqlc"
 )
@@ -124,37 +126,14 @@ func TestLosMensajesNuevosDelServidorSonLosDelFichero(t *testing.T) {
 		t.Fatalf("%s no se puede interpretar: %v", rutaDeLosCasosDelArmado, err)
 	}
 	m := fichero.Mensajes
-	if len(m.Armado) == 0 || len(m.Fijos) == 0 || len(m.Descartados) == 0 {
+	if len(m.Fijos) == 0 {
 		t.Fatalf("%s perdió una de las tres listas de `mensajesDelServidor`: una prueba sobre una "+
 			"lista vacía sale verde sin haber comprobado nada", rutaDeLosCasosDelArmado)
-	}
-
-	// 1. Armar una ruta: los dos mensajes con un pedido nombrado por su número de operación.
-	for _, c := range m.Armado {
-		t.Run("armado/"+c.Nombre, func(t *testing.T) {
-			fila := sqlc.PedidosParaArmarRutaRow{CustomerName: "Cliente", OperationNumber: &c.OperationNumber}
-			var salio string
-			switch c.Nombre {
-			case "sin-domicilio-cobrado-uno":
-				salio = mensajeDomicilioSinCobrar([]sqlc.PedidosParaArmarRutaRow{fila})
-			case "sin-cotizar-uno":
-				cobrado, marcado := 9.0, true
-				fila.FacturaDomicilio, fila.RequiereDomicilio = &cobrado, &marcado
-				salio = mensajeSinCalcular([]sqlc.PedidosParaArmarRutaRow{fila})
-			default:
-				t.Fatalf("caso %q sin comprobación: añádela aquí o el fichero miente", c.Nombre)
-			}
-			if salio != c.Mensaje {
-				t.Errorf("el servidor dice:\n  %q\ny el fichero fija:\n  %q", salio, c.Mensaje)
-			}
-		})
 	}
 
 	// 2. Los literales fijos, contra las constantes del servidor.
 	constantes := map[string]string{
 		"camion-inactivo":                   msgVehiculoInactivo,
-		"colocar-sin-domicilio-cobrado":     msgTableroSinDomicilioCobrado,
-		"colocar-sin-cotizar":               msgTableroSinCotizar,
 		"borrar-vehiculo-con-rutas":         msgVehiculoConRutas,
 		"quitar-parada-ruta-no-planificada": msgSoloRutaPlanificada,
 		"quitar-parada-que-no-esta":         msgParadaNoPertenece,
@@ -178,30 +157,6 @@ func TestLosMensajesNuevosDelServidorSonLosDelFichero(t *testing.T) {
 	if len(constantes) != len(m.Fijos) {
 		t.Errorf("hay %d constantes comprobadas y %d literales en el fichero: tienen que ser las mismas",
 			len(constantes), len(m.Fijos))
-	}
-
-	// 3. Los descartados del tablero, a través del manejador de verdad: una zona con una
-	// tarjeta sin cobrar y otra sin cotizar tiene que nombrarlas con esos textos.
-	q := nuevoTablero()
-	q.tresPuestas()
-	q.capacidad = 1000
-	a, c := q.pedidos[ped2], q.pedidos[ped3]
-	a.sinCobrar, c.sinCotizar = true, true
-	q.pedidos[ped2], q.pedidos[ped3] = a, c
-	w := pedirTab(t, montarTab(t, q), "POST", "/api/board/columns/"+colCentro.String()+"/route",
-		tokenTab(t, sucStg.String()), `{}`)
-	resp := leerTab(t, w)
-	porNombre := map[string]string{"zona-sin-domicilio-cobrado": "Beto", "zona-sin-cotizar": "Ana"}
-	for _, d := range m.Descartados {
-		cliente, hay := porNombre[d.Nombre]
-		if !hay {
-			t.Fatalf("descartado %q sin comprobación", d.Nombre)
-		}
-		got := descartadoPorNombre(t, resp, cliente)
-		if got["motivo"] != d.Motivo || got["queHacer"] != d.QueHacer {
-			t.Errorf("%s: el servidor dice motivo=%q queHacer=%q y el fichero fija motivo=%q queHacer=%q",
-				d.Nombre, got["motivo"], got["queHacer"], d.Motivo, d.QueHacer)
-		}
 	}
 }
 
@@ -241,7 +196,7 @@ func leerReglaDeEntrada(t *testing.T) []casoDeEntrada {
 		} else {
 			noEntran++
 		}
-		if c.Nombre == "caso-real-PBF26-2610131268" && c.Entra {
+		if c.Nombre == "caso-real-PCC25-261014-1435" && c.Entra {
 			real = true
 		}
 	}
@@ -271,7 +226,6 @@ func TestLaReglaDeEntradaEsLaDelFichero(t *testing.T) {
 			asistente := rechazoDelArmado([]sqlc.PedidosParaArmarRutaRow{{
 				OperationNumber: &op, CustomerName: "Cliente", FacturaEstado: estado,
 				FacturaDomicilio: c.FacturaDomicilio, PedidoCosto: c.PedidoCosto,
-				RequiereDomicilio: c.RequiereDomicilio,
 			}})
 			if c.Entra && asistente != "" {
 				t.Errorf("el asistente lo rechaza y tiene que entrar: %q\n%s", asistente, c.Nota)
@@ -282,10 +236,49 @@ func TestLaReglaDeEntradaEsLaDelFichero(t *testing.T) {
 			zona, _ := motivoDeCorteDelArmado(sqlc.PedidosDeColumnaParaArmarRutaRow{
 				OperationNumber: &op, CustomerName: "Cliente", FacturaEstado: estado,
 				FacturaDomicilio: c.FacturaDomicilio, PedidoCosto: c.PedidoCosto,
-				RequiereDomicilio: c.RequiereDomicilio,
 			})
 			if c.Entra != (zona == "") {
 				t.Errorf("la zona del tablero dice %q y el fichero dice entra=%v\n%s", zona, c.Entra, c.Nota)
+			}
+		})
+	}
+}
+
+// EL COSTO DE LA PARADA ES EL DEL FICHERO — Amado y Jose, 16/10/2026. Sin cotizar y cobrado, la
+// parada vale lo cobrado; cotizado, lo cotizado. El aparato lee los mismos casos.
+func TestElCostoDeLaParadaEsElDelFichero(t *testing.T) {
+	b, err := os.ReadFile(rutaDeLosCasosDelArmado)
+	if err != nil {
+		t.Fatalf("no se pudo leer %s: %v", rutaDeLosCasosDelArmado, err)
+	}
+	var fichero struct {
+		Costo struct {
+			Casos []struct {
+				Nombre           string   `json:"nombre"`
+				PedidoCosto      *float64 `json:"pedidoCosto"`
+				FacturaDomicilio *float64 `json:"facturaDomicilio"`
+				Costo            *float64 `json:"costo"`
+			} `json:"casos"`
+		} `json:"costoDeLaParada"`
+	}
+	if err := json.Unmarshal(b, &fichero); err != nil {
+		t.Fatalf("%s no se puede interpretar: %v", rutaDeLosCasosDelArmado, err)
+	}
+	if len(fichero.Costo.Casos) < 4 {
+		t.Fatalf("%s: `costoDeLaParada` perdió sus casos: una prueba sobre una lista vacía sale verde sin mirar nada", rutaDeLosCasosDelArmado)
+	}
+	for _, c := range fichero.Costo.Casos {
+		t.Run(c.Nombre, func(t *testing.T) {
+			got := costoDeLaParada(c.PedidoCosto, c.FacturaDomicilio)
+			if (got == nil) != (c.Costo == nil) || (got != nil && *got != *c.Costo) {
+				t.Errorf("costoDeLaParada(%v, %v) = %v y el fichero fija %v", c.PedidoCosto, c.FacturaDomicilio, got, c.Costo)
+			}
+			// La parada que se arma con ese pedido recibe ese costo en `price`.
+			id := uuid.New()
+			fila := sqlc.PedidosParaArmarRutaRow{ID: id, PedidoCosto: c.PedidoCosto, FacturaDomicilio: c.FacturaDomicilio}
+			price := costoDelPedido([]sqlc.PedidosParaArmarRutaRow{fila}, id)
+			if (price == nil) != (c.Costo == nil) || (price != nil && *price != *c.Costo) {
+				t.Errorf("el price copiado a la parada es %v y el fichero fija %v", price, c.Costo)
 			}
 		})
 	}

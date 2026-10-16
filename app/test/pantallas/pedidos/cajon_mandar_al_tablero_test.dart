@@ -393,56 +393,8 @@ void main() {
       'Mira la marca de Factura en Pedidos: ahí se ve si el domicilio está '
       'cobrado.';
 
-  testWidgets(
-    'si alguien se queda por el domicilio sin cobrar, el cajón manda a mirar '
-    'la marca de Factura',
-    (tester) async {
-      await preparar();
-      await sembrarPedido(
-        base,
-        id: 'o1',
-        cliente: 'Ana',
-        folio: 'F-1',
-        endLat: 21.38,
-        endLng: -77.91,
-      );
-      // La factura cuadra pero NO trae la línea «ENTREGA A DOMICILIO».
-      await sembrarPedido(
-        base,
-        id: 'o2',
-        cliente: 'Beto',
-        folio: 'F-SIN',
-        facturaDomicilio: null,
-        endLat: 21.38,
-        endLng: -77.91,
-      );
-      await sembrarZona('z-cam', 'Centro', 'B1');
-      await pintar(
-        tester,
-        const CajonMandarAlTablero(),
-        marcados: const ['o1', 'o2'],
-      );
-
-      await tester.tap(find.text('Centro'));
-      await asentar(tester);
-      await tester.tap(find.text(CajonMandarAlTablero.mandar));
-      await asentar(tester);
-
-      expect(find.text('1 pedido(s) en «Centro»'), findsOneWidget);
-      // El motivo del servidor, literal y sin tocar.
-      expect(
-        find.text(
-          'F-SIN · Beto: No se puede asociar al tablero: la factura no tiene '
-          'un cobro de domicilio registrado.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text(ayudaFactura), findsOneWidget);
-
-      await cerrar(tester);
-    },
-  );
-
+  // La pista «mira la marca de Factura» se quitó el 16/10/2026: el cobro del domicilio ya no
+  // frena a nadie (TEMPORAL, Jose). Queda la pareja: ningún motivo la lleva.
   testWidgets(
     'si se quedan por OTRO motivo, la pista de la marca de Factura no sale',
     (tester) async {

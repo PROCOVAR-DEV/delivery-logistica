@@ -22,6 +22,7 @@
 //    («nada se descarta en silencio»).
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/regla_de_entrada.dart';
 import '../../informes/datos/consultas_informes.dart';
 import 'geo.dart';
 import 'repositorio_rutas.dart';
@@ -144,7 +145,7 @@ Recorrido recorridoDe(RutaConTodo ruta) {
           // se respeta.
           importe: ConsultasInformes.ingresoDe(
             precio: parada.price,
-            costo: parada.pedidoCosto,
+            costo: costoDeLaParada(parada.pedidoCosto, parada.facturaDomicilio),
           ),
           entregada: parada.resultado == ResultadoParada.entregado,
           esRegreso: parada.tripLeg == Tramo.regreso,

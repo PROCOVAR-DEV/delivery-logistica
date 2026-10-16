@@ -11,18 +11,13 @@ import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/numero_de_factura.dart';
 import '../../../nucleo/plataforma.dart';
-import '../../../nucleo/regla_de_entrada.dart'
-    show faltaLaCotizacion, facturaQueEntra;
+import '../../../nucleo/regla_de_entrada.dart' show facturaQueEntra;
 import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcel;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../nucleo/base/base.dart';
-import '../../tablero/datos/repositorio.dart'
-    show
-        msgSinCotizarElDomicilio,
-        msgSinDomicilioCobrado,
-        porQueNoSePuedeColocar;
+import '../../tablero/datos/repositorio.dart' show porQueNoSePuedeColocar;
 import '../datos/formato.dart';
 import '../datos/repositorio_pedidos.dart';
 import '../estado/proveedores_pedidos.dart';
@@ -280,20 +275,13 @@ class _BandaFactura extends StatelessWidget {
 /// **No repite la regla: le pregunta a [porQueNoSePuedeColocar]**, la misma pieza
 /// que el arrastre del tablero y el «Sin cobro de domicilio» de la tabla, que a su
 /// vez lee `nucleo/regla_de_entrada.dart`. «No entra» sale SÓLO cuando de verdad no
-/// entra por el domicilio: sin cobrar en la factura, o marcado y sin cotizar. Un
+/// entra por el domicilio: sin cobrar en la factura (la cotización de Entrega no
+/// cuenta, Amado 16/10/2026). Un
 /// entregado, uno que ya va en una ruta o uno archivado no tienen nada que decir
 /// aquí (lo cuenta el resto de la ficha), y uno sin punto de entrega tampoco puede
 /// ir, así que no se le dice que puede.
 String? lineaDeRutaDeLaFicha(Pedido pedido) {
   final motivo = porQueNoSePuedeColocar(pedido);
-  if (motivo == msgSinDomicilioCobrado) {
-    return 'No entra a una ruta: la factura no tiene un cobro de domicilio '
-        'registrado.';
-  }
-  if (motivo == msgSinCotizarElDomicilio) {
-    return 'No entra a una ruta: se marcó domicilio y Entrega todavía no lo '
-        'cotizó.';
-  }
   if (motivo == null &&
       !pedido.archivado &&
       pedido.endLat != null &&
@@ -311,18 +299,9 @@ class _Domicilio extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final conPrecio = pedido.pedidoCosto != null;
-    // Sin precio, el ámbar es sólo para quien lo NECESITA para repartir (marcado a
-    // domicilio). Al que no se marcó no le hace falta (issue 10, 15/10/2026), y
-    // pintarlo de aviso sugería lo contrario.
-    final hacefalta = faltaLaCotizacion(
-      pedidoCosto: pedido.pedidoCosto,
-      requiereDomicilio: pedido.requiereDomicilio,
-    );
-    final color = conPrecio
-        ? Colores.verde
-        : hacefalta
-        ? Colores.ambar
-        : Colores.gris;
+    // Sin precio es un DATO, no un aviso (Amado, 16/10/2026: para ir a una ruta lo que
+    // manda es el cobro en la factura): gris, nunca ámbar.
+    final color = conPrecio ? Colores.verde : Colores.gris;
 
     return Container(
       width: double.infinity,
@@ -355,12 +334,8 @@ class _Domicilio extends StatelessWidget {
             conPrecio
                 ? 'El costo lo puso el repartidor desde Entrega. '
                       'La distancia es del almacén al cliente.'
-                : hacefalta
-                ? 'El costo lo pone el repartidor desde Entrega; hasta entonces '
-                      'este pedido no tiene precio de domicilio.'
-                : 'El vendedor no marcó domicilio y Entrega sólo cotiza los '
-                      'marcados: este pedido no tiene precio de domicilio, y no '
-                      'le hace falta para ir a una ruta.',
+                : 'Entrega todavía no lo cotizó. No hace falta para ir a una ruta: '
+                      'lo que cuenta es el cobro de domicilio en la factura.',
             style: TextStyle(fontSize: 12, color: Colores.gris),
           ),
         ],

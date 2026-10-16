@@ -58,8 +58,11 @@ void main() {
   // vive FUERA de esta lista; el filtro «Con cobro / Sin cobro» queda en la
   // pantalla (retirarlo es una mejora futura, anotada) pero «sin cobro» solo
   // puede contestar vacio.
-  test('sin el filtro salen los dos cotizados; el sin poner YA NO', () async {
-    expect(await conFiltro(null), ['con-cobro', 'de-cero']);
+  // TEMPORAL 16/10/2026 (Jose): entra todo lo facturado y este filtro es lo que deja al
+  // logístico buscar sólo los cobrados: «todos» trae los tres, «con cobro» los cotizados y
+  // «sin cobro» el que falta.
+  test('sin el filtro (todos) salen los tres, también el sin poner', () async {
+    expect(await conFiltro(null), ['con-cobro', 'de-cero', 'sin-poner']);
   });
 
   test('«con cobro» incluye el de CERO, que no es un hueco', () async {
@@ -69,8 +72,8 @@ void main() {
     expect(await conFiltro(true), ['con-cobro', 'de-cero']);
   });
 
-  test('«sin cobro» solo puede contestar vacio: lo sin cotizar no se coloca', () async {
-    expect(await conFiltro(false), isEmpty);
+  test('«sin cobro» trae el sin poner: ahora sí se coloca', () async {
+    expect(await conFiltro(false), ['sin-poner']);
   });
 
   test('el filtro viaja en la dirección, para poder mandar el enlace', () {

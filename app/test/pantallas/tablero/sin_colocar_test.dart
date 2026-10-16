@@ -525,8 +525,8 @@ void main() {
   //
   // LAS PRUEBAS VAN EN PAREJA: con solo la mitad de «no sale» se cumpliria igual
   // devolviendo SIEMPRE cero.
-  group('sin domicilio cobrado no se coloca', () {
-    test('el que cobro el domicilio sale, y el que no, no', () async {
+  group('sin domicilio cobrado SÍ se coloca (TEMPORAL 16/10/2026, Jose)', () {
+    test('el que cobro el domicilio sale, y el que no, también', () async {
       await sembrarPedido(base, id: 'con-domicilio');
       await sembrarPedido(base, id: 'sin-domicilio', facturaDomicilio: null);
 
@@ -542,10 +542,8 @@ void main() {
       );
       expect(
         ids,
-        isNot(contains('sin-domicilio')),
-        reason:
-            'sale un pedido sin domicilio cobrado. Se puede colocar en una '
-            'zona y despues la ruta no lo acepta: el dia se prepara para nada',
+        contains('sin-domicilio'),
+        reason: 'por ahora entra todo lo facturado, cobrado o no',
       );
     });
 
@@ -576,7 +574,7 @@ void main() {
         );
         expect(
           ids,
-          isNot(contains('marcado-sin-cotizar')),
+          contains('marcado-sin-cotizar'),
           reason: 'la cotizacion se dejo de exigir tambien a los marcados',
         );
       });

@@ -26,6 +26,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../diseno/numeros.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../pedidos/datos/formato.dart';
 
@@ -94,6 +95,7 @@ class ImporteDeRuta {
   /// Sobre una lista VACÍA da `0`, no `null`: una ruta sin paradas no es una
   /// ruta con el importe a medias, es una ruta que no lleva nada. «Se sabe y
   /// vale cero» es una cifra.
+  /// [costos] son los de [costoDeLaParada]: cotizado o, si no, cobrado en la factura.
   static ImporteDeRuta deLasParadas(Iterable<double?> costos) {
     var suma = 0.0;
     var faltan = 0;
@@ -171,10 +173,14 @@ Stream<Map<String, ImporteDeRuta>> importePorRuta(BaseLocal base) {
   // cuanto `sin_cotizar` no es cero: no se usa nunca un total al que le falte
   // un sumando. Está para que `SUM` no devuelva `NULL` y haya que distinguir
   // dos nulos distintos en el mismo sitio.
-  const sql = '''
+  // El costo de la parada es el cotizado o, si no, lo cobrado en la factura
+  // (`costoDeLaParada`, Amado, 16/10/2026).
+  final costo = costoDeLaParadaSql();
+  final sql =
+      '''
 SELECT ultima_ruta_id AS ruta,
-       SUM(COALESCE(pedido_costo, 0)) AS total,
-       SUM(CASE WHEN pedido_costo IS NULL THEN 1 ELSE 0 END) AS sin_cotizar,
+       SUM(COALESCE($costo, 0)) AS total,
+       SUM(CASE WHEN $costo IS NULL THEN 1 ELSE 0 END) AS sin_cotizar,
        COUNT(*) AS paradas
   FROM orders
  WHERE ultima_ruta_id IS NOT NULL

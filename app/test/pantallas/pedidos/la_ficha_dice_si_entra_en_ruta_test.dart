@@ -100,9 +100,8 @@ void main() {
     expect(find.text('Sin calcular todavía'), findsOneWidget);
     expect(
       find.text(
-        'El vendedor no marcó domicilio y Entrega sólo cotiza los marcados: '
-        'este pedido no tiene precio de domicilio, y no le hace falta para ir '
-        'a una ruta.',
+        'Entrega todavía no lo cotizó. No hace falta para ir a una ruta: lo '
+        'que cuenta es el cobro de domicilio en la factura.',
       ),
       findsOneWidget,
     );
@@ -110,36 +109,24 @@ void main() {
     await cerrar(tester);
   });
 
-  testWidgets('la pareja: MARCADO y sin cotizar dice que no entra y por qué', (
+  // PCC25-261014-1435 (Amado, 16/10/2026): MARCADO y sin cotizar PUEDE ir (antes decía que no).
+  testWidgets('MARCADO y sin cotizar: puede ir, y no sugiere que hace falta cotizar', (
     tester,
   ) async {
     await abrir(tester, pedido(marcado: true));
 
-    expect(
-      tester.widget<Text>(lineaDeRuta).data,
-      'No entra a una ruta: se marcó domicilio y Entrega todavía no lo cotizó.',
-    );
-    expect(
-      find.text(
-        'El costo lo pone el repartidor desde Entrega; hasta entonces este '
-        'pedido no tiene precio de domicilio.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('Puede ir a una ruta.'), findsNothing);
+    expect(tester.widget<Text>(lineaDeRuta).data, 'Puede ir a una ruta.');
+    expect(noEntraMayuscula, findsNothing);
+    expect(find.textContaining('hasta entonces'), findsNothing);
     await cerrar(tester);
   });
 
-  testWidgets('sin domicilio cobrado en la factura dice que no entra', (
-    tester,
-  ) async {
+  // TEMPORAL 16/10/2026 (Jose): sin cobro en la factura también puede ir. La pareja de
+  // «no entra» es sólo la factura sin cotejar/sin factura (no se muestra esa línea).
+  testWidgets('sin domicilio cobrado en la factura: puede ir', (tester) async {
     await abrir(tester, pedido(domicilio: null));
 
-    expect(
-      tester.widget<Text>(lineaDeRuta).data,
-      'No entra a una ruta: la factura no tiene un cobro de domicilio '
-      'registrado.',
-    );
+    expect(tester.widget<Text>(lineaDeRuta).data, 'Puede ir a una ruta.');
     await cerrar(tester);
   });
 

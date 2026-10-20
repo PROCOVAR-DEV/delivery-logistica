@@ -226,6 +226,12 @@ conduce, ése es el número que buscas.
 En una ruta **planificada**, cada parada lleva además el botón **«Quitar de ruta»**
 (ver abajo). En una ruta en curso o completada ese botón no sale.
 
+**«Ubicar la entrega»** sale junto a él en **cada parada que no esté entregada, mientras
+la ruta no esté completada** (también en una ruta en curso). Abre el cajón donde se le
+pone a mano el punto de entrega a ese pedido —el cliente pidió entregar en otro sitio—;
+ver [Poner el punto de entrega a mano](pedidos.md#ubicar-la-entrega--el-punto-de-entrega-puesto-a-mano).
+Una parada con el punto puesto a mano lleva la etiqueta **«Punto puesto a mano»**.
+
 ### Reordenar las paradas — arrastrando o «Ordenar por cercanía»
 
 En una ruta **planificada o en curso**, «Ver paradas» deja cambiar el orden de visita:
@@ -306,6 +312,15 @@ marca como devuelto o cancelado en el cierre.
 Al tocar una parada en el croquis se abre un globo que empieza por **el número de factura
 con su fecha** (en negrita; «Sin número de factura» si no tiene), y debajo «1. Cliente» y
 el importe.
+
+**El número en rojo.** La parada cuyo **punto de entrega se puso a mano** sale en el mapa
+con su número en **rojo** (en vez del azul del recorrido, el verde de lo entregado o el
+naranja del regreso), y su globo añade la línea **«Punto puesto a mano»**. Es la señal de
+que esa parada **no está donde dice la geolocalización del cliente**. Manda sobre
+«entregada» y sobre «regreso»: una entregada que estaba en otro sitio se sigue viendo en
+rojo. Si varias paradas caen juntas en la misma chincheta («2·3»), basta con que **una**
+sea manual para que la chincheta salga roja. Bajo el mapa, la leyenda lo dice:
+**«Punto puesto a mano»**.
 
 Si todo va bien (calles y recorrido por carretera) **no dice nada**. Cuando no:
 
@@ -390,10 +405,11 @@ coordenadas**; el principal va primero, con la nota «principal».
 
 Si la sucursal no tiene ninguno:
 
-> «Esta sucursal no tiene ningún almacén con ubicación. Se pone en Almacenes, y
-> hasta entonces no hay desde dónde medir.»
+> «Esta sucursal no tiene ningún almacén con ubicación. Los almacenes se ponen en el
+> CRM, y hasta entonces no hay desde dónde medir.»
 
-Con el botón **«Poner el almacén»**, que cierra el asistente y lleva a Almacenes.
+Con el botón **«Ver los almacenes»**, que cierra el asistente y lleva a Almacenes,
+que solo los consulta: el almacén se da de alta o se corrige en el CRM.
 
 ### Paso 3 — «Vehículo»
 
@@ -456,7 +472,9 @@ Los filtros:
 
 **Cada pedido de la lista** lleva primero **el número de factura con su fecha** (en negrita:
 `Factura 47061 · 15/10/2026`; «Sin número de factura» en gris si no lo tiene) y debajo el
-cliente.
+cliente. A la derecha lleva un botón pequeño, con el tooltip **«Ubicar la entrega»**: abre
+el cajón para ponerle a mano el punto de entrega a ese pedido, sin salir del asistente.
+**Pulsarlo no marca ni desmarca el pedido.**
 
 **Cuidado con «costo mín.»:** un pedido sin cotizar cuenta como cero, así que
 cualquier «costo mín.» mayor que cero lo deja fuera.

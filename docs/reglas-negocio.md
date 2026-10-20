@@ -186,6 +186,19 @@ Reglas que no son mapeo trivial:
 
 ---
 
+### 2.4 El peso de una entrega que nace de una FACTURA (issue 20, 20/10/2026)
+
+Jose: **el peso sale de Ventra**. El espejo pone en cada renglón `pesoKg = products.weight` (por
+(sucursal, `sku` = `productCode`), que es el peso por UNIDAD DE VENTA), `packs` = la cantidad de la
+factura (B, C, PACA…) y `quantity` = `packs × products.units_per_package` (o `packs` si ese dato no
+existe). **La cuenta la hace la cascada de §2.1, escalón 2 (`pesoKg × packs`)**: no hay otra
+multiplicación escrita. «CERVEZA PARRANDA 500 ML BLISTER 6U, 15 B» = 15 empaques, 90 unidades, y con 2,4 kg
+por B pesa 36 kg. Un producto sin peso en `products` (cero) o que no está queda sin `pesoKg`, cae a los
+demás escalones y, si ninguno lo resuelve, cuenta como «sin peso»: el espejo lo dice en su registro con los
+códigos. Detalle del mapeo: `contratos-api.md`, «La entrega que nace de una FACTURA».
+
+---
+
 ## 3. `warehouse.ts` — cliente del Data Warehouse (Ventra, read-only)
 
 - Sólo alcanzable por **VPN WireGuard**. `BASE = WAREHOUSE_API_URL || 'http://10.188.2.2:3001/api/external-api'`.
@@ -618,9 +631,11 @@ Constantes: `NOMINATIM = 'https://nominatim.openstreetmap.org'`, `UA = 'ProCovar
 
 ## 10. `almacenes.ts` — almacenes de una sucursal (leídos de Accesos)
 
-**Regla de fondo:** los almacenes **se gestionan en esta aplicación** (pantalla Almacenes) **pero
-viven en Accesos**: el almacén es de la sucursal. Aquí sólo se **leen**, firmado, y se recuerdan un
-rato — hacen falta para medir cada domicilio y no cambian de un minuto a otro.
+**Regla de fondo (20/10/2026, Jose):** los almacenes **viven en Accesos y se gestionan (editan) desde el
+CRM**: el almacén es de la sucursal. Reparto **no los edita** (se quitó `PUT /api/almacenes` y el editor;
+su pantalla es de solo consulta): aquí sólo se **leen**, firmado, y se recuerdan un rato — hacen falta para
+medir cada domicilio y no cambian de un minuto a otro. Cuando el CRM corrige uno publica un aviso en Redis
+(`procovar:crm:almacenes`) que tira ese recuerdo y repinta las pantallas (`api/internal/avisoscrm`).
 
 - `Almacen = {id, codigo, nombre, direccion: string|null, latitud: number|null,
   longitud: number|null, principal: boolean, activo: boolean}`.

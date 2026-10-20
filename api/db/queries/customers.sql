@@ -322,3 +322,14 @@ RETURNING id, source, external_id, name, sucursal_codigo, synced_at;
 DELETE FROM customers
 WHERE source = sqlc.arg('source')::procedencia
   AND NOT (external_id = ANY(sqlc.arg('external_ids')::text[]));
+
+-- LOS PUNTOS DE LOS CLIENTES DE UNA SUCURSAL, para ponerle coordenadas a una entrega que nace
+-- de una FACTURA (issue 20, Fase A). Ventra no trae coordenadas: el cliente de la factura se
+-- empareja con el espejo de clientes de PEDIDO por su CÓDIGO (`customerReference`, la nota
+-- `C-…` de la venta) y, si eso no es un código, por su nombre. Los clientes siguen en PEDIDO
+-- hasta nueva orden de Jose (20/10/2026). Va sin alcance: es del espejo, que entra con clave
+-- de servicio, y la sucursal la pone quien llama. Solo los de PEDIDO (`source`).
+-- name: PuntosDeClientesDeLaSucursal :many
+SELECT codigo, name, lat, lng
+FROM customers
+WHERE source = 'pedido' AND sucursal_codigo = sqlc.arg('sucursal_codigo')::text;

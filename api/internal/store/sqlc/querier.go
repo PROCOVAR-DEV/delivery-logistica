@@ -56,6 +56,15 @@ type Querier interface {
 	// PATCH de un pedido a mano. `coalesce` deja pasar sólo lo que viene: lo que no se manda
 	// no se pisa con NULL.
 	//
+	// # TAMPOCO TOCA EL PUNTO DE ENTREGA NI LA DIRECCIÓN — 20/10/2026 (issue 19 de Amado)
+	//
+	// Escribía `address`, `end_address`, `end_lat`, `end_lng`, `lat` y `lng` sin validar el rango,
+	// sin marcar que eran a mano (el espejo los pisaba al minuto), sin recalcular la distancia ni
+	// el `segment_km` de la parada y sin mirar si el pedido ya estaba entregado o en una ruta
+	// completada. La única puerta para cambiar el punto de entrega es ahora
+	// `PonerPuntoDeEntregaAMano` (`PUT /api/orders/{id}/punto`); el manejador responde 400 si
+	// llega alguno de esos seis campos.
+	//
 	// # LO QUE ESTA CONSULTA YA NO TOCA — 08/10/2026 (auditoría de la 1.0.28)
 	//
 	// Hasta la 1.0.28 también escribía `route_id`, `status`, `price`, `weight`, `stop_order` y
@@ -88,6 +97,15 @@ type Querier interface {
 	ActualizarSucursal(ctx context.Context, arg ActualizarSucursalParams) (Branch, error)
 	ActualizarTipoDeVehiculo(ctx context.Context, arg ActualizarTipoDeVehiculoParams) (VehicleType, error)
 	ActualizarVehiculo(ctx context.Context, arg ActualizarVehiculoParams) (Vehicle, error)
+	// ADOPTAR: la fila de PEDIDO de ese folio pasa a ser la de la factura, cambiándole SOLO el
+	// `external_id`. Conserva el `id` y con él la ruta, `stop_order`, el resultado, el punto a mano
+	// y todo lo que es del reparto; los campos del mapeo los pone el upsert que viene detrás.
+	//
+	// Una sola fila (`LIMIT 1` por antigüedad) por si PEDIDO repitiera el folio: dos filas con el
+	// mismo `external_id` nuevo chocarían con el índice único. Y no adopta si el `external_id` de
+	// la factura ya existe (carrera sin candado, o fila ya adoptada): entonces el upsert normal
+	// actualiza la de la factura.
+	AdoptarPedidoPorFolio(ctx context.Context, arg AdoptarPedidoPorFolioParams) (int64, error)
 	// ---------------------------------------------------------------------------
 	// Los pedidos que NO se midieron desde su propio almacén
 	// ---------------------------------------------------------------------------
@@ -170,6 +188,25 @@ type Querier interface {
 	// cabe en esta tanda se pide en la siguiente con la marca de la última fila servida. La
 	// clave desempata para que dos tandas iguales salgan iguales.
 	BajasDeLaBajada(ctx context.Context, arg BajasDeLaBajadaParams) ([]BajasDeLaBajadaRow, error)
+	// ---------------------------------------------------------------------------
+	// La adopción entre PEDIDO y la factura de Ventra  (issue 20, 00025)
+	// ---------------------------------------------------------------------------
+	//
+	// Mientras conviven las dos fuentes (`SYNC_FUENTE=ambas`), el mismo pedido llega como fila de
+	// PEDIDO (`external_id` = su id) y como entrega de factura (`external_id` = `factura:<clave>`,
+	// la convención que define `espejo.EsDeFactura`). La identidad entre las dos es
+	// (`sucursal_codigo`, `folio_normalizado(folio)`): el folio se guarda tal cual, pero se COMPARA en
+	// mayúsculas y sin nada que no sea letra o dígito (00025, auditoría G3: `pxx-900`, `'PXX-900` y
+	// `PXX - 900` son el `PXX-900` de PEDIDO). Su gemela en Go es `alcance.FolioNormalizado`. Estas tres consultas van juntas, dentro de la transacción de
+	// `EspejoGuardarPedido`, y en este orden: candado, adoptar o descartar, y el upsert de siempre.
+	//
+	// `starts_with(external_id, 'factura:')` ES LA GEMELA SQL DE `espejo.EsDeFactura`: si una
+	// cambia, cambia la otra (las ata `TestMotorReal_LaAdopcion…`, no un comentario).
+	// EL CANDADO DEL FOLIO. Sin él, un ciclo de PEDIDO y uno de factura que traen el mismo folio a
+	// la vez, sin fila previa de ninguno, insertan cada uno la suya (external_id distinto, nada
+	// que choque) y el pedido sale DOS veces. Un candado de transacción por (sucursal, folio) los
+	// pone en fila; el segundo ya ve la fila del primero. Se suelta solo al terminar la transacción.
+	BloquearFolioDePedido(ctx context.Context, arg BloquearFolioDePedidoParams) error
 	// Serializa completar, editar, borrar y marcar sobre la MISMA fila.
 	// Debe llamarse dentro de EnTx y conservar el bloqueo hasta terminar la escritura.
 	BloquearRuta(ctx context.Context, arg BloquearRutaParams) (RouteStatus, error)
@@ -352,6 +389,10 @@ type Querier interface {
 	// ruta abierta detrás es una ruta que nadie va a cerrar nunca y que sigue contando como
 	// activa en el panel.
 	CompletarRutasDeVehiculo(ctx context.Context, arg CompletarRutasDeVehiculoParams) (int64, error)
+	// LO QUE LA ENTREGA YA TIENE GUARDADO, por `external_id`: su conduce. El ciclo lo compara con lo que
+	// Ventra acaba de dar para no ENCOGER una entrega con una respuesta parcial (auditoría G2): un
+	// repaso que sólo ve una de las facturas de un folio no puede reescribir la entrega con esa sola.
+	ConducesGuardadosDeFactura(ctx context.Context, externalIds []string) ([]ConducesGuardadosDeFacturaRow, error)
 	// Los tres números de arriba de esa pantalla.
 	ContarAvisosAPedido(ctx context.Context) (ContarAvisosAPedidoRow, error)
 	// El total, con el MISMO where. Es el `total` de la respuesta: se cuenta antes del filtro
@@ -523,6 +564,13 @@ type Querier interface {
 	// porque en un índice único los NULL son distintos entre sí. Puede haber dos de referencia
 	// «de todas». Se cierra con `NULLS NOT DISTINCT` el día que estorbe.
 	DesmarcarReferenciaDeDomicilio(ctx context.Context, arg DesmarcarReferenciaDeDomicilioParams) (int64, error)
+	// VUELVE AL PUNTO DEL CLIENTE: el último que mandó el espejo, guardado en `punto_cliente_*`.
+	// Quita la marca y limpia lo guardado (hay `punto_cliente_*` solo mientras es manual).
+	// Mismas guardas y mismo recálculo que `PonerPuntoDeEntregaAMano`, y además `lat`/`lng` son el
+	// punto del cliente CON EL QUE SE MIDIÓ: si el espejo lo corrigió entre la lectura y esta
+	// escritura, los km serían los del punto viejo. Cero filas = no era manual, ya se entregó,
+	// cambió de ruta o de punto; el manejador distingue lo primero antes, esto cubre la carrera.
+	DevolverPuntoDeEntregaAlCliente(ctx context.Context, arg DevolverPuntoDeEntregaAlClienteParams) (DevolverPuntoDeEntregaAlClienteRow, error)
 	// Cuántas líneas hay por día, para ver de un vistazo qué días están bajados y cuáles no.
 	// Un día que falta no sale como cero: sale como que no está, y eso es lo correcto — un
 	// cero inventado se lee como «ese día no se vendió nada».
@@ -687,6 +735,19 @@ type Querier interface {
 	// LAS DOS PUERTAS pasan por aquí: `POST /api/routes` y `POST /api/board/columns/{id}/route`
 	// (`TableroEngancharPedidoARuta` es la misma consulta con otro envoltorio).
 	EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoARutaParams) (int64, error)
+	// ---------------------------------------------------------------------------
+	// Lo que ya no viene en Ventra  (issue 20, «ya no va»)
+	// ---------------------------------------------------------------------------
+	// LAS ENTREGAS DE FACTURA DE UNA VENTANA, para saber cuáles ya no aparecen en la respuesta de
+	// Ventra. SOLO las de factura (`factura:`), de ESA sucursal y cuyo día de factura en Cuba cae
+	// DENTRO de [desde, hasta]: una fila fuera de la ventana consultada no se puede juzgar, porque
+	// Ventra no fue preguntada por ella. El día se pasa a hora de Cuba igual que los filtros de
+	// fecha de la factura (issue 16, `coalesce(factura_at, order_date, created_at)`).
+	// `ocupada` es lo que impide retirarla: va o fue en una ruta, o tiene resultado.
+	EntregasDeFacturaEnVentana(ctx context.Context, arg EntregasDeFacturaEnVentanaParams) ([]EntregasDeFacturaEnVentanaRow, error)
+	// ¿YA LO ADOPTÓ UNA FACTURA? La pregunta del lado de PEDIDO: si hay una fila de factura con
+	// ese (sucursal, folio), el pedido de PEDIDO NO crea otra. No es un fallo: es la convivencia.
+	ExisteEntregaDeFacturaDelFolio(ctx context.Context, arg ExisteEntregaDeFacturaDelFolioParams) (bool, error)
 	// ¿Existe ese nombre en ALGUNA sucursal o «de todas»? NO LLEVA ALCANCE, a propósito, y sólo sirve
 	// para decir la verdad en un error: cuando `BuscarTipoDeVehiculoPorNombre` no encuentra el tipo
 	// para el camión, «No existe el tipo X» y «El tipo X no es de la sucursal de este camión» son
@@ -715,6 +776,11 @@ type Querier interface {
 	// la gente reconoce: el código a secas no dice nada y el nombre solo se repite.
 	FacetasSucursales(ctx context.Context, sucursal pgtype.UUID) ([]FacetasSucursalesRow, error)
 	FacetasVendedores(ctx context.Context, sucursal pgtype.UUID) ([]FacetasVendedoresRow, error)
+	// LA FECHA DE LA ENTREGA DE FACTURA ABIERTA MÁS ANTIGUA de una sucursal (día de Cuba): la que no
+	// está entregada ni cerrada (sin `resultado` ni `delivered_at`, y sin ir en una ruta completada).
+	// El repaso se ensancha hasta ahí para ver TODAS las facturas de los folios abiertos y no
+	// reescribirlos con la mitad (auditoría G2). NULL = no hay ninguna abierta.
+	FechaDeLaEntregaAbiertaMasAntigua(ctx context.Context, sucursalCodigo string) (pgtype.Date, error)
 	// Por dónde va el barrido del histórico, en DÍAS HACIA ATRÁS.
 	//
 	// Hace falta guardarlo porque de los datos NO se puede deducir: hay pedidos viejos
@@ -814,6 +880,10 @@ type Querier interface {
 	// de ello: dejarlo entrar borraría de un plumazo el resultado de una parada ya cerrada,
 	// que es justo el dato que dice qué mercancía bajó del camión.
 	//
+	// Y LO QUE SE CONSERVA SI EL PUNTO ES A MANO (`punto_manual`, 00024): el punto de entrega
+	// (`end_address`, `lat`, `lng`, `end_lat`, `end_lng`) y la distancia que se midió hasta él.
+	// Lo que trae PEDIDO se guarda en `punto_cliente_*`. Ver los CASE del `DO UPDATE` y del `WHERE`.
+	//
 	// `xmax = 0` es el truco de Postgres para saber si la fila se INSERTÓ o se ACTUALIZÓ: en
 	// una fila recién insertada el id de la transacción que la borró todavía es cero. Hace
 	// falta para poder decir en el registro cuántos pedidos son nuevos sin una consulta más.
@@ -874,6 +944,13 @@ type Querier interface {
 	//
 	// Va sin alcance: la bajada entra con clave de servicio y recorre las ocho sucursales.
 	GuardarVentaFacturada(ctx context.Context, arg GuardarVentaFacturadaParams) (GuardarVentaFacturadaRow, error)
+	// ---------------------------------------------------------------------------
+	// El punto de entrega puesto a mano  (PUT / DELETE /api/orders/{id}/punto, 00024)
+	// ---------------------------------------------------------------------------
+	// Lo que el manejador necesita saber antes de escribir: de qué sucursal es, desde qué almacén
+	// sale (para medir los km como la cotización), en qué ruta va y si ya se entregó. Con alcance:
+	// un pedido de otra sucursal no devuelve fila, que es el mismo 404 que si no existiera.
+	LeerPedidoParaElPunto(ctx context.Context, arg LeerPedidoParaElPuntoParams) (LeerPedidoParaElPuntoRow, error)
 	// QUITAR LA MARCA DE UNA PARADA — 28/09/2026.
 	//
 	// Jose: «desmarco el estado de cierre y no se guarda cuando salgo por q razon».
@@ -1536,6 +1613,12 @@ type Querier interface {
 	// que se mudó de Santiago a Holguín no se le ha ido de la vista, y mandárselo en
 	// `quitados` le borraría del aparato un pedido que existe y que está en su lista.
 	PedidosQueSalieronDelAlcance(ctx context.Context, arg PedidosQueSalieronDelAlcanceParams) ([]PedidosQueSalieronDelAlcanceRow, error)
+	// LO QUE PESA Y CUÁNTO TRAE CADA PRODUCTO DE UNA SUCURSAL, para pesar los renglones de una
+	// entrega que nace de una FACTURA (issue 20, Fase A). El peso sale de Ventra, no de PEDIDO
+	// (Jose, 20/10/2026): `weight` es por UNIDAD DE VENTA y `units_per_package` es cuántas
+	// unidades trae esa unidad de venta (una B de cerveza: 6). El `sku` es el `productCode` de la
+	// factura. Va sin alcance, igual que el resto de lo del espejo.
+	PesosDeProductosDeLaSucursal(ctx context.Context, sucursalCodigo string) ([]PesosDeProductosDeLaSucursalRow, error)
 	// El peso que le TOCA a cada pedido según el catálogo, junto al que tiene guardado.
 	//
 	// POR QUÉ SE SUMA EN LA BASE Y NO EN GO: el repaso es sobre el espejo ENTERO —decenas de
@@ -1571,6 +1654,27 @@ type Querier interface {
 	// y dejar sólo la mitad hecha es el tipo de asimetría que luego nadie encuentra.
 	PodarBajasDeLaBajada(ctx context.Context, anterioresA pgtype.Timestamptz) (int64, error)
 	PodarLapidasDePedidos(ctx context.Context, anterioresA pgtype.Timestamptz) (int64, error)
+	// PONE EL PUNTO DE ENTREGA A MANO. Una sola sentencia: el punto, la marca, la distancia al
+	// almacén y el `segment_km` de la parada se escriben juntos o no se escribe nada.
+	//
+	// `end_lat/end_lng` y `lat/lng` se ponen los cuatro, igual que los pone el espejo (§2.3: en un
+	// reparto «dónde está» y «dónde termina la parada» son el mismo sitio). `end_address` solo
+	// cambia si viene `direccion`; si no, se queda la que tenía.
+	//
+	// EL PUNTO DEL CLIENTE SE GUARDA SOLO LA PRIMERA VEZ: si el pedido ya era manual, `punto_cliente_*`
+	// ya tiene el último que mandó el espejo y pisarlo con el punto manual anterior perdería a qué
+	// se vuelve con el DELETE.
+	//
+	// `delivery_distance_km` y `segment_km` los calcula el manejador (mismo origen que la cotización,
+	// y radial desde el origen de la ruta); `segment_km` solo se toca si el pedido va en una ruta
+	// (`coalesce`), y el `stop_order` NO se toca nunca: es lo que decidió el logístico.
+	//
+	// EL WHERE REPITE LO QUE EL MANEJADOR COMPROBÓ, porque entre su lectura y esta escritura puede
+	// haber pasado cualquier cosa: ya entregado = no (es histórico: lo que bajó del camión), la
+	// ruta tiene que ser la misma que se bloqueó, y el almacén del pedido el mismo con el que se
+	// midió (el espejo lo puede cambiar al minuto: otro almacén son otros km). Cero filas = el
+	// manejador contesta 409 y no se guarda nada.
+	PonerPuntoDeEntregaAMano(ctx context.Context, arg PonerPuntoDeEntregaAManoParams) (PonerPuntoDeEntregaAManoRow, error)
 	// POR QUÉ NO SE PUEDE ARMAR CON ÉSTE. Es la explicación del 409, no un filtro.
 	//
 	// `PedidosParaArmarRuta` devuelve MENOS de los que se le piden por cinco motivos distintos
@@ -1594,6 +1698,13 @@ type Querier interface {
 	// fuera «no existe» y «no es tuyo» tienen que ser lo mismo, igual que en `ObtenerRuta`.
 	// Quien no devuelve fila se nombra igual, con ese motivo y sin contar nada de él.
 	PorQueNoSePuedeArmar(ctx context.Context, arg PorQueNoSePuedeArmarParams) ([]PorQueNoSePuedeArmarRow, error)
+	// LOS PUNTOS DE LOS CLIENTES DE UNA SUCURSAL, para ponerle coordenadas a una entrega que nace
+	// de una FACTURA (issue 20, Fase A). Ventra no trae coordenadas: el cliente de la factura se
+	// empareja con el espejo de clientes de PEDIDO por su CÓDIGO (`customerReference`, la nota
+	// `C-…` de la venta) y, si eso no es un código, por su nombre. Los clientes siguen en PEDIDO
+	// hasta nueva orden de Jose (20/10/2026). Va sin alcance: es del espejo, que entra con clave
+	// de servicio, y la sucursal la pone quien llama. Solo los de PEDIDO (`source`).
+	PuntosDeClientesDeLaSucursal(ctx context.Context, sucursalCodigo string) ([]PuntosDeClientesDeLaSucursalRow, error)
 	// Las tarjetas de los pedidos que acaban de subirse a una ruta salen del tablero.
 	//
 	// Se llama DENTRO de la misma transacción que engancha las paradas. La columna se vacía
@@ -1714,6 +1825,11 @@ type Querier interface {
 	// llevan siguen diciendo quién las repartió. DEVUELVE LA SUCURSAL del distribuidor, de donde sale
 	// el aviso en vivo. `:one`: cero filas es «no existe O no es de tu sucursal», o sea el 404.
 	RetirarDistribuidor(ctx context.Context, arg RetirarDistribuidorParams) (uuid.UUID, error)
+	// RETIRAR LAS QUE YA NO VAN. Aunque quien llama ya filtró, la guarda se repite en el propio
+	// DELETE: entre la lectura y el borrado una ruta puede haberla recogido, y borrar lo que ya
+	// está en el camión es justo lo que no puede pasar. Solo `factura:`, solo sin ruta ni resultado.
+	// El borrado deja su lápida (`trg_orders_salida`) y los aparatos la quitan.
+	RetirarEntregasDeFactura(ctx context.Context, ids []uuid.UUID) (int64, error)
 	// Retirar un tipo NO es borrarlo. Se desactiva: deja de ofrecerse en el desplegable y los
 	// camiones que ya lo tienen siguen funcionando. Un DELETE choca contra la clave ajena de
 	// `vehicles.vehicle_type_id`, y hacerlo a la fuerza dejaría camiones sin tipo, que es un

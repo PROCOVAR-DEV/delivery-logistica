@@ -503,6 +503,49 @@ func (q *Queries) ObtenerProductoDelAlcance(ctx context.Context, arg ObtenerProd
 	return i, err
 }
 
+const pesosDeProductosDeLaSucursal = `-- name: PesosDeProductosDeLaSucursal :many
+SELECT sku, name, weight, units_per_package
+FROM products
+WHERE sucursal_codigo = $1::text AND sku IS NOT NULL
+`
+
+type PesosDeProductosDeLaSucursalRow struct {
+	Sku             *string  `json:"sku"`
+	Name            string   `json:"name"`
+	Weight          float64  `json:"weight"`
+	UnitsPerPackage *float64 `json:"units_per_package"`
+}
+
+// LO QUE PESA Y CUÁNTO TRAE CADA PRODUCTO DE UNA SUCURSAL, para pesar los renglones de una
+// entrega que nace de una FACTURA (issue 20, Fase A). El peso sale de Ventra, no de PEDIDO
+// (Jose, 20/10/2026): `weight` es por UNIDAD DE VENTA y `units_per_package` es cuántas
+// unidades trae esa unidad de venta (una B de cerveza: 6). El `sku` es el `productCode` de la
+// factura. Va sin alcance, igual que el resto de lo del espejo.
+func (q *Queries) PesosDeProductosDeLaSucursal(ctx context.Context, sucursalCodigo string) ([]PesosDeProductosDeLaSucursalRow, error) {
+	rows, err := q.db.Query(ctx, pesosDeProductosDeLaSucursal, sucursalCodigo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PesosDeProductosDeLaSucursalRow
+	for rows.Next() {
+		var i PesosDeProductosDeLaSucursalRow
+		if err := rows.Scan(
+			&i.Sku,
+			&i.Name,
+			&i.Weight,
+			&i.UnitsPerPackage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const usoDeProductos = `-- name: UsoDeProductos :many
 SELECT oi.product_id, sum(oi.quantity)::double precision AS unidades
 FROM order_items oi

@@ -48,10 +48,10 @@ Future<bool> preguntarAntesDeBorrar(
         const SizedBox(height: 20),
         // SENALABLE POR LA GUIA, y es el unico control de `diseno/` que lo es.
         //
-        // La pregunta de borrar la usan cinco tareas del manual —una ruta, un
-        // camion, un almacen, una zona— y el ultimo paso de las cinco es este
+        // La pregunta de borrar la usan varias tareas del manual —una ruta, un
+        // camion, una zona— y el ultimo paso de todas es este
         // boton. Marcarlo una vez aqui las deja a las cinco con su recorrido
-        // completo; marcarlo en cada pantalla seria el mismo boton con cinco
+        // completo; marcarlo en cada pantalla seria el mismo boton con varios
         // nombres.
         ControlSenalado(
           nombre: Senalado.confirmarElBorrado,

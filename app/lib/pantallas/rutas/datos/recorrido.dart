@@ -39,6 +39,7 @@ class ParadaDelRecorrido {
     this.importe,
     this.entregada = false,
     this.esRegreso = false,
+    this.manual = false,
   });
 
   final String id;
@@ -74,6 +75,12 @@ class ParadaDelRecorrido {
   /// Va en el tramo de vuelta (`orders.trip_leg = 'return'`), como el
   /// `tripLeg === 'return'` del `MapComponent.tsx` del patron.
   final bool esRegreso;
+
+  /// El logístico le puso el punto de entrega A MANO (issue 19 de Amado): el
+  /// cliente pidió entregar en otro sitio. Se pinta con el número en ROJO, por
+  /// encima de entregada y de regreso, para que se vea de un vistazo que esa
+  /// parada NO está donde dice la geolocalización del cliente.
+  final bool manual;
 
   bool get seDibuja => punto != null;
 }
@@ -156,6 +163,7 @@ Recorrido recorridoDe(RutaConTodo ruta) {
           ),
           entregada: parada.resultado == ResultadoParada.entregado,
           esRegreso: parada.tripLeg == Tramo.regreso,
+          manual: parada.puntoManual,
         ),
     ],
   );

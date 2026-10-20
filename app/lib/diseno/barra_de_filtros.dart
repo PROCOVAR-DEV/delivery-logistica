@@ -76,7 +76,7 @@ class BarraDeFiltros extends StatelessWidget {
   final List<Widget> anchoCompleto;
 
   /// Los botones que hacen algo en vez de filtrar: «Agregar vehículo», «Tipos
-  /// de vehículo», «Nuevo almacén». Se colocan con la MISMA regla que los
+  /// de vehículo». Se colocan con la MISMA regla que los
   /// filtros —rejilla de dos columnas en el teléfono— para que la pantalla no
   /// se vea distinta, pero van en su propia lista porque no son filtros y
   /// llamarlos así engañaría a quien lea esto dentro de seis meses.

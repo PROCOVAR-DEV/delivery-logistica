@@ -81,7 +81,7 @@ arregla:
 | Falta | Qué hacer |
 |---|---|
 | **«Al menos un vehículo»** | Toca el botón **«Agregar el primer vehículo»** |
-| **«Al menos un almacén con su punto puesto»** | Toca **«Poner el almacén»** |
+| **«Al menos un almacén con su punto puesto»** | Toca **«Ver los almacenes»** (se ponen en el CRM) |
 | **«El punto de partida de la sucursal»** | **No se arregla aquí.** «Pídelo a administración y baja solo con el día.» |
 | **«La tasa de cambio de la sucursal»** | **No se arregla aquí.** «La mantiene Accesos, que la trae de Entrega.» |
 

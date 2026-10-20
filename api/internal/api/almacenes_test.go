@@ -27,8 +27,6 @@ var errAccesosCaido = errors.New("auth 503: Service Unavailable")
 type accesosFalso struct {
 	sucursales []SucursalConAlmacenes
 	fallo      error
-	// Lo que se vio pasar: el cuerpo tiene que llegar a Accesos TAL CUAL.
-	guardado []byte
 }
 
 func (a *accesosFalso) Almacenes(context.Context) ([]SucursalConAlmacenes, error) {
@@ -49,14 +47,6 @@ func (a *accesosFalso) AlmacenesDeSucursal(_ context.Context, codigo string) ([]
 	}
 	// Una sucursal que Accesos no conoce devuelve la lista vacía, no un error.
 	return nil, nil
-}
-
-func (a *accesosFalso) GuardarAlmacenes(_ context.Context, cuerpo []byte) (map[string]any, error) {
-	if a.fallo != nil {
-		return nil, a.fallo
-	}
-	a.guardado = cuerpo
-	return map[string]any{"almacenes": []any{}}, nil
 }
 
 func (d *dobleDatos) ListarOrigenes(_ context.Context, sucursal pgtype.UUID) ([]sqlc.ListarOrigenesRow, error) {
@@ -419,90 +409,33 @@ func TestAlmacenesSiAccesosNoContestaEs502ConSuLiteral(t *testing.T) {
 	}
 }
 
-// Un cuerpo que no es `{ codigo, almacenes: [...] }` sale con UN solo mensaje, el del
-// contrato: no parsea, falta el código o `almacenes` no es una lista, da igual cuál.
-func TestAlmacenesElPutComprubaElCuerpoConElLiteralDelContrato(t *testing.T) {
+// EL PUT YA NO EXISTE — 20/10/2026 (decisión de Jose). Los almacenes se editan en el CRM y
+// Reparto SOLO LOS LEE. Si alguien vuelve a registrar `PUT /api/almacenes`, esto se pone en
+// rojo; y el GET tiene que seguir devolviendo la misma lista.
+//
+// El código es 405 y no 404: la ruta existe para GET, así que el router contesta
+// «método no permitido» (con `Allow: GET`). Se fija el valor real, no «cualquier error».
+func TestAlmacenesElPutYaNoExisteYElGetSigueIgual(t *testing.T) {
 	conAccesos(t, almacenesDePrueba())
 	h := montarDeDatos(t, datosDePrueba())
 
-	for _, cuerpo := range []string{`no es json`, `{}`, `{"codigo":"STG"}`, `{"codigo":"STG","almacenes":{}}`} {
+	for _, cuerpo := range []string{`{"codigo":"STG","almacenes":[]}`, ``} {
 		w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t), cuerpo, nil)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("%q: código %d %s", cuerpo, w.Code, w.Body.String())
-		}
-		if got := strings.TrimSpace(w.Body.String()); got != `{"error":"Se espera { codigo, almacenes: [...] }"}` {
-			t.Fatalf("%q: mensaje %q", cuerpo, got)
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("PUT /api/almacenes tenía que estar quitado (405), salió %d: %s", w.Code, w.Body.String())
 		}
 	}
-}
 
-// Quien sólo ve una sucursal no toca los almacenes de otra pasando el código a mano. Y
-// esto no es sólo ver de más: desde el almacén se mide lo que se le cobra al cliente, así
-// que moverle el punto a otra sucursal le cambia el precio a todas sus entregas.
-func TestAlmacenesNoSeGuardanLosDeOtraSucursal(t *testing.T) {
-	falso := conAccesos(t, almacenesDePrueba())
-	h := montarDeDatos(t, datosDePrueba())
-
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t),
-		`{"codigo":"HOL","almacenes":[]}`, nil)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("código %d: %s", w.Code, w.Body.String())
-	}
-	if got := strings.TrimSpace(w.Body.String()); got != `{"error":"Sin acceso a esa sucursal"}` {
-		t.Fatalf("mensaje %q", got)
-	}
-	if falso.guardado != nil {
-		t.Fatalf("se mandó a Accesos un cambio que había que rechazar: %s", falso.guardado)
-	}
-}
-
-// Un almacén sin coordenadas SE GUARDA —a veces se da de alta antes de tener el punto—
-// pero se avisa: sin lat/lng los pedidos de esa sucursal se quedan sin cotizar y nada lo
-// dice.
-func TestAlmacenesAvisaDeLosQueNoTienenCoordenadas(t *testing.T) {
-	falso := conAccesos(t, almacenesDePrueba())
-	h := montarDeDatos(t, datosDePrueba())
-
-	cuerpo := `{"codigo":"STG","almacenes":[{"nombre":"Central","latitud":20.0,"longitud":-75.8},{"nombre":"Patio nuevo"}]}`
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t), cuerpo, nil)
+	w := pedirDeDatos(t, h, http.MethodGet, "/api/almacenes", logisticoDeSantiago(t), "", nil)
 	if w.Code != http.StatusOK {
-		t.Fatalf("código %d: %s", w.Code, w.Body.String())
+		t.Fatalf("GET /api/almacenes: código %d: %s", w.Code, w.Body.String())
 	}
-	var salida map[string]any
+	var salida struct {
+		Sucursales []SucursalConAlmacenes `json:"sucursales"`
+	}
 	leerJSONDeDatos(t, w, &salida)
-	if salida["aviso"] != "1 almacén(es) sin coordenadas: desde ésos no se puede medir el domicilio." {
-		t.Fatalf("aviso %v", salida["aviso"])
-	}
-	if _, hay := salida["almacenes"]; !hay {
-		t.Fatalf("se perdió lo que contestó Accesos: %s", w.Body.String())
-	}
-	// El cuerpo llega a Accesos TAL CUAL: aquí no se guarda nada ni se reescribe nada.
-	if string(falso.guardado) != cuerpo {
-		t.Fatalf("el cuerpo no llegó tal cual: %s", falso.guardado)
-	}
-
-	// Con todos puestos, el aviso es null: uno vacío en la pantalla se lee como que algo
-	// pasó.
-	w = pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t),
-		`{"codigo":"STG","almacenes":[{"nombre":"Central","latitud":20.0,"longitud":-75.8}]}`, nil)
-	leerJSONDeDatos(t, w, &salida)
-	if salida["aviso"] != nil {
-		t.Fatalf("no había nada que avisar: %v", salida["aviso"])
-	}
-}
-
-// Si Accesos rechaza el cambio, se dice que fue ÉL: un 500 nuestro manda a mirar el sitio
-// equivocado.
-func TestAlmacenesSiAccesosRechazaElCambioEs502ConSuLiteral(t *testing.T) {
-	conAccesos(t, &accesosFalso{fallo: errAccesosCaido})
-	h := montarDeDatos(t, datosDePrueba())
-
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t),
-		`{"codigo":"STG","almacenes":[]}`, nil)
-	if w.Code != http.StatusBadGateway {
-		t.Fatalf("código %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "Accesos no aceptó el cambio: auth 503") {
-		t.Fatalf("mensaje %s", w.Body.String())
+	if len(salida.Sucursales) != 1 || salida.Sucursales[0].Codigo != "STG" ||
+		len(salida.Sucursales[0].Almacenes) == 0 {
+		t.Fatalf("el GET cambió de cuerpo: %s", w.Body.String())
 	}
 }

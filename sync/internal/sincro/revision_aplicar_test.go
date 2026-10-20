@@ -272,6 +272,8 @@ func TestAplicarVuelveAPasarLaListaBlanca(t *testing.T) {
 			// Y la de la FLOTA (issue 14), con la misma forma.
 			"M11": {"PATCH", "/vehicles/a/b"}, "M12": {"POST", "/vehicles-extra"}, "M13": {"PATCH", "/vehicle-types/."},
 			"M14": {"DELETE", "/distribuidores/x/y"},
+			// Y la del punto de entrega (issue 19): `DELETE /orders/{id}` borraría el pedido y NO está abierta.
+			"M15": {"DELETE", "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, "M16": {"PUT", "/orders/a/b/punto"},
 		}
 		for clave, mr := range malos {
 			cu := `{}`
@@ -339,6 +341,32 @@ func TestAplicarAdmiteLaFlota(t *testing.T) {
 			if p := e.aplicador.llamadas[i]; p.Ruta != ruta || p.Token != "token-de-admin-cam" {
 				t.Errorf("llamada %d: ruta %q token %q", i, p.Ruta, p.Token)
 			}
+		}
+	})
+}
+
+// EL PUNTO DE ENTREGA SE APLICA (issue 19): `PUT` y `DELETE /orders/{id}/punto` llegan al reparto con el token del
+// REVISOR. Es la pareja de M15 y M16 de arriba: la forma buena pasa, `DELETE /orders/{id}` no.
+func TestAplicarAdmiteElPuntoDeEntrega(t *testing.T) {
+	paraCadaMotor(t, func(t *testing.T, e *entorno) {
+		hecho := e.hechoHaceUnaHora()
+		ruta := "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff/punto"
+		crudo := fmt.Sprintf(`{"aparato":%q,"apuntes":[`+
+			`{"clave":"P1","hecho":%q,"metodo":"PUT","ruta":%q,"cuerpo":{"lat":20.1,"lng":-75.9}},`+
+			`{"clave":"P2","hecho":%q,"metodo":"DELETE","ruta":%q}]}`,
+			e.aparato.ID.String(), hecho, ruta, hecho, ruta)
+		w, _ := e.entregarCuerpo(crudo)
+		e.esperar(w, http.StatusOK, "")
+		e.comoRevisor("admin-punto", "ADMINISTRADOR", e.sucursal)
+		for _, clave := range []string{"P1", "P2"} {
+			w = e.aplicarUno(e.aparato.ID, clave, nil)
+			e.esperar(w, http.StatusOK, "")
+			if r := resultadosDe(t, w).Resultados; len(r) != 1 || r[0].Estado != EstadoAplicado {
+				t.Errorf("%s: tenía que aplicarse: %+v", clave, r)
+			}
+		}
+		if len(e.aplicador.llamadas) != 2 || e.aplicador.llamadas[0].Ruta != ruta || e.aplicador.llamadas[1].Token != "token-de-admin-punto" {
+			t.Fatalf("llamadas al reparto: %+v", e.aplicador.llamadas)
 		}
 	})
 }

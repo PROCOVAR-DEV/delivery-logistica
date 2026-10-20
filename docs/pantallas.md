@@ -251,7 +251,11 @@ primera/anterior/números (ventana de 5)/siguiente/última. **50 por página, fi
 Título = nombre del cliente, subtítulo = folio. Secciones:
 
 - `Entrega`: dirección, coordenadas `lat, lng` con enlace `ver mapa` a Google Maps,
-  teléfono.
+  teléfono. **Punto de entrega a mano (issue 19 de Amado, 1.0.39):** si `puntoManual`, la
+  insignia ámbar `Punto puesto a mano` (tooltip `Lo puso <persona>`); debajo, el botón
+  `Ubicar la entrega` (icono `edit_location_alt_outlined`) o, si el pedido ya está
+  entregado o su ruta está completada, el literal del porqué en gris y sin botón (ver
+  «Ubicar la entrega» abajo).
 - `Recorrido`: mapa de 220 px con dos puntos, almacén (origen) → cliente. Pie:
   `Del almacén (<nombre>) al cliente.`
 - Banda de factura según `facturaEstado`:
@@ -275,8 +279,42 @@ Título = nombre del cliente, subtítulo = folio. Secciones:
   Vacío: `Sin productos`.
 - `Ruta`: código, vehículo y fecha de entrega, si la tiene.
 
-**Acciones de escritura en esta pantalla: ninguna.** Sólo lectura, selección local e
-impresión.
+**Acciones de escritura en esta pantalla: una, `Ubicar la entrega`.** Lo demás es lectura,
+selección local e impresión.
+
+#### Cajón `Ubicar la entrega` (ancho `lg`; issue 19 de Amado)
+
+El cliente pide entregar en otro sitio y el facturador lo apunta en el ticket: la dirección no
+coincide con la geolocalización del cliente. El logístico le pone **a mano** el punto de
+entrega (lat, lng, dirección); ese punto manda sobre el del cliente y sobrevive al espejo
+(lo hace el servidor). Un solo cajón (`CajonUbicarEntrega`), tres puertas: esta ficha, la
+tarjeta de la parada del detalle de ruta (junto a `Quitar de ruta`) y cada fila del paso
+`Pedidos` del asistente (botón pequeño con tooltip `Ubicar la entrega`, que **no** marca
+la casilla).
+
+- Título `Ubicar la entrega`, subtítulo `<folio> · <cliente>`. Campos: `Dirección` (+ botón
+  `Buscar`, 4 letras como mínimo, **necesita red**), `Coordenadas` (`19.83, -75.82`; **la
+  única caja por la que se escribe el punto**: la escriben también el mapa y la búsqueda) y
+  el mapa para pulsar (`MapaParaElegirPunto`; funciona sin señal). Vacía, la dirección se queda
+  como estaba.
+- Pie: `Cancelar` · `Volver al punto del cliente` (sólo si ya es manual; sin fondo, icono
+  `undo`, **pregunta antes** en un cajón: `Sí, volver al punto del cliente` / `No, dejar el
+  punto a mano`) · `Guardar punto` (`BotonPrincipal`, icono `edit_location_alt_outlined`; no se
+  enciende hasta que cambie algo).
+- Si no se puede (entregado o ruta completada) el cajón no enseña formulario: dice el literal.
+- Los «no» salen **literales** debajo de las cajas, y el cajón se queda abierto.
+
+| Acción | Llamada | Notas |
+|---|---|---|
+| Poner el punto | `PUT /orders/<id>/punto` `{lat, lng, direccion?}` | 200 `{id, endLat, endLng, endAddress, puntoManual, puntoManualPor, puntoManualAt, deliveryDistanceKm, segmentKm}`. 400 `Se espera { lat, lng }` / `lat y lng tienen que ser un punto del planeta` (rango o (0,0)); 404 `No encontrado`; 409 `El pedido ya está entregado: no se le puede cambiar el punto` / `La ruta ya está completada: no se le puede cambiar el punto a sus paradas`; 502 si Accesos no contesta. |
+| Volver al del cliente | `DELETE /orders/<id>/punto` | Mismo 200. 409 `El pedido no tiene un punto puesto a mano`. |
+
+- **Web:** va al servidor y espera; sin fila escrita si dice que no. **APK y escritorio:** UNA
+  transacción escribe la fila (`endLat/endLng/lat/lng`, `endAddress`, `puntoManual`,
+  `puntoClienteLat/Lng/Address` la primera vez), recalcula el km de la parada y el total de su
+  ruta (mismas cuentas que al armar) y encola el apunte. **No recalcula `deliveryDistanceKm`**
+  (el almacén del pedido se elige en el servidor); hasta que suba y baje, se ve la de antes.
+  La bandeja de revisión lo reconoce (`Poner el punto de entrega de un pedido a mano`).
 
 ---
 
@@ -368,7 +406,12 @@ pasa a `copiado` 2,5 s, y aviso si sobran paradas:
 `(Google admite 25 paradas: <n> quedan fuera del enlace)`.
 
 Mapa a lo alto restante. Sin coordenadas: `Sin coordenadas GPS para esta ruta`.
-Leyenda: `Punto de partida` (verde) · `Paradas` (azul) · `Regreso al depósito` (naranja).
+Leyenda: `Punto de partida` (verde) · `Paradas` (azul) · `Regreso al depósito` (naranja) ·
+`Punto puesto a mano` (rojo: el **número** de una parada con el punto puesto a mano sale en
+rojo, `ColoresDelMapa.puntoManual`, y manda sobre entregada y regreso; en un grupo `2·3` basta
+una manual para que salga rojo; el globo añade la línea `Punto puesto a mano`). Cada
+tarjeta de parada con `puntoManual` lleva la insignia `Punto puesto a mano` y, si se puede
+(sin entregar, ruta no completada), el botón `Ubicar la entrega`.
 
 ### Asistente «Nueva Ruta» (cajón a pantalla **completa**, con pie fijo)
 
@@ -385,7 +428,7 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
 2. **`Punto de partida`.** Es un **almacén de la sucursal** (de Accesos), nunca un punto
    propio. Con varios: selector `Almacén del que sale el camión`, el principal primero y
    con la nota `principal`. Mapa de 220 px con el punto. Sin almacenes con ubicación:
-   `Esta sucursal no tiene ningún almacén con ubicación. Se pone en Almacenes, y hasta entonces no hay desde dónde medir.`
+   `Esta sucursal no tiene ningún almacén con ubicación. Los almacenes se ponen en el CRM, y hasta entonces no hay desde dónde medir.` Con el botón `Ver los almacenes`, que lleva a la pantalla de consulta.
    Botón `Continuar →`.
 3. **`Vehículo *`.** Selector `Vehículo de la ruta`, placeholder `Elige el vehículo…`;
    cada opción con la nota `<capacidad> kg`, `<capacidad> kg · en ruta` o `<capacidad> kg ·
@@ -434,7 +477,8 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
    `Elige un vehículo para ver la capacidad`.
 
    Cada fila: casilla, cliente, dirección, chips de artículos, `<peso> kg` y el costo de
-   domicilio o `sin cotizar`. Los pedidos que **no caben** quedan deshabilitados con
+   domicilio o `sin cotizar`, y a la derecha un botón pequeño `Ubicar la entrega` (tooltip) que
+   abre el cajón del punto a mano sin marcar ni desmarcar la casilla. Los pedidos que **no caben** quedan deshabilitados con
    `No cabe en el camión` (tooltip igual).
 
    Pie de la lista: `<n> pedidos seleccionados` y, si alguno ya no sale con los filtros,
@@ -650,59 +694,52 @@ Error del servidor al crear sin nombre: `Vehicle name is required` (400).
 
 ## 6. Almacenes — `/warehouses`
 
-**Para qué sirve.** Poner y corregir el punto desde el que se mide cada domicilio y del
-que sale el camión. El dato vive en **Accesos** (una sola copia) y esta pantalla lo lee y
-lo escribe. **Quién la usa:** administración de sucursal y logística.
+**SOLO LECTURA desde el 20/10/2026 (decisión de Jose).** La matriz de almacenes pasa al
+**CRM**; Reparto solo los **lee**. No hay crear, editar, eliminar, marcar principal ni
+activar/desactivar, y no queda ningún botón ni menú de escritura (lo fija
+`app/test/pantallas/almacenes/solo_lectura_test.dart`).
+
+**Para qué sirve.** Ver el punto desde el que se mide cada domicilio y del que sale el
+camión. **Quién la usa:** administración de sucursal y logística.
 
 **Título:** «Almacenes». Texto:
 `El punto desde el que se mide cada domicilio. Un almacén sin coordenadas no sirve para cotizar: la distancia se mide desde aquí.`
+
+**Aviso fijo, arriba:** `Los almacenes se editan en el CRM. Aquí solo se consultan.`
+Con enlace **«Abrir el CRM»**, que por defecto lleva a `https://crm.procovar.cloud/catalogos/almacenes`
+(`Entorno.crmUrl`, se cambia con `--dart-define=CRM_URL=<url>`); **si `CRM_URL` se compila vacía, el aviso
+sale sin enlace**, solo el texto.
 
 ### Controles
 
 - Selector `Sucursal` (icono tienda) **sólo si hay más de una a la vista**; cada opción
   con la nota `<n>` o `sin almacenes`. Con una sola, se pinta su nombre sin desplegable.
-- Selector `Almacén`: una opción por almacén (etiqueta = nombre o `(sin nombre)`; nota
-  `principal` o `sin punto`) más `+ Añadir un almacén`.
-- Botón `Nuevo almacén`.
-- Aviso si la sucursal no tiene ninguno:
-  `Esta sucursal no tiene ninguno: sus domicilios no se pueden cotizar.`
+- Nada más: ni botón `Nuevo almacén`, ni editor, ni selector de almacén.
+- Aviso si la sucursal no tiene ninguno, **sin botón**:
+  `Esta sucursal no tiene ninguno: sus domicilios no se pueden cotizar. Se dan de alta en el CRM.`
 
 ### Lista de almacenes
 
-Una fila por almacén: icono estrella si es el principal, nombre (o `(sin nombre)`),
-dirección (o `sin dirección`), marca `sin punto` si falta la coordenada, marca `inactivo`
-si no está activo, y chevron. Al pulsar abre el editor.
+Una fila por almacén, **sin acción al pulsar**: icono estrella si es el principal, nombre
+(o `(sin nombre)`), y debajo, separado por `·`, dirección (o `sin dirección`), las
+coordenadas (o la marca `sin punto`), `código X` (o `sin código`), `principal` si lo es
+e `inactivo` si no está activo.
 
-### Editor (cajón `lg`)
-
-Título `Nuevo almacén` o el nombre del almacén; subtítulo = nombre de la sucursal.
-- Campo de texto, placeholder `Nombre del almacén`.
-- Botón conmutador `Principal` (tooltip `Desde éste se mide cuando nadie dice cuál`).
-- Botón conmutador `Activo` / `Inactivo`.
-- Botón papelera (sólo en uno existente) con confirmación:
-  `¿Quitar «<nombre>»? Deja de poder medirse desde ahí.`
-- `Dónde está`: dirección con autocompletado + mapa; se abre centrado en el punto actual.
-- Aviso: `Sin coordenadas: desde éste no se puede medir el domicilio.`
-- Validación: `Le falta el nombre.` (el botón Guardar queda deshabilitado).
-- Pie: `Cerrar` y `Guardar` (mientras: `Guardando…`).
-- Confirmación: `Guardado en Accesos.`
-
-**Regla:** sólo puede haber **un** almacén principal; al marcar uno, los demás se
-desmarcan. Se envía **la lista completa** de la sucursal, no el almacén suelto.
+Se repinta sola: pide la lista otra vez cuando llega el aviso en vivo `almacenes`
+(el CRM avisa por el mismo canal) y, en la APK y el escritorio, con la bajada.
 
 ### Endpoints
 
-- `GET /api/almacenes` → `{sucursales:[{codigo, nombre, almacenes:[{id, nombre, direccion,
-  latitud, longitud, principal, activo}]}]}`.
-- `PUT /api/almacenes` `{codigo, almacenes:[...]}` → `{aviso, almacenes}`.
+- `GET /api/almacenes` → `{sucursales:[{codigo, nombre, almacenes:[{id, nombre, codigo,
+  direccion, latitud, longitud, principal, activo}]}]}`. Es el único que usa la pantalla.
+- `PUT /api/almacenes` **ya no existe** (se quitó del servidor el 20/10/2026: contesta 405). Los almacenes viven en Accesos y se editan desde el CRM.
 
 **Errores visibles, literales:**
 - Fallo al leer: `No se pudieron traer los almacenes de Accesos. Lo de abajo está vacío por eso, no porque no haya ninguno.`
+- Sin conexión (APK y escritorio): `Sin conexión. Los almacenes se piden al servidor y ahora no hay con qué traerlos. Vuelve a intentarlo cuando haya red.`
+- Sin respuesta (web): `Accesos no contesta. La página cargó, así que conexión hay: los almacenes se piden al servidor y ahora mismo no responde. Prueba otra vez y, si sigue igual, avisa a la oficina.`
 - Sin sucursales: `No hay ninguna sucursal a la vista con código en Accesos.`
-- Del servidor: `No se pudieron traer los almacenes de Accesos: <detalle>`,
-  `Accesos no aceptó el cambio: <detalle>` (502), `Se espera { codigo, almacenes: [...] }`
-  (400), `Sin acceso a esa sucursal` (403).
-- Respaldo del cliente al guardar: `No se pudo guardar`.
+- Del servidor: `No se pudieron traer los almacenes de Accesos: <detalle>`, `Sin acceso a esa sucursal` (403).
 
 **Paginación:** no tiene.
 
@@ -905,8 +942,8 @@ Animación de entrada: 180 ms, desde 24 px a la derecha.
 05/09/2026). No hay variante modal.
 
 Usos: detalle de pedido (`lg`), asistente de ruta (`completo`, con pie), cierre de ruta
-(`xl`, con pie), ficha de vehículo (`lg`), tipos de vehículo (`md`), editor de almacén
-(`lg`, con pie).
+(`xl`, con pie), ficha de vehículo (`lg`), tipos de vehículo (`md`). (El editor de almacén
+(`lg`, con pie) se quitó el 20/10/2026: Almacenes es de solo lectura.)
 
 ### 9.3 `RouteSummaryCard.tsx`
 

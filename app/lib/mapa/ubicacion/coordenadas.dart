@@ -1,5 +1,8 @@
 /// `parseCoordInput`, calcado de `reglas-negocio.md` §9.
 ///
+/// Reutilizable para elegir un punto en el mapa (el punto de un almacen cuando Reparto los
+/// editaba; hoy queda para poner a mano el punto de entrega de un pedido).
+///
 /// Sin conexion no hay autocompletado de direccion ni geocodificacion inversa
 /// —eso es Nominatim, y Nominatim es red—, asi que **escribir el punto a mano es
 /// la unica via que queda siempre**. Por eso la funcion vive aparte y se prueba
@@ -7,7 +10,7 @@
 /// almacen donde esta.
 ///
 /// Las otras dos vias del patron —buscar la direccion y pulsar en el mapa—
-/// viven en `geocodificar.dart` y en `vista/mapa_para_elegir_punto.dart`.
+/// viven en `geocodificar.dart` y en `mapa_para_elegir_punto.dart`.
 /// Pulsar en el mapa tampoco necesita red (es geometria); buscar la direccion
 /// si, y por eso su respuesta separa «no lo encuentro» de «no pude preguntar».
 class PuntoEnElMapa {

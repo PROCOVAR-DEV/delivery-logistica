@@ -34,6 +34,7 @@ ParadaDelRecorrido parada(
   String? factura,
   bool entregada = false,
   bool regreso = false,
+  bool manual = false,
 }) => ParadaDelRecorrido(
   id: 'p$n',
   numero: n,
@@ -43,6 +44,7 @@ ParadaDelRecorrido parada(
   importe: precio,
   entregada: entregada,
   esRegreso: regreso,
+  manual: manual,
 );
 
 const caja = Size(320, 200);
@@ -372,6 +374,144 @@ void main() {
       expect(find.text('Paradas'), findsOneWidget);
       expect(find.text('Regreso al depósito'), findsOneWidget);
       expect(find.text('Ya entregada'), findsNothing);
+      // Y el CUARTO, desde el issue 19 de Amado (20/10/2026): el círculo ROJO de la
+      // parada con el punto puesto a mano. Lo dice la nota de la leyenda: si se
+      // cambia cómo se dibuja una marca, se cambia aquí.
+      expect(find.text('Punto puesto a mano'), findsOneWidget);
+    });
+
+    testWidgets(
+      'que una parada pase a ser manual REPINTA el mapa (shouldRepaint)',
+      (tester) async {
+        // Lo único que cambia entre los dos dibujos es `manual`, que viaja DENTRO del
+        // recorrido: si `shouldRepaint` dejara de mirar el recorrido, el número se
+        // quedaría azul hasta que algo más moviera el mapa.
+        Recorrido con({required bool manual}) => Recorrido(
+          origen: const Punto(21.0, -77.0),
+          paradas: [parada(1, lat: 21.1, lng: -77.1, manual: manual)],
+        );
+        CustomPainter pintor() => tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .map((c) => c.painter)
+            .whereType<CustomPainter>()
+            .firstWhere(
+              (p) => p.runtimeType.toString().contains('PintorDelCroquis'),
+            );
+
+        await pintar(tester, con(manual: false));
+        final antes = pintor();
+        await pintar(tester, con(manual: true));
+        expect(pintor().shouldRepaint(antes), isTrue);
+      },
+    );
+
+    testWidgets('el globo de una parada con el punto a mano lo dice; el de las '
+        'demás no', (tester) async {
+      final conManual = Recorrido(
+        origen: const Punto(21.0, -77.0),
+        nombreDelOrigen: 'Camagüey',
+        paradas: [
+          parada(1, lat: 21.1, lng: -77.1, manual: true),
+          parada(2, lat: 21.2, lng: -77.2),
+        ],
+      );
+      await pintar(tester, conManual);
+      final trazado = trazar(conManual, caja);
+      final esquina = tester.getTopLeft(find.byKey(CroquisDeRuta.clave));
+
+      await tester.tapAt(esquina + trazado.paradas[1].donde);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('globo-punto-manual')), findsNothing);
+
+      await tester.tapAt(esquina + trazado.paradas[0].donde);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('globo-punto-manual')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('d-leyenda: «Punto puesto a mano» es un renglón de la LEYENDA, '
+        'esté o no esa parada en la ruta', (tester) async {
+      // Sin ninguna parada manual: la leyenda es fija, no depende de la ruta.
+      await pintar(tester, tresParadas);
+      final leyenda = find.byWidgetPredicate(
+        (w) => w.runtimeType.toString() == '_Leyenda',
+      );
+      expect(leyenda, findsOneWidget);
+      expect(
+        find.descendant(
+          of: leyenda,
+          matching: find.text('Punto puesto a mano'),
+        ),
+        findsOneWidget,
+        reason:
+            'la entrada tiene que estar en la leyenda, no en cualquier sitio',
+      );
+      // Y en su sitio: el cuarto, detrás de los tres del patrón.
+      final textos = tester
+          .widgetList<Text>(
+            find.descendant(of: leyenda, matching: find.byType(Text)),
+          )
+          .map((t) => t.data)
+          .toList();
+      expect(textos, [
+        'Punto de partida',
+        'Paradas',
+        'Regreso al depósito',
+        'Punto puesto a mano',
+      ]);
+      // Nada de globo abierto: el texto sale UNA vez, en la leyenda.
+      expect(find.text('Punto puesto a mano'), findsOneWidget);
+    });
+
+    testWidgets('d-globo: el globo de una parada manual DICE «Punto puesto a '
+        'mano» y el de una que no lo es, no', (tester) async {
+      final conManual = Recorrido(
+        origen: const Punto(21.0, -77.0),
+        nombreDelOrigen: 'Camagüey',
+        paradas: [
+          parada(1, lat: 21.1, lng: -77.1, manual: true),
+          parada(2, lat: 21.2, lng: -77.2),
+        ],
+      );
+      await pintar(tester, conManual);
+      final trazado = trazar(conManual, caja);
+      final esquina = tester.getTopLeft(find.byKey(CroquisDeRuta.clave));
+      final globo = find.byKey(const ValueKey('globo-punto-manual'));
+
+      // Una que NO es manual: ni la clave ni el texto en el globo (solo queda el
+      // de la leyenda).
+      await tester.tapAt(esquina + trazado.paradas[1].donde);
+      await tester.pump();
+      expect(globo, findsNothing);
+      expect(find.text('Punto puesto a mano'), findsOneWidget);
+
+      // La manual: la línea del globo trae el texto, y suma al de la leyenda.
+      await tester.tapAt(esquina + trazado.paradas[0].donde);
+      await tester.pump();
+      expect(globo, findsOneWidget);
+      expect(
+        tester.widget<Text>(globo).data,
+        'Punto puesto a mano',
+        reason: 'la línea del globo tiene que decir qué es',
+      );
+      expect(find.text('Punto puesto a mano'), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('d-repaint-simbolo: el pintor del símbolo de la leyenda se '
+        'repinta si le cambian el símbolo y no si es el mismo', (tester) async {
+      await pintar(tester, tresParadas);
+      final pintores = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((c) => c.painter)
+          .whereType<CustomPainter>()
+          .where((p) => p.runtimeType.toString() == '_PintorDelSimbolo')
+          .toList();
+      // Los cuatro renglones de la leyenda, cada uno con SU símbolo.
+      expect(pintores, hasLength(4));
+      expect(pintores[0].shouldRepaint(pintores[1]), isTrue);
+      expect(pintores[3].shouldRepaint(pintores[0]), isTrue);
+      expect(pintores[2].shouldRepaint(pintores[2]), isFalse);
     });
 
     test('acercar cambia la ESCALA del trazado, no sólo las paradas', () {
@@ -400,9 +540,7 @@ void main() {
       expect(cerca.kmPorPixel, lessThan(normal.kmPorPixel));
     });
 
-    testWidgets('cuando LLEGA una tesela, el mapa se repinta', (
-      tester,
-    ) async {
+    testWidgets('cuando LLEGA una tesela, el mapa se repinta', (tester) async {
       // Visto en el teléfono el 21/09/2026, con el mapa de Cuba bajado y el
       // avión puesto: una sola tesela dibujada arriba a la izquierda y el resto
       // del recuadro en blanco, mientras el texto decía «Mapa de calles». Las
@@ -928,7 +1066,11 @@ void main() {
         onQueSeVe: visto.add,
       );
 
-      expect(calles.peticiones.length, 2, reason: 'una la ida, otra el regreso');
+      expect(
+        calles.peticiones.length,
+        2,
+        reason: 'una la ida, otra el regreso',
+      );
       // La ida: origen → paradas en orden, y **sin volver**.
       expect(
         [for (final p in calles.peticiones[0]) '${p.lat},${p.lng}'],

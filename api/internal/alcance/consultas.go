@@ -20,6 +20,7 @@ package alcance
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -340,6 +341,25 @@ func (a *Acotado) ActualizarPedido(ctx context.Context, arg sqlc.ActualizarPedid
 	return a.q.ActualizarPedido(ctx, arg)
 }
 
+// LeerPedidoParaElPunto, PonerPuntoDeEntregaAMano y DevolverPuntoDeEntregaAlCliente son el
+// punto de entrega puesto a mano (00024). El alcance lo pone este envoltorio, y la constancia
+// de QUIÉN lo puso también: `punto_manual_por` sale de aquí y no del cuerpo, igual que
+// `creado_por`, para que nadie pueda firmar el cambio como otra persona. NO filtra nada.
+func (a *Acotado) LeerPedidoParaElPunto(ctx context.Context, id uuid.UUID) (sqlc.LeerPedidoParaElPuntoRow, error) {
+	return a.q.LeerPedidoParaElPunto(ctx, sqlc.LeerPedidoParaElPuntoParams{ID: id, Sucursal: a.sucursalPg()})
+}
+
+func (a *Acotado) PonerPuntoDeEntregaAMano(ctx context.Context, arg sqlc.PonerPuntoDeEntregaAManoParams) (sqlc.PonerPuntoDeEntregaAManoRow, error) {
+	arg.Sucursal = a.sucursalPg()
+	arg.Por = a.ActorRef()
+	return a.q.PonerPuntoDeEntregaAMano(ctx, arg)
+}
+
+func (a *Acotado) DevolverPuntoDeEntregaAlCliente(ctx context.Context, arg sqlc.DevolverPuntoDeEntregaAlClienteParams) (sqlc.DevolverPuntoDeEntregaAlClienteRow, error) {
+	arg.Sucursal = a.sucursalPg()
+	return a.q.DevolverPuntoDeEntregaAlCliente(ctx, arg)
+}
+
 // BorrarPedido devuelve LA SUCURSAL DEL PEDIDO QUE SE FUE, por lo mismo que
 // `BorrarVehiculo`: el aviso sale de la fila y la fila ya no está. `pgx.ErrNoRows` es el 404.
 func (a *Acotado) BorrarPedido(ctx context.Context, id uuid.UUID) (pgtype.UUID, error) {
@@ -630,7 +650,9 @@ func (a *Acotado) ListarPedidosParaInforme(ctx context.Context, arg sqlc.ListarP
 // renglones: si el proceso se cae justo ahí, en la pantalla queda un pedido vacío que
 // nadie sabe explicar, y el peso con el que se cargó el camión ya no cuadra con nada.
 //
-// Devuelve el id y si la fila es NUEVA (la primera vez que este pedido entra).
+// Devuelve el id y si la fila es NUEVA (la primera vez que este pedido entra). Devuelve
+// [ErrYaAdoptadoPorFactura], sin escribir nada, cuando es un pedido de PEDIDO cuyo folio ya
+// lo tiene una entrega de factura.
 func (a *Acotado) EspejoGuardarPedido(
 	ctx context.Context,
 	pedido sqlc.GuardarPedidoDelEspejoParams,
@@ -639,6 +661,11 @@ func (a *Acotado) EspejoGuardarPedido(
 	var id uuid.UUID
 	var nuevo bool
 	err := a.EnTx(ctx, func(dentro *Acotado) error {
+		// LA ADOPCIÓN ENTRE PEDIDO Y LA FACTURA, antes del upsert y en la misma transacción.
+		// Ver `alFolio` (issue 20).
+		if err := dentro.alFolio(ctx, pedido); err != nil {
+			return err
+		}
 		fila, err := dentro.q.GuardarPedidoDelEspejo(ctx, pedido)
 		switch {
 		case err == nil:
@@ -770,6 +797,70 @@ func (a *Acotado) EspejoBorrarClientesQueYaNoVienen(ctx context.Context, ids []s
 		Source:      sqlc.ProcedenciaPedido,
 		ExternalIds: ids,
 	})
+}
+
+// EspejoPuntosDeClientes: los clientes geolocalizados de una sucursal, para ponerle punto a
+// una entrega de factura (Ventra no trae coordenadas). Sin alcance, como el resto del espejo.
+func (a *Acotado) EspejoPuntosDeClientes(ctx context.Context, sucursalCodigo string) ([]sqlc.PuntosDeClientesDeLaSucursalRow, error) {
+	return a.q.PuntosDeClientesDeLaSucursal(ctx, sucursalCodigo)
+}
+
+// EspejoPesosDeProductos: peso y unidades por unidad de venta de los productos de una
+// sucursal (tabla `products`, la que baja Ventra), para pesar los renglones de una factura.
+func (a *Acotado) EspejoPesosDeProductos(ctx context.Context, sucursalCodigo string) ([]sqlc.PesosDeProductosDeLaSucursalRow, error) {
+	return a.q.PesosDeProductosDeLaSucursal(ctx, sucursalCodigo)
+}
+
+// EspejoEntregasDeFacturaEnVentana: las entregas de factura de una sucursal cuyo día de factura
+// (hora de Cuba) cae en [desde, hasta], con la señal de si ya van en una ruta o tienen
+// resultado. Es la lista contra la que se compara lo que Ventra ya no trae.
+func (a *Acotado) EspejoEntregasDeFacturaEnVentana(
+	ctx context.Context, sucursalCodigo string, desde, hasta time.Time,
+) ([]sqlc.EntregasDeFacturaEnVentanaRow, error) {
+	return a.q.EntregasDeFacturaEnVentana(ctx, sqlc.EntregasDeFacturaEnVentanaParams{
+		SucursalCodigo: sucursalCodigo,
+		Desde:          pgtype.Date{Time: desde, Valid: true},
+		Hasta:          pgtype.Date{Time: hasta, Valid: true},
+	})
+}
+
+// EspejoConducesGuardados: el conduce (`operation_number`) que ya tienen guardado las entregas
+// de factura pedidas, por `external_id`. Las que no existen no salen.
+func (a *Acotado) EspejoConducesGuardados(ctx context.Context, externalIDs []string) (map[string]string, error) {
+	if len(externalIDs) == 0 {
+		return map[string]string{}, nil
+	}
+	filas, err := a.q.ConducesGuardadosDeFactura(ctx, externalIDs)
+	if err != nil {
+		return nil, err
+	}
+	salida := make(map[string]string, len(filas))
+	for _, f := range filas {
+		if f.ExternalID != nil && f.OperationNumber != nil {
+			salida[*f.ExternalID] = *f.OperationNumber
+		}
+	}
+	return salida, nil
+}
+
+// EspejoFechaDeLaEntregaAbiertaMasAntigua: el día (Cuba) de la entrega de factura sin entregar ni
+// cerrar más antigua de una sucursal; nil si no hay ninguna.
+func (a *Acotado) EspejoFechaDeLaEntregaAbiertaMasAntigua(ctx context.Context, sucursalCodigo string) (*time.Time, error) {
+	d, err := a.q.FechaDeLaEntregaAbiertaMasAntigua(ctx, sucursalCodigo)
+	if err != nil || !d.Valid {
+		return nil, err
+	}
+	t := d.Time
+	return &t, nil
+}
+
+// EspejoRetirarEntregasDeFactura borra las que ya no vienen en Ventra. La guarda de «sin ruta
+// ni resultado» está en el propio DELETE, no sólo en quien llama.
+func (a *Acotado) EspejoRetirarEntregasDeFactura(ctx context.Context, ids []uuid.UUID) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	return a.q.RetirarEntregasDeFactura(ctx, ids)
 }
 
 // renglonesIguales dice si lo que hay guardado es exactamente lo que viene.

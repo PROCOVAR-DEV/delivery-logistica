@@ -15,6 +15,7 @@ manual de la web:
 - [Filtrar y ordenar la lista de pedidos](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-pedidos)
 - [Mandar varios pedidos a una zona de golpe](../web/2-tareas.md#mandar-varios-pedidos-a-una-zona-de-golpe)
 - [Ver el detalle de un pedido](../web/2-tareas.md#ver-el-detalle-de-un-pedido)
+- [Poner el punto de entrega de un pedido a mano](../web/2-tareas.md#poner-el-punto-de-entrega-de-un-pedido-a-mano) (**lo único distinto**: aquí funciona sin señal, como en el teléfono; ver abajo)
 - [Renombrar, vaciar o borrar una zona](../web/2-tareas.md#renombrar-vaciar-o-borrar-una-zona)
 - [Armar una ruta sin usar el Tablero](../web/2-tareas.md#armar-una-ruta-sin-usar-el-tablero)
 - [Filtrar la lista de rutas](../web/2-tareas.md#filtrar-la-lista-de-rutas)
@@ -28,9 +29,7 @@ manual de la web:
 - [Dejar un camión inactivo](../web/2-tareas.md#dejar-un-camión-inactivo)
 - [Definir los tipos de camión y su costo por km](../web/2-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km)
 - [Cambiar el camión de una ruta](../web/2-tareas.md#cambiar-el-camión-de-una-ruta)
-- [Poner o corregir un almacén](../web/2-tareas.md#poner-o-corregir-un-almacén)
-- [Cambiar cuál es el almacén principal](../web/2-tareas.md#cambiar-cuál-es-el-almacén-principal)
-- [Quitar un almacén de la sucursal](../web/2-tareas.md#quitar-un-almacén-de-la-sucursal)
+- [Consultar los almacenes de una sucursal](../web/2-tareas.md#consultar-los-almacenes-de-una-sucursal)
 - [Cambiar entre USD y CUP](../web/2-tareas.md#cambiar-entre-usd-y-cup)
 - [Ir a otra aplicación de la casa](../web/2-tareas.md#ir-a-otra-aplicación-de-la-casa)
 
@@ -71,6 +70,25 @@ o **«Los datos ya son de ahora mismo»**.
 2. **Clic en «Entregar el día»**. <!-- señala: entregar-el-dia-entregar -->
 
 Si está apagado: **«Trae el día primero: no se envía nada sin tener lo de ahora»**.
+
+### Poner el punto de entrega a mano, sin conexión
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Pedidos»**.
+
+Los pasos son los de la web: [Poner el punto de entrega de un pedido a
+mano](../web/2-tareas.md#poner-el-punto-de-entrega-de-un-pedido-a-mano). Lo que cambia
+aquí es **qué pasa al guardar**:
+
+- **«Guardar punto» funciona sin conexión.** Se guarda en el aparato (la parada sale ya
+  con su punto nuevo y su **número en rojo** en el mapa) y el cambio **sube cuando hay
+  señal**. «Volver al punto del cliente» igual.
+- Los km del domicilio los recalcula el servidor al subir: hasta entonces se ve la
+  distancia de antes.
+- **«Buscar» (la dirección) necesita conexión**; pulsar en el mapa y escribir las
+  coordenadas, no.
+- Si al subir el servidor dice que no, el cambio queda en la bandeja de rechazados con
+  su motivo, en **Menú → «Sincronización»**.
 
 ### Ver qué aparato lleva sin subir
 <!-- tarea -->

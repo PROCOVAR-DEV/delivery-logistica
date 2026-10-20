@@ -156,7 +156,27 @@ type Opciones struct {
 	// Se deduce de la MISMA pareja key+secret que usa la API, así que ponerla en el servicio
 	// ya lo dice y no hay una segunda variable que se pueda quedar a medias.
 	TocanLaPuerta bool
+
+	// --- La factura de Ventra como segunda fuente (issue 20, Fase A) --------
+	//
+	// Fuente: `SYNC_FUENTE` = `pedido` | `factura` | `ambas`. POR DEFECTO `pedido`: desplegar
+	// esto no cambia NADA hasta que alguien escriba otra cosa. `ambas` es la convivencia
+	// mientras dura el corte; `factura` es el espejo ya sin PEDIDO. El corte NO es parte de
+	// esto: ni apaga el webhook de PEDIDO ni la cola, ni quita nada.
+	Fuente string
+	// Ventra: lo mismo que lee la API (`WAREHOUSE_API_URL`, `WAREHOUSE_API_TOKEN`,
+	// `WAREHOUSE_TIMEOUT_MS`, `VENTRA_BASES`). Hacen falta SÓLO si la fuente incluye la factura.
+	VentraURL   string
+	VentraToken string
+	VentraPlazo time.Duration
+	VentraBases map[string]string
 }
+
+// LeePedido: ¿el espejo trae los pedidos de PEDIDO?
+func (o Opciones) LeePedido() bool { return o.Fuente != FuenteDeFactura }
+
+// LeeFactura: ¿el espejo trae las facturas con domicilio de Ventra?
+func (o Opciones) LeeFactura() bool { return o.Fuente == FuenteDeFactura || o.Fuente == FuenteAmbas }
 
 // PollConAvisos es cada cuánto da la vuelta el ciclo CUANDO a alguien le avisan.
 //
@@ -245,6 +265,19 @@ func (o Opciones) RitmoDelBarrido() time.Duration {
 // cambios y tiene que ir deprisa: dejarlo en tres horas sería tener el reparto tres horas por
 // detrás de PEDIDO sin que nada lo diga.
 func (o Opciones) RitmoDelCiclo(loPusoElEntorno bool) time.Duration {
+	// LA FACTURA NO TIENE AVISOS: Ventra no avisa de nada, así que el ciclo es lo ÚNICO que la
+	// trae y no puede ir a tres horas. Lo de PEDIDO, en cambio, conserva su ritmo propio
+	// (`RitmoDePedido`) aunque el ciclo gire más deprisa por la factura.
+	if o.LeeFactura() {
+		return o.Poll
+	}
+	return o.RitmoDePedido(loPusoElEntorno)
+}
+
+// RitmoDePedido es cada cuánto toca el trabajo de PEDIDO (incremental, recién cotizados,
+// repaso y barrido): el de siempre, haya o no factura. Con `SYNC_FUENTE=ambas` el ciclo gira cada
+// minuto por la factura y este ritmo evita que PEDIDO se lleve por eso 1.440 repasos al día.
+func (o Opciones) RitmoDePedido(loPusoElEntorno bool) time.Duration {
 	if loPusoElEntorno || !o.LeAvisan() {
 		return o.Poll
 	}
@@ -268,6 +301,10 @@ func PorDefecto() Opciones {
 		Lote:              200,
 		PaginaClientes:    1000,
 		Stream:            StreamPorDefecto,
+		Fuente:            FuenteDePedido,
+		// Un barrido de 60 días de una sucursal grande son miles de facturas por la VPN: el
+		// plazo de la API (30 s) se queda corto. Se cambia con `WAREHOUSE_TIMEOUT_MS`.
+		VentraPlazo: 120 * time.Second,
 		// SE LEE LA COLA SALVO QUE SE DIGA LO CONTRARIO: quien no toque nada sigue como
 		// estaba. Apagarla es una decisión que se escribe, no un olvido.
 		EscuchaElStream: true,
@@ -388,6 +425,34 @@ func Cargar(entorno func(string) string) (Opciones, error) {
 			o.RedisBase = n
 		}
 	}
+	// LA FUENTE. Un valor que no se entiende es un ERROR y no «pedido»: `SYNC_FUENTE=facturas`
+	// (con ese plural) leído como el valor por defecto dejaría al espejo trayendo PEDIDO cuando
+	// alguien cree que ya trae las facturas, sin un solo aviso.
+	switch f := strings.ToLower(strings.TrimSpace(entorno("SYNC_FUENTE"))); f {
+	case "":
+	case FuenteDePedido, FuenteDeFactura, FuenteAmbas:
+		o.Fuente = f
+	default:
+		errs = append(errs, fmt.Sprintf("SYNC_FUENTE vale %q: tiene que ser pedido, factura o ambas", f))
+	}
+	o.VentraURL = urlOTal(entorno("WAREHOUSE_API_URL"), "")
+	o.VentraToken = strings.TrimSpace(entorno("WAREHOUSE_API_TOKEN"))
+	milis("WAREHOUSE_TIMEOUT_MS", &o.VentraPlazo)
+	bases, errBases := paresDeBases(entorno("VENTRA_BASES"))
+	if errBases != nil {
+		errs = append(errs, errBases.Error())
+	}
+	o.VentraBases = bases
+	if o.LeeFactura() {
+		if o.VentraURL == "" || o.VentraToken == "" {
+			errs = append(errs, "SYNC_FUENTE="+o.Fuente+" necesita WAREHOUSE_API_URL y WAREHOUSE_API_TOKEN: "+
+				"sin ellas no hay de dónde traer las facturas y el espejo parecería sano sin traer nada")
+		}
+		if o.VentraURL != "" && !strings.HasPrefix(o.VentraURL, "http://") && !strings.HasPrefix(o.VentraURL, "https://") {
+			errs = append(errs, fmt.Sprintf("WAREHOUSE_API_URL vale %q: tiene que empezar por http:// o https://", o.VentraURL))
+		}
+	}
+
 	entero("SYNC_TRAMO_DIAS", &o.TramoDias)
 	entero("SYNC_HISTORICO_DIAS", &o.HistoricoDias)
 	entero("SYNC_HISTORICO_POR_CICLO", &o.HistoricoPorCiclo)
@@ -428,4 +493,23 @@ func urlOTal(v, porDefecto string) string {
 		return porDefecto
 	}
 	return v
+}
+
+// paresDeBases lee `VENTRA_BASES` (`STG=santiago,HOL=holguinmoa`) igual que `config`: las claves
+// en mayúsculas, y un par mal escrito es un error y no se ignora, porque ignorarlo deja a una
+// sucursal entera sin facturas.
+func paresDeBases(crudo string) (map[string]string, error) {
+	salida := map[string]string{}
+	for _, p := range strings.Split(strings.TrimSpace(crudo), ",") {
+		if p = strings.TrimSpace(p); p == "" {
+			continue
+		}
+		clave, valor, hay := strings.Cut(p, "=")
+		clave, valor = strings.TrimSpace(clave), strings.TrimSpace(valor)
+		if !hay || clave == "" || valor == "" {
+			return nil, fmt.Errorf("VENTRA_BASES tiene %q, que no es un par CLAVE=valor: se escribe como STG=santiago,HOL=holguinmoa", p)
+		}
+		salida[strings.ToUpper(clave)] = valor
+	}
+	return salida, nil
 }

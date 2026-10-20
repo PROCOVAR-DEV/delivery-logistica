@@ -37,7 +37,10 @@ for m in api sync herramientas/mapa-cuba; do
   cd "$raiz/$m"
   paso "gofmt";     [ -z "$(gofmt -l . 2>/dev/null)" ] && bien || mal
   paso "go vet";    go vet ./... >/dev/null 2>&1 && bien || mal
-  paso "go test";   go test ./... >/dev/null 2>&1 && bien || mal
+  # Con las variables de «motor real» puestas, `./...` corre esos paquetes sobre UNA base compartida y en
+  # paralelo: se pisan (ver el `-p 1` de más abajo, medido el 20/10/2026). En serie solo si hay base.
+  serie=""; { [ -n "${REPARTO_MOTOR_REAL_DSN:-}" ] || [ -n "${SYNC_MOTOR_REAL_DSN:-}" ]; } && serie="-p 1"
+  paso "go test";   go test $serie ./... >/dev/null 2>&1 && bien || mal
   paso "go build";  go build ./... >/dev/null 2>&1 && bien || mal
   # El que caza que el codigo generado se quedo atras respecto al esquema.
   if [ -f sqlc.yaml ]; then
@@ -55,7 +58,11 @@ done
 echo "== api: consultas contra Postgres real =="
 if [ -n "${REPARTO_MOTOR_REAL_DSN:-}" ]; then
   paso "motor real"
-  (cd "$raiz/api" && go test -count=1 -run MotorReal ./internal/store/sqlc/ ./internal/api/ >/dev/null 2>&1) && bien || mal
+  # `-p 1`: los dos paquetes comparten UNA base (`verif_reparto`) y `go test` los corre a la vez por
+  # defecto. Con varios `TestMotorReal_*` en cada uno se pisan (deadlock en la siembra, filas del otro
+  # paquete) y falla una prueba distinta cada vez: medido el 20/10/2026, 2 de 3 pasadas en paralelo
+  # salieron rojas y 3 de 3 en serie verdes. Un rojo que no es del código no se puede creer.
+  (cd "$raiz/api" && go test -count=1 -p 1 -run MotorReal ./internal/store/sqlc/ ./internal/api/ >/dev/null 2>&1) && bien || mal
 else
   paso "motor real"; echo "SALTADO (exporta REPARTO_MOTOR_REAL_DSN: CLAUDE.md §5)"
 fi

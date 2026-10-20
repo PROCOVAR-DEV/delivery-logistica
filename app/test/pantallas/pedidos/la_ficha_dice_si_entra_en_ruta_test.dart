@@ -40,6 +40,7 @@ void main() {
     status: 'pending',
     tripLeg: 'ida',
     archivado: false,
+    puntoManual: false,
     endLat: 20.03,
     endLng: -75.82,
     pedidoCosto: costo,

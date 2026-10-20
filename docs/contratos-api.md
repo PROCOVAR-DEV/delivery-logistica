@@ -884,8 +884,8 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
 
 - **Auth**: usuario. **Alcance**: sí. `404 {"error":"Not found"}`.
 - **Cuerpo** — sólo se aplican los campos presentes:
-  `operationNumber, customerName, address, endAddress, endLat, endLng, lat, lng, notes,
-  tripLeg`. Es el parche de una equivocación al teclear (dirección, coordenadas, nota…).
+  `operationNumber, customerName, notes, tripLeg`. Es el parche de una equivocación al teclear
+  (número, nombre, nota…). **Dirección y coordenadas ya no** (ver el punto de entrega, abajo).
 - **`routeId`, `status`, `price`, `weight` y `stopOrder` YA NO SE ACEPTAN (1.0.29).** Hasta la
   1.0.28 este PATCH los escribía sin pasar por ninguna regla —de cualquier rol, sin validar la
   sucursal ni el estado de la ruta ni la facturación—: era la puerta de atrás de todo lo que
@@ -899,8 +899,66 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
   Meter o sacar un pedido de una ruta es sólo de `/api/routes` y `/api/board`; el estado y la
   hora de entrega los pone el cierre; el peso lo calcula el servidor. Tampoco se pone ya
   `deliveredAt` desde aquí.
+- **`address, endAddress, endLat, endLng, lat` y `lng` TAMPOCO SE ACEPTAN (1.0.39, issue 19).**
+  Cambiaban el punto de entrega sin validar el rango, sin marcar que era a mano (el espejo lo
+  pisaba al minuto), sin recalcular los km del cobro ni el `segment_km` de la parada y sin mirar
+  si el pedido ya estaba entregado. Ningún cliente los mandaba. Si llega **cualquiera** →
+  `400 {"error":"El punto de entrega se cambia con PUT /api/orders/{id}/punto (<campos>)"}`, con los
+  nombres en el orden `address, endAddress, endLat, endLng, lat, lng`; si vienen además campos del
+  grupo de arriba, el mensaje lleva los dos literales separados por `. `. No se aplica nada del cuerpo.
 - **200**: la `Order` actualizada con `route:{id,name}`.
 - **Modelos**: `Order`.
+
+## `PUT /api/orders/{id}/punto` — el punto de entrega puesto a mano (1.0.39, issue 19 de Amado)
+
+El cliente pide entregar en otro sitio y quien factura lo apunta en el ticket: esa dirección no
+coincide con la geolocalización del cliente. El LOGÍSTICO, al armar la ruta, le pone a mano el
+punto de entrega a un pedido y **ese punto manda sobre el del cliente y sobrevive al espejo**
+(Jose, 20/10/2026: nada de webhooks ni payloads de PEDIDO para esto; el logístico lo pone en
+Reparto y su punto gana). La app pinta esa parada diferenciada.
+
+- **Auth**: usuario (`sesion`). **Alcance**: sí; un pedido de otra sucursal es `404 {"error":"No encontrado"}`
+  sin revelar que existe.
+- **Cuerpo**: `{ "lat": number, "lng": number, "direccion": string|null }` (`direccion` opcional; en
+  blanco o `null` = deja la que tenía).
+- **Errores**, con sus literales:
+  `400 «Se espera { lat, lng }»` (no es JSON, faltan, o no son números);
+  `400 «lat y lng tienen que ser un punto del planeta»` (fuera de rango, NaN/desbordado, o `(0,0)`);
+  `404 «No encontrado»`;
+  `409 «El pedido ya está entregado: no se le puede cambiar el punto»`;
+  `409 «La ruta ya está completada: no se le puede cambiar el punto a sus paradas»`;
+  `409 «El pedido cambió mientras se guardaba el punto: vuelve a intentarlo»` (carrera: se entregó, cambió de
+  ruta o de almacén entre la lectura y la escritura);
+  `409 «<Sucursal> no tiene ningún almacén con coordenadas»` (sin almacén con punto ni punto de partida de la
+  sucursal: los km saldrían de (0,0));
+  **`502 «No se pudieron traer los almacenes de Accesos: …»` y NO SE GUARDA NADA.** Un punto guardado con el
+  kilometraje viejo es un número creíble y equivocado.
+- **Qué hace**, en UNA transacción: `end_lat, end_lng, lat, lng` = el punto; `end_address` = `direccion` si
+  viene; `punto_manual = true`, `punto_manual_por` (el `sub` de quien lo hizo), `punto_manual_at = now()`. La
+  PRIMERA vez guarda el punto que traía el cliente en `punto_cliente_lat/lng/address`; si ya era manual no lo
+  pisa. **Recalcula lo que se guardó con el punto viejo**: `delivery_distance_km` (la cuenta de la cotización,
+  desde el almacén del PEDIDO: `cotizar.ElegirOrigenDelPedido`, no el principal), y, si el pedido va en una ruta
+  no completada, el `segment_km` de esa parada (recta desde el origen de la ruta) y el `total_distance` de la
+  ruta (circuito cerrado). **No toca el `stop_order`** ni la firma `optimized` de la ruta.
+- **200**: `{ id, endLat, endLng, endAddress, puntoManual, puntoManualPor, puntoManualAt, deliveryDistanceKm, segmentKm }`
+  (`segmentKm` es `null` si el pedido no va en una ruta).
+- **Avisos en vivo** (con la sucursal de la fila): `pedidos` y `tablero`, y `rutas` si va en una.
+- **Cola sin señal**: entra en la lista blanca de la bandeja de revisión (`PUT` y `DELETE` sobre
+  `/orders/{id}/punto`, y sólo eso de `/orders`).
+
+## `DELETE /api/orders/{id}/punto` — volver al punto del cliente
+
+- Mismo auth, alcance y recálculo. Copia `punto_cliente_*` a `end_lat/end_lng/lat/lng/end_address`, pone
+  `punto_manual = false`, limpia `punto_manual_por/at` y `punto_cliente_*`. Vuelve al punto del cliente **más
+  reciente** (el espejo lo sigue actualizando mientras el punto sea manual).
+- `409 «El pedido no tiene un punto puesto a mano»` si no es manual; `409 «El pedido no guardó el punto del
+  cliente: no se puede volver a él»` si no hay con qué volver; los mismos 404/409/502 que el PUT.
+- **200**: la misma forma que el PUT (`puntoManual: false`).
+
+**El espejo respeta el punto manual** (`GuardarPedidoDelEspejo`, `punto_manual`): mientras es true, el
+repaso (cada minuto, los últimos tres días) CONSERVA `end_address, lat, lng, end_lat, end_lng` y
+`delivery_distance_km`, y guarda lo que trae el cliente en `punto_cliente_*`. Su `WHERE … IS DISTINCT
+FROM` compara contra esos valores efectivos: un pedido con punto manual y sin más cambios no se reescribe.
 
 ## `DELETE /api/orders/[id]`
 
@@ -1023,7 +1081,9 @@ En Santiago **dos de cada tres pedidos salen de AURORA** y se medían todos desd
   catálogo; `'mixto'` si se bajó el catálogo con éxito. (`'warehouse'` está declarado pero
   nunca se emite.)
 - **Por cada pedido, en orden** (`ref = externalId || operationNumber || null`):
-  1. `lat == null || lng == null` → `skipped`, `reason: "sin-geolocalizacion"`.
+  1. `lat == null || lng == null` → `skipped`, `reason: "sin-geolocalizacion"`. **EXCEPTO** una entrega
+     que nace de una factura (`externalId` con prefijo `factura:`, issue 20, 20/10/2026): esa se guarda
+     SIN coordenadas ni distancia (ver «La entrega que nace de una FACTURA», abajo).
   2. `Branch.findUnique({ externalId: sucursalExternalId })` (con caché por externalId; si no
      hay `sucursalExternalId` → null) → si no existe: `skipped`, `reason: "sucursal-no-mapeada"`.
   3. `branch.originConfigured === false` → `skipped`, `reason: "sucursal-sin-punto-de-partida"`.
@@ -1064,6 +1124,11 @@ En Santiago **dos de cada tres pedidos salen de AURORA** y se medían todos desd
   8. Si falta `customerName` → se añade `{...base, persisted:false, reason:"falta-customerName"}`.
   9. Persistencia **idempotente por (`source='pedido'`, `externalId`)**: busca; si existe →
      `update`, si no → `create`. `persisted++`, resultado `{...base, orderId, persisted:true}`.
+     **Y desde el 20/10/2026 (00025), antes de escribir, la adopción entre PEDIDO y la factura**: si el
+     pedido trae folio y sucursal, se toma un candado por (sucursal, folio); una entrega de factura
+     ADOPTA la fila de PEDIDO del mismo folio, y un pedido de PEDIDO cuyo folio ya es una entrega de
+     factura **no se guarda**: `{...base, persisted:false, reason:"ya-adoptado-por-factura"}` (200, no es
+     un fallo; el espejo lo cuenta aparte). Ver abajo.
 - Si `persisted > 0` → `avisarCambio('pedidos', { pedidos: persisted })`.
 - **Respuesta 200**:
 
@@ -1083,6 +1148,143 @@ En Santiago **dos de cada tres pedidos salen de AURORA** y se medían todos desd
   Los `results` con `reason:"sin-domicilio"` llevan `status:"skipped"` pero **no** cuentan en
   `skipped` (sólo cuentan los de los pasos 1–4).
 - **Modelos que escribe**: `Order` (create/update), `Settings` (create si no había).
+
+### La entrega que nace de una FACTURA (issue 20, Fase A — 20/10/2026)
+
+**Decisión de Jose:** Reparto deja de alimentarse de los PEDIDOS de PEDIDO y pasa a alimentarse de las
+FACTURAS CON DOMICILIO de Ventra (`GET {WAREHOUSE_API_URL}/axis/home-delivery-invoices`, una sucursal por
+llamada, ≤ 93 días, `skus=45,50,51`). **Los CLIENTES se quedan en PEDIDO por ahora**: de su espejo salen
+las coordenadas, que Ventra no trae. Esta fase deja la factura como SEGUNDA fuente que convive con la de
+PEDIDO (`SYNC_FUENTE=pedido|factura|ambas`, por defecto `pedido`); el corte y la limpieza son fases
+posteriores. **No hay una segunda puerta**: el espejo arma cada entrega como un pedido del lote y la manda
+por este mismo `POST /api/quote/batch`, con sus mismos motivos de no entrar.
+
+**La convención (sin valor nuevo del enum `procedencia`):** una entrega de factura se guarda con
+`source = 'pedido'` y `external_id = 'factura:' + clave`; ningún filtro `source = 'pedido'` (SQL, Go ni
+Dart) se rompe. Se pregunta SOLO con `alcance.EsDeFactura` (SQL: `starts_with(external_id, 'factura:')`).
+El nombre `source = 'pedido'` es legado y se renombra/quita en la LIMPIEZA.
+
+| Clave | Cuándo |
+|---|---|
+| `<SUC>:<FOLIO NORMALIZADO>` | la venta trae la nota `P-<folio>; V-…; C-…;` (`orderNumber`). **Normalizado**: mayúsculas y solo letras y dígitos ASCII (`alcance.FolioNormalizado`): `PXX-900`, `pxx-900`, `'PXX-900` (la comilla de Excel) y `PXX - 900` son la misma entrega, `factura:STG:PXX900` |
+| `<SUC>:<punto de venta>:<número>:<fecha>` | no la trae: la factura es su propia entrega |
+
+**La identidad de una FACTURA es sucursal + punto de venta + número + fecha**, nunca el número solo: el
+número se repite entre puntos de venta. **Una ENTREGA es un pedido** (`orderNumber`) y puede reunir VARIAS
+facturas (Santiago 3 %, Guantánamo 11 %): las facturas de la misma sucursal con el mismo `orderNumber` son
+UNA entrega. Una factura repetida en la respuesta se cuenta una vez.
+
+**El mapeo, campo a campo** (`espejo.EntregaDeFactura.APedido`):
+
+| Columna / campo del lote | Sale de |
+|---|---|
+| `external_id`, `source` | `factura:<clave>`, `pedido` |
+| `folio` (00025) | el `orderNumber` TAL CUAL llegó (nulo si no hay; si hay varias facturas, el de la primera ordenada); en un pedido de PEDIDO, su `operation_number`. Lo que se normaliza es la COMPARACIÓN (`folio_normalizado(folio)`), no lo guardado |
+| `operation_number` (**el «conduce»**) | los números de factura de la entrega, sin repetir, ordenados (como número si lo son) y unidos por «, » |
+| `factura_numero` | lo mismo que el conduce (`informes.go` ya acepta la coma) |
+| `factura_estado` | `igual` (la factura ES la verdad: entra) |
+| `factura_at`, `order_date` | la fecha de la factura MÁS ANTIGUA a las 12:00 de Cuba (`T12:00:00-05:00`, huso fijo: la imagen no lleva `tzdata`; a mediodía el día de Cuba es el mismo con -05 y con -04) |
+| `factura_domicilio` | suma de las líneas `isDelivery` (SKU 50/51/45), a céntimos |
+| `items_origen` | `factura` |
+| `estado`, `fecha_comprometida`, `pedido_costo` | NULL (no existen en una factura) |
+| `archivado`, `requiere_domicilio` | `false`, `true` |
+| `customer_name` | `customer.name`; si viene vacío, `customerReference`; y si tampoco, «Cliente» |
+| `customer_phone`, `address`, `municipio`, `vendedor` | `customer.phone`, `customer.address` (+ «, » + ciudad si no la lleva ya), `customer.city`, `seller` |
+| `almacen_salida_codigo` / `_nombre` | `pointOfSale.code` / `.name` (el almacén de Ventra = el `objectCode` con el que Reparto empareja); `almacen_salida_mezclado = true` si las facturas agrupadas tienen puntos de venta distintos (se usa el de la primera) |
+| `lat`, `lng`, `end_lat`, `end_lng` | del espejo de clientes: `customers` por (sucursal, `codigo` = `customerReference` en mayúsculas y sin espacios); si eso no es un código, por NOMBRE normalizado y SOLO si es único en la sucursal (duplicados con el mismo punto valen). Sin punto: **NULL, y la entrega se guarda igual** (pero ver abajo: **si la fila ya tenía punto, se conserva**) |
+| `delivery_distance_km` | desde el almacén de salida al punto; NULL si no hay punto (y, igual que el punto, se conserva el que ya había si el que entra no trae punto) |
+
+**Sin coordenadas la entrega NO se descarta** («nada se descarta en silencio»): se guarda sin ellas ni
+distancia y queda visible en Pedidos para ubicarla a mano con `PUT /api/orders/{id}/punto`. Un pedido de
+PEDIDO sin coordenadas **sigue** descartándose con `sin-geolocalizacion`. Las listas del armador siguen
+exigiendo coordenadas (`end_lat IS NOT NULL`): una entrega sin punto no entra en una ruta hasta que alguien
+la ubique. El ciclo cuenta y dice cuántas hay (`sinPunto`).
+
+**Una entrada SIN punto no borra el que la fila ya tenía** (auditoría del 20/10/2026, G1; función SQL
+`punto_se_conserva`, 00025, usada por el `SET` y por el `WHERE … IS DISTINCT FROM` de
+`GuardarPedidoDelEspejo`). Caso: una fila de PEDIDO con punto va en una ruta y llega la factura del mismo
+folio con un `customerReference` que no está en `customers`. Antes el `DO UPDATE` escribía NULL en `lat`,
+`lng`, `end_lat`, `end_lng` y `delivery_distance_km` y la parada se quedaba fuera del armador. Ahora: si el
+que entra no trae punto (`end_lat` o `end_lng` vacíos) y la fila ya tenía uno, se conservan **juntos** el
+punto, su `end_address` y su `delivery_distance_km` (un km sin su punto, o un punto sin su km, serían
+mentira); si el que entra trae punto, manda el que entra; si el punto es a mano (`punto_manual`), sigue
+mandando el manual. Una entrega NUEVA sin punto se guarda sin punto. Un pedido de PEDIDO (siempre con punto)
+se comporta como siempre.
+
+**Los renglones** (solo las líneas que NO son de domicilio; mismo `productCode` y mismo punto de venta se
+SUMAN en uno): `code` = `productCode`, `description` = `productName`; **`packs` = la cantidad de la línea**
+(son unidades de venta: B, C, PACA); **`quantity` = `packs × products.units_per_package`** si ese dato es
+> 0, y si no `packs` (nunca 0); **`pesoKg` = `products.weight`** por (sucursal, `sku` = `productCode`), que
+es el peso por unidad de venta. La cuenta del peso NO se repite: la hace la cascada de la puerta
+(`cotizar.PesosDeRenglones`, escalón 2: `pesoKg × packs`). El caso de Amado: «CERVEZA PARRANDA 500 ML
+BLISTER 6U, 15 B» = 15 empaques, 90 unidades, con `weight` 2,4 → 36 kg. **Un producto sin peso (o que no
+está en `products`) se cuenta y se dice** (`productos de factura SIN peso` en el registro del espejo, con
+los códigos): la línea queda «sin peso» en todas las pantallas, nunca se inventa uno. Una entrega con solo
+la línea de domicilio (sin mercancía) se guarda igual y se cuenta aparte.
+
+**La adopción y la convivencia** (`alcance.alFolio`, dentro de `EspejoGuardarPedido`; el corte NO es
+atómico y no puede haber duplicados mientras convivan):
+
+**El folio se compara NORMALIZADO** (auditoría G3): `folio_normalizado(folio)` en SQL y
+`alcance.FolioNormalizado` en Go (las ata `TestMotorReal_FolioNormalizadoGoYSqlDicenLoMismo`) =
+`upper(regexp_replace(folio, '[^A-Za-z0-9]', '', 'g'))`. Lo usan el candado, la adopción, el «ya adoptado» del
+lado de PEDIDO y la clave `external_id` de la entrega; lo sirve el índice por expresión
+`orders_sucursal_folio_idx (sucursal_codigo, folio_normalizado(folio))`. `PXX-900` y `PXY-900` siguen siendo
+dos pedidos; un folio que se queda vacío al normalizarlo (`---`) no es un folio y no adopta a nadie.
+
+1. Se toma `pg_advisory_xact_lock` por (sucursal, folio normalizado): dos ciclos a la vez —uno de PEDIDO y
+   otro de factura— se ponen en fila y el segundo ve la fila del primero.
+2. **Entrega de factura con folio**: si hay una fila de PEDIDO (sin prefijo `factura:`) con el mismo
+   (`sucursal_codigo`, folio normalizado) —la MÁS ANTIGUA si PEDIDO repite el folio—, se ADOPTA: se cambia su `external_id` y el upsert de siempre le pone el
+   mapeo. Conserva el `id`, la ruta, `stop_order`, el resultado y el punto a mano. Sin fila previa, se
+   crea.
+3. **Pedido de PEDIDO**: si ya hay una fila de factura con su (sucursal, folio normalizado), NO se crea otra →
+   `persisted:false, reason:"ya-adoptado-por-factura"`.
+4. Las filas adoptadas ya no son «de PEDIDO» para sus avisos de borrado (`QuitarPedidosDelEspejo` busca por
+   `external_id`): lo que PEDIDO borre después no se lleva una entrega que ahora manda la factura.
+5. La marca de agua de PEDIDO (`max(pedido_updated_at)`) puede retroceder un poco al adoptar (la fila
+   adoptada pierde el `pedido_updated_at`): el incremental trae algo de más, nunca de menos.
+
+**Lo que ya no viene en Ventra** («ya no va», `Espejo.retirarLoQueYaNoViene`): una entrega de factura que
+estaba dentro de la ventana consultada y ya no aparece (factura anulada) se retira si NO va en ninguna ruta
+ni tiene resultado; si va, se deja y se cuenta como «anulada con ruta». **Guardas**: nunca si la respuesta
+de esa sucursal falló o vino vacía cuando en la base hay entregas de esa ventana (un error, no una
+anulación), ni fuera de la ventana consultada, ni lo que no es `factura:`; y el propio `DELETE` repite la
+guarda de ruta/resultado. El borrado deja su lápida y los aparatos lo quitan.
+
+**El repaso nunca encoge una entrega** (auditoría G2; `Espejo.repasoQueVeLasEntregasAbiertas` y
+`entregasQueEncogerian`, `internal/espejo/ciclo_facturas.go`). La fecha de una entrega es la de su factura
+MÁS ANTIGUA, y una entrega puede reunir facturas de días muy distintos (la 100 del 10/10 y la 101 del 19/10).
+Con la ventana fija de tres días, el repaso de cada minuto solo veía la 101 y reescribía la entrega con ella
+sola (conduce «101», peso y packs a la mitad); el barrido diario la dejaba bien y el repaso siguiente la
+rompía otra vez —medido: «100, 101» → «101» → «100, 101»…, peso 72 → 36—. Ahora, en dos capas:
+
+1. **La ventana del repaso se ensancha** de cada sucursal hasta el día de su entrega de factura ABIERTA más
+   antigua (sin `resultado` ni `delivered_at`, y sin ir en una ruta `completed`), con tope en `HistoricoDias`
+   (60). Así el repaso ve TODAS las facturas de todo lo que todavía se puede repartir, y una factura nueva de
+   un folio abierto entra en el repaso y no espera al barrido. Si el tope recorta, el ciclo avisa (`más
+   antigua que el histórico`). Efecto lateral, a propósito: «lo que ya no viene en Ventra» se juzga con la
+   misma ventana ensanchada, así que una entrega abierta anulada se retira en el repaso y no solo en el
+   barrido.
+2. **Red de seguridad: un repaso que traiga MENOS facturas de las que la entrega ya tiene no la reescribe.**
+   Si el conduce guardado contiene números que no vinieron (una entrega ya entregada, que no ensancha la
+   ventana, o una abierta más allá del tope), el repaso la deja como está y lo cuenta (`parciales`) y lo
+   dice: «entrega parcial: se espera al barrido». **Solo el barrido (cada 24 h, 60 días, ve todo) puede
+   encoger o rehacer una entrega.** Consecuencia: una factura anulada de una entrega con varias tarda hasta
+   un día en salir de su conduce. Si no se pueden leer los conduces guardados, el repaso de esa sucursal no
+   guarda nada (y lo dice).
+
+**Limitaciones conocidas:** (1) una entrega ENTREGADA o más vieja que el tope cuyas facturas ganan una nueva
+espera al barrido diario para incorporarla (el repaso la deja «parcial», no la rompe); (2) **una factura sin
+`orderNumber` que más tarde gana la nota DEJA DUPLICADO si la vieja ya va en una ruta**: cambia de clave
+(`factura:<SUC>:<punto>:<número>:<fecha>` → `factura:<SUC>:<folio normalizado>`), la fila nueva nace
+aparte y la vieja, que va en ruta o tiene resultado, no se retira (sale como «anulada con ruta») — el mismo
+pedido dos veces, cargable dos veces en el camión; si la vieja NO va en ruta, se retira sola. **Cómo se arregla
+a mano** (no está implementado): en una transacción, borrar la fila NUEVA (sin ruta; `DELETE /api/orders/{id}`
+o `DELETE FROM orders WHERE external_id = 'factura:<SUC>:<FOLIO>'`) y cambiar el `external_id` de la vieja a
+esa clave (`UPDATE orders SET external_id = 'factura:<SUC>:<FOLIO>' WHERE id = '<id de la vieja>'`) para que el
+espejo la reconozca y le ponga el folio y el mapeo en su siguiente ciclo; (3) la API de Ventra no trae
+`updatedAt`: no hay incremental, solo repaso y barrido.
 
 ## `POST /api/quote/home-delivery` — precio de un domicilio (detallado)
 
@@ -1370,23 +1572,16 @@ data: {}
   de AURORA. Es opcional en el contrato y se trata como ausente sin error; mientras NINGÚN
   almacén de una sucursal lo traiga, los pedidos de esa sucursal se apuntan con
   `almacenMotivo: "accesos-sin-codigos"`, que es una tarea distinta de «dar de alta un almacén».
-  El `PUT` manda el cuerpo a Accesos tal cual, así que en cuanto la pantalla de Almacenes lo
-  escriba, llegará.
+  Lo escribe el CRM (los almacenes se editan allí); Reparto solo lo lee.
 - Error de Accesos → `502 {"error":"No se pudieron traer los almacenes de Accesos: <mensaje>"}`.
-- **Escribe**: nada en local.
+- **Escribe**: nada en local. Reparto no escribe almacenes en ninguna parte.
 
-## `PUT /api/almacenes`
-
-- **Auth**: usuario. **Alcance**: sí (mismo `codigosVisibles`).
-- **Cuerpo**: `{ codigo, almacenes: [...] }`. Si el JSON no parsea o falta `codigo` o
-  `almacenes` no es array → `400 {"error":"Se espera { codigo, almacenes: [...] }"}`.
-- Si `codigo` no está entre los visibles → `403 {"error":"Sin acceso a esa sucursal"}`.
-- Manda `PUT /api/service/almacenes` firmado a Accesos con el cuerpo tal cual.
-  Error → `502 {"error":"Accesos no aceptó el cambio: <mensaje>"}`.
-- **200**: la respuesta de Accesos (`{ almacenes: [...] }`) más
-  `aviso`: `"<N> almacén(es) sin coordenadas: desde ésos no se puede medir el domicilio."`
-  contando los que tienen `latitud == null || longitud == null`; `null` si no hay ninguno.
-- **Escribe**: nada en la base local (todo vive en Accesos).
+> **`PUT /api/almacenes` — Eliminado el 20/10/2026: los almacenes se editan en el CRM; Reparto
+> solo los lee.** La ruta ya no está registrada (contesta `405` con `Allow: GET`) y una prueba
+> lo fija (`TestAlmacenesElPutYaNoExisteYElGetSigueIgual`). Con ella se fueron los errores
+> `400`/`403`/`502` y el `aviso` de «sin coordenadas» del `PUT`. El aviso en vivo
+> `almacenes` del bus de eventos SE QUEDA: ahora lo dispara el CRM (cableado pendiente) y las
+> pantallas abiertas se repintan con él.
 
 ---
 
@@ -2072,6 +2267,21 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
 - La bajada (`GET /api/sync/cambios`) manda en cada pedido **`almacenSalidaCodigo`** y
   `GET /api/almacenes` el **`codigo`** de cada almacén: con los dos, la APK y el escritorio
   ordenan igual sin señal.
+- **El punto de entrega a mano en la bajada (1.0.39, issue 19).** Cada pedido de la colección `orders` lleva
+  seis campos más (los ata `la_bajada_no_pierde_campos_test.go`):
+
+  | Campo | Tipo | |
+  |---|---|---|
+  | `puntoManual` | bool | `true` = `endLat`, `endLng` y `endAddress` son del logístico, no del cliente |
+  | `puntoManualPor` | texto o `null` | el `sub` de quien lo puso |
+  | `puntoManualAt` | ISO o `null` | cuándo |
+  | `puntoClienteLat` | número o `null` | el punto que traía el cliente; `null` si no es manual |
+  | `puntoClienteLng` | número o `null` | ídem |
+  | `puntoClienteAddress` | texto o `null` | ídem |
+
+  Con los tres `puntoCliente…` la APK y el escritorio vuelven al punto del cliente SIN conexión y de forma
+  exacta, copiándolos a `endLat/endLng/endAddress`. `GET /api/orders` y `GET /api/orders/{id}` llevan los
+  mismos seis (`puntoManual…` y `puntoCliente…`).
 
 ## `POST /api/board/columns/{id}/route` — armar una zona
 
@@ -2281,9 +2491,9 @@ Montadas en el mux público de `sync/cmd/sync/main.go` (`RutasDeRevision`), cada
 `Token`; (2) tasa, 60 peticiones por minuto **por persona**; (3) el aparato **existe** (nunca se da de alta en modo
 entrega) y es de **esta persona y de esta sucursal**; (4) **cada** apunte, entero, antes de guardar ninguno (una
 entrega con un solo apunte malo no guarda ninguno): `clave` `^[A-Za-z0-9_.:-]{1,100}$` y no repetida en el envío,
-método `POST|PUT|PATCH|DELETE`, **ruta de la lista blanca POR FORMA**: solo las quince que la API tiene de escritura —`/routes`,
+método `POST|PUT|PATCH|DELETE`, **ruta de la lista blanca POR FORMA**: solo las dieciséis que la API tiene de escritura —`/routes`,
 `/routes/{id}`, `/routes/{id}/stops` (reordenar, 15/10/2026), `/routes/{id}/stops/{pedido}`, `/routes/{id}/results`, `/board/columns`, `/board/columns/{id}`,
-`/board/columns/{id}/route`, `/board/placements/{pedido}` y, desde el 16/10/2026 (issue 14, la flota sin señal), `/vehicles`, `/vehicle-types`, `/distribuidores` y sus `/{id}`—, con `{id}` = letras, números, `_` y `-` (un uuid, un `local-…`,
+`/board/columns/{id}/route`, `/board/placements/{pedido}` y, desde el 16/10/2026 (issue 14, la flota sin señal), `/vehicles`, `/vehicle-types`, `/distribuidores` y sus `/{id}`, y, desde el 20/10/2026 (issue 19), `/orders/{id}/punto` (y SOLO eso de `/orders`: ni `/orders` ni `/orders/{id}`, que borra el pedido)—, con `{id}` = letras, números, `_` y `-` (un uuid, un `local-…`,
 `orden`; **nunca un punto**) y, a continuación, una query opcional de pares simples. La forma es la profundidad exacta: `POST /board`
 suelto, `/routes/.` o `/routes/a/b/c/d` dan 422 (antes valía «lo que venga detrás» y esas rutas entraban, el reparto contestaba 404
 y `Aplicar` lo tomaba por una caída que paraba «aplicar todo» en un apunte que jamás iba a entrar). Sin `..` ni `//`, ≤300 caracteres, `hecho` presente, no más de 24 h en el futuro ni más de 60 días en el pasado,
@@ -2578,10 +2788,6 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | `/api/origins` POST | 403 | `Sucursal no válida` |
 | `/api/origins/[id]` | 404 | `No encontrado` |
 | `/api/almacenes` GET | 502 | `No se pudieron traer los almacenes de Accesos: <msg>` |
-| `/api/almacenes` PUT | 400 | `Se espera { codigo, almacenes: [...] }` |
-| `/api/almacenes` PUT | 403 | `Sin acceso a esa sucursal` |
-| `/api/almacenes` PUT | 502 | `Accesos no aceptó el cambio: <msg>` |
-| `/api/almacenes` PUT | 200 (aviso) | `<N> almacén(es) sin coordenadas: desde ésos no se puede medir el domicilio.` |
 | `/api/vehicles` POST | 400 | `Vehicle name is required` |
 | `/api/vehicles/[id]` DELETE | 409 | `No se puede eliminar este vehículo porque tiene rutas asociadas, incluso históricas. Márcalo como inactivo para impedir que se use en nuevas rutas.` |
 | `/api/vehicles/[id]` | 404 | `Not found` |
@@ -2604,7 +2810,7 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | # | Ruta | Métodos | Auth | Alcance | Escribe |
 |---|---|---|---|---|---|
 | 1 | `/api/admin/recompute` | POST | usuario + SERVICE_API_KEY en entorno | sí | vía batch: Order, Settings |
-| 2 | `/api/almacenes` | GET, PUT | usuario | sí (códigos visibles) | nada local (Accesos) |
+| 2 | `/api/almacenes` | GET (el PUT se eliminó el 20/10/2026) | usuario | sí (códigos visibles) | nada local (Accesos) |
 | 3 | `/api/apps` | GET | usuario | no (sí por rol) | no |
 | 4 | `/api/auth/callback` | GET | no (código SSO) | no | User |
 | 5 | `/api/auth/entrar` | GET | no | no | no |

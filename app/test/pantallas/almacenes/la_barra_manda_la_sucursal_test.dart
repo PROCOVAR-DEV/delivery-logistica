@@ -1,4 +1,4 @@
-// LA PANTALLA DE ALMACENES CONFIGURA LA SUCURSAL QUE DICE LA BARRA.
+// LA PANTALLA DE ALMACENES MUESTRA LA SUCURSAL QUE DICE LA BARRA.
 //
 // Jose, 29/09/2026: «los almacenes tengo seleccionado santiago, por que razon me
 // salio camaguey en la web».
@@ -15,7 +15,8 @@
 // con su nombre escrito arriba.
 //
 // Y no es cosmético. El domicilio se cobra por la distancia DESDE el almacén:
-// editar ahí es mover el punto de cobro de otra provincia.
+// mirar la sucursal equivocada es leer el punto de cobro de otra provincia.
+// (Desde el 20/10/2026 la pantalla es de solo lectura; la regla sigue igual.)
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/pantallas/almacenes/datos/almacen_api.dart';
 import 'package:reparto/pantallas/almacenes/estado/estado_almacenes.dart';
@@ -37,7 +38,7 @@ final _lasOcho = [
 ];
 
 void main() {
-  test('con Santiago en la barra se configura Santiago, no la primera', () {
+  test('con Santiago en la barra se muestra Santiago, no la primera', () {
     final elegida = cualSeConfigura(
       _lasOcho,
       elegidaEnLaPantalla: null,
@@ -52,7 +53,7 @@ void main() {
   });
 
   test('lo que se elige a mano en la pantalla manda sobre la barra', () {
-    // Un Super Admin puede estar mirando Santiago y querer configurar Holguín
+    // Un Super Admin puede estar mirando Santiago y querer ver Holguín
     // sin cambiar la barra. Eso tiene que seguir funcionando.
     final elegida = cualSeConfigura(
       _lasOcho,
@@ -63,7 +64,7 @@ void main() {
   });
 
   test('con «Todas» arriba se enseña la primera, que es lo único que queda', () {
-    // Aquí no hay respuesta correcta: la pantalla configura UNA sucursal cada
+    // Aquí no hay respuesta correcta: la pantalla muestra UNA sucursal cada
     // vez y la barra no ha nombrado ninguna. Se enseña la primera y el
     // desplegable queda a mano.
     final elegida = cualSeConfigura(
@@ -77,7 +78,7 @@ void main() {
   test('una sucursal que ya no está en la lista no deja la pantalla vacía', () {
     // Accesos puede dejar de devolver una sucursal, o la barra puede tener una
     // que Accesos no conoce. Lo que NO puede pasar es que la pantalla se quede
-    // sin nada que configurar y parezca que no hay almacenes.
+    // sin nada que mostrar y parezca que no hay almacenes.
     final elegida = cualSeConfigura(
       _lasOcho,
       elegidaEnLaPantalla: 'NO-EXISTE',

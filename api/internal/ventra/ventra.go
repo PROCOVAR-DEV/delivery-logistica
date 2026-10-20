@@ -244,6 +244,15 @@ func (c *Cliente) Catalogo(ctx context.Context, base string) ([]api.FilaDeVentra
 // y con la ruta dentro: este mensaje acaba en la respuesta de `products/sync` y lo lee
 // quien le dio al botón, no quien escribió esto.
 func (c *Cliente) pedir(ctx context.Context, ruta string, q url.Values) ([]byte, error) {
+	// Con tope: el catálogo son ~128 productos por sucursal, y si algún día contesta otra
+	// cosa —una página de error de un proxy— no se traga la memoria del servicio.
+	return c.pedirConTope(ctx, ruta, q, 16<<20)
+}
+
+// pedirConTope es [Cliente.pedir] con el tope de lectura a elección. Pasarse del tope es un
+// ERROR y no un cuerpo cortado: antes se leía `tope` bytes y se seguía, y un JSON cortado a la
+// mitad falla al decodificarse con un mensaje que no dice que el problema fue el tamaño.
+func (c *Cliente) pedirConTope(ctx context.Context, ruta string, q url.Values, tope int64) ([]byte, error) {
 	// Antes de salir a la red, que es donde se pierde el rastro de una variable que falta.
 	if c.base == "" {
 		return nil, errors.New("WAREHOUSE_API_URL no está configurada")
@@ -274,11 +283,12 @@ func (c *Cliente) pedir(ctx context.Context, ruta string, q url.Values) ([]byte,
 	}
 	defer res.Body.Close()
 
-	// Con tope: el catálogo son ~128 productos por sucursal, y si algún día contesta otra
-	// cosa —una página de error de un proxy— no se traga la memoria del servicio.
-	crudo, err := io.ReadAll(io.LimitReader(res.Body, 16<<20))
+	crudo, err := io.ReadAll(io.LimitReader(res.Body, tope+1))
 	if err != nil {
 		return nil, fmt.Errorf("Ventra cortó la respuesta de %s a medias (¿VPN?): %w", ruta, err)
+	}
+	if int64(len(crudo)) > tope {
+		return nil, fmt.Errorf("Ventra contestó más de %d MB en %s: no se lee a medias", tope>>20, ruta)
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return nil, fmt.Errorf("Ventra %d en %s: %s", res.StatusCode, ruta, recorte(string(crudo), 200))

@@ -14,6 +14,19 @@ abstract final class Entorno {
     defaultValue: 'https://reparto.procovar.cloud/sync',
   );
 
+  static const crmUrlPorDefecto = 'https://crm.procovar.cloud/catalogos/almacenes';
+
+  /// `CRM_URL`: la pantalla del CRM donde se editan los almacenes (viven en Accesos y se
+  /// gestionan desde el CRM, 20/10/2026; Reparto solo los lee). El defecto es la de
+  /// produccion que dio Jose, como las otras URL de este fichero: el APK y el instalador de
+  /// Windows se compilan SIN `--dart-define`, y con el defecto vacio no llevarian enlace.
+  /// Es un enlace que se abre al pulsar, no una peticion: no rompe la regla dura de abajo.
+  /// `--dart-define=CRM_URL=` explicitamente VACIO = el aviso sale sin enlace (las pruebas).
+  static const crmUrl = String.fromEnvironment(
+    'CRM_URL',
+    defaultValue: crmUrlPorDefecto,
+  );
+
   static const authUrlPorDefecto = 'https://auth.procovar.cloud';
 
   /// `AUTH_URL`. **Vacío = el de producción**: `--dart-define=AUTH_URL=` explícitamente

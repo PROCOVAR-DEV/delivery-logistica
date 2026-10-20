@@ -842,6 +842,14 @@ void main() {
         ('POST', '/board/columns/$id/route', 'Crear una ruta desde una zona'),
         ('PUT', '/board/placements/o-1', 'Mover un pedido a una zona'),
         ('DELETE', '/board/placements/o-1', 'Sacar un pedido de una zona'),
+        // El punto de entrega puesto a mano (issue 19): PUT lo pone, DELETE vuelve al del
+        // cliente, y las dos se leen igual para quien revisa.
+        ('PUT', '/orders/$id/punto', 'Poner el punto de entrega de un pedido a mano'),
+        (
+          'DELETE',
+          '/orders/$id/punto',
+          'Poner el punto de entrega de un pedido a mano',
+        ),
         // Con `/api` delante y el metodo en minusculas: igual.
         ('delete', '/api/routes/$id', 'Borrar una ruta'),
         // NO se reconoce: ni se inventa.
@@ -850,6 +858,9 @@ void main() {
         ('GET', '/routes/$id', null),
         ('DELETE', '/admin/recompute', null),
         ('POST', '/routes/$id/results/extra', null),
+        ('PATCH', '/orders/$id/punto', null),
+        ('PUT', '/orders/$id', null),
+        ('PUT', '/orders/$id/punto/extra', null),
       ];
       for (final (metodo, ruta, esperado) in casos) {
         expect(queHace(metodo, ruta), esperado, reason: '$metodo $ruta');

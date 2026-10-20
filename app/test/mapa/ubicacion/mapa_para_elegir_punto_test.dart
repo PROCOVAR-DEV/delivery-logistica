@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/pantallas/almacenes/datos/coordenadas.dart';
-import 'package:reparto/pantallas/almacenes/vista/mapa_para_elegir_punto.dart';
+import 'package:reparto/mapa/ubicacion/coordenadas.dart';
+import 'package:reparto/mapa/ubicacion/mapa_para_elegir_punto.dart';
 import 'package:reparto/pantallas/rutas/datos/mapa_en_vivo.dart';
 
 /// EL MAPA DE ELEGIR EL PUNTO.

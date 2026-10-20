@@ -95,7 +95,87 @@ Mira en este orden:
      **«Entrega»**, **«Recorrido»**, la banda de la factura, el bloque del domicilio
      y **«Productos (6)»**.
 
-**Es sólo lectura.** Aquí no se edita nada de un pedido: viene de PEDIDO.
+**Es de lectura.** Aquí no se edita nada de un pedido: viene de PEDIDO. La única acción
+es **«Ubicar la entrega»**: [poner a mano el punto de entrega](#poner-el-punto-de-entrega-de-un-pedido-a-mano).
+
+---
+
+## Poner el punto de entrega de un pedido a mano
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Pedidos»**.
+
+**Para qué:** el cliente pide entregar en **otro sitio** y quien factura lo apunta en el
+ticket. Esa dirección no coincide con la geolocalización del cliente (la única que
+manda PEDIDO). **El logístico le pone el punto bueno a ese pedido**, y desde entonces
+manda sobre el del cliente: las rutas lo miden desde ahí y **no se pierde cuando el
+cliente se vuelve a actualizar**.
+
+1. **Toca la tarjeta del pedido** para abrir su ficha.
+   <!-- señala: pedidos-abrir-el-pedido -->
+2. En la sección **«Entrega»**, **toca «Ubicar la entrega»**.
+   - Se abre un cajón titulado **«Ubicar la entrega»**, con el folio y el cliente
+     debajo.
+   - Si el pedido **ya está entregado** o va en una **ruta completada**, no hay botón:
+     en su lugar la ficha dice por qué («El pedido ya está entregado: no se le puede
+     cambiar el punto» / «La ruta ya está completada: no se le puede cambiar el punto a
+     sus paradas»). Son histórico.
+3. Pon el punto de **una de las tres formas** (las tres escriben en la misma caja de
+   **«Coordenadas»**, y lo que se guarda es lo que ponga ahí; puedes buscar y luego
+   corregir a mano):
+   - **Escribe las coordenadas** en **«Coordenadas»**, así: `19.83, -75.82`. Si no se
+     entiende, debajo pone «No se entiende. Escríbelo como «19.83, -75.82».»
+   - **Toca en el mapa**, en el sitio de la entrega. Debajo sale «Punto puesto en
+     20.02470, -75.82190.».
+   - **Escribe la dirección** en **«Dirección»** y **toca «Buscar»** (hacen falta al
+     menos 4 letras). Mira el punto en el mapa antes de guardar.
+4. **Escribe la dirección de la entrega** en **«Dirección»**, si el mapa no la trajo.
+   **Vacía, se queda la que tenía.**
+5. **Toca «Guardar punto»**. No se enciende hasta que algo cambie.
+   - **Funciona sin señal.** Se guarda en el teléfono, la parada ya sale con su punto
+     nuevo y el cambio **sube cuando vuelve la señal**; al subir, el servidor repite las
+     cuentas y manda lo suyo (los km del domicilio, que el teléfono no recalcula, se
+     ponen entonces). Pulsar en el mapa y escribir las coordenadas funcionan siempre;
+     **«Buscar» necesita señal** y, sin ella, lo dice y deja el punto como estaba.
+   - Si al subir el servidor dice que no (por ejemplo, la ruta se completó entretanto),
+     el cambio queda en la bandeja con su motivo, como cualquier otro.
+
+Qué cambia:
+
+- La ficha (y la tarjeta de la parada, en Rutas) lleva la etiqueta **«Punto puesto a
+  mano»**.
+- **En el mapa de la ruta, el número de esa parada sale en ROJO**, y su globo dice
+  «Punto puesto a mano». La leyenda de abajo lo explica.
+- Los **km de esa parada** y el **total de la ruta** se vuelven a medir desde el punto
+  nuevo (si la ruta ya está armada y no está completada), y la distancia del domicilio
+  también. **El orden de las paradas no se toca**: si ya no es el mejor, reordénalas
+  tú.
+
+### Volver al punto del cliente
+
+1. Abre otra vez **«Ubicar la entrega»** en ese pedido: ahora trae también **«Volver al
+   punto del cliente»**.
+2. **Toca «Volver al punto del cliente»**. **Pregunta antes**, en un cajón: dice a qué
+   punto vuelve y que los km se miden otra vez.
+3. **«Sí, volver al punto del cliente»** o **«No, dejar el punto a mano»**.
+
+Si el pedido no tiene punto a mano, el servidor lo dice: «El pedido no tiene un punto
+puesto a mano».
+
+### Desde una ruta o desde el asistente
+
+El **mismo cajón** se abre desde otros dos sitios, sin salir de lo que estás haciendo:
+
+- **En Rutas**, en el detalle de la ruta → **«Ver paradas»** → en la tarjeta de la
+  parada, **«Ubicar la entrega»** (junto a «Quitar de ruta"). No sale en una ruta
+  completada ni en una parada ya entregada.
+- **Al armar una ruta**, en el paso **«Pedidos»** del asistente, cada fila lleva un
+  botón pequeño con el tooltip **«Ubicar la entrega»**. Pulsarlo **no marca ni desmarca**
+  el pedido.
+
+**Una limitación:** un pedido que PEDIDO manda **sin coordenadas** no llega a esta
+aplicación, así que no se puede abrir. Esto sirve para **cambiar** el punto de un
+pedido que ya tiene uno.
 
 ---
 
@@ -236,8 +316,9 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
 4. **Paso «Salida»** — elige en **«Almacén del que sale el camión»** y toca
    **«Siguiente»**. <!-- señala: rutas-asistente-almacen -->
    - Sólo salen almacenes **con coordenadas**.
-   - Si no hay ninguno: «Esta sucursal no tiene ningún almacén con ubicación…» y un
-     botón **«Poner el almacén»**.
+   - Si no hay ninguno: «Esta sucursal no tiene ningún almacén con ubicación. Los
+     almacenes se ponen en el CRM…» y un botón **«Ver los almacenes»** (lleva a la
+     pantalla de consulta).
 5. **Paso «Vehículo»** — elige en **«Vehículo de la ruta»** y toca **«Siguiente»**.
    **Es obligatorio.** <!-- señala: rutas-asistente-vehiculo -->
    - Cada uno sale con su capacidad: «1000 kg», «1000 kg · en el taller», «1000 kg ·
@@ -648,93 +729,27 @@ tipo nuevo…»**. Ábrela, escribe **«Nombre del tipo»** y su **«Costo/km (U
 
 ---
 
-## Poner o corregir un almacén
+## Consultar los almacenes de una sucursal
 <!-- tarea -->
 
-**Empieza en:** **Menú → «Almacenes»**.
+**Empieza en:** **Menú → «Almacenes»**. **Necesita señal.**
 
-**Esto necesita señal.**
+**Los almacenes ya no se crean, se editan ni se quitan desde aquí: se editan en el
+CRM.** Esta pantalla es de solo lectura, y arriba lo dice: «Los almacenes se editan
+en el CRM. Aquí solo se consultan.» Si la aplicación trae la dirección del CRM
+puesta, al lado sale **«Abrir el CRM»**.
 
 1. Elige la sucursal arriba, si hay más de una.
    <!-- señala: almacenes-sucursal -->
-2. **Toca «Nuevo almacén»**. <!-- señala: almacenes-nuevo -->
-   - O **toca el renglón del almacén** que quieras corregir.
-3. Escribe el **nombre del almacén**. <!-- señala: almacenes-nombre -->
-4. Forma 1 de poner el punto: **escribe la dirección**…
-   <!-- señala: almacenes-direccion -->
-5. …y **toca «Buscar»** (necesita señal, y al menos 4 letras).
-   <!-- señala: almacenes-buscar-la-direccion -->
-6. Forma 2: **toca en el mapa** — funciona sin señal.
-   <!-- señala: almacenes-mapa -->
-7. Forma 3: **escribe las coordenadas a mano** en la caja «Coordenadas», así:
-   `19.83, -75.82` — funciona siempre.
-   <!-- señala: almacenes-coordenadas -->
-8. Si quieres que sea el principal, **toca el chip «Principal»**. «Desde éste se mide
-   cuando nadie dice cuál.» <!-- señala: almacenes-principal -->
-9. **Toca «Guardar»**. Vas a ver **«Guardado en Accesos.»**
-   <!-- señala: almacenes-guardar -->
+2. Mira la lista. Cada renglón dice la dirección, las coordenadas (o **«sin punto»**),
+   el código, si es el **principal** (lleva estrella) y si está **inactivo**.
 
-**Un almacén sin punto se puede guardar, pero desde él no se cotiza**, y te lo avisa:
-«Sin coordenadas: desde éste no se puede medir el domicilio.»
+**Un almacén sin punto no sirve para cotizar**: desde él no se puede medir el
+domicilio. Si falta uno, o hay que corregir un punto, se arregla en el CRM.
 
----
-
-## Cambiar cuál es el almacén principal
-<!-- tarea -->
-
-**Empieza en:** **Menú → «Almacenes»**. **Necesita señal.**
-
-El principal es el que se usa **cuando nadie dice cuál**. Lo dice el propio chip:
-«Desde éste se mide cuando nadie dice cuál».
-
-1. Arriba, elige la sucursal si hay más de una.
-   <!-- señala: almacenes-sucursal -->
-2. **Toca el renglón del almacén** que va a ser el principal. Se abre su cajón, con
-   su nombre de título. <!-- señala: almacenes-abrir -->
-3. Debajo del nombre, **toca el chip «Principal»** (la estrella se rellena).
-   <!-- señala: almacenes-principal -->
-4. **Toca «Guardar»**. Sale **«Guardado en Accesos.»** En la lista, la **estrella**
-   se ha movido a ese almacén. <!-- señala: almacenes-guardar -->
-
-> **Ojo:** **sólo puede haber un principal.** Al marcar éste, los demás se desmarcan
-> solos — no hay que ir a quitárselo al anterior.
-
----
-
-## Quitar un almacén de la sucursal
-<!-- tarea -->
-
-**Empieza en:** **Menú → «Almacenes»**. **Necesita señal.**
-
-1. Arriba, elige la sucursal. <!-- señala: almacenes-sucursal -->
-2. **Toca el renglón del almacén.** Se abre su cajón.
-   <!-- señala: almacenes-abrir -->
-3. Debajo del nombre, a la derecha de los chips **«Principal»** y **«Activo»**, hay
-   una **papelera** (**«Quitar»**). **Tócala.**
-   <!-- señala: almacenes-quitar -->
-   - **Se abre un cajón que pregunta antes**, **«Borrar «Almacén Central»»**, y
-     dice las cuatro cosas que pasan de verdad:
-
-   > «El almacén se va de Accesos: se guarda la lista de Santiago sin él, así que
-   > desaparece para todo el mundo y no sólo en esta pantalla. Deja de poder medirse
-   > desde ahí: los pedidos que lo traen puesto pasan a medirse desde el principal de
-   > la sucursal, con otro kilometraje y otro importe que se cobra igual que uno
-   > bueno; y si era el último con punto, los domicilios de Santiago salen sin precio.
-   > Los teléfonos que ya lo bajaron siguen midiendo desde él hasta la próxima vez que
-   > tengan red —Accesos no avisa de los que se retiran—, así que cada entrega de ese
-   > día se cobra mal y no se ve hasta cuadrar la caja. Volver a ponerlo es darlo de
-   > alta a mano, con su dirección y su punto.»
-
-4. **Toca «Sí, borrar «Almacén Central»»**, o **«No, dejarlo»**.
-   <!-- señala: confirmar-el-borrado -->
-
-> **Ojo:** eso de que **los teléfonos que ya lo bajaron siguen midiendo desde él** es
-> literal. Después de quitar un almacén, **avisa a quien tenga la aplicación en el
+> **Ojo:** el teléfono mide con los almacenes que bajó la última vez que tuvo red.
+> Si en el CRM se retira o se cambia uno, **avisa a quien tenga la aplicación en el
 > teléfono para que traiga el día**, o ese día cobra desde un sitio que ya no existe.
-
-Y si sólo quieres que deje de usarse pero no perderlo: **no lo quites**. Abre su
-cajón, **toca el chip «Activo»** para dejarlo en **«Inactivo»** y **«Guardar»**. En
-la lista queda con el rótulo «inactivo» y no se ofrece para salir.
 
 ---
 

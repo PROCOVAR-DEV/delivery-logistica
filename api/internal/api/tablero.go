@@ -427,7 +427,8 @@ func (s *Servidor) tableroDe(w http.ResponseWriter, r *http.Request, a *alcance.
 // Salía de `saved_origins` —los puntos de partida de ESTA base, herencia de delivery— y
 // no de los almacenes. Son dos cosas distintas y no se llenan igual: el punto de partida
 // lo dejó puesto quien dio de alta la sucursal en delivery, y el almacén lo pone el
-// logístico desde la pantalla de Almacenes, que escribe en Accesos y **no toca esta
+// logístico desde la pantalla de Almacenes (hoy, desde el 20/10/2026, se edita en el CRM y
+// Reparto solo la lee), que escribe en Accesos y **no toca esta
 // base**. Resultado: La Habana, la única sucursal con `saved_origins`, tenía tablero, y
 // las otras siete recibían `409 «<Sucursal> no tiene ningún almacén con coordenadas»`
 // teniendo el almacén puesto, con su punto, a la vista en la pantalla de Almacenes y con

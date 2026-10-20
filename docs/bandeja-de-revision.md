@@ -791,7 +791,7 @@ token `web:true` (el de la cookie que la bandeja web usa como Bearer) no vale si
 en el navegador, 401 en `/sync/*` (`identidad/token.go`). (2) **Migración nueva `00004_nombre_de_aparato_acotado.sql`**
 (recorta a 200 los nombres que ya hubiera y añade `CHECK (char_length(nombre) <= 200) NOT VALID`); `POST /sync/aparato` limpia y recorta el nombre a 80 (`aparato.go`,
 `topeNombreDeAparato`) y la bandeja del revisor lo recorta a 200 al leerlo; **`ExigirMigraciones` espera ya la 4**. (3) **Lista blanca
-de ruta POR FORMA** (`revision_limites.go`): las quince rutas de escritura que la API tiene de rutas, tablero y flota (la novena, `PUT /routes/{id}/stops`, reordenar, 15/10/2026; las seis de `/vehicles`, `/vehicle-types` y `/distribuidores`, y sus `/{id}`, desde el 16/10/2026, issue 14: quien pierde el rol con altas de camión en la cola las entrega y antes la entrega ENTERA salía 422; la API vuelve a acotar con el token del revisor), con `{id}` sin puntos;
+de ruta POR FORMA** (`revision_limites.go`): las dieciséis rutas de escritura que la API tiene de rutas, tablero, flota y punto de entrega de un pedido (la novena, `PUT /routes/{id}/stops`, reordenar, 15/10/2026; las seis de `/vehicles`, `/vehicle-types` y `/distribuidores`, y sus `/{id}`, desde el 16/10/2026, issue 14: quien pierde el rol con altas de camión en la cola las entrega y antes la entrega ENTERA salía 422; la API vuelve a acotar con el token del revisor; y desde el 20/10/2026 `PUT`/`DELETE /orders/{id}/punto`, el punto de entrega puesto a mano, issue 19: SOLO esa forma de `/orders`, sin `/orders` ni `/orders/{id}`), con `{id}` sin puntos;
 `POST /board` suelto ya no entra (422). (4) **`aplicar` mira el libro `apuntes`** tras reclamar (B6): si la subida normal ya había
 aplicado la clave, cierra `aplicado` sin reenviar; si la rechazó, `rechazado`; y copia lo que aplica al libro con
 `CopiarApunteAplicadoAlLibro` (`ON CONFLICT DO NOTHING`). (5) Pruebas nuevas: `TestReclamarUnAplicandoInterrumpidoTambienExigeOtraPersonaYElAlcance`,
@@ -929,7 +929,7 @@ ahora viaja siempre que el apunte lo tenga.
     UUID, y el diseño decía solo `local-…`. No cabe «exactamente lo mismo» en una regex: la prueba ata que todo lo que la subida
     traduce entero cabe en la entrega (`revision_limites.go`).
 16. **La lista blanca de ruta es POR FORMA, no «lo que venga detrás».** El diseño decía `^/(routes|board)(/…)?`; ahora son las ocho
-    rutas de escritura reales de la API (quince desde el 16/10/2026, con las seis de la flota), con `{id}` sin puntos. **Cambio de significado:** `POST /board` suelto estaba entre las
+    rutas de escritura reales de la API (quince desde el 16/10/2026, con las seis de la flota; dieciséis desde el 20/10/2026, con `/orders/{id}/punto`, el punto de entrega a mano, issue 19: de `/orders` entra SOLO esa forma y no `/orders/{id}`, que borra el pedido), con `{id}` sin puntos. **Cambio de significado:** `POST /board` suelto estaba entre las
     «buenas» de `TestLaListaBlancaDeMetodoYRuta` y no es una ruta de escritura de la API: ahora da 422. Se mantiene
     `/board/columns/orden`. Antes, `/routes/.` o `/routes/a/b/c/d` entraban, el reparto contestaba 404 con una página que no era
     suya y `Aplicar` lo tomaba por una caída (502) que paraba «aplicar todo» en un apunte que jamás iba a entrar (B3).

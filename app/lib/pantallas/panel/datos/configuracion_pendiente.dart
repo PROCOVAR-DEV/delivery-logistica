@@ -500,9 +500,11 @@ ORDER BY b.name
               'y de ahí arranca el camión.',
           siFalta:
               'Sin él se cobra desde el sitio equivocado y el asistente de rutas '
-              'no tiene de dónde salir. Un almacén sin coordenadas tampoco sirve.',
+              'no tiene de dónde salir. Un almacén sin coordenadas tampoco sirve. '
+              'Los almacenes se ponen en el CRM; aquí sólo se consultan.',
           ruta: '/warehouses',
-          textoDelBoton: 'Poner el almacén',
+          // Los almacenes se ponen en el CRM; el botón lleva a la pantalla de consulta.
+          textoDelBoton: 'Ver los almacenes',
           iconoDelBoton: Icons.warehouse_outlined,
         ),
         PasoDeConfiguracion(

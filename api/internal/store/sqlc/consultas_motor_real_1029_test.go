@@ -168,8 +168,7 @@ func TestMotorReal_ActualizarPedidoSoloTocaLoQueSeCorrigeAMano(t *testing.T) {
 
 	fila, err := b.q.ActualizarPedido(b.ctx, ActualizarPedidoParams{
 		ID: p, Sucursal: alcance(suc),
-		OperationNumber: str("PTB25-1"), CustomerName: str("Bar del Parque"), Address: str("Calle 9"),
-		EndAddress: str("Calle 10"), EndLat: f64(20.1), EndLng: f64(-75.8), Lat: f64(20.2), Lng: f64(-75.9),
+		OperationNumber: str("PTB25-1"), CustomerName: str("Bar del Parque"),
 		Notes: str("tocar timbre"),
 	})
 	if err != nil {

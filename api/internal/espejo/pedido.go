@@ -91,6 +91,11 @@ type PedidoDeFuera struct {
 	// no representa la cantidad total». Y como se resuelve: «mantenemos el pedido y solo
 	// le añadimos una factura a ese pedido para saber si cambio o no».
 	ItemsOrigen string `json:"itemsOrigen"`
+
+	// FolioDelPedido es el folio de PEDIDO al que pertenece una entrega que nace de una FACTURA
+	// (el `orderNumber` de Ventra), y va a `orders.folio` (00025). En un pedido de PEDIDO queda
+	// vacío: su folio ya es `Folio`, y la puerta lo toma de ahí. No viaja en el JSON de PEDIDO.
+	FolioDelPedido string `json:"-"`
 }
 
 // AlmacenDelPedido es el almacén del que sale el pedido, tal como lo manda PEDIDO. La forma

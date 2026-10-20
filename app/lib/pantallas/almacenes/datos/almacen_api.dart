@@ -1,9 +1,9 @@
 /// Los modelos de Almacenes.
 ///
-/// Los almacenes **viven en Accesos**, no en la base del reparto: esta pantalla
-/// los lee y los escribe alli. Por eso son objetos de JSON y no tablas de
-/// Drift — la copia local que si existe (`warehouses`) la escribe la bajada y
-/// sirve para medir distancias, no para editar.
+/// La matriz de almacenes esta en el CRM y **Reparto solo los lee**: llegan de
+/// `GET /api/almacenes` como objetos de JSON, no como tablas de Drift. La copia
+/// local que si existe (`warehouses`) la escribe la bajada y sirve para medir
+/// distancias.
 library;
 
 double? _numero(Object? valor) => switch (valor) {
@@ -42,9 +42,7 @@ class AlmacenDeAccesos {
 
   /// El `objectCode` de Ventra: con él Reparto sabe de qué almacén sale cada
   /// pedido (el pedido trae el código, no el nombre). `null` = no se sabe o no
-  /// tiene; `''` = se vació A PROPÓSITO y Accesos lo quita. Solo viaja si es
-  /// distinto de `null` (ver [aJson]): quien no conoce el código no puede
-  /// borrárselo a otro que lo puso entre medias.
+  /// tiene.
   final String? codigo;
   final String? direccion;
   final double? latitud;
@@ -57,38 +55,6 @@ class AlmacenDeAccesos {
 
   /// La etiqueta de la lista y del selector.
   String get titulo => nombre.trim().isEmpty ? '(sin nombre)' : nombre.trim();
-
-  AlmacenDeAccesos copiar({
-    String? nombre,
-    Object? codigo = _sinTocar,
-    Object? direccion = _sinTocar,
-    Object? latitud = _sinTocar,
-    Object? longitud = _sinTocar,
-    bool? principal,
-    bool? activo,
-  }) => AlmacenDeAccesos(
-    id: id,
-    nombre: nombre ?? this.nombre,
-    codigo: codigo == _sinTocar ? this.codigo : codigo as String?,
-    direccion: direccion == _sinTocar ? this.direccion : direccion as String?,
-    latitud: latitud == _sinTocar ? this.latitud : latitud as double?,
-    longitud: longitud == _sinTocar ? this.longitud : longitud as double?,
-    principal: principal ?? this.principal,
-    activo: activo ?? this.activo,
-  );
-
-  static const _sinTocar = Object();
-
-  Map<String, Object?> aJson() => <String, Object?>{
-    if (id != null) 'id': id,
-    'nombre': nombre,
-    if (codigo != null) 'codigo': codigo,
-    'direccion': direccion,
-    'latitud': latitud,
-    'longitud': longitud,
-    'principal': principal,
-    'activo': activo,
-  };
 }
 
 class SucursalDeAccesos {
@@ -111,14 +77,3 @@ class SucursalDeAccesos {
   final String nombre;
   final List<AlmacenDeAccesos> almacenes;
 }
-
-/// Sólo puede haber **un** principal. Se resuelve aqui, sobre la lista entera,
-/// porque lo que se manda a Accesos es la lista entera: marcar uno sin desmarcar
-/// los demas deja dos principales y entonces el punto desde el que se mide
-/// depende del orden en que vuelvan.
-List<AlmacenDeAccesos> conUnSoloPrincipal(
-  List<AlmacenDeAccesos> lista,
-  int cual,
-) => [
-  for (final (indice, a) in lista.indexed) a.copiar(principal: indice == cual),
-];

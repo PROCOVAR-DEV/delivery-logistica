@@ -77,8 +77,8 @@ printf 'svc:v1:delivery' | openssl dgst -sha256 -hmac "$SERVICE_AUTH_SECRET" | a
 
 (En el servidor la derivación es la de `docs/montar-en-dokploy.md`, con el `clientId` que allí se dio de alta.) Y, además, **para
 aplicar `POST /board/columns` hace falta un `Almacen` con coordenadas de esa sucursal en Accesos**: sin él, el reparto contesta
-`409 «<Sucursal> no tiene ningún almacén con coordenadas»` a cualquier zona nueva. Se da de alta desde la pantalla de Almacenes
-(`PUT /api/almacenes`, que escribe en Accesos) o directamente en Accesos, y el reparto **recuerda la lista 5 minutos**
+`409 «<Sucursal> no tiene ningún almacén con coordenadas»` a cualquier zona nueva. Desde el 20/10/2026 **Reparto ya no edita almacenes** (los almacenes viven en Accesos y se editan desde el CRM; la pantalla de Almacenes es de solo lectura y
+`PUT /api/almacenes` está quitado: contesta 405): se da de alta en el CRM, y el reparto **recuerda la lista 5 minutos**
 (`ALMACENES_CACHE_MS`, `api/internal/api/almacenes.go`): tras darlo de alta, esperar o reiniciar la API. Los dos huecos los destapó la
 prueba de punta a punta de la bandeja de revisión (`QA-E2E.md`, hallazgo F4, 09/10/2026), que aplica zonas de tablero.
 
@@ -190,6 +190,15 @@ procovar.cloud» y eso es un rótulo, no una dirección. Por eso arriba se busca
 legítimo deja de leerse, y entonces tampoco se lee el día que hay una dirección
 de verdad clavada. Si mañana aparece un quinto `--dart-define`, va aquí.
 
+**`CRM_URL` (20/10/2026) es el quinto, y es distinto: es un ENLACE, no una petición.**
+Es la pantalla del CRM donde se editan los almacenes (`https://crm.procovar.cloud/catalogos/almacenes`,
+la que dio Jose); la pantalla de Almacenes la usa para el enlace «Abrir el CRM» de su aviso
+(`app/lib/nucleo/red/entorno.dart`, `Entorno.crmUrl`). **Su defecto ES esa dirección**, como las otras:
+el APK y el instalador de Windows se compilan sin `--dart-define` y con el defecto vacío saldrían sin enlace.
+No entra en el bloque de arriba ni en el `grep` de producción porque la app nunca la pide: solo la abre
+quien pulsa el enlace. `--dart-define=CRM_URL=` explícitamente vacío da el aviso sin enlace (lo usan las
+pruebas), y para probar el enlace en local: `--dart-define=CRM_URL=http://127.0.0.1:9999`.
+
 ## 6. Ejecutarla sin ocupar la pantalla
 
 En una pantalla aparte, la `:99`. Nada aparece en el escritorio de verdad:
@@ -273,7 +282,7 @@ real», **las dos se saltan en silencio sin su variable** (también en los `Dock
 
 | Variable | Base | Serie de migraciones | Qué corre |
 |---|---|---|---|
-| `REPARTO_MOTOR_REAL_DSN` | `verif_reparto` | `api/db/migrations` (hasta la 00018) | `api/internal/store/sqlc/consultas_motor_real_test.go` y `api/internal/api/informes_motor_real_test.go` (el informe con su columna de facturas, `GET /api/reports` entero contra la base; `comprobar.sh` corre las dos carpetas) (incluye `TestMotorReal_Migracion00018…`, que sube y baja esa migración DENTRO de su transacción: bloquea `vehicle_types` mientras dura, así que no se corre contra una base que esté usando otro) |
+| `REPARTO_MOTOR_REAL_DSN` | `verif_reparto` | `api/db/migrations` (hasta la última, hoy la 00025) | `api/internal/store/sqlc/consultas_motor_real_test.go` y `api/internal/api/informes_motor_real_test.go` (el informe con su columna de facturas, `GET /api/reports` entero contra la base; `comprobar.sh` corre las dos carpetas) (incluye `TestMotorReal_Migracion00018…`, que sube y baja esa migración DENTRO de su transacción: bloquea `vehicle_types` mientras dura, así que no se corre contra una base que esté usando otro) |
 | `SYNC_MOTOR_REAL_DSN` | `verif_sync` | `sync/db/migrations` (hasta la 00004; la prueba exige versión ≥ 4) | `sync/internal/sincro/revision_motor_real_test.go` (la bandeja de revisión) |
 
 Sin la variable, `./comprobar.sh` dice `SALTADO (exporta REPARTO_MOTOR_REAL_DSN: CLAUDE.md §5)` y

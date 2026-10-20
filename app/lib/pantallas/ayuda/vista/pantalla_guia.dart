@@ -919,7 +919,7 @@ class _Resultados extends StatelessWidget {
                 ? Icons.checklist_outlined
                 : Icons.description_outlined,
             // DE CUAL DE LAS DOS VIENE. Sin esto, dos resultados con el mismo
-            // nombre —la tarea «Poner o corregir un almacén» y la pagina
+            // nombre —la tarea «Consultar los almacenes de una sucursal» y la pagina
             // «Almacenes»— se leen como el mismo sitio.
             insignia: r.deDondeSale == DeDondeSale.tarea ? 'Tarea' : 'Página',
             alLeer: r.deDondeSale == DeDondeSale.tarea

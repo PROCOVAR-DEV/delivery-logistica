@@ -319,7 +319,7 @@ void main() {
             find.text('Al menos un almacén con su punto puesto'),
             findsOneWidget,
           );
-          expect(find.text('Poner el almacén'), findsOneWidget);
+          expect(find.text('Ver los almacenes'), findsOneWidget);
 
           await desmontar(tester);
         });
@@ -346,7 +346,7 @@ void main() {
         findsOneWidget,
       );
       // Y NO se ofrece dar de alta nada: esto se arregla trayendo el dia.
-      expect(find.text('Poner el almacén'), findsNothing);
+      expect(find.text('Ver los almacenes'), findsNothing);
 
       await desmontar(tester);
     });
@@ -384,7 +384,7 @@ void main() {
             findsNothing,
             reason: 'ahí dentro va «este aparato» y «trayendo el día»',
           );
-          expect(find.text('Poner el almacén'), findsNothing);
+          expect(find.text('Ver los almacenes'), findsNothing);
 
           await desmontar(tester);
         });

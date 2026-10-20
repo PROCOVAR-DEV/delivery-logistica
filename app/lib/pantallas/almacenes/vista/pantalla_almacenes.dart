@@ -5,140 +5,47 @@ import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/red/fallos.dart';
 import 'package:reparto/navegacion/estado_navegacion.dart';
 
-import '../../../diseno/cajon.dart';
 import '../../../diseno/colores.dart';
 import '../../../diseno/estado_vacio.dart';
 import '../../../diseno/selector.dart';
 import '../../../diseno/tema.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
-import '../../rutas/datos/mapa_en_vivo.dart';
+import '../../rutas/datos/abrir_y_compartir.dart';
 import '../datos/almacen_api.dart';
-import '../datos/coordenadas.dart';
-import '../datos/geocodificar.dart';
 import '../estado/estado_almacenes.dart';
 import 'almacenes_de_la_ultima_bajada.dart';
-import 'editor_almacen.dart';
 
 /// Almacenes — `/warehouses`. Pliego: `pantallas.md` §6.
 ///
-/// **Sólo con conexion, y se dice.** El almacen vive en Accesos y hay una sola
-/// copia: no se encola. Se configura una vez, en la oficina. Sin red la pantalla
-/// avisa y no acepta cambios, en vez de guardar algo que nadie va a poder
-/// cotizar.
-class PantallaAlmacenes extends ConsumerStatefulWidget {
+/// **DE SOLO LECTURA** (decision de Jose, 20/10/2026). La matriz de almacenes
+/// pasa al CRM y Reparto solo los consulta: aqui no se crea, edita, elimina,
+/// marca principal ni se activa/desactiva nada. El aviso de arriba lo dice y,
+/// si `CRM_URL` esta puesta, lleva al CRM. Lo que no se ve en el CRM no existe
+/// aqui: la pantalla se repinta sola con `CambioEnVivo.almacenes`.
+class PantallaAlmacenes extends ConsumerWidget {
   const PantallaAlmacenes({super.key});
 
   static const ruta = '/warehouses';
 
-  @override
-  ConsumerState<PantallaAlmacenes> createState() => _PantallaAlmacenesState();
-}
-
-class _PantallaAlmacenesState extends ConsumerState<PantallaAlmacenes> {
-  bool _guardando = false;
+  /// El literal del aviso fijo.
+  static const avisoDelCrm =
+      'Los almacenes se editan en el CRM. Aquí solo se consultan.';
 
   /// La regla vive en [cualSeConfigura], que es donde se prueba. Aqui solo se
   /// le dan las dos piezas: lo elegido en el desplegable de la pantalla y lo
   /// elegido en la barra de arriba.
-  SucursalDeAccesos? _sucursal(List<SucursalDeAccesos> todas) =>
+  SucursalDeAccesos? _sucursal(WidgetRef ref, List<SucursalDeAccesos> todas) =>
       cualSeConfigura(
         todas,
         elegidaEnLaPantalla: ref.watch(sucursalElegidaProvider),
         codigoDeLaBarra: ref.watch(codigoDeLaSucursalMiradaProvider),
       );
 
-  /// Guarda **la lista completa** de la sucursal. Todo cambio pasa por aqui:
-  /// alta, edicion y baja son la misma llamada con una lista distinta.
-  Future<bool> _mandar(
-    SucursalDeAccesos sucursal,
-    List<AlmacenDeAccesos> lista,
-  ) async {
-    setState(() => _guardando = true);
-    final bien = await ref
-        .read(controlAlmacenesProvider.notifier)
-        .guardar(sucursal.codigo, lista);
-    if (mounted) setState(() => _guardando = false);
-    return bien;
-  }
-
-  /// DONDE ABRIR EL MAPA de un almacen que todavia no tiene punto.
-  ///
-  /// El de otro almacen de la misma sucursal, si lo hay. El patron abria en la
-  /// sucursal de quien mira —y su propio comentario cuenta que un administrador
-  /// no tiene ninguna, asi que abria «en cualquier parte»—; aqui no hay
-  /// coordenadas de sucursal en ningun sitio, pero sus almacenes SI las tienen y
-  /// estan a dos calles. Si no hay ninguno con punto se abre en Cuba entera, que
-  /// al menos se ve que hay que moverse.
-  PuntoEnElMapa? _centroDeLaSucursal(SucursalDeAccesos sucursal, int? indice) {
-    for (final (i, a) in sucursal.almacenes.indexed) {
-      if (i == indice || a.sinPunto) continue;
-      return PuntoEnElMapa(a.latitud!, a.longitud!);
-    }
-    return null;
-  }
-
-  Future<void> _abrirEditor(SucursalDeAccesos sucursal, {int? indice}) async {
-    final almacen = indice == null ? null : sucursal.almacenes[indice];
-    await abrirPanel<void>(
-      context,
-      (contexto) => StatefulBuilder(
-        builder: (contexto, repintar) => EditorAlmacen(
-          almacen: almacen,
-          sucursal: sucursal.nombre,
-          guardando: _guardando,
-          // Las dos piezas de fuera, inyectadas desde aqui. El editor no las
-          // busca el solo: asi se prueba entero sin que salga una peticion.
-          geocodificador: ref.read(geocodificadorProvider),
-          // El MISMO puerto que el mapa de la ruta, asi que en la APK y en el
-          // escritorio esto ya trae el paquete de Cuba descargado por la linea
-          // de `main.dart`, sin que aqui haya que saberlo.
-          fondoDelMapa: ref.read(fondoDeCallesProvider),
-          centroDelMapa: _centroDeLaSucursal(sucursal, indice),
-          alQuitar: indice == null
-              ? null
-              : () async {
-                  final quedan = [...sucursal.almacenes]..removeAt(indice);
-                  final bien = await _mandar(sucursal, quedan);
-                  if (bien && contexto.mounted) Navigator.of(contexto).pop();
-                },
-          alGuardar: (editado) async {
-            repintar(() {});
-            var lista = [...sucursal.almacenes];
-            if (indice == null) {
-              lista.add(editado);
-            } else {
-              lista[indice] = editado;
-            }
-            // Un solo principal: al marcar uno se desmarcan los demas, sobre la
-            // lista entera y antes de mandarla.
-            if (editado.principal) {
-              lista = conUnSoloPrincipal(lista, indice ?? lista.length - 1);
-            }
-            final bien = await _mandar(sucursal, lista);
-            if (bien && contexto.mounted) Navigator.of(contexto).pop();
-          },
-        ),
-      ),
-    );
-  }
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tema = Theme.of(context);
     final datos = ref.watch(almacenesProvider);
-
-    ref.listen<AvisoAlmacenes?>(controlAlmacenesProvider, (_, aviso) {
-      if (aviso == null) return;
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(aviso.texto),
-            backgroundColor: aviso.esFallo ? tema.colorScheme.error : null,
-          ),
-        );
-    });
 
     // SIN `Scaffold` propio: lo pone el armazon.
     //
@@ -160,6 +67,8 @@ class _PantallaAlmacenesState extends ConsumerState<PantallaAlmacenes> {
             'aquí.',
             style: tema.textTheme.bodySmall,
           ),
+          const SizedBox(height: 12),
+          const _AvisoDelCrm(),
           const SizedBox(height: 16),
           // DE CUÁNDO SON LOS QUE TIENE EL APARATO. Esta pantalla lee de Accesos
           // en vivo, pero lo que el aparato usa para medir el domicilio es su
@@ -190,10 +99,9 @@ class _PantallaAlmacenesState extends ConsumerState<PantallaAlmacenes> {
           else if (datos.value case final sucursales?)
             _Contenido(
               sucursales: sucursales,
-              sucursal: _sucursal(sucursales),
+              sucursal: _sucursal(ref, sucursales),
               alElegirSucursal: (codigo) =>
                   ref.read(sucursalElegidaProvider.notifier).poner(codigo),
-              alAbrir: _abrirEditor,
             )
           else
             const Padding(
@@ -211,13 +119,11 @@ class _Contenido extends StatelessWidget {
     required this.sucursales,
     required this.sucursal,
     required this.alElegirSucursal,
-    required this.alAbrir,
   });
 
   final List<SucursalDeAccesos> sucursales;
   final SucursalDeAccesos? sucursal;
   final ValueChanged<String> alElegirSucursal;
-  final void Function(SucursalDeAccesos sucursal, {int? indice}) alAbrir;
 
   @override
   Widget build(BuildContext context) {
@@ -308,26 +214,13 @@ class _Contenido extends StatelessWidget {
                   alElegir: alElegirSucursal,
                 ),
               ),
-            ControlSenalado(
-              nombre: Senalado.almacenesNuevo,
-              child: BotonPrincipal(
-                icono: Icons.add,
-                texto: 'Nuevo almacén',
-                alPulsar: () => alAbrir(actual),
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 16),
         if (actual.almacenes.isEmpty)
-          // EL VACIO ES UNA INVITACION. Aqui se llega con Accesos contestando y
-          // diciendo que esa sucursal no tiene ninguno: es un vacio de verdad,
-          // y por eso se puede invitar a darlo de alta. El «no se ha
+          // El vacio de verdad: Accesos contesta y esa sucursal no tiene ninguno.
+          // Sin boton: los almacenes se dan de alta en el CRM. El «no se ha
           // descargado» vive en `_Fallo` y dice otra cosa.
-          //
-          // El literal del pliego (§6) se conserva entero como llamada; lo que
-          // se añade es que ES un almacén para quien reparte y que se rompe
-          // mientras no haya ninguno.
           Invitacion(
             icono: Icons.warehouse_outlined,
             titulo: 'Sin almacenes en ${actual.nombre}',
@@ -341,54 +234,90 @@ class _Contenido extends StatelessWidget {
                 'punto de partida.',
             llamada:
                 'Esta sucursal no tiene ninguno: sus domicilios no se pueden '
-                'cotizar.',
-            textoDelBoton: 'Nuevo almacén',
-            iconoDelBoton: Icons.add,
-            alPulsar: () => alAbrir(actual),
+                'cotizar. Se dan de alta en el CRM.',
           )
         else
-          for (final (indice, a) in actual.almacenes.indexed)
-            // Sólo el primero se deja senalar por la Guia: hay uno por almacen y
-            // dos con el mismo nombre no se pueden distinguir.
-            ControlSenalado(
-              nombre: Senalado.almacenesAbrir,
-              senalable: indice == 0,
-              child: ListTile(
-                // SIN LA SANGRIA DE `ListTile` — 28/09/2026.
-                //
-                // `ListTile` trae 16 px de relleno propio a cada lado. Con el, en
-                // esta pantalla el ojo bajaba por cuatro verticales distintas:
-                // «Almacenes» y el selector de sucursal empezaban en x=24 —el
-                // relleno de la lista— y el icono de cada almacen en x=40, con su
-                // chevron acabando en 342 cuando el borde del contenido esta en
-                // 366. Medido con `tester.getRect` a 390 px.
-                //
-                // La sangria de `ListTile` esta pensada para una lista que ocupa
-                // la pantalla entera, sin nada al lado con que cuadrar. Aqui hay
-                // un titulo, un parrafo y dos mandos encima, y todos empiezan
-                // donde acaba el relleno de la lista: el que sobraba era este.
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  a.principal ? Icons.star : Icons.warehouse,
-                  color: a.principal ? Colores.ambar : Colores.tintaSuave,
-                ),
-                title: Text(a.titulo),
-                subtitle: Text(
-                  [
-                    a.direccion?.trim().isNotEmpty ?? false
-                        ? a.direccion!.trim()
-                        : 'sin dirección',
-                    if (a.sinPunto) 'sin punto',
-                    a.codigo?.trim().isNotEmpty ?? false
-                        ? 'código ${a.codigo!.trim()}'
-                        : 'sin código',
-                    if (!a.activo) 'inactivo',
-                  ].join(' · '),
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => alAbrir(actual, indice: indice),
+          for (final a in actual.almacenes)
+            // Solo se mira: sin onTap, sin chevron, sin menu.
+            ListTile(
+              // SIN LA SANGRIA DE `ListTile` — 28/09/2026: trae 16 px de relleno
+              // propio a cada lado y el icono de cada almacen quedaba en x=40
+              // cuando el titulo y el selector empiezan en x=24. Medido a 390 px.
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                a.principal ? Icons.star : Icons.warehouse,
+                color: a.principal ? Colores.ambar : Colores.tintaSuave,
+              ),
+              title: Text(a.titulo),
+              subtitle: Text(
+                [
+                  a.direccion?.trim().isNotEmpty ?? false
+                      ? a.direccion!.trim()
+                      : 'sin dirección',
+                  if (a.sinPunto)
+                    'sin punto'
+                  else
+                    '${a.latitud!.toStringAsFixed(5)}, '
+                        '${a.longitud!.toStringAsFixed(5)}',
+                  a.codigo?.trim().isNotEmpty ?? false
+                      ? 'código ${a.codigo!.trim()}'
+                      : 'sin código',
+                  if (a.principal) 'principal',
+                  if (!a.activo) 'inactivo',
+                ].join(' · '),
               ),
             ),
+      ],
+    );
+  }
+}
+
+/// EL AVISO FIJO DE ARRIBA: la matriz esta en el CRM. Con enlace si `CRM_URL`
+/// tiene valor ([crmUrlProvider]); sin ella, solo el texto — no se inventa una URL.
+class _AvisoDelCrm extends ConsumerWidget {
+  const _AvisoDelCrm();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final url = ref.watch(crmUrlProvider);
+    final destino = url.isEmpty ? null : Uri.tryParse(url);
+    final tema = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(Icons.info_outline, size: 18, color: Colores.tintaSuave),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            children: [
+              Text(
+                PantallaAlmacenes.avisoDelCrm,
+                style: tema.textTheme.bodyMedium,
+              ),
+              if (destino != null)
+                TextButton.icon(
+                  icon: const Icon(Icons.open_in_new, size: 16),
+                  label: const Text('Abrir el CRM'),
+                  onPressed: () async {
+                    final abrio = await ref
+                        .read(abrirYCompartirProvider)
+                        .abrir(destino);
+                    if (!abrio && context.mounted) {
+                      ScaffoldMessenger.of(context)
+                        ..clearSnackBars()
+                        ..showSnackBar(
+                          const SnackBar(
+                            content: Text('No se pudo abrir el CRM.'),
+                          ),
+                        );
+                    }
+                  },
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -427,12 +356,11 @@ class _Fallo extends StatelessWidget {
       // señal» a alguien que estaba en la oficina.
       FalloDeRed() when enWeb =>
         'Accesos no contesta. La página cargó, así que conexión hay: los '
-            'almacenes viven en Accesos y ahora mismo no responde. Prueba otra '
+            'almacenes se piden al servidor y ahora mismo no responde. Prueba otra '
             'vez y, si sigue igual, avisa a la oficina.',
       FalloDeRed() =>
-        'Sin conexión. Los almacenes viven en Accesos y se configuran con '
-            'conexión: aquí no se guarda nada en el aparato. Vuelve a '
-            'intentarlo cuando haya red.',
+        'Sin conexión. Los almacenes se piden al servidor y ahora no hay con '
+            'qué traerlos. Vuelve a intentarlo cuando haya red.',
       // El literal del pliego cuando Accesos contesta que no.
       final FalloApi f => f.mensaje,
       _ =>

@@ -44,6 +44,7 @@ Pedido paradaCon({required String id, required double? costo}) => Pedido(
   status: EstadoPedido.pendiente,
   tripLeg: Tramo.ida,
   archivado: false,
+  puntoManual: false,
   pedidoCosto: costo,
 );
 

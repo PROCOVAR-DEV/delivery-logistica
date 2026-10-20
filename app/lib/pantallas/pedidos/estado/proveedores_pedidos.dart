@@ -16,6 +16,7 @@ import '../../../nucleo/proveedores.dart';
 import '../../tablero/datos/esquema.dart';
 import '../../tablero/datos/modelos.dart';
 import '../../tablero/estado/proveedores.dart';
+import '../datos/acciones_de_pedido.dart';
 import '../datos/filtros_pedidos.dart';
 import '../datos/mandar_al_tablero.dart';
 import '../datos/repositorio_pedidos.dart';
@@ -243,8 +244,44 @@ final preDespachoElegidoProvider = FutureProvider<TotalesPreDespacho>(
       .preDespachoDe(ref.watch(seleccionPedidosProvider).toList()),
 );
 
-final detallePedidoProvider = FutureProvider.family<DetallePedido?, String>(
-  (ref, id) => ref.watch(consultasPedidosProvider).detalle(id),
+/// Cada vez que se escribe en pedidos o en rutas. Lo mira la ficha para rehacerse
+/// sola (ver [detallePedidoProvider]); no lleva dato, solo avisa.
+///
+/// Lleva un contador y no `void`: Riverpod no avisa a quien mira si el valor
+/// nuevo es IGUAL al anterior, y dos `null` seguidos son iguales.
+final _cambiaLaFichaProvider = StreamProvider<int>((ref) {
+  final base = ref.watch(baseProvider);
+  var cambios = 0;
+  return base
+      .tableUpdates(TableUpdateQuery.onAllTables([base.orders, base.routes]))
+      .map((_) => ++cambios);
+});
+
+/// La ficha de UN pedido.
+///
+/// **Se rehace sola cuando cambia la base** —la bajada, o este mismo aparato
+/// poniendo el punto de entrega a mano—: era un `FutureProvider` que contestaba
+/// UNA vez y la ficha abierta se quedaba con la foto de cuando se abrió (§3-ter).
+/// El primer valor sale al abrir; `tableUpdates` no emite al suscribirse, así que
+/// no hay una segunda lectura de más.
+final detallePedidoProvider = FutureProvider.family<DetallePedido?, String>((
+  ref,
+  id,
+) {
+  ref.watch(_cambiaLaFichaProvider);
+  return ref.watch(consultasPedidosProvider).detalle(id);
+});
+
+/// Lo que Pedidos escribe: el punto de entrega puesto a mano. Comparte la cola y
+/// el reloj de la aplicación; en la web lleva [escrituraEnVivoProvider] y va al
+/// servidor (`CLAUDE.md` §1), como `accionesDeRutaProvider`.
+final accionesDePedidoProvider = Provider<AccionesDePedido>(
+  (ref) => AccionesDePedido(
+    ref.watch(baseProvider),
+    ref.watch(colaProvider),
+    reloj: ref.watch(relojProvider),
+    enVivo: ref.watch(escrituraEnVivoProvider),
+  ),
 );
 
 /// ¿Se bajaron los pedidos alguna vez?

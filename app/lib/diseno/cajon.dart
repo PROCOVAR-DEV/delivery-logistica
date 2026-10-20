@@ -43,8 +43,8 @@ Future<T?> abrirCajon<T>(
 /// pie no puede mirar lo que hay escrito en un campo del cuerpo: para saber si
 /// se habilita tendria que leer un estado que no ve. Con esto el
 /// `StatefulWidget` devuelve el [Cajon] entero y un solo `setState` repinta los
-/// tres a la vez. Asi entran la ficha de vehiculo, los tipos de vehiculo y el
-/// editor de almacen.
+/// tres a la vez. Asi entran la ficha de vehiculo, los tipos de vehiculo (y, hasta
+/// el 20/10/2026, el editor de almacen).
 ///
 /// No es una segunda forma de cajon: lo que se devuelve sigue siendo un
 /// [Cajon], con su cabecera del pliego §9.2 y su ✕ que no desaparece.

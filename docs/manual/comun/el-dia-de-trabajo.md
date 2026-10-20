@@ -220,8 +220,8 @@ y cada tarea está escrita por su cuenta en **[Busca tu tarea](tareas.md)**.
 |---|---|---|
 | Entra un camión nuevo, o se cambia uno | [Dar de alta un camión](tareas.md#vehículos--necesita-conexión-siempre-también-en-el-teléfono) y, si es el que pone el precio del domicilio, decirlo | **Vehículos** |
 | Un camión se va al taller | Marcarlo, **con el motivo en «Notas»**. Y si llevaba una ruta abierta, **eso no la cierra**: hay que rearmarla con otro camión | **Vehículos** |
-| Se muda el almacén, o se abre otro | Poner su punto, y decidir cuál es el **«Principal»** | **Almacenes** |
-| Se retira un almacén | Quitarlo — y **avisar a quien tenga la aplicación en el teléfono para que traiga el día**, o ese día cobra desde un sitio que ya no existe | **Almacenes** |
+| Se muda el almacén, o se abre otro | **No se toca aquí.** Se cambia en el CRM (punto y cuál es el **«Principal»**); en **Almacenes** se comprueba que ya sale | **Almacenes** |
+| Se retira un almacén | Se quita en el CRM — y **avisar a quien tenga la aplicación en el teléfono para que traiga el día**, o ese día cobra desde un sitio que ya no existe | **Almacenes** |
 | Cambia la tasa de cambio | **No se toca aquí.** Se pide a administración, se arregla en Accesos y baja sola con el día | **Panel** |
 | Se abre una sucursal | Las cuatro cosas, en orden: [Dejar una sucursal lista para trabajar](puesta-en-marcha.md) | **Panel** |
 | Cambia el territorio | Renombrar, vaciar, mover o borrar zonas del tablero | **Tablero** |

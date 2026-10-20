@@ -69,6 +69,7 @@ void main() {
     status: 'pending',
     tripLeg: 'ida',
     archivado: archivado,
+    puntoManual: false,
     estado: EstadoEnPedido.completada,
     pedidoCosto: costo,
     deliveredAt: entregadoAt,

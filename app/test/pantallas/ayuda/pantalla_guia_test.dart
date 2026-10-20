@@ -74,7 +74,7 @@ final _paginas = <String, String>{
 
 La ficha de la pantalla de Almacenes.
 
-## Poner o corregir un almacén
+## Consultar los almacenes
 <!-- tarea -->
 
 **Empieza en:** **Menú → «Almacenes»**.
@@ -247,7 +247,7 @@ void main() {
     expect(
       find.byKey(
         ClavesDeLaGuia.tarea(
-          'comun/pantallas/almacenes.md~poner-o-corregir-un-almacén',
+          'comun/pantallas/almacenes.md~consultar-los-almacenes',
         ),
       ),
       findsOneWidget,
@@ -372,7 +372,7 @@ void main() {
       findsOneWidget,
     );
     // El documento oficial lleva sus `##` dentro: es la pagina entera.
-    expect(find.text('Poner o corregir un almacén'), findsWidgets);
+    expect(find.text('Consultar los almacenes'), findsWidgets);
   });
 
   testWidgets('a 390 px no se sale nada por los bordes', (tester) async {

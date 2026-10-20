@@ -212,12 +212,16 @@ class Bajada {
       // domicilio». Sin esto un aparato que ya sincronizo veria la flota a medias y sin
       // un solo tipo que ofrecer, sin ningun error.
       final completas = <String>[
-        if (desde != null && !await _frescura.seDescargo(Colecciones.distribuidores))
+        if (desde != null &&
+            !await _frescura.seDescargo(Colecciones.distribuidores))
           Colecciones.distribuidores,
-        if (desde != null && !await _frescura.seDescargo(Colecciones.tiposDeVehiculo))
+        if (desde != null &&
+            !await _frescura.seDescargo(Colecciones.tiposDeVehiculo))
           Colecciones.tiposDeVehiculo,
         if (desde != null &&
-            await _frescura.leer(RegistroDeFrescura.yaBajadosLosVehiculosConSuFicha) ==
+            await _frescura.leer(
+                  RegistroDeFrescura.yaBajadosLosVehiculosConSuFicha,
+                ) ==
                 null)
           Colecciones.vehiculos,
       ];
@@ -848,6 +852,15 @@ class Bajada {
             // almacén elegido arriba (15/10/2026). Lo ata
             // `la_bajada_no_pierde_campos_test.dart`.
             almacenSalidaCodigo: Value(_texto(j['almacenSalidaCodigo'])),
+            // El punto de entrega puesto a mano (issue 19, 1.0.39). Ver
+            // `Orders.puntoManual`; los `puntoCliente*` solo vienen no nulos si es
+            // manual. Los ata `la_bajada_no_pierde_campos_test.dart`.
+            puntoManual: Value(j['puntoManual'] == true),
+            puntoManualPor: Value(_texto(j['puntoManualPor'])),
+            puntoManualAt: Value(_fecha(j['puntoManualAt'])),
+            puntoClienteLat: Value(_numero(j['puntoClienteLat'])),
+            puntoClienteLng: Value(_numero(j['puntoClienteLng'])),
+            puntoClienteAddress: Value(_texto(j['puntoClienteAddress'])),
             facturaNumero: Value(_texto(j['facturaNumero'])),
             // Cuándo anotó PEDIDO el cotejo con la factura. NADIE lo escribía y la
             // columna valía NULL en todo el aparato: sin él «Sin colocar» no puede ir

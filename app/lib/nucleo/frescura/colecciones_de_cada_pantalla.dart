@@ -104,8 +104,8 @@ abstract final class ColeccionesDePantalla {
   ///
   /// Esta es la pantalla que de verdad puede estar cincuenta y nueve minutos por
   /// detras, porque los almacenes se piden una vez por hora. Aqui decirlo **es lo
-  /// correcto**: es su dato, y quien va a editar la ubicacion de un almacen tiene
-  /// que saber de cuando es lo que esta mirando.
+  /// correcto**: es su dato, y quien consulta la ubicacion de un almacen (se edita en
+  /// el CRM) tiene que saber de cuando es lo que esta mirando.
   static const almacenes = <String>[Colecciones.almacenes];
 
   /// Reportes: lo que se cuadra son pedidos, rutas y camiones.

@@ -84,7 +84,7 @@ no:
 | Falta | Qué hacer |
 |---|---|
 | **«Al menos un vehículo»** | Clic en **«Agregar el primer vehículo»** |
-| **«Al menos un almacén con su punto puesto»** | Clic en **«Poner el almacén»** |
+| **«Al menos un almacén con su punto puesto»** | Clic en **«Ver los almacenes»** (se ponen en el CRM) |
 | **«El punto de partida de la sucursal»** | **No se pone aquí.** «Pídelo a administración y baja solo con el día.» |
 | **«La tasa de cambio de la sucursal»** | **No se pone aquí.** «La mantiene Accesos, que la trae de Entrega.» |
 

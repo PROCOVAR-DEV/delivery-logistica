@@ -17,16 +17,10 @@ const actualizarPedido = `-- name: ActualizarPedido :one
 UPDATE orders SET
     operation_number = coalesce($1::text, operation_number),
     customer_name    = coalesce($2::text, customer_name),
-    address          = coalesce($3::text, address),
-    end_address      = coalesce($4::text, end_address),
-    end_lat          = coalesce($5::double precision, end_lat),
-    end_lng          = coalesce($6::double precision, end_lng),
-    lat              = coalesce($7::double precision, lat),
-    lng              = coalesce($8::double precision, lng),
-    notes            = coalesce($9::text, notes),
-    trip_leg         = coalesce($10::trip_leg, trip_leg)
-WHERE id = $11
-  AND ($12::uuid IS NULL OR branch_id = $12::uuid)
+    notes            = coalesce($3::text, notes),
+    trip_leg         = coalesce($4::trip_leg, trip_leg)
+WHERE id = $5
+  AND ($6::uuid IS NULL OR branch_id = $6::uuid)
 RETURNING id, operation_number, customer_name, address, end_address, end_lat,
           end_lng, lat, lng, weight, status, trip_leg, notes, route_id,
           ultima_ruta_id, price, segment_km, stop_order, delivered_at,
@@ -36,12 +30,6 @@ RETURNING id, operation_number, customer_name, address, end_address, end_lat,
 type ActualizarPedidoParams struct {
 	OperationNumber *string     `json:"operation_number"`
 	CustomerName    *string     `json:"customer_name"`
-	Address         *string     `json:"address"`
-	EndAddress      *string     `json:"end_address"`
-	EndLat          *float64    `json:"end_lat"`
-	EndLng          *float64    `json:"end_lng"`
-	Lat             *float64    `json:"lat"`
-	Lng             *float64    `json:"lng"`
 	Notes           *string     `json:"notes"`
 	TripLeg         *TripLeg    `json:"trip_leg"`
 	ID              uuid.UUID   `json:"id"`
@@ -78,6 +66,15 @@ type ActualizarPedidoRow struct {
 // PATCH de un pedido a mano. `coalesce` deja pasar sólo lo que viene: lo que no se manda
 // no se pisa con NULL.
 //
+// # TAMPOCO TOCA EL PUNTO DE ENTREGA NI LA DIRECCIÓN — 20/10/2026 (issue 19 de Amado)
+//
+// Escribía `address`, `end_address`, `end_lat`, `end_lng`, `lat` y `lng` sin validar el rango,
+// sin marcar que eran a mano (el espejo los pisaba al minuto), sin recalcular la distancia ni
+// el `segment_km` de la parada y sin mirar si el pedido ya estaba entregado o en una ruta
+// completada. La única puerta para cambiar el punto de entrega es ahora
+// `PonerPuntoDeEntregaAMano` (`PUT /api/orders/{id}/punto`); el manejador responde 400 si
+// llega alguno de esos seis campos.
+//
 // # LO QUE ESTA CONSULTA YA NO TOCA — 08/10/2026 (auditoría de la 1.0.28)
 //
 // Hasta la 1.0.28 también escribía `route_id`, `status`, `price`, `weight`, `stop_order` y
@@ -98,12 +95,6 @@ func (q *Queries) ActualizarPedido(ctx context.Context, arg ActualizarPedidoPara
 	row := q.db.QueryRow(ctx, actualizarPedido,
 		arg.OperationNumber,
 		arg.CustomerName,
-		arg.Address,
-		arg.EndAddress,
-		arg.EndLat,
-		arg.EndLng,
-		arg.Lat,
-		arg.Lng,
 		arg.Notes,
 		arg.TripLeg,
 		arg.ID,
@@ -150,6 +141,78 @@ type ActualizarPesoDePedidoParams struct {
 // alcance a propósito: es una faena de servicio sobre todo el espejo, con clave de API.
 func (q *Queries) ActualizarPesoDePedido(ctx context.Context, arg ActualizarPesoDePedidoParams) error {
 	_, err := q.db.Exec(ctx, actualizarPesoDePedido, arg.Weight, arg.ID)
+	return err
+}
+
+const adoptarPedidoPorFolio = `-- name: AdoptarPedidoPorFolio :execrows
+UPDATE orders SET external_id = $1::text
+WHERE id = (
+    SELECT o.id FROM orders o
+    WHERE o.source = 'pedido'
+      AND o.sucursal_codigo = $2::text
+      AND folio_normalizado(o.folio) = folio_normalizado($3::text)
+      AND o.external_id IS NOT NULL
+      AND NOT starts_with(o.external_id, 'factura:')
+    ORDER BY o.created_at ASC, o.id ASC
+    LIMIT 1)
+  AND NOT EXISTS (
+    SELECT 1 FROM orders x
+    WHERE x.source = 'pedido' AND x.external_id = $1::text)
+`
+
+type AdoptarPedidoPorFolioParams struct {
+	ExternalID     string `json:"external_id"`
+	SucursalCodigo string `json:"sucursal_codigo"`
+	Folio          string `json:"folio"`
+}
+
+// ADOPTAR: la fila de PEDIDO de ese folio pasa a ser la de la factura, cambiándole SOLO el
+// `external_id`. Conserva el `id` y con él la ruta, `stop_order`, el resultado, el punto a mano
+// y todo lo que es del reparto; los campos del mapeo los pone el upsert que viene detrás.
+//
+// Una sola fila (`LIMIT 1` por antigüedad) por si PEDIDO repitiera el folio: dos filas con el
+// mismo `external_id` nuevo chocarían con el índice único. Y no adopta si el `external_id` de
+// la factura ya existe (carrera sin candado, o fila ya adoptada): entonces el upsert normal
+// actualiza la de la factura.
+func (q *Queries) AdoptarPedidoPorFolio(ctx context.Context, arg AdoptarPedidoPorFolioParams) (int64, error) {
+	result, err := q.db.Exec(ctx, adoptarPedidoPorFolio, arg.ExternalID, arg.SucursalCodigo, arg.Folio)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const bloquearFolioDePedido = `-- name: BloquearFolioDePedido :exec
+
+SELECT pg_advisory_xact_lock(
+    hashtextextended('orders-folio:' || $1::text || ':' || folio_normalizado($2::text), 0))
+`
+
+type BloquearFolioDePedidoParams struct {
+	SucursalCodigo string `json:"sucursal_codigo"`
+	Folio          string `json:"folio"`
+}
+
+// ---------------------------------------------------------------------------
+// La adopción entre PEDIDO y la factura de Ventra  (issue 20, 00025)
+// ---------------------------------------------------------------------------
+//
+// Mientras conviven las dos fuentes (`SYNC_FUENTE=ambas`), el mismo pedido llega como fila de
+// PEDIDO (`external_id` = su id) y como entrega de factura (`external_id` = `factura:<clave>`,
+// la convención que define `espejo.EsDeFactura`). La identidad entre las dos es
+// (`sucursal_codigo`, `folio_normalizado(folio)`): el folio se guarda tal cual, pero se COMPARA en
+// mayúsculas y sin nada que no sea letra o dígito (00025, auditoría G3: `pxx-900`, `'PXX-900` y
+// `PXX - 900` son el `PXX-900` de PEDIDO). Su gemela en Go es `alcance.FolioNormalizado`. Estas tres consultas van juntas, dentro de la transacción de
+// `EspejoGuardarPedido`, y en este orden: candado, adoptar o descartar, y el upsert de siempre.
+//
+// `starts_with(external_id, 'factura:')` ES LA GEMELA SQL DE `espejo.EsDeFactura`: si una
+// cambia, cambia la otra (las ata `TestMotorReal_LaAdopcion…`, no un comentario).
+// EL CANDADO DEL FOLIO. Sin él, un ciclo de PEDIDO y uno de factura que traen el mismo folio a
+// la vez, sin fila previa de ninguno, insertan cada uno la suya (external_id distinto, nada
+// que choque) y el pedido sale DOS veces. Un candado de transacción por (sucursal, folio) los
+// pone en fila; el segundo ya ve la fila del primero. Se suelta solo al terminar la transacción.
+func (q *Queries) BloquearFolioDePedido(ctx context.Context, arg BloquearFolioDePedidoParams) error {
+	_, err := q.db.Exec(ctx, bloquearFolioDePedido, arg.SucursalCodigo, arg.Folio)
 	return err
 }
 
@@ -217,6 +280,41 @@ func (q *Queries) BuscarPedidoPorReferencia(ctx context.Context, arg BuscarPedid
 	var i BuscarPedidoPorReferenciaRow
 	err := row.Scan(&i.ID, &i.BranchID, &i.ExternalID)
 	return i, err
+}
+
+const conducesGuardadosDeFactura = `-- name: ConducesGuardadosDeFactura :many
+SELECT o.external_id, o.operation_number
+FROM orders o
+WHERE o.source = 'pedido'
+  AND o.external_id = ANY($1::text[])
+`
+
+type ConducesGuardadosDeFacturaRow struct {
+	ExternalID      *string `json:"external_id"`
+	OperationNumber *string `json:"operation_number"`
+}
+
+// LO QUE LA ENTREGA YA TIENE GUARDADO, por `external_id`: su conduce. El ciclo lo compara con lo que
+// Ventra acaba de dar para no ENCOGER una entrega con una respuesta parcial (auditoría G2): un
+// repaso que sólo ve una de las facturas de un folio no puede reescribir la entrega con esa sola.
+func (q *Queries) ConducesGuardadosDeFactura(ctx context.Context, externalIds []string) ([]ConducesGuardadosDeFacturaRow, error) {
+	rows, err := q.db.Query(ctx, conducesGuardadosDeFactura, externalIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ConducesGuardadosDeFacturaRow
+	for rows.Next() {
+		var i ConducesGuardadosDeFacturaRow
+		if err := rows.Scan(&i.ExternalID, &i.OperationNumber); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const contarPedidos = `-- name: ContarPedidos :one
@@ -594,6 +692,90 @@ func (q *Queries) CrearRenglonDePedido(ctx context.Context, arg CrearRenglonDePe
 	return i, err
 }
 
+const devolverPuntoDeEntregaAlCliente = `-- name: DevolverPuntoDeEntregaAlCliente :one
+UPDATE orders SET
+    end_lat               = punto_cliente_lat,
+    end_lng               = punto_cliente_lng,
+    lat                   = punto_cliente_lat,
+    lng                   = punto_cliente_lng,
+    end_address           = punto_cliente_address,
+    punto_manual          = false,
+    punto_manual_por      = NULL,
+    punto_manual_at       = NULL,
+    punto_cliente_lat     = NULL,
+    punto_cliente_lng     = NULL,
+    punto_cliente_address = NULL,
+    delivery_distance_km  = $1,
+    segment_km            = coalesce($2::double precision, segment_km)
+WHERE id = $3
+  AND punto_manual
+  AND punto_cliente_lat = $4 AND punto_cliente_lng = $5
+  AND almacen_salida_codigo IS NOT DISTINCT FROM $6::text
+  AND route_id IS NOT DISTINCT FROM $7::uuid
+  AND resultado IS DISTINCT FROM 'entregado'::stop_result
+  AND delivered_at IS NULL
+  AND ($8::uuid IS NULL OR branch_id = $8::uuid)
+RETURNING id, branch_id, end_lat, end_lng, end_address, punto_manual, punto_manual_por,
+          punto_manual_at, delivery_distance_km, segment_km
+`
+
+type DevolverPuntoDeEntregaAlClienteParams struct {
+	DeliveryDistanceKm  *float64    `json:"delivery_distance_km"`
+	SegmentKm           *float64    `json:"segment_km"`
+	ID                  uuid.UUID   `json:"id"`
+	Lat                 *float64    `json:"lat"`
+	Lng                 *float64    `json:"lng"`
+	AlmacenSalidaCodigo *string     `json:"almacen_salida_codigo"`
+	RutaID              pgtype.UUID `json:"ruta_id"`
+	Sucursal            pgtype.UUID `json:"sucursal"`
+}
+
+type DevolverPuntoDeEntregaAlClienteRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	BranchID           pgtype.UUID        `json:"branch_id"`
+	EndLat             *float64           `json:"end_lat"`
+	EndLng             *float64           `json:"end_lng"`
+	EndAddress         *string            `json:"end_address"`
+	PuntoManual        bool               `json:"punto_manual"`
+	PuntoManualPor     *string            `json:"punto_manual_por"`
+	PuntoManualAt      pgtype.Timestamptz `json:"punto_manual_at"`
+	DeliveryDistanceKm *float64           `json:"delivery_distance_km"`
+	SegmentKm          *float64           `json:"segment_km"`
+}
+
+// VUELVE AL PUNTO DEL CLIENTE: el último que mandó el espejo, guardado en `punto_cliente_*`.
+// Quita la marca y limpia lo guardado (hay `punto_cliente_*` solo mientras es manual).
+// Mismas guardas y mismo recálculo que `PonerPuntoDeEntregaAMano`, y además `lat`/`lng` son el
+// punto del cliente CON EL QUE SE MIDIÓ: si el espejo lo corrigió entre la lectura y esta
+// escritura, los km serían los del punto viejo. Cero filas = no era manual, ya se entregó,
+// cambió de ruta o de punto; el manejador distingue lo primero antes, esto cubre la carrera.
+func (q *Queries) DevolverPuntoDeEntregaAlCliente(ctx context.Context, arg DevolverPuntoDeEntregaAlClienteParams) (DevolverPuntoDeEntregaAlClienteRow, error) {
+	row := q.db.QueryRow(ctx, devolverPuntoDeEntregaAlCliente,
+		arg.DeliveryDistanceKm,
+		arg.SegmentKm,
+		arg.ID,
+		arg.Lat,
+		arg.Lng,
+		arg.AlmacenSalidaCodigo,
+		arg.RutaID,
+		arg.Sucursal,
+	)
+	var i DevolverPuntoDeEntregaAlClienteRow
+	err := row.Scan(
+		&i.ID,
+		&i.BranchID,
+		&i.EndLat,
+		&i.EndLng,
+		&i.EndAddress,
+		&i.PuntoManual,
+		&i.PuntoManualPor,
+		&i.PuntoManualAt,
+		&i.DeliveryDistanceKm,
+		&i.SegmentKm,
+	)
+	return i, err
+}
+
 const diferenciasDePedidos = `-- name: DiferenciasDePedidos :many
 
 WITH tocados AS (
@@ -621,6 +803,8 @@ marcados AS (
         o.municipio, o.vendedor, o.sucursal_codigo, o.factura_estado,
         o.factura_numero, o.factura_at, o.factura_domicilio, o.factura_corregido_at,
         o.items_origen, o.almacen_salida_codigo,
+        o.punto_manual, o.punto_manual_por, o.punto_manual_at,
+        o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
         o.stop_order, o.delivered_at, o.resultado, o.resultado_at, o.resultado_nota,
         o.created_at, o.updated_at,
         GREATEST(
@@ -647,6 +831,12 @@ SELECT
     -- El almacén del que sale el pedido: con él, el aparato pone primero en «Sin colocar» los
     -- del almacén elegido arriba sin preguntar a nadie (` + "`" + `docs/orden-sin-colocar.casos.json` + "`" + `).
     items_origen, almacen_salida_codigo,
+    -- El punto de entrega puesto a mano (00024): el aparato pinta la parada diferenciada y no
+    -- hay otra forma de saberlo sin señal. Lo ata ` + "`" + `la_bajada_no_pierde_campos_test.go` + "`" + `.
+    punto_manual, punto_manual_por, punto_manual_at,
+    -- El punto que traía el cliente (null si no es manual): el aparato vuelve a él SIN conexión copiando
+    -- estos tres a ` + "`" + `endLat` + "`" + `/` + "`" + `endLng` + "`" + `/` + "`" + `endAddress` + "`" + `.
+    punto_cliente_lat, punto_cliente_lng, punto_cliente_address,
     stop_order, delivered_at, resultado, resultado_at, resultado_nota,
     created_at, updated_at, cambiado_at
 FROM marcados
@@ -706,6 +896,12 @@ type DiferenciasDePedidosRow struct {
 	FacturaCorregidoAt  pgtype.Timestamptz `json:"factura_corregido_at"`
 	ItemsOrigen         *string            `json:"items_origen"`
 	AlmacenSalidaCodigo *string            `json:"almacen_salida_codigo"`
+	PuntoManual         bool               `json:"punto_manual"`
+	PuntoManualPor      *string            `json:"punto_manual_por"`
+	PuntoManualAt       pgtype.Timestamptz `json:"punto_manual_at"`
+	PuntoClienteLat     *float64           `json:"punto_cliente_lat"`
+	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
+	PuntoClienteAddress *string            `json:"punto_cliente_address"`
 	StopOrder           *int32             `json:"stop_order"`
 	DeliveredAt         pgtype.Timestamptz `json:"delivered_at"`
 	Resultado           *StopResult        `json:"resultado"`
@@ -810,6 +1006,12 @@ func (q *Queries) DiferenciasDePedidos(ctx context.Context, arg DiferenciasDePed
 			&i.FacturaCorregidoAt,
 			&i.ItemsOrigen,
 			&i.AlmacenSalidaCodigo,
+			&i.PuntoManual,
+			&i.PuntoManualPor,
+			&i.PuntoManualAt,
+			&i.PuntoClienteLat,
+			&i.PuntoClienteLng,
+			&i.PuntoClienteAddress,
 			&i.StopOrder,
 			&i.DeliveredAt,
 			&i.Resultado,
@@ -827,6 +1029,86 @@ func (q *Queries) DiferenciasDePedidos(ctx context.Context, arg DiferenciasDePed
 		return nil, err
 	}
 	return items, nil
+}
+
+const entregasDeFacturaEnVentana = `-- name: EntregasDeFacturaEnVentana :many
+
+SELECT o.id, o.external_id,
+       (o.route_id IS NOT NULL OR o.ultima_ruta_id IS NOT NULL
+        OR o.resultado IS NOT NULL OR o.delivered_at IS NOT NULL)::boolean AS ocupada
+FROM orders o
+WHERE o.source = 'pedido'
+  AND o.external_id IS NOT NULL
+  AND starts_with(o.external_id, 'factura:')
+  AND o.sucursal_codigo = $1::text
+  AND (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
+        BETWEEN $2::date AND $3::date
+`
+
+type EntregasDeFacturaEnVentanaParams struct {
+	SucursalCodigo string      `json:"sucursal_codigo"`
+	Desde          pgtype.Date `json:"desde"`
+	Hasta          pgtype.Date `json:"hasta"`
+}
+
+type EntregasDeFacturaEnVentanaRow struct {
+	ID         uuid.UUID `json:"id"`
+	ExternalID *string   `json:"external_id"`
+	Ocupada    bool      `json:"ocupada"`
+}
+
+// ---------------------------------------------------------------------------
+// Lo que ya no viene en Ventra  (issue 20, «ya no va»)
+// ---------------------------------------------------------------------------
+// LAS ENTREGAS DE FACTURA DE UNA VENTANA, para saber cuáles ya no aparecen en la respuesta de
+// Ventra. SOLO las de factura (`factura:`), de ESA sucursal y cuyo día de factura en Cuba cae
+// DENTRO de [desde, hasta]: una fila fuera de la ventana consultada no se puede juzgar, porque
+// Ventra no fue preguntada por ella. El día se pasa a hora de Cuba igual que los filtros de
+// fecha de la factura (issue 16, `coalesce(factura_at, order_date, created_at)`).
+// `ocupada` es lo que impide retirarla: va o fue en una ruta, o tiene resultado.
+func (q *Queries) EntregasDeFacturaEnVentana(ctx context.Context, arg EntregasDeFacturaEnVentanaParams) ([]EntregasDeFacturaEnVentanaRow, error) {
+	rows, err := q.db.Query(ctx, entregasDeFacturaEnVentana, arg.SucursalCodigo, arg.Desde, arg.Hasta)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntregasDeFacturaEnVentanaRow
+	for rows.Next() {
+		var i EntregasDeFacturaEnVentanaRow
+		if err := rows.Scan(&i.ID, &i.ExternalID, &i.Ocupada); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const existeEntregaDeFacturaDelFolio = `-- name: ExisteEntregaDeFacturaDelFolio :one
+SELECT EXISTS (
+    SELECT 1 FROM orders o
+    WHERE o.source = 'pedido'
+      AND o.sucursal_codigo = $1::text
+      AND folio_normalizado(o.folio) = folio_normalizado($2::text)
+      AND o.external_id IS NOT NULL
+      AND starts_with(o.external_id, 'factura:')
+)::boolean AS existe
+`
+
+type ExisteEntregaDeFacturaDelFolioParams struct {
+	SucursalCodigo string `json:"sucursal_codigo"`
+	Folio          string `json:"folio"`
+}
+
+// ¿YA LO ADOPTÓ UNA FACTURA? La pregunta del lado de PEDIDO: si hay una fila de factura con
+// ese (sucursal, folio), el pedido de PEDIDO NO crea otra. No es un fallo: es la convivencia.
+func (q *Queries) ExisteEntregaDeFacturaDelFolio(ctx context.Context, arg ExisteEntregaDeFacturaDelFolioParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existeEntregaDeFacturaDelFolio, arg.SucursalCodigo, arg.Folio)
+	var existe bool
+	err := row.Scan(&existe)
+	return existe, err
 }
 
 const facetasMunicipios = `-- name: FacetasMunicipios :many
@@ -951,6 +1233,30 @@ func (q *Queries) FacetasVendedores(ctx context.Context, sucursal pgtype.UUID) (
 	return items, nil
 }
 
+const fechaDeLaEntregaAbiertaMasAntigua = `-- name: FechaDeLaEntregaAbiertaMasAntigua :one
+SELECT min((coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date)::date AS desde
+FROM orders o
+WHERE o.source = 'pedido'
+  AND o.external_id IS NOT NULL
+  AND starts_with(o.external_id, 'factura:')
+  AND o.sucursal_codigo = $1::text
+  AND o.resultado IS NULL AND o.delivered_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM routes r
+    WHERE r.status = 'completed' AND r.id IN (o.route_id, o.ultima_ruta_id))
+`
+
+// LA FECHA DE LA ENTREGA DE FACTURA ABIERTA MÁS ANTIGUA de una sucursal (día de Cuba): la que no
+// está entregada ni cerrada (sin `resultado` ni `delivered_at`, y sin ir en una ruta completada).
+// El repaso se ensancha hasta ahí para ver TODAS las facturas de los folios abiertos y no
+// reescribirlos con la mitad (auditoría G2). NULL = no hay ninguna abierta.
+func (q *Queries) FechaDeLaEntregaAbiertaMasAntigua(ctx context.Context, sucursalCodigo string) (pgtype.Date, error) {
+	row := q.db.QueryRow(ctx, fechaDeLaEntregaAbiertaMasAntigua, sucursalCodigo)
+	var desde pgtype.Date
+	err := row.Scan(&desde)
+	return desde, err
+}
+
 const guardarPedidoDelEspejo = `-- name: GuardarPedidoDelEspejo :one
 
 INSERT INTO orders (
@@ -961,7 +1267,7 @@ INSERT INTO orders (
     factura_numero, factura_at, factura_domicilio, factura_corregido_at,
     items_origen, delivery_distance_km, delivery_price,
     almacen_salida_codigo, almacen_salida_nombre, almacen_salida_sucursal,
-    almacen_salida_mezclado, almacen_salida_motivo
+    almacen_salida_mezclado, almacen_salida_motivo, folio
 ) VALUES (
     $1, $2, $3,
     $4, $5,
@@ -975,7 +1281,7 @@ INSERT INTO orders (
     $29, $30, $31,
     $32, $33,
     $34, $35,
-    $36
+    $36, $37
 )
 ON CONFLICT (source, external_id) WHERE source IS NOT NULL AND external_id IS NOT NULL
 DO UPDATE SET
@@ -983,11 +1289,34 @@ DO UPDATE SET
     customer_name        = excluded.customer_name,
     customer_phone       = excluded.customer_phone,
     address              = excluded.address,
-    end_address          = excluded.end_address,
-    lat                  = excluded.lat,
-    lng                  = excluded.lng,
-    end_lat              = excluded.end_lat,
-    end_lng              = excluded.end_lng,
+    -- EL PUNTO DE ENTREGA PUESTO A MANO MANDA (issue 19 de Amado, 00024, Jose 20/10/2026).
+    -- Mientras ` + "`" + `punto_manual` + "`" + ` sea true, lo que PEDIDO trae del cliente NO se escribe en el
+    -- punto de entrega —` + "`" + `end_address` + "`" + `, ` + "`" + `lat` + "`" + `, ` + "`" + `lng` + "`" + `, ` + "`" + `end_lat` + "`" + `, ` + "`" + `end_lng` + "`" + `— ni en la distancia
+    -- que se midió hasta él (` + "`" + `delivery_distance_km` + "`" + `, que el servidor recalculó al ponerlo): se
+    -- GUARDA aparte, en ` + "`" + `punto_cliente_*` + "`" + `, para poder volver a él con la ubicación al día. Sin
+    -- esto el punto duraba hasta el siguiente repaso, un minuto.
+    --
+    -- ` + "`" + `orders.punto_manual` + "`" + ` es el valor de la fila ANTES de este UPDATE. Y estos mismos
+    -- CASE vuelven en el WHERE de abajo: si se quitan de ahí, un pedido con punto manual se
+    -- reescribe en cada pasada (stored <> excluded para siempre) y se pierde el ahorro del
+    -- 26/09/2026.
+    --
+    -- Y TAMBIÉN SE CONSERVA EL PUNTO QUE YA HABÍA CUANDO EL QUE ENTRA NO TRAE NINGUNO (auditoría
+    -- del 20/10/2026, G1): una entrega de factura cuyo cliente no está en ` + "`" + `customers` + "`" + ` adopta a una
+    -- fila de PEDIDO que SÍ tenía su punto, y sin esto el ` + "`" + `DO UPDATE` + "`" + ` escribía NULL en ` + "`" + `lat` + "`" + `, ` + "`" + `lng` + "`" + `,
+    -- ` + "`" + `end_lat` + "`" + `, ` + "`" + `end_lng` + "`" + ` y ` + "`" + `delivery_distance_km` + "`" + `: la parada de una ruta se quedaba sin punto y el
+    -- armador la excluye con ` + "`" + `end_lat IS NOT NULL` + "`" + `. Si el entrante trae punto, manda el entrante;
+    -- si no, y la fila ya tenía uno, se queda el que tenía CON su dirección y su km (un km de un
+    -- punto que ya no está, o un punto sin su km, serían mentira). La regla es UNA función,
+    -- ` + "`" + `punto_se_conserva` + "`" + ` (00025), la misma en el ` + "`" + `SET` + "`" + ` y en el ` + "`" + `WHERE` + "`" + ` de abajo.
+    end_address          = CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.end_address ELSE excluded.end_address END,
+    lat                  = CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.lat ELSE excluded.lat END,
+    lng                  = CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.lng ELSE excluded.lng END,
+    end_lat              = CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.end_lat ELSE excluded.end_lat END,
+    end_lng              = CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.end_lng ELSE excluded.end_lng END,
+    punto_cliente_lat     = CASE WHEN orders.punto_manual THEN excluded.end_lat ELSE NULL END,
+    punto_cliente_lng     = CASE WHEN orders.punto_manual THEN excluded.end_lng ELSE NULL END,
+    punto_cliente_address = CASE WHEN orders.punto_manual THEN excluded.end_address ELSE NULL END,
     weight               = excluded.weight,
     branch_id            = excluded.branch_id,
     order_date           = excluded.order_date,
@@ -1006,7 +1335,7 @@ DO UPDATE SET
     factura_domicilio    = excluded.factura_domicilio,
     factura_corregido_at = excluded.factura_corregido_at,
     items_origen         = excluded.items_origen,
-    delivery_distance_km = excluded.delivery_distance_km,
+    delivery_distance_km = CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.delivery_distance_km ELSE excluded.delivery_distance_km END,
     delivery_price       = excluded.delivery_price,
     -- DE QUÉ ALMACÉN SALE, y desde dónde se midió. Entra en el UPDATE porque cambia solo:
     -- un pedido entra al reparto antes de estar facturado —sin almacén, medido desde el
@@ -1016,7 +1345,12 @@ DO UPDATE SET
     almacen_salida_nombre   = excluded.almacen_salida_nombre,
     almacen_salida_sucursal = excluded.almacen_salida_sucursal,
     almacen_salida_mezclado = excluded.almacen_salida_mezclado,
-    almacen_salida_motivo   = excluded.almacen_salida_motivo
+    almacen_salida_motivo   = excluded.almacen_salida_motivo,
+    -- EL FOLIO (00025): la clave con la que una entrega de factura y un pedido de PEDIDO se
+    -- reconocen como la misma. Entra en el UPDATE y en la comparación de abajo: si no entrara,
+    -- una fila que ganara su folio después (el relleno de la 00025 no llega a las que no
+    -- existían) se leería como «no cambió nada» y se quedaría sin él para siempre.
+    folio                   = excluded.folio
 WHERE (orders.operation_number, orders.customer_name, orders.customer_phone,
        orders.address, orders.end_address, orders.lat, orders.lng,
        orders.end_lat, orders.end_lng, orders.weight, orders.branch_id,
@@ -1028,20 +1362,37 @@ WHERE (orders.operation_number, orders.customer_name, orders.customer_phone,
        orders.delivery_distance_km, orders.delivery_price,
        orders.almacen_salida_codigo, orders.almacen_salida_nombre,
        orders.almacen_salida_sucursal, orders.almacen_salida_mezclado,
-       orders.almacen_salida_motivo)
+       orders.almacen_salida_motivo,
+       orders.punto_cliente_lat, orders.punto_cliente_lng, orders.punto_cliente_address,
+       orders.folio)
    IS DISTINCT FROM
       (excluded.operation_number, excluded.customer_name, excluded.customer_phone,
-       excluded.address, excluded.end_address, excluded.lat, excluded.lng,
-       excluded.end_lat, excluded.end_lng, excluded.weight, excluded.branch_id,
+       excluded.address,
+       -- LO QUE ESTE UPSERT ESCRIBIRÍA DE VERDAD, no lo que trae PEDIDO: con punto manual, el
+       -- punto de entrega y su distancia son los que ya hay (mismos CASE que el SET). Comparar
+       -- contra ` + "`" + `excluded.*` + "`" + ` a secas daría «distinto» en cada pasada para todo pedido con
+       -- punto manual. El punto del cliente, en cambio, SÍ se compara: si PEDIDO lo corrigió,
+       -- hay que guardar el nuevo en ` + "`" + `punto_cliente_*` + "`" + ` aunque nada más haya cambiado.
+       CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.end_address ELSE excluded.end_address END,
+       CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.lat ELSE excluded.lat END,
+       CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.lng ELSE excluded.lng END,
+       CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.end_lat ELSE excluded.end_lat END,
+       CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.end_lng ELSE excluded.end_lng END,
+       excluded.weight, excluded.branch_id,
        excluded.order_date, excluded.pedido_updated_at, excluded.estado, excluded.archivado,
        excluded.fecha_comprometida, excluded.requiere_domicilio, excluded.pedido_costo,
        excluded.municipio, excluded.vendedor, excluded.sucursal_codigo,
        excluded.factura_estado, excluded.factura_numero, excluded.factura_at,
        excluded.factura_domicilio, excluded.factura_corregido_at, excluded.items_origen,
-       excluded.delivery_distance_km, excluded.delivery_price,
+       CASE WHEN punto_se_conserva(orders.punto_manual, orders.end_lat, orders.end_lng, excluded.end_lat, excluded.end_lng) THEN orders.delivery_distance_km ELSE excluded.delivery_distance_km END,
+       excluded.delivery_price,
        excluded.almacen_salida_codigo, excluded.almacen_salida_nombre,
        excluded.almacen_salida_sucursal, excluded.almacen_salida_mezclado,
-       excluded.almacen_salida_motivo)
+       excluded.almacen_salida_motivo,
+       CASE WHEN orders.punto_manual THEN excluded.end_lat ELSE NULL END,
+       CASE WHEN orders.punto_manual THEN excluded.end_lng ELSE NULL END,
+       CASE WHEN orders.punto_manual THEN excluded.end_address ELSE NULL END,
+       excluded.folio)
 RETURNING id, branch_id, external_id, (xmax = 0)::boolean AS es_nuevo
 `
 
@@ -1082,6 +1433,7 @@ type GuardarPedidoDelEspejoParams struct {
 	AlmacenSalidaSucursal *string            `json:"almacen_salida_sucursal"`
 	AlmacenSalidaMezclado *bool              `json:"almacen_salida_mezclado"`
 	AlmacenSalidaMotivo   *string            `json:"almacen_salida_motivo"`
+	Folio                 *string            `json:"folio"`
 }
 
 type GuardarPedidoDelEspejoRow struct {
@@ -1111,6 +1463,10 @@ type GuardarPedidoDelEspejoRow struct {
 // `resultado`, `resultado_nota` y `delivered_at`. Eso es del reparto y PEDIDO no sabe nada
 // de ello: dejarlo entrar borraría de un plumazo el resultado de una parada ya cerrada,
 // que es justo el dato que dice qué mercancía bajó del camión.
+//
+// Y LO QUE SE CONSERVA SI EL PUNTO ES A MANO (`punto_manual`, 00024): el punto de entrega
+// (`end_address`, `lat`, `lng`, `end_lat`, `end_lng`) y la distancia que se midió hasta él.
+// Lo que trae PEDIDO se guarda en `punto_cliente_*`. Ver los CASE del `DO UPDATE` y del `WHERE`.
 //
 // `xmax = 0` es el truco de Postgres para saber si la fila se INSERTÓ o se ACTUALIZÓ: en
 // una fila recién insertada el id de la transacción que la borró todavía es cero. Hace
@@ -1177,6 +1533,7 @@ func (q *Queries) GuardarPedidoDelEspejo(ctx context.Context, arg GuardarPedidoD
 		arg.AlmacenSalidaSucursal,
 		arg.AlmacenSalidaMezclado,
 		arg.AlmacenSalidaMotivo,
+		arg.Folio,
 	)
 	var i GuardarPedidoDelEspejoRow
 	err := row.Scan(
@@ -1184,6 +1541,56 @@ func (q *Queries) GuardarPedidoDelEspejo(ctx context.Context, arg GuardarPedidoD
 		&i.BranchID,
 		&i.ExternalID,
 		&i.EsNuevo,
+	)
+	return i, err
+}
+
+const leerPedidoParaElPunto = `-- name: LeerPedidoParaElPunto :one
+
+SELECT
+    o.id, o.branch_id, o.almacen_salida_codigo, o.route_id, o.resultado, o.delivered_at,
+    o.punto_manual, o.punto_cliente_lat, o.punto_cliente_lng
+FROM orders o
+WHERE o.id = $1
+  AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
+`
+
+type LeerPedidoParaElPuntoParams struct {
+	ID       uuid.UUID   `json:"id"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
+
+type LeerPedidoParaElPuntoRow struct {
+	ID                  uuid.UUID          `json:"id"`
+	BranchID            pgtype.UUID        `json:"branch_id"`
+	AlmacenSalidaCodigo *string            `json:"almacen_salida_codigo"`
+	RouteID             pgtype.UUID        `json:"route_id"`
+	Resultado           *StopResult        `json:"resultado"`
+	DeliveredAt         pgtype.Timestamptz `json:"delivered_at"`
+	PuntoManual         bool               `json:"punto_manual"`
+	PuntoClienteLat     *float64           `json:"punto_cliente_lat"`
+	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
+}
+
+// ---------------------------------------------------------------------------
+// El punto de entrega puesto a mano  (PUT / DELETE /api/orders/{id}/punto, 00024)
+// ---------------------------------------------------------------------------
+// Lo que el manejador necesita saber antes de escribir: de qué sucursal es, desde qué almacén
+// sale (para medir los km como la cotización), en qué ruta va y si ya se entregó. Con alcance:
+// un pedido de otra sucursal no devuelve fila, que es el mismo 404 que si no existiera.
+func (q *Queries) LeerPedidoParaElPunto(ctx context.Context, arg LeerPedidoParaElPuntoParams) (LeerPedidoParaElPuntoRow, error) {
+	row := q.db.QueryRow(ctx, leerPedidoParaElPunto, arg.ID, arg.Sucursal)
+	var i LeerPedidoParaElPuntoRow
+	err := row.Scan(
+		&i.ID,
+		&i.BranchID,
+		&i.AlmacenSalidaCodigo,
+		&i.RouteID,
+		&i.Resultado,
+		&i.DeliveredAt,
+		&i.PuntoManual,
+		&i.PuntoClienteLat,
+		&i.PuntoClienteLng,
 	)
 	return i, err
 }
@@ -1198,6 +1605,8 @@ SELECT
     o.estado, o.archivado, o.fecha_comprometida, o.requiere_domicilio,
     o.pedido_costo, o.factura_estado, o.factura_numero, o.factura_domicilio,
     o.municipio, o.vendedor, o.sucursal_codigo, o.branch_id, o.updated_at,
+    o.punto_manual, o.punto_manual_por, o.punto_manual_at,
+    o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
     r.name          AS ruta_nombre,
     r.route_code    AS ruta_codigo,
     r.status        AS ruta_estado,
@@ -1312,49 +1721,55 @@ type ListarPedidosParams struct {
 }
 
 type ListarPedidosRow struct {
-	ID                 uuid.UUID          `json:"id"`
-	OperationNumber    *string            `json:"operation_number"`
-	CustomerName       string             `json:"customer_name"`
-	CustomerPhone      *string            `json:"customer_phone"`
-	Address            string             `json:"address"`
-	EndAddress         *string            `json:"end_address"`
-	EndLat             *float64           `json:"end_lat"`
-	EndLng             *float64           `json:"end_lng"`
-	Weight             float64            `json:"weight"`
-	Status             OrderStatus        `json:"status"`
-	Notes              *string            `json:"notes"`
-	RouteID            pgtype.UUID        `json:"route_id"`
-	DeliveryPrice      *float64           `json:"delivery_price"`
-	DeliveryDistanceKm *float64           `json:"delivery_distance_km"`
-	OrderDate          pgtype.Timestamptz `json:"order_date"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	DeliveredAt        pgtype.Timestamptz `json:"delivered_at"`
-	Resultado          *StopResult        `json:"resultado"`
-	ResultadoNota      *string            `json:"resultado_nota"`
-	StopOrder          *int32             `json:"stop_order"`
-	Estado             *PedidoEstado      `json:"estado"`
-	Archivado          bool               `json:"archivado"`
-	FechaComprometida  pgtype.Timestamptz `json:"fecha_comprometida"`
-	RequiereDomicilio  *bool              `json:"requiere_domicilio"`
-	PedidoCosto        *float64           `json:"pedido_costo"`
-	FacturaEstado      *FacturaEstado     `json:"factura_estado"`
-	FacturaNumero      *string            `json:"factura_numero"`
-	FacturaDomicilio   *float64           `json:"factura_domicilio"`
-	Municipio          *string            `json:"municipio"`
-	Vendedor           *string            `json:"vendedor"`
-	SucursalCodigo     *string            `json:"sucursal_codigo"`
-	BranchID           pgtype.UUID        `json:"branch_id"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	RutaNombre         *string            `json:"ruta_nombre"`
-	RutaCodigo         *string            `json:"ruta_codigo"`
-	RutaEstado         *RouteStatus       `json:"ruta_estado"`
-	RutaFecha          pgtype.Timestamptz `json:"ruta_fecha"`
-	VehiculoNombre     *string            `json:"vehiculo_nombre"`
-	VehiculoMatricula  *string            `json:"vehiculo_matricula"`
-	SucursalNombre     *string            `json:"sucursal_nombre"`
-	SucursalLat        *float64           `json:"sucursal_lat"`
-	SucursalLng        *float64           `json:"sucursal_lng"`
-	PesoRespaldado     *bool              `json:"peso_respaldado"`
+	ID                  uuid.UUID          `json:"id"`
+	OperationNumber     *string            `json:"operation_number"`
+	CustomerName        string             `json:"customer_name"`
+	CustomerPhone       *string            `json:"customer_phone"`
+	Address             string             `json:"address"`
+	EndAddress          *string            `json:"end_address"`
+	EndLat              *float64           `json:"end_lat"`
+	EndLng              *float64           `json:"end_lng"`
+	Weight              float64            `json:"weight"`
+	Status              OrderStatus        `json:"status"`
+	Notes               *string            `json:"notes"`
+	RouteID             pgtype.UUID        `json:"route_id"`
+	DeliveryPrice       *float64           `json:"delivery_price"`
+	DeliveryDistanceKm  *float64           `json:"delivery_distance_km"`
+	OrderDate           pgtype.Timestamptz `json:"order_date"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	DeliveredAt         pgtype.Timestamptz `json:"delivered_at"`
+	Resultado           *StopResult        `json:"resultado"`
+	ResultadoNota       *string            `json:"resultado_nota"`
+	StopOrder           *int32             `json:"stop_order"`
+	Estado              *PedidoEstado      `json:"estado"`
+	Archivado           bool               `json:"archivado"`
+	FechaComprometida   pgtype.Timestamptz `json:"fecha_comprometida"`
+	RequiereDomicilio   *bool              `json:"requiere_domicilio"`
+	PedidoCosto         *float64           `json:"pedido_costo"`
+	FacturaEstado       *FacturaEstado     `json:"factura_estado"`
+	FacturaNumero       *string            `json:"factura_numero"`
+	FacturaDomicilio    *float64           `json:"factura_domicilio"`
+	Municipio           *string            `json:"municipio"`
+	Vendedor            *string            `json:"vendedor"`
+	SucursalCodigo      *string            `json:"sucursal_codigo"`
+	BranchID            pgtype.UUID        `json:"branch_id"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	PuntoManual         bool               `json:"punto_manual"`
+	PuntoManualPor      *string            `json:"punto_manual_por"`
+	PuntoManualAt       pgtype.Timestamptz `json:"punto_manual_at"`
+	PuntoClienteLat     *float64           `json:"punto_cliente_lat"`
+	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
+	PuntoClienteAddress *string            `json:"punto_cliente_address"`
+	RutaNombre          *string            `json:"ruta_nombre"`
+	RutaCodigo          *string            `json:"ruta_codigo"`
+	RutaEstado          *RouteStatus       `json:"ruta_estado"`
+	RutaFecha           pgtype.Timestamptz `json:"ruta_fecha"`
+	VehiculoNombre      *string            `json:"vehiculo_nombre"`
+	VehiculoMatricula   *string            `json:"vehiculo_matricula"`
+	SucursalNombre      *string            `json:"sucursal_nombre"`
+	SucursalLat         *float64           `json:"sucursal_lat"`
+	SucursalLng         *float64           `json:"sucursal_lng"`
+	PesoRespaldado      *bool              `json:"peso_respaldado"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1422,6 +1837,12 @@ func (q *Queries) ListarPedidos(ctx context.Context, arg ListarPedidosParams) ([
 			&i.SucursalCodigo,
 			&i.BranchID,
 			&i.UpdatedAt,
+			&i.PuntoManual,
+			&i.PuntoManualPor,
+			&i.PuntoManualAt,
+			&i.PuntoClienteLat,
+			&i.PuntoClienteLng,
+			&i.PuntoClienteAddress,
 			&i.RutaNombre,
 			&i.RutaCodigo,
 			&i.RutaEstado,
@@ -2064,6 +2485,8 @@ SELECT
         o.items_origen,
     o.stop_order, o.delivered_at, o.resultado, o.resultado_at, o.resultado_nota,
     o.created_at, o.updated_at,
+    o.punto_manual, o.punto_manual_por, o.punto_manual_at,
+    o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
     r.name  AS ruta_nombre,
     v.name  AS vehiculo_nombre,
     v.plate AS vehiculo_matricula,
@@ -2086,58 +2509,64 @@ type ObtenerPedidoParams struct {
 }
 
 type ObtenerPedidoRow struct {
-	ID                 uuid.UUID          `json:"id"`
-	OperationNumber    *string            `json:"operation_number"`
-	CustomerName       string             `json:"customer_name"`
-	CustomerPhone      *string            `json:"customer_phone"`
-	Address            string             `json:"address"`
-	EndAddress         *string            `json:"end_address"`
-	EndLat             *float64           `json:"end_lat"`
-	EndLng             *float64           `json:"end_lng"`
-	Lat                *float64           `json:"lat"`
-	Lng                *float64           `json:"lng"`
-	Weight             float64            `json:"weight"`
-	Status             OrderStatus        `json:"status"`
-	TripLeg            TripLeg            `json:"trip_leg"`
-	Notes              *string            `json:"notes"`
-	RouteID            pgtype.UUID        `json:"route_id"`
-	UltimaRutaID       pgtype.UUID        `json:"ultima_ruta_id"`
-	VehicleID          pgtype.UUID        `json:"vehicle_id"`
-	Price              *float64           `json:"price"`
-	SegmentKm          *float64           `json:"segment_km"`
-	DeliveryPrice      *float64           `json:"delivery_price"`
-	DeliveryDistanceKm *float64           `json:"delivery_distance_km"`
-	BranchID           pgtype.UUID        `json:"branch_id"`
-	Source             *Procedencia       `json:"source"`
-	ExternalID         *string            `json:"external_id"`
-	OrderDate          pgtype.Timestamptz `json:"order_date"`
-	PedidoUpdatedAt    pgtype.Timestamptz `json:"pedido_updated_at"`
-	Estado             *PedidoEstado      `json:"estado"`
-	Archivado          bool               `json:"archivado"`
-	FechaComprometida  pgtype.Timestamptz `json:"fecha_comprometida"`
-	RequiereDomicilio  *bool              `json:"requiere_domicilio"`
-	PedidoCosto        *float64           `json:"pedido_costo"`
-	Municipio          *string            `json:"municipio"`
-	Vendedor           *string            `json:"vendedor"`
-	SucursalCodigo     *string            `json:"sucursal_codigo"`
-	FacturaEstado      *FacturaEstado     `json:"factura_estado"`
-	FacturaNumero      *string            `json:"factura_numero"`
-	FacturaAt          pgtype.Timestamptz `json:"factura_at"`
-	FacturaDomicilio   *float64           `json:"factura_domicilio"`
-	FacturaCorregidoAt pgtype.Timestamptz `json:"factura_corregido_at"`
-	ItemsOrigen        *string            `json:"items_origen"`
-	StopOrder          *int32             `json:"stop_order"`
-	DeliveredAt        pgtype.Timestamptz `json:"delivered_at"`
-	Resultado          *StopResult        `json:"resultado"`
-	ResultadoAt        pgtype.Timestamptz `json:"resultado_at"`
-	ResultadoNota      *string            `json:"resultado_nota"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	RutaNombre         *string            `json:"ruta_nombre"`
-	VehiculoNombre     *string            `json:"vehiculo_nombre"`
-	VehiculoMatricula  *string            `json:"vehiculo_matricula"`
-	VehiculoTipo       *string            `json:"vehiculo_tipo"`
-	PesoRespaldado     *bool              `json:"peso_respaldado"`
+	ID                  uuid.UUID          `json:"id"`
+	OperationNumber     *string            `json:"operation_number"`
+	CustomerName        string             `json:"customer_name"`
+	CustomerPhone       *string            `json:"customer_phone"`
+	Address             string             `json:"address"`
+	EndAddress          *string            `json:"end_address"`
+	EndLat              *float64           `json:"end_lat"`
+	EndLng              *float64           `json:"end_lng"`
+	Lat                 *float64           `json:"lat"`
+	Lng                 *float64           `json:"lng"`
+	Weight              float64            `json:"weight"`
+	Status              OrderStatus        `json:"status"`
+	TripLeg             TripLeg            `json:"trip_leg"`
+	Notes               *string            `json:"notes"`
+	RouteID             pgtype.UUID        `json:"route_id"`
+	UltimaRutaID        pgtype.UUID        `json:"ultima_ruta_id"`
+	VehicleID           pgtype.UUID        `json:"vehicle_id"`
+	Price               *float64           `json:"price"`
+	SegmentKm           *float64           `json:"segment_km"`
+	DeliveryPrice       *float64           `json:"delivery_price"`
+	DeliveryDistanceKm  *float64           `json:"delivery_distance_km"`
+	BranchID            pgtype.UUID        `json:"branch_id"`
+	Source              *Procedencia       `json:"source"`
+	ExternalID          *string            `json:"external_id"`
+	OrderDate           pgtype.Timestamptz `json:"order_date"`
+	PedidoUpdatedAt     pgtype.Timestamptz `json:"pedido_updated_at"`
+	Estado              *PedidoEstado      `json:"estado"`
+	Archivado           bool               `json:"archivado"`
+	FechaComprometida   pgtype.Timestamptz `json:"fecha_comprometida"`
+	RequiereDomicilio   *bool              `json:"requiere_domicilio"`
+	PedidoCosto         *float64           `json:"pedido_costo"`
+	Municipio           *string            `json:"municipio"`
+	Vendedor            *string            `json:"vendedor"`
+	SucursalCodigo      *string            `json:"sucursal_codigo"`
+	FacturaEstado       *FacturaEstado     `json:"factura_estado"`
+	FacturaNumero       *string            `json:"factura_numero"`
+	FacturaAt           pgtype.Timestamptz `json:"factura_at"`
+	FacturaDomicilio    *float64           `json:"factura_domicilio"`
+	FacturaCorregidoAt  pgtype.Timestamptz `json:"factura_corregido_at"`
+	ItemsOrigen         *string            `json:"items_origen"`
+	StopOrder           *int32             `json:"stop_order"`
+	DeliveredAt         pgtype.Timestamptz `json:"delivered_at"`
+	Resultado           *StopResult        `json:"resultado"`
+	ResultadoAt         pgtype.Timestamptz `json:"resultado_at"`
+	ResultadoNota       *string            `json:"resultado_nota"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	PuntoManual         bool               `json:"punto_manual"`
+	PuntoManualPor      *string            `json:"punto_manual_por"`
+	PuntoManualAt       pgtype.Timestamptz `json:"punto_manual_at"`
+	PuntoClienteLat     *float64           `json:"punto_cliente_lat"`
+	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
+	PuntoClienteAddress *string            `json:"punto_cliente_address"`
+	RutaNombre          *string            `json:"ruta_nombre"`
+	VehiculoNombre      *string            `json:"vehiculo_nombre"`
+	VehiculoMatricula   *string            `json:"vehiculo_matricula"`
+	VehiculoTipo        *string            `json:"vehiculo_tipo"`
+	PesoRespaldado      *bool              `json:"peso_respaldado"`
 }
 
 // ---------------------------------------------------------------------------
@@ -2194,6 +2623,12 @@ func (q *Queries) ObtenerPedido(ctx context.Context, arg ObtenerPedidoParams) (O
 		&i.ResultadoNota,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PuntoManual,
+		&i.PuntoManualPor,
+		&i.PuntoManualAt,
+		&i.PuntoClienteLat,
+		&i.PuntoClienteLng,
+		&i.PuntoClienteAddress,
 		&i.RutaNombre,
 		&i.VehiculoNombre,
 		&i.VehiculoMatricula,
@@ -2439,6 +2874,106 @@ func (q *Queries) PesosDelCatalogoPorFuente(ctx context.Context, source Proceden
 	return items, nil
 }
 
+const ponerPuntoDeEntregaAMano = `-- name: PonerPuntoDeEntregaAMano :one
+UPDATE orders SET
+    punto_cliente_lat     = CASE WHEN punto_manual THEN punto_cliente_lat ELSE end_lat END,
+    punto_cliente_lng     = CASE WHEN punto_manual THEN punto_cliente_lng ELSE end_lng END,
+    punto_cliente_address = CASE WHEN punto_manual THEN punto_cliente_address ELSE end_address END,
+    end_lat               = $1,
+    end_lng               = $2,
+    lat                   = $1,
+    lng                   = $2,
+    end_address           = coalesce($3::text, end_address),
+    punto_manual          = true,
+    punto_manual_por      = $4::text,
+    punto_manual_at       = now(),
+    delivery_distance_km  = $5,
+    segment_km            = coalesce($6::double precision, segment_km)
+WHERE id = $7
+  AND route_id IS NOT DISTINCT FROM $8::uuid
+  AND almacen_salida_codigo IS NOT DISTINCT FROM $9::text
+  AND resultado IS DISTINCT FROM 'entregado'::stop_result
+  AND delivered_at IS NULL
+  AND ($10::uuid IS NULL OR branch_id = $10::uuid)
+RETURNING id, branch_id, end_lat, end_lng, end_address, punto_manual, punto_manual_por,
+          punto_manual_at, delivery_distance_km, segment_km
+`
+
+type PonerPuntoDeEntregaAManoParams struct {
+	Lat                 *float64    `json:"lat"`
+	Lng                 *float64    `json:"lng"`
+	Direccion           *string     `json:"direccion"`
+	Por                 *string     `json:"por"`
+	DeliveryDistanceKm  *float64    `json:"delivery_distance_km"`
+	SegmentKm           *float64    `json:"segment_km"`
+	ID                  uuid.UUID   `json:"id"`
+	RutaID              pgtype.UUID `json:"ruta_id"`
+	AlmacenSalidaCodigo *string     `json:"almacen_salida_codigo"`
+	Sucursal            pgtype.UUID `json:"sucursal"`
+}
+
+type PonerPuntoDeEntregaAManoRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	BranchID           pgtype.UUID        `json:"branch_id"`
+	EndLat             *float64           `json:"end_lat"`
+	EndLng             *float64           `json:"end_lng"`
+	EndAddress         *string            `json:"end_address"`
+	PuntoManual        bool               `json:"punto_manual"`
+	PuntoManualPor     *string            `json:"punto_manual_por"`
+	PuntoManualAt      pgtype.Timestamptz `json:"punto_manual_at"`
+	DeliveryDistanceKm *float64           `json:"delivery_distance_km"`
+	SegmentKm          *float64           `json:"segment_km"`
+}
+
+// PONE EL PUNTO DE ENTREGA A MANO. Una sola sentencia: el punto, la marca, la distancia al
+// almacén y el `segment_km` de la parada se escriben juntos o no se escribe nada.
+//
+// `end_lat/end_lng` y `lat/lng` se ponen los cuatro, igual que los pone el espejo (§2.3: en un
+// reparto «dónde está» y «dónde termina la parada» son el mismo sitio). `end_address` solo
+// cambia si viene `direccion`; si no, se queda la que tenía.
+//
+// EL PUNTO DEL CLIENTE SE GUARDA SOLO LA PRIMERA VEZ: si el pedido ya era manual, `punto_cliente_*`
+// ya tiene el último que mandó el espejo y pisarlo con el punto manual anterior perdería a qué
+// se vuelve con el DELETE.
+//
+// `delivery_distance_km` y `segment_km` los calcula el manejador (mismo origen que la cotización,
+// y radial desde el origen de la ruta); `segment_km` solo se toca si el pedido va en una ruta
+// (`coalesce`), y el `stop_order` NO se toca nunca: es lo que decidió el logístico.
+//
+// EL WHERE REPITE LO QUE EL MANEJADOR COMPROBÓ, porque entre su lectura y esta escritura puede
+// haber pasado cualquier cosa: ya entregado = no (es histórico: lo que bajó del camión), la
+// ruta tiene que ser la misma que se bloqueó, y el almacén del pedido el mismo con el que se
+// midió (el espejo lo puede cambiar al minuto: otro almacén son otros km). Cero filas = el
+// manejador contesta 409 y no se guarda nada.
+func (q *Queries) PonerPuntoDeEntregaAMano(ctx context.Context, arg PonerPuntoDeEntregaAManoParams) (PonerPuntoDeEntregaAManoRow, error) {
+	row := q.db.QueryRow(ctx, ponerPuntoDeEntregaAMano,
+		arg.Lat,
+		arg.Lng,
+		arg.Direccion,
+		arg.Por,
+		arg.DeliveryDistanceKm,
+		arg.SegmentKm,
+		arg.ID,
+		arg.RutaID,
+		arg.AlmacenSalidaCodigo,
+		arg.Sucursal,
+	)
+	var i PonerPuntoDeEntregaAManoRow
+	err := row.Scan(
+		&i.ID,
+		&i.BranchID,
+		&i.EndLat,
+		&i.EndLng,
+		&i.EndAddress,
+		&i.PuntoManual,
+		&i.PuntoManualPor,
+		&i.PuntoManualAt,
+		&i.DeliveryDistanceKm,
+		&i.SegmentKm,
+	)
+	return i, err
+}
+
 const quitarPedidosDelEspejo = `-- name: QuitarPedidosDelEspejo :execrows
 DELETE FROM orders
 WHERE source = 'pedido' AND external_id = ANY($1::text[])
@@ -2650,4 +3185,26 @@ func (q *Queries) ResumenPreDespacho(ctx context.Context, arg ResumenPreDespacho
 		return nil, err
 	}
 	return items, nil
+}
+
+const retirarEntregasDeFactura = `-- name: RetirarEntregasDeFactura :execrows
+DELETE FROM orders
+WHERE id = ANY($1::uuid[])
+  AND source = 'pedido'
+  AND external_id IS NOT NULL
+  AND starts_with(external_id, 'factura:')
+  AND route_id IS NULL AND ultima_ruta_id IS NULL
+  AND resultado IS NULL AND delivered_at IS NULL
+`
+
+// RETIRAR LAS QUE YA NO VAN. Aunque quien llama ya filtró, la guarda se repite en el propio
+// DELETE: entre la lectura y el borrado una ruta puede haberla recogido, y borrar lo que ya
+// está en el camión es justo lo que no puede pasar. Solo `factura:`, solo sin ruta ni resultado.
+// El borrado deja su lápida (`trg_orders_salida`) y los aparatos la quitan.
+func (q *Queries) RetirarEntregasDeFactura(ctx context.Context, ids []uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, retirarEntregasDeFactura, ids)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

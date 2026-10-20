@@ -184,6 +184,14 @@ concreto. Ya hay tres así:
   completado, es que se pregunta ese estado». En una ruta `completed` el cierre
   se mira y no se toca: ni botones de marcar apagados, ni botón de guardar.
   `ModoDelCierre` en `app/lib/pantallas/rutas/vista/cierre_de_ruta.dart`.
+- **Una entrega puede nacer de una FACTURA de Ventra, y sigue siendo `source = 'pedido'`** (issue 20,
+  Fase A, Jose 20/10/2026: «Reparto se alimenta de las facturas con domicilio»). Es `external_id =
+  'factura:' + clave` (`alcance.EsDeFactura`, gemela SQL `starts_with(external_id, 'factura:')`): sin valor
+  nuevo del enum para que ningún filtro `source = 'pedido'` (SQL, Go ni Dart) se rompa. Ahí `operation_number`
+  es el **conduce** (los números de factura, no el folio: el folio de PEDIDO está en `orders.folio`, 00025), y
+  una entrega sin punto se guarda con `lat/lng` NULL en vez de descartarse. Mientras `SYNC_FUENTE=ambas`, el
+  mismo pedido que llega por PEDIDO y por factura es UNA fila (adopción por (sucursal, folio), con candado).
+  El corte y la limpieza son fases posteriores: `docs/contratos-api.md`, «La entrega que nace de una FACTURA».
 
 ---
 
@@ -380,7 +388,7 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   se quiera que entre su gente, y comprobar antes que la web ya pide `PLS`: la lectura de `codigo`
   entra con el próximo despliegue de la API, y hasta entonces la web de `PLS` sigue pidiendo
   `PALMA-SORIANO`. `PATCH /api/orders/{id}` ya no cambia
-  `routeId`, `status`, `price`, `weight` ni `stopOrder`: se entra y se sale de una ruta sólo
+  `routeId`, `status`, `price`, `weight` ni `stopOrder` —ni, desde el 20/10/2026, el punto de entrega (`address`, `endAddress`, `endLat`, `endLng`, `lat`, `lng`): para eso está `PUT /api/orders/{id}/punto`, que el espejo respeta (`orders.punto_manual`, 00024)—: se entra y se sale de una ruta sólo
   por `/api/routes` y `/api/board`, que son los que validan.
 - **La tasa es POR SUCURSAL** y sin la de esa sucursal no se convierte nada: no
   se cae a la de otra ni a un número por defecto. En PEDIDO está contado así:
@@ -389,6 +397,20 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   va a cobrar».
 - **Quitar algo es quitarlo ENTERO**: sus tipos, sus llamadas, sus enlaces, su
   entrada de menú y sus pruebas.
+- **LOS ALMACENES VIVEN EN ACCESOS, SE EDITAN EN EL CRM Y REPARTO SÓLO LOS LEE** (Jose, 20/10/2026: «los
+  almacenes están en la base de datos de Accesos pero se gestionan por CRM»). `GET /api/almacenes` pide a Accesos
+  (firmado, `internal/api/almacenes.go`); `PUT /api/almacenes`, el editor y sus pruebas se quitaron (hoy el PUT
+  contesta 405, atado por `TestAlmacenesElPutYaNoExisteYElGetSigueIgual`) y la pantalla de Almacenes es de
+  consulta, con aviso y enlace (`CRM_URL`, vacío por defecto) al CRM. **El recuerdo de 5 minutos del cotizador
+  se tira con el aviso del CRM**: `internal/avisoscrm` oye `procovar:crm:almacenes`
+  (`{"v":1,"tipo":"almacenes-cambiados","sucursal":"STG","tms":…}`, publicado DESPUÉS de que Accesos acepta) y
+  `api.CambiaronLosAlmacenes` llama a `Olvidar()` y avisa a las pantallas de ESA sucursal; un mensaje que no se
+  entiende, o de una sucursal que Reparto no tiene (MOA, PLS), tira y avisa de todas («ante la duda, todas»). Lo
+  ata por AST `TestMainArrancaElOyenteDelAvisoDelCRM`. Sin Redis todo sirve igual, con hasta 5 min de retraso en
+  el cotizador y 1 h en la APK. **No se construyó un cliente del CRM en Reparto a propósito:** la sesión del CRM
+  creó una matriz propia (migración 042, en producción desde las 18:00 del 20/10/2026) que contradice esto, y
+  se le pidió que edite llamando a Accesos; **mientras no lo haga, el CRM y Accesos pueden diferir** y Reparto
+  sigue leyendo de Accesos.
 - **El camión en el taller es AVISO, no bloqueo** (Jose, 28/09/2026; la 1.0.28 lo bloqueó por
   error y se revirtió en la 1.0.29): una sucursal con UN camión olvidado en `maintenance` se
   quedaría sin poder armar rutas. Se ofrece con un aviso ámbar «en el taller». Lo que NUNCA se
@@ -489,7 +511,7 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   reparto y tienen que ser cero): el payload de alguien sin permiso no se ejecuta con la autoridad de nadie hasta que una persona
   lo decide. **Quién revisa: ADMINISTRADOR de esa sucursal, SUPER ADMIN y DESARROLLADOR, y nadie revisa lo suyo** (Jose, 08/10/2026;
   por nombre de rol, `identidad.RolDeRevisor`; LOGISTICO no revisa). Aplicar reenvía por la misma tubería que la subida, con el token
-  **del revisor** (jamás uno de servicio), la lista blanca de ruta POR FORMA (las quince rutas de escritura de `/routes`, `/board`, `/vehicles`, `/vehicle-types` y `/distribuidores`; la novena, `PUT /routes/{id}/stops`, reordenar, 15/10/2026; las seis de la flota, 16/10/2026) y `X-Sucursal-Id` forzada; un 4xx del reparto
+  **del revisor** (jamás uno de servicio), la lista blanca de ruta POR FORMA (las dieciséis rutas de escritura de `/routes`, `/board`, `/vehicles`, `/vehicle-types`, `/distribuidores` y `/orders/{id}/punto`; la novena, `PUT /routes/{id}/stops`, reordenar, 15/10/2026; las seis de la flota, 16/10/2026; la dieciséis, el punto de entrega a mano, 20/10/2026) y `X-Sucursal-Id` forzada; un 4xx del reparto
   deja el apunte `rechazado` con el motivo LITERAL y a la vista, un 5xx o la red no es un rechazo; «aplicar todo en orden» **se
   detiene** en el primer fallo; un `aplicando` de más de 10 minutos sale `interrumpido` y se reintenta solo confirmándolo a mano (la
   API no lee `X-Apunte`). **Descartar se ESCRIBE, no se borra** —motivo de ≥5 letras con nombre y hora; lo exigen el `CHECK` y los

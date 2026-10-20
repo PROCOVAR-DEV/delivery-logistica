@@ -885,7 +885,7 @@ String sinElAndamio(String markdown) => markdown
 /// EL ANCLA DE UN ENCABEZADO, **como la escribe GitHub**.
 ///
 /// No es un capricho de formato: en `docs/manual/` hay enlaces escritos a mano con
-/// esa forma —`#poner-o-corregir-un-almacén`, `#cambiar-entre-usd-y-cup`— y si
+/// esa forma —`#consultar-los-almacenes-de-una-sucursal`, `#cambiar-entre-usd-y-cup`— y si
 /// aqui se calculara de otra manera esos enlaces no llevarian a ninguna parte
 /// dentro de la aplicacion. Se tocarian tres veces y se dejarian de tocar.
 ///

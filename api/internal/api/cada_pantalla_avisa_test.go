@@ -32,6 +32,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -848,67 +849,96 @@ func TestGuardarLosAjustesAvisa(t *testing.T) {
 // los almacenes NI SIQUIERA VIAJAN en `GET /api/sync/cambios` —salen en `faltan`—. Y el
 // domicilio se cobra por la distancia DESDE el almacén: dos personas mirando puntos
 // distintos cobran precios distintos por la misma entrega.
-func TestGuardarLosAlmacenesAvisa(t *testing.T) {
-	conAccesos(t, almacenesDePrueba())
-	h := montarDeDatos(t, datosDePrueba())
-	avisos := contarAvisos(t)
-
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t),
-		`{"codigo":"STG","almacenes":[{"nombre":"Central","latitud":20.0,"longitud":-75.8}]}`, nil)
-	avCodigo(t, w, http.StatusOK)
-
-	avisos.exige(t, "guardar los almacenes", CambioAlmacenes)
-
-}
-
-// Y SALE CON LA SUCURSAL DEL CÓDIGO QUE SE GUARDÓ, no con la del alcance de quien llamó.
 //
-// LO HACE UN SUPER ADMIN, y eso es la prueba, no un detalle: con un operador de Santiago el
-// alcance YA es Santiago, así que un aviso que lo saque del alcance sale bien y la mutación no
-// se ve. Comprobado el 01/10/2026: sustituido `deLaFila(...)` por `sucursalDelAlcance(...)`,
-// `TestGuardarLosAlmacenesAvisa` seguía verde. Con el SUPER ADMIN el alcance es «todas» y el
-// aviso sale pelado, que es el fallo de ese día.
-func TestGuardarLosAlmacenesAvisaSoloASuSucursal(t *testing.T) {
-	// El uuid va A MANO: es el que el doble de datos usa para Santiago. Compararlo con
-	// `datSucStg` sería comparar el código consigo mismo.
-	const santiagoAMano = "11111111-1111-1111-1111-111111111111"
-	if datSucStg.String() != santiagoAMano {
-		t.Fatalf("el doble de datos ya no usa %s para Santiago: %s", santiagoAMano, datSucStg)
+// DESDE EL 20/10/2026 REPARTO YA NO GUARDA ALMACENES (se editan en el CRM) y no hay ninguna
+// puerta nuestra que avise: el aviso lo va a disparar el CRM, que se cablea en otro cambio.
+// Por eso estas pruebas llaman al GANCHO `avisarCambioDeAlmacenes` directamente, contra el
+// bus de verdad y no contra el contador de `contarAvisos`: lo que hay que fijar es que el
+// gancho sigue enganchado al bus (`eventos.go`) y que sale con la sucursal que le dan.
+//
+// ES LO QUE ANTES COMPROBABA `TestGuardarLosAlmacenesAvisaSoloASuSucursal`, con la mutación
+// que ya costó una vez: el aviso saliendo pelado (de «todas») cuando lo mira un SUPER ADMIN.
+
+func TestElAvisoDeAlmacenesLlegaSoloASuSucursal(t *testing.T) {
+	// Los uuid van A MANO (los de `lasOchoSucursales`): compararlos con lo que el código dio
+	// sería comparar el código consigo mismo.
+	const santiagoAMano = "0a000007-0000-0000-0000-000000000007"
+	if idDeSucursal(t, "STG").String() != santiagoAMano {
+		t.Fatalf("lasOchoSucursales ya no usa %s para Santiago", santiagoAMano)
 	}
 
-	conAccesos(t, almacenesDePrueba())
-	h := montarDeDatos(t, datosDePrueba())
-	avisos := contarAvisos(t)
+	anterior := busEventos
+	t.Cleanup(func() { busEventos = anterior })
+	busEventos = NuevoDifusor()
 
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", superAdminDeDatos(t),
-		`{"codigo":"STG","almacenes":[{"nombre":"Central","latitud":20.0,"longitud":-75.8}]}`, nil)
-	avCodigo(t, w, http.StatusOK)
-
-	suc, hubo := avisos.sucursalDe(CambioAlmacenes)
-	if !hubo {
-		t.Fatalf("guardar los almacenes no avisó. Salieron: %v", avisos.tipos)
+	canales := map[string]<-chan Cambio{}
+	for _, su := range lasOchoSucursales {
+		ch, cortar, vivo := busEventos.SuscribirDe(su.id.String())
+		if !vivo {
+			t.Fatal("el bus nació cerrado")
+		}
+		defer cortar()
+		canales[su.codigo] = ch
 	}
-	if suc != santiagoAMano {
-		t.Errorf("el aviso de almacenes salió con la sucursal %q y tenía que ser %s, la del "+
-			"código `STG` que vino en el cuerpo y que ya se comprobó contra las sucursales "+
-			"visibles.\n"+
-			"  Sacarlo del alcance manda a las OCHO a pedir `GET /api/almacenes` —que no vive "+
-			"de la base local— por un punto que sólo cambió en Santiago. Y el domicilio se "+
-			"cobra por la distancia DESDE el almacén.", suc, santiagoAMano)
+	// Quien ve las ocho (SUPER ADMIN) escucha con `Suscribir()`: le llega lo de cualquiera,
+	// PERO con la sucursal puesta, para que sepa de cuál es y no se baje las ocho.
+	todas, cortarTodas, _ := busEventos.Suscribir()
+	defer cortarTodas()
+
+	// El ALCANCE es el de un SUPER ADMIN —«todas»— a propósito: un gancho que sacara la
+	// sucursal del contexto en vez de la que le pasan saldría pelado, y es el fallo del
+	// 01/10/2026.
+	avisarCambioDeAlmacenes(alcanceDe(t, "SUPER ADMIN", ""), santiagoAMano)
+
+	tocados := []string{}
+	for _, su := range lasOchoSucursales {
+		if c, hay := recibio(canales[su.codigo]); hay {
+			tocados = append(tocados, su.codigo)
+			if c.Tipo != CambioAlmacenes {
+				t.Errorf("a %s le llegó el tipo %q y era %q", su.codigo, c.Tipo, CambioAlmacenes)
+			}
+		}
+	}
+	if len(tocados) != 1 || tocados[0] != "STG" {
+		t.Errorf("el aviso de almacenes de STG llegó a %v.\n"+
+			"  Tenía que llegar SÓLO a STG: las otras siete irían a pedir `GET /api/almacenes` "+
+			"—que no vive de la base local— por un punto que sólo cambió en Santiago.", tocados)
+	}
+
+	c, hay := recibio(todas)
+	if !hay {
+		t.Fatal("a quien ve las ocho no le llegó el aviso de almacenes")
+	}
+	if c.Tipo != CambioAlmacenes || c.Sucursal != santiagoAMano {
+		t.Errorf("a quien ve las ocho le llegó %+v y tenía que ser {almacenes, %s}: sin la "+
+			"sucursal puesta (pelado) se lo toma como «de todas» y se baja las ocho.",
+			c, santiagoAMano)
 	}
 }
 
-// Y si Accesos NO aceptó el cambio, no se avisa: no se guardó nada.
-func TestSiAccesosRechazaLosAlmacenesNoSeAvisa(t *testing.T) {
-	conAccesos(t, &accesosFalso{fallo: errAccesosCaido})
-	h := montarDeDatos(t, datosDePrueba())
-	avisos := contarAvisos(t)
+// Y EL AVISO CON LA SUCURSAL DE OTRA NO LE LLEGA A UN OPERADOR DE ESTA: por el cable de
+// verdad, el mismo de `TestAUnOperadorDeHolguinNoLeLlegaElAvisoDeSantiago`, pero con el
+// gancho de almacenes y no con `AvisarDe` a pelo.
+func TestElAvisoDeAlmacenesDeSantiagoNoLlegaAUnOperadorDeHolguin(t *testing.T) {
+	anterior := busEventos
+	t.Cleanup(func() { busEventos = anterior })
+	busEventos = NuevoDifusor()
 
-	w := pedirDeDatos(t, h, http.MethodPut, "/api/almacenes", logisticoDeSantiago(t),
-		`{"codigo":"STG","almacenes":[]}`, nil)
-	avCodigo(t, w, http.StatusBadGateway)
+	srv := httptest.NewServer(manejadorDeEventosDeLasOcho(t, busEventos))
+	t.Cleanup(srv.Close)
 
-	avisos.exigeSilencio(t, "guardar unos almacenes que Accesos rechazó")
+	hol := abrirElCanal(t, srv.URL, "LOGISTICO", "HOL")
+	avisarCambioDeAlmacenes(context.Background(), idDeSucursal(t, "STG").String())
+
+	nadaPorElCable(t, hol, 500*time.Millisecond,
+		"Es el aviso de almacenes de Santiago y quien escucha es un LOGISTICO de Holguín.")
+
+	// La gemela en positivo: lo de su sucursal SÍ le llega.
+	avisarCambioDeAlmacenes(context.Background(), idDeSucursal(t, "HOL").String())
+	linea := esperarLinea(t, hol, "data:", 2*time.Second)
+	if !strings.Contains(linea, CambioAlmacenes) || !strings.Contains(linea, idDeSucursal(t, "HOL").String()) {
+		t.Errorf("al operador de Holguín le llegó %q y tenía que ser el aviso de almacenes de HOL", linea)
+	}
 }
 
 // --------------------------------------------------------------------------- catálogo
@@ -959,6 +989,32 @@ func TestCadaEscrituraDePedidosAvisa(t *testing.T) {
 			tokenDeSantiagoPedidos(t), "", nil)
 		avCodigo(t, w, http.StatusOK)
 		avisos.exige(t, "borrar un pedido", CambioPedidos)
+	})
+
+	// EL PUNTO DE ENTREGA A MANO (issue 19, 20/10/2026): avisa de los pedidos y del tablero (el
+	// pedido cambia de km al almacén y de sitio en «Sin colocar») y, si va en una ruta, de las rutas.
+	t.Run("poner el punto de entrega a mano", func(t *testing.T) {
+		m := puntoMontado(t)
+		w := m.pedir(http.MethodPut, m.ids[1], deSantiagoEnRutas(t), cuerpoDelPunto(latNuevo, lngNuevo, ""))
+		avCodigo(t, w, http.StatusOK)
+		m.avisos.exige(t, "poner el punto de entrega a mano", CambioPedidos, CambioTablero)
+	})
+
+	t.Run("poner el punto de entrega a mano a una parada de una ruta", func(t *testing.T) {
+		m := puntoMontado(t)
+		metaEnUnaRuta(m, sqlc.RouteStatusPlanned, false)
+		w := m.pedir(http.MethodPut, m.ids[1], deSantiagoEnRutas(t), cuerpoDelPunto(latNuevo, lngNuevo, ""))
+		avCodigo(t, w, http.StatusOK)
+		m.avisos.exige(t, "poner el punto a mano a una parada", CambioPedidos, CambioTablero, CambioRutas)
+	})
+
+	t.Run("devolver el punto de entrega al del cliente", func(t *testing.T) {
+		m := puntoMontado(t)
+		m.pedir(http.MethodPut, m.ids[1], deSantiagoEnRutas(t), cuerpoDelPunto(latNuevo, lngNuevo, ""))
+		m.avisos.tipos, m.avisos.sucursales = nil, nil
+		w := m.pedir(http.MethodDelete, m.ids[1], deSantiagoEnRutas(t), "")
+		avCodigo(t, w, http.StatusOK)
+		m.avisos.exige(t, "devolver el punto al del cliente", CambioPedidos, CambioTablero)
 	})
 }
 
@@ -1094,6 +1150,37 @@ func TestUnaEscrituraRECHAZADANoAvisaEnNingunaPuerta(t *testing.T) {
 		avCodigo(t, w, http.StatusNotFound)
 		avisos.exigeSilencio(t, "borrar un pedido que no está")
 	})
+
+	// Lo que rechaza el punto de entrega a mano (cada 400/404/409/502) tampoco avisa: el detalle
+	// de cada uno, con la fila intacta, está en `punto_de_entrega_test.go`.
+	t.Run("un punto de entrega que no es un punto", func(t *testing.T) {
+		m := puntoMontado(t)
+		w := m.pedir(http.MethodPut, m.ids[1], deSantiagoEnRutas(t), `{"lat":91,"lng":0}`)
+		avCodigo(t, w, http.StatusBadRequest)
+		m.avisos.exigeSilencio(t, "un punto fuera del planeta")
+	})
+
+	t.Run("un punto de entrega de un pedido de otra sucursal", func(t *testing.T) {
+		m := puntoMontado(t)
+		w := m.pedir(http.MethodPut, m.ajeno, deSantiagoEnRutas(t), cuerpoDelPunto(latNuevo, lngNuevo, ""))
+		avCodigo(t, w, http.StatusNotFound)
+		m.avisos.exigeSilencio(t, "un punto de un pedido de otra sucursal")
+	})
+
+	t.Run("volver al punto del cliente sin haberlo cambiado", func(t *testing.T) {
+		m := puntoMontado(t)
+		w := m.pedir(http.MethodDelete, m.ids[1], deSantiagoEnRutas(t), "")
+		avCodigo(t, w, http.StatusConflict)
+		m.avisos.exigeSilencio(t, "devolver un punto que no se había cambiado")
+	})
+
+	t.Run("un punto de entrega con Accesos caído", func(t *testing.T) {
+		m := puntoMontado(t)
+		conAccesos(t, &accesosFalso{fallo: errAccesosCaido})
+		w := m.pedir(http.MethodPut, m.ids[1], deSantiagoEnRutas(t), cuerpoDelPunto(latNuevo, lngNuevo, ""))
+		avCodigo(t, w, http.StatusBadGateway)
+		m.avisos.exigeSilencio(t, "un punto que no se guardó por Accesos")
+	})
 }
 
 // LEER NO AVISA. Un aviso por cada lectura sería la pantalla recargándose sola en bucle,
@@ -1175,6 +1262,9 @@ func TestNingunaEscrituraDeNingunaPantallaSeQuedaSinAvisar(t *testing.T) {
 	// Lo que NO está aquí, y por qué:
 	//
 	//   - `altaDeProductoRetirada`: contesta 410 y no escribe nada.
+	//   - `almacenes.go` YA NO TIENE ESCRITURA DE ALMACENES (20/10/2026: se editan en el CRM y
+	//     Reparto solo los lee). `TestAlmacenesElPutYaNoExisteYElGetSigueIgual` fija que el
+	//     PUT no vuelve; si vuelve, hay que meter su manejador aquí con `avisarCambioDeAlmacenes(`.
 	//   - `crearOrigen`, `actualizarOrigen`, `borrarOrigen` (`almacenes.go`): ninguna
 	//     pantalla de la aplicación pide `/api/origins` — se comprobó buscando `origins`
 	//     en `app/lib` el 17/09/2026. Son herencia del front de delivery.
@@ -1190,22 +1280,23 @@ func TestNingunaEscrituraDeNingunaPantallaSeQuedaSinAvisar(t *testing.T) {
 		},
 		"sucursales.go": {"crearSucursal", "actualizarSucursal", "borrarSucursal"},
 		"ajustes.go":    {"guardarAjustes"},
-		"almacenes.go":  {"guardarAlmacenes"},
 		"productos.go":  {"actualizarProducto", "borrarProducto"},
 		"pedidos.go":    {"actualizarPedido", "borrarPedido", "recalcularPesos"},
-		"espejo.go":     {"sincronizarProductos"},
+		// El punto de entrega a mano (issue 19, 20/10/2026): el PUT y el DELETE.
+		"punto_de_entrega.go": {"ponerPuntoDeEntrega", "devolverPuntoDeEntregaAlCliente"},
+		"espejo.go":           {"sincronizarProductos"},
 	}
 	// Qué gancho tiene que aparecer dentro de cada uno.
 	gancho := map[string]string{
-		"vehiculos.go":      "avisarCambioDeVehiculos(",
-		"tipos_vehiculo.go": "avisarCambioDeTiposDeVehiculo(",
-		"distribuidores.go": "avisarCambioDeDistribuidores(",
-		"sucursales.go":     "avisarCambioDeSucursales(",
-		"ajustes.go":        "avisarCambioDeAjustes(",
-		"almacenes.go":      "avisarCambioDeAlmacenes(",
-		"productos.go":      "avisarCambioDelCatalogo(",
-		"pedidos.go":        "avisarCambioDePedidos(",
-		"espejo.go":         "avisarCambioDelCatalogo(",
+		"vehiculos.go":        "avisarCambioDeVehiculos(",
+		"tipos_vehiculo.go":   "avisarCambioDeTiposDeVehiculo(",
+		"distribuidores.go":   "avisarCambioDeDistribuidores(",
+		"sucursales.go":       "avisarCambioDeSucursales(",
+		"ajustes.go":          "avisarCambioDeAjustes(",
+		"productos.go":        "avisarCambioDelCatalogo(",
+		"pedidos.go":          "avisarCambioDePedidos(",
+		"punto_de_entrega.go": "avisarCambioDePedidos(",
+		"espejo.go":           "avisarCambioDelCatalogo(",
 	}
 
 	patron := regexp.MustCompile(`func \(s \*Servidor\) (\w+)\(w http\.ResponseWriter`)

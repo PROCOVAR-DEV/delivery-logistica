@@ -108,7 +108,7 @@ renumeran al tacharlos**: el paso 3 de ayer sigue siendo el 3 hoy.
 |---|---|---|---|
 | **«El punto de partida de la sucursal»** | Es el sitio desde el que se mide la distancia hasta cada cliente | «esos domicilios se quedan sin cotizar y los pedidos salen sin precio» | **No aquí.** Lo deja hecho quien da de alta la sucursal. Pídelo a administración |
 | **«Al menos un vehículo»** | Es el camión al que se le carga la ruta del día | No se puede terminar el paso 3 del asistente de rutas, y una zona del tablero no puede llevar camión | Botón **«Agregar el primer vehículo»** |
-| **«Al menos un almacén con su punto puesto»** | De ahí sale lo que se le cobra al cliente por el domicilio, y de ahí arranca el camión | Se cobra desde el sitio equivocado. Un almacén sin coordenadas tampoco sirve | Botón **«Poner el almacén»** |
+| **«Al menos un almacén con su punto puesto»** | De ahí sale lo que se le cobra al cliente por el domicilio, y de ahí arranca el camión | Se cobra desde el sitio equivocado. Un almacén sin coordenadas tampoco sirve | Botón **«Ver los almacenes»** (los almacenes se ponen en el CRM) |
 | **«La tasa de cambio de la sucursal»** | Pasa los importes de USD a CUP | Los importes sólo se ven en USD | **No aquí.** La mantiene Accesos, que la trae de Entrega |
 
 A la derecha del título, cuántos van: «2 de 4».

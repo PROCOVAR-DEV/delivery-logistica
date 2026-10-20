@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/pantallas/almacenes/datos/coordenadas.dart';
-import 'package:reparto/pantallas/almacenes/datos/geocodificar.dart';
+import 'package:reparto/mapa/ubicacion/coordenadas.dart';
+import 'package:reparto/mapa/ubicacion/geocodificar.dart';
 
 import '../../apoyo/servidor_falso.dart';
 

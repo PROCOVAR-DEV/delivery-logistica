@@ -145,11 +145,8 @@ void main() {
       expect(anclaDe('Buscar un pedido'), 'buscar-un-pedido');
       expect(anclaDe('Cambiar entre USD y CUP'), 'cambiar-entre-usd-y-cup');
       // Las tildes se QUEDAN, que es lo que hace GitHub y lo que esta escrito en
-      // `docs/manual/comun/pantallas/almacenes.md`.
-      expect(
-        anclaDe('Poner o corregir un almacén'),
-        'poner-o-corregir-un-almacén',
-      );
+      // `docs/manual/comun/tareas.md` (`#dar-de-baja-un-camión`).
+      expect(anclaDe('Dar de baja un camión'), 'dar-de-baja-un-camión');
       // La puntuacion se va, los espacios se juntan.
       expect(
         anclaDe('¿Y si no aparece? (mira esto)'),

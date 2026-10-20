@@ -65,6 +65,12 @@ anterior.**
 **Pre-despacho** — el papel del principio: qué hay que sacar del almacén, por
 producto, con sus empaques y su peso.
 
+**Punto puesto a mano** — el punto de entrega que el logístico le pone a un pedido
+cuando el cliente pidió entregar en otro sitio (la dirección del ticket no coincide
+con la geolocalización del cliente). Manda sobre el del cliente y no se pierde cuando
+el cliente se actualiza. Se pone en «Ubicar la entrega»; la parada sale en el mapa con
+su **número en rojo**, y se puede volver al punto del cliente.
+
 **Renglón sin peso** — una línea de pedido cuyo peso no consta. Son las que hacen
 que el peso del pre-despacho salga con `≥`.
 

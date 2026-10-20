@@ -18,6 +18,10 @@
 //
 // Lo que necesita del entorno: `DATABASE_URL`, `SERVICE_API_KEY`, `PEDIDO_API_URL` y
 // `DELIVERY_URL`. El resto tiene valores por defecto medidos (ver `internal/espejo`).
+//
+// Y SÓLO SI `SYNC_FUENTE` es `factura` o `ambas` (issue 20): `WAREHOUSE_API_URL` y
+// `WAREHOUSE_API_TOKEN` (las mismas que la API), y opcionalmente `VENTRA_BASES` y
+// `WAREHOUSE_TIMEOUT_MS`. Por defecto la fuente es `pedido` y nada de esto hace falta.
 package main
 
 import (
@@ -36,6 +40,7 @@ import (
 	"procovar/reparto-api/internal/config"
 	"procovar/reparto-api/internal/espejo"
 	"procovar/reparto-api/internal/store"
+	"procovar/reparto-api/internal/ventra"
 )
 
 func main() {
@@ -98,6 +103,22 @@ func correr() error {
 
 	proceso := espejo.Nuevo(opciones, espejo.BaseDelReparto{Acotado: acotado}, reg)
 
+	// LA FACTURA DE VENTRA COMO FUENTE (issue 20, Fase A), sólo si `SYNC_FUENTE` la incluye. Por
+	// defecto es `pedido` y no se monta nada: desplegar esto no cambia el espejo. El lector es
+	// el MISMO cliente de Ventra que usa la API para el catálogo, con la misma URL, el mismo
+	// token y los mismos emparejamientos de bases (`VENTRA_BASES`). NO se pasa por `config.Cargar`
+	// por lo de siempre: exige `JWT_SECRET`, que aquí no se usa.
+	if opciones.LeeFactura() {
+		proceso.ConFacturas(ventra.Nuevo(&config.Config{
+			VentraURL:   opciones.VentraURL,
+			VentraToken: opciones.VentraToken,
+			VentraPlazo: opciones.VentraPlazo,
+			VentraBases: opciones.VentraBases,
+		}, reg))
+		reg.Info("la factura de Ventra es fuente del espejo", "fuente", opciones.Fuente,
+			"ventra", opciones.VentraURL, "plazo", opciones.VentraPlazo)
+	}
+
 	if *unaVez {
 		return proceso.Ciclo(ctx)
 	}
@@ -113,7 +134,10 @@ func correr() error {
 	// deliberado: así esto se puede desplegar antes de tocar el Redis, y un Redis caído no
 	// impide arrancar. El aviso va al ARRANCAR, que es cuando lo lee quien despliega, y no
 	// la tarde que alguien se pregunte por qué los pedidos tardan quince minutos.
-	if opciones.EscuchaLosAvisos() {
+	// SIN PEDIDO COMO FUENTE (`SYNC_FUENTE=factura`) tampoco se escucha su cola: sus avisos
+	// traerían pedidos de PEDIDO por la puerta de atrás. Apagar el webhook de la API es parte del
+	// CORTE, no de esto.
+	if opciones.EscuchaLosAvisos() && opciones.LeePedido() {
 		base := espejo.BaseDelReparto{Acotado: acotado}
 		escuchador := espejo.NuevoEscuchador(
 			espejo.NuevoRedisDeAvisos(opciones), opciones, reg,

@@ -162,6 +162,9 @@ type PedidoDelCuerpo struct {
 	Lng                *float64         `json:"lng"`
 	Items              []RenglonDelLote `json:"items"`
 	OrderDate          *string          `json:"orderDate"`
+	// Folio SOLO lo lee la puerta en una entrega de factura (`externalId` con prefijo `factura:`);
+	// en un pedido de PEDIDO lo ignora y usa `operationNumber`. Ver `folioDelLote`.
+	Folio *string `json:"folio"`
 
 	// La marca de agua. Sin esto el reparto guarda el pedido con `pedido_updated_at` nulo,
 	// el `since` no existe nunca y cada ciclo vuelve a barrer el año entero.
@@ -250,6 +253,7 @@ func pedidoAlLote(p PedidoDeFuera) PedidoDelCuerpo {
 		// porque el espejo trae quince días de una vez y todos nacerían hoy.
 		OrderDate:       textoONada(p.Fecha),
 		PedidoUpdatedAt: textoONada(p.UpdatedAt),
+		Folio:           textoONada(p.FolioDelPedido),
 
 		Estado:            textoONada(p.Estado),
 		Archivado:         p.Archivado,

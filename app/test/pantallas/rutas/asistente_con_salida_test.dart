@@ -117,6 +117,12 @@ void main() {
     await asentar(tester);
 
     expect(find.text(AsistenteNuevaRuta.sinAlmacenes), findsOneWidget);
+    // Los almacenes se editan en el CRM (20/10/2026): el botón lleva a la CONSULTA y
+    // no promete «poner» nada, y el texto dice dónde se ponen. Los literales a mano,
+    // porque comparar la constante consigo misma no caza que vuelvan a mentir.
+    expect(AsistenteNuevaRuta.irAAlmacenes, 'Ver los almacenes');
+    expect(AsistenteNuevaRuta.sinAlmacenes, contains('se ponen en el CRM'));
+    expect(AsistenteNuevaRuta.sinAlmacenes, isNot(contains('Se pone en')));
     await tester.tap(
       find.widgetWithText(FilledButton, AsistenteNuevaRuta.irAAlmacenes),
     );

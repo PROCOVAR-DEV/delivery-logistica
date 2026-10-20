@@ -59,6 +59,81 @@ Cualquier cambio te devuelve a la página 1.
 
 ---
 
+## Poner el punto de entrega de un pedido a mano
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Pedidos»**.
+
+**Para qué:** el cliente pide entregar en **otro sitio** y quien factura lo apunta en el
+ticket. Esa dirección no coincide con la geolocalización del cliente (la única que
+manda PEDIDO). **El logístico le pone el punto bueno a ese pedido**, y desde entonces
+manda sobre el del cliente: las rutas lo miden desde ahí y **no se pierde cuando el
+cliente se vuelve a actualizar**.
+
+1. **Haz clic en la fila del pedido** para abrir su ficha.
+   <!-- señala: pedidos-abrir-el-pedido -->
+2. En la sección **«Entrega»**, **clic en «Ubicar la entrega»**.
+   - Se abre un cajón titulado **«Ubicar la entrega»**, con el folio y el cliente
+     debajo.
+   - Si el pedido **ya está entregado** o va en una **ruta completada**, no hay botón:
+     en su lugar la ficha dice por qué («El pedido ya está entregado: no se le puede
+     cambiar el punto» / «La ruta ya está completada: no se le puede cambiar el punto a
+     sus paradas»). Son histórico.
+3. Pon el punto de **una de las tres formas** (las tres escriben en la misma caja de
+   **«Coordenadas»**, y lo que se guarda es lo que ponga ahí; puedes buscar y luego
+   corregir a mano):
+   - **Escribe las coordenadas** en **«Coordenadas»**, así: `19.83, -75.82`. Si no se
+     entiende, debajo pone «No se entiende. Escríbelo como «19.83, -75.82».»
+   - **Haz clic en el mapa**, en el sitio de la entrega. Debajo sale «Punto puesto en
+     20.02470, -75.82190.».
+   - **Escribe la dirección** en **«Dirección»** y **clic en «Buscar»** (hacen falta al
+     menos 4 letras). Mira el punto en el mapa antes de guardar.
+4. **Escribe la dirección de la entrega** en **«Dirección»**, si el mapa no la trajo.
+   **Vacía, se queda la que tenía.**
+5. **Clic en «Guardar punto»**. No se enciende hasta que algo cambie.
+   - **En la web se guarda al instante en el servidor.** Si dice que no, el cajón se
+     queda abierto y el motivo sale tal cual debajo (por ejemplo «lat y lng tienen que
+     ser un punto del planeta» o «El pedido ya está entregado…»).
+
+Qué cambia:
+
+- La ficha (y la tarjeta de la parada, en Rutas) lleva la etiqueta **«Punto puesto a
+  mano»**.
+- **En el mapa de la ruta, el número de esa parada sale en ROJO**, y su globo dice
+  «Punto puesto a mano». La leyenda de abajo lo explica.
+- Los **km de esa parada** y el **total de la ruta** se vuelven a medir desde el punto
+  nuevo (si la ruta ya está armada y no está completada), y la distancia del domicilio
+  también. **El orden de las paradas no se toca**: si ya no es el mejor, reordénalas
+  tú.
+
+### Volver al punto del cliente
+
+1. Abre otra vez **«Ubicar la entrega»** en ese pedido: ahora trae también **«Volver al
+   punto del cliente»**.
+2. **Clic en «Volver al punto del cliente»**. **Pregunta antes**, en un cajón: dice a qué
+   punto vuelve y que los km se miden otra vez.
+3. **«Sí, volver al punto del cliente»** o **«No, dejar el punto a mano»**.
+
+Si el pedido no tiene punto a mano, el servidor lo dice: «El pedido no tiene un punto
+puesto a mano».
+
+### Desde una ruta o desde el asistente
+
+El **mismo cajón** se abre desde otros dos sitios, sin salir de lo que estás haciendo:
+
+- **En Rutas**, en el detalle de la ruta → **«Ver paradas»** → en la tarjeta de la
+  parada, **«Ubicar la entrega»** (junto a «Quitar de ruta"). No sale en una ruta
+  completada ni en una parada ya entregada.
+- **Al armar una ruta**, en el paso **«Pedidos»** del asistente, cada fila lleva un
+  botón pequeño con el tooltip **«Ubicar la entrega»**. Pulsarlo **no marca ni desmarca**
+  el pedido.
+
+**Una limitación:** un pedido que PEDIDO manda **sin coordenadas** no llega a esta
+aplicación, así que no se puede abrir. Esto sirve para **cambiar** el punto de un
+pedido que ya tiene uno.
+
+---
+
 ## Mandar varios pedidos a una zona de golpe
 <!-- tarea -->
 
@@ -108,7 +183,8 @@ cobrado en la factura** o **marcado a domicilio y sin cotizar en Entrega**, adem
      **«Entrega»**, **«Recorrido»**, la banda de la factura, el bloque del domicilio
      y **«Productos (6)»**.
 
-**Es sólo lectura.** Los pedidos vienen de PEDIDO y aquí no se editan.
+**Es de lectura.** Los pedidos vienen de PEDIDO y aquí no se editan. La única acción es
+**«Ubicar la entrega»**: [poner a mano el punto de entrega](#poner-el-punto-de-entrega-de-un-pedido-a-mano).
 
 ---
 
@@ -166,7 +242,8 @@ Es el camino largo, para cuando la ruta no sale de una zona entera.
    **Cambiarla borra todo lo elegido después.** <!-- señala: rutas-asistente-sucursal -->
 3. **«Salida»** — elige en **«Almacén del que sale el camión»** y **«Siguiente»**.
    Sólo salen los que tienen coordenadas. Si no hay ninguno: «Esta sucursal no tiene
-   ningún almacén con ubicación…» y un botón **«Poner el almacén»**. <!-- señala: rutas-asistente-almacen -->
+   ningún almacén con ubicación. Los almacenes se ponen en el CRM…» y un botón
+   **«Ver los almacenes»** (lleva a la pantalla de consulta). <!-- señala: rutas-asistente-almacen -->
 4. **«Vehículo»** — **obligatorio**. Se ofrecen los camiones **activos**, con su
    capacidad de nota: «1000 kg», «1000 kg · en el taller», «1000 kg · en ruta».
    - **Un camión «Inactivo» (dado de baja) no sale en la lista.** Si no ves el que
@@ -607,84 +684,24 @@ otra para los pedidos pendientes. Los resultados anteriores se conservan.
 
 ---
 
-## Poner o corregir un almacén
+## Consultar los almacenes de una sucursal
 <!-- tarea -->
 
 **Empieza en:** **Menú → «Almacenes»**.
+
+**Los almacenes ya no se crean, se editan ni se quitan desde aquí: se editan en el
+CRM.** Esta pantalla es de solo lectura, y arriba lo dice: «Los almacenes se editan
+en el CRM. Aquí solo se consultan.» Si la aplicación trae la dirección del CRM
+puesta, al lado sale **«Abrir el CRM»**.
 
 1. Elige la sucursal arriba, si hay más de una.
    <!-- señala: almacenes-sucursal -->
-2. **Clic en «Nuevo almacén»**, o clic en el almacén que quieras corregir. <!-- señala: almacenes-nuevo -->
-3. Escribe el **nombre**. <!-- señala: almacenes-nombre -->
-4. Forma 1 de poner el punto: **escribe la dirección**…
-   <!-- señala: almacenes-direccion -->
-5. …y **clic en «Buscar»** (al menos 4 letras).
-   <!-- señala: almacenes-buscar-la-direccion -->
-6. Forma 2: **clic en el mapa**. <!-- señala: almacenes-mapa -->
-7. Forma 3: **escribe las coordenadas a mano**: `19.83, -75.82`.
-   <!-- señala: almacenes-coordenadas -->
-8. Si va a ser el principal, **clic en el chip «Principal»**.
-   <!-- señala: almacenes-principal -->
-9. **Clic en «Guardar»**. Verás **«Guardado en Accesos.»**
-   <!-- señala: almacenes-guardar -->
+2. Mira la lista. Cada renglón dice la dirección, las coordenadas (o **«sin punto»**),
+   el código, si es el **principal** (lleva estrella) y si está **inactivo**.
 
-**Sólo puede haber un principal:** al marcar uno, los demás se desmarcan.
-
-**Un almacén sin punto se puede guardar, pero desde él no se cotiza**, y te lo avisa:
-«Sin coordenadas: desde éste no se puede medir el domicilio.»
-
----
-
-## Cambiar cuál es el almacén principal
-<!-- tarea -->
-
-**Empieza en:** **Menú → «Almacenes»**.
-
-El principal es el que se usa **cuando nadie dice cuál**. Lo dice el propio chip:
-«Desde éste se mide cuando nadie dice cuál».
-
-1. Arriba, elige la sucursal si hay más de una.
-   <!-- señala: almacenes-sucursal -->
-2. En la lista, **clic en el renglón del almacén** que va a ser el principal. Se
-   abre su cajón, con su nombre de título. <!-- señala: almacenes-abrir -->
-3. Debajo del nombre, **clic en el chip «Principal»** (la estrella se rellena). <!-- señala: almacenes-principal -->
-4. **Clic en «Guardar»**. Sale **«Guardado en Accesos.»** <!-- señala: almacenes-guardar -->
-   - En la lista, la **estrella** se ha movido a ese almacén.
-
-> **Ojo:** **sólo puede haber un principal.** Al marcar éste, los demás se
-> desmarcan solos — no hay que ir a quitárselo al anterior.
-
----
-
-## Quitar un almacén de la sucursal
-<!-- tarea -->
-
-**Empieza en:** **Menú → «Almacenes»**.
-
-1. Arriba, elige la sucursal. <!-- señala: almacenes-sucursal -->
-2. **Clic en el renglón del almacén.** Se abre su cajón. <!-- señala: almacenes-abrir -->
-3. Debajo del nombre, a la derecha de los chips **«Principal»** y **«Activo»**, hay
-   una **papelera** (**«Quitar»**). **Clic ahí.** <!-- señala: almacenes-quitar -->
-   - **Se abre un cajón que pregunta antes**, **«Borrar «Almacén Central»»**, y dice
-     las cuatro cosas que pasan:
-
-   > «El almacén se va de Accesos: se guarda la lista de Santiago sin él, así que
-   > desaparece para todo el mundo y no sólo en esta pantalla. Deja de poder medirse
-   > desde ahí: los pedidos que lo traen puesto pasan a medirse desde el principal de
-   > la sucursal, con otro kilometraje y otro importe que se cobra igual que uno
-   > bueno; y si era el último con punto, los domicilios de Santiago salen sin precio.
-   > Los teléfonos que ya lo bajaron siguen midiendo desde él hasta la próxima vez que
-   > tengan red —Accesos no avisa de los que se retiran—, así que cada entrega de ese
-   > día se cobra mal y no se ve hasta cuadrar la caja. Volver a ponerlo es darlo de
-   > alta a mano, con su dirección y su punto.»
-
-4. **Clic en «Sí, borrar «Almacén Central»»**, o en **«No, dejarlo»**.
-   <!-- señala: confirmar-el-borrado -->
-
-> **Ojo:** si sólo quieres que deje de usarse pero no perderlo, **no lo quites**:
-> abre su cajón y **clic en el chip «Activo»** para dejarlo en **«Inactivo»**, y
-> **«Guardar»**. En la lista queda con el rótulo «inactivo» y no se ofrece para
-> salir.
+**Un almacén sin punto no sirve para cotizar**: desde él no se puede medir el
+domicilio. Si falta uno, o hay que corregir un punto, se arregla en el CRM y esta
+pantalla se actualiza sola cuando se guarda allí.
 
 ---
 

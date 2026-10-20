@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"procovar/reparto-api/internal/alcance"
@@ -152,4 +153,103 @@ func (b BaseDelReparto) ApuntarTandaDeAvisos(ctx context.Context, t TandaDeAviso
 
 func (b BaseDelReparto) BorrarClientesQueYaNoVienen(ctx context.Context, ids []string) (int64, error) {
 	return b.Acotado.EspejoBorrarClientesQueYaNoVienen(ctx, ids)
+}
+
+// ---------------------------------------------------------------------------
+// Lo que necesita la factura como fuente (issue 20)
+// ---------------------------------------------------------------------------
+
+// BaseDeFacturas es la otra mitad de [Base] para `SYNC_FUENTE=factura|ambas`. Va aparte para que
+// quien sólo trae PEDIDO no tenga que saber que existe.
+type BaseDeFacturas interface {
+	// PuntosDeClientes: los clientes geolocalizados del espejo de PEDIDO de una sucursal.
+	PuntosDeClientes(ctx context.Context, sucursal string) ([]PuntoDeCliente, error)
+	// ProductosDeVentra: peso y unidades por unidad de venta de una sucursal, por sku normalizado.
+	ProductosDeVentra(ctx context.Context, sucursal string) (map[string]ProductoDeVentra, error)
+	// EntregasDeFacturaEnVentana: las entregas de factura guardadas de una sucursal cuyo día de
+	// factura cae en [desde, hasta].
+	EntregasDeFacturaEnVentana(ctx context.Context, sucursal string, desde, hasta time.Time) ([]EntregaGuardada, error)
+	// ConducesGuardados: el conduce que ya tienen guardado las entregas de factura de esos
+	// `external_id` (las que no existen no salen). Para no encoger una entrega con una respuesta
+	// parcial.
+	ConducesGuardados(ctx context.Context, externalIDs []string) (map[string]string, error)
+	// FechaDeLaEntregaAbiertaMasAntigua: el día (Cuba) de la entrega de factura sin entregar ni
+	// cerrar más antigua de la sucursal; nil si no hay. El repaso se ensancha hasta ahí.
+	FechaDeLaEntregaAbiertaMasAntigua(ctx context.Context, sucursal string) (*time.Time, error)
+	// RetirarEntregasDeFactura borra las que se pidan, y SOLO las que no van en una ruta ni
+	// tienen resultado (la guarda está también en el DELETE). Devuelve cuántas borró.
+	RetirarEntregasDeFactura(ctx context.Context, ids []uuid.UUID) (int64, error)
+}
+
+// EntregaGuardada es una entrega de factura que ya está en la base. `Ocupada` es que va o fue
+// en una ruta, o tiene resultado: eso no se retira nunca, porque ya está en el camión.
+type EntregaGuardada struct {
+	ID         uuid.UUID
+	ExternalID string
+	Ocupada    bool
+}
+
+func (b BaseDelReparto) PuntosDeClientes(ctx context.Context, sucursal string) ([]PuntoDeCliente, error) {
+	filas, err := b.Acotado.EspejoPuntosDeClientes(ctx, sucursal)
+	if err != nil {
+		return nil, err
+	}
+	salida := make([]PuntoDeCliente, 0, len(filas))
+	for _, f := range filas {
+		c := PuntoDeCliente{Nombre: f.Name, Lat: f.Lat, Lng: f.Lng}
+		if f.Codigo != nil {
+			c.Codigo = *f.Codigo
+		}
+		salida = append(salida, c)
+	}
+	return salida, nil
+}
+
+func (b BaseDelReparto) ProductosDeVentra(ctx context.Context, sucursal string) (map[string]ProductoDeVentra, error) {
+	filas, err := b.Acotado.EspejoPesosDeProductos(ctx, sucursal)
+	if err != nil {
+		return nil, err
+	}
+	salida := make(map[string]ProductoDeVentra, len(filas))
+	for _, f := range filas {
+		if f.Sku == nil {
+			continue
+		}
+		p := ProductoDeVentra{Sku: *f.Sku, PesoKg: f.Weight}
+		if f.UnitsPerPackage != nil {
+			p.UnidadesPorEmpaque = *f.UnitsPerPackage
+		}
+		salida[claveDeProducto(*f.Sku)] = p
+	}
+	return salida, nil
+}
+
+func (b BaseDelReparto) EntregasDeFacturaEnVentana(
+	ctx context.Context, sucursal string, desde, hasta time.Time,
+) ([]EntregaGuardada, error) {
+	filas, err := b.Acotado.EspejoEntregasDeFacturaEnVentana(ctx, sucursal, desde, hasta)
+	if err != nil {
+		return nil, err
+	}
+	salida := make([]EntregaGuardada, 0, len(filas))
+	for _, f := range filas {
+		g := EntregaGuardada{ID: f.ID, Ocupada: f.Ocupada}
+		if f.ExternalID != nil {
+			g.ExternalID = *f.ExternalID
+		}
+		salida = append(salida, g)
+	}
+	return salida, nil
+}
+
+func (b BaseDelReparto) ConducesGuardados(ctx context.Context, externalIDs []string) (map[string]string, error) {
+	return b.Acotado.EspejoConducesGuardados(ctx, externalIDs)
+}
+
+func (b BaseDelReparto) FechaDeLaEntregaAbiertaMasAntigua(ctx context.Context, sucursal string) (*time.Time, error) {
+	return b.Acotado.EspejoFechaDeLaEntregaAbiertaMasAntigua(ctx, sucursal)
+}
+
+func (b BaseDelReparto) RetirarEntregasDeFactura(ctx context.Context, ids []uuid.UUID) (int64, error) {
+	return b.Acotado.EspejoRetirarEntregasDeFactura(ctx, ids)
 }

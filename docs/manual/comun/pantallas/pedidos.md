@@ -227,11 +227,14 @@ Ventra sólo 57 traen peso, así que esto es lo normal, no una avería.
 
 ## El detalle de un pedido
 
-Se abre tocando la fila. **Es sólo lectura: aquí no se edita nada.**
+Se abre tocando la fila. **Es de lectura: aquí no se edita nada** salvo **una** cosa, el
+punto de entrega (ver [«Ubicar la entrega»](#ubicar-la-entrega--el-punto-de-entrega-puesto-a-mano)).
 
 Lleva, en este orden:
 
-1. **«Entrega»** — dirección, coordenadas y teléfono del cliente.
+1. **«Entrega»** — dirección, coordenadas y teléfono del cliente. Si el punto se puso a
+   mano, la etiqueta **«Punto puesto a mano»**. Debajo, el botón **«Ubicar la entrega»**
+   (o, si no se puede, el motivo).
 2. **«Recorrido»** — «Del almacén (ALMACÉN CENTRAL) al cliente.» o «Sin
    coordenadas GPS para esta ruta».
 3. **La banda de la factura**, que empieza por **el número y cuándo se facturó**, en
@@ -269,6 +272,62 @@ Lleva, en este orden:
    cifra que manda Ventra queda por debajo de los empaques («SERVILLETA PROSITO PACA
    24P · 7 empaques · 4») no son unidades de nada y la línea solo dice los empaques.
 6. **«Ruta»** — sólo si va en una: el código, el camión y la fecha de entrega.
+
+---
+
+## «Ubicar la entrega» — el punto de entrega puesto a mano
+
+**El caso (issue 19 de Amado).** El cliente pide entregar en **otro sitio** y quien
+factura lo apunta en el ticket. Esa dirección no coincide con la geolocalización del
+cliente, que es la única que manda PEDIDO. El logístico, al armar la ruta, le pone **a
+mano** el punto de entrega (latitud, longitud y dirección) a ese pedido. Ese punto
+**manda sobre el del cliente** y **no se pierde** cuando el cliente se vuelve a
+actualizar. Nada de esto se hace en PEDIDO: se hace aquí.
+
+Se abre desde **tres sitios**, con **el mismo cajón**: la ficha del pedido (sección
+«Entrega»), la tarjeta de la parada en el detalle de una ruta («Ver paradas») y cada fila
+del paso «Pedidos» del asistente de rutas (botón pequeño con el tooltip «Ubicar la
+entrega»).
+
+**El cajón «Ubicar la entrega»** tiene el folio y el cliente de subtítulo y estas cosas:
+
+- **«Dirección»**, con su botón **«Buscar»**: la dirección de la entrega, y buscarla en el
+  mapa (hacen falta 4 letras; **necesita conexión**).
+- **«Coordenadas»**: `19.83, -75.82`. **Escribirlas a mano funciona siempre**, también sin
+  señal. Es la caja por la que pasa el punto: lo que se guarda es lo que pone ahí.
+- **El mapa**: pulsar donde es la entrega pone el punto. También funciona sin señal.
+- **«Guardar punto»**, que no se enciende hasta que algo cambie, y **«Cancelar»**.
+- **«Volver al punto del cliente»**, sólo si el pedido ya tiene un punto a mano: pregunta
+  antes («Sí, volver al punto del cliente» / «No, dejar el punto a mano»).
+
+**Cuándo se ofrece.** Sólo si el pedido **no está entregado** y su **ruta no está
+completada**. Si no se puede, no hay botón y la ficha dice por qué:
+
+- «El pedido ya está entregado: no se le puede cambiar el punto»
+- «La ruta ya está completada: no se le puede cambiar el punto a sus paradas»
+
+**Qué cambia al guardar:**
+
+- La ficha y la tarjeta de la parada llevan **«Punto puesto a mano»**.
+- **En el mapa de la ruta el número de la parada sale en rojo** (ver [Rutas](rutas.md)).
+- Se vuelven a medir los **km de la parada** y el **total de la ruta**, si va en una ruta
+  que no está completada, y la **distancia del domicilio**. **El orden de las paradas no
+  se toca.**
+- **En la web** se guarda al instante en el servidor; si dice que no, el motivo sale tal
+  cual en el cajón y no se guarda nada. **En la APK y el escritorio** se guarda en el
+  aparato (con los km de la parada y de la ruta ya recalculados) y **sube cuando hay
+  señal**; la distancia del domicilio la pone el servidor al subir. Si al subir dice que
+  no, el cambio queda en la bandeja con su motivo.
+
+Los «no» del servidor, letra por letra: «Se espera { lat, lng }»; «lat y lng tienen que
+ser un punto del planeta» (fuera de rango, o el (0,0), que es el golfo de Guinea);
+«El pedido ya está entregado: no se le puede cambiar el punto»; «La ruta ya está
+completada: no se le puede cambiar el punto a sus paradas»; «El pedido no tiene un punto
+puesto a mano» (al volver al del cliente) y «No encontrado».
+
+**Una limitación:** un pedido que PEDIDO manda **sin coordenadas** no llega a esta
+aplicación, así que no se puede abrir; esto sirve para **cambiar** el punto de uno que ya
+tiene uno.
 
 ---
 
@@ -349,8 +408,9 @@ seguir trabajando con ellos.
 ## Lo que Pedidos NO hace
 
 - **No se dan de alta pedidos.** Vienen de PEDIDO.
-- **No se edita nada de un pedido**: ni el cliente, ni la dirección, ni el peso, ni
-  el precio del domicilio.
+- **No se edita nada de un pedido**: ni el cliente, ni el peso, ni el precio del
+  domicilio. **La única excepción es el punto de entrega** (y su dirección), que el
+  logístico puede poner a mano con «Ubicar la entrega».
 - **No se pone el precio del domicilio aquí.** Lo pone el repartidor desde
   Entrega.
 - **No se enseña el precio interno del pedido.** La columna «Precio» es lo que

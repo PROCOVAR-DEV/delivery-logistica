@@ -239,6 +239,7 @@ void main() {
       status: 'pending',
       tripLeg: 'ida',
       archivado: false,
+      puntoManual: false,
       estado: EstadoEnPedido.completada,
       pedidoCosto: 3.5,
       facturaEstado: numero == null ? EstadoFactura.sinFactura : 'igual',

@@ -674,7 +674,7 @@ func TestPatchAplicaSoloLosCamposPresentes(t *testing.T) {
 	}
 	// Lo que no vino NO se toca: sin esto, un PATCH que sólo corregía el nombre borra
 	// las coordenadas y el pedido desaparece del armador de rutas.
-	if d.ultimoPatch.Address != nil || d.ultimoPatch.EndLat != nil || d.ultimoPatch.Notes != nil {
+	if d.ultimoPatch.OperationNumber != nil || d.ultimoPatch.Notes != nil || d.ultimoPatch.TripLeg != nil {
 		t.Fatalf("un campo ausente llegó a la consulta: %+v", d.ultimoPatch)
 	}
 	if got := leerDePedidos[PedidoDetalleSalida](t, w); got.CustomerName != "Bar del Parque" {
@@ -727,22 +727,67 @@ func TestPatchConVariosCamposVedadosLosNombraTodos(t *testing.T) {
 	}
 }
 
-// LA PAREJA: lo que SÍ se corrige a mano sigue pasando, incluidos los datos de contacto y
-// las coordenadas (es para lo que sirve este PATCH), y llega entero a la consulta.
+// LOS SEIS DEL PUNTO DE ENTREGA TAMBIÉN — 20/10/2026 (issue 19 de Amado, 00024).
+// `address`, `endAddress`, `endLat`, `endLng`, `lat` y `lng` cambiaban el punto sin validar, sin
+// marca (el espejo los pisaba al minuto) y sin recalcular los km del cobro. Ahora son un 400
+// que dice DÓNDE se cambia, uno por uno, y no se aplica nada del cuerpo.
+func TestPatchConUnCampoDelPuntoEs400QueApuntaALaPuertaNueva(t *testing.T) {
+	for _, campo := range []string{"address", "endAddress", "endLat", "endLng", "lat", "lng"} {
+		valor := "20.1"
+		if campo == "address" || campo == "endAddress" {
+			valor = `"Calle 1"`
+		}
+		for _, cuerpo := range []string{
+			`{"` + campo + `":` + valor + `}`,
+			// Con un campo bueno al lado: el bueno tampoco se aplica.
+			`{"customerName":"Bar del Parque","` + campo + `":` + valor + `}`,
+			// `null` también vino: es justo como se «borraba» un punto.
+			`{"` + campo + `":null}`,
+		} {
+			d := datosDePedidos()
+			w := pedirPedidos(t, servidorDePedidos(t, d), http.MethodPatch, "/api/orders/"+pedidosStgA.String(),
+				tokenDeSantiagoPedidos(t), cuerpo, nil)
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("%s: tenía que ser 400 y fue %d: %s", cuerpo, w.Code, w.Body.String())
+			}
+			if !strings.Contains(w.Body.String(), "El punto de entrega se cambia con PUT /api/orders/{id}/punto") ||
+				!strings.Contains(w.Body.String(), "("+campo+")") {
+				t.Fatalf("%s: el 400 tiene que traer el literal de la puerta nueva y nombrar «%s»: %s",
+					cuerpo, campo, w.Body.String())
+			}
+			if d.ultimoPatch.ID != uuid.Nil {
+				t.Fatalf("%s: no se podía haber llegado a la consulta: %+v", cuerpo, d.ultimoPatch)
+			}
+		}
+	}
+}
+
+// Y si vienen de los DOS grupos, el 400 trae los dos literales: ninguno se calla.
+func TestPatchConCamposDeLosDosGruposDiceLosDosLiterales(t *testing.T) {
+	w := pedirPedidos(t, servidorDePedidos(t, datosDePedidos()), http.MethodPatch, "/api/orders/"+pedidosStgA.String(),
+		tokenDeSantiagoPedidos(t), `{"routeId":null,"endLat":1,"lng":2}`, nil)
+	cuerpo := w.Body.String()
+	if w.Code != http.StatusBadRequest ||
+		!strings.Contains(cuerpo, "Ese campo no se cambia por aquí: usa las rutas o el tablero (routeId)") ||
+		!strings.Contains(cuerpo, "El punto de entrega se cambia con PUT /api/orders/{id}/punto (endLat, lng)") {
+		t.Fatalf("%d %s", w.Code, cuerpo)
+	}
+}
+
+// LA PAREJA: lo que SÍ se corrige a mano sigue pasando —el número de operación, el nombre, la
+// nota y el tramo— y llega entero a la consulta.
 func TestPatchSigueAceptandoLoQueSiSeCorrigeAMano(t *testing.T) {
 	d := datosDePedidos()
 	h := servidorDePedidos(t, d)
 	w := pedirPedidos(t, h, http.MethodPatch, "/api/orders/"+pedidosStgA.String(),
 		tokenDeSantiagoPedidos(t),
-		`{"operationNumber":"PTB25-1","customerName":"Bar","address":"Calle 1","endAddress":"Calle 2",`+
-			`"endLat":20.1,"endLng":-75.8,"lat":20.2,"lng":-75.9,"notes":"tocar timbre","tripLeg":"return"}`, nil)
+		`{"operationNumber":"PTB25-1","customerName":"Bar","notes":"tocar timbre","tripLeg":"return"}`, nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
 	p := d.ultimoPatch
-	if p.OperationNumber == nil || *p.OperationNumber != "PTB25-1" || p.Address == nil || p.EndAddress == nil ||
-		p.EndLat == nil || p.EndLng == nil || p.Lat == nil || p.Lng == nil || p.Notes == nil ||
-		p.TripLeg == nil || *p.TripLeg != sqlc.TripLegReturn {
+	if p.OperationNumber == nil || *p.OperationNumber != "PTB25-1" || p.CustomerName == nil ||
+		p.Notes == nil || p.TripLeg == nil || *p.TripLeg != sqlc.TripLegReturn {
 		t.Fatalf("algún campo bueno no llegó a la consulta: %+v", p)
 	}
 }

@@ -29,30 +29,27 @@ import (
 // abiertas se enteren sin esperar al temporizador.
 //
 // Vacío por defecto y lo engancha el fichero del bus (`eventos.go`), igual que el de rutas
-// y el del tablero. **No devuelve error y no se mira lo que conteste**: lo que Accesos ya
-// guardó no se deshace porque el aviso no salga.
+// y el del tablero. **No devuelve error y no se mira lo que conteste.**
 //
-// ES DE LOS QUE MÁS FALTA HACÍAN, por dos razones que se suman:
+// DESDE EL 20/10/2026 NADIE EN ESTE REPO LO LLAMA: Reparto ya no guarda almacenes (se
+// editan en el CRM) y el `PUT /api/almacenes` que lo disparaba se quitó. SE QUEDA a
+// propósito: el aviso del CRM (que se cablea en otro cambio) entrará por aquí y las
+// pantallas se repintan con este evento. Las pruebas lo llaman directamente.
 //
-//  1. la pantalla de Almacenes no vive de la base local, pide `GET /api/almacenes` a la
-//     red, así que el ciclo de sincronización no la repinta;
-//  2. los almacenes NI SIQUIERA VIAJAN en `GET /api/sync/cambios` —salen en `faltan`— y se
-//     bajan con una petición aparte al final del ciclo. O sea que ni las pantallas que sí
-//     leen de la base los tenían al día antes de tiempo.
-//
-// Y no es cosmético: el domicilio se cobra por la distancia DESDE el almacén. Dos personas
-// mirando puntos distintos cobran precios distintos por la misma entrega.
+// Por qué hace falta repintar: la pantalla de Almacenes no vive de la base local, pide
+// `GET /api/almacenes` a la red, y los almacenes NI SIQUIERA VIAJAN en `GET /api/sync/cambios`
+// —salen en `faltan`— sino en una petición aparte al final del ciclo. Y no es cosmético: el
+// domicilio se cobra por la distancia DESDE el almacén; dos personas mirando puntos
+// distintos cobran precios distintos por la misma entrega.
 //
 // LOS ORÍGENES (`/api/origins`) NO AVISAN, y no es un olvido: ninguna pantalla de la
 // aplicación los pide —se comprobó buscando `origins` en `app/lib` el 17/09/2026—. Son
 // herencia del front de delivery. El día que una pantalla los enseñe, aquí va su aviso.
 //
-// LA SUCURSAL SE LA PASA EL MANEJADOR — 01/10/2026. Antes la sacaba el bus del alcance, y
+// LA SUCURSAL SE LA PASA QUIEN AVISA — 01/10/2026. Antes la sacaba el bus del alcance, y
 // para un SUPER ADMIN eso es «de todas»: mover el punto del almacén de Santiago mandaba a las
-// otras siete a pedir `GET /api/almacenes` por nada. Aquí la sucursal es la del CÓDIGO que
-// viene en el cuerpo (`{codigo, almacenes}`), que es lo que se acaba de guardar, y ese código
-// **ya se comprobó** contra las sucursales que esta persona puede ver — si no, se salió con
-// un 403 antes de llegar al aviso. El porqué entero, en `eventos.go` encima del `init()`.
+// otras siete a pedir `GET /api/almacenes` por nada. Aquí la sucursal es la del uuid que se
+// pasa, y solo a ésa le llega. El porqué entero, en `eventos.go` encima del `init()`.
 var avisarCambioDeAlmacenes = func(_ context.Context, _ string) {}
 
 // PUNTOS DE PARTIDA (/api/origins) y ALMACENES (/api/almacenes). Dos cosas parecidas que
@@ -60,10 +57,10 @@ var avisarCambioDeAlmacenes = func(_ context.Context, _ string) {}
 //
 //   - Un ORIGEN es nuestro: desde dónde sale una ruta. Vive en esta base, en
 //     `saved_origins`, y es de la sucursal donde está.
-//   - Un ALMACÉN es de la sucursal y VIVE EN ACCESOS. Se gestiona desde esta aplicación
-//     —el domicilio se cobra por la distancia desde el almacén, así que un punto mal
-//     puesto se cobra mal en cada entrega y quien lo nota es el que reparte— pero no se
-//     copia aquí. Una copia se separa del original en cuanto alguien mueve unas
+//   - Un ALMACÉN es de la sucursal y VIVE EN ACCESOS. Se edita en el CRM (decisión de Jose,
+//     20/10/2026) y Reparto SOLO LO LEE —para cotizar, medir y armar rutas—. El domicilio se
+//     cobra por la distancia desde el almacén, así que un punto mal puesto se cobra mal en
+//     cada entrega. No se copia aquí. Una copia se separa del original en cuanto alguien mueve unas
 //     coordenadas allá, y con esas coordenadas se mide lo que se le cobra al cliente.
 //
 // De esta base sale UNA sola cosa para los almacenes: qué códigos de sucursal puede ver
@@ -333,9 +330,8 @@ type Almacen struct {
 	// Oferta` en cuatro, y **`PV-STGO` está en Santiago Y en Palma Soriano**. Un respaldo por
 	// nombre no falla nunca: sólo mide desde el almacén de otro sitio.
 	//
-	// ES OPCIONAL Y PUEDE LLEGAR VACÍO, y eso NO se trata como un error. El PUT pasa el
-	// cuerpo a Accesos tal cual, así que en cuanto la pantalla de Almacenes lo escriba,
-	// llegará; mientras no lo haga, `cotizar.ElegirOrigenDelPedido` lo dice con su propio
+	// ES OPCIONAL Y PUEDE LLEGAR VACÍO, y eso NO se trata como un error. Lo escribe el
+	// CRM, no esta aplicación; mientras no lo haya puesto, `cotizar.ElegirOrigenDelPedido` lo dice con su propio
 	// motivo —`accesos-sin-codigos`— en vez de acusar a catorce almacenes de no existir.
 	Codigo    *string  `json:"codigo,omitempty"`
 	Nombre    string   `json:"nombre"`
@@ -432,101 +428,11 @@ func (s *Servidor) listarAlmacenes(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, r, http.StatusOK, map[string]any{"sucursales": salida})
 }
 
-// PUT /api/almacenes
-//
-// No escribe NADA en esta base: manda el cuerpo a Accesos tal cual y devuelve lo que
-// conteste. Guardar una copia aquí sería tener el mismo dato en dos sitios, que es
-// exactamente lo que esto viene a quitar.
-func (s *Servidor) guardarAlmacenes(w http.ResponseWriter, r *http.Request) {
-	a, ok := acotado(w, r)
-	if !ok {
-		return
-	}
-	defer r.Body.Close()
-	crudo, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 8<<20))
-	if err != nil {
-		httpx.Error(w, r, http.StatusBadRequest, "Se espera { codigo, almacenes: [...] }")
-		return
-	}
-	// Un solo mensaje para «no parsea», «falta codigo» y «almacenes no es una lista»: así
-	// lo dice el contrato, y así lo espera la pantalla que lo enseña.
-	var cuerpo struct {
-		Codigo    string     `json:"codigo"`
-		Almacenes *[]Almacen `json:"almacenes"`
-	}
-	if err := json.Unmarshal(crudo, &cuerpo); err != nil ||
-		strings.TrimSpace(cuerpo.Codigo) == "" || cuerpo.Almacenes == nil {
-		httpx.Error(w, r, http.StatusBadRequest, "Se espera { codigo, almacenes: [...] }")
-		return
-	}
-	codigo := strings.TrimSpace(cuerpo.Codigo)
-
-	// Quien sólo ve una sucursal no puede tocar los almacenes de otra pasando el código a
-	// mano: se comprueba contra lo que de verdad puede ver, no contra lo que dice el
-	// cuerpo. Y el almacén es de donde se mide el domicilio, así que moverle el punto a
-	// otra sucursal le cambia el precio a todas sus entregas.
-	visibles, err := a.CodigosDeSucursalesVisibles(r.Context())
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	puede := false
-	// Y DE PASO SU UUID, que es de donde sale la sucursal del aviso: el cuerpo trae el código
-	// (`STG`) y el bus reparte por uuid. Se coge de la MISMA fila que concede el permiso, no
-	// de una segunda consulta: así no hay forma de que el aviso hable de una sucursal distinta
-	// de la que se autorizó.
-	var sucursalDeLosAlmacenes uuid.UUID
-	for _, v := range visibles {
-		if v.ExternalID != nil && strings.TrimSpace(*v.ExternalID) == codigo {
-			puede = true
-			sucursalDeLosAlmacenes = v.ID
-			break
-		}
-	}
-	if !puede {
-		httpx.Error(w, r, http.StatusForbidden, "Sin acceso a esa sucursal")
-		return
-	}
-
-	// Un almacén sin coordenadas SE PUEDE guardar —a veces se da de alta antes de tener
-	// el punto— pero se avisa: sin lat/lng no se puede medir la distancia y los pedidos
-	// de esa sucursal se quedan sin cotizar sin que nada lo diga.
-	sinPunto := 0
-	for _, x := range *cuerpo.Almacenes {
-		if x.Latitud == nil || x.Longitud == nil {
-			sinPunto++
-		}
-	}
-
-	respuesta, err := s.accesos.GuardarAlmacenes(r.Context(), crudo)
-	if err != nil {
-		httpx.Error(w, r, http.StatusBadGateway,
-			fmt.Sprintf("Accesos no aceptó el cambio: %s", err))
-		return
-	}
-	if respuesta == nil {
-		respuesta = map[string]any{}
-	}
-	// `aviso` es null cuando están todos con coordenadas: un aviso vacío en la pantalla
-	// se lee como que algo pasó.
-	respuesta["aviso"] = nil
-	if sinPunto > 0 {
-		respuesta["aviso"] = fmt.Sprintf(
-			"%d almacén(es) sin coordenadas: desde ésos no se puede medir el domicilio.", sinPunto)
-	}
-	// DESPUÉS de que Accesos lo haya aceptado, nunca antes: si contestó un error ya se
-	// salió con el 502 de arriba, y avisar de lo que no se guardó manda a todas las
-	// pantallas abiertas a pedir la lista para encontrarla igual.
-	avisarCambioDeAlmacenes(r.Context(), deLaFila(sucursalDeLosAlmacenes))
-	httpx.JSON(w, r, http.StatusOK, respuesta)
-}
-
 // rutasAlmacenes monta los orígenes y los almacenes.
 //
-// Todo con `sesion`: los almacenes se gestionan desde aquí a propósito —quien nota que un
-// punto está mal es el que reparte, no quien administra—, así que exigir admin dejaría el
-// arreglo en manos de quien no ve el problema. El alcance ya impide tocar los de otra
-// sucursal, que es lo que de verdad hay que impedir.
+// Todo con `sesion`. Los almacenes aquí son SOLO LECTURA (`GET /api/almacenes`): el
+// `PUT` se eliminó el 20/10/2026 porque se editan en el CRM, y una prueba fija que la ruta
+// ya no existe. El alcance ya impide ver los de otra sucursal.
 func (s *Servidor) rutasAlmacenes(rt *httpx.Router, sesion, admin []httpx.Medio) {
 	_ = admin
 	rt.ManejarFunc(http.MethodGet, "/api/origins", s.listarOrigenes, sesion...)
@@ -535,7 +441,6 @@ func (s *Servidor) rutasAlmacenes(rt *httpx.Router, sesion, admin []httpx.Medio)
 	rt.ManejarFunc(http.MethodDelete, "/api/origins/{id}", s.borrarOrigen, sesion...)
 
 	rt.ManejarFunc(http.MethodGet, "/api/almacenes", s.listarAlmacenes, sesion...)
-	rt.ManejarFunc(http.MethodPut, "/api/almacenes", s.guardarAlmacenes, sesion...)
 }
 
 // ---------------------------------------------------------------------------
@@ -552,8 +457,6 @@ type ClienteAccesos interface {
 	// devuelve la lista vacía y NO un error: que Accesos no tenga almacenes de una
 	// sucursal es un estado normal.
 	AlmacenesDeSucursal(ctx context.Context, codigo string) ([]Almacen, error)
-	// GuardarAlmacenes manda el cuerpo TAL CUAL y devuelve lo que conteste Accesos.
-	GuardarAlmacenes(ctx context.Context, cuerpo []byte) (map[string]any, error)
 }
 
 // Accesos: el cliente del proceso. EL SITIO BUENO ES `s.accesos`, el campo del servidor.
@@ -596,14 +499,24 @@ func accesosDelServidor(cfg *config.Config) ClienteAccesos {
 // firma con SU llave sobre el método, la ruta, la hora, un nonce y el hash del cuerpo, así
 // que una petición copiada de un registro no sirve al minuto siguiente. Se reutiliza la
 // llave del login único en vez de abrir una segunda puerta.
+//
+// EL RECUERDO DE LA LISTA (5 min, `ALMACENES_CACHE_MS`) SE TIRA DE DOS FORMAS: caduca solo, y lo tira
+// el aviso del CRM (`Olvidar`, que llama `CambiaronLosAlmacenes` desde `internal/avisoscrm`). Los
+// almacenes viven en Accesos y se editan desde el CRM (Jose, 20/10/2026): Reparto ya no guarda, así que
+// ya no hay un guardado propio que lo tire. Sin el aviso —Redis caído o sin configurar—, un punto
+// corregido en el CRM tarda hasta 5 minutos en medirse, y con él se cobra la distancia.
 type accesosHTTP struct {
 	cfg      *config.Config
 	mu       sync.Mutex
 	cuando   time.Time
 	recuerdo map[string][]Almacen
+	// generacion sube cada vez que se tira el recuerdo (`Olvidar`). Una lectura que EMPEZÓ antes del
+	// aviso del CRM y termina después no puede guardar su respuesta (es la lista vieja): ver `recordar`.
+	generacion uint64
 }
 
-// RutaAlmacenesDeAccesos: la misma para leer y para escribir, con el método distinto.
+// RutaAlmacenesDeAccesos: de dónde se LEEN los almacenes. Reparto ya no escribe en ella
+// (20/10/2026): los almacenes se editan en el CRM.
 const RutaAlmacenesDeAccesos = "/api/service/almacenes"
 
 // recuerdoDeAlmacenes: cuánto se recuerda la lista. Sale de `ALMACENES_CACHE_MS`, que ya
@@ -620,6 +533,12 @@ func (c *accesosHTTP) recuerdoDeAlmacenes() time.Duration {
 }
 
 func (c *accesosHTTP) Almacenes(ctx context.Context) ([]SucursalConAlmacenes, error) {
+	// LA GENERACIÓN SE LEE ANTES DE PEDIR: si durante la petición llega el aviso del CRM (`Olvidar`), lo
+	// que contesta Accesos puede ser la lista de ANTES del cambio, y guardarla dejaría el punto viejo
+	// cinco minutos más, que es justo lo que el aviso viene a evitar.
+	c.mu.Lock()
+	generacion := c.generacion
+	c.mu.Unlock()
 	crudo, err := c.pedirFirmado(ctx, http.MethodGet, RutaAlmacenesDeAccesos, nil, 10*time.Second)
 	if err != nil {
 		return nil, err
@@ -633,7 +552,7 @@ func (c *accesosHTTP) Almacenes(ctx context.Context) ([]SucursalConAlmacenes, er
 	// Se guarda el recuerdo aquí y no sólo en `AlmacenesDeSucursal`: la lista es la misma
 	// llamada, y una pantalla que acaba de pedir los almacenes deja calientes las
 	// distancias de la siguiente búsqueda de clientes.
-	c.recordar(r.Sucursales)
+	c.recordar(r.Sucursales, generacion)
 	return r.Sucursales, nil
 }
 
@@ -649,49 +568,50 @@ func (c *accesosHTTP) AlmacenesDeSucursal(ctx context.Context, codigo string) ([
 	}
 	c.mu.Unlock()
 
-	if _, err := c.Almacenes(ctx); err != nil {
+	sucursales, err := c.Almacenes(ctx)
+	if err != nil {
 		return nil, err
 	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	// Una sucursal que Accesos no conoce devuelve la lista vacía, NO un error: que no
-	// tenga almacenes todavía es un estado normal y quien pregunta ya sabe qué hacer con
-	// una lista vacía (no medir).
-	return c.recuerdo[clave], nil
+	// SE USA LO QUE ACABA DE CONTESTAR ACCESOS, no se vuelve a leer el recuerdo: entre `recordar` y
+	// aquí un `Olvidar` lo deja en nil y `c.recuerdo[clave]` daría la lista vacía SIN error, o sea que
+	// la cotización mediría como «esta sucursal no tiene almacenes».
+	//
+	// Una sucursal que Accesos no conoce devuelve la lista vacía, NO un error: que no tenga almacenes
+	// todavía es un estado normal y quien pregunta ya sabe qué hacer con una lista vacía (no medir).
+	for _, su := range sucursales {
+		if strings.ToUpper(strings.TrimSpace(su.Codigo)) == clave {
+			return su.Almacenes, nil
+		}
+	}
+	return nil, nil
 }
 
-func (c *accesosHTTP) recordar(sucursales []SucursalConAlmacenes) {
+// recordar guarda la lista SÓLO si no se ha tirado el recuerdo desde que empezó la lectura (`generacion`
+// es la que había entonces): si se tiró, esta respuesta puede ser la de antes del cambio.
+func (c *accesosHTTP) recordar(sucursales []SucursalConAlmacenes, generacion uint64) {
 	porCodigo := make(map[string][]Almacen, len(sucursales))
 	for _, s := range sucursales {
 		porCodigo[strings.ToUpper(strings.TrimSpace(s.Codigo))] = s.Almacenes
 	}
 	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.generacion != generacion {
+		return
+	}
 	c.recuerdo, c.cuando = porCodigo, time.Now()
-	c.mu.Unlock()
 }
 
-func (c *accesosHTTP) GuardarAlmacenes(ctx context.Context, cuerpo []byte) (map[string]any, error) {
-	crudo, err := c.pedirFirmado(ctx, http.MethodPut, RutaAlmacenesDeAccesos, cuerpo, 15*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	// El recuerdo queda viejo en cuanto Accesos acepta el cambio. Si no se tira, durante
-	// cinco minutos se seguiría midiendo desde el punto ANTERIOR, que es justo el que
-	// acaban de corregir por estar mal.
+// Olvidar tira el recuerdo de la lista: la siguiente pregunta vuelve a Accesos. Se tira TODO y no
+// sólo la sucursal del aviso porque el recuerdo es de una sola llamada (todas las sucursales) y volver
+// a pedirla cuesta lo mismo; y con un aviso que no se entiende, tirar todo es lo que se acordó.
+func (c *accesosHTTP) Olvidar() {
 	c.mu.Lock()
 	c.recuerdo, c.cuando = nil, time.Time{}
+	c.generacion++
 	c.mu.Unlock()
-
-	if len(bytes.TrimSpace(crudo)) == 0 {
-		return map[string]any{}, nil
-	}
-	var r map[string]any
-	if err := json.Unmarshal(crudo, &r); err != nil {
-		return nil, fmt.Errorf("Accesos contestó algo que no se entiende: %w", err)
-	}
-	return r, nil
 }
+
+var _ interface{ Olvidar() } = (*accesosHTTP)(nil)
 
 // pedirFirmado hace la llamada con la firma puesta.
 //

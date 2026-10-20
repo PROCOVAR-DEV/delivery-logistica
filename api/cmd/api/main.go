@@ -21,9 +21,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+
 	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/api"
 	"procovar/reparto-api/internal/auth"
+	"procovar/reparto-api/internal/avisoscrm"
 	"procovar/reparto-api/internal/config"
 	"procovar/reparto-api/internal/sesiones"
 	"procovar/reparto-api/internal/store"
@@ -229,6 +232,33 @@ func correr() error {
 	}, api.CadaCuantoSeDrena)
 	go drenador.Correr(ctx)
 	reg.Info("drenaje del buzón hacia PEDIDO arrancado", "cada", api.CadaCuantoSeDrena)
+
+	// EL CRM AVISA CUANDO SE CORRIGE UN ALMACÉN (Jose, 20/10/2026: «los almacenes están en Accesos pero
+	// se gestionan por CRM»). Accesos no avisa de sus cambios, y Reparto recuerda la lista 5 minutos y
+	// mide —y cobra— con ella: sin este oyente, un punto corregido se seguiría midiendo desde el viejo.
+	// El CRM publica en `procovar:crm:almacenes` DESPUÉS de que Accesos acepta el cambio; esto tira el
+	// recuerdo y avisa a las pantallas de esa sucursal (`api.CambiaronLosAlmacenes`).
+	//
+	// Mismas `REDIS_*` que las sesiones y el espejo. SIN REDIS no impide arrancar ni servir: `Correr` lo
+	// dice al arrancar y todo sigue como antes (hasta 5 min de retraso en el cotizador).
+	porteriaDeAlmacenes := alcance.NuevaPorteria(almacen, reg)
+	sucursalDeAlmacenes := func(c context.Context, codigo string) (uuid.UUID, bool) {
+		a, err := porteriaDeAlmacenes.Resolver(c, &auth.Usuario{ID: "servicio:avisos-crm", Rol: "SUPER ADMIN"}, "")
+		if err != nil {
+			reg.Warn("aviso del CRM: no pude abrir el alcance para buscar la sucursal; se avisa de todas",
+				"codigo", codigo, "err", err)
+			return uuid.Nil, false
+		}
+		fila, err := a.BuscarSucursalPorCodigo(c, codigo)
+		if err != nil {
+			// Una sucursal que Reparto no tiene (MOA, PLS) no es un fallo: se avisa de todas.
+			return uuid.Nil, false
+		}
+		return fila.ID, true
+	}
+	go avisoscrm.Correr(ctx, avisoscrm.DeRedis(cfg.Redis), reg, func(c context.Context, codigo string) {
+		api.CambiaronLosAlmacenes(c, sucursalDeAlmacenes, codigo)
+	})
 
 	servidor := &http.Server{
 		Addr:              cfg.Direccion(),

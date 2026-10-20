@@ -1,5 +1,6 @@
-// La ficha del pedido, en cajon `lg`. Sólo lectura: en esta pantalla no hay
-// ninguna accion de escritura, y por eso no toca la cola.
+// La ficha del pedido, en cajon `lg`. Es de lectura salvo UNA accion: «Ubicar la
+// entrega» (el punto de entrega puesto a mano, issue 19 de Amado), que abre su
+// propio cajon (`cajon_ubicar_entrega.dart`) y escribe por `AccionesDePedido`.
 //
 // Sale entera de la base local, incluidas las bandas de factura y el bloque de
 // domicilio: sin conexion la ficha se abre igual, y lo unico que falta son los
@@ -21,6 +22,7 @@ import '../../tablero/datos/repositorio.dart' show porQueNoSePuedeColocar;
 import '../datos/formato.dart';
 import '../datos/repositorio_pedidos.dart';
 import '../estado/proveedores_pedidos.dart';
+import 'cajon_ubicar_entrega.dart';
 import 'kit.dart';
 
 class CajonDetallePedido extends ConsumerWidget {
@@ -32,7 +34,10 @@ class CajonDetallePedido extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detalle = ref.watch(detallePedidoProvider(pedidoId));
 
+    // La ficha se rehace sola cuando cambia la base: mientras relee NO vuelve a
+    // «Cargando...» (parpadeo, y perdería lo que el cajón de encima esté haciendo).
     return detalle.when(
+      skipLoadingOnReload: true,
       loading: () => const Cajon(
         titulo: 'Cargando...',
         cuerpo: Padding(
@@ -85,6 +90,47 @@ class _Ficha extends StatelessWidget {
 
   final DetallePedido ficha;
 
+  /// EL PUNTO DE ENTREGA A MANO (issue 19 de Amado): la etiqueta cuando lo tiene, y
+  /// «Ubicar la entrega» SOLO si se puede. Si no se puede, no se enseña el botón y
+  /// se dice por qué, con las palabras del servidor.
+  List<Widget> _ubicarLaEntrega(BuildContext context, DetallePedido ficha) {
+    final p = ficha.pedido;
+    final no = porQueNoSePuedeUbicar(ficha);
+    return [
+      if (p.puntoManual) ...[
+        const SizedBox(height: 6),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Insignia(
+            'Punto puesto a mano',
+            key: const ValueKey('ficha-punto-manual'),
+            color: Colores.ambar,
+            tooltip: (p.puntoManualPor ?? '').isEmpty
+                ? null
+                : 'Lo puso ${p.puntoManualPor}',
+          ),
+        ),
+      ],
+      const SizedBox(height: 6),
+      if (no == null)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            key: const ValueKey('ficha-ubicar-la-entrega'),
+            onPressed: () => abrirUbicarLaEntrega(context, p.id),
+            icon: const Icon(Icons.edit_location_alt_outlined, size: 18),
+            label: const Text('Ubicar la entrega'),
+          ),
+        )
+      else
+        Text(
+          no,
+          key: const ValueKey('ficha-no-se-puede-ubicar'),
+          style: TextStyle(color: Colores.gris, fontSize: 12),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = ficha.pedido;
@@ -110,6 +156,7 @@ class _Ficha extends StatelessWidget {
                 // pedido del tablero. Ver `nucleo/texto_de_fuera.dart`.
                 if (p.customerPhone != null)
                   Text(sinLaComillaDeExcel(p.customerPhone!)),
+                ..._ubicarLaEntrega(context, ficha),
               ],
             ),
             _Seccion(

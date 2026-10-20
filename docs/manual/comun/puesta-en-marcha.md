@@ -27,7 +27,7 @@ título lee esta frase, que es la que explica el orden:
 |---|---|---|---|
 | 1 | **«El punto de partida de la sucursal»** | **No en esta aplicación.** Lo deja hecho quien da de alta la sucursal | Administración |
 | 2 | **«Al menos un vehículo»** | **Menú → «Vehículos»** | Cualquiera que entre en la aplicación |
-| 3 | **«Al menos un almacén con su punto puesto»** | **Menú → «Almacenes»** (se guarda en Accesos) | Cualquiera que entre en la aplicación |
+| 3 | **«Al menos un almacén con su punto puesto»** | **Menú → «Almacenes»** (se editan en el CRM; aquí solo se ven) | Cualquiera que entre en la aplicación |
 | 4 | **«La tasa de cambio de la sucursal»** | **No en esta aplicación.** La mantiene Accesos, que la trae de Entrega | Administración |
 
 **Dos de las cuatro no se hacen aquí**, y por eso esos dos pasos del Panel **no
@@ -264,9 +264,8 @@ pedidos salen **«sin cotizar»**.
 
 **Empieza en:** **Menú → «Almacenes»**.
 
-**Quién:** cualquiera que entre en la aplicación. **Necesita conexión**: los
-almacenes **viven en Accesos**, no en esta aplicación. Aquí se editan, pero se
-guardan allí, y por eso el aviso de que salió bien dice **«Guardado en Accesos.»**
+**Quién:** cualquiera que entre en la aplicación. **Necesita conexión**. Los
+almacenes **se editan en el CRM**; en esta aplicación solo se consultan.
 
 ## Qué es
 
@@ -276,53 +275,22 @@ guardan allí, y por eso el aviso de que salió bien dice **«Guardado en Acceso
 
 ## Lo que hay que hacer
 
-1. En el paso **3/4**, **toca «Poner el almacén»** (lleva el dibujo de un almacén).
-   Te lleva a Almacenes. <!-- señala: panel-arreglar-el-paso -->
+1. En el paso **3/4**, **toca «Ver los almacenes»** (lleva el dibujo de un almacén).
+   Te lleva a Almacenes, que solo los consulta: se ponen en el CRM. <!-- señala: panel-arreglar-el-paso -->
    - O ve directo: **Menú → «Almacenes»**.
    - Allí, debajo del título, la línea explica para qué es: «El punto desde el que se
-     mide cada domicilio. Un almacén sin coordenadas no sirve para cotizar.»
+     mide cada domicilio. Un almacén sin coordenadas no sirve para cotizar.» Y debajo,
+     el aviso fijo: **«Los almacenes se editan en el CRM. Aquí solo se consultan.»**
 2. **Arriba, si hay más de una sucursal, elige la tuya** en el selector
    («Sucursal»). Si está vacío pone **«Elige sucursal»**.
    <!-- señala: almacenes-sucursal -->
-3. A la derecha de ese selector, **toca «Nuevo almacén»**.
-   <!-- señala: almacenes-nuevo -->
-   - Se abre un cajón titulado **«Nuevo almacén»**, con el nombre de la sucursal
-     debajo del título.
-4. **Escribe el nombre** en la primera caja («Nombre del almacén»). Si lo dejas
-   vacío sale **«Le falta el nombre.»** en rojo y **«Guardar»** no se puede pulsar.
-   <!-- señala: almacenes-nombre -->
-5. Debajo del nombre, **toca «Principal»** si desde éste se mide cuando nadie dice
-   cuál. **Sólo puede haber uno: al marcar éste, los demás se desmarcan.**
-   <!-- señala: almacenes-principal -->
-6. Al lado, deja **«Activo»** como está.
-   <!-- señala: almacenes-activo -->
-7. Forma 1 de poner el punto: **escribe la dirección** en **«Dirección»**.
-   <!-- señala: almacenes-direccion -->
-8. Y **toca «Buscar»**, a la derecha del campo. **Hacen falta al menos 4 letras**
-   —si no, pone «Escribe al menos 4 letras para poder buscar.»—. Mientras pregunta,
-   el botón dice **«Buscando…»**.
-   <!-- señala: almacenes-buscar-la-direccion -->
-9. Forma 2: **toca en el mapa**, donde está el almacén. Debajo sale **«Punto puesto
-   en 20.02470, -75.82190.»** **Esto funciona sin señal.**
-   <!-- señala: almacenes-mapa -->
-10. Forma 3: **escribe las coordenadas a mano** en **«Coordenadas»**, así:
-    `19.83, -75.82`. **Ésta funciona siempre.** Si no se entiende, debajo pone «No se
-    entiende. Escríbelo como «19.83, -75.82».»
-    <!-- señala: almacenes-coordenadas -->
-    - **Las tres escriben en la misma caja de «Coordenadas», y lo que se guarda es lo
-      que ponga ahí.** Puedes buscar y luego corregir a mano.
-11. **Toca «Guardar»**, en el pie del cajón, a la derecha de **«Cerrar»**. Mientras
-    guarda dice **«Guardando…»**.
-    <!-- señala: almacenes-guardar -->
-    - Sale **«Guardado en Accesos.»** y el almacén aparece en la lista, con una
-      **estrella** si lo marcaste principal.
-    - **Vuelve al Panel**: el paso 3/4 tiene que haberse tachado.
 
-### Si al buscar la dirección te ofrece otra
-
-Al tocar en el mapa, si ya habías escrito una dirección, **no te la pisa**: te la
-ofrece. Sale **«El mapa dice que ahí es «Calle Martí».»** con un botón **«Usar
-ésa»**. **Tócalo sólo si la de él es mejor que la tuya.**
+**Aquí no se pone ningún almacén**: no hay botón de «Nuevo almacén» ni nada que se
+pueda corregir. Mira si tu sucursal tiene al menos uno **con su punto** (si no, el
+renglón dice **«sin punto»**). Si falta o no tiene punto, se da de alta o se corrige
+**en el CRM** (si la aplicación trae su dirección, al lado del aviso sale **«Abrir el
+CRM»**). Cuando se guarda allí, esta pantalla se actualiza sola y, cuando el aparato
+lo baja, **el paso 3/4 se tacha** en el Panel.
 
 ### Si no aparece tu sucursal en el selector
 
@@ -334,27 +302,22 @@ Sale esto, y **no hay botón, porque no se arregla en esta pantalla**:
 > Se arregla en Accesos, poniéndole el código a la sucursal. Si te debería salir
 > alguna, pídelo a administración.
 
-### Si lo guardas sin punto
+### Si el almacén no tiene punto
 
-**Te deja guardarlo**, pero te lo dice: **«Sin coordenadas: desde éste no se puede
-medir el domicilio.»** Y **el paso 3 del Panel sigue en rojo**, porque pide
-almacén **con su punto puesto**, no almacén a secas.
+Sale con el rótulo **«sin punto»** en su renglón. **El paso 3 del Panel sigue en
+rojo**, porque pide almacén **con su punto puesto**, no almacén a secas. El punto se
+pone en el CRM.
 
-### Si no se guarda
+### Si la pantalla no carga
 
-También aquí el aviso es distinto según dónde estés:
+- **En el teléfono y en el escritorio:** «Sin conexión. Los almacenes se piden al
+  servidor y ahora no hay con qué traerlos. Vuelve a intentarlo cuando haya red.»
+- **En la web:** «Accesos no contesta. La página cargó, así que conexión hay: los
+  almacenes se piden al servidor y ahora mismo no responde. Prueba otra vez y, si
+  sigue igual, avisa a la oficina.»
 
-- **En el teléfono y en el escritorio:** «Sin conexión: no se guardó nada en Accesos.
-  Los almacenes se configuran con conexión; inténtalo otra vez cuando haya red.»
-- **En la web:** «Sin conexión con Accesos: no se guardó nada. La página cargó, así
-  que conexión hay: el que no contesta es Accesos. Prueba otra vez y, si sigue igual,
-  avisa a la oficina.»
-
-Y si Accesos dice que no, **el motivo sale tal cual**, con sus palabras. Ése es el que
-hay que leer y el que hay que repetir si llamas a la oficina.
-
-> **Ojo:** el aviso bueno es **«Guardado en Accesos.»**, con esas palabras. Si no ves
-> ésas, **no está guardado**, aunque el cajón se haya cerrado.
+Y si el servidor dice que no, **el motivo sale tal cual**, con sus palabras. Ése es el
+que hay que leer y el que hay que repetir si llamas a la oficina.
 
 ## Qué se rompe si no se hace
 
@@ -494,7 +457,7 @@ Y eso vale también para `ADMINISTRADOR`, que pese al nombre es de una sola.
 |---|---|
 | El punto de partida de la sucursal | **Administración**, al dar de alta la sucursal. Nadie desde aquí |
 | Dar de alta un camión | Cualquiera que entre en la aplicación, en su sucursal |
-| Poner el almacén | Cualquiera que entre en la aplicación, en su sucursal. Se guarda en Accesos |
+| Poner el almacén | **Administración, en el CRM.** Desde esta aplicación solo se consulta |
 | La tasa de cambio | **Administración**, en Accesos |
 | Configurar **otra** sucursal que no es la tuya | Sólo `DESARROLLADOR` y `SUPER ADMIN`, que son los que pueden cambiar la sucursal de arriba |
 
@@ -513,7 +476,7 @@ Esto es la otra mitad de la respuesta, y ahorra la mañana de buscar botones:
 |---|---|
 | **El punto de partida de una sucursal** | Donde se dan de alta las sucursales. Pídelo a administración |
 | **La tasa de cambio** | **Accesos**, que la trae de Entrega |
-| **Los almacenes** | **Accesos.** Se editan desde aquí, pero viven allí: por eso el aviso dice «Guardado en Accesos.» |
+| **Los almacenes** | **El CRM.** Aquí solo se consultan (la pantalla Almacenes es de solo lectura) |
 | **El código de la sucursal** (STG, HAB…) | **Accesos.** Sin él, Almacenes no tiene a quién preguntar |
 | **Los usuarios, las contraseñas, los roles y a qué sucursal pertenece cada uno** | **Accesos.** Aquí no se da de alta a nadie |
 | **Los clientes** | **PEDIDO.** Aquí sólo se consultan, y sólo salen los que tienen geolocalización |

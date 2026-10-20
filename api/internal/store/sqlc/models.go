@@ -719,6 +719,20 @@ type Order struct {
 	AlmacenSalidaMezclado *bool `json:"almacen_salida_mezclado"`
 	// desde dónde se midió y por qué: almacen-del-pedido | el-pedido-no-trae-almacen | almacen-no-dado-de-alta | almacen-sin-coordenadas | accesos-sin-codigos. Y el peor caso sale COMPUESTO con un + porque son dos hechos: sucursal-sin-almacen-con-punto+<uno de los cuatro>, p.ej. sucursal-sin-almacen-con-punto+almacen-no-dado-de-alta. sucursal-sin-almacen-con-punto NUNCA sale solo, así que un WHERE motivo = ... no casa con esas filas: usa LIKE o split_part(motivo, '+', 1)
 	AlmacenSalidaMotivo *string `json:"almacen_salida_motivo"`
+	// true = una persona puso el punto de entrega (end_lat, end_lng, end_address) y el espejo NO lo pisa; el del cliente vive en punto_cliente_*
+	PuntoManual bool `json:"punto_manual"`
+	// quién puso el punto a mano (el sub de Accesos); NULL si no es manual
+	PuntoManualPor *string `json:"punto_manual_por"`
+	// cuándo se puso el punto a mano; NULL si no es manual
+	PuntoManualAt pgtype.Timestamptz `json:"punto_manual_at"`
+	// latitud que traía el cliente (PEDIDO) mientras el punto es manual, siempre la última que mandó el espejo; NULL si no es manual
+	PuntoClienteLat *float64 `json:"punto_cliente_lat"`
+	// longitud que traía el cliente (PEDIDO) mientras el punto es manual; NULL si no es manual
+	PuntoClienteLng *float64 `json:"punto_cliente_lng"`
+	// dirección que traía el cliente (PEDIDO) mientras el punto es manual; NULL si no es manual o no traía
+	PuntoClienteAddress *string `json:"punto_cliente_address"`
+	// folio de PEDIDO de la entrega (en filas de PEDIDO = operation_number; en las de factura, el orderNumber de Ventra). NULL si no lo hay. Clave de la adopción entre las dos fuentes (00025)
+	Folio *string `json:"folio"`
 }
 
 type OrderItem struct {

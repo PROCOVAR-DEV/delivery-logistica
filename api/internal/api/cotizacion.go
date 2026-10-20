@@ -253,11 +253,22 @@ var recuerdoDeTasas = cotizar.NuevoRecuerdoDeTasas(func(ctx context.Context, cod
 // nombre de la sucursal dentro, que es lo que el contrato manda enseñar. Nunca se contesta
 // un número aproximado: un importe aproximado se cobra igual que uno bueno.
 func almacenesDeCotizacion(ctx context.Context, r *http.Request, codigo string) []cotizar.Almacen {
-	crudos, err := Accesos.AlmacenesDeSucursal(ctx, codigo)
+	salida, err := almacenesDeAccesos(ctx, codigo)
 	if err != nil {
 		httpx.Registro(r).Warn("Accesos no dio los almacenes: se sigue como si no hubiera",
 			"sucursal", codigo, "err", err)
 		return nil
+	}
+	return salida
+}
+
+// almacenesDeAccesos es lo mismo SIN tragarse el error, para quien no puede seguir como si no
+// hubiera: el punto de entrega puesto a mano (`punto_de_entrega.go`) recalcula los km del cobro
+// y, con Accesos caído, no guarda nada antes que guardar un número creíble y equivocado.
+func almacenesDeAccesos(ctx context.Context, codigo string) ([]cotizar.Almacen, error) {
+	crudos, err := Accesos.AlmacenesDeSucursal(ctx, codigo)
+	if err != nil {
+		return nil, err
 	}
 	// `api.Almacen` es la forma en la que llega de Accesos; `cotizar.Almacen` es la que
 	// entiende la fórmula. La traducción va aquí y no en `cotizar` para que ese paquete
@@ -266,7 +277,19 @@ func almacenesDeCotizacion(ctx context.Context, r *http.Request, codigo string) 
 	for _, a := range crudos {
 		salida = append(salida, deAlmacenDeAccesos(a))
 	}
-	return salida
+	return salida, nil
+}
+
+// kmDesdeElOrigen es LA cuenta de `delivery_distance_km`: del almacén que eligió
+// `cotizar.ElegirOrigenDelPedido` al punto, y, si la sucursal no tiene ni un almacén con punto,
+// desde el punto de la SUCURSAL (el último recurso, con su propio motivo). La usan el lote del
+// espejo y el punto de entrega puesto a mano: dos sitios que miden el mismo número no pueden
+// llevar dos copias de la cuenta (§3-bis).
+func kmDesdeElOrigen(origen cotizar.OrigenDelPedido, sucursalLat, sucursalLng, lat, lng float64) float64 {
+	if origen.Almacen != nil {
+		return cotizar.DistanciaEntre(origen.Almacen.Punto(), cotizar.Punto{Lat: lat, Lng: lng})
+	}
+	return cotizar.DistanciaHaversineKm(sucursalLat, sucursalLng, lat, lng)
 }
 
 // recuerdoDeAlmacenesDelLote devuelve una función que trae los almacenes de una sucursal y se
@@ -824,6 +847,13 @@ type pedidoDelLote struct {
 	Vendedor           *string           `json:"vendedor"`
 	Items              []cotizar.Renglon `json:"items"`
 
+	// `folio` SOLO LO LEE UNA ENTREGA DE FACTURA (`externalId` con prefijo `factura:`, issue 20):
+	// es el `orderNumber` de Ventra, el folio del pedido de PEDIDO al que pertenecen sus facturas
+	// (vacío si la venta no trajo la nota). En un pedido de PEDIDO se IGNORA y el folio es su
+	// `operationNumber`: así no hay forma de que un cliente del lote le ponga a un pedido el folio
+	// de otro y lo adopte. Ver `folioDelLote`.
+	Folio *string `json:"folio"`
+
 	// `pedidoUpdatedAt` NO ES UN CAMPO MÁS: es la MARCA DE AGUA del espejo.
 	//
 	// El espejo pide `since = max(pedido_updated_at)` de lo que ya tiene. Si este campo no
@@ -1054,7 +1084,16 @@ func (s *Servidor) cotizarLote(w http.ResponseWriter, r *http.Request) {
 
 		// 1. Sin coordenadas no hay reparto posible: no se puede ordenar la ruta ni medir
 		//    la distancia. `== null` flojo: un 0 es una coordenada válida.
-		if p.Lat == nil || p.Lng == nil {
+		//
+		//    UNA ENTREGA DE FACTURA SIN PUNTO SÍ ENTRA (issue 20, Fase A). Ventra no trae
+		//    coordenadas: salen del espejo de clientes de PEDIDO, y un cliente que no está
+		//    allí (o que la factura nombra raro) se queda sin punto. Descartarlo sería «nada se
+		//    descarta en silencio» roto con otro nombre: la entrega se guarda SIN coordenadas
+		//    ni distancia y queda visible en Pedidos para ubicarla a mano con
+		//    `PUT /api/orders/{id}/punto`. Un pedido de PEDIDO sin coordenadas SIGUE
+		//    descartándose aquí, igual que siempre.
+		sinPunto := p.Lat == nil || p.Lng == nil
+		if sinPunto && !alcance.EsDeFactura(p.ExternalID) {
 			salida.Skipped++
 			salida.Results = append(salida.Results, loteSaltado{ref, "skipped", "sin-geolocalizacion"})
 			continue
@@ -1150,16 +1189,15 @@ func (s *Servidor) cotizarLote(w http.ResponseWriter, r *http.Request) {
 			almacenesDeLaSucursal(p.SucursalExternalID), codigoDelAlmacenDelLote(p.Almacen))
 		porMotivo[origen.Motivo]++
 
-		var km float64
-		if origen.Almacen != nil {
-			km = cotizar.DistanciaEntre(origen.Almacen.Punto(),
-				cotizar.Punto{Lat: *p.Lat, Lng: *p.Lng})
-		} else {
-			// EL ÚLTIMO RECURSO, y va con su propio motivo para que no se confunda con los
-			// demás: aquí no se midió desde ningún almacén, se midió desde el punto de la
-			// sucursal. Es lo único que queda cuando esa sucursal no tiene ni un almacén con
-			// coordenadas, y es el caso que un `409` taparía a costa de perder el pedido.
-			km = cotizar.DistanciaHaversineKm(suc.Lat, suc.Lng, *p.Lat, *p.Lng)
+		// Sin almacén con punto (`origen.Almacen == nil`) se mide desde el punto de la sucursal:
+		// EL ÚLTIMO RECURSO, y va con su propio motivo para que no se confunda con los demás.
+		// Es lo único que queda cuando esa sucursal no tiene ni un almacén con coordenadas, y
+		// es el caso que un `409` taparía a costa de perder el pedido.
+		// Sin punto no hay distancia: 0 en la respuesta y NULL en la columna (`SinPunto`), nunca un
+		// kilometraje medido hasta ningún sitio.
+		km := 0.0
+		if !sinPunto {
+			km = kmDesdeElOrigen(origen, suc.Lat, suc.Lng, *p.Lat, *p.Lng)
 		}
 
 		base := baseDelLote{
@@ -1206,6 +1244,16 @@ func (s *Servidor) cotizarLote(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		id, err := GuardarPedidoDelEspejo(r.Context(), a, armarPedidoDelLote(p, suc, pesos, peso, km, origen))
+		if errors.Is(err, alcance.ErrYaAdoptadoPorFactura) {
+			// La convivencia de las dos fuentes (issue 20): este pedido de PEDIDO ya lo tiene una
+			// entrega de factura con su mismo folio, y NO se crea otra fila. No es un fallo, y
+			// por eso no es un 500: se dice con su motivo para que el espejo lo cuente aparte.
+			no := false
+			base.Persisted = &no
+			base.Reason = motivoYaAdoptadoPorFactura
+			salida.Results = append(salida.Results, resultadoDelLote(base, sinDomicilio))
+			continue
+		}
 		if err != nil {
 			httpx.ErrorInterno(w, r, err)
 			return
@@ -1246,6 +1294,10 @@ func (s *Servidor) cotizarLote(w http.ResponseWriter, r *http.Request) {
 
 	httpx.JSON(w, r, http.StatusOK, salida)
 }
+
+// motivoYaAdoptadoPorFactura es el `reason` de un pedido de PEDIDO que no se guardó porque su
+// folio ya es una entrega de factura. Lo cuenta `espejo.motivosDeNoEntrar` como benigno.
+const motivoYaAdoptadoPorFactura = espejo.MotivoYaAdoptado
 
 // resultadoDelLote añade el `price` (siempre null) a los que llevan domicilio. Los de
 // `sin-domicilio` no lo llevan: no es que su precio sea desconocido, es que no hay
@@ -1336,6 +1388,11 @@ type PedidoParaGuardar struct {
 	BranchID        uuid.UUID
 	OperationNumber *string
 
+	// Folio es el de PEDIDO de la entrega: en un pedido de PEDIDO, su `operationNumber`; en una
+	// entrega de factura, el `orderNumber` de Ventra (nil si no lo traía). Es la clave con la que
+	// las dos fuentes se reconocen (00025, `alcance.alFolio`).
+	Folio *string
+
 	CustomerName  string
 	CustomerPhone *string
 	// Address nunca va vacío: `address || customerName`. Una fila sin dirección no se
@@ -1344,6 +1401,10 @@ type PedidoParaGuardar struct {
 	EndAddress *string // `address || null`: aquí sí puede faltar
 	// Los cuatro se llenan con la MISMA coordenada del cliente (§2.3).
 	Lat, Lng, EndLat, EndLng float64
+	// SinPunto: la entrega no tiene coordenadas (SOLO una de factura, issue 20) y se guarda sin
+	// ellas ni distancia: `lat`, `lng`, `end_lat`, `end_lng` y `delivery_distance_km` van a NULL.
+	// Los floats de arriba NO valen entonces: un cero ahí sería un punto en el golfo de Guinea.
+	SinPunto bool
 
 	// Weight es el peso ya resuelto. 0 = SIN PESO RESUELTO, y así entra al generador de
 	// rutas (capacidad del camión). No es «no pesa».
@@ -1432,7 +1493,9 @@ func armarPedidoDelLote(
 		Address:         direccion,
 		EndAddress:      aTexto(espejo.SinLaComillaDeExcel(strings.TrimSpace(p.Address))),
 		// Los cuatro con la coordenada del cliente. Ya se comprobó que no son nil.
-		Lat: *p.Lat, Lng: *p.Lng, EndLat: *p.Lat, EndLng: *p.Lng,
+		Lat: coordenada(p.Lat), Lng: coordenada(p.Lng), EndLat: coordenada(p.Lat), EndLng: coordenada(p.Lng),
+		SinPunto:           p.Lat == nil || p.Lng == nil,
+		Folio:              folioDelLote(p),
 		Weight:             peso,
 		DeliveryDistanceKm: km,
 		// COMPARACIÓN ESTRICTA CON false: un `requiereDomicilio` ausente o null NO anula
@@ -1508,6 +1571,33 @@ func mezcladoDelAlmacenDelLote(a *almacenDelPedidoDelLote) *bool {
 	return a.Mezclado
 }
 
+// coordenada desreferencia una coordenada que ya se comprobó presente; nil da 0 y NO se usa
+// (`PedidoParaGuardar.SinPunto` lo dice).
+func coordenada(v *float64) float64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+// folioDelLote es el folio de la entrega, ya decidido:
+//
+//   - una entrega de FACTURA trae el suyo en `folio` (el `orderNumber` de Ventra);
+//   - un pedido de PEDIDO lo tiene SIEMPRE igual a su `operationNumber`, y lo que mande el
+//     cuerpo en `folio` se IGNORA.
+//
+// Vacío es nil, no `""`: un folio vacío guardado casaría a todas las entregas sin folio entre sí.
+func folioDelLote(p pedidoDelLote) *string {
+	folio := p.OperationNumber
+	if alcance.EsDeFactura(p.ExternalID) {
+		folio = ""
+		if p.Folio != nil {
+			folio = *p.Folio
+		}
+	}
+	return aTexto(espejo.SinLaComillaDeExcel(strings.TrimSpace(folio)))
+}
+
 // fechaDelLote lee una fecha del lote. Una que no se entiende se trata como AUSENTE y no
 // como un error del pedido entero: el resto del pedido es bueno y se guarda igual, que es
 // mejor que perderlo por una fecha mal escrita en el otro lado.
@@ -1566,7 +1656,7 @@ func paraLaBase(p PedidoParaGuardar) sqlc.GuardarPedidoDelEspejoParams {
 	// y `end_lat/end_lng` es dónde termina la parada, que en un reparto es el mismo sitio.
 	lat, lng := p.Lat, p.Lng
 
-	return sqlc.GuardarPedidoDelEspejoParams{
+	arg := sqlc.GuardarPedidoDelEspejoParams{
 		Source:     &fuente,
 		ExternalID: p.ExternalID,
 		BranchID:   pgtype.UUID{Bytes: [16]byte(p.BranchID), Valid: p.BranchID != uuid.Nil},
@@ -1580,6 +1670,7 @@ func paraLaBase(p PedidoParaGuardar) sqlc.GuardarPedidoDelEspejoParams {
 		Lng:             &lng,
 		EndLat:          &lat,
 		EndLng:          &lng,
+		Folio:           p.Folio,
 
 		// 0 = SIN PESO RESUELTO, y así entra al armador (capacidad del camión). No es
 		// «no pesa»: es que nadie ha podido decir cuánto.
@@ -1614,6 +1705,14 @@ func paraLaBase(p PedidoParaGuardar) sqlc.GuardarPedidoDelEspejoParams {
 		AlmacenSalidaMezclado: p.AlmacenMezclado,
 		AlmacenSalidaMotivo:   p.AlmacenMotivo,
 	}
+	if p.SinPunto {
+		// UNA ENTREGA DE FACTURA SIN PUNTO (issue 20): NULL, no ceros. La distancia tampoco: un
+		// kilometraje "medido" hasta ningún sitio se cobraría. `lat`, `lng` y `end_*` admiten
+		// nulos desde la 00001; `punto_manual` lo fijará la persona que la ubique.
+		arg.Lat, arg.Lng, arg.EndLat, arg.EndLng = nil, nil, nil, nil
+		arg.DeliveryDistanceKm = nil
+	}
+	return arg
 }
 
 // renglonesParaLaBase pasa las líneas a filas de `order_items`.

@@ -99,6 +99,13 @@ type pedidoSync struct {
 	facturaAt     *time.Time
 	// El código del almacén del que sale (`almacen_salida_codigo`). Vacío es NULL.
 	almacenCodigo string
+	// El punto de entrega puesto a mano (00024): la marca, quién, cuándo y el punto que traía el cliente.
+	puntoManual    bool
+	puntoManualPor string
+	puntoManualAt  *time.Time
+	clienteLat     *float64
+	clienteLng     *float64
+	clienteDir     string
 }
 
 // cambiadoAt es el `GREATEST(o.updated_at, max(oi.updated_at))` de la consulta.
@@ -159,6 +166,19 @@ func (q *espejoFalso) DiferenciasDePedidos(_ context.Context, arg sqlc.Diferenci
 		if p.almacenCodigo != "" {
 			codigo := p.almacenCodigo
 			fila.AlmacenSalidaCodigo = &codigo
+		}
+		fila.PuntoManual = p.puntoManual
+		if p.puntoManualPor != "" {
+			por := p.puntoManualPor
+			fila.PuntoManualPor = &por
+		}
+		if p.puntoManualAt != nil {
+			fila.PuntoManualAt = pgtype.Timestamptz{Time: *p.puntoManualAt, Valid: true}
+		}
+		fila.PuntoClienteLat, fila.PuntoClienteLng = p.clienteLat, p.clienteLng
+		if p.clienteDir != "" {
+			dir := p.clienteDir
+			fila.PuntoClienteAddress = &dir
 		}
 		filas = append(filas, fila)
 	}

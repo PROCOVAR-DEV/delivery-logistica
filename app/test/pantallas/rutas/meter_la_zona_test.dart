@@ -21,6 +21,7 @@ Pedido _pedido(String id, double kg) => Pedido(
   status: 'pending',
   tripLeg: 'ida',
   archivado: false,
+  puntoManual: false,
 );
 
 void main() {

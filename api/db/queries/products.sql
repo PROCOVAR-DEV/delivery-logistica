@@ -213,3 +213,13 @@ SELECT
 FROM products p
 WHERE p.id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::text IS NULL OR p.sucursal_codigo = sqlc.narg('sucursal')::text);
+
+-- LO QUE PESA Y CUÁNTO TRAE CADA PRODUCTO DE UNA SUCURSAL, para pesar los renglones de una
+-- entrega que nace de una FACTURA (issue 20, Fase A). El peso sale de Ventra, no de PEDIDO
+-- (Jose, 20/10/2026): `weight` es por UNIDAD DE VENTA y `units_per_package` es cuántas
+-- unidades trae esa unidad de venta (una B de cerveza: 6). El `sku` es el `productCode` de la
+-- factura. Va sin alcance, igual que el resto de lo del espejo.
+-- name: PesosDeProductosDeLaSucursal :many
+SELECT sku, name, weight, units_per_package
+FROM products
+WHERE sucursal_codigo = sqlc.arg('sucursal_codigo')::text AND sku IS NOT NULL;

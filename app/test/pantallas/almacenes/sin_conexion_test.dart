@@ -1,132 +1,94 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/plataforma.dart';
-import 'package:reparto/pantallas/almacenes/datos/almacen_api.dart';
-import 'package:reparto/pantallas/almacenes/estado/estado_almacenes.dart';
+import 'package:reparto/nucleo/proveedores.dart';
+import 'package:reparto/pantallas/almacenes/vista/pantalla_almacenes.dart';
 
 import '../../apoyo/servidor_falso.dart';
 import 'apoyo_almacenes.dart';
 
 /// Almacenes tambien es de sólo con conexion, y aqui mentir sale mas caro que en
-/// ningun sitio: `Guardado en Accesos.` con el dato todavia en el telefono es
-/// una frase falsa sobre un sistema que no se puede consultar desde la calle.
+/// ningun sitio: una frase falsa sobre un sistema que no se puede consultar desde
+/// la calle. Desde el 20/10/2026 la pantalla ademas es de SOLO LECTURA: lo que se
+/// prueba es como se cuenta que la lectura fallo, y que nunca sale una escritura.
 void main() {
-  const almacenes = [
-    AlmacenDeAccesos(
-      id: 'w1',
-      nombre: 'Almacén central',
-      latitud: 20.0247,
-      longitud: -75.8219,
-      principal: true,
-    ),
-    AlmacenDeAccesos(id: 'w2', nombre: 'Patio sur'),
-  ];
+  Future<void> pintar(WidgetTester tester, Banco banco) async {
+    tester.view.physicalSize = const Size(1440, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          baseProvider.overrideWithValue(banco.base),
+          clienteApiProvider.overrideWithValue(
+            banco.contenedor.read(clienteApiProvider),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: PantallaAlmacenes())),
+      ),
+    );
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 10),
+    );
+  }
 
-  test(
-    'sin conexión NO dice «Guardado en Accesos.» y no encola nada',
-    () async {
-      final banco = Banco.sinRed();
-      addTearDown(banco.cerrar);
+  Future<void> desmontar(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+  }
 
-      final guardo = await banco.contenedor
-          .read(controlAlmacenesProvider.notifier)
-          .guardar('STG', almacenes);
+  testWidgets('sin conexión lo dice, no inventa un «Guardado» y no deja nada '
+      'en el aparato', (tester) async {
+    final banco = Banco.sinRed();
+    addTearDown(banco.cerrar);
+    await pintar(tester, banco);
 
-      expect(guardo, isFalse);
-      final aviso = banco.contenedor.read(controlAlmacenesProvider)!;
-      expect(aviso.esFallo, isTrue);
-      expect(aviso.texto, contains('Sin conexión'));
-      expect(aviso.texto, contains('no se guardó nada en Accesos'));
-      expect(aviso.texto, isNot(contains('Guardado en Accesos.')));
+    expect(find.textContaining('Sin conexión.'), findsOneWidget);
+    expect(find.textContaining('Guardado'), findsNothing);
+    expect(find.text('Reintentar'), findsOneWidget);
+    // Ni cola ni copia local: la pantalla solo lee.
+    expect(await banco.base.cuantosPendientes(), 0);
+    expect(await banco.base.select(banco.base.warehouses).get(), isEmpty);
+    expect(banco.servidor.vistas.where((p) => p.metodo != 'GET'), isEmpty);
 
-      // Ni cola ni copia local: el almacen vive en Accesos y hay UNA copia.
-      expect(await banco.base.cuantosPendientes(), 0);
-      expect(await banco.base.select(banco.base.warehouses).get(), isEmpty);
-    },
-  );
+    await desmontar(tester);
+  });
 
-  test('en la WEB el mismo fallo se cuenta con otras palabras: no se manda a '
-      'mirar la señal a quien está en la oficina', () async {
-    // «Inténtalo otra vez cuando haya red» es lo correcto en el patio de un
-    // almacén, donde la red vuelve sola. En un navegador no: si la página
-    // cargó, conexión hay, y el que no contesta es Accesos. Mandar a mirar la
-    // señal ahí es mandar a mirar donde no es — el mismo razonamiento que ya
-    // tenía resuelto `TextosDeCaida.queHacer` para la puerta.
+  testWidgets('en la WEB el mismo fallo se cuenta con otras palabras: no se '
+      'manda a mirar la señal a quien está en la oficina', (tester) async {
+    // «Cuando haya red» es lo correcto en el patio de un almacén, donde la red
+    // vuelve sola. En un navegador no: si la página cargó, conexión hay, y el
+    // que no contesta es el servidor (`TextosDeCaida.queHacer`).
     await Destino.comoSiFueraWeb(() async {
       final banco = Banco.sinRed();
       addTearDown(banco.cerrar);
+      await pintar(tester, banco);
 
-      await banco.contenedor
-          .read(controlAlmacenesProvider.notifier)
-          .guardar('STG', almacenes);
+      expect(find.textContaining('La página cargó'), findsOneWidget);
+      expect(find.textContaining('cuando haya red'), findsNothing);
+      expect(
+        find.textContaining('no ha descargado los almacenes todavía'),
+        findsNothing,
+        reason: 'en la web no hay aparato al que traerle el día',
+      );
 
-      final aviso = banco.contenedor.read(controlAlmacenesProvider)!;
-      expect(aviso.esFallo, isTrue);
-      // La mitad que NO cambia, y es la que importa.
-      expect(
-        aviso.texto,
-        contains('no se guardó nada'),
-        reason: 'lo único que no se puede dejar de decir en ningún destino',
-      );
-      // Y la que sí.
-      expect(
-        aviso.texto,
-        isNot(contains('cuando haya red')),
-        reason: 'en un navegador la red ya está: la página cargó',
-      );
-      expect(aviso.texto, contains('La página cargó'));
+      await desmontar(tester);
     });
   });
 
-  test('con conexión manda la LISTA COMPLETA de la sucursal', () async {
-    final banco = Banco(
-      (p) async => RespuestaFalsa(200, {
-        'almacenes': [
-          {'id': 'w1', 'nombre': 'Almacén central', 'principal': true},
-          {'id': 'w2', 'nombre': 'Patio sur'},
-        ],
-        'aviso':
-            '1 almacén(es) sin coordenadas: desde ésos no se puede medir '
-            'el domicilio.',
-      }),
-    );
-    addTearDown(banco.cerrar);
-
-    final guardo = await banco.contenedor
-        .read(controlAlmacenesProvider.notifier)
-        .guardar('STG', almacenes);
-
-    expect(guardo, isTrue);
-
-    final peticion = banco.servidor.vistas.single;
-    expect(peticion.metodo, 'PUT');
-    expect(peticion.ruta, endsWith('/almacenes'));
-    final cuerpo = peticion.cuerpo! as Map<String, Object?>;
-    expect(cuerpo['codigo'], 'STG');
-    // Los DOS, no el que se toco: el `PUT` sustituye la lista entera, asi que
-    // mandar uno solo borraria el otro.
-    expect((cuerpo['almacenes']! as List<Object?>).length, 2);
-
-    final aviso = banco.contenedor.read(controlAlmacenesProvider)!;
-    expect(aviso.esFallo, isFalse);
-    expect(aviso.texto, startsWith('Guardado en Accesos.'));
-    // El aviso de Accesos se ensena literal, detras de la confirmacion.
-    expect(aviso.texto, contains('sin coordenadas'));
-  });
-
-  test('el rechazo de Accesos se enseña literal', () async {
+  testWidgets('el rechazo del servidor se enseña literal', (tester) async {
     final banco = Banco(
       (p) async => RespuestaFalsa(403, {'error': 'Sin acceso a esa sucursal'}),
     );
     addTearDown(banco.cerrar);
+    await pintar(tester, banco);
 
-    final guardo = await banco.contenedor
-        .read(controlAlmacenesProvider.notifier)
-        .guardar('HAB', almacenes);
+    expect(find.text('Sin acceso a esa sucursal'), findsOneWidget);
 
-    expect(guardo, isFalse);
-    expect(
-      banco.contenedor.read(controlAlmacenesProvider)!.texto,
-      'Sin acceso a esa sucursal',
-    );
+    await desmontar(tester);
   });
 }

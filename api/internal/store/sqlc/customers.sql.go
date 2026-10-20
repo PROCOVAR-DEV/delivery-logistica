@@ -734,3 +734,47 @@ func (q *Queries) ObtenerCliente(ctx context.Context, arg ObtenerClienteParams) 
 	)
 	return i, err
 }
+
+const puntosDeClientesDeLaSucursal = `-- name: PuntosDeClientesDeLaSucursal :many
+SELECT codigo, name, lat, lng
+FROM customers
+WHERE source = 'pedido' AND sucursal_codigo = $1::text
+`
+
+type PuntosDeClientesDeLaSucursalRow struct {
+	Codigo *string `json:"codigo"`
+	Name   string  `json:"name"`
+	Lat    float64 `json:"lat"`
+	Lng    float64 `json:"lng"`
+}
+
+// LOS PUNTOS DE LOS CLIENTES DE UNA SUCURSAL, para ponerle coordenadas a una entrega que nace
+// de una FACTURA (issue 20, Fase A). Ventra no trae coordenadas: el cliente de la factura se
+// empareja con el espejo de clientes de PEDIDO por su CÓDIGO (`customerReference`, la nota
+// `C-…` de la venta) y, si eso no es un código, por su nombre. Los clientes siguen en PEDIDO
+// hasta nueva orden de Jose (20/10/2026). Va sin alcance: es del espejo, que entra con clave
+// de servicio, y la sucursal la pone quien llama. Solo los de PEDIDO (`source`).
+func (q *Queries) PuntosDeClientesDeLaSucursal(ctx context.Context, sucursalCodigo string) ([]PuntosDeClientesDeLaSucursalRow, error) {
+	rows, err := q.db.Query(ctx, puntosDeClientesDeLaSucursal, sucursalCodigo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PuntosDeClientesDeLaSucursalRow
+	for rows.Next() {
+		var i PuntosDeClientesDeLaSucursalRow
+		if err := rows.Scan(
+			&i.Codigo,
+			&i.Name,
+			&i.Lat,
+			&i.Lng,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

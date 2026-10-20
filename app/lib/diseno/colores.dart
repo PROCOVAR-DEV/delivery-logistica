@@ -379,6 +379,17 @@ abstract final class ColoresDelMapa {
   /// de la paleta está elegido para leerse sobre papel y sobre negro se apaga.
   static const importeEnGlobo = Color(0xFF7BE29A);
 
+  /// EL NÚMERO DE UNA PARADA CON EL PUNTO PUESTO A MANO (issue 19 de Amado): el
+  /// cliente pidió entregar en otro sitio y el logístico lo ubicó. Rojo, para que
+  /// se vea de un vistazo que esa parada NO está donde dice la geolocalización del
+  /// cliente. **No es `Colores.rojo`**: ése significa «impide» (una factura que no
+  /// entra, un 403), y aquí no hay nada roto, hay algo que mirar dos veces.
+  static const puntoManual = Color(0xFFDC2626);
+
+  /// «Punto puesto a mano» dentro del globo negro de la parada. Un rojo **claro**,
+  /// por lo mismo que [importeEnGlobo]: el de [puntoManual] se apaga sobre negro.
+  static const puntoManualEnGlobo = Color(0xFFFCA5A5);
+
   // --- El dibujo del paquete de Cuba -------------------------------------
   static const fondo = Colores.papel;
 

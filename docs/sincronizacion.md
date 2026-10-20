@@ -321,7 +321,7 @@ una frase que dice qué hacer:
 
 | Límite | Valor |
 |---|---|
-| Método y ruta | `POST/PUT/PATCH/DELETE` sobre las quince rutas de escritura que la API tiene de rutas, tablero y flota, **por forma** (`/routes`, `/routes/{id}`, `…/stops` (reordenar), `…/stops/{pedido}`, `…/results`, `/board/columns`, `/board/columns/{id}`, `…/route`, `/board/placements/{pedido}`, y desde el 16/10/2026 `/vehicles`, `/vehicle-types`, `/distribuidores` y sus `/{id}`; `{id}` sin puntos; `POST /board` suelto da 422; ni `..` ni `//` ni `%`; ≤300 caracteres). **Es la defensa contra la autoridad prestada** y se vuelve a pasar al aplicar |
+| Método y ruta | `POST/PUT/PATCH/DELETE` sobre las dieciséis rutas de escritura que la API tiene de rutas, tablero, flota y punto de entrega de un pedido, **por forma** (`/routes`, `/routes/{id}`, `…/stops` (reordenar), `…/stops/{pedido}`, `…/results`, `/board/columns`, `/board/columns/{id}`, `…/route`, `/board/placements/{pedido}`, y desde el 16/10/2026 `/vehicles`, `/vehicle-types`, `/distribuidores` y sus `/{id}`, y desde el 20/10/2026 `/orders/{id}/punto` (issue 19; sólo esa forma de `/orders`, no `/orders/{id}`, que borra el pedido); `{id}` sin puntos; `POST /board` suelto da 422; ni `..` ni `//` ni `%`; ≤300 caracteres). **Es la defensa contra la autoridad prestada** y se vuelve a pasar al aplicar |
 | Un apunte | `cuerpo` ≤128 KiB y JSON válido; petición ≤512 KiB; ≤25 apuntes por petición (la app manda 1) |
 | Hora del aparato | `hecho` ≤ ahora+24 h y ≥ ahora−60 días |
 | `provisional` | Opcional: `local-` y de 1 a 94 letras o números, o un UUID (el id definitivo que pone el aparato al crear una zona del Tablero). La subida normal no valida su forma, solo traduce los `local-…` |

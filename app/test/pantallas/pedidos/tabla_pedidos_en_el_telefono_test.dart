@@ -53,6 +53,7 @@ void main() {
     status: 'pending',
     tripLeg: 'ida',
     archivado: false,
+    puntoManual: false,
     // `Completada` es la palabra que se partía letra a letra.
     estado: EstadoEnPedido.completada,
     // Sin costo se pinta `sin cotizar`, que es la otra que se partía.

@@ -26,6 +26,7 @@ void main() {
     status: 'pending',
     tripLeg: 'ida',
     archivado: false,
+    puntoManual: false,
     routeId: rutaId,
     stopOrder: orden,
     createdAt: DateTime(2026, 10, 15),

@@ -33,7 +33,9 @@ void main() {
   Bajada conEsto(Map<String, Object?> cambios) => Bajada(
     cliente: clienteFalso((PeticionVista p) async {
       if (p.ruta.endsWith('/almacenes')) {
-        return RespuestaFalsa(200, <String, Object?>{'sucursales': <Object?>[]});
+        return RespuestaFalsa(200, <String, Object?>{
+          'sucursales': <Object?>[],
+        });
       }
       return RespuestaFalsa(200, <String, Object?>{
         'hasta': '2026-09-15T08:00:00.000Z',
@@ -90,7 +92,8 @@ void main() {
     expect(
       r.originAddress,
       'Almacén Camagüey, Carretera Central km 3',
-      reason: 'sin esto la tarjeta dice «Sin punto de partida» teniendo almacén',
+      reason:
+          'sin esto la tarjeta dice «Sin punto de partida» teniendo almacén',
     );
     expect(r.deliveryDate, isNotNull, reason: 'la fecha sale como una raya');
     // Salida y regreso: son la línea de horario de la hoja del post-despacho.
@@ -131,40 +134,43 @@ void main() {
     );
   });
 
-  test('el pedido llega con su factura: el número Y cuándo se facturó', () async {
-    // Amado, issues 6 y 8 (14/10/2026): el detalle dice cuándo se facturó y «Sin
-    // colocar» va por la fecha de la factura. `orders.factura_at` existía y NADIE la
-    // escribía: valía NULL en todo el aparato y todo lo anterior caía, sin un error, a
-    // la fecha del pedido.
-    await conEsto(<String, Object?>{
-      'orders': conjunto([
-        <String, Object?>{
-          'id': 'p-1',
-          'customerName': 'Bodega El Cruce',
-          'address': 'Km 8',
-          'weight': 800.0,
-          'status': 'pending',
-          'facturaEstado': 'igual',
-          'facturaNumero': '1024237',
-          'facturaAt': '2026-10-12T09:30:00.000Z',
-          'updatedAt': '2026-10-12T09:30:00.000Z',
-        },
-      ]),
-    }).ciclo();
+  test(
+    'el pedido llega con su factura: el número Y cuándo se facturó',
+    () async {
+      // Amado, issues 6 y 8 (14/10/2026): el detalle dice cuándo se facturó y «Sin
+      // colocar» va por la fecha de la factura. `orders.factura_at` existía y NADIE la
+      // escribía: valía NULL en todo el aparato y todo lo anterior caía, sin un error, a
+      // la fecha del pedido.
+      await conEsto(<String, Object?>{
+        'orders': conjunto([
+          <String, Object?>{
+            'id': 'p-1',
+            'customerName': 'Bodega El Cruce',
+            'address': 'Km 8',
+            'weight': 800.0,
+            'status': 'pending',
+            'facturaEstado': 'igual',
+            'facturaNumero': '1024237',
+            'facturaAt': '2026-10-12T09:30:00.000Z',
+            'updatedAt': '2026-10-12T09:30:00.000Z',
+          },
+        ]),
+      }).ciclo();
 
-    final p = await (base.select(
-      base.orders,
-    )..where((t) => t.id.equals('p-1'))).getSingle();
+      final p = await (base.select(
+        base.orders,
+      )..where((t) => t.id.equals('p-1'))).getSingle();
 
-    expect(p.facturaNumero, '1024237');
-    expect(
-      p.facturaAt?.toUtc(),
-      DateTime.utc(2026, 10, 12, 9, 30),
-      reason:
-          '`facturaAt` no se copia: la columna se queda nula, el detalle no puede '
-          'decir cuándo se facturó y «Sin colocar» se ordena por la fecha del pedido.',
-    );
-  });
+      expect(p.facturaNumero, '1024237');
+      expect(
+        p.facturaAt?.toUtc(),
+        DateTime.utc(2026, 10, 12, 9, 30),
+        reason:
+            '`facturaAt` no se copia: la columna se queda nula, el detalle no puede '
+            'decir cuándo se facturó y «Sin colocar» se ordena por la fecha del pedido.',
+      );
+    },
+  );
 
   test('el pedido llega con el almacén del que sale (15/10/2026)', () async {
     // Con él, «Sin colocar» pone primero los del almacén elegido arriba también sin
@@ -187,6 +193,59 @@ void main() {
       base.orders,
     )..where((t) => t.id.equals('p-1'))).getSingle();
     expect(p.almacenSalidaCodigo, '2');
+  });
+
+  test('el pedido llega con su punto de entrega a mano (issue 19)', () async {
+    // Sin copiarlos, la etiqueta «Punto puesto a mano» no sale nunca, el número de la
+    // parada no se pinta en rojo y «Volver al punto del cliente» no sabe a dónde volver.
+    await conEsto(<String, Object?>{
+      'orders': conjunto([
+        <String, Object?>{
+          'id': 'p-1',
+          'customerName': 'Bodega El Cruce',
+          'address': 'Km 8',
+          'weight': 800.0,
+          'status': 'pending',
+          'puntoManual': true,
+          'puntoManualPor': 'Marta Pérez',
+          'puntoManualAt': '2026-10-20T09:30:00.000Z',
+          'puntoClienteLat': 21.38,
+          'puntoClienteLng': -77.91,
+          'puntoClienteAddress': 'Km 8, Carretera Central',
+          'updatedAt': '2026-10-20T09:30:00.000Z',
+        },
+        <String, Object?>{
+          'id': 'p-2',
+          'customerName': 'Bodega La Rica',
+          'address': 'Km 9',
+          'weight': 10.0,
+          'status': 'pending',
+          'updatedAt': '2026-10-20T09:30:00.000Z',
+        },
+      ]),
+    }).ciclo();
+
+    final p = await (base.select(
+      base.orders,
+    )..where((t) => t.id.equals('p-1'))).getSingle();
+    expect(
+      p.puntoManual,
+      isTrue,
+      reason: 'sin esto no hay etiqueta ni número rojo',
+    );
+    expect(p.puntoManualPor, 'Marta Pérez');
+    expect(p.puntoManualAt, isNotNull);
+    expect(
+      (p.puntoClienteLat, p.puntoClienteLng, p.puntoClienteAddress),
+      (21.38, -77.91, 'Km 8, Carretera Central'),
+      reason: 'sin el punto del cliente, volver a él sin red no tiene a dónde',
+    );
+
+    // Ausente es «no es manual»: el servidor de antes no los manda.
+    final q = await (base.select(
+      base.orders,
+    )..where((t) => t.id.equals('p-2'))).getSingle();
+    expect((q.puntoManual, q.puntoClienteLat), (false, null));
   });
 
   test('el almacén llega con su código, que no es el de la sucursal', () async {
@@ -280,12 +339,17 @@ void main() {
       base.vehicles,
     )..where((v) => v.id.equals(id))).getSingle()).isActive;
 
-    expect(await activo('v-baja'), isFalse, reason: 'la baja se pierde al bajar');
+    expect(
+      await activo('v-baja'),
+      isFalse,
+      reason: 'la baja se pierde al bajar',
+    );
     expect(await activo('v-alta'), isTrue);
     expect(
       await activo('v-viejo'),
       isTrue,
-      reason: 'sin el campo es activo: leerlo con `== true` da de baja la flota',
+      reason:
+          'sin el campo es activo: leerlo con `== true` da de baja la flota',
     );
   });
 }

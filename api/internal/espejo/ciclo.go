@@ -2,6 +2,7 @@ package espejo
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/url"
 	"strconv"
@@ -31,6 +32,11 @@ type Espejo struct {
 	Base     Base
 	Reg      *slog.Logger
 
+	// Facturas y BaseF son la segunda fuente (issue 20, `SYNC_FUENTE=factura|ambas`). NIL
+	// cuando la fuente es sólo PEDIDO, que es el valor por defecto: el ciclo ni las mira.
+	Facturas FuenteDeFacturas
+	BaseF    BaseDeFacturas
+
 	// Ahora es el reloj. Se puede cambiar en las pruebas: los tramos son fechas contadas
 	// hacia atrás desde hoy, y una prueba que dependa del día en que se corra es una prueba
 	// que falla sola algún martes.
@@ -43,6 +49,13 @@ type Espejo struct {
 	// última vez», y al reiniciar tiene que barrer pronto. Por dónde iba sí se guarda, que
 	// es otra cosa.
 	ultimoBarrido time.Time
+
+	// ultimoDePedido: cuándo hizo el trabajo de PEDIDO el último ciclo. Con `SYNC_FUENTE=ambas`
+	// el ciclo gira cada minuto por la factura, y esto es lo que deja a PEDIDO en su ritmo.
+	ultimoDePedido time.Time
+	// ultimoBarridoDeFacturas: por sucursal, cuándo se barrió su histórico de facturas con ÉXITO.
+	// Si falla no se apunta, y el ciclo siguiente vuelve a intentarlo en vez de esperar un día.
+	ultimoBarridoDeFacturas map[string]time.Time
 }
 
 // Nuevo arma el espejo con los clientes de verdad.
@@ -50,7 +63,7 @@ func Nuevo(o Opciones, base Base, reg *slog.Logger) *Espejo {
 	if reg == nil {
 		reg = slog.Default()
 	}
-	return &Espejo{
+	e := &Espejo{
 		Opciones: o,
 		Pedido:   NuevoClientePedido(o.PedidoURL, o.Clave),
 		Reparto:  NuevoClienteDelivery(o.DeliveryURL, o.Clave),
@@ -59,6 +72,19 @@ func Nuevo(o Opciones, base Base, reg *slog.Logger) *Espejo {
 		Ahora:    time.Now,
 		Pausa:    150 * time.Millisecond,
 	}
+	// La base de verdad sabe hacer las dos cosas; un doble de pruebas sólo la mitad de PEDIDO.
+	if bf, ok := base.(BaseDeFacturas); ok {
+		e.BaseF = bf
+	}
+	return e
+}
+
+// ConFacturas enchufa el lector de Ventra. Sin llamarlo, `SYNC_FUENTE=factura|ambas` no puede
+// arrancar (`Correr` lo comprueba): un espejo «de facturas» sin Ventra parecería sano sin traer
+// una sola.
+func (e *Espejo) ConFacturas(f FuenteDeFacturas) *Espejo {
+	e.Facturas = f
+	return e
 }
 
 // Correr da vueltas hasta que se cancele el contexto.
@@ -81,6 +107,10 @@ func (e *Espejo) Correr(ctx context.Context) error {
 	// ciclo deja de ser quien se entera y pasa a ser quien comprueba: tres horas. Sin
 	// ninguna sigue cada minuto, porque entonces es lo ÚNICO que trae los cambios y dejarlo
 	// lento pondría al reparto tres horas por detrás sin que nada lo diga.
+	if e.Opciones.LeeFactura() && (e.Facturas == nil || e.BaseF == nil) {
+		return errors.New("SYNC_FUENTE=" + e.Opciones.Fuente + " pero el espejo no tiene el lector de Ventra o " +
+			"su base: no se arranca, porque parecería sano sin traer una sola factura")
+	}
 	ritmo := e.Opciones.RitmoDelCiclo(e.Opciones.PollDelEntorno)
 	// SE DICEN LAS DOS PUERTAS POR SEPARADO, y no un «con avisos» que las resume.
 	//
@@ -94,6 +124,7 @@ func (e *Espejo) Correr(ctx context.Context) error {
 		"lee la cola", e.Opciones.EscuchaLosAvisos(),
 		"hay redis", e.Opciones.HayRedis(),
 		"le tocan la puerta", e.Opciones.TocanLaPuerta,
+		"fuente", e.Opciones.Fuente,
 		"sucursal", e.sucursalODejarTodas())
 
 	temporizador := time.NewTimer(0)
@@ -126,8 +157,52 @@ func (e *Espejo) Correr(ctx context.Context) error {
 // Ciclo es una pasada. Es lo que corre `--once`.
 func (e *Espejo) Ciclo(ctx context.Context) error {
 	e.catalogo(ctx)
+	// LOS CLIENTES SE QUEDAN EN PEDIDO con cualquier fuente (Jose, 20/10/2026): de su espejo
+	// salen las coordenadas de las entregas que nacen de una factura.
 	e.clientes(ctx)
 
+	total := 0
+	var marca *time.Time
+
+	// LO DE PEDIDO, si la fuente lo incluye y si le toca. Con `SYNC_FUENTE=ambas` el ciclo gira
+	// al ritmo de la factura (cada minuto) y PEDIDO conserva el suyo (`RitmoDePedido`): sin esta
+	// puerta, tener las dos fuentes costaría 1.440 repasos al día de PEDIDO que con avisos eran 8.
+	if e.Opciones.LeePedido() && e.lePuedeTocarAPedido() {
+		e.ultimoDePedido = e.Ahora()
+		n, m := e.pedidos(ctx)
+		total += n
+		marca = m
+	}
+
+	// --- 5. La factura de Ventra, si la fuente la incluye -----------------------
+	if e.Opciones.LeeFactura() {
+		total += e.facturas(ctx)
+	}
+
+	if total == 0 {
+		desde := "el principio"
+		if marca != nil {
+			desde = marca.Format(time.RFC3339)
+		}
+		e.Reg.Info("sin cambios", "desde", desde)
+	} else {
+		e.Reg.Info("pedidos guardados", "pedidos", total)
+	}
+	return ctx.Err()
+}
+
+// lePuedeTocarAPedido: ¿ya pasó el ritmo propio de PEDIDO desde la última vez? Con la fuente
+// `pedido` (la de siempre) el ciclo ya gira a ese ritmo y esto es siempre verdad.
+func (e *Espejo) lePuedeTocarAPedido() bool {
+	if !e.Opciones.LeeFactura() {
+		return true
+	}
+	return e.Ahora().Sub(e.ultimoDePedido) >= e.Opciones.RitmoDePedido(e.Opciones.PollDelEntorno)
+}
+
+// pedidos es el trabajo de PEDIDO de un ciclo: lo incremental, los recién cotizados, el repaso
+// corto y el barrido. Devuelve cuántos guardó y la marca de agua con la que arrancó.
+func (e *Espejo) pedidos(ctx context.Context) (int, *time.Time) {
 	total := 0
 
 	// --- 1. Lo que se movió desde la última vez ------------------------------
@@ -157,17 +232,7 @@ func (e *Espejo) Ciclo(ctx context.Context) error {
 
 	// --- 4. El histórico, si toca -------------------------------------------
 	total += e.barrido(ctx)
-
-	if total == 0 {
-		desde := "el principio"
-		if marca != nil {
-			desde = marca.Format(time.RFC3339)
-		}
-		e.Reg.Info("sin cambios", "desde", desde)
-	} else {
-		e.Reg.Info("pedidos guardados", "pedidos", total)
-	}
-	return ctx.Err()
+	return total, marca
 }
 
 // ---------------------------------------------------------------------------
@@ -444,6 +509,14 @@ func (e *Espejo) guardar(ctx context.Context, pedidos []PedidoDeFuera, de string
 		// LO QUE NO ENTRÓ SE DICE CON SU MOTIVO. Un lote que contesta 200 y guarda cero es
 		// lo más parecido que hay a que todo vaya bien, y es justo cuando hay que mirar.
 		for motivo, cuantos := range motivosDeNoEntrar(r) {
+			if motivo == MotivoYaAdoptado {
+				// La convivencia de las dos fuentes (`SYNC_FUENTE=ambas`): el pedido ya es una
+				// entrega de factura y no se crea otra fila. NO es un fallo, y se cuenta aparte
+				// para que no se confunda con los que de verdad no entraron.
+				e.Reg.Info("pedidos ya adoptados por una factura (no es un fallo)",
+					"de", de, "motivo", motivo, "pedidos", cuantos)
+				continue
+			}
 			e.Reg.Warn("pedidos que no entraron", "de", de, "motivo", motivo, "pedidos", cuantos)
 		}
 		if err := e.dormir(ctx); err != nil {

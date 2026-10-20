@@ -187,7 +187,8 @@ de delivery, y resultado del cierre de ruta.
 | Campo | Tipo | Opcional | Default | Notas |
 |---|---|---|---|---|
 | `id` | String | no | `cuid()` | PK |
-| `operationNumber` | String? | sí | — | nº de operación/folio en PEDIDO (§6) |
+| `operationNumber` | String? | sí | — | nº de operación/folio en PEDIDO (§6). **En una entrega que nace de una FACTURA (issue 20) es el «conduce»: los números de factura de la entrega, ordenados y unidos por «, » — ya NO es el folio (ese está en `folio`)** |
+| `folio` | String? | sí | — | **propio del reparto** (migración `00025`, 20/10/2026, issue 20). El folio de PEDIDO de la entrega: en las filas de PEDIDO, su `operationNumber` (la migración lo rellena sin mover `updatedAt`); en las de factura, el `orderNumber` de Ventra (`NULL` si la venta no traía la nota). Con `sucursalCodigo` es la clave de la ADOPCIÓN entre las dos fuentes, y se COMPARA normalizado (`folio_normalizado(folio)`: mayúsculas y solo letras y dígitos; la columna guarda el valor tal cual). Índice por expresión `[sucursalCodigo, folio_normalizado(folio)]`. No es único |
 | `customerName` | String | **no** | — | obligatorio para persistir la cotización |
 | `address` | String | **no** | — | fallback: `input.address || customerName` |
 | `endAddress` | String? | sí | — | dirección de destino |
@@ -208,6 +209,10 @@ de delivery, y resultado del cierre de ruta.
 | `deliveryPrice` | Float? | sí | — | precio del envío individual (§5) |
 | `deliveryDistanceKm` | Float? | sí | — | km sucursal→cliente (§5) |
 | `branchId` | String? | sí | — | FK → `Branch.id`; sucursal de origen del cálculo |
+| `puntoManual` | Boolean | no | `false` | **propio del reparto** (migración `00024`, 20/10/2026, issue 19 de Amado). `true` = una persona puso el punto de entrega (`endLat`, `endLng`, `lat`, `lng`, `endAddress`) con `PUT /api/orders/{id}/punto` y el espejo NO lo pisa (`GuardarPedidoDelEspejo` lo conserva, con la distancia que se midió hasta él). Baja en `cambios.orders[].puntoManual` |
+| `puntoManualPor` | String? | sí | — | el `sub` de quien lo puso; `NULL` si no es manual |
+| `puntoManualAt` | DateTime? | sí | — | cuándo; `NULL` si no es manual |
+| `puntoClienteLat` / `puntoClienteLng` / `puntoClienteAddress` | Float? / Float? / String? | sí | — | el punto que traía el CLIENTE mientras el de entrega es manual (el espejo sigue actualizándolo en cada repaso). `NULL` si no es manual. Es a lo que vuelve `DELETE /api/orders/{id}/punto`, y baja en la bajada para volver SIN conexión |
 | `source` | String? | sí | — | `"pedido"` \| `null` (manual), §3.5 |
 | `orderDate` | DateTime? | sí | — | fecha DEL PEDIDO en PEDIDO (≠ `createdAt`) |
 | `pedidoUpdatedAt` | DateTime? | sí | — | marca de agua del espejo: `since = max(pedidoUpdatedAt)` |
@@ -245,6 +250,17 @@ de delivery, y resultado del cierre de ruta.
 (`findFirst({source:'pedido', externalId})` → `update` o `create` en
 `src/app/api/quote/batch/route.ts`). Es una carrera latente; en Go conviene UNIQUE parcial
 `WHERE source IS NOT NULL AND external_id IS NOT NULL`.
+
+**La convención de `externalId` desde el issue 20 (20/10/2026).** Una entrega que nace de una FACTURA con
+domicilio de Ventra se guarda con `source = 'pedido'` (el único valor del enum `procedencia`: no hay uno
+nuevo, para que ningún filtro `source = 'pedido'` se rompa) y `externalId = 'factura:' + clave`, con clave
+`<SUC>:<folio normalizado>` o, sin folio, `<SUC>:<punto de venta>:<número>:<fecha>`. Se pregunta SOLO con
+`alcance.EsDeFactura` (SQL: `starts_with(external_id, 'factura:')`). El nombre `source = 'pedido'` es
+legado y se renombra/quita en la fase de LIMPIEZA. Una fila de PEDIDO con el mismo (`sucursalCodigo`,
+`folio` normalizado) es ADOPTADA por la entrega de factura: cambia su `externalId` y conserva `id`, ruta y resultado (y su punto, su dirección y su km si la factura no trae punto).
+Mapeo completo en `contratos-api.md` («La entrega que nace de una FACTURA»). Las coordenadas
+(`lat`, `lng`, `endLat`, `endLng`) y `deliveryDistanceKm` pueden ser `NULL` en estas entregas (el cliente no
+estaba en el espejo de clientes): se ubican a mano con `PUT /api/orders/{id}/punto`.
 
 **No hay índice sobre `routeId`** pese a que es el filtro más caliente
 (`routeId: null` = disponible). Añadirlo.

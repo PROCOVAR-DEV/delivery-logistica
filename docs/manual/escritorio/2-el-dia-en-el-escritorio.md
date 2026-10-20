@@ -69,7 +69,7 @@ pasos tienen botón y dos no:
 | Falta | Qué hacer |
 |---|---|
 | **«Al menos un vehículo»** | **«Agregar el primer vehículo»** |
-| **«Al menos un almacén con su punto puesto»** | **«Poner el almacén»** |
+| **«Al menos un almacén con su punto puesto»** | **«Ver los almacenes»** (se ponen en el CRM) |
 | **«El punto de partida de la sucursal»** | No se pone aquí. Pídelo a administración |
 | **«La tasa de cambio de la sucursal»** | No se pone aquí. La mantiene Accesos |
 

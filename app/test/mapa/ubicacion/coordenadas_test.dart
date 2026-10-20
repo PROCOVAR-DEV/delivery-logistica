@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/pantallas/almacenes/datos/coordenadas.dart';
+import 'package:reparto/mapa/ubicacion/coordenadas.dart';
 
 /// `parseCoordInput`, con los formatos de `reglas-negocio.md` §9.
 ///

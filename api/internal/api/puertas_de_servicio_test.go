@@ -74,10 +74,11 @@ func TestLasPersonasSinteticasDeServicioLlevanSuRol(t *testing.T) {
 	}
 	// EL SUELO. Sin él, un cambio en cómo se escriben estas personas —otro nombre, otra
 	// forma de construirlas— dejaría la prueba recorriendo el árbol sin encontrar nada y
-	// pasando en verde para siempre. Son SEIS hoy: las tres de `internal/api`, la de
-	// `cmd/espejo`, la del drenaje del buzón hacia PEDIDO (`cmd/api`, 26/09/2026) y la de la
-	// puerta por donde PEDIDO toca (`webhook_de_pedido.go`, 26/09/2026). Si añades una, sube
-	// el número; si quitas una, bájalo.
+	// pasando en verde para siempre. Son SIETE hoy: las tres de `internal/api`, la de
+	// `cmd/espejo`, la del drenaje del buzón hacia PEDIDO (`cmd/api`, 26/09/2026), la de la
+	// puerta por donde PEDIDO toca (`webhook_de_pedido.go`, 26/09/2026) y la del aviso del CRM
+	// de que cambiaron los almacenes (`servicio:avisos-crm`, `cmd/api`, 20/10/2026: busca la
+	// sucursal del aviso con la portería). Si añades una, sube el número; si quitas una, bájalo.
 	//
 	// Esta prueba cazó la del buzón en el mismo momento de escribirla, que es para lo que
 	// está: sin rol, la portería le habría contestado 403 y el trabajador no habría
@@ -87,7 +88,7 @@ func TestLasPersonasSinteticasDeServicioLlevanSuRol(t *testing.T) {
 	// Y a la del webhook le habría pasado lo MISMO pero peor: PEDIDO habría recibido un 403,
 	// que es de los que descarta a la primera, así que cada aviso se habría tirado al primer
 	// intento — y en su pantalla se vería «fallados», sin decir de qué lado está el fallo.
-	const hay = 6
+	const hay = 7
 	if encontradas != hay {
 		t.Fatalf("se encontraron %d puertas de servicio y hay %d: o se añadió una (sube "+
 			"el número), o se borró una sin quitar su ruta, o cambió la forma de "+

@@ -1187,7 +1187,8 @@ func registrarApagado(r *http.Request, bus *Difusor) {
 //     `GET /api/vehicle-types` a la red y **no vive de la base**: el ciclo de
 //     sincronización no la repinta, así que sin este aviso no hay nada que la repinte.
 //   - `almacenes`  → la pantalla de Almacenes, igual: `GET /api/almacenes` a la red, y los
-//     almacenes ni siquiera viajan en `GET /api/sync/cambios` (van en `faltan`).
+//     almacenes ni siquiera viajan en `GET /api/sync/cambios` (van en `faltan`). Desde el
+//     20/10/2026 Reparto no guarda almacenes: lo dispara el CRM (cableado pendiente).
 //   - `sucursales` → el selector de sucursal de la barra y el de Rutas. Ésos sí salen de la
 //     base, pero una sucursal recién creada no aparece hasta el siguiente ciclo.
 //   - `ajustes`    → la tasa y la moneda. Con ellas se convierte TODO importe que se pinta;

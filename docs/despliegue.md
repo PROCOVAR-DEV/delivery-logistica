@@ -843,7 +843,7 @@ Con valor por defecto:
 | `PEDIDO_API_URL` | vacía | Para el canal que le cuenta a PEDIDO en qué punto va cada pedido y para `POST /api/admin/recompute`. Vacía: el servicio hace todo lo demás y **esas dos cosas lo dicen** (el canal devuelve `ok:false` con el motivo; el recosteo, un 500 con el nombre de la variable). Tiene que empezar por `http://` o `https://` o no arranca. |
 | `DELIVERY_URL` | vacía | A dónde manda el recosteo su lote a cotizar. **Vacía significa «a mí mismo»** (`http://127.0.0.1:PUERTO`), que es lo correcto hoy. |
 | `CATALOGO_CADA_MS` | `43200000` (12 h) | **En milisegundos**, no duración de Go. |
-| `ALMACENES_CACHE_MS` | `300000` (5 min) | **En milisegundos**. Sin recuerdo, cotizar 200 pedidos son 200 llamadas a Accesos. |
+| `ALMACENES_CACHE_MS` | `300000` (5 min) | **En milisegundos**. Sin recuerdo, cotizar 200 pedidos son 200 llamadas a Accesos. Desde el 20/10/2026 Reparto ya no guarda almacenes (viven en Accesos y se editan desde el CRM): el recuerdo caduca a estos 5 min o lo tira el aviso que publica el CRM en Redis, `procovar:crm:almacenes` (`api/internal/avisoscrm`, mismas `REDIS_*`; sin Redis la API sirve igual y avisa al arrancar). Ese aviso también repinta las pantallas de la sucursal. |
 | `PROCOVAR_AUTH_URL` | `https://auth.procovar.cloud` | |
 | `PROCOVAR_AUTH_CLIENT_ID` | `delivery` | |
 | `PROCOVAR_AUTH_SIGNING_KEY` | vacía | La llave con la que se firma hacia Accesos (HMAC). Sin ella no se pueden pedir los almacenes ni las tasas, así que **no se puede cotizar ningún domicilio**. Arranca, pero lo avisa. |
@@ -1091,6 +1091,11 @@ Con valor por defecto:
 | `SYNC_SOLO_COTIZADOS` | apagado | Con `1`. Encendido, el reparto se queda con seis pedidos y parece roto. |
 | `SYNC_TODOS` | apagado | Con `1` trae el catálogo entero de PEDIDO. Apagado (lo normal) trae **sólo lo repartible**. |
 | `ENTORNO` | — | Sólo cambia el formato del registro: `produccion` lo saca en JSON. |
+| `SYNC_FUENTE` | `pedido` | **De dónde salen las entregas** (issue 20, 20/10/2026): `pedido` (la de siempre: **desplegar no cambia NADA**), `factura` (las facturas con domicilio de Ventra, sin PEDIDO: tampoco escucha su cola) o `ambas` (la convivencia mientras dura el corte). Cualquier otro valor **no arranca** (un `facturas` con plural no puede leerse como `pedido`). **No es el corte**: no apaga el webhook de PEDIDO de la api ni nada de PEDIDO. Los clientes se traen de PEDIDO con cualquier valor. Ver §4-sexies. |
+| `WAREHOUSE_API_URL` | vacía | **Sólo si `SYNC_FUENTE` es `factura` o `ambas`** (si falta, no arranca). La MISMA que la api (`§3.1`): `http://10.188.2.2:3001/api/external-api`. |
+| `WAREHOUSE_API_TOKEN` | vacía | Ídem: el mismo token de Ventra (scope `axis.read`). **Es un secreto: va en Dokploy, no en el repo ni en el chat.** |
+| `VENTRA_BASES` | vacía | Ídem que en la api: `STG=santiago,HOL=holguinmoa`. Pisa la tabla de dentro cuando Ventra añade o renombra una base. |
+| `WAREHOUSE_TIMEOUT_MS` | `120000` | Plazo de cada petición a Ventra. **Más que en la api (30 s)**: el barrido diario son 60 días de una sucursal por la VPN. |
 
 Los tres interruptores comparan con `"1"` exactamente: un `SYNC_TODOS=false` heredado de
 otro sitio **no** enciende nada, a propósito.
@@ -1552,6 +1557,126 @@ que es lo que hace la api anterior.
 `TestMotorReal_PuntoDeSalidaDeLaZona` (crear —también por la rama del reintento—, renombrar sin
 tocarlo, quitarlo, el `CHECK`). Up, Down y Up otra vez se probaron con zonas sembradas el 15/10/2026
 contra `reparto-postgres-1`.
+
+---
+
+## 4-quinquies-bis. La migración 00024 (punto de entrega a mano) — issue 19
+
+Amado, issue 19: el cliente pide entregar en otro sitio y el logístico, al armar la ruta, le pone a mano el punto
+al pedido (`PUT`/`DELETE /api/orders/{id}/punto`). Ese punto manda sobre el del cliente y **el espejo lo respeta**
+(`orders.punto_manual`). Contrato en `docs/contratos-api.md`.
+
+**La migración 00024** añade a `orders` seis columnas: `punto_manual boolean NOT NULL DEFAULT false`,
+`punto_manual_por text`, `punto_manual_at timestamptz` y `punto_cliente_lat`/`punto_cliente_lng`/
+`punto_cliente_address` (el punto que traía el cliente, para poder volver a él). **Ninguna fila cambia al
+desplegar.** Cuesta un instante: con un `DEFAULT` constante Postgres no reescribe la tabla, y solo toma el
+bloqueo exclusivo el tiempo de apuntar la columna.
+
+- **Orden:** `pg_dump` de la base del reparto, como siempre → **00024 (y la 00025, §4-sexies) → api (y espejo) →
+  sync → web → APK y Windows**. La api nueva lee esas columnas en CADA lectura de pedidos (`GET /api/orders` y la
+  bajada de los aparatos): sin la migración fallarían. Al revés (migración sin api nueva) no pasa nada: la api
+  vieja no conoce las columnas.
+- **`sync` va con la api, no después de la app.** Su bandeja de revisión admite desde ahora la forma
+  `/orders/<id>/punto` (la dieciséis de la lista blanca). Con un `sync` viejo, una persona que pierda el rol y
+  entregue a revisión una cola con un apunte de punto de entrega tendría la entrega ENTERA rechazada con un 422,
+  que es lo que pasó con la flota el 16/10/2026.
+- **Los aparatos** suben su base local de la versión 11 a la 12 solos, añaden las seis columnas y **no pierden la
+  cola sin subir** (probado con una base v11 de verdad con apuntes pendientes). Una APK nueva contra una api
+  vieja no se rompe: los campos nuevos de la bajada no llegan y valen su defecto.
+- **Volver atrás** (`goose down`): borra las seis columnas. Se pierde quién puso cada punto manual y el punto
+  original del cliente; los pedidos con punto manual **se quedan con ese punto como si fuera el del cliente**
+  y el espejo lo pisa en cuanto repasa el pedido (los de los últimos 3 días enseguida; los demás, en el
+  barrido). Por eso, antes de bajar, conviene devolver al punto del cliente los que importen con `DELETE /api/orders/{id}/punto`.
+- **Después de migrar:**
+
+```sql
+SELECT count(*) FILTER (WHERE punto_manual) AS manuales,            -- 0 al desplegar
+       count(*) AS pedidos FROM orders;
+SELECT column_name FROM information_schema.columns
+ WHERE table_name = 'orders' AND column_name LIKE 'punto\_%' ESCAPE '\';   -- las seis
+```
+
+## 4-sexies. La migración 00025 (folio del pedido) y la factura como fuente (issue 20, Fase A)
+
+Jose, 20/10/2026: Reparto pasa a alimentarse de las FACTURAS CON DOMICILIO de Ventra. Esta fase deja la factura
+como SEGUNDA fuente del espejo que convive con la de PEDIDO. **El corte (apagar PEDIDO) y la limpieza NO son
+parte de esto.** Contrato y mapeo en `docs/contratos-api.md` («La entrega que nace de una FACTURA»).
+
+**La migración 00025** añade `orders.folio` (texto, anulable), dos funciones SQL —`folio_normalizado(text)`, que
+compara el folio en mayúsculas y solo con letras y dígitos, y `punto_se_conserva(…)`, que decide si el upsert del
+espejo conserva el punto que la fila ya tenía— y el índice POR EXPRESIÓN `(sucursal_codigo,
+folio_normalizado(folio))`, y RELLENA
+`folio = operation_number` en las filas de PEDIDO (~15.000). **Va dentro de la migración y no en un paso
+aparte**: sin el relleno, la adopción no encontraría los pedidos de hace más de tres días (el espejo solo
+repasa los últimos tres) y una factura tardía saldría duplicada.
+
+- **La 00025 se editó el 20/10/2026 (auditoría) y NO estaba desplegada**: si alguna base ya la aplicó con la
+  versión anterior (índice sobre `folio` a secas, sin funciones), hay que bajarla y subirla (`goose down` /
+  `up`) o la API nueva fallaría en su primer upsert (`function punto_se_conserva does not exist`).
+- **Cuánto cuesta**: segundos (15.000 filas). Para no mover `updated_at` —la bajada de los aparatos se pide
+  por él, y un UPDATE normal haría que cada teléfono se bajara los 15.000 pedidos—, la migración apaga
+  `trg_orders_updated` mientras rellena y lo vuelve a encender. **`ALTER TABLE … DISABLE TRIGGER` bloquea
+  las ESCRITURAS de `orders` hasta el COMMIT** (las lecturas siguen): durante esos segundos la api y el
+  espejo no escriben pedidos y lo reintentan en su siguiente ciclo. Por eso se migra **sin un barrido de
+  histórico en marcha** (mirar el registro del espejo) y fuera de hora punta. Lo prueba
+  `TestMotorReal_Migracion00025ElFolioRellenaSinMoverLaBajada` (relleno correcto, `updated_at` intacto, trigger
+  encendido de nuevo).
+- **Después de migrar**, comprobar que el relleno se hizo y que el trigger quedó encendido:
+
+```sql
+SELECT count(*) FILTER (WHERE folio IS NULL AND operation_number IS NOT NULL AND source = 'pedido') AS sin_rellenar,
+       count(*) FILTER (WHERE folio IS NOT NULL) AS con_folio FROM orders;               -- sin_rellenar = 0
+SELECT tgenabled FROM pg_trigger WHERE tgname = 'trg_orders_updated';                  -- 'O'
+-- ¿PEDIDO repite folios dentro de una sucursal? La adopción solo toca el más antiguo de cada uno:
+SELECT sucursal_codigo, folio, count(*) FROM orders WHERE folio IS NOT NULL
+GROUP BY 1, 2 HAVING count(*) > 1;                                                      -- idealmente, vacío
+```
+
+**Orden** (cada paso solo cuando el anterior está verde):
+
+```
+1. migración 00025                       (§2.1, pasos 2 a 7; `status` primero, como siempre)
+2. Deploy de reparto-api                 (§4) — después de migrar, nunca antes (no arranca sin la 00025)
+3. Deploy del espejo                     (con SYNC_FUENTE sin poner = `pedido`: NO cambia nada)
+4. Solo cuando se decida probar: en el espejo, WAREHOUSE_API_URL, WAREHOUSE_API_TOKEN (y VENTRA_BASES si
+   hace falta) y SYNC_FUENTE=ambas; reiniciar. Mirar el registro: «facturas de Ventra» por sucursal
+   (facturas, entregas, guardadas, sinPunto, retiradas, anuladasConRuta) y los avisos «SIN coordenadas»
+   y «SIN peso».
+```
+
+**La api va ANTES que el espejo con `ambas`**, no después: una api vieja descartaría con
+`sin-geolocalizacion` las entregas de factura sin punto, no conocería el `folio` y dejaría duplicados.
+
+**La ventana:**
+
+- **api VIEJA con la base NUEVA** (entre 1 y 2): nada cambia; sus consultas nombran las columnas una a una y
+  no ven la nueva. El relleno ya está hecho, y las filas nuevas de PEDIDO quedan con `folio` NULL hasta
+  que la api nueva las repasa (el repaso de 3 días las rellena).
+- **api NUEVA con la base VIEJA**: no arranca (la guarda de `db/migraciones.go`). Es lo que se quiere.
+- **espejo VIEJO con la api NUEVA**: PEDIDO sigue entrando igual; la api deriva el folio de
+  `operationNumber`. Nada más cambia.
+- **Costo por pedido de PEDIDO con la api nueva**: cada pedido con folio paga un candado y una consulta
+  indexada más (la comprobación de «¿ya lo adoptó una factura?»). Con el volumen de hoy son del orden de
+  miles de consultas baratas por ciclo, no medidas en producción.
+
+**Lo que NO cambia al desplegar con `SYNC_FUENTE=pedido`**: ningún dato de las filas existentes (solo el
+folio nuevo), ningún filtro, ningún aparato: `folio` no viaja en la bajada. **Con `ambas`/`factura`** las
+entregas de factura SIN punto sí viajan en la bajada (`DiferenciasDePedidos` no filtra por coordenadas) con
+`lat`/`lng`/`endLat`/`endLng` nulos: las columnas del aparato admiten nulos (`dominio.dart`), el armador no las
+ofrece (`end_lat IS NOT NULL`) y se ubican con el cajón del punto a mano (issue 19). **No se ha probado una APK
+ni la web recibiéndolas**: es lo primero que hay que mirar al encender `ambas` (Fase B, app).
+
+**El `Down`** quita la columna y el índice. Las entregas `factura:%` que ya existan se quedan sin folio y,
+si el espejo vuelve a traer PEDIDO, saldrían duplicadas: bajar la 00025 solo vale junto con
+`SYNC_FUENTE=pedido` y borrar a mano las filas `factura:%`.
+
+**Antes de desplegar**, contra Postgres de verdad (base migrada hasta la 00025): `TestMotorReal_Factura…`,
+`TestMotorReal_UnPedidoDePedido…`, `TestMotorReal_DosCiclosAlaVezNoDuplican`,
+`TestMotorReal_UnRepasoIdenticoNoReescribeNada`, `TestMotorReal_LaRetirada…`, `TestMotorReal_ElBorrado…`,
+`TestMotorReal_LaAdopcion…`, `TestMotorReal_UnaEntrega…` y `TestMotorReal_ElRepasoEnsanchado…` (api) y
+`TestMotorReal_Migracion00025…`, `TestMotorReal_LaAdopcionVaPorElIndiceDeExpresion` y
+`TestMotorReal_UnaEntradaSinPunto…` (sqlc). **Nada de esto se ha probado contra el Ventra de verdad** (la VPN
+no es de este portátil): el primer ciclo con `ambas` es la primera vez que se lee su respuesta real.
 
 ---
 

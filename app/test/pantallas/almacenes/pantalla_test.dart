@@ -3,7 +3,7 @@
 /// Son tres situaciones que hasta ahora se pintaban casi igual y no lo son:
 ///
 ///  1. Accesos contesta y esa sucursal no tiene ninguno → **vacio de verdad**:
-///     se invita a darlo de alta.
+///     se dice que se da de alta en el CRM (sin boton: la pantalla es de lectura).
 ///  2. No hay red y el aparato **nunca** bajo los almacenes → no es que no
 ///     haya: es que no estan aqui, y se arregla trayendo el dia.
 ///  3. No hay red pero el aparato **si** tiene la copia bajada → con esa copia
@@ -80,7 +80,7 @@ void main() {
         );
   }
 
-  testWidgets('la sucursal sin almacenes: un vacío que invita a actuar', (
+  testWidgets('la sucursal sin almacenes: un vacío que explica, sin botón', (
     tester,
   ) async {
     final banco = Banco(
@@ -100,12 +100,14 @@ void main() {
     );
     // Dice QUE SE ROMPE mientras siga vacio.
     expect(find.textContaining('salen sin precio'), findsOneWidget);
-    // Y conserva el literal del pliego, pegado al botón.
+    // Y conserva el literal del pliego, con a dónde ir.
     expect(
       find.textContaining('sus domicilios no se pueden cotizar'),
       findsOneWidget,
     );
-    expect(find.text('Nuevo almacén'), findsWidgets);
+    expect(find.textContaining('Se dan de alta en el CRM'), findsOneWidget);
+    expect(find.text('Nuevo almacén'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
     // NO el texto de «no se ha descargado»: Accesos contestó.
     expect(find.textContaining('no ha descargado los almacenes'), findsNothing);
 
@@ -124,7 +126,7 @@ void main() {
       find.textContaining('no ha descargado los almacenes todavía'),
       findsOneWidget,
     );
-    // Y no se invita a dar de alta nada: eso no arregla esto.
+    // Y no se dice que falten: eso no arregla esto.
     expect(
       find.textContaining('sus domicilios no se pueden cotizar'),
       findsNothing,

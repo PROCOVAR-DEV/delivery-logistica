@@ -351,7 +351,7 @@ void main() {
     unawaited(
       diseno.abrirCajon<void>(
         contexto,
-        titulo: 'Nuevo almacén',
+        titulo: 'Nuevo cliente',
         cuerpo: (_) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

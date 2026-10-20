@@ -57,7 +57,7 @@ trabajar](puesta-en-marcha.md)**.
 | [El punto de partida de la sucursal](puesta-en-marcha.md#paso-1--el-punto-de-partida-de-la-sucursal) | **Panel** (y acaba en administración) | Administración |
 | [Dar de alta un camión](puesta-en-marcha.md#paso-2--al-menos-un-vehículo) | **Vehículos** | Cualquiera, en su sucursal |
 | [Decir qué camión calcula el domicilio](puesta-en-marcha.md#paso-2-bis--decir-qué-camión-calcula-el-domicilio) | **Vehículos** | Cualquiera, en su sucursal |
-| [Poner el almacén con su punto](puesta-en-marcha.md#paso-3--al-menos-un-almacén-con-su-punto-puesto) | **Almacenes** | Cualquiera, en su sucursal |
+| [Comprobar que el almacén tiene su punto](puesta-en-marcha.md#paso-3--al-menos-un-almacén-con-su-punto-puesto) | **Almacenes** (solo consulta; el almacén se pone en el CRM) | Cualquiera lo ve; lo corrige administración |
 | [La tasa de cambio de la sucursal](puesta-en-marcha.md#paso-4--la-tasa-de-cambio-de-la-sucursal) | **Panel** (y acaba en Accesos) | Administración |
 | [Saber si ya está lista](puesta-en-marcha.md#cómo-sabes-que-tu-sucursal-ya-está-lista) | **Panel** | Cualquiera |
 
@@ -97,6 +97,7 @@ arrastra.
 |---|---|---|---|
 | Buscar un pedido | **Pedidos** | [ir](../apk/3-tareas.md#buscar-un-pedido) | [ir](../web/2-tareas.md#buscar-un-pedido) |
 | Ver el detalle de un pedido | **Pedidos** | [ir](../apk/3-tareas.md#ver-el-detalle-de-un-pedido) | [ir](../web/2-tareas.md#ver-el-detalle-de-un-pedido) |
+| Poner el punto de entrega de un pedido a mano (y volver al del cliente) | **Pedidos** | [ir](../apk/3-tareas.md#poner-el-punto-de-entrega-de-un-pedido-a-mano) | [ir](../web/2-tareas.md#poner-el-punto-de-entrega-de-un-pedido-a-mano) |
 | Filtrar y ordenar la lista | **Pedidos** | — | [ir](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-pedidos) |
 | Mandar varios pedidos a una zona de golpe | **Pedidos** | [ir](../apk/3-tareas.md#mandar-varios-pedidos-a-una-zona-de-golpe) | [ir](../web/2-tareas.md#mandar-varios-pedidos-a-una-zona-de-golpe) |
 | Sacar el pre-despacho de lo filtrado | **Pedidos** | [ir](../apk/3-tareas.md#sacar-el-pre-despacho-de-lo-que-tienes-filtrado) | — |
@@ -131,13 +132,11 @@ arrastra.
 | Dejar un camión inactivo (si ya tiene rutas) | **Vehículos** | [ir](../apk/3-tareas.md#dejar-un-camión-inactivo) | [ir](../web/2-tareas.md#dejar-un-camión-inactivo) |
 | Definir los tipos de camión y su costo por km | **Vehículos** | [ir](../apk/3-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km) | [ir](../web/2-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km) |
 
-### Almacenes — **necesita conexión siempre, y se guarda en Accesos**
+### Almacenes — **solo lectura; necesita conexión y se editan en el CRM**
 
 | Tarea | Empieza en | APK | Web |
 |---|---|---|---|
-| Poner o corregir un almacén | **Almacenes** | [ir](../apk/3-tareas.md#poner-o-corregir-un-almacén) | [ir](../web/2-tareas.md#poner-o-corregir-un-almacén) |
-| Cambiar cuál es el almacén principal | **Almacenes** | [ir](../apk/3-tareas.md#cambiar-cuál-es-el-almacén-principal) | [ir](../web/2-tareas.md#cambiar-cuál-es-el-almacén-principal) |
-| Quitar un almacén de la sucursal | **Almacenes** | [ir](../apk/3-tareas.md#quitar-un-almacén-de-la-sucursal) | [ir](../web/2-tareas.md#quitar-un-almacén-de-la-sucursal) |
+| Consultar los almacenes de una sucursal | **Almacenes** | [ir](../apk/3-tareas.md#consultar-los-almacenes-de-una-sucursal) | [ir](../web/2-tareas.md#consultar-los-almacenes-de-una-sucursal) |
 
 ### Clientes
 

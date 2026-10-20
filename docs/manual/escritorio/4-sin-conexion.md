@@ -52,8 +52,7 @@ descargaste el mapa de Cuba, además con calles de fondo.
 | **Entrar** | «Para entrar hace falta conexión. Una vez dentro, no.» |
 | **«Abrir en Google Maps»** y mandar el enlace | Necesita la red |
 | **Vehículos**: dar de alta, editar, dejar inactivo, borrar | Se configuran con conexión |
-| **Almacenes**: crear, editar, borrar | Viven en Accesos |
-| **Buscar una dirección** en Almacenes | Pero **hacer clic en el mapa y escribir las coordenadas sí funcionan** |
+| **Almacenes** (la pantalla) | Se lee del servidor cada vez. **Solo se consultan: se editan en el CRM** |
 | **Sincronización** | Se lee del servidor cada vez |
 | **Traer el día** y **Entregar el día** | Los dos hablan con el servidor |
 | **El fondo de calles del mapa**, si no lo descargaste | Las teselas vienen del servidor |

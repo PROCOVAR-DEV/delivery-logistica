@@ -501,7 +501,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 11);
+        expect(nueva.schemaVersion, 12);
       },
     );
   }
@@ -665,7 +665,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 11);
+        expect(nueva.schemaVersion, 12);
       },
     );
   }
@@ -759,7 +759,7 @@ void main() {
         (await nueva.customSelect('PRAGMA user_version').getSingle()).read<int>(
           'user_version',
         ),
-        11,
+        12,
       );
 
       // LA COLUMNA EXISTE, preguntándoselo a SQLite, ANTES de que el Tablero
@@ -884,7 +884,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          11,
+          12,
         );
 
         // Y SE PUEDE ESCRIBIR: es lo que hará la bajada.
@@ -898,6 +898,133 @@ void main() {
           '2',
         );
         expect((await nueva.select(nueva.warehouses).getSingle()).codigo, '2');
+      },
+    );
+  }
+
+  // LA 12: EL PUNTO DE ENTREGA A MANO (20/10/2026, issue 19 de Amado).
+  //
+  // `orders` gana seis columnas. Las formas que puede tener el aparato de ayer: en la 11 SIN
+  // ellas (el de verdad), en la 10 (llega con el paso de en medio) y en la 11 CON ellas ya
+  // puestas (copia nacida nueva y `user_version` atrás): un `ADD COLUMN` repetido LANZA y la
+  // base no abriría, o sea la cola del día secuestrada.
+  for (final (desde, yaEstaban) in const [
+    (11, false),
+    (10, false),
+    (11, true),
+  ]) {
+    test(
+      'desde la $desde: el punto a mano ${yaEstaban ? 'CON' : 'SIN'} las columnas '
+      'abre y no pierde nada',
+      () async {
+        final fichero = await _ficheroDePrueba();
+        addTearDown(() async {
+          if (fichero.existsSync()) await fichero.delete();
+        });
+
+        final ayer = BaseLocal.con(NativeDatabase(fichero));
+        await ayer
+            .into(ayer.apuntes)
+            .insert(
+              ApuntesCompanion.insert(
+                clave: '01J8-punto',
+                hechoAt: DateTime(2026, 10, 20, 9),
+                metodo: 'PUT',
+                ruta: '/orders/ped-1/punto',
+                cuerpo: '{"lat":1,"lng":2}',
+              ),
+            );
+        await ayer.customStatement(
+          'INSERT INTO orders (id, customer_name, address, weight, archivado) '
+          "VALUES ('ped-1', 'Bodega La Rica', 'Calle 1', 75, 0)",
+        );
+        if (!yaEstaban) {
+          for (final c in const [
+            'punto_manual',
+            'punto_manual_por',
+            'punto_manual_at',
+            'punto_cliente_lat',
+            'punto_cliente_lng',
+            'punto_cliente_address',
+          ]) {
+            await ayer.customStatement('ALTER TABLE orders DROP COLUMN $c');
+          }
+        }
+        await ayer.customStatement('PRAGMA user_version = $desde');
+        await ayer.close();
+
+        final nueva = BaseLocal.con(NativeDatabase(fichero));
+        addTearDown(nueva.close);
+
+        expect(
+          (await nueva.select(nueva.apuntes).get()).map((a) => a.clave),
+          ['01J8-punto'],
+          reason:
+              'la cola sin subir es el trabajo del día y sobrevive al salto',
+        );
+        final pedido = await nueva.select(nueva.orders).getSingle();
+        expect(
+          (pedido.customerName, pedido.puntoManual, pedido.puntoClienteLat),
+          ('Bodega La Rica', false, null),
+          reason: 'el pedido de ayer sigue, y su punto es el del cliente',
+        );
+        expect(
+          (await nueva.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          12,
+        );
+
+        // CADA UNA de las seis columnas está en la tabla, por su nombre en SQL (una
+        // migración a la que le falte UNA abre sin quejarse hasta que alguien la lee).
+        final columnas =
+            (await nueva.customSelect('PRAGMA table_info(orders)').get())
+                .map((f) => f.read<String>('name'))
+                .toSet();
+        for (final c in const [
+          'punto_manual',
+          'punto_manual_por',
+          'punto_manual_at',
+          'punto_cliente_lat',
+          'punto_cliente_lng',
+          'punto_cliente_address',
+        ]) {
+          expect(
+            columnas,
+            contains(c),
+            reason: 'la migración 11→12 no la creó',
+          );
+        }
+
+        // Y SE PUEDE ESCRIBIR Y LEER CADA UNA: es lo que hará la acción.
+        final cuando = DateTime.utc(2026, 10, 20, 9);
+        await (nueva.update(
+          nueva.orders,
+        )..where((o) => o.id.equals('ped-1'))).write(
+          OrdersCompanion(
+            puntoManual: const Value(true),
+            puntoManualPor: const Value('Marta Pérez'),
+            puntoManualAt: Value(cuando),
+            puntoClienteLat: const Value(21.4),
+            puntoClienteLng: const Value(-77.9),
+            puntoClienteAddress: const Value('Calle 1 entre 2 y 3'),
+          ),
+        );
+        final despues = await nueva.select(nueva.orders).getSingle();
+        expect(
+          (
+            despues.puntoManual,
+            despues.puntoManualPor,
+            despues.puntoManualAt?.toUtc(),
+            despues.puntoClienteLat,
+            despues.puntoClienteLng,
+            despues.puntoClienteAddress,
+          ),
+          (true, 'Marta Pérez', cuando, 21.4, -77.9, 'Calle 1 entre 2 y 3'),
+        );
+        // Los apuntes siguen DESPUÉS de escribir las columnas nuevas.
+        expect((await nueva.select(nueva.apuntes).get()).map((a) => a.clave), [
+          '01J8-punto',
+        ]);
       },
     );
   }

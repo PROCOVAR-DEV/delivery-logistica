@@ -1680,6 +1680,18 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 			// 15/10/2026, `docs/orden-sin-colocar.casos.json`). Lo ata
 			// `la_bajada_no_pierde_campos_test.go` y su gemela en Dart.
 			"almacenSalidaCodigo": f.AlmacenSalidaCodigo,
+			// EL PUNTO DE ENTREGA PUESTO A MANO (issue 19 de Amado, 00024): con `puntoManual` el
+			// aparato pinta la parada diferenciada, también sin señal; `endLat`/`endLng` ya son
+			// los del logístico. Los tres hacen falta: quién y cuándo se dicen en la ficha. Lo ata
+			// `la_bajada_no_pierde_campos_test.go` (y su gemela en Dart).
+			"puntoManual":    f.PuntoManual,
+			"puntoManualPor": f.PuntoManualPor,
+			"puntoManualAt":  hora(f.PuntoManualAt),
+			// El punto que traía el cliente (null si no es manual): el aparato vuelve a él sin
+			// conexión copiándolo a `endLat`/`endLng`/`endAddress`.
+			"puntoClienteLat":     f.PuntoClienteLat,
+			"puntoClienteLng":     f.PuntoClienteLng,
+			"puntoClienteAddress": f.PuntoClienteAddress,
 			"stopOrder":           f.StopOrder,
 			"deliveredAt":         hora(f.DeliveredAt),
 			"resultado":           textoDe(f.Resultado),

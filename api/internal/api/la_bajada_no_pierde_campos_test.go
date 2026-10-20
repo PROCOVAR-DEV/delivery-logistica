@@ -32,6 +32,8 @@ import (
 //
 // Por eso esto comprueba **claves**, no valores: lo que se rompe es que una clave deje de
 // escribirse, y eso no lo nota ningún `assert` sobre un número.
+var latDelCliente, lngDelCliente = 20.0250, -75.8150
+
 func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 	q := nuevoEspejo()
 	desde := conBajas(q)
@@ -57,6 +59,13 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 	q.sync = append(q.sync, pedidoSync{
 		id: ped1, sucursal: sucStg, nombre: "Facturado", marca: time.Now().UTC().Add(-1 * time.Hour),
 		facturaNumero: "1024237", facturaAt: &facturadoEl, almacenCodigo: "2",
+		// Con el punto de entrega puesto a mano: la marca y el punto del cliente al que se vuelve.
+		puntoManual: true, puntoManualPor: "p-stg", puntoManualAt: &facturadoEl,
+		clienteLat: &latDelCliente, clienteLng: &lngDelCliente, clienteDir: "Calle del cliente",
+	})
+	// Y uno que NO es manual: los tres del cliente salen, con la clave y a null.
+	q.sync = append(q.sync, pedidoSync{
+		id: ped2, sucursal: sucStg, nombre: "Normal", marca: time.Now().UTC().Add(-30 * time.Minute),
 	})
 
 	cambios := bajadaDe(t, q, tokenTab(t, sucStg.String()),
@@ -88,6 +97,10 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 		// El almacén del que sale (15/10/2026): sin él, «Sin colocar» no puede poner primero
 		// los del almacén elegido arriba en la APK y el escritorio.
 		"almacenSalidaCodigo",
+		// El punto de entrega puesto a mano (issue 19, 20/10/2026) y el punto del cliente al que se
+		// vuelve: el aparato pinta la parada diferenciada y vuelve al original SIN conexión.
+		"puntoManual", "puntoManualPor", "puntoManualAt",
+		"puntoClienteLat", "puntoClienteLng", "puntoClienteAddress",
 	})
 	// Y no basta con la clave: `"facturaAt": nil` también la tiene. El valor tiene que ser
 	// el del pedido, en el formato de las demás fechas.
@@ -97,6 +110,24 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 	}
 	if pedido["almacenSalidaCodigo"] != "2" {
 		t.Errorf("orders: almacenSalidaCodigo = %v, tendría que ser 2", pedido["almacenSalidaCodigo"])
+	}
+	if pedido["puntoManual"] != true || pedido["puntoManualPor"] != "p-stg" ||
+		pedido["puntoClienteLat"] != latDelCliente || pedido["puntoClienteLng"] != lngDelCliente ||
+		pedido["puntoClienteAddress"] != "Calle del cliente" {
+		t.Errorf("orders: el punto a mano no llegó con su valor: %v", pedido)
+	}
+	if m, _ := pedido["puntoManualAt"].(string); m != facturadoEl.Format(time.RFC3339Nano) {
+		t.Errorf("orders: puntoManualAt = %q, tendría que ser una fecha ISO", m)
+	}
+	// El pedido que no es manual: las claves están y valen false/null (no faltan).
+	normal := cambios["cambios"].(map[string]any)["orders"].(map[string]any)["puestos"].([]any)[1].(map[string]any)
+	for _, k := range []string{"puntoManualPor", "puntoManualAt", "puntoClienteLat", "puntoClienteLng", "puntoClienteAddress"} {
+		if v, hay := normal[k]; !hay || v != nil {
+			t.Errorf("orders: un pedido sin punto a mano trae %s = %v (hay=%v) y tenía que ser null", k, v, hay)
+		}
+	}
+	if normal["puntoManual"] != false {
+		t.Errorf("orders: puntoManual de un pedido normal = %v, tenía que ser false", normal["puntoManual"])
 	}
 	llego, _ := pedido["facturaAt"].(string)
 	esperada := facturadoEl.Format(time.RFC3339Nano)

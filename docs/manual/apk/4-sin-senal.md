@@ -62,8 +62,7 @@ paquete: eso la aplicación lo detecta.
 | **Entrar** | «Para entrar hace falta conexión. Una vez dentro, no.» Es a propósito: si no, dar de baja a alguien no serviría de nada |
 | **«Abrir en Google Maps»** y mandar el enlace por WhatsApp | Necesita el navegador y la red |
 | **Vehículos**: dar de alta, editar, dejar inactivo, borrar, marcar disponible | Se configuran con conexión. No hay cola para esto |
-| **Almacenes**: crear, editar, borrar | Viven en Accesos |
-| **Buscar una dirección** en Almacenes | Pregunta a un servicio de mapas. Pero **tocar en el mapa y escribir las coordenadas sí funcionan** |
+| **Almacenes** (la pantalla) | Se lee del servidor cada vez. **Solo se consultan: se editan en el CRM** |
 | **Sincronización** | Se lee del servidor cada vez, no guarda copia |
 | **Traer el día** y **Entregar el día** | Los dos son gestos contra el servidor |
 | **Ver el fondo de calles del mapa**, si no descargaste el mapa de Cuba | Las teselas vienen del servidor |

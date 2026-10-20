@@ -924,14 +924,18 @@ class _CroquisDeRutaState extends State<CroquisDeRuta> {
     final izquierda = (punto.donde.dx - ancho / 2)
         .clamp(4.0, math.max(4.0, tamano.width - ancho - 4))
         .toDouble();
-    final arriba = punto.donde.dy + 16 > tamano.height - 84
-        ? punto.donde.dy - 84
+    // Con la línea de «Punto puesto a mano» el globo mide una línea más.
+    final alto = punto.parada.manual ? 102.0 : 84.0;
+    final arriba = punto.donde.dy + 16 > tamano.height - alto
+        ? punto.donde.dy - alto
         : punto.donde.dy + 16;
 
     return [
       Positioned(
         left: izquierda,
-        top: arriba.clamp(4.0, math.max(4.0, tamano.height - 80)).toDouble(),
+        top: arriba
+            .clamp(4.0, math.max(4.0, tamano.height - (alto - 4)))
+            .toDouble(),
         width: ancho,
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -984,6 +988,16 @@ class _CroquisDeRutaState extends State<CroquisDeRuta> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                if (punto.parada.manual)
+                  const Text(
+                    'Punto puesto a mano',
+                    key: ValueKey('globo-punto-manual'),
+                    style: TextStyle(
+                      color: ColoresDelMapa.puntoManualEnGlobo,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1014,10 +1028,11 @@ class _CroquisDeRutaState extends State<CroquisDeRuta> {
 /// todo color, que es donde más contraste hace falta.
 ///
 /// Ahora cada renglón **pinta su símbolo de verdad** —el cuadro del almacén, el
-/// círculo numerado de la parada, el círculo verde de lo entregado y la raya
-/// del regreso—, con el texto en tinta y a 12. Si alguien cambia cómo se dibuja
-/// una marca en el mapa, tiene que cambiarla también aquí; por eso los colores
-/// salen de las mismas constantes y no de copias.
+/// círculo numerado de la parada, el círculo verde de lo entregado, la raya
+/// del regreso y el círculo ROJO del punto puesto a mano—, con el texto en tinta
+/// y a 12. Si alguien cambia cómo se dibuja una marca en el mapa, tiene que
+/// cambiarla también aquí; por eso los colores salen de las mismas constantes y
+/// no de copias.
 class _Leyenda extends StatelessWidget {
   const _Leyenda();
 
@@ -1029,12 +1044,13 @@ class _Leyenda extends StatelessWidget {
       _Renglon(simbolo: _Simbolo.almacen, texto: 'Punto de partida'),
       _Renglon(simbolo: _Simbolo.parada, texto: 'Paradas'),
       _Renglon(simbolo: _Simbolo.regreso, texto: 'Regreso al depósito'),
+      _Renglon(simbolo: _Simbolo.manual, texto: 'Punto puesto a mano'),
     ],
   );
 }
 
-/// Los cuatro símbolos que se dibujan en el mapa.
-enum _Simbolo { almacen, parada, entregada, regreso }
+/// Los símbolos que se dibujan en el mapa.
+enum _Simbolo { almacen, parada, entregada, regreso, manual }
 
 class _Renglon extends StatelessWidget {
   const _Renglon({required this.simbolo, required this.texto});
@@ -1138,6 +1154,13 @@ class _PintorDelSimbolo extends CustomPainter {
       case _Simbolo.entregada:
         _circulo(lienzo, centro, ColoresDelMapa.salida);
         _palomita(lienzo, centro);
+
+      // El punto puesto a mano es el mismo circulo numerado en ROJO: el cliente
+      // pidio entregar en otro sitio. El color es el unico rasgo que cambia, igual
+      // que en el mapa.
+      case _Simbolo.manual:
+        _circulo(lienzo, centro, ColoresDelMapa.puntoManual);
+        _numero(lienzo, centro, '1');
 
       // El regreso es la raya discontinua, con el mismo paso que el mapa.
       case _Simbolo.regreso:
@@ -1275,6 +1298,12 @@ String _rotuloDe(List<PuntoDelCroquis> grupo) {
 /// parada que sigue en el camion. Mientras quede una sin entregar, la chincheta
 /// es la del recorrido.
 Color _colorDe(List<PuntoDelCroquis> grupo) {
+  // EL PUNTO PUESTO A MANO MANDA SOBRE TODO (issue 19 de Amado): por encima de
+  // entregada y de regreso. Una parada que NO está donde dice el cliente se tiene
+  // que ver aunque ya se haya entregado. Y en un grupo (`2·3`), basta UNA manual
+  // para que salga rojo: quien conduce tiene que mirar ese portal dos veces, y
+  // pintarlo del color de las demás escondería justo la que está fuera de sitio.
+  if (grupo.any((p) => p.parada.manual)) return ColoresDelMapa.puntoManual;
   final queda = grupo.where((p) => !p.parada.entregada).toList();
   if (queda.isEmpty) return ColoresDelMapa.salida;
   return queda.any((p) => p.parada.esRegreso)

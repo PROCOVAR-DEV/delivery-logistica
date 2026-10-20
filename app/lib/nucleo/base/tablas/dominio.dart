@@ -258,6 +258,20 @@ class Orders extends Table {
   /// Nulo es «PEDIDO no lo mandó»: no es de ningún almacén.
   TextColumn get almacenSalidaCodigo => text().nullable()();
 
+  /// EL PUNTO DE ENTREGA PUESTO A MANO (issue 19 de Amado, 1.0.39). El cliente
+  /// pide entregar en otro sitio y el facturador lo apunta en el ticket: la
+  /// dirección no coincide con la geolocalización del cliente. El logístico le
+  /// pone a mano `endLat/endLng/endAddress`; ese punto manda sobre el del cliente
+  /// y sobrevive al espejo (lo hace el servidor).
+  /// `puntoCliente*` guarda el punto que traía el cliente, SOLO mientras el
+  /// pedido es manual: es a donde vuelve «Volver al punto del cliente» sin red.
+  BoolColumn get puntoManual => boolean().withDefault(const Constant(false))();
+  TextColumn get puntoManualPor => text().nullable()();
+  DateTimeColumn get puntoManualAt => dateTime().nullable()();
+  RealColumn get puntoClienteLat => real().nullable()();
+  RealColumn get puntoClienteLng => real().nullable()();
+  TextColumn get puntoClienteAddress => text().nullable()();
+
   TextColumn get customerPhone => text().nullable()();
 
   IntColumn get stopOrder => integer().nullable()();

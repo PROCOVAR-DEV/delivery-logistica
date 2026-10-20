@@ -31,6 +31,7 @@ Pedido _pedido(String id, {double kg = 10}) => Pedido(
   status: 'pending',
   tripLeg: 'ida',
   archivado: false,
+  puntoManual: false,
 );
 
 Vehiculo _camion(String id, String nombre, {String? sucursal = 'stg'}) =>

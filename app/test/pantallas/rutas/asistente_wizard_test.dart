@@ -497,6 +497,15 @@ void main() {
         matching: find.byType(Scrollable),
       ),
     );
+    // `scrollUntilVisible` se para en cuanto asoma el TEXTO, y desde que cada fila lleva
+    // su botón «Ubicar la entrega» (issue 19) el título tiene 56 px menos de ancho y a
+    // 390 px se parte en más líneas: el centro de la fila queda más abajo que el texto.
+    // Se trae la fila ENTERA a la vista antes de tocarla: lo que se comprueba sigue
+    // siendo que se alcanza.
+    await tester.ensureVisible(
+      find.widgetWithText(CheckboxListTile, 'Cliente 039'),
+    );
+    await tester.pump();
     await tester.tap(find.widgetWithText(CheckboxListTile, 'Cliente 039'));
     await asentar(tester);
     expect(find.textContaining('1 pedido seleccionado'), findsOneWidget);

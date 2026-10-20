@@ -200,8 +200,16 @@ class BaseLocal extends _$BaseLocal {
   /// ADITIVAS: la cola de `apuntes` no se toca. Lo que ya estaba se rellena por
   /// la bajada, una vez por aparato (`completas=vehicles,vehicle_types`, ver
   /// `Bajada.ciclo`). Ver el `desde < 11`.
+  ///
+  /// ## 12 — el punto de entrega puesto a mano (20/10/2026, issue 19 de Amado)
+  ///
+  /// `orders` gana `punto_manual` (false por defecto), `punto_manual_por`,
+  /// `punto_manual_at`, `punto_cliente_lat`, `punto_cliente_lng` y
+  /// `punto_cliente_address`. ADITIVAS: la cola de `apuntes` no se toca. Lo que ya
+  /// estaba se rellena con la bajada siguiente que traiga cada pedido. Ver el
+  /// `desde < 12`.
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -262,9 +270,9 @@ class BaseLocal extends _$BaseLocal {
         // migración que lanza deja la base sin abrir, o sea la cola del día
         // secuestrada. Pasa con una copia nacida con el esquema nuevo y el
         // `user_version` atrás.
-        final hay = (await customSelect('PRAGMA table_info(apuntes)').get())
-            .map((f) => f.read<String>('name'))
-            .toSet();
+        final hay = (await customSelect(
+          'PRAGMA table_info(apuntes)',
+        ).get()).map((f) => f.read<String>('name')).toSet();
         for (final columna in [
           apuntes.revision,
           apuntes.revisadoPor,
@@ -295,9 +303,9 @@ class BaseLocal extends _$BaseLocal {
         if (!tablas.contains(distribuidores.actualTableName)) {
           await m.createTable(distribuidores);
         }
-        final deRutas = (await customSelect('PRAGMA table_info(routes)').get())
-            .map((f) => f.read<String>('name'))
-            .toSet();
+        final deRutas = (await customSelect(
+          'PRAGMA table_info(routes)',
+        ).get()).map((f) => f.read<String>('name')).toSet();
         if (!deRutas.contains(routes.distribuidorId.name)) {
           await m.addColumn(routes, routes.distribuidorId);
         }
@@ -349,6 +357,24 @@ class BaseLocal extends _$BaseLocal {
 
         await siFalta(vehicleTypes, vehicleTypes.branchId);
         await siFalta(vehicles, vehicles.tipoNombre);
+      }
+      if (desde < 12) {
+        // EL PUNTO DE ENTREGA A MANO. Ver `Orders.puntoManual`. Falso/nulas: «el
+        // punto es el del cliente», la verdad de todo lo que ya hay. **Solo las que
+        // faltan**, por lo mismo que la 5, la 7, la 8, la 10 y la 11.
+        final hay = (await customSelect(
+          'PRAGMA table_info(orders)',
+        ).get()).map((f) => f.read<String>('name')).toSet();
+        for (final c in [
+          orders.puntoManual,
+          orders.puntoManualPor,
+          orders.puntoManualAt,
+          orders.puntoClienteLat,
+          orders.puntoClienteLng,
+          orders.puntoClienteAddress,
+        ]) {
+          if (!hay.contains(c.name)) await m.addColumn(orders, c);
+        }
       }
     },
     beforeOpen: (detalles) async {

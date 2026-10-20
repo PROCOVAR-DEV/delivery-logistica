@@ -91,6 +91,10 @@ type pedidoDeRutas struct {
 	entregadoEn *time.Time
 
 	renglones []sqlc.OrderItem
+
+	// El punto de entrega puesto a mano (`punto_de_entrega_test.go`). Valor cero = un pedido
+	// como los de siempre: sin almacén, sin marca y sin nada guardado.
+	punto puntoDelDoble
 }
 
 type rutaDeRutas struct {
@@ -145,6 +149,10 @@ type dobleDeRutas struct {
 	dondeEstanLlamadas int
 	// Los ids que llegaron a `DondeEstanLosPedidos` (que va SIN alcance): se acotan.
 	dondeEstanIds []uuid.UUID
+
+	// alBloquear corre justo antes de devolver el estado de una ruta bloqueada: ahí es donde una
+	// prueba mete la carrera (la ruta se completa, el pedido se entrega) que la lectura previa no vio.
+	alBloquear func()
 }
 
 // alcanza repite el `($n::uuid IS NULL OR branch_id = $n::uuid)` del SQL.
@@ -197,6 +205,9 @@ func (d *dobleDeRutas) ListarRutas(_ context.Context, arg sqlc.ListarRutasParams
 }
 
 func (d *dobleDeRutas) BloquearRuta(_ context.Context, p sqlc.BloquearRutaParams) (sqlc.RouteStatus, error) {
+	if d.alBloquear != nil { // la carrera: alguien cambia algo entre la lectura y el bloqueo
+		d.alBloquear()
+	}
 	r := d.rutas[p.ID]
 	if r == nil || !alcanza(p.Sucursal, r.sucursal) {
 		return "", pgx.ErrNoRows

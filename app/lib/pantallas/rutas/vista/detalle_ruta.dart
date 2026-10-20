@@ -35,6 +35,9 @@ import '../../distribuidores/datos/distribuidor_de_la_ruta.dart';
 import '../../distribuidores/vista/distribuidor_de_la_ruta.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
+import '../../pedidos/datos/acciones_de_pedido.dart'
+    show porQueNoSeLePuedeCambiarElPunto;
+import '../../pedidos/vista/cajon_ubicar_entrega.dart';
 import '../../pedidos/vista/kit.dart';
 import '../../pedidos/vista/vista_pre_despacho.dart';
 import '../datos/acciones_rutas.dart';
@@ -533,6 +536,12 @@ class _Acciones extends ConsumerWidget {
                   alQuitar: viva.status == EstadoRuta.planificada
                       ? () => _quitarDeLaRuta(context, ref, viva.id, parada)
                       : null,
+                  // Solo donde se puede: sin entregar y en una ruta no completada
+                  // (la misma pregunta que le hace el cajón y la acción).
+                  alUbicar:
+                      porQueNoSeLePuedeCambiarElPunto(parada, viva) == null
+                      ? () => abrirUbicarLaEntrega(context, parada.id)
+                      : null,
                 ),
               ),
             ),
@@ -971,12 +980,18 @@ class TarjetaDeParada extends StatelessWidget {
     this.origenLat,
     this.origenLng,
     this.alQuitar,
+    this.alUbicar,
     this.asa,
     super.key,
   });
 
   final int numero;
   final Pedido parada;
+
+  /// «Ubicar la entrega» (issue 19 de Amado): el cajón donde se le pone a mano el
+  /// punto de entrega a esta parada. `null` donde no se puede (parada entregada o
+  /// ruta completada), y entonces no se enseña el botón.
+  final VoidCallback? alUbicar;
 
   /// El asa para arrastrar la parada a otro sitio del orden (`ParadasOrdenables`),
   /// o `null` donde no se reordena.
@@ -1109,14 +1124,43 @@ class TarjetaDeParada extends StatelessWidget {
                       ),
                   ],
                 ),
-                if (alQuitar != null) ...[
+                // EL PUNTO PUESTO A MANO, a la vista: esta parada NO está donde dice la
+                // geolocalización del cliente (issue 19 de Amado).
+                if (parada.puntoManual) ...[
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Insignia(
+                      'Punto puesto a mano',
+                      key: ValueKey('parada-punto-manual-${parada.id}'),
+                      color: Colores.ambar,
+                      tooltip: (parada.puntoManualPor ?? '').isEmpty
+                          ? null
+                          : 'Lo puso ${parada.puntoManualPor}',
+                    ),
+                  ),
+                ],
+                if (alUbicar != null || alQuitar != null) ...[
                   const SizedBox(height: 6),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: alQuitar,
-                      icon: const Icon(Icons.remove_circle_outline),
-                      label: const Text('Quitar de ruta'),
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      children: [
+                        if (alUbicar != null)
+                          TextButton.icon(
+                            key: ValueKey('parada-ubicar-${parada.id}'),
+                            onPressed: alUbicar,
+                            icon: const Icon(Icons.edit_location_alt_outlined),
+                            label: const Text('Ubicar la entrega'),
+                          ),
+                        if (alQuitar != null)
+                          TextButton.icon(
+                            onPressed: alQuitar,
+                            icon: const Icon(Icons.remove_circle_outline),
+                            label: const Text('Quitar de ruta'),
+                          ),
+                      ],
                     ),
                   ),
                 ],

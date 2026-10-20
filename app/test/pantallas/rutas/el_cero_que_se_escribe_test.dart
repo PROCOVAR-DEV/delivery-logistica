@@ -281,6 +281,7 @@ void main() {
       status: EstadoPedido.pendiente,
       tripLeg: Tramo.ida,
       archivado: false,
+      puntoManual: false,
       price: price,
       pedidoCosto: costo,
     );

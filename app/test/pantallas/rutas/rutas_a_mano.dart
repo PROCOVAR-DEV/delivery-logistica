@@ -53,6 +53,7 @@ Pedido paradaAMano({
   tripLeg: tramo,
   resultado: resultado,
   archivado: false,
+  puntoManual: false,
 );
 
 RutaConTodo rutaAMano({

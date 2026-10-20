@@ -27,7 +27,7 @@
 ///
 /// ## El nombre lleva su pantalla delante, y hace falta
 ///
-/// `vehiculos-guardar` y `almacenes-guardar` son dos botones que dicen «Guardar».
+/// `vehiculos-guardar` y el «Guardar» de otra pantalla son dos botones iguales.
 /// Sin el prefijo, el segundo que se escriba parece un duplicado del primero y
 /// alguien lo borra.
 library;
@@ -161,22 +161,11 @@ abstract final class Senalado {
 
   // --------------------------------------------------------------- ALMACENES
   static const almacenesSucursal = 'almacenes-sucursal';
-  static const almacenesNuevo = 'almacenes-nuevo';
-  static const almacenesAbrir = 'almacenes-abrir';
-  static const almacenesNombre = 'almacenes-nombre';
-  static const almacenesPrincipal = 'almacenes-principal';
-  static const almacenesActivo = 'almacenes-activo';
-  static const almacenesQuitar = 'almacenes-quitar';
-  static const almacenesDireccion = 'almacenes-direccion';
-  static const almacenesBuscarLaDireccion = 'almacenes-buscar-la-direccion';
-  static const almacenesCoordenadas = 'almacenes-coordenadas';
-  static const almacenesMapa = 'almacenes-mapa';
-  static const almacenesGuardar = 'almacenes-guardar';
 
   // ------------------------------------------------------- DE TODA LA CASA
   /// El «Sí, borrar «X»» de la pregunta de antes de borrar
   /// (`diseno/preguntar_antes_de_borrar.dart`). Uno para las cinco tareas que
-  /// acaban ahi: la ruta, el camion, el almacen y la zona.
+  /// acaban ahi: la ruta, el camion y la zona (el almacen ya no: Reparto no los borra).
   static const confirmarElBorrado = 'confirmar-el-borrado';
 
   // ------------------------------------------------------- LA BARRA DE ARRIBA
@@ -405,17 +394,6 @@ abstract final class Senalado {
     vehiculosAnadirTipo,
     vehiculosGuardarTipos,
     almacenesSucursal,
-    almacenesNuevo,
-    almacenesAbrir,
-    almacenesNombre,
-    almacenesPrincipal,
-    almacenesActivo,
-    almacenesQuitar,
-    almacenesDireccion,
-    almacenesBuscarLaDireccion,
-    almacenesCoordenadas,
-    almacenesMapa,
-    almacenesGuardar,
     confirmarElBorrado,
     barraSucursal,
     barraElegirSucursal,

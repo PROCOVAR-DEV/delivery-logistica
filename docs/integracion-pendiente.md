@@ -35,7 +35,8 @@ desde el que se le diga.
    (`orders.almacen_salida_codigo` + nombre): CAM 2 PV CAMAGUEY · 13 ALM CAMAGUEY; GTO 2 PV GTMO · 3 ALM
    CENTRAL; HOL 2 PV HOLGUIN; HAB 22 HABANA HACENDADO; TUN 1 PV-TUNAS; SS 123 ALM S-SPIRITUS · 122 TIENDA
    S-SPIRITUS; STG 1 PV-STGO · 2 AURORA. **Faltan FLORIDA (CAM), PV BAYAMO (GR) y PUNTO J (HAB)**: ningún pedido
-   ha salido de ellos y su código se escribe en la pantalla de Almacenes. Efecto, comprobado el
+   ha salido de ellos y su código se escribe en la pantalla de Almacenes (**desde el 20/10/2026 esa
+   escritura vive en el CRM: Reparto ya no gestiona almacenes, solo los lee; el `PUT /api/almacenes` se quitó**). Efecto, comprobado el
    09/10/2026 a las 21:07 UTC (pasados ~10 min, por la caché de 5 min de la lista de almacenes): un pedido de
    La Habana que se actualizó salió con código 22 → HABANA HACENDADO y motivo `almacen-del-pedido`. **Los
    pedidos nuevos o que cambian** se miden desde su almacén (`almacen_salida_*`, kilometraje y precio del

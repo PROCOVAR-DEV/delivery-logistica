@@ -1,3 +1,6 @@
+// Reutilizable para elegir un punto en el mapa (hoy sin pantalla que lo use: Reparto ya no
+// edita almacenes; lo aprovechara poner a mano el punto de entrega de un pedido).
+//
 // LA GEOCODIFICACION: las dos vias de poner un punto que NECESITAN RED, y lo
 // que se dice exactamente cuando no la hay.
 //
@@ -70,8 +73,8 @@ library;
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../nucleo/plataforma.dart';
-import '../../../nucleo/registro/registro.dart';
+import '../../nucleo/plataforma.dart';
+import '../../nucleo/registro/registro.dart';
 import 'coordenadas.dart';
 
 /// Nominatim, sin clave de API. Las mismas constantes de `reglas-negocio.md` §9.
@@ -101,7 +104,7 @@ class PuntoHallado extends BusquedaDeDireccion {
   final PuntoEnElMapa punto;
 
   /// El nombre completo que le da Nominatim, si lo trae. Es una **sugerencia**:
-  /// no pisa lo que haya escrito una persona (ver `editor_almacen.dart`).
+  /// no pisa lo que haya escrito una persona (el editor que lo use).
   final String? comoLoLlama;
 }
 

@@ -62,8 +62,8 @@ Por orden de probabilidad:
 | **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión se dio de baja. Elige otro, o actívalo en Vehículos si ha vuelto |
 | **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Alguien se te adelantó, o el pedido cambió. Quítalo y vuelve |
 | **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Saca pedidos o cambia de camión |
-| **«Las coordenadas del punto de partida son requeridas»** | La sucursal no tiene almacén con punto. Se arregla en Almacenes |
-| **«Esta sucursal no tiene ningún almacén con ubicación»** | Botón **«Poner el almacén»** |
+| **«Las coordenadas del punto de partida son requeridas»** | La sucursal no tiene almacén con punto. Se arregla en el CRM (Almacenes solo lo muestra) |
+| **«Esta sucursal no tiene ningún almacén con ubicación»** | Los almacenes se ponen en el CRM. El botón **«Ver los almacenes»** solo lleva a la consulta |
 | **«Esta sucursal no tiene ningún vehículo dado de alta»** | Botón **«Agregar el primer vehículo»** |
 | **«Los vehículos de esta sucursal están inactivos…»** | Hay camiones, pero ninguno se puede ofrecer: actívalo en Vehículos |
 | **«Camión 1 está marcado EN EL TALLER. La ruta se arma igual…»** | Es un aviso en ámbar, no un error: la ruta se arma. Si el camión ya volvió, sácalo del taller en Vehículos |
@@ -164,9 +164,7 @@ sin red no hay ninguno.
 
 - **Entrar.** «Para entrar hace falta conexión. Una vez dentro, no.»
 - **«Abrir en Google Maps»** y mandar el enlace por WhatsApp.
-- **Buscar una dirección** en Almacenes (pero poner el punto en el mapa o escribir
-  las coordenadas **sí** funciona).
-- **Almacenes** entero: se configura con conexión. (Los vehículos, tipos y distribuidores sí funcionan sin ella, desde la 1.0.38.)
+- **Almacenes** entero: se lee del servidor con conexión, y solo se consulta (se edita en el CRM). (Los vehículos, tipos y distribuidores sí funcionan sin ella, desde la 1.0.38.)
 - **Sincronización**: se lee del servidor cada vez.
 - **El fondo de calles del mapa**, si no descargaste el mapa de Cuba. Las paradas y
   el recorrido se siguen dibujando.

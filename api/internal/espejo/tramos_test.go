@@ -1,6 +1,7 @@
 package espejo
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -10,10 +11,40 @@ import (
 // y que nadie sabe por qué.
 var hoy = time.Date(2026, 9, 14, 11, 0, 0, 0, time.UTC)
 
+// conPlazo corre `f` con un plazo y hace que un bucle infinito sea un FALLO y no un cuelgue.
+//
+// `Tramos` y `Trozos` son bucles que avanzan sumando un paso: si alguien rompe el paso (`d += 0`),
+// se quedan dando vueltas y añadiendo a una lista para siempre. La mutación de la auditoría del
+// 20/10/2026 (v-tramo-sin-siguiente) dejó la suite colgada 255 s con la memoria creciendo. Una
+// función pura no se puede interrumpir desde fuera, así que se corre en su hilo y se espera con
+// un temporizador; si vence, la prueba falla con un mensaje que dice qué pasó.
+func conPlazo(t *testing.T, que string, f func()) {
+	t.Helper()
+	plazo := 500 * time.Millisecond
+	if d, ok := t.Deadline(); ok {
+		if resto := time.Until(d) / 2; resto < plazo {
+			plazo = resto
+		}
+	}
+	ctx, cancelar := context.WithTimeout(context.Background(), plazo)
+	defer cancelar()
+	hecho := make(chan struct{})
+	go func() {
+		defer close(hecho)
+		f()
+	}()
+	select {
+	case <-hecho:
+	case <-ctx.Done():
+		t.Fatalf("%s no terminó en %v: un bucle que no avanza (¿se rompió el paso `+= tramoDias`/`+= tamano`?)", que, plazo)
+	}
+}
+
 func TestTramosVanDeLoNuevoALoViejo(t *testing.T) {
 	// Es la propiedad que importa: si el proceso se para a mitad del recorrido, lo que ya
 	// está traído tiene que ser lo RECIENTE, que es con lo que se trabaja hoy.
-	tramos := Tramos(hoy, 9, 0, 3)
+	var tramos []Tramo
+	conPlazo(t, "Tramos(9, 0, 3)", func() { tramos = Tramos(hoy, 9, 0, 3) })
 	if len(tramos) != 4 {
 		t.Fatalf("se esperaban 4 tramos, salieron %d: %+v", len(tramos), tramos)
 	}
@@ -31,7 +62,8 @@ func TestTramosVanDeLoNuevoALoViejo(t *testing.T) {
 func TestElUltimoTramoNoSePasaDelHistoricoPedido(t *testing.T) {
 	// Sin el recorte, el barrido traería días que nadie pidió — y al final del histórico
 	// eso es pedirle a PEDIDO un año más de golpe.
-	tramos := Tramos(hoy, 4, 0, 3)
+	var tramos []Tramo
+	conPlazo(t, "Tramos(4, 0, 3)", func() { tramos = Tramos(hoy, 4, 0, 3) })
 	ultimo := tramos[len(tramos)-1]
 	quiero := hoy.AddDate(0, 0, -4).Format(FormatoDeFecha)
 	if ultimo.Desde != quiero {
@@ -40,7 +72,8 @@ func TestElUltimoTramoNoSePasaDelHistoricoPedido(t *testing.T) {
 }
 
 func TestUnTramoDeUnSoloDiaTieneLosDosBordesIguales(t *testing.T) {
-	tramos := Tramos(hoy, 0, 0, 3)
+	var tramos []Tramo
+	conPlazo(t, "Tramos(0, 0, 3)", func() { tramos = Tramos(hoy, 0, 0, 3) })
 	if len(tramos) != 1 {
 		t.Fatalf("se esperaba un tramo, salieron %d", len(tramos))
 	}
@@ -52,12 +85,14 @@ func TestUnTramoDeUnSoloDiaTieneLosDosBordesIguales(t *testing.T) {
 func TestUnIntervaloAlRevesNoDevuelveNada(t *testing.T) {
 	// Al revés significa que alguien se equivocó de orden en los argumentos. Devolver
 	// «nada» es lo correcto: lo otro es recorrer el año entero sin que nadie lo pidiera.
-	if tramos := Tramos(hoy, 0, 30, 3); tramos != nil {
-		t.Errorf("un intervalo al revés tenía que dar nada; dio %+v", tramos)
-	}
-	if tramos := Tramos(hoy, 30, 0, 0); tramos != nil {
-		t.Errorf("un tramo de cero días tenía que dar nada; dio %+v", tramos)
-	}
+	conPlazo(t, "Tramos al revés", func() {
+		if tramos := Tramos(hoy, 0, 30, 3); tramos != nil {
+			t.Errorf("un intervalo al revés tenía que dar nada; dio %+v", tramos)
+		}
+		if tramos := Tramos(hoy, 30, 0, 0); tramos != nil {
+			t.Errorf("un tramo de cero días tenía que dar nada; dio %+v", tramos)
+		}
+	})
 }
 
 func TestElBarridoNoPisaElRepasoCorto(t *testing.T) {
@@ -125,7 +160,8 @@ func TestTrozosParteLaTandaSinPerderNiRepetir(t *testing.T) {
 	for i := range 7 {
 		todos = append(todos, i)
 	}
-	trozos := Trozos(todos, 3)
+	var trozos [][]int
+	conPlazo(t, "Trozos(7, 3)", func() { trozos = Trozos(todos, 3) })
 	if len(trozos) != 3 || len(trozos[2]) != 1 {
 		t.Fatalf("7 en trozos de 3 son 3 trozos y el último de 1; salió %+v", trozos)
 	}
@@ -136,9 +172,11 @@ func TestTrozosParteLaTandaSinPerderNiRepetir(t *testing.T) {
 	if visto != len(todos) {
 		t.Errorf("se perdieron elementos: %d de %d", visto, len(todos))
 	}
-	if Trozos(todos, 0) != nil || Trozos([]int{}, 3) != nil {
-		t.Error("ni un tamaño de cero ni una tanda vacía pueden devolver trozos")
-	}
+	conPlazo(t, "Trozos de tamaño cero o tanda vacía", func() {
+		if Trozos(todos, 0) != nil || Trozos([]int{}, 3) != nil {
+			t.Error("ni un tamaño de cero ni una tanda vacía pueden devolver trozos")
+		}
+	})
 }
 
 func TestDiaMasViejoEsElBordePorElQueSeSiguePidiendo(t *testing.T) {

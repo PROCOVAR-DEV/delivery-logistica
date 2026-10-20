@@ -214,7 +214,6 @@ void main() {
           '5. Armar la ruta',
           'Renombrar, vaciar o borrar una zona',
           'Dar de alta un camión',
-          'Poner o corregir un almacén',
           'Paso 2 — Al menos un vehículo',
           'Paso 3 — Al menos un almacén con su punto puesto',
         };

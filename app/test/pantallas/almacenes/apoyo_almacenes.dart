@@ -11,7 +11,9 @@ import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/servidor_falso.dart';
 
 /// El mismo banco que el de Vehiculos y por el mismo motivo: la base local va de
-/// verdad para poder demostrar que **no se toca**.
+/// verdad para poder demostrar que **no se toca**. La pantalla es de SOLO
+/// LECTURA (los almacenes se editan en el CRM): `servidor.vistas` sirve para
+/// demostrar que nunca sale nada que no sea un GET.
 ///
 /// Es una copia deliberada de `../vehiculos/apoyo_vehiculos.dart`: las pruebas
 /// de una pantalla no dependen de las de otra, para que borrar una pantalla no

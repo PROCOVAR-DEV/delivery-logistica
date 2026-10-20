@@ -524,6 +524,11 @@ func TestLaListaBlancaDeMetodoYRuta(t *testing.T) {
 			{"ruta": "/vehicle-types/x/y"}, {"ruta": "/vehicle-types/."}, {"ruta": "/vehicle-types-extra"}, {"ruta": "/vehicle-types/"},
 			{"ruta": "/distribuidores/x/y"}, {"ruta": "/distribuidores/."}, {"ruta": "/distribuidoresx"}, {"ruta": "/distribuidores/"},
 			{"ruta": "/vehicle"}, {"ruta": "/vehicle-typesx/a"}, {"ruta": "/vehicles?x=.."}, {"ruta": "/vehicles//a"},
+			// EL PUNTO DE ENTREGA (issue 19): sólo la forma exacta `/orders/{id}/punto`. `/orders` y `/orders/{id}` siguen
+			// FUERA (este último es `DELETE /api/orders/{id}`, que borra el pedido), y ni más profundidad ni punto ni vacío.
+			{"ruta": "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, {"ruta": "/orders/a/b"}, {"ruta": "/orders/./punto"},
+			{"ruta": "/orders//punto"}, {"ruta": "/orders/x/punto/y"}, {"ruta": "/orders/x/punto/"}, {"ruta": "/orders/punto"},
+			{"ruta": "/orders/x/puntos"}, {"ruta": "/orders/a.b/punto"}, {"ruta": "/orders/x/punto?a=.."},
 			{"provisional": "local-"},
 			{"provisional": "no-es-local"},
 			{"provisional": "local-a-b"},
@@ -563,6 +568,9 @@ func TestLaListaBlancaDeMetodoYRuta(t *testing.T) {
 			{"POST", "/vehicles"}, {"PATCH", "/vehicles/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, {"DELETE", "/vehicles/local-9f3a"},
 			{"POST", "/vehicle-types"}, {"PATCH", "/vehicle-types/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, {"DELETE", "/vehicle-types/local-9f3a"},
 			{"POST", "/distribuidores"}, {"PATCH", "/distribuidores/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, {"DELETE", "/distribuidores/local-9f3a"},
+			// EL PUNTO DE ENTREGA SIN SEÑAL (issue 19): poner el punto a mano y volver al del cliente.
+			{"PUT", "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff/punto"}, {"DELETE", "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff/punto"},
+			{"PUT", "/orders/local-9f3a/punto"},
 		}
 		// OJO, cambio de significado respecto a S1: `POST /board` estaba aquí como buena y NO es una ruta de
 		// escritura de la API (sólo `GET /api/board`); la lista por forma la rechaza, y está arriba con las malas.

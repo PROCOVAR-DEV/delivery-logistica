@@ -1,4 +1,7 @@
-// EL MAPA PARA PONER EL PUNTO DE UN ALMACEN: la tercera via, la de pulsar.
+// EL MAPA PARA ELEGIR UN PUNTO: la tercera via, la de pulsar.
+//
+// Reutilizable para elegir un punto en el mapa (hoy sin pantalla que lo use: Reparto
+// ya no edita almacenes; lo aprovechara poner a mano el punto de entrega de un pedido).
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // NO TRAE NINGUNA BIBLIOTECA DE MAPAS, Y NO DIBUJA NINGUNA TESELA PROPIA
@@ -43,11 +46,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../diseno/colores.dart';
-import '../../rutas/datos/mapa_en_vivo.dart';
-import '../../rutas/vista/croquis_de_ruta.dart'
+import '../../diseno/colores.dart';
+import '../../pantallas/rutas/datos/mapa_en_vivo.dart';
+import '../../pantallas/rutas/vista/croquis_de_ruta.dart'
     show aLoAlto, aLoAncho, altoDelMapa, ladoDeTesela;
-import '../datos/coordenadas.dart';
+import 'coordenadas.dart';
 
 /// EL CENTRO POR DEFECTO: Cuba entera.
 ///

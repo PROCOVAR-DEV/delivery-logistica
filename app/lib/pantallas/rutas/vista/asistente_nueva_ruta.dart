@@ -37,6 +37,8 @@ import '../../distribuidores/vista/selector_de_distribuidor.dart';
 import '../../pedidos/datos/formato.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/estado/proveedores_pedidos.dart';
+import '../../pedidos/vista/cajon_ubicar_entrega.dart'
+    show abrirUbicarLaEntrega;
 import '../../pedidos/vista/kit.dart';
 import '../../pedidos/vista/vista_pre_despacho.dart';
 import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
@@ -52,8 +54,8 @@ class AsistenteNuevaRuta extends ConsumerStatefulWidget {
   const AsistenteNuevaRuta({super.key});
 
   static const sinAlmacenes =
-      'Esta sucursal no tiene ningún almacén con ubicación. Se pone en '
-      'Almacenes, y hasta entonces no hay desde dónde medir.';
+      'Esta sucursal no tiene ningún almacén con ubicación. Los almacenes se '
+      'ponen en el CRM, y hasta entonces no hay desde dónde medir.';
 
   static const sinVehiculos =
       'No hay vehículos disponibles. Crea o libera uno en Vehículos para poder '
@@ -64,7 +66,9 @@ class AsistenteNuevaRuta extends ConsumerStatefulWidget {
   /// dejar ahí a alguien es obligarle a salir, buscarla en el menú, hacerlo y
   /// volver a empezar el asistente desde el paso 1.
   static const irAVehiculos = 'Agregar el primer vehículo';
-  static const irAAlmacenes = 'Poner el almacén';
+  // Desde el 20/10/2026 los almacenes se editan en el CRM: este botón lleva a la
+  // pantalla de CONSULTA, y su rótulo ya no promete que se pueda poner uno aquí.
+  static const irAAlmacenes = 'Ver los almacenes';
 
   static const sinPedidos = 'No hay pedidos disponibles para rutear.';
 
@@ -1700,6 +1704,16 @@ class _FilaDisponible extends StatelessWidget {
       dense: true,
       value: marcado,
       onChanged: cabe ? (_) => alMarcar() : null,
+      // «UBICAR LA ENTREGA» (issue 19 de Amado): el cliente pidió entregar en otro
+      // sitio y el punto se pone AQUÍ, al armar, sin salir del asistente. Es un botón
+      // aparte: pulsarlo no marca ni desmarca la casilla. Va con su propio
+      // `Tooltip`, que le gana al del renglón entero.
+      secondary: IconButton(
+        key: ValueKey('asistente-ubicar-${pedido.id}'),
+        tooltip: 'Ubicar la entrega',
+        icon: const Icon(Icons.edit_location_alt_outlined),
+        onPressed: () => abrirUbicarLaEntrega(context, pedido.id),
+      ),
       // La factura y su fecha mandan sobre el cliente (issue 17 de Amado).
       title: FacturaYCliente(
         facturaNumero: pedido.facturaNumero,

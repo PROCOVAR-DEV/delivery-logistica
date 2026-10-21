@@ -39,9 +39,9 @@ facturado. Ver [Las reglas del reparto](../las-reglas-del-reparto.md).
 | Filtro | Por defecto | Qué hace |
 |---|---|---|
 | **Buscar** | vacío | Busca en cliente, folio, dirección, municipio, vendedor y productos. Busca solo, sin Intro |
-| **«Estado de reparto en delivery»** | «Cualquier reparto» | «Sin entregar», «En despacho», «En ruta», «Entregado», «Devuelto o cancelado» |
+| **«Estado de reparto en delivery»** | «Cualquier reparto» | «Sin entregar», «En despacho», «En ruta», «Entregado», «Devuelto o cancelado». **Cada opción lleva al lado cuántas facturas hay en ese estado** (con el resto de filtros puestos) |
 | **«Municipio del cliente»** | «Todos los municipios» | Cada municipio con cuántas facturas tiene |
-| **«Precio del pedido»** | «Cualquier precio» | «Con precio puesto» o «Sin cotizar». Es el precio que cotizó Entrega al pedido, así que **sólo cuenta para las facturas que vienen de un pedido** |
+| **«Cobro del domicilio»** | «Cualquier cobro» | «Con cobro: el domicilio trae importe» o «Sin cobro: el domicilio va en $0». **No es cuentas por cobrar:** no dice si el cliente ya pagó la factura, sino si la línea de entrega a domicilio de la factura trae un importe o va a cero |
 | **«Pedido de origen»** | «Con o sin pedido» | «Con pedido» o «Sin pedido»: si la factura viene de un pedido de PEDIDO (tiene su folio) o no |
 | **«Vendedor del pedido»** | «Todos los vendedores» | **Uno o varios**: un cajón con una casilla por vendedor (con cuántas facturas tiene cada uno); salen los de cualquiera de los marcados. «Todos los vendedores» limpia, y la caja dice «3 vendedores» si hay varios |
 | **«Cómo se ordena esta página»** | «Más recientes» | «Más antiguos», «Precio: mayor a menor», «Precio: menor a mayor», «Distancia: más larga», «Peso: mayor» |
@@ -154,7 +154,7 @@ en verde o con el `!`):
 | Qué se ve | Qué significa |
 |---|---|
 | **«Dom. $0.46»** en verde | La factura trae la línea «ENTREGA A DOMICILIO» y cobra ese importe: el domicilio está cobrado |
-| **«Sin cobro de domicilio»** en gris | «La factura no trae la línea ENTREGA A DOMICILIO. No impide ir a una ruta: en «Cobro del domicilio» se filtra por con cobro o sin cobro.» |
+| **«Sin cobro de domicilio»** en gris | «La factura no trae la línea ENTREGA A DOMICILIO. No impide ir a una ruta.» |
 
 Así se ve **antes de marcar** si una factura trae el domicilio cobrado o no: hay factura, pero
 puede que no cobrara el domicilio. Con «sin facturar» o «sin cotejar»

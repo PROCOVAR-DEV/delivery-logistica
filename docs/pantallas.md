@@ -109,9 +109,9 @@ y siempre `, del más nuevo al más viejo`. Indicador giratorio mientras refresc
 
 | Control | Título (literal) | Opción «todos» | Opciones | Parámetro |
 |---|---|---|---|---|
-| Selector | `Estado de reparto en delivery` | `Cualquier reparto` (por defecto) | `Sin entregar`=`sin_entregar`, `En despacho`=`en_despacho`, `En ruta`=`en_ruta`, `Entregado`=`entregado`, `Devuelto o cancelado`=`devuelto` | `reparto` |
+| Selector | `Estado de reparto en delivery` | `Cualquier reparto` (por defecto) | `Sin entregar`=`sin_entregar`, `En despacho`=`en_despacho`, `En ruta`=`en_ruta`, `Entregado`=`entregado`, `Devuelto o cancelado`=`devuelto`; cada opción lleva de nota cuántas facturas hay en ese estado (`conteoPorRepartoProvider`) | `reparto` |
 | Selector | `Municipio del cliente` | `Todos los municipios` (defecto) | de facetas, con el nº de facturas como nota | `municipio` |
-| Selector | `Precio del pedido` | `Cualquier precio` (defecto) | `Con precio puesto`=`1`, `Sin cotizar`=`0`; **sólo cuenta para las facturas con pedido** (`folio` no nulo) | `cotizado` |
+| Selector | `Cobro del domicilio` | `Cualquier cobro` (defecto) | `Con cobro: el domicilio trae importe`=`con` (`facturaDomicilio > 0`), `Sin cobro: el domicilio va en $0`=`sin` (nulo o ≤ 0). No es cuentas por cobrar | `cobro` |
 | Selector | `Pedido de origen` | `Con o sin pedido` (defecto) | `Con pedido`=`con`, `Sin pedido`=`sin` (por `folio`) | `pedido` |
 | Selector **de varios** (cajón con casillas, `SelectorMultiple`; issue 18 de Amado) | `Vendedor de la factura` | `Todos los vendedores` (defecto); «3 vendedores» si hay varios | de facetas, con nº de facturas | `vendedor` repetido (o `vendedores=a,b`) |
 | Dos fechas | tooltip `Desde (fecha de la factura)` / `Hasta (fecha de la factura)` | vacías | `desde` acota el `max` de `hasta` y viceversa | `desde`, `hasta` |

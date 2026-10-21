@@ -336,6 +336,7 @@ class _BarraDeFiltros extends ConsumerWidget {
     final filtros = ref.watch(filtrosPedidosProvider);
     final notas = ref.read(filtrosPedidosProvider.notifier);
     final facetas = ref.watch(facetasPedidosProvider).value ?? Facetas.vacias;
+    final conteoDeReparto = ref.watch(conteoPorRepartoProvider).value;
 
     // La colocación la decide `BarraDeFiltros` y no esta pantalla: caja de
     // buscar arriba y a todo el ancho, y los desplegables en rejilla de dos
@@ -390,7 +391,13 @@ class _BarraDeFiltros extends ConsumerWidget {
             valor: filtros.reparto,
             opciones: [
               for (final r in RepartoFiltro.values)
-                OpcionSelector(r, r.etiqueta),
+                OpcionSelector(
+                  r,
+                  r.etiqueta,
+                  nota: conteoDeReparto == null
+                      ? null
+                      : '${conteoDeReparto[r]}',
+                ),
             ],
             alElegir: (r) => notas.cambiar((f) => f.copiarCon(reparto: r)),
           ),
@@ -409,20 +416,20 @@ class _BarraDeFiltros extends ConsumerWidget {
             alElegir: (m) => notas.cambiar((f) => f.copiarCon(municipio: m)),
           ),
         ),
-        Selector<CotizadoFiltro>(
-          key: const ValueKey('Precio del pedido'),
-          titulo: 'Precio del pedido',
-          valor: filtros.cotizado,
+        // EL COBRO DEL DOMICILIO es de la FACTURA, no de Entrega (Amado, 21/10/2026: «comenta lo de
+        // cobradas o no»): no es cuentas por cobrar, es si la línea de entrega a domicilio de la
+        // factura trae importe o va en $0. Las opciones lo dicen.
+        Selector<CobroFiltro>(
+          key: const ValueKey('Cobro del domicilio'),
+          titulo: 'Cobro del domicilio',
+          valor: filtros.cobro,
           opciones: [
-            for (final c in CotizadoFiltro.values)
-              OpcionSelector(c, c.etiqueta),
+            for (final c in CobroFiltro.values) OpcionSelector(c, c.etiqueta),
           ],
-          alElegir: (c) => notas.cambiar((f) => f.copiarCon(cotizado: c)),
+          alElegir: (c) => notas.cambiar((f) => f.copiarCon(cobro: c)),
         ),
-        // LA FACTURA ES LA FILA, EL PEDIDO UN EXTRA (21/10/2026, Jose). Estos dos son de la
-        // factura: de qué pedido viene (si viene de alguno). El
-        // «Precio del pedido» de arriba es de Entrega, o sea del pedido: sólo cuenta para
-        // las que traen uno.
+        // LA FACTURA ES LA FILA, EL PEDIDO UN EXTRA (21/10/2026, Jose): de qué pedido viene la
+        // factura, si viene de alguno.
         Selector<PedidoFiltro>(
           key: const ValueKey('Pedido de origen'),
           titulo: 'Pedido de origen',

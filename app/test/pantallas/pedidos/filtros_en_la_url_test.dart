@@ -136,7 +136,7 @@ void main() {
           municipio: 'Centro Habana',
           vendedores: ['Ana Pérez', 'Pérez, Juan'],
           reparto: RepartoFiltro.enDespacho,
-          cotizado: CotizadoFiltro.sinCotizar,
+          cobro: CobroFiltro.sinCobro,
           factura: FacturaFiltro.cuadra,
           archivado: ArchivadoFiltro.si,
           orden: OrdenLocal.pesoDesc,

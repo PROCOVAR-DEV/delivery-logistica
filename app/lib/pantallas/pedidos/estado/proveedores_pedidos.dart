@@ -225,6 +225,33 @@ final facetasPedidosProvider = StreamProvider<Facetas>((ref) {
   }();
 });
 
+/// CUÁNTAS FACTURAS HAY EN CADA ESTADO DE REPARTO, con el resto de filtros puestos (21/10/2026, Jose:
+/// «no vi los estados de las facturas»). Es la nota de cada opción de «Estado de reparto»: así se ve de un
+/// vistazo cuántas están sin entregar, en despacho, en ruta, entregadas o devueltas, sin ir probando
+/// opción por opción. STREAM por lo mismo que [facetasPedidosProvider]: en la web la base nace vacía y
+/// se llena un segundo después.
+final conteoPorRepartoProvider = StreamProvider<Map<RepartoFiltro, int>>((ref) {
+  final base = ref.watch(baseProvider);
+  final consultas = ref.watch(consultasPedidosProvider);
+  final sucursal = ref.watch(sucursalMiradaProvider);
+  final filtros = ref.watch(filtrosPedidosProvider);
+
+  Future<Map<RepartoFiltro, int>> mirar() async => {
+    for (final r in RepartoFiltro.values)
+      r: await consultas.contarYa(
+        filtros.copiarCon(reparto: r),
+        sucursalId: sucursal,
+      ),
+  };
+
+  return () async* {
+    yield await mirar();
+    yield* base
+        .tableUpdates(TableUpdateQuery.onTable(base.orders))
+        .asyncMap((_) => mirar());
+  }();
+});
+
 /// El pre-despacho de LO FILTRADO. Se pide sólo cuando se abre el bloque
 /// plegable, igual que en la de Next: sumar doce mil pedidos al pintar la
 /// pantalla es trabajo que casi nunca se mira.

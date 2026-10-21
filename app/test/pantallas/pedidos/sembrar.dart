@@ -239,7 +239,7 @@ Future<void> sembrarLosOnce(BaseLocal base) async {
     cliente: 'Beto',
     municipio: 'Florida',
     facturaEstado: EstadoFactura.cambiado,
-    // Sin cotizar: es el unico, y con el se comprueba `cotizado=0`.
+    // Sin cotizar en Entrega: el precio de Entrega ya no es un filtro de la pantalla.
     pedidoCosto: null,
     fecha: DateTime(2026, 9, 2),
     peso: 200,

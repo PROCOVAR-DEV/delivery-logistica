@@ -68,14 +68,18 @@ enum PedidoFiltro {
   final String etiqueta;
 }
 
-/// `cotizado` — si Entrega ya le puso costo de domicilio. Es un dato del PEDIDO: sólo
-/// cuenta para las facturas que vienen de uno.
-enum CotizadoFiltro {
-  cualquiera('', 'Cualquier precio'),
-  conPrecio('1', 'Con precio puesto'),
-  sinCotizar('0', 'Sin cotizar');
+/// `cobro` — el domicilio que cobra la propia FACTURA: el importe de su línea «ENTREGA A DOMICILIO».
+///
+/// NO es cuentas por cobrar (Amado, 21/10/2026: «¿son de CxC?»): no dice si el cliente ya pagó la
+/// factura. Dice si la línea de entrega a domicilio de la factura trae un importe (`con`) o va en
+/// $0 (`sin`). Ventra sólo manda facturas CON línea de entrega, pero hay sucursales donde esa línea
+/// va a cero: ahí «sin cobro» es lo que el logístico tiene que ir a mirar.
+enum CobroFiltro {
+  cualquiera('', 'Cualquier cobro'),
+  conCobro('con', 'Con cobro: el domicilio trae importe'),
+  sinCobro('sin', 'Sin cobro: el domicilio va en \$0');
 
-  const CotizadoFiltro(this.param, this.etiqueta);
+  const CobroFiltro(this.param, this.etiqueta);
 
   final String param;
   final String etiqueta;
@@ -115,7 +119,7 @@ class FiltrosPedidos {
     this.reparto = RepartoFiltro.cualquiera,
     this.municipio = '',
     this.vendedores = const [],
-    this.cotizado = CotizadoFiltro.cualquiera,
+    this.cobro = CobroFiltro.cualquiera,
     this.pedido = PedidoFiltro.cualquiera,
     this.factura = FacturaFiltro.conFactura,
     this.archivado = ArchivadoFiltro.no,
@@ -134,7 +138,7 @@ class FiltrosPedidos {
       reparto = RepartoFiltro.cualquiera,
       municipio = '',
       vendedores = const [],
-      cotizado = CotizadoFiltro.cualquiera,
+      cobro = CobroFiltro.cualquiera,
       pedido = PedidoFiltro.cualquiera,
       factura = FacturaFiltro.cualquiera,
       archivado = ArchivadoFiltro.cualquiera,
@@ -152,7 +156,7 @@ class FiltrosPedidos {
   /// UNO O VARIOS vendedores (issue 18 de Amado, 16/10/2026): salen los pedidos de
   /// CUALQUIERA de ellos. Vacía = todos.
   final List<String> vendedores;
-  final CotizadoFiltro cotizado;
+  final CobroFiltro cobro;
   final PedidoFiltro pedido;
   final FacturaFiltro factura;
   final ArchivadoFiltro archivado;
@@ -193,7 +197,7 @@ class FiltrosPedidos {
       reparto != RepartoFiltro.cualquiera ||
       municipio.isNotEmpty ||
       vendedores.isNotEmpty ||
-      cotizado != CotizadoFiltro.cualquiera ||
+      cobro != CobroFiltro.cualquiera ||
       pedido != PedidoFiltro.cualquiera ||
       factura != FacturaFiltro.cualquiera ||
       archivado != ArchivadoFiltro.cualquiera ||
@@ -209,7 +213,7 @@ class FiltrosPedidos {
     RepartoFiltro? reparto,
     String? municipio,
     List<String>? vendedores,
-    CotizadoFiltro? cotizado,
+    CobroFiltro? cobro,
     PedidoFiltro? pedido,
     FacturaFiltro? factura,
     ArchivadoFiltro? archivado,
@@ -229,7 +233,7 @@ class FiltrosPedidos {
         reparto != null ||
         municipio != null ||
         vendedores != null ||
-        cotizado != null ||
+        cobro != null ||
         pedido != null ||
         factura != null ||
         archivado != null ||
@@ -247,7 +251,7 @@ class FiltrosPedidos {
       reparto: reparto ?? this.reparto,
       municipio: municipio ?? this.municipio,
       vendedores: vendedores ?? this.vendedores,
-      cotizado: cotizado ?? this.cotizado,
+      cobro: cobro ?? this.cobro,
       pedido: pedido ?? this.pedido,
       factura: factura ?? this.factura,
       archivado: archivado ?? this.archivado,
@@ -272,7 +276,7 @@ class FiltrosPedidos {
           other.reparto == reparto &&
           other.municipio == municipio &&
           listEquals(other.vendedores, vendedores) &&
-          other.cotizado == cotizado &&
+          other.cobro == cobro &&
           other.pedido == pedido &&
           other.factura == factura &&
           other.archivado == archivado &&
@@ -289,7 +293,7 @@ class FiltrosPedidos {
     reparto,
     municipio,
     Object.hashAll(vendedores),
-    cotizado,
+    cobro,
     pedido,
     factura,
     archivado,
@@ -304,7 +308,7 @@ class FiltrosPedidos {
   @override
   String toString() =>
       'FiltrosPedidos(q: $q, reparto: ${reparto.param}, municipio: $municipio, '
-      'vendedores: $vendedores, cotizado: ${cotizado.param}, '
+      'vendedores: $vendedores, cobro: ${cobro.param}, '
       'factura: ${factura.param}, archivado: ${archivado.param}, '
       'desde: $desde, hasta: $hasta, '
       'entregadoDesde: $entregadoDesde, entregadoHasta: $entregadoHasta, '

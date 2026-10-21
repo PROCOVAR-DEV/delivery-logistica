@@ -76,17 +76,6 @@ void main() {
       expect(await cuantos(sinNada.copiarCon(vendedores: ['Nadie'])), 0);
     });
 
-    test('cotizado mira `pedidoCosto`, y un nulo NO es un cero', () async {
-      expect(
-        await cuantos(sinNada.copiarCon(cotizado: CotizadoFiltro.conPrecio)),
-        10,
-      );
-      expect(
-        await cuantos(sinNada.copiarCon(cotizado: CotizadoFiltro.sinCotizar)),
-        1,
-      );
-    });
-
     // 21/10/2026: la fila es la factura y el pedido es un extra. En pareja: con folio hay pedido,
     // sin folio no; y lo del pedido (el precio de Entrega) sólo cuenta para las que lo traen.
     test('pedido separa las facturas con pedido de las que no', () async {
@@ -103,22 +92,24 @@ void main() {
       );
     });
 
+    // El cobro es el de la FACTURA (el importe de su línea de entrega a domicilio), no cuentas por
+    // cobrar. Nulo y cero son «sin cobro». En pareja: con cobro sale, sin cobro sale.
     test(
-      'el precio de Entrega sólo cuenta para las facturas con pedido',
+      'cobro mira el domicilio de la factura: nulo y cero son sin cobro',
       () async {
-        // Sólo o1 (con precio) y o2 (sin cotizar) vienen de un pedido.
         await base.customStatement(
-          "UPDATE orders SET folio = NULL WHERE id NOT IN ('o1','o2')",
+          "UPDATE orders SET factura_domicilio = NULL WHERE id = 'o3'",
+        );
+        await base.customStatement(
+          "UPDATE orders SET factura_domicilio = 0 WHERE id = 'o4'",
         );
         expect(
-          await cuantos(sinNada.copiarCon(cotizado: CotizadoFiltro.conPrecio)),
-          1,
-          reason:
-              'las otras 9 tienen precio puesto pero no vienen de un pedido',
+          await cuantos(sinNada.copiarCon(cobro: CobroFiltro.conCobro)),
+          9,
         );
         expect(
-          await cuantos(sinNada.copiarCon(cotizado: CotizadoFiltro.sinCotizar)),
-          1,
+          await cuantos(sinNada.copiarCon(cobro: CobroFiltro.sinCobro)),
+          2,
         );
       },
     );
@@ -214,13 +205,13 @@ void main() {
   });
 
   test('los 9 juntos', () async {
-    // Arranque acotado + municipio + vendedor + reparto + cotizado + fechas +
+    // Arranque acotado + municipio + vendedor + reparto + cobro + fechas +
     // busqueda: tiene que quedar o7 y nada mas.
     final todos = const FiltrosPedidos().copiarCon(
       municipio: 'Camagüey',
       vendedores: ['Luis'],
       reparto: RepartoFiltro.enRuta,
-      cotizado: CotizadoFiltro.conPrecio,
+      cobro: CobroFiltro.conCobro,
       desde: DateTime(2026, 9, 1),
       hasta: DateTime(2026, 9, 30),
       q: 'gema',

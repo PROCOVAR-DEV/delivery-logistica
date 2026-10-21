@@ -380,15 +380,18 @@ class ConsultasPedidos {
         anadir(o.archivado.equals(true));
     }
 
-    switch (f.cotizado) {
-      case CotizadoFiltro.cualquiera:
+    // El cobro es de la FACTURA: el importe de su línea «ENTREGA A DOMICILIO» (`domicilioSinCobrar`:
+    // nulo o cero es sin cobro, un negativo tampoco cobra).
+    switch (f.cobro) {
+      case CobroFiltro.cualquiera:
         break;
-      // El precio de Entrega es del PEDIDO: sólo cuenta para las facturas que vienen de uno
-      // (sin folio no hay pedido al que cotizar, y «sin cotizar» las llenaría de ruido).
-      case CotizadoFiltro.conPrecio:
-        anadir(o.folio.isNotNull() & o.pedidoCosto.isNotNull());
-      case CotizadoFiltro.sinCotizar:
-        anadir(o.folio.isNotNull() & o.pedidoCosto.isNull());
+      case CobroFiltro.conCobro:
+        anadir(o.facturaDomicilio.isBiggerThanValue(0));
+      case CobroFiltro.sinCobro:
+        anadir(
+          o.facturaDomicilio.isNull() |
+              o.facturaDomicilio.isSmallerOrEqualValue(0),
+        );
     }
 
     switch (f.pedido) {
@@ -528,6 +531,19 @@ class ConsultasPedidos {
       ..addColumns([cuenta])
       ..where(donde(f, sucursalId: sucursalId));
     return consulta.watchSingle().map((fila) => fila.read(cuenta) ?? 0);
+  }
+
+  /// [contar], pero UNA vez y como `Future`: para quien decide en seco y no repinta (el conteo por
+  /// estado de reparto del filtro). Un `.first` sobre el stream de Drift deja la consulta abierta
+  /// detrás, y en una prueba de widget eso es un cuelgue (CLAUDE.md §5).
+  Future<int> contarYa(FiltrosPedidos f, {String? sucursalId}) async {
+    final cuenta = _base.orders.id.count();
+    final fila =
+        await (_base.selectOnly(_base.orders)
+              ..addColumns([cuenta])
+              ..where(donde(f, sucursalId: sucursalId)))
+            .getSingle();
+    return fila.read(cuenta) ?? 0;
   }
 
   /// La pagina, en el orden del SERVIDOR (`orderDate desc nulls last`, luego

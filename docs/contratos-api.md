@@ -1084,6 +1084,13 @@ En Santiago **dos de cada tres pedidos salen de AURORA** y se medían todos desd
   1. `lat == null || lng == null` → `skipped`, `reason: "sin-geolocalizacion"`. **EXCEPTO** una entrega
      que nace de una factura (`externalId` con prefijo `factura:`, issue 20, 20/10/2026): esa se guarda
      SIN coordenadas ni distancia (ver «La entrega que nace de una FACTURA», abajo).
+
+> **Sólo cuentan las de domicilio COBRADO (21/10/2026, Amado y Jose).** Una entrega cuya suma de líneas de
+> domicilio es $0 —la línea ENTREGA A DOMICILIO está en Ventra pero con el precio sin poner— **no se guarda**
+> (`espejo.ConDomicilioCobrado`), y como el ciclo retira «lo que ya no viene», las ya guardadas sin ruta ni resultado
+> se van solas; las que ya van en una ruta se quedan y se dicen. El log dice cuántas se dejaron fuera
+> (`sinPrecioDeDomicilio`). Para reactivarlas basta quitar ese filtro: Ventra las sigue mandando.
+
   2. `Branch.findUnique({ externalId: sucursalExternalId })` (con caché por externalId; si no
      hay `sucursalExternalId` → null) → si no existe: `skipped`, `reason: "sucursal-no-mapeada"`.
   3. `branch.originConfigured === false` → `skipped`, `reason: "sucursal-sin-punto-de-partida"`.

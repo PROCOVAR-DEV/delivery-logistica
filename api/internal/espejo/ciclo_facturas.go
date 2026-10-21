@@ -175,7 +175,7 @@ func (e *Espejo) facturasDeLaSucursal(
 			"de", de, "sucursal", codigo, "base", base, "ventana", ventana, "err", err)
 		return 0, false
 	}
-	entregas := AgruparPorFolio(codigo, facturas)
+	entregas, sinPrecio := ConDomicilioCobrado(AgruparPorFolio(codigo, facturas))
 
 	// Lo que hace falta de la base para armar y pesar. Si no se puede leer, esta sucursal espera
 	// al ciclo siguiente: guardar sin los puntos borraría las coordenadas de lo ya guardado, y
@@ -233,7 +233,8 @@ func (e *Espejo) facturasDeLaSucursal(
 		"facturas", resumen.Facturas, "entregas", resumen.Entregas, "guardadas", resumen.Guardadas,
 		"puntoPorCodigo", resumen.PuntoPorCodigo, "puntoPorNombre", resumen.PuntoPorNombre,
 		"sinPunto", resumen.SinPunto, "sinMercancia", resumen.SinMercancia,
-		"retiradas", retiradas, "anuladasConRuta", conRuta, "parciales", resumen.Parciales)
+		"retiradas", retiradas, "anuladasConRuta", conRuta, "parciales", resumen.Parciales,
+		"sinPrecioDeDomicilio", sinPrecio)
 	if resumen.Parciales > 0 {
 		e.Reg.Warn("entrega parcial: se espera al barrido. Este repaso trae MENOS facturas de las que la entrega ya tiene; "+
 			"no se reescribe con la parcial y el barrido diario (que ve todo el histórico) la rehace",

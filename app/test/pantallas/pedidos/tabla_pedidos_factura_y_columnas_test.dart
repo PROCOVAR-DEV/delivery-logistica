@@ -162,7 +162,7 @@ void main() {
           'Ruta',
           'Artículos',
           'Peso',
-          'Precio',
+          'Domicilio',
           'Factura',
           'Entrega',
         ]) {

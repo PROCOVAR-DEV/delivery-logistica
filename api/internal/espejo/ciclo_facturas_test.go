@@ -553,3 +553,68 @@ func TestSinFacturasConfiguradasCorrerSeNiega(t *testing.T) {
 		t.Fatal("un espejo de facturas sin Ventra parecería sano sin traer una: no arranca")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// El domicilio en $0 no es un domicilio (Amado y Jose, 21/10/2026)
+// ---------------------------------------------------------------------------
+
+func conUnoEnCero() map[string][]FacturaDeVentra {
+	return map[string][]FacturaDeVentra{"santiago": {
+		factura("47252", "2026-09-13", "2", "PED-1", cerveza(15), domicilio(0.29)),
+		factura("47253", "2026-09-13", "2", "PED-2", cerveza(10), domicilio(0)),
+	}}
+}
+
+func TestUnaFacturaConElDomicilioEnCeroNoSeGuarda(t *testing.T) {
+	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: conUnoEnCero()}
+	d := &repartoFalso{}
+	e, reg := montarFacturas(FuenteDeFactura, f, &baseDeFacturasFalsa{}, &pedidoFalso{}, d)
+	if err := e.Ciclo(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(d.lotes) != 1 || len(d.lotes[0]) != 1 || d.lotes[0][0].ID != "factura:STG:PED1" {
+		t.Fatalf("sólo la del domicilio cobrado llega a la puerta; llegó %+v", d.lotes)
+	}
+	if !strings.Contains(reg.String(), "sinPrecioDeDomicilio=1") {
+		t.Errorf("y se dice cuántas se dejaron fuera:\n%s", reg.String())
+	}
+}
+
+// En pareja: la de domicilio cobrado SÍ se guarda (la prueba de arriba la comprueba) y la guardada que
+// ahora va en $0 se retira sola si no va en ninguna ruta.
+func TestLaEntregaGuardadaQueAhoraVaEnCeroSeRetiraSiNoVaEnRuta(t *testing.T) {
+	enCero := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:PED2"}
+	cobrada := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:PED1"}
+	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: conUnoEnCero()}
+	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {cobrada, enCero}}}
+	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
+	_ = e.Ciclo(context.Background())
+	if len(b.retiradas) != 1 || b.retiradas[0] != enCero.ID {
+		t.Fatalf("se retira SOLO la de $0 (%v); retiradas: %v", enCero.ID, b.retiradas)
+	}
+}
+
+func TestLaEntregaEnCeroQueYaVaEnUnaRutaSeDeja(t *testing.T) {
+	enRuta := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:PED2", Ocupada: true}
+	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: conUnoEnCero()}
+	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {enRuta}}}
+	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
+	_ = e.Ciclo(context.Background())
+	if len(b.retiradas) != 0 {
+		t.Fatalf("lo que ya va en el camión no se borra aunque ahora cuente $0: %v", b.retiradas)
+	}
+}
+
+func TestConDomicilioCobradoCuentaVariasFacturasDeLaMismaEntrega(t *testing.T) {
+	// Dos facturas del mismo pedido: 0 y 0.35 suman 0.35 y la entrega SÍ cuenta; 0 y 0 no.
+	juntas := AgruparPorFolio("STG", []FacturaDeVentra{
+		factura("1", "2026-09-13", "2", "PED-A", cerveza(1), domicilio(0)),
+		factura("2", "2026-09-13", "2", "PED-A", cerveza(1), domicilio(0.35)),
+		factura("3", "2026-09-13", "2", "PED-B", cerveza(1), domicilio(0)),
+		factura("4", "2026-09-13", "2", "PED-B", cerveza(1), domicilio(0)),
+	})
+	con, sin := ConDomicilioCobrado(juntas)
+	if len(con) != 1 || sin != 1 || con[0].Folio != "PED-A" {
+		t.Fatalf("PED-A cobra 0.35 (cuenta) y PED-B 0 (no): con=%d sin=%d", len(con), sin)
+	}
+}

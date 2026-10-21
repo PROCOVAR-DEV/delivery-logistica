@@ -3995,7 +3995,7 @@ es un extra, y por eso va más a la derecha y puede faltar.
 | **«Ruta»** | El código de ruta, o «—» |
 | **«Artículos»** | El primer producto y cuántos más («+3»). Todo en el tooltip |
 | **«Peso»** | «128.0 kg» o «—» |
-| **«Precio»** | El domicilio de la parada: lo que cotizó Entrega o, si no, lo que cobró la propia factura. **«sin precio»** en gris si la línea de domicilio de la factura va en $0 (con el tooltip que lo explica) |
+| **«Domicilio»** | El domicilio de la parada: lo que cotizó Entrega o, si no, lo que cobró la propia factura. **«sin precio»** en gris si la línea de domicilio de la factura va en $0 (con el tooltip que lo explica) |
 | **«Entrega»** | El estado de reparto |
 
 En pantalla estrecha no hay tabla: cada factura es una tarjeta, y la cabecera dice
@@ -4337,7 +4337,7 @@ seguir trabajando con ellos.
   logístico puede poner a mano con «Ubicar la entrega».
 - **No se pone el precio del domicilio aquí.** Lo pone el repartidor desde
   Entrega.
-- **No se enseña el precio interno de la factura.** La columna «Precio» es lo que
+- **No se enseña el precio interno de la factura.** La columna «Domicilio» es lo que
   cobró Entrega por el domicilio.
 - **No hay filtro de sucursal**: la manda el selector de arriba.
 #@ FICHERO comun/pantallas/reportes.md

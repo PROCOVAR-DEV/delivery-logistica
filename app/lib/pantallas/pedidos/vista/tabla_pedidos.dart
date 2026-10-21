@@ -221,7 +221,7 @@ class _Cabecera extends StatelessWidget {
           // 21/10/2026: «ten consistencia en las columnas, no uno para la izquierda y otro para la derecha»).
           _celda(
             flex: 2,
-            hijo: Text('Precio', style: estilo, textAlign: TextAlign.right),
+            hijo: Text('Domicilio', style: estilo, textAlign: TextAlign.right),
           ),
           if (columnas.entrega)
             _celda(flex: 2, hijo: Text('Entrega', style: estilo)),

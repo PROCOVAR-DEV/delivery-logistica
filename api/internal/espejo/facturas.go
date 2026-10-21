@@ -515,6 +515,38 @@ func (e EntregaDeFactura) APedido(ctx ContextoDeMapeo) (PedidoDeFuera, InformeDe
 	return p, inf
 }
 
+// DomicilioUsd es la suma de las líneas de domicilio de la entrega, a céntimos. Es lo que la factura cobra por
+// llevar: cero si la línea de domicilio está pero con el precio sin poner.
+func (e EntregaDeFactura) DomicilioUsd() float64 {
+	suma := 0.0
+	for _, f := range e.Facturas {
+		for _, l := range f.Lineas {
+			if l.EsDomicilio {
+				suma += l.Importe
+			}
+		}
+	}
+	return math.Round(suma*100) / 100
+}
+
+// ConDomicilioCobrado separa las entregas cuyo domicilio trae un importe de las que lo llevan en $0
+// (Amado y Jose, 21/10/2026: «las que tienen costo 0 que no me salgan en domicilio»: unos 200 domicilios
+// reales, a lo sumo 400, y no los 1.600 que salen si se cuentan las de precio sin poner). Una entrega en $0
+// NO se guarda, y como el ciclo retira «lo que ya no viene», las que ya estaban guardadas sin ruta ni
+// resultado se van solas; las que ya van en una ruta se quedan y se dicen. Se reactiva quitando este filtro:
+// Ventra sigue mandándolas y vuelven en el ciclo siguiente.
+func ConDomicilioCobrado(entregas []EntregaDeFactura) (con []EntregaDeFactura, sinPrecio int) {
+	con = make([]EntregaDeFactura, 0, len(entregas))
+	for _, en := range entregas {
+		if en.DomicilioUsd() > 0 {
+			con = append(con, en)
+			continue
+		}
+		sinPrecio++
+	}
+	return con, sinPrecio
+}
+
 // direccionConCiudad: la dirección y, si la ciudad no está ya dentro, la ciudad detrás.
 func direccionConCiudad(direccion, ciudad string) string {
 	direccion, ciudad = strings.TrimSpace(direccion), strings.TrimSpace(ciudad)

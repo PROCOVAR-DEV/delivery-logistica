@@ -261,6 +261,9 @@ class VistaPreDespacho extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        // LO PRIMERO QUE SE QUIERE SABER: cuántas facturas son y qué se cobra con su domicilio (Jose,
+        // 21/10/2026). Va ARRIBA de la tabla: abajo, tras catorce productos, nadie lo veía.
+        if (totales.pedidos > 0) ResumenDeLasFacturas(totales: totales),
         TablaPreDespacho(totales: totales),
         if (totales.lineas.isNotEmpty) ...[
           Divider(height: Aire.xl, thickness: 1, color: Colores.linea),
@@ -273,6 +276,30 @@ class VistaPreDespacho extends StatelessWidget {
       ],
     );
   }
+}
+
+/// CUÁNTAS FACTURAS Y QUÉ SE COBRA CON EL DOMICILIO. El domicilio es el de cada parada (el precio de Entrega
+/// o, si no, el que cobró la factura): las que van en $0 suman cero.
+class ResumenDeLasFacturas extends StatelessWidget {
+  const ResumenDeLasFacturas({required this.totales, super.key});
+
+  final TotalesPreDespacho totales;
+
+  static const rotuloFacturas = 'Facturas';
+  static const rotuloDomicilio = 'Domicilio a cobrar';
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: Aire.md),
+    child: Wrap(
+      spacing: Aire.lg,
+      runSpacing: Aire.xs,
+      children: [
+        _Fila(rotuloFacturas, '${totales.pedidos}'),
+        _Fila(rotuloDomicilio, usd(totales.domicilioUsd)),
+      ],
+    ),
+  );
 }
 
 /// LOS DOS PESOS, SEPARADOS Y CON SU RÓTULO — 22/09/2026.

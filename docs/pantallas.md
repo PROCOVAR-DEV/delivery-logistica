@@ -275,12 +275,11 @@ Título = nombre del cliente, subtítulo = folio. Secciones:
     / `No entra a una ruta: se marcó domicilio y Entrega todavía no lo cotizó.` Nada si ya va
     en una ruta, está entregado o archivado (ni si no tiene punto de entrega).
   - Y si hay línea de domicilio: `La factura cobró <n.nn> USD de domicilio.`
-- `Domicilio` (caja verde si hay precio; sin precio, ámbar si el vendedor marcó domicilio y
-  gris si no): `Distancia` (`<n.nn> km` o `—`), `Peso total` (`<n.nn> kg`), y a la derecha
-  el importe o `Sin calcular todavía`.
-  Nota al pie: `El costo lo puso el repartidor desde Entrega. La distancia es del almacén al cliente.`
-  / (marcado) `El costo lo pone el repartidor desde Entrega; hasta entonces esta factura no tiene precio de domicilio.`
-  / (sin marcar) `El vendedor no marcó domicilio y Entrega sólo cotiza los marcados: esta factura no tiene precio de domicilio, y no le hace falta para ir a una ruta.`
+- `Domicilio` (caja verde si hay precio; gris si no): `Distancia` (`<n.nn> km` o `—`), `Peso total`
+  (`<n.nn> kg`), y a la derecha el precio del domicilio —`costoDeLaParada`: el de Entrega y, si no, el que cobró la
+  factura— o `Sin precio puesto` si la línea de domicilio va en $0.
+  Nota al pie: `El costo lo puso el repartidor desde Entrega. …` / `Es el domicilio que cobra la factura. …` /
+  `La factura trae la línea ENTREGA A DOMICILIO pero con el precio en $0: no se puso el precio. No impide ir a una ruta.`
 - `Productos (<n>)`: por línea, nombre, `<n> unidades`, ` · <n.nn> kg/empaque`,
   `×<empaques> empaques` y el peso de la línea; si no hay peso resuelto: `sin peso`.
   Vacío: `Sin productos`.

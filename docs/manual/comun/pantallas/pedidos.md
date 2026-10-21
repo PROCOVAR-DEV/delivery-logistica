@@ -69,6 +69,12 @@ Cambia según las fechas que tengas puestas: «· del 28/9/2026», «· desde el
 
 ---
 
+## Pre-despacho: cuántas facturas y qué se cobra del domicilio
+
+Arriba de la tabla de productos, el pre-despacho dice **cuántas facturas son** y **«Domicilio a cobrar»**: la suma del
+domicilio de cada una (lo que cotizó Entrega o, si no, lo que cobró la factura). Las facturas con el domicilio en $0 suman
+cero: no se inventa un precio.
+
 ## La barra lateral se puede cerrar
 
 En escritorio, el botón de las tres rayas de la barra de arriba (a la izquierda del título) **cierra la barra lateral** para
@@ -285,14 +291,15 @@ Lleva, en este orden:
    - Y si la factura cobró domicilio: «La factura cobró 15.00 USD de domicilio.»
      **Sin ese cobro, la factura no se ofrece para una ruta ni para una zona.**
 4. **El bloque del domicilio** — «Distancia 4.35 km · Peso total 128.0 kg» y, a la
-   derecha, el importe o **«Sin calcular todavía»**. Debajo:
-   - Con precio: «El costo lo puso el repartidor desde Entrega. La distancia es
+   derecha, el **precio del domicilio**: lo que cotizó Entrega o, si no, lo que cobró la
+   propia factura. Debajo:
+   - Si lo puso Entrega: «El costo lo puso el repartidor desde Entrega. La distancia es
      del almacén al cliente.»
-   - Sin precio, si el vendedor marcó domicilio: «El costo lo pone el repartidor desde
-     Entrega; hasta entonces este pedido no tiene precio de domicilio.»
-   - Sin precio, si **no** lo marcó («Sin calcular todavía» sale en gris): «El vendedor
-     no marcó domicilio y Entrega sólo cotiza los marcados: este pedido no tiene precio
-     de domicilio, y no le hace falta para ir a una ruta.»
+   - Si lo cobró la factura: «Es el domicilio que cobra la factura. La distancia es del
+     almacén al cliente.»
+   - Si la línea de domicilio de la factura va en $0 (a la derecha sale **«Sin precio
+     puesto»**, en gris): «La factura trae la línea ENTREGA A DOMICILIO pero con el precio
+     en $0: no se puso el precio. No impide ir a una ruta.»
 5. **«Productos (6)»** — una línea por renglón, **con los empaques primero** (el blíster,
    la caja, la paca: lo que se carga y se transporta) y las unidades detrás: «MALTA
    GUAJIRA CAJA 24U · 10 empaques · 240 unidades · 88.5 kg». Si el renglón no trae

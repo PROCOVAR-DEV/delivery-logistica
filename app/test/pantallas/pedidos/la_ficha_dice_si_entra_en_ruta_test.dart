@@ -99,12 +99,14 @@ void main() {
       expect(tester.widget<Text>(lineaDeRuta).data, 'Puede ir a una ruta.');
       expect(noEntra, findsNothing, reason: 'era la frase falsa de la captura');
       expect(noEntraMayuscula, findsNothing);
-      // El costo puede seguir sin calcular, pero sin sugerir que hace falta.
-      expect(find.text('Sin calcular todavía'), findsOneWidget);
+      // Entrega no cotizó, pero la factura SÍ cobró (1.31): el bloque enseña lo cobrado y de dónde sale,
+      // no «sin calcular» (Jose, 21/10/2026).
+      expect(find.text('Sin precio puesto'), findsNothing);
+      expect(find.text('\$1.31'), findsOneWidget);
       expect(
         find.text(
-          'Entrega todavía no lo cotizó. No hace falta para ir a una ruta: lo '
-          'que cuenta es el cobro de domicilio en la factura.',
+          'Es el domicilio que cobra la factura. La distancia es del almacén '
+          'al cliente.',
         ),
         findsOneWidget,
       );

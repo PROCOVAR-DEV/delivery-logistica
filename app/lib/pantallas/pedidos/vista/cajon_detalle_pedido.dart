@@ -12,7 +12,8 @@ import '../../../nucleo/frescura/reloj_de_datos.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/numero_de_factura.dart';
 import '../../../nucleo/plataforma.dart';
-import '../../../nucleo/regla_de_entrada.dart' show facturaQueEntra;
+import '../../../nucleo/regla_de_entrada.dart'
+    show costoDeLaParada, facturaQueEntra;
 import '../../../nucleo/texto_de_fuera.dart' show sinLaComillaDeExcel;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -376,7 +377,10 @@ class _Domicilio extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final conPrecio = pedido.pedidoCosto != null;
+    // El domicilio de la factura manda (21/10/2026, Jose: «me dice sin calcular y tengo el domicilio que
+    // trae importe»): el precio de Entrega si lo hay y, si no, lo que cobró la propia factura.
+    final costo = costoDeLaParada(pedido.pedidoCosto, pedido.facturaDomicilio);
+    final conPrecio = costo != null;
     // Sin precio es un DATO, no un aviso (Amado, 16/10/2026: para ir a una ruta lo que
     // manda es el cobro en la factura): gris, nunca ámbar.
     final color = conPrecio ? Colores.verde : Colores.gris;
@@ -402,18 +406,21 @@ class _Domicilio extends StatelessWidget {
                 ),
               ),
               Text(
-                conPrecio ? usd(pedido.pedidoCosto) : 'Sin calcular todavía',
+                conPrecio ? usd(costo) : 'Sin precio puesto',
                 style: TextStyle(color: color, fontWeight: FontWeight.bold),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
-            conPrecio
+            pedido.pedidoCosto != null
                 ? 'El costo lo puso el repartidor desde Entrega. '
                       'La distancia es del almacén al cliente.'
-                : 'Entrega todavía no lo cotizó. No hace falta para ir a una ruta: '
-                      'lo que cuenta es el cobro de domicilio en la factura.',
+                : conPrecio
+                ? 'Es el domicilio que cobra la factura. '
+                      'La distancia es del almacén al cliente.'
+                : 'La factura trae la línea ENTREGA A DOMICILIO pero con el precio '
+                      'en \$0: no se puso el precio. No impide ir a una ruta.',
             style: TextStyle(fontSize: 12, color: Colores.gris),
           ),
         ],

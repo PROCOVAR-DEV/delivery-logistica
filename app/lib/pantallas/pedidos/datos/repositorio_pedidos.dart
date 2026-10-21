@@ -12,6 +12,8 @@
 
 import 'package:drift/drift.dart';
 
+import '../../../nucleo/regla_de_entrada.dart' show costoDeLaParadaSql;
+
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/fecha_de_la_factura.dart';
 import 'filtros_pedidos.dart';
@@ -99,6 +101,7 @@ class TotalesPreDespacho {
     this.lineas, {
     this.pedidos = 0,
     this.pesoDeLosPedidos = 0,
+    this.domicilioUsd = 0,
   });
 
   final List<LineaPreDespacho> lineas;
@@ -112,6 +115,11 @@ class TotalesPreDespacho {
   /// peso de los pedidos, y un producto sin peso resuelto no suma nada ahi
   /// aunque el pedido si pese.
   final double pesoDeLosPedidos;
+
+  /// LO QUE SE COBRA CON EL DOMICILIO de estas facturas (Jose, 21/10/2026: «no sale lo que se va a ganar con
+  /// el domicilio»): la suma del domicilio de cada parada —el precio de Entrega si lo hay y, si no, lo que cobró
+  /// la propia factura (`costoDeLaParada`)—. Las que van en $0 suman cero: no se inventa un precio.
+  final double domicilioUsd;
 
   int get productos => lineas.length;
   double get empaques => lineas.fold(0, (suma, linea) => suma + linea.empaques);
@@ -747,7 +755,7 @@ class ConsultasPedidos {
           ..orderBy([OrderingTerm.desc(empaques), OrderingTerm.asc(producto)]);
 
     final filas = await consulta.get();
-    final (cuantos, kilos) = await _cabeceraDeLaHoja(filtro);
+    final (cuantos, kilos, domicilio) = await _cabeceraDeLaHoja(filtro);
     return TotalesPreDespacho(
       [
         for (final fila in filas)
@@ -767,6 +775,7 @@ class ConsultasPedidos {
       ],
       pedidos: cuantos,
       pesoDeLosPedidos: kilos,
+      domicilioUsd: domicilio,
     );
   }
 
@@ -774,14 +783,23 @@ class ConsultasPedidos {
   /// del papel (`pantallas.md` §10.1) y va aparte de la suma por producto
   /// porque cuenta PEDIDOS, no lineas: sumarlo en la misma consulta lo
   /// multiplicaria por el numero de renglones de cada pedido.
-  Future<(int, double)> _cabeceraDeLaHoja(Expression<bool> filtro) async {
+  Future<(int, double, double)> _cabeceraDeLaHoja(
+    Expression<bool> filtro,
+  ) async {
     final cuantos = _base.orders.id.count();
     final kilos = _base.orders.weight.sum();
+    // El domicilio de cada parada, sumado: la misma regla que el importe de las rutas.
+    final domicilio = CustomExpression<double>(costoDeLaParadaSql('orders.'))
+        .sum();
     final consulta = _base.selectOnly(_base.orders)
-      ..addColumns([cuantos, kilos])
+      ..addColumns([cuantos, kilos, domicilio])
       ..where(filtro);
     final fila = await consulta.getSingle();
-    return (fila.read(cuantos) ?? 0, fila.read(kilos) ?? 0);
+    return (
+      fila.read(cuantos) ?? 0,
+      fila.read(kilos) ?? 0,
+      fila.read(domicilio) ?? 0,
+    );
   }
 
   /// Los municipios y vendedores con su conteo, para los dos selectores.

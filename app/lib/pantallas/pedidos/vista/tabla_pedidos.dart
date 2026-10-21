@@ -217,7 +217,12 @@ class _Cabecera extends StatelessWidget {
             flex: 2,
             hijo: Text('Peso', style: estilo, textAlign: TextAlign.right),
           ),
-          _celda(flex: 2, hijo: Text('Precio', style: estilo)),
+          // PESO Y PRECIO SON NÚMEROS Y VAN A LA DERECHA, los dos, en la cabecera y en la fila (Jose,
+          // 21/10/2026: «ten consistencia en las columnas, no uno para la izquierda y otro para la derecha»).
+          _celda(
+            flex: 2,
+            hijo: Text('Precio', style: estilo, textAlign: TextAlign.right),
+          ),
           if (columnas.entrega)
             _celda(flex: 2, hijo: Text('Entrega', style: estilo)),
           const SizedBox(width: 32),
@@ -300,9 +305,13 @@ class _Fila extends StatelessWidget {
               // Flex 4: la celda lleva DOS marcas, el numero y el cobro del
               // domicilio, y con menos la segunda bajaba de linea (21/10/2026).
               if (columnas.factura)
+                // A la izquierda: sin esto la insignia se estira a todo el ancho de la celda.
                 _celda(
                   flex: 4,
-                  hijo: _Factura(pedido: pedido, conCobro: false),
+                  hijo: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _Factura(pedido: pedido, conCobro: false),
+                  ),
                 ),
               _celda(flex: 2, hijo: _Fecha(pedido: pedido)),
               if (columnas.sucursal)
@@ -441,6 +450,7 @@ class _Fila extends StatelessWidget {
                 hijo: costo != null
                     ? Text(
                         usd(costo),
+                        textAlign: TextAlign.right,
                         style: Tipos.mono(tamano: 13, color: Colores.tinta),
                       )
                     : Tooltip(
@@ -449,6 +459,7 @@ class _Fila extends StatelessWidget {
                             'en \$0: no se puso el precio. No impide ir a una ruta.',
                         child: Text(
                           'sin precio',
+                          textAlign: TextAlign.right,
                           style: Tipos.mono(
                             tamano: 13,
                             color: Colores.tintaSuave,

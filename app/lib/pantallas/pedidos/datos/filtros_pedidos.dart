@@ -55,6 +55,19 @@ enum ArchivadoFiltro {
   final String etiqueta;
 }
 
+/// `pedido` — si la factura viene de un pedido de PEDIDO (21/10/2026: la fila es la factura
+/// y el pedido es un extra; sin folio no hay pedido).
+enum PedidoFiltro {
+  cualquiera('', 'Con o sin pedido'),
+  conPedido('con', 'Con pedido'),
+  sinPedido('sin', 'Sin pedido');
+
+  const PedidoFiltro(this.param, this.etiqueta);
+
+  final String param;
+  final String etiqueta;
+}
+
 /// `cobro` — el domicilio que cobra la propia FACTURA: el importe de su línea «ENTREGA A DOMICILIO».
 ///
 /// NO es cuentas por cobrar (Amado, 21/10/2026: «¿son de CxC?»): no dice si el cliente ya pagó la
@@ -62,9 +75,9 @@ enum ArchivadoFiltro {
 /// $0 (`sin`). Ventra sólo manda facturas CON línea de entrega, pero hay sucursales donde esa línea
 /// va a cero: ahí «sin cobro» es lo que el logístico tiene que ir a mirar.
 enum CobroFiltro {
-  cualquiera('', 'Cualquier cobro'),
-  conCobro('con', 'Con cobro: el domicilio trae importe'),
-  sinCobro('sin', 'Sin cobro: el domicilio va en \$0');
+  cualquiera('', 'Cualquier precio de domicilio'),
+  conCobro('con', 'Con precio puesto: el domicilio trae importe'),
+  sinCobro('sin', 'Domicilio sin precio puesto: va en \$0');
 
   const CobroFiltro(this.param, this.etiqueta);
 
@@ -107,6 +120,7 @@ class FiltrosPedidos {
     this.municipio = '',
     this.vendedores = const [],
     this.cobro = CobroFiltro.cualquiera,
+    this.pedido = PedidoFiltro.cualquiera,
     this.factura = FacturaFiltro.conFactura,
     this.archivado = ArchivadoFiltro.no,
     this.desde,
@@ -125,6 +139,7 @@ class FiltrosPedidos {
       municipio = '',
       vendedores = const [],
       cobro = CobroFiltro.cualquiera,
+      pedido = PedidoFiltro.cualquiera,
       factura = FacturaFiltro.cualquiera,
       archivado = ArchivadoFiltro.cualquiera,
       desde = null,
@@ -142,6 +157,7 @@ class FiltrosPedidos {
   /// CUALQUIERA de ellos. Vacía = todos.
   final List<String> vendedores;
   final CobroFiltro cobro;
+  final PedidoFiltro pedido;
   final FacturaFiltro factura;
   final ArchivadoFiltro archivado;
 
@@ -182,6 +198,7 @@ class FiltrosPedidos {
       municipio.isNotEmpty ||
       vendedores.isNotEmpty ||
       cobro != CobroFiltro.cualquiera ||
+      pedido != PedidoFiltro.cualquiera ||
       factura != FacturaFiltro.cualquiera ||
       archivado != ArchivadoFiltro.cualquiera ||
       desde != null ||
@@ -197,6 +214,7 @@ class FiltrosPedidos {
     String? municipio,
     List<String>? vendedores,
     CobroFiltro? cobro,
+    PedidoFiltro? pedido,
     FacturaFiltro? factura,
     ArchivadoFiltro? archivado,
     DateTime? desde,
@@ -216,6 +234,7 @@ class FiltrosPedidos {
         municipio != null ||
         vendedores != null ||
         cobro != null ||
+        pedido != null ||
         factura != null ||
         archivado != null ||
         desde != null ||
@@ -233,6 +252,7 @@ class FiltrosPedidos {
       municipio: municipio ?? this.municipio,
       vendedores: vendedores ?? this.vendedores,
       cobro: cobro ?? this.cobro,
+      pedido: pedido ?? this.pedido,
       factura: factura ?? this.factura,
       archivado: archivado ?? this.archivado,
       desde: limpiarDesde ? null : (desde ?? this.desde),
@@ -257,6 +277,7 @@ class FiltrosPedidos {
           other.municipio == municipio &&
           listEquals(other.vendedores, vendedores) &&
           other.cobro == cobro &&
+          other.pedido == pedido &&
           other.factura == factura &&
           other.archivado == archivado &&
           other.desde == desde &&
@@ -273,6 +294,7 @@ class FiltrosPedidos {
     municipio,
     Object.hashAll(vendedores),
     cobro,
+    pedido,
     factura,
     archivado,
     desde,

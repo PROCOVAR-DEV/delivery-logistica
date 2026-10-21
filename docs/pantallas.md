@@ -111,7 +111,8 @@ y siempre `, del más nuevo al más viejo`. Indicador giratorio mientras refresc
 |---|---|---|---|---|
 | Selector | `Estado de reparto en delivery` | `Cualquier reparto` (por defecto) | `Sin entregar`=`sin_entregar`, `En despacho`=`en_despacho`, `En ruta`=`en_ruta`, `Entregado`=`entregado`, `Devuelto o cancelado`=`devuelto`; cada opción lleva de nota cuántas facturas hay en ese estado (`conteoPorRepartoProvider`) | `reparto` |
 | Selector | `Municipio del cliente` | `Todos los municipios` (defecto) | de facetas, con el nº de facturas como nota | `municipio` |
-| Selector | `Cobro del domicilio` | `Cualquier cobro` (defecto) | `Con cobro: el domicilio trae importe`=`con` (`facturaDomicilio > 0`), `Sin cobro: el domicilio va en $0`=`sin` (nulo o ≤ 0). No es cuentas por cobrar | `cobro` |
+| Selector | `Precio del domicilio` | `Cualquier precio de domicilio` (defecto) | `Con precio puesto: el domicilio trae importe`=`con` (`facturaDomicilio > 0`), `Domicilio sin precio puesto: va en $0`=`sin` (nulo o ≤ 0). No es cuentas por cobrar | `cobro` |
+| Selector | `Pedido de origen` | `Con o sin pedido` (defecto) | `Con pedido`=`con`, `Sin pedido`=`sin` (por `folio`) | `pedido` |
 | Selector **de varios** (cajón con casillas, `SelectorMultiple`; issue 18 de Amado) | `Vendedor de la factura` | `Todos los vendedores` (defecto); «3 vendedores» si hay varios | de facetas, con nº de facturas | `vendedor` repetido (o `vendedores=a,b`) |
 | Dos fechas | tooltip `Desde (fecha de la factura)` / `Hasta (fecha de la factura)` | vacías | `desde` acota el `max` de `hasta` y viceversa | `desde`, `hasta` |
 | Botón | `sólo ese día` | — | aparece si `desde` y `desde ≠ hasta`; copia `desde` en `hasta` | — |
@@ -190,8 +191,8 @@ columna** (desde el 21/10/2026; antes lo era la fecha del pedido):
 
 1. **Casilla** de selección. La de la cabecera marca/desmarca toda la página
    (`aria-label`: `Elegir todos los de esta página`). No abre la factura.
-2. `Factura` — la fila: el número de factura (antes era la columna 11) y, bajo él, su fecha.
-   Oculta bajo 1024 px.
+2. `Factura` — la fila: el número de factura, solo, en una línea (la fecha tiene su columna y el domicilio
+   está en `Precio`: apilar marcas en esta celda partía la fila, 21/10/2026). Oculta bajo 1024 px.
     **Detalle de la columna:** `igual` → nº de factura en verde, tooltip
     `Cuadra con lo pedido: se puede repartir tal cual.`; `cambiado` → nº + `⚠` en ámbar,
     tooltip `Se facturó algo distinto de lo pedido: al camión va lo facturado.` (hasta el
@@ -205,7 +206,7 @@ columna** (desde el 21/10/2026; antes lo era la fecha del pedido):
     **Con factura `igual` o `cambiado`, junto al número, una segunda marca con el cobro del
     domicilio** (Amado, 08/10/2026: «en la tabla no está claro qué pedidos han sido facturados
     y cobrados»; entonces la fila era el pedido): `Dom. $0.46` en verde, con el importe, cuando `facturaDomicilio > 0`; y
-    `Sin cobro de domicilio` en ámbar cuando es nulo o 0, con el tooltip `La factura no trae la
+    `Domicilio sin precio puesto` en gris cuando es nulo o 0, con el tooltip `La factura trae la
     línea ENTREGA A DOMICILIO: esta factura no puede ir a una ruta ni a una zona del tablero
     hasta que el domicilio se cobre en la factura.` Con `sin_factura` o nulo no se añade nada.
     Es la regla del 07/10 hecha visible: sin esa línea la factura no entra en una ruta ni en
@@ -226,7 +227,7 @@ columna** (desde el 21/10/2026; antes lo era la fecha del pedido):
 8. `Artículos` — primer producto `×<empaques>` y `+<n>` con desplegable al pasar el ratón
    (en Flutter: tocar para abrir). Oculta bajo 1024 px.
 9. `Peso` — `<n> kg`, alineada a la derecha.
-10. `Precio` — el domicilio de la parada (`costoDeLaParada`): `pedidoCosto` (lo que cotizó Entrega) y, si no, lo que cobró la factura. Si ninguno: `sin cotizar` en gris.
+10. `Precio` — el domicilio de la parada (`costoDeLaParada`): `pedidoCosto` (lo que cotizó Entrega) y, si no, lo que cobró la factura. Si ninguno: `sin precio` en gris, con el tooltip `La factura trae la línea ENTREGA A DOMICILIO pero con el precio en $0: no se puso el precio.` Las marcas `Dom. $x` y `Domicilio sin precio puesto` quedan sólo en la tarjeta del teléfono.
 11. `Entrega` — estado de reparto calculado: `Devuelto` / `Cancelado` (ámbar),
     `Entregado` (verde), `En ruta` (azul), `En despacho` (índigo), `Sin entregar` (gris).
     Oculta bajo 768 px.

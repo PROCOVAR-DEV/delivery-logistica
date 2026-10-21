@@ -8,6 +8,7 @@ import '../nucleo/plataforma.dart';
 import 'aviso_de_version_nueva.dart';
 import 'barra_lateral.dart';
 import 'barra_superior.dart';
+import 'estado_navegacion.dart';
 import 'franja_de_estado.dart';
 import 'menu_de_cuenta.dart';
 import 'pantalla_registrada.dart';
@@ -76,6 +77,7 @@ class Armazon extends ConsumerWidget {
     final ancho = MediaQuery.sizeOf(context).width;
     final esEscritorio = ancho >= Anchos.escritorio;
     final hayDiaQueTraer = ref.watch(trabajaSinConexionProvider);
+    final lateralAbierta = ref.watch(barraLateralAbiertaProvider);
 
     final actual = pantallas.firstWhereOrNull((p) => p.ruta == rutaActual);
     final titulo = actual?.titulo ?? '';
@@ -158,6 +160,13 @@ class Armazon extends ConsumerWidget {
                     alAbrirMenu: esEscritorio
                         ? null
                         : () => Scaffold.of(contexto).openDrawer(),
+                    // EN ESCRITORIO SE PUEDE CERRAR LA BARRA para ganar ancho (Jose, 21/10/2026).
+                    alAlternarLateral: esEscritorio
+                        ? () => ref
+                              .read(barraLateralAbiertaProvider.notifier)
+                              .alternar()
+                        : null,
+                    lateralAbierta: lateralAbierta,
                   ),
                   // ENCIMA DE LA FRANJA DE ESTADO, y sin `if`: el aviso decide
                   // por si mismo si tiene algo que decir en este destino, y casi
@@ -186,11 +195,12 @@ class Armazon extends ConsumerWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  BarraLateral(
-                    pantallas: pantallas,
-                    rutaActual: rutaActual,
-                    quienMira: quienMira,
-                  ),
+                  if (lateralAbierta)
+                    BarraLateral(
+                      pantallas: pantallas,
+                      rutaActual: rutaActual,
+                      quienMira: quienMira,
+                    ),
                   Expanded(child: columna),
                 ],
               );

@@ -6,10 +6,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../diseno/numeros.dart';
 import '../nucleo/base/base.dart';
+import '../nucleo/base/preferencias_del_aparato.dart';
 import '../nucleo/proveedores.dart';
 import '../nucleo/registro/registro.dart';
 
 /// Lo que necesita el armazon y no tiene por que saber ninguna pantalla.
+
+/// SI LA BARRA LATERAL DE ESCRITORIO ESTÁ ABIERTA (21/10/2026, Jose: «no puedo cerrar el side bar para
+/// tener más espacio en pantalla»). Se recuerda en el aparato (en la web, en el navegador): quien la
+/// cierra la quiere cerrada también mañana. En móvil no pinta nada: allí la barra ya es un cajón.
+class BarraLateralAbierta extends Notifier<bool> {
+  static const _clave = 'reparto.barra_lateral';
+
+  @override
+  bool build() => PreferenciasDelAparato.leer(_clave) != 'cerrada';
+
+  void alternar() {
+    state = !state;
+    PreferenciasDelAparato.escribir(_clave, state ? null : 'cerrada');
+  }
+}
+
+final barraLateralAbiertaProvider = NotifierProvider<BarraLateralAbierta, bool>(
+  BarraLateralAbierta.new,
+);
 
 /// Las sucursales que esta persona puede mirar. Salen de la base local, no de la
 /// red: la barra tiene que pintarse igual sin conexion.

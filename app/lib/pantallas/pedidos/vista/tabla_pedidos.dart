@@ -204,12 +204,12 @@ class _Cabecera extends StatelessWidget {
             ),
           ),
           if (columnas.factura)
-            _celda(flex: 3, hijo: Text('Factura', style: estilo)),
+            _celda(flex: 4, hijo: Text('Factura', style: estilo)),
           _celda(flex: 2, hijo: Text('Fecha factura', style: estilo)),
           if (columnas.sucursal)
             _celda(flex: 2, hijo: Text('Sucursal', style: estilo)),
           _celda(flex: 3, hijo: Text('Pedido', style: estilo)),
-          _celda(flex: 6, hijo: Text('Cliente', style: estilo)),
+          _celda(flex: 5, hijo: Text('Cliente', style: estilo)),
           if (columnas.ruta) _celda(flex: 2, hijo: Text('Ruta', style: estilo)),
           if (columnas.articulos)
             _celda(flex: 2, hijo: Text('Artículos', style: estilo)),
@@ -297,10 +297,13 @@ class _Fila extends StatelessWidget {
                 senalable: esLaPrimera,
                 child: Checkbox(value: marcado, onChanged: (_) => alMarcar()),
               ),
-              // Flex 3 y no 2: la celda lleva DOS marcas, el numero y el cobro
-              // del domicilio, y con 2 la segunda bajaba de linea hasta a 1440.
+              // Flex 4: la celda lleva DOS marcas, el numero y el cobro del
+              // domicilio, y con menos la segunda bajaba de linea (21/10/2026).
               if (columnas.factura)
-                _celda(flex: 3, hijo: _Factura(pedido: pedido)),
+                _celda(
+                  flex: 4,
+                  hijo: _Factura(pedido: pedido, conCobro: false),
+                ),
               _celda(flex: 2, hijo: _Fecha(pedido: pedido)),
               if (columnas.sucursal)
                 _celda(flex: 2, hijo: Text(pedido.sucursalCodigo ?? '—')),
@@ -339,7 +342,7 @@ class _Fila extends StatelessWidget {
               // las dos truncadas a media palabra. El número de factura ya tiene su columna, así
               // que no se repite bajo el nombre (sólo baja aquí cuando esa columna se esconde).
               _celda(
-                flex: 6,
+                flex: 5,
                 hijo: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -430,15 +433,28 @@ class _Fila extends StatelessWidget {
                   style: Tipos.mono(tamano: 13, color: Colores.tinta),
                 ),
               ),
+              // El domicilio de la parada. Si la factura trae la línea de entrega pero con el precio en
+              // $0, se dice aquí («sin precio»), en una sola línea: antes era una marca gris apilada en
+              // la celda de la factura y partía la fila en dos.
               _celda(
                 flex: 2,
-                hijo: Text(
-                  usd(costo),
-                  style: Tipos.mono(
-                    tamano: 13,
-                    color: costo == null ? Colores.tintaSuave : Colores.tinta,
-                  ),
-                ),
+                hijo: costo != null
+                    ? Text(
+                        usd(costo),
+                        style: Tipos.mono(tamano: 13, color: Colores.tinta),
+                      )
+                    : Tooltip(
+                        message:
+                            'La factura trae la línea ENTREGA A DOMICILIO pero con el precio '
+                            'en \$0: no se puso el precio. No impide ir a una ruta.',
+                        child: Text(
+                          'sin precio',
+                          style: Tipos.mono(
+                            tamano: 13,
+                            color: Colores.tintaSuave,
+                          ),
+                        ),
+                      ),
               ),
               if (columnas.entrega)
                 _celda(
@@ -757,9 +773,21 @@ class _Articulos extends StatelessWidget {
 }
 
 class _Factura extends StatelessWidget {
-  const _Factura({required this.pedido, this.conNumero = true});
+  const _Factura({
+    required this.pedido,
+    this.conNumero = true,
+    this.conCobro = true,
+  });
 
   final Pedido pedido;
+
+  /// Si la celda lleva, además del número, la marca del domicilio (la tarjeta del teléfono). La TABLA no:
+  /// el domicilio tiene su columna («Precio») y dos marcas apiladas en una celda estrecha partían la fila
+  /// en dos líneas (Jose, 21/10/2026: «la primera fila se baja sus datos una encima de otro»).
+  final bool conCobro;
+
+  Widget _conMarca(Widget numero) =>
+      conCobro ? _ConCobro(pedido: pedido, numero: numero) : numero;
 
   /// Si la insignia lleva el número (la tabla) o sólo el estado (la tarjeta del teléfono,
   /// donde el número ya sale en la cabecera con su rótulo «Factura»).
@@ -773,18 +801,16 @@ class _Factura extends StatelessWidget {
     final numero = NumeroDeFactura.de(pedido.facturaNumero) ?? '—';
     switch (pedido.facturaEstado) {
       case EstadoFactura.igual:
-        return _ConCobro(
-          pedido: pedido,
-          numero: Insignia(
+        return _conMarca(
+          Insignia(
             conNumero ? numero : 'Cuadra',
             color: Colores.verde,
             tooltip: 'Cuadra con lo pedido: se puede repartir tal cual.',
           ),
         );
       case EstadoFactura.cambiado:
-        return _ConCobro(
-          pedido: pedido,
-          numero: Insignia(
+        return _conMarca(
+          Insignia(
             conNumero ? '$numero !' : 'Cambió !',
             color: Colores.ambar,
             // Ya no dice «no puede ir en una ruta» (issue 10 de Amado, 15/10/2026):
@@ -846,11 +872,11 @@ class _ConCobro extends StatelessWidget {
     final Widget? marca;
     if (domicilioSinCobroSenalado(pedido)) {
       marca = Insignia(
-        'Sin cobro de domicilio',
+        'Domicilio sin precio puesto',
         color: Colores.gris,
         tooltip:
-            'La factura no trae la línea ENTREGA A DOMICILIO. No impide ir a '
-            'una ruta.',
+            'La factura trae la línea ENTREGA A DOMICILIO pero con el precio '
+            'en \$0: no se puso el precio. No impide ir a una ruta.',
       );
     } else if (importe != null && importe > 0) {
       marca = Insignia(

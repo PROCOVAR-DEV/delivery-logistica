@@ -19,13 +19,23 @@ import 'menu_de_cuenta.dart';
 /// `actualizando…` con el giro mientras haya cualquier consulta en vuelo.
 /// Derecha: sucursal, moneda y avatar.
 class BarraSuperior extends ConsumerWidget implements PreferredSizeWidget {
-  const BarraSuperior({required this.titulo, this.alAbrirMenu, super.key});
+  const BarraSuperior({
+    required this.titulo,
+    this.alAbrirMenu,
+    this.alAlternarLateral,
+    this.lateralAbierta = true,
+    super.key,
+  });
 
   final String titulo;
 
   /// `null` en escritorio: alli la barra lateral esta siempre a la vista y un
   /// boton de menu que no abre nada es un boton que ensena a desconfiar.
   final VoidCallback? alAbrirMenu;
+
+  /// Sólo en escritorio: cierra o abre la barra lateral fija para ganar ancho (Jose, 21/10/2026).
+  final VoidCallback? alAlternarLateral;
+  final bool lateralAbierta;
 
   @override
   Size get preferredSize => const Size.fromHeight(Anchos.altoBarraSuperior);
@@ -52,6 +62,18 @@ class BarraSuperior extends ConsumerWidget implements PreferredSizeWidget {
       padding: const EdgeInsets.symmetric(horizontal: Aire.md),
       child: Row(
         children: [
+          if (alAlternarLateral != null)
+            IconButton(
+              tooltip: lateralAbierta
+                  ? 'Ocultar el menú lateral'
+                  : 'Mostrar el menú lateral',
+              icon: Icon(
+                lateralAbierta ? Icons.menu_open : Icons.menu,
+                size: 22,
+              ),
+              color: Colores.tintaSuave,
+              onPressed: alAlternarLateral,
+            ),
           if (alAbrirMenu != null)
             IconButton(
               tooltip: 'Menú',

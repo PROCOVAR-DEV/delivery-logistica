@@ -394,6 +394,15 @@ class ConsultasPedidos {
         );
     }
 
+    switch (f.pedido) {
+      case PedidoFiltro.cualquiera:
+        break;
+      case PedidoFiltro.conPedido:
+        anadir(o.folio.isNotNull());
+      case PedidoFiltro.sinPedido:
+        anadir(o.folio.isNull());
+    }
+
     if (f.municipio.isNotEmpty) anadir(o.municipio.equals(f.municipio));
     if (f.vendedores.isNotEmpty) anadir(o.vendedor.isIn(f.vendedores));
 

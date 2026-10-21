@@ -202,7 +202,10 @@ void main() {
     testWidgets('y ahí tampoco se parte ninguna palabra', (tester) async {
       await pintar(tester, ancho: anchoDeEscritorio);
 
-      for (final texto in ['PSS26-261020-0731', 'sin cotizar']) {
+      // Lo que la tabla pinta hoy: el folio del pedido de origen y, en la columna Precio,
+      // «sin precio» (el dato de prueba no trae costo ni cobro de domicilio). «sin cotizar»
+      // es de la tarjeta del teléfono; la tabla ya no lo dice (21/10/2026).
+      for (final texto in ['PSS26-261020-0731', 'sin precio']) {
         final caja = tester.getRect(find.text(texto));
         expect(
           caja.width,

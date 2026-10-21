@@ -26,7 +26,7 @@ Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
    (importe mayor que cero en la factura) y, si el vendedor marcó domicilio,
    **cotizado en Entrega**. Una factura a la que le falte algo de eso sigue existiendo —se
    ve en Facturas— pero no se ofrece para repartir. En la marca de «Factura» de Facturas
-   se ve si falta el cobro: «Sin cobro de domicilio» en ámbar, o «Dom. $0.46» en verde
+   se ve si falta el cobro: «Domicilio sin precio puesto» en gris, o «Dom. $0.46» en verde
    si está cobrado; y la ficha de la factura dice en una línea si puede ir a una ruta y,
    si no, por qué. No es un fallo: se arregla cobrando o cotizando en Entrega. Ver
    [Las reglas del reparto](las-reglas-del-reparto.md).

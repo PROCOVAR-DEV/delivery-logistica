@@ -420,13 +420,24 @@ class _BarraDeFiltros extends ConsumerWidget {
         // cobradas o no»): no es cuentas por cobrar, es si la línea de entrega a domicilio de la
         // factura trae importe o va en $0. Las opciones lo dicen.
         Selector<CobroFiltro>(
-          key: const ValueKey('Cobro del domicilio'),
-          titulo: 'Cobro del domicilio',
+          key: const ValueKey('Precio del domicilio'),
+          titulo: 'Precio del domicilio',
           valor: filtros.cobro,
           opciones: [
             for (final c in CobroFiltro.values) OpcionSelector(c, c.etiqueta),
           ],
           alElegir: (c) => notas.cambiar((f) => f.copiarCon(cobro: c)),
+        ),
+        // LA FACTURA ES LA FILA, EL PEDIDO UN EXTRA (21/10/2026, Jose): de qué pedido viene la
+        // factura, si viene de alguno.
+        Selector<PedidoFiltro>(
+          key: const ValueKey('Pedido de origen'),
+          titulo: 'Pedido de origen',
+          valor: filtros.pedido,
+          opciones: [
+            for (final p in PedidoFiltro.values) OpcionSelector(p, p.etiqueta),
+          ],
+          alElegir: (p) => notas.cambiar((f) => f.copiarCon(pedido: p)),
         ),
         // VARIOS VENDEDORES A LA VEZ (issue 18 de Amado, 16/10/2026): salen los pedidos
         // de CUALQUIERA de los marcados. Cajón con casillas, no el `Selector` del kit.

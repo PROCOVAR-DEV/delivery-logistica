@@ -41,7 +41,8 @@ facturado. Ver [Las reglas del reparto](../las-reglas-del-reparto.md).
 | **Buscar** | vacío | Busca en cliente, folio, dirección, municipio, vendedor y productos. Busca solo, sin Intro |
 | **«Estado de reparto en delivery»** | «Cualquier reparto» | «Sin entregar», «En despacho», «En ruta», «Entregado», «Devuelto o cancelado». **Cada opción lleva al lado cuántas facturas hay en ese estado** (con el resto de filtros puestos) |
 | **«Municipio del cliente»** | «Todos los municipios» | Cada municipio con cuántas facturas tiene |
-| **«Cobro del domicilio»** | «Cualquier cobro» | «Con cobro: el domicilio trae importe» o «Sin cobro: el domicilio va en $0». **No es cuentas por cobrar:** no dice si el cliente ya pagó la factura, sino si la línea de entrega a domicilio de la factura trae un importe o va a cero |
+| **«Precio del domicilio»** | «Cualquier precio de domicilio» | «Con precio puesto: el domicilio trae importe» o «Domicilio sin precio puesto: va en $0». Ventra sólo manda facturas con la línea de ENTREGA A DOMICILIO; en las «sin precio puesto» esa línea está pero con el importe en $0. **No es cuentas por cobrar:** no dice si el cliente ya pagó la factura, sino si la línea de entrega a domicilio de la factura trae un importe o va a cero |
+| **«Pedido de origen»** | «Con o sin pedido» | «Con pedido» o «Sin pedido»: si la factura viene de un pedido de PEDIDO (tiene su folio) o no |
 | **«Vendedor de la factura»** | «Todos los vendedores» | **Uno o varios**: un cajón con una casilla por vendedor (con cuántas facturas tiene cada uno); salen los de cualquiera de los marcados. «Todos los vendedores» limpia, y la caja dice «3 vendedores» si hay varios |
 | **«Cómo se ordena esta página»** | «Más recientes» | «Más antiguos», «Precio: mayor a menor», «Precio: menor a mayor», «Distancia: más larga», «Peso: mayor» |
 | **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías | Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las dos. Filtran por la **fecha de la factura**, contada en hora de Cuba, los dos días incluidos |
@@ -68,6 +69,18 @@ Cambia según las fechas que tengas puestas: «· del 28/9/2026», «· desde el
 
 ---
 
+## La barra lateral se puede cerrar
+
+En escritorio, el botón de las tres rayas de la barra de arriba (a la izquierda del título) **cierra la barra lateral** para
+ganar ancho, y la vuelve a abrir. Se recuerda en ese aparato: si la cierras, mañana sigue cerrada.
+
+## El detalle de una factura
+
+Al abrir una factura se ve todo lo suyo: a dónde se entrega, la factura, el domicilio, los productos, la ruta y **de qué pedido
+viene** (su folio, o que no viene de ninguno). **Si la factura no trae la ubicación de la entrega**, arriba del todo sale un
+aviso: *«Falta la ubicación de la entrega. Es obligatoria: sin ella esta factura no se puede meter en una ruta. Ponla con
+«Ubicar la entrega».»* Una factura sin pedido no trae el punto del cliente, así que la dirección se pone a mano.
+
 ## Las columnas de la tabla
 
 **Cada fila es una factura de Ventra con entrega a domicilio. Si viene de un pedido de
@@ -79,7 +92,7 @@ es un extra, y por eso va más a la derecha y puede faltar.
 | Columna | Qué es |
 |---|---|
 | (casilla) | Marca la factura. La de la cabecera dice «Elegir todos los de esta página» |
-| **«Factura»** | **La primera.** El número de factura de Ventra, y si cuadra o cambió y si el domicilio está cobrado. Ver abajo |
+| **«Factura»** | **La primera.** Sólo el número de factura de Ventra, en una línea (verde si cuadra, ámbar con «!» si cambió). El domicilio ya no va aquí apilado: está en «Precio». Ver abajo |
 | **«Fecha factura»** | El día de la factura, en hora de Cuba. Si le falta, sale la del espejo con un `≈` delante: «≈ 12/9/2026» |
 | **«Sucursal»** | Sólo sale si no tienes una sucursal elegida arriba |
 | **«Pedido»** | **De qué pedido de PEDIDO viene la factura:** su folio (entero en el tooltip). Un **«—»** si la factura no viene de ningún pedido |
@@ -87,7 +100,7 @@ es un extra, y por eso va más a la derecha y puede faltar.
 | **«Ruta»** | El código de ruta, o «—» |
 | **«Artículos»** | El primer producto y cuántos más («+3»). Todo en el tooltip |
 | **«Peso»** | «128.0 kg» o «—» |
-| **«Precio»** | El domicilio de la parada: lo que cotizó Entrega o, si no, lo que cobró la propia factura. **«sin cotizar»** en gris si no hay ninguno |
+| **«Precio»** | El domicilio de la parada: lo que cotizó Entrega o, si no, lo que cobró la propia factura. **«sin precio»** en gris si la línea de domicilio de la factura va en $0 (con el tooltip que lo explica) |
 | **«Entrega»** | El estado de reparto |
 
 En pantalla estrecha no hay tabla: cada factura es una tarjeta, y la cabecera dice
@@ -153,7 +166,7 @@ en verde o con el `!`):
 | Qué se ve | Qué significa |
 |---|---|
 | **«Dom. $0.46»** en verde | La factura trae la línea «ENTREGA A DOMICILIO» y cobra ese importe: el domicilio está cobrado |
-| **«Sin cobro de domicilio»** en gris | «La factura no trae la línea ENTREGA A DOMICILIO. No impide ir a una ruta.» |
+| **«Domicilio sin precio puesto»** en gris | «La factura trae la línea ENTREGA A DOMICILIO pero con el precio en $0: no se puso el precio. No impide ir a una ruta.» |
 
 Así se ve **antes de marcar** si una factura trae el domicilio cobrado o no: hay factura, pero
 puede que no cobrara el domicilio. Con «sin facturar» o «sin cotejar»

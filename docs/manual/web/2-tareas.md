@@ -45,6 +45,7 @@ Los filtros van en una fila bajo la cabecera:
 | **«Estado de reparto en delivery»** | «Cualquier reparto» |
 | **«Municipio del cliente»** | «Todos los municipios» |
 | **«Cobro del domicilio»** | «Cualquier cobro». Con importe o en $0; no es cuentas por cobrar |
+| **«Pedido de origen»** | «Con o sin pedido» |
 | **«Vendedor de la factura»** | «Todos los vendedores». Uno o varios: casillas en un cajón, salen los de cualquiera de los marcados |
 | **«Cómo se ordena esta página»** | «Más recientes» |
 | **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías |

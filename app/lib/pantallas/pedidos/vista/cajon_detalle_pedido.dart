@@ -142,6 +142,25 @@ class _Ficha extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // SIN UBICACIÓN NO HAY PARADA (21/10/2026, Jose: «no tienes la dirección, y eso es obligatorio
+            // configurarla»). Una factura sin pedido no trae el punto del cliente: se dice arriba del todo,
+            // con lo que hay que hacer, y no sólo en la fila de la tabla.
+            if (p.endLat == null || p.endLng == null)
+              Container(
+                key: const ValueKey('ficha-falta-la-ubicacion'),
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colores.ambar.withValues(alpha: 0.12),
+                  border: Border.all(color: Colores.ambar),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'Falta la ubicación de la entrega. Es obligatoria: sin ella esta factura no se '
+                  'puede meter en una ruta. Ponla con «Ubicar la entrega».',
+                ),
+              ),
             _Seccion(
               titulo: 'Entrega',
               hijos: [
@@ -174,6 +193,18 @@ class _Ficha extends StatelessWidget {
               ],
             ),
             _BandaFactura(pedido: p),
+            _Seccion(
+              titulo: 'Pedido de origen',
+              hijos: [
+                Text(
+                  p.folio == null
+                      ? 'Esta factura no viene de ningún pedido de PEDIDO: no trae el punto del '
+                            'cliente, así que la dirección se pone a mano.'
+                      : p.folio!,
+                  key: const ValueKey('ficha-pedido-de-origen'),
+                ),
+              ],
+            ),
             _Domicilio(pedido: p),
             _Seccion(
               titulo: 'Productos (${ficha.renglones.length})',

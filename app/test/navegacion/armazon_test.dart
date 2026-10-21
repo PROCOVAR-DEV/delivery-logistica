@@ -117,6 +117,37 @@ void main() {
     await desmontar(tester);
   });
 
+  // 21/10/2026, Jose: «no puedo cerrar el side bar para tener más espacio». En pareja: en escritorio
+  // el botón la cierra y la vuelve a abrir; en móvil ese botón no existe (allí la barra ya es un cajón).
+  testWidgets(
+    'escritorio: el boton cierra la barra lateral y la vuelve a abrir',
+    (tester) async {
+      await montar(tester, const Size(1440, 900));
+      expect(find.byType(BarraLateral), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Ocultar el menú lateral'));
+      await tester.pump();
+      expect(find.byType(BarraLateral), findsNothing);
+      expect(
+        find.text('cuerpo de uno'),
+        findsOneWidget,
+        reason: 'la pantalla sigue ahí, con más ancho',
+      );
+
+      await tester.tap(find.byTooltip('Mostrar el menú lateral'));
+      await tester.pump();
+      expect(find.byType(BarraLateral), findsOneWidget);
+      await desmontar(tester);
+    },
+  );
+
+  testWidgets('movil: no hay boton de cerrar la barra lateral', (tester) async {
+    await montar(tester, const Size(390, 800));
+    expect(find.byTooltip('Ocultar el menú lateral'), findsNothing);
+    expect(find.byTooltip('Mostrar el menú lateral'), findsNothing);
+    await desmontar(tester);
+  });
+
   testWidgets('movil: la barra se sale de la pantalla y la abre el boton', (
     tester,
   ) async {
@@ -180,36 +211,37 @@ void main() {
   ///
   /// Se comprueba en las DOS pantallas y navegando de una a otra: con una sola,
   /// cualquier valor fijo pasaria.
-  testWidgets('la franja recibe las colecciones de la pantalla que hay debajo', (
-    tester,
-  ) async {
-    await montar(tester, const Size(1440, 900));
+  testWidgets(
+    'la franja recibe las colecciones de la pantalla que hay debajo',
+    (tester) async {
+      await montar(tester, const Size(1440, 900));
 
-    List<String> loQueMideLaFranja() => tester
-        .widget<FranjaDeEstado>(find.byType(FranjaDeEstado))
-        .colecciones;
+      List<String> loQueMideLaFranja() => tester
+          .widget<FranjaDeEstado>(find.byType(FranjaDeEstado))
+          .colecciones;
 
-    expect(
-      loQueMideLaFranja(),
-      ColeccionesDePantalla.panel,
-      reason: '/uno declara las nueve',
-    );
+      expect(
+        loQueMideLaFranja(),
+        ColeccionesDePantalla.panel,
+        reason: '/uno declara las nueve',
+      );
 
-    await tester.tap(find.text('Dos'));
-    await tester.pumpAndSettle();
-    expect(find.text('cuerpo de dos'), findsOneWidget);
+      await tester.tap(find.text('Dos'));
+      await tester.pumpAndSettle();
+      expect(find.text('cuerpo de dos'), findsOneWidget);
 
-    expect(
-      loQueMideLaFranja(),
-      ColeccionesDePantalla.clientes,
-      reason:
-          'la franja se quedo midiendo lo de la pantalla anterior —o lo de todas—: '
-          'el armazon no le esta pasando `PantallaRegistrada.colecciones`, y '
-          'entonces la hora de arriba no es la de lo que se esta viendo',
-    );
+      expect(
+        loQueMideLaFranja(),
+        ColeccionesDePantalla.clientes,
+        reason:
+            'la franja se quedo midiendo lo de la pantalla anterior —o lo de todas—: '
+            'el armazon no le esta pasando `PantallaRegistrada.colecciones`, y '
+            'entonces la hora de arriba no es la de lo que se esta viendo',
+      );
 
-    await desmontar(tester);
-  });
+      await desmontar(tester);
+    },
+  );
 
   testWidgets('el grupo de la derecha de la barra llega al borde', (
     tester,

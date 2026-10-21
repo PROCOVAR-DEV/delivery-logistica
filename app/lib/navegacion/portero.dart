@@ -9,7 +9,8 @@ import '../nucleo/identidad/revocador_de_cierres.dart';
 import '../nucleo/identidad/sesion.dart';
 import '../nucleo/plataforma.dart';
 import '../nucleo/proveedores.dart';
-import '../nucleo/red/eventos.dart' show tipoPermisosCambiados, tipoSesionCerrada;
+import '../nucleo/red/eventos.dart'
+    show tipoPermisosCambiados, tipoSesionCerrada;
 import '../nucleo/red/fallos.dart' show FalloDeRed, Rechazo, SesionMuerta;
 import '../nucleo/sincro/sucursal_del_aparato.dart';
 import '../nucleo/registro/registro.dart';

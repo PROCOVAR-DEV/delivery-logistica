@@ -479,3 +479,45 @@ func TestUnRenglonConCantidadCeroONegativaNoSeCargaYSeCuenta(t *testing.T) {
 		t.Errorf("sin renglones de verdad es una entrega sin mercancía: %+v %+v", p.Items, inf)
 	}
 }
+
+// LAS UNIDADES SE LEEN DEL NOMBRE (Jose, 21/10/2026): el catálogo local no trae unidades por empaque, y con
+// eso «20 pacas de ARROZ 10U» salían como 20 unidades en vez de 200.
+func TestLasUnidadesPorEmpaqueSeLeenDelNombre(t *testing.T) {
+	casos := []struct {
+		nombre string
+		sale   float64
+	}{
+		{"ARROZ RIVIERA 1 KG PACA 10U", 10},
+		{"AZUCAR PATEKO 1 KG PACA 10U", 10},
+		{"REFRESCO SANTA COLA 330 ML CAJA 24U", 24},
+		{"CERVEZA PARRANDA 500 ML BLISTER 6U", 6},
+		{"ACEITE SOYA SAUDE 900 ML CAJA 20U", 20},
+		{"PAPEL HIGIENICO MANATI 15 M PACA 12P DE 4U", 48}, // 12 paquetes de 4
+		{"PANEL SOLAR BIFACIAL JINKO 625 W", 0},            // sin patrón: no se inventa
+		{"PAQUETE DE HOJAS 4 P A4", 0},
+		{"SERVILLETA PROSITO PACA 24P", 0}, // «P» sola no son unidades
+		{"", 0},
+	}
+	for _, c := range casos {
+		if got := unidadesPorEmpaqueDelNombre(c.nombre); got != c.sale {
+			t.Errorf("unidadesPorEmpaqueDelNombre(%q) = %v; quería %v", c.nombre, got, c.sale)
+		}
+	}
+}
+
+func TestVeinteDeArrozDe10UnSonDoscientasUnidades(t *testing.T) {
+	arroz := LineaDeFactura{Codigo: "ALIM0019", Nombre: "ARROZ RIVIERA 1 KG PACA 10U", Unidad: "P", Cantidad: 20, Importe: 20 * 9}
+	panel := LineaDeFactura{Codigo: "PANE0001", Nombre: "PANEL SOLAR BIFACIAL JINKO 625 W", Unidad: "U", Cantidad: 40, Importe: 40 * 100}
+	en := EntregaDeFactura{Sucursal: "STG", Facturas: []FacturaDeVentra{factura("1", "2026-10-20", "2", "PED-9", arroz, panel, domicilio(1))}}
+	p, _ := en.APedido(ContextoDeMapeo{Puntos: NuevosPuntos(nil), Productos: map[string]ProductoDeVentra{}})
+	got := map[string]float64{}
+	for _, it := range p.Items {
+		got[it.Codigo] = *it.Unidades
+	}
+	if got["ALIM0019"] != 200 {
+		t.Errorf("20 pacas de 10 unidades son 200 unidades; salió %v", got["ALIM0019"])
+	}
+	if got["PANE0001"] != 40 {
+		t.Errorf("un producto sin unidades por empaque se queda 1 a 1 (40): %v", got["PANE0001"])
+	}
+}

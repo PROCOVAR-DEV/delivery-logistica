@@ -38,6 +38,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -493,9 +494,18 @@ func (e EntregaDeFactura) APedido(ctx ContextoDeMapeo) (PedidoDeFuera, InformeDe
 		// unidades salen de multiplicar por lo que trae cada una, y si eso no se sabe son los
 		// mismos números (nunca 0: un 0 haría que el peso por unidad de venta diera cero).
 		packs := *r.Packs
+		porEmpaque := 0.0
+		if hay {
+			porEmpaque = prod.UnidadesPorEmpaque
+		}
+		// El catálogo local no trae las unidades por empaque (ningún producto las tiene), pero el NOMBRE de
+		// Ventra las dice: «PACA 10U», «CAJA 24U», «BLISTER 6U» (Jose, 21/10/2026: «20 pacas son 200 unidades, no 20»).
+		if !(porEmpaque > 0) {
+			porEmpaque = unidadesPorEmpaqueDelNombre(r.Producto)
+		}
 		unidades := packs
-		if hay && prod.UnidadesPorEmpaque > 0 {
-			unidades = packs * prod.UnidadesPorEmpaque
+		if porEmpaque > 0 {
+			unidades = packs * porEmpaque
 		}
 		r.Unidades = &unidades
 		// El peso es por unidad de venta y la cascada de pesos de la puerta (`cotizar.PesosDeRenglones`,
@@ -513,6 +523,30 @@ func (e EntregaDeFactura) APedido(ctx ContextoDeMapeo) (PedidoDeFuera, InformeDe
 	dom := math.Round(domicilio*100) / 100
 	p.FacturaDomicilio = &dom
 	return p, inf
+}
+
+// unidadesDelNombre lee las unidades por empaque del nombre del producto en Ventra: `PACA 10U` son 10,
+// `CAJA 24U` 24, `BLISTER 6U` 6 y `PACA 12P DE 4U` 12 paquetes de 4 = 48. Sin ese patrón (un panel solar, un
+// producto suelto) devuelve 0 y quien llama deja las unidades igual a los empaques. Es una lectura del nombre,
+// no del catálogo: si Ventra algún día manda las unidades por empaque de verdad, manda el catálogo.
+var unidadesDelNombre = regexp.MustCompile(`(?i)\b(\d+)\s*P\s*DE\s*(\d+)\s*U\b|\b(\d+)\s*U\b`)
+
+func unidadesPorEmpaqueDelNombre(nombre string) float64 {
+	m := unidadesDelNombre.FindStringSubmatch(nombre)
+	if m == nil {
+		return 0
+	}
+	num := func(s string) float64 {
+		n, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0
+		}
+		return n
+	}
+	if m[1] != "" {
+		return num(m[1]) * num(m[2])
+	}
+	return num(m[3])
 }
 
 // DomicilioUsd es la suma de las líneas de domicilio de la entrega, a céntimos. Es lo que la factura cobra por

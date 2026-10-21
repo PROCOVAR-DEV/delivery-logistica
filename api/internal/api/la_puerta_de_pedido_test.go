@@ -652,3 +652,56 @@ func TestLosDosOrigenesNoSeLlamanIgual(t *testing.T) {
 			"pregunta «¿entra algo por el webhook?» no tiene respuesta", OrigenDelWebhook)
 	}
 }
+
+// SOLO FACTURA (21/10/2026, Jose: «solo facturas»): con `SYNC_FUENTE=factura` un aviso de PEDIDO con
+// un pedido dentro NO crea ninguna entrega —ni siquiera llega a la puerta de cotización— y se
+// contesta 200 sin efecto con su motivo. Es lo que impide que el borrado de los pedidos de STG y GTO se
+// deshaga solo con cada pedido nuevo. En pareja con `TestElPedidoEntraTraducidoPorLaPuertaUnica`
+// (sin la variable, entra).
+func TestConSoloFacturaUnPedidoDePedidoNoCreaNada(t *testing.T) {
+	llamadas := 0
+	puerta := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		llamadas++
+		_, _ = w.Write([]byte(`{"total":1,"persisted":1,"results":[{"status":"quoted","persisted":true}]}`))
+	}))
+	defer puerta.Close()
+
+	h, _, _ := montarLaPuerta(t, func(t *testing.T) {
+		t.Setenv("DELIVERY_URL", puerta.URL)
+		t.Setenv("SYNC_FUENTE", "factura")
+	})
+	cuerpo := `{"aviso":{"avisoId":"1-0","motivo":"factura","id":"PED-7","sucursalId":"STG"},
+	            "pedido":{"id":"PED-7","folio":"X-2992","sucursalCodigo":"STG",
+	                      "itemsOrigen":"factura","requiereDomicilio":true,
+	                      "cliente":{"nombre":"Uno","latitud":20.1,"longitud":-77.2},
+	                      "items":[{"codigo":"A","pesoKg":2,"pesoLineaKg":24,"packs":12}]}}`
+
+	w := tocarLaPuerta(t, h, claveDePruebas, firmarDePruebas(secretoDePruebas, cuerpo), cuerpo)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("PEDIDO no tiene que reintentar ni descartar: esperaba 200, vino %d %s", w.Code, w.Body.String())
+	}
+	if llamadas != 0 {
+		t.Fatalf("el pedido llegó a la puerta de cotización %d veces: se está creando una entrega por la puerta de atrás", llamadas)
+	}
+	r := leerLaRespuesta(t, w.Body.String())
+	if r.Aplicados != 0 || r.SinEfecto != 1 || !strings.Contains(r.Motivos, "trabaja por factura") {
+		t.Fatalf("tenía que decir sin efecto y por qué: %s", w.Body.String())
+	}
+}
+
+// Y lo que NO se corta: el aviso de cliente movido de sitio sigue aplicándose (los clientes viven en PEDIDO).
+func TestConSoloFacturaElClienteMovidoSiSeGuarda(t *testing.T) {
+	h, q, _ := montarLaPuerta(t, func(t *testing.T) { t.Setenv("SYNC_FUENTE", "factura") })
+	cuerpo := `{"aviso":{"avisoId":"1-0","motivo":"cliente","id":"C-1"},
+	            "cliente":{"id":"C-1","nombre":"Uno","latitud":20.1,"longitud":-77.2,"sucursalCodigo":"STG"}}`
+
+	w := tocarLaPuerta(t, h, claveDePruebas, firmarDePruebas(secretoDePruebas, cuerpo), cuerpo)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("el cliente no entró: %d %s", w.Code, w.Body.String())
+	}
+	if q.clientes != 1 {
+		t.Fatalf("el cliente movido tiene que guardarse también en solo factura: clientes=%d", q.clientes)
+	}
+}

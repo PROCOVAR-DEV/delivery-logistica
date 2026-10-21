@@ -86,6 +86,13 @@ type Config struct {
 	WebhookDePedidoKey    string
 	WebhookDePedidoSecret string
 
+	// SoloFactura: `SYNC_FUENTE=factura` (la misma variable que el espejo). Reparto trabaja SÓLO por
+	// las facturas de Ventra y PEDIDO ya no crea entregas (Jose, 21/10/2026: «solo facturas»). El
+	// webhook de PEDIDO sigue aceptando avisos —los de cliente se aplican, y los de borrado—, pero
+	// un aviso con un PEDIDO dentro se contesta 200 sin efecto y no se guarda nada: si no, cada
+	// pedido nuevo de PEDIDO volvería a meterse por la puerta de atrás.
+	SoloFactura bool
+
 	// CatalogoCada es cada cuánto se vuelve a bajar el catálogo de Ventra.
 	CatalogoCada time.Duration
 
@@ -360,6 +367,7 @@ func Cargar(version string) (*Config, error) {
 		// en ningún sitio: los dos lados juran tener «el mismo» secreto.
 		WebhookDePedidoKey:    strings.TrimSpace(os.Getenv("PEDIDO_WEBHOOK_KEY")),
 		WebhookDePedidoSecret: strings.TrimSpace(os.Getenv("PEDIDO_WEBHOOK_SECRET")),
+		SoloFactura:           strings.EqualFold(strings.TrimSpace(os.Getenv("SYNC_FUENTE")), "factura"),
 		AuthURL:               strings.TrimRight(valor("PROCOVAR_AUTH_URL", "https://auth.procovar.cloud"), "/"),
 		AuthPublicURL:         strings.TrimRight(strings.TrimSpace(os.Getenv("PROCOVAR_AUTH_PUBLIC_URL")), "/"),
 		AuthClientID:          valor("PROCOVAR_AUTH_CLIENT_ID", "delivery"),

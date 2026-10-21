@@ -395,6 +395,14 @@ func (s *Servidor) aplicarElAviso(
 		return respuestaDelWebhook{Aplicados: 1}, http.StatusOK
 	}
 
+	// SOLO FACTURA (`SYNC_FUENTE=factura`): PEDIDO ya no crea entregas, las crea la factura de
+	// Ventra. 200 y no un error: PEDIDO no tiene que reintentar ni descartar nada, el aviso
+	// simplemente no es de este lado. Queda a la vista en la constancia con su motivo.
+	if s.cfg.SoloFactura {
+		return respuestaDelWebhook{SinEfecto: 1,
+			Motivos: "Reparto trabaja por factura: los pedidos de PEDIDO ya no crean entregas"}, http.StatusOK
+	}
+
 	// EL RESTO SON PEDIDOS: `factura`, `domicilio`, `importacion` — y cualquier motivo NUEVO
 	// que PEDIDO invente contra una versión vieja de esto.
 	//

@@ -75,7 +75,7 @@ void main() {
 
         // La caja del filtro está entre los nueve; en un teléfono se pliegan en un
         // cajón, y el botón de abrirlo es el de «Filtros».
-        final caja = find.byKey(const ValueKey('Vendedor del pedido'));
+        final caja = find.byKey(const ValueKey('Vendedor de la factura'));
         if (caja.evaluate().isEmpty) {
           await tester.tap(find.byTooltip('Filtros').first);
           await _asentar(tester);

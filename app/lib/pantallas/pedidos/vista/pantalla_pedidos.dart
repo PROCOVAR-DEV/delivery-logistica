@@ -428,22 +428,11 @@ class _BarraDeFiltros extends ConsumerWidget {
           ],
           alElegir: (c) => notas.cambiar((f) => f.copiarCon(cobro: c)),
         ),
-        // LA FACTURA ES LA FILA, EL PEDIDO UN EXTRA (21/10/2026, Jose): de qué pedido viene la
-        // factura, si viene de alguno.
-        Selector<PedidoFiltro>(
-          key: const ValueKey('Pedido de origen'),
-          titulo: 'Pedido de origen',
-          valor: filtros.pedido,
-          opciones: [
-            for (final p in PedidoFiltro.values) OpcionSelector(p, p.etiqueta),
-          ],
-          alElegir: (p) => notas.cambiar((f) => f.copiarCon(pedido: p)),
-        ),
         // VARIOS VENDEDORES A LA VEZ (issue 18 de Amado, 16/10/2026): salen los pedidos
         // de CUALQUIERA de los marcados. Cajón con casillas, no el `Selector` del kit.
         SelectorMultiple(
-          key: const ValueKey('Vendedor del pedido'),
-          titulo: 'Vendedor del pedido',
+          key: const ValueKey('Vendedor de la factura'),
+          titulo: 'Vendedor de la factura',
           todos: 'Todos los vendedores',
           plural: 'vendedores',
           opciones: [

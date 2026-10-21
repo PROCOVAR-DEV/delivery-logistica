@@ -3931,8 +3931,7 @@ facturado. Ver [Las reglas del reparto](../las-reglas-del-reparto.md).
 | **«Estado de reparto en delivery»** | «Cualquier reparto» | «Sin entregar», «En despacho», «En ruta», «Entregado», «Devuelto o cancelado». **Cada opción lleva al lado cuántas facturas hay en ese estado** (con el resto de filtros puestos) |
 | **«Municipio del cliente»** | «Todos los municipios» | Cada municipio con cuántas facturas tiene |
 | **«Cobro del domicilio»** | «Cualquier cobro» | «Con cobro: el domicilio trae importe» o «Sin cobro: el domicilio va en $0». **No es cuentas por cobrar:** no dice si el cliente ya pagó la factura, sino si la línea de entrega a domicilio de la factura trae un importe o va a cero |
-| **«Pedido de origen»** | «Con o sin pedido» | «Con pedido» o «Sin pedido»: si la factura viene de un pedido de PEDIDO (tiene su folio) o no |
-| **«Vendedor del pedido»** | «Todos los vendedores» | **Uno o varios**: un cajón con una casilla por vendedor (con cuántas facturas tiene cada uno); salen los de cualquiera de los marcados. «Todos los vendedores» limpia, y la caja dice «3 vendedores» si hay varios |
+| **«Vendedor de la factura»** | «Todos los vendedores» | **Uno o varios**: un cajón con una casilla por vendedor (con cuántas facturas tiene cada uno); salen los de cualquiera de los marcados. «Todos los vendedores» limpia, y la caja dice «3 vendedores» si hay varios |
 | **«Cómo se ordena esta página»** | «Más recientes» | «Más antiguos», «Precio: mayor a menor», «Precio: menor a mayor», «Distancia: más larga», «Peso: mayor» |
 | **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías | Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las dos. Filtran por la **fecha de la factura**, contada en hora de Cuba, los dos días incluidos |
 
@@ -8986,8 +8985,7 @@ Los filtros van en una fila bajo la cabecera:
 | **«Estado de reparto en delivery»** | «Cualquier reparto» |
 | **«Municipio del cliente»** | «Todos los municipios» |
 | **«Cobro del domicilio»** | «Cualquier cobro». Con importe o en $0; no es cuentas por cobrar |
-| **«Pedido de origen»** | «Con o sin pedido» |
-| **«Vendedor del pedido»** | «Todos los vendedores». Uno o varios: casillas en un cajón, salen los de cualquiera de los marcados |
+| **«Vendedor de la factura»** | «Todos los vendedores». Uno o varios: casillas en un cajón, salen los de cualquiera de los marcados |
 | **«Cómo se ordena esta página»** | «Más recientes» |
 | **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías |
 

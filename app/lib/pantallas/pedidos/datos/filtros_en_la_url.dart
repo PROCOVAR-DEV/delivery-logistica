@@ -72,7 +72,6 @@ abstract final class FiltrosEnLaUrl {
   static const claveMunicipio = 'municipio';
   static const claveVendedor = 'vendedor';
   static const claveCobro = 'cobro';
-  static const clavePedido = 'pedido';
   static const claveFactura = 'factura';
   static const claveArchivado = 'archivado';
   static const claveDesde = 'desde';
@@ -208,9 +207,6 @@ abstract final class FiltrosEnLaUrl {
         cobro:
             deEnum(claveCobro, CobroFiltro.values, (v) => v.param) ??
             base.cobro,
-        pedido:
-            deEnum(clavePedido, PedidoFiltro.values, (v) => v.param) ??
-            base.pedido,
         factura:
             deEnum(claveFactura, FacturaFiltro.values, (v) => v.param) ??
             base.factura,
@@ -246,7 +242,6 @@ abstract final class FiltrosEnLaUrl {
       if (f.municipio.isNotEmpty) claveMunicipio: f.municipio,
       if (f.vendedores.isNotEmpty) claveVendedor: f.vendedores,
       if (f.cobro != base.cobro) claveCobro: f.cobro.param,
-      if (f.pedido != base.pedido) clavePedido: f.pedido.param,
       if (f.factura != base.factura) claveFactura: f.factura.param,
       if (f.archivado != base.archivado) claveArchivado: f.archivado.param,
       if (f.desde != null) claveDesde: _dia(f.desde!),

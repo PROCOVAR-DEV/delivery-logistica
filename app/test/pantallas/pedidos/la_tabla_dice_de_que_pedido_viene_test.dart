@@ -78,14 +78,15 @@ void main() {
     },
   );
 
-  testWidgets('con folio, la celda Pedido lo enseña con su estado', (
+  testWidgets('con folio, la celda Pedido lo enseña, sin estado inventado', (
     tester,
   ) async {
     await pintar(tester, [pedido(id: 'p1', folio: 'PSS26-261020-0731')]);
 
     expect(find.byKey(const ValueKey('fila-pedido-p1')), findsOneWidget);
     expect(find.text('PSS26-261020-0731'), findsOneWidget);
-    expect(find.text('En proceso'), findsOneWidget);
+    // El estado del pedido ya no se pinta: con las facturas de Ventra de fuente nadie lo actualiza.
+    expect(find.text('En proceso'), findsNothing);
   });
 
   testWidgets('sin folio no hay pedido: un guion y ningún estado', (

@@ -193,7 +193,7 @@ void main() {
     testWidgets('con sus rótulos de columna', (tester) async {
       await pintar(tester, ancho: anchoDeEscritorio);
 
-      expect(find.text('Dirección'), findsOneWidget);
+      expect(find.text('Cliente'), findsOneWidget);
       expect(find.text('Artículos'), findsOneWidget);
       expect(find.text('Peso'), findsOneWidget);
       expect(find.text('Entrega'), findsOneWidget);
@@ -202,7 +202,7 @@ void main() {
     testWidgets('y ahí tampoco se parte ninguna palabra', (tester) async {
       await pintar(tester, ancho: anchoDeEscritorio);
 
-      for (final texto in ['Completada', 'sin cotizar']) {
+      for (final texto in ['PSS26-261020-0731', 'sin cotizar']) {
         final caja = tester.getRect(find.text(texto));
         expect(
           caja.width,

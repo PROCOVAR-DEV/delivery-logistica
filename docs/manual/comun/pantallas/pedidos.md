@@ -72,7 +72,7 @@ Cambia según las fechas que tengas puestas: «· del 28/9/2026», «· desde el
 ## Las columnas de la tabla
 
 **Cada fila es una factura de Ventra con entrega a domicilio. Si viene de un pedido de
-PEDIDO, la columna Pedido enseña su folio y su estado; si no, un guion.**
+PEDIDO, la columna Pedido enseña su folio; si no, un guion.**
 
 **La factura es la primera columna** (después de la casilla): ella es la fila. El pedido
 es un extra, y por eso va más a la derecha y puede faltar.
@@ -80,16 +80,15 @@ es un extra, y por eso va más a la derecha y puede faltar.
 | Columna | Qué es |
 |---|---|
 | (casilla) | Marca la factura. La de la cabecera dice «Elegir todos los de esta página» |
-| **«Factura»** | **La primera.** El número de factura de Ventra, con la fecha debajo, y si cuadra o cambió y si el domicilio está cobrado. Ver abajo |
-| **«Fecha factura»** | La fecha de la factura. Si le falta, sale la del espejo con un `≈` delante: «≈ 12/9/2026» |
+| **«Factura»** | **La primera.** El número de factura de Ventra, y si cuadra o cambió y si el domicilio está cobrado. Ver abajo |
+| **«Fecha factura»** | El día de la factura, en hora de Cuba. Si le falta, sale la del espejo con un `≈` delante: «≈ 12/9/2026» |
 | **«Sucursal»** | Sólo sale si no tienes una sucursal elegida arriba |
-| **«Pedido»** | **De qué pedido de PEDIDO viene la factura:** su folio y, debajo, su estado en PEDIDO («Completada», «En proceso», «Expirada»). Un **«—»** si la factura no viene de ningún pedido |
-| **«Cliente»** | El nombre y debajo el número de operación (el conduce) |
+| **«Pedido»** | **De qué pedido de PEDIDO viene la factura:** su folio (entero en el tooltip). Un **«—»** si la factura no viene de ningún pedido |
+| **«Cliente»** | El nombre y, debajo, **a dónde se lleva** (la dirección de entrega). Si la factura no trae punto, una línea ámbar: «Sin ubicación: ponle la dirección en «Ubicar la entrega»» |
 | **«Ruta»** | El código de ruta, o «—» |
 | **«Artículos»** | El primer producto y cuántos más («+3»). Todo en el tooltip |
-| **«Dirección»** | La de entrega |
 | **«Peso»** | «128.0 kg» o «—» |
-| **«Precio»** | «$12.50» o **«sin cotizar»** en gris |
+| **«Precio»** | El domicilio de la parada: lo que cotizó Entrega o, si no, lo que cobró la propia factura. **«sin cotizar»** en gris si no hay ninguno |
 | **«Entrega»** | El estado de reparto |
 
 En pantalla estrecha no hay tabla: cada factura es una tarjeta, y la cabecera dice

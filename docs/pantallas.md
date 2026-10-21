@@ -215,27 +215,23 @@ columna** (desde el 21/10/2026; antes lo era la fecha del pedido):
     lleva sólo el número, o el `Dom.` verde si hay cobro; una devuelta o cancelada sí lleva el
     ámbar, porque se puede reasignar. En el móvil (tarjeta) la marca va dentro de la
     tarjeta, junto al número.
-3. `Fecha factura` — fecha de la factura; si falta `orderDate` se pinta la de copiado con un `≈`
+3. `Fecha factura` — el día de la factura en hora de Cuba (`facturaAt`); si falta, `orderDate`, y si tampoco, la de copiado con un `≈`
    y el tooltip `Factura copiada antes de que se guardara su fecha: ésta es la del espejo.`
 4. `Sucursal` — **sólo si no hay sucursal elegida arriba**; se oculta bajo 1536 px.
-5. `Pedido` — **de qué pedido de PEDIDO viene la factura**: su folio y, debajo, la
-   insignia de estado EN PEDIDO: `Completada` (verde) / `Expirada` (roja, si
-   `fechaComprometida` ya pasó) / `En proceso` (ámbar). Icono de archivo con tooltip
-   `Archivado en PEDIDO` si procede; y debajo `sin domicilio` si `requiereDomicilio=false`.
-   **Si la factura no viene de ningún pedido** (no hay folio, o este aparato aún no lo ha
+5. `Pedido` — **de qué pedido de PEDIDO viene la factura**: su folio (mono; entero en el tooltip
+   `Pedido de PEDIDO: <folio>`). Ya no lleva la insignia de estado: con las facturas de Ventra como
+   fuente nadie lo actualiza. **Si la factura no viene de ningún pedido** (no hay folio, o este aparato aún no lo ha
    puesto al día) sale un guion `—`, con el tooltip `Esta factura no viene de ningún pedido de PEDIDO.`
-6. `Cliente` — nombre + nº de operación (folio) en mono.
+6. `Cliente` — nombre y, debajo, la dirección de entrega (`endAddress` o `address`); si no hay punto (`endLat`/`endLng` nulos), la línea ámbar `Sin ubicación: ponle la dirección en «Ubicar la entrega»`. Es la antigua columna `Dirección`, que se quitó.
 7. `Ruta` — código de ruta en insignia azul o `—`. Oculta bajo 1280 px.
 8. `Artículos` — primer producto `×<empaques>` y `+<n>` con desplegable al pasar el ratón
    (en Flutter: tocar para abrir). Oculta bajo 1024 px.
-9. `Dirección` — `endAddress` o `address`.
-10. `Peso` — `<n> kg`, alineada a la derecha.
-11. `Precio` — **`pedidoCosto`** (lo que cobró Entrega), no el precio interno. Si no hay:
-    `sin cotizar` en gris.
-12. `Entrega` — estado de reparto calculado: `Devuelto` / `Cancelado` (ámbar),
+9. `Peso` — `<n> kg`, alineada a la derecha.
+10. `Precio` — el domicilio de la parada (`costoDeLaParada`): `pedidoCosto` (lo que cotizó Entrega) y, si no, lo que cobró la factura. Si ninguno: `sin cotizar` en gris.
+11. `Entrega` — estado de reparto calculado: `Devuelto` / `Cancelado` (ámbar),
     `Entregado` (verde), `En ruta` (azul), `En despacho` (índigo), `Sin entregar` (gris).
     Oculta bajo 768 px.
-13. Chevron. La fila entera abre el detalle.
+12. Chevron. La fila entera abre el detalle.
 
 **Sin columna `Vehículo`** (Amado, 08/10/2026, «elimínala para más espacio»): desde la 1.0.28
 `orders.vehicle_id` no existe y la celda era un marcador mudo. El camión de una factura sigue

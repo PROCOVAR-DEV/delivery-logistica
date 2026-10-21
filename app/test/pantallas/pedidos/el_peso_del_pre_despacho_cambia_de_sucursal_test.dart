@@ -121,11 +121,8 @@ void main() {
 
   tearDown(() => base.close());
 
-  Future<TotalesPreDespacho> preDespachoDe(String? sucursal) =>
-      consultas.preDespachoDeLoFiltrado(
-        const FiltrosPedidos(),
-        sucursalId: sucursal,
-      );
+  Future<TotalesPreDespacho> preDespachoDe(String? sucursal) => consultas
+      .preDespachoDeLoFiltrado(const FiltrosPedidos(), sucursalId: sucursal);
 
   const clavado =
       'EL PESO SE QUEDO CLAVADO AL CAMBIAR DE SUCURSAL. Es la hoja con la que '
@@ -155,120 +152,111 @@ void main() {
   // ---------------------------------------------------------------------------
   // GUARDA 2: UN RENGLON CON PESO NO SE CUENTA COMO «SIN PESO»
   // ---------------------------------------------------------------------------
-  test(
-    'ningun renglon con peso se cuenta como «sin peso»',
-    () async {
-      // El sintoma de Jose eran las dos mitades a la vez: la cifra quieta Y el
-      // contador creciendo. Meter en el contador un renglon que trae su peso
-      // manda a alguien a buscar un dato que ya esta.
-      for (final sucursal in <String?>['B1', null]) {
-        final totales = await preDespachoDe(sucursal);
-        expect(
-          totales.sinPeso,
-          0,
-          reason:
-              'con alcance «${sucursal ?? 'todas'}» los tres renglones traen '
-              'el peso de su linea resuelto, asi que no hay ninguno que falte '
-              'por saber',
-        );
-        expect(totales.pesoCompleto, isTrue);
-      }
-    },
-  );
+  test('ningun renglon con peso se cuenta como «sin peso»', () async {
+    // El sintoma de Jose eran las dos mitades a la vez: la cifra quieta Y el
+    // contador creciendo. Meter en el contador un renglon que trae su peso
+    // manda a alguien a buscar un dato que ya esta.
+    for (final sucursal in <String?>['B1', null]) {
+      final totales = await preDespachoDe(sucursal);
+      expect(
+        totales.sinPeso,
+        0,
+        reason:
+            'con alcance «${sucursal ?? 'todas'}» los tres renglones traen '
+            'el peso de su linea resuelto, asi que no hay ninguno que falte '
+            'por saber',
+      );
+      expect(totales.pesoCompleto, isTrue);
+    }
+  });
 
   // ---------------------------------------------------------------------------
   // GUARDA 1: UN CERO NO ES UN PESO
   // ---------------------------------------------------------------------------
-  test(
-    'un peso en cero no es un peso: es «no se sabe», y no dice 0.0 kg',
-    () async {
-      // UN CERO NO ES UN DATO. El servidor lo dice con `Positivo()` en cada
-      // escalon de su cascada y por eso deja la columna VACIA cuando no resolvio
-      // nada. Pero los renglones que dejo la migracion del delivery viejo
-      // (`api/db/migracion/02_pedidos.sql`) copian el JSON tal cual, cero
-      // incluido: si ese cero se colara, la hoja del almacen diria «0.0 kg»
-      // sobre un renglon que nadie ha pesado, y eso se lee como «no pesa».
-      await base.delete(base.orderItems).go();
-      await sembrarRenglon(
-        base,
-        id: 'r1',
-        pedidoId: 'o-stg-1',
-        producto: malta,
-        unidades: 60,
-        empaques: 10,
-        pesoLinea: 0,
-      );
+  test('un peso en cero no es un peso: es «no se sabe», y no dice 0.0 kg', () async {
+    // UN CERO NO ES UN DATO. El servidor lo dice con `Positivo()` en cada
+    // escalon de su cascada y por eso deja la columna VACIA cuando no resolvio
+    // nada. Pero los renglones que dejo la migracion del delivery viejo
+    // (`api/db/migracion/02_pedidos.sql`) copian el JSON tal cual, cero
+    // incluido: si ese cero se colara, la hoja del almacen diria «0.0 kg»
+    // sobre un renglon que nadie ha pesado, y eso se lee como «no pesa».
+    await base.delete(base.orderItems).go();
+    await sembrarRenglon(
+      base,
+      id: 'r1',
+      pedidoId: 'o-stg-1',
+      producto: malta,
+      unidades: 60,
+      empaques: 10,
+      pesoLinea: 0,
+    );
 
-      final totales = await preDespachoDe('B1');
-      expect(
-        totales.pesoKg,
-        isNull,
-        reason:
-            'un cero no puede salir como peso: la raya dice «no se sabe» y el '
-            '0.0 kg dice «no pesa», que son cosas distintas',
-      );
-      expect(totales.lineas.single.pesoKg, isNull);
-      expect(
-        totales.sinPeso,
-        1,
-        reason: 'y el renglon del cero cuenta entre los que faltan por saber',
-      );
-      expect(totales.pesoCompleto, isFalse);
+    final totales = await preDespachoDe('B1');
+    expect(
+      totales.pesoKg,
+      isNull,
+      reason:
+          'un cero no puede salir como peso: la raya dice «no se sabe» y el '
+          '0.0 kg dice «no pesa», que son cosas distintas',
+    );
+    expect(totales.lineas.single.pesoKg, isNull);
+    expect(
+      totales.sinPeso,
+      1,
+      reason: 'y el renglon del cero cuenta entre los que faltan por saber',
+    );
+    expect(totales.pesoCompleto, isFalse);
 
-      // Y en la ficha, lo mismo y con las mismas palabras.
-      final ficha = (await consultas.renglonesDe(['o-stg-1']))['o-stg-1']!;
-      expect(ficha.single.pesoLinea, isNull);
-    },
-  );
+    // Y en la ficha, lo mismo y con las mismas palabras.
+    final ficha = (await consultas.renglonesDe(['o-stg-1']))['o-stg-1']!;
+    expect(ficha.single.pesoLinea, isNull);
+  });
 
   // ---------------------------------------------------------------------------
   // LA DEL ENCARGO: EL APARATO NO RECALCULA
   // ---------------------------------------------------------------------------
-  test(
-    'el aparato NO rehace la cascada: sin peso de linea, no se inventa uno',
-    () async {
-      // El renglon trae el peso del EMPAQUE (2 kg × 10) y ademas esta emparejado
-      // con un producto del catalogo local (Arroz, 25 kg por empaque). Las dos
-      // cosas son escalones de la cascada DEL SERVIDOR, y el servidor no los
-      // resolvio: la linea llego sin `peso_linea_kg`.
-      //
-      // Aqui no se resuelve por su cuenta. Si esta prueba empieza a ver 20 o
-      // 250, es que la cascada volvio al aparato — y con ella los tres sitios
-      // que se desincronizaron el 28/09/2026.
-      await base.delete(base.orderItems).go();
-      await sembrarRenglon(
-        base,
-        id: 'r1',
-        pedidoId: 'o-stg-1',
-        producto: 'Arroz',
-        unidades: 100,
-        empaques: 10,
-        productoId: 'p1',
-        pesoEmpaque: 2,
-      );
+  test('el aparato NO rehace la cascada: sin peso de linea, no se inventa uno', () async {
+    // El renglon trae el peso del EMPAQUE (2 kg × 10) y ademas esta emparejado
+    // con un producto del catalogo local (Arroz, 25 kg por empaque). Las dos
+    // cosas son escalones de la cascada DEL SERVIDOR, y el servidor no los
+    // resolvio: la linea llego sin `peso_linea_kg`.
+    //
+    // Aqui no se resuelve por su cuenta. Si esta prueba empieza a ver 20 o
+    // 250, es que la cascada volvio al aparato — y con ella los tres sitios
+    // que se desincronizaron el 28/09/2026.
+    await base.delete(base.orderItems).go();
+    await sembrarRenglon(
+      base,
+      id: 'r1',
+      pedidoId: 'o-stg-1',
+      producto: 'Arroz',
+      unidades: 100,
+      empaques: 10,
+      productoId: 'p1',
+      pesoEmpaque: 2,
+    );
 
-      final totales = await preDespachoDe('B1');
-      expect(
-        totales.pesoKg,
-        isNull,
-        reason:
-            'el peso lo resuelve el servidor y lo escribe en `peso_linea_kg`; '
-            'si aqui sale 20 (el empaque) o 250 (el catalogo), hay dos sitios '
-            'contestando otra vez la misma pregunta',
-      );
-      expect(
-        totales.sinPeso,
-        1,
-        reason:
-            'y se DICE: un renglon que el servidor no supo pesar se cuenta, '
-            'que es como se sabe que hay que reespejarlo',
-      );
+    final totales = await preDespachoDe('B1');
+    expect(
+      totales.pesoKg,
+      isNull,
+      reason:
+          'el peso lo resuelve el servidor y lo escribe en `peso_linea_kg`; '
+          'si aqui sale 20 (el empaque) o 250 (el catalogo), hay dos sitios '
+          'contestando otra vez la misma pregunta',
+    );
+    expect(
+      totales.sinPeso,
+      1,
+      reason:
+          'y se DICE: un renglon que el servidor no supo pesar se cuenta, '
+          'que es como se sabe que hay que reespejarlo',
+    );
 
-      // Y la ficha dice exactamente lo mismo, que es la guarda 3.
-      final ficha = (await consultas.renglonesDe(['o-stg-1']))['o-stg-1']!;
-      expect(ficha.single.pesoLinea, isNull);
-    },
-  );
+    // Y la ficha dice exactamente lo mismo, que es la guarda 3.
+    final ficha = (await consultas.renglonesDe(['o-stg-1']))['o-stg-1']!;
+    expect(ficha.single.pesoLinea, isNull);
+  });
 
   // ---------------------------------------------------------------------------
   // GUARDA 3 (§3-bis): DOS SITIOS QUE CONTESTAN LO MISMO SE ATAN CON UNA PRUEBA
@@ -367,50 +355,47 @@ void main() {
     },
   );
 
-  test(
-    'un total a medias sale con `≥` y diciendo cuantos renglones faltan',
-    () async {
-      // El renglon que el servidor no supo pesar no borra la hoja ni se cuela
-      // dentro del total: el peso que SI se sabe se da, marcado con `≥` y con la
-      // cuenta de lo que falta al lado. Sin las dos cifras juntas, 200 kg se
-      // firma como el peso entero de la hoja.
-      await sembrarRenglon(
-        base,
-        id: 'r5',
-        pedidoId: 'o-hab-1',
-        producto: 'VODKA REGIO BLISTER 6U',
-        unidades: 12,
-        empaques: 2,
-        linea: 3,
-      );
+  test('un total a medias sale con `≥` y diciendo cuantos renglones faltan', () async {
+    // El renglon que el servidor no supo pesar no borra la hoja ni se cuela
+    // dentro del total: el peso que SI se sabe se da, marcado con `≥` y con la
+    // cuenta de lo que falta al lado. Sin las dos cifras juntas, 200 kg se
+    // firma como el peso entero de la hoja.
+    await sembrarRenglon(
+      base,
+      id: 'r5',
+      pedidoId: 'o-hab-1',
+      producto: 'VODKA REGIO BLISTER 6U',
+      unidades: 12,
+      empaques: 2,
+      linea: 3,
+    );
 
-      final todas = await preDespachoDe(null);
-      expect(todas.pesoKg, 200, reason: 'lo que se sabe se da');
-      expect(todas.sinPeso, 1, reason: 'y lo que falta se cuenta, por RENGLONES');
-      expect(
-        todas.pesoCompleto,
-        isFalse,
-        reason:
-            'con un renglon sin pesar, la hoja NO esta completa: en `true` los '
-            '200 kg se firman como el peso entero y el `≥` desaparece del '
-            'papel y de la pantalla',
-      );
+    final todas = await preDespachoDe(null);
+    expect(todas.pesoKg, 200, reason: 'lo que se sabe se da');
+    expect(todas.sinPeso, 1, reason: 'y lo que falta se cuenta, por RENGLONES');
+    expect(
+      todas.pesoCompleto,
+      isFalse,
+      reason:
+          'con un renglon sin pesar, la hoja NO esta completa: en `true` los '
+          '200 kg se firman como el peso entero y el `≥` desaparece del '
+          'papel y de la pantalla',
+    );
 
-      final enElPapel = pesoDeLosProductosEnPapel(
-        papel.TotalesPreDespacho.de(
-          hojaDePreDespacho(totales: todas, sucursal: 'STG', dia: null),
-        ),
-      );
-      expect(
-        enElPapel,
-        startsWith('≥ '),
-        reason:
-            'sin el `≥` el papel firma 200.0 kg como el total de la hoja y '
-            'alguien carga el camion contando con eso',
-      );
-      expect(enElPapel, pesoDelPreDespacho(todas));
-    },
-  );
+    final enElPapel = pesoDeLosProductosEnPapel(
+      papel.TotalesPreDespacho.de(
+        hojaDePreDespacho(totales: todas, sucursal: 'STG', dia: null),
+      ),
+    );
+    expect(
+      enElPapel,
+      startsWith('≥ '),
+      reason:
+          'sin el `≥` el papel firma 200.0 kg como el total de la hoja y '
+          'alguien carga el camion contando con eso',
+    );
+    expect(enElPapel, pesoDelPreDespacho(todas));
+  });
 
   test(
     'empaques, unidades y kilos salen del MISMO conjunto de renglones',

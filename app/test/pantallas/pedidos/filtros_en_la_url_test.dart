@@ -104,7 +104,8 @@ void main() {
       expect(
         FiltrosEnLaUrl.leer(const {'pagina': '0'}).filtros.pagina,
         1,
-        reason: 'y se cae en la primera, no en una consulta con offset negativo',
+        reason:
+            'y se cae en la primera, no en una consulta con offset negativo',
       );
     });
 
@@ -141,7 +142,10 @@ void main() {
           orden: OrdenLocal.pesoDesc,
           pagina: 4,
         ),
-        FiltrosPedidos(desde: DateTime(2026, 9, 1), hasta: DateTime(2026, 9, 9)),
+        FiltrosPedidos(
+          desde: DateTime(2026, 9, 1),
+          hasta: DateTime(2026, 9, 9),
+        ),
       ];
       for (final f in casos) {
         final ida = FiltrosEnLaUrl.escribir(f);
@@ -168,9 +172,9 @@ void main() {
       expect(url['factura'], '');
       expect(url['archivado'], '');
       expect(
-        FiltrosEnLaUrl.leer({
-          for (final e in url.entries) e.key: '${e.value}',
-        }).filtros.arranqueAcotado,
+        FiltrosEnLaUrl.leer({for (final e in url.entries) e.key: '${e.value}'})
+            .filtros
+            .arranqueAcotado,
         isFalse,
       );
     });

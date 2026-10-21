@@ -8,7 +8,6 @@ import 'package:reparto/pantallas/pedidos/vista/tabla_pedidos.dart';
 import 'package:reparto/pantallas/tablero/datos/modelos.dart';
 import 'package:reparto/pantallas/tablero/vista/tarjeta.dart';
 
-
 // LA FECHA DE LA FACTURA, DESPUÉS DEL NÚMERO, EN LA TARJETA — issue 16 de Amado, 16/10/2026.
 //
 // «En el card del pedido (factura) pon después del número de factura la fecha de facturación,
@@ -23,20 +22,25 @@ const _fechaClave = ValueKey('tarjeta-factura-fecha');
 
 void main() {
   group('la tarjeta del tablero', () {
-    TarjetaPedido pedido({String? numero = '47061', DateTime? en}) => TarjetaPedido(
-      pedidoId: 'p-1',
-      customerName: 'Bodega La Esquina',
-      address: 'Calle 4 esquina a 7, Reparto Sueño, Santiago de Cuba',
-      weight: 128.5,
-      kmAlAlmacen: 3.2,
-      mismoCliente: 0,
-      operationNumber: 'PTB25-261005-1479',
-      facturaEstado: 'igual',
-      facturaNumero: numero,
-      facturaAt: en,
-    );
+    TarjetaPedido pedido({String? numero = '47061', DateTime? en}) =>
+        TarjetaPedido(
+          pedidoId: 'p-1',
+          customerName: 'Bodega La Esquina',
+          address: 'Calle 4 esquina a 7, Reparto Sueño, Santiago de Cuba',
+          weight: 128.5,
+          kmAlAlmacen: 3.2,
+          mismoCliente: 0,
+          operationNumber: 'PTB25-261005-1479',
+          facturaEstado: 'igual',
+          facturaNumero: numero,
+          facturaAt: en,
+        );
 
-    Future<void> pintar(WidgetTester tester, double ancho, TarjetaPedido t) async {
+    Future<void> pintar(
+      WidgetTester tester,
+      double ancho,
+      TarjetaPedido t,
+    ) async {
       tester.view.physicalSize = Size(ancho, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -65,49 +69,65 @@ void main() {
     }
 
     for (final ancho in const [390.0, 1440.0]) {
-      testWidgets('a $ancho px la fecha va después del número, en el día de Cuba', (tester) async {
-        await pintar(tester, ancho, pedido(en: _facturadaEl));
-        expect(find.text('Factura 47061'), findsOneWidget);
-        expect(find.text('· 15/10/2026'), findsOneWidget, reason: 'no el 16 de UTC');
-        expect(
-          tester.getTopLeft(find.byKey(_fechaClave)).dx,
-          greaterThan(tester.getTopLeft(find.text('Factura 47061')).dx),
-          reason: 'después del número',
-        );
-        expect(tester.takeException(), isNull);
-      });
+      testWidgets(
+        'a $ancho px la fecha va después del número, en el día de Cuba',
+        (tester) async {
+          await pintar(tester, ancho, pedido(en: _facturadaEl));
+          expect(find.text('Factura 47061'), findsOneWidget);
+          expect(
+            find.text('· 15/10/2026'),
+            findsOneWidget,
+            reason: 'no el 16 de UTC',
+          );
+          expect(
+            tester.getTopLeft(find.byKey(_fechaClave)).dx,
+            greaterThan(tester.getTopLeft(find.text('Factura 47061')).dx),
+            reason: 'después del número',
+          );
+          expect(tester.takeException(), isNull);
+        },
+      );
 
-      testWidgets('a $ancho px, sin fecha de factura, no se pone nada', (tester) async {
+      testWidgets('a $ancho px, sin fecha de factura, no se pone nada', (
+        tester,
+      ) async {
         await pintar(tester, ancho, pedido());
         expect(find.byKey(_fechaClave), findsNothing);
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('a $ancho px, sin número, no se pone la fecha', (tester) async {
+      testWidgets('a $ancho px, sin número, no se pone la fecha', (
+        tester,
+      ) async {
         await pintar(tester, ancho, pedido(numero: null, en: _facturadaEl));
         expect(find.text('Sin número de factura'), findsOneWidget);
         expect(find.byKey(_fechaClave), findsNothing);
       });
     }
 
-    testWidgets('muchas facturas y la fecha no desbordan a 390 px ni en la columna de 280', (tester) async {
-      for (final ancho in const [390.0, 1440.0]) {
-        await pintar(
-          tester,
-          ancho,
-          pedido(
-            numero: '1024237, 1024240, 1024251, 1024299, 1024300, 1024301, 1024302',
-            en: _facturadaEl,
-          ),
-        );
-        expect(find.byKey(_fechaClave), findsOneWidget);
-        expect(
-          tester.getRect(find.byKey(_fechaClave)).right,
-          lessThanOrEqualTo(tester.getRect(find.byType(TarjetaDePedido)).right),
-        );
-        expect(tester.takeException(), isNull, reason: 'a $ancho px');
-      }
-    });
+    testWidgets(
+      'muchas facturas y la fecha no desbordan a 390 px ni en la columna de 280',
+      (tester) async {
+        for (final ancho in const [390.0, 1440.0]) {
+          await pintar(
+            tester,
+            ancho,
+            pedido(
+              numero: '1024237, 1024240, 1024251, 1024299, 1024300, 1024301, 1024302',
+              en: _facturadaEl,
+            ),
+          );
+          expect(find.byKey(_fechaClave), findsOneWidget);
+          expect(
+            tester.getRect(find.byKey(_fechaClave)).right,
+            lessThanOrEqualTo(
+              tester.getRect(find.byType(TarjetaDePedido)).right,
+            ),
+          );
+          expect(tester.takeException(), isNull, reason: 'a $ancho px');
+        }
+      },
+    );
   });
 
   group('Pedidos', () {
@@ -160,7 +180,9 @@ void main() {
     }
 
     for (final ancho in const [390.0, 767.0]) {
-      testWidgets('teléfono a $ancho px: número y fecha, y sin fecha nada', (tester) async {
+      testWidgets('teléfono a $ancho px: número y fecha, y sin fecha nada', (
+        tester,
+      ) async {
         await pintar(tester, ancho, pedido(en: _facturadaEl));
         expect(find.text('Factura 47061'), findsOneWidget);
         expect(find.text('· 15/10/2026'), findsOneWidget);
@@ -173,11 +195,16 @@ void main() {
       });
     }
 
-    testWidgets('teléfono a 390 px: varias facturas y la fecha no desbordan', (tester) async {
+    testWidgets('teléfono a 390 px: varias facturas y la fecha no desbordan', (
+      tester,
+    ) async {
       await pintar(
         tester,
         390,
-        pedido(numero: '1024237, 1024240, 1024251, 1024299, 1024300', en: _facturadaEl),
+        pedido(
+          numero: '1024237, 1024240, 1024251, 1024299, 1024300',
+          en: _facturadaEl,
+        ),
       );
       expect(find.byKey(_fechaClave), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -187,7 +214,9 @@ void main() {
       (1440.0, 'fila-fecha-factura-p1'),
       (900.0, 'fila-factura-p1'),
     ]) {
-      testWidgets('tabla a $ancho px: la fecha de la factura junto al número', (tester) async {
+      testWidgets('tabla a $ancho px: la fecha de la factura junto al número', (
+        tester,
+      ) async {
         await pintar(tester, ancho, pedido(en: _facturadaEl));
         final texto = find.byKey(ValueKey(clave));
         expect(texto, findsOneWidget);

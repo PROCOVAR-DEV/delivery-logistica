@@ -74,7 +74,11 @@ void main() {
       // MÁS el contador de renglones que faltan, que es lo que la pantalla
       // pinta con el `≥`. Si un día esto vuelve a ser sólo `125`, sin
       // `sinPeso`, la suma a medias vuelve a leerse como completa.
-      expect(totales.pesoKg, 125, reason: 'los 125 kg del arroz, que sí se saben');
+      expect(
+        totales.pesoKg,
+        125,
+        reason: 'los 125 kg del arroz, que sí se saben',
+      );
       expect(
         totales.sinPeso,
         1,
@@ -85,7 +89,8 @@ void main() {
       expect(
         totales.pesoCompleto,
         isFalse,
-        reason: 'es lo que hace salir el `≥`; en `true` los 125 kg se firman '
+        reason:
+            'es lo que hace salir el `≥`; en `true` los 125 kg se firman '
             'como el peso entero de la hoja',
       );
       expect(totales.sinUnidades, 0);
@@ -246,7 +251,11 @@ void main() {
     );
 
     final totales = await consultas.preDespachoDe(['o16']);
-    expect(totales.pesoKg, isNull, reason: 'no 50 del catalogo ni 6 del empaque');
+    expect(
+      totales.pesoKg,
+      isNull,
+      reason: 'no 50 del catalogo ni 6 del empaque',
+    );
     expect(
       totales.sinPeso,
       1,
@@ -276,7 +285,8 @@ void main() {
     expect(
       totales.lineas.single.unidades,
       isNull,
-      reason: 'cuatro unidades dentro de siete pacas no es un dato, es un error',
+      reason:
+          'cuatro unidades dentro de siete pacas no es un dato, es un error',
     );
   });
 
@@ -507,5 +517,4 @@ void main() {
       expect(totales.sinUnidades, 4);
     });
   });
-
 }

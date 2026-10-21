@@ -129,7 +129,7 @@ void main() {
     expect(find.text('Datos de las 15:45'), findsOneWidget);
     // Y la tabla, con sus cabeceras.
     expect(find.text('Cliente'), findsOneWidget);
-    expect(find.text('Dirección'), findsOneWidget);
+    expect(find.text('Cliente'), findsOneWidget);
     await desmontar(tester);
   });
 

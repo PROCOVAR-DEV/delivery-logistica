@@ -57,11 +57,7 @@ void _laFacturaMandaSobreElCliente(
     tema.textTheme.bodyMedium!.fontSize,
     reason: 'la factura lleva el tamaño que tenía el cliente (bodyMedium)',
   );
-  expect(
-    f.fontWeight,
-    FontWeight.w600,
-    reason: 'y su peso de título (w600)',
-  );
+  expect(f.fontWeight, FontWeight.w600, reason: 'y su peso de título (w600)');
   expect(
     c.fontSize,
     tema.textTheme.bodySmall!.fontSize,

@@ -83,44 +83,48 @@ void main() {
   final noEntraMayuscula = find.textContaining('No entra a una ruta');
   final lineaDeRuta = find.byKey(const ValueKey('ficha-ruta'));
 
-  testWidgets('EL CASO REAL: dice que al camión va lo facturado y que puede ir, '
-      'y no dice «no entra»', (tester) async {
-    await abrir(tester, pedido());
+  testWidgets(
+    'EL CASO REAL: dice que al camión va lo facturado y que puede ir, '
+    'y no dice «no entra»',
+    (tester) async {
+      await abrir(tester, pedido());
 
-    expect(
-      find.text(
-        'Se facturó algo distinto de lo pedido (factura 47061). Al camión va '
-        'lo facturado: los productos de abajo ya son los de la factura.',
-      ),
-      findsOneWidget,
-    );
-    expect(tester.widget<Text>(lineaDeRuta).data, 'Puede ir a una ruta.');
-    expect(noEntra, findsNothing, reason: 'era la frase falsa de la captura');
-    expect(noEntraMayuscula, findsNothing);
-    // El costo puede seguir sin calcular, pero sin sugerir que hace falta.
-    expect(find.text('Sin calcular todavía'), findsOneWidget);
-    expect(
-      find.text(
-        'Entrega todavía no lo cotizó. No hace falta para ir a una ruta: lo '
-        'que cuenta es el cobro de domicilio en la factura.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.textContaining('hasta entonces'), findsNothing);
-    await cerrar(tester);
-  });
+      expect(
+        find.text(
+          'Se facturó algo distinto de lo pedido (factura 47061). Al camión va '
+          'lo facturado: los productos de abajo ya son los de la factura.',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.widget<Text>(lineaDeRuta).data, 'Puede ir a una ruta.');
+      expect(noEntra, findsNothing, reason: 'era la frase falsa de la captura');
+      expect(noEntraMayuscula, findsNothing);
+      // El costo puede seguir sin calcular, pero sin sugerir que hace falta.
+      expect(find.text('Sin calcular todavía'), findsOneWidget);
+      expect(
+        find.text(
+          'Entrega todavía no lo cotizó. No hace falta para ir a una ruta: lo '
+          'que cuenta es el cobro de domicilio en la factura.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('hasta entonces'), findsNothing);
+      await cerrar(tester);
+    },
+  );
 
   // PCC25-261014-1435 (Amado, 16/10/2026): MARCADO y sin cotizar PUEDE ir (antes decía que no).
-  testWidgets('MARCADO y sin cotizar: puede ir, y no sugiere que hace falta cotizar', (
-    tester,
-  ) async {
-    await abrir(tester, pedido(marcado: true));
+  testWidgets(
+    'MARCADO y sin cotizar: puede ir, y no sugiere que hace falta cotizar',
+    (tester) async {
+      await abrir(tester, pedido(marcado: true));
 
-    expect(tester.widget<Text>(lineaDeRuta).data, 'Puede ir a una ruta.');
-    expect(noEntraMayuscula, findsNothing);
-    expect(find.textContaining('hasta entonces'), findsNothing);
-    await cerrar(tester);
-  });
+      expect(tester.widget<Text>(lineaDeRuta).data, 'Puede ir a una ruta.');
+      expect(noEntraMayuscula, findsNothing);
+      expect(find.textContaining('hasta entonces'), findsNothing);
+      await cerrar(tester);
+    },
+  );
 
   // TEMPORAL 16/10/2026 (Jose): sin cobro en la factura también puede ir. La pareja de
   // «no entra» es sólo la factura sin cotejar/sin factura (no se muestra esa línea).
@@ -156,15 +160,16 @@ void main() {
           'facturado.',
     ),
   ]) {
-    testWidgets('renglones de origen $origen: no dice que son los de la factura', (
-      tester,
-    ) async {
-      await abrir(tester, pedido(itemsOrigen: origen));
+    testWidgets(
+      'renglones de origen $origen: no dice que son los de la factura',
+      (tester) async {
+        await abrir(tester, pedido(itemsOrigen: origen));
 
-      expect(find.text(frase), findsOneWidget);
-      expect(find.textContaining('ya son los de la factura'), findsNothing);
-      await cerrar(tester);
-    });
+        expect(find.text(frase), findsOneWidget);
+        expect(find.textContaining('ya son los de la factura'), findsNothing);
+        await cerrar(tester);
+      },
+    );
   }
 
   testWidgets('ya va en una ruta: la banda no habla de entrar o no', (

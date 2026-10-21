@@ -49,7 +49,7 @@ void main() {
   /// a una ruta, y el aviso es gris, no ámbar.
   const consecuencia =
       'La factura no trae la línea ENTREGA A DOMICILIO. No impide ir a una '
-      'ruta: en «Cobro del domicilio» se filtra por con cobro o sin cobro.';
+      'ruta.';
 
   Pedido pedido({
     String id = 'p1',
@@ -158,7 +158,6 @@ void main() {
           'Cliente',
           'Ruta',
           'Artículos',
-          'Dirección',
           'Peso',
           'Precio',
           'Factura',

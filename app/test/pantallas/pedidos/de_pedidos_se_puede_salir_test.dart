@@ -38,7 +38,10 @@ void main() {
   setUp(() => base = baseDePrueba());
   tearDown(() => base.close());
 
-  Future<GoRouter> pintar(WidgetTester tester, {String desde = '/facturas'}) async {
+  Future<GoRouter> pintar(
+    WidgetTester tester, {
+    String desde = '/facturas',
+  }) async {
     tester.view.physicalSize = const Size(1600, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -49,9 +52,7 @@ void main() {
         GoRoute(
           path: '/facturas',
           builder: (_, estado) => Scaffold(
-            body: PantallaPedidos(
-              consulta: estado.uri.queryParameters,
-            ),
+            body: PantallaPedidos(consulta: estado.uri.queryParameters),
           ),
         ),
         GoRoute(

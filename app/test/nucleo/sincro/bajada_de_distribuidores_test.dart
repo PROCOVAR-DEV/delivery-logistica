@@ -96,12 +96,16 @@ void main() {
   });
 
   test('`quitados` borra al distribuidor, y solo a ese', () async {
-    await base.into(base.distribuidores).insert(
-      DistribuidoresCompanion.insert(id: 'd-1', nombre: 'Juan Pérez'),
-    );
-    await base.into(base.distribuidores).insert(
-      DistribuidoresCompanion.insert(id: 'd-2', nombre: 'María López'),
-    );
+    await base
+        .into(base.distribuidores)
+        .insert(
+          DistribuidoresCompanion.insert(id: 'd-1', nombre: 'Juan Pérez'),
+        );
+    await base
+        .into(base.distribuidores)
+        .insert(
+          DistribuidoresCompanion.insert(id: 'd-2', nombre: 'María López'),
+        );
     await contra([
       <String, Object?>{
         'orders': conjunto(),
@@ -112,34 +116,43 @@ void main() {
     expect(
       (await base.select(base.distribuidores).get()).map((d) => d.id),
       ['d-2'],
-      reason: 'un borrado en el servidor tiene que desaparecer del aparato, o se '
+      reason:
+          'un borrado en el servidor tiene que desaparecer del aparato, o se '
           'seguiria ofreciendo a quien ya no existe',
     );
   });
 
-  test('la ruta bajada lleva su distribuidor, y una vieja baja sin el', () async {
-    await contra([
-      <String, Object?>{
-        'orders': conjunto(),
-        'routes': conjunto(
-          puestos: [
-            <String, Object?>{
-              'id': 'r-1',
-              'routeCode': 'RT-1',
-              'status': 'planned',
-              'distribuidorId': 'd-1',
-            },
-            <String, Object?>{'id': 'r-2', 'routeCode': 'RT-2', 'status': 'planned'},
-          ],
-        ),
-      },
-    ], []).ciclo();
+  test(
+    'la ruta bajada lleva su distribuidor, y una vieja baja sin el',
+    () async {
+      await contra([
+        <String, Object?>{
+          'orders': conjunto(),
+          'routes': conjunto(
+            puestos: [
+              <String, Object?>{
+                'id': 'r-1',
+                'routeCode': 'RT-1',
+                'status': 'planned',
+                'distribuidorId': 'd-1',
+              },
+              <String, Object?>{
+                'id': 'r-2',
+                'routeCode': 'RT-2',
+                'status': 'planned',
+              },
+            ],
+          ),
+        },
+      ], []).ciclo();
 
-    final rutas = {
-      for (final r in await base.select(base.routes).get()) r.id: r.distribuidorId,
-    };
-    expect(rutas, {'r-1': 'd-1', 'r-2': null});
-  });
+      final rutas = {
+        for (final r in await base.select(base.routes).get())
+          r.id: r.distribuidorId,
+      };
+      expect(rutas, {'r-1': 'd-1', 'r-2': null});
+    },
+  );
 
   group('el aparato que ya habia sincronizado', () {
     // Ya hizo tambien las rebajadas de una vez (frescura.dart): si no, la primera
@@ -148,6 +161,7 @@ void main() {
       await frescura.rebajarLosPedidosUnaVez();
       await frescura.rebajarLasRutasUnaVez();
       await frescura.rebajarLosPedidosPorSuAlmacen();
+      await frescura.rebajarLosPedidosPorSuFolio();
       // La flota (issue 14) tiene sus pruebas en `bajada_de_la_flota_test.dart`.
       await frescura.marcar(
         Colecciones.tiposDeVehiculo,
@@ -177,42 +191,58 @@ void main() {
       ], peticiones);
 
       await bajada.ciclo();
-      expect(await frescura.seDescargo(Colecciones.distribuidores), isFalse,
-          reason: 'no vino: marcarla es tirar la lista para siempre');
-      await bajada.ciclo();
-      expect(peticiones.last.parametros['completas'], Colecciones.distribuidores,
-          reason: 'cuando la api se actualice, los tiene que pedir enteros');
-    });
-
-    test('pide los distribuidores ENTEROS (completas) hasta que los baja', () async {
-      await yaSincronizoAyer();
-      final peticiones = <PeticionVista>[];
-      final bajada = contra([
-        <String, Object?>{
-          'orders': conjunto(),
-          'distribuidores': conjunto(puestos: [unDistribuidor('d-1', 'Juan Pérez')]),
-        },
-        <String, Object?>{'orders': conjunto(), 'distribuidores': conjunto()},
-      ], peticiones);
-
-      await bajada.ciclo();
       expect(
-        peticiones.first.parametros['completas'],
-        Colecciones.distribuidores,
-        reason: 'con la marca de ayer, sin esto la lista no vuelve a salir NUNCA: lo '
-            'creado antes de ayer no «cambio desde ayer»',
-      );
-      expect(peticiones.first.parametros['desde'], '2026-10-13T08:00:00.000Z',
-          reason: 'lo demas sigue por diferencias: pedir ENTERO lo que pesa es la carga inicial');
-
-      // La PAREJA: ya bajados, el siguiente ciclo no los vuelve a pedir enteros.
-      await bajada.ciclo();
-      expect(
-        peticiones.last.parametros.containsKey('completas'),
+        await frescura.seDescargo(Colecciones.distribuidores),
         isFalse,
-        reason: 'un aparato al dia no puede pedir la lista entera en cada ciclo',
+        reason: 'no vino: marcarla es tirar la lista para siempre',
+      );
+      await bajada.ciclo();
+      expect(
+        peticiones.last.parametros['completas'],
+        Colecciones.distribuidores,
+        reason: 'cuando la api se actualice, los tiene que pedir enteros',
       );
     });
+
+    test(
+      'pide los distribuidores ENTEROS (completas) hasta que los baja',
+      () async {
+        await yaSincronizoAyer();
+        final peticiones = <PeticionVista>[];
+        final bajada = contra([
+          <String, Object?>{
+            'orders': conjunto(),
+            'distribuidores': conjunto(
+              puestos: [unDistribuidor('d-1', 'Juan Pérez')],
+            ),
+          },
+          <String, Object?>{'orders': conjunto(), 'distribuidores': conjunto()},
+        ], peticiones);
+
+        await bajada.ciclo();
+        expect(
+          peticiones.first.parametros['completas'],
+          Colecciones.distribuidores,
+          reason:
+              'con la marca de ayer, sin esto la lista no vuelve a salir NUNCA: lo '
+              'creado antes de ayer no «cambio desde ayer»',
+        );
+        expect(
+          peticiones.first.parametros['desde'],
+          '2026-10-13T08:00:00.000Z',
+          reason: 'lo demas sigue por diferencias: pedir ENTERO lo que pesa es la carga inicial',
+        );
+
+        // La PAREJA: ya bajados, el siguiente ciclo no los vuelve a pedir enteros.
+        await bajada.ciclo();
+        expect(
+          peticiones.last.parametros.containsKey('completas'),
+          isFalse,
+          reason:
+              'un aparato al dia no puede pedir la lista entera en cada ciclo',
+        );
+      },
+    );
 
     test('un aparato NUEVO (sin marca) no pide nada especial: la primera tanda ya es entera', () async {
       final peticiones = <PeticionVista>[];
@@ -230,16 +260,24 @@ void main() {
       return [for (final f in Faltas.de(recuento)) f.coleccion];
     }
 
-    expect(await faltan(), contains(Colecciones.distribuidores),
-        reason: 'un aparato que nunca los bajo tiene que decirlo, y decir que se rompe');
+    expect(
+      await faltan(),
+      contains(Colecciones.distribuidores),
+      reason: 'un aparato que nunca los bajo tiene que decirlo, y decir que se rompe',
+    );
 
     await contra([
       <String, Object?>{'orders': conjunto(), 'distribuidores': conjunto()},
     ], []).ciclo();
 
-    expect(await faltan(), isNot(contains(Colecciones.distribuidores)),
-        reason: 'cero distribuidores es una respuesta legitima: una sucursal puede no tener ninguno');
-    expect(Faltas.queSeRompe(Colecciones.distribuidores),
-        contains('quién reparte'));
+    expect(
+      await faltan(),
+      isNot(contains(Colecciones.distribuidores)),
+      reason: 'cero distribuidores es una respuesta legitima: una sucursal puede no tener ninguno',
+    );
+    expect(
+      Faltas.queSeRompe(Colecciones.distribuidores),
+      contains('quién reparte'),
+    );
   });
 }

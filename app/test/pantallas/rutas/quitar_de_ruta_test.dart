@@ -86,21 +86,25 @@ void main() {
     expect(p1.routeId, isNull);
     expect(p1.ultimaRutaId, isNull, reason: 'ultimaRutaId es la que la ataba');
     expect(await hoja(), ['p2']);
-    expect([for (final p in await consultas.mirarParadasDe('R1').first) p.id], [
-      'p2',
-    ]);
+    expect(
+      [for (final p in await consultas.mirarParadasDe('R1').first) p.id],
+      ['p2'],
+    );
   });
 
-  test('ya no cuenta en el peso, el importe ni las paradas de la ruta', () async {
-    await sembrarLaRuta();
-    await acciones.quitarParada('R1', 'p1');
+  test(
+    'ya no cuenta en el peso, el importe ni las paradas de la ruta',
+    () async {
+      await sembrarLaRuta();
+      await acciones.quitarParada('R1', 'p1');
 
-    expect((await pesoPorRuta(base).first)['R1'], 200);
-    final importe = (await importePorRuta(base).first)['R1']!;
-    expect(importe.total, 20);
-    expect(importe.paradas, 1);
-    expect((await consultas.paradasPorRuta().first)['R1'], 1);
-  });
+      expect((await pesoPorRuta(base).first)['R1'], 200);
+      final importe = (await importePorRuta(base).first)['R1']!;
+      expect(importe.total, 20);
+      expect(importe.paradas, 1);
+      expect((await consultas.paradasPorRuta().first)['R1'], 1);
+    },
+  );
 
   test('vuelve a la lista de disponibles', () async {
     await sembrarLaRuta();
@@ -128,14 +132,17 @@ void main() {
   });
 
   // LA PAREJA: lo que SI es parada de la ruta sin tener `routeId`.
-  test('un DEVUELTO sigue en su hoja: soltó la ruta pero con resultado', () async {
-    await sembrarLaRuta();
-    await base.customStatement(
-      "UPDATE orders SET route_id = NULL, resultado = 'devuelto' WHERE id = 'p2'",
-    );
-    expect(await hoja(), ['p1', 'p2']);
-    expect((await pesoPorRuta(base).first)['R1'], 300);
-  });
+  test(
+    'un DEVUELTO sigue en su hoja: soltó la ruta pero con resultado',
+    () async {
+      await sembrarLaRuta();
+      await base.customStatement(
+        "UPDATE orders SET route_id = NULL, resultado = 'devuelto' WHERE id = 'p2'",
+      );
+      expect(await hoja(), ['p1', 'p2']);
+      expect((await pesoPorRuta(base).first)['R1'], 300);
+    },
+  );
 
   // LA GUARDA QUE NINGUNA PRUEBA DE ARRIBA TOCABA (auditoria del 08/10/2026): quitar
   // por `quitarParada` ya anula LAS DOS columnas, asi que la parada sale por la rama
@@ -144,21 +151,25 @@ void main() {
   // resultado, que es como lo dejaba el quitar de antes de este arreglo. Se siembra
   // a mano y se mira por LAS DOS lecturas, la de una vez y la de la hoja en vivo:
   // la auditoria mutó sólo la segunda y quedó verde.
-  test('un fantasma ANTIGUO (sin ruta, sin resultado) no sale en NINGUNA de las dos hojas',
-      () async {
+  test('un fantasma ANTIGUO (sin ruta, sin resultado) no sale en NINGUNA de las dos hojas', () async {
     await sembrarLaRuta();
     await base.customStatement(
       "UPDATE orders SET route_id = NULL, resultado = NULL WHERE id = 'p2'",
     );
-    expect(await hoja(), ['p1'],
-        reason: 'la hoja de una vez no cuenta lo que no tiene ruta ni resultado');
+    expect(
+      await hoja(),
+      ['p1'],
+      reason: 'la hoja de una vez no cuenta lo que no tiene ruta ni resultado',
+    );
     expect(
       [for (final p in await consultas.mirarParadasDe('R1').first) p.id],
       ['p1'],
       reason: 'la hoja EN VIVO tampoco: es la que se pinta en pantalla',
     );
     // Y la pareja: con resultado vuelve a ser un devuelto y sí cuenta, en las dos.
-    await base.customStatement("UPDATE orders SET resultado = 'devuelto' WHERE id = 'p2'");
+    await base.customStatement(
+      "UPDATE orders SET resultado = 'devuelto' WHERE id = 'p2'",
+    );
     // El SQL a pelo no avisa a los streams de Drift: sin esto la hoja en vivo devuelve
     // la lectura de antes, guardada en su caché, y la prueba miente.
     base.markTablesUpdated({base.orders});
@@ -211,7 +222,7 @@ void main() {
       expect(await hoja(), ['p1', 'p2'], reason: 'no se toca nada');
     });
 
-    test('un pedido que no va en esa ruta, o ya fue retirado', () async {
+    test('un pedido que no va en esa ruta, o ya fue retirada', () async {
       await sembrarLaRuta();
       await acciones.quitarParada('R1', 'p1');
       for (final pedido in ['p1', 'no-existe']) {
@@ -221,7 +232,7 @@ void main() {
             isA<RechazoLocal>().having(
               (r) => r.mensaje,
               'mensaje',
-              'El pedido no pertenece a una ruta planificada o ya fue retirado',
+              'La factura no pertenece a una ruta planificada o ya fue retirada',
             ),
           ),
         );
@@ -282,7 +293,7 @@ void main() {
         expect(find.byType(Cajon), findsOneWidget);
         expect(find.text('Quitar de la ruta'), findsOneWidget);
         expect(find.text('Ana · Conduce: PTB25-261005-1479'), findsOneWidget);
-        expect(find.textContaining('vuelve a pedidos disponibles'), findsOne);
+        expect(find.textContaining('vuelve a facturas disponibles'), findsOne);
         expect(find.text('Sí, quitar «Ana» de la ruta'), findsOneWidget);
         expect(find.text('No, dejarlo en la ruta'), findsOneWidget);
         expect(find.byTooltip('Cerrar'), findsOneWidget);
@@ -292,29 +303,32 @@ void main() {
     });
 
     // ISSUE 17 DE AMADO: la factura y su fecha van primero en el subtítulo.
-    testWidgets('con factura, el subtítulo empieza por ella; sin número, por la '
-        'frase de siempre', (tester) async {
-      await preguntar(tester, () async {
-        expect(
-          find.text(
-            'Factura 47061 · 15/10/2026 · Ana · Conduce: PTB25-261005-1479',
-          ),
-          findsOneWidget,
-        );
-        await tester.tap(find.text('No, dejarlo en la ruta'));
-        await tester.pump(const Duration(milliseconds: 400));
-      }, factura: 'Factura 47061 · 15/10/2026');
-      await preguntar(tester, () async {
-        expect(
-          find.text(
-            'Sin número de factura · Ana · Conduce: PTB25-261005-1479',
-          ),
-          findsOneWidget,
-        );
-        await tester.tap(find.text('No, dejarlo en la ruta'));
-        await tester.pump(const Duration(milliseconds: 400));
-      }, factura: 'Sin número de factura');
-    });
+    testWidgets(
+      'con factura, el subtítulo empieza por ella; sin número, por la '
+      'frase de siempre',
+      (tester) async {
+        await preguntar(tester, () async {
+          expect(
+            find.text(
+              'Factura 47061 · 15/10/2026 · Ana · Conduce: PTB25-261005-1479',
+            ),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('No, dejarlo en la ruta'));
+          await tester.pump(const Duration(milliseconds: 400));
+        }, factura: 'Factura 47061 · 15/10/2026');
+        await preguntar(tester, () async {
+          expect(
+            find.text(
+              'Sin número de factura · Ana · Conduce: PTB25-261005-1479',
+            ),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('No, dejarlo en la ruta'));
+          await tester.pump(const Duration(milliseconds: 400));
+        }, factura: 'Sin número de factura');
+      },
+    );
 
     testWidgets('«No» contesta que no', (tester) async {
       final r = await preguntar(tester, () async {
@@ -343,13 +357,16 @@ void main() {
 
   // Sin esto la importacion de `Value`/`ImporteDeRuta` quedaria sin uso si se
   // retira alguna de arriba: se deja anclada la pareja que importa.
-  test('el cero cotizado de una parada sigue sumando 0, no «sin cotizar»', () async {
-    await sembrarLaRuta();
-    await (base.update(base.orders)..where((o) => o.id.equals('p1'))).write(
-      const OrdersCompanion(pedidoCosto: Value(0)),
-    );
-    final importe = (await importePorRuta(base).first)['R1']!;
-    expect(importe.sinCotizar, 0);
-    expect(importe.total, 20);
-  });
+  test(
+    'el cero cotizado de una parada sigue sumando 0, no «sin cotizar»',
+    () async {
+      await sembrarLaRuta();
+      await (base.update(base.orders)..where((o) => o.id.equals('p1'))).write(
+        const OrdersCompanion(pedidoCosto: Value(0)),
+      );
+      final importe = (await importePorRuta(base).first)['R1']!;
+      expect(importe.sinCotizar, 0);
+      expect(importe.total, 20);
+    },
+  );
 }

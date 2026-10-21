@@ -49,7 +49,7 @@ Ciérralo y ábrelo en una ventana normal.
    lista. La primera opción es **«Todas las sucursales (8)»**.
    <!-- señala: barra-elegir-sucursal -->
 
-**Todas las pantallas enseñan lo de esa sucursal.** Si un pedido «no aparece», casi
+**Todas las pantallas enseñan lo de esa sucursal.** Si una factura «no aparece», casi
 siempre es esto.
 
 Sólo `DESARROLLADOR` y `SUPER ADMIN` pueden cambiarla. Los otros cinco roles tienen
@@ -65,12 +65,12 @@ CUP** y la pastilla se queda en ámbar poniendo «USD».
 
 1. En el **menú de la izquierda**, haz clic en **«Panel»**.
 2. Mira las cuatro cifras de arriba:
-   - **«Pedidos sin ruta»**, y debajo «1.240 kg por mover»
+   - **«Facturas sin ruta»**, y debajo «1.240 kg por mover»
    - **«Rutas en marcha»** — los camiones que están fuera ahora mismo
    - **«Entregados hoy»**
    - **«Vehículos»**, «3 / 8» (en ruta sobre el total)
 3. Abajo a la izquierda, **«Pendiente por sucursal»**: una fila por sucursal con su
-   peso y sus pedidos, **ordenadas de más a menos**. Por ahí se empieza.
+   peso y sus facturas, **ordenadas de más a menos**. Por ahí se empieza.
 4. Abajo a la derecha, **«Acciones Rápidas»**: **«Planificar Rutas»**, **«Ver
    Reportes»** y **«Gestionar Flota»**.
 
@@ -105,9 +105,9 @@ ruta.**
 3. **Comprueba arriba desde dónde se mide**: **«Granma · desde Bayamo (Granma)»**. Si
    hay más de un almacén sale una flechita ▾: haz clic y elige. Ese punto decide los
    kilómetros de cada tarjeta y lo que se cobra. Si eliges otro que no es el de por
-   defecto, **sus pedidos salen primero** en «Sin colocar», del más cercano al más lejano.
+   defecto, **sus facturas salen primero** en «Sin colocar», del más cercano al más lejano.
 4. **Mira los avisos rojos** si los hay: «3 archivados en PEDIDO», «2 ya en otra
-   ruta», «5 sin factura o sin cotejar». Son pedidos **ya colocados** que hoy no
+   ruta», «5 sin factura o sin cotejar». Son facturas **ya colocadas** que hoy no
    salen.
 
 ## 4.1 Crear una zona
@@ -133,7 +133,7 @@ Si ya existe: **«Ya hay una columna «Centro» en este tablero»**.
 
 **Empieza en:** **Menú → «Tablero»**.
 
-**Sin camión la zona no arma ruta.** Hazlo antes de repartir los pedidos.
+**Sin camión la zona no arma ruta.** Hazlo antes de repartir las facturas.
 
 1. En la cabecera de la zona, arriba a la derecha, **haz clic en el icono de tres
    puntos ⋮** («Opciones de la columna»). <!-- señala: tablero-menu-de-la-zona -->
@@ -168,7 +168,7 @@ tarjeta: eso es el teléfono, que no tiene las dos mitades a la vez.
 2. O usa **el buscador**, que dice «Cliente, operación, factura, dirección, artículo…» y
    **filtra mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
    - Si pone **«Se ven 200 de 308.»**, haz clic en **«Ver 108 más»**.
-3. **Agarra la tarjeta del pedido** en la mitad izquierda, arrástrala hasta la zona
+3. **Agarra la tarjeta de la factura** en la mitad izquierda, arrástrala hasta la zona
    señalada de la derecha y **suéltala allí**, sin interrumpir el gesto.
    <!-- señala: tablero-tarjeta-de-pedido -->
    <!-- señala: tablero-zona-donde-soltar -->
@@ -179,7 +179,7 @@ tarjeta: eso es el teléfono, que no tiene las dos mitades a la vez.
    - Si la zona está vacía, mientras arrastras encima verás **«Suelta aquí»**.
 4. **Si prefieres no arrastrar**, haz clic en la tarjeta.
    <!-- señala: tablero-tarjeta-de-pedido -->
-   - Se abre el mismo cajón del pedido que en el teléfono.
+   - Se abre el mismo cajón de la factura que en el teléfono.
 5. En ese cajón, baja hasta la lista de zonas y **haz clic en «Colocar en «Centro»»**.
    <!-- señala: tablero-colocar-en-la-zona -->
    - Ahí mismo están **«Subir una posición»**, **«Bajar una posición»** y **«Devolver
@@ -197,23 +197,23 @@ Camión: F-350
 
 - **«1.210 kg / 1.000 kg»** — lo que llevas **y lo que aguanta el camión**.
 - **«no cabe»** en ámbar: te has pasado. La ruta se arma igual, pero alguien va a
-  tener que dejar algo. Saca pedidos o cambia de camión.
+  tener que dejar algo. Saca facturas o cambia de camión.
 
-### Las marcas de los pedidos
+### Las marcas de las facturas
 
 - **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»** y **«Sin
-  factura»** — las cuatro **en rojo**: hoy **no salen**. Los puedes dejar puestos: no
+  factura»** — las cuatro **en rojo**: hoy **no salen**. Las puedes dejar puestas: no
   entrarán en la ruta y te lo dirá.
 - **«Cambió en la factura»** — **en ámbar**: **sí sale**. Sólo avisa de que al camión va
   lo facturado, no lo que se pidió.
-- **Sin domicilio cobrado, o marcado a domicilio y sin cotizar** — esos pedidos **ni
+- **Sin domicilio cobrado, o marcado a domicilio y sin cotizar** — esas facturas **ni
   salen en «Sin colocar»**, y
   si intentas colocarlos te lo rechaza con su motivo («No se puede asociar al tablero:
   la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el domicilio
   del pedido.»). Ver [Tablero](../comun/pantallas/tablero.md#qué-se-puede-colocar-en-una-zona).
-- **«sin ubicar»** en vez de los kilómetros — ese pedido no tiene coordenadas de
+- **«sin ubicar»** en vez de los kilómetros — esa factura no tiene coordenadas de
   entrega y **no puede ir en una ruta**.
-- **«2 pedidos de este cliente hoy»** — son dos pedidos de verdad. **La aplicación no
+- **«2 facturas de este cliente hoy»** — son dos facturas de verdad. **La aplicación no
   los junta.** Ponlos en la misma zona a propósito.
 
 ## 4.4 Reordenar las zonas
@@ -258,9 +258,9 @@ de verdad: **`RT-20260928-004`**.
 **El cajón NO se cierra.** Haz clic ahí mismo en **«Camión previsto»**, elige el
 camión, y después en **«Volver a intentarlo»**.
 
-### Si dice «La columna no tiene ningún pedido que se pueda repartir hoy»
+### Si dice «La columna no tiene ninguna factura que se pueda repartir hoy»
 
-Debajo te lista, uno a uno, por qué se cayó cada pedido:
+Debajo te lista, uno a uno, por qué se cayó cada factura:
 
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
@@ -269,17 +269,17 @@ PTB25-261005-1511 · LUIS PÉREZ: sin factura
 PTB25-261005-1523 · MARTA CRUZ: sin factura
 ```
 
-Cada pedido sale por su **conduce** (el número de operación de la factura).
+Cada factura sale por su **conduce** (el número de operación de la factura).
 
 ### Qué entra y qué no
 
-**Sólo entran los pedidos repartibles** (facturados, cuadren o no, con el domicilio
+**Sólo entran las facturas repartibles** (facturadas, cuadren o no, con el domicilio
 cobrado y, si el vendedor lo marcó, cotizado). Los que no, **se descartan: se quedan en la zona y marcados**. No
 desaparece nada. **Si algunos entran y otros no**, la ruta se arma con los que entran y,
 al llegar a Rutas, una franja roja nombra a los que se quedaron fuera, cada uno por su
 conduce:
 
-> Ruta armada de «Centro», pero 2 pedidos no entraron:
+> Ruta armada de «Centro», pero 2 facturas no entraron:
 > PTB25-261005-1511 · LUIS PÉREZ: sin factura
 > PTB25-261005-1523 · MARTA CRUZ: sin factura
 
@@ -295,15 +295,15 @@ hay espera): no hay que volver a crear la zona ni repartir de nuevo.
 # 6. Sacar el pre-despacho
 <!-- tarea -->
 
-**Empieza en:** **Menú → «Pedidos»**.
+**Empieza en:** **Menú → «Facturas»**.
 
 Es la hoja del almacén: **qué hay que sacar de cada producto**.
 
 1. **Filtra** para dejar los de tu ruta — por **«Municipio»**, por ejemplo.
    <!-- señala: pedidos-filtro-municipio -->
-2. **Marca los pedidos**: clic en la casilla de la cabecera («Elegir todos los de esta
+2. **Marca las facturas**: clic en la casilla de la cabecera («Elegir todos los de esta
    página»), o en la de cada uno. <!-- señala: pedidos-marcar-todos -->
-   - Aparece una franja azul: **«7 pedido(s) elegidos»**.
+   - Aparece una franja azul: **«7 factura(s) elegidas»**.
 3. **Clic en el botón del pre-despacho** (el del icono de caja). Se abre el cajón
    **«Pre-despacho»** con el resumen arriba:
    <!-- señala: pedidos-pre-despacho-de-lo-filtrado -->
@@ -401,7 +401,7 @@ parada no se guardó»). Dice «El resto del cierre sí quedó guardado.» y «E
 se quedaron sin resultado. Apunta su conduce y corrígelas en PEDIDO.», y debajo, en
 negrita, una línea por parada:
 
-> **Conduce PTB25-261005-1480: ese pedido no va en esta ruta**
+> **Conduce PTB25-261005-1480: esa factura no va en esta ruta**
 
 El conduce es el número de operación de la factura; el motivo es el del servidor, tal
 cual. El cajón tiene un solo botón, **«Entendido»**, y **no se cierra de otra forma**:
@@ -430,8 +430,8 @@ encontrarla.
    > marcar se da por no entregado y cuenta como que sigue en el camión.»
 
 2. Márcalas y **clic en «Guardar y completar»**. Revisa las marcas antes de confirmar. <!-- señala: rutas-guardar-el-cierre -->
-   - **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
-     entregados **vuelven a estar disponibles**.
+   - **La ruta se va al «Historial»**, el camión queda libre, y las facturas no
+     entregadas **vuelven a estar disponibles**.
 
 ## Sacar el post-despacho
 <!-- tarea -->

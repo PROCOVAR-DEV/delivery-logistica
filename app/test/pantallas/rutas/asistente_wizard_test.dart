@@ -207,7 +207,7 @@ void main() {
       await pintar(tester, pantalla: const Size(1440, 1100));
       await llegarAlPaso4(tester);
 
-      expect(find.text('Pedidos disponibles y zonas (300)'), findsOneWidget);
+      expect(find.text('Facturas disponibles y zonas (300)'), findsOneWidget);
 
       // LA CAJA NO CRECE CON LA LISTA. Sin el tope, 300 filas son más de 20.000
       // px y todo lo que va debajo se va con ellas.
@@ -244,51 +244,57 @@ void main() {
   // ISSUE 17 DE AMADO (16/10/2026): la fila de pedido del paso 4 lleva la factura y su fecha
   // como valor primario, encima del cliente. En pareja, a 390 y a 1440 px.
   for (final ancho in const [390.0, 1440.0]) {
-    testWidgets('a $ancho px, la fila lleva la factura y su fecha; sin número, la '
-        'frase de siempre', (tester) async {
-      await sembrarLoBasico();
-      await sembrarPedido(
-        base,
-        id: 'f1',
-        cliente: 'Con factura',
-        facturaNumero: '47061, 47062',
-        endLat: 21.38,
-        endLng: -77.91,
-        fecha: ahora,
-      );
-      await sembrarPedido(
-        base,
-        id: 'f2',
-        cliente: 'Sin factura',
-        facturaNumero: null,
-        facturaEstado: EstadoFactura.cambiado,
-        endLat: 21.38,
-        endLng: -77.91,
-        fecha: ahora.subtract(const Duration(minutes: 1)),
-      );
-      await (base.update(base.orders)..where((o) => o.id.equals('f1'))).write(
-        OrdersCompanion(facturaAt: Value(DateTime.utc(2026, 9, 14, 22))),
-      );
-      await pintar(tester, pantalla: Size(ancho, 1100));
-      await llegarAlPaso4(tester);
+    testWidgets(
+      'a $ancho px, la fila lleva la factura y su fecha; sin número, la '
+      'frase de siempre',
+      (tester) async {
+        await sembrarLoBasico();
+        await sembrarPedido(
+          base,
+          id: 'f1',
+          cliente: 'Con factura',
+          facturaNumero: '47061, 47062',
+          endLat: 21.38,
+          endLng: -77.91,
+          fecha: ahora,
+        );
+        await sembrarPedido(
+          base,
+          id: 'f2',
+          cliente: 'Sin factura',
+          facturaNumero: null,
+          facturaEstado: EstadoFactura.cambiado,
+          endLat: 21.38,
+          endLng: -77.91,
+          fecha: ahora.subtract(const Duration(minutes: 1)),
+        );
+        await (base.update(base.orders)..where((o) => o.id.equals('f1'))).write(
+          OrdersCompanion(facturaAt: Value(DateTime.utc(2026, 9, 14, 22))),
+        );
+        await pintar(tester, pantalla: Size(ancho, 1100));
+        await llegarAlPaso4(tester);
 
-      final con = find.byKey(const ValueKey('asistente-factura-f1'));
-      expect(tester.widget<Text>(con).data, 'Factura 47061, 47062');
-      expect(tester.widget<Text>(con).style!.fontWeight, FontWeight.w600);
-      expect(
-        tester.getTopLeft(con).dy,
-        lessThan(tester.getTopLeft(find.text('Con factura')).dy),
-        reason: 'la factura va encima del cliente',
-      );
-      expect(find.text('· 14/9/2026'), findsOneWidget);
+        final con = find.byKey(const ValueKey('asistente-factura-f1'));
+        expect(tester.widget<Text>(con).data, 'Factura 47061, 47062');
+        expect(tester.widget<Text>(con).style!.fontWeight, FontWeight.w600);
+        expect(
+          tester.getTopLeft(con).dy,
+          lessThan(tester.getTopLeft(find.text('Con factura')).dy),
+          reason: 'la factura va encima del cliente',
+        );
+        expect(find.text('· 14/9/2026'), findsOneWidget);
 
-      expect(find.byKey(const ValueKey('asistente-factura-f2')), findsNothing);
-      expect(find.text('Sin número de factura'), findsOneWidget);
-      expect(find.text('Sin factura'), findsOneWidget);
-      expect(tester.takeException(), isNull);
+        expect(
+          find.byKey(const ValueKey('asistente-factura-f2')),
+          findsNothing,
+        );
+        expect(find.text('Sin número de factura'), findsOneWidget);
+        expect(find.text('Sin factura'), findsOneWidget);
+        expect(tester.takeException(), isNull);
 
-      await desmontar(tester);
-    });
+        await desmontar(tester);
+      },
+    );
   }
 
   testWidgets('la lista se desplaza DENTRO de su caja, sin mover nada más', (
@@ -342,7 +348,7 @@ void main() {
     await asentar(tester);
     await tester.tap(find.byType(CheckboxListTile).at(1));
     await asentar(tester);
-    expect(find.textContaining('2 pedidos seleccionados'), findsOneWidget);
+    expect(find.textContaining('2 facturas seleccionadas'), findsOneWidget);
 
     // Al paso 1 por su tramo de la barra, que es lo que Jose pidió: «con
     // posibilidad de viajar entre los pasos por si quiero cambiar algo».
@@ -362,7 +368,7 @@ void main() {
           'hecho —porque se soltó lo elegido al salir— o no se puede pulsar.',
     );
     expect(
-      find.textContaining('2 pedidos seleccionados'),
+      find.textContaining('2 facturas seleccionadas'),
       findsOneWidget,
       reason:
           'Dar un paseo por los pasos soltó los pedidos elegidos. Volver atrás '
@@ -387,7 +393,7 @@ void main() {
     await pintar(tester, pantalla: const Size(1440, 1100));
     await llegarAlPaso4(tester);
 
-    expect(find.textContaining('0 pedidos seleccionados'), findsOneWidget);
+    expect(find.textContaining('0 facturas seleccionadas'), findsOneWidget);
 
     for (var i = 0; i < 3; i++) {
       await tester.tap(find.byType(CheckboxListTile).at(i));
@@ -398,7 +404,7 @@ void main() {
     expect(
       find.descendant(
         of: elResumen,
-        matching: find.textContaining('3 pedidos seleccionados'),
+        matching: find.textContaining('3 facturas seleccionadas'),
       ),
       findsOneWidget,
       reason: 'El resumen no dice cuántos pedidos van.',
@@ -441,7 +447,7 @@ void main() {
     // Sin nada elegido no se abre, y se dice por qué: un cajón vacío no es una
     // hoja.
     expect(tester.widget<OutlinedButton>(boton).onPressed, isNull);
-    expect(find.textContaining('elige pedidos primero'), findsOneWidget);
+    expect(find.textContaining('elige facturas primero'), findsOneWidget);
 
     // AQUÍ NO SE ELIGE NI SE ABRE EL CAJÓN. Las dos cosas consultan Drift, y
     // dentro de un `testWidgets` eso **cuelga la prueba en vez de fallar**
@@ -508,7 +514,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.widgetWithText(CheckboxListTile, 'Cliente 039'));
     await asentar(tester);
-    expect(find.textContaining('1 pedido seleccionado'), findsOneWidget);
+    expect(find.textContaining('1 factura seleccionada'), findsOneWidget);
 
     // Y SE LLEGA AL FINAL DEL PASO. En un móvil lo último de todo es el botón
     // que abre el pre-despacho en su cajón (antes era el bloque entero colgando

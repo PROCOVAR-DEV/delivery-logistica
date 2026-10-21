@@ -294,7 +294,7 @@ pág.»** o **«100 / pág.»**, y las flechas «Primera», «Anterior», «Sigu
 
 ## Lo que Vehículos NO hace
 
-- **No funciona sin conexión.** Es la diferencia con Pedidos, Clientes o Rutas.
+- **No funciona sin conexión.** Es la diferencia con Facturas, Clientes o Rutas.
 - **No se marca «En ruta» a mano.**
 - **No se borra un camión que tiene rutas**, ni siquiera históricas: se pone
   «Inactivo».

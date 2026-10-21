@@ -70,12 +70,12 @@ class AsistenteNuevaRuta extends ConsumerStatefulWidget {
   // pantalla de CONSULTA, y su rótulo ya no promete que se pueda poner uno aquí.
   static const irAAlmacenes = 'Ver los almacenes';
 
-  static const sinPedidos = 'No hay pedidos disponibles para rutear.';
+  static const sinPedidos = 'No hay facturas disponibles para rutear.';
 
-  static const cargandoPedidos = 'Cargando pedidos...';
+  static const cargandoPedidos = 'Cargando facturas...';
 
   static const preDespachoVacio =
-      'Según vayas eligiendo pedidos, aquí sale cuánto hay que sacar de cada '
+      'Según vayas eligiendo facturas, aquí sale cuánto hay que sacar de cada '
       'producto.';
 
   /// LOS CUATRO PASOS, con el nombre que sale bajo su tramo de la barra.
@@ -83,7 +83,7 @@ class AsistenteNuevaRuta extends ConsumerStatefulWidget {
     1: 'Sucursal',
     2: 'Salida',
     3: 'Vehículo',
-    4: 'Pedidos',
+    4: 'Facturas',
   };
 
   /// La tarjeta del paso `n`. La usan las pruebas para decir «estoy en el 2»
@@ -504,7 +504,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
                   _Tarjeta(
                     key: AsistenteNuevaRuta.claveDelPaso(4),
                     numero: 4,
-                    titulo: 'Pedidos de cliente (${_elegidos.length})',
+                    titulo: 'Facturas de cliente (${_elegidos.length})',
                     hecho: hechos[4]!,
                     hijo: _pasoPedidos(
                       sucursales: sucursales,
@@ -541,7 +541,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       ),
       const SizedBox(height: 8),
       Text(
-        'Los pedidos, los vehículos y el punto de partida serán los de esta '
+        'Las facturas, los vehículos y el punto de partida serán los de esta '
         'sucursal.',
         style: TextStyle(color: Colores.gris),
       ),
@@ -959,7 +959,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
         child: CajaDeBusqueda(
           valor: _filtros.q,
           ancho: null,
-          pista: 'Buscar pedido...',
+          pista: 'Buscar factura...',
           alBuscar: _buscar,
         ),
       ),
@@ -1273,7 +1273,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
           // pedido sale UNA vez —o dentro de su zona, o en el rabo—, que es lo
           // que pidio Jose: «ya los disponibles no se pueden repetir, o estan
           // en una zona o sin asignar; asi vemos todo mas rapido».
-          'Pedidos disponibles y zonas (${disponibles.length})',
+          'Facturas disponibles y zonas (${disponibles.length})',
           style: Tipos.texto(tamano: 13, peso: FontWeight.w600),
         ),
         const SizedBox(height: Aire.xs),
@@ -1313,7 +1313,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
             Expanded(
               child: Text(
                 '${_elegidos.length} '
-                '${_elegidos.length == 1 ? 'pedido seleccionado' : 'pedidos seleccionados'}'
+                '${_elegidos.length == 1 ? 'factura seleccionada' : 'facturas seleccionadas'}'
                 '${fueraDeLaLista == 0 ? '' : ' ($fueraDeLaLista de otro día o filtro, siguen contando)'}',
                 style: Tipos.texto(tamano: 12, color: Colores.tintaSuave),
               ),
@@ -1806,7 +1806,7 @@ class _PreDespachoLateral extends ConsumerWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     mainAxisSize: MainAxisSize.min,
     children: [
-      Text('Pedidos elegidos: ${elegidos.length}'),
+      Text('Facturas elegidas: ${elegidos.length}'),
       Text(
         'Capacidad del vehículo: ${pesoKg.toStringAsFixed(1)} / '
         '${capacidad?.toStringAsFixed(0) ?? '—'} kg',
@@ -1905,7 +1905,7 @@ class _PreDespachoLateral extends ConsumerWidget {
         // título no hay forma de saber cuál se está mirando.
         titulo: PreDespacho.tituloDeLaHoja,
         subtitulo:
-            '${elegidos.length} pedido(s) · '
+            '${elegidos.length} factura(s) · '
             '${pesoKg.toStringAsFixed(1)} kg',
         ancho: AnchoCajon.xl,
         // EL ALTO SALE DE LA PANTALLA, NO DE UN NÚMERO ESCRITO A MANO.
@@ -2041,7 +2041,7 @@ class _BotonDePreDespacho extends StatelessWidget {
           icon: const Icon(Icons.inventory_2_outlined, size: 18),
           label: Text(
             elegidos == 0
-                ? 'Pre-despacho — elige pedidos primero'
+                ? 'Pre-despacho — elige facturas primero'
                 : 'Pre-despacho de los $elegidos elegidos',
           ),
         ),
@@ -2119,7 +2119,7 @@ class _CabeceraDeZona extends StatelessWidget {
                       // El camión va aquí y no en el nombre: es lo que hace que
                       // marcar la zona ahorre además el paso 3. Cuando no hay,
                       // se dice que no hay — un hueco se lee como «no lo sé».
-                      '${zona.pedidos} ${zona.pedidos == 1 ? 'pedido' : 'pedidos'} · '
+                      '${zona.pedidos} ${zona.pedidos == 1 ? 'factura' : 'facturas'} · '
                       '${Numeros.kgRedondeado(zona.pesoKg)} · '
                       '${zona.vehiculoNombre == null ? 'sin camión previsto' : 'camión: ${zona.vehiculoNombre}'}',
                       style: Tipos.texto(tamano: 11, color: Colores.tintaSuave),

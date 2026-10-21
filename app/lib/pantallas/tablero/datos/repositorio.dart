@@ -102,8 +102,8 @@ List<String> descartadosDeLaRespuesta(
 ///
 /// Sin senal los dice el aparato y con ella la nube; si no se leen igual, el
 /// mismo rechazo enseña dos idiomas (`CLAUDE.md` §3-quinquies).
-const msgYaSeEntrego = 'Ese pedido ya se entregó';
-const msgYaVaEnUnaRuta = 'Ese pedido ya está en una ruta';
+const msgYaSeEntrego = 'Esa factura ya se entregó';
+const msgYaVaEnUnaRuta = 'Esa factura ya está en una ruta';
 
 /// POR QUE ESTE PEDIDO NO SE PUEDE PONER EN UNA ZONA, o `null` si se puede.
 ///
@@ -768,7 +768,7 @@ class RepositorioTablero {
     if (dentro > 0 && !vaciar && destinoId == null) {
       final nombre = await _nombreDe(columnaId);
       throw RechazoDelTablero(
-        '«$nombre» tiene $dentro pedidos puestos',
+        '«$nombre» tiene $dentro facturas puestas',
         pedidos: dentro,
       );
     }
@@ -865,7 +865,7 @@ class RepositorioTablero {
           )).where((t) => t.columnaId == columnaId).toList();
     if (puestas.isEmpty) {
       throw const RechazoDelTablero(
-        'La columna no tiene ningún pedido que se pueda repartir hoy',
+        'La columna no tiene ninguna factura que se pueda repartir hoy',
       );
     }
 
@@ -885,7 +885,7 @@ class RepositorioTablero {
     if (buenos.isEmpty) {
       // No se crea una ruta vacia, y se dice por que se cayo cada uno.
       throw RechazoDelTablero(
-        'La columna no tiene ningún pedido que se pueda repartir hoy',
+        'La columna no tiene ninguna factura que se pueda repartir hoy',
         detalles: descartados,
       );
     }

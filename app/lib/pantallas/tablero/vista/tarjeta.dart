@@ -206,7 +206,7 @@ class TarjetaDePedido extends ConsumerWidget {
               if (pedido.mismoCliente > 1) ...[
                 const SizedBox(height: 4),
                 Text(
-                  '${pedido.mismoCliente} pedidos de este cliente hoy',
+                  '${pedido.mismoCliente} facturas de este cliente hoy',
                   style: tema.textTheme.labelSmall?.copyWith(
                     color: tema.colorScheme.onSurfaceVariant,
                   ),

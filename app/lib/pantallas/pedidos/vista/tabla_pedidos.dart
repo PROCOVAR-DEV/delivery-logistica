@@ -202,7 +202,9 @@ class _Cabecera extends StatelessWidget {
               ),
             ),
           ),
-          _celda(flex: 2, hijo: Text('Fecha pedido', style: estilo)),
+          if (columnas.factura)
+            _celda(flex: 3, hijo: Text('Factura', style: estilo)),
+          _celda(flex: 2, hijo: Text('Fecha factura', style: estilo)),
           if (columnas.sucursal)
             _celda(flex: 2, hijo: Text('Sucursal', style: estilo)),
           _celda(flex: 2, hijo: Text('Pedido', style: estilo)),
@@ -216,8 +218,6 @@ class _Cabecera extends StatelessWidget {
             hijo: Text('Peso', style: estilo, textAlign: TextAlign.right),
           ),
           _celda(flex: 2, hijo: Text('Precio', style: estilo)),
-          if (columnas.factura)
-            _celda(flex: 3, hijo: Text('Factura', style: estilo)),
           if (columnas.entrega)
             _celda(flex: 2, hijo: Text('Entrega', style: estilo)),
           const SizedBox(width: 32),
@@ -292,16 +292,77 @@ class _Fila extends StatelessWidget {
                 senalable: esLaPrimera,
                 child: Checkbox(value: marcado, onChanged: (_) => alMarcar()),
               ),
+              // Flex 3 y no 2: la celda lleva DOS marcas, el numero y el cobro
+              // del domicilio, y con 2 la segunda bajaba de linea hasta a 1440.
+              if (columnas.factura)
+                _celda(
+                  flex: 3,
+                  hijo: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _Factura(pedido: pedido),
+                      // La fecha de la factura (issue 16 de Amado), sólo con número.
+                      if (diaDeLaFacturaEnCuba(pedido.facturaAt) case final f?
+                          when NumeroDeFactura.de(pedido.facturaNumero) != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            f,
+                            key: ValueKey('fila-fecha-factura-${pedido.id}'),
+                            style: Tipos.mono(
+                              tamano: 11.5,
+                              color: Colores.tintaSuave,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               _celda(flex: 2, hijo: _Fecha(pedido: pedido)),
               if (columnas.sucursal)
                 _celda(flex: 2, hijo: Text(pedido.sucursalCodigo ?? '—')),
+              // DE QUÉ PEDIDO VIENE LA FACTURA (21/10/2026, Jose: «ya no son pedidos, son
+              // facturas; el pedido es un extra»). La fila es la factura; esta celda dice si
+              // viene de un pedido de PEDIDO y cuál, con su estado debajo. Sin folio no hay
+              // pedido (o este aparato aún no lo ha puesto al día): un guion.
               _celda(
                 flex: 2,
-                hijo: Insignia(
-                  enPedido.etiqueta,
-                  color: _colorEnPedido(enPedido),
-                  tooltip: pedido.archivado ? 'Archivado en PEDIDO' : null,
-                ),
+                hijo: pedido.folio == null
+                    ? Tooltip(
+                        message:
+                            'Esta factura no viene de ningún pedido de PEDIDO.',
+                        child: Text(
+                          '—',
+                          style: Tipos.texto(
+                            tamano: 12.5,
+                            color: Colores.tintaSuave,
+                          ),
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            pedido.folio!,
+                            key: ValueKey('fila-pedido-${pedido.id}'),
+                            overflow: TextOverflow.ellipsis,
+                            style: Tipos.mono(
+                              tamano: 11.5,
+                              peso: FontWeight.w700,
+                              color: Colores.tinta,
+                            ),
+                          ),
+                          Insignia(
+                            enPedido.etiqueta,
+                            color: _colorEnPedido(enPedido),
+                            tooltip: pedido.archivado
+                                ? 'Archivado en PEDIDO'
+                                : null,
+                          ),
+                        ],
+                      ),
               ),
               _celda(
                 flex: 3,
@@ -356,9 +417,26 @@ class _Fila extends StatelessWidget {
                 _celda(flex: 2, hijo: _Articulos(renglones: renglones)),
               _celda(
                 flex: 4,
-                hijo: Text(
-                  pedido.endAddress ?? pedido.address,
-                  overflow: TextOverflow.ellipsis,
+                hijo: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      pedido.endAddress ?? pedido.address,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    // UNA FACTURA SIN PEDIDO NO TRAE EL PUNTO DEL CLIENTE (21/10/2026, Jose): sin
+                    // coordenadas no hay parada, y el logístico tiene que saber que la dirección
+                    // se la pone él. Es el aviso; lo que lo arregla es «Ubicar la entrega».
+                    if (pedido.endLat == null || pedido.endLng == null)
+                      Text(
+                        'Sin ubicación: ponle la dirección en «Ubicar la entrega»',
+                        key: ValueKey('fila-sin-ubicacion-${pedido.id}'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Tipos.texto(tamano: 11.5, color: Colores.ambar),
+                      ),
+                  ],
                 ),
               ),
               // El peso y el precio, en mono: son las dos columnas que se leen de
@@ -383,33 +461,6 @@ class _Fila extends StatelessWidget {
                   ),
                 ),
               ),
-              // Flex 3 y no 2: la celda lleva DOS marcas, el numero y el cobro
-              // del domicilio, y con 2 la segunda bajaba de linea hasta a 1440.
-              if (columnas.factura)
-                _celda(
-                  flex: 3,
-                  hijo: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _Factura(pedido: pedido),
-                      // La fecha de la factura (issue 16 de Amado), sólo con número.
-                      if (diaDeLaFacturaEnCuba(pedido.facturaAt) case final f?
-                          when NumeroDeFactura.de(pedido.facturaNumero) != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            f,
-                            key: ValueKey('fila-fecha-factura-${pedido.id}'),
-                            style: Tipos.mono(
-                              tamano: 11.5,
-                              color: Colores.tintaSuave,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
               if (columnas.entrega)
                 _celda(
                   flex: 2,
@@ -579,7 +630,9 @@ class _Tarjeta extends StatelessWidget {
                       facturaNumero: pedido.facturaNumero,
                       cliente: pedido.customerName,
                       facturadaEl: pedido.facturaAt,
-                      claveDeLaFactura: ValueKey('tarjeta-factura-${pedido.id}'),
+                      claveDeLaFactura: ValueKey(
+                        'tarjeta-factura-${pedido.id}',
+                      ),
                     ),
                     const SizedBox(height: 2),
                     // Folio y fecha en la misma linea mientras quepan, y en dos
@@ -681,7 +734,7 @@ class _Fecha extends StatelessWidget {
     // peor que decirlo, porque el dia del pedido es con lo que se cuadra.
     return Tooltip(
       message:
-          'Pedido copiado antes de que se guardara su fecha: '
+          'Factura copiada antes de que se guardara su fecha: '
           'ésta es la del espejo.',
       child: Text(
         '≈ ${fechaCorta(pedido.createdAt)}',
@@ -762,7 +815,7 @@ class _Factura extends StatelessWidget {
         // NULL no es `sin_factura`: es que el cotejo no ha pasado por aqui.
         return Tooltip(
           message:
-              'El cotejo contra Ventra no ha pasado por este pedido todavía.',
+              'El cotejo contra Ventra no ha pasado por esta factura todavía.',
           child: Text(
             'sin cotejar',
             style: Tipos.texto(tamano: 12.5, color: Colores.tintaSuave),

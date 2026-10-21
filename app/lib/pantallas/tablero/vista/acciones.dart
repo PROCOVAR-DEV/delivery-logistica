@@ -146,7 +146,7 @@ abstract final class AccionesTablero {
                   title: Text('Colocar en «${columna.nombre}»'),
                   subtitle: Text(
                     '${columna.pedidos} '
-                    '${columna.pedidos == 1 ? 'pedido' : 'pedidos'} · '
+                    '${columna.pedidos == 1 ? 'factura' : 'facturas'} · '
                     '${pesoBonito(columna.pesoKg)}',
                   ),
                   onTap: () {
@@ -407,7 +407,7 @@ abstract final class AccionesTablero {
         children: [
           Text(
             'De aquí sale la ruta de esta zona, y desde aquí se miden los '
-            'kilómetros de sus pedidos.',
+            'kilómetros de sus facturas.',
             style: Theme.of(contexto).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
@@ -462,7 +462,7 @@ abstract final class AccionesTablero {
               title: Text(destino.nombre),
               subtitle: Text(
                 '${destino.pedidos} '
-                '${destino.pedidos == 1 ? 'pedido' : 'pedidos'}',
+                '${destino.pedidos == 1 ? 'factura' : 'facturas'}',
               ),
               onTap: () {
                 Navigator.of(contexto).pop();
@@ -537,7 +537,7 @@ abstract final class AccionesTablero {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'La zona se va del tablero. No hay ningún pedido dentro, así '
+              'La zona se va del tablero. No hay ninguna factura dentro, así '
               'que no se pierde trabajo del día, pero la zona hay que volver '
               'a crearla a mano con su nombre.',
             ),
@@ -592,8 +592,8 @@ abstract final class AccionesTablero {
       // apuntado en vez de tocado — y es el §3-bis: dos copias de la misma
       // frase que ya no dicen lo mismo.
       titulo: puestos == 1
-          ? '«${columna.nombre}» tiene 1 pedido puesto'
-          : '«${columna.nombre}» tiene $puestos pedidos puestos',
+          ? '«${columna.nombre}» tiene 1 factura puesta'
+          : '«${columna.nombre}» tiene $puestos facturas puestas',
       contenido: (contexto) => Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -605,7 +605,7 @@ abstract final class AccionesTablero {
             // las que cuenta el servidor.
             Text(
               '${columna.sinPedido} de ellos no se ven en este aparato '
-              '(sus pedidos no están cargados aquí, por ejemplo porque los '
+              '(sus facturas no están cargados aquí, por ejemplo porque los '
               'archivaron), pero siguen puestos en el servidor.',
               style: Theme.of(contexto).textTheme.bodySmall,
             ),
@@ -618,7 +618,7 @@ abstract final class AccionesTablero {
             leading: const Icon(Icons.inventory_2_outlined),
             title: const Text('Inactivar la zona'),
             subtitle: Text(
-              'Sale del tablero; ${puestos == 1 ? 'el pedido vuelve' : 'los $puestos pedidos vuelven'} '
+              'Sale del tablero; ${puestos == 1 ? 'la factura vuelve' : 'las $puestos facturas vuelven'} '
               'a «Sin colocar». Se puede activar después.',
             ),
             onTap: () {
@@ -630,7 +630,7 @@ abstract final class AccionesTablero {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.undo),
             title: Text(
-              'Devolver ${puestos == 1 ? 'el pedido' : 'los $puestos pedidos'} '
+              'Devolver ${puestos == 1 ? 'la factura' : 'las $puestos facturas'} '
               'a «Sin colocar» y borrar',
             ),
             onTap: () {
@@ -648,7 +648,7 @@ abstract final class AccionesTablero {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.drive_file_move_outlined),
             title: Text(
-              'Mover ${puestos == 1 ? 'el pedido' : 'los $puestos pedidos'} '
+              'Mover ${puestos == 1 ? 'la factura' : 'las $puestos facturas'} '
               'a otra zona y borrar',
             ),
             onTap: () {
@@ -1086,7 +1086,7 @@ class _DetalleDelPedido extends ConsumerWidget {
           ),
           data: (lista) => lista.isEmpty
               ? Text(
-                  'Este pedido no tiene artículos.',
+                  'Esta factura no tiene artículos.',
                   style: tema.textTheme.bodySmall,
                 )
               : Column(
@@ -1275,7 +1275,7 @@ class _ArmarLaRutaState extends ConsumerState<_ArmarLaRuta> {
           [
             'Ruta armada de «$nombre», pero '
                 '${seQuedaronFuera.length} '
-                '${seQuedaronFuera.length == 1 ? 'pedido no entró' : 'pedidos no entraron'}:',
+                '${seQuedaronFuera.length == 1 ? 'factura no entró' : 'facturas no entraron'}:',
             ...seQuedaronFuera,
           ].join('\n'),
         );

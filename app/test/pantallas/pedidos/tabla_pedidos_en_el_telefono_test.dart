@@ -47,6 +47,9 @@ void main() {
   }) => Pedido(
     id: id,
     operationNumber: folio,
+    // El estado «Completada» es del PEDIDO de origen y sólo sale si la factura
+    // tiene folio de pedido (21/10/2026); sin él la celda dice «—».
+    folio: 'PSS26-261020-0731',
     customerName: cliente,
     address: direccionLarga,
     weight: 128.5,

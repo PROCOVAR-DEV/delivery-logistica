@@ -89,6 +89,12 @@ Future<void> sembrarPedido(
   bool archivado = false,
   double? pedidoCosto = 10,
   double? facturaDomicilio = 1,
+
+  /// El folio del PEDIDO de PEDIDO del que sale la factura (`orders.folio`); por defecto `P-<id>`: lo que se sembraba antes eran pedidos.
+  String? pedidoFolio,
+
+  /// La factura NO viene de ningún pedido (`orders.folio` nulo).
+  bool sinPedido = false,
   DateTime? fecha,
   DateTime? creado,
   double peso = 10,
@@ -127,6 +133,7 @@ Future<void> sembrarPedido(
         archivado: Value(archivado),
         pedidoCosto: Value(pedidoCosto),
         facturaDomicilio: Value(facturaDomicilio),
+        folio: Value(sinPedido ? null : (pedidoFolio ?? 'P-$id')),
         deliveryDistanceKm: Value(distancia),
         orderDate: Value(fecha),
         createdAt: Value(creado ?? fecha ?? hoy),

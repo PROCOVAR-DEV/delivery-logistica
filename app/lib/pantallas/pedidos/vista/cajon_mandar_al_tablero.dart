@@ -65,7 +65,7 @@ class _CajonMandarAlTableroState extends ConsumerState<CajonMandarAlTablero> {
     return Cajon(
       titulo: CajonMandarAlTablero.titulo,
       subtitulo: resultado == null
-          ? '${marcados.length} pedido(s) marcados'
+          ? '${marcados.length} factura(s) marcadas'
           : 'Zona «${resultado.zona}»',
       ancho: AnchoCajon.md,
       cuerpo: resultado == null
@@ -193,7 +193,7 @@ class _CajonMandarAlTableroState extends ConsumerState<CajonMandarAlTablero> {
                           ),
                         ),
                         Text(
-                          '${zona.pedidos} pedido(s) puestos',
+                          '${zona.pedidos} factura(s) puestas',
                           style: Tipos.texto(
                             tamano: 12,
                             color: Colores.tintaSuave,
@@ -339,7 +339,7 @@ class _ResumenDeLoQuePaso extends StatelessWidget {
 
   /// El literal del titular, para que la prueba busque lo que lee una persona.
   static String titular(ResultadoDeMandar r) =>
-      '${r.cuantos} pedido(s) en «${r.zona}»';
+      '${r.cuantos} factura(s) en «${r.zona}»';
 
   static String seQuedaron(ResultadoDeMandar r) =>
       'No se pudieron mandar ${r.noFueron.length}, y siguen marcados:';

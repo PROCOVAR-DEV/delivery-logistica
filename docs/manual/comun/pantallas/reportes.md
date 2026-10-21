@@ -52,7 +52,7 @@ Cuatro cifras:
 
 | Tarjeta | Qué es |
 |---|---|
-| **«Total Órdenes»** | Cuántos pedidos entran en el filtro |
+| **«Total Órdenes»** | Cuántas facturas entran en el filtro |
 | **«Ingresos Totales»** | La suma de los importes, en la moneda que estés mirando |
 | **«Precio Promedio»** | Ingresos dividido entre órdenes |
 | **«Peso Total»** | La suma de kilos |
@@ -76,9 +76,8 @@ Tabla: **«Vehículo» | «Placa» | «Órdenes» | «Ingresos» | «Peso Total�
 «Promedio/Orden» | «Facturas»**.
 
 **«Facturas»** dice las dos primeras facturas del camión y cuántas quedan fuera:
-«PTB25-261005-1479, F-000777 y 12 más». Si algún pedido del camión no tiene número
-de factura, lo dice aparte: «· 2 sin número». **La lista entera está en el Excel**, y
-una por una en «Detalle de Órdenes». Una factura que sale en dos pedidos (la ida y
+«PTB25-261005-1479, F-000777 y 12 más». Si alguna factura del camión no tiene número, lo dice aparte: «· 2 sin número». **La lista entera está en el Excel**, y
+una por una en «Detalle de Órdenes». Una factura que sale en dos entregas (la ida y
 la vuelta) se nombra una vez, pero **las «Órdenes» y los totales no cambian**.
 
 La fila de abajo es **«Totales»**, o **«Totales (3 sin cotizar)»** si falta algún
@@ -90,7 +89,7 @@ Tabla: **«Fecha» | «Factura» | «Cliente» | «Ruta» | «Destino» | «Veh�
 «Peso» | «Precio»**.
 
 **«Factura»** es el número de operación de la factura (el *conduce*, el mismo con el
-que se nombra el pedido en el tablero y en los avisos de la ruta). Si el pedido no
+que se nombra la factura en el tablero y en los avisos de la ruta). Si la entrega no
 lo trae, se usa el número de la factura de Ventra, y si no hay ninguno de los dos
 sale **«—»**, nunca en blanco.
 
@@ -102,7 +101,7 @@ Al lado del nombre de la pestaña sale una insignia con el número de filas.
 
 ---
 
-## Cómo se calcula el ingreso de un pedido
+## Cómo se calcula el ingreso de una factura
 
 Se toma **el precio guardado en la ruta si lo tiene** y, si no, **el costo que puso
 Entrega**. Si no hay ninguno de los dos, **el importe no se sabe y no se suma** — y
@@ -143,7 +142,7 @@ generó, el filtro de fechas y la moneda. Y si falta cotizar algo, una fila más
 - **Un importe que no se sabe deja la celda vacía**, nunca un cero. Lo mismo con los
   kilómetros.
 - **La factura** va en «Detalle de Órdenes» (columna «Factura», justo después de la
-  fecha; «—» si el pedido no tiene número) y, en «Por Vehículo», la columna «Facturas»
+  fecha; «—» si la factura no tiene número) y, en «Por Vehículo», la columna «Facturas»
   con **todos** los números del camión separados por coma.
 - **Si pides CUP y esa sucursal no tiene tasa, no se escribe nada**, y te lo dice:
   «Se pidió el Excel en CUP y esta sucursal no tiene tasa de cambio: no se convierte

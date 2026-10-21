@@ -57,7 +57,7 @@ terminar:
 > Es la primera vez en este aparato: se está trayendo todo lo del día. Sólo pasa una
 > vez.
 
-Debajo, un porcentaje y qué está trayendo: «Trayendo los pedidos…», «Trayendo los
+Debajo, un porcentaje y qué está trayendo: «Trayendo las facturas…», «Trayendo los
 clientes…».
 
 **No cierres la aplicación**, y lo dice: «No cierres la aplicación. Cuando termine

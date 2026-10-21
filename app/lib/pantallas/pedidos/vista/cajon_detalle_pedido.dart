@@ -66,15 +66,15 @@ class CajonDetallePedido extends ConsumerWidget {
           return Cajon(
             titulo: Destino.trabajaSinConexion
                 ? 'No está en el aparato'
-                : 'No se encontró el pedido',
+                : 'No se encontró la factura',
             cuerpo: EstadoVacio(switch (ref.watch(porQueEstaVacioProvider)) {
               PorQueEstaVacio.noSeDescargo =>
                 SinDescargar.textoDeLaPantallaVacia,
               PorQueEstaVacio.todaviaBajando => TextosDeLaWeb.cargando(
-                'el pedido',
+                'la factura',
               ),
               PorQueEstaVacio.noPudoBajar => TextosDeLaWeb.noPudoBajar(
-                'los pedidos',
+                'las facturas',
               ),
             }),
           );

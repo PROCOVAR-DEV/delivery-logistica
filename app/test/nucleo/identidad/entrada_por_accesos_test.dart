@@ -102,7 +102,7 @@ void main() {
       expect(
         navegador.ultimo,
         '$baseApiDePrueba/auth/entrar?volverA='
-            '${Uri.encodeQueryComponent('/orders?municipio=Centro')}',
+        '${Uri.encodeQueryComponent('/orders?municipio=Centro')}',
       );
     });
 
@@ -111,7 +111,8 @@ void main() {
       // la que el portero dejo mientras comprobaba. Mirar solo una es perder el
       // enlace la mitad de las veces.
       final navegador = NavegadorFalso(
-        direccion: 'https://ejemplo.test/arranque?volverA='
+        direccion:
+            'https://ejemplo.test/arranque?volverA='
             '${Uri.encodeQueryComponent('/routes')}',
       );
       entradaFalsa(navegador, (p) async => null).aAccesos();
@@ -121,9 +122,15 @@ void main() {
 
     test('volver a la propia puerta seria un bucle: no se guarda', () {
       for (final puerta in ['/acceso', '/arranque', '/configurando', '/']) {
-        final navegador = NavegadorFalso(direccion: 'https://ejemplo.test$puerta');
+        final navegador = NavegadorFalso(
+          direccion: 'https://ejemplo.test$puerta',
+        );
         entradaFalsa(navegador, (p) async => null).aAccesos();
-        expect(navegador.ultimo, '$baseApiDePrueba/auth/entrar', reason: puerta);
+        expect(
+          navegador.ultimo,
+          '$baseApiDePrueba/auth/entrar',
+          reason: puerta,
+        );
       }
     });
 
@@ -174,7 +181,9 @@ void main() {
 
     test('sin motivo, null: entonces se va sola', () {
       expect(
-        EntradaPorAccesos.motivoEnLaDireccion(Uri.parse('https://ejemplo.test/')),
+        EntradaPorAccesos.motivoEnLaDireccion(
+          Uri.parse('https://ejemplo.test/'),
+        ),
         isNull,
       );
     });

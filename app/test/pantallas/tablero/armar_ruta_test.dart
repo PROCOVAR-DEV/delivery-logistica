@@ -208,7 +208,7 @@ void main() {
               .having(
                 (e) => e.mensaje,
                 'mensaje',
-                'La columna no tiene ningún pedido que se pueda repartir hoy',
+                'La columna no tiene ninguna factura que se pueda repartir hoy',
               )
               // Nombrados: una columna que produce una ruta mas corta sin
               // explicacion es la manera mas rapida de que el logistico deje de
@@ -431,7 +431,7 @@ void main() {
           isA<RechazoDelTablero>().having(
             (e) => e.mensaje,
             'mensaje',
-            'La columna no tiene ningún pedido que se pueda repartir hoy',
+            'La columna no tiene ninguna factura que se pueda repartir hoy',
           ),
         ),
       );

@@ -28,7 +28,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
+import 'package:reparto/navegacion/portero.dart'
+    show sucursalDeLaSesionProvider;
 import 'package:reparto/diseno/tema.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
@@ -291,7 +292,7 @@ void main() {
       await asentar(tester);
 
       // Cuántos fueron, y a dónde.
-      expect(find.text('1 pedido(s) en «Centro»'), findsOneWidget);
+      expect(find.text('1 factura(s) en «Centro»'), findsOneWidget);
       // Y el que no pudo, NOMBRADO y con su motivo. Nada se descarta en
       // silencio (`CLAUDE.md` §4).
       expect(
@@ -333,7 +334,7 @@ void main() {
     await tester.tap(find.text(CajonMandarAlTablero.mandar));
     await asentar(tester);
 
-    expect(find.text('1 pedido(s) en «Vista Alegre»'), findsOneWidget);
+    expect(find.text('1 factura(s) en «Vista Alegre»'), findsOneWidget);
     expect(contenedor.read(seleccionPedidosProvider), isEmpty);
 
     await cerrar(tester);

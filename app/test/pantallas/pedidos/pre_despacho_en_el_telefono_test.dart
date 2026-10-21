@@ -12,7 +12,7 @@
 //    `dataRowMaxHeight` de `temaDeTabla`—, así que cinco productos llenaban la
 //    pantalla y hay veinticuatro;
 //  - y el encabezado —«Pre-despacho de lo filtrado · 24 producto(s) · 23150
-//    empaques · sin peso en los pedidos»— se partía en CUATRO líneas con el
+//    empaques · sin peso en las facturas»— se partía en CUATRO líneas con el
 //    botón «Ver e imprimir» encajado en medio.
 //
 // POR QUÉ ESTAS PRUEBAS MIDEN COORDENADAS. Un fallo de colocación no rompe
@@ -48,23 +48,27 @@ void main() {
   const vodka = 'VODKA REGIO BLISTER 6U';
 
   /// Sin ni un peso resuelto, que es lo que pasaba en la captura: el total de
-  /// kg es `null` y la franja dice «sin peso en los pedidos», no «0.0 kg».
-  final sinPeso = TotalesPreDespacho(
-    const [
-      LineaPreDespacho(producto: malta, empaques: 1234, unidades: null),
-      LineaPreDespacho(producto: cerveza, empaques: 980, unidades: 5880),
-      LineaPreDespacho(producto: vodka, empaques: 12, unidades: 72),
-    ],
-    pedidos: 24,
-  );
+  /// kg es `null` y la franja dice «sin peso en las facturas», no «0.0 kg».
+  final sinPeso = TotalesPreDespacho(const [
+    LineaPreDespacho(producto: malta, empaques: 1234, unidades: null),
+    LineaPreDespacho(producto: cerveza, empaques: 980, unidades: 5880),
+    LineaPreDespacho(producto: vodka, empaques: 12, unidades: 72),
+  ], pedidos: 24);
 
-  final conPeso = TotalesPreDespacho(
-    const [
-      LineaPreDespacho(producto: malta, empaques: 1234, unidades: 7404, pesoKg: 88.5),
-      LineaPreDespacho(producto: cerveza, empaques: 980, unidades: 5880, pesoKg: 11.5),
-    ],
-    pedidos: 24,
-  );
+  final conPeso = TotalesPreDespacho(const [
+    LineaPreDespacho(
+      producto: malta,
+      empaques: 1234,
+      unidades: 7404,
+      pesoKg: 88.5,
+    ),
+    LineaPreDespacho(
+      producto: cerveza,
+      empaques: 980,
+      unidades: 5880,
+      pesoKg: 11.5,
+    ),
+  ], pedidos: 24);
 
   /// LO QUE SE SABE A MEDIAS, que es el caso normal desde el 28/09/2026: la
   /// MALTA trae peso en 1.126 de sus 1.147 renglones —21 fuera— y la cerveza
@@ -139,7 +143,11 @@ void main() {
 
   group('a 390 px —el teléfono de Jose—', () {
     testWidgets('los empaques se ven SIN desplazar de lado', (tester) async {
-      await pintar(tester, TablaPreDespacho(totales: sinPeso), ancho: anchoDelTelefono);
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: sinPeso),
+        ancho: anchoDelTelefono,
+      );
 
       final caja = tester.getRect(find.text('1234 empaques'));
       expect(
@@ -158,7 +166,11 @@ void main() {
     });
 
     testWidgets('las unidades también, incluso el `—`', (tester) async {
-      await pintar(tester, TablaPreDespacho(totales: sinPeso), ancho: anchoDelTelefono);
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: sinPeso),
+        ancho: anchoDelTelefono,
+      );
 
       // La primera línea no tiene unidades en el catálogo: `—`, nunca un cero.
       final sinUnidades = tester.getRect(find.text('— unidades'));
@@ -178,7 +190,11 @@ void main() {
     testWidgets('los kg también, que eran los que caían del todo fuera', (
       tester,
     ) async {
-      await pintar(tester, TablaPreDespacho(totales: conPeso), ancho: anchoDelTelefono);
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: conPeso),
+        ancho: anchoDelTelefono,
+      );
 
       final caja = tester.getRect(find.text('88.5 kg'));
       expect(
@@ -195,7 +211,11 @@ void main() {
     testWidgets('no hay tabla: ni `DataTable` ni rótulos de columna', (
       tester,
     ) async {
-      await pintar(tester, TablaPreDespacho(totales: conPeso), ancho: anchoDelTelefono);
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: conPeso),
+        ancho: anchoDelTelefono,
+      );
 
       expect(
         find.byType(DataTable),
@@ -210,7 +230,11 @@ void main() {
     });
 
     testWidgets('una fila de una línea NO mide 76 px', (tester) async {
-      await pintar(tester, TablaPreDespacho(totales: conPeso), ancho: anchoDelTelefono);
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: conPeso),
+        ancho: anchoDelTelefono,
+      );
 
       final caja = tester.getRect(
         find.byKey(PreDespacho.claveDeLaTarjeta(malta)),
@@ -230,7 +254,11 @@ void main() {
     testWidgets('el nombre del producto no se parte letra a letra', (
       tester,
     ) async {
-      await pintar(tester, TablaPreDespacho(totales: conPeso), ancho: anchoDelTelefono);
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: conPeso),
+        ancho: anchoDelTelefono,
+      );
 
       final caja = tester.getRect(find.text(malta));
       expect(
@@ -262,7 +290,7 @@ void main() {
       final resumen = resumenDelPreDespacho(sinPeso);
       expect(
         resumen,
-        '3 productos · 2226 empaques · sin peso en los pedidos',
+        '3 productos · 2226 empaques · sin peso en las facturas',
         reason:
             'El texto del 22/09/2026 se queda: nada de «0.0 kg» cuando falta '
             'algún producto por emparejar.',
@@ -289,7 +317,11 @@ void main() {
 
   group('a 1440 px —el escritorio— sigue siendo la tabla de siempre', () {
     testWidgets('con sus cuatro rótulos de columna', (tester) async {
-      await pintar(tester, TablaPreDespacho(totales: conPeso), ancho: anchoDeEscritorio);
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: conPeso),
+        ancho: anchoDeEscritorio,
+      );
 
       expect(find.byType(DataTable), findsOneWidget);
       for (final rotulo in ['Producto', 'Empaques', 'Unidades', 'kg']) {
@@ -303,7 +335,11 @@ void main() {
     });
 
     testWidgets('y sus filas ya no miden 76 px', (tester) async {
-      await pintar(tester, TablaPreDespacho(totales: conPeso), ancho: anchoDeEscritorio);
+      await pintar(
+        tester,
+        TablaPreDespacho(totales: conPeso),
+        ancho: anchoDeEscritorio,
+      );
 
       final primera = tester.getRect(find.text(malta)).center.dy;
       final segunda = tester.getRect(find.text(cerveza)).center.dy;
@@ -345,7 +381,7 @@ void main() {
         find.text(TotalesDelPreDespacho.pesoDeLosProductos),
         findsOneWidget,
       );
-      expect(find.text('sin peso en los pedidos'), findsOneWidget);
+      expect(find.text('sin peso en las facturas'), findsOneWidget);
       // Y desde luego no sale el de los pedidos en ese renglón.
       expect(
         find.descendant(
@@ -515,27 +551,30 @@ void main() {
       expect(rotuloDelPreDespacho(conPeso), 'Pre-despacho · 2 productos');
     });
 
-    test('el peso a medias se da como MÍNIMO y con los renglones que faltan', () {
-      // LAS DOS MITADES, y hacen falta las dos: el número solo diría «falta
-      // algo» sin decir cuánto, y el conteo solo no deja cargar un camión.
-      //
-      // Esta prueba decía `'1 de 2 productos sin peso'`: ni daba la cifra —la
-      // hoja salía muda con 4.949 empaques dentro— ni contaba renglones, que
-      // es lo que dice cuánto falta de verdad.
-      expect(
-        pesoDelPreDespacho(aMedias),
-        '≥ 26331.5 kg (21 renglones sin peso)',
-        reason: '26320 de MALTA + 11.5 de cerveza, y 21 renglones fuera',
-      );
+    test(
+      'el peso a medias se da como MÍNIMO y con los renglones que faltan',
+      () {
+        // LAS DOS MITADES, y hacen falta las dos: el número solo diría «falta
+        // algo» sin decir cuánto, y el conteo solo no deja cargar un camión.
+        //
+        // Esta prueba decía `'1 de 2 productos sin peso'`: ni daba la cifra —la
+        // hoja salía muda con 4.949 empaques dentro— ni contaba renglones, que
+        // es lo que dice cuánto falta de verdad.
+        expect(
+          pesoDelPreDespacho(aMedias),
+          '≥ 26331.5 kg (21 renglones sin peso)',
+          reason: '26320 de MALTA + 11.5 de cerveza, y 21 renglones fuera',
+        );
 
-      // La pareja: con todo sabido, la cifra va desnuda. Si el `≥` saliera
-      // también aquí, dejaría de distinguir un mínimo de un total.
-      expect(pesoDelPreDespacho(conPeso), '100.0 kg');
-      expect(pesoDelPreDespacho(conPeso), isNot(contains('≥')));
+        // La pareja: con todo sabido, la cifra va desnuda. Si el `≥` saliera
+        // también aquí, dejaría de distinguir un mínimo de un total.
+        expect(pesoDelPreDespacho(conPeso), '100.0 kg');
+        expect(pesoDelPreDespacho(conPeso), isNot(contains('≥')));
 
-      // Y sin saber nada, ni `≥` ni cero: se dice que no se sabe.
-      expect(pesoDelPreDespacho(sinPeso), 'sin peso en los pedidos');
-    });
+        // Y sin saber nada, ni `≥` ni cero: se dice que no se sabe.
+        expect(pesoDelPreDespacho(sinPeso), 'sin peso en las facturas');
+      },
+    );
 
     test('un solo renglón se dice en singular', () {
       // «1 renglones» en la hoja del almacén es una errata que hace dudar del
@@ -552,18 +591,21 @@ void main() {
       expect(pesoDelPreDespacho(unoSolo), '≥ 26320.0 kg (1 renglón sin peso)');
     });
 
-    test('el resumen del cajón arrastra el `≥`, que es donde se lee primero', () {
-      // El subtítulo del cajón es lo único que se ve sin abrir nada. Si ahí
-      // saliera «29835.4 kg» a secas, el `≥` de dentro llega tarde.
-      expect(
-        resumenDelPreDespacho(aMedias),
-        '2 productos · 5929 empaques · ≥ 26331.5 kg (21 renglones sin peso)',
-      );
-      expect(
-        resumenDelPreDespacho(sinPeso),
-        '3 productos · 2226 empaques · sin peso en los pedidos',
-      );
-    });
+    test(
+      'el resumen del cajón arrastra el `≥`, que es donde se lee primero',
+      () {
+        // El subtítulo del cajón es lo único que se ve sin abrir nada. Si ahí
+        // saliera «29835.4 kg» a secas, el `≥` de dentro llega tarde.
+        expect(
+          resumenDelPreDespacho(aMedias),
+          '2 productos · 5929 empaques · ≥ 26331.5 kg (21 renglones sin peso)',
+        );
+        expect(
+          resumenDelPreDespacho(sinPeso),
+          '3 productos · 2226 empaques · sin peso en las facturas',
+        );
+      },
+    );
   });
 
   // LAS UNIDADES VAN POR EL MISMO CAMINO, y también se pueden separar.

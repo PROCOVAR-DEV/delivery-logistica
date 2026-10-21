@@ -182,6 +182,7 @@ class Bajada {
     await _frescura.rebajarLasRutasUnaVez();
     // Y otra por el almacén del que sale cada pedido (frescura.dart, 15/10/2026).
     await _frescura.rebajarLosPedidosPorSuAlmacen();
+    await _frescura.rebajarLosPedidosPorSuFolio();
 
     for (var vuelta = 0; vuelta < maximoDeTandas; vuelta++) {
       final desde = await _frescura.desde(Colecciones.pedidos);
@@ -858,6 +859,7 @@ class Bajada {
             puntoManual: Value(j['puntoManual'] == true),
             puntoManualPor: Value(_texto(j['puntoManualPor'])),
             puntoManualAt: Value(_fecha(j['puntoManualAt'])),
+            folio: Value(_texto(j['folio'])),
             puntoClienteLat: Value(_numero(j['puntoClienteLat'])),
             puntoClienteLng: Value(_numero(j['puntoClienteLng'])),
             puntoClienteAddress: Value(_texto(j['puntoClienteAddress'])),

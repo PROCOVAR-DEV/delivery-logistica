@@ -1,9 +1,14 @@
-# Pedidos
+# Facturas
 
 **Para qué sirve:** es el catálogo de todo lo que hay por repartir y lo que ya se
-repartió. De aquí sale el pre-despacho y de aquí se mandan pedidos al Tablero.
+repartió. De aquí sale el pre-despacho y de aquí se mandan facturas al Tablero.
 
-Debajo del título pone: «Todos los pedidos acumulados de todas las rutas».
+**Ya no son pedidos, son facturas** (Jose, 21/10/2026). Lo que se reparte es la
+**factura de Ventra**; el pedido de PEDIDO es un extra, enlazado por folio. La pantalla
+se llamaba «Pedidos»: ahora es «Facturas», en el menú y en la dirección (`/facturas`; el
+enlace viejo `/orders` sigue funcionando y lleva aquí).
+
+Debajo del título pone: «Todas las facturas acumuladas de todas las rutas».
 
 **Recuerda:** la lista es **de la sucursal que tengas puesta arriba**. Aquí no hay
 filtro de sucursal.
@@ -15,18 +20,17 @@ filtro de sucursal.
 Al entrar, la pantalla **viene acotada a propósito** y lo dice:
 
 > «Enseñando sólo lo que tiene factura —cuadre o no— y sin archivar. A una ruta
-> entra lo facturado con el domicilio cobrado, y cotizado en Entrega si el vendedor
-> lo marcó: si la factura cambió, al camión va lo facturado.»
+> entra lo facturado con el domicilio cobrado: si la factura cambió, al camión va lo
+> facturado.»
 
-Debajo, el botón **«Ver todos los pedidos»**, que quita ese acotado.
+Debajo, el botón **«Ver todas las facturas»**, que quita ese acotado.
 
-Si no encuentras un pedido, esto es lo primero que hay que probar.
+Si no encuentras una factura, esto es lo primero que hay que probar.
 
 **Esta lista enseña lo que tiene factura; no todo lo que sale entra en una ruta.** A una
 ruta nueva o a una zona sólo entra lo que además tiene **el domicilio cobrado** en la
-factura, y **cotizado en Entrega si el vendedor marcó domicilio**. Un pedido que cambió
-en la factura sí entra: al camión va lo facturado. Ver [Las reglas del
-reparto](../las-reglas-del-reparto.md).
+factura. Una factura que cambió respecto de lo pedido sí entra: al camión va lo
+facturado. Ver [Las reglas del reparto](../las-reglas-del-reparto.md).
 
 ---
 
@@ -36,14 +40,15 @@ reparto](../las-reglas-del-reparto.md).
 |---|---|---|
 | **Buscar** | vacío | Busca en cliente, folio, dirección, municipio, vendedor y productos. Busca solo, sin Intro |
 | **«Estado de reparto en delivery»** | «Cualquier reparto» | «Sin entregar», «En despacho», «En ruta», «Entregado», «Devuelto o cancelado» |
-| **«Municipio del cliente»** | «Todos los municipios» | Cada municipio con cuántos pedidos tiene |
-| **«Precio del domicilio»** | «Cualquier precio» | «Con precio puesto» o «Sin cotizar» |
-| **«Vendedor del pedido»** | «Todos los vendedores» | **Uno o varios**: un cajón con una casilla por vendedor (con cuántos pedidos tiene cada uno); salen los de cualquiera de los marcados. «Todos los vendedores» limpia, y la caja dice «3 vendedores» si hay varios |
+| **«Municipio del cliente»** | «Todos los municipios» | Cada municipio con cuántas facturas tiene |
+| **«Precio del pedido»** | «Cualquier precio» | «Con precio puesto» o «Sin cotizar». Es el precio que cotizó Entrega al pedido, así que **sólo cuenta para las facturas que vienen de un pedido** |
+| **«Pedido de origen»** | «Con o sin pedido» | «Con pedido» o «Sin pedido»: si la factura viene de un pedido de PEDIDO (tiene su folio) o no |
+| **«Vendedor del pedido»** | «Todos los vendedores» | **Uno o varios**: un cajón con una casilla por vendedor (con cuántas facturas tiene cada uno); salen los de cualquiera de los marcados. «Todos los vendedores» limpia, y la caja dice «3 vendedores» si hay varios |
 | **«Cómo se ordena esta página»** | «Más recientes» | «Más antiguos», «Precio: mayor a menor», «Precio: menor a mayor», «Distancia: más larga», «Peso: mayor» |
-| **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías | Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las dos. Filtran por la **fecha de la factura** (la del pedido si aún no tiene factura), contada en hora de Cuba, los dos días incluidos |
+| **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** | vacías | Con «Desde» puesto aparece **«sólo ese día»**, que copia la fecha en las dos. Filtran por la **fecha de la factura**, contada en hora de Cuba, los dos días incluidos |
 
 **Cuidado con el orden:** «Cómo se ordena esta página» ordena **sólo la página que
-estás viendo**, no los 246 pedidos enteros.
+estás viendo**, no las 246 facturas enteras.
 
 Cualquier cambio de filtro te devuelve a la página 1.
 
@@ -57,7 +62,7 @@ Si abres un enlace con filtros que no se entienden, sale un aviso en ámbar:
 
 ## El conteo de arriba
 
-> «246 pedidos · del 1/9/2026 al 28/9/2026, del más nuevo al más viejo»
+> «246 facturas · del 1/9/2026 al 28/9/2026, del más nuevo al más viejo»
 
 Cambia según las fechas que tengas puestas: «· del 28/9/2026», «· desde el
 1/9/2026», «· hasta el 28/9/2026». Y **siempre** acaba diciendo el orden.
@@ -66,35 +71,44 @@ Cambia según las fechas que tengas puestas: «· del 28/9/2026», «· desde el
 
 ## Las columnas de la tabla
 
+**Cada fila es una factura de Ventra con entrega a domicilio. Si viene de un pedido de
+PEDIDO, la columna Pedido enseña su folio y su estado; si no, un guion.**
+
+**La factura es la primera columna** (después de la casilla): ella es la fila. El pedido
+es un extra, y por eso va más a la derecha y puede faltar.
+
 | Columna | Qué es |
 |---|---|
-| (casilla) | Marca el pedido. La de la cabecera dice «Elegir todos los de esta página» |
-| **«Fecha»** | La del pedido. Si le falta, sale la del espejo con un `≈` delante: «≈ 12/9/2026» |
+| (casilla) | Marca la factura. La de la cabecera dice «Elegir todos los de esta página» |
+| **«Factura»** | **La primera.** El número de factura de Ventra, con la fecha debajo, y si cuadra o cambió y si el domicilio está cobrado. Ver abajo |
+| **«Fecha factura»** | La fecha de la factura. Si le falta, sale la del espejo con un `≈` delante: «≈ 12/9/2026» |
 | **«Sucursal»** | Sólo sale si no tienes una sucursal elegida arriba |
-| **«Pedido»** | El estado **en PEDIDO** |
-| **«Cliente»** | El nombre y debajo el folio |
+| **«Pedido»** | **De qué pedido de PEDIDO viene la factura:** su folio y, debajo, su estado en PEDIDO («Completada», «En proceso», «Expirada»). Un **«—»** si la factura no viene de ningún pedido |
+| **«Cliente»** | El nombre y debajo el número de operación (el conduce) |
 | **«Ruta»** | El código de ruta, o «—» |
 | **«Artículos»** | El primer producto y cuántos más («+3»). Todo en el tooltip |
 | **«Dirección»** | La de entrega |
 | **«Peso»** | «128.0 kg» o «—» |
 | **«Precio»** | «$12.50» o **«sin cotizar»** en gris |
-| **«Factura»** | Ver abajo |
 | **«Entrega»** | El estado de reparto |
 
-En pantalla estrecha no hay tabla: cada pedido es una tarjeta, y la cabecera dice
+En pantalla estrecha no hay tabla: cada factura es una tarjeta, y la cabecera dice
 «Elegir los 50 de esta página». **El título de la tarjeta es el número de factura**
 (`Factura 1024237 · 15/10/2026`: el número de Ventra y, después, la fecha en que se facturó, en hora de Cuba; sin factura no se pone fecha), y debajo va el cliente, en negrita y más pequeño; luego
 el número de operación, que es otro, y la fecha. Sin número de factura, el título dice
-**«Sin número de factura»**, en gris. La tabla de escritorio pone la fecha de la factura bajo el número, y la columna «Fecha» pasa a llamarse **«Fecha pedido»**: es la del pedido, no la que filtra. Lo de la columna «Factura» queda en una insignia que
+**«Sin número de factura»**, en gris. La tabla de escritorio pone la fecha de la factura bajo el número, y además la tiene en su propia columna, **«Fecha factura»**. En la tarjeta, lo de la columna «Factura» queda en una insignia que
 solo dice el estado: **«Cuadra»** en verde o **«Cambió !»** en ámbar.
 
 ---
 
-## Los tres estados de un pedido
+## Los tres estados de una factura
 
 Son **tres cosas distintas** en tres columnas distintas. No los confundas.
 
-### Columna «Pedido» — cómo va en PEDIDO
+### Columna «Pedido» — cómo va el pedido en PEDIDO
+
+Es el estado **del pedido de PEDIDO del que viene la factura**, y sale debajo de su
+folio. Si la factura no viene de ningún pedido, la columna dice «—» y no hay estado.
 
 | Etiqueta | Qué significa |
 |---|---|
@@ -102,7 +116,7 @@ Son **tres cosas distintas** en tres columnas distintas. No los confundas.
 | **«En proceso»** (ámbar) | Ni cerrada ni vencida |
 | **«Expirada»** (rojo) | No está completada y la fecha comprometida ya pasó |
 
-Si el pedido está archivado, esa insignia lleva el aviso «Archivado en PEDIDO».
+Si el pedido está archivado en PEDIDO, esa insignia lleva el aviso «Archivado en PEDIDO».
 
 ### Columna «Entrega» — cómo acabó en el reparto
 
@@ -116,15 +130,17 @@ Si el pedido está archivado, esa insignia lleva el aviso «Archivado en PEDIDO�
 | **«Sin entregar»** (gris) | Todo lo demás |
 
 **Manda cómo acabó la parada, no el estado de la ruta.** Una ruta completada no
-convierte en entregado un pedido que volvió en el camión.
+convierte en entregada una factura que volvió en el camión.
 
-**Un devuelto o cancelado que se mete en otra ruta empieza de cero.** El pedido que
-volvió ayer en el camión y hoy se mete en una ruta nueva sale como uno cualquiera
+**Un devuelto o cancelado que se mete en otra ruta empieza de cero.** La factura que
+volvió ayer en el camión y hoy se mete en una ruta nueva sale como una cualquiera
 («En despacho», luego «En ruta»), **sin el resultado de la vez anterior**: no arrastra
 ni el «Devuelto» ni el «Cancelado». Su resultado se marca de nuevo al cerrar la ruta
 nueva.
 
-### Columna «Factura»
+### Columna «Factura» — la primera
+
+Es la fila misma: el número de factura de Ventra y, debajo, su fecha.
 
 | Qué se ve | Qué significa |
 |---|---|
@@ -141,16 +157,17 @@ en verde o con el `!`):
 | **«Dom. $0.46»** en verde | La factura trae la línea «ENTREGA A DOMICILIO» y cobra ese importe: el domicilio está cobrado |
 | **«Sin cobro de domicilio»** en gris | «La factura no trae la línea ENTREGA A DOMICILIO. No impide ir a una ruta: en «Cobro del domicilio» se filtra por con cobro o sin cobro.» |
 
-Así se ve **antes de marcar** por qué un pedido facturado no va a entrar en una ruta ni en
-una zona: hay factura, pero no cobró el domicilio. Con «sin facturar» o «sin cotejar»
+Así se ve **antes de marcar** si una factura trae el domicilio cobrado o no: hay factura, pero
+puede que no cobrara el domicilio. Con «sin facturar» o «sin cotejar»
 no sale esta marca, porque ya está dicho que falta la factura.
 
-**El ámbar sólo sale si ése es el motivo.** Un pedido que ya va en una ruta, que ya se
-entregó o que está archivado no tiene nada que colocar, así que lleva sólo el número de
+**El ámbar sólo sale si ése es el motivo.** Una factura que ya va en una ruta, que ya se
+entregó o que está archivada no tiene nada que colocar, así que lleva sólo el número de
 factura (o el «Dom.» verde, si la factura sí cobró el domicilio). Un devuelto o cancelado
 sí lo lleva, porque se puede volver a meter en otra ruta.
 
-La columna «Factura» no sale en pantallas de menos de 1024 px de ancho. **El número de
+La columna «Factura» no sale en pantallas de menos de 1024 px de ancho (y con ella se va
+la primera posición: la tabla empieza entonces por «Fecha factura»). **El número de
 factura no desaparece con ella**: entre 768 y 1023 px baja a la celda del cliente, debajo del
 número de operación, como `Factura 1024237`; en el teléfono es **el título de la tarjeta**,
 y la marca del domicilio va en la insignia de abajo.
@@ -163,7 +180,7 @@ Hay **dos**, y los dos abren el mismo cajón.
 
 ### El de lo elegido
 
-Al marcar pedidos aparece una franja azul: **«7 pedido(s) elegidos»**, con tres
+Al marcar facturas aparece una franja azul: **«7 factura(s) elegidas»**, con tres
 botones:
 
 1. El del pre-despacho
@@ -193,13 +210,13 @@ En pantalla estrecha, una tarjeta por producto con cada cifra y su rótulo pegad
 «1234 empaques», «88.5 kg».
 
 Abajo, los cuatro totales: **«Empaques»**, **«Unidades»**, **«Peso de los
-productos»** y **«Peso de los pedidos»**, con la frase que los separa:
+productos»** y **«Peso de las facturas»**, con la frase que los separa:
 
 > «No son el mismo número: el de arriba suma renglón a renglón, y el de abajo es
-> el peso que trae cada pedido entero.»
+> el peso que trae cada factura entera.»
 
 Y el botón **«Ver e imprimir»**, que abre la **«Hoja de pre-despacho»** para
-imprimir: «264 pedido(s) · 24891.0 kg».
+imprimir: «264 factura(s) · 24891.0 kg».
 
 ### El peso, con todo detalle
 
@@ -207,7 +224,7 @@ Ver [Qué significa cada número](../que-significa-cada-numero.md). En corto:
 
 | Caso | Qué se escribe |
 |---|---|
-| No se sabe el peso de **ninguna** línea | «sin peso en los pedidos» |
+| No se sabe el peso de **ninguna** línea | «sin peso en las facturas» |
 | Se sabe el de **todas** | «26320.0 kg» |
 | Se sabe el de **unas sí y otras no** | «≥ 26320.0 kg (21 renglones sin peso)» |
 
@@ -219,13 +236,13 @@ paréntesis. El rótulo de la columna ya dice «kg».
 
 Las unidades siguen la misma regla: «≥ 600 (3 renglones sin unidades)».
 
-**Un renglón sin peso** es una línea de pedido cuyo peso no consta: ni lo manda
+**Un renglón sin peso** es una línea de la factura cuyo peso no consta: ni lo manda
 Ventra en ese renglón ni se puede sacar del catálogo. De los 129 productos de
 Ventra sólo 57 traen peso, así que esto es lo normal, no una avería.
 
 ---
 
-## El detalle de un pedido
+## El detalle de una factura
 
 Se abre tocando la fila. **Es de lectura: aquí no se edita nada** salvo **una** cosa, el
 punto de entrega (ver [«Ubicar la entrega»](#ubicar-la-entrega--el-punto-de-entrega-puesto-a-mano)).
@@ -243,7 +260,7 @@ Lleva, en este orden:
    con el estado:
    - Verde: «Cuadra con la factura F-2992 de Ventra: lo pedido es lo facturado.»
    - Ámbar: «Se facturó algo distinto de lo pedido (factura F-2992). Al camión va lo
-     facturado: los productos de abajo ya son los de la factura.» **Este pedido sí
+     facturado: los productos de abajo ya son los de la factura.» **Esta factura sí
      sube a una ruta**, con lo facturado. Si la factura no se pudo atar a este pedido,
      dice en cambio «…, pero los productos de abajo son los del pedido: la factura no se
      pudo atar a este pedido.», y si no se sabe, sólo «Al camión va lo facturado.».
@@ -253,9 +270,9 @@ Lleva, en este orden:
      - «No entra a una ruta: la factura no tiene un cobro de domicilio registrado.»
      - «No entra a una ruta: se marcó domicilio y Entrega todavía no lo cotizó.»
 
-     No sale nada si el pedido ya va en una ruta, ya se entregó o está archivado.
+     No sale nada si la factura ya va en una ruta, ya se entregó o está archivada.
    - Y si la factura cobró domicilio: «La factura cobró 15.00 USD de domicilio.»
-     **Sin ese cobro, el pedido no se ofrece para una ruta ni para una zona.**
+     **Sin ese cobro, la factura no se ofrece para una ruta ni para una zona.**
 4. **El bloque del domicilio** — «Distancia 4.35 km · Peso total 128.0 kg» y, a la
    derecha, el importe o **«Sin calcular todavía»**. Debajo:
    - Con precio: «El costo lo puso el repartidor desde Entrega. La distancia es
@@ -280,13 +297,13 @@ Lleva, en este orden:
 **El caso (issue 19 de Amado).** El cliente pide entregar en **otro sitio** y quien
 factura lo apunta en el ticket. Esa dirección no coincide con la geolocalización del
 cliente, que es la única que manda PEDIDO. El logístico, al armar la ruta, le pone **a
-mano** el punto de entrega (latitud, longitud y dirección) a ese pedido. Ese punto
+mano** el punto de entrega (latitud, longitud y dirección) a esa factura. Ese punto
 **manda sobre el del cliente** y **no se pierde** cuando el cliente se vuelve a
 actualizar. Nada de esto se hace en PEDIDO: se hace aquí.
 
-Se abre desde **tres sitios**, con **el mismo cajón**: la ficha del pedido (sección
+Se abre desde **tres sitios**, con **el mismo cajón**: la ficha de la factura (sección
 «Entrega»), la tarjeta de la parada en el detalle de una ruta («Ver paradas») y cada fila
-del paso «Pedidos» del asistente de rutas (botón pequeño con el tooltip «Ubicar la
+del paso «Facturas» del asistente de rutas (botón pequeño con el tooltip «Ubicar la
 entrega»).
 
 **El cajón «Ubicar la entrega»** tiene el folio y el cliente de subtítulo y estas cosas:
@@ -297,13 +314,13 @@ entrega»).
   señal. Es la caja por la que pasa el punto: lo que se guarda es lo que pone ahí.
 - **El mapa**: pulsar donde es la entrega pone el punto. También funciona sin señal.
 - **«Guardar punto»**, que no se enciende hasta que algo cambie, y **«Cancelar»**.
-- **«Volver al punto del cliente»**, sólo si el pedido ya tiene un punto a mano: pregunta
+- **«Volver al punto del cliente»**, sólo si la factura ya tiene un punto a mano: pregunta
   antes («Sí, volver al punto del cliente» / «No, dejar el punto a mano»).
 
-**Cuándo se ofrece.** Sólo si el pedido **no está entregado** y su **ruta no está
+**Cuándo se ofrece.** Sólo si la factura **no está entregada** y su **ruta no está
 completada**. Si no se puede, no hay botón y la ficha dice por qué:
 
-- «El pedido ya está entregado: no se le puede cambiar el punto»
+- «La factura ya está entregada: no se le puede cambiar el punto»
 - «La ruta ya está completada: no se le puede cambiar el punto a sus paradas»
 
 **Qué cambia al guardar:**
@@ -321,25 +338,25 @@ completada**. Si no se puede, no hay botón y la ficha dice por qué:
 
 Los «no» del servidor, letra por letra: «Se espera { lat, lng }»; «lat y lng tienen que
 ser un punto del planeta» (fuera de rango, o el (0,0), que es el golfo de Guinea);
-«El pedido ya está entregado: no se le puede cambiar el punto»; «La ruta ya está
-completada: no se le puede cambiar el punto a sus paradas»; «El pedido no tiene un punto
+«La factura ya está entregada: no se le puede cambiar el punto»; «La ruta ya está
+completada: no se le puede cambiar el punto a sus paradas»; «La factura no tiene un punto
 puesto a mano» (al volver al del cliente) y «No encontrado».
 
-**Una limitación:** un pedido que PEDIDO manda **sin coordenadas** no llega a esta
-aplicación, así que no se puede abrir; esto sirve para **cambiar** el punto de uno que ya
+**Una limitación:** una entrega que PEDIDO manda **sin coordenadas** no llega a esta
+aplicación por esa vía, así que no se puede abrir; esto sirve para **cambiar** el punto de una que ya
 tiene uno.
 
 ---
 
 ## «Mandar a una zona»
 
-Con pedidos marcados, el botón **«Mandar a una zona»** abre el cajón **«Mandar a
-una zona del tablero»**, con **«7 pedido(s) marcados»** arriba y este texto:
+Con facturas marcadas, el botón **«Mandar a una zona»** abre el cajón **«Mandar a
+una zona del tablero»**, con **«7 factura(s) marcadas»** arriba y este texto:
 
 > «Se colocan en el orden en que están marcados, y el gesto es el mismo que
 > arrastrarlos: se guarda aquí y sube cuando haya señal.»
 
-Debajo, las zonas de la sucursal, cada una con «12 pedido(s) puestos». Si no hay
+Debajo, las zonas de la sucursal, cada una con «12 factura(s) puestas». Si no hay
 ninguna:
 
 > «Este tablero todavía no tiene ninguna zona. Crea la primera con el nombre del
@@ -352,20 +369,20 @@ una.
 
 ### Qué te dice al terminar
 
-> «5 pedido(s) en «Centro»»
+> «5 factura(s) en «Centro»»
 
 Y si alguno se quedó, en ámbar:
 
 > «No se pudieron mandar 2, y siguen marcados:»
-> `PTB25-261005-1480 · Ana: Ese pedido ya está en una ruta`
+> `PTB25-261005-1480 · Ana: Esa factura ya está en una ruta`
 > `PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.`
 
-Cada pedido sale por su **conduce**, que es el número de operación de la factura.
+Cada factura sale por su **conduce**, que es su número de operación.
 
-Si alguno se quedó por el domicilio sin cobrar, el cajón añade debajo del aviso una
+Si alguna se quedó por el domicilio sin cobrar, el cajón añade debajo del aviso una
 línea de ayuda:
 
-> «Mira la marca de Factura en Pedidos: ahí se ve si el domicilio está cobrado.»
+> «Mira la marca de Factura en Facturas: ahí se ve si el domicilio está cobrado.»
 
 Sólo sale con ese motivo: con los demás (archivado, otra sucursal…) la marca de «Factura»
 no tiene la respuesta.
@@ -374,8 +391,8 @@ Los motivos posibles: «No está en este aparato», «Es de otra sucursal», «S
 coordenadas de entrega», «Archivado en PEDIDO», «Sin cotejar», «Sin factura», y los
 mismos «no» que da el servidor al colocar una tarjeta:
 
-- «Ese pedido ya se entregó»
-- «Ese pedido ya está en una ruta»
+- «Esa factura ya se entregó»
+- «Esa factura ya está en una ruta»
 - «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
   registrado.»
 - «No se puede asociar al tablero: primero cotiza el domicilio del pedido.»
@@ -383,7 +400,7 @@ mismos «no» que da el servidor al colocar una tarjeta:
 **A una zona sólo se coloca lo que tiene el domicilio cobrado, y cotizado si el vendedor
 lo marcó.** Es la misma regla que para armar una ruta: ver [Tablero](tablero.md).
 
-**Los que sí fueron pierden la marca; los que no, se quedan marcados** para poder
+**Las que sí fueron pierden la marca; las que no, se quedan marcadas** para poder
 seguir trabajando con ellos.
 
 ---
@@ -391,28 +408,28 @@ seguir trabajando con ellos.
 ## Estados vacíos y paginación
 
 - **Cargando**: «Cargando...»
-- **Vacío sin filtros**: «Aún no hay pedidos de esta sucursal.»
-- **Vacío con filtros**: «Ningún pedido cuadra con estos filtros.» y el botón
+- **Vacío sin filtros**: «Aún no hay facturas de esta sucursal.»
+- **Vacío con filtros**: «Ninguna factura cuadra con estos filtros.» y el botón
   **«Quitar todos los filtros»**, que quita **también** el acotado del arranque.
 - **En la APK, si esta parte no bajó**: «Esta pantalla no se ha descargado todavía.
   Con conexión baja sola.»
-- **En la web, si no llegó**: «No se pudieron traer los pedidos. La página cargó,
+- **En la web, si no llegó**: «No se pudieron traer las facturas. La página cargó,
   así que conexión hay: el que no contesta es el servidor. Prueba otra vez y, si
   sigue igual, avisa a la oficina.»
 
-**50 pedidos por página.** El pie dice «Mostrando 51–100 de 246», con los botones
+**50 facturas por página.** El pie dice «Mostrando 51–100 de 246», con los botones
 ««», «‹», los números, «›» y «»».
 
 ---
 
-## Lo que Pedidos NO hace
+## Lo que Facturas NO hace
 
-- **No se dan de alta pedidos.** Vienen de PEDIDO.
-- **No se edita nada de un pedido**: ni el cliente, ni el peso, ni el precio del
+- **No se dan de alta facturas.** Vienen de Ventra (y, las que traen pedido, quedan enlazadas con él por folio).
+- **No se edita nada de una factura**: ni el cliente, ni el peso, ni el precio del
   domicilio. **La única excepción es el punto de entrega** (y su dirección), que el
   logístico puede poner a mano con «Ubicar la entrega».
 - **No se pone el precio del domicilio aquí.** Lo pone el repartidor desde
   Entrega.
-- **No se enseña el precio interno del pedido.** La columna «Precio» es lo que
+- **No se enseña el precio interno de la factura.** La columna «Precio» es lo que
   cobró Entrega por el domicilio.
 - **No hay filtro de sucursal**: la manda el selector de arriba.

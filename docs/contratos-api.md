@@ -608,7 +608,7 @@ la ruta entera. **No existe en delivery (Next): es propio del reparto.**
 | 404 | `No encontrado` | la ruta no existe o no es de tu sucursal |
 | 409 | `Sólo se pueden retirar paradas de una ruta planificada` | la ruta está `in_progress`, `completed` o `cancelled` |
 | 409 | `La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico.` | se completó entre la lectura y la escritura |
-| 409 | `El pedido no pertenece a una ruta planificada o ya fue retirado` | el pedido no va en esa ruta, ya tiene resultado o ya se entregó. Quitar dos veces la misma parada da este `409` |
+| 409 | `La factura no pertenece a una ruta planificada o ya fue retirada` | el pedido no va en esa ruta, ya tiene resultado o ya se entregó. Quitar dos veces la misma parada da este `409` |
 
 - Avisa en vivo a `rutas`, `pedidos` y `tablero` de la sucursal de la ruta.
 
@@ -2278,6 +2278,7 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
   | `puntoClienteLat` | número o `null` | el punto que traía el cliente; `null` si no es manual |
   | `puntoClienteLng` | número o `null` | ídem |
   | `puntoClienteAddress` | texto o `null` | ídem |
+  | `folio` | texto o `null` | el folio del pedido de PEDIDO de donde sale la factura (`orders.folio`, 00025); `null` si no viene de ningún pedido. La tabla de Facturas lo enseña en la columna «Pedido» (21/10/2026) |
 
   Con los tres `puntoCliente…` la APK y el escritorio vuelven al punto del cliente SIN conexión y de forma
   exacta, copiándolos a `endLat/endLng/endAddress`. `GET /api/orders` y `GET /api/orders/{id}` llevan los
@@ -2753,7 +2754,7 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | `/api/routes` POST | 400 | `Peso total (<X.X> kg) supera la capacidad del vehículo (<C> kg)` |
 | `/api/routes/{id}/stops/{orderId}` DELETE | 400 | `Identificador de pedido no válido` |
 | `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `Sólo se pueden retirar paradas de una ruta planificada` |
-| `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `El pedido no pertenece a una ruta planificada o ya fue retirado` |
+| `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `La factura no pertenece a una ruta planificada o ya fue retirada` |
 | `/api/routes/{id}/stops` PUT | 400/409 | los de su sección («reordenar las paradas») |
 | `/api/board/placements/[id]` PUT | 409 | `No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.` |
 | `/api/board/placements/[id]` PUT | 409 | `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` |

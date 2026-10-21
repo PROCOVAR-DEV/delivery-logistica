@@ -35,10 +35,10 @@ paquete: eso la aplicación lo detecta.
 - Ver el Panel, con sus cifras
 - Ver el Tablero, filtrar, buscar
 - **Crear zonas y ponerles camión**
-- **Colocar pedidos en zonas, moverlos, subirlos, bajarlos, sacarlos**
-- **Armar la ruta de una zona**, con **la misma regla que el servidor**: sólo entran los
-  pedidos facturados (cuadren o no), (por ahora, sin exigir el domicilio cobrado ni la cotización de Entrega); los demás se
-  descartan y se nombran por su conduce, y si no entra ninguno no se arma la ruta
+- **Colocar facturas en zonas, moverlas, subirlas, bajarlas, sacarlas**
+- **Armar la ruta de una zona**, con **la misma regla que el servidor**: sólo entran las
+  facturas (cuadren o no) (por ahora, sin exigir el domicilio cobrado ni la cotización de Entrega); las demás se
+  descartan y se nombran por su conduce, y si no entra ninguna no se arma la ruta
 - Ver Rutas, filtrar, buscar, abrir el detalle
 - **Armar una ruta con el asistente «Nueva Ruta»**
 - **Iniciar una ruta**
@@ -47,7 +47,7 @@ paquete: eso la aplicación lo detecta.
 - **Eliminar una ruta** (planificada o en curso; una completada es histórico)
 - **Quitar una parada de una ruta planificada**, con «Quitar de ruta»
 - Ver el pre-despacho y el post-despacho, y sacar sus PDF
-- Ver Pedidos, filtrarlos, abrir su detalle
+- Ver Facturas, filtrarlas, abrir su detalle
 - Ver Clientes, incluidos **los kilómetros**, que se calculan en el propio teléfono
 - Ver Reportes (cuadrados con lo que tengas bajado)
 - El mapa de la ruta: **las paradas, su orden y el recorrido se dibujan igual**. Si
@@ -102,7 +102,7 @@ servidor tiene:
 1. **Borrar una ruta que salió del tablero.** Las facturas vuelven a su zona del
    tablero, pero **hasta que suba el borrado y baje el tablero salen en «Sin colocar»**,
    no en su zona. No se han perdido. Con señal, se colocan solas donde estaban.
-2. **Quitar una parada de una ruta planificada** («Quitar de ruta»). El pedido sale de
+2. **Quitar una parada de una ruta planificada** («Quitar de ruta»). La factura sale de
    la hoja y vuelve a disponibles al momento; si la ruta venía del tablero, su factura
    regresa a la zona **cuando suba el cambio**. Hasta entonces puede verse en «Sin
    colocar».
@@ -131,8 +131,8 @@ primero:
 
 > «Trae el día primero: no se envía nada sin tener lo de ahora»
 
-Enviar con el teléfono desfasado sube decisiones tomadas sobre datos viejos —un
-pedido que aquí sale libre y allá ya entró en otra ruta—, y eso vuelve rechazado
+Enviar con el teléfono desfasado sube decisiones tomadas sobre datos viejos —una
+factura que aquí sale libre y allá ya entró en otra ruta—, y eso vuelve rechazada
 horas después.
 
 ---

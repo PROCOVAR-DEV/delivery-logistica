@@ -90,6 +90,16 @@ class RegistroDeFrescura {
   /// almacén elegido arriba, y no fallaría nada — saldría en el orden de siempre en la
   /// APK y con los suyos arriba en la web. Marcas PROPIAS, como la de arriba.
   static const yaRebajadosPorSuAlmacen = 'una-vez:pedidos-con-su-almacen';
+
+  /// LOS PEDIDOS SE VUELVEN A BAJAR ENTEROS UNA VEZ POR APARATO — 21/10/2026 (esquema 13).
+  ///
+  /// La bajada lee `folio`, el pedido de PEDIDO del que sale la factura, y la tabla de
+  /// Facturas lo enseña en la columna «Pedido». Pero es POR DIFERENCIAS: una factura que no
+  /// cambia no vuelve a viajar, y en una APK o un escritorio con la copia ya hecha saldría
+  /// «sin pedido» PARA SIEMPRE aunque lo tenga. Mismo arreglo que la fecha de la factura y
+  /// el almacén. En la web no cambia nada: su base nace vacía.
+  static const yaRebajadosPorElFolio = 'una-vez:pedidos-con-folio';
+
   /// LOS CAMIONES CON SU FICHA ENTERA — 16/10/2026 (issue 14). Hasta la 1.0.38 la bajada
   /// guardaba de cada camion solo lo basico (sin tipo, costo por km, notas ni
   /// «para domicilio»). Se piden ENTEROS (`completas=vehicles`) una vez, no con una
@@ -113,8 +123,10 @@ class RegistroDeFrescura {
             .insertOnConflictUpdate(FrescuraCompanion.insert(coleccion: marca));
       });
 
-  Future<void> rebajarLosPedidosUnaVez() =>
-      rebajarUnaVez(yaRebajadosPorLaFechaDeFactura, const [Colecciones.pedidos]);
+  Future<void> rebajarLosPedidosUnaVez() => rebajarUnaVez(
+    yaRebajadosPorLaFechaDeFactura,
+    const [Colecciones.pedidos],
+  );
 
   Future<void> rebajarLasRutasUnaVez() => rebajarUnaVez(
     yaRebajadasPorElDistribuidor,
@@ -123,6 +135,9 @@ class RegistroDeFrescura {
 
   Future<void> rebajarLosPedidosPorSuAlmacen() =>
       rebajarUnaVez(yaRebajadosPorSuAlmacen, const [Colecciones.pedidos]);
+
+  Future<void> rebajarLosPedidosPorSuFolio() =>
+      rebajarUnaVez(yaRebajadosPorElFolio, const [Colecciones.pedidos]);
 
   Future<FilaFrescura?> leer(String coleccion) => (_base.select(
     _base.frescura,

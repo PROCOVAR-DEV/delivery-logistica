@@ -477,7 +477,7 @@ func TestQuitarUnaParadaSoloEnUnaRutaPlanificada(t *testing.T) {
 	id := armarRutaDePrueba(t, h, jwt, stg[1], stg[2])
 
 	w := llamarRutas(t, h, http.MethodDelete, "/api/routes/"+id.String()+"/stops/"+stg[0].String(), jwt, "")
-	if w.Code != http.StatusConflict || errorDeRutas(t, w) != "El pedido no pertenece a una ruta planificada o ya fue retirado" {
+	if w.Code != http.StatusConflict || errorDeRutas(t, w) != "La factura no pertenece a una ruta planificada o ya fue retirada" {
 		t.Fatalf("un pedido que no va en la ruta: %d %s", w.Code, w.Body.String())
 	}
 

@@ -87,6 +87,42 @@ void main() {
       );
     });
 
+    // 21/10/2026: la fila es la factura y el pedido es un extra. En pareja: con folio hay pedido,
+    // sin folio no; y lo del pedido (el precio de Entrega) sólo cuenta para las que lo traen.
+    test('pedido separa las facturas con pedido de las que no', () async {
+      await base.customStatement(
+        "UPDATE orders SET folio = NULL WHERE id NOT IN ('o1','o2')",
+      );
+      expect(
+        await cuantos(sinNada.copiarCon(pedido: PedidoFiltro.conPedido)),
+        2,
+      );
+      expect(
+        await cuantos(sinNada.copiarCon(pedido: PedidoFiltro.sinPedido)),
+        9,
+      );
+    });
+
+    test(
+      'el precio de Entrega sólo cuenta para las facturas con pedido',
+      () async {
+        // Sólo o1 (con precio) y o2 (sin cotizar) vienen de un pedido.
+        await base.customStatement(
+          "UPDATE orders SET folio = NULL WHERE id NOT IN ('o1','o2')",
+        );
+        expect(
+          await cuantos(sinNada.copiarCon(cotizado: CotizadoFiltro.conPrecio)),
+          1,
+          reason:
+              'las otras 9 tienen precio puesto pero no vienen de un pedido',
+        );
+        expect(
+          await cuantos(sinNada.copiarCon(cotizado: CotizadoFiltro.sinCotizar)),
+          1,
+        );
+      },
+    );
+
     test('archivado tiene TRES estados, no dos', () async {
       expect(
         await cuantos(sinNada.copiarCon(archivado: ArchivadoFiltro.si)),

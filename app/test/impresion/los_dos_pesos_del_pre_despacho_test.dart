@@ -145,9 +145,7 @@ Map<int, String> _cmap(List<int> bytes, String claro, int obj) {
 Map<String, Map<int, String>> _fuentes(List<int> bytes, String claro) {
   final fuentes = <String, Map<int, String>>{};
   for (final rec in RegExp(r'/Font<<([^>]*)>>').allMatches(claro)) {
-    for (final f in RegExp(
-      r'/(F\d+) (\d+) 0 R',
-    ).allMatches(rec.group(1)!)) {
+    for (final f in RegExp(r'/(F\d+) (\d+) 0 R').allMatches(rec.group(1)!)) {
       final nombre = f.group(1)!;
       final obj = int.parse(f.group(2)!);
       final fin = _objeto(claro, obj);
@@ -261,13 +259,9 @@ Papel leerElPapel(List<int> bytes) {
     porAltura.putIfAbsent((t.y * 2).round(), () => <Trozo>[]).add(t);
   }
   final renglones = porAltura.entries.map((e) {
-      final enOrden = e.value.toList()..sort((a, b) => a.x.compareTo(b.x));
-      return Renglon(
-        y: e.key / 2,
-        texto: enOrden.map((t) => t.texto).join(' '),
-      );
-    }).toList()
-    ..sort((a, b) => b.y.compareTo(a.y));
+    final enOrden = e.value.toList()..sort((a, b) => a.x.compareTo(b.x));
+    return Renglon(y: e.key / 2, texto: enOrden.map((t) => t.texto).join(' '));
+  }).toList()..sort((a, b) => b.y.compareTo(a.y));
 
   return Papel(renglones: renglones, trozos: trozos);
 }
@@ -283,8 +277,18 @@ HojaPreDespacho _todoSabido() => const HojaPreDespacho(
   pedidos: 7,
   pesoKg: 412.5,
   lineas: <LineaPreDespacho>[
-    LineaPreDespacho(producto: 'Arroz', formatos: 18, unidades: 360, pesoKg: 180),
-    LineaPreDespacho(producto: 'Azúcar', formatos: 12, unidades: 240, pesoKg: 120),
+    LineaPreDespacho(
+      producto: 'Arroz',
+      formatos: 18,
+      unidades: 360,
+      pesoKg: 180,
+    ),
+    LineaPreDespacho(
+      producto: 'Azúcar',
+      formatos: 12,
+      unidades: 240,
+      pesoKg: 120,
+    ),
   ],
 );
 
@@ -295,8 +299,18 @@ HojaPreDespacho _faltaUna() => const HojaPreDespacho(
   pedidos: 7,
   pesoKg: 412.5,
   lineas: <LineaPreDespacho>[
-    LineaPreDespacho(producto: 'Arroz', formatos: 18, unidades: 360, pesoKg: 180),
-    LineaPreDespacho(producto: 'Azúcar', formatos: 12, unidades: 240, pesoKg: 120),
+    LineaPreDespacho(
+      producto: 'Arroz',
+      formatos: 18,
+      unidades: 360,
+      pesoKg: 180,
+    ),
+    LineaPreDespacho(
+      producto: 'Azúcar',
+      formatos: 12,
+      unidades: 240,
+      pesoKg: 120,
+    ),
     LineaPreDespacho(
       producto: 'Servilleta paca 24p',
       formatos: 7,
@@ -378,16 +392,19 @@ void main() {
       expect(todo, contains('14/9/2026, 17:20:30'));
     });
 
-    test('y pone en el MISMO renglón lo que se dibuja a la misma altura', () async {
-      final papel = leerElPapel(
-        await pdfPreDespacho(_todoSabido(), impresoEn: _impresoEn),
-      );
-      // La fila de Arroz lleva sus cuatro cifras juntas.
-      final arroz = papel.renglonCon('Arroz');
-      expect(arroz.texto, contains('18'));
-      expect(arroz.texto, contains('360'));
-      expect(arroz.texto, contains('180.0'));
-    });
+    test(
+      'y pone en el MISMO renglón lo que se dibuja a la misma altura',
+      () async {
+        final papel = leerElPapel(
+          await pdfPreDespacho(_todoSabido(), impresoEn: _impresoEn),
+        );
+        // La fila de Arroz lleva sus cuatro cifras juntas.
+        final arroz = papel.renglonCon('Arroz');
+        expect(arroz.texto, contains('18'));
+        expect(arroz.texto, contains('360'));
+        expect(arroz.texto, contains('180.0'));
+      },
+    );
   });
 
   group('los dos pesos van en renglones distintos y rotulados', () {
@@ -702,16 +719,24 @@ void main() {
         // pasaría por las demás.
         (<double?>[180, 120], <int>[0, 0], '300.0 kg'),
         // La forma de MALTA GUAJIRA: mucho sabido y 21 renglones fuera.
-        (<double?>[26320, 11.5], <int>[21, 0], '≥ 26331.5 kg (21 renglones sin peso)'),
+        (
+          <double?>[26320, 11.5],
+          <int>[21, 0],
+          '≥ 26331.5 kg (21 renglones sin peso)',
+        ),
         // Uno solo, en singular: «1 renglones» hace dudar del número de al lado.
         (<double?>[180, 120], <int>[1, 0], '≥ 300.0 kg (1 renglón sin peso)'),
         // Un producto que no trae NADA: aporta TODOS sus renglones, no uno.
-        (<double?>[26320, null], <int>[21, 6], '≥ 26320.0 kg (27 renglones sin peso)'),
+        (
+          <double?>[26320, null],
+          <int>[21, 6],
+          '≥ 26320.0 kg (27 renglones sin peso)',
+        ),
         // Sin contadores —así arma la hoja el asistente de rutas—: lo que se
         // sabe es que ese producto no aporta nada, y eso ya basta para el `≥`.
         (<double?>[180, null], <int>[0, 0], '≥ 180.0 kg (1 renglón sin peso)'),
         // Y sin saber NADA no hay `≥` que valga: se dice que no se sabe.
-        (<double?>[null, null], <int>[0, 0], 'sin peso en los pedidos'),
+        (<double?>[null, null], <int>[0, 0], 'sin peso en las facturas'),
       ];
 
       for (final (pesos, faltan, escrito) in casos) {
@@ -844,8 +869,18 @@ void main() {
           pedidos: 3,
           pesoKg: 412.5,
           lineas: <LineaPreDespacho>[
-            LineaPreDespacho(producto: 'Arroz', formatos: 18, unidades: 360, pesoKg: 180),
-            LineaPreDespacho(producto: 'Etiquetas', formatos: 2, unidades: 200, pesoKg: 0),
+            LineaPreDespacho(
+              producto: 'Arroz',
+              formatos: 18,
+              unidades: 360,
+              pesoKg: 180,
+            ),
+            LineaPreDespacho(
+              producto: 'Etiquetas',
+              formatos: 2,
+              unidades: 200,
+              pesoKg: 0,
+            ),
           ],
         ),
       );

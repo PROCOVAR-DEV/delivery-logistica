@@ -186,7 +186,7 @@ func TestOrdenarConUnaListaQueNoCuadraNoMueveNada(t *testing.T) {
 			"El nuevo orden repite la parada X-Cerca: cada parada va una sola vez."},
 		{"sobra una de otra sucursal", cuerpoDeOrden(cerca, lejos, medio, uuid.MustParse("dddddddd-0000-0000-0000-000000000004")),
 			http.StatusConflict,
-			"El nuevo orden no coincide con las paradas de la ruta (sobra 1 pedido que no va en ella). Vuelve a abrir la ruta y ordénala otra vez."},
+			"El nuevo orden no coincide con las paradas de la ruta (sobra 1 factura que no va en ella). Vuelve a abrir la ruta y ordénala otra vez."},
 		{"un id que no es un id", `{"orden":["no-es-un-uuid"]}`, http.StatusBadRequest, "Identificador de pedido no válido"},
 		{"ni orden ni porCercania", `{}`, http.StatusBadRequest, msgOrdenSinForma},
 		{"las dos formas a la vez", `{"orden":[],"porCercania":true}`, http.StatusBadRequest, msgOrdenSinForma},

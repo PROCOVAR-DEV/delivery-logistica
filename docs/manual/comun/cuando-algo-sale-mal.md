@@ -4,34 +4,34 @@ Busca aquí el aviso que te salió. Cada uno dice qué pasó y qué hacer.
 
 ---
 
-## «Un pedido no aparece»
+## «Una factura no aparece»
 
 Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
 
-1. **La sucursal de arriba.** Todas las pantallas enseñan lo de esa sucursal. Un
-   pedido de Holguín no sale si estás en Santiago.
-2. **La franja azul de Pedidos.** Al entrar, Pedidos viene acotado a lo que puede
-   subir a un camión. Pulsa **«Ver todos los pedidos»**.
-3. **Los filtros.** Si hay alguno puesto, el vacío dice «Ningún pedido cuadra con
+1. **La sucursal de arriba.** Todas las pantallas enseñan lo de esa sucursal. Una
+   factura de Holguín no sale si estás en Santiago.
+2. **La franja azul de Facturas.** Al entrar, Facturas viene acotada a lo que puede
+   subir a un camión. Pulsa **«Ver todas las facturas»**.
+3. **Los filtros.** Si hay alguno puesto, el vacío dice «Ninguna factura cuadra con
    estos filtros.» y hay un botón **«Quitar todos los filtros»**.
 4. **Si ya está en una ruta**, no sale entre los disponibles. Búscalo en Rutas.
 5. **De cuándo son tus datos** (APK y escritorio). Si la franja de arriba dice
-   «Datos de hace 9 h», ese pedido puede haber entrado después. Pulsa la franja y
+   «Datos de hace 9 h», esa factura puede haber entrado después. Pulsa la franja y
    trae el día.
-6. **Si no tiene coordenadas de entrega**, no entra en el Tablero ni en «Pedidos
-   sin ruta». Se ve en Pedidos, marcado.
+6. **Si no tiene coordenadas de entrega**, no entra en el Tablero ni en «Facturas
+   sin ruta». Se ve en Facturas, marcada.
 7. **Si no tiene el domicilio cobrado o cotizado.** A las rutas nuevas, al Tablero
-   («Sin colocar») y al recuento de «Pedidos sin ruta» del Panel sólo llega lo
+   («Sin colocar») y al recuento de «Facturas sin ruta» del Panel sólo llega lo
    **facturado** (cuadre o haya cambiado en la factura), con el **domicilio cobrado**
    (importe mayor que cero en la factura) y, si el vendedor marcó domicilio,
-   **cotizado en Entrega**. Un pedido al que le falte algo de eso sigue existiendo —se
-   ve en Pedidos— pero no se ofrece para repartir. En la marca de «Factura» de Pedidos
+   **cotizado en Entrega**. Una factura a la que le falte algo de eso sigue existiendo —se
+   ve en Facturas— pero no se ofrece para repartir. En la marca de «Factura» de Facturas
    se ve si falta el cobro: «Sin cobro de domicilio» en ámbar, o «Dom. $0.46» en verde
-   si está cobrado; y la ficha del pedido dice en una línea si puede ir a una ruta y,
+   si está cobrado; y la ficha de la factura dice en una línea si puede ir a una ruta y,
    si no, por qué. No es un fallo: se arregla cobrando o cotizando en Entrega. Ver
    [Las reglas del reparto](las-reglas-del-reparto.md).
 8. **En el asistente de Rutas, el filtro «Sólo con domicilio»**, que es como arranca,
-   ya NO esconde los pedidos que el vendedor no marcó a domicilio si la factura lo
+   ya NO esconde las facturas que el vendedor no marcó a domicilio si la factura lo
    cobra (desde el 15/10/2026): «con domicilio» es marcado **o** cobrado. Si aun así
    falta uno, no está facturado, no tiene el domicilio cobrado o, marcado, no está
    cotizado en Entrega.
@@ -40,7 +40,7 @@ Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
 
 ## «Marqué uno como entregado y el Historial está vacío»
 
-**No es un fallo.** «Entregados hoy» cuenta **pedidos**; el Historial de Rutas
+**No es un fallo.** «Entregados hoy» cuenta **facturas**; el Historial de Rutas
 cuenta **rutas cerradas**. Un camión en la calle con una parada hecha sale en el
 primero y no en el segundo.
 
@@ -57,24 +57,24 @@ Por orden de probabilidad:
 |---|---|
 | **«La zona «Centro» no tiene camión previsto, y sin camión no se arma su ruta»** | El cajón se queda abierto. Toca **«Camión previsto»** y elige uno. Vuelve a armar |
 | **«Se requiere un vehículo para crear la ruta»** | Lo mismo, pero en el asistente: paso 3 |
-| **«La columna no tiene ningún pedido que se pueda repartir hoy»** | Debajo te dice por qué se cayó cada uno. Casi siempre es factura |
-| **«En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Esos pedidos no van hoy: la factura no existe o no está cotejada. Quítalos y arma con el resto. (Si la factura cambió, sí entra: va lo facturado) |
+| **«La columna no tiene ninguna factura que se pueda repartir hoy»** | Debajo te dice por qué se cayó cada uno. Casi siempre es factura |
+| **«En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Esas facturas no van hoy: la factura no existe o no está cotejada. Quítalos y arma con el resto. (Si la factura cambió, sí entra: va lo facturado) |
 | **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión se dio de baja. Elige otro, o actívalo en Vehículos si ha vuelto |
-| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Alguien se te adelantó, o el pedido cambió. Quítalo y vuelve |
-| **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Saca pedidos o cambia de camión |
+| **«2 de las 12 facturas elegidas no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Alguien se te adelantó, o la factura cambió. Quítala y vuelve |
+| **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Saca facturas o cambia de camión |
 | **«Las coordenadas del punto de partida son requeridas»** | La sucursal no tiene almacén con punto. Se arregla en el CRM (Almacenes solo lo muestra) |
 | **«Esta sucursal no tiene ningún almacén con ubicación»** | Los almacenes se ponen en el CRM. El botón **«Ver los almacenes»** solo lleva a la consulta |
 | **«Esta sucursal no tiene ningún vehículo dado de alta»** | Botón **«Agregar el primer vehículo»** |
 | **«Los vehículos de esta sucursal están inactivos…»** | Hay camiones, pero ninguno se puede ofrecer: actívalo en Vehículos |
 | **«Camión 1 está marcado EN EL TALLER. La ruta se arma igual…»** | Es un aviso en ámbar, no un error: la ruta se arma. Si el camión ya volvió, sácalo del taller en Vehículos |
 
-Y si lo que echas en falta son **pedidos** en la lista del asistente: sólo trae lo
+Y si lo que echas en falta son **facturas** en la lista del asistente: sólo trae lo
 facturado con el domicilio cobrado, y cotizado si el vendedor lo marcó. Lee
-[Un pedido no aparece](#un-pedido-no-aparece) antes de buscar un error.
+[Una factura no aparece](#una-factura-no-aparece) antes de buscar un error.
 
 ---
 
-## «No me deja colocar un pedido en una zona»
+## «No me deja colocar una factura en una zona»
 
 Al arrastrar una tarjeta (o con «Mandar a una zona»), la tarjeta se queda donde estaba y
 sale uno de estos motivos:
@@ -82,8 +82,8 @@ sale uno de estos motivos:
 | El aviso | Qué significa |
 |---|---|
 | **«No se puede asociar al tablero: primero cotiza el domicilio del pedido.»** | El vendedor marcó domicilio y falta el costo de Entrega. Cotízalo allí y vuelve |
-| **«Ese pedido ya se entregó»** | Ya se repartió |
-| **«Ese pedido ya está en una ruta»** | Se lo llevó otra ruta |
+| **«Esa factura ya se entregó»** | Ya se repartió |
+| **«Esa factura ya está en una ruta»** | Se lo llevó otra ruta |
 
 En la APK y el escritorio sale **al momento**, no horas después: el aparato lo dice
 antes de colocar.
@@ -98,7 +98,7 @@ rechaza, lo dice con su motivo:
 | El aviso | Qué hacer |
 |---|---|
 | **«Sólo se pueden retirar paradas de una ruta planificada»** | La ruta ya salió o ya está completada. En una en curso, marca esa parada como devuelta o cancelada al completarla |
-| **«El pedido no pertenece a una ruta planificada o ya fue retirado»** | Alguien (o tú mismo desde otro aparato) ya la quitó. Mira la ruta otra vez |
+| **«La factura no pertenece a una ruta planificada o ya fue retirada»** | Alguien (o tú mismo desde otro aparato) ya la quitó. Mira la ruta otra vez |
 
 ---
 
@@ -178,13 +178,13 @@ que una persona decida.
 
 ### En la web
 
-Te lo dice ahí mismo, con el motivo de verdad: «Ese pedido ya va en otra ruta». Haz
+Te lo dice ahí mismo, con el motivo de verdad: «Esa factura ya va en otra ruta». Haz
 lo que diga y repite el gesto.
 
 **Al cerrar una ruta, si el servidor guarda unas paradas y rechaza otras, lo guardado
 vale y la ruta se completa.** Sale un cajón que **no se va hasta que pulsas
 «Entendido»**: «Ruta completada: 2 paradas no se guardaron», y por cada una, «Conduce
-PTB25-261005-1480: ese pedido no va en esta ruta». Apunta esos conduces y corrígelos en
+PTB25-261005-1480: esa factura no va en esta ruta». Apunta esos conduces y corrígelos en
 PEDIDO: esas paradas se quedaron sin resultado. Si no se guardó **ninguna**, no se
 completa.
 
@@ -206,7 +206,7 @@ subiendo.
 La pantalla de **Sincronización** enseña los rechazos de **todos** los aparatos,
 pero desde ahí sólo se miran: los botones están en el cajón del aparato.
 
-El motivo más común es **haber trabajado con datos viejos**: el pedido que aquí
+El motivo más común es **haber trabajado con datos viejos**: la factura que aquí
 salía libre, allá ya entró en otra ruta. Por eso la aplicación pide **traer el día
 antes de enviar** y lo dice:
 
@@ -363,12 +363,12 @@ del wifi está encendido. Cuando pasa, dice:
 Dos cosas que **hoy no son de fiar** y están en arreglo:
 
 1. **El peso del pre-despacho no cambia al cambiar de sucursal.**
-2. **Una ruta con dos pedidos del mismo cliente cuenta el peso de uno solo** en su
+2. **Una ruta con dos facturas del mismo cliente cuenta el peso de una sola** en su
    cabecera.
 
 Y dos que **sí son correctas** aunque parezcan un fallo:
 
-- **«Pedidos sin ruta» del Panel y «Sin colocar» del Tablero no dan el mismo
+- **«Facturas sin ruta» del Panel y «Sin colocar» del Tablero no dan el mismo
   número.** Cuentan cosas distintas.
 - **Los kilómetros de las paradas no suman los kilómetros de la ruta.** Son dos
   medidas distintas.

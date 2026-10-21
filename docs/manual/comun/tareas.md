@@ -76,7 +76,7 @@ una zona entera con su camión.
 | 2. Mirar cómo viene el día | **Panel** | [APK](../apk/2-el-dia-en-el-telefono.md#2-mirar-cómo-viene-el-día) |
 | 3. Armar las zonas | **Tablero** | [APK](../apk/2-el-dia-en-el-telefono.md#3-armar-las-zonas-en-el-tablero) |
 | 4. Armar la ruta de una zona | **Tablero** | [APK](../apk/2-el-dia-en-el-telefono.md#4-armar-la-ruta) |
-| 5. Sacar el pre-despacho | **Pedidos** o el asistente de **Rutas** | [APK](../apk/2-el-dia-en-el-telefono.md#5-sacar-el-pre-despacho) |
+| 5. Sacar el pre-despacho | **Facturas** o el asistente de **Rutas** | [APK](../apk/2-el-dia-en-el-telefono.md#5-sacar-el-pre-despacho) |
 | 6. Iniciar la ruta y mandarla al chófer | **Rutas** | [APK](../apk/2-el-dia-en-el-telefono.md#6-iniciar-la-ruta-y-mandársela-al-chófer) |
 | 7. Marcar las entregas al completar | **Rutas** → «Marcar como completada» | [APK](../apk/2-el-dia-en-el-telefono.md#7-marcar-las-entregas) |
 | 8. Cerrar la ruta y sacar el post-despacho | **Rutas** | [APK](../apk/2-el-dia-en-el-telefono.md#8-cerrar-la-ruta) |
@@ -91,16 +91,16 @@ Cada tarea está escrita para cada aparato, porque **lo que se toca no es lo mis
 en el teléfono se toca y se desliza, en la web y en el escritorio se hace clic y se
 arrastra.
 
-### Pedidos
+### Facturas
 
 | Tarea | Empieza en | APK | Web |
 |---|---|---|---|
-| Buscar un pedido | **Pedidos** | [ir](../apk/3-tareas.md#buscar-un-pedido) | [ir](../web/2-tareas.md#buscar-un-pedido) |
-| Ver el detalle de un pedido | **Pedidos** | [ir](../apk/3-tareas.md#ver-el-detalle-de-un-pedido) | [ir](../web/2-tareas.md#ver-el-detalle-de-un-pedido) |
-| Poner el punto de entrega de un pedido a mano (y volver al del cliente) | **Pedidos** | [ir](../apk/3-tareas.md#poner-el-punto-de-entrega-de-un-pedido-a-mano) | [ir](../web/2-tareas.md#poner-el-punto-de-entrega-de-un-pedido-a-mano) |
-| Filtrar y ordenar la lista | **Pedidos** | — | [ir](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-pedidos) |
-| Mandar varios pedidos a una zona de golpe | **Pedidos** | [ir](../apk/3-tareas.md#mandar-varios-pedidos-a-una-zona-de-golpe) | [ir](../web/2-tareas.md#mandar-varios-pedidos-a-una-zona-de-golpe) |
-| Sacar el pre-despacho de lo filtrado | **Pedidos** | [ir](../apk/3-tareas.md#sacar-el-pre-despacho-de-lo-que-tienes-filtrado) | — |
+| Buscar una factura | **Facturas** | [ir](../apk/3-tareas.md#buscar-una-factura) | [ir](../web/2-tareas.md#buscar-una-factura) |
+| Ver el detalle de una factura | **Facturas** | [ir](../apk/3-tareas.md#ver-el-detalle-de-una-factura) | [ir](../web/2-tareas.md#ver-el-detalle-de-una-factura) |
+| Poner el punto de entrega de una factura a mano (y volver al del cliente) | **Facturas** | [ir](../apk/3-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano) | [ir](../web/2-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano) |
+| Filtrar y ordenar la lista | **Facturas** | — | [ir](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-facturas) |
+| Mandar varias facturas a una zona de golpe | **Facturas** | [ir](../apk/3-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe) | [ir](../web/2-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe) |
+| Sacar el pre-despacho de lo filtrado | **Facturas** | [ir](../apk/3-tareas.md#sacar-el-pre-despacho-de-lo-que-tienes-filtrado) | — |
 
 ### Tablero
 
@@ -118,7 +118,7 @@ arrastra.
 | Armar una ruta sin usar el Tablero | **Rutas** | [ir](../apk/3-tareas.md#armar-una-ruta-sin-usar-el-tablero) | [ir](../web/2-tareas.md#armar-una-ruta-sin-usar-el-tablero) |
 | Filtrar la lista de rutas | **Rutas** | — | [ir](../web/2-tareas.md#filtrar-la-lista-de-rutas) |
 | Eliminar una ruta | **Rutas** | [ir](../apk/3-tareas.md#eliminar-una-ruta) | [ir](../web/2-tareas.md#eliminar-una-ruta) |
-| Sacar un pedido de una ruta planificada («Quitar de ruta») | **Rutas** | [ir](../apk/3-tareas.md#sacar-un-pedido-de-una-ruta) | [ir](../web/2-tareas.md#sacar-un-pedido-de-una-ruta) |
+| Sacar una factura de una ruta planificada («Quitar de ruta») | **Rutas** | [ir](../apk/3-tareas.md#sacar-una-factura-de-una-ruta) | [ir](../web/2-tareas.md#sacar-una-factura-de-una-ruta) |
 | **Cambiar el camión de una ruta** | **Rutas** | [no se puede: así se hace](../apk/3-tareas.md#cambiar-el-camión-de-una-ruta) | [no se puede: así se hace](../web/2-tareas.md#cambiar-el-camión-de-una-ruta) |
 
 ### Vehículos — **necesita conexión siempre, también en el teléfono**
@@ -194,9 +194,9 @@ de las preguntas.**
 | El código de la sucursal (STG, HAB…) | **Accesos** |
 | Usuarios, contraseñas, roles y a qué sucursal pertenece cada uno | **Accesos** |
 | Clientes | **PEDIDO** |
-| Pedidos, sus productos y sus importes | **PEDIDO** |
+| Las facturas, sus productos y sus importes (y los pedidos de PEDIDO a los que van enlazadas) | **Ventra** y **PEDIDO** |
 | Corregir una ruta ya completada | **PEDIDO.** Aquí el cierre pasa a sólo lectura |
-| Quitar una parada de una ruta en curso | No hay botón: [las dos formas](../web/2-tareas.md#sacar-un-pedido-de-una-ruta). En una **planificada** sí: «Quitar de ruta» |
+| Quitar una parada de una ruta en curso | No hay botón: [las dos formas](../web/2-tareas.md#sacar-una-factura-de-una-ruta). En una **planificada** sí: «Quitar de ruta» |
 | Borrar un camión que ya tiene rutas | No se puede: se deja «Inactivo» ([cómo](../web/2-tareas.md#dejar-un-camión-inactivo)) |
 | Cambiar el camión de una ruta armada | No hay botón: [las dos formas](../web/2-tareas.md#cambiar-el-camión-de-una-ruta) |
 | Reordenar las zonas desde el teléfono | Sólo en pantalla grande |

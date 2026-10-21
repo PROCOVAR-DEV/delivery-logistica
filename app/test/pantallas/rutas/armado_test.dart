@@ -205,7 +205,7 @@ void main() {
           isA<RechazoLocal>().having(
             (r) => r.mensaje,
             'mensaje',
-            'Una ruta se arma eligiendo pedidos ya existentes. Manda `orderIds`.',
+            'Una ruta se arma eligiendo facturas ya existentes. Manda `orderIds`.',
           ),
         ),
       );
@@ -216,7 +216,7 @@ void main() {
       // pero es de Holguín» ya es contar algo de Holguín.
       await esperaRechazo(
         const ['no-existe'],
-        'El pedido elegido no puede ir en esta ruta: '
+        'La factura elegida no puede ir en esta ruta: '
         'no-existe (no existe o no es de tu sucursal).',
       );
     });
@@ -242,7 +242,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '1 de los 3 pedidos elegidos no puede ir en esta ruta: '
+          '1 de las 3 facturas elegidas no puede ir en esta ruta: '
           'F-002 (ya va en la ruta RT-20260922-003).',
         );
       });
@@ -262,7 +262,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '1 de los 3 pedidos elegidos no puede ir en esta ruta: '
+          '1 de las 3 facturas elegidas no puede ir en esta ruta: '
           'F-002 (ya se entregó y no puede volver a un camión).',
         );
       });
@@ -275,7 +275,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '1 de los 3 pedidos elegidos no puede ir en esta ruta: '
+          '1 de las 3 facturas elegidas no puede ir en esta ruta: '
           'F-002 (PEDIDO lo archivó).',
         );
       });
@@ -287,7 +287,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '1 de los 3 pedidos elegidos no puede ir en esta ruta: '
+          '1 de las 3 facturas elegidas no puede ir en esta ruta: '
           'F-002 (sin coordenadas de entrega).',
         );
       });
@@ -299,7 +299,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '1 de los 3 pedidos elegidos no puede ir en esta ruta: '
+          '1 de las 3 facturas elegidas no puede ir en esta ruta: '
           'F-002 (no vino de PEDIDO).',
         );
       });
@@ -317,7 +317,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q3'],
-          '2 de los 3 pedidos elegidos no pueden ir en esta ruta: '
+          '2 de las 3 facturas elegidas no pueden ir en esta ruta: '
           'F-002 (ya va en la ruta RT-20260922-003), F-003 (PEDIDO lo archivó).',
         );
       });
@@ -332,7 +332,7 @@ void main() {
 
         await esperaRechazo(
           const ['q1', 'q2', 'q2', 'q3'],
-          '1 de los 4 pedidos elegidos no puede ir en esta ruta: '
+          '1 de las 4 facturas elegidas no puede ir en esta ruta: '
           'F-002 (ya va en la ruta RT-20260922-003).',
         );
       });
@@ -414,12 +414,15 @@ void main() {
       expect(await armarLasTres(), startsWith('local-'));
     });
 
-    test('MARCADO y sin cotizar en Entrega SÍ entra (PCC25-261014-1435)', () async {
-      await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
-        const OrdersCompanion(pedidoCosto: Value(null)),
-      );
-      expect(await armarLasTres(), startsWith('local-'));
-    });
+    test(
+      'MARCADO y sin cotizar en Entrega SÍ entra (PCC25-261014-1435)',
+      () async {
+        await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
+          const OrdersCompanion(pedidoCosto: Value(null)),
+        );
+        expect(await armarLasTres(), startsWith('local-'));
+      },
+    );
 
     // ISSUE 10 DE AMADO (15/10/2026): la cotización sólo se exige si el
     // vendedor marcó domicilio. La pareja es la de arriba (marcado y sin cotizar
@@ -510,52 +513,53 @@ void main() {
   // pedido que vuelve de una ruta con su «devuelto», su hora y su nota entra en
   // la nueva SIN nada de eso; y la pareja: lo que no se arma conserva la marca
   // de su ruta, porque la limpieza es de quien entra, no de toda la tabla.
-  test('un DEVUELTO que se reasigna entra limpio: sin resultado, hora ni nota',
-      () async {
-    final hora = DateTime.utc(2026, 9, 13, 18);
-    await base.customStatement(
-      "UPDATE orders SET resultado = 'devuelto', ultima_ruta_id = 'R0', "
-      "resultado_nota = 'el cliente había cerrado' WHERE id = 'q1'",
-    );
-    await (base.update(base.orders)..where((o) => o.id.equals('q1'))).write(
-      OrdersCompanion(resultadoAt: Value(hora)),
-    );
-    // Otro pedido, de otra ruta ya cerrada, que NO se arma.
-    await sembrarPedido(
-      base,
-      id: 'q9',
-      cliente: 'Zoe',
-      ultimaRutaId: 'R0',
-      resultado: ResultadoParada.entregado,
-      entregadoAt: hora,
-      endLat: 0,
-      endLng: 0.5,
-    );
+  test(
+    'un DEVUELTO que se reasigna entra limpio: sin resultado, hora ni nota',
+    () async {
+      final hora = DateTime.utc(2026, 9, 13, 18);
+      await base.customStatement(
+        "UPDATE orders SET resultado = 'devuelto', ultima_ruta_id = 'R0', "
+        "resultado_nota = 'el cliente había cerrado' WHERE id = 'q1'",
+      );
+      await (base.update(base.orders)..where((o) => o.id.equals('q1'))).write(
+        OrdersCompanion(resultadoAt: Value(hora)),
+      );
+      // Otro pedido, de otra ruta ya cerrada, que NO se arma.
+      await sembrarPedido(
+        base,
+        id: 'q9',
+        cliente: 'Zoe',
+        ultimaRutaId: 'R0',
+        resultado: ResultadoParada.entregado,
+        entregadoAt: hora,
+        endLat: 0,
+        endLng: 0.5,
+      );
 
-    final rutaId = await acciones.armar(
-      vehiculoId: 'V1',
-      pedidoIds: ['q1', 'q2'],
-      origenLat: 0,
-      origenLng: 0,
-    );
+      final rutaId = await acciones.armar(
+        vehiculoId: 'V1',
+        pedidoIds: ['q1', 'q2'],
+        origenLat: 0,
+        origenLng: 0,
+      );
 
-    Future<Pedido> fila(String id) => (base.select(
-      base.orders,
-    )..where((o) => o.id.equals(id))).getSingle();
+      Future<Pedido> fila(String id) =>
+          (base.select(base.orders)..where((o) => o.id.equals(id))).getSingle();
 
-    final q1 = await fila('q1');
-    expect(q1.routeId, rutaId);
-    expect(q1.ultimaRutaId, rutaId, reason: 'ya es de la ruta nueva');
-    expect(q1.resultado, isNull);
-    expect(q1.resultadoAt, isNull);
-    expect(q1.resultadoNota, isNull);
-    expect(q1.deliveredAt, isNull);
+      final q1 = await fila('q1');
+      expect(q1.routeId, rutaId);
+      expect(q1.ultimaRutaId, rutaId, reason: 'ya es de la ruta nueva');
+      expect(q1.resultado, isNull);
+      expect(q1.resultadoAt, isNull);
+      expect(q1.resultadoNota, isNull);
+      expect(q1.deliveredAt, isNull);
 
-    final q9 = await fila('q9');
-    expect(q9.resultado, ResultadoParada.entregado, reason: 'no se armó');
-    expect(q9.deliveredAt, hora);
-    expect(q9.ultimaRutaId, 'R0');
-  });
+      final q9 = await fila('q9');
+      expect(q9.resultado, ResultadoParada.entregado, reason: 'no se armó');
+      expect(q9.deliveredAt, hora);
+      expect(q9.ultimaRutaId, 'R0');
+    },
+  );
 
   test('los numeros de ruta se van sucediendo en el aparato', () async {
     await armarLasTres();

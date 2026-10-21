@@ -6,10 +6,10 @@
 · `SS` Sancti Spíritus · `STG` Santiago · `TUN` Las Tunas.
 
 **La sucursal que tengas puesta arriba manda sobre todo lo que ves.** Panel,
-Tablero, Pedidos, Rutas, Clientes, Vehículos, Almacenes y Reportes enseñan lo de
+Tablero, Facturas, Rutas, Clientes, Vehículos, Almacenes y Reportes enseñan lo de
 esa sucursal y nada más.
 
-Si un pedido «no aparece», lo primero que hay que mirar es la sucursal de arriba.
+Si una factura «no aparece», lo primero que hay que mirar es la sucursal de arriba.
 
 ---
 
@@ -53,7 +53,7 @@ MOA):
 no tiene esa sucursal. Se arregla en la oficina, dando de alta la sucursal en Reparto o
 asignándote una de las ocho. **Ya no se te abren las ocho sucursales** como pasaba
 antes: abrir todas por una sucursal que no cuadra era enseñarle a un operador de una
-sucursal los pedidos y los precios de las otras siete.
+sucursal las facturas y los precios de las otras siete.
 
 Si tu cuenta **no tiene ninguna sucursal**, el mensaje es otro y tampoco ha cambiado:
 «esta cuenta no está dada de alta en ninguna sucursal: pide en la oficina que te
@@ -89,7 +89,7 @@ no está.
 
 ### El resto del menú
 
-Panel, Tablero, Rutas, Pedidos, Clientes, Vehículos, Almacenes y Reportes están en
+Panel, Tablero, Rutas, Facturas, Clientes, Vehículos, Almacenes y Reportes están en
 el menú para todos los roles.
 
 Dos entradas más aparecen **sólo en la APK y en el escritorio**, porque son del

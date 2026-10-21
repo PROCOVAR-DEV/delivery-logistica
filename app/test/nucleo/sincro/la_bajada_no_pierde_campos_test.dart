@@ -209,6 +209,7 @@ void main() {
           'puntoManual': true,
           'puntoManualPor': 'Marta Pérez',
           'puntoManualAt': '2026-10-20T09:30:00.000Z',
+          'folio': 'PSS26-261020-0731',
           'puntoClienteLat': 21.38,
           'puntoClienteLng': -77.91,
           'puntoClienteAddress': 'Km 8, Carretera Central',
@@ -235,6 +236,7 @@ void main() {
     );
     expect(p.puntoManualPor, 'Marta Pérez');
     expect(p.puntoManualAt, isNotNull);
+    expect(p.folio, 'PSS26-261020-0731');
     expect(
       (p.puntoClienteLat, p.puntoClienteLng, p.puntoClienteAddress),
       (21.38, -77.91, 'Km 8, Carretera Central'),

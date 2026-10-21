@@ -411,6 +411,16 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   creó una matriz propia (migración 042, en producción desde las 18:00 del 20/10/2026) que contradice esto, y
   se le pidió que edite llamando a Accesos; **mientras no lo haga, el CRM y Accesos pueden diferir** y Reparto
   sigue leyendo de Accesos.
+- **LA FILA ES LA FACTURA; EL PEDIDO ES UN EXTRA** (Jose, 21/10/2026: «ya no son pedidos, son facturas»). La pantalla
+  se llama **Facturas** (`/facturas`; `/orders` redirige, con sus filtros) y la tabla pone la factura primera, con
+  «Fecha factura»; la columna «Pedido» enseña `orders.folio` (el pedido de PEDIDO del que sale, con su estado) o un
+  guion si la factura no viene de ninguno (`folio` baja en la bajada, esquema local 13, y cada aparato la rebaja
+  entera una vez: `rebajarLosPedidosPorSuFolio`). Ventra sólo manda facturas CON entrega a domicilio, así que todas
+  traen su cobro: no hay filtro «con cobro». Los filtros propios de la factura son «Pedido de origen» (con/sin pedido) y
+  los de siempre; el precio de Entrega («Precio del pedido») sólo cuenta para las que traen pedido. Una factura sin
+  pedido no trae el punto del cliente: la fila avisa «Sin ubicación» y el logístico lo pone con «Ubicar la entrega».
+  **Pendiente (sin construir): los CONDUCES** — una pestaña «Conduces» donde el logístico junta varias facturas en una
+  («super factura»; la primera marcada la crea y dice a qué cliente va); ver `~/Notas/Procovar/Pendiente/Delivery.md`.
 - **El camión en el taller es AVISO, no bloqueo** (Jose, 28/09/2026; la 1.0.28 lo bloqueó por
   error y se revirtió en la 1.0.29): una sucursal con UN camión olvidado en `maintenance` se
   quedaría sin poder armar rutas. Se ofrece con un aviso ámbar «en el taller». Lo que NUNCA se

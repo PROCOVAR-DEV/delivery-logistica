@@ -100,9 +100,9 @@ class HojaPostDespacho {
 /// LO QUE NO SE SABE SE DICE, y con las mismas palabras en la pantalla y en el
 /// papel. Ver [HojaPostDespacho.noConstaQueQueda].
 String noConstaQueBaja(int paradas) => paradas == 1
-    ? 'Una parada no se entregó y su pedido no trae renglones: NO CONSTA qué '
+    ? 'Una parada no se entregó y su factura no trae renglones: NO CONSTA qué '
           'baja del camión. Cuéntalo a mano contra la lista de abajo.'
-    : '$paradas paradas no se entregaron y sus pedidos no traen renglones: NO '
+    : '$paradas paradas no se entregaron y sus facturas no traen renglones: NO '
           'CONSTA qué baja del camión. Cuéntalo a mano contra la lista de abajo.';
 
 /// **REGLA CLAVE: lo que QUEDA es todo lo que no se entrego** — lo devuelto, lo

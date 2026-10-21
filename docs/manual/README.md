@@ -37,14 +37,14 @@ cambia, se cambia ahí y no en tres sitios.
   con quién hace cada una y qué se pide a administración.
 - [Qué significa cada número](comun/que-significa-cada-numero.md) — el que más se
   consulta. Por qué «Entregados hoy» dice 1 y el Historial de Rutas está vacío,
-  qué es `≥ 17318.8 kg (462 renglones sin peso)`, por qué un pedido dice «sin
+  qué es `≥ 17318.8 kg (462 renglones sin peso)`, por qué una factura dice «sin
   cotizar» y no `$0.00`.
 - [Roles y sucursales](comun/roles-y-sucursales.md) — los siete roles, quién ve
   las ocho sucursales y quién sólo la suya.
 - [Cómo se trabaja un día](comun/el-dia-de-trabajo.md) — el camino completo, de
   entrar a cerrar la ruta.
 - [Las reglas del reparto](comun/las-reglas-del-reparto.md) — por qué no se arma
-  una ruta sin camión, qué pedido puede subir a un camión y cuál no.
+  una ruta sin camión, qué factura puede subir a un camión y cuál no.
 - [Cuando algo sale mal](comun/cuando-algo-sale-mal.md) — cada aviso, qué
   significa y qué hacer.
 - [Las tres formas de la aplicación](comun/las-tres-formas.md) — qué cambia entre la

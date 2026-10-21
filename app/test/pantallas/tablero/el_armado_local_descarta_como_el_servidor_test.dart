@@ -193,7 +193,7 @@ void main() {
             .having(
               (e) => e.mensaje,
               'mensaje',
-              'La columna no tiene ningún pedido que se pueda repartir hoy',
+              'La columna no tiene ninguna factura que se pueda repartir hoy',
             )
             .having(
               (e) => e.detalles,

@@ -26,7 +26,7 @@ funciona sin una raya de cobertura. Cuando vuelve la señal, sube solo.
 
 - **[Qué significa cada número](../comun/que-significa-cada-numero.md)** — por qué
   «Entregados hoy» dice 1 y el Historial está vacío, qué es el `≥` del peso, por qué
-  un pedido dice «sin cotizar».
+  una factura dice «sin cotizar».
 - **[Las reglas del reparto](../comun/las-reglas-del-reparto.md)** — qué sube a un
   camión y qué no.
 - **[Busca tu tarea](../comun/tareas.md)** — el índice de todas las tareas, con la

@@ -297,8 +297,8 @@ abstract final class Faltas {
       'y sin almacén el domicilio se cobra desde el sitio equivocado.';
 
   static String comoSeLlama(String coleccion) => switch (coleccion) {
-    Colecciones.pedidos => 'los pedidos',
-    Colecciones.renglones => 'las líneas de los pedidos',
+    Colecciones.pedidos => 'las facturas',
+    Colecciones.renglones => 'las líneas de las facturas',
     Colecciones.rutas => 'las rutas',
     Colecciones.clientes => 'los clientes',
     Colecciones.productos => 'el catálogo de productos',
@@ -314,11 +314,11 @@ abstract final class Faltas {
   /// **Que se rompe sin ella.** No es adorno: es la unica parte del aviso que le
   /// dice a alguien si puede irse al almacen o no.
   static String queSeRompe(String coleccion) => switch (coleccion) {
-    Colecciones.pedidos => 'sin ellos no hay nada que repartir',
+    Colecciones.pedidos => 'sin ellas no hay nada que repartir',
     Colecciones.renglones => 'sin ellas el pre-despacho sale vacío',
     Colecciones.rutas => 'sin ellas no se ven las que quedaron abiertas',
     Colecciones.clientes =>
-      'sin ellos los pedidos se quedan sin dirección ni coordenadas',
+      'sin ellos las facturas se quedan sin dirección ni coordenadas',
     Colecciones.productos =>
       'sin él los pesos van incompletos y el pre-despacho sale corto',
     Colecciones.vehiculos => 'sin ellos no se puede asignar camión a una ruta',

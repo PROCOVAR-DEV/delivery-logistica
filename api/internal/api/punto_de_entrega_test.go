@@ -381,7 +381,7 @@ func TestPutDelPuntoDeUnPedidoYaEntregadoEs409(t *testing.T) {
 		poner(m.d.pedidos[m.ids[1]])
 		antes := *m.d.pedidos[m.ids[1]]
 		w := m.pedir(http.MethodPut, m.ids[1], deSantiagoEnRutas(t), cuerpoDelPunto(latNuevo, lngNuevo, ""))
-		if w.Code != http.StatusConflict || errorDeRutas(t, w) != "El pedido ya está entregado: no se le puede cambiar el punto" {
+		if w.Code != http.StatusConflict || errorDeRutas(t, w) != "La factura ya está entregada: no se le puede cambiar el punto" {
 			t.Fatalf("%s: contestó %d %q", nombre, w.Code, errorDeRutas(t, w))
 		}
 		noSeTocoNiSeAviso(t, m, m.ids[1], antes)
@@ -577,7 +577,7 @@ func TestDeleteDelPuntoDeUnPedidoQueNoEsManualEs409(t *testing.T) {
 	m := puntoMontado(t)
 	antes := *m.d.pedidos[m.ids[1]]
 	w := m.pedir(http.MethodDelete, m.ids[1], deSantiagoEnRutas(t), "")
-	if w.Code != http.StatusConflict || errorDeRutas(t, w) != "El pedido no tiene un punto puesto a mano" {
+	if w.Code != http.StatusConflict || errorDeRutas(t, w) != "La factura no tiene un punto puesto a mano" {
 		t.Fatalf("contestó %d %q", w.Code, errorDeRutas(t, w))
 	}
 	noSeTocoNiSeAviso(t, m, m.ids[1], antes)
@@ -603,7 +603,7 @@ func TestDeleteDelPuntoOtrasSucursalYOtrosRechazos(t *testing.T) {
 	ahora := time.Now()
 	m.d.pedidos[m.ids[1]].entregadoEn = &ahora
 	if w := m.pedir(http.MethodDelete, m.ids[1], deSantiagoEnRutas(t), ""); w.Code != http.StatusConflict ||
-		errorDeRutas(t, w) != "El pedido ya está entregado: no se le puede cambiar el punto" {
+		errorDeRutas(t, w) != "La factura ya está entregada: no se le puede cambiar el punto" {
 		t.Fatalf("un entregado contestó %d %q", w.Code, errorDeRutas(t, w))
 	}
 	m.d.pedidos[m.ids[1]].entregadoEn = nil
@@ -648,7 +648,7 @@ func TestSiElPedidoSeEntregaMientrasSeGuardaNoSeGuardaNada(t *testing.T) {
 
 	w := m.pedir(http.MethodPut, m.ids[1], deSantiagoEnRutas(t), cuerpoDelPunto(latNuevo, lngNuevo, ""))
 	if w.Code != http.StatusConflict ||
-		errorDeRutas(t, w) != "El pedido cambió mientras se guardaba el punto: vuelve a intentarlo" {
+		errorDeRutas(t, w) != "La factura cambió mientras se guardaba el punto: vuelve a intentarlo" {
 		t.Fatalf("contestó %d %q", w.Code, errorDeRutas(t, w))
 	}
 	despues := *m.d.pedidos[m.ids[1]]

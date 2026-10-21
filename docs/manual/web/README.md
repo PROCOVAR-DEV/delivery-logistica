@@ -31,7 +31,7 @@ Qué significa eso en la práctica:
 
 - **[Qué significa cada número](../comun/que-significa-cada-numero.md)** — por qué
   «Entregados hoy» dice 1 y el Historial está vacío, qué es el `≥` del peso, por qué
-  un pedido dice «sin cotizar».
+  una factura dice «sin cotizar».
 - **[Las reglas del reparto](../comun/las-reglas-del-reparto.md)**
 - **[Busca tu tarea](../comun/tareas.md)** — el índice de todas las tareas, con la
   pantalla en la que empieza cada una.

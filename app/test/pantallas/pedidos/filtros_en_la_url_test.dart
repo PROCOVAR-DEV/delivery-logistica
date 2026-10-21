@@ -123,7 +123,7 @@ void main() {
 
   group('escribir la dirección', () {
     test('sólo lo que está puesto de verdad', () {
-      expect(FiltrosEnLaUrl.direccion(const FiltrosPedidos()), '/orders');
+      expect(FiltrosEnLaUrl.direccion(const FiltrosPedidos()), '/facturas');
     });
 
     test('ida y vuelta: lo escrito se vuelve a leer igual', () {
@@ -242,10 +242,10 @@ void main() {
       final conteo = tester
           .widgetList<Text>(find.byType(Text))
           .map((t) => t.data ?? '')
-          .firstWhere((t) => t.contains('pedidos, del más nuevo'));
+          .firstWhere((t) => t.contains('facturas, del más nuevo'));
       expect(
         conteo,
-        '4 pedidos, del más nuevo al más viejo',
+        '4 facturas, del más nuevo al más viejo',
         reason:
             'el enlace llevaba a la lista acotada; sin él son 8. Antes del '
             '24/09/2026 salían los 8 y nada lo decía.',

@@ -72,7 +72,7 @@ void main() {
     // Y LA OTRA MITAD: que la lista siga teniendo las de siempre. Sin esto, «no está» se
     // cumple con una lista vacía y la prueba pasaría con la aplicación entera rota.
     expect(rutas, contains('/tablero'));
-    expect(rutas, contains('/orders'));
+    expect(rutas, contains('/facturas'));
   });
 
   test('en la web sí entra en la lista', () async {
@@ -151,7 +151,7 @@ void main() {
         final rutas = rutasPara(quien);
 
         expect(rutas, contains('/tablero'));
-        expect(rutas, contains('/orders'));
+        expect(rutas, contains('/facturas'));
         expect(rutas, contains('/routes'));
       }
     });

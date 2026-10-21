@@ -17,42 +17,42 @@
       "nota": "EL CASO QUE SE ARREGLO. Un pedido elegido, un pedido que no entra: los dos numeros son el mismo y no se dicen.",
       "seCaen": 1,
       "seEligieron": 1,
-      "encabezado": "El pedido elegido no puede ir en esta ruta: "
+      "encabezado": "La factura elegida no puede ir en esta ruta: "
     },
     {
       "nombre": "uno-de-dos",
       "nota": "El verbo en singular, el sustantivo en plural. Es el caso que mas se ve despues del de arriba.",
       "seCaen": 1,
       "seEligieron": 2,
-      "encabezado": "1 de los 2 pedidos elegidos no puede ir en esta ruta: "
+      "encabezado": "1 de las 2 facturas elegidas no puede ir en esta ruta: "
     },
     {
       "nombre": "uno-de-tres",
       "nota": "Lo mismo con tres: la M es lo que la persona marco en la pantalla.",
       "seCaen": 1,
       "seEligieron": 3,
-      "encabezado": "1 de los 3 pedidos elegidos no puede ir en esta ruta: "
+      "encabezado": "1 de las 3 facturas elegidas no puede ir en esta ruta: "
     },
     {
       "nombre": "dos-de-tres",
       "nota": "Los dos en plural, que es la frase que ya estaba bien.",
       "seCaen": 2,
       "seEligieron": 3,
-      "encabezado": "2 de los 3 pedidos elegidos no pueden ir en esta ruta: "
+      "encabezado": "2 de las 3 facturas elegidas no pueden ir en esta ruta: "
     },
     {
       "nombre": "todos-de-cuatro",
       "nota": "Se caen todos los elegidos y siguen siendo varios: no hay nada especial que decir.",
       "seCaen": 4,
       "seEligieron": 4,
-      "encabezado": "4 de los 4 pedidos elegidos no pueden ir en esta ruta: "
+      "encabezado": "4 de las 4 facturas elegidas no pueden ir en esta ruta: "
     },
     {
       "nombre": "quince",
       "nota": "La seleccion grande del logistico. La M es lo que hace que «1 de los 15» no obligue a adivinar cual.",
       "seCaen": 12,
       "seEligieron": 15,
-      "encabezado": "12 de los 15 pedidos elegidos no pueden ir en esta ruta: "
+      "encabezado": "12 de las 15 facturas elegidas no pueden ir en esta ruta: "
     }
   ],
   "mensajesDelServidor": {
@@ -76,7 +76,7 @@
       {
         "nombre": "quitar-parada-que-no-esta",
         "donde": "DELETE /api/routes/{id}/stops/{orderId}, 409",
-        "literal": "El pedido no pertenece a una ruta planificada o ya fue retirado"
+        "literal": "La factura no pertenece a una ruta planificada o ya fue retirada"
       },
       {
         "nombre": "camion-compartido-no-se-toca",

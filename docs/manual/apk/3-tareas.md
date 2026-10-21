@@ -60,10 +60,10 @@ se puede convertir nada—, pero si vas a cobrar con ese número, pídela actual
 
 ---
 
-## Buscar un pedido
+## Buscar una factura
 <!-- tarea -->
 
-**Empieza en:** **Menú → «Pedidos»**.
+**Empieza en:** **Menú → «Facturas»**.
 
 1. **Toca la caja de buscar** («Buscar») y escribe el cliente, el folio, la
    dirección, el municipio, el vendedor o un producto. **Busca solo**, sin darle a
@@ -74,50 +74,50 @@ se puede convertir nada—, pero si vas a cobrar con ese número, pídela actual
 Mira en este orden:
 
 1. **La sucursal de arriba.** Es lo primero, siempre.
-2. **La franja azul** de arriba. Al entrar, Pedidos viene acotado: «Enseñando sólo lo
-   que puede subir a un camión…». **Toca «Ver todos los pedidos»**.
-3. **Los filtros.** Si el vacío dice «Ningún pedido cuadra con estos filtros.», toca
+2. **La franja azul** de arriba. Al entrar, Facturas viene acotada: «Enseñando sólo lo
+   que puede subir a un camión…». **Toca «Ver todas las facturas»**.
+3. **Los filtros.** Si el vacío dice «Ninguna factura cuadra con estos filtros.», toca
    **«Quitar todos los filtros»**.
-4. **Si ya está en una ruta**, míralo en Rutas.
-5. **De cuándo son tus datos.** Si la franja dice «Datos de hace 9 h», ese pedido
+4. **Si ya está en una ruta**, mírala en Rutas.
+5. **De cuándo son tus datos.** Si la franja dice «Datos de hace 9 h», esa factura
    puede haber entrado después: trae el día.
 
 ---
 
-## Ver el detalle de un pedido
+## Ver el detalle de una factura
 <!-- tarea -->
 
-**Empieza en:** **Menú → «Pedidos»**.
+**Empieza en:** **Menú → «Facturas»**.
 
-1. **Toca la tarjeta del pedido** (en el teléfono no hay tabla: cada pedido es una
+1. **Toca la tarjeta de la factura** (en el teléfono no hay tabla: cada factura es una
    tarjeta). <!-- señala: pedidos-abrir-el-pedido -->
    - Se abre un cajón con el cliente de título y el folio debajo. Dentro:
      **«Entrega»**, **«Recorrido»**, la banda de la factura, el bloque del domicilio
      y **«Productos (6)»**.
 
-**Es de lectura.** Aquí no se edita nada de un pedido: viene de PEDIDO. La única acción
-es **«Ubicar la entrega»**: [poner a mano el punto de entrega](#poner-el-punto-de-entrega-de-un-pedido-a-mano).
+**Es de lectura.** Aquí no se edita nada de una factura: viene de PEDIDO. La única acción
+es **«Ubicar la entrega»**: [poner a mano el punto de entrega](#poner-el-punto-de-entrega-de-una-factura-a-mano).
 
 ---
 
-## Poner el punto de entrega de un pedido a mano
+## Poner el punto de entrega de una factura a mano
 <!-- tarea -->
 
-**Empieza en:** **Menú → «Pedidos»**.
+**Empieza en:** **Menú → «Facturas»**.
 
 **Para qué:** el cliente pide entregar en **otro sitio** y quien factura lo apunta en el
 ticket. Esa dirección no coincide con la geolocalización del cliente (la única que
-manda PEDIDO). **El logístico le pone el punto bueno a ese pedido**, y desde entonces
+manda PEDIDO). **El logístico le pone el punto bueno a esa factura**, y desde entonces
 manda sobre el del cliente: las rutas lo miden desde ahí y **no se pierde cuando el
 cliente se vuelve a actualizar**.
 
-1. **Toca la tarjeta del pedido** para abrir su ficha.
+1. **Toca la tarjeta de la factura** para abrir su ficha.
    <!-- señala: pedidos-abrir-el-pedido -->
 2. En la sección **«Entrega»**, **toca «Ubicar la entrega»**.
    - Se abre un cajón titulado **«Ubicar la entrega»**, con el folio y el cliente
      debajo.
-   - Si el pedido **ya está entregado** o va en una **ruta completada**, no hay botón:
-     en su lugar la ficha dice por qué («El pedido ya está entregado: no se le puede
+   - Si la factura **ya está entregada** o va en una **ruta completada**, no hay botón:
+     en su lugar la ficha dice por qué («La factura ya está entregada: no se le puede
      cambiar el punto» / «La ruta ya está completada: no se le puede cambiar el punto a
      sus paradas»). Son histórico.
 3. Pon el punto de **una de las tres formas** (las tres escriben en la misma caja de
@@ -153,13 +153,13 @@ Qué cambia:
 
 ### Volver al punto del cliente
 
-1. Abre otra vez **«Ubicar la entrega»** en ese pedido: ahora trae también **«Volver al
+1. Abre otra vez **«Ubicar la entrega»** en esa factura: ahora trae también **«Volver al
    punto del cliente»**.
 2. **Toca «Volver al punto del cliente»**. **Pregunta antes**, en un cajón: dice a qué
    punto vuelve y que los km se miden otra vez.
 3. **«Sí, volver al punto del cliente»** o **«No, dejar el punto a mano»**.
 
-Si el pedido no tiene punto a mano, el servidor lo dice: «El pedido no tiene un punto
+Si la factura no tiene punto a mano, el servidor lo dice: «La factura no tiene un punto
 puesto a mano».
 
 ### Desde una ruta o desde el asistente
@@ -169,67 +169,67 @@ El **mismo cajón** se abre desde otros dos sitios, sin salir de lo que estás h
 - **En Rutas**, en el detalle de la ruta → **«Ver paradas»** → en la tarjeta de la
   parada, **«Ubicar la entrega»** (junto a «Quitar de ruta"). No sale en una ruta
   completada ni en una parada ya entregada.
-- **Al armar una ruta**, en el paso **«Pedidos»** del asistente, cada fila lleva un
+- **Al armar una ruta**, en el paso **«Facturas»** del asistente, cada fila lleva un
   botón pequeño con el tooltip **«Ubicar la entrega»**. Pulsarlo **no marca ni desmarca**
-  el pedido.
+  la factura.
 
-**Una limitación:** un pedido que PEDIDO manda **sin coordenadas** no llega a esta
-aplicación, así que no se puede abrir. Esto sirve para **cambiar** el punto de un
-pedido que ya tiene uno.
+**Una limitación:** una factura que PEDIDO manda **sin coordenadas** no llega a esta
+aplicación, así que no se puede abrir. Esto sirve para **cambiar** el punto de una
+factura que ya tiene uno.
 
 ---
 
-## Mandar varios pedidos a una zona de golpe
+## Mandar varias facturas a una zona de golpe
 <!-- tarea -->
 
-**Empieza en:** **Menú → «Pedidos»**.
+**Empieza en:** **Menú → «Facturas»**.
 
 Éste es el atajo para no ir tarjeta por tarjeta en el Tablero.
 
-1. **Filtra por municipio** para dejar los que quieres (o por vendedor, o por
+1. **Filtra por municipio** para dejar las que quieres (o por vendedor, o por
    día). <!-- señala: pedidos-filtro-municipio -->
 2. **Toca arriba «Elegir los 50 de esta página»** para marcarlos todos.
    <!-- señala: pedidos-marcar-todos -->
-   - O **toca la casilla de cada pedido**, uno a uno.
-3. **Toca la casilla de un pedido** para quitar o poner la marca de ese solo.
+   - O **toca la casilla de cada factura**, una a una.
+3. **Toca la casilla de una factura** para quitar o poner la marca de esa sola.
    <!-- señala: pedidos-marcar-uno -->
-   - Aparece una franja azul: **«7 pedido(s) elegidos»**.
+   - Aparece una franja azul: **«7 factura(s) elegidas»**.
 4. **Toca «Mandar a una zona»**, en esa franja.
    <!-- señala: pedidos-mandar-a-una-zona -->
    - Se abre el cajón **«Mandar a una zona del tablero»**: «Se colocan en el orden en
      que están marcados, y el gesto es el mismo que arrastrarlos: se guarda aquí y
      sube cuando haya señal.»
-5. **Toca la zona** de la lista. Debajo de cada una pone «12 pedido(s) puestos».
+5. **Toca la zona** de la lista. Debajo de cada una pone «12 factura(s) puestas».
    <!-- señala: pedidos-zona-destino -->
    - Si no hay ninguna, toca **«Crear una zona nueva»**, escribe el nombre y
      **«Crear»**.
 6. **Toca «Mandar a la zona»** abajo. <!-- señala: pedidos-mandar -->
-   - Te dice cómo fue: **«5 pedido(s) en «Centro»»**.
+   - Te dice cómo fue: **«5 factura(s) en «Centro»»**.
 
-### Si alguno se queda fuera
+### Si alguna se queda fuera
 
-En ámbar: **«No se pudieron mandar 2, y siguen marcados:»** y debajo, uno a uno:
+En ámbar: **«No se pudieron mandar 2, y siguen marcados:»** y debajo, una a una:
 
 ```
-PTB25-261005-1480 · Ana: Ese pedido ya está en una ruta
-PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.
+PTB25-261005-1480 · Ana: Esa factura ya está en una ruta
+PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio de la factura.
 ```
 
-Cada pedido sale por su **conduce** (el número de operación de la factura). Los motivos
-son los mismos que daría el servidor: ya entregado, ya en una ruta, **sin domicilio
+Cada factura sale por su **conduce** (el número de operación de la factura). Los motivos
+son los mismos que daría el servidor: ya entregada, ya en una ruta, **sin domicilio
 cobrado en la factura** o **marcado a domicilio y sin cotizar en Entrega**, además de
 «Archivado en PEDIDO»,
 «Sin cotejar», «Sin factura», «Sin coordenadas de entrega» o «Es de otra sucursal».
 
-**Los que sí fueron pierden la marca; los que no, se quedan marcados** para que
-puedas seguir con ellos.
+**Las que sí fueron pierden la marca; las que no, se quedan marcadas** para que
+puedas seguir con ellas.
 
 ---
 
 ## Sacar el pre-despacho de lo que tienes filtrado
 <!-- tarea -->
 
-**Empieza en:** **Menú → «Pedidos»**.
+**Empieza en:** **Menú → «Facturas»**.
 
 1. **Filtra por municipio** lo que quieras (o por día).
    <!-- señala: pedidos-filtro-municipio -->
@@ -259,7 +259,7 @@ puedas seguir con ellos.
 6. Para devolver sus tarjetas a «sin colocar», en el mismo ⋮ **toca «Vaciar»**.
    <!-- señala: tablero-vaciar -->
    - **«Mover todo a otra columna»**, al lado, te saca la lista de destinos con
-     cuántos pedidos tiene cada uno.
+     cuántas facturas tiene cada uno.
 7. Y para quitar la zona entera, **toca «Borrar la columna»**.
    <!-- señala: tablero-borrar-la-zona -->
 
@@ -267,19 +267,19 @@ puedas seguir con ellos.
 
 **Si la zona está vacía:**
 
-> «La zona se va del tablero. No hay ningún pedido dentro, así que no se pierde
+> «La zona se va del tablero. No hay ninguna factura dentro, así que no se pierde
 > trabajo del día, pero la zona hay que volver a crearla a mano con su nombre.»
 
 Botones: **«Sí, borrar «Centro»»** y **«No, dejarla»**.
 
-**Si la zona tiene pedidos**, no te deja borrarla sin decidir qué pasa con ellos:
+**Si la zona tiene facturas**, no te deja borrarla sin decidir qué pasa con ellas:
 
-> **«Centro» tiene 8 pedidos puestos** — ¿Qué se hace con ellos?
+> **«Centro» tiene 8 facturas puestas** — ¿Qué se hace con ellas?
 
-Y dos salidas: **«Devolver los 8 pedidos a «Sin colocar» y borrar»** o **«Mover los 8 pedidos a otra
-zona y borrar»**. Cuenta los que cuenta el servidor, también los que este aparato no ve (por ejemplo, pedidos ya archivados): lo dice debajo.
+Y dos salidas: **«Devolver las 8 facturas a «Sin colocar» y borrar»** o **«Mover las 8 facturas a otra
+zona y borrar»**. Cuenta las que cuenta el servidor, también las que este aparato no ve (por ejemplo, facturas ya archivadas): lo dice debajo.
 
-Y una tercera, **«Inactivar la zona»**: la quita del tablero y sus pedidos vuelven a
+Y una tercera, **«Inactivar la zona»**: la quita del tablero y sus facturas vuelven a
 «Sin colocar», pero **se conserva** (con su nombre y su historia de rutas). Para
 volver a usarla, arriba **«Zonas inactivas»** y **«Activar»**; vuelve vacía. Funciona
 sin señal y sube después.
@@ -305,7 +305,7 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
 
 1. Arriba, **toca «+ Nueva Ruta»**. <!-- señala: rutas-nueva-ruta -->
    - Se abre un cajón a pantalla completa, **«Nueva Ruta»**, con cuatro tramos
-     arriba: **«Sucursal» · «Salida» · «Vehículo» · «Pedidos»**.
+     arriba: **«Sucursal» · «Salida» · «Vehículo» · «Facturas»**.
 2. **Paso «Sucursal»** — elige en **«Sucursal de la ruta»**.
    <!-- señala: rutas-asistente-sucursal -->
    - Suele venir rellena con la de arriba.
@@ -332,18 +332,18 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
      ruta nueva sólo se asigna un vehículo activo. Actívalo en Vehículos.»
    - Puedes ponerle un nombre («Nombre (el código se genera solo)») y cambiar la
      **«Fecha de entrega»**, que **viene puesta en hoy**.
-6. **Paso «Pedidos»** — busca y **marca los que quieras**.
+6. **Paso «Facturas»** — busca y **marca las que quieras**.
    <!-- señala: rutas-asistente-buscar -->
    - En el teléfono los filtros van **uno por línea**: sucursal, día, buscador,
      vendedor, municipio, «km máx.», «costo mín.», estado, domicilio y cotización.
-   - **Sólo salen los pedidos facturados (cuadren o no), con el domicilio cobrado y,
-     si el vendedor lo marcó, cotizado en Entrega.** Si te falta alguno, es casi
+   - **Sólo salen las facturas (cuadren o no), con el domicilio cobrado y,
+     si el vendedor lo marcó, cotizado en Entrega.** Si te falta alguna, es casi
      seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. El filtro de
      domicilio arranca en «Sólo con domicilio», que cuenta lo marcado por el vendedor
-     **y** lo cobrado en la factura: no esconde a los que el vendedor no marcó.
+     **y** lo cobrado en la factura: no esconde a las que el vendedor no marcó.
    - **Mira la barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»**
      y **«Camión lleno — no cabe más»**.
-   - **Las filas de los pedidos que ya no caben se apagan**, con el motivo: «No cabe
+   - **Las filas de las facturas que ya no caben se apagan**, con el motivo: «No cabe
      en el camión».
    - Puedes marcar **una zona entera del tablero** tocando su casilla. Te dirá qué
      entró: **«9 de 12 de «Vista» · 1 ya estaban · 1 ya no se pueden repartir hoy · 1
@@ -354,11 +354,11 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
 
 ### Si «Generar Ruta» está apagado
 
-Falta algo: salida, camión, algún pedido, o te has pasado de peso.
+Falta algo: salida, camión, alguna factura, o te has pasado de peso.
 
 ### Si sale un aviso en ámbar encima del botón
 
-Te dice exactamente qué pasa, y cada pedido sale por su **conduce** (el número de
+Te dice exactamente qué pasa, y cada factura sale por su **conduce** (el número de
 operación de la factura). **Sin señal sale igual**: la aplicación lo dice antes de
 guardar la ruta, para que no te llegue horas después a la bandeja de rechazados. Los
 más comunes:
@@ -366,10 +366,10 @@ más comunes:
 | Aviso | Qué hacer |
 |---|---|
 | **«Se requiere un vehículo para crear la ruta»** | Vuelve al paso «Vehículo» |
-| **«En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Desmarca esos tres |
+| **«En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Desmarca esas tres |
 | **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión está dado de baja. Elige otro |
-| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Desmarca ésos |
-| **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Quita pedidos o cambia de camión |
+| **«2 de las 12 facturas elegidas no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Desmarca ésas |
+| **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Quita facturas o cambia de camión |
 
 Para volver a un tramo anterior, **toca su nombre** en la barra de arriba
 («Vehículo», «Salida»…), o dale al botón «atrás» del teléfono, que **va al paso
@@ -394,8 +394,8 @@ anterior y no cierra el asistente**.
    > kilómetros que se calcularon al armarla. Para tenerla otra vez hay que volver a
    > armarla desde el asistente, a mano.
    >
-   > Lo que NO se borra son los pedidos ni sus resultados: sueltan esta ruta. Los
-   > pendientes vuelven a la lista de disponibles; los entregados siguen entregados y
+   > Lo que NO se borra son las facturas ni sus resultados: sueltan esta ruta. Las
+   > pendientes vuelven a la lista de disponibles; las entregadas siguen entregadas y
    > no se reparten otra vez. Y el camión se queda libre.
    >
    > Si la ruta se armó desde una zona del tablero, las facturas vuelven a esa zona
@@ -418,14 +418,14 @@ provisionales mientras no se complete la ruta.
 **Las rutas completadas no se pueden editar ni eliminar**: forman el histórico,
 y el botón «Eliminar» no aparece. Su cierre sólo se consulta.
 
-Al eliminar la ruta no se borra ningún pedido ni se cambia su resultado. Los
-pendientes y devueltos quedan disponibles; los ya entregados siguen entregados
+Al eliminar la ruta no se borra ninguna factura ni se cambia su resultado. Las
+pendientes y devueltas quedan disponibles; las ya entregadas siguen entregadas
 y no se vuelven a repartir.
 
 ### Si la ruta se hizo desde el tablero
 
 **Las facturas vuelven a su zona del tablero**: no se pierde la relación y no hay que
-volver a crear la zona ni a repartir los pedidos.
+volver a crear la zona ni a repartir las facturas.
 
 - **Con señal**, en cuanto sube el borrado y baja el tablero, cada factura aparece en su
   zona.
@@ -433,13 +433,13 @@ volver a crear la zona ni a repartir los pedidos.
   «Sin colocar»** hasta que suba y baje el tablero. No es que se hayan perdido: es que
   el servidor todavía no se ha enterado. Cuando vuelva la señal (casi nunca hace falta
   pulsar nada), se colocan solas donde estaban.
-- Si la ruta **no** salió del tablero, no hay zona a la que volver: los pedidos vuelven
+- Si la ruta **no** salió del tablero, no hay zona a la que volver: las facturas vuelven
   sólo a la lista de disponibles.
 - **Una ruta completada es histórico y no se borra.**
 
 ---
 
-## Sacar un pedido de una ruta
+## Sacar una factura de una ruta
 <!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
@@ -454,7 +454,7 @@ parada**, sin borrar la ruta.
    - Se abre un cajón, **«Quitar de la ruta»**, con el cliente y su conduce debajo
      («Casa Pérez · Conduce: PTB25-261005-1480»), que dice qué pasa:
 
-   > «Casa Pérez sale de esta ruta y vuelve a pedidos disponibles. La ruta se queda
+   > «Casa Pérez sale de esta ruta y vuelve a facturas disponibles. La ruta se queda
    > con las demás paradas y su peso y su importe se recalculan sin él.
    >
    > Si la ruta se armó desde una zona del tablero, la factura regresa a esa zona
@@ -464,18 +464,18 @@ parada**, sin borrar la ruta.
    **Cerrar el cajón sin contestar es No.**
 
 La parada desaparece de la hoja, y el peso y el importe de la ruta se recalculan sin
-ella. El pedido **vuelve a la lista de disponibles** y, si la ruta nació del tablero,
+ella. La factura **vuelve a la lista de disponibles** y, si la ruta nació del tablero,
 **a su zona del tablero**.
 
 **Funciona sin señal**: el cambio se guarda en el teléfono, queda en espera y **sube
 cuando vuelve la señal**. Hasta entonces la factura puede verse en «Sin colocar» y no
 en su zona.
 
-**Sólo en una ruta planificada.** En una ruta **en curso** no hay botón: marca ese
-pedido como devuelto o cancelado al completar la ruta, y queda libre para mañana. Una
+**Sólo en una ruta planificada.** En una ruta **en curso** no hay botón: marca esa
+factura como devuelta o cancelada al completar la ruta, y queda libre para mañana. Una
 ruta **completada** es histórico y no se toca. Si el servidor lo rechaza al subir,
 dice el motivo en la bandeja: «Sólo se pueden retirar paradas de una ruta planificada»
-o «El pedido no pertenece a una ruta planificada o ya fue retirado».
+o «La factura no pertenece a una ruta planificada o ya fue retirada».
 
 (Y si lo que sobra es la ruta entera, [elimínala](#eliminar-una-ruta).)
 
@@ -494,7 +494,7 @@ para eso, ni en la tarjeta ni dentro del cajón del detalle. Las dos salidas:
 1. **Desliza a «Planificadas»** y **toca la tarjeta de la ruta**.
    <!-- señala: rutas-tarjeta-de-ruta -->
 2. **Toca «Eliminar»** al final de su tarjeta y confirma — ver [Eliminar una
-   ruta](#eliminar-una-ruta). Los pedidos pendientes quedan disponibles; los entregados conservan su
+   ruta](#eliminar-una-ruta). Las facturas pendientes quedan disponibles; las entregadas conservan su
    resultado. El camión queda libre. Si la ruta salió del tablero, **las facturas
    vuelven a su zona** (sin señal, salen en «Sin colocar» hasta que suba el borrado).
    <!-- señala: rutas-eliminar -->
@@ -507,7 +507,7 @@ para eso, ni en la tarjeta ni dentro del cajón del detalle. Las dos salidas:
    <!-- señala: tablero-armar-la-ruta -->
 
 **Si la ruta está «En curso»**, también se puede eliminar con confirmación y armar
-otra para los pedidos pendientes. Los resultados anteriores se conservan.
+otra para las facturas pendientes. Los resultados anteriores se conservan.
 **Si está completada**, no se modifica ni elimina: conserva su camión como histórico.
 
 > **Ojo:** mandar un camión al taller **no** le quita la ruta. La aplicación lo dice

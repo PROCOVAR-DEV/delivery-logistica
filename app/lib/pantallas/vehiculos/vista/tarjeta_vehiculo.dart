@@ -221,7 +221,7 @@ class TarjetaVehiculo extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '${vehiculo.pedidos} '
-            '${vehiculo.pedidos == 1 ? 'orden asignada' : 'órdenes asignadas'}',
+            '${vehiculo.pedidos == 1 ? 'factura asignada' : 'facturas asignadas'}',
             style: tema.textTheme.bodySmall?.copyWith(
               color: Colores.tintaSuave,
             ),

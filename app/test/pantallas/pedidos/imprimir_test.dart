@@ -105,10 +105,7 @@ void main() {
 
       // Sin nada marcado no hay franja de lo elegido: el unico boton de
       // pre-despacho que hay es el de lo filtrado.
-      expect(
-        find.byKey(PreDespacho.claveDelBotonDeLoFiltrado),
-        findsOneWidget,
-      );
+      expect(find.byKey(PreDespacho.claveDelBotonDeLoFiltrado), findsOneWidget);
       expect(find.byKey(PreDespacho.claveDelBotonDeLoElegido), findsNothing);
       // Y el `Ver e imprimir` NO esta en la pagina: vive dentro de la vista.
       expect(find.text(PreDespacho.verEImprimir), findsNothing);
@@ -119,7 +116,7 @@ void main() {
       await asentar(tester);
 
       expect(find.byKey(PreDespacho.claveDelBotonDeLoElegido), findsOneWidget);
-      expect(find.textContaining('8 pedido(s) elegidos'), findsOneWidget);
+      expect(find.textContaining('8 factura(s) elegidas'), findsOneWidget);
 
       await tester.tap(find.byKey(PreDespacho.claveDelBotonDeLoElegido));
       await asentar(tester);
@@ -127,10 +124,7 @@ void main() {
       // Se abre LA VISTA, con su titulo. `find.text` a secas no vale aqui:
       // detras del cajon sigue el boton de lo filtrado, que dice exactamente
       // `Pre-despacho` mientras no ha sumado nada.
-      expect(
-        find.widgetWithText(Cajon, PreDespacho.titulo),
-        findsOneWidget,
-      );
+      expect(find.widgetWithText(Cajon, PreDespacho.titulo), findsOneWidget);
       expect(find.byType(VistaPreDespacho), findsOneWidget);
 
       // Y de ahi, la hoja: otro cajon encima, con su propio titulo.
@@ -166,7 +160,10 @@ void main() {
 
     // Con la suma dentro, `Ver e imprimir` se enciende. Una hoja en blanco no
     // es una hoja, asi que antes de tenerla el boton esta apagado.
-    final imprimir = find.widgetWithText(FilledButton, PreDespacho.verEImprimir);
+    final imprimir = find.widgetWithText(
+      FilledButton,
+      PreDespacho.verEImprimir,
+    );
     expect(tester.widget<FilledButton>(imprimir).onPressed, isNotNull);
 
     await tester.tap(imprimir);

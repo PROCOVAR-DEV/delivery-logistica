@@ -385,10 +385,10 @@ void main() {
             'sirve de la pregunta',
       );
       expect(
-        find.textContaining('NO se borra son los pedidos'),
+        find.textContaining('NO se borra son las facturas'),
         findsOneWidget,
         reason:
-            'quien borra una ruta tiene que saber que los pedidos se quedan: si '
+            'quien borra una ruta tiene que saber que las facturas se quedan: si '
             'no, no borra y se queda con una ruta mal armada puesta',
       );
       expect(find.textContaining('el camión se queda libre'), findsOneWidget);

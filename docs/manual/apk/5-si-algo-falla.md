@@ -67,8 +67,8 @@ Esa parte no bajó. **No es que no haya datos: es que no están aquí.**
 1. **Toca la franja de arriba.**
 2. **Toca el botón de la nube con la flecha hacia arriba.**
 3. Baja hasta **«Rechazados, esperando a una persona»**.
-4. **Lee el motivo de cada uno.** Está con las palabras del servidor: «Ese pedido ya
-   va en otra ruta», «3 de los 8 pedidos ya están en otra ruta».
+4. **Lee el motivo de cada una.** Está con las palabras del servidor: «Esa factura ya
+   va en otra ruta», «3 de las 8 facturas ya están en otra ruta».
 5. Decide:
    - **«Reintentar»** — si el motivo ya no se da (por ejemplo, borraron la otra ruta).
    - **«Descartar»** — si ese cambio ya no tiene sentido. **Se pierde ese cambio**,
@@ -82,8 +82,8 @@ más a menudo.
 ### Si el rechazado es el cierre de una ruta
 
 Cuando completas una ruta, la hoja de paradas sube **entera**. Si el servidor rechaza
-una sola parada, el cierre de esa ruta aparece aquí con el motivo literal («<id> (ese
-pedido no va en esta ruta)») y **la ruta no se completa en el servidor hasta que
+una sola parada, el cierre de esa ruta aparece aquí con el motivo literal («<id> (esa
+factura no va en esta ruta)») y **la ruta no se completa en el servidor hasta que
 decidas**, aunque el teléfono ya te la enseñe como completada. Las demás rutas siguen
 subiendo.
 

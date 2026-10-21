@@ -49,7 +49,7 @@ Es la del repartidor y la del logístico que baja al patio del almacén.
 
 - **La primera vez que se abre** hace una configuración inicial con su porcentaje:
   «Configurando Reparto». Sólo pasa una vez.
-- **«Traer el día»** carga en el teléfono todo lo del día: pedidos, clientes,
+- **«Traer el día»** carga en el teléfono todo lo del día: facturas, clientes,
   productos, rutas, vehículos, almacenes. Se hace **donde haya señal**.
 - **Con el día dentro, el camino entero funciona sin señal**: armar una zona,
   armar su ruta, iniciarla, marcar las entregas con su motivo.

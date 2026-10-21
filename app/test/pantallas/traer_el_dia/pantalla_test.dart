@@ -95,7 +95,7 @@ void main() {
       );
       // Y por encima de las cuatro cifras: lo que no esta arriba no se hace.
       final boton = tester.getTopLeft(find.byType(FilledButton).first).dy;
-      final primeraCifra = tester.getTopLeft(find.text('Pedidos sin ruta')).dy;
+      final primeraCifra = tester.getTopLeft(find.text('Facturas sin ruta')).dy;
       expect(boton, lessThan(primeraCifra));
 
       await desmontar(tester);
@@ -113,7 +113,7 @@ void main() {
 
       expect(find.widgetWithText(FilledButton, 'Traer el día'), findsOneWidget);
       final boton = tester.getTopLeft(find.byType(FilledButton).first).dy;
-      final primeraCifra = tester.getTopLeft(find.text('Pedidos sin ruta')).dy;
+      final primeraCifra = tester.getTopLeft(find.text('Facturas sin ruta')).dy;
       expect(boton, lessThan(primeraCifra));
 
       await desmontar(tester);
@@ -173,7 +173,7 @@ void main() {
             'Panel tiene que seguir diciendo como quedo',
       );
       expect(
-        find.text('1 pedido · 2 clientes · 1 producto'),
+        find.text('1 factura · 2 clientes · 1 producto'),
         findsWidgets,
         reason: 'los numeros, que es lo que convierte el gesto en confianza',
       );

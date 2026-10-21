@@ -340,7 +340,7 @@ class _TarjetaDeRuta extends ConsumerWidget {
           'La ruta desaparece con su código, su fecha, el orden de visita y '
           'los kilómetros que se calcularon al armarla. Para tenerla otra vez '
           'hay que volver a armarla desde el asistente, a mano.\n\n'
-          'Lo que NO se borra son los pedidos ni sus resultados: sueltan esta '
+          'Lo que NO se borra son las facturas ni sus resultados: sueltan esta '
           'ruta. Los pendientes vuelven a la lista de disponibles; los '
           'entregados siguen entregados y no se reparten otra vez. Y '
           'el camión se queda libre.\n\n'

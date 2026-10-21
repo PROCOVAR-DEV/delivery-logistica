@@ -1687,6 +1687,8 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 			"puntoManual":    f.PuntoManual,
 			"puntoManualPor": f.PuntoManualPor,
 			"puntoManualAt":  hora(f.PuntoManualAt),
+			// De qué pedido de PEDIDO viene la factura (null si de ninguno): `orders.folio`, 00025.
+			"folio": f.Folio,
 			// El punto que traía el cliente (null si no es manual): el aparato vuelve a él sin
 			// conexión copiándolo a `endLat`/`endLng`/`endAddress`.
 			"puntoClienteLat":     f.PuntoClienteLat,

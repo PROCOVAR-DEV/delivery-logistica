@@ -83,7 +83,7 @@ $5212.78                                         Eliminar
 - **De dónde sale**, o «Sin punto de partida».
 - **«Sobrepeso»** en ámbar si la ruta pesa más que la capacidad del camión.
 - **El importe**, que **se suma de las paradas**. Si falta cotizar alguna sale en
-  ámbar: «— (2 de 5 sin cotizar)». Nunca sale `$0.00` por falta de datos. Un pedido
+  ámbar: «— (2 de 5 sin cotizar)». Nunca sale `$0.00` por falta de datos. Una factura
   que el vendedor no marcó a domicilio entra sin que Entrega lo cotice y cuenta en ese
   «sin cotizar» (ver [Qué significa cada número](../que-significa-cada-numero.md)).
 - **«Eliminar»** — **sólo si la ruta no está completada**, y **pregunta antes** (ver
@@ -99,7 +99,7 @@ dice qué se pierde:
 > que se calcularon al armarla. Para tenerla otra vez hay que volver a armarla desde
 > el asistente, a mano.
 >
-> Lo que NO se borra son los pedidos ni sus resultados: sueltan esta ruta. Los
+> Lo que NO se borra son las facturas ni sus resultados: sueltan esta ruta. Los
 > pendientes vuelven a la lista de disponibles; los entregados siguen entregados y
 > no se reparten otra vez. Y el camión se queda libre.
 >
@@ -114,7 +114,7 @@ contestar —la ✕, tocar fuera, Escape— es No.**
 
 Una ruta que se armó con **«Armar la ruta de esta zona»** se acuerda de la zona de la
 que salió. Si la borras, **las facturas vuelven a esa zona** del tablero: no se pierde
-la relación y no hay que volver a crear la zona ni a repartir los pedidos a mano.
+la relación y no hay que volver a crear la zona ni a repartir las facturas a mano.
 Se pueden volver a planificar desde donde estaban.
 
 - **En la web** pasa en el acto: al volver al tablero, las facturas ya están en su
@@ -123,7 +123,7 @@ Se pueden volver a planificar desde donde estaban.
   suba **las facturas salen en «Sin colocar»**, no en su zona. En cuanto vuelve la
   señal sube el borrado, baja el tablero y cada factura aparece donde estaba. No hay
   que hacer nada para que vuelvan.
-- Si la ruta **no** salió del tablero, no hay zona a la que volver: sus pedidos
+- Si la ruta **no** salió del tablero, no hay zona a la que volver: sus facturas
   vuelven sólo a la lista de disponibles.
 - **Una ruta completada es histórico y no se borra**: el botón «Eliminar» ni
   aparece.
@@ -133,12 +133,12 @@ paradas cargadas o con resultados provisionales. Una marca no completa la ruta.
 **Al completarla queda protegida como histórico:** no se modifica ni elimina.
 El cierre de una completada sólo se consulta.
 
-Borrar una ruta viva conserva los pedidos y sus resultados. Los pendientes y
+Borrar una ruta viva conserva las facturas y sus resultados. Los pendientes y
 devueltos quedan disponibles; los entregados siguen entregados y no se reparten
 otra vez.
 
 **Un devuelto o cancelado que vuelve a meterse en otra ruta empieza de cero**: entra
-como un pedido cualquiera, **sin el resultado de la vez anterior** (ni el resultado, ni su
+como una factura cualquiera, **sin el resultado de la vez anterior** (ni el resultado, ni su
 nota, ni la hora de entrega), y se marca de nuevo al cerrar la ruta nueva. Es lo mismo
 si lo metes con el asistente «Nueva Ruta» que si lo armas desde una zona del Tablero. Un
 **entregado**, en cambio, no se puede volver a meter en una ruta.
@@ -228,7 +228,7 @@ En una ruta **planificada**, cada parada lleva además el botón **«Quitar de r
 
 **«Ubicar la entrega»** sale junto a él en **cada parada que no esté entregada, mientras
 la ruta no esté completada** (también en una ruta en curso). Abre el cajón donde se le
-pone a mano el punto de entrega a ese pedido —el cliente pidió entregar en otro sitio—;
+pone a mano el punto de entrega a esa factura —el cliente pidió entregar en otro sitio—;
 ver [Poner el punto de entrega a mano](pedidos.md#ubicar-la-entrega--el-punto-de-entrega-puesto-a-mano).
 Una parada con el punto puesto a mano lleva la etiqueta **«Punto puesto a mano»**.
 
@@ -270,7 +270,7 @@ Los «no» posibles, letra por letra:
 
 ### «Quitar de ruta» — sacar UNA parada sin borrar la ruta
 
-Sirve para cuando sobra un pedido en una ruta que todavía no ha salido: ya no hace
+Sirve para cuando sobra una factura en una ruta que todavía no ha salido: ya no hace
 falta eliminar la ruta entera y volver a armarla.
 
 1. En «Ver paradas», en la tarjeta de la parada, **«Quitar de ruta»**.
@@ -278,7 +278,7 @@ falta eliminar la ruta entera y volver a armarla.
    cliente y su conduce debajo («Factura 47061 · 15/10/2026 · Casa Pérez · Conduce:
    PTB25-261005-1480»; sin número, «Sin número de factura · Casa Pérez · …»):
 
-   > «Casa Pérez sale de esta ruta y vuelve a pedidos disponibles. La ruta se queda
+   > «Casa Pérez sale de esta ruta y vuelve a facturas disponibles. La ruta se queda
    > con las demás paradas y su peso y su importe se recalculan sin él.
    >
    > Si la ruta se armó desde una zona del tablero, la factura regresa a esa zona
@@ -294,7 +294,7 @@ Lo que pasa al decir que sí:
 - **Los kilómetros de la ruta no se recalculan** («68.0 km (incl. regreso)» sigue siendo
   el circuito que se midió al armarla) **y las demás paradas no se renumeran** (puede
   quedar un hueco en la numeración). Lo que sí se recalcula es el peso y el importe.
-- **El pedido vuelve a la lista de pedidos disponibles** y puede ir en otra ruta.
+- **La factura vuelve a la lista de facturas disponibles** y puede ir en otra ruta.
 - **Si la ruta nació del tablero, la factura vuelve a su zona del tablero**, igual
   que al borrar la ruta entera.
 - **En la web** se hace al instante. **En la APK y el escritorio, sin señal**, el
@@ -303,8 +303,8 @@ Lo que pasa al decir que sí:
 
 **Sólo en una ruta planificada.** Una ruta en curso o completada no lo permite. Si
 llega a pedirse (otro aparato la había iniciado ya), el servidor lo dice con su motivo:
-«Sólo se pueden retirar paradas de una ruta planificada» o «El pedido no pertenece a
-una ruta planificada o ya fue retirado». Para sacar un pedido de una ruta en curso, se
+«Sólo se pueden retirar paradas de una ruta planificada» o «La factura no pertenece a
+una ruta planificada o ya fue retirada». Para sacar una factura de una ruta en curso, se
 marca como devuelto o cancelado en el cierre.
 
 ### «Recorrido» — el mapa
@@ -356,7 +356,7 @@ total: «MALTA GUAJIRA ×48».
 
 Debajo de «Carga total», **en todas las rutas** —las que armas a mano con «+ Nueva
 Ruta» y las que salen de una zona del Tablero—, está el mismo pre-despacho que ves
-al elegir los pedidos en el asistente: la tabla producto a producto (empaques,
+al elegir las facturas en el asistente: la tabla producto a producto (empaques,
 unidades y kilos), los dos pesos con su rótulo, y el botón **«Ver e imprimir»**,
 que abre la hoja con la que se baja al almacén.
 
@@ -374,10 +374,10 @@ Dos cosas que conviene saber:
 
 - Un peso que no se sabe sale **«—»**, y un subtotal con **«≥»** delante es un
   mínimo: a alguna factura le falta el peso y lo que ves es lo que sí se sabe.
-- Si un pedido no trae número de factura sale como **«Sin número»** al final de su
-  producto (nunca con el número del pedido), y si una factura no trae ni un
-  renglón sale al final de la tabla como **«Sin renglones»**: no desaparece. Un
-  pedido con dos facturas lleva las dos en la misma fila, porque no se sabe qué
+- Si una entrega no trae número de factura sale como **«Sin número»** al final de su
+  producto (nunca con el número de operación), y si una factura no trae ni un
+  renglón sale al final de la tabla como **«Sin renglones»**: no desaparece. Una
+  entrega con dos facturas lleva las dos en la misma fila, porque no se sabe qué
   renglón es de cuál.
 
 ---
@@ -385,11 +385,11 @@ Dos cosas que conviene saber:
 ## El asistente «Nueva Ruta»
 
 Se abre con **«+ Nueva Ruta»**. Son **cuatro pasos**: **«Sucursal»**,
-**«Salida»**, **«Vehículo»** y **«Pedidos»**. Abajo, siempre, **«Cancelar»** y
+**«Salida»**, **«Vehículo»** y **«Facturas»**. Abajo, siempre, **«Cancelar»** y
 **«Generar Ruta»**.
 
 **«Generar Ruta» está apagado** hasta que haya salida, haya vehículo, haya al
-menos un pedido elegido y no haya sobrepeso.
+menos una factura elegida y no haya sobrepeso.
 
 ### Paso 1 — «Sucursal»
 
@@ -451,7 +451,7 @@ Si no hay camiones:
   un vehículo activo. Actívalo en Vehículos.» Es el caso de una sucursal que **sí tiene
   camiones**, pero ninguno se puede ofrecer.
 
-### Paso 4 — «Pedidos de cliente (12)»
+### Paso 4 — «Facturas de cliente (12)»
 
 Los filtros:
 
@@ -459,8 +459,8 @@ Los filtros:
 |---|---|
 | «Sucursal de la ruta» | la del paso 1 |
 | «Desde (fecha de la factura)» / «Hasta (fecha de la factura)» | vacías. Los dos días entran; con «Desde» puesto aparece «sólo ese día», y la ✕ las quita |
-| «Buscar pedido...» | vacío |
-| «Vendedor del pedido» | «Todos los vendedores». **Uno o varios**: casillas en un cajón, entran los pedidos de cualquiera de los marcados, y la caja dice «3 vendedores» |
+| «Buscar factura...» | vacío |
+| «Vendedor del pedido» | «Todos los vendedores». **Uno o varios**: casillas en un cajón, entran las facturas de cualquiera de los marcados, y la caja dice «3 vendedores» |
 | «Municipio del cliente» | «Todos los municipios» |
 | «km máx.» | sin tope. Se aplica al salir del campo |
 | «costo mín.» | sin tope |
@@ -470,22 +470,22 @@ Los filtros:
 
 **«Limpiar»** vuelve a «Sólo con domicilio», no a «sin nada».
 
-**Cada pedido de la lista** lleva primero **el número de factura con su fecha** (en negrita:
+**Cada factura de la lista** lleva primero **el número de factura con su fecha** (en negrita:
 `Factura 47061 · 15/10/2026`; «Sin número de factura» en gris si no lo tiene) y debajo el
 cliente. A la derecha lleva un botón pequeño, con el tooltip **«Ubicar la entrega»**: abre
-el cajón para ponerle a mano el punto de entrega a ese pedido, sin salir del asistente.
-**Pulsarlo no marca ni desmarca el pedido.**
+el cajón para ponerle a mano el punto de entrega a esa factura, sin salir del asistente.
+**Pulsarlo no marca ni desmarca la factura.**
 
-**Cuidado con «costo mín.»:** un pedido sin cotizar cuenta como cero, así que
+**Cuidado con «costo mín.»:** una factura sin cotizar cuenta como cero, así que
 cualquier «costo mín.» mayor que cero lo deja fuera.
 
-#### Qué pedidos se ofrecen: lo facturado y con el domicilio cobrado
+#### Qué facturas se ofrecen: lo facturado y con el domicilio cobrado
 
-Esta lista **sólo trae pedidos que cumplen las tres cosas a la vez**. Los demás no se
+Esta lista **sólo trae facturas que cumplen las tres cosas a la vez**. Los demás no se
 ofrecen, y no hay filtro que los haga salir:
 
 1. **Facturados**, cuadren o no con lo pedido. Si la factura cambió («Cambió en la
-   factura»), el pedido **sí entra**: al camión va lo facturado, porque sus productos ya
+   factura»), **sí entra**: al camión va lo facturado, porque sus productos ya
    son los de la factura.
 2. **Con el domicilio cobrado**: la factura trae un importe de domicilio **mayor que
    cero**. El domicilio es un servicio que se cobra; sin cobro no se reparte.
@@ -503,12 +503,12 @@ Esto no se puede cambiar con los filtros. Los dos del final («Si lleva domicili
   con domicilio», que es como arranca, no deja fuera a nadie**, tampoco a los que el
   vendedor no marcó (hasta el 15/10/2026 sí los escondía), y «Sólo sin domicilio» sale
   vacío.
-- **«Sin cotizar» sólo puede traer pedidos que el vendedor no marcó** (los marcados sin
+- **«Sin cotizar» sólo puede traer facturas que el vendedor no marcó** (los marcados sin
   cotizar no entran).
 
 **Por eso la lista puede salir corta**, sobre todo mientras Entrega no haya cotizado
 más domicilios. No es un fallo: lo que falta no se ha cobrado o no se ha cotizado, y se
-arregla cobrando o cotizando en Entrega, no en esta pantalla. El Panel («Pedidos sin
+arregla cobrando o cotizando en Entrega, no en esta pantalla. El Panel («Facturas sin
 ruta») cuenta con este mismo criterio, y la mitad «Sin colocar» del Tablero también
 (ver [Tablero](tablero.md)).
 
@@ -521,13 +521,13 @@ ruta») cuenta con este mismo criterio, y la mitad «Sin colocar» del Tablero t
 Verde por debajo del 80 %, ámbar entre 80 y 99, roja al 100 % o más. Al llegar al
 100 % sale **«LLENO»** y **«Camión lleno — no cabe más»**.
 
-Las filas de los pedidos que ya no caben **se apagan**, no se esconden, con el
+Las filas de las facturas que ya no caben **se apagan**, no se esconden, con el
 motivo: **«No cabe en el camión»**.
 
 ### Elegir una zona entera del tablero
 
 Las zonas del Tablero salen en esta lista con su propia casilla, que marca la zona
-completa. Debajo: «12 pedidos · 340 kg · camión: Camión 1» o «… · sin camión
+completa. Debajo: «12 facturas · 340 kg · camión: Camión 1» o «… · sin camión
 previsto».
 
 Al marcarla, un aviso dice exactamente qué entró y qué no:
@@ -540,17 +540,17 @@ tienes un botón **«Dejar el mío»**.
 
 ### La línea de resumen
 
-> «12 pedidos seleccionados (2 de otro día o filtro, siguen contando)»
+> «12 facturas seleccionadas (2 de otro día o filtro, siguen contando)»
 
-Ese «siguen contando» es importante: los pedidos que elegiste y luego dejaron de
+Ese «siguen contando» es importante: las facturas que elegiste y luego dejaron de
 salir con los filtros **siguen en la ruta y siguen sumando peso**.
 
 ### El pre-despacho del asistente
 
 Caja **«Pre-despacho»** con **«Ver e imprimir»**. Vacía dice: «Según vayas
-eligiendo pedidos, aquí sale cuánto hay que sacar de cada producto.»
+eligiendo facturas, aquí sale cuánto hay que sacar de cada producto.»
 
-En el teléfono es un botón: **«Pre-despacho — elige pedidos primero»** (apagado) o
+En el teléfono es un botón: **«Pre-despacho — elige facturas primero»** (apagado) o
 **«Pre-despacho de los 12 elegidos»**.
 
 ---
@@ -563,22 +563,22 @@ comprueban en este orden:
 1. **«Las coordenadas del punto de partida son requeridas»**
 2. **«Se requiere un vehículo para crear la ruta»** — éste es el motivo de que
    **no se pueda armar una ruta sin camión**. Es bloqueo, no aviso.
-3. **«Una ruta se arma eligiendo pedidos ya existentes.»**
-4. **Pedidos que no pueden ir**, con el motivo de cada uno:
+3. **«Una ruta se arma eligiendo facturas ya existentes.»**
+4. **Facturas que no pueden ir**, con el motivo de cada una:
 
-   > «2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya
+   > «2 de las 12 facturas elegidas no pueden ir en esta ruta: PTB25-261005-1480 (ya
    > va en la ruta RT-20260922-003), PTB25-261005-1502 (sin coordenadas de entrega).»
 
    Los motivos posibles: «ya se entregó y no puede volver a un camión», «ya va en
    la ruta RT-…», «PEDIDO lo archivó», «sin coordenadas de entrega», «no vino de
    PEDIDO».
-5. **Facturación** — lo que no tiene factura. Cada pedido sale por su conduce, con su
+5. **Facturación** — lo que no tiene factura. Cada factura sale por su conduce, con su
    motivo:
 
    > «En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin
    > facturar), PTB25-261005-1502 (sin cotejar), PTB25-261005-1511 (sin facturar).»
 
-   Un pedido que cambió en la factura **no** sale aquí: entra, con lo facturado.
+   Una factura que cambió **no** sale aquí: entra, con lo facturado.
 6. **Domicilio cobrado** — la factura no trae importe de domicilio:
 
    > «En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen:
@@ -586,10 +586,10 @@ comprueban en este orden:
 7. **Domicilio cotizado** — el vendedor marcó domicilio y Entrega todavía no le puso
    costo:
 
-   > «No se puede crear la ruta: 2 pedidos no tienen cotizado el domicilio en
+   > «No se puede crear la ruta: 2 facturas no tienen cotizado el domicilio en
    > Entrega: PTB25-261005-1480, PTB25-261005-1502.»
 
-   En los tres, **salen como mucho cinco pedidos** y, si hay más, acaba en «y 4
+   En los tres, **salen como mucho cinco facturas** y, si hay más, acaba en «y 4
    más.». Se nombran por el conduce (el número de operación de la factura).
 8. **Camión de baja**:
 
@@ -650,7 +650,7 @@ Se recalcula con cada marca, en vivo:
 - Si queda: una insignia por producto, «MALTA GUAJIRA ×36».
 - Y un aviso que hay que leer:
 
-  > «2 paradas no se entregaron y sus pedidos no traen renglones: NO CONSTA qué
+  > «2 paradas no se entregaron y sus facturas no traen renglones: NO CONSTA qué
   > baja del camión. Cuéntalo a mano contra la lista de abajo.»
 
 ### Los botones de abajo
@@ -670,8 +670,8 @@ Al guardar, los resultados de las paradas quedan registrados. Después la ruta p
 ### Si el servidor guarda unas paradas y rechaza otras
 
 Pasa cuando una parada de la hoja ya no pertenece a la ruta para el servidor: por
-ejemplo, la hoja trae 2 paradas, una se guarda y de la otra el servidor dice «ese
-pedido no va en esta ruta». **Cada forma lo maneja distinto**, y a propósito:
+ejemplo, la hoja trae 2 paradas, una se guarda y de la otra el servidor dice «esa
+factura no va en esta ruta». **Cada forma lo maneja distinto**, y a propósito:
 
 - **En la web, lo guardado vale, y se te obliga a acusar recibo.** El servidor guarda
   las paradas buenas y rechaza las otras, la ruta se completa con lo guardado, y sale un
@@ -682,8 +682,8 @@ pedido no va en esta ruta». **Cada forma lo maneja distinto**, y a propósito:
   >
   > Estas paradas se quedaron sin resultado. Apunta su conduce y corrígelas en PEDIDO.
   >
-  > **Conduce PTB25-261005-1480: ese pedido no va en esta ruta**
-  > **Conduce PTB25-261005-1502: ese pedido no va en esta ruta**
+  > **Conduce PTB25-261005-1480: esa factura no va en esta ruta**
+  > **Conduce PTB25-261005-1502: esa factura no va en esta ruta**
 
   Con una sola parada, el título es «Ruta completada: 1 parada no se guardó». Cada
   línea es el **conduce** (el número de operación de la factura) y el motivo tal cual
@@ -727,13 +727,13 @@ pedido no va en esta ruta». **Cada forma lo maneja distinto**, y a propósito:
 ### Pre-despacho — antes de salir
 
 Se saca del **paso 4 del asistente**, con «Ver e imprimir». Título del cajón:
-**«Hoja de pre-despacho»**, con «12 pedido(s) · 340.5 kg». El fichero se llama
+**«Hoja de pre-despacho»**, con «12 factura(s) · 340.5 kg». El fichero se llama
 `pre-despacho.pdf`.
 
-Lleva: sucursal y vehículo, el día, cuántos pedidos, el peso, y una tabla de
+Lleva: sucursal y vehículo, el día, cuántas facturas, el peso, y una tabla de
 **«Producto» | «Empaques» | «Unidades» | «kg» | «Sacado»** —la última en blanco,
 para ir marcando a mano—, con su fila de **«Total»**, los dos pesos («Peso de los
-productos» y «Peso de los pedidos») con su explicación, y las dos firmas: **«Sacó
+productos» y «Peso de las facturas») con su explicación, y las dos firmas: **«Sacó
 del almacén»** y **«Recibió (chofer)»**.
 
 ## Post-despacho — al volver
@@ -774,9 +774,9 @@ El tope es de **25 paradas**, y lo que se queda fuera se dice en el propio mensa
 ## Lo que Rutas NO hace
 
 - **Una parada sólo se quita de una ruta planificada.** Con **«Quitar de ruta»**, en
-  «Ver paradas». En una ruta en curso no hay ese botón: para sacar un pedido hay que
-  **marcarlo como devuelto o cancelado en el cierre** o **eliminar la ruta entera**;
-  en una completada no se toca nada (es histórico). En todos los casos el pedido
+  «Ver paradas». En una ruta en curso no hay ese botón: para sacar una factura hay que
+  **marcarla como devuelta o cancelada en el cierre** o **eliminar la ruta entera**;
+  en una completada no se toca nada (es histórico). En todos los casos la factura
   vuelve a estar disponible.
 - **No se reordena una ruta completada**: es histórico. Las demás, sí (ver «Reordenar las
   paradas»).

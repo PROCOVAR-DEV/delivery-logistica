@@ -44,25 +44,28 @@ void main() {
     });
   });
 
-  group('la cabecera de Pedidos', () {
+  group('la cabecera de Facturas', () {
     String conteo(int total) =>
         textoDelConteo(total, const FiltrosPedidos(), _dia);
 
-    test('un solo pedido no son «1 pedidos»', () {
-      expect(conteo(1), startsWith('1 pedido,'));
-      expect(conteo(1), isNot(contains('1 pedidos')));
+    test('una sola factura no son «1 facturas»', () {
+      expect(conteo(1), startsWith('1 factura,'));
+      expect(conteo(1), isNot(contains('1 facturas')));
     });
 
     test('y el cero y el resto siguen en plural', () {
-      expect(conteo(0), startsWith('0 pedidos,'));
-      expect(conteo(299), startsWith('299 pedidos,'));
+      expect(conteo(0), startsWith('0 facturas,'));
+      expect(conteo(299), startsWith('299 facturas,'));
     });
   });
 
   group('el pre-despacho', () {
     test('el subtítulo del cajón: ni «producto(s)» ni «1 empaques»', () {
       final uno = _conProductos(1, empaques: 1);
-      expect(resumenDelPreDespacho(uno), startsWith('1 producto · 1 empaque · '));
+      expect(
+        resumenDelPreDespacho(uno),
+        startsWith('1 producto · 1 empaque · '),
+      );
       // El `(s)` se queda en el PAPEL, que es el punto de paridad con la hoja
       // de Next; en la pantalla no hay nada con lo que cuadrar.
       expect(resumenDelPreDespacho(uno), isNot(contains('(s)')));

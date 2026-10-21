@@ -840,15 +840,19 @@ void main() {
         ('DELETE', '/board/columns/$id?destino=x', 'Borrar una zona'),
         ('PUT', '/board/columns/orden?branchId=b1', 'Reordenar las zonas'),
         ('POST', '/board/columns/$id/route', 'Crear una ruta desde una zona'),
-        ('PUT', '/board/placements/o-1', 'Mover un pedido a una zona'),
-        ('DELETE', '/board/placements/o-1', 'Sacar un pedido de una zona'),
+        ('PUT', '/board/placements/o-1', 'Mover una factura a una zona'),
+        ('DELETE', '/board/placements/o-1', 'Sacar una factura de una zona'),
         // El punto de entrega puesto a mano (issue 19): PUT lo pone, DELETE vuelve al del
         // cliente, y las dos se leen igual para quien revisa.
-        ('PUT', '/orders/$id/punto', 'Poner el punto de entrega de un pedido a mano'),
+        (
+          'PUT',
+          '/orders/$id/punto',
+          'Poner el punto de entrega de una factura a mano',
+        ),
         (
           'DELETE',
           '/orders/$id/punto',
-          'Poner el punto de entrega de un pedido a mano',
+          'Poner el punto de entrega de una factura a mano',
         ),
         // Con `/api` delante y el metodo en minusculas: igual.
         ('delete', '/api/routes/$id', 'Borrar una ruta'),

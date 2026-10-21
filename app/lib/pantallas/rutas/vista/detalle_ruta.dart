@@ -628,7 +628,7 @@ Future<bool> preguntarAntesDeQuitar(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              '«$cliente» sale de esta ruta y vuelve a pedidos disponibles. '
+              '«$cliente» sale de esta ruta y vuelve a facturas disponibles. '
               'La ruta se queda con las demás paradas y su peso y su importe '
               'se recalculan sin él.\n\n'
               'Si la ruta se armó desde una zona del tablero, la factura '

@@ -18,7 +18,7 @@ Franja de arriba o Panel, botón **«Traer el día»**.
 
 > «Cárgalo donde haya señal y llévatelo: el día entero se trabaja sin conexión.»
 
-Al terminar dice qué te llevas: «308 pedidos · 1.842 clientes · 129 productos», con
+Al terminar dice qué te llevas: «308 facturas · 1.842 clientes · 129 productos», con
 sus líneas, y «Y lo de siempre: vehículos, sucursales, almacenes y ajustes».
 
 **Si falta algo, lo dice con nombre y con qué se rompe sin ello.** Entonces:
@@ -42,7 +42,7 @@ y no se cambia.
 
 De un vistazo:
 
-- **«Pedidos sin ruta»** y debajo cuántos kilos hay por mover.
+- **«Facturas sin ruta»** y debajo cuántos kilos hay por mover.
 - **«Rutas en marcha»** — los camiones que están fuera.
 - **«Entregados hoy»**.
 - **«Vehículos»** — «3 / 8» en ruta sobre el total.
@@ -53,7 +53,7 @@ y dónde se arregla. Las cuatro cosas, en orden y con quién hace cada una, est�
 [Dejar una sucursal lista para trabajar](puesta-en-marcha.md).
 
 Y **«Pendiente por sucursal»** te dice por dónde empezar: las sucursales salen
-ordenadas de más a menos pedidos pendientes.
+ordenadas de más a menos facturas pendientes.
 
 ---
 
@@ -63,10 +63,10 @@ ordenadas de más a menos pedidos pendientes.
 
 1. **Comprueba arriba desde qué almacén se mide** («Granma · desde Bayamo
    (Granma)»). Ese punto decide los kilómetros de cada tarjeta y lo que se cobra.
-   Si vas a preparar la zona de otro almacén, elígelo ahí: sus pedidos salen
+   Si vas a preparar la zona de otro almacén, elígelo ahí: sus facturas salen
    primero en «Sin colocar», del más cercano al más lejano.
 2. **Mira los avisos rojos**, si los hay: «3 archivados en PEDIDO», «2 ya en otra
-   ruta». Son pedidos ya colocados que hoy no salen.
+   ruta». Son facturas ya colocadas que hoy no salen.
 3. **Filtra la izquierda** si te conviene: por municipio, por vendedor (uno o varios), por día o
    por «Hasta cuántos km del almacén».
 4. **Crea las zonas** con el botón **«Nueva columna»** (lleva un `+`): «Centro»,
@@ -79,15 +79,15 @@ ordenadas de más a menos pedidos pendientes.
    medida que salen sus rutas y se vuelven a llenar.
 5. **Ponle el camión a cada zona**: **⋮ → «Camión previsto»**. **Hazlo ahora**, no al
    final: sin camión la zona no arma ruta.
-6. **Reparte los pedidos.** Arrastrando en pantalla grande, o tocando la tarjeta y
+6. **Reparte las facturas.** Arrastrando en pantalla grande, o tocando la tarjeta y
    eligiendo la zona en el teléfono.
 7. **Mira la cabecera de cada zona** mientras repartes: «1.210 kg / 1.000 kg · 41,00
    USD». Si aparece **«no cabe»** en ámbar, esa carga pasa de lo que aguanta el
    camión. Es un aviso, no un bloqueo: la ruta se arma igual, pero alguien va a tener
    que dejar algo en el almacén.
 
-**Ejemplo:** tienes 102 pedidos sin colocar en Santiago. Arrastras los de Vista
-Alegre a esa zona y su cabecera queda en «3 pedidos · 516 kg · Camión: F-350». Ya
+**Ejemplo:** tienes 102 facturas sin colocar en Santiago. Arrastras las de Vista
+Alegre a esa zona y su cabecera queda en «3 facturas · 516 kg · Camión: F-350». Ya
 está lista para armar.
 
 ---
@@ -97,7 +97,7 @@ está lista para armar.
 **⋮ → «Armar la ruta de esta zona»**.
 
 - **El orden que va es el que dejaste tú.** La aplicación no lo reordena.
-- **Sólo entran los pedidos repartibles.** Los que no, se quedan en la zona,
+- **Sólo entran las facturas repartibles.** Las que no, se quedan en la zona,
   marcados con su motivo. No desaparece nada.
 - Si sale bien: «Ruta armada con lo que se puede repartir de «Centro».» y **la
   aplicación salta sola a Rutas**, pestaña «Planificadas», con la ruta ya abierta.
@@ -111,7 +111,7 @@ dentro del día.
 ### Si no quieres armar por zonas
 
 En Rutas hay **«+ Nueva Ruta»**, un asistente de cuatro pasos: **«Sucursal»**,
-**«Salida»**, **«Vehículo»** y **«Pedidos»**. Es el camino largo, y sirve cuando la
+**«Salida»**, **«Vehículo»** y **«Facturas»**. Es el camino largo, y sirve cuando la
 ruta no sale de una zona entera.
 
 ---
@@ -174,8 +174,8 @@ Al completarla:
 
 - La ruta pasa al **«Historial»**.
 - **El camión queda libre.**
-- Los pedidos no entregados **vuelven a estar disponibles** para mañana. Si uno de
-  ellos (devuelto o cancelado) se mete en otra ruta, **empieza de cero**: no lleva el
+- Las facturas no entregadas **vuelven a estar disponibles** para mañana. Si una de
+  ellas (devuelto o cancelado) se mete en otra ruta, **empieza de cero**: no lleva el
   resultado de la vez anterior, y se marca de nuevo al cerrar la ruta nueva.
 
 **Y saca el post-despacho** antes de descargar el camión: es la hoja de «Tiene que
@@ -203,7 +203,7 @@ para los demás ese trabajo no existe.
 
 ## Al día siguiente
 
-Lo que quedó sin repartir **sigue ahí**: los pedidos no entregados soltaron su ruta
+Lo que quedó sin repartir **sigue ahí**: las facturas no entregadas soltaron su ruta
 y vuelven a estar disponibles.
 
 **Las zonas del Tablero se quedan.** No se borran por la noche, y no hace falta

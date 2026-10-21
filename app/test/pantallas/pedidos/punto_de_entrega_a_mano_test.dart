@@ -260,7 +260,7 @@ void main() {
       await expectLater(
         () => enElAparato.ponerPunto('p1', lat: 0.02, lng: 0.30),
         rechazoCon(
-          'El pedido ya está entregado: no se le puede cambiar el punto',
+          'La factura ya está entregada: no se le puede cambiar el punto',
         ),
       );
       expect((await elPedido()).puntoManual, isFalse);
@@ -274,7 +274,7 @@ void main() {
         await expectLater(
           () => enElAparato.ponerPunto('p1', lat: 0.02, lng: 0.30),
           rechazoCon(
-            'El pedido ya está entregado: no se le puede cambiar el punto',
+            'La factura ya está entregada: no se le puede cambiar el punto',
           ),
         );
       },
@@ -370,7 +370,7 @@ void main() {
       await sembrar();
       await expectLater(
         () => enElAparato.volverAlPuntoDelCliente('p1'),
-        rechazoCon('El pedido no tiene un punto puesto a mano'),
+        rechazoCon('La factura no tiene un punto puesto a mano'),
       );
       expect(await cola.lote(), isEmpty);
     });
@@ -383,7 +383,7 @@ void main() {
       await expectLater(
         () => enElAparato.volverAlPuntoDelCliente('p1'),
         rechazoCon(
-          'El pedido no guardó el punto del cliente: no se puede volver a él',
+          'La factura no guardó el punto del cliente: no se puede volver a él',
         ),
       );
       expect((await elPedido()).puntoManual, isTrue);

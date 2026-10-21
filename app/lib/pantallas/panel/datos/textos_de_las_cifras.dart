@@ -38,7 +38,7 @@ abstract final class TextosDeLasCifras {
   /// El gesto de la tarjeta de «Entregados hoy». Literal aquí para que la prueba
   /// busque lo que se lee —o lo que oye quien usa un lector de pantalla— y no un
   /// identificador interno.
-  static const verLosEntregados = 'Ver los pedidos entregados hoy';
+  static const verLosEntregados = 'Ver las facturas entregadas hoy';
 
   /// Lo que va debajo del número de «Entregados hoy».
   ///

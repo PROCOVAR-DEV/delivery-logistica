@@ -804,6 +804,7 @@ marcados AS (
         o.factura_numero, o.factura_at, o.factura_domicilio, o.factura_corregido_at,
         o.items_origen, o.almacen_salida_codigo,
         o.punto_manual, o.punto_manual_por, o.punto_manual_at,
+        o.folio,
         o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
         o.stop_order, o.delivered_at, o.resultado, o.resultado_at, o.resultado_nota,
         o.created_at, o.updated_at,
@@ -834,6 +835,8 @@ SELECT
     -- El punto de entrega puesto a mano (00024): el aparato pinta la parada diferenciada y no
     -- hay otra forma de saberlo sin señal. Lo ata ` + "`" + `la_bajada_no_pierde_campos_test.go` + "`" + `.
     punto_manual, punto_manual_por, punto_manual_at,
+    -- De qué pedido de PEDIDO viene la factura (` + "`" + `orders.folio` + "`" + `, 00025): la tabla lo dice.
+    folio,
     -- El punto que traía el cliente (null si no es manual): el aparato vuelve a él SIN conexión copiando
     -- estos tres a ` + "`" + `endLat` + "`" + `/` + "`" + `endLng` + "`" + `/` + "`" + `endAddress` + "`" + `.
     punto_cliente_lat, punto_cliente_lng, punto_cliente_address,
@@ -899,6 +902,7 @@ type DiferenciasDePedidosRow struct {
 	PuntoManual         bool               `json:"punto_manual"`
 	PuntoManualPor      *string            `json:"punto_manual_por"`
 	PuntoManualAt       pgtype.Timestamptz `json:"punto_manual_at"`
+	Folio               *string            `json:"folio"`
 	PuntoClienteLat     *float64           `json:"punto_cliente_lat"`
 	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
 	PuntoClienteAddress *string            `json:"punto_cliente_address"`
@@ -1009,6 +1013,7 @@ func (q *Queries) DiferenciasDePedidos(ctx context.Context, arg DiferenciasDePed
 			&i.PuntoManual,
 			&i.PuntoManualPor,
 			&i.PuntoManualAt,
+			&i.Folio,
 			&i.PuntoClienteLat,
 			&i.PuntoClienteLng,
 			&i.PuntoClienteAddress,
@@ -1607,6 +1612,7 @@ SELECT
     o.municipio, o.vendedor, o.sucursal_codigo, o.branch_id, o.updated_at,
     o.punto_manual, o.punto_manual_por, o.punto_manual_at,
     o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
+    o.folio,
     r.name          AS ruta_nombre,
     r.route_code    AS ruta_codigo,
     r.status        AS ruta_estado,
@@ -1760,6 +1766,7 @@ type ListarPedidosRow struct {
 	PuntoClienteLat     *float64           `json:"punto_cliente_lat"`
 	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
 	PuntoClienteAddress *string            `json:"punto_cliente_address"`
+	Folio               *string            `json:"folio"`
 	RutaNombre          *string            `json:"ruta_nombre"`
 	RutaCodigo          *string            `json:"ruta_codigo"`
 	RutaEstado          *RouteStatus       `json:"ruta_estado"`
@@ -1843,6 +1850,7 @@ func (q *Queries) ListarPedidos(ctx context.Context, arg ListarPedidosParams) ([
 			&i.PuntoClienteLat,
 			&i.PuntoClienteLng,
 			&i.PuntoClienteAddress,
+			&i.Folio,
 			&i.RutaNombre,
 			&i.RutaCodigo,
 			&i.RutaEstado,
@@ -2487,6 +2495,7 @@ SELECT
     o.created_at, o.updated_at,
     o.punto_manual, o.punto_manual_por, o.punto_manual_at,
     o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
+    o.folio,
     r.name  AS ruta_nombre,
     v.name  AS vehiculo_nombre,
     v.plate AS vehiculo_matricula,
@@ -2562,6 +2571,7 @@ type ObtenerPedidoRow struct {
 	PuntoClienteLat     *float64           `json:"punto_cliente_lat"`
 	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
 	PuntoClienteAddress *string            `json:"punto_cliente_address"`
+	Folio               *string            `json:"folio"`
 	RutaNombre          *string            `json:"ruta_nombre"`
 	VehiculoNombre      *string            `json:"vehiculo_nombre"`
 	VehiculoMatricula   *string            `json:"vehiculo_matricula"`
@@ -2629,6 +2639,7 @@ func (q *Queries) ObtenerPedido(ctx context.Context, arg ObtenerPedidoParams) (O
 		&i.PuntoClienteLat,
 		&i.PuntoClienteLng,
 		&i.PuntoClienteAddress,
+		&i.Folio,
 		&i.RutaNombre,
 		&i.VehiculoNombre,
 		&i.VehiculoMatricula,

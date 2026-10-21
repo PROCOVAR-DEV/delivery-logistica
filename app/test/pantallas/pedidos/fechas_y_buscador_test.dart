@@ -98,14 +98,14 @@ void main() {
     await pintar(tester);
 
     // El arranque acotado: 8 de los 11.
-    expect(find.textContaining('8 pedidos'), findsOneWidget);
+    expect(find.textContaining('8 facturas'), findsOneWidget);
 
     await elegirDia(tester, 'Desde (fecha de la factura)', '2');
 
     // Del 2 de septiembre en adelante quedan 6: o1 es del 1 y o11 se acota por
     // la fecha en que se copio (agosto).
     expect(
-      find.text('6 pedidos · desde el 2/9/2026, del más nuevo al más viejo'),
+      find.text('6 facturas · desde el 2/9/2026, del más nuevo al más viejo'),
       findsOneWidget,
     );
 
@@ -113,14 +113,14 @@ void main() {
     await tester.tap(find.text('sólo ese día'));
     await asentar(tester);
     expect(
-      find.text('1 pedido · del 2/9/2026, del más nuevo al más viejo'),
+      find.text('1 factura · del 2/9/2026, del más nuevo al más viejo'),
       findsOneWidget,
     );
 
     // Y la ✕ los quita los dos.
     await tester.tap(find.byTooltip(RangoDeFechas.tooltipQuitar));
     await asentar(tester);
-    expect(find.text('8 pedidos, del más nuevo al más viejo'), findsOneWidget);
+    expect(find.text('8 facturas, del más nuevo al más viejo'), findsOneWidget);
 
     await desmontar(tester);
   });
@@ -133,12 +133,12 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Ana');
     // A los 200 ms todavia no ha buscado: se esta escribiendo.
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.textContaining('8 pedidos'), findsOneWidget);
+    expect(find.textContaining('8 facturas'), findsOneWidget);
 
     // Pasados los 400, si.
     await tester.pump(const Duration(milliseconds: 250));
     await asentar(tester);
-    expect(find.textContaining('1 pedido,'), findsOneWidget);
+    expect(find.textContaining('1 factura,'), findsOneWidget);
 
     await desmontar(tester);
   });
@@ -154,7 +154,7 @@ void main() {
 
     // Sin resultados, y con el boton de quitarlos todos debajo.
     expect(
-      find.text('Ningún pedido cuadra con estos filtros.'),
+      find.text('Ninguna factura cuadra con estos filtros.'),
       findsOneWidget,
     );
     final quitar = find.text('Quitar todos los filtros');
@@ -170,7 +170,7 @@ void main() {
       tester.widget<TextField>(find.byType(TextField)).controller?.text,
       '',
     );
-    expect(find.textContaining('11 pedidos'), findsOneWidget);
+    expect(find.textContaining('11 facturas'), findsOneWidget);
 
     await desmontar(tester);
   });
@@ -194,7 +194,7 @@ void main() {
           .read(filtrosPedidosProvider.notifier)
           .verTodos();
       await asentar(tester);
-      expect(find.textContaining('11 pedidos'), findsOneWidget);
+      expect(find.textContaining('11 facturas'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'no existe este cliente');
       await tester.pump(const Duration(milliseconds: 450));
@@ -218,7 +218,7 @@ void main() {
             'la caja se quedó con el texto puesto: filtra en silencio debajo de '
             'una lista que dice no tener filtros',
       );
-      expect(find.textContaining('11 pedidos'), findsOneWidget);
+      expect(find.textContaining('11 facturas'), findsOneWidget);
 
       await desmontar(tester);
     },

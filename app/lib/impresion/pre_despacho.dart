@@ -30,11 +30,11 @@ import 'post_despacho.dart' show conElDistribuidor;
 /// `test/impresion/literales_de_las_hojas_test.dart`.
 abstract final class TextoPreDespacho {
   static const String titulo = 'Pre-despacho';
-  static const String pedidosDel = 'Pedidos del ';
+  static const String pedidosDel = 'Facturas del ';
 
   /// El `(s)` va DENTRO del literal, tal cual lo escribe el pliego. Nada de
   /// pluralizar con ICU: en cuanto se hace, el texto deja de ser identico.
-  static const String pedidos = ' pedido(s)';
+  static const String pedidos = ' factura(s)';
   static const String kg = ' kg';
 
   static const String colProducto = 'Producto';
@@ -53,18 +53,18 @@ abstract final class TextoPreDespacho {
   /// lo mismo. Atados con una prueba, no con este comentario
   /// (`test/impresion/los_dos_pesos_del_pre_despacho_test.dart`).
   static const String pesoDeLosProductos = 'Peso de los productos';
-  static const String pesoDeLosPedidos = 'Peso de los pedidos';
+  static const String pesoDeLosPedidos = 'Peso de las facturas';
 
   /// La frase de debajo, también igual que en la pantalla: es lo único que
   /// impide restar las dos cifras a ojo.
   static const String noSonElMismoNumero =
       'No son el mismo número: el de arriba suma renglón a renglón, y el de '
-      'abajo es el peso que trae cada pedido entero.';
+      'abajo es el peso que trae cada factura entera.';
 
   /// Cuando NINGÚN producto trae peso. Si sólo faltan algunos se dice cuántos,
   /// que es lo que convierte una raya muda en algo que alguien puede ir a
   /// arreglar.
-  static const String sinPesoEnElCatalogo = 'sin peso en los pedidos';
+  static const String sinPesoEnElCatalogo = 'sin peso en las facturas';
 
   /// El título de la segunda tabla (issue 8 de Amado). Las columnas no están
   /// aquí sino en `columnasPorProductoYFactura` (`por_producto_y_factura.dart`):

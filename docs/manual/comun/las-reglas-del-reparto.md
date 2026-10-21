@@ -7,38 +7,38 @@ ahorra la mitad de los «no me deja».
 
 ## 1. En un camión sólo sube lo facturado
 
-Un pedido que no está facturado **no entra en una ruta**. No es un capricho de la
+Una factura que no está facturada **no entra en una ruta**. No es un capricho de la
 aplicación: lo que se carga tiene que ser lo que se cobró.
 
-Si la factura **cambió** respecto a lo pedido, el pedido **sí sube**, pero con lo
+Si la factura **cambió** respecto a lo pedido, **sí sube**, pero con lo
 facturado: sus productos ya son los de la factura, así que al camión va lo que se
 cobró, no lo que se pidió.
 
-Un pedido puede llevar una de estas marcas. **Las cuatro primeras impiden repartirlo
+Una factura puede llevar una de estas marcas. **Las cuatro primeras impiden repartirla
 hoy; la última sólo avisa**:
 
 | Marca | Qué quiere decir | ¿Se puede repartir? |
 |---|---|---|
-| **«Archivado en PEDIDO»** | Lo dieron de baja en PEDIDO después de colocarlo | **No** |
+| **«Archivado en PEDIDO»** | Dieron de baja su pedido en PEDIDO después de colocarla | **No** |
 | **«Ya va en otra ruta»** | Se lo llevó otra ruta, quizá desde otro aparato | **No** |
 | **«Sin cotejar»** | No se sabe si la factura cuadra. **No es «cuadra»: es «no se sabe»** | **No** |
 | **«Sin factura»** | No hay nada que llevar | **No** |
 | **«Cambió en la factura»** (en ámbar) | Se facturó distinto de como se pidió | **Sí**: al camión va lo facturado |
 
-Un pedido puede llevar **varias marcas a la vez**: archivado y sin facturar es las
+Una factura puede llevar **varias marcas a la vez**: archivada y sin facturar es las
 dos cosas.
 
 ### El domicilio cobrado ya no se exige (por ahora)
 
-**Por ahora, para entrar en una ruta nueva y para colocarse en una zona del Tablero, a un
-pedido le basta con estar facturado** (cuadre o haya cambiado, lo de arriba). Ya no se
+**Por ahora, para entrar en una ruta nueva y para colocarse en una zona del Tablero, a una
+factura le basta con estar facturada** (cuadre o haya cambiado, lo de arriba). Ya no se
 exige que la factura cobre el domicilio, ni que Entrega lo haya cotizado, ni mira la casilla
 de domicilio del vendedor. Es una regla **temporal** (Jose, 16/10/2026: «por ahora que
 entren todos los pedidos con facturas»).
 
-**Por qué.** Amado, 16/10/2026: había pedidos con el domicilio cobrado en la factura que no
+**Por qué.** Amado, 16/10/2026: había facturas con el domicilio cobrado que no
 entraban en las rutas porque Entrega no los había cotizado (por ejemplo PCC25-261014-1435,
-factura 47073, marcado a domicilio, 0.05 cobrado). Ayer se armaron rutas y esos pedidos no
+factura 47073, marcado a domicilio, 0.05 cobrado). Ayer se armaron rutas y esas facturas no
 se incluyeron en los despachos. Lo que manda es el cobro de la factura; y por ahora entra
 todo lo facturado.
 
@@ -57,12 +57,12 @@ en [Cuando algo sale mal](cuando-algo-sale-mal.md#no-me-deja-armar-la-ruta).
 ### El conduce
 
 El **conduce** es el **número de operación de la factura**. No es un dato aparte: es el
-mismo número con el que ya se busca un pedido. Con él se identifica cada parada de una
+mismo número con el que ya se busca una factura. Con él se identifica cada parada de una
 ruta, y también cada rechazo («Conduce: PTB25-261005-1480»). Un cobro a domicilio que
 sale como conduce se identifica con ese número.
 
 **Lo que no se puede repartir no se esconde: se marca.** Sigue viéndose en la
-pantalla, con el motivo escrito. Así nadie pierde de vista un pedido sin saber por
+pantalla, con el motivo escrito. Así nadie pierde de vista una factura sin saber por
 qué desapareció.
 
 ---
@@ -102,28 +102,29 @@ significa nada es el fallo que más caro sale aquí.
 
 ---
 
-## 3. Una ruta se arma con pedidos que YA existen
+## 3. Una ruta se arma con facturas que YA existen
 
 **No se teclean paradas.** No se puede escribir un cliente y una dirección a mano
-y meterlo en una ruta. Una ruta se arma eligiendo pedidos que ya están en el
-sistema, traídos de PEDIDO.
+y meterlo en una ruta. Una ruta se arma eligiendo facturas que ya están en el
+sistema, traídas de Ventra (y, si vienen de un pedido, enlazadas con él por folio).
 
-Tampoco se dan de alta pedidos ni clientes en esta aplicación. Vienen de PEDIDO.
+Tampoco se dan de alta facturas ni clientes en esta aplicación. Las facturas vienen de
+Ventra y los clientes, de PEDIDO.
 
 ---
 
 ## 4. Sin coordenadas de entrega no hay parada
 
-Un pedido cuyo cliente no tiene coordenadas de entrega **no puede ir en una
+Una factura cuyo cliente no tiene coordenadas de entrega **no puede ir en una
 ruta**: no hay a dónde llevarlo ni desde dónde medir.
 
-Ese pedido tampoco entra en el peso pendiente del Panel.
+Esa factura tampoco entra en el peso pendiente del Panel.
 
 ---
 
-## 5. Los pedidos del mismo cliente NO se juntan
+## 5. Las facturas del mismo cliente NO se juntan
 
-`X-2992` y `X-2992-2` son **dos pedidos**, con sus renglones, su peso y su costo de
+`X-2992` y `X-2992-2` son **dos facturas**, con sus renglones, su peso y su costo de
 domicilio cada uno. La aplicación **no** los funde en una tarjeta.
 
 Lo único que hace es **decirte** que hay más de uno de ese cliente, para que los
@@ -156,7 +157,7 @@ Cómo se arma el orden, según de dónde sale la ruta:
 - **Desde el asistente «Nueva Ruta»**: la aplicación ordena **por cercanía**
   empezando en el punto de salida: primero la parada más cercana, y después
   corrige el recorrido entero (deshace cruces y recoloca paradas sueltas) contando
-  **la vuelta al almacén**. La lista de pedidos del asistente va por fecha de
+  **la vuelta al almacén**. La lista de facturas del asistente va por fecha de
   factura, pero ese orden no es el de la ruta.
 
 En el detalle de una ruta no completada, debajo del camión, una línea dice cuál es:
@@ -200,7 +201,7 @@ que le puede pasar a un número que alguien va a cobrar.
 ## 10. Lo que el servidor rechaza se dice, con su motivo
 
 Nada se descarta en silencio. Si mueves una tarjeta y el servidor dice que no, te
-lo dice con el motivo de verdad —«Ese pedido ya va en otra ruta»— y no con un «no
+lo dice con el motivo de verdad —«Esa factura ya va en otra ruta»— y no con un «no
 se pudo guardar».
 
 Y un apunte rechazado **no se reintenta solo y no se borra**: se queda a la vista
@@ -223,6 +224,6 @@ insignia **«Inactivo»**. Sólo se borra de verdad un camión que nunca se usó
   pregunta antes). Una ruta en curso o completada no lo permite.
 - **La ruta entera** se borra mientras no esté completada. Una completada es histórico.
 
-En los dos casos el pedido vuelve a la lista de disponibles y, **si la ruta nació del
+En los dos casos la factura vuelve a la lista de disponibles y, **si la ruta nació del
 Tablero, la factura vuelve a su zona**: no se pierde la relación, y se puede volver a
 planificar sin recrear nada.

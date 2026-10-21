@@ -352,7 +352,7 @@ void main() {
 
         expect(find.text('Inactivar la zona'), findsOneWidget);
         expect(
-          find.text('Mover los 3 pedidos a otra zona y borrar'),
+          find.text('Mover las 3 facturas a otra zona y borrar'),
           findsOneWidget,
         );
         await tester.tap(find.text('Inactivar la zona'));

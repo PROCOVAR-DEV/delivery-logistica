@@ -205,7 +205,7 @@ void main() {
 
         expect(
           enrutador.state.uri.path,
-          '/orders',
+          '/facturas',
           reason:
               'La tarjeta tiene que llevar a la pantalla que tiene el detalle, '
               'como ya hacen las acciones rápidas de abajo.',

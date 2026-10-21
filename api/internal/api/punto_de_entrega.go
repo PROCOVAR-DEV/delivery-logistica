@@ -49,12 +49,12 @@ import (
 const (
 	msgPuntoSeEspera        = "Se espera { lat, lng }"
 	msgPuntoImposible       = "lat y lng tienen que ser un punto del planeta"
-	msgPuntoYaEntregado     = "El pedido ya está entregado: no se le puede cambiar el punto"
+	msgPuntoYaEntregado     = "La factura ya está entregada: no se le puede cambiar el punto"
 	msgPuntoRutaCompletada  = "La ruta ya está completada: no se le puede cambiar el punto a sus paradas"
-	msgPuntoNoEsManual      = "El pedido no tiene un punto puesto a mano"
-	msgPuntoSinPuntoCliente = "El pedido no guardó el punto del cliente: no se puede volver a él"
-	msgPuntoSinSucursal     = "El pedido no tiene sucursal: no se pueden medir los kilómetros hasta el nuevo punto"
-	msgPuntoCambio          = "El pedido cambió mientras se guardaba el punto: vuelve a intentarlo"
+	msgPuntoNoEsManual      = "La factura no tiene un punto puesto a mano"
+	msgPuntoSinPuntoCliente = "La factura no guardó el punto del cliente: no se puede volver a él"
+	msgPuntoSinSucursal     = "La factura no tiene sucursal: no se pueden medir los kilómetros hasta el nuevo punto"
+	msgPuntoCambio          = "La factura cambió mientras se guardaba el punto: vuelve a intentarlo"
 )
 
 // PuntoSalida es la respuesta de las dos puertas: lo que cambió y los números que se recalcularon.

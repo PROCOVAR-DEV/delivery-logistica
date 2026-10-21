@@ -122,7 +122,7 @@ class _PantallaPedidosState extends ConsumerState<PantallaPedidos> {
             children: [
               Expanded(
                 child: Text(
-                  'Todos los pedidos acumulados de todas las rutas',
+                  'Todas las facturas acumuladas de todas las rutas',
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: Colores.tintaSuave),
                 ),
@@ -201,11 +201,11 @@ class _PantallaPedidosState extends ConsumerState<PantallaPedidos> {
                     ),
                     // La web, el primer segundo: cargando y sin acusar a nadie.
                     PorQueEstaVacio.todaviaBajando => EstadoVacio(
-                      TextosDeLaWeb.cargando('los pedidos'),
+                      TextosDeLaWeb.cargando('las facturas'),
                     ),
                     // Y si no llegó, se dice y se deja entrar.
                     PorQueEstaVacio.noPudoBajar => EstadoVacio(
-                      TextosDeLaWeb.noPudoBajar('los pedidos'),
+                      TextosDeLaWeb.noPudoBajar('las facturas'),
                     ),
                   }
                 : _Cuerpo(filtros: filtros, pagina: pagina, total: total),
@@ -321,7 +321,7 @@ class _FranjaAzul extends ConsumerWidget {
         const SizedBox(height: Aire.md),
         OutlinedButton(
           onPressed: () => ref.read(filtrosPedidosProvider.notifier).verTodos(),
-          child: const Text('Ver todos los pedidos'),
+          child: const Text('Ver todas las facturas'),
         ),
       ],
     ),
@@ -410,14 +410,27 @@ class _BarraDeFiltros extends ConsumerWidget {
           ),
         ),
         Selector<CotizadoFiltro>(
-          key: const ValueKey('Precio del domicilio'),
-          titulo: 'Precio del domicilio',
+          key: const ValueKey('Precio del pedido'),
+          titulo: 'Precio del pedido',
           valor: filtros.cotizado,
           opciones: [
             for (final c in CotizadoFiltro.values)
               OpcionSelector(c, c.etiqueta),
           ],
           alElegir: (c) => notas.cambiar((f) => f.copiarCon(cotizado: c)),
+        ),
+        // LA FACTURA ES LA FILA, EL PEDIDO UN EXTRA (21/10/2026, Jose). Estos dos son de la
+        // factura: de qué pedido viene (si viene de alguno). El
+        // «Precio del pedido» de arriba es de Entrega, o sea del pedido: sólo cuenta para
+        // las que traen uno.
+        Selector<PedidoFiltro>(
+          key: const ValueKey('Pedido de origen'),
+          titulo: 'Pedido de origen',
+          valor: filtros.pedido,
+          opciones: [
+            for (final p in PedidoFiltro.values) OpcionSelector(p, p.etiqueta),
+          ],
+          alElegir: (p) => notas.cambiar((f) => f.copiarCon(pedido: p)),
         ),
         // VARIOS VENDEDORES A LA VEZ (issue 18 de Amado, 16/10/2026): salen los pedidos
         // de CUALQUIERA de los marcados. Cajón con casillas, no el `Selector` del kit.
@@ -571,7 +584,7 @@ void verEImprimirPreDespacho(
       titulo: PreDespacho.tituloDeLaHoja,
       subtitulo:
           '${totales.pedidos} '
-          '${totales.pedidos == 1 ? 'pedido' : 'pedidos'} · '
+          '${totales.pedidos == 1 ? 'factura' : 'facturas'} · '
           '${totales.pesoDeLosPedidos.toStringAsFixed(1)} kg',
       ancho: AnchoCajon.xl,
       // La vista previa quiere todo el alto que le den, y el cuerpo del cajon
@@ -619,8 +632,8 @@ class _Cuerpo extends ConsumerWidget {
       final porUnFiltro = filtros.hayAlguno;
       return EstadoVacio(
         porUnFiltro
-            ? 'Ningún pedido cuadra con estos filtros.'
-            : 'Aún no hay pedidos de esta sucursal.',
+            ? 'Ninguna factura cuadra con estos filtros.'
+            : 'Aún no hay facturas de esta sucursal.',
         accion: porUnFiltro
             ? ControlSenalado(
                 nombre: Senalado.pedidosLimpiarFiltros,
@@ -688,7 +701,7 @@ class _PreDespachoDeLoElegido extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${seleccion.length} pedido(s) elegidos',
+              '${seleccion.length} factura(s) elegidas',
               style: Tipos.texto(
                 tamano: 14,
                 peso: FontWeight.w600,

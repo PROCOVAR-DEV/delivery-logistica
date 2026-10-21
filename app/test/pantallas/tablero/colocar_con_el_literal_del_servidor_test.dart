@@ -80,7 +80,7 @@ void main() {
       "UPDATE orders SET resultado = 'entregado', route_id = 'R9' "
       "WHERE id = 'ent'",
     );
-    await rechaza('ent', 'Ese pedido ya se entregó');
+    await rechaza('ent', 'Esa factura ya se entregó');
   });
 
   test('ya va en una ruta', () async {
@@ -89,7 +89,7 @@ void main() {
     await base.customStatement(
       "UPDATE orders SET route_id = 'R9' WHERE id = 'ruta'",
     );
-    await rechaza('ruta', 'Ese pedido ya está en una ruta');
+    await rechaza('ruta', 'Esa factura ya está en una ruta');
   });
 
   test('la pareja: cotizado en CERO y cobrado SÍ se coloca', () async {

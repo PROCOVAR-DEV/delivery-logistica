@@ -63,8 +63,8 @@ pasar hasta que termine. Vas a ver:
 > Es la primera vez en este aparato: se está trayendo todo lo del día. Sólo pasa una
 > vez.
 
-Debajo, un porcentaje que sube, y qué está trayendo en cada momento: «Trayendo los
-pedidos…», «Trayendo los clientes…», «Trayendo el catálogo de productos…».
+Debajo, un porcentaje que sube, y qué está trayendo en cada momento: «Trayendo las
+facturas…», «Trayendo los clientes…», «Trayendo el catálogo de productos…».
 
 **No cierres la aplicación**, y lo dice: «No cierres la aplicación. Cuando termine
 entra sola.»

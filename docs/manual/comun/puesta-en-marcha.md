@@ -106,9 +106,9 @@ Lo dice el Panel con estas palabras:
 Con las palabras del Panel:
 
 > «Sin él no hay desde dónde medir: esos domicilios se quedan sin cotizar y los
-> pedidos salen sin precio.»
+> facturas salen sin precio.»
 
-O sea: los pedidos de esa sucursal aparecen **«sin cotizar»** —no en `$0.00`, que
+O sea: las facturas de esa sucursal aparecen **«sin cotizar»** —no en `$0.00`, que
 sería un número creíble y falso— y no se les puede cobrar el domicilio.
 
 ---
@@ -254,8 +254,8 @@ cuyo **costo por km** sale lo que se le cobra al cliente por el domicilio.
 ## Qué se rompe si no se hace
 
 El importe del domicilio se calcula con los kilómetros **y** con el costo por km
-del camión de cálculo. Sin ninguno elegido, o con uno elegido sin costo, los
-pedidos salen **«sin cotizar»**.
+del camión de cálculo. Sin ninguno elegido, o con uno elegido sin costo, las
+facturas salen **«sin cotizar»**.
 
 ---
 
@@ -414,7 +414,7 @@ siempre, y el ruido de siempre se deja de leer.
 1. Mira arriba, antes de las cuatro cifras: si **no hay recuadro ámbar**, está
    lista. <!-- señala: panel-paso-a-paso -->
    - Lo primero que vas a ver entonces es la banda de **«Estado del día»** (en
-     el teléfono y en el escritorio) y debajo las cuatro cifras: **«Pedidos sin
+     el teléfono y en el escritorio) y debajo las cuatro cifras: **«Facturas sin
      ruta»**, **«Rutas en marcha»**, **«Entregados hoy»** y **«Vehículos»**.
 
 ### El estado que NO es «falta algo»
@@ -480,7 +480,7 @@ Esto es la otra mitad de la respuesta, y ahorra la mañana de buscar botones:
 | **El código de la sucursal** (STG, HAB…) | **Accesos.** Sin él, Almacenes no tiene a quién preguntar |
 | **Los usuarios, las contraseñas, los roles y a qué sucursal pertenece cada uno** | **Accesos.** Aquí no se da de alta a nadie |
 | **Los clientes** | **PEDIDO.** Aquí sólo se consultan, y sólo salen los que tienen geolocalización |
-| **Los pedidos y sus productos** | **PEDIDO.** La ficha de un pedido es **sólo lectura** |
+| **Las facturas y sus productos** | **Ventra** (y **PEDIDO** para el pedido enlazado). La ficha de una factura es **sólo lectura** |
 | **El catálogo de productos y los pesos** | Viene de PEDIDO y de AxisPOS |
 
 Lo que **sí** se configura aquí son dos cosas y nada más: **los camiones**

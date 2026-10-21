@@ -15,13 +15,13 @@ red).
    día»**.
 3. **Clic en «Traer el día»**.
 4. El botón pasa a **«Trayendo el día...»** y te va diciendo por dónde va:
-   «Comprobando la sesión…», «Pidiendo los cambios…», «Pedidos…», «Clientes…»,
+   «Comprobando la sesión…», «Pidiendo los cambios…», «Facturas…», «Clientes…»,
    «Productos…».
 5. Al terminar, **«Ya lo tienes»** y debajo qué te llevas:
 
    ```
    Esto es lo que te llevas ahora mismo
-   308 pedidos · 1.842 clientes · 129 productos
+   308 facturas · 1.842 clientes · 129 productos
    con 4.912 líneas
    Y lo de siempre: vehículos, sucursales, almacenes y ajustes.
    ```
@@ -56,7 +56,7 @@ rompe sin eso**. Y al final:
 1. En el **menú de la izquierda**, clic en **«Panel»**.
 2. **Comprueba la sucursal** arriba a la derecha: «Santiago (STG)». Todas las
    pantallas enseñan lo de esa sucursal.
-3. Las cuatro cifras: **«Pedidos sin ruta»** (con «1.240 kg por mover» debajo),
+3. Las cuatro cifras: **«Facturas sin ruta»** (con «1.240 kg por mover» debajo),
    **«Rutas en marcha»**, **«Entregados hoy»** y **«Vehículos»** («3 / 8»).
 4. Abajo, **«Pendiente por sucursal»** (ordenada de más a menos) y **«Acciones
    Rápidas»**.
@@ -88,7 +88,7 @@ da por malo**:
    derecha la tira de zonas.
 3. **Comprueba arriba desde dónde se mide**: **«Granma · desde Bayamo (Granma)»**. Con
    más de un almacén sale una flechita ▾: clic y elige. Si eliges otro que no es el de
-   por defecto, **sus pedidos salen primero** en «Sin colocar», del más cercano al más
+   por defecto, **sus facturas salen primero** en «Sin colocar», del más cercano al más
    lejano (también sin conexión).
 4. **Mira de cuándo es tu copia**, al lado: **«Visto por última vez a las 10:41»**.
 5. **Mira los avisos rojos** si los hay: «3 archivados en PEDIDO», «2 ya en otra
@@ -143,7 +143,7 @@ cada tarjeta y se elige la zona en el cajón.
    <!-- señala: tablero-sin-colocar-filtros -->
    - Abre **«Desde (fecha de la factura)»** / **«Hasta (fecha de la factura)»** (los dos días
      entran; para un solo día, «Desde» y **«sólo ese día»**), **«Municipio»**,
-     **«Vendedor»** (uno o varios: salen los de cualquiera de los marcados), **«Hasta cuántos km del almacén»** (se aplica al salir del campo o
+     **«Vendedor»** (uno o varios: salen las de cualquiera de los marcados), **«Hasta cuántos km del almacén»** (se aplica al salir del campo o
      con intro) y **«Cobro del domicilio»**.
 2. O usa **el buscador** («Cliente, operación, factura, dirección, artículo…»), que **filtra
    mientras escribes**. <!-- señala: tablero-sin-colocar-buscar -->
@@ -178,7 +178,7 @@ Camión: F-350                       sin subir
 - **«sin subir»** o **«rechazada»** en ámbar: esa zona tiene trabajo que no ha llegado
   al servidor.
 
-### Las marcas de los pedidos
+### Las marcas de las facturas
 
 - **«Archivado en PEDIDO»**, **«Ya va en otra ruta»**, **«Sin cotejar»** y **«Sin
   factura»** — las cuatro **en rojo**: hoy **no salen**.
@@ -186,11 +186,11 @@ Camión: F-350                       sin subir
   lo facturado, no lo que se pidió.
 - **Sin domicilio cobrado, o marcado a domicilio y sin cotizar** — **ni salen en «Sin
   colocar»**; si intentas
-  colocarlos, te lo rechaza al momento con su motivo («No se puede asociar al tablero:
+  colocarlas, te lo rechaza al momento con su motivo («No se puede asociar al tablero:
   la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el
-  domicilio del pedido.»), aunque no haya conexión.
+  domicilio de la factura.»), aunque no haya conexión.
 - **«sin ubicar»** — sin coordenadas de entrega: **no puede ir en una ruta**.
-- **«2 pedidos de este cliente hoy»** — son dos de verdad. **No se juntan.**
+- **«2 facturas de este cliente hoy»** — son dos de verdad. **No se juntan.**
 
 ## 3.4 Reordenar las zonas
 <!-- tarea -->
@@ -229,9 +229,9 @@ Necesitas **al menos dos zonas**. Si sólo tienes una, crea otra antes de empeza
 **El cajón NO se cierra.** Clic ahí mismo en **«Camión previsto»**, elige, y luego
 **«Volver a intentarlo»**.
 
-### Si dice «La columna no tiene ningún pedido que se pueda repartir hoy»
+### Si dice «La columna no tiene ninguna factura que se pueda repartir hoy»
 
-Debajo te lista por qué se cayó cada uno:
+Debajo te lista por qué se cayó cada una:
 
 ```
 PTB25-261005-1480 · DAYLIS PÉREZ: Ya va en otra ruta
@@ -242,18 +242,18 @@ PTB25-261005-1523 · MARTA CRUZ: sin factura
 
 ### Qué entra y qué no
 
-**Sin conexión se arma con la misma regla que el servidor**: sólo entran los pedidos
-facturados (cuadren o no), con el domicilio cobrado y, si el vendedor lo marcó,
-cotizado. Los demás se descartan, se
-quedan puestos en la zona y marcados, y se nombran por su **conduce** (el número de
-operación de la factura). **Si algunos entran y otros no**, la ruta se arma con los que
-entran y una franja roja dice quién se quedó fuera:
+**Sin conexión se arma con la misma regla que el servidor**: sólo entran las facturas
+(cuadren o no), con el domicilio cobrado y, si el vendedor lo marcó,
+cotizado. Las demás se descartan, se
+quedan puestas en la zona y marcadas, y se nombran por su **conduce** (el número de
+operación de la factura). **Si algunas entran y otras no**, la ruta se arma con las que
+entran y una franja roja dice cuál se quedó fuera:
 
-> Ruta armada de «Centro», pero 2 pedidos no entraron:
+> Ruta armada de «Centro», pero 2 facturas no entraron:
 > PTB25-261005-1511 · LUIS PÉREZ: sin factura
 > PTB25-261005-1523 · MARTA CRUZ: sin factura
 
-**Si no entra ninguno, no se arma la ruta** y sale el recuadro rojo de arriba.
+**Si no entra ninguna, no se arma la ruta** y sale el recuadro rojo de arriba.
 
 ### El nombre de la ruta
 
@@ -267,13 +267,13 @@ cuanto suba**. Es normal y no hay que hacer nada.
 # 5. Sacar el pre-despacho
 <!-- tarea -->
 
-**Empieza en:** **Menú → «Pedidos»**.
+**Empieza en:** **Menú → «Facturas»**.
 
-1. **Filtra** para dejar los de tu ruta — por **«Municipio»**, por ejemplo.
+1. **Filtra** para dejar las de tu ruta — por **«Municipio»**, por ejemplo.
    <!-- señala: pedidos-filtro-municipio -->
-2. **Marca los pedidos** con la casilla de la cabecera («Elegir todos los de esta
-   página»), o con la de cada uno. <!-- señala: pedidos-marcar-todos -->
-   - Aparece la franja azul **«7 pedido(s) elegidos»**.
+2. **Marca las facturas** con la casilla de la cabecera («Elegir todos los de esta
+   página»), o con la de cada una. <!-- señala: pedidos-marcar-todos -->
+   - Aparece la franja azul **«7 factura(s) elegidas»**.
 3. **Clic en el botón del pre-despacho** (icono de caja). Se abre el cajón con el
    resumen: <!-- señala: pedidos-pre-despacho-de-lo-filtrado -->
 
@@ -375,8 +375,8 @@ te bloquea, pero te lo dice.
    > camión.»
 
 2. Márcalas y **clic en «Guardar y completar»**. Revisa las marcas antes de confirmar. <!-- señala: rutas-guardar-el-cierre -->
-   - **La ruta se va al «Historial»**, el camión queda libre, y los pedidos no
-     entregados **vuelven a estar disponibles**.
+   - **La ruta se va al «Historial»**, el camión queda libre, y las facturas no
+     entregadas **vuelven a estar disponibles**.
 
 **Si el servidor rechaza una parada al subir el cierre**: cada parada lleva su
 **conduce** («Conduce: PTB25-261005-1480», el número de operación de la factura). En el

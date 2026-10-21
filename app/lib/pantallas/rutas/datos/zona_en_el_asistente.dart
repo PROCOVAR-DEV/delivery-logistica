@@ -69,7 +69,7 @@ class ZonaParaArmar {
   /// estos se pueden meter ahora mismo lo dice el parte de `repartirLaZona` al
   /// elegirla, con su motivo, que es donde se puede decir por que faltan.
   String get etiqueta =>
-      '$nombre · $pedidos ${pedidos == 1 ? 'pedido' : 'pedidos'} · '
+      '$nombre · $pedidos ${pedidos == 1 ? 'factura' : 'facturas'} · '
       '${Numeros.kgRedondeado(pesoKg)}';
 }
 

@@ -72,7 +72,7 @@ void main() {
       containsAll(<String>[
         '/dashboard',
         '/routes',
-        '/orders',
+        '/facturas',
         '/customers',
         '/vehicles',
         '/warehouses',
@@ -111,7 +111,7 @@ void main() {
     final porRuta = {for (final p in pantallas) p.ruta: p.titulo};
     expect(porRuta['/dashboard'], 'Panel');
     expect(porRuta['/routes'], 'Rutas');
-    expect(porRuta['/orders'], 'Pedidos');
+    expect(porRuta['/facturas'], 'Facturas');
     expect(porRuta['/customers'], 'Clientes');
     expect(porRuta['/vehicles'], 'Vehículos');
     expect(porRuta['/warehouses'], 'Almacenes');
@@ -179,7 +179,7 @@ void main() {
     /// franja de Pedidos vuelve a quedarse media hora por detrás, sin un error,
     /// sin una pantalla en blanco y sin que nadie lo note.
     test('Pedidos NO se mide contra los almacenes', () {
-      final pedidos = pantallas.firstWhere((p) => p.ruta == '/orders');
+      final pedidos = pantallas.firstWhere((p) => p.ruta == '/facturas');
       expect(
         pedidos.colecciones,
         isNot(contains(Colecciones.almacenes)),

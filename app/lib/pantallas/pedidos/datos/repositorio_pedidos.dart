@@ -383,10 +383,21 @@ class ConsultasPedidos {
     switch (f.cotizado) {
       case CotizadoFiltro.cualquiera:
         break;
+      // El precio de Entrega es del PEDIDO: sólo cuenta para las facturas que vienen de uno
+      // (sin folio no hay pedido al que cotizar, y «sin cotizar» las llenaría de ruido).
       case CotizadoFiltro.conPrecio:
-        anadir(o.pedidoCosto.isNotNull());
+        anadir(o.folio.isNotNull() & o.pedidoCosto.isNotNull());
       case CotizadoFiltro.sinCotizar:
-        anadir(o.pedidoCosto.isNull());
+        anadir(o.folio.isNotNull() & o.pedidoCosto.isNull());
+    }
+
+    switch (f.pedido) {
+      case PedidoFiltro.cualquiera:
+        break;
+      case PedidoFiltro.conPedido:
+        anadir(o.folio.isNotNull());
+      case PedidoFiltro.sinPedido:
+        anadir(o.folio.isNull());
     }
 
     if (f.municipio.isNotEmpty) anadir(o.municipio.equals(f.municipio));

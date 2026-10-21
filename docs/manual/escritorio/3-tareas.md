@@ -11,16 +11,16 @@ enlace) y, detallado, **lo que cambia**.
 Estas tareas se hacen exactamente igual. Cada una está explicada paso a paso en el
 manual de la web:
 
-- [Buscar un pedido](../web/2-tareas.md#buscar-un-pedido)
-- [Filtrar y ordenar la lista de pedidos](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-pedidos)
-- [Mandar varios pedidos a una zona de golpe](../web/2-tareas.md#mandar-varios-pedidos-a-una-zona-de-golpe)
-- [Ver el detalle de un pedido](../web/2-tareas.md#ver-el-detalle-de-un-pedido)
-- [Poner el punto de entrega de un pedido a mano](../web/2-tareas.md#poner-el-punto-de-entrega-de-un-pedido-a-mano) (**lo único distinto**: aquí funciona sin señal, como en el teléfono; ver abajo)
+- [Buscar una factura](../web/2-tareas.md#buscar-una-factura)
+- [Filtrar y ordenar la lista de facturas](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-facturas)
+- [Mandar varias facturas a una zona de golpe](../web/2-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe)
+- [Ver el detalle de una factura](../web/2-tareas.md#ver-el-detalle-de-una-factura)
+- [Poner el punto de entrega de una factura a mano](../web/2-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano) (**lo único distinto**: aquí funciona sin señal, como en el teléfono; ver abajo)
 - [Renombrar, vaciar o borrar una zona](../web/2-tareas.md#renombrar-vaciar-o-borrar-una-zona)
 - [Armar una ruta sin usar el Tablero](../web/2-tareas.md#armar-una-ruta-sin-usar-el-tablero)
 - [Filtrar la lista de rutas](../web/2-tareas.md#filtrar-la-lista-de-rutas)
 - [Eliminar una ruta](../web/2-tareas.md#eliminar-una-ruta)
-- [Sacar un pedido de una ruta](../web/2-tareas.md#sacar-un-pedido-de-una-ruta)
+- [Sacar una factura de una ruta](../web/2-tareas.md#sacar-una-factura-de-una-ruta)
 - [Consultar un cliente](../web/2-tareas.md#consultar-un-cliente)
 - [Dar de alta un camión](../web/2-tareas.md#dar-de-alta-un-camión)
 - [Decir qué camión calcula el domicilio](../web/2-tareas.md#decir-qué-camión-calcula-el-domicilio)
@@ -74,10 +74,10 @@ Si está apagado: **«Trae el día primero: no se envía nada sin tener lo de ah
 ### Poner el punto de entrega a mano, sin conexión
 <!-- tarea -->
 
-**Empieza en:** **Menú → «Pedidos»**.
+**Empieza en:** **Menú → «Facturas»**.
 
-Los pasos son los de la web: [Poner el punto de entrega de un pedido a
-mano](../web/2-tareas.md#poner-el-punto-de-entrega-de-un-pedido-a-mano). Lo que cambia
+Los pasos son los de la web: [Poner el punto de entrega de una factura a
+mano](../web/2-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano). Lo que cambia
 aquí es **qué pasa al guardar**:
 
 - **«Guardar punto» funciona sin conexión.** Se guarda en el aparato (la parada sale ya

@@ -4781,6 +4781,15 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _folioMeta = const VerificationMeta('folio');
+  @override
+  late final GeneratedColumn<String> folio = GeneratedColumn<String>(
+    'folio',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _customerPhoneMeta = const VerificationMeta(
     'customerPhone',
   );
@@ -4916,6 +4925,7 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
     puntoClienteLat,
     puntoClienteLng,
     puntoClienteAddress,
+    folio,
     customerPhone,
     stopOrder,
     deliveredAt,
@@ -5276,6 +5286,12 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
         ),
       );
     }
+    if (data.containsKey('folio')) {
+      context.handle(
+        _folioMeta,
+        folio.isAcceptableOrUnknown(data['folio']!, _folioMeta),
+      );
+    }
     if (data.containsKey('customer_phone')) {
       context.handle(
         _customerPhoneMeta,
@@ -5525,6 +5541,10 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
         DriftSqlType.string,
         data['${effectivePrefix}punto_cliente_address'],
       ),
+      folio: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}folio'],
+      ),
       customerPhone: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}customer_phone'],
@@ -5657,6 +5677,11 @@ class Pedido extends DataClass implements Insertable<Pedido> {
   final double? puntoClienteLat;
   final double? puntoClienteLng;
   final String? puntoClienteAddress;
+
+  /// El folio del PEDIDO de PEDIDO del que sale esta factura (`orders.folio`, 00025,
+  /// 21/10/2026). Nulo si la factura no viene de ningún pedido o si la copia es anterior
+  /// al esquema 13: la bajada lo trae al volver a pasar cada fila.
+  final String? folio;
   final String? customerPhone;
   final int? stopOrder;
   final DateTime? deliveredAt;
@@ -5711,6 +5736,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     this.puntoClienteLat,
     this.puntoClienteLng,
     this.puntoClienteAddress,
+    this.folio,
     this.customerPhone,
     this.stopOrder,
     this.deliveredAt,
@@ -5841,6 +5867,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     }
     if (!nullToAbsent || puntoClienteAddress != null) {
       map['punto_cliente_address'] = Variable<String>(puntoClienteAddress);
+    }
+    if (!nullToAbsent || folio != null) {
+      map['folio'] = Variable<String>(folio);
     }
     if (!nullToAbsent || customerPhone != null) {
       map['customer_phone'] = Variable<String>(customerPhone);
@@ -5986,6 +6015,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       puntoClienteAddress: puntoClienteAddress == null && nullToAbsent
           ? const Value.absent()
           : Value(puntoClienteAddress),
+      folio: folio == null && nullToAbsent
+          ? const Value.absent()
+          : Value(folio),
       customerPhone: customerPhone == null && nullToAbsent
           ? const Value.absent()
           : Value(customerPhone),
@@ -6074,6 +6106,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       puntoClienteAddress: serializer.fromJson<String?>(
         json['puntoClienteAddress'],
       ),
+      folio: serializer.fromJson<String?>(json['folio']),
       customerPhone: serializer.fromJson<String?>(json['customerPhone']),
       stopOrder: serializer.fromJson<int?>(json['stopOrder']),
       deliveredAt: serializer.fromJson<DateTime?>(json['deliveredAt']),
@@ -6133,6 +6166,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       'puntoClienteLat': serializer.toJson<double?>(puntoClienteLat),
       'puntoClienteLng': serializer.toJson<double?>(puntoClienteLng),
       'puntoClienteAddress': serializer.toJson<String?>(puntoClienteAddress),
+      'folio': serializer.toJson<String?>(folio),
       'customerPhone': serializer.toJson<String?>(customerPhone),
       'stopOrder': serializer.toJson<int?>(stopOrder),
       'deliveredAt': serializer.toJson<DateTime?>(deliveredAt),
@@ -6190,6 +6224,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     Value<double?> puntoClienteLat = const Value.absent(),
     Value<double?> puntoClienteLng = const Value.absent(),
     Value<String?> puntoClienteAddress = const Value.absent(),
+    Value<String?> folio = const Value.absent(),
     Value<String?> customerPhone = const Value.absent(),
     Value<int?> stopOrder = const Value.absent(),
     Value<DateTime?> deliveredAt = const Value.absent(),
@@ -6278,6 +6313,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     puntoClienteAddress: puntoClienteAddress.present
         ? puntoClienteAddress.value
         : this.puntoClienteAddress,
+    folio: folio.present ? folio.value : this.folio,
     customerPhone: customerPhone.present
         ? customerPhone.value
         : this.customerPhone,
@@ -6386,6 +6422,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       puntoClienteAddress: data.puntoClienteAddress.present
           ? data.puntoClienteAddress.value
           : this.puntoClienteAddress,
+      folio: data.folio.present ? data.folio.value : this.folio,
       customerPhone: data.customerPhone.present
           ? data.customerPhone.value
           : this.customerPhone,
@@ -6453,6 +6490,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           ..write('puntoClienteLat: $puntoClienteLat, ')
           ..write('puntoClienteLng: $puntoClienteLng, ')
           ..write('puntoClienteAddress: $puntoClienteAddress, ')
+          ..write('folio: $folio, ')
           ..write('customerPhone: $customerPhone, ')
           ..write('stopOrder: $stopOrder, ')
           ..write('deliveredAt: $deliveredAt, ')
@@ -6512,6 +6550,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     puntoClienteLat,
     puntoClienteLng,
     puntoClienteAddress,
+    folio,
     customerPhone,
     stopOrder,
     deliveredAt,
@@ -6570,6 +6609,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           other.puntoClienteLat == this.puntoClienteLat &&
           other.puntoClienteLng == this.puntoClienteLng &&
           other.puntoClienteAddress == this.puntoClienteAddress &&
+          other.folio == this.folio &&
           other.customerPhone == this.customerPhone &&
           other.stopOrder == this.stopOrder &&
           other.deliveredAt == this.deliveredAt &&
@@ -6626,6 +6666,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
   final Value<double?> puntoClienteLat;
   final Value<double?> puntoClienteLng;
   final Value<String?> puntoClienteAddress;
+  final Value<String?> folio;
   final Value<String?> customerPhone;
   final Value<int?> stopOrder;
   final Value<DateTime?> deliveredAt;
@@ -6681,6 +6722,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     this.puntoClienteLat = const Value.absent(),
     this.puntoClienteLng = const Value.absent(),
     this.puntoClienteAddress = const Value.absent(),
+    this.folio = const Value.absent(),
     this.customerPhone = const Value.absent(),
     this.stopOrder = const Value.absent(),
     this.deliveredAt = const Value.absent(),
@@ -6737,6 +6779,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     this.puntoClienteLat = const Value.absent(),
     this.puntoClienteLng = const Value.absent(),
     this.puntoClienteAddress = const Value.absent(),
+    this.folio = const Value.absent(),
     this.customerPhone = const Value.absent(),
     this.stopOrder = const Value.absent(),
     this.deliveredAt = const Value.absent(),
@@ -6795,6 +6838,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     Expression<double>? puntoClienteLat,
     Expression<double>? puntoClienteLng,
     Expression<String>? puntoClienteAddress,
+    Expression<String>? folio,
     Expression<String>? customerPhone,
     Expression<int>? stopOrder,
     Expression<DateTime>? deliveredAt,
@@ -6855,6 +6899,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
       if (puntoClienteLng != null) 'punto_cliente_lng': puntoClienteLng,
       if (puntoClienteAddress != null)
         'punto_cliente_address': puntoClienteAddress,
+      if (folio != null) 'folio': folio,
       if (customerPhone != null) 'customer_phone': customerPhone,
       if (stopOrder != null) 'stop_order': stopOrder,
       if (deliveredAt != null) 'delivered_at': deliveredAt,
@@ -6913,6 +6958,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     Value<double?>? puntoClienteLat,
     Value<double?>? puntoClienteLng,
     Value<String?>? puntoClienteAddress,
+    Value<String?>? folio,
     Value<String?>? customerPhone,
     Value<int?>? stopOrder,
     Value<DateTime?>? deliveredAt,
@@ -6969,6 +7015,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
       puntoClienteLat: puntoClienteLat ?? this.puntoClienteLat,
       puntoClienteLng: puntoClienteLng ?? this.puntoClienteLng,
       puntoClienteAddress: puntoClienteAddress ?? this.puntoClienteAddress,
+      folio: folio ?? this.folio,
       customerPhone: customerPhone ?? this.customerPhone,
       stopOrder: stopOrder ?? this.stopOrder,
       deliveredAt: deliveredAt ?? this.deliveredAt,
@@ -7125,6 +7172,9 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
         puntoClienteAddress.value,
       );
     }
+    if (folio.present) {
+      map['folio'] = Variable<String>(folio.value);
+    }
     if (customerPhone.present) {
       map['customer_phone'] = Variable<String>(customerPhone.value);
     }
@@ -7203,6 +7253,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
           ..write('puntoClienteLat: $puntoClienteLat, ')
           ..write('puntoClienteLng: $puntoClienteLng, ')
           ..write('puntoClienteAddress: $puntoClienteAddress, ')
+          ..write('folio: $folio, ')
           ..write('customerPhone: $customerPhone, ')
           ..write('stopOrder: $stopOrder, ')
           ..write('deliveredAt: $deliveredAt, ')
@@ -13985,6 +14036,7 @@ typedef $$OrdersTableCreateCompanionBuilder =
       Value<double?> puntoClienteLat,
       Value<double?> puntoClienteLng,
       Value<String?> puntoClienteAddress,
+      Value<String?> folio,
       Value<String?> customerPhone,
       Value<int?> stopOrder,
       Value<DateTime?> deliveredAt,
@@ -14042,6 +14094,7 @@ typedef $$OrdersTableUpdateCompanionBuilder =
       Value<double?> puntoClienteLat,
       Value<double?> puntoClienteLng,
       Value<String?> puntoClienteAddress,
+      Value<String?> folio,
       Value<String?> customerPhone,
       Value<int?> stopOrder,
       Value<DateTime?> deliveredAt,
@@ -14283,6 +14336,11 @@ class $$OrdersTableFilterComposer extends Composer<_$BaseLocal, $OrdersTable> {
 
   ColumnFilters<String> get puntoClienteAddress => $composableBuilder(
     column: $table.puntoClienteAddress,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get folio => $composableBuilder(
+    column: $table.folio,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14561,6 +14619,11 @@ class $$OrdersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get folio => $composableBuilder(
+    column: $table.folio,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get customerPhone => $composableBuilder(
     column: $table.customerPhone,
     builder: (column) => ColumnOrderings(column),
@@ -14794,6 +14857,9 @@ class $$OrdersTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get folio =>
+      $composableBuilder(column: $table.folio, builder: (column) => column);
+
   GeneratedColumn<String> get customerPhone => $composableBuilder(
     column: $table.customerPhone,
     builder: (column) => column,
@@ -14900,6 +14966,7 @@ class $$OrdersTableTableManager
                 Value<double?> puntoClienteLat = const Value.absent(),
                 Value<double?> puntoClienteLng = const Value.absent(),
                 Value<String?> puntoClienteAddress = const Value.absent(),
+                Value<String?> folio = const Value.absent(),
                 Value<String?> customerPhone = const Value.absent(),
                 Value<int?> stopOrder = const Value.absent(),
                 Value<DateTime?> deliveredAt = const Value.absent(),
@@ -14955,6 +15022,7 @@ class $$OrdersTableTableManager
                 puntoClienteLat: puntoClienteLat,
                 puntoClienteLng: puntoClienteLng,
                 puntoClienteAddress: puntoClienteAddress,
+                folio: folio,
                 customerPhone: customerPhone,
                 stopOrder: stopOrder,
                 deliveredAt: deliveredAt,
@@ -15012,6 +15080,7 @@ class $$OrdersTableTableManager
                 Value<double?> puntoClienteLat = const Value.absent(),
                 Value<double?> puntoClienteLng = const Value.absent(),
                 Value<String?> puntoClienteAddress = const Value.absent(),
+                Value<String?> folio = const Value.absent(),
                 Value<String?> customerPhone = const Value.absent(),
                 Value<int?> stopOrder = const Value.absent(),
                 Value<DateTime?> deliveredAt = const Value.absent(),
@@ -15067,6 +15136,7 @@ class $$OrdersTableTableManager
                 puntoClienteLat: puntoClienteLat,
                 puntoClienteLng: puntoClienteLng,
                 puntoClienteAddress: puntoClienteAddress,
+                folio: folio,
                 customerPhone: customerPhone,
                 stopOrder: stopOrder,
                 deliveredAt: deliveredAt,

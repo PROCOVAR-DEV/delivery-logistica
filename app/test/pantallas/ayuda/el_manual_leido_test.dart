@@ -415,7 +415,7 @@ void main() {
                 '**Empieza en:** **Menú → «Canal con PEDIDO»**.\n',
           }),
           // La lista de la APK: sin el canal.
-          pantallas: const [PantallaDelMenu('/orders', 'Pedidos')],
+          pantallas: const [PantallaDelMenu('/facturas', 'Facturas')],
         );
         expect(leido.tareas.single.rutaDePantalla, isNull);
         expect(leido.tareas.single.nombreDePantalla, 'Canal con PEDIDO');

@@ -63,7 +63,7 @@ class LecturaDeLaUrl {
 }
 
 abstract final class FiltrosEnLaUrl {
-  static const camino = '/orders';
+  static const camino = '/facturas';
 
   /// Las claves. Aquí arriba y no repartidas: leer y escribir tienen que usar
   /// las mismas o un enlace hecho por la pantalla no lo entendería la pantalla.
@@ -72,6 +72,7 @@ abstract final class FiltrosEnLaUrl {
   static const claveMunicipio = 'municipio';
   static const claveVendedor = 'vendedor';
   static const claveCotizado = 'cotizado';
+  static const clavePedido = 'pedido';
   static const claveFactura = 'factura';
   static const claveArchivado = 'archivado';
   static const claveDesde = 'desde';
@@ -207,6 +208,9 @@ abstract final class FiltrosEnLaUrl {
         cotizado:
             deEnum(claveCotizado, CotizadoFiltro.values, (v) => v.param) ??
             base.cotizado,
+        pedido:
+            deEnum(clavePedido, PedidoFiltro.values, (v) => v.param) ??
+            base.pedido,
         factura:
             deEnum(claveFactura, FacturaFiltro.values, (v) => v.param) ??
             base.factura,
@@ -242,6 +246,7 @@ abstract final class FiltrosEnLaUrl {
       if (f.municipio.isNotEmpty) claveMunicipio: f.municipio,
       if (f.vendedores.isNotEmpty) claveVendedor: f.vendedores,
       if (f.cotizado != base.cotizado) claveCotizado: f.cotizado.param,
+      if (f.pedido != base.pedido) clavePedido: f.pedido.param,
       if (f.factura != base.factura) claveFactura: f.factura.param,
       if (f.archivado != base.archivado) claveArchivado: f.archivado.param,
       if (f.desde != null) claveDesde: _dia(f.desde!),

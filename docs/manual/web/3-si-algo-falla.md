@@ -28,20 +28,20 @@ aguante el trabajo. Para eso están la aplicación de Android y la de escritorio
 ## «Esta pantalla no se ha descargado todavía» al entrar
 
 En la web, la aplicación empieza de cero en cada carga de la página, y **tarda un
-segundo en llenarse**. Durante ese segundo verás **«Cargando los pedidos...»** o
+segundo en llenarse**. Durante ese segundo verás **«Cargando las facturas...»** o
 similar.
 
 **Es normal y se va solo.** Si al cabo de unos segundos sigue, lee lo que diga:
 
-> «No se pudieron traer los pedidos. La página cargó, así que conexión hay: el que no
+> «No se pudieron traer las facturas. La página cargó, así que conexión hay: el que no
 > contesta es el servidor. Prueba otra vez y, si sigue igual, avisa a la oficina.»
 
 ---
 
 ## Un cambio se rechazó
 
-En la web **el motivo sale en el momento, con las palabras del servidor**: «Ese
-pedido ya va en otra ruta», «3 de los 8 pedidos ya están en otra ruta».
+En la web **el motivo sale en el momento, con las palabras del servidor**: «Esa
+factura ya va en otra ruta», «3 de las 8 facturas ya están en otra ruta».
 
 **Léelo y repite el gesto.** Casi siempre es que alguien se te adelantó.
 
@@ -159,7 +159,7 @@ Es así, y está reconocido: **los filtros, la pestaña y el buscador de Rutas v
 sólo mientras tienes la pantalla abierta.** Recargar los borra, y **mandar el enlace a
 alguien no le lleva a lo que estás mirando**.
 
-En **Pedidos** y en el **Tablero** sí: sus filtros viajan en la dirección, así que
+En **Facturas** y en el **Tablero** sí: sus filtros viajan en la dirección, así que
 ese enlace sí se puede mandar.
 
 Si el enlace trae filtros que no se entienden, sale un aviso en ámbar:

@@ -35,7 +35,7 @@ número. **Los pasos concretos están en el manual de tu aparato.**
 | [Panel](pantallas/panel.md) | Los tres |
 | [Tablero](pantallas/tablero.md) | Los tres |
 | [Rutas](pantallas/rutas.md) | Los tres |
-| [Pedidos](pantallas/pedidos.md) | Los tres |
+| [Facturas](pantallas/pedidos.md) | Los tres |
 | [Clientes](pantallas/clientes.md) | Los tres |
 | [Vehículos](pantallas/vehiculos.md) | Los tres (necesita conexión) |
 | [Almacenes](pantallas/almacenes.md) | Los tres (necesita conexión) |

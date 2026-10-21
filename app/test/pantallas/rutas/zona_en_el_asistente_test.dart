@@ -167,7 +167,7 @@ void main() {
   test('la etiqueta dice lo que lleva la zona', () {
     final zonas = zonasParaArmar(_tableroDeSantiago(), 'stg');
 
-    expect(zonas.first.etiqueta, 'Vista · 3 pedidos · 340 kg');
+    expect(zonas.first.etiqueta, 'Vista · 3 facturas · 340 kg');
     expect(
       zonasParaArmar(
         _tablero(
@@ -176,8 +176,8 @@ void main() {
         ),
         'stg',
       ).single.etiqueta,
-      'Vista · 1 pedido · 12 kg',
-      reason: 'con uno solo, «1 pedido», no «1 pedidos»',
+      'Vista · 1 factura · 12 kg',
+      reason: 'con uno solo, «1 factura», no «1 facturas»',
     );
   });
 
@@ -404,12 +404,12 @@ void main() {
     await abrir(tester);
 
     expect(
-      find.widgetWithText(ListTile, 'Vista · 3 pedidos · 340 kg'),
+      find.widgetWithText(ListTile, 'Vista · 3 facturas · 340 kg'),
       findsOneWidget,
     );
     expect(find.text('Camión: Vehiculo HAB'), findsOneWidget);
     expect(
-      find.widgetWithText(ListTile, 'Carretera · 2 pedidos · 80 kg'),
+      find.widgetWithText(ListTile, 'Carretera · 2 facturas · 80 kg'),
       findsOneWidget,
     );
     expect(
@@ -440,7 +440,7 @@ void main() {
 
     await abrir(tester);
     await tester.tap(
-      find.widgetWithText(ListTile, 'Vista · 3 pedidos · 340 kg'),
+      find.widgetWithText(ListTile, 'Vista · 3 facturas · 340 kg'),
     );
     await tester.pumpAndSettle();
 

@@ -55,7 +55,21 @@ enum ArchivadoFiltro {
   final String etiqueta;
 }
 
-/// `cotizado` — si Entrega ya le puso costo de domicilio.
+/// `pedido` — si la factura viene de un pedido de PEDIDO (21/10/2026: la fila es la factura
+/// y el pedido es un extra; sin folio no hay pedido).
+enum PedidoFiltro {
+  cualquiera('', 'Con o sin pedido'),
+  conPedido('con', 'Con pedido'),
+  sinPedido('sin', 'Sin pedido');
+
+  const PedidoFiltro(this.param, this.etiqueta);
+
+  final String param;
+  final String etiqueta;
+}
+
+/// `cotizado` — si Entrega ya le puso costo de domicilio. Es un dato del PEDIDO: sólo
+/// cuenta para las facturas que vienen de uno.
 enum CotizadoFiltro {
   cualquiera('', 'Cualquier precio'),
   conPrecio('1', 'Con precio puesto'),
@@ -102,6 +116,7 @@ class FiltrosPedidos {
     this.municipio = '',
     this.vendedores = const [],
     this.cotizado = CotizadoFiltro.cualquiera,
+    this.pedido = PedidoFiltro.cualquiera,
     this.factura = FacturaFiltro.conFactura,
     this.archivado = ArchivadoFiltro.no,
     this.desde,
@@ -120,6 +135,7 @@ class FiltrosPedidos {
       municipio = '',
       vendedores = const [],
       cotizado = CotizadoFiltro.cualquiera,
+      pedido = PedidoFiltro.cualquiera,
       factura = FacturaFiltro.cualquiera,
       archivado = ArchivadoFiltro.cualquiera,
       desde = null,
@@ -137,6 +153,7 @@ class FiltrosPedidos {
   /// CUALQUIERA de ellos. Vacía = todos.
   final List<String> vendedores;
   final CotizadoFiltro cotizado;
+  final PedidoFiltro pedido;
   final FacturaFiltro factura;
   final ArchivadoFiltro archivado;
 
@@ -177,6 +194,7 @@ class FiltrosPedidos {
       municipio.isNotEmpty ||
       vendedores.isNotEmpty ||
       cotizado != CotizadoFiltro.cualquiera ||
+      pedido != PedidoFiltro.cualquiera ||
       factura != FacturaFiltro.cualquiera ||
       archivado != ArchivadoFiltro.cualquiera ||
       desde != null ||
@@ -192,6 +210,7 @@ class FiltrosPedidos {
     String? municipio,
     List<String>? vendedores,
     CotizadoFiltro? cotizado,
+    PedidoFiltro? pedido,
     FacturaFiltro? factura,
     ArchivadoFiltro? archivado,
     DateTime? desde,
@@ -211,6 +230,7 @@ class FiltrosPedidos {
         municipio != null ||
         vendedores != null ||
         cotizado != null ||
+        pedido != null ||
         factura != null ||
         archivado != null ||
         desde != null ||
@@ -228,6 +248,7 @@ class FiltrosPedidos {
       municipio: municipio ?? this.municipio,
       vendedores: vendedores ?? this.vendedores,
       cotizado: cotizado ?? this.cotizado,
+      pedido: pedido ?? this.pedido,
       factura: factura ?? this.factura,
       archivado: archivado ?? this.archivado,
       desde: limpiarDesde ? null : (desde ?? this.desde),
@@ -252,6 +273,7 @@ class FiltrosPedidos {
           other.municipio == municipio &&
           listEquals(other.vendedores, vendedores) &&
           other.cotizado == cotizado &&
+          other.pedido == pedido &&
           other.factura == factura &&
           other.archivado == archivado &&
           other.desde == desde &&
@@ -268,6 +290,7 @@ class FiltrosPedidos {
     municipio,
     Object.hashAll(vendedores),
     cotizado,
+    pedido,
     factura,
     archivado,
     desde,
@@ -301,7 +324,7 @@ String textoDelConteo(
 ) {
   // «1 pedidos» en la cabecera — 28/09/2026. Mismo patrón que las rutas
   // («3 paradas» / «1 parada»), y el CERO en plural: «0 pedidos».
-  final partes = StringBuffer('$total ${total == 1 ? 'pedido' : 'pedidos'}');
+  final partes = StringBuffer('$total ${total == 1 ? 'factura' : 'facturas'}');
   final desde = f.desde;
   final hasta = f.hasta;
   if (desde != null && hasta != null) {

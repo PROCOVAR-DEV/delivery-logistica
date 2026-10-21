@@ -24,14 +24,14 @@ import 'package:reparto/impresion/pre_despacho.dart';
 void main() {
   group('nada de pluralizar lo que el pliego escribe con «(s)»', () {
     test('las hojas conservan el `(s)` DENTRO del texto', () {
-      expect(TextoPreDespacho.pedidos, ' pedido(s)');
+      expect(TextoPreDespacho.pedidos, ' factura(s)');
       expect(TextoPostDespacho.entregadas, ' entregada(s)');
       expect(TextoPostDespacho.devueltas, ' devuelta(s)');
       expect(TextoPostDespacho.canceladas, ' cancelada(s)');
 
       // Y se escriben igual con uno que con muchos: no hay singular aparte.
-      expect('1${TextoPreDespacho.pedidos}', '1 pedido(s)');
-      expect('7${TextoPreDespacho.pedidos}', '7 pedido(s)');
+      expect('1${TextoPreDespacho.pedidos}', '1 factura(s)');
+      expect('7${TextoPreDespacho.pedidos}', '7 factura(s)');
     });
   });
 

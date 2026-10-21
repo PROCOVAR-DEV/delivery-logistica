@@ -8,19 +8,19 @@ import 'vista/pantalla_pedidos.dart';
 
 export 'vista/pantalla_pedidos.dart' show PantallaPedidos;
 
-/// PEDIDOS EN EL REGISTRO. El contrato esta en
+/// FACTURAS EN EL REGISTRO. El contrato esta en
 /// `navegacion/pantalla_registrada.dart`.
 ///
 /// La pantalla **no monta `Scaffold` ni `AppBar`**: el armazon ya pone la barra
 /// lateral, la barra superior con este mismo titulo y la franja de estado. Aqui
 /// solo se declara donde vive y como se llama.
 ///
-/// `ruta_pedidos.dart` es de antes del armazon y ya no lo usa nadie: la ruta
-/// `/orders` sale de aqui. Se deja mientras se confirma que nada externo lo
-/// importa, y entonces se borra.
+/// LA RUTA ES `/facturas` desde el 21/10/2026 (Jose: «ya no son pedidos, son
+/// facturas»). `/orders` se queda como redireccion en `navegacion/rutas.dart` para
+/// los enlaces y favoritos que ya existen.
 PantallaRegistrada registrarPedidos() => const PantallaRegistrada(
-  ruta: '/orders',
-  titulo: 'Pedidos',
+  ruta: FiltrosEnLaUrl.camino,
+  titulo: 'Facturas',
   icono: Icons.inventory_2_outlined,
   enElMenu: true,
   colecciones: ColeccionesDePantalla.pedidos,
@@ -31,7 +31,7 @@ PantallaRegistrada registrarPedidos() => const PantallaRegistrada(
 ///
 /// Aquí ponía `const PantallaPedidos()` y el `GoRouterState` entero se perdía,
 /// contra el contrato de `pantalla_registrada.dart`. Lo que costaba:
-/// `/orders?municipio=Centro` abría la lista SIN acotar y sin decirlo, y
+/// `/facturas?municipio=Centro` abría la lista SIN acotar y sin decirlo, y
 /// recargar dentro de la pantalla borraba los nueve filtros. El porqué entero y
 /// lo que pasa con un valor que no se entiende, en
 /// `datos/filtros_en_la_url.dart`.

@@ -164,7 +164,7 @@ void main() {
               .having(
                 (e) => e.mensaje,
                 'mensaje',
-                '«Centro» tiene 3 pedidos puestos',
+                '«Centro» tiene 3 facturas puestas',
               )
               .having((e) => e.pedidos, 'pedidos', 3),
         ),

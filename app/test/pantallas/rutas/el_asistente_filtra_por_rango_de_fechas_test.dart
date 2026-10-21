@@ -167,7 +167,7 @@ void main() {
     await elegir(tester, 'Desde (fecha de la factura)', '14');
     await tester.tap(find.text('sólo ese día'));
     await _asentar(tester);
-    expect(await laHoja(tester), contains('Pedidos del 2026-09-14'));
+    expect(await laHoja(tester), contains('Facturas del 2026-09-14'));
     await desmontar(tester);
   });
 
@@ -177,7 +177,7 @@ void main() {
     await elegir(tester, 'Hasta (fecha de la factura)', '14');
     final hoja = await laHoja(tester);
     expect(hoja, contains('Camagüey · Camión 1'), reason: 'no se leyó la hoja');
-    expect(hoja, isNot(contains('Pedidos del')));
+    expect(hoja, isNot(contains('Facturas del')));
     await desmontar(tester);
   });
 
@@ -190,7 +190,7 @@ void main() {
 
       expect(find.textContaining('Doña Rosa'), findsWidgets);
       expect(find.textContaining('Don Pepe'), findsWidgets);
-      expect(find.text('Día de los pedidos'), findsNothing);
+      expect(find.text('Día de las facturas'), findsNothing);
       expect(find.text('Todos los días'), findsNothing);
 
       // Desde el 12: sale el del 14 y NO el del 10.

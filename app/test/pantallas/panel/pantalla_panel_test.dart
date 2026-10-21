@@ -74,7 +74,7 @@ void main() {
   ) async {
     await montar(tester);
 
-    expect(find.text('Pedidos sin ruta'), findsOneWidget);
+    expect(find.text('Facturas sin ruta'), findsOneWidget);
     expect(find.text('Rutas en marcha'), findsOneWidget);
     expect(find.text('Entregados hoy'), findsOneWidget);
     expect(find.text('Vehículos'), findsWidgets);

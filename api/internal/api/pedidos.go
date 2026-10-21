@@ -251,6 +251,9 @@ type PedidoSalida struct {
 	PuntoManual    bool       `json:"puntoManual"`
 	PuntoManualPor *string    `json:"puntoManualPor"`
 	PuntoManualAt  *time.Time `json:"puntoManualAt"`
+	// El folio del PEDIDO de PEDIDO de donde sale esta factura (`orders.folio`, 00025); null si la factura
+	// no viene de un pedido. Es lo que dice, en la tabla, de qué pedido viene.
+	Folio *string `json:"folio"`
 	// El punto que traía el cliente mientras el de entrega es manual; null si no lo es.
 	PuntoClienteLat     *float64 `json:"puntoClienteLat"`
 	PuntoClienteLng     *float64 `json:"puntoClienteLng"`
@@ -349,6 +352,7 @@ type PedidoDetalleSalida struct {
 	PuntoManual         bool       `json:"puntoManual"`
 	PuntoManualPor      *string    `json:"puntoManualPor"`
 	PuntoManualAt       *time.Time `json:"puntoManualAt"`
+	Folio               *string    `json:"folio"`
 	PuntoClienteLat     *float64   `json:"puntoClienteLat"`
 	PuntoClienteLng     *float64   `json:"puntoClienteLng"`
 	PuntoClienteAddress *string    `json:"puntoClienteAddress"`
@@ -803,6 +807,7 @@ func (s *Servidor) detalleDePedido(w http.ResponseWriter, r *http.Request, a *al
 		PedidoCosto: x.PedidoCosto, Municipio: x.Municipio, Vendedor: x.Vendedor,
 		SucursalCodigo: x.SucursalCodigo, FacturaEstado: textoDe(x.FacturaEstado),
 		PuntoManual: x.PuntoManual, PuntoManualPor: x.PuntoManualPor, PuntoManualAt: hora(x.PuntoManualAt),
+		Folio:           x.Folio,
 		PuntoClienteLat: x.PuntoClienteLat, PuntoClienteLng: x.PuntoClienteLng, PuntoClienteAddress: x.PuntoClienteAddress,
 		FacturaNumero: x.FacturaNumero, FacturaAt: hora(x.FacturaAt),
 		FacturaDomicilio: x.FacturaDomicilio, FacturaCorregidoAt: hora(x.FacturaCorregidoAt),
@@ -1363,6 +1368,7 @@ func dePedido(x sqlc.ListarPedidosRow, items []RenglonSalida) PedidoSalida {
 		PuntoManual:       x.PuntoManual,
 		PuntoManualPor:    x.PuntoManualPor,
 		PuntoManualAt:     hora(x.PuntoManualAt),
+		Folio:             x.Folio,
 		PuntoClienteLat:   x.PuntoClienteLat, PuntoClienteLng: x.PuntoClienteLng, PuntoClienteAddress: x.PuntoClienteAddress,
 	}
 	if id := idOpcional(x.RouteID); id != nil {

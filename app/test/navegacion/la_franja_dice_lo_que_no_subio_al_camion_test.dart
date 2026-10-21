@@ -92,7 +92,7 @@ void main() {
     );
   }
 
-  final elAviso = find.textContaining('con menos pedidos de los que pusiste');
+  final elAviso = find.textContaining('con menos facturas de las que pusiste');
 
   testWidgets('el armado que subió dejando gente fuera SE DICE, y aparece con '
       'la pantalla ya abierta', (tester) async {
@@ -123,7 +123,7 @@ void main() {
           'y no lo lee nadie: es el §4 al revés, «nada se descarta en silencio»',
     );
     expect(
-      find.text('Una ruta subió con menos pedidos de los que pusiste'),
+      find.text('Una ruta subió con menos facturas de las que pusiste'),
       findsOneWidget,
     );
     // Y NO se cuenta como «sin subir»: subió. Confundirlos es lo que hace que

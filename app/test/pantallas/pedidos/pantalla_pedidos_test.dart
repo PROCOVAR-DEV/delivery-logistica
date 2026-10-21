@@ -87,8 +87,11 @@ void main() {
       // Y el reloj de arriba lo dice tambien, en ambar.
       expect(find.text('Sin descargar todavía'), findsOneWidget);
       // Lo que NO puede salir es el vacio de «no hay nada».
-      expect(find.text('Aún no hay pedidos de esta sucursal.'), findsNothing);
-      expect(find.text('Ningún pedido cuadra con estos filtros.'), findsNothing);
+      expect(find.text('Aún no hay facturas de esta sucursal.'), findsNothing);
+      expect(
+        find.text('Ninguna factura cuadra con estos filtros.'),
+        findsNothing,
+      );
       await desmontar(tester);
     },
   );
@@ -116,10 +119,10 @@ void main() {
     await pintar(tester);
 
     expect(find.text(PantallaPedidos.franjaAzul), findsOneWidget);
-    expect(find.text('Ver todos los pedidos'), findsOneWidget);
+    expect(find.text('Ver todas las facturas'), findsOneWidget);
     // 8 de los 11: el arranque deja fuera lo archivado y lo no facturado.
     expect(
-      find.textContaining('8 pedidos, del más nuevo al más viejo'),
+      find.textContaining('8 facturas, del más nuevo al más viejo'),
       findsOneWidget,
     );
     // El reloj de datos, arriba y siempre visible.
@@ -130,7 +133,7 @@ void main() {
     await desmontar(tester);
   });
 
-  testWidgets('`Ver todos los pedidos` quita los dos filtros del arranque', (
+  testWidgets('`Ver todas las facturas` quita los dos filtros del arranque', (
     tester,
   ) async {
     await sembrarLosOnce(base);
@@ -140,12 +143,12 @@ void main() {
     ).marcar(Colecciones.pedidos, hasta: null, bajadaAt: ahora);
     await pintar(tester);
 
-    await tester.tap(find.text('Ver todos los pedidos'));
+    await tester.tap(find.text('Ver todas las facturas'));
     await asentar(tester);
 
     expect(find.text(PantallaPedidos.franjaAzul), findsNothing);
     expect(
-      find.textContaining('11 pedidos, del más nuevo al más viejo'),
+      find.textContaining('11 facturas, del más nuevo al más viejo'),
       findsOneWidget,
     );
     await desmontar(tester);
@@ -174,8 +177,11 @@ void main() {
     await pintar(tester);
 
     // Sin filtros, con datos: no hay ningun vacio.
-    expect(find.text('Ningún pedido cuadra con estos filtros.'), findsNothing);
-    expect(find.text('Aún no hay pedidos de esta sucursal.'), findsNothing);
+    expect(
+      find.text('Ninguna factura cuadra con estos filtros.'),
+      findsNothing,
+    );
+    expect(find.text('Aún no hay facturas de esta sucursal.'), findsNothing);
 
     // Y ahora se busca algo que no existe.
     await tester.enterText(
@@ -188,14 +194,14 @@ void main() {
     await asentar(tester);
 
     expect(
-      find.text('Ningún pedido cuadra con estos filtros.'),
+      find.text('Ninguna factura cuadra con estos filtros.'),
       findsOneWidget,
       reason:
           'el vacio por un filtro tiene que culpar al filtro, no decir que no '
           'hay pedidos: los hay, y quien lo lee cree que fallo la bajada',
     );
     expect(
-      find.text('Aún no hay pedidos de esta sucursal.'),
+      find.text('Aún no hay facturas de esta sucursal.'),
       findsNothing,
       reason: 'con un filtro puesto ese texto miente',
     );

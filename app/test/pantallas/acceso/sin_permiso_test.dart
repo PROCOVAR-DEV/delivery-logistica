@@ -863,7 +863,7 @@ void main() {
 
     test('sin permiso: cualquier ruta (incluidas las puertas) va a '
         '/sin-permiso, y ella se queda', () {
-      for (final ruta in ['/dashboard', '/orders?x=1', rutaDeArranque]) {
+      for (final ruta in ['/dashboard', '/facturas?x=1', rutaDeArranque]) {
         expect(
           donde(ruta, EstadoDeAcceso.sinPermiso),
           rutaDeSinPermiso,

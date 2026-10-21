@@ -44,12 +44,12 @@ import '../../rutas/datos/geo.dart';
 const msgPuntoNoEncontrado = 'No encontrado';
 const msgPuntoImposible = 'lat y lng tienen que ser un punto del planeta';
 const msgPuntoYaEntregado =
-    'El pedido ya está entregado: no se le puede cambiar el punto';
+    'La factura ya está entregada: no se le puede cambiar el punto';
 const msgPuntoRutaCompletada =
     'La ruta ya está completada: no se le puede cambiar el punto a sus paradas';
-const msgPuntoNoEsManual = 'El pedido no tiene un punto puesto a mano';
+const msgPuntoNoEsManual = 'La factura no tiene un punto puesto a mano';
 const msgPuntoSinPuntoCliente =
-    'El pedido no guardó el punto del cliente: no se puede volver a él';
+    'La factura no guardó el punto del cliente: no se puede volver a él';
 
 /// ¿Se le puede cambiar el punto a este pedido? `null` = sí; si no, el literal
 /// del porqué. Lo usa la acción para rechazar y la pantalla para no enseñar el

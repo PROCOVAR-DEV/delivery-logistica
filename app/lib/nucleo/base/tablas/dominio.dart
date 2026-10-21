@@ -272,6 +272,11 @@ class Orders extends Table {
   RealColumn get puntoClienteLng => real().nullable()();
   TextColumn get puntoClienteAddress => text().nullable()();
 
+  /// El folio del PEDIDO de PEDIDO del que sale esta factura (`orders.folio`, 00025,
+  /// 21/10/2026). Nulo si la factura no viene de ningún pedido o si la copia es anterior
+  /// al esquema 13: la bajada lo trae al volver a pasar cada fila.
+  TextColumn get folio => text().nullable()();
+
   TextColumn get customerPhone => text().nullable()();
 
   IntColumn get stopOrder => integer().nullable()();

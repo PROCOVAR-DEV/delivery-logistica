@@ -79,13 +79,13 @@
       "nombre": "faltan dos (una sin conduce se nombra por su cliente) y sobra una",
       "orden": ["00000000-0000-4000-8000-00000000000a", "00000000-0000-4000-8000-00000000000b", "00000000-0000-4000-8000-00000000000c", "00000000-0000-4000-8000-00000000000d", "00000000-0000-4000-8000-0000000000ff"],
       "codigo": 409,
-      "motivo": "El nuevo orden no coincide con las paradas de la ruta (faltan Bodega sin mapa, PTB-6; sobra 1 pedido que no va en ella). Vuelve a abrir la ruta y ordénala otra vez."
+      "motivo": "El nuevo orden no coincide con las paradas de la ruta (faltan Bodega sin mapa, PTB-6; sobra 1 factura que no va en ella). Vuelve a abrir la ruta y ordénala otra vez."
     },
     {
       "nombre": "sobran dos",
       "orden": ["00000000-0000-4000-8000-00000000000a", "00000000-0000-4000-8000-00000000000b", "00000000-0000-4000-8000-00000000000c", "00000000-0000-4000-8000-00000000000d", "00000000-0000-4000-8000-00000000000e", "00000000-0000-4000-8000-00000000000f", "00000000-0000-4000-8000-0000000000fe", "00000000-0000-4000-8000-0000000000ff"],
       "codigo": 409,
-      "motivo": "El nuevo orden no coincide con las paradas de la ruta (sobran 2 pedidos que no van en ella). Vuelve a abrir la ruta y ordénala otra vez."
+      "motivo": "El nuevo orden no coincide con las paradas de la ruta (sobran 2 facturas que no van en ella). Vuelve a abrir la ruta y ordénala otra vez."
     },
     {
       "nombre": "repite una",

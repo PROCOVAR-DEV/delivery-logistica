@@ -154,7 +154,7 @@ void main() {
     expect(find.text('En ruta'), findsNWidgets(2));
     expect(find.text('En uso'), findsNothing);
     expect(find.text('2500 kg'), findsOneWidget);
-    expect(find.text('12 órdenes asignadas'), findsOneWidget);
+    expect(find.text('12 facturas asignadas'), findsOneWidget);
     // Sin nombre, la ruta activa se identifica por su codigo.
     expect(find.text('Ruta activa'), findsOneWidget);
     // Y DE UN VISTAZO, LA FLOTA. Es lo que Jose pidió: «saber de la flota».

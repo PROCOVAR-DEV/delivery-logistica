@@ -62,7 +62,7 @@ void main() {
       expect(trajo.recuento.cuantas(Colecciones.almacenes), 1);
       expect(
         TextosDeTraerElDia.lasTresCifras(trajo.recuento),
-        '1 pedido · 2 clientes · 1 producto',
+        '1 factura · 2 clientes · 1 producto',
       );
       expect(TextosDeTraerElDia.deLasHoras(trajo.hora), 'de las 8:14');
     });
@@ -544,40 +544,42 @@ void main() {
       return RespuestaFalsa(200, datos);
     }
 
-    test('NO se pone verde, y se dice POR QUÉ con las palabras del servidor',
-        () async {
-      final caja = montar(servidorQueCorta);
+    test(
+      'NO se pone verde, y se dice POR QUÉ con las palabras del servidor',
+      () async {
+        final caja = montar(servidorQueCorta);
 
-      final trajo = await caja.read(traerElDiaProvider.notifier).ahora();
+        final trajo = await caja.read(traerElDiaProvider.notifier).ahora();
 
-      expect(
-        trajo.faltan,
-        isEmpty,
-        reason:
-            'ninguna colección quedó a cero: ESTE es el caso que se colaba, '
-            'porque `Faltas.de` sólo ve las vacías',
-      );
-      expect(
-        trajo.completo,
-        isFalse,
-        reason:
-            'con 2.000 clientes de 8.034 dentro, «Ya lo tienes» es un número '
-            'creíble y equivocado — el fallo del `CLAUDE.md` §3',
-      );
-      expect(
-        trajo.quedoPor,
-        contains('no mando la marca'),
-        reason: 'el motivo LITERAL, el que escribe `bajada.dart`',
-      );
-      expect(
-        TextosDeTraerElDia.comoQuedo(trajo),
-        TextosDeTraerElDia.seCortoTitulo,
-      );
-      expect(
-        TextosDeTraerElDia.seCortoDetalle(trajo.quedoPor!),
-        contains('aunque las cifras de abajo parezcan normales'),
-      );
-    });
+        expect(
+          trajo.faltan,
+          isEmpty,
+          reason:
+              'ninguna colección quedó a cero: ESTE es el caso que se colaba, '
+              'porque `Faltas.de` sólo ve las vacías',
+        );
+        expect(
+          trajo.completo,
+          isFalse,
+          reason:
+              'con 2.000 clientes de 8.034 dentro, «Ya lo tienes» es un número '
+              'creíble y equivocado — el fallo del `CLAUDE.md` §3',
+        );
+        expect(
+          trajo.quedoPor,
+          contains('no mando la marca'),
+          reason: 'el motivo LITERAL, el que escribe `bajada.dart`',
+        );
+        expect(
+          TextosDeTraerElDia.comoQuedo(trajo),
+          TextosDeTraerElDia.seCortoTitulo,
+        );
+        expect(
+          TextosDeTraerElDia.seCortoDetalle(trajo.quedoPor!),
+          contains('aunque las cifras de abajo parezcan normales'),
+        );
+      },
+    );
 
     test('y una bajada ENTERA no dice que se cortó nada', () async {
       final caja = montar(servidorQueTraeElDia);

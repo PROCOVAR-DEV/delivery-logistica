@@ -186,8 +186,8 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
                         padding: const EdgeInsets.all(24),
                         child: Text(
                           filtros.hayAlguno
-                              ? 'Ningún pedido con estos filtros.'
-                              : 'No queda ningún pedido por colocar.',
+                              ? 'Ninguna factura con estos filtros.'
+                              : 'No queda ninguna factura por colocar.',
                           textAlign: TextAlign.center,
                           style: tema.textTheme.bodySmall,
                         ),
@@ -338,7 +338,7 @@ class _Filtros extends ConsumerWidget {
         const SizedBox(height: 6),
         SelectorMultiple(
           key: const ValueKey('Vendedor del pedido'),
-          titulo: 'Vendedor del pedido',
+          titulo: 'Vendedor de la factura',
           todos: 'Todos los vendedores',
           plural: 'vendedores',
           expandido: true,

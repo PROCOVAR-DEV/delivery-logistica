@@ -41,18 +41,18 @@ Super Admin la ve agregada de todas sus sucursales.
 
 | Etiqueta (literal) | Valor | Subtexto (literal) |
 |---|---|---|
-| `Pedidos sin ruta` | `sinRuta` | `<pesoPendiente redondeado> kg por mover` |
+| `Facturas sin ruta` | `sinRuta` | `<pesoPendiente redondeado> kg por mover` |
 | `Rutas en marcha` | `rutasActivas` | — |
 | `Entregados hoy` | `entregadosHoy` | — |
 | `Vehículos` | `<vehiculosEnRuta> / <totalVehicles>` | `en ruta / total` |
 
-La tarjeta «Pedidos sin ruta» se pinta en ámbar cuando el valor es > 0; si es 0, en color
+La tarjeta «Facturas sin ruta» se pinta en ámbar cuando el valor es > 0; si es 0, en color
 primario. Cifras con 0 por defecto mientras carga.
 
 ### Tarjeta «Pendiente por sucursal»
 
 Lista, una fila por sucursal, con tres columnas sin cabecera: nombre de la sucursal ·
-`<pesoKg redondeado> kg` · número de pedidos. Ordenada de más a menos pedidos.
+`<pesoKg redondeado> kg` · número de facturas. Ordenada de más a menos facturas.
 Al pie, separada por una línea: `Domicilios cobrados` + importe formateado en verde.
 
 - **Estado vacío:** `No queda nada sin ruta.`
@@ -71,7 +71,7 @@ Tres enlaces: `Planificar Rutas` → `/routes`; `Ver Reportes` → `/reports`;
   `routeId = null` **y** `endLat` no nulo **y** la regla de entrada a una ruta:
   `facturaEstado ∈ {igual, cambiado}` **y** `facturaDomicilio > 0` **y** (`pedidoCosto` no
   nulo **o** `requiereDomicilio` distinto de `true`) — issue 10 de Amado, 15/10/2026.
-- `entregadosHoy` = pedidos con `deliveredAt` desde las 00:00 de hoy.
+- `entregadosHoy` = facturas con `deliveredAt` desde las 00:00 de hoy.
 - `totalDomicilios` = suma de `pedidoCosto` (lo cobrado en PEDIDO, no la estimación de
   delivery).
 
@@ -79,14 +79,18 @@ Tres enlaces: `Planificar Rutas` → `/routes`; `Ver Reportes` → `/reports`;
 
 ---
 
-## 2. Pedidos — `/orders`
+## 2. Facturas — `/facturas` (antes «Pedidos», `/orders`)
 
-**Para qué sirve.** El catálogo de pedidos espejados de PEDIDO: buscar uno, ver su ficha,
-y sobre todo **sumar el pre-despacho** (cuánto sacar del almacén) de lo filtrado o de lo
-marcado a mano. **Quién la usa:** despacho y almacén. **No se crean pedidos aquí**: el
-alta manual se retiró el 03/09/2026 (`POST /api/orders` ya no existe).
+**Para qué sirve.** El catálogo de facturas de Ventra: buscar una, ver su ficha, y sobre
+todo **sumar el pre-despacho** (cuánto sacar del almacén) de lo filtrado o de lo marcado a
+mano. **La fila es la factura** (Jose, 21/10/2026: «ya no son pedidos, son facturas»); el
+pedido de PEDIDO es un extra, enlazado por folio, y se ve en la columna `Pedido`.
+**Quién la usa:** despacho y almacén. **No se crean facturas aquí**: el alta manual se
+retiró el 03/09/2026 (`POST /api/orders` ya no existe).
 
-**Título:** «Pedidos». Subtítulo: `Todos los pedidos acumulados de todas las rutas`.
+**Ruta y título.** La ruta es **`/facturas`**; `/orders` se queda como redirección a ella
+(para los enlaces y favoritos que ya existen). Título de la pantalla y del menú:
+«Facturas». Subtítulo: `Todas las facturas acumuladas de todas las rutas`.
 
 ### Arranque acotado (importante)
 
@@ -95,9 +99,9 @@ La lista **arranca filtrada** a lo que puede subir a un camión: `factura=con_fa
 
 > `Enseñando sólo lo que tiene factura —cuadre o no— y sin archivar. A una ruta entra todo lo facturado (por ahora, el domicilio cobrado ya no se exige): si la factura cambió, al camión va lo facturado.`
 
-con el botón `Ver todos los pedidos`, que pone ambos filtros a vacío.
+con el botón `Ver todas las facturas`, que pone ambos filtros a vacío.
 
-Debajo, el conteo: `<total> pedidos`; si hay fechas puestas añade
+Debajo, el conteo: `<total> facturas` (`1 factura` si es una); si hay fechas puestas añade
 ` · del <desde> al <hasta>` (o `del <fecha>` si coinciden, `desde el <x>`, `hasta el <x>`)
 y siempre `, del más nuevo al más viejo`. Indicador giratorio mientras refresca.
 
@@ -106,10 +110,11 @@ y siempre `, del más nuevo al más viejo`. Indicador giratorio mientras refresc
 | Control | Título (literal) | Opción «todos» | Opciones | Parámetro |
 |---|---|---|---|---|
 | Selector | `Estado de reparto en delivery` | `Cualquier reparto` (por defecto) | `Sin entregar`=`sin_entregar`, `En despacho`=`en_despacho`, `En ruta`=`en_ruta`, `Entregado`=`entregado`, `Devuelto o cancelado`=`devuelto` | `reparto` |
-| Selector | `Municipio del cliente` | `Todos los municipios` (defecto) | de facetas, con el nº de pedidos como nota | `municipio` |
-| Selector | `Precio del domicilio` | `Cualquier precio` (defecto) | `Con precio puesto`=`1`, `Sin cotizar`=`0` | `cotizado` |
-| Selector **de varios** (cajón con casillas, `SelectorMultiple`; issue 18 de Amado) | `Vendedor del pedido` | `Todos los vendedores` (defecto); «3 vendedores» si hay varios | de facetas, con nº de pedidos | `vendedor` repetido (o `vendedores=a,b`) |
-| Dos fechas | tooltip `Desde (fecha del pedido)` / `Hasta (fecha del pedido)` | vacías | `desde` acota el `max` de `hasta` y viceversa | `desde`, `hasta` |
+| Selector | `Municipio del cliente` | `Todos los municipios` (defecto) | de facetas, con el nº de facturas como nota | `municipio` |
+| Selector | `Precio del pedido` | `Cualquier precio` (defecto) | `Con precio puesto`=`1`, `Sin cotizar`=`0`; **sólo cuenta para las facturas con pedido** (`folio` no nulo) | `cotizado` |
+| Selector | `Pedido de origen` | `Con o sin pedido` (defecto) | `Con pedido`=`con`, `Sin pedido`=`sin` (por `folio`) | `pedido` |
+| Selector **de varios** (cajón con casillas, `SelectorMultiple`; issue 18 de Amado) | `Vendedor de la factura` | `Todos los vendedores` (defecto); «3 vendedores» si hay varios | de facetas, con nº de facturas | `vendedor` repetido (o `vendedores=a,b`) |
+| Dos fechas | tooltip `Desde (fecha de la factura)` / `Hasta (fecha de la factura)` | vacías | `desde` acota el `max` de `hasta` y viceversa | `desde`, `hasta` |
 | Botón | `sólo ese día` | — | aparece si `desde` y `desde ≠ hasta`; copia `desde` en `hasta` | — |
 | Botón (icono ✕) | tooltip `Quitar el filtro de fechas` | — | limpia ambas | — |
 | Selector | `Cómo se ordena esta página` | — (defecto `Más recientes`) | `Más recientes`=`recientes`, `Más antiguos`=`antiguos`, `Precio: mayor a menor`=`precio_desc`, `Precio: menor a mayor`=`precio_asc`, `Distancia: más larga`=`distancia_desc`, `Peso: mayor`=`peso_desc` | **local**: ordena SÓLO la página visible |
@@ -125,10 +130,10 @@ y siempre `, del más nuevo al más viejo`. Indicador giratorio mientras refresc
   `{ orders[], total, pagina, porPagina, paginas, resumen, pesoTotal }`.
   **Tamaño de página: 50** (lo fija el servidor; el control de tamaño está deshabilitado).
 - `GET /api/orders?resumen=1&porPagina=1&<mismos filtros>` — el pre-despacho de lo
-  filtrado; se pide **sólo al abrir el desplegable**. Si el total supera **5000** pedidos
+  filtrado; se pide **sólo al abrir el desplegable**. Si el total supera **5000** facturas
   devuelve `resumen: null`.
 - `GET /api/orders/facetas` — `{ municipios:[{valor,pedidos}], vendedores:[...],
-  sucursales:[{valor,nombre,pedidos}] }`. Se cachea 10 minutos.
+  sucursales:[{valor,nombre,pedidos}] }` (el campo del JSON sigue llamándose `pedidos`). Se cachea 10 minutos.
 
 Semántica de los filtros en el servidor (compartida con el armador de rutas):
 `q` busca en cliente, folio, dirección de entrega, dirección, municipio, vendedor y en el
@@ -138,25 +143,25 @@ y sin resultado `entregado`.
 
 ### Pre-despacho de LO ELEGIDO (tarjeta, sólo si hay marcados)
 
-Cabecera: `<n> pedido(s) elegidos` · `<n> producto(s) · <n> empaques · <kg> kg`.
+Cabecera: `<n> factura(s) elegidas` · `<n> producto(s) · <n> empaques · <kg> kg`.
 Si hay marcados fuera de la página actual: `(<n> en otras páginas, sin sumar)`.
 Botones: `Ver e imprimir` (abre el pre-despacho, ver §10) y `Quitar la marca`.
 Tabla: `Producto` | `Empaques` | `Unidades` | `kg` (kg vacío se pinta `—`).
-Se calcula en el cliente sobre las líneas que ya vinieron con los pedidos de la página.
+Se calcula en el cliente sobre las líneas que ya vinieron con las facturas de la página.
 
 ### Pre-despacho de LO FILTRADO (bloque plegable)
 
 Título: `Pre-despacho de lo filtrado` + `· <n> producto(s) · <n> empaques · <kg> kg`.
 Botón `Ver e imprimir`. Mismas 4 columnas.
 - **Cuando el servidor no puede sumarlo:**
-  `Son demasiados pedidos para sumarlos. Acotá por día o sucursal y sale.`
+  `Son demasiadas facturas para sumarlas. Acotá por día o sucursal y sale.`
 
 #### Los números que NO se enseñan — 22/09/2026
 
 Con el mismo filtro, la franja decía `10 producto(s) · 3185 empaques · 0.0 kg` y la hoja
-imprimible decía `264 pedido(s) · 24891.0 kg`. Los dos eran ciertos cada uno en su
+imprimible decía `264 factura(s) · 24891.0 kg` (entonces `pedido(s)`). Los dos eran ciertos cada uno en su
 definición —uno suma el peso resuelto **por producto**, el otro el del **conjunto de
-pedidos**— y juntos sólo pueden hacer una cosa: que quien carga el camión se crea que no
+facturas**— y juntos sólo pueden hacer una cosa: que quien carga el camión se crea que no
 pesa nada.
 
 Las dos reglas que quedaron, y las dos son la misma:
@@ -171,90 +176,96 @@ Las dos reglas que quedaron, y las dos son la misma:
   siete pacas— y `SOPA DE POLLO CAJA 72 P · 15 empaques · 15 unidades`. Sin catálogo se
   pinta `—`.
 
-La **cabecera de la hoja no cambia**: el peso del conjunto de pedidos sí se sabe entero, así
+La **cabecera de la hoja no cambia**: el peso del conjunto de facturas sí se sabe entero, así
 que sigue siendo un número siempre.
 
 En el **móvil** el bloque no cuelga debajo de la lista: se abre en su **cajón** desde un
-botón que dice cuántos pedidos van contados. Debajo de la lista había que bajar por
-doscientos y pico pedidos peleándose con dos desplazamientos, con el pie fijo tapando el
+botón que dice cuántas facturas van contadas. Debajo de la lista había que bajar por
+doscientas y pico facturas peleándose con dos desplazamientos, con el pie fijo tapando el
 final — «y el pre-despacho, que no lo veo».
 
-### Tabla de pedidos
+### Tabla de facturas
 
-Columnas por orden (la etiqueta literal es la que se pinta):
+Columnas por orden (la etiqueta literal es la que se pinta). **La factura es la primera
+columna** (desde el 21/10/2026; antes lo era la fecha del pedido):
 
 1. **Casilla** de selección. La de la cabecera marca/desmarca toda la página
-   (`aria-label`: `Elegir todos los de esta página`). No abre el pedido.
-2. `Fecha` — fecha del pedido; si falta `orderDate` se pinta la de copiado con un `≈`
-   y el tooltip `Pedido copiado antes de que se guardara su fecha: ésta es la del espejo.`
-3. `Sucursal` — **sólo si no hay sucursal elegida arriba**; se oculta bajo 1536 px.
-4. `Pedido` — insignia de estado EN PEDIDO: `Completada` (verde) / `Expirada` (roja, si
-   `fechaComprometida` ya pasó) / `En proceso` (ámbar). Icono de archivo con tooltip
-   `Archivado en PEDIDO` si procede; y debajo `sin domicilio` si `requiereDomicilio=false`.
-5. `Cliente` — nombre + nº de operación (folio) en mono.
-6. `Ruta` — código de ruta en insignia azul o `—`. Oculta bajo 1280 px.
-7. `Artículos` — primer producto `×<empaques>` y `+<n>` con desplegable al pasar el ratón
-   (en Flutter: tocar para abrir). Oculta bajo 1024 px.
-8. `Dirección` — `endAddress` o `address`.
-9. `Peso` — `<n> kg`, alineada a la derecha.
-10. `Precio` — **`pedidoCosto`** (lo que cobró Entrega), no el precio interno. Si no hay:
-    `sin cotizar` en gris.
-11. `Factura` — `igual` → nº de factura en verde, tooltip
+   (`aria-label`: `Elegir todos los de esta página`). No abre la factura.
+2. `Factura` — la fila: el número de factura (antes era la columna 11) y, bajo él, su fecha.
+   Oculta bajo 1024 px.
+    **Detalle de la columna:** `igual` → nº de factura en verde, tooltip
     `Cuadra con lo pedido: se puede repartir tal cual.`; `cambiado` → nº + `⚠` en ámbar,
     tooltip `Se facturó algo distinto de lo pedido: al camión va lo facturado.` (hasta el
     15/10/2026 decía que no podía ir en una ruta; desde el issue 10 de Amado `cambiado` entra);
     `sin_factura` → `sin facturar`; nulo → `sin cotejar` con tooltip
-    `El cotejo contra Ventra no ha pasado por este pedido todavía.` Oculta bajo 1024 px.
+    `El cotejo contra Ventra no ha pasado por esta factura todavía.`
     **El número de factura no se pierde con la columna** (Amado, issue 8, 14/10/2026: «los
     logísticos operan con número de factura»): entre 768 y 1023 px baja a la celda del cliente,
     bajo el folio (`Factura 1024237`); en la tarjeta del teléfono sube a la cabecera con su rótulo
     y la insignia queda solo con el estado (`Cuadra` / `Cambió !`).
     **Con factura `igual` o `cambiado`, junto al número, una segunda marca con el cobro del
     domicilio** (Amado, 08/10/2026: «en la tabla no está claro qué pedidos han sido facturados
-    y cobrados»): `Dom. $0.46` en verde, con el importe, cuando `facturaDomicilio > 0`; y
+    y cobrados»; entonces la fila era el pedido): `Dom. $0.46` en verde, con el importe, cuando `facturaDomicilio > 0`; y
     `Sin cobro de domicilio` en ámbar cuando es nulo o 0, con el tooltip `La factura no trae la
-    línea ENTREGA A DOMICILIO: este pedido no puede ir a una ruta ni a una zona del tablero
+    línea ENTREGA A DOMICILIO: esta factura no puede ir a una ruta ni a una zona del tablero
     hasta que el domicilio se cobre en la factura.` Con `sin_factura` o nulo no se añade nada.
-    Es la regla del 07/10 hecha visible: sin esa línea el pedido no entra en una ruta ni en
-    una zona. **El ámbar sólo sale si ése es lo que frena al pedido** (se le pregunta a
-    `porQueNoSePuedeColocar`, no se repite la regla): con ruta, entregado o archivado
-    lleva sólo el número, o el `Dom.` verde si hay cobro; un devuelto o cancelado sí lleva el
+    Es la regla del 07/10 hecha visible: sin esa línea la factura no entra en una ruta ni en
+    una zona. **El ámbar sólo sale si ése es lo que frena a la factura** (se le pregunta a
+    `porQueNoSePuedeColocar`, no se repite la regla): con ruta, entregada o archivada
+    lleva sólo el número, o el `Dom.` verde si hay cobro; una devuelta o cancelada sí lleva el
     ámbar, porque se puede reasignar. En el móvil (tarjeta) la marca va dentro de la
     tarjeta, junto al número.
+3. `Fecha factura` — fecha de la factura; si falta `orderDate` se pinta la de copiado con un `≈`
+   y el tooltip `Factura copiada antes de que se guardara su fecha: ésta es la del espejo.`
+4. `Sucursal` — **sólo si no hay sucursal elegida arriba**; se oculta bajo 1536 px.
+5. `Pedido` — **de qué pedido de PEDIDO viene la factura**: su folio y, debajo, la
+   insignia de estado EN PEDIDO: `Completada` (verde) / `Expirada` (roja, si
+   `fechaComprometida` ya pasó) / `En proceso` (ámbar). Icono de archivo con tooltip
+   `Archivado en PEDIDO` si procede; y debajo `sin domicilio` si `requiereDomicilio=false`.
+   **Si la factura no viene de ningún pedido** (no hay folio, o este aparato aún no lo ha
+   puesto al día) sale un guion `—`, con el tooltip `Esta factura no viene de ningún pedido de PEDIDO.`
+6. `Cliente` — nombre + nº de operación (folio) en mono.
+7. `Ruta` — código de ruta en insignia azul o `—`. Oculta bajo 1280 px.
+8. `Artículos` — primer producto `×<empaques>` y `+<n>` con desplegable al pasar el ratón
+   (en Flutter: tocar para abrir). Oculta bajo 1024 px.
+9. `Dirección` — `endAddress` o `address`.
+10. `Peso` — `<n> kg`, alineada a la derecha.
+11. `Precio` — **`pedidoCosto`** (lo que cobró Entrega), no el precio interno. Si no hay:
+    `sin cotizar` en gris.
 12. `Entrega` — estado de reparto calculado: `Devuelto` / `Cancelado` (ámbar),
     `Entregado` (verde), `En ruta` (azul), `En despacho` (índigo), `Sin entregar` (gris).
     Oculta bajo 768 px.
 13. Chevron. La fila entera abre el detalle.
 
 **Sin columna `Vehículo`** (Amado, 08/10/2026, «elimínala para más espacio»): desde la 1.0.28
-`orders.vehicle_id` no existe y la celda era un marcador mudo. El camión de un pedido sigue
+`orders.vehicle_id` no existe y la celda era un marcador mudo. El camión de una factura sigue
 viéndose en el **detalle**, en la sección `Ruta`, porque sale de su ruta.
 
 **Regla de estado de reparto:** manda `resultado` de la parada, **no** el estado de la
-ruta. Una ruta completada no convierte en «entregado» un pedido devuelto.
+ruta. Una ruta completada no convierte en «entregada» una factura devuelta.
 
 ### Estados vacíos y carga
 
 - Cargando: `Cargando...`
-- Sin resultados: sin filtros, `Aún no hay pedidos de esta sucursal.`; con algún filtro
-  puesto, `Ningún pedido cuadra con estos filtros.` y debajo el botón `Quitar todos los
+- Sin resultados: sin filtros, `Aún no hay facturas de esta sucursal.`; con algún filtro
+  puesto, `Ninguna factura cuadra con estos filtros.` y debajo el botón `Quitar todos los
   filtros` (limpia **todos**, incluidos los del arranque). Son dos frases distintas a
-  propósito: con un filtro que no casa, «aún no hay pedidos» es mentira (25/09/2026).
+  propósito: con un filtro que no casa, «aún no hay facturas» es mentira (25/09/2026).
 
 ### Paginación
 
 Componente de páginas al pie: `Mostrando <desde>–<hasta> de <total>`, botones
 primera/anterior/números (ventana de 5)/siguiente/última. **50 por página, fijo.**
 
-### Detalle del pedido (cajón, ancho `lg`)
+### Detalle de la factura (cajón, ancho `lg`)
 
 Título = nombre del cliente, subtítulo = folio. Secciones:
 
 - `Entrega`: dirección, coordenadas `lat, lng` con enlace `ver mapa` a Google Maps,
   teléfono. **Punto de entrega a mano (issue 19 de Amado, 1.0.39):** si `puntoManual`, la
   insignia ámbar `Punto puesto a mano` (tooltip `Lo puso <persona>`); debajo, el botón
-  `Ubicar la entrega` (icono `edit_location_alt_outlined`) o, si el pedido ya está
-  entregado o su ruta está completada, el literal del porqué en gris y sin botón (ver
+  `Ubicar la entrega` (icono `edit_location_alt_outlined`) o, si la factura ya está
+  entregada o su ruta está completada, el literal del porqué en gris y sin botón (ver
   «Ubicar la entrega» abajo).
 - `Recorrido`: mapa de 220 px con dos puntos, almacén (origen) → cliente. Pie:
   `Del almacén (<nombre>) al cliente.`
@@ -272,8 +283,8 @@ Título = nombre del cliente, subtítulo = folio. Secciones:
   gris si no): `Distancia` (`<n.nn> km` o `—`), `Peso total` (`<n.nn> kg`), y a la derecha
   el importe o `Sin calcular todavía`.
   Nota al pie: `El costo lo puso el repartidor desde Entrega. La distancia es del almacén al cliente.`
-  / (marcado) `El costo lo pone el repartidor desde Entrega; hasta entonces este pedido no tiene precio de domicilio.`
-  / (sin marcar) `El vendedor no marcó domicilio y Entrega sólo cotiza los marcados: este pedido no tiene precio de domicilio, y no le hace falta para ir a una ruta.`
+  / (marcado) `El costo lo pone el repartidor desde Entrega; hasta entonces esta factura no tiene precio de domicilio.`
+  / (sin marcar) `El vendedor no marcó domicilio y Entrega sólo cotiza los marcados: esta factura no tiene precio de domicilio, y no le hace falta para ir a una ruta.`
 - `Productos (<n>)`: por línea, nombre, `<n> unidades`, ` · <n.nn> kg/empaque`,
   `×<empaques> empaques` y el peso de la línea; si no hay peso resuelto: `sin peso`.
   Vacío: `Sin productos`.
@@ -289,7 +300,7 @@ coincide con la geolocalización del cliente. El logístico le pone **a mano** e
 entrega (lat, lng, dirección); ese punto manda sobre el del cliente y sobrevive al espejo
 (lo hace el servidor). Un solo cajón (`CajonUbicarEntrega`), tres puertas: esta ficha, la
 tarjeta de la parada del detalle de ruta (junto a `Quitar de ruta`) y cada fila del paso
-`Pedidos` del asistente (botón pequeño con tooltip `Ubicar la entrega`, que **no** marca
+`Facturas` del asistente (botón pequeño con tooltip `Ubicar la entrega`, que **no** marca
 la casilla).
 
 - Título `Ubicar la entrega`, subtítulo `<folio> · <cliente>`. Campos: `Dirección` (+ botón
@@ -306,15 +317,15 @@ la casilla).
 
 | Acción | Llamada | Notas |
 |---|---|---|
-| Poner el punto | `PUT /orders/<id>/punto` `{lat, lng, direccion?}` | 200 `{id, endLat, endLng, endAddress, puntoManual, puntoManualPor, puntoManualAt, deliveryDistanceKm, segmentKm}`. 400 `Se espera { lat, lng }` / `lat y lng tienen que ser un punto del planeta` (rango o (0,0)); 404 `No encontrado`; 409 `El pedido ya está entregado: no se le puede cambiar el punto` / `La ruta ya está completada: no se le puede cambiar el punto a sus paradas`; 502 si Accesos no contesta. |
-| Volver al del cliente | `DELETE /orders/<id>/punto` | Mismo 200. 409 `El pedido no tiene un punto puesto a mano`. |
+| Poner el punto | `PUT /orders/<id>/punto` `{lat, lng, direccion?}` | 200 `{id, endLat, endLng, endAddress, puntoManual, puntoManualPor, puntoManualAt, deliveryDistanceKm, segmentKm}`. 400 `Se espera { lat, lng }` / `lat y lng tienen que ser un punto del planeta` (rango o (0,0)); 404 `No encontrado`; 409 `La factura ya está entregada: no se le puede cambiar el punto` / `La ruta ya está completada: no se le puede cambiar el punto a sus paradas`; 502 si Accesos no contesta. |
+| Volver al del cliente | `DELETE /orders/<id>/punto` | Mismo 200. 409 `La factura no tiene un punto puesto a mano`. |
 
 - **Web:** va al servidor y espera; sin fila escrita si dice que no. **APK y escritorio:** UNA
   transacción escribe la fila (`endLat/endLng/lat/lng`, `endAddress`, `puntoManual`,
   `puntoClienteLat/Lng/Address` la primera vez), recalcula el km de la parada y el total de su
   ruta (mismas cuentas que al armar) y encola el apunte. **No recalcula `deliveryDistanceKm`**
-  (el almacén del pedido se elige en el servidor); hasta que suba y baje, se ve la de antes.
-  La bandeja de revisión lo reconoce (`Poner el punto de entrega de un pedido a mano`).
+  (el almacén de la factura se elige en el servidor); hasta que suba y baje, se ve la de antes.
+  La bandeja de revisión lo reconoce (`Poner el punto de entrega de una factura a mano`).
 
 ---
 
@@ -368,7 +379,7 @@ Cabecera: código, nombre y etiqueta con la sucursal. Botones:
   `Conduce: <número de operación>` (el conduce ES el número de operación de la factura) y,
   **sólo en una ruta `planned`**, el botón `Quitar de ruta`. Éste abre un cajón titulado
   `Quitar de la ruta` (subtítulo `<cliente> · Conduce: <número>`) con el texto `«<cliente>»
-  sale de esta ruta y vuelve a pedidos disponibles. La ruta se queda con las demás paradas y
+  sale de esta ruta y vuelve a facturas disponibles. La ruta se queda con las demás paradas y
   su peso y su importe se recalculan sin él.` + `Si la ruta se armó desde una zona del
   tablero, la factura regresa a esa zona cuando se sincronice (en la web, de inmediato).`,
   y los botones `Sí, quitar «<cliente>» de la ruta` / `No, dejarlo en la ruta` (cerrar sin
@@ -393,12 +404,12 @@ sale de `startedAt`/`finishedAt`; tooltip con las horas).
 
 **Pre-despacho de la ruta (issue 8 de Amado; hecho el 14/10/2026).** Debajo de `Carga total` (que se
 mantiene), el detalle de **toda** ruta —armada a mano o desde una zona del tablero— trae la
-sección `Pre-despacho`: la misma vista que el paso 4 del asistente y que Pedidos
+sección `Pre-despacho`: la misma vista que el paso 4 del asistente y que Facturas
 (`VistaPreDespacho`), el botón `Ver e imprimir` y, debajo, la tabla `Por producto y factura`. Antes el
 pre-despacho sólo existía dentro del asistente, y una ruta del tablero (que va derecha al
 detalle) no lo tenía. La suma es **una sola** para las tres entradas:
 `ConsultasPedidos.preDespachoDe`; `app/lib/pantallas/rutas/datos/pre_despacho_de_la_ruta.dart`
-sólo la reparte pedido a pedido. Ver §10.1 para la tabla.
+sólo la reparte factura a factura. Ver §10.1 para la tabla.
 
 Compartir: enlace `Abrir en Google Maps` (origen = almacén, paradas en orden, **destino =
 el mismo almacén**, `travelmode=driving&dir_action=navigate`), botón `copiar enlace` que
@@ -416,13 +427,13 @@ tarjeta de parada con `puntoManual` lleva la insignia `Punto puesto a mano` y, s
 ### Asistente «Nueva Ruta» (cajón a pantalla **completa**, con pie fijo)
 
 Barra de progreso de 4 pasos con las etiquetas `Sucursal`, `Salida`, `Vehículo`,
-`Pedidos`; se pinta **un paso cada vez** y se puede volver a uno ya hecho pulsando su
+`Facturas`; se pinta **un paso cada vez** y se puede volver a uno ya hecho pulsando su
 tramo. Si la sucursal y la salida ya vienen resueltas, arranca directamente en el paso 3.
 Pie fijo: `Cancelar` y `Generar Ruta` (mientras: `Generando ruta...`), deshabilitado si
-falta salida, vehículo o pedidos, o si hay sobrepeso.
+falta salida, vehículo o facturas, o si hay sobrepeso.
 
 1. **Sucursal.** Selector `Sucursal de la ruta`, placeholder `Elige la sucursal…`.
-   Nota: `Los pedidos, los vehículos y el punto de partida serán los de esta sucursal.`
+   Nota: `Las facturas, los vehículos y el punto de partida serán los de esta sucursal.`
    Botón `Siguiente`. La sucursal se autocompleta con la del usuario, o con la de la barra
    superior, o con la única disponible.
 2. **`Punto de partida`.** Es un **almacén de la sucursal** (de Accesos), nunca un punto
@@ -440,12 +451,12 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
    nueva sólo se asigna un vehículo activo. Actívalo en Vehículos.` Campo de nombre, placeholder
    `Nombre (el código se genera solo)`. Campo `Fecha de entrega (opcional)`.
    Sin vehículos: `No hay vehículos disponibles. Crea o libera uno en Vehículos para poder crear la ruta.`
-4. **`Pedidos de cliente (<n>)`.** Dos columnas: lista a la izquierda, pre-despacho fijo a
+4. **`Facturas de cliente (<n>)`.** Dos columnas: lista a la izquierda, pre-despacho fijo a
    la derecha.
 
    Filtros de la lista de disponibles:
-   - Selector `Sucursal de la ruta` (repetido) + los controles de fecha de Pedidos:
-     `Desde (fecha del pedido)` / `Hasta (fecha del pedido)` / `sólo ese día` / ✕ (los dos días
+   - Selector `Sucursal de la ruta` (repetido) + los controles de fecha de Facturas:
+     `Desde (fecha de la factura)` / `Hasta (fecha de la factura)` / `sólo ese día` / ✕ (los dos días
      incluidos; hasta el 15/10/2026 era un solo `Día de los pedidos` con `Todos los días`,
      issue 13 de Amado).
    - Selector **de varios** `Vendedor del pedido` / `Todos los vendedores` (con buscador siempre; issue 18 de Amado).
@@ -459,18 +470,18 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
    - Selector `Si Entrega ya le puso costo de domicilio` / `Cotizados y sin cotizar`:
      `Ya cotizados`=`1`, `Sin cotizar`=`0`.
    - Botón `Limpiar` (vuelve a domicilio=`1`).
-   - Buscador `Buscar pedido...` y selector `Municipio del cliente` / `Todos los municipios`
+   - Buscador `Buscar factura...` y selector `Municipio del cliente` / `Todos los municipios`
      (este último se aplica **en el cliente**).
    - **La regla de entrada NO es configurable:** la lista sólo trae lo que una ruta acepta
      —`facturaEstado ∈ {igual, cambiado}`, `facturaDomicilio > 0` y `pedidoCosto` no nulo
      si `requiereDomicilio` es `true`— y no hay filtro de factura. Hasta el 15/10/2026 se
      mandaba siempre `factura=cuadra` (sólo `igual`); ya no, porque dejaba fuera los
      `cambiado`. `domicilio=1`, que es el defecto, cuenta también el cobro de la
-     factura, así que ya no esconde los pedidos sin marcar que sí entran (hasta el
+     factura, así que ya no esconde las facturas sin marcar que sí entran (hasta el
      15/10/2026 miraba sólo la casilla `requiereDomicilio` y los escondía).
 
    Aviso si la lista viene recortada (tope de 2000 en el servidor):
-   `Hay más pedidos de los que caben en la lista. Elegí la sucursal y el día para verlos todos: una ruta se arma con los de un sitio y un día.`
+   `Hay más facturas de las que caben en la lista. Elegí la sucursal y el día para verlos todos: una ruta se arma con los de un sitio y un día.`
 
    Barra de capacidad: `<peso> / <capacidad> kg (<n>%)`, verde <80 %, ámbar ≥80 %, roja
    ≥100 %; insignia `LLENO` y texto `Camión lleno — no cabe más`. Sin vehículo:
@@ -478,18 +489,18 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
 
    Cada fila: casilla, cliente, dirección, chips de artículos, `<peso> kg` y el costo de
    domicilio o `sin cotizar`, y a la derecha un botón pequeño `Ubicar la entrega` (tooltip) que
-   abre el cajón del punto a mano sin marcar ni desmarcar la casilla. Los pedidos que **no caben** quedan deshabilitados con
+   abre el cajón del punto a mano sin marcar ni desmarcar la casilla. Las facturas que **no caben** quedan deshabilitados con
    `No cabe en el camión` (tooltip igual).
 
-   Pie de la lista: `<n> pedidos seleccionados` y, si alguno ya no sale con los filtros,
+   Pie de la lista: `<n> facturas seleccionadas` y, si alguna ya no sale con los filtros,
    `(<n> de otro día o filtro, siguen contando)`; a la derecha `<peso> / <capacidad> kg`.
    Sobrepeso: `Peso ({w} kg) supera capacidad del vehículo ({c} kg)`.
 
-   Estados: `Cargando pedidos...` / `No hay pedidos disponibles para rutear.`
+   Estados: `Cargando facturas...` / `No hay facturas disponibles para rutear.`
 
    **Pre-despacho lateral** (`Pre-despacho`): botón `Ver e imprimir`; tabla `Producto` |
-   `Emp.` | `Uds.`; totales `Pedidos`, `Empaques`, `Unidades`, `Peso` (`<w> / <cap> kg`).
-   Vacío: `Según vayas eligiendo pedidos, aquí sale cuánto hay que sacar de cada producto.`
+   `Emp.` | `Uds.`; totales `Facturas`, `Empaques`, `Unidades`, `Peso` (`<w> / <cap> kg`).
+   Vacío: `Según vayas eligiendo facturas, aquí sale cuánto hay que sacar de cada producto.`
 
 ### Endpoints y acciones
 
@@ -499,22 +510,22 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
 | Vehículos | `GET /api/vehicles` | Para el selector y el filtro. |
 | Almacenes | `GET /api/almacenes` | Punto de partida (por código de sucursal). |
 | Sucursales | `GET /api/branches` | Las que la persona puede ver. |
-| Pedidos elegibles | `GET /api/orders/available` con `q, branchId, fecha, vendedor, kmMax, costoMin, estado, cotizado, domicilio` | Devuelve `{orders, total, truncated}`; tope 2000. Sin `factura`: la regla de entrada va fija en la consulta. |
+| Facturas elegibles | `GET /api/orders/available` con `q, branchId, fecha, vendedor, kmMax, costoMin, estado, cotizado, domicilio` | Devuelve `{orders, total, truncated}`; tope 2000. Sin `factura`: la regla de entrada va fija en la consulta. |
 | Opciones de filtro | misma URL sin `q`, `vendedor` ni municipio | Para que elegir un vendedor no borre los demás. |
 | Crear ruta | `POST /api/routes` con `{name?, branchId, vehicleId, deliveryDate?, originAddress, originLat, originLng, orderIds[]}` | 201 con la ruta creada; se selecciona sola. |
 | Iniciar | `PATCH /api/routes/<id>` `{status:'in_progress'}` | Pasa a la pestaña `En curso`; marca el vehículo `in_use`. |
 | Completar | `PATCH /api/routes/<id>` `{status:'completed'}` | Libera el vehículo, pasa a `Historial`. |
 | Eliminar | `DELETE /api/routes/<id>` | Sólo rutas no completadas; libera el vehículo. El cajón de confirmación (`Borrar «RT-…»`) añade, desde el 07/10/2026: `Si la ruta se armó desde una zona del tablero, las facturas vuelven a esa zona cuando se sincronice el borrado (en la web, de inmediato). Mientras tanto, sin señal, salen en «Sin colocar».` |
-| Quitar una parada | `DELETE /api/routes/<id>/stops/<orderId>` | Sólo rutas `planned`. 409 `Sólo se pueden retirar paradas de una ruta planificada` / `El pedido no pertenece a una ruta planificada o ya fue retirado`. |
+| Quitar una parada | `DELETE /api/routes/<id>/stops/<orderId>` | Sólo rutas `planned`. 409 `Sólo se pueden retirar paradas de una ruta planificada` / `La factura no pertenece a una ruta planificada o ya fue retirada`. |
 | Cerrar parada por parada | `POST /api/routes/<id>/results` | Ver §9.1. |
 
 **Errores del servidor, literales (salen como aviso emergente, no dentro del cajón):**
 - `Las coordenadas del punto de partida son requeridas` (400)
 - `Se requiere un vehículo para crear la ruta` (400)
-- `Los pedidos seleccionados ya no están disponibles: <detalle>` (400)
-- `<n> de los <total> pedidos elegidos no pueden ir en esta ruta: <folio> (ya va en la ruta RT-…|ya se entregó y no puede volver a un camión|PEDIDO lo archivó|sin coordenadas de entrega|no vino de PEDIDO|no existe o no es de tu sucursal|no es un identificador de pedido), … y <k> más.` (409)
-  — con `<n>` = 1 el verbo va en singular (`no puede ir`), y si se eligió UN SOLO
-  pedido la cabecera entera es `El pedido elegido no puede ir en esta ruta: …`:
+- `Las facturas seleccionadas ya no están disponibles: <detalle>` (400)
+- `<n> de las <total> facturas elegidas no pueden ir en esta ruta: <folio> (ya va en la ruta RT-…|ya se entregó y no puede volver a un camión|PEDIDO lo archivó|sin coordenadas de entrega|no vino de PEDIDO|no existe o no es de tu sucursal|no es un identificador de factura), … y <k> más.` (409)
+  — con `<n>` = 1 el verbo va en singular (`no puede ir`), y si se eligió UNA SOLA
+  factura la cabecera entera es `La factura elegida no puede ir en esta ruta: …`:
   los dos números serían el mismo y no informan de nada. La escriben igual el
   servidor y el aparato —la ruta se arma sin señal—, y lo que las ata es
   `docs/armado-rechazado.casos.json`.
@@ -523,7 +534,7 @@ falta salida, vehículo o pedidos, o si hay sobrepeso.
   `cambió en la factura`, que ya no existe: `cambiado` entra.
 - `El vehículo está inactivo y no se puede asignar a una ruta.` (400)
 - `Peso total (<w> kg) supera la capacidad del vehículo (<c> kg)` (400)
-- `Una ruta se arma eligiendo pedidos ya existentes. Manda \`orderIds\`.`
+- `Una ruta se arma eligiendo facturas ya existentes. Manda \`orderIds\`.`
 - Respaldos del cliente: `Error al crear la ruta`, `Error al iniciar la ruta`,
   `Error al completar la ruta`.
 
@@ -748,7 +759,7 @@ Se repinta sola: pide la lista otra vez cuando llega el aviso en vivo `almacenes
 ## 7. Reportes — `/reports`
 
 **Para qué sirve.** Cuadrar lo repartido en un rango de fechas: totales, reparto por
-vehículo y detalle pedido a pedido, con exportación a Excel. **Quién la usa:**
+vehículo y detalle factura a factura, con exportación a Excel. **Quién la usa:**
 administración.
 
 **Título:** «Reportes».
@@ -774,15 +785,15 @@ placa e `<importe> · <n> órdenes`. Si no hay órdenes: `No hay órdenes para l
 fila de pie `Totales` con la suma de órdenes, ingresos y peso (sin total de facturas: es una
 lista de referencias, no una suma). `Facturas` (issue 9 de Amado) dice las DOS primeras
 facturas del camión y cuántas quedan fuera —`PTB25-261005-1479, F-000777 y 1 más`— y, aparte,
-cuántos de sus pedidos no tienen número —`· 1 sin número`—; la lista entera está en el Excel.
-Un número que se repite en dos pedidos (la ida y la vuelta) cuenta una vez; las `Órdenes` y los
+cuántas de sus facturas no tienen número —`· 1 sin número`—; la lista entera está en el Excel.
+Un número que se repite en dos filas (la ida y la vuelta) cuenta una vez; las `Órdenes` y los
 totales no se mueven.
 Vacío: `No hay datos de vehículos para los filtros seleccionados.`
 
 **Detalle de Órdenes** — tabla:
 `Fecha` | `Factura` | `Cliente` | `Ruta` | `Destino` | `Vehículo` | `Peso` | `Precio`;
 fila de pie `Totales:` con peso total (`<n.n> kg`) e importe total. `Factura` (issue 9 de
-Amado) es el número de factura del pedido —ver «El número de factura de los reportes» en `reglas-negocio.md`
+Amado) es el número de la factura —ver «El número de factura de los reportes» en `reglas-negocio.md`
 §15.13—; sin número, la raya `—`, nunca en blanco.
 Vacío: `No hay órdenes para los filtros seleccionados.`
 
@@ -793,7 +804,7 @@ Vacío: `No hay órdenes para los filtros seleccionados.`
   totalWeight, avgPrice}, byVehicle:[{name, plate, count, revenue, weight, invoiceNumbers,
   withoutInvoice}]}`; cada `orders[]` lleva además `invoiceNumber` (`null` si no tiene).
   El rango se aplica sobre `createdAt`; `to` incluye el día entero.
-  **Ingreso de un pedido = `price` si lo tiene, si no `pedidoCosto`.**
+  **Ingreso de una factura = `price` si lo tiene, si no `pedidoCosto`.**
 
 ### Exportación a Excel
 
@@ -830,7 +841,7 @@ vertical a la izquierda):
 |---|---|---|
 | `/dashboard` | `Panel` | `mdi:view-dashboard-outline` |
 | `/routes` | `Rutas` | `mdi:map-marker-path` |
-| `/orders` | `Pedidos` | `mdi:package-variant-closed` |
+| `/facturas` (`/orders` redirige) | `Facturas` | `mdi:package-variant-closed` |
 | `/customers` | `Clientes` | `mdi:account-multiple-outline` |
 | `/vehicles` | `Vehículos` | `mdi:truck-outline` |
 | `/warehouses` | `Almacenes` | `mdi:warehouse` |
@@ -896,14 +907,14 @@ Pie: `Post-despacho` (abre la hoja, §10.2), `Cerrar`, y
 
 **Endpoint:** `POST /api/routes/<id>/results` con
 `{resultados:[{orderId, resultado, nota}]}`, `resultado ∈ {entregado, devuelto, cancelado}`.
-Efectos por pedido: guarda `resultado`, `resultadoAt`, `resultadoNota`; `deliveredAt` sólo
+Efectos por factura: guarda `resultado`, `resultadoAt`, `resultadoNota`; `deliveredAt` sólo
 si se entregó; `status` = `delivered`/`pending`; y **lo que no se entrega suelta su
 `routeId`** para poder ir en la ruta de mañana (`ultimaRutaId` y `stopOrder` se conservan).
 Además avisa a PEDIDO del estado de cada pedido espejado.
 
 **Mensajes:** éxito → `Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o volvió.`
 Errores → `No vino ningún resultado` (400), `No encontrada` (404), respaldo
-`No se pudo guardar el cierre`. Rechazos por pedido: `ese pedido no va en esta ruta`,
+`No se pudo guardar el cierre`. Rechazos por factura: `esa factura no va en esta ruta`,
 `resultado '<x>' desconocido`.
 
 **Cierre parcial (409 con `aplicados` y `rechazados`), sólo en la WEB** (1.0.29, antes era
@@ -916,7 +927,7 @@ vuelve a salir. Título al completar `Ruta completada: <n> paradas no se guardar
 Texto: `Estas paradas se quedaron sin resultado. Apunta su conduce y corrígelas en PEDIDO.` o,
 si sólo se guardaba, `Estas paradas siguen marcadas aquí pero el servidor no las guardó.
 Corrige la marca y vuelve a guardar.` Una línea en negrita por parada:
-`Conduce <número de operación>: <motivo literal del servidor>` (si el pedido no trae número
+`Conduce <número de operación>: <motivo literal del servidor>` (si la factura no trae número
 de operación, sale su id interno). Al acusar: completando, se cierra la hoja y se va al
 Historial; sólo guardando, la hoja se queda abierta con las rechazadas aún marcadas y
 contadas como sin guardar. Sin ninguna guardada no hay cierre parcial: es rechazo total y
@@ -941,7 +952,7 @@ Animación de entrada: 180 ms, desde 24 px a la derecha.
 **Excepción de la casa:** esta aplicación usa cajón también en escritorio (decisión de
 05/09/2026). No hay variante modal.
 
-Usos: detalle de pedido (`lg`), asistente de ruta (`completo`, con pie), cierre de ruta
+Usos: detalle de factura (`lg`), asistente de ruta (`completo`, con pie), cierre de ruta
 (`xl`, con pie), ficha de vehículo (`lg`), tipos de vehículo (`md`). (El editor de almacén
 (`lg`, con pie) se quitó el 20/10/2026: Almacenes es de solo lectura.)
 
@@ -950,7 +961,7 @@ Usos: detalle de pedido (`lg`), asistente de ruta (`completo`, con pie), cierre 
 Tarjeta resumida de una ruta: nombre, insignia de estado (colores: `planned` ámbar,
 `in_progress` azul, `completed` verde; el texto es el estado con el guion bajo sustituido
 por un espacio) y una rejilla de 2×2 con las etiquetas **en inglés, sin traducir**:
-`Stops` (nº de pedidos), `Distance` (`<n.n> km`), `Weight` (`<n.n> kg`), `Revenue`
+`Stops` (nº de facturas), `Distance` (`<n.n> km`), `Weight` (`<n.n> kg`), `Revenue`
 (`$<n.nn>`). Es clicable. **Hoy no lo usa ninguna pantalla** (la lista de rutas pinta su
 propia tarjeta); en Flutter sólo merece la pena si se reutiliza, y entonces con las
 etiquetas en español.
@@ -992,7 +1003,7 @@ y su texto lo pone cada pantalla. Soporta icono dentro del botón.
 Barra al pie: `Mostrando <desde>–<to> de <total>`, selector de tamaño opcional
 (`25 / pág.`, `50 / pág.`, `100 / pág.`), y botones primera (`«`), anterior (`‹`), hasta
 **5 números** alrededor de la actual, siguiente (`›`), última (`»`). No se pinta si el
-total es 0. Tamaños por lista: pedidos **50 fijo** (servidor), clientes **50** (servidor,
+total es 0. Tamaños por lista: facturas **50 fijo** (servidor), clientes **50** (servidor,
 controles propios), vehículos **25** (cliente, cambiable), rutas **20** (cliente).
 
 ---
@@ -1008,7 +1019,7 @@ En Flutter: generar el PDF y ofrecer vista previa + imprimir/compartir.
 ### 10.1 Pre-despacho (`src/lib/imprimirPreDespacho.ts`)
 
 **Qué es:** la hoja con la que alguien baja al almacén a sacar mercancía.
-**Quién la dispara:** la pantalla de Pedidos (marcados y filtrados) y el paso 4 del
+**Quién la dispara:** la pantalla de Facturas (marcados y filtrados) y el paso 4 del
 asistente de rutas.
 
 Datos de entrada: `sucursal`, `vehiculo`, `dia` (`AAAA-MM-DD`, opcional), `pedidos`
@@ -1018,8 +1029,8 @@ Datos de entrada: `sucursal`, `vehiculo`, `dia` (`AAAA-MM-DD`, opcional), `pedid
 
 1. Cabecera a dos lados.
    - Izquierda: título `Pre-despacho` (20 px, negrita); debajo `<sucursal>` y, si hay
-     vehículo, ` · <vehículo>`; debajo, si hay día, `Pedidos del <AAAA-MM-DD>`.
-   - Derecha: `<n> pedido(s)`, **`Peso de los pedidos <n.n> kg`** y la fecha y hora
+     vehículo, ` · <vehículo>`; debajo, si hay día, `Facturas del <AAAA-MM-DD>`.
+   - Derecha: `<n> factura(s)`, **`Peso de las facturas <n.n> kg`** y la fecha y hora
      de impresión (`toLocaleString('es')`).
 
      El rótulo de ese kg **es nuestro, no de Next** (23/09/2026): era el último
@@ -1036,8 +1047,8 @@ Datos de entrada: `sucursal`, `vehiculo`, `dia` (`AAAA-MM-DD`, opcional), `pedid
    unidades | **la suma de ESA columna** con 1 decimal | vacío.
 
    **Aquí nos separamos de Next, y es la separación que más importa de esta hoja**
-   (23/09/2026). La de Next imprime ahí `pesoKg`, que es el peso **de los
-   pedidos**, mientras que cada línea imprime el peso **por producto** del
+   (23/09/2026). La de Next imprime ahí `pesoKg`, que es el peso **de las
+   facturas**, mientras que cada línea imprime el peso **por producto** del
    catálogo: misma columna, misma unidad, dos cuentas distintas y nada que lo
    diga. En producción se vieron **diez guiones encima de un total de 29.835,4**,
    y quien cuadra el camión resta esas dos cifras a ojo. Ahora el pie suma la
@@ -1049,9 +1060,9 @@ Datos de entrada: `sucursal`, `vehiculo`, `dia` (`AAAA-MM-DD`, opcional), `pedid
 
    ```
    Peso de los productos    300.0 kg      (o «1 de 3 productos sin peso»)
-   Peso de los pedidos      412.5 kg
+   Peso de las facturas     412.5 kg
    No son el mismo número: el de arriba lo pone el catálogo producto a producto,
-   y el de abajo viene en cada pedido.
+   y el de abajo viene en cada factura.
    ```
 
    Los tres literales están **atados a los de la pantalla con una prueba**, no con
@@ -1059,7 +1070,7 @@ Datos de entrada: `sucursal`, `vehiculo`, `dia` (`AAAA-MM-DD`, opcional), `pedid
    que es la regla del §3-bis del `CLAUDE.md`.
 5. **`Por producto y factura` (issue 8 de Amado, hecho el 14/10/2026 y rehecho el 15/10/2026 con
    la hoja que Amado adjuntó; no existe en Next).** Sólo si la hoja sabe de qué factura sale cada
-   cosa —la que se imprime desde el detalle de una ruta; la de Pedidos no la lleva—. La tarjeta de
+   cosa —la que se imprime desde el detalle de una ruta; la de Facturas no la lleva—. La tarjeta de
    estiba es por producto y sus salidas se rebajan por cantidad **y factura**: de 20 blister, 10 son
    de una factura y 10 de otra. Título `POR PRODUCTO Y FACTURA` y una tabla con **un bloque por
    producto** (en el orden de la tabla de arriba: más empaques primero y, a igualdad, por nombre),
@@ -1133,8 +1144,8 @@ paradas **no entregadas** con su cliente, resultado, nota y productos.
 | Barra lateral | Fija, siempre visible, contenido desplazado 256 px | Fuera de pantalla; botón de menú + velo; se cierra sola al navegar |
 | Idioma en la barra | Visible | **Oculto** (<640 px); sucursal y moneda se quedan |
 | Rutas (armazón) | Alto fijo a la ventana, sin desplazamiento de página; la lista y el detalle se desplazan por dentro; 3 columnas (1 lista + 2 detalle) | La página se desplaza como cualquier otra; una sola columna; **sin** desplazamiento interno (evita el doble scroll) |
-| Rutas, paso 4 | Dos columnas: pedidos + pre-despacho pegajoso a la derecha | Una columna, pre-despacho debajo |
-| Tabla de Pedidos | 12 columnas | Se esconden por orden de prescindibilidad: `Sucursal` bajo 1536 px; `Ruta` bajo 1280 px; `Artículos` y `Factura` bajo 1024 px; `Entrega` bajo 768 px. **Nunca se van:** cliente, dirección, peso, precio y estado |
+| Rutas, paso 4 | Dos columnas: facturas + pre-despacho pegajoso a la derecha | Una columna, pre-despacho debajo |
+| Tabla de Facturas | 13 columnas, la primera `Factura` | Se esconden por orden de prescindibilidad: `Sucursal` bajo 1536 px; `Ruta` bajo 1280 px; `Artículos` y `Factura` bajo 1024 px; `Entrega` bajo 768 px. **Nunca se van:** cliente, dirección, peso, precio y estado |
 | Tabla de Clientes | Completa | Se desplaza **la tabla**, no la página (ancho mínimo 736 px) |
 | Vehículos | Rejilla de 3 columnas (2 en tabletas) | 1 columna; el grupo buscador + 2 botones **envuelve** en vez de salirse |
 | Rutas, cabecera | Título, 3 pestañas y botón en una fila | Envuelve; las pestañas se desplazan de lado sin partir palabras |

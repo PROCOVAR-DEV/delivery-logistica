@@ -180,8 +180,8 @@ abstract final class TextosDelDia {
   ].join(' · ');
 
   static String _coleccion(String clave) => switch (clave) {
-    'orders' => 'Pedidos',
-    'order_items' => 'Líneas de pedido',
+    'orders' => 'Facturas',
+    'order_items' => 'Líneas de factura',
     'routes' => 'Rutas',
     'customers' => 'Clientes',
     'products' => 'Productos',

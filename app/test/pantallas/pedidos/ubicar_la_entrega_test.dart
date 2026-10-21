@@ -145,7 +145,7 @@ void main() {
       );
       expect(
         tester.widget<Text>(noSePuede).data,
-        'El pedido ya está entregado: no se le puede cambiar el punto',
+        'La factura ya está entregada: no se le puede cambiar el punto',
       );
     });
 

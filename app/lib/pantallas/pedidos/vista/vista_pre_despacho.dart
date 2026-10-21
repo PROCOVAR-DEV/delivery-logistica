@@ -131,7 +131,7 @@ String _unidadesDelTotal(TotalesPreDespacho t) {
 /// `test/impresion/los_dos_pesos_del_pre_despacho_test.dart`.
 String pesoDelPreDespacho(TotalesPreDespacho t) {
   final peso = t.pesoKg;
-  if (peso == null) return 'sin peso en los pedidos';
+  if (peso == null) return 'sin peso en las facturas';
   if (t.pesoCompleto) return '${peso.toStringAsFixed(1)} kg';
   // El mínimo, y CUÁNTAS LÍNEAS faltan. El número solo diría «falta algo» sin
   // decir cuánto; el conteo solo no deja cargar un camión. Las dos cosas sí.
@@ -319,11 +319,11 @@ class TotalesDelPreDespacho extends StatelessWidget {
   static const pesoDeLosProductos = 'Peso de los productos';
 
   /// Y el del conjunto de pedidos, que es OTRA cuenta.
-  static const pesoDeLosPedidos = 'Peso de los pedidos';
+  static const pesoDeLosPedidos = 'Peso de las facturas';
 
   static const porQueNoSuman =
       'No son el mismo número: el de arriba suma renglón a renglón, y el de '
-      'abajo es el peso que trae cada pedido entero.';
+      'abajo es el peso que trae cada factura entera.';
 
   @override
   Widget build(BuildContext context) => Column(

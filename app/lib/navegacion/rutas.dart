@@ -58,6 +58,18 @@ GoRouter crearEnrutador({
       // caer en algun sitio.
       GoRoute(path: '/', redirect: (_, _) => inicial),
 
+      // `/orders` era la lista de pedidos; desde el 21/10/2026 es `/facturas`. Los
+      // enlaces pegados en un chat y los favoritos siguen valiendo, con sus filtros.
+      GoRoute(
+        path: '/orders',
+        redirect: (_, estado) => Uri(
+          path: '/facturas',
+          queryParameters: estado.uri.queryParameters.isEmpty
+              ? null
+              : estado.uri.queryParameters,
+        ).toString(),
+      ),
+
       // La espera del arranque. No es una pantalla del registro porque no es una
       // pantalla: es lo que se ve mientras se mira si la sesion guardada sirve.
       // Sin ella se veria el formulario de contrasena durante un segundo antes

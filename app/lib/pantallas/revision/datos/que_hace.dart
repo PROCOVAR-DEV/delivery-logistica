@@ -28,13 +28,13 @@ final List<({String metodo, RegExp forma, String texto})> _formas = [
     (['PATCH', 'PUT'], r'board/columns/[^/]+', 'Modificar una zona'),
     (['DELETE'], r'board/columns/[^/]+', 'Borrar una zona'),
     (['POST'], r'board/columns/[^/]+/route', 'Crear una ruta desde una zona'),
-    (['PUT', 'POST'], r'board/placements/[^/]+', 'Mover un pedido a una zona'),
+    (['PUT', 'POST'], r'board/placements/[^/]+', 'Mover una factura a una zona'),
     (
       ['PUT', 'DELETE'],
       r'orders/[^/]+/punto',
-      'Poner el punto de entrega de un pedido a mano',
+      'Poner el punto de entrega de una factura a mano',
     ),
-    (['DELETE'], r'board/placements/[^/]+', 'Sacar un pedido de una zona'),
+    (['DELETE'], r'board/placements/[^/]+', 'Sacar una factura de una zona'),
   ])
     for (final m in f.$1)
       (metodo: m, forma: RegExp('^/(?:api/)?${f.$2}\$'), texto: f.$3),

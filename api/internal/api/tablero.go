@@ -112,7 +112,7 @@ var avisarCambioDelTablero = func(_ context.Context, _ string) {}
 // manejador acaban diciendo tres cosas parecidas en tres sitios.
 const (
 	msgElijeSucursal = "Elige una sucursal para ver su tablero"
-	msgYaVaEnUnaRuta = "Ese pedido ya está en una ruta"
+	msgYaVaEnUnaRuta = "Esa factura ya está en una ruta"
 	// EL OTRO 409 DE ESA MISMA PUERTA, y no se arregla igual que el de arriba.
 	//
 	// «Ya está en una ruta» se arregla solo en cuanto esa ruta se cierre; «ya se
@@ -135,16 +135,16 @@ const (
 	// decir «existe pero no es tuyo» ya es contar algo de otra sucursal, que es la fuga
 	// que el §4 prohíbe. La persona ve lo mismo en los dos casos, y es lo correcto.
 	msgZonaNoEsta     = "Esa zona del tablero ya no existe"
-	msgPedidoNoEsta   = "Ese pedido no existe o no es de tu sucursal"
+	msgPedidoNoEsta   = "Esa factura no existe o no es de tu sucursal"
 	msgSucursalNoEsta = "Esa sucursal no existe o no es tuya"
 
-	msgYaSeEntrego     = "Ese pedido ya se entregó"
-	msgColumnaSinNada  = "La columna no tiene ningún pedido que se pueda repartir hoy"
+	msgYaSeEntrego     = "Esa factura ya se entregó"
+	msgColumnaSinNada  = "La columna no tiene ninguna factura que se pueda repartir hoy"
 	msgNombreRequerido = "La columna necesita un nombre"
 	// La lista de pedidos vino VACÍA. No es lo mismo que no mandarla: mandarla vacía es
 	// un aparato diciendo que no eligió nada, y armar entonces con todo lo que haya
 	// puesto es exactamente el fallo que la lista viene a tapar.
-	msgListaVacia = "Vino la lista de pedidos pero está vacía: no se sabe qué tenía que salir en esta ruta"
+	msgListaVacia = "Vino la lista de facturas pero está vacía: no se sabe qué tenía que salir en esta ruta"
 	// NINGUNA RUTA SIN CAMIÓN — 28/09/2026.
 	//
 	// Jose, viendo `RT-20260928-001`, «En curso · 3 paradas · Sin vehículo»: «por q se

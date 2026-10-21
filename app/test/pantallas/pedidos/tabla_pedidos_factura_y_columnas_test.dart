@@ -153,7 +153,7 @@ void main() {
 
         // Y la tabla sigue entera: cada columna que tiene que estar, está.
         for (final cabecera in const [
-          'Fecha pedido',
+          'Fecha factura',
           'Pedido',
           'Cliente',
           'Ruta',

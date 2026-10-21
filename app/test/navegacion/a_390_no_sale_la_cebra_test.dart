@@ -162,7 +162,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('/orders con los filtros por defecto no saca la cebra', (
+  testWidgets('/facturas con los filtros por defecto no saca la cebra', (
     tester,
   ) async {
     await sembrarLosOnce(base);
@@ -170,11 +170,11 @@ void main() {
 
     await montar(
       tester,
-      inicial: '/orders',
+      inicial: '/facturas',
       pantallas: [registrarPanel(), registrarPedidos(), registrarInformes()],
     );
 
-    nadaSeSale(tester, '/orders con los filtros por defecto');
+    nadaSeSale(tester, '/facturas con los filtros por defecto');
     await desmontar(tester);
   });
 

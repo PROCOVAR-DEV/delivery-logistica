@@ -1163,7 +1163,7 @@ func TestArmarRutaNombraElPedidoYLaRutaEnQueYaVa(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
-	esperado := "1 de los 3 pedidos elegidos no puede ir en esta ruta: X-Cerca (ya va en la ruta " + codigo + ")."
+	esperado := "1 de las 3 facturas elegidas no puede ir en esta ruta: X-Cerca (ya va en la ruta " + codigo + ")."
 	if got := errorDeRutas(t, w); got != esperado {
 		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", got, esperado)
 	}
@@ -1237,7 +1237,7 @@ func TestArmarRutaDiceElMotivoDeVerdadDeCadaUno(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
-	esperado := "3 de los 4 pedidos elegidos no pueden ir en esta ruta: " +
+	esperado := "3 de las 4 facturas elegidas no pueden ir en esta ruta: " +
 		"X-Lejos (PEDIDO lo archivó), X-Cerca (sin coordenadas de entrega), " +
 		ajeno.String() + " (no existe o no es de tu sucursal)."
 	if got := errorDeRutas(t, w); got != esperado {
@@ -1272,7 +1272,7 @@ func TestArmarRutaConUnEntregadoLoDiceAsiYNoComoOtraRuta(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
-	esperado := "1 de los 2 pedidos elegidos no puede ir en esta ruta: " +
+	esperado := "1 de las 2 facturas elegidas no puede ir en esta ruta: " +
 		"X-Lejos (ya se entregó y no puede volver a un camión)."
 	if got := errorDeRutas(t, w); got != esperado {
 		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", got, esperado)
@@ -1314,7 +1314,7 @@ func TestArmarRutaNombraTambienLoQueNoEsUnIdentificador(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
-	const esperado = "1 de los 2 pedidos elegidos no puede ir en esta ruta: " +
+	const esperado = "1 de las 2 facturas elegidas no puede ir en esta ruta: " +
 		"local-7 (no es un identificador de pedido)."
 	if got := errorDeRutas(t, w); got != esperado {
 		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", got, esperado)
@@ -1552,7 +1552,7 @@ func TestArmarRutaNoCogePedidosDeOtraSucursal(t *testing.T) {
 	// pedido no está en ninguna ruta, es que no es de Santiago. Con el motivo equivocado la
 	// persona se va a buscar una ruta que no existe y vuelve a pulsar, y vuelve a salir lo
 	// mismo.
-	esperado := "1 de los 2 pedidos elegidos no puede ir en esta ruta: " +
+	esperado := "1 de las 2 facturas elegidas no puede ir en esta ruta: " +
 		ajeno.String() + " (no existe o no es de tu sucursal)."
 	if got := errorDeRutas(t, w); got != esperado {
 		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", got, esperado)

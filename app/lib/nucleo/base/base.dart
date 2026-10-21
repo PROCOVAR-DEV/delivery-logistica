@@ -208,8 +208,13 @@ class BaseLocal extends _$BaseLocal {
   /// `punto_cliente_address`. ADITIVAS: la cola de `apuntes` no se toca. Lo que ya
   /// estaba se rellena con la bajada siguiente que traiga cada pedido. Ver el
   /// `desde < 12`.
+  ///
+  /// ## 13 — de qué pedido viene la factura (21/10/2026)
+  ///
+  /// `orders` gana `folio`, nula. ADITIVA: la cola de `apuntes` no se toca. Se rellena
+  /// con la bajada siguiente que traiga cada fila. Ver el `desde < 13`.
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -374,6 +379,15 @@ class BaseLocal extends _$BaseLocal {
           orders.puntoClienteAddress,
         ]) {
           if (!hay.contains(c.name)) await m.addColumn(orders, c);
+        }
+      }
+      if (desde < 13) {
+        // EL FOLIO DEL PEDIDO. Ver `Orders.folio`. Solo si falta, como las demás.
+        final hay = (await customSelect(
+          'PRAGMA table_info(orders)',
+        ).get()).map((f) => f.read<String>('name')).toSet();
+        if (!hay.contains(orders.folio.name)) {
+          await m.addColumn(orders, orders.folio);
         }
       }
     },

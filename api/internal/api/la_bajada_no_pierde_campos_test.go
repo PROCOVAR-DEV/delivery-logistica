@@ -101,6 +101,8 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 		// vuelve: el aparato pinta la parada diferenciada y vuelve al original SIN conexión.
 		"puntoManual", "puntoManualPor", "puntoManualAt",
 		"puntoClienteLat", "puntoClienteLng", "puntoClienteAddress",
+		// De qué pedido de PEDIDO viene la factura (00025): la tabla de la app lo dice.
+		"folio",
 	})
 	// Y no basta con la clave: `"facturaAt": nil` también la tiene. El valor tiene que ser
 	// el del pedido, en el formato de las demás fechas.

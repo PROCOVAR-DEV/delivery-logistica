@@ -65,9 +65,9 @@ void main() {
       // el filtro y la lista saldria entera sin que nadie sepa por que.
       expect(
         donde(
-          '/orders',
+          '/facturas',
           EstadoDeAcceso.dentro,
-          uri: '/orders?municipio=Centro',
+          uri: '/facturas?municipio=Centro',
         ),
         isNull,
       );
@@ -78,9 +78,9 @@ void main() {
     test('recargar /orders con filtro acaba en /orders con filtro', () {
       // El caso de verdad: recargar la pagina en una lista filtrada. Sin esto se
       // aterriza siempre en el Panel y el enlace que alguien mando no sirve.
-      const conFiltro = '/orders?municipio=Centro';
+      const conFiltro = '/facturas?municipio=Centro';
       final aEsperar = donde(
-        '/orders',
+        '/facturas',
         EstadoDeAcceso.comprobando,
         uri: conFiltro,
       );

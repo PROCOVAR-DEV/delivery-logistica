@@ -62,8 +62,8 @@ abstract final class TextosDeTraerElDia {
   /// Como se llama cada coleccion mientras se baja. En mayuscula y corto: es una
   /// palabra que pasa por delante de los ojos, no una frase.
   static String coleccion(String clave) => switch (clave) {
-    Colecciones.pedidos => 'Pedidos',
-    Colecciones.renglones => 'Líneas de pedido',
+    Colecciones.pedidos => 'Facturas',
+    Colecciones.renglones => 'Líneas de factura',
     Colecciones.rutas => 'Rutas',
     Colecciones.clientes => 'Clientes',
     Colecciones.productos => 'Productos',
@@ -111,7 +111,7 @@ abstract final class TextosDeTraerElDia {
   /// hay que repartir, a quien, y con que pesos. Las otras seis salen en la
   /// tabla de debajo, no en la linea que se lee de un vistazo.
   static String lasTresCifras(RecuentoDeLoQueHay r) => <String>[
-    _plural(r.cuantas(Colecciones.pedidos), 'pedido', 'pedidos'),
+    _plural(r.cuantas(Colecciones.pedidos), 'factura', 'facturas'),
     _plural(r.cuantas(Colecciones.clientes), 'cliente', 'clientes'),
     _plural(r.cuantas(Colecciones.productos), 'producto', 'productos'),
   ].join(' · ');
@@ -121,8 +121,8 @@ abstract final class TextosDeTraerElDia {
       switch (coleccion) {
         Colecciones.pedidos => _plural(
           r.cuantas(Colecciones.pedidos),
-          'pedido',
-          'pedidos',
+          'factura',
+          'facturas',
         ),
         Colecciones.clientes => _plural(
           r.cuantas(Colecciones.clientes),

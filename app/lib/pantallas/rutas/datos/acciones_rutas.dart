@@ -80,8 +80,8 @@ import 'importe_de_la_ruta.dart';
 /// `EnlaceDeLaRuta.cuantasParadas`—, con el cero cayendo en plural.
 String encabezadoDelArmado(int seCaen, int seEligieron) {
   final verbo = seCaen == 1 ? 'no puede ir' : 'no pueden ir';
-  if (seEligieron == 1) return 'El pedido elegido $verbo en esta ruta: ';
-  return '$seCaen de los $seEligieron pedidos elegidos $verbo en esta ruta: ';
+  if (seEligieron == 1) return 'La factura elegida $verbo en esta ruta: ';
+  return '$seCaen de las $seEligieron facturas elegidas $verbo en esta ruta: ';
 }
 
 /// Un «no» dicho por el aparato, con el MISMO texto que diria el servidor.
@@ -110,7 +110,7 @@ const msgRutaCompletada =
 const msgSoloSeRetiranDeRutaPlanificada =
     'Sólo se pueden retirar paradas de una ruta planificada';
 const msgParadaNoPerteneceAPlanificada =
-    'El pedido no pertenece a una ruta planificada o ya fue retirado';
+    'La factura no pertenece a una ruta planificada o ya fue retirada';
 
 /// Los «no» de REORDENAR (issue 11 de Amado), LETRA POR LETRA los del servidor
 /// (`ordenarParadas` y `motivoDelOrden`, `api/internal/api/rutas.go`). Los ata
@@ -154,8 +154,8 @@ typedef ParadaCargada = ({String id, String? conduce, String cliente});
   final partes = [
     if (faltan.length == 1) 'falta ${faltan.first}',
     if (faltan.length > 1) 'faltan ${faltan.join(', ')}',
-    if (sobran == 1) 'sobra 1 pedido que no va en ella',
-    if (sobran > 1) 'sobran $sobran pedidos que no van en ella',
+    if (sobran == 1) 'sobra 1 factura que no va en ella',
+    if (sobran > 1) 'sobran $sobran facturas que no van en ella',
   ];
   if (partes.isEmpty) return null;
   return (codigo: 409, motivo: msgOrdenNoCuadra(partes.join('; ')));
@@ -399,7 +399,7 @@ class AccionesDeRuta {
     }
     if (pedidoIds.isEmpty) {
       throw const RechazoLocal(
-        'Una ruta se arma eligiendo pedidos ya existentes. Manda `orderIds`.',
+        'Una ruta se arma eligiendo facturas ya existentes. Manda `orderIds`.',
       );
     }
 
@@ -1424,7 +1424,7 @@ class AccionesDeRuta {
         // El mismo motivo literal del servidor. No aborta el resto: lo que se
         // puede guardar se guarda.
         Registro.aviso(
-          'cierre de $rutaId: ${marca.pedidoId} — ese pedido no va en esta ruta',
+          'cierre de $rutaId: ${marca.pedidoId} — esa factura no va en esta ruta',
         );
         continue;
       }

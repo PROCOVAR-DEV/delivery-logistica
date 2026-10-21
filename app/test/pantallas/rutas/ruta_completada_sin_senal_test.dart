@@ -5,7 +5,8 @@ import 'package:drift/drift.dart' show Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
+import 'package:reparto/navegacion/portero.dart'
+    show sucursalDeLaSesionProvider;
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
@@ -249,7 +250,7 @@ void main() {
         isA<RechazoLocal>().having(
           (e) => e.mensaje,
           'mensaje',
-          'El pedido elegido no puede ir en esta ruta: '
+          'La factura elegida no puede ir en esta ruta: '
               'p1 (ya se entregó y no puede volver a un camión).',
         ),
       ),
@@ -504,7 +505,7 @@ void main() {
             .having(
               (e) => e.mensaje,
               'mensaje',
-              'La columna no tiene ningún pedido que se pueda repartir hoy',
+              'La columna no tiene ninguna factura que se pueda repartir hoy',
             )
             .having(
               (e) => e.detalles.join(' | '),

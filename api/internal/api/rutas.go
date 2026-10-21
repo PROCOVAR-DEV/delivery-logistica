@@ -49,13 +49,13 @@ const (
 	msgFaltaVehiculo     = "Se requiere un vehículo para crear la ruta"
 	// El literal lleva las comillas invertidas alrededor de `orderIds`. Están en el
 	// contrato y se ven en la pantalla: no son formato de Markdown.
-	msgSinPedidos           = "Una ruta se arma eligiendo pedidos ya existentes. Manda `orderIds`."
-	msgPedidosNoDisponibles = "Los pedidos seleccionados ya no están disponibles"
+	msgSinPedidos           = "Una ruta se arma eligiendo facturas ya existentes. Manda `orderIds`."
+	msgPedidosNoDisponibles = "Las facturas seleccionadas ya no están disponibles"
 	// Femenino y distinto del `No encontrado` de `/api/routes/[id]`: así viene del
 	// contrato y así se queda.
 	msgRutaNoEncontrada = "No encontrada"
 	msgSinResultados    = "No vino ningún resultado"
-	msgParadaAjena      = "ese pedido no va en esta ruta"
+	msgParadaAjena      = "esa factura no va en esta ruta"
 	// UN CAMIÓN INACTIVO NO SE ASIGNA A UNA RUTA (incidencia 4 de Amado, 07/10/2026). Es el
 	// mismo literal en los cuatro sitios que asignan camión —armar una ruta, cambiarle el
 	// camión, armar una zona y fijar el camión previsto de una zona—, para que quien lo lea
@@ -64,7 +64,7 @@ const (
 	// LOS DOS 409 DE QUITAR UNA PARADA (`DELETE /api/routes/{id}/stops/{orderId}`). Constantes
 	// para que `docs/armado-rechazado.casos.json` los pueda atar con una prueba.
 	msgSoloRutaPlanificada = "Sólo se pueden retirar paradas de una ruta planificada"
-	msgParadaNoPertenece   = "El pedido no pertenece a una ruta planificada o ya fue retirado"
+	msgParadaNoPertenece   = "La factura no pertenece a una ruta planificada o ya fue retirada"
 	// Sólo completar fija el histórico. Una marca de parada no cierra la ruta.
 	msgRutaCompletada = "La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico."
 	// LOS «NO» DE REORDENAR (`PUT /api/routes/{id}/stops`, issue 11 de Amado). Constantes para
@@ -1628,9 +1628,9 @@ func motivoDelOrden(pedido []uuid.UUID, filas []sqlc.ListarParadasDeRutasRow) (i
 	switch sobran {
 	case 0:
 	case 1:
-		partes = append(partes, "sobra 1 pedido que no va en ella")
+		partes = append(partes, "sobra 1 factura que no va en ella")
 	default:
-		partes = append(partes, fmt.Sprintf("sobran %d pedidos que no van en ella", sobran))
+		partes = append(partes, fmt.Sprintf("sobran %d facturas que no van en ella", sobran))
 	}
 	if len(partes) == 0 {
 		return 0, ""
@@ -2498,9 +2498,9 @@ func encabezadoDelArmado(faltan, pedidos int) string {
 		verbo = "no puede ir"
 	}
 	if pedidos == 1 {
-		return "El pedido elegido " + verbo + " en esta ruta: "
+		return "La factura elegida " + verbo + " en esta ruta: "
 	}
-	return fmt.Sprintf("%d de los %d pedidos elegidos %s en esta ruta: ", faltan, pedidos, verbo)
+	return fmt.Sprintf("%d de las %d facturas elegidas %s en esta ruta: ", faltan, pedidos, verbo)
 }
 
 // faltanDelArmado separa lo que se pidió de lo que volvió.

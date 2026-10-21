@@ -305,9 +305,9 @@ class FranjaDeEstado extends ConsumerWidget {
                 if (descartados > 0)
                   _Linea(
                     texto: descartados == 1
-                        ? 'Una ruta subió con menos pedidos de los que pusiste'
-                        : '$descartados rutas subieron con menos pedidos de '
-                              'los que pusiste',
+                        ? 'Una ruta subió con menos facturas de las que pusiste'
+                        : '$descartados rutas subieron con menos facturas de '
+                              'las que pusiste',
                     alPulsar:
                         alPulsarPendientes ??
                         () => abrirCajonDeEntregarElDia(context),

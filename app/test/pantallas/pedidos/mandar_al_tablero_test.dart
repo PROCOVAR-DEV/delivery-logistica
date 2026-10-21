@@ -17,7 +17,8 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
+import 'package:reparto/navegacion/portero.dart'
+    show sucursalDeLaSesionProvider;
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
@@ -267,77 +268,74 @@ void main() {
         'F-ARCH · Eva: ${MarcaTarjeta.archivado.texto}',
         // El de la ruta es EL DEL SERVIDOR (`porQueNoSePudoColocar`), no la
         // marca de la tarjeta: en la web un 409 y aqui tienen que leerse igual.
-        'F-RUTA · Fito: Ese pedido ya está en una ruta',
+        'F-RUTA · Fito: Esa factura ya está en una ruta',
         'F-SF · Carla: ${MarcaTarjeta.sinFactura.texto}',
         'F-SC · Hugo: ${MotivoDeQuedarse.sinCoordenadas}',
       ]);
     },
   );
 
-  test(
-    'sin domicilio cobrado y sin cotizar VAN (TEMPORAL 16/10/2026); ya entregado '
-    'se queda con el literal del servidor',
-    () async {
-      await sembrarPedido(
-        base,
-        id: 'bueno',
-        cliente: 'Ana',
-        folio: 'F-OK',
-        endLat: 21.38,
-        endLng: -77.91,
-      );
-      await sembrarPedido(
-        base,
-        id: 'sindom',
-        cliente: 'Dora',
-        folio: 'F-DOM',
-        facturaDomicilio: 0,
-        endLat: 21.38,
-        endLng: -77.91,
-      );
-      await sembrarPedido(
-        base,
-        id: 'sincot',
-        cliente: 'Cira',
-        folio: 'F-COT',
-        pedidoCosto: null,
-        endLat: 21.38,
-        endLng: -77.91,
-      );
-      // Un entregado cuya ruta se borro: sin `route_id`, solo le queda el
-      // resultado. No es «ya esta en una ruta»: ya se repartio.
-      await sembrarPedido(
-        base,
-        id: 'entregado',
-        cliente: 'Eli',
-        folio: 'F-ENT',
-        resultado: 'entregado',
-        endLat: 21.38,
-        endLng: -77.91,
-      );
+  test('sin domicilio cobrado y sin cotizar VAN (TEMPORAL 16/10/2026); ya entregado '
+      'se queda con el literal del servidor', () async {
+    await sembrarPedido(
+      base,
+      id: 'bueno',
+      cliente: 'Ana',
+      folio: 'F-OK',
+      endLat: 21.38,
+      endLng: -77.91,
+    );
+    await sembrarPedido(
+      base,
+      id: 'sindom',
+      cliente: 'Dora',
+      folio: 'F-DOM',
+      facturaDomicilio: 0,
+      endLat: 21.38,
+      endLng: -77.91,
+    );
+    await sembrarPedido(
+      base,
+      id: 'sincot',
+      cliente: 'Cira',
+      folio: 'F-COT',
+      pedidoCosto: null,
+      endLat: 21.38,
+      endLng: -77.91,
+    );
+    // Un entregado cuya ruta se borro: sin `route_id`, solo le queda el
+    // resultado. No es «ya esta en una ruta»: ya se repartio.
+    await sembrarPedido(
+      base,
+      id: 'entregado',
+      cliente: 'Eli',
+      folio: 'F-ENT',
+      resultado: 'entregado',
+      endLat: 21.38,
+      endLng: -77.91,
+    );
 
-      montar();
-      final zona = await contenedor
-          .read(envioAlTableroProvider.notifier)
-          .crearZona('Centro');
-      contenedor.read(seleccionPedidosProvider.notifier).marcarPagina(const [
-        'bueno',
-        'sindom',
-        'sincot',
-        'entregado',
-      ], marcar: true);
+    montar();
+    final zona = await contenedor
+        .read(envioAlTableroProvider.notifier)
+        .crearZona('Centro');
+    contenedor.read(seleccionPedidosProvider.notifier).marcarPagina(const [
+      'bueno',
+      'sindom',
+      'sincot',
+      'entregado',
+    ], marcar: true);
 
-      final resultado = await contenedor
-          .read(envioAlTableroProvider.notifier)
-          .mandarLoMarcado(zona);
+    final resultado = await contenedor
+        .read(envioAlTableroProvider.notifier)
+        .mandarLoMarcado(zona);
 
-      expect(resultado.fueron, ['bueno', 'sindom', 'sincot']);
-      expect(await enLaZona(zona), ['bueno', 'sindom', 'sincot']);
-      expect(resultado.noFueron.map((q) => q.linea).toList(), [
-        'F-ENT · Eli: Ese pedido ya se entregó',
-      ]);
-    },
-  );
+    expect(resultado.fueron, ['bueno', 'sindom', 'sincot']);
+    expect(await enLaZona(zona), ['bueno', 'sindom', 'sincot']);
+    expect(resultado.noFueron.map((q) => q.linea).toList(), [
+      'F-ENT · Eli: Esa factura ya se entregó',
+    ]);
+  });
 
   test(
     'se puede crear una zona nueva desde ahí y los pedidos caen en ella',

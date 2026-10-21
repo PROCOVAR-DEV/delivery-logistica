@@ -84,8 +84,8 @@ Tarjeta **«Rechazados sin atender (4)»**. Si está vacía:
 
 Cada rechazo lleva cuatro cosas:
 
-1. **El motivo, con las palabras del servidor**, tal cual. Por ejemplo: «3 de los 8
-   pedidos ya están en otra ruta. Vuelve a elegirlos.»
+1. **El motivo, con las palabras del servidor**, tal cual. Por ejemplo: «3 de las 8
+   facturas ya están en otra ruta. Vuelve a elegirlas.»
 2. **Quién**: «Aparato a3f91c02 · Yunier Pérez · Santiago»
 3. **Las dos horas**: «hecho 23/9/2026, 17:02 · rechazado 24/9/2026, 8:11». Son dos
    porque la primera es la del **aparato** —cuándo se hizo de verdad, quizá sin

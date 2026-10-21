@@ -74,7 +74,7 @@ class _Rechazos extends ConsumerWidget {
           borrado
               ? 'Descartar deja la zona como está en el servidor. Para '
                     'borrarla, abre «Borrar la columna» y elige qué hacer con '
-                    'sus pedidos: Reintentar sin más recibiría el mismo no.'
+                    'sus facturas: Reintentar sin más recibiría el mismo no.'
               : 'Descartar deja la zona como está en el servidor. Reintentar '
                     'lo vuelve a mandar.',
           style: tema.textTheme.bodySmall,

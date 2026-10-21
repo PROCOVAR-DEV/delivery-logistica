@@ -38,7 +38,7 @@ void main() {
   setUp(() => base = baseDePrueba());
   tearDown(() => base.close());
 
-  Future<GoRouter> pintar(WidgetTester tester, {String desde = '/orders'}) async {
+  Future<GoRouter> pintar(WidgetTester tester, {String desde = '/facturas'}) async {
     tester.view.physicalSize = const Size(1600, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -47,7 +47,7 @@ void main() {
       initialLocation: desde,
       routes: [
         GoRoute(
-          path: '/orders',
+          path: '/facturas',
           builder: (_, estado) => Scaffold(
             body: PantallaPedidos(
               consulta: estado.uri.queryParameters,
@@ -113,10 +113,10 @@ void main() {
     // lista por WhatsApp dejaria de funcionar.
     final router = await pintar(
       tester,
-      desde: '/orders?municipio=Cama%C3%BCey&pagina=2',
+      desde: '/facturas?municipio=Cama%C3%BCey&pagina=2',
     );
 
-    expect(router.state.matchedLocation, '/orders');
+    expect(router.state.matchedLocation, '/facturas');
     expect(
       router.state.uri.queryParameters['municipio'],
       isNotNull,

@@ -10,8 +10,8 @@ distintas. Casi siempre no se contradicen: **están contando cosas distintas**.
 **Todas las pantallas enseñan lo de la sucursal que tengas puesta arriba**, en la
 barra superior. No lo de toda la empresa.
 
-Si estás en Santiago y el pedido es de Holguín, ese pedido **no sale**. Ni en
-Pedidos, ni en el Panel, ni en el Tablero, ni en Reportes. No es que falte: es que
+Si estás en Santiago y la factura es de Holguín, esa factura **no sale**. Ni en
+Facturas, ni en el Panel, ni en el Tablero, ni en Reportes. No es que falte: es que
 no es de la sucursal que estás mirando.
 
 Antes de dar nada por perdido: **mira arriba qué sucursal pone**.
@@ -32,7 +32,7 @@ Esta es la pregunta que más se repite:
 
 | | Qué cuenta | Cuándo sube |
 |---|---|---|
-| **«Entregados hoy»** (tarjeta del Panel) | **PEDIDOS** entregados | En cuanto marcas una parada como entregada |
+| **«Entregados hoy»** (tarjeta del Panel) | **FACTURAS** entregadas | En cuanto marcas una parada como entregada |
 | **Historial** (pestaña de Rutas) | **RUTAS** cerradas | Sólo cuando la ruta entera se da por completada |
 
 Un camión que está en la calle con **una parada ya hecha** sale en el primero y
@@ -43,7 +43,7 @@ Dos detalles más de «Entregados hoy»:
 - Cuenta desde las **00:00 de hoy según el reloj del aparato**, no según el
   servidor. Si el reloj del teléfono está mal, este número está mal. Ver
   [Cuando algo sale mal](cuando-algo-sale-mal.md).
-- Cuenta **pedidos**, no paradas ni bultos.
+- Cuenta **facturas**, no paradas ni bultos.
 
 Y del Historial: una ruta aparece ahí cuando está **completada**. Una ruta
 cancelada no está en el Historial; tampoco en «En curso».
@@ -57,7 +57,7 @@ cancelada no está en el Historial; tampoco en «En curso».
 - **«En curso»** — la ruta salió. Es la que va en el camión ahora mismo.
 - **«Historial»** — completadas.
 
-El número que sale entre paréntesis en cada pestaña cuenta **rutas**, no pedidos
+El número que sale entre paréntesis en cada pestaña cuenta **rutas**, no facturas
 ni paradas.
 
 Un aviso de la casa: la primera pestaña se llamó «Activas» y se cambió a
@@ -88,7 +88,7 @@ Desglosado:
 - **El `≥` (mayor o igual)** sale **sólo cuando falta el peso de algún renglón**.
   Si el peso se sabe entero, el `≥` no aparece y el número va limpio:
   `17318.8 kg`.
-- **Un «renglón sin peso»** es una línea de un pedido —un producto pedido por un
+- **Un «renglón sin peso»** es una línea de una factura —un producto pedido por un
   cliente— cuyo peso no consta. Suele ser un producto que todavía no tiene peso
   puesto en el catálogo.
 - **Los renglones que faltan no suman cero: se dejan fuera de la suma**, y por eso
@@ -112,13 +112,13 @@ se cargue de menos y no se descubre hasta que el camión ya se fue.
 
 - **«Peso de los productos»** — se suma renglón a renglón, de la columna `kg`. Es
   el que puede llevar `≥`.
-- **«Peso de los pedidos»** — es el peso que trae cada pedido entero. Éste
+- **«Peso de las facturas»** — es el peso que trae cada factura entera. Éste
   siempre se sabe.
 
 La propia hoja lo dice debajo:
 
 > «No son el mismo número: el de arriba suma renglón a renglón, y el de abajo es
-> el peso que trae cada pedido entero.»
+> el peso que trae cada factura entera.»
 
 No los restes a ojo: no cuadra y no tiene por qué cuadrar.
 
@@ -154,7 +154,7 @@ parada de 5: sin ella no hay importe de la ruta.»
 
 **Un total a medias es peor que ninguno**: parece completo y se queda corto.
 
-**Ojo con los pedidos que el vendedor no marcó a domicilio.** Entran en una ruta aunque
+**Ojo con las facturas que el vendedor no marcó a domicilio.** Entran en una ruta aunque
 Entrega no los haya cotizado (Entrega sólo cotiza los marcados), así que van **sin
 precio de domicilio** y la ruta los cuenta en «sin cotizar». Mientras nadie les ponga
 precio, esa ruta no enseña su total. Está pendiente de decidir qué hacer con ellos.
@@ -189,11 +189,11 @@ arregla allí y baja sola con el día.
 
 - **Los kilómetros de la ruta** son los del camión: del origen a la primera
   parada, de ésa a la siguiente, y **más la vuelta al origen**.
-- **Los kilómetros de un pedido** son la distancia **directa** desde el almacén de
+- **Los kilómetros de una factura** son la distancia **directa** desde el almacén de
   salida hasta ese cliente, en línea recta. No es el tramo del recorrido.
 
 El segundo es el que se usa para cobrar el domicilio. Por eso sumar los
-kilómetros de todos los pedidos **no da** los kilómetros de la ruta.
+kilómetros de todas las facturas **no da** los kilómetros de la ruta.
 
 Las dos medidas son en línea recta sobre el mapa, no por carretera. La distancia
 real que hace el camión será mayor.
@@ -202,8 +202,8 @@ real que hace el camión será mayor.
 
 ## El peso pendiente del Panel
 
-Suma el peso de los pedidos **repartibles** que todavía no están en ninguna ruta.
-Un pedido es repartible cuando cumple todo esto a la vez:
+Suma el peso de las facturas **repartibles** que todavía no están en ninguna ruta.
+Una factura es repartible cuando cumple todo esto a la vez:
 
 1. no está ya metido en otra ruta,
 2. tiene coordenadas de entrega,
@@ -214,7 +214,7 @@ Un pedido es repartible cuando cumple todo esto a la vez:
 Es la misma regla que para entrar en una ruta: ver [Las reglas del
 reparto](las-reglas-del-reparto.md).
 
-Un pedido sin coordenadas **no** entra en este número aunque esté sin repartir:
+Una factura sin coordenadas **no** entra en este número aunque esté sin repartir:
 no se puede llevar a ningún sitio.
 
 ---
@@ -236,5 +236,5 @@ Están detectados y en arreglo. Mientras tanto, no te apoyes en ellos:
 
 1. **El peso del pre-despacho no cambia al cambiar de sucursal.** Si cambias
    arriba de sucursal, ese peso puede seguir siendo el de la anterior.
-2. **Una ruta con dos pedidos del mismo cliente cuenta el peso de uno solo** en su
+2. **Una ruta con dos facturas del mismo cliente cuenta el peso de uno solo** en su
    cabecera. El peso real de esa ruta es mayor que el que enseña.

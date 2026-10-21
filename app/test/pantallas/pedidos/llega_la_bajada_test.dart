@@ -99,7 +99,7 @@ void main() {
             'servidor de algo que no pasa, y es lo que se veia en produccion',
       );
       expect(
-        find.textContaining('8 pedidos'),
+        find.textContaining('8 facturas'),
         findsOneWidget,
         reason: 'el mismo arranque acotado que ve la pantalla ya sembrada',
       );

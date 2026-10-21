@@ -451,7 +451,7 @@ ORDER BY b.name
           paraQue: 'Es el sitio desde el que se mide la distancia hasta cada cliente.',
           siFalta:
               'Sin él no hay desde dónde medir: esos domicilios se quedan sin '
-              'cotizar y los pedidos salen sin precio.',
+              'cotizar y las facturas salen sin precio.',
           // NO lleva a ningun sitio, y por eso no hay boton: el punto de partida
           // lo deja puesto quien da de alta la sucursal en delivery
           // (`POST /api/branches` pone `originConfigured: true`). Ni Almacenes ni

@@ -52,6 +52,7 @@ void main() {
     await frescura.rebajarLosPedidosUnaVez();
     await frescura.rebajarLasRutasUnaVez();
     await frescura.rebajarLosPedidosPorSuAlmacen();
+    await frescura.rebajarLosPedidosPorSuFolio();
     await frescura.marcar(
       Colecciones.distribuidores,
       hasta: null,
@@ -64,54 +65,67 @@ void main() {
     );
   }
 
-  test('guarda los tipos (por sucursal) y la ficha entera del camion', () async {
-    await contra([
-      <String, Object?>{
-        'orders': conjunto(),
-        'vehicle_types': conjunto([
-          <String, Object?>{
-            'id': 't1',
-            'nombre': 'truck',
-            'costoKmUsd': 0.45,
-            'activo': true,
-            'branchId': 's1',
-          },
-          <String, Object?>{
-            'id': 't2',
-            'nombre': 'van',
-            'costoKmUsd': null,
-            'activo': false,
-            'branchId': 's1',
-          },
-        ]),
-        'vehicles': conjunto([
-          <String, Object?>{
-            'id': 'v1',
-            'name': 'Camión 1',
-            'type': 'truck',
-            'vehicleTypeId': 't1',
-            'costoKmUsd': 0.7,
-            'usarParaDomicilio': true,
-            'notes': 'aceite',
-            'branchId': 's1',
-          },
-        ]),
-      },
-    ], []).ciclo();
+  test(
+    'guarda los tipos (por sucursal) y la ficha entera del camion',
+    () async {
+      await contra([
+        <String, Object?>{
+          'orders': conjunto(),
+          'vehicle_types': conjunto([
+            <String, Object?>{
+              'id': 't1',
+              'nombre': 'truck',
+              'costoKmUsd': 0.45,
+              'activo': true,
+              'branchId': 's1',
+            },
+            <String, Object?>{
+              'id': 't2',
+              'nombre': 'van',
+              'costoKmUsd': null,
+              'activo': false,
+              'branchId': 's1',
+            },
+          ]),
+          'vehicles': conjunto([
+            <String, Object?>{
+              'id': 'v1',
+              'name': 'Camión 1',
+              'type': 'truck',
+              'vehicleTypeId': 't1',
+              'costoKmUsd': 0.7,
+              'usarParaDomicilio': true,
+              'notes': 'aceite',
+              'branchId': 's1',
+            },
+          ]),
+        },
+      ], []).ciclo();
 
-    final tipos = {
-      for (final t in await base.select(base.vehicleTypes).get()) t.id: t,
-    };
-    expect(tipos['t1']!.branchId, 's1');
-    expect(tipos['t2']!.costoKmUsd, isNull, reason: 'vacio es vacio, no cero');
-    expect(tipos['t2']!.activo, isFalse);
-    final v = (await base.select(base.vehicles).get()).single;
-    expect(
-      (v.vehicleTypeId, v.tipoNombre, v.costoKmUsd, v.usarParaDomicilio, v.notes),
-      ('t1', 'truck', 0.7, true, 'aceite'),
-    );
-    expect(await frescura.seDescargo(Colecciones.tiposDeVehiculo), isTrue);
-  });
+      final tipos = {
+        for (final t in await base.select(base.vehicleTypes).get()) t.id: t,
+      };
+      expect(tipos['t1']!.branchId, 's1');
+      expect(
+        tipos['t2']!.costoKmUsd,
+        isNull,
+        reason: 'vacio es vacio, no cero',
+      );
+      expect(tipos['t2']!.activo, isFalse);
+      final v = (await base.select(base.vehicles).get()).single;
+      expect(
+        (
+          v.vehicleTypeId,
+          v.tipoNombre,
+          v.costoKmUsd,
+          v.usarParaDomicilio,
+          v.notes,
+        ),
+        ('t1', 'truck', 0.7, true, 'aceite'),
+      );
+      expect(await frescura.seDescargo(Colecciones.tiposDeVehiculo), isTrue);
+    },
+  );
 
   test('`quitados` borra el tipo que el servidor borro', () async {
     await contra([
@@ -147,25 +161,30 @@ void main() {
     expect(
       (vistas.first.parametros['completas'] as String).split(','),
       containsAll([Colecciones.tiposDeVehiculo, Colecciones.vehiculos]),
-      reason: 'sin esto, los tipos y los campos nuevos no vuelven a salir NUNCA',
+      reason:
+          'sin esto, los tipos y los campos nuevos no vuelven a salir NUNCA',
     );
     await bajada.ciclo();
     expect(vistas.last.parametros.containsKey('completas'), isFalse);
   });
 
-  test('una api anterior (sin la coleccion) no deja marcado lo que no bajo', () async {
-    await yaSincronizoAyer();
-    final vistas = <PeticionVista>[];
-    final bajada = contra([
-      <String, Object?>{'orders': conjunto(), 'vehicles': conjunto()},
-    ], vistas);
-    await bajada.ciclo();
-    await bajada.ciclo();
-    expect(await frescura.seDescargo(Colecciones.tiposDeVehiculo), isFalse);
-    expect(
-      vistas.last.parametros['completas'] as String,
-      contains(Colecciones.vehiculos),
-      reason: 'se sigue pidiendo hasta que una api que la sepa servir conteste',
-    );
-  });
+  test(
+    'una api anterior (sin la coleccion) no deja marcado lo que no bajo',
+    () async {
+      await yaSincronizoAyer();
+      final vistas = <PeticionVista>[];
+      final bajada = contra([
+        <String, Object?>{'orders': conjunto(), 'vehicles': conjunto()},
+      ], vistas);
+      await bajada.ciclo();
+      await bajada.ciclo();
+      expect(await frescura.seDescargo(Colecciones.tiposDeVehiculo), isFalse);
+      expect(
+        vistas.last.parametros['completas'] as String,
+        contains(Colecciones.vehiculos),
+        reason:
+            'se sigue pidiendo hasta que una api que la sepa servir conteste',
+      );
+    },
+  );
 }

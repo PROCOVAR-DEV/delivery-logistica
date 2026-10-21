@@ -166,7 +166,7 @@ void main() {
               .having(
                 (r) => r.mensaje,
                 'mensaje',
-                '«$_versalles» tiene 3 pedidos puestos',
+                '«$_versalles» tiene 3 facturas puestas',
               )
               .having((r) => r.pedidos, 'pedidos', 3),
         ),
@@ -504,12 +504,12 @@ void main() {
         await borrarDesdeLaPantalla(tester, tamano, _versalles);
 
         expect(
-          find.text('«$_versalles» tiene 3 pedidos puestos'),
+          find.text('«$_versalles» tiene 3 facturas puestas'),
           findsOneWidget,
         );
-        expect(find.text('Mover los 3 pedidos a otra zona y borrar'), findsOneWidget);
+        expect(find.text('Mover las 3 facturas a otra zona y borrar'), findsOneWidget);
         expect(
-          find.text('Devolver los 3 pedidos a «Sin colocar» y borrar'),
+          find.text('Devolver las 3 facturas a «Sin colocar» y borrar'),
           findsOneWidget,
         );
         expect(
@@ -543,9 +543,9 @@ void main() {
         'seco, dice el motivo literal', (tester) async {
       await borrarDesdeLaPantalla(tester, _escritorio, _centro);
 
-      expect(find.text('«$_centro» tiene 2 pedidos puestos'), findsOneWidget);
+      expect(find.text('«$_centro» tiene 2 facturas puestas'), findsOneWidget);
       expect(find.textContaining('Sí, borrar'), findsNothing);
-      expect(find.text('Mover los 2 pedidos a otra zona y borrar'), findsOneWidget);
+      expect(find.text('Mover las 2 facturas a otra zona y borrar'), findsOneWidget);
       expect(await encolado(), isEmpty);
 
       await desmontar(tester);
@@ -555,7 +555,7 @@ void main() {
         'destino', (tester) async {
       await borrarDesdeLaPantalla(tester, _escritorio, _versalles);
 
-      await tester.tap(find.text('Mover los 3 pedidos a otra zona y borrar'));
+      await tester.tap(find.text('Mover las 3 facturas a otra zona y borrar'));
       await asentar(tester);
       await tester.tap(find.text(_centro));
       await asentar(tester);
@@ -574,7 +574,7 @@ void main() {
       await borrarDesdeLaPantalla(tester, _escritorio, _versalles);
 
       await tester.tap(
-        find.text('Devolver los 3 pedidos a «Sin colocar» y borrar'),
+        find.text('Devolver las 3 facturas a «Sin colocar» y borrar'),
       );
       await asentar(tester);
 

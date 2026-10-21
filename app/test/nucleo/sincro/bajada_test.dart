@@ -238,6 +238,7 @@ void main() {
         await frescura.rebajarLosPedidosUnaVez();
         await frescura.rebajarLasRutasUnaVez();
         await frescura.rebajarLosPedidosPorSuAlmacen();
+        await frescura.rebajarLosPedidosPorSuFolio();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -257,6 +258,7 @@ void main() {
       test('las rutas se rebajan enteras una vez aunque ya se hiciera la de la factura', () async {
         await frescura.rebajarLosPedidosUnaVez();
         await frescura.rebajarLosPedidosPorSuAlmacen();
+        await frescura.rebajarLosPedidosPorSuFolio();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -273,6 +275,36 @@ void main() {
           reason:
               'el `desde` de /sync/cambios es UNO para todas (el de pedidos): sin olvidarlo, '
               'las rutas que ya estaban se quedan sin su distribuidor para siempre',
+        );
+        expect(
+          peticiones.last.parametros['desde'],
+          '2026-10-15T01:00:00.000Z',
+          reason: 'una sola vez: luego, por diferencias',
+        );
+      });
+
+      // 21/10/2026 (esquema 13): las facturas que ya estaban no traen su `folio` por diferencias.
+      // EN PAREJA: quien ya hizo todas las demás hace ESTA una vez, y luego no.
+      test('los pedidos se rebajan enteros una vez por el folio aunque ya se hicieran las demás', () async {
+        await frescura.rebajarLosPedidosUnaVez();
+        await frescura.rebajarLasRutasUnaVez();
+        await frescura.rebajarLosPedidosPorSuAlmacen();
+        await frescura.marcar(
+          Colecciones.pedidos,
+          hasta: '2026-10-14T00:00:00.000Z',
+        );
+        final peticiones = <PeticionVista>[];
+        final bajada = contando(peticiones);
+
+        await bajada.ciclo();
+        await bajada.ciclo();
+
+        expect(
+          peticiones.first.parametros['desde'],
+          isNull,
+          reason:
+              'la copia de antes del esquema 13 no tiene el folio de las facturas que no cambiaron: '
+              'tiene que bajarlas ENTERAS una vez, o la columna «Pedido» sale en blanco para siempre',
         );
         expect(
           peticiones.last.parametros['desde'],

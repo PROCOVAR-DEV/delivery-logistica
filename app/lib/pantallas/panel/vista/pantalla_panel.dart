@@ -148,7 +148,7 @@ class _Cifras extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tarjetas = <Widget>[
       TarjetaDeCifra(
-        etiqueta: 'Pedidos sin ruta',
+        etiqueta: 'Facturas sin ruta',
         valor: Numeros.entero(c.sinRuta),
         subtexto: '${Numeros.kgRedondeado(c.pesoPendiente)} por mover',
         // Ambar con > 0: hay trabajo parado. Con 0, primario: no hay nada que

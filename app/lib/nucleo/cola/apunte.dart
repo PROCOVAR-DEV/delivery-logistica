@@ -262,8 +262,8 @@ String textoDeLosDescartados(List<DescartadoDelServidor> descartados) {
   final cuantos = descartados.length;
   return <String>[
     cuantos == 1
-        ? 'Un pedido de los que armaste NO subió a ese camión:'
-        : '$cuantos pedidos de los que armaste NO subieron a ese camión:',
+        ? 'Una factura de las que armaste NO subió a ese camión:'
+        : '$cuantos facturas de las que armaste NO subieron a ese camión:',
     for (final d in descartados)
       [d.comoSeLee, if (d.queHacer != null) d.queHacer].join(' — '),
   ].join('\n');

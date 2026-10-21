@@ -304,7 +304,7 @@ class _CajonUbicarEntregaState extends ConsumerState<CajonUbicarEntrega> {
       return Cajon(
         titulo: 'Ubicar la entrega',
         pie: _soloCerrar(),
-        child: const Text('No se encontró el pedido.'),
+        child: const Text('No se encontró la factura.'),
       );
     }
     final p = ficha.pedido;

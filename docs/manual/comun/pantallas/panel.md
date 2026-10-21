@@ -23,46 +23,45 @@ queda por repartir, cuántos camiones están fuera y si falta algo por configura
 
 | Tarjeta | Qué cuenta |
 |---|---|
-| **«Pedidos sin ruta»** | **Pedidos** que hoy pueden subir a un camión y todavía no están en ninguna ruta. Debajo, el peso: «1.240 kg por mover» |
+| **«Facturas sin ruta»** | **Facturas** que hoy pueden subir a un camión y todavía no están en ninguna ruta. Debajo, el peso: «1.240 kg por mover» |
 | **«Rutas en marcha»** | **Rutas que salieron.** Las planificadas no entran aquí |
-| **«Entregados hoy»** | **Pedidos** marcados como entregados desde las 00:00 de hoy |
+| **XX desde las 00:00 de hoy |
 | **«Vehículos»** | «3 / 8», y debajo «en ruta / total». El de la izquierda son camiones en una ruta en curso |
 
 Detalles que hay que saber:
 
-- **«Pedidos sin ruta»** cuenta los pedidos que **hoy se pueden meter en una ruta**: de
-  PEDIDO, sin ruta, con coordenadas de entrega, **facturado** (cuadre o haya cambiado en
+- **«Facturas sin ruta»** cuenta las facturas que **hoy se pueden meter en una ruta**: sin ruta, con coordenadas de entrega, **facturado** (cuadre o haya cambiado en
   la factura), con el **domicilio cobrado** (importe mayor que cero en la factura) y,
   si el vendedor marcó domicilio, **cotizado en Entrega**. Es la misma cuenta que la
-  lista de disponibles al armar una ruta, así que los dos números coinciden. Un pedido
-  sin coordenadas, sin factura, sin cobro de domicilio o marcado y sin cotizar no entra.
+  lista de disponibles al armar una ruta, así que los dos números coinciden. Una factura
+  sin coordenadas, sin factura, sin cobro de domicilio o marcada y sin cotizar no entra.
 - **«Entregados hoy»** usa el **reloj del aparato**, no el del servidor. Si el
   reloj del teléfono está mal, este número está mal.
-- **«Vehículos»** saca el camión de la **ruta**, no del pedido.
+- **«Vehículos»** saca el camión de la **ruta**, no de la factura.
 - Mientras carga, las cuatro se pintan **con ceros**, no con una rueda. Si acabas
   de abrir la pantalla, espera un segundo antes de creerte un cero.
 
 Los kilos de esta pantalla van **redondeados y sin decimales**: «860 kg».
 
-### «Pedidos sin ruta» del Panel no es «Sin colocar» del Tablero
+### «Facturas sin ruta» del Panel no es «Sin colocar» del Tablero
 
 Son dos preguntas parecidas con dos respuestas distintas, y **no tienen por qué
-coincidir**. El Tablero pide además que el pedido **no esté ya puesto en ninguna
+coincidir**. El Tablero pide además que la factura **no esté ya puesta en ninguna
 zona**. No es un fallo.
 
 ---
 
 ## «Pendiente por sucursal»
 
-Una fila por sucursal, con su peso y su número de pedidos, **ordenadas de más a
-menos pedidos**. Son los mismos pedidos que cuenta «Pedidos sin ruta».
+Una fila por sucursal, con su peso y su número de facturas, **ordenadas de más a
+menos facturas**. Son las mismas facturas que cuenta «Facturas sin ruta».
 
-- Un pedido sin sucursal se agrupa bajo **«Sin sucursal»**.
+- Una factura sin sucursal se agrupa bajo **«Sin sucursal»**.
 - Si no queda nada, dice: **«No queda nada sin ruta.»**
 
 Al pie, separado por una línea: **«Domicilios cobrados»** con su importe.
 
-**Cuidado con ese importe:** suma el costo de domicilio de **todos** los pedidos
+**Cuidado con ese importe:** suma el costo de domicilio de **todas** las facturas
 de la sucursal, no sólo de los que quedan sin ruta. No se puede comparar con la
 lista de arriba.
 
@@ -106,7 +105,7 @@ renumeran al tacharlos**: el paso 3 de ayer sigue siendo el 3 hoy.
 
 | Paso | Para qué sirve | Qué se rompe sin él | Se arregla |
 |---|---|---|---|
-| **«El punto de partida de la sucursal»** | Es el sitio desde el que se mide la distancia hasta cada cliente | «esos domicilios se quedan sin cotizar y los pedidos salen sin precio» | **No aquí.** Lo deja hecho quien da de alta la sucursal. Pídelo a administración |
+| **«El punto de partida de la sucursal»** | Es el sitio desde el que se mide la distancia hasta cada cliente | «esos domicilios se quedan sin cotizar y las facturas salen sin precio» | **No aquí.** Lo deja hecho quien da de alta la sucursal. Pídelo a administración |
 | **«Al menos un vehículo»** | Es el camión al que se le carga la ruta del día | No se puede terminar el paso 3 del asistente de rutas, y una zona del tablero no puede llevar camión | Botón **«Agregar el primer vehículo»** |
 | **«Al menos un almacén con su punto puesto»** | De ahí sale lo que se le cobra al cliente por el domicilio, y de ahí arranca el camión | Se cobra desde el sitio equivocado. Un almacén sin coordenadas tampoco sirve | Botón **«Ver los almacenes»** (los almacenes se ponen en el CRM) |
 | **«La tasa de cambio de la sucursal»** | Pasa los importes de USD a CUP | Los importes sólo se ven en USD | **No aquí.** La mantiene Accesos, que la trae de Entrega |

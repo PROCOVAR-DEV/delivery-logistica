@@ -957,8 +957,8 @@ class _AvisoDesaparecidos extends ConsumerWidget {
       backgroundColor: ColoresTablero.rojoFondo,
       content: Text(
         cuantos == 1
-            ? '1 pedido que tenías puesto ya no está en PEDIDO: $lista'
-            : '$cuantos pedidos que tenías puestos ya no están en PEDIDO: '
+            ? '1 factura que tenías puesta ya no está en PEDIDO: $lista'
+            : '$cuantos facturas que tenías puestas ya no están en PEDIDO: '
                   '$lista',
       ),
       actions: [

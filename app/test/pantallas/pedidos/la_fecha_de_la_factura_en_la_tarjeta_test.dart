@@ -212,7 +212,7 @@ void main() {
 
     for (final (ancho, clave) in const [
       (1440.0, 'fila-fecha-factura-p1'),
-      (900.0, 'fila-factura-p1'),
+      (900.0, 'fila-fecha-factura-p1'),
     ]) {
       testWidgets('tabla a $ancho px: la fecha de la factura junto al número', (
         tester,

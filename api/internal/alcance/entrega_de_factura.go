@@ -60,9 +60,13 @@ var ErrYaAdoptadoPorFactura = errors.New("ya lo adoptó una entrega de factura c
 //   - Toma el candado del (sucursal, folio): sin él, un ciclo de PEDIDO y uno de factura con el
 //     mismo folio a la vez, sin fila previa de ninguno, insertan cada uno la suya y el pedido
 //     sale DOS veces (external_id distinto: nada choca).
-//   - Si la fila que se guarda es de FACTURA: ADOPTA a la de PEDIDO del mismo folio, cambiándole
-//     sólo el `external_id`; el upsert que viene detrás le pone el mapeo. Conserva el `id`, la
-//     ruta, el orden, el resultado y el punto a mano.
+//   - Si la fila que se guarda es de FACTURA, ADOPTA, cambiándole sólo el `external_id` (el upsert
+//     que viene detrás le pone el mapeo; conserva el `id`, la ruta, el orden, el resultado y el punto
+//     a mano): primero la fila ANTIGUA de esa misma factura, la que se guardaba con la clave del
+//     folio (`factura:<SUC>:<folio>`) cuando la entrega juntaba las facturas del folio, si el número de
+//     esta factura está en su conduce (22/10/2026, «la entrega es una factura»): con un conduce «a, b»
+//     la adopta la primera de sus facturas vivas que llega (el espejo las ordena por número) y las demás
+//     nacen aparte; y si no hay, la de PEDIDO del mismo folio.
 //   - Si es de PEDIDO y ya hay una de factura con ese folio: devuelve [ErrYaAdoptadoPorFactura].
 func (a *Acotado) alFolio(ctx context.Context, p sqlc.GuardarPedidoDelEspejoParams) error {
 	// Un folio que se queda vacío al normalizarlo (`---`) no es un folio: con él se adoptarían entre
@@ -78,6 +82,14 @@ func (a *Acotado) alFolio(ctx context.Context, p sqlc.GuardarPedidoDelEspejoPara
 		return err
 	}
 	if EsDeFactura(*p.ExternalID) {
+		if p.OperationNumber != nil {
+			n, err := a.q.AdoptarEntregaAntiguaDeFactura(ctx, sqlc.AdoptarEntregaAntiguaDeFacturaParams{
+				ExternalID: *p.ExternalID, SucursalCodigo: *p.SucursalCodigo, Folio: *p.Folio, NumeroDeFactura: *p.OperationNumber,
+			})
+			if err != nil || n > 0 {
+				return err
+			}
+		}
 		_, err := a.q.AdoptarPedidoPorFolio(ctx, sqlc.AdoptarPedidoPorFolioParams{
 			ExternalID: *p.ExternalID, SucursalCodigo: *p.SucursalCodigo, Folio: *p.Folio,
 		})

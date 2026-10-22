@@ -10,7 +10,9 @@ package espejo
 //     de debajo del repaso, igual que el barrido de PEDIDO.
 //  3. LO QUE YA NO VIENE: una entrega de factura que estaba dentro de la ventana consultada y
 //     ya no aparece (factura anulada) se retira si no va en ninguna ruta ni está entregada. Con
-//     ruta se deja y se dice. Las guardas están en [Espejo.retirarLoQueYaNoViene].
+//     ruta se deja y se dice. Las guardas están en [Espejo.retirarLoQueYaNoViene]. LA ENTREGA ES
+//     UNA FACTURA (22/10/2026): lo que se compara es factura contra factura, así que la cancelada
+//     sale en el MISMO repaso que deja de verla, sin esperar al barrido, y la viva no se toca.
 //
 // NO HAY SEGUNDA PUERTA: las entregas se arman como `PedidoDeFuera` y pasan por el mismo
 // `guardar` → `ClienteDelivery.Cotizar` → `POST /api/quote/batch` que los pedidos de PEDIDO,
@@ -19,7 +21,6 @@ package espejo
 import (
 	"context"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -80,10 +81,8 @@ func (e *Espejo) facturas(ctx context.Context) int {
 			// El barrido incluye al repaso: una sola petición por sucursal y ciclo.
 			desde = hoy.AddDate(0, 0, -e.Opciones.HistoricoDias)
 			de = "histórico"
-		} else {
-			desde = e.repasoQueVeLasEntregasAbiertas(ctx, codigo, desde, hoy)
 		}
-		guardadas, bien := e.facturasDeLaSucursal(ctx, codigo, bases[codigo], desde, hoy, de, barrer)
+		guardadas, bien := e.facturasDeLaSucursal(ctx, codigo, bases[codigo], desde, hoy, de)
 		total += guardadas
 		if barrer && bien {
 			e.ultimoBarridoDeFacturas[codigo] = ahora
@@ -95,76 +94,11 @@ func (e *Espejo) facturas(ctx context.Context) int {
 	return total
 }
 
-// repasoQueVeLasEntregasAbiertas ensancha la ventana del repaso de una sucursal hasta la fecha de
-// su entrega de factura ABIERTA (ni entregada ni cerrada) más antigua, con tope en `HistoricoDias`.
-//
-// POR QUÉ (auditoría del 20/10/2026, G2): una entrega reúne las facturas de un folio, y la fecha
-// de la entrega es la de la MÁS ANTIGUA. Con un folio de la factura 100 del 10/10 y la 101 del
-// 19/10, el repaso de tres días sólo veía la 101 y reescribía la entrega con ella sola (conduce
-// «101», peso a la mitad); el barrido diario la dejaba bien y el repaso siguiente la volvía a
-// romper. Mirar atrás hasta la entrega abierta más vieja hace que el repaso vea TODAS las facturas
-// de todo lo que todavía se puede repartir. Lo cerrado no hace falta verlo, y si de todos modos
-// llegara partido lo frena [Espejo.entregasQueEncogerian].
-func (e *Espejo) repasoQueVeLasEntregasAbiertas(ctx context.Context, codigo string, desde, hoy time.Time) time.Time {
-	abierta, err := e.BaseF.FechaDeLaEntregaAbiertaMasAntigua(ctx, codigo)
-	if err != nil {
-		// No es motivo para no repasar: la guarda de no encoger sigue puesta.
-		e.Reg.Warn("no se pudo leer la entrega de factura abierta más antigua: el repaso usa su ventana normal",
-			"sucursal", codigo, "err", err)
-		return desde
-	}
-	if abierta == nil || !abierta.Before(desde) {
-		return desde
-	}
-	y, m, d := abierta.Date()
-	mas := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
-	if tope := hoy.AddDate(0, 0, -e.Opciones.HistoricoDias); mas.Before(tope) {
-		e.Reg.Warn("hay una entrega de factura abierta más antigua que el histórico: el repaso llega sólo hasta el tope",
-			"sucursal", codigo, "abierta", mas.Format(time.DateOnly), "tope", tope.Format(time.DateOnly))
-		mas = tope
-	}
-	return mas
-}
-
-// entregasQueEncogerian devuelve los `external_id` de las entregas cuyo conduce guardado tiene
-// números de factura que en esta respuesta NO vinieron: guardarlas las dejaría con una parte de
-// sus facturas (conduce, peso y packs a la mitad). Se dejan como están; sólo el barrido, que ve
-// todo el histórico, puede encoger o rehacer una entrega. Si no se puede leer lo guardado, se
-// devuelve el error y quien llama no guarda nada de este repaso.
-func (e *Espejo) entregasQueEncogerian(ctx context.Context, entregas []EntregaDeFactura) (map[string]bool, error) {
-	ids := make([]string, 0, len(entregas))
-	for _, en := range entregas {
-		ids = append(ids, en.ExternalID())
-	}
-	guardados, err := e.BaseF.ConducesGuardados(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	parciales := map[string]bool{}
-	for _, en := range entregas {
-		viejo, hay := guardados[en.ExternalID()]
-		if !hay {
-			continue
-		}
-		vienen := map[string]bool{}
-		for _, f := range en.Facturas {
-			vienen[f.Numero] = true
-		}
-		for _, n := range strings.Split(viejo, ",") {
-			if n = strings.TrimSpace(n); n != "" && !vienen[n] {
-				parciales[en.ExternalID()] = true
-				break
-			}
-		}
-	}
-	return parciales, nil
-}
-
 // facturasDeLaSucursal trae, guarda y, si procede, retira, para UNA sucursal y UNA ventana.
 // `bien` es que la respuesta de Ventra y la lectura de la base fueron buenas (aunque no hubiera
 // nada que guardar): es lo que permite dar por barrido el histórico.
 func (e *Espejo) facturasDeLaSucursal(
-	ctx context.Context, codigo, base string, desde, hasta time.Time, de string, barrido bool,
+	ctx context.Context, codigo, base string, desde, hasta time.Time, de string,
 ) (guardadas int, bien bool) {
 	ventana := desde.Format(time.DateOnly) + ".." + hasta.Format(time.DateOnly)
 	facturas, err := e.Facturas.FacturasConDomicilio(ctx, base, desde, hasta, SkusDeDomicilio)
@@ -175,7 +109,7 @@ func (e *Espejo) facturasDeLaSucursal(
 			"de", de, "sucursal", codigo, "base", base, "ventana", ventana, "err", err)
 		return 0, false
 	}
-	entregas, sinPrecio := ConDomicilioCobrado(AgruparPorFolio(codigo, facturas))
+	entregas, sinPrecio := ConDomicilioCobrado(UnaEntregaPorFactura(codigo, facturas))
 
 	// Lo que hace falta de la base para armar y pesar. Si no se puede leer, esta sucursal espera
 	// al ciclo siguiente: guardar sin los puntos borraría las coordenadas de lo ya guardado, y
@@ -199,26 +133,10 @@ func (e *Espejo) facturasDeLaSucursal(
 
 	var resumen ResumenDeFacturas
 	resumen.Facturas, resumen.Entregas = len(facturas), len(entregas)
-	// EL REPASO NUNCA ENCOGE UNA ENTREGA (G2): si una entrega ya guardada tiene facturas que esta
-	// respuesta no trae, la parcial no la reescribe. El barrido, que sí lo ve todo, es el único que
-	// puede encoger o rehacer una entrega.
-	var parciales map[string]bool
-	if !barrido && len(entregas) > 0 {
-		var err error
-		if parciales, err = e.entregasQueEncogerian(ctx, entregas); err != nil {
-			e.Reg.Error("no se pudieron leer los conduces guardados: este repaso no guarda nada de esta sucursal",
-				"sucursal", codigo, "err", err)
-			return 0, false
-		}
-	}
 	pedidos := make([]PedidoDeFuera, 0, len(entregas))
 	for _, en := range entregas {
 		p, inf := en.APedido(ctxMapeo)
 		resumen.sumar(inf)
-		if parciales[en.ExternalID()] {
-			resumen.Parciales++
-			continue
-		}
 		pedidos = append(pedidos, p)
 	}
 	if len(pedidos) > 0 {
@@ -233,13 +151,8 @@ func (e *Espejo) facturasDeLaSucursal(
 		"facturas", resumen.Facturas, "entregas", resumen.Entregas, "guardadas", resumen.Guardadas,
 		"puntoPorCodigo", resumen.PuntoPorCodigo, "puntoPorNombre", resumen.PuntoPorNombre,
 		"sinPunto", resumen.SinPunto, "sinMercancia", resumen.SinMercancia,
-		"retiradas", retiradas, "anuladasConRuta", conRuta, "parciales", resumen.Parciales,
+		"retiradas", retiradas, "anuladasConRuta", conRuta,
 		"sinPrecioDeDomicilio", sinPrecio)
-	if resumen.Parciales > 0 {
-		e.Reg.Warn("entrega parcial: se espera al barrido. Este repaso trae MENOS facturas de las que la entrega ya tiene; "+
-			"no se reescribe con la parcial y el barrido diario (que ve todo el histórico) la rehace",
-			"sucursal", codigo, "ventana", ventana, "entregas", resumen.Parciales)
-	}
 	// LO QUE NO SE PUDO RESOLVER SE DICE, no se esconde. Cada cifra tiene su arreglo y su dueño:
 	// el punto lo pone el logístico a mano (o se corrige el cliente en PEDIDO), el peso lo pone
 	// quien mantiene el catálogo de Ventra.
@@ -269,6 +182,11 @@ func (e *Espejo) facturasDeLaSucursal(
 // retirarLoQueYaNoViene retira las entregas de factura que estaban dentro de la ventana y ya
 // no aparecen en Ventra. Devuelve cuántas retiró, cuántas dejó por llevar ruta, y si pudo
 // compararlo con garantías.
+//
+// Se llama DESPUÉS de guardar: las filas antiguas (clave por folio) que tenían alguna de las facturas
+// vivas ya han sido adoptadas por la clave nueva de la primera de ellas (`alcance.alFolio`) y cuentan
+// como «vienen»; las antiguas SIN ninguna factura viva no están en `vienen` y salen por aquí: retiradas
+// si no van en ruta, «anuladas con ruta» si van.
 //
 // LAS GUARDAS, TODAS OBLIGATORIAS, y cada una tiene su prueba contra Postgres de verdad:
 //

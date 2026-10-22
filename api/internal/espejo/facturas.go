@@ -17,11 +17,12 @@ package espejo
 //
 // # Las decisiones de Jose, que mandan
 //
-//  1. EL CONDUCE ES EL CONJUNTO DE NÚMEROS DE FACTURA («un conduce puede tener varias
-//     facturas»). Una ENTREGA es un pedido de la nota (`orderNumber`), que puede reunir VARIAS
-//     facturas —el 3 % de los pedidos de Santiago, el 11 % de los de Guantánamo—. Las facturas
-//     de la MISMA sucursal con el MISMO `orderNumber` son UNA entrega; una factura sin
-//     `orderNumber` es su propia entrega.
+//  1. LA ENTREGA ES UNA FACTURA (Jose, 22/10/2026: «si se cancela se cancela, es factura; el
+//     pedido es opcional; me importa una pinga el pedido, la verdad son las facturas»). El
+//     `orderNumber` de la nota es un DATO (`orders.folio`), no la identidad: dos facturas del
+//     mismo pedido son DOS entregas. Juntar facturas en un conduce es cosa futura y MANUAL
+//     (pestaña «Conduces»), no se hace aquí. Antes se juntaban por folio, y una factura
+//     cancelada se quedaba pegada a la viva («Factura 47412, 47415», Santiago, 22/10/2026).
 //  2. EL PESO SALE DE VENTRA: `products.weight` × cantidad (tabla local `products`, la que
 //     baja `/api/products/sync`; `sku` = `productCode`). Cubre el 100 % de las líneas
 //     realmente facturadas.
@@ -29,10 +30,13 @@ package espejo
 // # La identidad de una FACTURA y la de una ENTREGA
 //
 // El número de factura SE REPITE entre puntos de venta. Una factura es sucursal + punto de
-// venta + número + fecha, nunca el número solo. Una entrega es sucursal + folio, o, sin folio,
-// la factura entera. De ahí sale el `external_id`: `factura:` + [EntregaDeFactura.Clave]. La
-// convención del prefijo (y por qué no hay un valor nuevo del enum `procedencia`) está en
-// `alcance.EsDeFactura`.
+// venta + número + fecha, nunca el número solo, y esa es la identidad de la entrega. De ahí sale
+// el `external_id`: `factura:` + [EntregaDeFactura.Clave]. La convención del prefijo (y por qué
+// no hay un valor nuevo del enum `procedencia`) está en `alcance.EsDeFactura`.
+//
+// Hasta el 22/10/2026 la clave de una factura CON folio era `<SUC>:<folio normalizado>` (y el conduce
+// «a, b»): las filas guardadas así las adopta `alcance.alFolio` por la primera de sus facturas vivas
+// (ordenadas por número) o, si ninguna vive, las retira `retirarLoQueYaNoViene`.
 
 import (
 	"context"
@@ -131,56 +135,71 @@ type FuenteDeFacturas interface {
 // Agrupar: de facturas a entregas
 // ---------------------------------------------------------------------------
 
-// EntregaDeFactura es lo que se va a repartir: las facturas de UN pedido.
+// EntregaDeFactura es lo que se va a repartir: UNA factura.
 type EntregaDeFactura struct {
 	Sucursal string
-	// Folio es el `orderNumber` común. Vacío = la entrega es una factura suelta.
-	Folio string
-	// Facturas va ordenado por fecha, punto de venta y número, para que el conduce, el almacén
-	// «de la primera» y el cliente elegido no cambien de un ciclo al siguiente.
-	Facturas []FacturaDeVentra
+	// Folio es el `orderNumber` de la factura, tal cual llegó (limpio de la comilla de Excel). Es
+	// un DATO (`orders.folio`), no parte de la identidad. Vacío = la factura no trae pedido.
+	Folio   string
+	Factura FacturaDeVentra
 }
 
-// Clave es la identidad de la entrega dentro del `external_id`:
+// Clave es la identidad de la entrega dentro del `external_id`: sucursal + punto de venta +
+// número + fecha de la FACTURA.
 //
-//	<SUC>:<folio normalizado>           si hay folio (`alcance.FolioNormalizado`: `pxx-900` y
-//	                                    `PXX - 900` son la MISMA entrega, y la misma que adopta
-//	                                    al `PXX-900` de PEDIDO)
-//	<SUC>:<punto de venta>:<número>:<fecha>   si no (la factura suelta)
-//
-// EL PUNTO DE VENTA ES PARTE DE LA CLAVE DE LA FACTURA SUELTA: el número se repite entre
-// puntos de venta, y sin él dos facturas distintas serían la misma entrega y una pisaría a la
-// otra (la entrega de un cliente en la caja del otro). Lo ata
-// `TestElMismoNumeroEnDosPuntosDeVentaSonDosFacturas`.
+// EL PUNTO DE VENTA ES PARTE DE LA CLAVE: el número se repite entre puntos de venta, y sin él dos
+// facturas distintas serían la misma entrega y una pisaría a la otra (la entrega de un cliente
+// en la caja del otro). Lo ata `TestElMismoNumeroEnDosPuntosDeVentraSonDosFacturas`.
 func (e EntregaDeFactura) Clave() string {
-	if e.Folio != "" {
-		return e.Sucursal + ":" + alcance.FolioNormalizado(e.Folio)
-	}
-	f := e.Facturas[0]
+	f := e.Factura
 	return e.Sucursal + ":" + f.Punto.Codigo + ":" + f.Numero + ":" + f.Fecha
 }
 
 // ExternalID es el `external_id` con el que la entrega se guarda: `factura:` + la clave.
 func (e EntregaDeFactura) ExternalID() string { return alcance.PrefijoDeFactura + e.Clave() }
 
-// Conduce son los números de factura de la entrega, sin repetir y ordenados, unidos por «, ».
-// Es el `operation_number` de la fila («un conduce puede tener varias facturas») y también su
-// `factura_numero`, donde `informes.go` ya acepta la coma.
-func (e EntregaDeFactura) Conduce() string {
-	vistos := map[string]bool{}
-	numeros := make([]string, 0, len(e.Facturas))
-	for _, f := range e.Facturas {
-		if !vistos[f.Numero] {
-			vistos[f.Numero] = true
-			numeros = append(numeros, f.Numero)
+// Conduce es el número de la factura: el `operation_number` de la fila y también su
+// `factura_numero`.
+func (e EntregaDeFactura) Conduce() string { return e.Factura.Numero }
+
+// UnaEntregaPorFactura convierte las facturas de una sucursal en entregas: UNA POR FACTURA. El
+// folio del pedido (`orderNumber`) viaja como dato, no junta nada.
+//
+// Una factura repetida en la respuesta (misma sucursal, punto de venta, número y fecha) se cuenta
+// UNA vez: si no, la entrega se escribiría dos veces. Salen ordenadas por número de factura.
+func UnaEntregaPorFactura(sucursal string, facturas []FacturaDeVentra) []EntregaDeFactura {
+	vistas := map[string]bool{}
+	salida := make([]EntregaDeFactura, 0, len(facturas))
+	for _, f := range facturas {
+		en := EntregaDeFactura{Sucursal: sucursal, Factura: f}
+		if vistas[en.Clave()] {
+			continue
 		}
+		vistas[en.Clave()] = true
+		en.Folio = SinLaComillaDeExcel(strings.TrimSpace(f.Pedido))
+		// Un folio que no deja ni una letra ni un dígito (`---`) no es un folio.
+		if alcance.FolioNormalizado(en.Folio) == "" {
+			en.Folio = ""
+		}
+		salida = append(salida, en)
 	}
-	sort.SliceStable(numeros, func(i, j int) bool { return menorNumero(numeros[i], numeros[j]) })
-	return strings.Join(numeros, ", ")
+	// ORDENADAS POR NÚMERO (luego punto y fecha): el orden en que se guardan decide cuál de las facturas
+	// de una fila antigua «a, b» la adopta (`alcance.alFolio`), y tiene que ser el mismo en el repaso y en el
+	// barrido, diga lo que diga el orden de la respuesta de Ventra.
+	sort.SliceStable(salida, func(i, j int) bool {
+		a, b := salida[i].Factura, salida[j].Factura
+		if a.Numero != b.Numero {
+			return menorNumero(a.Numero, b.Numero)
+		}
+		if a.Punto.Codigo != b.Punto.Codigo {
+			return a.Punto.Codigo < b.Punto.Codigo
+		}
+		return a.Fecha < b.Fecha
+	})
+	return salida
 }
 
-// menorNumero ordena como lo lee una persona: 9 antes que 10 si los dos son números, y por
-// texto si no.
+// menorNumero ordena como lo lee una persona: 9 antes que 10 si los dos son números, y por texto si no.
 func menorNumero(a, b string) bool {
 	na, ea := strconv.ParseInt(a, 10, 64)
 	nb, eb := strconv.ParseInt(b, 10, 64)
@@ -188,65 +207,6 @@ func menorNumero(a, b string) bool {
 		return na < nb
 	}
 	return a < b
-}
-
-// AgruparPorFolio junta las facturas de una sucursal en entregas.
-//
-//   - Las de la MISMA sucursal con el MISMO folio son UNA entrega.
-//   - Una sin folio es su propia entrega.
-//   - Una factura repetida en la respuesta (misma sucursal, punto de venta, número y fecha) se
-//     cuenta UNA vez: si no, sus renglones se sumarían dos veces y el camión cargaría el doble.
-//
-// El orden de salida es el de la primera aparición de cada entrega, que es estable mientras
-// Ventra conteste en el mismo orden, y de todos modos no importa: la clave es la identidad.
-func AgruparPorFolio(sucursal string, facturas []FacturaDeVentra) []EntregaDeFactura {
-	vistas := map[string]bool{}
-	var salida []EntregaDeFactura
-	indice := map[string]int{}
-	for _, f := range facturas {
-		f.Pedido = SinLaComillaDeExcel(strings.TrimSpace(f.Pedido))
-		// Un folio que no deja ni una letra ni un dígito (`---`) no es un folio.
-		clave := alcance.FolioNormalizado(f.Pedido)
-		if clave == "" {
-			f.Pedido = ""
-		}
-		id := sucursal + "|" + f.Punto.Codigo + "|" + f.Numero + "|" + f.Fecha
-		if vistas[id] {
-			continue
-		}
-		vistas[id] = true
-
-		if f.Pedido == "" {
-			salida = append(salida, EntregaDeFactura{Sucursal: sucursal, Facturas: []FacturaDeVentra{f}})
-			continue
-		}
-		// Se agrupa por el folio NORMALIZADO: dos facturas del mismo pedido tecleadas distinto
-		// (`PXX-900` y `pxx-900`) son UNA entrega, no dos que se pisarían con la misma clave.
-		if i, hay := indice[clave]; hay {
-			salida[i].Facturas = append(salida[i].Facturas, f)
-			continue
-		}
-		indice[clave] = len(salida)
-		salida = append(salida, EntregaDeFactura{Sucursal: sucursal, Folio: f.Pedido, Facturas: []FacturaDeVentra{f}})
-	}
-	for i := range salida {
-		fs := salida[i].Facturas
-		sort.SliceStable(fs, func(a, b int) bool {
-			if fs[a].Fecha != fs[b].Fecha {
-				return fs[a].Fecha < fs[b].Fecha
-			}
-			if fs[a].Punto.Codigo != fs[b].Punto.Codigo {
-				return fs[a].Punto.Codigo < fs[b].Punto.Codigo
-			}
-			return menorNumero(fs[a].Numero, fs[b].Numero)
-		})
-		// El folio que se guarda es el de la primera factura ya ORDENADA, no el de la que llegó
-		// primero: que Ventra cambie el orden de su respuesta no puede reescribir la columna.
-		if salida[i].Folio != "" {
-			salida[i].Folio = fs[0].Pedido
-		}
-	}
-	return salida
 }
 
 // ---------------------------------------------------------------------------
@@ -378,14 +338,14 @@ type InformeDeEntrega struct {
 // campo, está en `docs/contratos-api.md` («La entrega que nace de una factura»).
 func (e EntregaDeFactura) APedido(ctx ContextoDeMapeo) (PedidoDeFuera, InformeDeEntrega) {
 	var inf InformeDeEntrega
-	primera := e.Facturas[0]
+	f := e.Factura
 
 	// FECHA: la de la factura más antigua, a las 12:00 de Cuba. Mediodía y no medianoche
 	// a propósito: los filtros pasan `factura_at` al día de America/Havana, y a las 12:00 el día
 	// es el mismo con el huso de invierno (-05) y con el de verano (-04), así que no hay
 	// medianoche que se cuele en el día de antes. El huso va FIJO en -05:00 porque la imagen del
 	// servicio no lleva `tzdata` y `time.LoadLocation` fallaría dentro y funcionaría en el portátil.
-	fecha := primera.Fecha + "T12:00:00-05:00"
+	fecha := f.Fecha + "T12:00:00-05:00"
 
 	conduce := e.Conduce()
 	p := PedidoDeFuera{
@@ -407,25 +367,15 @@ func (e EntregaDeFactura) APedido(ctx ContextoDeMapeo) (PedidoDeFuera, InformeDe
 	}
 
 	// --- El cliente ----------------------------------------------------------
-	var nombre, telefono, direccion, ciudad, vendedor string
-	for _, f := range e.Facturas {
-		nombre = primeroNoVacio(nombre, f.Cliente.Nombre)
-		telefono = primeroNoVacio(telefono, f.Cliente.Telefono)
-		direccion = primeroNoVacio(direccion, f.Cliente.Direccion)
-		ciudad = primeroNoVacio(ciudad, f.Cliente.Ciudad)
-		vendedor = primeroNoVacio(vendedor, f.Vendedor)
-	}
-	var referencia string
-	for _, f := range e.Facturas {
-		referencia = primeroNoVacio(referencia, f.ReferenciaDelCliente)
-	}
+	nombre, referencia := strings.TrimSpace(f.Cliente.Nombre), strings.TrimSpace(f.ReferenciaDelCliente)
+	ciudad := strings.TrimSpace(f.Cliente.Ciudad)
 	// customer.name; si viene vacío, customerReference; y si tampoco, `nombreDelCliente` pone
 	// «Cliente».
 	p.Cliente = &ClienteDelPedido{Nombre: primeroNoVacio(nombre, referencia), Municipio: ciudad}
-	p.Telefono = telefono
-	p.Direccion = direccionConCiudad(direccion, ciudad)
-	if vendedor != "" {
-		p.Vendedor = &VendedorDelPedido{Nombre: vendedor}
+	p.Telefono = strings.TrimSpace(f.Cliente.Telefono)
+	p.Direccion = direccionConCiudad(f.Cliente.Direccion, ciudad)
+	if v := strings.TrimSpace(f.Vendedor); v != "" {
+		p.Vendedor = &VendedorDelPedido{Nombre: v}
 	}
 
 	// --- Las coordenadas: del espejo de clientes ------------------------------
@@ -436,14 +386,9 @@ func (e EntregaDeFactura) APedido(ctx ContextoDeMapeo) (PedidoDeFuera, InformeDe
 	}
 
 	// --- El almacén de salida: el punto de venta de Ventra ---------------------
-	mezclado := false
-	for _, f := range e.Facturas {
-		if f.Punto.Codigo != primera.Punto.Codigo {
-			mezclado = true
-		}
-	}
+	mezclado := false // una factura sale de UN punto de venta
 	p.Almacen = &AlmacenDelPedido{
-		Codigo: primera.Punto.Codigo, Nombre: primera.Punto.Nombre,
+		Codigo: f.Punto.Codigo, Nombre: f.Punto.Nombre,
 		SucursalCodigo: e.Sucursal, Mezclado: &mezclado,
 	}
 
@@ -451,44 +396,35 @@ func (e EntregaDeFactura) APedido(ctx ContextoDeMapeo) (PedidoDeFuera, InformeDe
 	domicilio := 0.0
 	var orden []string
 	renglones := map[string]*RenglonDeFuera{}
-	vistos := map[string]bool{}
-	for _, f := range e.Facturas {
-		for _, l := range f.Lineas {
-			if l.EsDomicilio {
-				domicilio += l.Importe
-				continue
+	for _, l := range f.Lineas {
+		if l.EsDomicilio {
+			domicilio += l.Importe
+			continue
+		}
+		if !(l.Cantidad > 0) {
+			inf.LineasSinCantidad++
+			continue
+		}
+		// Un renglón es de UNA factura (00026, `order_items.factura_numero`: la tarjeta de estiba
+		// se rebaja por cantidad Y factura), que ahora es la de la entrega. El mismo producto dos
+		// veces en la factura se suma en un renglón.
+		k := claveDeProducto(l.Codigo)
+		r, hay := renglones[k]
+		if !hay {
+			r = &RenglonDeFuera{
+				Codigo: l.Codigo, Producto: l.Nombre, Descripcion: l.Nombre,
+				Packs: new(float64), AlmacenCodigo: f.Punto.Codigo, AlmacenNombre: f.Punto.Nombre,
+				FacturaNumero: f.Numero,
 			}
-			if !(l.Cantidad > 0) {
-				inf.LineasSinCantidad++
-				continue
-			}
-			// Un renglón es de UNA factura (00026, issue 22 de Maikel: la tarjeta de estiba se rebaja
-			// por cantidad Y factura): el mismo producto en dos facturas de la entrega son DOS
-			// renglones, no uno sumado. Dentro de la misma factura sí se suma, y no si salen de
-			// puntos de venta distintos: el renglón lleva SU almacén, y sumarlos lo dejaría
-			// apuntado a uno solo. La cuenta de la entrega no cambia: todo lo que suma es por renglón.
-			k := claveDeProducto(l.Codigo) + "|" + f.Punto.Codigo + "|" + f.Numero
-			r, hay := renglones[k]
-			if !hay {
-				r = &RenglonDeFuera{
-					Codigo: l.Codigo, Producto: l.Nombre, Descripcion: l.Nombre,
-					Packs: new(float64), AlmacenCodigo: f.Punto.Codigo, AlmacenNombre: f.Punto.Nombre,
-					FacturaNumero: f.Numero,
-				}
-				renglones[k] = r
-				orden = append(orden, k)
-			}
-			*r.Packs += l.Cantidad
-
-			if !vistos[claveDeProducto(l.Codigo)] {
-				vistos[claveDeProducto(l.Codigo)] = true
-				if prod, hay := ctx.Productos[claveDeProducto(l.Codigo)]; !hay {
-					inf.FueraDelCatalogo = append(inf.FueraDelCatalogo, l.Codigo)
-				} else if !(prod.PesoKg > 0) {
-					inf.SinPeso = append(inf.SinPeso, l.Codigo)
-				}
+			renglones[k] = r
+			orden = append(orden, k)
+			if prod, hay := ctx.Productos[k]; !hay {
+				inf.FueraDelCatalogo = append(inf.FueraDelCatalogo, l.Codigo)
+			} else if !(prod.PesoKg > 0) {
+				inf.SinPeso = append(inf.SinPeso, l.Codigo)
 			}
 		}
+		*r.Packs += l.Cantidad
 	}
 	for _, k := range orden {
 		r := *renglones[k]
@@ -556,11 +492,9 @@ func unidadesPorEmpaqueDelNombre(nombre string) float64 {
 // llevar: cero si la línea de domicilio está pero con el precio sin poner.
 func (e EntregaDeFactura) DomicilioUsd() float64 {
 	suma := 0.0
-	for _, f := range e.Facturas {
-		for _, l := range f.Lineas {
-			if l.EsDomicilio {
-				suma += l.Importe
-			}
+	for _, l := range e.Factura.Lineas {
+		if l.EsDomicilio {
+			suma += l.Importe
 		}
 	}
 	return math.Round(suma*100) / 100
@@ -608,7 +542,7 @@ func primeroNoVacio(a, b string) string {
 // Resumen del informe de un ciclo de una sucursal, para el registro. Son contadores, no
 // avisos sueltos: una línea por entrega son miles de líneas por barrido.
 type ResumenDeFacturas struct {
-	Facturas, Entregas, Guardadas, Parciales               int
+	Facturas, Entregas, Guardadas                          int
 	PuntoPorCodigo, PuntoPorNombre, PuntoAmbiguo, SinPunto int
 	SinMercancia, ConProductosSinPeso, LineasSinCantidad   int
 	ProductosSinPeso, ProductosFueraDelCatalogo            map[string]int

@@ -97,6 +97,24 @@ type Querier interface {
 	ActualizarSucursal(ctx context.Context, arg ActualizarSucursalParams) (Branch, error)
 	ActualizarTipoDeVehiculo(ctx context.Context, arg ActualizarTipoDeVehiculoParams) (VehicleType, error)
 	ActualizarVehiculo(ctx context.Context, arg ActualizarVehiculoParams) (Vehicle, error)
+	// ADOPTAR LA FILA ANTIGUA DE UNA FACTURA (22/10/2026, «la entrega es una factura»). Hasta ese día la
+	// entrega de una factura CON folio se guardaba como `factura:<SUC>:<folio normalizado>`, juntando todas
+	// las facturas del folio en un conduce «a, b». Ahora la clave es siempre la de la factura
+	// (`factura:<SUC>:<punto>:<n>:<fecha>`), y sin esto cada fila con folio ya guardada se duplicaría: la que
+	// va en una ruta quedaría doble (ella y las facturas nuevas en «Sin colocar»).
+	//
+	// Adopta la fila antigua si el número de ESTA factura está en su conduce (una factura o varias): le
+	// cambia el `external_id` a la clave nueva y conserva el `id`, la ruta, el orden, el resultado y el
+	// punto a mano; el upsert que viene detrás le pone el mapeo (renglones y conduce de esta sola factura).
+	// Si el conduce tiene varias, la adopta la PRIMERA de sus facturas vivas que llega, y el espejo las
+	// procesa ordenadas por número (`espejo.UnaEntregaPorFactura`), así que es determinista; las demás
+	// facturas del conduce nacen como filas nuevas. Si ninguna de sus facturas viene viva, nadie la adopta
+	// y `retirarLoQueYaNoViene` sigue su camino de siempre.
+	//
+	// La fila antigua se halla por su `external_id` EXACTO (índice único), calculado con la misma regla
+	// con la que se escribió: `factura:` + sucursal + `:` + folio normalizado. Misma salvaguarda que
+	// `AdoptarPedidoPorFolio`: no adopta si la clave nueva ya existe.
+	AdoptarEntregaAntiguaDeFactura(ctx context.Context, arg AdoptarEntregaAntiguaDeFacturaParams) (int64, error)
 	// ADOPTAR: la fila de PEDIDO de ese folio pasa a ser la de la factura, cambiándole SOLO el
 	// `external_id`. Conserva el `id` y con él la ruta, `stop_order`, el resultado, el punto a mano
 	// y todo lo que es del reparto; los campos del mapeo los pone el upsert que viene detrás.
@@ -197,7 +215,7 @@ type Querier interface {
 	// la convención que define `espejo.EsDeFactura`). La identidad entre las dos es
 	// (`sucursal_codigo`, `folio_normalizado(folio)`): el folio se guarda tal cual, pero se COMPARA en
 	// mayúsculas y sin nada que no sea letra o dígito (00025, auditoría G3: `pxx-900`, `'PXX-900` y
-	// `PXX - 900` son el `PXX-900` de PEDIDO). Su gemela en Go es `alcance.FolioNormalizado`. Estas tres consultas van juntas, dentro de la transacción de
+	// `PXX - 900` son el `PXX-900` de PEDIDO). Su gemela en Go es `alcance.FolioNormalizado`. Estas consultas van juntas, dentro de la transacción de
 	// `EspejoGuardarPedido`, y en este orden: candado, adoptar o descartar, y el upsert de siempre.
 	//
 	// `starts_with(external_id, 'factura:')` ES LA GEMELA SQL DE `espejo.EsDeFactura`: si una
@@ -389,10 +407,6 @@ type Querier interface {
 	// ruta abierta detrás es una ruta que nadie va a cerrar nunca y que sigue contando como
 	// activa en el panel.
 	CompletarRutasDeVehiculo(ctx context.Context, arg CompletarRutasDeVehiculoParams) (int64, error)
-	// LO QUE LA ENTREGA YA TIENE GUARDADO, por `external_id`: su conduce. El ciclo lo compara con lo que
-	// Ventra acaba de dar para no ENCOGER una entrega con una respuesta parcial (auditoría G2): un
-	// repaso que sólo ve una de las facturas de un folio no puede reescribir la entrega con esa sola.
-	ConducesGuardadosDeFactura(ctx context.Context, externalIds []string) ([]ConducesGuardadosDeFacturaRow, error)
 	// Los tres números de arriba de esa pantalla.
 	ContarAvisosAPedido(ctx context.Context) (ContarAvisosAPedidoRow, error)
 	// El total, con el MISMO where. Es el `total` de la respuesta: se cuenta antes del filtro
@@ -779,11 +793,6 @@ type Querier interface {
 	// la gente reconoce: el código a secas no dice nada y el nombre solo se repite.
 	FacetasSucursales(ctx context.Context, sucursal pgtype.UUID) ([]FacetasSucursalesRow, error)
 	FacetasVendedores(ctx context.Context, sucursal pgtype.UUID) ([]FacetasVendedoresRow, error)
-	// LA FECHA DE LA ENTREGA DE FACTURA ABIERTA MÁS ANTIGUA de una sucursal (día de Cuba): la que no
-	// está entregada ni cerrada (sin `resultado` ni `delivered_at`, y sin ir en una ruta completada).
-	// El repaso se ensancha hasta ahí para ver TODAS las facturas de los folios abiertos y no
-	// reescribirlos con la mitad (auditoría G2). NULL = no hay ninguna abierta.
-	FechaDeLaEntregaAbiertaMasAntigua(ctx context.Context, sucursalCodigo string) (pgtype.Date, error)
 	// Por dónde va el barrido del histórico, en DÍAS HACIA ATRÁS.
 	//
 	// Hace falta guardarlo porque de los datos NO se puede deducir: hay pedidos viejos

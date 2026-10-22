@@ -824,36 +824,6 @@ func (a *Acotado) EspejoEntregasDeFacturaEnVentana(
 	})
 }
 
-// EspejoConducesGuardados: el conduce (`operation_number`) que ya tienen guardado las entregas
-// de factura pedidas, por `external_id`. Las que no existen no salen.
-func (a *Acotado) EspejoConducesGuardados(ctx context.Context, externalIDs []string) (map[string]string, error) {
-	if len(externalIDs) == 0 {
-		return map[string]string{}, nil
-	}
-	filas, err := a.q.ConducesGuardadosDeFactura(ctx, externalIDs)
-	if err != nil {
-		return nil, err
-	}
-	salida := make(map[string]string, len(filas))
-	for _, f := range filas {
-		if f.ExternalID != nil && f.OperationNumber != nil {
-			salida[*f.ExternalID] = *f.OperationNumber
-		}
-	}
-	return salida, nil
-}
-
-// EspejoFechaDeLaEntregaAbiertaMasAntigua: el día (Cuba) de la entrega de factura sin entregar ni
-// cerrar más antigua de una sucursal; nil si no hay ninguna.
-func (a *Acotado) EspejoFechaDeLaEntregaAbiertaMasAntigua(ctx context.Context, sucursalCodigo string) (*time.Time, error) {
-	d, err := a.q.FechaDeLaEntregaAbiertaMasAntigua(ctx, sucursalCodigo)
-	if err != nil || !d.Valid {
-		return nil, err
-	}
-	t := d.Time
-	return &t, nil
-}
-
 // EspejoRetirarEntregasDeFactura borra las que ya no vienen en Ventra. La guarda de «sin ruta
 // ni resultado» está en el propio DELETE, no sólo en quien llama.
 func (a *Acotado) EspejoRetirarEntregasDeFactura(ctx context.Context, ids []uuid.UUID) (int64, error) {

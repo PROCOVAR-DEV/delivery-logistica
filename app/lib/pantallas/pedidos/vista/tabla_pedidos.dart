@@ -17,8 +17,8 @@
 //
 // **El escondite es por orden de prescindibilidad, no por hueco disponible**
 // (`pantallas.md` §11): `Sucursal` bajo 1536, `Ruta` bajo 1280,
-// `Artículos` y `Factura` bajo 1024, `Entrega` bajo 768. **Nunca se van:**
-// cliente, direccion, peso, precio y estado. Escrito con umbrales fijos y no con
+// `Artículos` bajo 1024, `Entrega` bajo 768. **Nunca se van:**
+// factura (22/10/2026, Jose: la factura manda), cliente, direccion, peso, precio y estado. Escrito con umbrales fijos y no con
 // un `Flexible` que se encoja, porque una columna de 12 px no se lee y ademas
 // engana: parece que el dato esta.
 
@@ -61,7 +61,10 @@ class ColumnasVisibles {
   bool get sucursal => conSucursal && ancho >= 1536;
   bool get ruta => ancho >= 1280;
   bool get articulos => ancho >= 1024;
-  bool get factura => ancho >= 1024;
+
+  /// La factura es la fila: no se esconde en ninguna tabla (la tarjeta, bajo 768, la lleva
+  /// en su cabecera).
+  bool get factura => ancho >= enTarjetasBajo;
   bool get entrega => ancho >= 768;
 }
 
@@ -392,31 +395,6 @@ class _Fila extends StatelessWidget {
                           style: Tipos.texto(
                             tamano: 11.5,
                             color: Colores.ambar,
-                          ),
-                        ),
-                      ),
-                    // LA COLUMNA «FACTURA» SE ESCONDE BAJO 1024 PX, Y CON ELLA
-                    // DESAPARECÍA EL NÚMERO DE FACTURA — Amado, 14/10/2026 (issue 8:
-                    // «los logísticos operan con número de factura»). Entre 768 y
-                    // 1023 no hay tarjeta (es tabla) ni columna, así que el número
-                    // baja a esta celda. Con la columna a la vista NO se repite: dos
-                    // veces el mismo número en una fila es ruido.
-                    if (etiquetaDeFactura(pedido.facturaNumero)
-                        case final factura? when !columnas.factura)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          [
-                            factura,
-                            ?diaDeLaFacturaEnCuba(pedido.facturaAt),
-                          ].join(' · '),
-                          key: ValueKey('fila-factura-${pedido.id}'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Tipos.mono(
-                            tamano: 11.5,
-                            peso: FontWeight.w700,
-                            color: Colores.tinta,
                           ),
                         ),
                       ),

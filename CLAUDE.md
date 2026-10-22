@@ -191,6 +191,13 @@ concreto. Ya hay tres así:
   es el **conduce** (los números de factura, no el folio: el folio de PEDIDO está en `orders.folio`, 00025), y
   una entrega sin punto se guarda con `lat/lng` NULL en vez de descartarse. Mientras `SYNC_FUENTE=ambas`, el
   mismo pedido que llega por PEDIDO y por factura es UNA fila (adopción por (sucursal, folio), con candado).
+  **Desde el 22/10/2026 LA ENTREGA ES UNA FACTURA** (Jose: «si se cancela se cancela, es factura; el pedido es opcional»): la
+  clave es siempre `<SUC>:<punto>:<número>:<fecha>` de la factura y el folio del pedido es solo un dato (`orders.folio`); dos
+  facturas del mismo pedido son dos filas (antes se juntaban y la cancelada quedaba pegada a la viva: «Factura 47412, 47415»).
+  Ya no existe la regla «el repaso nunca encoge» (G2). Las filas guardadas por folio (conduce «a, b») las adopta
+  `alcance.alFolio` la PRIMERA de sus facturas vivas (el espejo las procesa ordenadas por número) y conserva id, ruta y punto; las
+  demás facturas del conduce nacen como filas nuevas (Sin colocar). Si ninguna de sus facturas vive, se retira (o se cuenta
+  «anulada con ruta»). Caso de Amado: `47412, 47415` en ruta, la 47412 cancelada: la 47415 hereda la ruta.
   El corte y la limpieza son fases posteriores: `docs/contratos-api.md`, «La entrega que nace de una FACTURA».
 
 ---
@@ -553,9 +560,8 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   ruta, entregado o archivado va sólo el número o el verde). La regla NO cambió aquel día: la marca
   la hace visible (la regla cambió el 15/10/2026 y el 16/10/2026, §2: desde entonces la marca es
   gris y sólo informa, no frena). La columna «Vehículo» se quitó entera (desde la 1.0.28 `orders.vehicle_id` no existe); el
-  camión sigue en el detalle. Trampa: la columna Factura se esconde bajo 1024 px (desde el 14/10/2026 el
-  número baja bajo el folio entre 768 y 1023 px y sube a la cabecera de la tarjeta del teléfono: issue 8 de
-  Amado). **Los filtros de fecha de pedidos (Sin colocar, el paso de pedidos del asistente y Desde/Hasta de Pedidos)
+  camión sigue en el detalle. La columna Factura NUNCA se esconde en la tabla (22/10/2026, Jose: «la factura manda»; antes
+  se escondía bajo 1024 px y en una ventana de escritorio no salía) y sube a la cabecera de la tarjeta del teléfono. **Los filtros de fecha de pedidos (Sin colocar, el paso de pedidos del asistente y Desde/Hasta de Pedidos)
   filtran por la fecha de la FACTURA en hora de Cuba** (issue 16, 16/10/2026): `coalesce(factura_at, order_date,
   created_at)` pasado al día de `America/Havana`, los dos días incluidos; la tarjeta dice `Factura N · d/M/aaaa`. En
   servidor lo hace Postgres (`AT TIME ZONE`; la imagen de Go no lleva husos) y en el aparato `nucleo/fecha_de_la_factura.dart`;

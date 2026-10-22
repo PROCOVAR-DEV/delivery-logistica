@@ -169,13 +169,6 @@ type BaseDeFacturas interface {
 	// EntregasDeFacturaEnVentana: las entregas de factura guardadas de una sucursal cuyo día de
 	// factura cae en [desde, hasta].
 	EntregasDeFacturaEnVentana(ctx context.Context, sucursal string, desde, hasta time.Time) ([]EntregaGuardada, error)
-	// ConducesGuardados: el conduce que ya tienen guardado las entregas de factura de esos
-	// `external_id` (las que no existen no salen). Para no encoger una entrega con una respuesta
-	// parcial.
-	ConducesGuardados(ctx context.Context, externalIDs []string) (map[string]string, error)
-	// FechaDeLaEntregaAbiertaMasAntigua: el día (Cuba) de la entrega de factura sin entregar ni
-	// cerrar más antigua de la sucursal; nil si no hay. El repaso se ensancha hasta ahí.
-	FechaDeLaEntregaAbiertaMasAntigua(ctx context.Context, sucursal string) (*time.Time, error)
 	// RetirarEntregasDeFactura borra las que se pidan, y SOLO las que no van en una ruta ni
 	// tienen resultado (la guarda está también en el DELETE). Devuelve cuántas borró.
 	RetirarEntregasDeFactura(ctx context.Context, ids []uuid.UUID) (int64, error)
@@ -240,14 +233,6 @@ func (b BaseDelReparto) EntregasDeFacturaEnVentana(
 		salida = append(salida, g)
 	}
 	return salida, nil
-}
-
-func (b BaseDelReparto) ConducesGuardados(ctx context.Context, externalIDs []string) (map[string]string, error) {
-	return b.Acotado.EspejoConducesGuardados(ctx, externalIDs)
-}
-
-func (b BaseDelReparto) FechaDeLaEntregaAbiertaMasAntigua(ctx context.Context, sucursal string) (*time.Time, error) {
-	return b.Acotado.EspejoFechaDeLaEntregaAbiertaMasAntigua(ctx, sucursal)
 }
 
 func (b BaseDelReparto) RetirarEntregasDeFactura(ctx context.Context, ids []uuid.UUID) (int64, error) {

@@ -45,42 +45,66 @@ func claves(es []EntregaDeFactura) []string {
 }
 
 // ---------------------------------------------------------------------------
-// Agrupar
+// Una entrega por factura
 // ---------------------------------------------------------------------------
 
-func TestUnaFacturaConFolioEsUnaEntrega(t *testing.T) {
-	es := AgruparPorFolio("STG", []FacturaDeVentra{factura("47252", "2026-10-17", "2", "PJM26-261017-1925", cerveza(15), domicilio(0.29))})
-	if len(es) != 1 || es[0].ExternalID() != "factura:STG:PJM262610171925" {
-		t.Fatalf("una factura con folio es una entrega con clave <SUC>:<folio normalizado>; salió %v", claves(es))
+func TestUnaFacturaConFolioEsUnaEntregaConLaClaveDeLaFactura(t *testing.T) {
+	es := UnaEntregaPorFactura("STG", []FacturaDeVentra{factura("47252", "2026-10-17", "2", "PJM26-261017-1925", cerveza(15), domicilio(0.29))})
+	if len(es) != 1 || es[0].ExternalID() != "factura:STG:2:47252:2026-10-17" {
+		t.Fatalf("la clave es <SUC>:<punto>:<número>:<fecha> aunque haya folio; salió %v", claves(es))
+	}
+	if es[0].Folio != "PJM26-261017-1925" {
+		t.Errorf("el folio queda como dato: %q", es[0].Folio)
 	}
 }
 
-func TestDosFacturasConElMismoFolioSonUnaEntrega(t *testing.T) {
-	// «Un conduce puede tener varias facturas» (Jose): en Santiago el 3 % de los pedidos, en
-	// Guantánamo el 11 %. Si se tomaran por entregas separadas, el pedido saldría dos veces.
-	es := AgruparPorFolio("GTO", []FacturaDeVentra{
+// Jose, 22/10/2026: «si se cancela se cancela, es factura; el pedido es opcional». Dos facturas del
+// mismo pedido son DOS entregas: así la cancelada (47412) no se queda pegada a la viva (47415), el caso
+// de Amado en Santiago (PWC26-261021-1128, «Factura 47412, 47415»).
+func TestDosFacturasConElMismoFolioSonDosEntregas(t *testing.T) {
+	es := UnaEntregaPorFactura("GTO", []FacturaDeVentra{
 		factura("100", "2026-10-17", "2", "PED-1", cerveza(5), domicilio(0.1)),
 		factura("101", "2026-10-17", "2", "PED-1", cerveza(5), domicilio(0.1)),
 		factura("102", "2026-10-17", "2", "PED-2", cerveza(1), domicilio(0.1)),
 	})
-	if len(es) != 2 {
-		t.Fatalf("PED-1 reúne dos facturas y PED-2 una: tenían que ser 2 entregas; salieron %v", claves(es))
+	if len(es) != 3 {
+		t.Fatalf("tres facturas, tres entregas aunque dos compartan folio; salieron %v", claves(es))
 	}
-	if len(es[0].Facturas) != 2 {
-		t.Errorf("la primera entrega tenía que reunir sus dos facturas; reunió %d", len(es[0].Facturas))
+	if es[0].Folio != "PED-1" || es[1].Folio != "PED-1" || es[0].Conduce() != "100" || es[1].Conduce() != "101" {
+		t.Errorf("cada una con su número y con el folio como dato: %+v %+v", es[0], es[1])
+	}
+	if es[0].ExternalID() == es[1].ExternalID() {
+		t.Errorf("las dos comparten external_id %q: una pisaría a la otra", es[0].ExternalID())
+	}
+}
+
+// El orden en que se guardan decide cuál factura de una fila antigua «a, b» la adopta: sale ordenado por
+// número (como número: 9 antes que 10), no por el orden de la respuesta de Ventra.
+func TestLasEntregasSalenOrdenadasPorNumeroDeFactura(t *testing.T) {
+	f10 := factura("10", "2026-10-18", "2", "PXX-1", cerveza(1), domicilio(0.1))
+	f9 := factura("9", "2026-10-19", "2", "PXX-1", cerveza(1), domicilio(0.1))
+	f100 := factura("100", "2026-10-17", "2", "PXX-1", cerveza(1), domicilio(0.1))
+	for nombre, entrada := range map[string][]FacturaDeVentra{"10,9,100": {f10, f9, f100}, "100,9,10": {f100, f9, f10}} {
+		var got []string
+		for _, en := range UnaEntregaPorFactura("STG", entrada) {
+			got = append(got, en.Conduce())
+		}
+		if strings.Join(got, ",") != "9,10,100" {
+			t.Errorf("%s: tenían que salir 9,10,100 y salió %v", nombre, got)
+		}
 	}
 }
 
 func TestLaMismaFacturaDosVecesSeCuentaUna(t *testing.T) {
 	f := factura("100", "2026-10-17", "2", "PED-1", cerveza(5), domicilio(0.1))
-	es := AgruparPorFolio("STG", []FacturaDeVentra{f, f})
-	if len(es) != 1 || len(es[0].Facturas) != 1 {
+	es := UnaEntregaPorFactura("STG", []FacturaDeVentra{f, f})
+	if len(es) != 1 {
 		t.Fatalf("una factura repetida en la respuesta se cuenta una vez (si no, el camión carga el doble); salió %+v", es)
 	}
 }
 
 func TestUnaFacturaSinFolioEsSuPropiaEntrega(t *testing.T) {
-	es := AgruparPorFolio("STG", []FacturaDeVentra{
+	es := UnaEntregaPorFactura("STG", []FacturaDeVentra{
 		factura("100", "2026-10-17", "2", "", cerveza(5), domicilio(0.1)),
 		factura("101", "2026-10-17", "2", "", cerveza(5), domicilio(0.1)),
 	})
@@ -98,7 +122,7 @@ func TestElMismoNumeroEnDosPuntosDeVentraSonDosFacturas(t *testing.T) {
 	// punto 7 pisaría la del cliente del punto 2: dos casas, una sola parada.
 	a := factura("100", "2026-10-17", "2", "", cerveza(5), domicilio(0.1))
 	b := factura("100", "2026-10-17", "7", "", cerveza(9), domicilio(0.2))
-	es := AgruparPorFolio("STG", []FacturaDeVentra{a, b})
+	es := UnaEntregaPorFactura("STG", []FacturaDeVentra{a, b})
 	if len(es) != 2 {
 		t.Fatalf("el mismo número en dos puntos de venta son DOS facturas y dos entregas; salieron %v", claves(es))
 	}
@@ -107,25 +131,11 @@ func TestElMismoNumeroEnDosPuntosDeVentraSonDosFacturas(t *testing.T) {
 	}
 }
 
-func TestElConduceVaOrdenadoYSinRepetir(t *testing.T) {
-	es := AgruparPorFolio("STG", []FacturaDeVentra{
-		factura("101", "2026-10-17", "2", "PED-1", cerveza(1), domicilio(0.1)),
-		factura("99", "2026-10-17", "2", "PED-1", cerveza(1), domicilio(0.1)),
-		factura("1000", "2026-10-18", "2", "PED-1", cerveza(1), domicilio(0.1)),
-	})
-	if got, want := es[0].Conduce(), "99, 101, 1000"; got != want {
-		t.Errorf("el conduce son los números ordenados como número (99 antes que 101); salió %q y tocaba %q", got, want)
-	}
-}
-
-func TestLaFechaEsLaDeLaFacturaMasAntiguaAMediodiaDeCuba(t *testing.T) {
-	es := AgruparPorFolio("STG", []FacturaDeVentra{
-		factura("2", "2026-10-18", "2", "PED-1", cerveza(1), domicilio(0.1)),
-		factura("1", "2026-10-16", "2", "PED-1", cerveza(1), domicilio(0.1)),
-	})
+func TestLaFechaEsLaDeLaFacturaAMediodiaDeCuba(t *testing.T) {
+	es := UnaEntregaPorFactura("STG", []FacturaDeVentra{factura("2", "2026-10-18", "2", "PED-1", cerveza(1), domicilio(0.1))})
 	p, _ := es[0].APedido(ContextoDeMapeo{})
-	if p.Fecha != "2026-10-16T12:00:00-05:00" || p.FacturaAt != p.Fecha {
-		t.Errorf("order_date y factura_at son la fecha más antigua a las 12:00 de Cuba; salió %q / %q", p.Fecha, p.FacturaAt)
+	if p.Fecha != "2026-10-18T12:00:00-05:00" || p.FacturaAt != p.Fecha {
+		t.Errorf("order_date y factura_at son la fecha de la factura a las 12:00 de Cuba; salió %q / %q", p.Fecha, p.FacturaAt)
 	}
 }
 
@@ -145,10 +155,10 @@ func productosDePrueba() map[string]ProductoDeVentra {
 func TestElMapeoCompletoConLaCerveza(t *testing.T) {
 	// El caso de Amado: «CERVEZA PARRANDA 500 ML BLISTER 6U, 15 B» = 15 empaques, 90 unidades.
 	puntos := NuevosPuntos([]PuntoDeCliente{{Codigo: "SC06TCP0158", Nombre: "Otro Nombre", Lat: 20.05, Lng: -75.8}})
-	es := AgruparPorFolio("STG", []FacturaDeVentra{factura("47252", "2026-10-17", "2", "PJM26-261017-1925", cerveza(15), domicilio(0.29))})
+	es := UnaEntregaPorFactura("STG", []FacturaDeVentra{factura("47252", "2026-10-17", "2", "PJM26-261017-1925", cerveza(15), domicilio(0.29))})
 	p, inf := es[0].APedido(ContextoDeMapeo{Puntos: puntos, Productos: productosDePrueba()})
 
-	if p.ID != "factura:STG:PJM262610171925" || p.FolioDelPedido != "PJM26-261017-1925" {
+	if p.ID != "factura:STG:2:47252:2026-10-17" || p.FolioDelPedido != "PJM26-261017-1925" {
 		t.Errorf("external_id y folio mal: %q / %q", p.ID, p.FolioDelPedido)
 	}
 	if p.Folio != "47252" || p.FacturaNumero != "47252" {
@@ -208,7 +218,7 @@ func TestElMapeoCompletoConLaCerveza(t *testing.T) {
 	var cuerpo map[string]any
 	_ = json.Unmarshal(crudo, &cuerpo)
 	o := cuerpo["orders"].([]any)[0].(map[string]any)
-	if o["externalId"] != "factura:STG:PJM262610171925" || o["folio"] != "PJM26-261017-1925" || o["operationNumber"] != "47252" ||
+	if o["externalId"] != "factura:STG:2:47252:2026-10-17" || o["folio"] != "PJM26-261017-1925" || o["operationNumber"] != "47252" ||
 		o["facturaEstado"] != "igual" || o["lat"] != 20.05 {
 		t.Errorf("el cuerpo del lote no lleva lo que debe: %v", o)
 	}
@@ -217,7 +227,7 @@ func TestElMapeoCompletoConLaCerveza(t *testing.T) {
 func TestSinPuntoLaEntregaSeMapeaIgualYSinCoordenadas(t *testing.T) {
 	// «Nada se descarta en silencio»: la entrega de un cliente que no está en el espejo de
 	// clientes se guarda sin coordenadas, no se pierde.
-	es := AgruparPorFolio("STG", []FacturaDeVentra{factura("1", "2026-10-17", "2", "PED-1", cerveza(1), domicilio(0.1))})
+	es := UnaEntregaPorFactura("STG", []FacturaDeVentra{factura("1", "2026-10-17", "2", "PED-1", cerveza(1), domicilio(0.1))})
 	p, inf := es[0].APedido(ContextoDeMapeo{Puntos: NuevosPuntos(nil), Productos: productosDePrueba()})
 	if p.Cliente.Latitud != nil || p.Cliente.Longitud != nil {
 		t.Errorf("sin cliente no hay punto, y no se inventa uno: %+v", p.Cliente)
@@ -234,7 +244,7 @@ func TestSinPuntoLaEntregaSeMapeaIgualYSinCoordenadas(t *testing.T) {
 
 func TestLosRenglonesDelMismoProductoSeSumanDentroDeUnaFactura(t *testing.T) {
 	// La misma cerveza dos veces en la MISMA factura es un renglón de 12 B (72 uds).
-	es := AgruparPorFolio("STG", []FacturaDeVentra{
+	es := UnaEntregaPorFactura("STG", []FacturaDeVentra{
 		factura("1", "2026-10-17", "2", "PED-1", cerveza(5), cerveza(7), domicilio(0.1)),
 	})
 	p, _ := es[0].APedido(ContextoDeMapeo{Productos: productosDePrueba()})
@@ -246,55 +256,27 @@ func TestLosRenglonesDelMismoProductoSeSumanDentroDeUnaFactura(t *testing.T) {
 	}
 }
 
-// Issue 22 de Maikel (Santiago, 22/10/2026): dos facturas del MISMO folio son UNA entrega, pero
-// cada renglón sabe de cuál sale. El mismo producto en las dos ya no se suma en uno: son dos
-// renglones, y entre los dos la entrega pesa y cuenta lo mismo que antes.
+// Issue 22 de Maikel (Santiago, 22/10/2026): cada renglón sabe de qué factura sale. Con una entrega por
+// factura, el mismo producto en dos facturas del mismo pedido son dos entregas con un renglón cada una,
+// y cada renglón lleva SU factura.
 func TestDosFacturasDelMismoFolioDanRenglonesConSuFactura(t *testing.T) {
-	es := AgruparPorFolio("STG", []FacturaDeVentra{
+	es := UnaEntregaPorFactura("STG", []FacturaDeVentra{
 		factura("47360", "2026-10-17", "2", "PED-1", cerveza(7), domicilio(0.2)),
 		factura("47359", "2026-10-17", "2", "PED-1", cerveza(5), domicilio(0.1)),
 	})
-	if len(es) != 1 {
-		t.Fatalf("mismo folio = UNA entrega (la identidad no se toca); salieron %d", len(es))
-	}
-	p, _ := es[0].APedido(ContextoDeMapeo{Productos: productosDePrueba()})
-	if p.FacturaNumero != "47359, 47360" {
-		t.Errorf("la entrega sigue diciendo las dos facturas juntas: %q", p.FacturaNumero)
-	}
-	if len(p.Items) != 2 {
-		t.Fatalf("la misma cerveza en dos facturas son DOS renglones, cada uno de la suya; salieron %+v", p.Items)
+	if len(es) != 2 {
+		t.Fatalf("una entrega por factura; salieron %d", len(es))
 	}
 	vistos := map[string]float64{}
-	total, unidades := 0.0, 0.0
-	for _, r := range p.Items {
-		vistos[r.FacturaNumero] = *r.Packs
-		total += *r.Packs
-		unidades += *r.Unidades
+	for _, en := range es {
+		p, _ := en.APedido(ContextoDeMapeo{Productos: productosDePrueba()})
+		if p.FacturaNumero != en.Factura.Numero || len(p.Items) != 1 || p.Items[0].FacturaNumero != en.Factura.Numero {
+			t.Fatalf("la entrega y su renglón dicen SU factura %s; salió %q y %+v", en.Factura.Numero, p.FacturaNumero, p.Items)
+		}
+		vistos[p.Items[0].FacturaNumero] = *p.Items[0].Packs
 	}
 	if vistos["47359"] != 5 || vistos["47360"] != 7 {
 		t.Errorf("cada renglón con SU cantidad y SU factura: %v", vistos)
-	}
-	if total != 12 || unidades != 72 {
-		t.Errorf("la entrega no cambia de cuenta: 12 B y 72 uds; salieron %v y %v", total, unidades)
-	}
-}
-
-func TestElMismoProductoDeDosAlmacenesNoSeSuma(t *testing.T) {
-	// El renglón lleva SU almacén (`almacen_salida_*`): sumar dos puntos de venta dejaría la
-	// línea apuntada a uno solo y el que despacha iría a por mercancía que está en el otro.
-	es := AgruparPorFolio("STG", []FacturaDeVentra{
-		factura("1", "2026-10-17", "2", "PED-1", cerveza(5), domicilio(0.1)),
-		factura("2", "2026-10-17", "7", "PED-1", cerveza(7), domicilio(0.2)),
-	})
-	p, _ := es[0].APedido(ContextoDeMapeo{Productos: productosDePrueba()})
-	if len(p.Items) != 2 {
-		t.Fatalf("dos puntos de venta, dos renglones; salieron %d", len(p.Items))
-	}
-	if p.Almacen.Mezclado == nil || !*p.Almacen.Mezclado {
-		t.Error("facturas de puntos de venta distintos = almacén mezclado")
-	}
-	if p.Almacen.Codigo != "2" {
-		t.Errorf("de las mezcladas se usa el de la primera; salió %q", p.Almacen.Codigo)
 	}
 }
 
@@ -303,7 +285,7 @@ func TestUnProductoSinPesoSeDiceYNoSeInventa(t *testing.T) {
 		LineaDeFactura{Codigo: "SINPESO1", Nombre: "COSA SIN PESO", Cantidad: 3, Importe: 9},
 		LineaDeFactura{Codigo: "NOESTA99", Nombre: "COSA FUERA DEL CATALOGO", Cantidad: 2, Importe: 4},
 		cerveza(1), domicilio(0.1))
-	p, inf := AgruparPorFolio("STG", []FacturaDeVentra{f})[0].APedido(ContextoDeMapeo{Productos: productosDePrueba()})
+	p, inf := UnaEntregaPorFactura("STG", []FacturaDeVentra{f})[0].APedido(ContextoDeMapeo{Productos: productosDePrueba()})
 
 	if !reflect.DeepEqual(inf.SinPeso, []string{"SINPESO1"}) || !reflect.DeepEqual(inf.FueraDelCatalogo, []string{"NOESTA99"}) {
 		t.Errorf("tiene que nombrar el que pesa cero y el que no está: %+v", inf)
@@ -328,7 +310,7 @@ func TestUnProductoSinPesoSeDiceYNoSeInventa(t *testing.T) {
 
 func TestUnaEntregaSoloConDomicilioSeGuardaYSeCuenta(t *testing.T) {
 	f := factura("1", "2026-10-17", "2", "PED-1", domicilio(0.5))
-	p, inf := AgruparPorFolio("STG", []FacturaDeVentra{f})[0].APedido(ContextoDeMapeo{})
+	p, inf := UnaEntregaPorFactura("STG", []FacturaDeVentra{f})[0].APedido(ContextoDeMapeo{})
 	if len(p.Items) != 0 || !inf.SinMercancia {
 		t.Errorf("sin mercancía: cero renglones y dicho: %+v / %+v", p.Items, inf)
 	}
@@ -346,7 +328,7 @@ func TestElNombreDelClienteTieneSuCascada(t *testing.T) {
 	sin := func(mut func(*FacturaDeVentra)) PedidoDeFuera {
 		f := factura("1", "2026-10-17", "2", "PED-1", cerveza(1), domicilio(0.1))
 		mut(&f)
-		p, _ := AgruparPorFolio("STG", []FacturaDeVentra{f})[0].APedido(ContextoDeMapeo{})
+		p, _ := UnaEntregaPorFactura("STG", []FacturaDeVentra{f})[0].APedido(ContextoDeMapeo{})
 		return p
 	}
 	// customer.name; si viene vacío, customerReference; y si tampoco, «Cliente» (lo pone
@@ -437,54 +419,29 @@ func TestLaDireccionNoRepiteLaCiudad(t *testing.T) {
 // Auditoría del 20/10/2026
 // ---------------------------------------------------------------------------
 
-func TestElFolioSeAgrupaYSeClavaNormalizado(t *testing.T) {
-	// G3: el mismo pedido tecleado de cuatro maneras es UNA entrega con UNA clave, la misma con la
-	// que adopta al `PXX-900` de PEDIDO. Si la clave llevara el folio crudo, saldrían cuatro
-	// external_id distintos y cuatro filas.
-	es := AgruparPorFolio("STG", []FacturaDeVentra{
+func TestElFolioEsUnDatoLimpioYNuncaJuntaFacturas(t *testing.T) {
+	// El mismo pedido tecleado de cinco maneras son CINCO entregas (una por factura), cada una con su
+	// folio tal cual llegó, sin los espacios de los extremos; ya no hay clave por folio. (La comilla de
+	// Excel sólo se quita de un folio puramente numérico: `'PXX-900` se queda como llegó.)
+	es := UnaEntregaPorFactura("STG", []FacturaDeVentra{
 		factura("1", "2026-10-17", "2", "PXX-900", cerveza(1), domicilio(0.1)),
 		factura("2", "2026-10-17", "2", "pxx-900", cerveza(1), domicilio(0.1)),
 		factura("3", "2026-10-17", "2", "'PXX-900", cerveza(1), domicilio(0.1)),
 		factura("4", "2026-10-17", "2", "PXX - 900", cerveza(1), domicilio(0.1)),
 		factura("5", "2026-10-17", "2", " PXX-900 ", cerveza(1), domicilio(0.1)),
 	})
-	if len(es) != 1 || es[0].ExternalID() != "factura:STG:PXX900" {
-		t.Fatalf("cinco maneras de escribir PXX-900 son UNA entrega factura:STG:PXX900; salió %v", claves(es))
+	if len(es) != 5 {
+		t.Fatalf("cinco facturas, cinco entregas: %v", claves(es))
 	}
-	if got := es[0].Conduce(); got != "1, 2, 3, 4, 5" {
-		t.Errorf("y reúne las cinco facturas: %q", got)
-	}
-	if es[0].Folio != "PXX-900" {
-		t.Errorf("el folio que se guarda es el de la primera factura (ordenada), tal cual llegó: %q", es[0].Folio)
-	}
-	// Otro prefijo NO es el mismo pedido.
-	otro := AgruparPorFolio("STG", []FacturaDeVentra{
-		factura("1", "2026-10-17", "2", "PXX-900", cerveza(1)), factura("2", "2026-10-17", "2", "PXY-900", cerveza(1)),
-	})
-	if len(otro) != 2 || otro[0].ExternalID() == otro[1].ExternalID() {
-		t.Errorf("PXX-900 y PXY-900 son dos pedidos: %v", claves(otro))
-	}
-	// Un folio que no deja ni una letra ni un dígito no es un folio: cada factura, su entrega.
-	nada := AgruparPorFolio("STG", []FacturaDeVentra{
-		factura("1", "2026-10-17", "2", "---", cerveza(1)), factura("2", "2026-10-17", "2", "---", cerveza(1)),
-	})
-	if len(nada) != 2 || nada[0].Folio != "" || nada[1].Folio != "" {
-		t.Errorf("«---» no es un folio y no puede juntar dos facturas: %v", claves(nada))
-	}
-}
-
-func TestElConduceSeOrdenaComoNumeroNoPorFechaNiComoTexto(t *testing.T) {
-	// f-conduce-orden. EL DISEÑO: el conduce son los números de factura ordenados como NÚMERO
-	// ascendente («9, 10»). Ni por fecha de la factura (la 10 es del 18/10 y la 9 del 19/10: por
-	// fecha saldría «10, 9») ni como texto («10» < «9»: también «10, 9»). Y vale con las facturas
-	// llegando en cualquier orden, porque Ventra no promete ninguno.
-	f10 := factura("10", "2026-10-18", "2", "PXX-1", cerveza(1), domicilio(0.1))
-	f9 := factura("9", "2026-10-19", "2", "PXX-1", cerveza(1), domicilio(0.1))
-	for nombre, entrada := range map[string][]FacturaDeVentra{"10 antes que 9": {f10, f9}, "9 antes que 10": {f9, f10}} {
-		es := AgruparPorFolio("STG", entrada)
-		if got := es[0].Conduce(); got != "9, 10" {
-			t.Errorf("%s: el conduce tiene que ser «9, 10» y salió %q", nombre, got)
+	for i, quiere := range []string{"PXX-900", "pxx-900", "'PXX-900", "PXX - 900", "PXX-900"} {
+		if es[i].Folio != quiere {
+			t.Errorf("factura %d: el folio que se guarda es el que llegó: %q y tocaba %q", i+1, es[i].Folio, quiere)
 		}
+	}
+	// Un folio que no deja ni una letra ni un dígito no es un folio: se guarda sin él.
+	nada := UnaEntregaPorFactura("STG", []FacturaDeVentra{factura("1", "2026-10-17", "2", "---", cerveza(1))})
+	if len(nada) != 1 || nada[0].Folio != "" {
+		t.Errorf("«---» no es un folio: %+v", nada)
 	}
 }
 
@@ -494,7 +451,7 @@ func TestUnRenglonConCantidadCeroONegativaNoSeCargaYSeCuenta(t *testing.T) {
 	cero, negativa := cerveza(0), cerveza(-3)
 	cero.Codigo, negativa.Codigo = "PARR0010", "PARR0011"
 	f := factura("1", "2026-10-17", "2", "PXX-1", cero, negativa, cerveza(2), domicilio(0.5))
-	p, inf := AgruparPorFolio("STG", []FacturaDeVentra{f})[0].APedido(ContextoDeMapeo{})
+	p, inf := UnaEntregaPorFactura("STG", []FacturaDeVentra{f})[0].APedido(ContextoDeMapeo{})
 	if len(p.Items) != 1 || *p.Items[0].Packs != 2 {
 		t.Fatalf("sólo la línea de cantidad 2 se carga: %+v", p.Items)
 	}
@@ -508,7 +465,7 @@ func TestUnRenglonConCantidadCeroONegativaNoSeCargaYSeCuenta(t *testing.T) {
 	}
 	// Una factura que sólo trae líneas sin cantidad queda SIN mercancía, no con renglones vacíos.
 	solo := factura("2", "2026-10-17", "2", "PXX-2", cero, domicilio(0.5))
-	if p, inf := AgruparPorFolio("STG", []FacturaDeVentra{solo})[0].APedido(ContextoDeMapeo{}); len(p.Items) != 0 || !inf.SinMercancia {
+	if p, inf := UnaEntregaPorFactura("STG", []FacturaDeVentra{solo})[0].APedido(ContextoDeMapeo{}); len(p.Items) != 0 || !inf.SinMercancia {
 		t.Errorf("sin renglones de verdad es una entrega sin mercancía: %+v %+v", p.Items, inf)
 	}
 }
@@ -541,7 +498,7 @@ func TestLasUnidadesPorEmpaqueSeLeenDelNombre(t *testing.T) {
 func TestVeinteDeArrozDe10UnSonDoscientasUnidades(t *testing.T) {
 	arroz := LineaDeFactura{Codigo: "ALIM0019", Nombre: "ARROZ RIVIERA 1 KG PACA 10U", Unidad: "P", Cantidad: 20, Importe: 20 * 9}
 	panel := LineaDeFactura{Codigo: "PANE0001", Nombre: "PANEL SOLAR BIFACIAL JINKO 625 W", Unidad: "U", Cantidad: 40, Importe: 40 * 100}
-	en := EntregaDeFactura{Sucursal: "STG", Facturas: []FacturaDeVentra{factura("1", "2026-10-20", "2", "PED-9", arroz, panel, domicilio(1))}}
+	en := EntregaDeFactura{Sucursal: "STG", Factura: factura("1", "2026-10-20", "2", "PED-9", arroz, panel, domicilio(1))}
 	p, _ := en.APedido(ContextoDeMapeo{Puntos: NuevosPuntos(nil), Productos: map[string]ProductoDeVentra{}})
 	got := map[string]float64{}
 	for _, it := range p.Items {

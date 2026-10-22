@@ -259,8 +259,15 @@ func (env *entornoReal) filasDelFolio(folio string) int {
 	return env.entero(`SELECT count(*) FROM orders WHERE sucursal_codigo = $1 AND folio_normalizado(folio) = folio_normalizado($2::text)`, env.codigo, folio)
 }
 
-// ex es el external_id de la entrega de factura de un folio: `factura:<SUC>:<folio normalizado>`.
-func (env *entornoReal) ex(folio string) string {
+// exF es el external_id de la entrega de una factura (punto de venta "2", el de `facturaDeMentira`):
+// `factura:<SUC>:<punto>:<número>:<fecha>`. La entrega ES la factura (22/10/2026).
+func (env *entornoReal) exF(numero, fecha string) string {
+	return alcance.PrefijoDeFactura + env.codigo + ":2:" + numero + ":" + fecha
+}
+
+// exAntiguo es el external_id con el que se guardaba, hasta el 22/10/2026, la entrega de las
+// facturas de un folio: `factura:<SUC>:<folio normalizado>`.
+func (env *entornoReal) exAntiguo(folio string) string {
 	return alcance.PrefijoDeFactura + env.codigo + ":" + alcance.FolioNormalizado(folio)
 }
 
@@ -346,7 +353,7 @@ func TestMotorReal_FacturaAdoptaAlPedidoDePedidoYConservaSuRutaYSuPunto(t *testi
 	if got := env.filasDelFolio(folio); got != 1 {
 		t.Fatalf("hay %d filas con ese folio y tiene que haber 1: se duplicó", got)
 	}
-	if got := env.idDe(env.ex(folio)); got != id {
+	if got := env.idDe(env.exF("100", "2026-10-19")); got != id {
 		t.Fatalf("la adopción tiene que conservar el id: era %s y ahora es %s", id, got)
 	}
 	if env.hay("ped-100") {
@@ -406,7 +413,7 @@ func TestMotorReal_UnPedidoDePedidoQueLlegaDespuesDeAdoptadoNoCreaOtraFila(t *te
 	folio := "PXX26-261019-0200"
 	env.ventra.poner(facturaDeMentira("200", "2026-10-19", folio))
 	env.ciclo()
-	if !env.hay(env.ex(folio)) {
+	if !env.hay(env.exF("200", "2026-10-19")) {
 		t.Fatalf("la entrega de factura no se creó\n%s", env.registro.String())
 	}
 
@@ -463,7 +470,7 @@ func TestMotorReal_DosFoliosDeSucursalesDistintasNoSeAdoptanEntreSi(t *testing.T
 	if !env.hay("ped-otra") {
 		t.Error("el pedido de la OTRA sucursal con el mismo folio no se toca")
 	}
-	if !env.hay(env.ex("MISMO-FOLIO")) {
+	if !env.hay(env.exF("1", "2026-10-19")) {
 		t.Errorf("y la factura de esta crea su propia fila\n%s", env.registro.String())
 	}
 }
@@ -487,7 +494,7 @@ func TestMotorReal_DosCiclosAlaVezNoDuplican(t *testing.T) {
 			// Con el folio escrito en MINÚSCULAS: el candado también es del folio normalizado, y si la
 			// factura y el pedido tomaran candados distintos la carrera los duplicaría.
 			f := facturaDeMentira(fmt.Sprintf("%d", 5000+i), "2026-10-19", strings.ToLower(folio))
-			en := espejo.AgruparPorFolio(env.codigo, []espejo.FacturaDeVentra{f})[0]
+			en := espejo.UnaEntregaPorFactura(env.codigo, []espejo.FacturaDeVentra{f})[0]
 			desdeFactura, _ = en.APedido(espejo.ContextoDeMapeo{})
 		}
 		for _, p := range []espejo.PedidoDeFuera{desdePedido, desdeFactura, desdePedido, desdeFactura} {
@@ -560,17 +567,20 @@ func TestMotorReal_UnRepasoIdenticoNoReescribeNada(t *testing.T) {
 		t.Errorf("ni los renglones: se borran y se reinsertan si no se comparan\n antes: %s\n ahora: %s", itemsAntes, despues)
 	}
 
-	// Y si de verdad cambia algo (el conduce gana otra factura), SÍ se actualiza.
+	// Y una factura NUEVA del mismo pedido (402, folio PXX-400) es OTRA entrega: no toca ni reescribe la
+	// de la 400 (antes se juntaban en un conduce «400, 402» y se reescribía la fila).
+	x400 := env.xmin(env.exF("400", "2026-10-19"))
 	env.ventra.poner(facturaDeMentira("400", "2026-10-19", "PXX-400"), facturaDeMentira("402", "2026-10-19", "PXX-400"),
 		facturaDeMentira("401", "2026-10-19", ""))
 	env.ciclo()
-	var conduce string
-	_ = env.pool.QueryRow(env.ctx, `SELECT operation_number FROM orders WHERE external_id = $1`, env.ex("PXX-400")).Scan(&conduce)
-	if conduce != "400, 402" {
-		t.Errorf("la entrega ganó una segunda factura y el conduce tiene que decirlo: %q", conduce)
+	if got := env.filasDelFolio("PXX-400"); got != 2 {
+		t.Errorf("dos facturas del mismo pedido son DOS entregas: %d filas", got)
 	}
-	if got := env.filasDelFolio("PXX-400"); got != 1 {
-		t.Errorf("sigue siendo UNA entrega: %d filas", got)
+	if c, _, _ := env.conducePesoPacks(env.exF("400", "2026-10-19")); c != "400" {
+		t.Errorf("la entrega de la 400 sigue diciendo solo 400: %q", c)
+	}
+	if env.xmin(env.exF("400", "2026-10-19")) != x400 {
+		t.Error("la entrega de la 400 no se reescribe porque llegue otra factura del mismo pedido")
 	}
 }
 
@@ -584,14 +594,14 @@ func TestMotorReal_SinCoordenadasLaEntregaSeGuardaYConCoordenadasLasLleva(t *tes
 	env.ciclo()
 
 	var lat, lng, km *float64
-	if err := env.pool.QueryRow(env.ctx, `SELECT lat, lng, delivery_distance_km FROM orders WHERE external_id = $1`, env.ex("PXX-500")).
+	if err := env.pool.QueryRow(env.ctx, `SELECT lat, lng, delivery_distance_km FROM orders WHERE external_id = $1`, env.exF("500", "2026-10-19")).
 		Scan(&lat, &lng, &km); err != nil {
 		t.Fatal(err)
 	}
 	if lat == nil || *lat != 20.05 || lng == nil || km == nil || *km <= 0 {
 		t.Errorf("con cliente en el espejo, las coordenadas y la distancia salen de él: %v %v %v", lat, lng, km)
 	}
-	if err := env.pool.QueryRow(env.ctx, `SELECT lat, lng, delivery_distance_km FROM orders WHERE external_id = $1`, env.ex("PXX-501")).
+	if err := env.pool.QueryRow(env.ctx, `SELECT lat, lng, delivery_distance_km FROM orders WHERE external_id = $1`, env.exF("501", "2026-10-19")).
 		Scan(&lat, &lng, &km); err != nil {
 		t.Fatalf("la entrega sin punto SE GUARDA: %v\n%s", err, env.registro.String())
 	}
@@ -615,8 +625,8 @@ func (env *entornoReal) sembrarEntregas(fs ...espejo.FacturaDeVentra) {
 	env.ventra.poner(fs...)
 	env.ciclo()
 	for _, f := range fs {
-		if f.Pedido != "" && !env.hay(env.ex(f.Pedido)) {
-			env.t.Fatalf("no se guardó la entrega %s\n%s", f.Pedido, env.registro.String())
+		if !env.hay(env.exF(f.Numero, f.Fecha)) {
+			env.t.Fatalf("no se guardó la entrega de la factura %s\n%s", f.Numero, env.registro.String())
 		}
 	}
 }
@@ -624,22 +634,25 @@ func (env *entornoReal) sembrarEntregas(fs ...espejo.FacturaDeVentra) {
 func TestMotorReal_LaRetiradaRespetaSusGuardas(t *testing.T) {
 	env := nuevoEntornoReal(t)
 	suc := env.codigo
-	ex := env.ex
+	// Cada factura es su entrega: FA..FE son las facturas 1..6 (la clave es la de la factura).
+	ex := map[string]string{
+		"FA": env.exF("1", "2026-10-19"), "FR": env.exF("2", "2026-10-19"), "FD": env.exF("3", "2026-10-19"),
+		"FB": env.exF("4", "2026-10-05"), "FC": env.exF("5", "2026-06-01"), "FE": env.exF("6", "2026-10-19"),
+	}
 
-	// Hoy es el 20/10 (Cuba). El repaso normal son los 17-20/10 y el barrido, del 21/08 al 20/10; pero
-	// el repaso se ENSANCHA hasta la entrega abierta más antigua (con tope en el histórico, G2), y
-	// aquí C (01/06) está abierta: el repaso llega hasta el tope, 21/08.
+	// Hoy es el 20/10 (Cuba). El repaso son los 17-20/10 y el barrido, del 21/08 al 20/10 (la ventana
+	// del repaso YA NO se ensancha: la entrega es una factura y no hay nada que completar).
 	//   A  19/10  en el repaso, sin ruta         -> SE RETIRA cuando ya no viene
 	//   R  19/10  en el repaso, EN UNA RUTA      -> se deja y se dice
 	//   D  19/10  en el repaso, con RESULTADO    -> se deja
-	//   B  05/10  abierta: el repaso ensanchado la alcanza -> SE RETIRA también
-	//   C  01/06  fuera del tope: de TODA ventana -> nunca se toca
+	//   B  05/10  FUERA del repaso, dentro del barrido -> el repaso no la toca; el barrido la retira
+	//   C  01/06  fuera de TODA ventana          -> nunca se toca
 	env.sembrarEntregas(
 		facturaDeMentira("1", "2026-10-19", "FA"), facturaDeMentira("2", "2026-10-19", "FR"),
 		facturaDeMentira("3", "2026-10-19", "FD"), facturaDeMentira("4", "2026-10-05", "FB"),
 		facturaDeMentira("5", "2026-06-01", "FC"))
-	env.enRuta(env.idDe(ex("FR")), 1)
-	env.exec(`UPDATE orders SET resultado = 'entregado', delivered_at = now() WHERE id = $1`, env.idDe(ex("FD")))
+	env.enRuta(env.idDe(ex["FR"]), 1)
+	env.exec(`UPDATE orders SET resultado = 'entregado', delivered_at = now() WHERE id = $1`, env.idDe(ex["FD"]))
 	todas := func() int { return env.entero(`SELECT count(*) FROM orders WHERE sucursal_codigo = $1`, suc) }
 	if todas() != 5 {
 		t.Fatalf("la siembra dejó %d filas y tenían que ser 5", todas())
@@ -666,45 +679,48 @@ func TestMotorReal_LaRetiradaRespetaSusGuardas(t *testing.T) {
 		t.Errorf("y se dice:\n%s", env.registro.String())
 	}
 
-	// AHORA SÍ: Ventra contesta con otra factura y ya no trae A, R, D, B ni C. Es un REPASO
-	// (el barrido de hoy ya se hizo), ensanchado por C hasta el tope: 21/08..20/10.
+	// AHORA SÍ: Ventra contesta con otra factura y ya no trae A, R, D, B ni C. Es un REPASO (el
+	// barrido de hoy ya se hizo): 17/10..20/10.
 	env.ventra.poner(facturaDeMentira("6", "2026-10-19", "FE"))
 	env.registro.Reset()
 	env.ciclo()
-	if env.hay(ex("FA")) {
+	if env.hay(ex["FA"]) {
 		t.Error("A estaba en la ventana, sin ruta y ya no viene: se retira")
 	}
-	if !env.hay(ex("FR")) {
+	if !env.hay(ex["FR"]) {
 		t.Error("R va en una ruta: NO se borra lo que ya está en el camión")
 	}
-	if !env.hay(ex("FD")) {
+	if !env.hay(ex["FD"]) {
 		t.Error("D tiene resultado: no se borra")
 	}
-	if env.hay(ex("FB")) {
-		t.Error("B (05/10) cae dentro de la ventana ensanchada del repaso, sin ruta y ya no viene: se retira")
+	if !env.hay(ex["FB"]) {
+		t.Error("B (05/10) cae FUERA de la ventana del repaso (17-20/10): no se puede juzgar y no se toca")
 	}
-	if !env.hay(ex("FC")) {
-		t.Error("C (01/06) cae FUERA de la ventana consultada (más allá del tope): no se puede juzgar y no se toca")
+	if !env.hay(ex["FC"]) {
+		t.Error("C (01/06) cae fuera de la ventana consultada: no se toca")
 	}
-	if !env.hay(ex("FE")) {
+	if !env.hay(ex["FE"]) {
 		t.Error("y la nueva entra")
 	}
 	// R (ruta) y D (resultado) son las dos que se dejan.
 	if !strings.Contains(env.registro.String(), "anuladasConRuta=2") || !strings.Contains(env.registro.String(), "ANULADAS que ya van en una ruta") {
 		t.Errorf("la anulada con ruta se cuenta y se dice:\n%s", env.registro.String())
 	}
-	if !strings.Contains(env.registro.String(), "retiradas=2") {
+	if !strings.Contains(env.registro.String(), "retiradas=1") {
 		t.Errorf("y las retiradas se cuentan:\n%s", env.registro.String())
 	}
 
-	// Pasadas 24 horas toca el BARRIDO: ventana 22/08..21/10. C (01/06) sigue fuera de toda
-	// ventana. R y D se siguen dejando.
+	// Pasadas 24 horas toca el BARRIDO: ventana 22/08..21/10. B (05/10) ya está dentro y se retira.
+	// C (01/06) sigue fuera de toda ventana. R y D se siguen dejando.
 	env.ahora = env.ahora.Add(25 * time.Hour)
 	env.ciclo()
-	if !env.hay(ex("FC")) {
+	if env.hay(ex["FB"]) {
+		t.Error("B está dentro del barrido, sin ruta y ya no viene: se retira")
+	}
+	if !env.hay(ex["FC"]) {
 		t.Error("C está fuera de TODA ventana: no se toca jamás")
 	}
-	if !env.hay(ex("FR")) || !env.hay(ex("FD")) {
+	if !env.hay(ex["FR"]) || !env.hay(ex["FD"]) {
 		t.Error("R y D se siguen dejando")
 	}
 
@@ -725,7 +741,7 @@ func TestMotorReal_LaRetiradaNoTocaLoQueNoEsDeFactura(t *testing.T) {
 	if !env.hay("ped-600") {
 		t.Fatal("lo que no es de factura no se retira por una respuesta de Ventra")
 	}
-	if env.hay(env.ex("FF")) {
+	if env.hay(env.exF("7", "2026-10-19")) {
 		t.Error("y la de factura que ya no viene, sí")
 	}
 }
@@ -735,23 +751,23 @@ func TestMotorReal_ElBorradoTieneSuPropiaGuarda(t *testing.T) {
 	// una (el logístico no espera a nadie). La guarda de quien llama no lo ve: tiene que estar en
 	// el propio DELETE. Aquí se le pide borrar, directamente, lo que NO se puede borrar.
 	env := nuevoEntornoReal(t)
-	ex := env.ex
+	ex := func(n string) string { return env.exF(n, "2026-10-19") }
 	env.sembrarEntregas(facturaDeMentira("1", "2026-10-19", "GA"), facturaDeMentira("2", "2026-10-19", "GB"),
 		facturaDeMentira("3", "2026-10-19", "GC"), facturaDeMentira("4", "2026-10-19", "GD"))
 	env.guardarPedidos(env.pedidoDePedido("ped-700", "PXX-700"))
-	env.enRuta(env.idDe(ex("GA")), 1)
-	env.exec(`UPDATE orders SET resultado = 'devuelto' WHERE id = $1`, env.idDe(ex("GB")))
-	env.exec(`UPDATE orders SET delivered_at = now() WHERE id = $1`, env.idDe(ex("GC")))
+	env.enRuta(env.idDe(ex("1")), 1)
+	env.exec(`UPDATE orders SET resultado = 'devuelto' WHERE id = $1`, env.idDe(ex("2")))
+	env.exec(`UPDATE orders SET delivered_at = now() WHERE id = $1`, env.idDe(ex("3")))
 
-	ids := []uuid.UUID{env.idDe(ex("GA")), env.idDe(ex("GB")), env.idDe(ex("GC")), env.idDe(ex("GD")), env.idDe("ped-700")}
+	ids := []uuid.UUID{env.idDe(ex("1")), env.idDe(ex("2")), env.idDe(ex("3")), env.idDe(ex("4")), env.idDe("ped-700")}
 	n, err := env.e.BaseF.RetirarEntregasDeFactura(env.ctx, ids)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 1 || env.hay(ex("GD")) {
-		t.Errorf("SOLO la libre (GD) se borra; borró %d y GD sigue: %v", n, env.hay(ex("GD")))
+	if n != 1 || env.hay(ex("4")) {
+		t.Errorf("SOLO la libre (GD) se borra; borró %d y GD sigue: %v", n, env.hay(ex("4")))
 	}
-	for _, e := range []string{ex("GA"), ex("GB"), ex("GC"), "ped-700"} {
+	for _, e := range []string{ex("1"), ex("2"), ex("3"), "ped-700"} {
 		if !env.hay(e) {
 			t.Errorf("%s no se podía borrar (ruta, resultado, entrega o no es de factura) y se borró", e)
 		}
@@ -807,7 +823,7 @@ func TestMotorReal_LaAdopcionNoPierdeElPuntoNiElKmSiLaFacturaNoTieneCliente(t *t
 	if got := env.ciclo(); got != 1 {
 		t.Fatalf("el ciclo tenía que guardar 1; guardó %d\n%s", got, env.registro.String())
 	}
-	if got := env.idDe(env.ex(folio)); got != id {
+	if got := env.idDe(env.exF("110", "2026-10-19")); got != id {
 		t.Fatalf("la adopción conserva el id: %s -> %s", id, got)
 	}
 	d := env.puntoYKm(id)
@@ -829,10 +845,10 @@ func TestMotorReal_LaAdopcionNoPierdeElPuntoNiElKmSiLaFacturaNoTieneCliente(t *t
 		t.Errorf("el mapeo de la factura se aplicó igual: %q", cliente)
 	}
 	// Y los repasos siguientes no reescriben la fila (el WHERE usa los mismos valores efectivos).
-	x := env.xmin(env.ex(folio))
+	x := env.xmin(env.exF("110", "2026-10-19"))
 	env.ciclo()
 	env.ciclo()
-	if env.xmin(env.ex(folio)) != x {
+	if env.xmin(env.exF("110", "2026-10-19")) != x {
 		t.Error("un repaso idéntico reescribió la fila: el WHERE del upsert compara contra NULL y no contra el punto conservado")
 	}
 
@@ -841,13 +857,13 @@ func TestMotorReal_LaAdopcionNoPierdeElPuntoNiElKmSiLaFacturaNoTieneCliente(t *t
 	solo.ReferenciaDelCliente = "NADIE"
 	env.ventra.poner(f, solo)
 	env.ciclo()
-	if n := env.puntoYKm(env.idDe(env.ex("PXX-SIN-PUNTO"))); n.endLat != nil || n.lat != nil || n.km != nil {
+	if n := env.puntoYKm(env.idDe(env.exF("111", "2026-10-19"))); n.endLat != nil || n.lat != nil || n.km != nil {
 		t.Errorf("una entrega nueva sin punto se guarda SIN punto: %+v", n)
 	}
 	solo.ReferenciaDelCliente = "COD-100"
 	env.ventra.poner(f, solo)
 	env.ciclo()
-	if n := env.puntoYKm(env.idDe(env.ex("PXX-SIN-PUNTO"))); n.endLat == nil || *n.endLat != 20.05 || n.km == nil {
+	if n := env.puntoYKm(env.idDe(env.exF("111", "2026-10-19"))); n.endLat == nil || *n.endLat != 20.05 || n.km == nil {
 		t.Errorf("y cuando su cliente aparece en el espejo, el punto entra: %+v", n)
 	}
 }
@@ -866,7 +882,7 @@ func TestMotorReal_LaAdopcionReconoceElFolioAunqueSeEscribaDistinto(t *testing.T
 			if n := env.entero(`SELECT count(*) FROM orders WHERE sucursal_codigo = $1`, env.codigo); n != 1 {
 				t.Fatalf("la factura con folio %q DUPLICÓ la fila de PEDIDO PXX-900: hay %d filas\n%s", escrito, n, env.registro.String())
 			}
-			if got := env.idDe(env.ex("PXX-900")); got != id {
+			if got := env.idDe(env.exF("900", "2026-10-19")); got != id {
 				t.Fatalf("la factura %q tenía que adoptar la fila de PEDIDO (mismo id)", escrito)
 			}
 			if env.hay("ped-900") {
@@ -902,14 +918,14 @@ func TestMotorReal_UnPrefijoDistintoNoEsElMismoFolio(t *testing.T) {
 	if n := env.entero(`SELECT count(*) FROM orders WHERE sucursal_codigo = $1`, env.codigo); n != 2 {
 		t.Fatalf("PXX-902 y PXY-902 son dos pedidos y tiene que haber 2 filas; hay %d", n)
 	}
-	if !env.hay("ped-902") || !env.hay(env.ex("PXY-902")) {
+	if !env.hay("ped-902") || !env.hay(env.exF("902", "2026-10-19")) {
 		t.Error("cada uno conserva lo suyo")
 	}
 	// Un folio que normaliza a vacío no adopta a nadie (los dos «---» no son el mismo pedido). El mapeo
 	// ya los separa (una factura con «---» no tiene folio), así que se manda por la puerta una entrega
 	// de factura que SÍ lo trae, como la podría mandar cualquier otro cliente de la puerta.
 	env.guardarPedidos(env.pedidoDePedido("ped-guiones", "---"))
-	en := espejo.AgruparPorFolio(env.codigo, []espejo.FacturaDeVentra{facturaDeMentira("903", "2026-10-19", "")})[0]
+	en := espejo.UnaEntregaPorFactura(env.codigo, []espejo.FacturaDeVentra{facturaDeMentira("903", "2026-10-19", "")})[0]
 	p, _ := en.APedido(espejo.ContextoDeMapeo{})
 	p.FolioDelPedido = "---"
 	env.guardarPedidos(p)
@@ -960,7 +976,7 @@ func TestMotorReal_SiPedidoRepiteElFolioLaAdopcionTomaSoloLaMasAntigua(t *testin
 	if got := env.ciclo(); got != 1 {
 		t.Fatalf("con dos filas de PEDIDO con el mismo folio la adopción tiene que seguir funcionando; guardó %d\n%s", got, env.registro.String())
 	}
-	if got := env.idDe(env.ex("PXX-777")); got != idA {
+	if got := env.idDe(env.exF("777", "2026-10-19")); got != idA {
 		t.Errorf("se adopta la MÁS ANTIGUA (%s) y se adoptó %s", idA, got)
 	}
 	if !env.hay("ped-b") || env.hay("ped-a") {
@@ -968,7 +984,7 @@ func TestMotorReal_SiPedidoRepiteElFolioLaAdopcionTomaSoloLaMasAntigua(t *testin
 	}
 }
 
-// --------------------------------------------------------------------------- G2
+// --------------------------------------------------------------------------- la entrega es una factura (22/10/2026)
 
 func (env *entornoReal) conducePesoPacks(externalID string) (conduce string, peso, packs float64) {
 	env.t.Helper()
@@ -981,137 +997,363 @@ func (env *entornoReal) conducePesoPacks(externalID string) (conduce string, pes
 
 func (env *entornoReal) pasa(d time.Duration) { env.ahora = env.ahora.Add(d) }
 
-func TestMotorReal_UnaEntregaConFacturasAAmbosLadosDelBordeNoOscila(t *testing.T) {
-	// EL CASO MEDIDO EN LA AUDITORÍA: un folio con la factura 100 del 10/10 y la 101 del 19/10, hoy
-	// 20/10. El repaso de 3 días sólo veía la 101 y reescribía la entrega con ella sola; el barrido
-	// la dejaba bien y el repaso siguiente la rompía otra vez (conduce «100, 101» -> «101» ->
-	// «100, 101»…, peso 72 -> 36).
-	env := nuevoEntornoReal(t)
-	env.ventra.filtra = true
-	folio := "PXX-G2"
-	ex := env.ex(folio)
-	env.ventra.poner(facturaDeMentira("100", "2026-10-10", folio), facturaDeMentira("101", "2026-10-19", folio))
+// sembrarFilaAntigua deja guardada, por la puerta, la fila COMO LA ESCRIBÍA el espejo antes del
+// 22/10/2026: una entrega por FOLIO, con `external_id` = `factura:<SUC>:<folio normalizado>` y el
+// conduce («a, b») con los números de factura juntos. El contenido (renglones, cliente) es el de la
+// primera factura: lo que se prueba es la identidad, y el mapeo nuevo lo reescribe encima.
+func (env *entornoReal) sembrarFilaAntigua(folio string, fs ...espejo.FacturaDeVentra) uuid.UUID {
+	env.t.Helper()
+	nums := make([]string, 0, len(fs))
+	for _, f := range fs {
+		nums = append(nums, f.Numero)
+	}
+	conduce := strings.Join(nums, ", ")
+	p, _ := espejo.UnaEntregaPorFactura(env.codigo, fs[:1])[0].APedido(espejo.ContextoDeMapeo{})
+	p.ID, p.Folio, p.FacturaNumero, p.FolioDelPedido = env.exAntiguo(folio), conduce, conduce, folio
+	if r := env.guardarPedidos(p)[p.ID]; !r.Entro() {
+		env.t.Fatalf("no se sembró la fila antigua %q: %+v", p.ID, r)
+	}
+	return env.idDe(env.exAntiguo(folio))
+}
 
-	env.ciclo() // el primero es barrido: ve las dos
-	if c, peso, packs := env.conducePesoPacks(ex); c != "100, 101" || math.Abs(peso-72) > 1e-9 || packs != 30 {
-		t.Fatalf("el barrido deja la entrega entera: conduce %q peso %v packs %v", c, peso, packs)
-	}
-	for i := 1; i <= 6; i++ {
-		env.pasa(time.Minute)
-		env.ciclo() // repasos
-		if c, peso, packs := env.conducePesoPacks(ex); c != "100, 101" || math.Abs(peso-72) > 1e-9 || packs != 30 {
-			t.Fatalf("repaso %d: la entrega OSCILA (conduce %q, peso %v, packs %v) y tiene que seguir en «100, 101», 72, 30\n%s",
-				i, c, peso, packs, env.registro.String())
-		}
-	}
-	// El repaso se ensanchó hasta la entrega abierta más antigua (10/10).
-	ult := env.ventra.pedidas[len(env.ventra.pedidas)-1]
-	if !strings.HasSuffix(ult, "2026-10-10..2026-10-20") {
-		t.Errorf("el repaso tenía que pedir desde el 10/10 (la entrega abierta más antigua); pidió %q", ult)
-	}
-
-	// Y una factura NUEVA del mismo folio entra EN EL REPASO (con el repaso estrecho la entrega
-	// quedaría «parcial» y esperaría al barrido de mañana).
-	env.ventra.poner(facturaDeMentira("100", "2026-10-10", folio), facturaDeMentira("101", "2026-10-19", folio),
-		facturaDeMentira("102", "2026-10-20", folio))
-	env.pasa(time.Minute)
+// primerBarrido deja hecho el barrido del día con la sucursal vacía: el ciclo siguiente es un REPASO.
+func (env *entornoReal) primerBarrido() {
+	env.t.Helper()
+	env.ventra.poner()
 	env.ciclo()
-	if c, peso, packs := env.conducePesoPacks(ex); c != "100, 101, 102" || math.Abs(peso-108) > 1e-9 || packs != 45 {
-		t.Errorf("la factura 102 tenía que entrar en el repaso: conduce %q peso %v packs %v", c, peso, packs)
+}
+
+// foto: lo que queda de la sucursal, por external_id, conduce y si va en una ruta, ordenado.
+func (env *entornoReal) foto() string {
+	var s *string
+	if err := env.pool.QueryRow(env.ctx, `SELECT string_agg(external_id || '=' || coalesce(operation_number, '') || CASE WHEN route_id IS NULL THEN '' ELSE '@ruta' END, ' | ' ORDER BY external_id)
+	    FROM orders WHERE sucursal_codigo = $1`, env.codigo).Scan(&s); err != nil {
+		env.t.Fatal(err)
 	}
-	if strings.Contains(env.registro.String(), "entrega parcial") {
-		t.Errorf("con el repaso ensanchado ninguna entrega abierta llega partida:\n%s", env.registro.String())
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// (a) La fila antigua de UNA factura se ADOPTA: mismo id, misma ruta, mismo punto a mano; sin duplicar.
+func TestMotorReal_LaFilaAntiguaDeUnaFacturaSeAdoptaYConservaSuRuta(t *testing.T) {
+	for _, modo := range []string{"barrido", "repaso"} {
+		t.Run(modo, func(t *testing.T) {
+			env := nuevoEntornoReal(t)
+			folio := "PXX26-261019-0700"
+			if modo == "repaso" {
+				env.primerBarrido()
+			}
+			f := facturaDeMentira("700", "2026-10-19", folio)
+			id := env.sembrarFilaAntigua(folio, f)
+			ruta := env.enRuta(id, 4)
+			env.exec(`UPDATE orders SET punto_manual = true, end_lat = 20.5, end_lng = -75.5, end_address = 'a mano' WHERE id = $1`, id)
+
+			env.ventra.poner(f)
+			env.ciclo()
+
+			if n := env.entero(`SELECT count(*) FROM orders WHERE sucursal_codigo = $1`, env.codigo); n != 1 {
+				t.Fatalf("la adopción no puede duplicar: hay %d filas\n%s", n, env.foto())
+			}
+			if got := env.idDe(env.exF("700", "2026-10-19")); got != id {
+				t.Fatalf("la fila adoptada conserva su id: era %s y ahora es %s", id, got)
+			}
+			if env.hay(env.exAntiguo(folio)) {
+				t.Error("y la clave antigua (por folio) ya no existe")
+			}
+			var r *uuid.UUID
+			var orden *int32
+			var manual bool
+			var folioGuardado *string
+			if err := env.pool.QueryRow(env.ctx, `SELECT route_id, stop_order, punto_manual, folio FROM orders WHERE id = $1`, id).
+				Scan(&r, &orden, &manual, &folioGuardado); err != nil {
+				t.Fatal(err)
+			}
+			if r == nil || *r != ruta || orden == nil || *orden != 4 || !manual {
+				t.Errorf("la ruta, el orden y el punto a mano son del reparto y la adopción no los toca: %v %v %v", r, orden, manual)
+			}
+			if folioGuardado == nil || *folioGuardado != folio {
+				t.Errorf("el folio queda como DATO de la fila: %v", folioGuardado)
+			}
+			if got := env.entero(`SELECT count(*) FROM orders WHERE id = $1 AND operation_number = '700' AND factura_numero = '700'`, id); got != 1 {
+				t.Error("y el mapeo nuevo se puso encima: el conduce es el número de la factura")
+			}
+		})
 	}
 }
 
-func TestMotorReal_UnaEntregaCerradaNoSeEncogeEnUnRepasoYElBarridoSiLaRehace(t *testing.T) {
-	// La red de seguridad (2): la entrega ya está ENTREGADA, así que el repaso no se ensancha por ella,
-	// y aun así no puede reescribirla con la mitad. Sólo el barrido puede encoger o rehacer.
+// Una fila antigua cuyo conduce NO es el número de esta factura no se adopta, aunque sea del mismo folio.
+func TestMotorReal_LaFilaAntiguaDeOtraFacturaNoSeAdopta(t *testing.T) {
 	env := nuevoEntornoReal(t)
-	env.ventra.filtra = true
-	folio := "PXX-G2B"
-	ex := env.ex(folio)
-	env.ventra.poner(facturaDeMentira("100", "2026-10-10", folio), facturaDeMentira("101", "2026-10-19", folio))
-	env.ciclo() // barrido
-	env.exec(`UPDATE orders SET resultado = 'entregado', delivered_at = now() WHERE id = $1`, env.idDe(ex))
-
-	for i := 1; i <= 3; i++ {
-		env.pasa(time.Minute)
-		env.registro.Reset()
-		env.ciclo()
-		if c, peso, _ := env.conducePesoPacks(ex); c != "100, 101" || math.Abs(peso-72) > 1e-9 {
-			t.Fatalf("repaso %d: el repaso ENCOGIÓ una entrega ya entregada: conduce %q peso %v\n%s", i, c, peso, env.registro.String())
-		}
-		if !strings.Contains(env.registro.String(), "entrega parcial: se espera al barrido") || !strings.Contains(env.registro.String(), "parciales=1") {
-			t.Errorf("repaso %d: la entrega parcial se cuenta y se dice:\n%s", i, env.registro.String())
-		}
-	}
-	if ult := env.ventra.pedidas[len(env.ventra.pedidas)-1]; !strings.HasSuffix(ult, "2026-10-17..2026-10-20") {
-		t.Errorf("una entrega entregada no ensancha el repaso; pidió %q", ult)
-	}
-
-	// Pasado el día toca el BARRIDO, y Ventra ya sólo trae la 101 (la 100 se anuló): el barrido sí la rehace.
-	env.ventra.poner(facturaDeMentira("101", "2026-10-19", folio))
-	env.pasa(25 * time.Hour)
+	folio := "PXX26-261019-0710"
+	idViejo := env.sembrarFilaAntigua(folio, facturaDeMentira("99", "2026-10-19", folio))
+	env.ruta(idViejo)
+	nueva := facturaDeMentira("710", "2026-10-19", folio)
+	env.ventra.poner(nueva)
 	env.ciclo()
-	if c, peso, _ := env.conducePesoPacks(ex); c != "101" || math.Abs(peso-36) > 1e-9 {
-		t.Errorf("el barrido es el que rehace: conduce %q peso %v", c, peso)
+	if got := env.idDe(env.exF("710", "2026-10-19")); got == idViejo {
+		t.Fatal("la fila antigua era de la factura 99, no de la 710: no se adopta")
+	}
+	if !env.hay(env.exAntiguo(folio)) {
+		t.Errorf("y como va en una ruta se deja, marcada como anulada con ruta\n%s", env.registro.String())
 	}
 }
 
-func TestMotorReal_ElRepasoEnsanchadoNoPasaDelTopeDeSesentaDias(t *testing.T) {
-	env := nuevoEntornoReal(t)
-	env.ventra.filtra = true
-	// Hoy 20/10: el tope (HistoricoDias = 60) es el 21/08. Una entrega abierta del 22/07 (90 días).
-	env.ventra.poner(facturaDeMentira("1", "2026-07-22", "PXX-VIEJA"))
-	env.ventra.filtra = false
-	env.ciclo() // barrido: la guarda aunque Ventra la conteste fuera de ventana (es lo que da la fila)
-	env.ventra.filtra = true
-	if !env.hay(env.ex("PXX-VIEJA")) {
-		t.Fatal("la siembra no dejó la entrega")
-	}
-	env.pasa(time.Minute)
-	env.ciclo() // repaso
-	if ult := env.ventra.pedidas[len(env.ventra.pedidas)-1]; !strings.HasSuffix(ult, "2026-08-21..2026-10-20") {
-		t.Errorf("con una abierta de hace 90 días el repaso llega al tope, 21/08, y no más atrás; pidió %q", ult)
-	}
-	if !strings.Contains(env.registro.String(), "más antigua que el histórico") {
-		t.Errorf("y se dice:\n%s", env.registro.String())
-	}
+// ruta mete la fila en una ruta (atajo para las pruebas de la migración).
+func (env *entornoReal) ruta(id uuid.UUID) uuid.UUID { return env.enRuta(id, 1) }
 
-	// Una abierta de hace 49 días (01/09) ensancha hasta SU día, no hasta el tope.
-	env.exec(`DELETE FROM orders WHERE sucursal_codigo = $1`, env.codigo)
-	env.ventra.filtra = false
-	env.ventra.poner(facturaDeMentira("2", "2026-09-01", "PXX-MEDIA"))
-	env.pasa(time.Minute)
-	env.ciclo() // repaso: la guarda (fuera de ventana, pero la fake no filtra)
-	env.ventra.filtra = true
-	env.pasa(time.Minute)
-	env.ciclo()
-	if ult := env.ventra.pedidas[len(env.ventra.pedidas)-1]; !strings.HasSuffix(ult, "2026-09-01..2026-10-20") {
-		t.Errorf("la abierta más antigua es del 01/09 y el repaso llega hasta ahí; pidió %q", ult)
+// itemsDe: los renglones de la fila, como «factura:cantidad», ordenados.
+func (env *entornoReal) itemsDe(externalID string) string {
+	env.t.Helper()
+	var s *string
+	if err := env.pool.QueryRow(env.ctx, `SELECT string_agg(coalesce(i.factura_numero, '?') || ':' || i.packs::text, ',' ORDER BY i.factura_numero)
+	    FROM order_items i JOIN orders o ON o.id = i.order_id WHERE o.source = 'pedido' AND o.external_id = $1`, externalID).Scan(&s); err != nil {
+		env.t.Fatal(err)
+	}
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// (3) Una fila antigua con DOS facturas vivas y SIN ruta: quedan dos filas, sin duplicar, y la primera
+// (por número) hereda la fila. (5) y el barrido y el repaso dejan EXACTAMENTE lo mismo.
+func TestMotorReal_LaFilaAntiguaConDosFacturasSinRutaQuedaEnDosFilas(t *testing.T) {
+	fotos := map[string]string{}
+	for _, modo := range []string{"barrido", "repaso"} {
+		t.Run(modo, func(t *testing.T) {
+			env := nuevoEntornoReal(t)
+			folio := "PXX26-261019-0720"
+			if modo == "repaso" {
+				env.primerBarrido()
+			}
+			a, b := facturaDeMentira("720", "2026-10-19", folio), facturaDeMentira("721", "2026-10-19", folio)
+			idViejo := env.sembrarFilaAntigua(folio, a, b)
+			if c, _, _ := env.conducePesoPacks(env.exAntiguo(folio)); c != "720, 721" {
+				t.Fatalf("la siembra tenía que dejar el conduce «720, 721»: %q", c)
+			}
+
+			env.ventra.poner(b, a) // en el orden "malo": el espejo las ordena por número
+			env.ciclo()
+
+			if env.hay(env.exAntiguo(folio)) {
+				t.Fatalf("la clave antigua desaparece\n%s", env.registro.String())
+			}
+			if got := env.entero(`SELECT count(*) FROM orders WHERE sucursal_codigo = $1`, env.codigo); got != 2 {
+				t.Fatalf("tenían que quedar 2 filas (una por factura); hay %d\n%s", got, env.foto())
+			}
+			if got := env.idDe(env.exF("720", "2026-10-19")); got != idViejo {
+				t.Errorf("la primera factura por número (720) hereda la fila antigua, cualquiera que sea el orden de Ventra")
+			}
+			for _, n := range []string{"720", "721"} {
+				if c, _, _ := env.conducePesoPacks(env.exF(n, "2026-10-19")); c != n {
+					t.Errorf("la factura %s tiene su propia fila con su número como conduce: %q", n, c)
+				}
+				if got := env.itemsDe(env.exF(n, "2026-10-19")); got != n+":15" {
+					t.Errorf("la mercancía de la %s queda UNA vez, la suya: %q", n, got)
+				}
+			}
+			fotos[modo] = strings.ReplaceAll(env.foto(), env.codigo, "SUC")
+		})
+	}
+	if fotos["barrido"] != fotos["repaso"] {
+		t.Errorf("el barrido y el repaso tienen que dejar lo mismo:\n barrido: %s\n  repaso: %s", fotos["barrido"], fotos["repaso"])
 	}
 }
 
-func TestMotorReal_UnaEntregaEnUnaRutaCompletadaNoEnsanchaElRepaso(t *testing.T) {
-	// «Ni entregada NI CERRADA»: una entrega sin resultado pero en una ruta completada es histórico.
-	env := nuevoEntornoReal(t)
-	env.ventra.filtra = true
-	folio := "PXX-CERRADA"
-	env.ventra.poner(facturaDeMentira("100", "2026-10-10", folio))
-	env.ventra.filtra = false
-	env.ciclo() // barrido
-	env.ventra.filtra = true
-	ruta := env.enRuta(env.idDe(env.ex(folio)), 1)
-	env.pasa(time.Minute)
-	env.ciclo()
-	if ult := env.ventra.pedidas[len(env.ventra.pedidas)-1]; !strings.HasSuffix(ult, "2026-10-10..2026-10-20") {
-		t.Fatalf("la entrega abierta en una ruta planificada ensancha el repaso; pidió %q", ult)
+// (2) y (4) y (5): una fila antigua «a, b» EN UNA RUTA con las dos vivas: la primera hereda la ruta, la
+// segunda entra sin ruta (Sin colocar), la mercancía de cada una queda una sola vez, un segundo ciclo no
+// cambia nada, y el barrido y el repaso lo dejan igual.
+func TestMotorReal_LaFilaAntiguaConDosFacturasYRutaLaHeredaLaPrimera(t *testing.T) {
+	fotos := map[string]string{}
+	for _, modo := range []string{"barrido", "repaso"} {
+		t.Run(modo, func(t *testing.T) {
+			env := nuevoEntornoReal(t)
+			folio := "PXX26-261019-0730"
+			if modo == "repaso" {
+				env.primerBarrido()
+			}
+			a, b := facturaDeMentira("730", "2026-10-19", folio), facturaDeMentira("731", "2026-10-19", folio)
+			idViejo := env.sembrarFilaAntigua(folio, a, b)
+			ruta := env.enRuta(idViejo, 2)
+			env.exec(`UPDATE orders SET punto_manual = true, end_lat = 20.5, end_lng = -75.5, end_address = 'a mano' WHERE id = $1`, idViejo)
+
+			env.ventra.poner(a, b)
+			env.registro.Reset()
+			env.ciclo()
+
+			if env.hay(env.exAntiguo(folio)) {
+				t.Fatal("la clave antigua ya no existe: la heredó la 730")
+			}
+			if got := env.idDe(env.exF("730", "2026-10-19")); got != idViejo {
+				t.Fatal("la 730 (la primera por número) hereda la fila: mismo id")
+			}
+			var r *uuid.UUID
+			var orden *int32
+			var manual bool
+			if err := env.pool.QueryRow(env.ctx, `SELECT route_id, stop_order, punto_manual FROM orders WHERE id = $1`, idViejo).Scan(&r, &orden, &manual); err != nil {
+				t.Fatal(err)
+			}
+			if r == nil || *r != ruta || orden == nil || *orden != 2 || !manual {
+				t.Errorf("la heredera conserva ruta, orden y punto a mano: %v %v %v", r, orden, manual)
+			}
+			if got := env.entero(`SELECT count(*) FROM orders WHERE sucursal_codigo = $1`, env.codigo); got != 2 {
+				t.Fatalf("2 filas (una por factura); hay %d\n%s", got, env.foto())
+			}
+			if got := env.entero(`SELECT count(*) FROM orders WHERE external_id = $1 AND route_id IS NULL`, env.exF("731", "2026-10-19")); got != 1 {
+				t.Error("la 731 entra como fila nueva SIN ruta (Sin colocar)")
+			}
+			if env.itemsDe(env.exF("730", "2026-10-19")) != "730:15" || env.itemsDe(env.exF("731", "2026-10-19")) != "731:15" {
+				t.Errorf("la mercancía de cada factura queda una sola vez: %q / %q",
+					env.itemsDe(env.exF("730", "2026-10-19")), env.itemsDe(env.exF("731", "2026-10-19")))
+			}
+			if strings.Contains(env.registro.String(), "ANULADAS que ya van en una ruta") {
+				t.Errorf("nada queda como anulada con ruta: la ruta la heredó una factura viva\n%s", env.registro.String())
+			}
+
+			// IDEMPOTENTE: un segundo y un tercer ciclo no cambian nada (ni las filas ni sus renglones).
+			antes, xmin := env.foto(), env.xmin(env.exF("730", "2026-10-19"))
+			itemsAntes := env.itemsDe(env.exF("730", "2026-10-19")) + env.itemsDe(env.exF("731", "2026-10-19"))
+			env.ciclo()
+			env.ciclo()
+			if env.foto() != antes || env.xmin(env.exF("730", "2026-10-19")) != xmin ||
+				env.itemsDe(env.exF("730", "2026-10-19"))+env.itemsDe(env.exF("731", "2026-10-19")) != itemsAntes {
+				t.Errorf("otro ciclo cambió algo:\n antes: %s\n ahora: %s", antes, env.foto())
+			}
+			fotos[modo] = strings.ReplaceAll(env.foto(), env.codigo, "SUC")
+		})
 	}
-	env.exec(`UPDATE routes SET status = 'completed' WHERE id = $1`, ruta)
-	env.pasa(time.Minute)
+	if fotos["barrido"] != fotos["repaso"] {
+		t.Errorf("el barrido y el repaso tienen que dejar lo mismo:\n barrido: %s\n  repaso: %s", fotos["barrido"], fotos["repaso"])
+	}
+}
+
+// No adopta si la clave nueva YA EXISTE (la 900 ya tiene su fila): adoptar chocaría con el índice único y
+// tumbaría el lote. La 900 se actualiza en su sitio y la adopta la siguiente (la 901).
+func TestMotorReal_LaAdopcionAntiguaNoPisaUnaClaveNuevaQueYaExiste(t *testing.T) {
+	env := nuevoEntornoReal(t)
+	folio := "PXX26-261019-0740"
+	a, b := facturaDeMentira("900", "2026-10-19", folio), facturaDeMentira("901", "2026-10-19", folio)
+	env.ventra.poner(a)
 	env.ciclo()
-	if ult := env.ventra.pedidas[len(env.ventra.pedidas)-1]; !strings.HasSuffix(ult, "2026-10-17..2026-10-20") {
-		t.Errorf("en una ruta completada ya no es abierta y el repaso vuelve a ser el de 3 días; pidió %q", ult)
+	idA := env.idDe(env.exF("900", "2026-10-19"))
+	idViejo := env.sembrarFilaAntigua(folio, a, b)
+
+	env.ventra.poner(a, b)
+	env.registro.Reset()
+	env.ciclo()
+	if strings.Contains(env.registro.String(), "un lote falló") {
+		t.Fatalf("la adopción chocó con la clave nueva ya existente:\n%s", env.registro.String())
+	}
+	if env.idDe(env.exF("900", "2026-10-19")) != idA || env.idDe(env.exF("901", "2026-10-19")) != idViejo {
+		t.Errorf("la 900 sigue en su fila y la 901 hereda la antigua\n%s", env.foto())
+	}
+	if got := env.entero(`SELECT count(*) FROM orders WHERE sucursal_codigo = $1`, env.codigo); got != 2 {
+		t.Errorf("2 filas; hay %d\n%s", got, env.foto())
+	}
+}
+
+// La fila antigua de OTRA sucursal con el mismo folio y el mismo número de factura no se adopta.
+func TestMotorReal_LaFilaAntiguaDeOtraSucursalNoSeAdopta(t *testing.T) {
+	env := nuevoEntornoReal(t)
+	otra := "Y" + env.codigo[1:]
+	env.exec(`INSERT INTO branches (name, lat, lng, external_id, origin_configured) VALUES ($1, 20.0, -75.8, $2, true)`, "Otra "+otra, otra)
+	t.Cleanup(func() {
+		_, _ = env.pool.Exec(context.Background(), `DELETE FROM orders WHERE sucursal_codigo = $1`, otra)
+	})
+	conAccesos(t, &accesosFalso{sucursales: []SucursalConAlmacenes{
+		{Codigo: env.codigo, Almacenes: almacenesDeSantiagoDeAccesos()[0].Almacenes},
+		{Codigo: otra, Almacenes: almacenesDeSantiagoDeAccesos()[0].Almacenes},
+	}})
+	folio := "PXX26-261019-0750"
+	f := facturaDeMentira("950", "2026-10-19", folio)
+	p, _ := espejo.UnaEntregaPorFactura(otra, []espejo.FacturaDeVentra{f})[0].APedido(espejo.ContextoDeMapeo{})
+	p.ID = alcance.PrefijoDeFactura + otra + ":" + alcance.FolioNormalizado(folio)
+	p.FolioDelPedido = folio
+	if r := env.guardarPedidos(p)[p.ID]; !r.Entro() {
+		t.Fatalf("no se sembró la de la otra sucursal: %+v", r)
+	}
+	env.ventra.poner(f)
+	env.ciclo()
+	if !env.hay(p.ID) || env.entero(`SELECT count(*) FROM orders WHERE sucursal_codigo = $1`, env.codigo) != 1 {
+		t.Error("la fila antigua de la otra sucursal se queda donde está y esta sucursal crea la suya")
+	}
+}
+
+// Si NINGUNA de las facturas de la fila antigua viene viva, nadie la adopta y sigue el camino de siempre:
+// se retira sin ruta, y con ruta se deja y se cuenta.
+func TestMotorReal_LaFilaAntiguaSinNingunaFacturaVivaSeRetiraOSeCuenta(t *testing.T) {
+	env := nuevoEntornoReal(t)
+	libre := env.sembrarFilaAntigua("PXX-800", facturaDeMentira("800", "2026-10-19", "PXX-800"), facturaDeMentira("801", "2026-10-19", "PXX-800"))
+	enRuta := env.sembrarFilaAntigua("PXX-810", facturaDeMentira("810", "2026-10-19", "PXX-810"), facturaDeMentira("811", "2026-10-19", "PXX-810"))
+	env.enRuta(enRuta, 1)
+	env.ventra.poner(facturaDeMentira("900", "2026-10-19", "OTRO-PEDIDO"))
+	env.ciclo()
+	if env.entero(`SELECT count(*) FROM orders WHERE id = $1`, libre) != 0 {
+		t.Error("la antigua sin ruta y sin ninguna factura viva se retira")
+	}
+	if env.entero(`SELECT count(*) FROM orders WHERE id = $1`, enRuta) != 1 || !strings.Contains(env.registro.String(), "anuladasConRuta=1") {
+		t.Errorf("la que va en una ruta se deja y se cuenta\n%s", env.registro.String())
+	}
+	if !env.hay(env.exAntiguo("PXX-810")) {
+		t.Error("y conserva su clave antigua: nadie la adoptó")
+	}
+}
+
+// (1) El caso de Amado (Santiago, 22/10/2026): PWC26-261021-1128 con la factura 47412 CANCELADA y la 47415
+// viva, la fila antigua «47412, 47415» YA EN UNA RUTA. Ventra ya sólo manda la 47415. En el MISMO repaso queda
+// UNA fila, la misma (id, ruta), con la 47415 como conduce y sin ninguna fila nueva; la 47412 no vuelve a salir.
+func TestMotorReal_LaFacturaCanceladaSeRetiraEnElMismoRepaso(t *testing.T) {
+	env := nuevoEntornoReal(t)
+	folio := "PWC26-261021-1128"
+	env.primerBarrido()
+	cancelada, viva := facturaDeMentira("47412", "2026-10-19", folio), facturaDeMentira("47415", "2026-10-19", folio)
+	idViejo := env.sembrarFilaAntigua(folio, cancelada, viva)
+	ruta := env.enRuta(idViejo, 3)
+
+	env.ventra.poner(viva)
+	env.registro.Reset()
+	env.ciclo() // un REPASO
+	if strings.Contains(env.registro.String(), "histórico") {
+		t.Fatal("tenía que ser un repaso, no un barrido")
+	}
+	if got, quiere := strings.ReplaceAll(env.foto(), env.codigo, "SUC"), "factura:SUC:2:47415:2026-10-19=47415@ruta"; got != quiere {
+		t.Fatalf("queda UNA fila, la de la 47415, en su ruta, sin rastro de la 47412:\n  %s\n  %s", got, quiere)
+	}
+	if got := env.idDe(env.exF("47415", "2026-10-19")); got != idViejo {
+		t.Fatal("la 47415 hereda la fila de Amado: mismo id")
+	}
+	if got := env.entero(`SELECT count(*) FROM orders WHERE id = $1 AND route_id = $2 AND stop_order = 3`, idViejo, ruta); got != 1 {
+		t.Error("y sigue en la misma ruta y en el mismo orden")
+	}
+	if got := env.itemsDe(env.exF("47415", "2026-10-19")); got != "47415:15" {
+		t.Errorf("sus renglones son los de la 47415 sola: %q", got)
+	}
+
+	// Ya migrado: dos filas, una por factura. La 47412 se cancela de verdad en Ventra (deja de venir).
+	env.ventra.poner(cancelada, viva)
+	env.ciclo()
+	if got := env.entero(`SELECT count(*) FROM orders WHERE sucursal_codigo = $1`, env.codigo); got != 2 {
+		t.Fatalf("con las dos vivas hay dos entregas: %d", got)
+	}
+	env.ventra.poner(viva)
+	env.ciclo()
+	if env.hay(env.exF("47412", "2026-10-19")) || !env.hay(env.exF("47415", "2026-10-19")) {
+		t.Errorf("la cancelada se retira en el mismo repaso y la viva se queda\n%s", env.foto())
+	}
+	if c, _, _ := env.conducePesoPacks(env.exF("47415", "2026-10-19")); c != "47415" {
+		t.Errorf("la viva dice solo 47415: %q", c)
+	}
+
+	// Si la cancelada ya iba en una ruta, se deja y se cuenta (nunca se borra lo que está en el camión).
+	env.ventra.poner(cancelada, viva)
+	env.ciclo()
+	env.enRuta(env.idDe(env.exF("47412", "2026-10-19")), 1)
+	env.ventra.poner(viva)
+	env.registro.Reset()
+	env.ciclo()
+	if !env.hay(env.exF("47412", "2026-10-19")) || !strings.Contains(env.registro.String(), "anuladasConRuta=1") {
+		t.Errorf("la cancelada con ruta se conserva y se cuenta\n%s", env.registro.String())
 	}
 }

@@ -4072,10 +4072,8 @@ entregó o que está archivada no tiene nada que colocar, así que lleva sólo e
 factura (o el «Dom.» verde, si la factura sí cobró el domicilio). Un devuelto o cancelado
 sí lo lleva, porque se puede volver a meter en otra ruta.
 
-La columna «Factura» no sale en pantallas de menos de 1024 px de ancho (y con ella se va
-la primera posición: la tabla empieza entonces por «Fecha factura»). **El número de
-factura no desaparece con ella**: entre 768 y 1023 px baja a la celda del cliente, debajo del
-número de operación, como `Factura 1024237`; en el teléfono es **el título de la tarjeta**,
+La columna «Factura» **se ve siempre** en la tabla (desde 768 px de ancho, también en una
+ventana de escritorio pequeña); en el teléfono el número de factura es **el título de la tarjeta**,
 y la marca del domicilio va en la insignia de abajo.
 
 ---

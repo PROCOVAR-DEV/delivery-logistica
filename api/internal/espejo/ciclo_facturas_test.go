@@ -53,10 +53,6 @@ type baseDeFacturasFalsa struct {
 	ventanas  []string
 	retiradas []uuid.UUID
 	fallo     error
-	// conduces: lo que las entregas ya tienen guardado, por external_id. abierta: el día de la
-	// entrega abierta más antigua, por sucursal (nil = ninguna).
-	conduces map[string]string
-	abierta  map[string]*time.Time
 }
 
 func (b *baseDeFacturasFalsa) PuntosDeClientes(_ context.Context, s string) ([]PuntoDeCliente, error) {
@@ -68,18 +64,6 @@ func (b *baseDeFacturasFalsa) ProductosDeVentra(_ context.Context, s string) (ma
 func (b *baseDeFacturasFalsa) EntregasDeFacturaEnVentana(_ context.Context, s string, desde, hasta time.Time) ([]EntregaGuardada, error) {
 	b.ventanas = append(b.ventanas, s+" "+desde.Format(time.DateOnly)+".."+hasta.Format(time.DateOnly))
 	return b.guardadas[s], b.fallo
-}
-func (b *baseDeFacturasFalsa) ConducesGuardados(_ context.Context, ids []string) (map[string]string, error) {
-	salida := map[string]string{}
-	for _, id := range ids {
-		if c, hay := b.conduces[id]; hay {
-			salida[id] = c
-		}
-	}
-	return salida, b.fallo
-}
-func (b *baseDeFacturasFalsa) FechaDeLaEntregaAbiertaMasAntigua(_ context.Context, s string) (*time.Time, error) {
-	return b.abierta[s], b.fallo
 }
 func (b *baseDeFacturasFalsa) RetirarEntregasDeFactura(_ context.Context, ids []uuid.UUID) (int64, error) {
 	b.retiradas = append(b.retiradas, ids...)
@@ -129,8 +113,8 @@ func TestConLaFuenteFacturaNoSePideNadaAPedido(t *testing.T) {
 	if len(p.pedidas) != 0 {
 		t.Errorf("con SYNC_FUENTE=factura PEDIDO no trae pedidos; se pidió %+v", p.pedidas)
 	}
-	if len(d.lotes) != 1 || len(d.lotes[0]) != 1 || d.lotes[0][0].ID != "factura:STG:PED1" {
-		t.Fatalf("la entrega tenía que llegar a la puerta como factura:STG:PED1; llegó %+v", d.lotes)
+	if len(d.lotes) != 1 || len(d.lotes[0]) != 1 || d.lotes[0][0].ID != "factura:STG:2:47252:2026-09-13" {
+		t.Fatalf("la entrega tenía que llegar a la puerta como factura:STG:2:47252:2026-09-13; llegó %+v", d.lotes)
 	}
 }
 
@@ -250,9 +234,9 @@ func TestSoloUnaSucursalSiSeLimita(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func entregasGuardadas() (vieneUna, anulada, conRuta EntregaGuardada) {
-	return EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:PED1"},
-		EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:PEDANULADO"},
-		EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:PEDENRUTA", Ocupada: true}
+	return EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47252:2026-09-13"},
+		EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47000:2026-09-13"},
+		EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47001:2026-09-13", Ocupada: true}
 }
 
 func TestLaFacturaAnuladaSinRutaSeRetira(t *testing.T) {
@@ -323,7 +307,7 @@ func TestSoloSeJuzgaLaVentanaConsultada(t *testing.T) {
 	// A la base se le pregunta por EXACTAMENTE la ventana que se le preguntó a Ventra. Una
 	// entrega de hace 40 días no está en el repaso de 3: no se puede decir que «ya no viene».
 	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: unaFacturaDeSantiago()}
-	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {{ID: uuid.New(), ExternalID: "factura:STG:X"}}}}
+	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {{ID: uuid.New(), ExternalID: "factura:STG:2:1:2026-07-20"}}}}
 	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
 	e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy} // ya se barrió hoy: sólo repaso
 	_ = e.Ciclo(context.Background())
@@ -345,139 +329,68 @@ func TestSiNoSePuedenLeerLosClientesNoSeGuardaSinPuntos(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// El repaso no encoge una entrega (auditoría del 20/10/2026, G2)
+// La entrega es una factura (Jose, 22/10/2026): la cancelada sale, la viva se queda
 // ---------------------------------------------------------------------------
 
-func dia(s string) *time.Time {
-	t, _ := time.Parse(time.DateOnly, s)
-	return &t
+// El caso de Amado en Santiago: PWC26-261021-1128 con las facturas 47412 (cancelada) y 47415 (viva).
+// Antes eran UNA entrega «47412, 47415» y el repaso nunca la encogía; ahora son dos filas y la
+// cancelada, que Ventra ya no manda, se retira en el MISMO repaso (sin esperar al barrido).
+func dosFacturasDelMismoPedido() (cancelada, viva EntregaGuardada, respuesta map[string][]FacturaDeVentra) {
+	cancelada = EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47412:2026-09-13"}
+	viva = EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47415:2026-09-13"}
+	respuesta = map[string][]FacturaDeVentra{"santiago": {
+		factura("47415", "2026-09-13", "2", "PWC26-261021-1128", cerveza(15), domicilio(0.29)),
+	}}
+	return
 }
 
-func TestElRepasoSeEnsanchaHastaLaEntregaAbiertaMasAntigua(t *testing.T) {
-	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: unaFacturaDeSantiago()}
-	// Hoy es 2026-09-14. Sin nada abierto, o con lo abierto dentro de los 3 días, el repaso es el de siempre.
-	for nombre, abierta := range map[string]*time.Time{"nada abierto": nil, "abierta de hoy": dia("2026-09-14"), "abierta del borde": dia("2026-09-11")} {
-		f.pedidas = nil
-		b := &baseDeFacturasFalsa{abierta: map[string]*time.Time{"STG": abierta}}
-		e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
-		e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy}
-		_ = e.Ciclo(context.Background())
-		if len(f.pedidas) != 1 || f.pedidas[0].desde != "2026-09-11" {
-			t.Errorf("%s: el repaso son los últimos 3 días (desde 2026-09-11); se pidió %+v", nombre, f.pedidas)
-		}
-	}
-	// Con una entrega abierta más vieja, el repaso llega hasta su día.
-	f.pedidas = nil
-	b := &baseDeFacturasFalsa{abierta: map[string]*time.Time{"STG": dia("2026-09-02")}}
-	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
-	e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy}
+func TestLaFacturaCanceladaDeUnPedidoSeRetiraEnElMismoRepasoYLaVivaSeQueda(t *testing.T) {
+	cancelada, viva, respuesta := dosFacturasDelMismoPedido()
+	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: respuesta}
+	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {cancelada, viva}}}
+	d := &repartoFalso{}
+	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, d)
+	e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy} // SOLO REPASO
 	_ = e.Ciclo(context.Background())
-	if len(f.pedidas) != 1 || f.pedidas[0].desde != "2026-09-02" || f.pedidas[0].hasta != "2026-09-14" {
-		t.Errorf("con una entrega abierta del 02/09 el repaso ve desde el 02/09; se pidió %+v", f.pedidas)
+	if len(b.retiradas) != 1 || b.retiradas[0] != cancelada.ID {
+		t.Fatalf("la cancelada (47412) se retira en el repaso y la viva no: retiradas %v (cancelada %v, viva %v)",
+			b.retiradas, cancelada.ID, viva.ID)
 	}
-	// Y la base se juzga con LA MISMA ventana que se le preguntó a Ventra.
-	if len(b.ventanas) != 1 || b.ventanas[0] != "STG 2026-09-02..2026-09-14" {
-		t.Errorf("la ventana de lo que ya no viene es la ensanchada: %v", b.ventanas)
+	if len(d.lotes) != 1 || len(d.lotes[0]) != 1 || d.lotes[0][0].ID != viva.ExternalID || d.lotes[0][0].Folio != "47415" {
+		t.Errorf("y la viva se guarda con SU número como conduce: %+v", d.lotes)
 	}
 }
 
-func TestElRepasoEnsanchadoTieneTopeEnElHistorico(t *testing.T) {
-	// Una entrega abierta de hace un año no puede convertir el repaso de cada minuto en pedir un
-	// año a Ventra: el tope es HistoricoDias (60), el mismo del barrido.
-	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: unaFacturaDeSantiago()}
-	b := &baseDeFacturasFalsa{abierta: map[string]*time.Time{"STG": dia("2025-09-14")}}
+func TestLaCanceladaQueYaVaEnUnaRutaSeDejaAunqueLaVivaSiga(t *testing.T) {
+	cancelada, viva, respuesta := dosFacturasDelMismoPedido()
+	cancelada.Ocupada = true
+	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: respuesta}
+	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {cancelada, viva}}}
 	e, reg := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
 	e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy}
 	_ = e.Ciclo(context.Background())
-	if len(f.pedidas) != 1 || f.pedidas[0].desde != "2026-07-16" {
-		t.Errorf("el tope son 60 días (2026-07-16); se pidió %+v", f.pedidas)
-	}
-	if !strings.Contains(reg.String(), "más antigua que el histórico") {
-		t.Errorf("y se dice:\n%s", reg.String())
-	}
-	// Exactamente en el tope: llega a él, sin aviso.
-	f.pedidas = nil
-	b.abierta["STG"] = dia("2026-07-16")
-	e, reg = montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
-	e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy}
-	_ = e.Ciclo(context.Background())
-	if f.pedidas[0].desde != "2026-07-16" || strings.Contains(reg.String(), "más antigua que el histórico") {
-		t.Errorf("una abierta justo en el tope entra entera y sin aviso: %+v\n%s", f.pedidas, reg.String())
+	if len(b.retiradas) != 0 || !strings.Contains(reg.String(), "anuladasConRuta=1") {
+		t.Fatalf("la cancelada que va en una ruta se deja y se cuenta; retiradas %v\n%s", b.retiradas, reg.String())
 	}
 }
 
-func TestElBarridoNoSeEnsanchaNiSeAcortaPorLaEntregaAbierta(t *testing.T) {
-	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: unaFacturaDeSantiago()}
-	b := &baseDeFacturasFalsa{abierta: map[string]*time.Time{"STG": dia("2026-09-02")}}
-	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
-	_ = e.Ciclo(context.Background()) // la primera vez es barrido
-	if len(f.pedidas) != 1 || f.pedidas[0].desde != "2026-07-16" {
-		t.Errorf("el barrido son los 60 días de siempre: %+v", f.pedidas)
-	}
-}
-
-func TestUnRepasoParcialNoReescribeLaEntregaYElBarridoSi(t *testing.T) {
-	// El conduce guardado es «100, 101» y esta respuesta sólo trae la 101: guardarla dejaría la
-	// entrega con la mitad. En un repaso se deja y se DICE; el barrido, que ve todo, la rehace.
-	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: map[string][]FacturaDeVentra{"santiago": {
-		factura("101", "2026-09-13", "2", "PED-1", cerveza(15), domicilio(0.29)),
-	}}}
-	b := &baseDeFacturasFalsa{conduces: map[string]string{"factura:STG:PED1": "100, 101"}}
-	d := &repartoFalso{}
-	e, reg := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, d)
-	e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy} // sólo repaso
-	_ = e.Ciclo(context.Background())
-	if len(d.lotes) != 0 {
-		t.Fatalf("la entrega parcial NO se manda a la puerta: %+v", d.lotes)
-	}
-	if !strings.Contains(reg.String(), "entrega parcial: se espera al barrido") || !strings.Contains(reg.String(), "parciales=1") {
-		t.Errorf("y se cuenta y se dice:\n%s", reg.String())
-	}
-
-	// Una entrega NUEVA o una que ya tiene todos sus números sí se guarda en el repaso (la pareja:
-	// sin ella, «no reescribe lo parcial» se cumpliría con un repaso que no guarda nada).
-	for nombre, guardado := range map[string]string{"nueva": "", "con todas": "101", "creció": "101"} {
-		d = &repartoFalso{}
-		b = &baseDeFacturasFalsa{conduces: map[string]string{}}
-		if guardado != "" {
-			b.conduces["factura:STG:PED1"] = guardado
+// El barrido y el repaso producen LO MISMO sobre lo que ambos ven: ya no hay una regla que sólo el
+// barrido pueda cumplir (la vieja «el repaso nunca encoge»).
+func TestElBarridoYElRepasoHacenLoMismo(t *testing.T) {
+	for _, barrido := range []bool{false, true} {
+		cancelada, viva, respuesta := dosFacturasDelMismoPedido()
+		f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: respuesta}
+		b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {cancelada, viva}}}
+		d := &repartoFalso{}
+		e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, d)
+		if !barrido {
+			e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy}
 		}
-		e, reg = montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, d)
-		e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy}
 		_ = e.Ciclo(context.Background())
-		if len(d.lotes) != 1 || strings.Contains(reg.String(), "entrega parcial") {
-			t.Errorf("%s: se guarda en el repaso (%d lotes)\n%s", nombre, len(d.lotes), reg.String())
+		if len(b.retiradas) != 1 || b.retiradas[0] != cancelada.ID || len(d.lotes) != 1 || d.lotes[0][0].ID != viva.ExternalID {
+			t.Errorf("barrido=%v: tenía que retirar la cancelada y guardar la viva; retiradas %v, lotes %+v", barrido, b.retiradas, d.lotes)
 		}
 	}
-
-	// El barrido SÍ la rehace con lo que ve.
-	d = &repartoFalso{}
-	b = &baseDeFacturasFalsa{conduces: map[string]string{"factura:STG:PED1": "100, 101"}}
-	e, reg = montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, d)
-	_ = e.Ciclo(context.Background()) // la primera vez es barrido
-	if len(d.lotes) != 1 || strings.Contains(reg.String(), "entrega parcial") {
-		t.Errorf("el barrido es el único que puede encoger o rehacer una entrega: %d lotes\n%s", len(d.lotes), reg.String())
-	}
-}
-
-func TestSiNoSePuedenLeerLosConducesElRepasoNoGuarda(t *testing.T) {
-	// Sin saber qué tiene cada entrega no se puede asegurar que el repaso no la encoja.
-	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: unaFacturaDeSantiago()}
-	b := &baseDeFacturasFalsaSinConduces{baseDeFacturasFalsa: &baseDeFacturasFalsa{}}
-	d := &repartoFalso{}
-	e, reg := montarFacturas(FuenteDeFactura, f, b.baseDeFacturasFalsa, &pedidoFalso{}, d)
-	e.BaseF = b
-	e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy}
-	_ = e.Ciclo(context.Background())
-	if len(d.lotes) != 0 || !strings.Contains(reg.String(), "no se pudieron leer los conduces guardados") {
-		t.Errorf("sin poder leer los conduces el repaso no guarda y lo dice (%d lotes)\n%s", len(d.lotes), reg.String())
-	}
-}
-
-type baseDeFacturasFalsaSinConduces struct{ *baseDeFacturasFalsa }
-
-func (baseDeFacturasFalsaSinConduces) ConducesGuardados(context.Context, []string) (map[string]string, error) {
-	return nil, errors.New("la base no contesta")
 }
 
 func TestUnaCantidadCeroSeDiceEnElCiclo(t *testing.T) {
@@ -572,7 +485,7 @@ func TestUnaFacturaConElDomicilioEnCeroNoSeGuarda(t *testing.T) {
 	if err := e.Ciclo(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.lotes) != 1 || len(d.lotes[0]) != 1 || d.lotes[0][0].ID != "factura:STG:PED1" {
+	if len(d.lotes) != 1 || len(d.lotes[0]) != 1 || d.lotes[0][0].ID != "factura:STG:2:47252:2026-09-13" {
 		t.Fatalf("sólo la del domicilio cobrado llega a la puerta; llegó %+v", d.lotes)
 	}
 	if !strings.Contains(reg.String(), "sinPrecioDeDomicilio=1") {
@@ -583,8 +496,8 @@ func TestUnaFacturaConElDomicilioEnCeroNoSeGuarda(t *testing.T) {
 // En pareja: la de domicilio cobrado SÍ se guarda (la prueba de arriba la comprueba) y la guardada que
 // ahora va en $0 se retira sola si no va en ninguna ruta.
 func TestLaEntregaGuardadaQueAhoraVaEnCeroSeRetiraSiNoVaEnRuta(t *testing.T) {
-	enCero := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:PED2"}
-	cobrada := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:PED1"}
+	enCero := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47253:2026-09-13"}
+	cobrada := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47252:2026-09-13"}
 	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: conUnoEnCero()}
 	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {cobrada, enCero}}}
 	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
@@ -595,7 +508,7 @@ func TestLaEntregaGuardadaQueAhoraVaEnCeroSeRetiraSiNoVaEnRuta(t *testing.T) {
 }
 
 func TestLaEntregaEnCeroQueYaVaEnUnaRutaSeDeja(t *testing.T) {
-	enRuta := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:PED2", Ocupada: true}
+	enRuta := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47253:2026-09-13", Ocupada: true}
 	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: conUnoEnCero()}
 	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {enRuta}}}
 	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
@@ -605,16 +518,15 @@ func TestLaEntregaEnCeroQueYaVaEnUnaRutaSeDeja(t *testing.T) {
 	}
 }
 
-func TestConDomicilioCobradoCuentaVariasFacturasDeLaMismaEntrega(t *testing.T) {
-	// Dos facturas del mismo pedido: 0 y 0.35 suman 0.35 y la entrega SÍ cuenta; 0 y 0 no.
-	juntas := AgruparPorFolio("STG", []FacturaDeVentra{
+func TestConDomicilioCobradoJuzgaCadaFacturaPorSi(t *testing.T) {
+	// Dos facturas del mismo pedido son dos entregas: la de 0 se deja fuera y la de 0.35 entra, sin
+	// que la una arrastre a la otra.
+	todas := UnaEntregaPorFactura("STG", []FacturaDeVentra{
 		factura("1", "2026-09-13", "2", "PED-A", cerveza(1), domicilio(0)),
 		factura("2", "2026-09-13", "2", "PED-A", cerveza(1), domicilio(0.35)),
-		factura("3", "2026-09-13", "2", "PED-B", cerveza(1), domicilio(0)),
-		factura("4", "2026-09-13", "2", "PED-B", cerveza(1), domicilio(0)),
 	})
-	con, sin := ConDomicilioCobrado(juntas)
-	if len(con) != 1 || sin != 1 || con[0].Folio != "PED-A" {
-		t.Fatalf("PED-A cobra 0.35 (cuenta) y PED-B 0 (no): con=%d sin=%d", len(con), sin)
+	con, sin := ConDomicilioCobrado(todas)
+	if len(con) != 1 || sin != 1 || con[0].Conduce() != "2" {
+		t.Fatalf("la 2 cobra 0.35 (cuenta) y la 1 cobra 0 (no): con=%d sin=%d", len(con), sin)
 	}
 }

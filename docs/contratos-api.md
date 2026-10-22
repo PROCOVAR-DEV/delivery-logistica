@@ -1177,31 +1177,34 @@ El nombre `source = 'pedido'` es legado y se renombra/quita en la LIMPIEZA.
 
 | Clave | Cuándo |
 |---|---|
-| `<SUC>:<FOLIO NORMALIZADO>` | la venta trae la nota `P-<folio>; V-…; C-…;` (`orderNumber`). **Normalizado**: mayúsculas y solo letras y dígitos ASCII (`alcance.FolioNormalizado`): `PXX-900`, `pxx-900`, `'PXX-900` (la comilla de Excel) y `PXX - 900` son la misma entrega, `factura:STG:PXX900` |
-| `<SUC>:<punto de venta>:<número>:<fecha>` | no la trae: la factura es su propia entrega |
+| `<SUC>:<punto de venta>:<número>:<fecha>` | **siempre**: la entrega es la factura (`factura:STG:2:47415:2026-10-21`) |
 
-**La identidad de una FACTURA es sucursal + punto de venta + número + fecha**, nunca el número solo: el
-número se repite entre puntos de venta. **Una ENTREGA es un pedido** (`orderNumber`) y puede reunir VARIAS
-facturas (Santiago 3 %, Guantánamo 11 %): las facturas de la misma sucursal con el mismo `orderNumber` son
-UNA entrega. Una factura repetida en la respuesta se cuenta una vez.
+**LA ENTREGA ES UNA FACTURA** (Jose, 22/10/2026: «si se cancela se cancela, es factura; el pedido es opcional;
+me importa una pinga el pedido, la verdad son las facturas»). **La identidad de una FACTURA es sucursal + punto
+de venta + número + fecha**, nunca el número solo: el número se repite entre puntos de venta. El `orderNumber`
+(el folio del pedido) es solo un DATO, `orders.folio`: dos facturas del mismo pedido son DOS entregas. Una
+factura repetida en la respuesta se cuenta una vez (`espejo.UnaEntregaPorFactura`). Antes del 22/10/2026 la
+clave con folio era `<SUC>:<FOLIO NORMALIZADO>` y juntaba las facturas del folio en un conduce «a, b»; Amado vio
+así en Santiago la `PWC26-261021-1128` con «Factura 47412, 47415» cuando la 47412 estaba CANCELADA y el repaso
+nunca encogía la entrega. Juntar facturas queda como cosa futura y MANUAL (la pestaña «Conduces», pendiente).
 
 **El mapeo, campo a campo** (`espejo.EntregaDeFactura.APedido`):
 
 | Columna / campo del lote | Sale de |
 |---|---|
 | `external_id`, `source` | `factura:<clave>`, `pedido` |
-| `folio` (00025) | el `orderNumber` TAL CUAL llegó (nulo si no hay; si hay varias facturas, el de la primera ordenada); en un pedido de PEDIDO, su `operation_number`. Lo que se normaliza es la COMPARACIÓN (`folio_normalizado(folio)`), no lo guardado |
-| `operation_number` (**el «conduce»**) | los números de factura de la entrega, sin repetir, ordenados (como número si lo son) y unidos por «, » |
-| `factura_numero` | lo mismo que el conduce (`informes.go` ya acepta la coma) |
+| `folio` (00025) | el `orderNumber` TAL CUAL llegó (nulo si no hay); en un pedido de PEDIDO, su `operation_number`. Lo que se normaliza es la COMPARACIÓN (`folio_normalizado(folio)`), no lo guardado |
+| `operation_number` (**el «conduce»**) | el número de LA factura |
+| `factura_numero` | lo mismo que el conduce (`informes.go` sigue aceptando la coma de las filas antiguas) |
 | `factura_estado` | `igual` (la factura ES la verdad: entra) |
-| `factura_at`, `order_date` | la fecha de la factura MÁS ANTIGUA a las 12:00 de Cuba (`T12:00:00-05:00`, huso fijo: la imagen no lleva `tzdata`; a mediodía el día de Cuba es el mismo con -05 y con -04) |
+| `factura_at`, `order_date` | la fecha de la factura a las 12:00 de Cuba (`T12:00:00-05:00`, huso fijo: la imagen no lleva `tzdata`; a mediodía el día de Cuba es el mismo con -05 y con -04) |
 | `factura_domicilio` | suma de las líneas `isDelivery` (SKU 50/51/45), a céntimos |
 | `items_origen` | `factura` |
 | `estado`, `fecha_comprometida`, `pedido_costo` | NULL (no existen en una factura) |
 | `archivado`, `requiere_domicilio` | `false`, `true` |
 | `customer_name` | `customer.name`; si viene vacío, `customerReference`; y si tampoco, «Cliente» |
 | `customer_phone`, `address`, `municipio`, `vendedor` | `customer.phone`, `customer.address` (+ «, » + ciudad si no la lleva ya), `customer.city`, `seller` |
-| `almacen_salida_codigo` / `_nombre` | `pointOfSale.code` / `.name` (el almacén de Ventra = el `objectCode` con el que Reparto empareja); `almacen_salida_mezclado = true` si las facturas agrupadas tienen puntos de venta distintos (se usa el de la primera) |
+| `almacen_salida_codigo` / `_nombre` | `pointOfSale.code` / `.name` (el almacén de Ventra = el `objectCode` con el que Reparto empareja); `almacen_salida_mezclado = false` (una factura sale de un solo punto de venta) |
 | `lat`, `lng`, `end_lat`, `end_lng` | del espejo de clientes: `customers` por (sucursal, `codigo` = `customerReference` en mayúsculas y sin espacios); si eso no es un código, por NOMBRE normalizado y SOLO si es único en la sucursal (duplicados con el mismo punto valen). Sin punto: **NULL, y la entrega se guarda igual** (pero ver abajo: **si la fila ya tenía punto, se conserva**) |
 | `delivery_distance_km` | desde el almacén de salida al punto; NULL si no hay punto (y, igual que el punto, se conserva el que ya había si el que entra no trae punto) |
 
@@ -1222,10 +1225,8 @@ mentira); si el que entra trae punto, manda el que entra; si el punto es a mano 
 mandando el manual. Una entrega NUEVA sin punto se guarda sin punto. Un pedido de PEDIDO (siempre con punto)
 se comporta como siempre.
 
-**Los renglones** (solo las líneas que NO son de domicilio; mismo `productCode`, mismo punto de venta **y
-misma factura** se SUMAN en uno — **desde la 00026 el mismo producto en dos facturas de la entrega son DOS
-renglones, cada uno con su `factura_numero`** (issue 22 de Maikel); la cuenta de la entrega —empaques,
-unidades, kilos— no cambia, porque todo lo que suma es por renglón): `code` = `productCode`, `description` = `productName`; **`packs` = la cantidad de la línea**
+**Los renglones** (solo las líneas que NO son de domicilio; el mismo `productCode` dos veces en la factura se SUMAN en uno;
+cada renglón lleva `factura_numero`, que desde el 22/10/2026 es siempre la factura de la entrega — 00026): `code` = `productCode`, `description` = `productName`; **`packs` = la cantidad de la línea**
 (son unidades de venta: B, C, PACA); **`quantity` = `packs × products.units_per_package`** si ese dato es
 > 0, y si no `packs` (nunca 0); **`pesoKg` = `products.weight`** por (sucursal, `sku` = `productCode`), que
 es el peso por unidad de venta. La cuenta del peso NO se repite: la hace la cascada de la puerta
@@ -1237,10 +1238,11 @@ la línea de domicilio (sin mercancía) se guarda igual y se cuenta aparte.
 
 **La factura de cada renglón** (issue 22 de Maikel, Santiago, 22/10/2026; migración `00026`). En «Por producto y
 factura» (el pre-despacho de una ruta) salía una fila con `47359, 47360` y cantidad 50, y la tarjeta de estiba se
-rebaja por cantidad **y factura** (Amado, issue 8): una fila debe hablar de UNA factura. La **identidad de la
-entrega no cambia** (sigue siendo una fila por folio y `orders.factura_numero` / `operation_number` siguen
-diciendo las facturas juntas; decisión de Jose). Lo que cambia es que cada renglón guarda de cuál sale:
+rebaja por cantidad **y factura** (Amado, issue 8): una fila debe hablar de UNA factura. Ese mismo día Jose decidió
+que la entrega es una factura (arriba), y la columna quedó como la factura de la entrega. Cada renglón guarda de cuál sale:
 
+- (Hasta el 22/10/2026 una entrega podía juntar varias facturas y por eso la columna se creó; hoy una entrega es una factura y
+  la columna es siempre la suya. Las filas antiguas con varias facturas se retiran o se adoptan: ver «La migración»).
 - `order_items.factura_numero` (texto, **nullable**). Lo escribe el espejo de facturas (`APedido` → `RenglonDeFuera.FacturaNumero`
   → `facturaNumero` del renglón del lote → `cotizar.Renglon` → `renglonesParaLaBase`). Los renglones de PEDIDO y los de
   las entregas de factura escritas antes de la 00026 quedan NULL; **NULL es «no se sabe», nunca «la primera factura»**.
@@ -1272,10 +1274,12 @@ dos pedidos; un folio que se queda vacío al normalizarlo (`---`) no es un folio
 
 1. Se toma `pg_advisory_xact_lock` por (sucursal, folio normalizado): dos ciclos a la vez —uno de PEDIDO y
    otro de factura— se ponen en fila y el segundo ve la fila del primero.
-2. **Entrega de factura con folio**: si hay una fila de PEDIDO (sin prefijo `factura:`) con el mismo
-   (`sucursal_codigo`, folio normalizado) —la MÁS ANTIGUA si PEDIDO repite el folio—, se ADOPTA: se cambia su `external_id` y el upsert de siempre le pone el
+2. **Entrega de factura con folio**: primero se busca la fila ANTIGUA de esa misma factura (la guardada con la clave por folio
+   `factura:<SUC>:<folio normalizado>` y cuyo conduce —«a» o «a, b, …»— contiene el número de esta factura:
+   `AdoptarEntregaAntiguaDeFactura`, ver «La migración»); si no hay, una fila de PEDIDO (sin prefijo `factura:`) con el mismo
+   (`sucursal_codigo`, folio normalizado) —la MÁS ANTIGUA si PEDIDO repite el folio—. Se ADOPTA: se cambia su `external_id` y el upsert de siempre le pone el
    mapeo. Conserva el `id`, la ruta, `stop_order`, el resultado y el punto a mano. Sin fila previa, se
-   crea.
+   crea. (Con varias facturas del mismo folio, la primera que llega adopta la fila de PEDIDO y las demás nacen aparte.)
 3. **Pedido de PEDIDO**: si ya hay una fila de factura con su (sucursal, folio normalizado), NO se crea otra →
    `persisted:false, reason:"ya-adoptado-por-factura"`.
 4. Las filas adoptadas ya no son «de PEDIDO» para sus avisos de borrado (`QuitarPedidosDelEspejo` busca por
@@ -1290,39 +1294,40 @@ de esa sucursal falló o vino vacía cuando en la base hay entregas de esa venta
 anulación), ni fuera de la ventana consultada, ni lo que no es `factura:`; y el propio `DELETE` repite la
 guarda de ruta/resultado. El borrado deja su lápida y los aparatos lo quitan.
 
-**El repaso nunca encoge una entrega** (auditoría G2; `Espejo.repasoQueVeLasEntregasAbiertas` y
-`entregasQueEncogerian`, `internal/espejo/ciclo_facturas.go`). La fecha de una entrega es la de su factura
-MÁS ANTIGUA, y una entrega puede reunir facturas de días muy distintos (la 100 del 10/10 y la 101 del 19/10).
-Con la ventana fija de tres días, el repaso de cada minuto solo veía la 101 y reescribía la entrega con ella
-sola (conduce «101», peso y packs a la mitad); el barrido diario la dejaba bien y el repaso siguiente la
-rompía otra vez —medido: «100, 101» → «101» → «100, 101»…, peso 72 → 36—. Ahora, en dos capas:
+**Ya no existe «el repaso nunca encoge una entrega»** (auditoría G2, 20/10/2026; quitada el 22/10/2026 con
+`entregasQueEncogerian`, `repasoQueVeLasEntregasAbiertas`, `ConducesGuardados`, `FechaDeLaEntregaAbiertaMasAntigua`
+y el contador/aviso `parciales`). Existía porque una entrega reunía facturas de días distintos y un repaso de tres
+días la veía partida; con una entrega por factura no hay entrega parcial. El repaso vuelve a ser la ventana fija de
+`RepasoDias` y **juzga factura contra factura**: una factura cancelada (que Ventra deja de mandar) y que cae en la
+ventana consultada se retira en el MISMO repaso (`retirarLoQueYaNoViene`: sin ruta ni resultado se borra, con ruta se
+deja y se cuenta `anuladasConRuta`), y la viva no se toca. Lo que cae fuera de la ventana consultada no se juzga:
+una factura cancelada de hace más de `RepasoDias` días espera al barrido diario (antes, la ventana se ensanchaba hasta
+la entrega abierta más antigua y la retiraba en el repaso).
 
-1. **La ventana del repaso se ensancha** de cada sucursal hasta el día de su entrega de factura ABIERTA más
-   antigua (sin `resultado` ni `delivered_at`, y sin ir en una ruta `completed`), con tope en `HistoricoDias`
-   (60). Así el repaso ve TODAS las facturas de todo lo que todavía se puede repartir, y una factura nueva de
-   un folio abierto entra en el repaso y no espera al barrido. Si el tope recorta, el ciclo avisa (`más
-   antigua que el histórico`). Efecto lateral, a propósito: «lo que ya no viene en Ventra» se juzga con la
-   misma ventana ensanchada, así que una entrega abierta anulada se retira en el repaso y no solo en el
-   barrido.
-2. **Red de seguridad: un repaso que traiga MENOS facturas de las que la entrega ya tiene no la reescribe.**
-   Si el conduce guardado contiene números que no vinieron (una entrega ya entregada, que no ensancha la
-   ventana, o una abierta más allá del tope), el repaso la deja como está y lo cuenta (`parciales`) y lo
-   dice: «entrega parcial: se espera al barrido». **Solo el barrido (cada 24 h, 60 días, ve todo) puede
-   encoger o rehacer una entrega.** Consecuencia: una factura anulada de una entrega con varias tarda hasta
-   un día en salir de su conduce. Si no se pueden leer los conduces guardados, el repaso de esa sucursal no
-   guarda nada (y lo dice).
+**La migración de lo ya guardado por folio** (22/10/2026; `alcance.alFolio` → `AdoptarEntregaAntiguaDeFactura`, con el
+mismo candado y la misma transacción que la adopción de PEDIDO). Hasta ese día las entregas con folio estaban guardadas
+como `factura:<SUC>:<folio normalizado>` con el conduce «a, b». Al escribir una entrega con la clave nueva:
 
-**Limitaciones conocidas:** (1) una entrega ENTREGADA o más vieja que el tope cuyas facturas ganan una nueva
-espera al barrido diario para incorporarla (el repaso la deja «parcial», no la rompe); (2) **una factura sin
-`orderNumber` que más tarde gana la nota DEJA DUPLICADO si la vieja ya va en una ruta**: cambia de clave
-(`factura:<SUC>:<punto>:<número>:<fecha>` → `factura:<SUC>:<folio normalizado>`), la fila nueva nace
-aparte y la vieja, que va en ruta o tiene resultado, no se retira (sale como «anulada con ruta») — el mismo
-pedido dos veces, cargable dos veces en el camión; si la vieja NO va en ruta, se retira sola. **Cómo se arregla
-a mano** (no está implementado): en una transacción, borrar la fila NUEVA (sin ruta; `DELETE /api/orders/{id}`
-o `DELETE FROM orders WHERE external_id = 'factura:<SUC>:<FOLIO>'`) y cambiar el `external_id` de la vieja a
-esa clave (`UPDATE orders SET external_id = 'factura:<SUC>:<FOLIO>' WHERE id = '<id de la vieja>'`) para que el
-espejo la reconozca y le ponga el folio y el mapeo en su siguiente ciclo; (3) la API de Ventra no trae
-`updatedAt`: no hay incremental, solo repaso y barrido.
+| Fila antigua | Qué pasa |
+|---|---|
+| El número de la factura está en su conduce («a» o «a, b, …») y la clave nueva no existe | **se adopta**: se le reescribe el `external_id` a la clave nueva de ESA factura; conserva `id`, ruta, orden, resultado y punto a mano, y el guardado normal reescribe sus renglones y su conduce con esa sola factura |
+| Varias facturas vivas en el mismo conduce | las procesa el espejo **ordenadas por número** (`UnaEntregaPorFactura`, determinista, igual en repaso y barrido): la PRIMERA adopta; las demás nacen como filas nuevas, sin ruta (Sin colocar) |
+| Ninguna de sus facturas viene viva | nadie la adopta: `retirarLoQueYaNoViene` la retira si no va en ruta ni tiene resultado, o la deja marcada `anuladasConRuta` si sí |
+| El número no está en su conduce (otra factura del mismo folio) | no se adopta |
+
+Guardas de la adopción: candado y transacción de `alFolio`; solo el `external_id` antiguo EXACTO (`factura:<SUC>:<folio
+normalizado>`, que lleva la sucursal); no adopta si la clave nueva ya existe (la fila ya migrada se actualiza en su sitio).
+**Caso de Amado** (Santiago, `PWC26-261021-1128`, en ruta, conduce `47412, 47415`, la 47412 cancelada): la 47415 hereda la fila
+—mismo id, misma ruta y orden, conduce `47415`— y no entra ninguna fila nueva. **Consecuencia a vigilar:** de una fila «a, b»
+en ruta con las dos vivas, solo la primera conserva la ruta con su mercancía; la otra entra en «Sin colocar» y alguien tiene que
+armarla (la mercancía de cada una queda una sola vez, no duplicada). Si el repaso solo ve una de las facturas (la otra cae fuera
+de su ventana), esa adopta; la otra, al llegar el barrido, nace aparte. Una fila antigua cuya factura más antigua cae fuera de la
+ventana del repaso espera al barrido diario (el primer ciclo tras desplegar es un barrido: todo se migra de golpe).
+
+**Limitaciones conocidas:** (1) la API de Ventra no trae `updatedAt`: no hay incremental, solo repaso y barrido; (2) NO se
+sabe si Ventra marca una factura cancelada con algún campo (el encabezado que se lee no trae ninguno; en el ejemplo local hay
+`operType`/`operTypeName` = 2/«Venta», que hoy se ignoran). Hoy una cancelada se detecta porque **deja de venir**: si Ventra
+algún día la manda marcada en vez de quitarla, seguiría saliendo.
 
 ## `POST /api/quote/home-delivery` — precio de un domicilio (detallado)
 

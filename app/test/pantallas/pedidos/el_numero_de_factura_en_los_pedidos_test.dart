@@ -200,43 +200,34 @@ void main() {
     });
   });
 
-  group('la tabla estrecha (768–1023 px), donde la columna se esconde', () {
-    for (final ancho in const [768.0, 900.0, 1023.0]) {
-      testWidgets('a $ancho px el número baja a la celda del cliente', (
-        tester,
-      ) async {
-        await pintar(tester, ancho: ancho, p: pedido());
+  group(
+    'la tabla estrecha (768–1023 px): la columna «Factura» no se esconde',
+    () {
+      for (final ancho in const [768.0, 900.0, 1023.0]) {
+        testWidgets('a $ancho px el número sigue en su columna', (
+          tester,
+        ) async {
+          await pintar(tester, ancho: ancho, p: pedido());
 
-        expect(enFila, findsOneWidget);
-        expect(tester.widget<Text>(enFila).data, 'Factura F-1001');
-        // Sin columna «Factura», ni título ni insignia con el número.
-        expect(find.text('Factura'), findsNothing);
-        expect(find.text('F-1001'), findsNothing);
-        final fila = tester.getRect(enFila);
-        expect(fila.left, greaterThanOrEqualTo(0));
-        expect(fila.right, lessThanOrEqualTo(ancho));
-        expect(tester.takeException(), isNull);
-      });
-    }
+          expect(find.text('Factura'), findsOneWidget, reason: 'el título');
+          expect(find.text('F-1001'), findsOneWidget, reason: 'la insignia');
+          // Ya no baja a la celda del cliente: dos veces el mismo número es ruido.
+          expect(enFila, findsNothing);
+          expect(tester.takeException(), isNull);
+        });
+      }
 
-    testWidgets('sin número no baja nada', (tester) async {
-      await pintar(
-        tester,
-        ancho: 900,
-        p: pedido(estadoFactura: EstadoFactura.sinFactura, numero: null),
-      );
-      expect(enFila, findsNothing);
-    });
-
-    testWidgets(
-      'a 1024 px ya hay columna y la celda del cliente no lo repite',
-      (tester) async {
-        await pintar(tester, ancho: 1024, p: pedido());
+      testWidgets('sin número, la columna no inventa uno', (tester) async {
+        await pintar(
+          tester,
+          ancho: 900,
+          p: pedido(estadoFactura: EstadoFactura.sinFactura, numero: null),
+        );
         expect(enFila, findsNothing);
-        expect(find.text('F-1001'), findsOneWidget);
-      },
-    );
-  });
+        expect(find.text('F-1001'), findsNothing);
+      });
+    },
+  );
 
   group('la ficha del pedido', () {
     Future<void> abrir(

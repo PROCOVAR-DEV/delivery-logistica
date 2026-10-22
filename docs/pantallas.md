@@ -192,7 +192,7 @@ columna** (desde el 21/10/2026; antes lo era la fecha del pedido):
 1. **Casilla** de selección. La de la cabecera marca/desmarca toda la página
    (`aria-label`: `Elegir todos los de esta página`). No abre la factura.
 2. `Factura` — la fila: el número de factura, solo, en una línea (la fecha tiene su columna y el domicilio
-   está en `Domicilio`: apilar marcas en esta celda partía la fila, 21/10/2026). Oculta bajo 1024 px.
+   está en `Domicilio`: apilar marcas en esta celda partía la fila, 21/10/2026). **Nunca se esconde en una tabla** (22/10/2026, Jose: la factura manda); bajo 768 px es el título de la tarjeta.
     **Detalle de la columna:** `igual` → nº de factura en verde, tooltip
     `Cuadra con lo pedido: se puede repartir tal cual.`; `cambiado` → nº + `⚠` en ámbar,
     tooltip `Se facturó algo distinto de lo pedido: al camión va lo facturado.` (hasta el
@@ -1144,7 +1144,7 @@ paradas **no entregadas** con su cliente, resultado, nota y productos.
 | Idioma en la barra | Visible | **Oculto** (<640 px); sucursal y moneda se quedan |
 | Rutas (armazón) | Alto fijo a la ventana, sin desplazamiento de página; la lista y el detalle se desplazan por dentro; 3 columnas (1 lista + 2 detalle) | La página se desplaza como cualquier otra; una sola columna; **sin** desplazamiento interno (evita el doble scroll) |
 | Rutas, paso 4 | Dos columnas: facturas + pre-despacho pegajoso a la derecha | Una columna, pre-despacho debajo |
-| Tabla de Facturas | 13 columnas, la primera `Factura` | Se esconden por orden de prescindibilidad: `Sucursal` bajo 1536 px; `Ruta` bajo 1280 px; `Artículos` y `Factura` bajo 1024 px; `Entrega` bajo 768 px. **Nunca se van:** cliente, dirección, peso, precio y estado |
+| Tabla de Facturas | 13 columnas, la primera `Factura` | Se esconden por orden de prescindibilidad: `Sucursal` bajo 1536 px; `Ruta` bajo 1280 px; `Artículos` bajo 1024 px; `Entrega` bajo 768 px. **Nunca se van:** factura, cliente, dirección, peso, precio y estado |
 | Tabla de Clientes | Completa | Se desplaza **la tabla**, no la página (ancho mínimo 736 px) |
 | Vehículos | Rejilla de 3 columnas (2 en tabletas) | 1 columna; el grupo buscador + 2 botones **envuelve** en vez de salirse |
 | Rutas, cabecera | Título, 3 pestañas y botón en una fila | Envuelve; las pestañas se desplazan de lado sin partir palabras |

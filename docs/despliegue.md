@@ -1673,7 +1673,7 @@ si el espejo vuelve a traer PEDIDO, saldrían duplicadas: bajar la 00025 solo va
 **Antes de desplegar**, contra Postgres de verdad (base migrada hasta la 00025): `TestMotorReal_Factura…`,
 `TestMotorReal_UnPedidoDePedido…`, `TestMotorReal_DosCiclosAlaVezNoDuplican`,
 `TestMotorReal_UnRepasoIdenticoNoReescribeNada`, `TestMotorReal_LaRetirada…`, `TestMotorReal_ElBorrado…`,
-`TestMotorReal_LaAdopcion…`, `TestMotorReal_UnaEntrega…` y `TestMotorReal_ElRepasoEnsanchado…` (api) y
+`TestMotorReal_LaAdopcion…`, `TestMotorReal_LaFilaAntigua…` y `TestMotorReal_LaFacturaCancelada…` (api) y
 `TestMotorReal_Migracion00025…`, `TestMotorReal_LaAdopcionVaPorElIndiceDeExpresion` y
 `TestMotorReal_UnaEntradaSinPunto…` (sqlc). **Nada de esto se ha probado contra el Ventra de verdad** (la VPN
 no es de este portátil): el primer ciclo con `ambas` es la primera vez que se lee su respuesta real.

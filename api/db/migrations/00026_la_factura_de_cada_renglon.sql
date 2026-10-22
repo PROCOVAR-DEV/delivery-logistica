@@ -11,7 +11,7 @@
 --
 -- Una entrega de FACTURA junta en UNA fila de `orders` todas las facturas de Ventra que
 -- comparten el folio del pedido (`espejo.AgruparPorFolio`, decisión de Jose: la identidad de la
--- entrega NO se toca), y `orders.factura_numero` guarda sus números unidos con coma. Pero
+-- entrega NO se toca; desde el 22/10/2026 es `espejo.UnaEntregaPorFactura`: una entrega por factura), y `orders.factura_numero` guarda sus números unidos con coma. Pero
 -- `order_items` NO decía de qué factura salía cada renglón, y la tabla no podía partirse sin
 -- repetir mercancía en cada factura (rebajarla dos veces).
 --

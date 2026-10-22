@@ -187,8 +187,8 @@ de delivery, y resultado del cierre de ruta.
 | Campo | Tipo | Opcional | Default | Notas |
 |---|---|---|---|---|
 | `id` | String | no | `cuid()` | PK |
-| `operationNumber` | String? | sí | — | nº de operación/folio en PEDIDO (§6). **En una entrega que nace de una FACTURA (issue 20) es el «conduce»: los números de factura de la entrega, ordenados y unidos por «, » — ya NO es el folio (ese está en `folio`)** |
-| `folio` | String? | sí | — | **propio del reparto** (migración `00025`, 20/10/2026, issue 20). El folio de PEDIDO de la entrega: en las filas de PEDIDO, su `operationNumber` (la migración lo rellena sin mover `updatedAt`); en las de factura, el `orderNumber` de Ventra (`NULL` si la venta no traía la nota). Con `sucursalCodigo` es la clave de la ADOPCIÓN entre las dos fuentes, y se COMPARA normalizado (`folio_normalizado(folio)`: mayúsculas y solo letras y dígitos; la columna guarda el valor tal cual). Índice por expresión `[sucursalCodigo, folio_normalizado(folio)]`. No es único |
+| `operationNumber` | String? | sí | — | nº de operación/folio en PEDIDO (§6). **En una entrega que nace de una FACTURA (issue 20) es el «conduce»: el número de LA factura (desde el 22/10/2026 una entrega es una factura; las filas guardadas antes pueden traer varios unidos por «, ») — ya NO es el folio (ese está en `folio`)** |
+| `folio` | String? | sí | — | **propio del reparto** (migración `00025`, 20/10/2026, issue 20). El folio de PEDIDO de la entrega: en las filas de PEDIDO, su `operationNumber` (la migración lo rellena sin mover `updatedAt`); en las de factura, el `orderNumber` de Ventra (`NULL` si la venta no traía la nota; es un DATO, ya no la identidad de la entrega: dos facturas del mismo pedido son dos filas con el mismo folio). Con `sucursalCodigo` es la clave de la ADOPCIÓN entre PEDIDO y la factura, y se COMPARA normalizado (`folio_normalizado(folio)`: mayúsculas y solo letras y dígitos; la columna guarda el valor tal cual). Índice por expresión `[sucursalCodigo, folio_normalizado(folio)]`. No es único |
 | `customerName` | String | **no** | — | obligatorio para persistir la cotización |
 | `address` | String | **no** | — | fallback: `input.address || customerName` |
 | `endAddress` | String? | sí | — | dirección de destino |
@@ -256,10 +256,11 @@ de delivery, y resultado del cierre de ruta.
 **La convención de `externalId` desde el issue 20 (20/10/2026).** Una entrega que nace de una FACTURA con
 domicilio de Ventra se guarda con `source = 'pedido'` (el único valor del enum `procedencia`: no hay uno
 nuevo, para que ningún filtro `source = 'pedido'` se rompa) y `externalId = 'factura:' + clave`, con clave
-`<SUC>:<folio normalizado>` o, sin folio, `<SUC>:<punto de venta>:<número>:<fecha>`. Se pregunta SOLO con
+`<SUC>:<punto de venta>:<número>:<fecha>` de LA factura (22/10/2026: una entrega es una factura; antes, con folio, era
+`<SUC>:<folio normalizado>` y juntaba las facturas del folio). Se pregunta SOLO con
 `alcance.EsDeFactura` (SQL: `starts_with(external_id, 'factura:')`). El nombre `source = 'pedido'` es
 legado y se renombra/quita en la fase de LIMPIEZA. Una fila de PEDIDO con el mismo (`sucursalCodigo`,
-`folio` normalizado) es ADOPTADA por la entrega de factura: cambia su `externalId` y conserva `id`, ruta y resultado (y su punto, su dirección y su km si la factura no trae punto).
+`folio` normalizado) es ADOPTADA por la entrega de factura (y la fila antigua de UNA factura, con la clave por folio, por la suya: ver `contratos-api.md`): cambia su `externalId` y conserva `id`, ruta y resultado (y su punto, su dirección y su km si la factura no trae punto).
 Mapeo completo en `contratos-api.md` («La entrega que nace de una FACTURA»). Las coordenadas
 (`lat`, `lng`, `endLat`, `endLng`) y `deliveryDistanceKm` pueden ser `NULL` en estas entregas (el cliente no
 estaba en el espejo de clientes): se ubican a mano con `PUT /api/orders/{id}/punto`.

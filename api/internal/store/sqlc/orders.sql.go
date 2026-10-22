@@ -144,6 +144,58 @@ func (q *Queries) ActualizarPesoDePedido(ctx context.Context, arg ActualizarPeso
 	return err
 }
 
+const adoptarEntregaAntiguaDeFactura = `-- name: AdoptarEntregaAntiguaDeFactura :execrows
+UPDATE orders SET external_id = $1::text
+WHERE id = (
+    SELECT o.id FROM orders o
+    WHERE o.source = 'pedido'
+      AND o.external_id = 'factura:' || $2::text || ':' || folio_normalizado($3::text)
+      AND o.sucursal_codigo = $2::text
+      AND EXISTS (
+        SELECT 1 FROM unnest(string_to_array(o.operation_number, ',')) AS n
+        WHERE btrim(n) = $4::text))
+  AND NOT EXISTS (
+    SELECT 1 FROM orders x
+    WHERE x.source = 'pedido' AND x.external_id = $1::text)
+`
+
+type AdoptarEntregaAntiguaDeFacturaParams struct {
+	ExternalID      string `json:"external_id"`
+	SucursalCodigo  string `json:"sucursal_codigo"`
+	Folio           string `json:"folio"`
+	NumeroDeFactura string `json:"numero_de_factura"`
+}
+
+// ADOPTAR LA FILA ANTIGUA DE UNA FACTURA (22/10/2026, «la entrega es una factura»). Hasta ese día la
+// entrega de una factura CON folio se guardaba como `factura:<SUC>:<folio normalizado>`, juntando todas
+// las facturas del folio en un conduce «a, b». Ahora la clave es siempre la de la factura
+// (`factura:<SUC>:<punto>:<n>:<fecha>`), y sin esto cada fila con folio ya guardada se duplicaría: la que
+// va en una ruta quedaría doble (ella y las facturas nuevas en «Sin colocar»).
+//
+// Adopta la fila antigua si el número de ESTA factura está en su conduce (una factura o varias): le
+// cambia el `external_id` a la clave nueva y conserva el `id`, la ruta, el orden, el resultado y el
+// punto a mano; el upsert que viene detrás le pone el mapeo (renglones y conduce de esta sola factura).
+// Si el conduce tiene varias, la adopta la PRIMERA de sus facturas vivas que llega, y el espejo las
+// procesa ordenadas por número (`espejo.UnaEntregaPorFactura`), así que es determinista; las demás
+// facturas del conduce nacen como filas nuevas. Si ninguna de sus facturas viene viva, nadie la adopta
+// y `retirarLoQueYaNoViene` sigue su camino de siempre.
+//
+// La fila antigua se halla por su `external_id` EXACTO (índice único), calculado con la misma regla
+// con la que se escribió: `factura:` + sucursal + `:` + folio normalizado. Misma salvaguarda que
+// `AdoptarPedidoPorFolio`: no adopta si la clave nueva ya existe.
+func (q *Queries) AdoptarEntregaAntiguaDeFactura(ctx context.Context, arg AdoptarEntregaAntiguaDeFacturaParams) (int64, error) {
+	result, err := q.db.Exec(ctx, adoptarEntregaAntiguaDeFactura,
+		arg.ExternalID,
+		arg.SucursalCodigo,
+		arg.Folio,
+		arg.NumeroDeFactura,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const adoptarPedidoPorFolio = `-- name: AdoptarPedidoPorFolio :execrows
 UPDATE orders SET external_id = $1::text
 WHERE id = (
@@ -202,7 +254,7 @@ type BloquearFolioDePedidoParams struct {
 // la convención que define `espejo.EsDeFactura`). La identidad entre las dos es
 // (`sucursal_codigo`, `folio_normalizado(folio)`): el folio se guarda tal cual, pero se COMPARA en
 // mayúsculas y sin nada que no sea letra o dígito (00025, auditoría G3: `pxx-900`, `'PXX-900` y
-// `PXX - 900` son el `PXX-900` de PEDIDO). Su gemela en Go es `alcance.FolioNormalizado`. Estas tres consultas van juntas, dentro de la transacción de
+// `PXX - 900` son el `PXX-900` de PEDIDO). Su gemela en Go es `alcance.FolioNormalizado`. Estas consultas van juntas, dentro de la transacción de
 // `EspejoGuardarPedido`, y en este orden: candado, adoptar o descartar, y el upsert de siempre.
 //
 // `starts_with(external_id, 'factura:')` ES LA GEMELA SQL DE `espejo.EsDeFactura`: si una
@@ -280,41 +332,6 @@ func (q *Queries) BuscarPedidoPorReferencia(ctx context.Context, arg BuscarPedid
 	var i BuscarPedidoPorReferenciaRow
 	err := row.Scan(&i.ID, &i.BranchID, &i.ExternalID)
 	return i, err
-}
-
-const conducesGuardadosDeFactura = `-- name: ConducesGuardadosDeFactura :many
-SELECT o.external_id, o.operation_number
-FROM orders o
-WHERE o.source = 'pedido'
-  AND o.external_id = ANY($1::text[])
-`
-
-type ConducesGuardadosDeFacturaRow struct {
-	ExternalID      *string `json:"external_id"`
-	OperationNumber *string `json:"operation_number"`
-}
-
-// LO QUE LA ENTREGA YA TIENE GUARDADO, por `external_id`: su conduce. El ciclo lo compara con lo que
-// Ventra acaba de dar para no ENCOGER una entrega con una respuesta parcial (auditoría G2): un
-// repaso que sólo ve una de las facturas de un folio no puede reescribir la entrega con esa sola.
-func (q *Queries) ConducesGuardadosDeFactura(ctx context.Context, externalIds []string) ([]ConducesGuardadosDeFacturaRow, error) {
-	rows, err := q.db.Query(ctx, conducesGuardadosDeFactura, externalIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ConducesGuardadosDeFacturaRow
-	for rows.Next() {
-		var i ConducesGuardadosDeFacturaRow
-		if err := rows.Scan(&i.ExternalID, &i.OperationNumber); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const contarPedidos = `-- name: ContarPedidos :one
@@ -1244,30 +1261,6 @@ func (q *Queries) FacetasVendedores(ctx context.Context, sucursal pgtype.UUID) (
 		return nil, err
 	}
 	return items, nil
-}
-
-const fechaDeLaEntregaAbiertaMasAntigua = `-- name: FechaDeLaEntregaAbiertaMasAntigua :one
-SELECT min((coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date)::date AS desde
-FROM orders o
-WHERE o.source = 'pedido'
-  AND o.external_id IS NOT NULL
-  AND starts_with(o.external_id, 'factura:')
-  AND o.sucursal_codigo = $1::text
-  AND o.resultado IS NULL AND o.delivered_at IS NULL
-  AND NOT EXISTS (
-    SELECT 1 FROM routes r
-    WHERE r.status = 'completed' AND r.id IN (o.route_id, o.ultima_ruta_id))
-`
-
-// LA FECHA DE LA ENTREGA DE FACTURA ABIERTA MÁS ANTIGUA de una sucursal (día de Cuba): la que no
-// está entregada ni cerrada (sin `resultado` ni `delivered_at`, y sin ir en una ruta completada).
-// El repaso se ensancha hasta ahí para ver TODAS las facturas de los folios abiertos y no
-// reescribirlos con la mitad (auditoría G2). NULL = no hay ninguna abierta.
-func (q *Queries) FechaDeLaEntregaAbiertaMasAntigua(ctx context.Context, sucursalCodigo string) (pgtype.Date, error) {
-	row := q.db.QueryRow(ctx, fechaDeLaEntregaAbiertaMasAntigua, sucursalCodigo)
-	var desde pgtype.Date
-	err := row.Scan(&desde)
-	return desde, err
 }
 
 const guardarPedidoDelEspejo = `-- name: GuardarPedidoDelEspejo :one

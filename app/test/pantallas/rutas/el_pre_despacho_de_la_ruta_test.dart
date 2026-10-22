@@ -41,6 +41,7 @@
 
 import 'dart:async';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -706,6 +707,133 @@ void main() {
         expect(pre.facturas.last.rotulo, 'Sin número');
       },
     );
+
+    // -------------------------------------------------------------------------
+    // ISSUE 22 DE MAIKEL (Santiago, 22/10/2026): «debería hacer referencia a una
+    // única factura». Una entrega con DOS facturas (`47359, 47360`) salía en UNA fila
+    // «47359, 47360» con la cantidad de las dos juntas. Cada renglón sabe ya la suya.
+    // -------------------------------------------------------------------------
+    group('una entrega con dos facturas', () {
+      Future<void> sembrarLaEntrega({bool ultimoSinFactura = false}) async {
+        await sembrarCatalogo(base);
+        await sembrarRuta(base, id: 'R1', codigo: 'RT-001', creada: _ahora);
+        await sembrarPedido(
+          base,
+          id: 'e1',
+          cliente: 'Cliente e1',
+          folio: 'PTB25-261022-0001',
+          facturaNumero: '47359, 47360',
+          rutaId: 'R1',
+          orden: 0,
+          peso: 50,
+        );
+        Future<void> r(
+          String id,
+          int linea,
+          String producto,
+          double unidades,
+          double empaques,
+          double kg,
+          String? factura,
+        ) => sembrarRenglon(
+          base,
+          id: id,
+          pedidoId: 'e1',
+          linea: linea,
+          producto: producto,
+          unidades: unidades,
+          empaques: empaques,
+          pesoLinea: kg,
+          facturaNumero: factura,
+        );
+        // Las cifras, a mano. Cerveza: 5 + 7 = 12 empaques, 15 + 21 = 36 kg.
+        await r('x1', 1, 'Cerv 500', 30, 5, 15, '47359');
+        await r('x2', 2, 'Cerv 500', 42, 7, 21, '47360');
+        await r('x3', 3, 'Malta', 6, 1, 3, ultimoSinFactura ? null : '47360');
+      }
+
+      test('CADA FACTURA SU FILA: una fila por (factura, producto) y el subtotal del '
+          'producto es la suma de las dos', () async {
+        await sembrarLaEntrega();
+        final pre = await laDeLaRuta();
+
+        expect(pre.facturas.map((f) => f.numero), ['47359', '47360']);
+        expect(
+          pre.facturas.any((f) => (f.numero ?? '').contains(',')),
+          isFalse,
+          reason: 'ninguna fila puede decir dos facturas a la vez',
+        );
+        expect(
+          filasPorProductoYFactura(
+            lineasDelPapel(pre.totales),
+            pre.facturas,
+          ).map((f) => f.celdas).toList(),
+          [
+            ['47359', 'Cerv 500', '5', '15.0'],
+            ['47360', 'Cerv 500', '7', '21.0'],
+            ['Subtotal', '', '12', '36.0'],
+            ['47360', 'Malta', '1', '3.0'],
+            ['Subtotal', '', '1', '3.0'],
+          ],
+        );
+      });
+
+      test('LOS SUBTOTALES SIGUEN CUADRANDO con la «Carga total»: partir no repite '
+          'ni pierde mercancía', () async {
+        await sembrarLaEntrega();
+        final pre = await laDeLaRuta();
+        final filas = filasPorProductoYFactura(
+          lineasDelPapel(pre.totales),
+          pre.facturas,
+        );
+        num suma(int c) => filas
+            .where((f) => f.subtotal)
+            .fold<num>(0, (t, f) => t + num.parse(f.celdas[c]));
+        expect(suma(2), pre.totales.empaques);
+        expect(pre.totales.empaques, 13);
+        expect(suma(3), pre.totales.pesoKg);
+        expect(pre.totales.pesoKg, 39);
+      });
+
+      test(
+        'SI ALGÚN RENGLÓN NO TRAE SU FACTURA no se parte: las dos juntas, una '
+        'sola vez cada renglón (nunca se le asigna a la primera)',
+        () async {
+          await sembrarLaEntrega(ultimoSinFactura: true);
+          final pre = await laDeLaRuta();
+
+          expect(pre.facturas.map((f) => f.numero), ['47359, 47360']);
+          expect(
+            filasPorProductoYFactura(
+              lineasDelPapel(pre.totales),
+              pre.facturas,
+            ).map((f) => f.celdas).toList(),
+            [
+              ['47359, 47360', 'Cerv 500', '12', '36.0'],
+              ['Subtotal', '', '12', '36.0'],
+              ['47359, 47360', 'Malta', '1', '3.0'],
+              ['Subtotal', '', '1', '3.0'],
+            ],
+          );
+        },
+      );
+
+      test('una factura de la entrega sin renglones sale «Sin renglones», no desaparece', () async {
+        await sembrarLaEntrega();
+        await (base.update(base.orders)..where((o) => o.id.equals('e1'))).write(
+          const OrdersCompanion(facturaNumero: Value('47359, 47360, 47361')),
+        );
+        final pre = await laDeLaRuta();
+
+        expect(pre.facturas.map((f) => f.numero), ['47359', '47360', '47361']);
+        expect(pre.facturas.last.lineas, isEmpty);
+        final ultima = filasPorProductoYFactura(
+          lineasDelPapel(pre.totales),
+          pre.facturas,
+        ).last;
+        expect(ultima.celdas, ['47361', facturaSinRenglones, '', '']);
+      });
+    });
   });
 }
 

@@ -757,6 +757,8 @@ type OrderItem struct {
 	AlmacenSalidaCodigo *string `json:"almacen_salida_codigo"`
 	// nombre del almacén del que sale ESTE renglón, tal como llegó de PEDIDO
 	AlmacenSalidaNombre *string `json:"almacen_salida_nombre"`
+	// número de la factura de Ventra de la que sale ESTE renglón (uno solo, sin coma). NULL = no se sabe: renglones de PEDIDO y de entregas de factura anteriores a la 00026. No es orders.factura_numero, que junta las de toda la entrega (00026)
+	FacturaNumero *string `json:"factura_numero"`
 }
 
 type OrderVehicle struct {

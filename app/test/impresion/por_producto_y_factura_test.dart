@@ -257,7 +257,10 @@ void main() {
       },
     );
 
-    test('un pedido con DOS facturas lleva las dos tal cual en UNA fila', () {
+    // Es el CAMINO DE RESPALDO (issue 22 de Maikel): con un renglón sin factura la entrega no se
+    // parte, y el texto de las dos va tal cual. La que SÍ se parte, una fila por factura, la ata
+    // `el_pre_despacho_de_la_ruta_test.dart` (grupo «una entrega con dos facturas»).
+    test('un pedido con DOS facturas y algún renglón sin la suya las lleva juntas en UNA fila', () {
       final filas = filasPorProductoYFactura(
         [_l('Cerv 500', 5, 15)],
         [

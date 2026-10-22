@@ -239,6 +239,7 @@ void main() {
         await frescura.rebajarLasRutasUnaVez();
         await frescura.rebajarLosPedidosPorSuAlmacen();
         await frescura.rebajarLosPedidosPorSuFolio();
+        await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -259,6 +260,7 @@ void main() {
         await frescura.rebajarLosPedidosUnaVez();
         await frescura.rebajarLosPedidosPorSuAlmacen();
         await frescura.rebajarLosPedidosPorSuFolio();
+        await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -305,6 +307,39 @@ void main() {
           reason:
               'la copia de antes del esquema 13 no tiene el folio de las facturas que no cambiaron: '
               'tiene que bajarlas ENTERAS una vez, o la columna «Pedido» sale en blanco para siempre',
+        );
+        expect(
+          peticiones.last.parametros['desde'],
+          '2026-10-15T01:00:00.000Z',
+          reason: 'una sola vez: luego, por diferencias',
+        );
+      });
+
+      // 22/10/2026 (esquema 14, issue 22 de Maikel): los renglones que ya estaban no traen su
+      // `facturaNumero` por diferencias. EN PAREJA: quien ya hizo todas las demás hace ESTA una
+      // vez, y luego no.
+      test('los pedidos se rebajan enteros una vez por la factura de sus renglones aunque ya se hicieran las demás', () async {
+        await frescura.rebajarLosPedidosUnaVez();
+        await frescura.rebajarLasRutasUnaVez();
+        await frescura.rebajarLosPedidosPorSuAlmacen();
+        await frescura.rebajarLosPedidosPorSuFolio();
+        await frescura.marcar(
+          Colecciones.pedidos,
+          hasta: '2026-10-14T00:00:00.000Z',
+        );
+        final peticiones = <PeticionVista>[];
+        final bajada = contando(peticiones);
+
+        await bajada.ciclo();
+        await bajada.ciclo();
+
+        expect(
+          peticiones.first.parametros['desde'],
+          isNull,
+          reason:
+              'la copia de antes del esquema 14 no tiene la factura de los renglones que no '
+              'cambiaron: tiene que bajarlos ENTEROS una vez, o «Por producto y factura» deja '
+              'juntas las facturas de una entrega PARA SIEMPRE',
         );
         expect(
           peticiones.last.parametros['desde'],

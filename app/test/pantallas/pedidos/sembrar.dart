@@ -177,6 +177,10 @@ Future<void> sembrarRenglon(
   /// de donde salio el fallo de los tres sitios. Se siembra para poder comprobar
   /// justamente eso: que estando puesto, no se cuela en la hoja.
   double? pesoEmpaque,
+
+  /// La factura de Ventra de la que sale el renglon (`order_items.factura_numero`,
+  /// esquema 14). `null` = no se sabe (PEDIDO, o anterior a la 00026).
+  String? facturaNumero,
 }) => base
     .into(base.orderItems)
     .insert(
@@ -190,6 +194,7 @@ Future<void> sembrarRenglon(
         productId: Value(productoId),
         pesoLineaKg: Value(pesoLinea),
         pesoKg: Value(pesoEmpaque),
+        facturaNumero: Value(facturaNumero),
       ),
     );
 

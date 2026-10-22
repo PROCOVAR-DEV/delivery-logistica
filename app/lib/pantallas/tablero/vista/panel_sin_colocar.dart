@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +15,8 @@ import '../../ayuda/vista/control_senalado.dart';
 import '../datos/modelos.dart';
 import '../estado/filtros_en_la_url.dart';
 import '../estado/proveedores.dart';
+import '../estado/seleccion.dart';
+import 'acciones.dart';
 import 'kit.dart';
 import 'tarjeta.dart';
 
@@ -63,6 +67,14 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
     final tema = Theme.of(context);
     final filtros = ref.watch(filtrosTableroProvider);
     final izquierda = widget.tablero.sinColocar;
+    // Lo marcado CRUZADO con lo que se ve: una marca que un filtro esconde no
+    // se cuenta ni se coloca.
+    final marcadas = ref.watch(seleccionTableroProvider);
+    final visibles = [for (final p in izquierda.pedidos) p.pedidoId];
+    final lasMarcadas = [
+      for (final id in visibles)
+        if (marcadas.contains(id)) id,
+    ];
 
     return DragTarget<TarjetaArrastrada>(
       onAcceptWithDetails: (detalles) => widget.alDevolver(detalles.data),
@@ -127,6 +139,19 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
                 ),
               ),
             ),
+            if (visibles.isNotEmpty)
+              _BarraDeMarcar(
+                visibles: visibles,
+                marcadas: lasMarcadas,
+                alColocar: () => unawaited(
+                  AccionesTablero.colocarMarcadas(
+                    context,
+                    ref,
+                    tablero: widget.tablero,
+                    pedidoIds: lasMarcadas,
+                  ),
+                ),
+              ),
             // «SE VEN 200 DE 300» TENÍA QUE LLEVAR A ALGUN SITIO — 17/09/2026.
             //
             // Decía «afina con los filtros» y ya. Y eso no es una salida: los
@@ -209,6 +234,12 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
                             senalable: i == 0,
                             child: TarjetaDePedido(
                               pedido: izquierda.pedidos[i],
+                              marcada: marcadas.contains(
+                                izquierda.pedidos[i].pedidoId,
+                              ),
+                              alMarcar: () => ref
+                                  .read(seleccionTableroProvider.notifier)
+                                  .alternar(izquierda.pedidos[i].pedidoId),
                               onTap: () =>
                                   widget.alPulsarTarjeta(izquierda.pedidos[i]),
                             ),
@@ -233,6 +264,63 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
       titulo: 'Filtros',
       contenido: (contexto) =>
           _Filtros(municipios: facetas.$1, vendedores: facetas.$2),
+    );
+  }
+}
+
+/// MARCAR VARIAS Y COLOCARLAS DE UNA VEZ (issue 21 de Maikel, Santiago).
+///
+/// La casilla marca o desmarca **las que se ven** —con los filtros puestos, y si
+/// la lista está acotada («Se ven 200 de 300») sólo esas 200—: filtrando por
+/// municipio y marcando todo, el municipio entero va a una zona en un gesto.
+class _BarraDeMarcar extends ConsumerWidget {
+  const _BarraDeMarcar({
+    required this.visibles,
+    required this.marcadas,
+    required this.alColocar,
+  });
+
+  final List<String> visibles;
+  final List<String> marcadas;
+  final VoidCallback alColocar;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tema = Theme.of(context);
+    final todas = marcadas.length == visibles.length;
+    final seleccion = ref.read(seleccionTableroProvider.notifier);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Checkbox(
+            key: const ValueKey('marcar-todas'),
+            tristate: true,
+            value: todas ? true : (marcadas.isEmpty ? false : null),
+            onChanged: (_) => seleccion.marcar(visibles, marcar: !todas),
+            visualDensity: VisualDensity.compact,
+          ),
+          Text(
+            marcadas.isEmpty
+                ? 'Marcar las ${visibles.length} que se ven'
+                : '${marcadas.length} '
+                      '${marcadas.length == 1 ? 'marcada' : 'marcadas'}',
+            style: tema.textTheme.labelMedium,
+          ),
+          if (marcadas.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            FilledButton(
+              key: const ValueKey('colocar-marcadas'),
+              onPressed: alColocar,
+              style: FilledButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text('Colocar en una zona'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -197,6 +197,24 @@ Al tocar una tarjeta se abre con:
   **«Devolver a sin colocar»**.
 - La lista de zonas: **«Colocar en «Centro»»**, con «12 facturas · 480 kg» debajo.
 
+### Marcar varias y colocarlas de una vez
+
+Cada tarjeta de «Sin colocar» lleva **una casilla** a la izquierda. Márcalas y sale la
+fila **«N marcadas»** con el botón **«Colocar en una zona»**: eliges la zona una vez y
+van todas, en el orden de la lista.
+
+- La casilla de arriba, **«Marcar las N que se ven»**, marca (o desmarca) **todas las
+  que están en la lista ahora**, con los filtros puestos. Filtra por «Municipio» y
+  márcalas todas: el municipio entero va a una zona en un gesto. Si la lista está
+  acotada («Se ven 200 de 300»), sólo cuentan las 200 que se ven; usa «Ver N más» antes
+  si quieres todas.
+- Una marca que un filtro esconde **no se cuenta ni se coloca**.
+- Entra lo mismo que al arrastrar. Lo que no se puede colocar (ya va en una ruta, ya se
+  entregó…) **no frena a las demás**: sale un cajón **«No se colocaron N»** con cada
+  factura y su motivo, y esas **siguen marcadas** para arreglarlas o mandarlas a otra zona.
+  Las que sí fueron se dicen: «3 facturas en «Centro»».
+- Sólo salen las zonas activas.
+
 Si todavía no hay zonas:
 
 > «Todavía no hay ninguna columna. Créala con el «+» del tablero y ponle el nombre

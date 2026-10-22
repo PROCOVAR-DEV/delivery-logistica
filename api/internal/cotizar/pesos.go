@@ -43,6 +43,11 @@ type Renglon struct {
 	// verdad va en `almacen_salida_*` (00012).
 	AlmacenCodigo string `json:"almacenCodigo"`
 	AlmacenNombre string `json:"almacenNombre"`
+
+	// DE QUÉ FACTURA DE VENTRA SALE ESTA LÍNEA (00026, issue 22 de Maikel). Sólo la manda el
+	// espejo de facturas; viaja pegada al renglón como el almacén y va a
+	// `order_items.factura_numero`. Vacío = no se sabe (PEDIDO no la trae).
+	FacturaNumero string `json:"facturaNumero"`
 }
 
 // RenglonPesado es la línea con el peso ya resuelto.

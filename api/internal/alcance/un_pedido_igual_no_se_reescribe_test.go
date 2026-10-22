@@ -284,3 +284,30 @@ func TestUnRenglonQueSoloCambiaDeAlmacenSeReescribe(t *testing.T) {
 		})
 	}
 }
+
+// LA FACTURA DEL RENGLÓN ENTRA EN LA COMPARACIÓN (00026, issue 22 de Maikel). Los renglones de
+// las entregas de factura escritos antes de la 00026 no tienen la suya: si la comparación no
+// la mirara, el mismo producto con la misma cantidad parecería «no cambió nada» y se quedarían
+// sin factura para siempre. La pareja es la de siempre: el mismo renglón SIN novedad no se
+// reescribe.
+func TestUnRenglonQueSoloGanaSuFacturaSeReescribe(t *testing.T) {
+	factura := "47359"
+	b := &baseDePedidos{cambio: false}
+	conFactura := []sqlc.CrearRenglonDePedidoParams{{
+		Linea: 1, Description: "MALTA GUAJIRA 330 ML", Quantity: 60, FacturaNumero: &factura,
+	}}
+	if _, _, err := guardarCon(t, b, conFactura); err != nil {
+		t.Fatalf("guardar: %v", err)
+	}
+	if len(b.borradosDe) == 0 {
+		t.Fatal("el renglón ganó su factura y NO se reescribió: se quedaría sin ella para siempre")
+	}
+
+	b = &baseDePedidos{cambio: false}
+	if _, _, err := guardarCon(t, b, elMismoRenglon()); err != nil {
+		t.Fatalf("guardar: %v", err)
+	}
+	if len(b.borradosDe) != 0 {
+		t.Fatal("el renglón era idéntico (sin factura en los dos lados) y se reescribió igual")
+	}
+}

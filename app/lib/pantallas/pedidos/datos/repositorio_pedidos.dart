@@ -16,6 +16,7 @@ import '../../../nucleo/regla_de_entrada.dart' show costoDeLaParadaSql;
 
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/fecha_de_la_factura.dart';
+import '../../../nucleo/numero_de_factura.dart';
 import 'filtros_pedidos.dart';
 import 'formato.dart' show cantidad;
 
@@ -608,6 +609,42 @@ class ConsultasPedidos {
     return _preDespacho(_base.orders.id.isIn(pedidoIds));
   }
 
+  /// El pre-despacho de UN pedido PARTIDO POR FACTURA — issue 22 de Maikel (22/10/2026).
+  ///
+  /// Una entrega de factura puede juntar varias (`orders.factura_numero` = `47359, 47360`) y
+  /// cada renglón sabe de cuál sale (`order_items.factura_numero`, esquema 14). Esto da, por
+  /// cada factura, lo que lleva: la MISMA suma de [preDespachoDe] (`_preDespacho`) sobre los
+  /// renglones de esa factura, así que las partes suman lo que el pedido entero.
+  ///
+  /// **Devuelve `null` si no se puede partir sin mentir**: el pedido no tiene renglones, o a
+  /// ALGUNO le falta su factura (PEDIDO, o escrito antes de la 00026, o sin bajar todavía), o trae
+  /// más de una (`a, b`). Un renglón sin factura no se le asigna a la primera: quien llama deja
+  /// entonces las facturas juntas, como antes, y no se rebaja dos veces la misma mercancía.
+  ///
+  /// Los renglones se reparten por su `id` leído y normalizado aquí (la comilla de Excel y los
+  /// blancos), no con un `WHERE factura_numero = …` que se dejaría un renglón por una comilla.
+  Future<Map<String, TotalesPreDespacho>?> preDespachoPorFactura(
+    String pedidoId,
+  ) async {
+    final renglones = await (_base.select(
+      _base.orderItems,
+    )..where((r) => r.orderId.equals(pedidoId))).get();
+    if (renglones.isEmpty) return null;
+    final ids = <String, List<String>>{};
+    for (final r in renglones) {
+      final suyas = NumeroDeFactura.separar(r.facturaNumero);
+      if (suyas.length != 1) return null;
+      (ids[suyas.single] ??= <String>[]).add(r.id);
+    }
+    return {
+      for (final e in ids.entries)
+        e.key: await _preDespacho(
+          _base.orders.id.equals(pedidoId),
+          soloRenglones: _base.orderItems.id.isIn(e.value),
+        ),
+    };
+  }
+
   /// **Los empaques de una linea: sus `packs`, y si no los trae, sus
   /// `quantity`.** Nunca cero.
   ///
@@ -703,7 +740,13 @@ class ConsultasPedidos {
     _empaquesDeLaLinea * _base.products.unitsPerPackage,
   ]);
 
-  Future<TotalesPreDespacho> _preDespacho(Expression<bool> filtro) async {
+  /// [soloRenglones] acota los RENGLONES sumados (no los pedidos): lo usa
+  /// [preDespachoPorFactura]. La cabecera (cuantos pedidos, kilos, domicilio) sigue siendo la
+  /// de [filtro].
+  Future<TotalesPreDespacho> _preDespacho(
+    Expression<bool> filtro, {
+    Expression<bool>? soloRenglones,
+  }) async {
     final producto = _base.orderItems.description;
     final empaques = _empaquesDeLaLinea.sum();
     final unidades = _unidadesDeLaLinea.sum();
@@ -746,7 +789,11 @@ class ConsultasPedidos {
           ])
           // Una linea sin nombre no se puede sacar del almacen: se salta, igual
           // que en el servidor.
-          ..where(filtro & producto.trim().equals('').not())
+          ..where(
+            filtro &
+                producto.trim().equals('').not() &
+                (soloRenglones ?? const Constant(true)),
+          )
           ..groupBy([producto])
           // A igualdad de empaques, por nombre: sin desempate el orden de dos
           // productos con los mismos empaques lo decide SQLite, y la tabla «Por

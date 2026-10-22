@@ -20,6 +20,15 @@
 /// lo que se ve y lo que se imprime no pueden separarse sin que salte
 /// `test/impresion/por_producto_y_factura_test.dart`.
 ///
+/// ## UNA FILA POR (FACTURA, PRODUCTO) — issue 22 de Maikel, 22/10/2026
+///
+/// «Debería hacer referencia a una única factura»: una fila con `47359, 47360` y cantidad 50 no
+/// dice de cuál de las dos se sacó la mercancía. Cada renglón de una entrega de factura guarda
+/// ahora SU factura (`order_items.factura_numero`) y `preDespachoDeLaRuta` entrega una
+/// [FacturaDelPreDespacho] por factura. **Si algún renglón de la entrega no trae la suya** (los
+/// de PEDIDO y los anteriores a la 00026) la entrega NO se parte y sus facturas siguen juntas en
+/// una fila: no se le asigna ninguna a la primera ni se repite mercancía en cada factura.
+///
 /// Este fichero no dibuja nada ni suma nada por su cuenta: reparte las líneas que
 /// ya calculó `preDespachoDe` pedido a pedido y suma cada bloque con
 /// [TotalesPreDespacho.deLineas], la misma suma (y el mismo `≥`) que la hoja.
@@ -74,9 +83,10 @@ columnasPorProductoYFactura = <ColumnaPorProductoYFactura>[
   ColumnaPorProductoYFactura(
     titulo: 'Factura',
     esLaFactura: true,
-    // Un pedido con DOS facturas (`1024237, 1024240`) lleva las dos tal cual
-    // en su fila: `order_items` no dice qué renglón salió de cuál, y partirlo
-    // en dos filas rebajaría dos veces la misma mercancía.
+    // UNA factura por fila (issue 22 de Maikel): cada renglón sabe la suya y
+    // `preDespachoDeLaRuta` parte la entrega. Sólo si a algún renglón de la entrega le
+    // falta (PEDIDO, anteriores a la 00026) las dos (`1024237, 1024240`) van juntas en
+    // la misma fila, tal cual: partirla entonces rebajaría dos veces la misma mercancía.
     detalle: (f, l) => f.rotulo,
     subtotal: (t) => subtotalDelProducto,
   ),

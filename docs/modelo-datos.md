@@ -233,6 +233,7 @@ de delivery, y resultado del cierre de ruta.
 | `sucursalCodigo` | String? | sí | — | |
 | `externalId` | String? | sí | — | id/folio en PEDIDO; clave de idempotencia (§6) |
 | `items` | Json | **no** | `"[]"` | `[{description|name, quantity, ...peso resuelto}]` |
+| *(renglones del reparto)* | `order_items` | — | — | **propio del reparto**: las líneas de un pedido viven en la tabla `order_items`, no en este JSON (`order_id`, `linea`, `description`, `quantity`, `packs`, `peso_*`, `almacen_salida_*`…). **`order_items.factura_numero` (String?, nullable; migración `00026`, 22/10/2026, issue 22 de Maikel): el número de la factura de Ventra de la que sale ESE renglón, uno solo y sin coma. Lo escribe solo el espejo de facturas; NULL = no se sabe de cuál (PEDIDO y entregas de factura anteriores a la 00026), y quien lee NO supone la primera. Una entrega con varias facturas (`orders.factura_numero` = `47359, 47360`) deja así un renglón por (producto, factura)** |
 | `customerPhone` | String? | sí | — | |
 | `meta` | Json? | sí | — | payload COMPLETO (cliente + pedido) |
 | `createdAt` | DateTime | no | `now()` | cuándo lo copió el espejo |

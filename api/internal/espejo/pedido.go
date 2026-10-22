@@ -190,6 +190,10 @@ type RenglonDeFuera struct {
 	// (`almacen_salida_*`, migración 00012).
 	AlmacenCodigo string `json:"almacenCodigo"`
 	AlmacenNombre string `json:"almacenNombre"`
+
+	// LA FACTURA DE VENTRA DE LA QUE SALE ESTE RENGLÓN (00026, issue 22 de Maikel). Sólo la
+	// pone el mapeo de facturas (`EntregaDeFactura.APedido`); PEDIDO no la trae y queda vacía.
+	FacturaNumero string `json:"facturaNumero"`
 }
 
 // ClienteDeFuera es un cliente de PEDIDO. Sólo se copian los GEOLOCALIZADOS: sin

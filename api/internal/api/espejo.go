@@ -1592,6 +1592,9 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 				// renglón, hay que tocar LOS DOS: aquí y `RenglonSalida` en `pedidos.go`.
 				"pesoKg":      l.PesoUnitarioKg,
 				"pesoLineaKg": l.PesoLineaKg,
+				// LA FACTURA DE ESTE RENGLÓN (00026, issue 22 de Maikel). Sin ella el
+				// aparato no puede partir «Por producto y factura» por factura.
+				"facturaNumero": l.FacturaNumero,
 			})
 		}
 	}

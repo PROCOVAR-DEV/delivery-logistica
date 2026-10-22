@@ -232,17 +232,50 @@ func TestSinPuntoLaEntregaSeMapeaIgualYSinCoordenadas(t *testing.T) {
 	}
 }
 
-func TestLosRenglonesDelMismoProductoSeSuman(t *testing.T) {
+func TestLosRenglonesDelMismoProductoSeSumanDentroDeUnaFactura(t *testing.T) {
+	// La misma cerveza dos veces en la MISMA factura es un renglón de 12 B (72 uds).
 	es := AgruparPorFolio("STG", []FacturaDeVentra{
-		factura("1", "2026-10-17", "2", "PED-1", cerveza(5), domicilio(0.1)),
-		factura("2", "2026-10-17", "2", "PED-1", cerveza(7), domicilio(0.2)),
+		factura("1", "2026-10-17", "2", "PED-1", cerveza(5), cerveza(7), domicilio(0.1)),
 	})
 	p, _ := es[0].APedido(ContextoDeMapeo{Productos: productosDePrueba()})
 	if len(p.Items) != 1 || *p.Items[0].Packs != 12 || *p.Items[0].Unidades != 72 {
-		t.Fatalf("la misma cerveza en dos facturas de la entrega es UN renglón de 12 B (72 uds); salió %+v", p.Items)
+		t.Fatalf("la misma cerveza dos veces en una factura es UN renglón de 12 B (72 uds); salió %+v", p.Items)
 	}
-	if *p.FacturaDomicilio != 0.3 {
-		t.Errorf("el domicilio suma las líneas de las dos facturas a céntimos (0.1 + 0.2 = 0.3, no 0.30000000000000004): %v", *p.FacturaDomicilio)
+	if p.Items[0].FacturaNumero != "1" {
+		t.Errorf("el renglón tiene que decir de qué factura sale: %q", p.Items[0].FacturaNumero)
+	}
+}
+
+// Issue 22 de Maikel (Santiago, 22/10/2026): dos facturas del MISMO folio son UNA entrega, pero
+// cada renglón sabe de cuál sale. El mismo producto en las dos ya no se suma en uno: son dos
+// renglones, y entre los dos la entrega pesa y cuenta lo mismo que antes.
+func TestDosFacturasDelMismoFolioDanRenglonesConSuFactura(t *testing.T) {
+	es := AgruparPorFolio("STG", []FacturaDeVentra{
+		factura("47360", "2026-10-17", "2", "PED-1", cerveza(7), domicilio(0.2)),
+		factura("47359", "2026-10-17", "2", "PED-1", cerveza(5), domicilio(0.1)),
+	})
+	if len(es) != 1 {
+		t.Fatalf("mismo folio = UNA entrega (la identidad no se toca); salieron %d", len(es))
+	}
+	p, _ := es[0].APedido(ContextoDeMapeo{Productos: productosDePrueba()})
+	if p.FacturaNumero != "47359, 47360" {
+		t.Errorf("la entrega sigue diciendo las dos facturas juntas: %q", p.FacturaNumero)
+	}
+	if len(p.Items) != 2 {
+		t.Fatalf("la misma cerveza en dos facturas son DOS renglones, cada uno de la suya; salieron %+v", p.Items)
+	}
+	vistos := map[string]float64{}
+	total, unidades := 0.0, 0.0
+	for _, r := range p.Items {
+		vistos[r.FacturaNumero] = *r.Packs
+		total += *r.Packs
+		unidades += *r.Unidades
+	}
+	if vistos["47359"] != 5 || vistos["47360"] != 7 {
+		t.Errorf("cada renglón con SU cantidad y SU factura: %v", vistos)
+	}
+	if total != 12 || unidades != 72 {
+		t.Errorf("la entrega no cambia de cuenta: 12 B y 72 uds; salieron %v y %v", total, unidades)
 	}
 }
 

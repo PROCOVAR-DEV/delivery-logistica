@@ -1031,7 +1031,7 @@ FROM` compara contra esos valores efectivos: un pedido con punto manual y sin m�
     "facturaEstado": "igual|cambiado|sin_factura|null",
     "orderDate": "string?",
     "items": [ { "code": "...", "name": "...", "quantity": 1, "packs": 1, "pesoKg": 0, "pesoLineaKg": 0,
-                 "almacenCodigo": "2?", "almacenNombre": "AURORA?" } ],
+                 "almacenCodigo": "2?", "almacenNombre": "AURORA?", "facturaNumero": "47359?" } ],
     "almacen": { "codigo": "2", "nombre": "AURORA", "sucursalCodigo": "STG", "mezclado": false },
     "meta": {}
   } ]
@@ -1071,6 +1071,10 @@ En Santiago **dos de cada tres pedidos salen de AURORA** y se medían todos desd
   otro.
 - En `items[]`, `almacenCodigo` y `almacenNombre` son los de ESE renglón, que en un pedido
   mezclado no son los del pedido. Vacío = ausente.
+- En `items[]`, **`facturaNumero`** (00026, issue 22 de Maikel, 22/10/2026) es el número de la
+  factura de Ventra de la que sale ESE renglón: uno solo, sin coma. Solo lo manda el mapeo de
+  facturas (`espejo.EntregaDeFactura.APedido`); PEDIDO no lo trae. Vacío = ausente = `order_items.factura_numero`
+  NULL («no se sabe de cuál»), nunca la factura de la entrega ni la de otro renglón.
 
 - Si el JSON no parsea o `orders` no es array →
   `400 {"error":"Se espera { orders: [...] }"}`.
@@ -1218,8 +1222,10 @@ mentira); si el que entra trae punto, manda el que entra; si el punto es a mano 
 mandando el manual. Una entrega NUEVA sin punto se guarda sin punto. Un pedido de PEDIDO (siempre con punto)
 se comporta como siempre.
 
-**Los renglones** (solo las líneas que NO son de domicilio; mismo `productCode` y mismo punto de venta se
-SUMAN en uno): `code` = `productCode`, `description` = `productName`; **`packs` = la cantidad de la línea**
+**Los renglones** (solo las líneas que NO son de domicilio; mismo `productCode`, mismo punto de venta **y
+misma factura** se SUMAN en uno — **desde la 00026 el mismo producto en dos facturas de la entrega son DOS
+renglones, cada uno con su `factura_numero`** (issue 22 de Maikel); la cuenta de la entrega —empaques,
+unidades, kilos— no cambia, porque todo lo que suma es por renglón): `code` = `productCode`, `description` = `productName`; **`packs` = la cantidad de la línea**
 (son unidades de venta: B, C, PACA); **`quantity` = `packs × products.units_per_package`** si ese dato es
 > 0, y si no `packs` (nunca 0); **`pesoKg` = `products.weight`** por (sucursal, `sku` = `productCode`), que
 es el peso por unidad de venta. La cuenta del peso NO se repite: la hace la cascada de la puerta
@@ -1228,6 +1234,31 @@ BLISTER 6U, 15 B» = 15 empaques, 90 unidades, con `weight` 2,4 → 36 kg. **Un 
 está en `products`) se cuenta y se dice** (`productos de factura SIN peso` en el registro del espejo, con
 los códigos): la línea queda «sin peso» en todas las pantallas, nunca se inventa uno. Una entrega con solo
 la línea de domicilio (sin mercancía) se guarda igual y se cuenta aparte.
+
+**La factura de cada renglón** (issue 22 de Maikel, Santiago, 22/10/2026; migración `00026`). En «Por producto y
+factura» (el pre-despacho de una ruta) salía una fila con `47359, 47360` y cantidad 50, y la tarjeta de estiba se
+rebaja por cantidad **y factura** (Amado, issue 8): una fila debe hablar de UNA factura. La **identidad de la
+entrega no cambia** (sigue siendo una fila por folio y `orders.factura_numero` / `operation_number` siguen
+diciendo las facturas juntas; decisión de Jose). Lo que cambia es que cada renglón guarda de cuál sale:
+
+- `order_items.factura_numero` (texto, **nullable**). Lo escribe el espejo de facturas (`APedido` → `RenglonDeFuera.FacturaNumero`
+  → `facturaNumero` del renglón del lote → `cotizar.Renglon` → `renglonesParaLaBase`). Los renglones de PEDIDO y los de
+  las entregas de factura escritas antes de la 00026 quedan NULL; **NULL es «no se sabe», nunca «la primera factura»**.
+- `renglonesIguales` compara la columna: la entrega de factura ya guardada se reescribe (borra y reinserta sus renglones,
+  que mueven `order_items.updated_at`) la próxima vez que el espejo la repase, y la bajada la lleva. Lo que el espejo no
+  vuelva a repasar (facturas fuera de su ventana) se queda NULL.
+- Sale en `GET /api/orders` / `GET /api/orders/{id}` (`items[].facturaNumero`, `RenglonSalida`) y en la bajada
+  (`GET /api/sync/cambios`, `orders[].items[].facturaNumero`; la ata `TestLaBajadaSirveLosMismosCamposDelRenglonQuePedidos`
+  y `TestLaBajadaLlevaLaFacturaDeCadaRenglon`). `null` = no se sabe.
+- **El aparato** (esquema local 14, `order_items.factura_numero`; `RegistroDeFrescura.rebajarLosPedidosPorLaFacturaDeSusRenglones`
+  baja los pedidos enteros una vez por aparato): `preDespachoDeLaRuta` parte una parada con varias facturas en una
+  `FacturaDelPreDespacho` por factura **si TODOS sus renglones traen la suya**; si a alguno le falta (o trae dos), la entrega se
+  queda como antes, las facturas juntas en una fila, y no se rebaja dos veces la misma mercancía. Una factura de la entrega
+  que no tiene ni un renglón (solo domicilio) sale «Sin renglones». Pantalla y PDF leen las mismas filas; el subtotal de cada
+  producto sigue siendo su fila de la tabla de arriba.
+- No probado contra Ventra real ni contra producción: se ata con pruebas (`facturas_test.go`, `entregas_de_factura_test.go`,
+  `un_pedido_igual_no_se_reescribe_test.go`, `factura_del_renglon_motor_real_test.go`) y, en el aparato,
+  `el_pre_despacho_de_la_ruta_test.dart`.
 
 **La adopción y la convivencia** (`alcance.alFolio`, dentro de `EspejoGuardarPedido`; el corte NO es
 atómico y no puede haber duplicados mientras convivan):

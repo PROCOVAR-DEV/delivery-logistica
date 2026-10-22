@@ -100,6 +100,18 @@ class RegistroDeFrescura {
   /// el almacén. En la web no cambia nada: su base nace vacía.
   static const yaRebajadosPorElFolio = 'una-vez:pedidos-con-folio';
 
+  /// LOS PEDIDOS SE VUELVEN A BAJAR ENTEROS UNA VEZ POR APARATO, por la factura de cada
+  /// renglón — 22/10/2026 (esquema 14, issue 22 de Maikel).
+  ///
+  /// La bajada lee `facturaNumero` de cada renglón y «Por producto y factura» parte con él
+  /// una entrega de varias facturas en una fila por factura. Pero es POR DIFERENCIAS: un
+  /// pedido cuyos renglones el servidor reescribió entre su despliegue y la actualización
+  /// de esta aplicación no vuelve a viajar, y en una APK o un escritorio con la copia ya
+  /// hecha saldría con las facturas juntas PARA SIEMPRE aunque el servidor las tenga
+  /// separadas. Mismo arreglo que el folio. En la web no cambia nada: su base nace vacía.
+  static const yaRebajadosPorLaFacturaDeSusRenglones =
+      'una-vez:pedidos-con-factura-por-renglon';
+
   /// LOS CAMIONES CON SU FICHA ENTERA — 16/10/2026 (issue 14). Hasta la 1.0.38 la bajada
   /// guardaba de cada camion solo lo basico (sin tipo, costo por km, notas ni
   /// «para domicilio»). Se piden ENTEROS (`completas=vehicles`) una vez, no con una
@@ -138,6 +150,11 @@ class RegistroDeFrescura {
 
   Future<void> rebajarLosPedidosPorSuFolio() =>
       rebajarUnaVez(yaRebajadosPorElFolio, const [Colecciones.pedidos]);
+
+  Future<void> rebajarLosPedidosPorLaFacturaDeSusRenglones() => rebajarUnaVez(
+    yaRebajadosPorLaFacturaDeSusRenglones,
+    const [Colecciones.pedidos],
+  );
 
   Future<FilaFrescura?> leer(String coleccion) => (_base.select(
     _base.frescura,

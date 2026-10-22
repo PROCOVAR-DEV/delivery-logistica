@@ -82,7 +82,9 @@ class FacturaDelPreDespacho {
 
   /// El número de la factura (el `factura_numero` de Ventra), o `null` si el pedido
   /// no trae ninguno. Lo decide `NumeroDeFactura.de` (`nucleo/numero_de_factura.dart`):
-  /// sin factura NO se cae al folio. Con varias, `1024237, 1024240` en una sola.
+  /// sin factura NO se cae al folio. Es UNA factura cuando los renglones de la entrega saben
+  /// la suya (issue 22 de Maikel, 22/10/2026); si a alguno le falta, la entrega con varias va
+  /// junta en una sola, `1024237, 1024240`.
   final String? numero;
 
   final List<LineaPreDespacho> lineas;
@@ -308,7 +310,8 @@ class TotalesPreDespacho {
     // y otro con los 6 que tiene no son el mismo agujero.
     sinPeso: lineas.fold<int>(
       0,
-      (n, l) => n + faltan(l.lineasSinPeso, hayCifra: sePuedeSumarElPeso(l.pesoKg)),
+      (n, l) =>
+          n + faltan(l.lineasSinPeso, hayCifra: sePuedeSumarElPeso(l.pesoKg)),
     ),
     sinUnidades: lineas.fold<int>(
       0,

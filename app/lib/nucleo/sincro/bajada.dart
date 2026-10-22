@@ -183,6 +183,8 @@ class Bajada {
     // Y otra por el almacén del que sale cada pedido (frescura.dart, 15/10/2026).
     await _frescura.rebajarLosPedidosPorSuAlmacen();
     await _frescura.rebajarLosPedidosPorSuFolio();
+    // Y otra por la factura de cada renglón (frescura.dart, 22/10/2026, esquema 14).
+    await _frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
 
     for (var vuelta = 0; vuelta < maximoDeTandas; vuelta++) {
       final desde = await _frescura.desde(Colecciones.pedidos);
@@ -904,6 +906,9 @@ class Bajada {
               // pre-despacho salia con las catorce filas en raya.
               pesoKg: Value(_numero(r['pesoKg'])),
               pesoLineaKg: Value(_numero(r['pesoLineaKg'])),
+              // DE QUE FACTURA SALE ESTE RENGLON (issue 22 de Maikel): `null` = no se
+              // sabe. Ver `OrderItems.facturaNumero`.
+              facturaNumero: Value(_texto(r['facturaNumero'])),
             ),
           );
     }

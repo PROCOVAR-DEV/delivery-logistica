@@ -336,6 +336,20 @@ class OrderItems extends Table {
 
   /// Lo que pesa la LINEA entera. Ver [pesoKg].
   RealColumn get pesoLineaKg => real().nullable()();
+
+  /// LA FACTURA DE VENTRA DE LA QUE SALE ESTE RENGLON (`order_items.factura_numero`, 00026;
+  /// esquema 14 — issue 22 de Maikel, 22/10/2026). Un solo numero, sin coma.
+  ///
+  /// Una entrega de factura junta varias facturas en `orders.factura_numero`
+  /// (`47359, 47360`); esto dice de cual sale CADA renglon, y es lo que deja partir la
+  /// tabla «Por producto y factura» en una fila por factura sin rebajar dos veces la misma
+  /// mercancia de la tarjeta de estiba.
+  ///
+  /// `null` = **no se sabe de cual**: los renglones de PEDIDO, los de entregas escritas
+  /// antes de la 00026 y lo que aun no ha bajado. NUNCA se supone «la primera»: con uno solo
+  /// de los renglones de la entrega en `null`, la tabla deja las facturas juntas como antes
+  /// (`pre_despacho_de_la_ruta.dart`).
+  TextColumn get facturaNumero => text().nullable()();
   TextColumn get productId => text().nullable()();
   DateTimeColumn get createdAt => dateTime().nullable()();
   DateTimeColumn get updatedAt => dateTime().nullable()();

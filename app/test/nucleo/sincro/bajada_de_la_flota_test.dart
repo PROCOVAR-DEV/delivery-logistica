@@ -53,6 +53,7 @@ void main() {
     await frescura.rebajarLasRutasUnaVez();
     await frescura.rebajarLosPedidosPorSuAlmacen();
     await frescura.rebajarLosPedidosPorSuFolio();
+    await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
     await frescura.marcar(
       Colecciones.distribuidores,
       hasta: null,

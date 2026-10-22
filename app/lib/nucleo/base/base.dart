@@ -213,8 +213,14 @@ class BaseLocal extends _$BaseLocal {
   ///
   /// `orders` gana `folio`, nula. ADITIVA: la cola de `apuntes` no se toca. Se rellena
   /// con la bajada siguiente que traiga cada fila. Ver el `desde < 13`.
+  ///
+  /// ## 14 — de qué factura sale cada renglón (22/10/2026, issue 22 de Maikel)
+  ///
+  /// `order_items` gana `factura_numero`, nula. ADITIVA: la cola de `apuntes` no se toca. Lo que
+  /// ya estaba se rellena una vez por aparato con una bajada entera de los pedidos
+  /// (`RegistroDeFrescura.rebajarLosPedidosPorLaFacturaDeSusRenglones`). Ver el `desde < 14`.
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -388,6 +394,15 @@ class BaseLocal extends _$BaseLocal {
         ).get()).map((f) => f.read<String>('name')).toSet();
         if (!hay.contains(orders.folio.name)) {
           await m.addColumn(orders, orders.folio);
+        }
+      }
+      if (desde < 14) {
+        // LA FACTURA DE CADA RENGLÓN. Ver `OrderItems.facturaNumero`. Solo si falta, como las demás.
+        final hay = (await customSelect(
+          'PRAGMA table_info(order_items)',
+        ).get()).map((f) => f.read<String>('name')).toSet();
+        if (!hay.contains(orderItems.facturaNumero.name)) {
+          await m.addColumn(orderItems, orderItems.facturaNumero);
         }
       }
     },

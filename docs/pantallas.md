@@ -1080,7 +1080,11 @@ Datos de entrada: `sucursal`, `vehiculo`, `dia` (`AAAA-MM-DD`, opcional), `pedid
    **un solo sitio**, la lista `columnasPorProductoYFactura` (`app/lib/impresion/por_producto_y_factura.dart`),
    que leen la pantalla (`tabla_por_producto_y_factura.dart`; bajo 640 px, una tarjeta por producto)
    y este PDF. La factura es `orders.factura_numero` (`NumeroDeFactura.de`): sin él, `Sin número`,
-   nunca el folio; un pedido con dos facturas lleva las dos en su fila. Cada cifra sigue la regla de
+   nunca el folio. **UNA fila por (factura, producto)** (issue 22 de Maikel, 22/10/2026): una entrega con
+   varias facturas (`47359, 47360`) se parte con `order_items.factura_numero` (00026; esquema local 14,
+   `ConsultasPedidos.preDespachoPorFactura`) en una `FacturaDelPreDespacho` por factura; si algún renglón de
+   la entrega no trae la suya (PEDIDO, o anteriores a la 00026) NO se parte y las dos van juntas en su fila,
+   como antes. Los subtotales siguen siendo los de la tabla de arriba. Cada cifra sigue la regla de
    la tabla de arriba (`≥` si falta algún renglón, `—` si no se sabe, el cero no es un peso), y una
    factura sin renglones sale al final como `Sin renglones`.
 6. Firmas, dos huecos con línea superior: `Sacó del almacén` · `Recibió (chofer)`.

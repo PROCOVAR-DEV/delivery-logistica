@@ -548,7 +548,9 @@ SELECT oi.id, oi.order_id, oi.linea, oi.description, oi.quantity, oi.packs,
        -- añadió: «precisamente para no tener que recalcular el peso con el catálogo de
        -- hoy». Un producto que hoy no está en el catálogo de esa sucursal no tiene por
        -- qué perder el peso con el que se facturó ayer.
-       oi.peso_unitario_kg, oi.peso_linea_kg
+       oi.peso_unitario_kg, oi.peso_linea_kg,
+       -- LA FACTURA DE ESTE RENGLÓN (00026, issue 22 de Maikel): NULL = no se sabe de cuál.
+       oi.factura_numero
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
 WHERE oi.order_id = sqlc.arg('pedido_id')
@@ -572,7 +574,9 @@ SELECT oi.id, oi.order_id, oi.linea, oi.description, oi.quantity, oi.packs,
        -- añadió: «precisamente para no tener que recalcular el peso con el catálogo de
        -- hoy». Un producto que hoy no está en el catálogo de esa sucursal no tiene por
        -- qué perder el peso con el que se facturó ayer.
-       oi.peso_unitario_kg, oi.peso_linea_kg
+       oi.peso_unitario_kg, oi.peso_linea_kg,
+       -- LA FACTURA DE ESTE RENGLÓN (00026, issue 22 de Maikel): NULL = no se sabe de cuál.
+       oi.factura_numero
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
 WHERE oi.order_id = ANY(sqlc.arg('pedido_ids')::uuid[])
@@ -1188,7 +1192,7 @@ WHERE id = ANY(sqlc.arg('ids')::uuid[])
 -- name: RenglonesDePedidoParaComparar :many
 SELECT linea, description, quantity, packs, product_id, nombre, codigo,
        almacen_nombre, caso, peso_unitario_kg, peso_linea_kg, origen_peso,
-       almacen_salida_codigo, almacen_salida_nombre
+       almacen_salida_codigo, almacen_salida_nombre, factura_numero
 FROM order_items
 WHERE order_id = sqlc.arg('pedido_id')
 ORDER BY linea ASC;
@@ -1219,11 +1223,14 @@ DELETE FROM order_items WHERE order_id = sqlc.arg('pedido_id');
 -- con un almacén, a pesar de cómo se llama. El almacén del que sale el renglón —00012— es
 -- `almacen_salida_codigo` / `almacen_salida_nombre`. Escribir un almacén en la primera
 -- dejaría a quien busca un producto leyendo «2» y «AURORA».
+--
+-- `factura_numero` (00026) es la factura de Ventra de la que sale ESTE renglón, un solo número.
+-- Sólo la escribe el espejo de facturas; los renglones de PEDIDO la dejan NULL.
 -- name: CrearRenglonDePedido :one
 INSERT INTO order_items (
     order_id, linea, description, quantity, packs, product_id,
     nombre, codigo, almacen_nombre, caso, peso_unitario_kg, peso_linea_kg, origen_peso,
-    almacen_salida_codigo, almacen_salida_nombre
+    almacen_salida_codigo, almacen_salida_nombre, factura_numero
 )
 VALUES (
     sqlc.arg('pedido_id'), sqlc.arg('linea'), sqlc.arg('description'),
@@ -1231,11 +1238,12 @@ VALUES (
     sqlc.narg('nombre'), sqlc.narg('codigo'), sqlc.narg('almacen_nombre'),
     sqlc.narg('caso'), sqlc.narg('peso_unitario_kg'), sqlc.narg('peso_linea_kg'),
     sqlc.narg('origen_peso'),
-    sqlc.narg('almacen_salida_codigo'), sqlc.narg('almacen_salida_nombre')
+    sqlc.narg('almacen_salida_codigo'), sqlc.narg('almacen_salida_nombre'),
+    sqlc.narg('factura_numero')
 )
 RETURNING id, order_id, linea, description, quantity, packs, product_id,
           nombre, codigo, almacen_nombre, caso, peso_unitario_kg, peso_linea_kg,
-          origen_peso, almacen_salida_codigo, almacen_salida_nombre;
+          origen_peso, almacen_salida_codigo, almacen_salida_nombre, factura_numero;
 
 -- La marca de agua del espejo: `since` de la próxima bajada.
 --

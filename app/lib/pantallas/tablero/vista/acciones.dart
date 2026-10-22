@@ -16,8 +16,13 @@ import '../../rutas/datos/repositorio_rutas.dart' show PestanaRutas;
 import '../../rutas/estado/proveedores_rutas.dart'
     show pestanaRutasProvider, rutaElegidaProvider;
 import '../../vehiculos/datos/vehiculo_api.dart' show estadoEnMantenimiento;
+import '../../pedidos/datos/mandar_al_tablero.dart'
+    show PedidoQueNoFue, ResultadoDeMandar;
+import '../../pedidos/estado/proveedores_pedidos.dart'
+    show mandarAlTableroProvider;
 import '../datos/modelos.dart';
 import '../estado/proveedores.dart';
+import '../estado/seleccion.dart';
 import 'kit.dart';
 import 'pantalla_tablero.dart' show FilaDeAlmacen;
 
@@ -174,6 +179,87 @@ abstract final class AccionesTablero {
             ),
         ],
       ),
+    );
+  }
+
+  /// COLOCAR VARIAS FACTURAS MARCADAS EN UNA ZONA (issue 21 de Maikel).
+  ///
+  /// Pregunta la zona una vez y coloca con `MandarAlTablero`, el mismo gesto de
+  /// «Mandar a una zona» de Pedidos, que llama a `RepositorioTablero.colocar`
+  /// una a una —el camino del arrastre— y NOMBRA las que no puede colocar con su
+  /// motivo (ya en otra ruta, ya entregada, sin ubicación…). Las que se
+  /// colocaron pierden la marca; las demás SE QUEDAN marcadas y se listan.
+  static Future<void> colocarMarcadas(
+    BuildContext context,
+    WidgetRef ref, {
+    required Tablero tablero,
+    required List<String> pedidoIds,
+  }) async {
+    if (pedidoIds.isEmpty) return;
+    final cuantas =
+        '${pedidoIds.length} '
+        '${pedidoIds.length == 1 ? 'factura marcada' : 'facturas marcadas'}';
+    final zonas = [
+      for (final c in tablero.columnas)
+        if (c.activa) c,
+    ];
+    final columnaId = await mostrarCajon<String>(
+      context: context,
+      titulo: cuantas,
+      contenido: (contexto) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final columna in zonas)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.view_column_outlined),
+              title: Text('Colocar en «${columna.nombre}»'),
+              subtitle: Text(
+                '${columna.pedidos} '
+                '${columna.pedidos == 1 ? 'factura' : 'facturas'} · '
+                '${pesoBonito(columna.pesoKg)}',
+              ),
+              onTap: () => Navigator.of(contexto).pop(columna.id),
+            ),
+          if (zonas.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'No hay ninguna zona activa. Créala con el «+» del tablero.',
+              ),
+            ),
+        ],
+      ),
+    );
+    if (columnaId == null || !context.mounted) return;
+
+    ResultadoDeMandar? resultado;
+    await hacer(context, ref, () async {
+      final r = await ref
+          .read(mandarAlTableroProvider)
+          .mandar(
+            pedidoIds: pedidoIds,
+            columnaId: columnaId,
+            sucursalId: tablero.sucursalId,
+          );
+      ref.read(seleccionTableroProvider.notifier).quitar(r.fueron);
+      await ref.read(tableroProvider.notifier).refrescar();
+      resultado = r;
+    });
+    final r = resultado;
+    if (r == null || !context.mounted) return;
+    final fueron =
+        '${r.cuantos} '
+        '${r.cuantos == 1 ? 'factura' : 'facturas'} en «${r.zona}»';
+    if (!r.alguienSeQuedo) {
+      _decir(context, fueron);
+      return;
+    }
+    await mostrarCajon<void>(
+      context: context,
+      titulo: 'No se colocaron ${r.noFueron.length}',
+      contenido: (_) => _LasQueNoFueron(fueron: fueron, noFueron: r.noFueron),
     );
   }
 
@@ -494,7 +580,8 @@ abstract final class AccionesTablero {
     context,
     ref,
     () => ref.read(tableroProvider.notifier).inactivarColumna(columna.id),
-    exito: '«${columna.nombre}» quedó inactiva. Se activa desde «Zonas inactivas».',
+    exito:
+        '«${columna.nombre}» quedó inactiva. Se activa desde «Zonas inactivas».',
   );
 
   /// Borrar.
@@ -795,6 +882,35 @@ abstract final class AccionesTablero {
         ),
       );
   }
+}
+
+/// Lo que dice el cajón tras colocar varias: cuántas sí y las que no, con
+/// nombre y motivo. Siguen marcadas.
+class _LasQueNoFueron extends StatelessWidget {
+  const _LasQueNoFueron({required this.fueron, required this.noFueron});
+
+  final String fueron;
+  final List<PedidoQueNoFue> noFueron;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        'Colocadas: $fueron.',
+        style: Theme.of(context).textTheme.titleSmall,
+      ),
+      const SizedBox(height: 8),
+      const Text('Estas no se pudieron colocar, y siguen marcadas:'),
+      const SizedBox(height: 8),
+      for (final quedado in noFueron)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(quedado.linea),
+        ),
+    ],
+  );
 }
 
 /// LA FLOTA DE LA SUCURSAL, DENTRO DEL CAJÓN Y **MIRADA**, NO PEDIDA.

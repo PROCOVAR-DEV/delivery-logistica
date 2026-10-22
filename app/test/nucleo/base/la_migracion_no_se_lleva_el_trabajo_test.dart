@@ -501,7 +501,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 13);
+        expect(nueva.schemaVersion, 14);
       },
     );
   }
@@ -665,7 +665,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 13);
+        expect(nueva.schemaVersion, 14);
       },
     );
   }
@@ -759,7 +759,7 @@ void main() {
         (await nueva.customSelect('PRAGMA user_version').getSingle()).read<int>(
           'user_version',
         ),
-        13,
+        14,
       );
 
       // LA COLUMNA EXISTE, preguntándoselo a SQLite, ANTES de que el Tablero
@@ -884,7 +884,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          13,
+          14,
         );
 
         // Y SE PUEDE ESCRIBIR: es lo que hará la bajada.
@@ -971,7 +971,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          13,
+          14,
         );
 
         // CADA UNA de las seis columnas está en la tabla, por su nombre en SQL (una
@@ -1025,6 +1025,85 @@ void main() {
         expect((await nueva.select(nueva.apuntes).get()).map((a) => a.clave), [
           '01J8-punto',
         ]);
+      },
+    );
+  }
+
+  // LA 14: LA FACTURA DE CADA RENGLÓN (22/10/2026, issue 22 de Maikel).
+  //
+  // `order_items` gana `factura_numero`. Las formas del aparato de ayer: en la 13 SIN la columna
+  // (el de verdad), en la 12 (llega con el paso de en medio) y en la 13 CON ella ya puesta (copia
+  // nacida nueva y `user_version` atrás): un `ADD COLUMN` repetido LANZA y la base no abriría, o
+  // sea la cola del día secuestrada.
+  for (final (desde, yaEstaba) in const [
+    (13, false),
+    (12, false),
+    (13, true),
+  ]) {
+    test(
+      'desde la $desde: la factura de cada renglón ${yaEstaba ? 'CON' : 'SIN'} la columna '
+      'abre y no pierde nada',
+      () async {
+        final fichero = await _ficheroDePrueba();
+        addTearDown(() async {
+          if (fichero.existsSync()) await fichero.delete();
+        });
+
+        final ayer = BaseLocal.con(NativeDatabase(fichero));
+        await ayer
+            .into(ayer.apuntes)
+            .insert(
+              ApuntesCompanion.insert(
+                clave: '01J8-factura',
+                hechoAt: DateTime(2026, 10, 22, 9),
+                metodo: 'PATCH',
+                ruta: '/orders/ped-1',
+                cuerpo: '{}',
+              ),
+            );
+        await ayer.customStatement(
+          'INSERT INTO orders (id, customer_name, address, weight, archivado) '
+          "VALUES ('ped-1', 'Bodega La Rica', 'Calle 1', 75, 0)",
+        );
+        await ayer.customStatement(
+          'INSERT INTO order_items (id, order_id, linea, description, quantity) '
+          "VALUES ('r-1', 'ped-1', 1, 'CERVEZA', 5)",
+        );
+        if (!yaEstaba) {
+          await ayer.customStatement(
+            'ALTER TABLE order_items DROP COLUMN factura_numero',
+          );
+        }
+        await ayer.customStatement('PRAGMA user_version = $desde');
+        await ayer.close();
+
+        final nueva = BaseLocal.con(NativeDatabase(fichero));
+        addTearDown(nueva.close);
+
+        expect(
+          (await nueva.select(nueva.apuntes).get()).map((a) => a.clave),
+          ['01J8-factura'],
+          reason:
+              'la cola sin subir es el trabajo del día y sobrevive al salto',
+        );
+        final renglon = await nueva.select(nueva.orderItems).getSingle();
+        expect(
+          (renglon.description, renglon.facturaNumero),
+          ('CERVEZA', null),
+          reason: 'el renglón de ayer sigue, y de su factura no se sabe nada',
+        );
+        expect(
+          (await nueva.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          14,
+        );
+        // Y SE PUEDE ESCRIBIR Y LEER.
+        await (nueva.update(nueva.orderItems)..where((r) => r.id.equals('r-1')))
+            .write(const OrderItemsCompanion(facturaNumero: Value('47359')));
+        expect(
+          (await nueva.select(nueva.orderItems).getSingle()).facturaNumero,
+          '47359',
+        );
       },
     );
   }

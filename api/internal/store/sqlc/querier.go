@@ -518,6 +518,9 @@ type Querier interface {
 	// con un almacén, a pesar de cómo se llama. El almacén del que sale el renglón —00012— es
 	// `almacen_salida_codigo` / `almacen_salida_nombre`. Escribir un almacén en la primera
 	// dejaría a quien busca un producto leyendo «2» y «AURORA».
+	//
+	// `factura_numero` (00026) es la factura de Ventra de la que sale ESTE renglón, un solo número.
+	// Sólo la escribe el espejo de facturas; los renglones de PEDIDO la dejan NULL.
 	CrearRenglonDePedido(ctx context.Context, arg CrearRenglonDePedidoParams) (CrearRenglonDePedidoRow, error)
 	// La ruta nace `planned` y `optimized` en false: los totales y el orden de visita se
 	// calculan después, con las paradas ya enganchadas, y se fijan con `FijarTotalesDeRuta`.

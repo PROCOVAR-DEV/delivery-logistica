@@ -376,9 +376,14 @@ Dos cosas que conviene saber:
   mínimo: a alguna factura le falta el peso y lo que ves es lo que sí se sabe.
 - Si una entrega no trae número de factura sale como **«Sin número»** al final de su
   producto (nunca con el número de operación), y si una factura no trae ni un
-  renglón sale al final de la tabla como **«Sin renglones»**: no desaparece. Una
-  entrega con dos facturas lleva las dos en la misma fila, porque no se sabe qué
-  renglón es de cuál.
+  renglón sale al final de la tabla como **«Sin renglones»**: no desaparece.
+- **Cada fila habla de UNA sola factura.** Cuando una entrega reúne varias facturas
+  del mismo pedido (por ejemplo la 47359 y la 47360), cada producto sale en una fila
+  por factura, con la cantidad de esa factura, y el subtotal suma las dos. Sólo si a
+  algún renglón de la entrega todavía no se le sabe la factura (los que vienen de
+  PEDIDO, o los guardados antes de esta mejora hasta que se actualicen), la entrega
+  queda con las facturas juntas en una fila, «47359, 47360», como antes: no se
+  reparte a ciegas.
 
 ---
 

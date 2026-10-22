@@ -179,3 +179,37 @@ func TestUnFalloDeVerdadAlGuardarSigueSiendoUn500(t *testing.T) {
 		t.Errorf("un error de la base es un 500; salió %d", w.Code)
 	}
 }
+
+// LA FACTURA DE CADA RENGLÓN LLEGA A LA FILA DE `order_items` (00026, issue 22 de Maikel): el
+// campo viaja por la puerta (`facturaNumero` del renglón del cuerpo) hasta lo que se escribe, y
+// un renglón que no la trae (PEDIDO) se escribe NULL, no con la de la entrega.
+func TestLaFacturaDeCadaRenglonLlegaALaFilaDeLaBase(t *testing.T) {
+	cuerpo := `{"orders":[{
+		"externalId":"factura:STG:PJM26-1","operationNumber":"47359, 47360","sucursalExternalId":"STG","folio":"PJM26-1",
+		"customerName":"Cliente Inventado","address":"Calle 4","lat":20.02,"lng":-75.82,"requiereDomicilio":true,
+		"facturaEstado":"igual","facturaNumero":"47359, 47360","facturaDomicilio":0.29,"itemsOrigen":"factura",
+		"items":[
+		  {"code":"PARR0002","name":"CERVEZA PARRANDA 500 ML BLISTER 6U","descripcion":"CERVEZA","quantity":30,"packs":5,"pesoKg":2.4,"almacenCodigo":"2","almacenNombre":"AURORA","facturaNumero":"47359"},
+		  {"code":"PARR0002","name":"CERVEZA PARRANDA 500 ML BLISTER 6U","descripcion":"CERVEZA","quantity":42,"packs":7,"pesoKg":2.4,"almacenCodigo":"2","almacenNombre":"AURORA","facturaNumero":"47360"},
+		  {"code":"MALT0001","name":"MALTA SIN FACTURA","descripcion":"MALTA","quantity":6,"packs":1,"pesoKg":1.2,"almacenCodigo":"2","almacenNombre":"AURORA"}
+		],
+		"almacen":{"codigo":"2","nombre":"AURORA","sucursalCodigo":"STG","mezclado":false}
+	}]}`
+	_, escritos := mandarLote(t, cuerpo, nil)
+	if len(escritos) != 1 {
+		t.Fatalf("se esperaba una entrega escrita; salieron %d", len(escritos))
+	}
+	filas := renglonesParaLaBase(escritos[0].Renglones)
+	if len(filas) != 3 {
+		t.Fatalf("se esperaban 3 renglones; salieron %d", len(filas))
+	}
+	quiere := []string{"47359", "47360", ""}
+	for i, f := range filas {
+		switch {
+		case quiere[i] == "" && f.FacturaNumero != nil:
+			t.Errorf("renglón %d: sin factura en el cuerpo tiene que escribirse NULL, salió %q", i+1, *f.FacturaNumero)
+		case quiere[i] != "" && (f.FacturaNumero == nil || *f.FacturaNumero != quiere[i]):
+			t.Errorf("renglón %d: la factura se perdió por el camino (quería %q): %v", i+1, quiere[i], f.FacturaNumero)
+		}
+	}
+}

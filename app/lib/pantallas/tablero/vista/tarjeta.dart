@@ -55,6 +55,8 @@ class TarjetaDePedido extends ConsumerWidget {
     this.columnaId,
     this.posicion,
     this.onTap,
+    this.marcada = false,
+    this.alMarcar,
     super.key,
   });
 
@@ -68,6 +70,11 @@ class TarjetaDePedido extends ConsumerWidget {
   final int? posicion;
 
   final VoidCallback? onTap;
+
+  /// La casilla de marcar varias para colocarlas de una vez (issue 21). Sin
+  /// [alMarcar] no hay casilla: las tarjetas de las zonas no la llevan.
+  final bool marcada;
+  final VoidCallback? alMarcar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -128,6 +135,21 @@ class TarjetaDePedido extends ConsumerWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (alMarcar != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: SizedBox.square(
+                        dimension: 24,
+                        child: Checkbox(
+                          key: ValueKey('marcar-${pedido.pedidoId}'),
+                          value: marcada,
+                          onChanged: (_) => alMarcar!(),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
                   if (posicion != null)
                     Padding(
                       padding: const EdgeInsets.only(right: 6),

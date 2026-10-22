@@ -159,8 +159,20 @@ class MandarAlTablero {
       // EL MISMO CAMINO QUE EL ARRASTRE. Escribe aqui y encola, las dos cosas
       // en la misma transaccion, y no llama a nadie: el gesto tiene que
       // funcionar en el patio a las cuatro de la tarde, que es cuando se hace.
-      await _repositorio.colocar(pedidoId: pedidoId, columnaId: columnaId);
-      fueron.add(pedidoId);
+      // Un «no» del servidor a ESTA factura (en la web `colocar` espera su
+      // respuesta) se nombra como los demas y no aborta el lote a medias.
+      try {
+        await _repositorio.colocar(pedidoId: pedidoId, columnaId: columnaId);
+        fueron.add(pedidoId);
+      } on RechazoDelTablero catch (e) {
+        noFueron.add(
+          PedidoQueNoFue(
+            pedidoId: pedidoId,
+            nombre: _nombreDe(pedido),
+            motivo: e.mensaje,
+          ),
+        );
+      }
     }
 
     return ResultadoDeMandar(zona: zona, fueron: fueron, noFueron: noFueron);

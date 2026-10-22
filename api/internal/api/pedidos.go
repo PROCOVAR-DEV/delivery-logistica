@@ -185,6 +185,11 @@ type RenglonSalida struct {
 	// cero: un cero se suma, se ordena y se lee como «no pesa nada».
 	PesoKg      *float64 `json:"pesoKg"`
 	PesoLineaKg *float64 `json:"pesoLineaKg"`
+
+	// LA FACTURA DE VENTRA DE LA QUE SALE ESTE RENGLÓN (00026, issue 22 de Maikel). Una entrega
+	// de factura junta varias en `orders.factura_numero`; esto dice de cuál es cada renglón.
+	// `null` = no se sabe (PEDIDO, o escrito antes de la 00026): quien lee NO supone la primera.
+	FacturaNumero *string `json:"facturaNumero"`
 }
 
 // RutaDePedido y VehiculoDeRuta: el `route: { …, vehicle: {…} }` del contrato.
@@ -787,6 +792,7 @@ func (s *Servidor) detalleDePedido(w http.ResponseWriter, r *http.Request, a *al
 			Quantity: g.Quantity, Packs: g.Packs, ProductID: idOpcional(g.ProductID),
 			UpdatedAt: hora(g.UpdatedAt),
 			PesoKg:    g.PesoUnitarioKg, PesoLineaKg: g.PesoLineaKg,
+			FacturaNumero: g.FacturaNumero,
 		})
 	}
 
@@ -1325,6 +1331,7 @@ func (s *Servidor) renglonesPorPedido(r *http.Request, a *alcance.Acotado, ids [
 			Quantity: g.Quantity, Packs: g.Packs, ProductID: idOpcional(g.ProductID),
 			UpdatedAt: hora(g.UpdatedAt),
 			PesoKg:    g.PesoUnitarioKg, PesoLineaKg: g.PesoLineaKg,
+			FacturaNumero: g.FacturaNumero,
 		})
 	}
 	return porPedido, nil

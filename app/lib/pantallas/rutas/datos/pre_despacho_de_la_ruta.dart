@@ -43,12 +43,19 @@
 // el almacén leía en el papel un número que el resto de la aplicación no llamaba factura. Sin
 // `factura_numero` la fila dice «Sin número»; NO cae al folio.
 //
-// **Un pedido con varias facturas (`1024237, 1024240`) es UNA fila con las dos, no dos.**
-// `order_items` no dice qué renglón salió de qué factura, así que separar el pedido en dos
-// facturas obliga a repetir sus renglones en cada una: los subtotales dejarían de cuadrar
-// con la tabla de arriba (lo ata la prueba de las ataduras) y el almacén rebajaría DOS
-// veces la misma mercancía de sus tarjetas de estiba. Cuando el renglón sepa su factura,
-// el cambio es `NumeroDeFactura.separar` aquí.
+// **Una entrega con varias facturas (`1024237, 1024240`) es UNA fila POR FACTURA** (issue 22 de
+// Maikel, Santiago, 22/10/2026: «debería hacer referencia a una única factura»; la tarjeta de
+// estiba se rebaja por cantidad Y factura). Hasta entonces `order_items` no decía qué renglón
+// salió de qué factura y partirla obligaba a repetir los renglones en cada una (rebajar DOS
+// veces la misma mercancía), así que las dos iban juntas en una fila. Ahora cada renglón trae
+// SU factura (`order_items.factura_numero`, 00026; esquema local 14) y
+// `ConsultasPedidos.preDespachoPorFactura` reparte el pedido sin repetir ni perder ni un
+// renglón: la suma de las partes es el pedido entero, y los subtotales siguen cuadrando con la
+// tabla de arriba (lo ata `test/impresion/por_producto_y_factura_test.dart`).
+//
+// **Si ALGÚN renglón de la entrega no trae su factura** (los de PEDIDO, los escritos antes de la
+// 00026 o los que aún no han bajado) no se parte: se queda como siempre, las facturas juntas en
+// una fila. Nunca se le asigna a la primera.
 //
 // Funciona igual sin conexión (APK y escritorio: la base local) y en la web (su
 // base en memoria, que llena la bajada): es el mismo código sobre la misma
@@ -98,17 +105,56 @@ Future<PreDespachoDeLaRuta> preDespachoDeLaRuta(
 
   final enOrden = [...paradas]..sort(ordenDeLasFacturas);
   final facturas = <papel.FacturaDelPreDespacho>[];
+  var partidas = false;
   for (final parada in enOrden) {
-    // Un pedido cada vez: una factura ES un pedido, y su pre-despacho es el de
+    // Un pedido cada vez: una entrega ES un pedido, y su pre-despacho es el de
     // ese pedido. Son pocas paradas por ruta, y es lo que evita escribir una
     // segunda consulta con su propia copia de la regla.
-    final suyo = await pedidos.preDespachoDe([parada.id]);
-    facturas.add(
-      papel.FacturaDelPreDespacho(
-        numero: NumeroDeFactura.de(parada.facturaNumero),
-        lineas: lineasDelPapel(suyo),
-      ),
-    );
+    final numeros = NumeroDeFactura.separar(parada.facturaNumero);
+    // Con una sola factura no hay nada que partir. `null` = no se puede sin mentir
+    // (algún renglón sin su factura): sigue el camino de siempre.
+    final partido = numeros.length > 1
+        ? await pedidos.preDespachoPorFactura(parada.id)
+        : null;
+    if (partido == null) {
+      final suyo = await pedidos.preDespachoDe([parada.id]);
+      facturas.add(
+        papel.FacturaDelPreDespacho(
+          numero: NumeroDeFactura.de(parada.facturaNumero),
+          lineas: lineasDelPapel(suyo),
+        ),
+      );
+      continue;
+    }
+    partidas = true;
+    for (final e in partido.entries) {
+      facturas.add(
+        papel.FacturaDelPreDespacho(
+          numero: e.key,
+          lineas: lineasDelPapel(e.value),
+        ),
+      );
+    }
+    // Una factura de la entrega que no trae ni un renglón (sólo domicilio) no desaparece:
+    // sale «Sin renglones», igual que una factura suelta sin ellos.
+    for (final n in numeros.where((n) => !partido.containsKey(n))) {
+      facturas.add(papel.FacturaDelPreDespacho(numero: n, lineas: const []));
+    }
+  }
+  // Partidas, las facturas de una parada se mezclan con las de las demás: el orden es el del
+  // número, y a igualdad el de aparición.
+  if (partidas) {
+    final orden = {for (var i = 0; i < facturas.length; i++) facturas[i]: i};
+    facturas.sort((a, b) {
+      final na = a.numero?.toLowerCase();
+      final nb = b.numero?.toLowerCase();
+      if (na != nb) {
+        if (na == null) return 1;
+        if (nb == null) return -1;
+        return na.compareTo(nb);
+      }
+      return orden[a]!.compareTo(orden[b]!);
+    });
   }
   return PreDespachoDeLaRuta(totales: totales, facturas: facturas);
 }

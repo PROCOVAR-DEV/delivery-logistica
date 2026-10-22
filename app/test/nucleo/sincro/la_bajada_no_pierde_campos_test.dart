@@ -14,6 +14,7 @@
 // Por eso esto **mete el JSON entero y lee la base**: comprobar que la función existe no
 // prueba nada; lo que se rompe es que un campo no se copie.
 
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/frescura/frescura.dart';
@@ -193,6 +194,53 @@ void main() {
       base.orders,
     )..where((t) => t.id.equals('p-1'))).getSingle();
     expect(p.almacenSalidaCodigo, '2');
+  });
+
+  test('el renglón llega con la factura de la que sale (issue 22)', () async {
+    // Sin copiarla, `facturaNumero` se queda nulo y «Por producto y factura» deja juntas
+    // las facturas de la entrega: la fila de Maikel, «47359, 47360» con cantidad 50.
+    // Y el renglón que no la trae queda NULO: no hereda la de otro ni la de la entrega.
+    await conEsto(<String, Object?>{
+      'orders': conjunto([
+        <String, Object?>{
+          'id': 'p-1',
+          'customerName': 'Bodega El Cruce',
+          'address': 'Km 8',
+          'weight': 800.0,
+          'status': 'pending',
+          'facturaNumero': '47359, 47360',
+          'updatedAt': '2026-10-12T09:30:00.000Z',
+          'items': <Object?>[
+            <String, Object?>{
+              'id': 'r-1',
+              'linea': 1,
+              'description': 'CERVEZA',
+              'quantity': 30,
+              'facturaNumero': '47359',
+            },
+            <String, Object?>{
+              'id': 'r-2',
+              'linea': 2,
+              'description': 'CERVEZA',
+              'quantity': 42,
+              'facturaNumero': '47360',
+            },
+            <String, Object?>{
+              'id': 'r-3',
+              'linea': 3,
+              'description': 'MALTA',
+              'quantity': 6,
+              'facturaNumero': null,
+            },
+          ],
+        },
+      ]),
+    }).ciclo();
+
+    final r = await (base.select(
+      base.orderItems,
+    )..orderBy([(t) => OrderingTerm.asc(t.linea)])).get();
+    expect(r.map((x) => x.facturaNumero), ['47359', '47360', null]);
   });
 
   test('el pedido llega con su punto de entrega a mano (issue 19)', () async {

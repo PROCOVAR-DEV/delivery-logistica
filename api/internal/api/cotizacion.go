@@ -1792,6 +1792,8 @@ func renglonesParaLaBase(renglones []cotizar.RenglonPesado) []sqlc.CrearRenglonD
 		// AURORA, que es el que más renglones pone.
 		fila.AlmacenSalidaCodigo = textoONil(r.AlmacenCodigo)
 		fila.AlmacenSalidaNombre = textoONil(r.AlmacenNombre)
+		// La factura de la que sale ESTE renglón (00026). Vacía = NULL: «no se sabe de cuál».
+		fila.FacturaNumero = textoONil(r.FacturaNumero)
 
 		// `product_id` se queda vacío y NO es un fallo: el emparejamiento con el catálogo
 		// de Ventra da el peso, no el id de la fila del catálogo, y hay renglones escritos

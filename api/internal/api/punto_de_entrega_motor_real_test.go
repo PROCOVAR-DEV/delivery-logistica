@@ -193,7 +193,7 @@ func TestMotorReal_ElPuntoDeEntregaAMano(t *testing.T) {
 	}
 	tx.Exec(ctx, `UPDATE orders SET delivered_at = now(), resultado = 'entregado' WHERE id = $1`, tres)
 	if r := llamar(http.MethodPut, tres, cuerpoDelPunto(latNuevo, lngNuevo, "")); r.code != http.StatusConflict ||
-		!strings.Contains(r.body, "ya está entregado") {
+		!strings.Contains(r.body, "ya está entregada") {
 		t.Fatalf("un entregado contestó %d %s", r.code, r.body)
 	}
 	if leer(tres).manual {

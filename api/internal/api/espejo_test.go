@@ -84,6 +84,8 @@ type renglonSync struct {
 	linea int32
 	desc  string
 	marca time.Time // el `updated_at` del renglón
+	// La factura de Ventra de la que sale (`order_items.factura_numero`, 00026). Vacía es NULL.
+	factura string
 }
 
 type pedidoSync struct {
@@ -213,7 +215,8 @@ func (q *espejoFalso) ListarRenglonesDePedidos(_ context.Context, arg sqlc.Lista
 			salida = append(salida, sqlc.ListarRenglonesDePedidosRow{
 				ID: uuid.New(), OrderID: p.id, Linea: r.linea,
 				Description: r.desc, Quantity: 1,
-				UpdatedAt: pgtype.Timestamptz{Time: r.marca, Valid: true},
+				UpdatedAt:     pgtype.Timestamptz{Time: r.marca, Valid: true},
+				FacturaNumero: textoONil(r.factura),
 			})
 		}
 	}
@@ -1661,6 +1664,46 @@ func TestElRecosteoMandaLosPedidosTraducidos(t *testing.T) {
 	// aunque la respuesta siga diciendo cero.
 	if !strings.Contains(w.Body.String(), `"recosteados":1`) {
 		t.Fatalf("llegó bien y la respuesta no lo cuenta: %s", w.Body.String())
+	}
+}
+
+// LA FACTURA DE CADA RENGLÓN VIAJA EN LA BAJADA (00026, issue 22 de Maikel). Sin ella el aparato
+// no puede partir «Por producto y factura» por factura. La pareja: el renglón que la trae la
+// lleva tal cual, y el que no (PEDIDO, o anterior a la 00026) sale `null` y NO se rellena con
+// la de otro renglón ni con la de la entrega.
+func TestLaBajadaLlevaLaFacturaDeCadaRenglon(t *testing.T) {
+	q := nuevoEspejo()
+	ahora := time.Now().UTC()
+	id := uuid.MustParse("5d000000-0000-0000-0000-0000000000f1")
+	q.sync = []pedidoSync{{
+		id: id, sucursal: sucStg, nombre: "Entrega con dos facturas", marca: ahora.Add(-time.Hour),
+		facturaNumero: "47359, 47360",
+		renglones: []renglonSync{
+			{linea: 1, desc: "cerveza", marca: ahora.Add(-time.Hour), factura: "47359"},
+			{linea: 2, desc: "cerveza", marca: ahora.Add(-time.Hour), factura: "47360"},
+			{linea: 3, desc: "malta", marca: ahora.Add(-time.Hour)},
+		},
+	}}
+	h := montarTab(t, q)
+
+	w := pedirTab(t, h, http.MethodGet, "/api/sync/cambios", tokenTab(t, sucStg.String()), "")
+	_, _, crudos := conjuntoDe(t, leerTab(t, w), "orders")
+	if len(crudos) != 1 {
+		t.Fatalf("tenía que salir la entrega: %v", crudos)
+	}
+	items := crudos[0].(map[string]any)["items"].([]any)
+	if len(items) != 3 {
+		t.Fatalf("faltan renglones: %v", items)
+	}
+	quiere := []any{"47359", "47360", nil}
+	for i, it := range items {
+		campo, hay := it.(map[string]any)["facturaNumero"]
+		if !hay {
+			t.Fatalf("el renglón %d no trae `facturaNumero`: el aparato no sabría de qué factura sale", i+1)
+		}
+		if campo != quiere[i] {
+			t.Errorf("renglón %d: `facturaNumero` = %v, se esperaba %v", i+1, campo, quiere[i])
+		}
 	}
 }
 

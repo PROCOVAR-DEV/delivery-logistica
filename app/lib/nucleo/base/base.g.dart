@@ -7354,6 +7354,17 @@ class $OrderItemsTable extends OrderItems
     type: DriftSqlType.double,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _facturaNumeroMeta = const VerificationMeta(
+    'facturaNumero',
+  );
+  @override
+  late final GeneratedColumn<String> facturaNumero = GeneratedColumn<String>(
+    'factura_numero',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _productIdMeta = const VerificationMeta(
     'productId',
   );
@@ -7397,6 +7408,7 @@ class $OrderItemsTable extends OrderItems
     packs,
     pesoKg,
     pesoLineaKg,
+    facturaNumero,
     productId,
     createdAt,
     updatedAt,
@@ -7474,6 +7486,15 @@ class $OrderItemsTable extends OrderItems
         ),
       );
     }
+    if (data.containsKey('factura_numero')) {
+      context.handle(
+        _facturaNumeroMeta,
+        facturaNumero.isAcceptableOrUnknown(
+          data['factura_numero']!,
+          _facturaNumeroMeta,
+        ),
+      );
+    }
     if (data.containsKey('product_id')) {
       context.handle(
         _productIdMeta,
@@ -7532,6 +7553,10 @@ class $OrderItemsTable extends OrderItems
       pesoLineaKg: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}peso_linea_kg'],
+      ),
+      facturaNumero: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}factura_numero'],
       ),
       productId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -7597,6 +7622,20 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
 
   /// Lo que pesa la LINEA entera. Ver [pesoKg].
   final double? pesoLineaKg;
+
+  /// LA FACTURA DE VENTRA DE LA QUE SALE ESTE RENGLON (`order_items.factura_numero`, 00026;
+  /// esquema 14 — issue 22 de Maikel, 22/10/2026). Un solo numero, sin coma.
+  ///
+  /// Una entrega de factura junta varias facturas en `orders.factura_numero`
+  /// (`47359, 47360`); esto dice de cual sale CADA renglon, y es lo que deja partir la
+  /// tabla «Por producto y factura» en una fila por factura sin rebajar dos veces la misma
+  /// mercancia de la tarjeta de estiba.
+  ///
+  /// `null` = **no se sabe de cual**: los renglones de PEDIDO, los de entregas escritas
+  /// antes de la 00026 y lo que aun no ha bajado. NUNCA se supone «la primera»: con uno solo
+  /// de los renglones de la entrega en `null`, la tabla deja las facturas juntas como antes
+  /// (`pre_despacho_de_la_ruta.dart`).
+  final String? facturaNumero;
   final String? productId;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -7609,6 +7648,7 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
     this.packs,
     this.pesoKg,
     this.pesoLineaKg,
+    this.facturaNumero,
     this.productId,
     this.createdAt,
     this.updatedAt,
@@ -7629,6 +7669,9 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
     }
     if (!nullToAbsent || pesoLineaKg != null) {
       map['peso_linea_kg'] = Variable<double>(pesoLineaKg);
+    }
+    if (!nullToAbsent || facturaNumero != null) {
+      map['factura_numero'] = Variable<String>(facturaNumero);
     }
     if (!nullToAbsent || productId != null) {
       map['product_id'] = Variable<String>(productId);
@@ -7658,6 +7701,9 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
       pesoLineaKg: pesoLineaKg == null && nullToAbsent
           ? const Value.absent()
           : Value(pesoLineaKg),
+      facturaNumero: facturaNumero == null && nullToAbsent
+          ? const Value.absent()
+          : Value(facturaNumero),
       productId: productId == null && nullToAbsent
           ? const Value.absent()
           : Value(productId),
@@ -7684,6 +7730,7 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
       packs: serializer.fromJson<double?>(json['packs']),
       pesoKg: serializer.fromJson<double?>(json['pesoKg']),
       pesoLineaKg: serializer.fromJson<double?>(json['pesoLineaKg']),
+      facturaNumero: serializer.fromJson<String?>(json['facturaNumero']),
       productId: serializer.fromJson<String?>(json['productId']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
@@ -7701,6 +7748,7 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
       'packs': serializer.toJson<double?>(packs),
       'pesoKg': serializer.toJson<double?>(pesoKg),
       'pesoLineaKg': serializer.toJson<double?>(pesoLineaKg),
+      'facturaNumero': serializer.toJson<String?>(facturaNumero),
       'productId': serializer.toJson<String?>(productId),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'updatedAt': serializer.toJson<DateTime?>(updatedAt),
@@ -7716,6 +7764,7 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
     Value<double?> packs = const Value.absent(),
     Value<double?> pesoKg = const Value.absent(),
     Value<double?> pesoLineaKg = const Value.absent(),
+    Value<String?> facturaNumero = const Value.absent(),
     Value<String?> productId = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
     Value<DateTime?> updatedAt = const Value.absent(),
@@ -7728,6 +7777,9 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
     packs: packs.present ? packs.value : this.packs,
     pesoKg: pesoKg.present ? pesoKg.value : this.pesoKg,
     pesoLineaKg: pesoLineaKg.present ? pesoLineaKg.value : this.pesoLineaKg,
+    facturaNumero: facturaNumero.present
+        ? facturaNumero.value
+        : this.facturaNumero,
     productId: productId.present ? productId.value : this.productId,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
     updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
@@ -7746,6 +7798,9 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
       pesoLineaKg: data.pesoLineaKg.present
           ? data.pesoLineaKg.value
           : this.pesoLineaKg,
+      facturaNumero: data.facturaNumero.present
+          ? data.facturaNumero.value
+          : this.facturaNumero,
       productId: data.productId.present ? data.productId.value : this.productId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -7763,6 +7818,7 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
           ..write('packs: $packs, ')
           ..write('pesoKg: $pesoKg, ')
           ..write('pesoLineaKg: $pesoLineaKg, ')
+          ..write('facturaNumero: $facturaNumero, ')
           ..write('productId: $productId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -7780,6 +7836,7 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
     packs,
     pesoKg,
     pesoLineaKg,
+    facturaNumero,
     productId,
     createdAt,
     updatedAt,
@@ -7796,6 +7853,7 @@ class RenglonPedido extends DataClass implements Insertable<RenglonPedido> {
           other.packs == this.packs &&
           other.pesoKg == this.pesoKg &&
           other.pesoLineaKg == this.pesoLineaKg &&
+          other.facturaNumero == this.facturaNumero &&
           other.productId == this.productId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -7810,6 +7868,7 @@ class OrderItemsCompanion extends UpdateCompanion<RenglonPedido> {
   final Value<double?> packs;
   final Value<double?> pesoKg;
   final Value<double?> pesoLineaKg;
+  final Value<String?> facturaNumero;
   final Value<String?> productId;
   final Value<DateTime?> createdAt;
   final Value<DateTime?> updatedAt;
@@ -7823,6 +7882,7 @@ class OrderItemsCompanion extends UpdateCompanion<RenglonPedido> {
     this.packs = const Value.absent(),
     this.pesoKg = const Value.absent(),
     this.pesoLineaKg = const Value.absent(),
+    this.facturaNumero = const Value.absent(),
     this.productId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -7837,6 +7897,7 @@ class OrderItemsCompanion extends UpdateCompanion<RenglonPedido> {
     this.packs = const Value.absent(),
     this.pesoKg = const Value.absent(),
     this.pesoLineaKg = const Value.absent(),
+    this.facturaNumero = const Value.absent(),
     this.productId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -7855,6 +7916,7 @@ class OrderItemsCompanion extends UpdateCompanion<RenglonPedido> {
     Expression<double>? packs,
     Expression<double>? pesoKg,
     Expression<double>? pesoLineaKg,
+    Expression<String>? facturaNumero,
     Expression<String>? productId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -7869,6 +7931,7 @@ class OrderItemsCompanion extends UpdateCompanion<RenglonPedido> {
       if (packs != null) 'packs': packs,
       if (pesoKg != null) 'peso_kg': pesoKg,
       if (pesoLineaKg != null) 'peso_linea_kg': pesoLineaKg,
+      if (facturaNumero != null) 'factura_numero': facturaNumero,
       if (productId != null) 'product_id': productId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -7885,6 +7948,7 @@ class OrderItemsCompanion extends UpdateCompanion<RenglonPedido> {
     Value<double?>? packs,
     Value<double?>? pesoKg,
     Value<double?>? pesoLineaKg,
+    Value<String?>? facturaNumero,
     Value<String?>? productId,
     Value<DateTime?>? createdAt,
     Value<DateTime?>? updatedAt,
@@ -7899,6 +7963,7 @@ class OrderItemsCompanion extends UpdateCompanion<RenglonPedido> {
       packs: packs ?? this.packs,
       pesoKg: pesoKg ?? this.pesoKg,
       pesoLineaKg: pesoLineaKg ?? this.pesoLineaKg,
+      facturaNumero: facturaNumero ?? this.facturaNumero,
       productId: productId ?? this.productId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -7933,6 +7998,9 @@ class OrderItemsCompanion extends UpdateCompanion<RenglonPedido> {
     if (pesoLineaKg.present) {
       map['peso_linea_kg'] = Variable<double>(pesoLineaKg.value);
     }
+    if (facturaNumero.present) {
+      map['factura_numero'] = Variable<String>(facturaNumero.value);
+    }
     if (productId.present) {
       map['product_id'] = Variable<String>(productId.value);
     }
@@ -7959,6 +8027,7 @@ class OrderItemsCompanion extends UpdateCompanion<RenglonPedido> {
           ..write('packs: $packs, ')
           ..write('pesoKg: $pesoKg, ')
           ..write('pesoLineaKg: $pesoLineaKg, ')
+          ..write('facturaNumero: $facturaNumero, ')
           ..write('productId: $productId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -15179,6 +15248,7 @@ typedef $$OrderItemsTableCreateCompanionBuilder =
       Value<double?> packs,
       Value<double?> pesoKg,
       Value<double?> pesoLineaKg,
+      Value<String?> facturaNumero,
       Value<String?> productId,
       Value<DateTime?> createdAt,
       Value<DateTime?> updatedAt,
@@ -15194,6 +15264,7 @@ typedef $$OrderItemsTableUpdateCompanionBuilder =
       Value<double?> packs,
       Value<double?> pesoKg,
       Value<double?> pesoLineaKg,
+      Value<String?> facturaNumero,
       Value<String?> productId,
       Value<DateTime?> createdAt,
       Value<DateTime?> updatedAt,
@@ -15246,6 +15317,11 @@ class $$OrderItemsTableFilterComposer
 
   ColumnFilters<double> get pesoLineaKg => $composableBuilder(
     column: $table.pesoLineaKg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get facturaNumero => $composableBuilder(
+    column: $table.facturaNumero,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -15314,6 +15390,11 @@ class $$OrderItemsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get facturaNumero => $composableBuilder(
+    column: $table.facturaNumero,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get productId => $composableBuilder(
     column: $table.productId,
     builder: (column) => ColumnOrderings(column),
@@ -15367,6 +15448,11 @@ class $$OrderItemsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get facturaNumero => $composableBuilder(
+    column: $table.facturaNumero,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get productId =>
       $composableBuilder(column: $table.productId, builder: (column) => column);
 
@@ -15416,6 +15502,7 @@ class $$OrderItemsTableTableManager
                 Value<double?> packs = const Value.absent(),
                 Value<double?> pesoKg = const Value.absent(),
                 Value<double?> pesoLineaKg = const Value.absent(),
+                Value<String?> facturaNumero = const Value.absent(),
                 Value<String?> productId = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
@@ -15429,6 +15516,7 @@ class $$OrderItemsTableTableManager
                 packs: packs,
                 pesoKg: pesoKg,
                 pesoLineaKg: pesoLineaKg,
+                facturaNumero: facturaNumero,
                 productId: productId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -15444,6 +15532,7 @@ class $$OrderItemsTableTableManager
                 Value<double?> packs = const Value.absent(),
                 Value<double?> pesoKg = const Value.absent(),
                 Value<double?> pesoLineaKg = const Value.absent(),
+                Value<String?> facturaNumero = const Value.absent(),
                 Value<String?> productId = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
@@ -15457,6 +15546,7 @@ class $$OrderItemsTableTableManager
                 packs: packs,
                 pesoKg: pesoKg,
                 pesoLineaKg: pesoLineaKg,
+                facturaNumero: facturaNumero,
                 productId: productId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

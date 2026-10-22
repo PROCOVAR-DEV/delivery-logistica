@@ -215,6 +215,9 @@ type RenglonDelLote struct {
 	// sale de dos almacenes y el que despacha necesita saber qué línea va en cada uno.
 	AlmacenCodigo *string `json:"almacenCodigo"`
 	AlmacenNombre *string `json:"almacenNombre"`
+
+	// La factura de Ventra de la que sale ESTE renglón (00026). Ausente = no se sabe.
+	FacturaNumero *string `json:"facturaNumero"`
 }
 
 // ArmarLote traduce lo que dio PEDIDO a lo que entiende el lote.
@@ -359,6 +362,7 @@ func renglonesAlLote(items []RenglonDeFuera) []RenglonDelLote {
 			// «qué se recoge en este almacén» por él devuelve cosas que no son.
 			AlmacenCodigo: textoONada(it.AlmacenCodigo),
 			AlmacenNombre: textoONada(it.AlmacenNombre),
+			FacturaNumero: textoONada(it.FacturaNumero),
 		}
 		if it.Unidades != nil && *it.Unidades > 0 {
 			r.Quantity = *it.Unidades

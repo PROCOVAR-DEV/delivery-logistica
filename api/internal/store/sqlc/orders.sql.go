@@ -577,7 +577,7 @@ const crearRenglonDePedido = `-- name: CrearRenglonDePedido :one
 INSERT INTO order_items (
     order_id, linea, description, quantity, packs, product_id,
     nombre, codigo, almacen_nombre, caso, peso_unitario_kg, peso_linea_kg, origen_peso,
-    almacen_salida_codigo, almacen_salida_nombre
+    almacen_salida_codigo, almacen_salida_nombre, factura_numero
 )
 VALUES (
     $1, $2, $3,
@@ -585,11 +585,12 @@ VALUES (
     $7, $8, $9,
     $10, $11, $12,
     $13,
-    $14, $15
+    $14, $15,
+    $16
 )
 RETURNING id, order_id, linea, description, quantity, packs, product_id,
           nombre, codigo, almacen_nombre, caso, peso_unitario_kg, peso_linea_kg,
-          origen_peso, almacen_salida_codigo, almacen_salida_nombre
+          origen_peso, almacen_salida_codigo, almacen_salida_nombre, factura_numero
 `
 
 type CrearRenglonDePedidoParams struct {
@@ -608,6 +609,7 @@ type CrearRenglonDePedidoParams struct {
 	OrigenPeso          *string     `json:"origen_peso"`
 	AlmacenSalidaCodigo *string     `json:"almacen_salida_codigo"`
 	AlmacenSalidaNombre *string     `json:"almacen_salida_nombre"`
+	FacturaNumero       *string     `json:"factura_numero"`
 }
 
 type CrearRenglonDePedidoRow struct {
@@ -627,6 +629,7 @@ type CrearRenglonDePedidoRow struct {
 	OrigenPeso          *string     `json:"origen_peso"`
 	AlmacenSalidaCodigo *string     `json:"almacen_salida_codigo"`
 	AlmacenSalidaNombre *string     `json:"almacen_salida_nombre"`
+	FacturaNumero       *string     `json:"factura_numero"`
 }
 
 // LA CONSTANCIA DEL PESO, que estaba dada de alta y no la escribía nadie.
@@ -652,6 +655,9 @@ type CrearRenglonDePedidoRow struct {
 // con un almacén, a pesar de cómo se llama. El almacén del que sale el renglón —00012— es
 // `almacen_salida_codigo` / `almacen_salida_nombre`. Escribir un almacén en la primera
 // dejaría a quien busca un producto leyendo «2» y «AURORA».
+//
+// `factura_numero` (00026) es la factura de Ventra de la que sale ESTE renglón, un solo número.
+// Sólo la escribe el espejo de facturas; los renglones de PEDIDO la dejan NULL.
 func (q *Queries) CrearRenglonDePedido(ctx context.Context, arg CrearRenglonDePedidoParams) (CrearRenglonDePedidoRow, error) {
 	row := q.db.QueryRow(ctx, crearRenglonDePedido,
 		arg.PedidoID,
@@ -669,6 +675,7 @@ func (q *Queries) CrearRenglonDePedido(ctx context.Context, arg CrearRenglonDePe
 		arg.OrigenPeso,
 		arg.AlmacenSalidaCodigo,
 		arg.AlmacenSalidaNombre,
+		arg.FacturaNumero,
 	)
 	var i CrearRenglonDePedidoRow
 	err := row.Scan(
@@ -688,6 +695,7 @@ func (q *Queries) CrearRenglonDePedido(ctx context.Context, arg CrearRenglonDePe
 		&i.OrigenPeso,
 		&i.AlmacenSalidaCodigo,
 		&i.AlmacenSalidaNombre,
+		&i.FacturaNumero,
 	)
 	return i, err
 }
@@ -2322,7 +2330,9 @@ SELECT oi.id, oi.order_id, oi.linea, oi.description, oi.quantity, oi.packs,
        -- añadió: «precisamente para no tener que recalcular el peso con el catálogo de
        -- hoy». Un producto que hoy no está en el catálogo de esa sucursal no tiene por
        -- qué perder el peso con el que se facturó ayer.
-       oi.peso_unitario_kg, oi.peso_linea_kg
+       oi.peso_unitario_kg, oi.peso_linea_kg,
+       -- LA FACTURA DE ESTE RENGLÓN (00026, issue 22 de Maikel): NULL = no se sabe de cuál.
+       oi.factura_numero
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
 WHERE oi.order_id = $1
@@ -2346,6 +2356,7 @@ type ListarRenglonesDePedidoRow struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	PesoUnitarioKg *float64           `json:"peso_unitario_kg"`
 	PesoLineaKg    *float64           `json:"peso_linea_kg"`
+	FacturaNumero  *string            `json:"factura_numero"`
 }
 
 // Los renglones de UN pedido, en el orden del papel del vendedor. `linea` no es decorativa:
@@ -2374,6 +2385,7 @@ func (q *Queries) ListarRenglonesDePedido(ctx context.Context, arg ListarRenglon
 			&i.UpdatedAt,
 			&i.PesoUnitarioKg,
 			&i.PesoLineaKg,
+			&i.FacturaNumero,
 		); err != nil {
 			return nil, err
 		}
@@ -2398,7 +2410,9 @@ SELECT oi.id, oi.order_id, oi.linea, oi.description, oi.quantity, oi.packs,
        -- añadió: «precisamente para no tener que recalcular el peso con el catálogo de
        -- hoy». Un producto que hoy no está en el catálogo de esa sucursal no tiene por
        -- qué perder el peso con el que se facturó ayer.
-       oi.peso_unitario_kg, oi.peso_linea_kg
+       oi.peso_unitario_kg, oi.peso_linea_kg,
+       -- LA FACTURA DE ESTE RENGLÓN (00026, issue 22 de Maikel): NULL = no se sabe de cuál.
+       oi.factura_numero
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
 WHERE oi.order_id = ANY($1::uuid[])
@@ -2422,6 +2436,7 @@ type ListarRenglonesDePedidosRow struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	PesoUnitarioKg *float64           `json:"peso_unitario_kg"`
 	PesoLineaKg    *float64           `json:"peso_linea_kg"`
+	FacturaNumero  *string            `json:"factura_numero"`
 }
 
 // Los renglones de VARIOS pedidos de una vez. Una sola consulta para toda la página, no
@@ -2448,6 +2463,7 @@ func (q *Queries) ListarRenglonesDePedidos(ctx context.Context, arg ListarRenglo
 			&i.UpdatedAt,
 			&i.PesoUnitarioKg,
 			&i.PesoLineaKg,
+			&i.FacturaNumero,
 		); err != nil {
 			return nil, err
 		}
@@ -3014,7 +3030,7 @@ func (q *Queries) QuitarPedidosDelEspejo(ctx context.Context, externalIds []stri
 const renglonesDePedidoParaComparar = `-- name: RenglonesDePedidoParaComparar :many
 SELECT linea, description, quantity, packs, product_id, nombre, codigo,
        almacen_nombre, caso, peso_unitario_kg, peso_linea_kg, origen_peso,
-       almacen_salida_codigo, almacen_salida_nombre
+       almacen_salida_codigo, almacen_salida_nombre, factura_numero
 FROM order_items
 WHERE order_id = $1
 ORDER BY linea ASC
@@ -3035,6 +3051,7 @@ type RenglonesDePedidoParaCompararRow struct {
 	OrigenPeso          *string     `json:"origen_peso"`
 	AlmacenSalidaCodigo *string     `json:"almacen_salida_codigo"`
 	AlmacenSalidaNombre *string     `json:"almacen_salida_nombre"`
+	FacturaNumero       *string     `json:"factura_numero"`
 }
 
 // Los renglones se reescriben enteros en cada pasada del espejo: PEDIDO puede haber
@@ -3080,6 +3097,7 @@ func (q *Queries) RenglonesDePedidoParaComparar(ctx context.Context, pedidoID uu
 			&i.OrigenPeso,
 			&i.AlmacenSalidaCodigo,
 			&i.AlmacenSalidaNombre,
+			&i.FacturaNumero,
 		); err != nil {
 			return nil, err
 		}

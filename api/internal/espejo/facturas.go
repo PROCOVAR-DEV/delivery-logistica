@@ -462,15 +462,18 @@ func (e EntregaDeFactura) APedido(ctx ContextoDeMapeo) (PedidoDeFuera, InformeDe
 				inf.LineasSinCantidad++
 				continue
 			}
-			// Dos facturas de la misma entrega con el mismo producto se SUMAN en un renglón —salvo
-			// que salgan de puntos de venta distintos: el renglón lleva SU almacén, y sumarlos lo
-			// dejaría apuntado a uno solo.
-			k := claveDeProducto(l.Codigo) + "|" + f.Punto.Codigo
+			// Un renglón es de UNA factura (00026, issue 22 de Maikel: la tarjeta de estiba se rebaja
+			// por cantidad Y factura): el mismo producto en dos facturas de la entrega son DOS
+			// renglones, no uno sumado. Dentro de la misma factura sí se suma, y no si salen de
+			// puntos de venta distintos: el renglón lleva SU almacén, y sumarlos lo dejaría
+			// apuntado a uno solo. La cuenta de la entrega no cambia: todo lo que suma es por renglón.
+			k := claveDeProducto(l.Codigo) + "|" + f.Punto.Codigo + "|" + f.Numero
 			r, hay := renglones[k]
 			if !hay {
 				r = &RenglonDeFuera{
 					Codigo: l.Codigo, Producto: l.Nombre, Descripcion: l.Nombre,
 					Packs: new(float64), AlmacenCodigo: f.Punto.Codigo, AlmacenNombre: f.Punto.Nombre,
+					FacturaNumero: f.Numero,
 				}
 				renglones[k] = r
 				orden = append(orden, k)

@@ -909,7 +909,10 @@ func (a *Acotado) renglonesIguales(
 			// dos consultas —la que compara y la que escribe— contestarían cosas distintas
 			// sobre lo mismo, que es el §3-bis del `CLAUDE.md`.
 			!mismoTexto(h.AlmacenSalidaCodigo, v.AlmacenSalidaCodigo) ||
-			!mismoTexto(h.AlmacenSalidaNombre, v.AlmacenSalidaNombre) {
+			!mismoTexto(h.AlmacenSalidaNombre, v.AlmacenSalidaNombre) ||
+			// LA FACTURA DEL RENGLÓN (00026): sin compararla, los renglones ya guardados de una
+			// entrega de factura no se reescribirían nunca para ponerle la suya.
+			!mismoTexto(h.FacturaNumero, v.FacturaNumero) {
 			return false, nil
 		}
 	}

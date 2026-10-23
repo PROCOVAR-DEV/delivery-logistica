@@ -11,7 +11,7 @@
 # proxy de delante (`X-Persona`, `X-Sucursal`, `X-Super-Admin`, ver sync/internal/
 # identidad). Eso sólo es seguro si nadie más puede llegar a este puerto. Por eso
 # `SYNC_IDENTIDAD` no tiene valor por defecto y hay que escribirlo a mano.
-ARG GO_VERSION=1.27
+ARG GO_VERSION=1.27.3
 
 FROM golang:${GO_VERSION}-alpine AS build
 WORKDIR /src
@@ -73,7 +73,7 @@ RUN go vet ./... && go test ./...
 
 RUN go build -trimpath -ldflags="-s -w" -o /out/sync ./cmd/sync
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 WORKDIR /app
 COPY --from=build /out/sync /app/sync
 

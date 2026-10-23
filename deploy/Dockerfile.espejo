@@ -19,7 +19,7 @@
 #   docker build -f deploy/Dockerfile.espejo -t reparto-espejo .
 #
 # En Dokploy:  Dockerfile Path = deploy/Dockerfile.espejo  ·  Docker Context Path = .
-ARG GO_VERSION=1.27
+ARG GO_VERSION=1.27.3
 
 FROM golang:${GO_VERSION}-alpine AS build
 WORKDIR /src
@@ -170,9 +170,9 @@ RUN go vet ./... && go test ./...
 
 RUN go build -trimpath -ldflags="-s -w" -o /out/espejo ./cmd/espejo
 
-# Imagen final: sólo el binario. `static-debian12` trae los certificados CA, que hacen
+# Imagen final: sólo el binario. `static-debian13` trae los certificados CA, que hacen
 # falta para hablar por HTTPS con PEDIDO.
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 WORKDIR /app
 COPY --from=build /out/espejo /app/espejo
 

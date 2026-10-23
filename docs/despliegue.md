@@ -1165,7 +1165,7 @@ del front de notify.
 | `AUTH_URL` | `https://auth.procovar.cloud` | Accesos, que es de toda Procovar y puede mudarse sin las otras dos. |
 | `BASE_HREF` | `/` | Sólo si la web cuelga de un subdirectorio. |
 | `FLUTTER_VERSION` | `3.47.4` | La etiqueta del SDK que clona `Dockerfile.app` (`ARG FLUTTER_VERSION` de `deploy/Dockerfile.app`) y la misma que usan el portátil y el ejecutor de Windows. `app/pubspec.lock` sólo pide flutter `>=3.44.0` y dart `>=3.13.3`: es el mínimo, no la versión que se construye. Hasta el 07/10/2026 este documento decía 3.44.0. |
-| `GO_VERSION` (los tres de Go) | `1.27` | `go.mod` dice `go 1.27.0`. |
+| `GO_VERSION` (los cuatro de Go) | `1.27.3` | Pinchada al parche: `go.mod` dice `go 1.27.0` (lenguaje) y `toolchain go1.27.3` (compilador). Una etiqueta flotante `1.27` dejaba que cada build cogiera un compilador distinto. Subida el 23/10/2026 (PR de seguridad y dependencias). |
 | `GOPROXY` (los cuatro de Go) | `https://proxy.golang.org,direct` | Por si la red del servidor lo bloquea. |
 | `VERSION` (sólo api) | `dev` | Lo que devuelve `/version`. **No** vale `git describe`: un Build Arg de Dokploy es una cadena literal y `.dockerignore` excluye `.git`. Qué se le pone y por qué, en **§6-ter**. |
 

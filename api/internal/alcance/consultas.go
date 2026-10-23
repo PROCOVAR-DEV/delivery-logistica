@@ -833,6 +833,16 @@ func (a *Acotado) EspejoRetirarEntregasDeFactura(ctx context.Context, ids []uuid
 	return a.q.RetirarEntregasDeFactura(ctx, ids)
 }
 
+// EspejoAnularEntregasEnRuta quita de su ruta las entregas de factura que Ventra ya no manda y
+// las deja marcadas como anuladas (00027). Devuelve SÓLO las que quitó: todas las guardas (ruta
+// sin completar, sin resultado ni entrega, aún no anulada) están en el propio UPDATE.
+func (a *Acotado) EspejoAnularEntregasEnRuta(ctx context.Context, ids []uuid.UUID) ([]sqlc.AnularEntregasDeFacturaEnRutaRow, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return a.q.AnularEntregasDeFacturaEnRuta(ctx, ids)
+}
+
 // renglonesIguales dice si lo que hay guardado es exactamente lo que viene.
 //
 // SE COMPARA LO QUE SE ESCRIBE Y NADA MÁS. Ni el `id` ni las fechas entran: cambian aunque

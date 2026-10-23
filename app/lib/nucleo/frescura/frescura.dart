@@ -112,6 +112,17 @@ class RegistroDeFrescura {
   static const yaRebajadosPorLaFacturaDeSusRenglones =
       'una-vez:pedidos-con-factura-por-renglon';
 
+  /// LOS PEDIDOS SE VUELVEN A BAJAR ENTEROS UNA VEZ POR APARATO, por las facturas anuladas —
+  /// 23/10/2026 (esquema 15).
+  ///
+  /// El servidor manda `facturasAnuladas` (las canceladas de la ultima semana que se quitaron de
+  /// su ruta) con la bajada de `orders`. Pero es POR DIFERENCIAS: una APK o un escritorio que se
+  /// actualiza con la copia ya hecha, y cuya marca ya esta por delante de la hora en que se
+  /// anulo una, no la veria NUNCA. La carga entera trae las de los ultimos 7 dias. En la web no
+  /// cambia nada: su base nace vacia.
+  static const yaRebajadosPorLasFacturasAnuladas =
+      'una-vez:pedidos-con-facturas-anuladas';
+
   /// LOS CAMIONES CON SU FICHA ENTERA — 16/10/2026 (issue 14). Hasta la 1.0.38 la bajada
   /// guardaba de cada camion solo lo basico (sin tipo, costo por km, notas ni
   /// «para domicilio»). Se piden ENTEROS (`completas=vehicles`) una vez, no con una
@@ -153,6 +164,11 @@ class RegistroDeFrescura {
 
   Future<void> rebajarLosPedidosPorLaFacturaDeSusRenglones() => rebajarUnaVez(
     yaRebajadosPorLaFacturaDeSusRenglones,
+    const [Colecciones.pedidos],
+  );
+
+  Future<void> rebajarLasFacturasAnuladas() => rebajarUnaVez(
+    yaRebajadosPorLasFacturasAnuladas,
     const [Colecciones.pedidos],
   );
 

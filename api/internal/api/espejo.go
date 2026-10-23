@@ -809,12 +809,17 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	//
 	// LO PRIMERO, y no por orden alfabético: es lo que el logístico se baja cada mañana y
 	// lo único sin lo cual el día sin conexión no existe.
-	pedidos, corte, err := s.pedidosDeLaBajada(r, a, ventana)
+	pedidos, anuladas, corte, err := s.pedidosDeLaBajada(r, a, ventana)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
 	salida.Cambios["orders"] = pedidos
+	// Las facturas que el espejo quitó de su ruta por anuladas (00027): no es una colección de
+	// la base del aparato sino un aviso derivado de las mismas filas de `orders` de esta tanda,
+	// así que va con su marca de corte y sin la suya. Una versión anterior de la aplicación no
+	// la lee (sólo recorre las colecciones que conoce) y recibe la fila en `quitados`, como siempre.
+	salida.Cambios["facturasAnuladas"] = anuladas
 	// NO CABE TODO. La marca que se devuelve deja de ser el reloj y pasa a ser la de la
 	// última fila servida: el aparato vuelve a pedir desde ahí y se lleva el resto.
 	// Devolverle el reloj entero sería decirle «ya lo tienes todo hasta ahora» con media
@@ -1535,7 +1540,7 @@ func (s *Servidor) quitadosDe(
 //     archivado sigue apareciendo en el tablero y alguien lo carga en el camión.
 //  3. Los renglones VIAJAN CON SU PEDIDO. Si cambió una línea, lo que hay que mandar no es
 //     un aviso: es la lista de mercancía nueva, o el despacho prepara lo de ayer.
-func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alcance.VentanaDeBajada) (Conjunto, *time.Time, error) {
+func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alcance.VentanaDeBajada) (Conjunto, Conjunto, *time.Time, error) {
 	ctx := r.Context()
 	tope := int(v.Tope)
 
@@ -1547,7 +1552,7 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 
 	filas, err := a.EspejoDiferenciasDePedidos(ctx, sonda)
 	if err != nil {
-		return Conjunto{}, nil, err
+		return Conjunto{}, Conjunto{}, nil, err
 	}
 	filas, corte := recortarPorMarca(r, filas, tope, func(f sqlc.DiferenciasDePedidosRow) time.Time {
 		return f.CambiadoAt.Time
@@ -1568,7 +1573,7 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 	if len(vivos) > 0 {
 		lineas, err := a.ListarRenglonesDePedidos(ctx, vivos)
 		if err != nil {
-			return Conjunto{}, nil, err
+			return Conjunto{}, Conjunto{}, nil, err
 		}
 		for _, l := range lineas {
 			renglones[l.OrderID] = append(renglones[l.OrderID], map[string]any{
@@ -1599,10 +1604,34 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 		}
 	}
 
+	// LAS FACTURAS ANULADAS (00027): archivadas, con `anulada_at` dentro de la ventana de
+	// `alcance.VentanaDeFacturasAnuladas` (lo decide el SQL). Salen DOS veces, a propósito: en
+	// `quitados`, como cualquier archivada (el aparato la borra de `orders`, de donde ya no
+	// cuenta para nadie), y aquí, para que pueda decir «la factura N se canceló y se quitó de la
+	// ruta X». Son pocas: el espejo sólo anula lo que iba en una ruta viva.
+	// Las diferencias traen TODA archivada (el aparato tiene que enterarse de que se fue) y una
+	// anulada de hace un mes también lo es: sólo avisa la de la ventana, la misma que usa el SQL.
+	desdeAnuladas := v.Hasta.Add(-alcance.VentanaDeFacturasAnuladas)
+	anuladas := make([]any, 0)
+
 	for _, f := range filas {
 		if f.Archivado {
 			// Archivado en PEDIDO = fuera del aparato. Ver la regla 2 de arriba.
+			// También en la carga completa: un aparato que se rebaja (su copia vieja aún tiene la
+			// fila viva de una factura que luego se anuló) tiene que enterarse de que se fue.
 			quitados = append(quitados, f.ID.String())
+			if f.AnuladaAt.Valid && !f.AnuladaAt.Time.Before(desdeAnuladas) {
+				anuladas = append(anuladas, map[string]any{
+					"id":              f.ID,
+					"operationNumber": f.OperationNumber,
+					"customerName":    f.CustomerName,
+					"facturaNumero":   f.FacturaNumero,
+					"branchId":        idOpcional(f.BranchID),
+					"anuladaAt":       hora(f.AnuladaAt),
+					"anuladaDeRutaId": idOpcional(f.AnuladaDeRutaID),
+					"updatedAt":       hora(f.CambiadoAt),
+				})
+			}
 			continue
 		}
 		items := renglones[f.ID]
@@ -1717,7 +1746,7 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 	if v.Desde != nil {
 		salidas, err := a.EspejoPedidosQueSalieron(ctx, sonda)
 		if err != nil {
-			return Conjunto{}, nil, err
+			return Conjunto{}, Conjunto{}, nil, err
 		}
 		salidas, corteSalidas := recortarPorMarca(r, salidas, tope,
 			func(f sqlc.PedidosQueSalieronDelAlcanceRow) time.Time { return f.SalioAt.Time })
@@ -1730,7 +1759,7 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 		corte = laMasAtrasada(corte, corteSalidas)
 	}
 
-	return Conjunto{Puestos: puestos, Quitados: quitados}, corte, nil
+	return Conjunto{Puestos: puestos, Quitados: quitados}, Conjunto{Puestos: anuladas, Quitados: []string{}}, corte, nil
 }
 
 // recortarPorMarca deja la tanda en `tope` filas y dice por qué marca se cortó.

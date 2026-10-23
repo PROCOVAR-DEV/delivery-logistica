@@ -163,6 +163,7 @@ void main() {
       await frescura.rebajarLosPedidosPorSuAlmacen();
       await frescura.rebajarLosPedidosPorSuFolio();
       await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
+      await frescura.rebajarLasFacturasAnuladas();
       // La flota (issue 14) tiene sus pruebas en `bajada_de_la_flota_test.dart`.
       await frescura.marcar(
         Colecciones.tiposDeVehiculo,

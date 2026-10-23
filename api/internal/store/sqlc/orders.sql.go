@@ -234,6 +234,80 @@ func (q *Queries) AdoptarPedidoPorFolio(ctx context.Context, arg AdoptarPedidoPo
 	return result.RowsAffected(), nil
 }
 
+const anularEntregasDeFacturaEnRuta = `-- name: AnularEntregasDeFacturaEnRuta :many
+WITH quitadas AS (
+    UPDATE orders o SET
+        anulada_at = now(), anulada_de_ruta_id = o.route_id, archivado = true,
+        route_id = NULL, ultima_ruta_id = NULL, stop_order = NULL, segment_km = NULL,
+        trip_leg = 'outbound'
+    FROM routes r
+    WHERE o.id = ANY($1::uuid[])
+      AND o.source = 'pedido'
+      AND o.external_id IS NOT NULL
+      AND starts_with(o.external_id, 'factura:')
+      AND r.id = o.route_id
+      AND r.status IN ('planned', 'in_progress')
+      AND o.resultado IS NULL
+      AND o.delivered_at IS NULL
+      AND o.anulada_at IS NULL
+    RETURNING o.id, o.external_id, o.anulada_de_ruta_id AS ruta_id
+), origenes AS (
+    DELETE FROM board_route_origins b
+    USING quitadas q
+    WHERE b.order_id = q.id AND b.route_id = q.ruta_id
+), colocaciones AS (
+    DELETE FROM board_placements p
+    USING quitadas q
+    WHERE p.order_id = q.id
+)
+SELECT id, external_id, ruta_id FROM quitadas
+`
+
+type AnularEntregasDeFacturaEnRutaRow struct {
+	ID         uuid.UUID   `json:"id"`
+	ExternalID *string     `json:"external_id"`
+	RutaID     pgtype.UUID `json:"ruta_id"`
+}
+
+// QUITAR DE SU RUTA LA FACTURA QUE VENTRA YA NO MANDA y dejarla MARCADA (00027, Jose y Amado,
+// 23/10/2026). Es `SoltarParadaPlanificada` (`DELETE /api/routes/{id}/stops/{orderId}`) con tres
+// diferencias, y las tres son a propósito:
+//
+//	· sirve para rutas `planned` Y `in_progress` (la anulada ya iba en el camión), nunca `completed`
+//	  ni `cancelled`: el histórico se fija al completar;
+//	· la fila NO se borra: queda `archivado = true` con `anulada_at` y `anulada_de_ruta_id`, y así
+//	  ninguna lista, contador, armado ni tablero la cuenta (todas excluyen `archivado`) y la app
+//	  puede decir «esta factura se canceló y se quitó de la ruta X»;
+//	· NO vuelve a su zona del tablero (`board_route_origins` se borra sin restaurar): una factura
+//	  cancelada no tiene que reaparecer en ninguna columna. Su colocación, si la hubiera, también se va.
+//
+// `ultima_ruta_id` a NULL por lo mismo que en `SoltarParadaPlanificada` (la parada fantasma, 07/10/2026):
+// el trigger de totales (`refrescar_totales_de_ruta`) recalcula peso, importe y «sin cotizar» de la ruta
+// en esta misma sentencia. Los `stop_order` de las demás no se renumeran (queda un hueco, como allí).
+//
+// LAS GUARDAS ESTÁN AQUÍ Y SÓLO AQUÍ (quien llama no las repite): factura (`factura:`), ruta sin
+// completar, SIN resultado y SIN entrega, y aún no anulada. Entre la lectura y esta orden el logístico
+// puede haber cerrado la ruta, y una factura que ya se entregó no se toca.
+func (q *Queries) AnularEntregasDeFacturaEnRuta(ctx context.Context, ids []uuid.UUID) ([]AnularEntregasDeFacturaEnRutaRow, error) {
+	rows, err := q.db.Query(ctx, anularEntregasDeFacturaEnRuta, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AnularEntregasDeFacturaEnRutaRow
+	for rows.Next() {
+		var i AnularEntregasDeFacturaEnRutaRow
+		if err := rows.Scan(&i.ID, &i.ExternalID, &i.RutaID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const bloquearFolioDePedido = `-- name: BloquearFolioDePedido :exec
 
 SELECT pg_advisory_xact_lock(
@@ -831,6 +905,7 @@ marcados AS (
         o.punto_manual, o.punto_manual_por, o.punto_manual_at,
         o.folio,
         o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
+        o.anulada_at, o.anulada_de_ruta_id,
         o.stop_order, o.delivered_at, o.resultado, o.resultado_at, o.resultado_nota,
         o.created_at, o.updated_at,
         GREATEST(
@@ -844,7 +919,9 @@ marcados AS (
     JOIN tocados t ON t.id = o.id
     WHERE ($4::uuid  IS NULL OR o.branch_id = $4::uuid)
       AND ($5::uuid IS NULL OR o.branch_id = $5::uuid)
-      AND ($6::boolean OR NOT o.archivado)
+      AND ($6::boolean OR NOT o.archivado
+           OR ($7::timestamptz IS NOT NULL
+               AND o.anulada_at >= $7::timestamptz))
 )
 SELECT
     id, operation_number, customer_name, customer_phone, address, end_address,
@@ -865,6 +942,9 @@ SELECT
     -- El punto que traía el cliente (null si no es manual): el aparato vuelve a él SIN conexión copiando
     -- estos tres a ` + "`" + `endLat` + "`" + `/` + "`" + `endLng` + "`" + `/` + "`" + `endAddress` + "`" + `.
     punto_cliente_lat, punto_cliente_lng, punto_cliente_address,
+    -- La factura anulada y quitada de su ruta (00027): sólo viaja en las filas archivadas que
+    -- ` + "`" + `anuladas_desde` + "`" + ` deja entrar; en el resto, null.
+    anulada_at, anulada_de_ruta_id,
     stop_order, delivered_at, resultado, resultado_at, resultado_nota,
     created_at, updated_at, cambiado_at
 FROM marcados
@@ -881,6 +961,7 @@ type DiferenciasDePedidosParams struct {
 	Sucursal      pgtype.UUID        `json:"sucursal"`
 	BranchID      pgtype.UUID        `json:"branch_id"`
 	ConArchivados bool               `json:"con_archivados"`
+	AnuladasDesde pgtype.Timestamptz `json:"anuladas_desde"`
 }
 
 type DiferenciasDePedidosRow struct {
@@ -931,6 +1012,8 @@ type DiferenciasDePedidosRow struct {
 	PuntoClienteLat     *float64           `json:"punto_cliente_lat"`
 	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
 	PuntoClienteAddress *string            `json:"punto_cliente_address"`
+	AnuladaAt           pgtype.Timestamptz `json:"anulada_at"`
+	AnuladaDeRutaID     pgtype.UUID        `json:"anulada_de_ruta_id"`
 	StopOrder           *int32             `json:"stop_order"`
 	DeliveredAt         pgtype.Timestamptz `json:"delivered_at"`
 	Resultado           *StopResult        `json:"resultado"`
@@ -971,6 +1054,13 @@ type DiferenciasDePedidosRow struct {
 //     contarle al aparato para que lo BORRE. Quien contesta la bajada mira `archivado` y
 //     lo manda a `quitados`.
 //
+// LAS FACTURAS ANULADAS RECIENTES (00027) ENTRAN TAMBIÉN, con `anuladas_desde` puesto: son filas
+// archivadas que el aparato NUEVO quiere ver (para decir «la factura 47412 se canceló y se quitó de
+// la ruta Centro») y que, sin esto, saldrían sólo en `quitados`. Va en la carga inicial también: un
+// aparato que se instala hoy tiene que enterarse de lo que se canceló ayer. Nulo = no se pide (el
+// aparato anterior a la 1.0.43, que no sabe qué hacer con una fila archivada). Quien contesta la
+// bajada decide qué hace con ellas (`pedidosDeLaBajada`).
+//
 // Las dos sucursales del WHERE son las de la casa: `sucursal` es el alcance, que lo pone
 // `internal/alcance` y no se puede pasar desde fuera, y `branch_id` es la que pide quien
 // llama. Van en AND: la segunda estrecha, nunca amplía.
@@ -986,6 +1076,7 @@ func (q *Queries) DiferenciasDePedidos(ctx context.Context, arg DiferenciasDePed
 		arg.Sucursal,
 		arg.BranchID,
 		arg.ConArchivados,
+		arg.AnuladasDesde,
 	)
 	if err != nil {
 		return nil, err
@@ -1042,6 +1133,8 @@ func (q *Queries) DiferenciasDePedidos(ctx context.Context, arg DiferenciasDePed
 			&i.PuntoClienteLat,
 			&i.PuntoClienteLng,
 			&i.PuntoClienteAddress,
+			&i.AnuladaAt,
+			&i.AnuladaDeRutaID,
 			&i.StopOrder,
 			&i.DeliveredAt,
 			&i.Resultado,
@@ -1071,6 +1164,7 @@ WHERE o.source = 'pedido'
   AND o.external_id IS NOT NULL
   AND starts_with(o.external_id, 'factura:')
   AND o.sucursal_codigo = $1::text
+  AND o.anulada_at IS NULL
   AND (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
         BETWEEN $2::date AND $3::date
 `
@@ -1096,6 +1190,9 @@ type EntregasDeFacturaEnVentanaRow struct {
 // Ventra no fue preguntada por ella. El día se pasa a hora de Cuba igual que los filtros de
 // fecha de la factura (issue 16, `coalesce(factura_at, order_date, created_at)`).
 // `ocupada` es lo que impide retirarla: va o fue en una ruta, o tiene resultado.
+//
+// LAS YA ANULADAS (`anulada_at`, 00027) NO SE LISTAN: ya se quitaron de su ruta y se marcaron. Sin esta
+// línea el ciclo siguiente las vería «sin ruta, y ya no vienen» y las BORRARÍA, y con ellas el aviso.
 func (q *Queries) EntregasDeFacturaEnVentana(ctx context.Context, arg EntregasDeFacturaEnVentanaParams) ([]EntregasDeFacturaEnVentanaRow, error) {
 	rows, err := q.db.Query(ctx, entregasDeFacturaEnVentana, arg.SucursalCodigo, arg.Desde, arg.Hasta)
 	if err != nil {
@@ -1356,7 +1453,12 @@ DO UPDATE SET
     -- reconocen como la misma. Entra en el UPDATE y en la comparación de abajo: si no entrara,
     -- una fila que ganara su folio después (el relleno de la 00025 no llega a las que no
     -- existían) se leería como «no cambió nada» y se quedaría sin él para siempre.
-    folio                   = excluded.folio
+    folio                   = excluded.folio,
+    -- UNA FACTURA ANULADA QUE REAPARECE SE REACTIVA, en la misma fila (00027): ` + "`" + `archivado` + "`" + ` ya viene en
+    -- false de ` + "`" + `excluded` + "`" + `, y aquí se borra la marca de anulada (el CHECK ` + "`" + `orders_anulada_archivada_chk` + "`" + `
+    -- no deja una anulada sin archivar). Sin duplicarse: el ` + "`" + `ON CONFLICT` + "`" + ` la encuentra por su ` + "`" + `external_id` + "`" + `.
+    anulada_at              = NULL,
+    anulada_de_ruta_id      = NULL
 WHERE (orders.operation_number, orders.customer_name, orders.customer_phone,
        orders.address, orders.end_address, orders.lat, orders.lng,
        orders.end_lat, orders.end_lng, orders.weight, orders.branch_id,
@@ -1370,7 +1472,7 @@ WHERE (orders.operation_number, orders.customer_name, orders.customer_phone,
        orders.almacen_salida_sucursal, orders.almacen_salida_mezclado,
        orders.almacen_salida_motivo,
        orders.punto_cliente_lat, orders.punto_cliente_lng, orders.punto_cliente_address,
-       orders.folio)
+       orders.folio, orders.anulada_at, orders.anulada_de_ruta_id)
    IS DISTINCT FROM
       (excluded.operation_number, excluded.customer_name, excluded.customer_phone,
        excluded.address,
@@ -1398,7 +1500,7 @@ WHERE (orders.operation_number, orders.customer_name, orders.customer_phone,
        CASE WHEN orders.punto_manual THEN excluded.end_lat ELSE NULL END,
        CASE WHEN orders.punto_manual THEN excluded.end_lng ELSE NULL END,
        CASE WHEN orders.punto_manual THEN excluded.end_address ELSE NULL END,
-       excluded.folio)
+       excluded.folio, NULL::timestamptz, NULL::uuid)
 RETURNING id, branch_id, external_id, (xmax = 0)::boolean AS es_nuevo
 `
 
@@ -1613,7 +1715,7 @@ SELECT
     o.municipio, o.vendedor, o.sucursal_codigo, o.branch_id, o.updated_at,
     o.punto_manual, o.punto_manual_por, o.punto_manual_at,
     o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
-    o.folio,
+    o.folio, o.anulada_at, o.anulada_de_ruta_id,
     r.name          AS ruta_nombre,
     r.route_code    AS ruta_codigo,
     r.status        AS ruta_estado,
@@ -1768,6 +1870,8 @@ type ListarPedidosRow struct {
 	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
 	PuntoClienteAddress *string            `json:"punto_cliente_address"`
 	Folio               *string            `json:"folio"`
+	AnuladaAt           pgtype.Timestamptz `json:"anulada_at"`
+	AnuladaDeRutaID     pgtype.UUID        `json:"anulada_de_ruta_id"`
 	RutaNombre          *string            `json:"ruta_nombre"`
 	RutaCodigo          *string            `json:"ruta_codigo"`
 	RutaEstado          *RouteStatus       `json:"ruta_estado"`
@@ -1852,6 +1956,8 @@ func (q *Queries) ListarPedidos(ctx context.Context, arg ListarPedidosParams) ([
 			&i.PuntoClienteLng,
 			&i.PuntoClienteAddress,
 			&i.Folio,
+			&i.AnuladaAt,
+			&i.AnuladaDeRutaID,
 			&i.RutaNombre,
 			&i.RutaCodigo,
 			&i.RutaEstado,
@@ -2504,7 +2610,7 @@ SELECT
     o.created_at, o.updated_at,
     o.punto_manual, o.punto_manual_por, o.punto_manual_at,
     o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
-    o.folio,
+    o.folio, o.anulada_at, o.anulada_de_ruta_id,
     r.name  AS ruta_nombre,
     v.name  AS vehiculo_nombre,
     v.plate AS vehiculo_matricula,
@@ -2581,6 +2687,8 @@ type ObtenerPedidoRow struct {
 	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
 	PuntoClienteAddress *string            `json:"punto_cliente_address"`
 	Folio               *string            `json:"folio"`
+	AnuladaAt           pgtype.Timestamptz `json:"anulada_at"`
+	AnuladaDeRutaID     pgtype.UUID        `json:"anulada_de_ruta_id"`
 	RutaNombre          *string            `json:"ruta_nombre"`
 	VehiculoNombre      *string            `json:"vehiculo_nombre"`
 	VehiculoMatricula   *string            `json:"vehiculo_matricula"`
@@ -2649,6 +2757,8 @@ func (q *Queries) ObtenerPedido(ctx context.Context, arg ObtenerPedidoParams) (O
 		&i.PuntoClienteLng,
 		&i.PuntoClienteAddress,
 		&i.Folio,
+		&i.AnuladaAt,
+		&i.AnuladaDeRutaID,
 		&i.RutaNombre,
 		&i.VehiculoNombre,
 		&i.VehiculoMatricula,
@@ -2667,6 +2777,7 @@ SELECT
 FROM orders o
 LEFT JOIN branches b ON b.id = o.branch_id
 WHERE o.route_id IS NULL
+  AND NOT o.archivado
   AND o.end_lat IS NOT NULL
   AND o.factura_estado IN ('igual','cambiado')
   -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
@@ -2723,7 +2834,8 @@ SELECT
                        AND o.factura_estado IN ('igual','cambiado')), 0)::double precision AS peso_pendiente,
     coalesce(sum(o.pedido_costo), 0)::double precision              AS total_domicilios
 FROM orders o
-WHERE ($2::uuid IS NULL OR o.branch_id = $2::uuid)
+WHERE NOT o.archivado
+  AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
 `
 
 type PanelResumenParams struct {
@@ -2750,6 +2862,9 @@ type PanelResumenRow struct {
 // si el panel contara otra cosa, diría «40 por repartir» y el armador ofrecería 12, y la
 // respuesta correcta sería «ninguno de los dos». `sin_ruta` y `peso_pendiente` llevan las mismas condiciones que
 // `PanelPorSucursal` y que `ContarPedidosDisponibles`.
+// NO CUENTA LO ARCHIVADO (23/10/2026, 00027): una factura anulada y quitada de su ruta queda
+// archivada, sin ruta y con coordenadas, y sin esto entraba en `sin_ruta` y en `peso_pendiente`
+// como si hubiera que repartirla. Es la misma regla de `ListarPedidosDisponibles`.
 func (q *Queries) PanelResumen(ctx context.Context, arg PanelResumenParams) (PanelResumenRow, error) {
 	row := q.db.QueryRow(ctx, panelResumen, arg.Hoy, arg.Sucursal)
 	var i PanelResumenRow

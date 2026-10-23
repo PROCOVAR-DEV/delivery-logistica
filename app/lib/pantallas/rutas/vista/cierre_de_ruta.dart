@@ -72,7 +72,7 @@ class CierreDeRuta extends ConsumerStatefulWidget {
       'constancia y el control de lo que baja.';
 
   static const exito =
-      'Cierre guardado. En PEDIDO cada pedido ya dice si se entregó o volvió.';
+      'Cierre guardado. Cada factura ya consta como entregada, devuelta o cancelada.';
 
   /// LA CABECERA DEL MODO `alCompletar`, literal.
   ///
@@ -80,19 +80,17 @@ class CierreDeRuta extends ConsumerStatefulWidget {
   /// se pone cuando están en ruta, no completados; ahí el cierre ya viene con el
   /// estado de cuando le van a dar a completado, es que se pregunta ese estado».
   static const cabeceraAlCompletar =
-      'Antes de dar la ruta por completada: ¿cómo acabó cada parada? Lo que '
-      'dejes sin marcar se da por no entregado y cuenta como que sigue en el '
-      'camión.';
+      'Antes de dar la ruta por completada: ¿cómo acabó cada factura? '
+      'Hasta que decidas todas, el botón de guardar queda apagado.';
 
   /// LA CABECERA DEL MODO `soloLectura`, literal. Una ruta completada ya no se
   /// marca: lo que se ve es como acabo.
   static const cabeceraSoloLectura =
-      'La ruta ya está completada: así acabó cada parada. Para corregir algo, '
-      'hay que hacerlo en PEDIDO.';
+      'La ruta ya está completada: así acabó cada factura.';
 
   static const exitoAlCompletar =
-      'Cierre guardado y ruta completada. En PEDIDO cada pedido ya dice si se '
-      'entregó o volvió.';
+      'Cierre guardado y ruta completada. Cada factura ya consta como entregada, '
+      'devuelta o cancelada.';
 
   @override
   ConsumerState<CierreDeRuta> createState() => _CierreDeRutaState();
@@ -115,12 +113,33 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
   bool _partidoDeLoGuardado = false;
   bool _guardando = false;
 
+  /// El buscador de la hoja (Jose, 23/10/2026): con 33 paradas, encontrar UNA para decir
+  /// que se devolvió no puede ser bajar con el dedo. Sólo FILTRA lo que se ve: los atajos
+  /// «Todas» y la cuenta de «faltan por decidir» siguen siendo de TODAS las paradas.
+  final _buscador = TextEditingController();
+  String _filtro = '';
+
   @override
   void dispose() {
+    _buscador.dispose();
     for (final control in _notas.values) {
       control.dispose();
     }
     super.dispose();
+  }
+
+  /// ¿La parada responde a lo que se busca? Por número de factura, cliente, dirección o
+  /// conduce, sin mayúsculas. Un filtro vacío deja pasar todo.
+  bool _coincide(Pedido p, String filtro) {
+    final q = filtro.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return [
+      p.facturaNumero,
+      p.customerName,
+      p.endAddress,
+      p.address,
+      p.operationNumber,
+    ].any((t) => (t ?? '').toLowerCase().contains(q));
   }
 
   /// **Al abrir se parte de lo ya guardado en cada parada** (resultado y nota).
@@ -333,7 +352,7 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
                     Text(
                       rutaCompletada
                           ? 'Estas paradas se quedaron sin resultado. Apunta su '
-                                'conduce y corrígelas en PEDIDO.'
+                                'factura y corrígelas desde Reparto.'
                           : 'Estas paradas siguen marcadas aquí pero el '
                                 'servidor no las guardó. Corrige la marca y '
                                 'vuelve a guardar.',
@@ -430,6 +449,11 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
     _partirDeLoGuardado(paradas);
 
     final sinMarcar = paradas.where((p) => _resultados[p.id] == null).length;
+    // Con el buscador activo sólo se pintan las que coinciden, con su posición real.
+    final visibles = [
+      for (var i = 0; i < paradas.length; i++)
+        if (_coincide(paradas[i], _filtro)) (i, paradas[i]),
+    ];
     final hoja = armarPostDespacho([
       for (final parada in paradas)
         ParadaDelCierre(
@@ -555,9 +579,17 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
                   // `_hayQueGuardar` y no `_marcadas > 0`: quitar la ultima marca
                   // apagaba el boton, asi que el desmarcado no se podia ni intentar
                   // guardar. Ver `_hayQueGuardar`.
+                  //
+                  // **AL COMPLETAR NO SE GUARDA CON PARADAS SIN DECIDIR** (Jose,
+                  // 23/10/2026: «el botón de guardar debe estar desactivado hasta que
+                  // hayas tomado todas las decisiones»). La ruta M1_La Maya se
+                  // completó en 7 s con 33 paradas sin marcar: cada una queda sin
+                  // resultado y pegada a una ruta cerrada. Antes se dejaba y se
+                  // avisaba; ahora hay que decidir cada una (aunque sea «Devuelto»).
                   alPulsar:
                       !datosListos ||
                           _guardando ||
+                          (_completando && sinMarcar > 0) ||
                           (!_hayQueGuardar && !_completando)
                       ? null
                       : () => _guardar(paradas),
@@ -601,26 +633,65 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
                       ),
                   ],
                 ),
+              if (paradas.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: TextField(
+                    key: const ValueKey('cierre-buscador'),
+                    controller: _buscador,
+                    onChanged: (v) => setState(() => _filtro = v),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar una parada por factura o cliente',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _filtro.isEmpty
+                          ? null
+                          : IconButton(
+                              key: const ValueKey('cierre-buscador-borrar'),
+                              tooltip: 'Quitar la búsqueda',
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                _buscador.clear();
+                                setState(() => _filtro = '');
+                              },
+                            ),
+                    ),
+                  ),
+                ),
+              if (paradas.isNotEmpty && _filtro.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    visibles.isEmpty
+                        ? 'Ninguna parada coincide con «${_filtro.trim()}»'
+                        : 'Se ven ${visibles.length} de ${paradas.length} paradas',
+                    key: const ValueKey('cierre-buscador-cuenta'),
+                    style: TextStyle(color: Colores.gris),
+                  ),
+                ),
               if (sinMarcar > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    '$sinMarcar sin marcar · cuentan como que siguen en el camión',
+                    _completando
+                        ? 'Faltan $sinMarcar parada(s) por decidir: marca cada una '
+                              '(entregado, devuelto o cancelado) para poder completar la ruta'
+                        : '$sinMarcar sin marcar · cuentan como que siguen en el camión',
+                    key: const ValueKey('cierre-faltan-por-decidir'),
                     style: TextStyle(color: Colores.ambar),
                   ),
                 ),
               const SizedBox(height: 12),
-              for (var i = 0; i < paradas.length; i++)
+              for (final (i, parada) in visibles)
                 _Parada(
                   // Sólo la primera parada se deja senalar por la Guia: hay tres
                   // botones por parada y pueden ser veinticinco paradas.
-                  esLaPrimera: i == 0,
-                  numero: paradas[i].stopOrder ?? (i + 1),
-                  pedido: paradas[i],
-                  resultado: _resultados[paradas[i].id],
-                  nota: _nota(paradas[i].id),
+                  esLaPrimera: i == visibles.first.$1,
+                  numero: parada.stopOrder ?? (i + 1),
+                  pedido: parada,
+                  resultado: _resultados[parada.id],
+                  nota: _nota(parada.id),
                   soloLectura: _soloLectura,
-                  alMarcar: (cual) => _marcar(paradas[i].id, cual),
+                  alMarcar: (cual) => _marcar(parada.id, cual),
                   alEscribirLaNota: () => setState(() {}),
                 ),
               const SizedBox(height: 16),
@@ -785,7 +856,9 @@ class _Parada extends StatelessWidget {
                         facturaNumero: pedido.facturaNumero,
                         facturadaEl: pedido.facturaAt,
                         cliente: pedido.customerName,
-                        claveDeLaFactura: ValueKey('cierre-factura-${pedido.id}'),
+                        claveDeLaFactura: ValueKey(
+                          'cierre-factura-${pedido.id}',
+                        ),
                       ),
                       Text(
                         pedido.endAddress ?? pedido.address,

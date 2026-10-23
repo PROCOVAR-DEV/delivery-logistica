@@ -378,15 +378,23 @@ type VentanaDeBajada struct {
 // día. En una bajada por diferencias es al revés: archivar es justo lo que hay que
 // contarle, para que lo BORRE.
 func (a *Acotado) EspejoDiferenciasDePedidos(ctx context.Context, v VentanaDeBajada) ([]sqlc.DiferenciasDePedidosRow, error) {
+	desdeAnuladas := v.Hasta.Add(-VentanaDeFacturasAnuladas)
 	return a.q.DiferenciasDePedidos(ctx, sqlc.DiferenciasDePedidosParams{
 		Desde:         marcaPg(v.Desde),
 		Hasta:         marcaPg(&v.Hasta),
 		Sucursal:      a.sucursalPg(), // el alcance, que aquí no se negocia
 		BranchID:      aPg(v.Sucursal),
 		ConArchivados: v.Desde != nil,
+		// Las facturas anuladas de los últimos días entran aunque estén archivadas (00027).
+		AnuladasDesde: marcaPg(&desdeAnuladas),
 		Tope:          v.Tope,
 	})
 }
+
+// VentanaDeFacturasAnuladas es cuánto tiempo se le sigue diciendo al aparato que una factura se
+// canceló y se quitó de su ruta (Jose y Amado, 23/10/2026). Pasado el plazo la fila anulada sigue en
+// el servidor, archivada, pero ya no baja: el aparato olvida el aviso por su cuenta.
+const VentanaDeFacturasAnuladas = 7 * 24 * time.Hour
 
 // EspejoPedidosQueSalieron: las lápidas de la ventana — borrados y mudados de sucursal.
 //

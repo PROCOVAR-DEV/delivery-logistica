@@ -37,6 +37,10 @@ type Espejo struct {
 	Facturas FuenteDeFacturas
 	BaseF    BaseDeFacturas
 
+	// AvisarCancelada: gancho para avisar a PEDIDO de una factura cancelada. nil = nada. Ver
+	// [Espejo.avisarCancelada].
+	AvisarCancelada func(ctx context.Context, e EntregaCancelada)
+
 	// Ahora es el reloj. Se puede cambiar en las pruebas: los tramos son fechas contadas
 	// hacia atrás desde hoy, y una prueba que dependa del día en que se corra es una prueba
 	// que falla sola algún martes.

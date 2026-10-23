@@ -552,7 +552,8 @@ FROM order_items oi
 WHERE oi.product_id IS NOT NULL
   AND oi.order_id IN (
       SELECT o.id FROM orders o
-      WHERE ($1::uuid IS NULL OR o.branch_id = $1::uuid)
+      WHERE NOT o.archivado
+        AND ($1::uuid IS NULL OR o.branch_id = $1::uuid)
       ORDER BY o.created_at DESC
       LIMIT $2
   )

@@ -9,8 +9,10 @@ package espejo
 //  2. BARRIDO: las de los últimos `HistoricoDias`, una vez al día y por sucursal. Es la red
 //     de debajo del repaso, igual que el barrido de PEDIDO.
 //  3. LO QUE YA NO VIENE: una entrega de factura que estaba dentro de la ventana consultada y
-//     ya no aparece (factura anulada) se retira si no va en ninguna ruta ni está entregada. Con
-//     ruta se deja y se dice. Las guardas están en [Espejo.retirarLoQueYaNoViene]. LA ENTREGA ES
+//     ya no aparece (factura anulada) se retira si no va en ninguna ruta ni está entregada. Si va en
+//     una ruta SIN COMPLETAR y sin resultado, se QUITA de la ruta y se MARCA como anulada (00027) para
+//     que la app lo diga; en una ruta completada o con resultado se deja (historial) y se cuenta. Las
+//     guardas están en [Espejo.retirarLoQueYaNoViene]. LA ENTREGA ES
 //     UNA FACTURA (22/10/2026): lo que se compara es factura contra factura, así que la cancelada
 //     sale en el MISMO repaso que deja de verla, sin esperar al barrido, y la viva no se toca.
 //
@@ -144,14 +146,14 @@ func (e *Espejo) facturasDeLaSucursal(
 	}
 	resumen.Guardadas = guardadas
 
-	retiradas, conRuta, retiroBien := e.retirarLoQueYaNoViene(ctx, codigo, desde, hasta, entregas, len(facturas))
+	retiradas, anuladas, conRuta, retiroBien := e.retirarLoQueYaNoViene(ctx, codigo, desde, hasta, entregas, len(facturas))
 
 	e.Reg.Info("facturas de Ventra",
 		"de", de, "sucursal", codigo, "ventana", ventana,
 		"facturas", resumen.Facturas, "entregas", resumen.Entregas, "guardadas", resumen.Guardadas,
 		"puntoPorCodigo", resumen.PuntoPorCodigo, "puntoPorNombre", resumen.PuntoPorNombre,
 		"sinPunto", resumen.SinPunto, "sinMercancia", resumen.SinMercancia,
-		"retiradas", retiradas, "anuladasConRuta", conRuta,
+		"retiradas", retiradas, "anuladasQuitadasDeRuta", anuladas, "anuladasConRuta", conRuta,
 		"sinPrecioDeDomicilio", sinPrecio)
 	// LO QUE NO SE PUDO RESOLVER SE DICE, no se esconde. Cada cifra tiene su arreglo y su dueño:
 	// el punto lo pone el logístico a mano (o se corrige el cliente en PEDIDO), el peso lo pone
@@ -179,14 +181,32 @@ func (e *Espejo) facturasDeLaSucursal(
 	return guardadas, retiroBien
 }
 
+// EntregaCancelada es una factura que Ventra dejó de mandar y que el espejo retiró (borrada) o quitó de su
+// ruta (archivada con `anulada_at`). `RutaID` es el cero si no iba en ninguna.
+type EntregaCancelada struct {
+	ID         uuid.UUID
+	ExternalID string
+	Sucursal   string
+	RutaID     uuid.UUID
+}
+
+// avisarCancelada es el GANCHO para avisar a PEDIDO de que la factura se canceló: lo llama
+// `retirarLoQueYaNoViene` UNA vez por factura retirada o quitada de una ruta, y NUNCA por una que se deja
+// (historial, guardas). `AvisarCancelada` nil = no hace nada.
+func (e *Espejo) avisarCancelada(ctx context.Context, c EntregaCancelada) {
+	if e.AvisarCancelada != nil {
+		e.AvisarCancelada(ctx, c)
+	}
+}
+
 // retirarLoQueYaNoViene retira las entregas de factura que estaban dentro de la ventana y ya
-// no aparecen en Ventra. Devuelve cuántas retiró, cuántas dejó por llevar ruta, y si pudo
-// compararlo con garantías.
+// no aparecen en Ventra. Devuelve cuántas borró, cuántas quitó de su ruta y marcó como anuladas,
+// cuántas dejó tal cual (historial), y si pudo compararlo con garantías.
 //
 // Se llama DESPUÉS de guardar: las filas antiguas (clave por folio) que tenían alguna de las facturas
 // vivas ya han sido adoptadas por la clave nueva de la primera de ellas (`alcance.alFolio`) y cuentan
 // como «vienen»; las antiguas SIN ninguna factura viva no están en `vienen` y salen por aquí: retiradas
-// si no van en ruta, «anuladas con ruta» si van.
+// si no van en ruta, anuladas si van en una ruta viva.
 //
 // LAS GUARDAS, TODAS OBLIGATORIAS, y cada una tiene su prueba contra Postgres de verdad:
 //
@@ -197,66 +217,82 @@ func (e *Espejo) facturasDeLaSucursal(
 //     anulado todas. Es el mismo principio que el catálogo vacío (CLAUDE.md §3).
 //  3. LA RESPUESTA TIENE QUE HABER SIDO BUENA: esta función sólo se llama si
 //     `FacturasConDomicilio` no falló, y esa devuelve todo o error.
-//  4. LO QUE YA VA EN UNA RUTA O TIENE RESULTADO NO SE BORRA: se deja y se cuenta como «anulada
-//     con ruta», para que una persona decida. Lo que ya está en el camión no se desvanece.
+//  4. LO QUE YA ESTÁ EN EL CAMIÓN NO SE BORRA NUNCA. Con ruta o con resultado no hay borrado: si la
+//     ruta NO está completada y no hay resultado ni entrega, se QUITA de la ruta y se marca anulada
+//     (la fila queda archivada: nadie la cuenta y la app puede avisar); en cualquier otro caso (ruta
+//     completada, resultado, entregada) se deja como está y se cuenta, que es historial. Esa
+//     distinción la hace el UPDATE (`AnularEntregasDeFacturaEnRuta`) y SÓLO él.
 func (e *Espejo) retirarLoQueYaNoViene(
 	ctx context.Context, codigo string, desde, hasta time.Time, entregas []EntregaDeFactura, nFacturas int,
-) (retiradas, conRuta int, bien bool) {
+) (retiradas, anuladas, conRuta int, bien bool) {
 	guardadas, err := e.BaseF.EntregasDeFacturaEnVentana(ctx, codigo, desde, hasta)
 	if err != nil {
 		e.Reg.Error("no se pudieron leer las entregas de factura guardadas: no se retira nada",
 			"sucursal", codigo, "err", err)
-		return 0, 0, false
+		return 0, 0, 0, false
 	}
 	if len(guardadas) == 0 {
-		return 0, 0, true
+		return 0, 0, 0, true
 	}
 	if nFacturas == 0 {
 		e.Reg.Error("Ventra no devolvió ninguna factura de una ventana en la que la base tiene entregas: "+
 			"se toma por un ERROR (una base caída contesta así) y NO se retira nada",
 			"sucursal", codigo, "ventana", desde.Format(time.DateOnly)+".."+hasta.Format(time.DateOnly),
 			"entregasEnLaBase", len(guardadas))
-		return 0, 0, false
+		return 0, 0, 0, false
 	}
 
 	vienen := make(map[string]bool, len(entregas))
 	for _, en := range entregas {
 		vienen[en.ExternalID()] = true
 	}
-	var quitar []uuid.UUID
-	var conRutaIDs []string
+	var quitar, ocupadas []uuid.UUID
+	externas := make(map[uuid.UUID]string, len(guardadas))
 	for _, g := range guardadas {
 		if vienen[g.ExternalID] {
 			continue
 		}
+		externas[g.ID] = g.ExternalID
 		if g.Ocupada {
-			conRuta++
-			conRutaIDs = append(conRutaIDs, g.ExternalID)
+			ocupadas = append(ocupadas, g.ID)
 			continue
 		}
 		quitar = append(quitar, g.ID)
 	}
-	if conRuta > 0 {
-		e.Reg.Warn("entregas de factura ANULADAS que ya van en una ruta o tienen resultado: se dejan",
-			"sucursal", codigo, "entregas", conRuta, "externalIds", codigosOrdenados(contar(conRutaIDs)))
+	if len(ocupadas) > 0 {
+		hechas, err := e.BaseF.AnularEntregasEnRuta(ctx, ocupadas)
+		if err != nil {
+			e.Reg.Error("no se pudieron quitar de su ruta las entregas anuladas", "sucursal", codigo, "err", err)
+			return 0, 0, len(ocupadas), false
+		}
+		anuladas = len(hechas)
+		conRuta = len(ocupadas) - anuladas
+		for _, h := range hechas {
+			e.avisarCancelada(ctx, EntregaCancelada{ID: h.ID, ExternalID: h.ExternalID, Sucursal: codigo, RutaID: h.RutaID})
+			e.Reg.Info("factura ANULADA en Ventra: se quitó de su ruta y se marcó como anulada",
+				"sucursal", codigo, "externalId", h.ExternalID, "ruta", h.RutaID)
+		}
+		if conRuta > 0 {
+			e.Reg.Warn("entregas de factura ANULADAS que ya van en una ruta completada o tienen resultado: se dejan (historial)",
+				"sucursal", codigo, "entregas", conRuta)
+		}
 	}
 	if len(quitar) > 0 {
+		// SE AVISA ANTES DE BORRAR: el aviso a PEDIDO se arma leyendo la fila (su folio y su número de
+		// factura), y después del DELETE ya no existe. Es seguro aunque el borrado falle o deje alguna:
+		// la cancelación es un hecho de Ventra (la factura dejó de venir), el aviso es idempotente («cada
+		// aviso lleva el estado completo») y el ciclo siguiente la volvería a avisar.
+		for _, id := range quitar {
+			e.avisarCancelada(ctx, EntregaCancelada{ID: id, ExternalID: externas[id], Sucursal: codigo})
+		}
 		n, err := e.BaseF.RetirarEntregasDeFactura(ctx, quitar)
 		if err != nil {
 			e.Reg.Error("no se pudieron retirar las entregas anuladas", "sucursal", codigo, "err", err)
-			return 0, conRuta, false
+			return 0, anuladas, conRuta, false
 		}
 		retiradas = int(n)
 	}
-	return retiradas, conRuta, true
-}
-
-func contar(xs []string) map[string]int {
-	m := map[string]int{}
-	for _, x := range xs {
-		m[x]++
-	}
-	return m
+	return retiradas, anuladas, conRuta, true
 }
 
 // CicloDeFacturas hace SOLO el paso de la factura de un ciclo y devuelve cuántas entregas

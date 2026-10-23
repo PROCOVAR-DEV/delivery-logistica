@@ -72,6 +72,8 @@ type pedidoDeRutas struct {
 	sucursal           uuid.UUID
 	externalID         *string
 	fuente             *sqlc.Procedencia
+	// Lo que decide el aviso a PEDIDO cuando la entrega es de factura (`EntregasParaAvisar`).
+	folio, facturaNumero *string
 	// `archivado` es el borrado blando de PEDIDO y SÍ filtra en `PedidosParaArmarRuta`.
 	// Faltaba en el doble, así que la condición existía en el SQL y no se podía ejercitar
 	// desde aquí — que es como el 409 llegó a decir «ya está en otra ruta» de un archivado.
@@ -312,6 +314,19 @@ func (d *dobleDeRutas) ListarParadasQueViajaronEnRuta(_ context.Context, arg sql
 			ResultadoNota: p.nota, DeliveredAt: horaOpcionalDeRutas(p.entregadoEn),
 			ExternalID: p.externalID, Source: p.fuente, BranchID: pgDeRutas(p.sucursal),
 		})
+	}
+	return salida, nil
+}
+
+// EntregasParaAvisar: lo que `alcance.AvisoDeLaEntrega` necesita de cada fila.
+func (d *dobleDeRutas) EntregasParaAvisar(_ context.Context, ids []uuid.UUID) ([]sqlc.EntregasParaAvisarRow, error) {
+	var salida []sqlc.EntregasParaAvisarRow
+	for _, id := range ids {
+		if p, hay := d.pedidos[id]; hay {
+			salida = append(salida, sqlc.EntregasParaAvisarRow{
+				ID: p.id, Source: p.fuente, ExternalID: p.externalID, Folio: p.folio, FacturaNumero: p.facturaNumero,
+			})
+		}
 	}
 	return salida, nil
 }

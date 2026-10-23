@@ -540,18 +540,21 @@ type AlmacenesDelPedidoSinMedir struct {
 }
 
 type AvisosAPedido struct {
-	ID         uuid.UUID          `json:"id"`
-	PedidoID   string             `json:"pedido_id"`
-	Folio      *string            `json:"folio"`
-	Estado     string             `json:"estado"`
-	Nota       *string            `json:"nota"`
-	OcurrioAt  pgtype.Timestamptz `json:"ocurrio_at"`
-	Situacion  AvisoAPedidoEstado `json:"situacion"`
-	Intentos   int32              `json:"intentos"`
-	Motivo     *string            `json:"motivo"`
-	ResueltoAt pgtype.Timestamptz `json:"resuelto_at"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	ID           uuid.UUID          `json:"id"`
+	PedidoID     string             `json:"pedido_id"`
+	Folio        *string            `json:"folio"`
+	Estado       string             `json:"estado"`
+	Nota         *string            `json:"nota"`
+	OcurrioAt    pgtype.Timestamptz `json:"ocurrio_at"`
+	Situacion    AvisoAPedidoEstado `json:"situacion"`
+	Intentos     int32              `json:"intentos"`
+	Motivo       *string            `json:"motivo"`
+	ResueltoAt   pgtype.Timestamptz `json:"resuelto_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	Sucursal     *string            `json:"sucursal"`
+	Factura      *string            `json:"factura"`
+	PuntoDeVenta *string            `json:"punto_de_venta"`
 }
 
 type BajasDeLaBajada struct {
@@ -733,6 +736,10 @@ type Order struct {
 	PuntoClienteAddress *string `json:"punto_cliente_address"`
 	// folio de PEDIDO de la entrega (en filas de PEDIDO = operation_number; en las de factura, el orderNumber de Ventra). NULL si no lo hay. Clave de la adopción entre las dos fuentes (00025)
 	Folio *string `json:"folio"`
+	// cuándo el espejo quitó de su ruta una factura que Ventra dejó de mandar (00027). NULL = no anulada. Implica archivado = true
+	AnuladaAt pgtype.Timestamptz `json:"anulada_at"`
+	// la ruta de la que salió la factura anulada (00027). Sin clave ajena a propósito: la ruta puede borrarse después
+	AnuladaDeRutaID pgtype.UUID `json:"anulada_de_ruta_id"`
 }
 
 type OrderItem struct {

@@ -416,6 +416,40 @@ class Distribuidores extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// LAS FACTURAS QUE VENTRA CANCELO Y EL ESPEJO QUITO DE SU RUTA (esquema 15, 23/10/2026; Jose y
+/// Amado: «la cancelada que ya va en una ruta, si ya no aparece, quitarla e INFORMAR que esa
+/// factura ya fue cancelada»).
+///
+/// El servidor deja la fila de la factura ARCHIVADA con `anulada_at`; archivada, la bajada la
+/// manda en `quitados` de `orders` (el aparato la borra de `orders` y ninguna lista ni contador
+/// la cuenta) y, aparte, en `facturasAnuladas` — de ahi sale esta tabla, que NO es un espejo de
+/// `orders`: es el AVISO. Por eso es una tabla propia y no `orders` con un `archivado` puesto:
+/// en `orders` cualquier consulta que olvide `archivado` la contaria como repartible.
+///
+/// Solo bajan las de los ultimos 7 dias y el aparato olvida las que pasan de ahi.
+///
+/// [vistaAt] es LOCAL: lo escribe «Entendido» en ESTE aparato y la bajada no lo toca (su
+/// `insertOnConflictUpdate` no manda esa columna). Nulo = sin ver. En la web la base nace vacia
+/// en cada carga, asi que alli el aviso vuelve hasta que pasen los 7 dias.
+@DataClassName('FacturaAnulada')
+class FacturasAnuladas extends Table {
+  /// El `id` de la entrega en el servidor (`orders.id`).
+  TextColumn get id => text()();
+
+  /// El numero de la factura de Ventra (`factura_numero`); nulo si no lo trae.
+  TextColumn get numero => text().nullable()();
+  TextColumn get cliente => text()();
+  TextColumn get branchId => text().nullable()();
+
+  /// La ruta de la que se quito (`anulada_de_ruta_id`). Puede no estar en `routes` (borrada).
+  TextColumn get rutaId => text().nullable()();
+  DateTimeColumn get anuladaAt => dateTime()();
+  DateTimeColumn get vistaAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Los almacenes. No estan en el esquema de la API: viven en Accesos y se leen
 /// por `GET /api/almacenes`. Aqui se guarda la copia bajada.
 @DataClassName('Almacen')

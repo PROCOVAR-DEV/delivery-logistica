@@ -501,7 +501,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 14);
+        expect(nueva.schemaVersion, 15);
       },
     );
   }
@@ -665,7 +665,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 14);
+        expect(nueva.schemaVersion, 15);
       },
     );
   }
@@ -759,7 +759,7 @@ void main() {
         (await nueva.customSelect('PRAGMA user_version').getSingle()).read<int>(
           'user_version',
         ),
-        14,
+        15,
       );
 
       // LA COLUMNA EXISTE, preguntándoselo a SQLite, ANTES de que el Tablero
@@ -884,7 +884,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          14,
+          15,
         );
 
         // Y SE PUEDE ESCRIBIR: es lo que hará la bajada.
@@ -971,7 +971,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          14,
+          15,
         );
 
         // CADA UNA de las seis columnas está en la tabla, por su nombre en SQL (una
@@ -1095,7 +1095,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          14,
+          15,
         );
         // Y SE PUEDE ESCRIBIR Y LEER.
         await (nueva.update(nueva.orderItems)..where((r) => r.id.equals('r-1')))
@@ -1103,6 +1103,84 @@ void main() {
         expect(
           (await nueva.select(nueva.orderItems).getSingle()).facturaNumero,
           '47359',
+        );
+      },
+    );
+  }
+
+  // LA 15: LAS FACTURAS ANULADAS (23/10/2026). Una tabla NUEVA, `facturas_anuladas`. Se prueba con la
+  // cola dentro y en las dos formas que puede tener el aparato: sin la tabla (el de verdad) y CON ella
+  // ya puesta (copia nacida con el esquema nuevo y el `user_version` atrás: un `CREATE TABLE` repetido
+  // LANZA y la base no abriría, con la cola secuestrada dentro).
+  for (final conLaTabla in [false, true]) {
+    test(
+      'desde la 14: ${conLaTabla ? 'con la tabla de anuladas ya puesta' : 'sin ella'} abre y no pierde nada',
+      () async {
+        final fichero = await _ficheroDePrueba();
+        addTearDown(() async {
+          if (fichero.existsSync()) await fichero.delete();
+        });
+        final ayer = BaseLocal.con(NativeDatabase(fichero));
+        await ayer
+            .into(ayer.apuntes)
+            .insert(
+              ApuntesCompanion.insert(
+                clave: '01J8-anuladas',
+                hechoAt: DateTime(2026, 10, 23, 9),
+                metodo: 'PATCH',
+                ruta: '/api/routes/r-1',
+                cuerpo: '{"x":1}',
+              ),
+            );
+        await ayer.customStatement(
+          'INSERT INTO orders (id, customer_name, address, weight, archivado) '
+          "VALUES ('ped-1', 'Bodega La Rica', 'Calle 1', 75, 0)",
+        );
+        if (!conLaTabla) {
+          await ayer.customStatement('DROP TABLE facturas_anuladas');
+        }
+        await ayer.customStatement('PRAGMA user_version = 14');
+        await ayer.close();
+
+        final nueva = BaseLocal.con(NativeDatabase(fichero));
+        addTearDown(nueva.close);
+
+        expect(
+          (await nueva.select(nueva.apuntes).get()).map((a) => a.clave),
+          ['01J8-anuladas'],
+          reason:
+              'la cola sin subir es el trabajo del día y sobrevive al salto',
+        );
+        expect(
+          (await nueva.select(nueva.orders).getSingle()).customerName,
+          'Bodega La Rica',
+        );
+        final tablas =
+            (await nueva
+                    .customSelect(
+                      "SELECT name FROM sqlite_master WHERE type = 'table'",
+                    )
+                    .get())
+                .map((f) => f.read<String>('name'));
+        expect(tablas, contains('facturas_anuladas'));
+        // Y SE PUEDE USAR, con `vistaAt` nulo (nada visto en un aparato recién migrado).
+        await nueva
+            .into(nueva.facturasAnuladas)
+            .insert(
+              FacturasAnuladasCompanion.insert(
+                id: 'ped-1',
+                cliente: 'Bodega La Rica',
+                anuladaAt: DateTime(2026, 10, 23, 8),
+              ),
+            );
+        expect(
+          (await nueva.select(nueva.facturasAnuladas).getSingle()).vistaAt,
+          isNull,
+        );
+        expect(
+          (await nueva.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          15,
         );
       },
     );

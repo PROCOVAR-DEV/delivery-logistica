@@ -110,7 +110,8 @@ FROM order_items oi
 WHERE oi.product_id IS NOT NULL
   AND oi.order_id IN (
       SELECT o.id FROM orders o
-      WHERE (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
+      WHERE NOT o.archivado
+        AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
       ORDER BY o.created_at DESC
       LIMIT sqlc.arg('pedidos_recientes')
   )

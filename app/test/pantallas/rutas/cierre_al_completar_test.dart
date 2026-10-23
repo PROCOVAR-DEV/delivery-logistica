@@ -169,19 +169,42 @@ void main() {
   );
 
   testWidgets(
-    'se puede completar sin marcar nada: lo sin marcar siguió en el camión',
+    'NO se puede completar con paradas sin decidir: el botón sigue apagado '
+    'hasta marcar todas (Jose, 23/10/2026)',
     (tester) async {
       await sembrar(estadoDeLaRuta: EstadoRuta.enCurso);
       await pintar(tester, modo: ModoDelCierre.alCompletar);
 
-      // **Con cero marcadas el boton NO esta apagado.** En el modo de siempre
-      // si lo esta, porque guardar cero marcas no hace nada; aqui completar la
-      // ruta si hace algo, y dejar las tres sin marcar es una respuesta:
-      // volvieron en el camion.
-      final boton = tester.widget<FilledButton>(
+      FilledButton boton() => tester.widget<FilledButton>(
         find.widgetWithText(FilledButton, 'Guardar y completar'),
       );
-      expect(boton.onPressed, isNotNull);
+      const faltan = ValueKey('cierre-faltan-por-decidir');
+
+      // Con cero marcadas está apagado y dice cuántas faltan. La ruta M1_La Maya se
+      // completó en 7 s con 33 paradas sin marcar y quedaron sin resultado.
+      expect(boton().onPressed, isNull);
+      expect(
+        tester.widget<Text>(find.byKey(faltan)).data,
+        contains('Faltan 3 parada(s) por decidir'),
+      );
+
+      await tester.tap(botonDeParada('Entregado', 0));
+      await tester.tap(botonDeParada('Devuelto', 1));
+      await asentar(tester);
+      expect(
+        boton().onPressed,
+        isNull,
+        reason: 'con una sin decidir sigue apagado',
+      );
+      expect(
+        tester.widget<Text>(find.byKey(faltan)).data,
+        contains('Faltan 1 parada(s) por decidir'),
+      );
+
+      await tester.tap(botonDeParada('Cancelado', 2));
+      await asentar(tester);
+      expect(boton().onPressed, isNotNull);
+      expect(find.byKey(faltan), findsNothing);
 
       await tester.tap(
         find.widgetWithText(FilledButton, 'Guardar y completar'),
@@ -189,7 +212,67 @@ void main() {
       await asentar(tester);
 
       expect(await estadoDeLaRuta(), EstadoRuta.completada);
-      expect(await resultadosGuardados(), [null, null, null]);
+      expect(
+        await resultadosGuardados(),
+        everyElement(isNotNull),
+        reason: 'ninguna parada se queda sin resultado en una ruta cerrada',
+      );
+
+      await desmontar(tester);
+    },
+  );
+
+  testWidgets(
+    'el buscador: marcar todas «Entregado» y luego buscar UNA y decir que se '
+    'devolvió (Jose, 23/10/2026)',
+    (tester) async {
+      await sembrar(estadoDeLaRuta: EstadoRuta.enCurso);
+      await pintar(tester, modo: ModoDelCierre.alCompletar);
+
+      // 1. Todas entregadas de un golpe: el botón de guardar se enciende.
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Entregado').first);
+      await asentar(tester);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Guardar y completar'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+
+      // 2. Se busca una en concreto: solo se ve esa, y dice cuántas se ven.
+      await tester.enterText(find.byKey(const ValueKey('cierre-buscador')), 'bet');
+      await asentar(tester);
+      expect(find.text('Beto'), findsWidgets);
+      expect(find.text('Ana'), findsNothing);
+      expect(find.text('Carla'), findsNothing);
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('cierre-buscador-cuenta'))).data,
+        'Se ven 1 de 3 paradas',
+      );
+
+      // 3. Se marca SOLO esa como devuelta (la única parada visible).
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Devuelto').at(1));
+      await asentar(tester);
+
+      // 4. Una búsqueda sin resultados lo dice y no esconde que faltan o no decisiones.
+      await tester.enterText(find.byKey(const ValueKey('cierre-buscador')), 'zzz');
+      await asentar(tester);
+      expect(find.text('Ninguna parada coincide con «zzz»'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('cierre-buscador-borrar')));
+      await asentar(tester);
+      expect(find.byKey(const ValueKey('cierre-buscador-cuenta')), findsNothing);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Guardar y completar'));
+      await asentar(tester);
+
+      expect(await estadoDeLaRuta(), EstadoRuta.completada);
+      expect(await resultadosGuardados(), [
+        ResultadoParada.entregado,
+        ResultadoParada.devuelto,
+        ResultadoParada.entregado,
+      ]);
 
       await desmontar(tester);
     },
@@ -208,6 +291,8 @@ void main() {
     );
 
     await tester.tap(botonDeParada('Entregado', 0));
+    await tester.tap(botonDeParada('Entregado', 1));
+    await tester.tap(botonDeParada('Entregado', 2));
     await asentar(tester);
     final antesDeGuardar = RegistroDeControles.acciones.value;
     await tester.tap(find.widgetWithText(FilledButton, 'Guardar y completar'));

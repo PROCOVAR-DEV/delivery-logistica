@@ -331,6 +331,12 @@ parada por parada y compartirla con el chofer. **Quién la usa:** quien despacha
 
 **Título:** «Rutas». Encabezado interno: `Planificador de Rutas`. Botón `+ Nueva Ruta`.
 
+**Aviso de facturas canceladas (23/10/2026).** Encima de las tarjetas, un aviso ámbar persistente mientras haya
+facturas que Ventra canceló y el espejo quitó de su ruta sin ver en ESTE aparato: una línea por factura («La factura
+47412 (cliente) fue cancelada en Ventra y se quitó de la ruta Centro · 23/10 8:25») y «Entendido» (la deja vista en el
+aparato; en la web la base nace vacía y vuelve hasta los 7 días). Es un `Stream` sobre `facturas_anuladas`. El detalle de
+la ruta afectada enseña las suyas, vistas o no, sin botón. `aviso_de_facturas_canceladas.dart`.
+
 ### Pestañas (contadores en la propia pestaña)
 
 | Pestaña | Qué agrupa | Vacío (literal) |

@@ -149,6 +149,32 @@ final todasLasRutasProvider = StreamProvider<List<Ruta>>(
       .rutas(sucursalId: ref.watch(sucursalMiradaProvider)),
 );
 
+/// LAS FACTURAS CANCELADAS EN VENTRA QUE SE QUITARON DE SU RUTA y que nadie ha dado por vistas en
+/// ESTE aparato (esquema 15; Jose y Amado, 23/10/2026). Alimenta el aviso de la lista de Rutas.
+///
+/// STREAM, no Future (§3-ter): en la web la base nace vacia en cada carga y la bajada las trae un
+/// segundo despues de pintar la pantalla; un `FutureProvider` se quedaria con «no hay ninguna».
+final facturasCanceladasSinVerProvider = StreamProvider<List<FacturaCancelada>>(
+  (ref) => ref
+      .watch(consultasRutasProvider)
+      .facturasCanceladas(
+        ahora: ref.watch(relojProvider)(),
+        sucursalId: ref.watch(sucursalMiradaProvider),
+      ),
+);
+
+/// Las de UNA ruta (se hayan dado por vistas o no), para su detalle.
+final facturasCanceladasDeLaRutaProvider =
+    StreamProvider.family<List<FacturaCancelada>, String>(
+      (ref, rutaId) => ref
+          .watch(consultasRutasProvider)
+          .facturasCanceladas(
+            ahora: ref.watch(relojProvider)(),
+            rutaId: rutaId,
+            soloSinVer: false,
+          ),
+    );
+
 final vehiculosProvider = StreamProvider<List<Vehiculo>>(
   (ref) => ref
       .watch(consultasRutasProvider)

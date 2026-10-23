@@ -46,6 +46,7 @@ import '../datos/importe_de_la_ruta.dart';
 import '../datos/pre_despacho_de_la_ruta.dart';
 import '../datos/repositorio_rutas.dart';
 import '../estado/proveedores_rutas.dart';
+import 'aviso_de_facturas_canceladas.dart';
 import 'cierre_de_ruta.dart';
 import 'mapa_de_la_ruta.dart';
 import 'paradas_ordenables.dart';
@@ -127,6 +128,8 @@ class DetalleDeRuta extends ConsumerWidget {
       if (!enCajon) ...[_Cabecera(ruta: conTodo), const SizedBox(height: 8)],
       _Acciones(ruta: conTodo),
       const SizedBox(height: 12),
+      // Las facturas que se cancelaron en Ventra y se quitaron de ESTA ruta (esquema 15).
+      FacturasCanceladasDeLaRuta(rutaId: conTodo.ruta.id),
       // EN QUE ANDA EL CAMION DE ESTA RUTA. Entra por parametro y no lo lee la
       // cabecera, porque esa cabecera se prueba SUELTA, sin `ProviderScope` (ver
       // su nota): dentro de un `testWidgets` una consulta de Drift cuelga la

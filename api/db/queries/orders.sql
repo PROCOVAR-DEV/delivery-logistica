@@ -319,7 +319,7 @@ SELECT
     o.municipio, o.vendedor, o.sucursal_codigo, o.branch_id, o.updated_at,
     o.punto_manual, o.punto_manual_por, o.punto_manual_at,
     o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
-    o.folio,
+    o.folio, o.anulada_at, o.anulada_de_ruta_id,
     r.name          AS ruta_nombre,
     r.route_code    AS ruta_codigo,
     r.status        AS ruta_estado,
@@ -513,7 +513,7 @@ SELECT
     o.created_at, o.updated_at,
     o.punto_manual, o.punto_manual_por, o.punto_manual_at,
     o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
-    o.folio,
+    o.folio, o.anulada_at, o.anulada_de_ruta_id,
     r.name  AS ruta_nombre,
     v.name  AS vehiculo_nombre,
     v.plate AS vehiculo_matricula,
@@ -972,7 +972,12 @@ DO UPDATE SET
     -- reconocen como la misma. Entra en el UPDATE y en la comparación de abajo: si no entrara,
     -- una fila que ganara su folio después (el relleno de la 00025 no llega a las que no
     -- existían) se leería como «no cambió nada» y se quedaría sin él para siempre.
-    folio                   = excluded.folio
+    folio                   = excluded.folio,
+    -- UNA FACTURA ANULADA QUE REAPARECE SE REACTIVA, en la misma fila (00027): `archivado` ya viene en
+    -- false de `excluded`, y aquí se borra la marca de anulada (el CHECK `orders_anulada_archivada_chk`
+    -- no deja una anulada sin archivar). Sin duplicarse: el `ON CONFLICT` la encuentra por su `external_id`.
+    anulada_at              = NULL,
+    anulada_de_ruta_id      = NULL
 -- UN PEDIDO QUE LLEGA IGUAL NO SE TOCA. Medido en producción el 26/09/2026:
 --
 --     orders   5.452 filas  ·  7.170.587 actualizaciones
@@ -1010,7 +1015,7 @@ WHERE (orders.operation_number, orders.customer_name, orders.customer_phone,
        orders.almacen_salida_sucursal, orders.almacen_salida_mezclado,
        orders.almacen_salida_motivo,
        orders.punto_cliente_lat, orders.punto_cliente_lng, orders.punto_cliente_address,
-       orders.folio)
+       orders.folio, orders.anulada_at, orders.anulada_de_ruta_id)
    IS DISTINCT FROM
       (excluded.operation_number, excluded.customer_name, excluded.customer_phone,
        excluded.address,
@@ -1038,7 +1043,7 @@ WHERE (orders.operation_number, orders.customer_name, orders.customer_phone,
        CASE WHEN orders.punto_manual THEN excluded.end_lat ELSE NULL END,
        CASE WHEN orders.punto_manual THEN excluded.end_lng ELSE NULL END,
        CASE WHEN orders.punto_manual THEN excluded.end_address ELSE NULL END,
-       excluded.folio)
+       excluded.folio, NULL::timestamptz, NULL::uuid)
 RETURNING id, branch_id, external_id, (xmax = 0)::boolean AS es_nuevo;
 
 -- EL PEDIDO QUE NO HIZO FALTA TOCAR, para poder seguir con sus renglones.
@@ -1151,6 +1156,9 @@ SELECT EXISTS (
 -- Ventra no fue preguntada por ella. El día se pasa a hora de Cuba igual que los filtros de
 -- fecha de la factura (issue 16, `coalesce(factura_at, order_date, created_at)`).
 -- `ocupada` es lo que impide retirarla: va o fue en una ruta, o tiene resultado.
+--
+-- LAS YA ANULADAS (`anulada_at`, 00027) NO SE LISTAN: ya se quitaron de su ruta y se marcaron. Sin esta
+-- línea el ciclo siguiente las vería «sin ruta, y ya no vienen» y las BORRARÍA, y con ellas el aviso.
 -- name: EntregasDeFacturaEnVentana :many
 SELECT o.id, o.external_id,
        (o.route_id IS NOT NULL OR o.ultima_ruta_id IS NOT NULL
@@ -1160,8 +1168,56 @@ WHERE o.source = 'pedido'
   AND o.external_id IS NOT NULL
   AND starts_with(o.external_id, 'factura:')
   AND o.sucursal_codigo = sqlc.arg('sucursal_codigo')::text
+  AND o.anulada_at IS NULL
   AND (coalesce(o.factura_at, o.order_date, o.created_at) AT TIME ZONE 'America/Havana')::date
         BETWEEN sqlc.arg('desde')::date AND sqlc.arg('hasta')::date;
+
+-- QUITAR DE SU RUTA LA FACTURA QUE VENTRA YA NO MANDA y dejarla MARCADA (00027, Jose y Amado,
+-- 23/10/2026). Es `SoltarParadaPlanificada` (`DELETE /api/routes/{id}/stops/{orderId}`) con tres
+-- diferencias, y las tres son a propósito:
+--
+--   · sirve para rutas `planned` Y `in_progress` (la anulada ya iba en el camión), nunca `completed`
+--     ni `cancelled`: el histórico se fija al completar;
+--   · la fila NO se borra: queda `archivado = true` con `anulada_at` y `anulada_de_ruta_id`, y así
+--     ninguna lista, contador, armado ni tablero la cuenta (todas excluyen `archivado`) y la app
+--     puede decir «esta factura se canceló y se quitó de la ruta X»;
+--   · NO vuelve a su zona del tablero (`board_route_origins` se borra sin restaurar): una factura
+--     cancelada no tiene que reaparecer en ninguna columna. Su colocación, si la hubiera, también se va.
+--
+-- `ultima_ruta_id` a NULL por lo mismo que en `SoltarParadaPlanificada` (la parada fantasma, 07/10/2026):
+-- el trigger de totales (`refrescar_totales_de_ruta`) recalcula peso, importe y «sin cotizar» de la ruta
+-- en esta misma sentencia. Los `stop_order` de las demás no se renumeran (queda un hueco, como allí).
+--
+-- LAS GUARDAS ESTÁN AQUÍ Y SÓLO AQUÍ (quien llama no las repite): factura (`factura:`), ruta sin
+-- completar, SIN resultado y SIN entrega, y aún no anulada. Entre la lectura y esta orden el logístico
+-- puede haber cerrado la ruta, y una factura que ya se entregó no se toca.
+-- name: AnularEntregasDeFacturaEnRuta :many
+WITH quitadas AS (
+    UPDATE orders o SET
+        anulada_at = now(), anulada_de_ruta_id = o.route_id, archivado = true,
+        route_id = NULL, ultima_ruta_id = NULL, stop_order = NULL, segment_km = NULL,
+        trip_leg = 'outbound'
+    FROM routes r
+    WHERE o.id = ANY(sqlc.arg('ids')::uuid[])
+      AND o.source = 'pedido'
+      AND o.external_id IS NOT NULL
+      AND starts_with(o.external_id, 'factura:')
+      AND r.id = o.route_id
+      AND r.status IN ('planned', 'in_progress')
+      AND o.resultado IS NULL
+      AND o.delivered_at IS NULL
+      AND o.anulada_at IS NULL
+    RETURNING o.id, o.external_id, o.anulada_de_ruta_id AS ruta_id
+), origenes AS (
+    DELETE FROM board_route_origins b
+    USING quitadas q
+    WHERE b.order_id = q.id AND b.route_id = q.ruta_id
+), colocaciones AS (
+    DELETE FROM board_placements p
+    USING quitadas q
+    WHERE p.order_id = q.id
+)
+SELECT id, external_id, ruta_id FROM quitadas;
 
 -- RETIRAR LAS QUE YA NO VAN. Aunque quien llama ya filtró, la guarda se repite en el propio
 -- DELETE: entre la lectura y el borrado una ruta puede haberla recogido, y borrar lo que ya
@@ -1287,7 +1343,11 @@ SELECT
                        AND o.factura_estado IN ('igual','cambiado')), 0)::double precision AS peso_pendiente,
     coalesce(sum(o.pedido_costo), 0)::double precision              AS total_domicilios
 FROM orders o
-WHERE (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid);
+-- NO CUENTA LO ARCHIVADO (23/10/2026, 00027): una factura anulada y quitada de su ruta queda
+-- archivada, sin ruta y con coordenadas, y sin esto entraba en `sin_ruta` y en `peso_pendiente`
+-- como si hubiera que repartirla. Es la misma regla de `ListarPedidosDisponibles`.
+WHERE NOT o.archivado
+  AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid);
 
 -- El reparto de lo repartible por sucursal. Lo ve quien no tiene alcance —el Super Admin—;
 -- a quien sí lo tiene le sale una sola fila, que es justo lo correcto.
@@ -1300,6 +1360,7 @@ SELECT
 FROM orders o
 LEFT JOIN branches b ON b.id = o.branch_id
 WHERE o.route_id IS NULL
+  AND NOT o.archivado
   AND o.end_lat IS NOT NULL
   AND o.factura_estado IN ('igual','cambiado')
   -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
@@ -1373,6 +1434,13 @@ ORDER BY o.created_at DESC;
 --     contarle al aparato para que lo BORRE. Quien contesta la bajada mira `archivado` y
 --     lo manda a `quitados`.
 --
+-- LAS FACTURAS ANULADAS RECIENTES (00027) ENTRAN TAMBIÉN, con `anuladas_desde` puesto: son filas
+-- archivadas que el aparato NUEVO quiere ver (para decir «la factura 47412 se canceló y se quitó de
+-- la ruta Centro») y que, sin esto, saldrían sólo en `quitados`. Va en la carga inicial también: un
+-- aparato que se instala hoy tiene que enterarse de lo que se canceló ayer. Nulo = no se pide (el
+-- aparato anterior a la 1.0.43, que no sabe qué hacer con una fila archivada). Quien contesta la
+-- bajada decide qué hace con ellas (`pedidosDeLaBajada`).
+--
 -- Las dos sucursales del WHERE son las de la casa: `sucursal` es el alcance, que lo pone
 -- `internal/alcance` y no se puede pasar desde fuera, y `branch_id` es la que pide quien
 -- llama. Van en AND: la segunda estrecha, nunca amplía.
@@ -1405,6 +1473,7 @@ marcados AS (
         o.punto_manual, o.punto_manual_por, o.punto_manual_at,
         o.folio,
         o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
+        o.anulada_at, o.anulada_de_ruta_id,
         o.stop_order, o.delivered_at, o.resultado, o.resultado_at, o.resultado_nota,
         o.created_at, o.updated_at,
         GREATEST(
@@ -1418,7 +1487,9 @@ marcados AS (
     JOIN tocados t ON t.id = o.id
     WHERE (sqlc.narg('sucursal')::uuid  IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
       AND (sqlc.narg('branch_id')::uuid IS NULL OR o.branch_id = sqlc.narg('branch_id')::uuid)
-      AND (sqlc.arg('con_archivados')::boolean OR NOT o.archivado)
+      AND (sqlc.arg('con_archivados')::boolean OR NOT o.archivado
+           OR (sqlc.narg('anuladas_desde')::timestamptz IS NOT NULL
+               AND o.anulada_at >= sqlc.narg('anuladas_desde')::timestamptz))
 )
 SELECT
     id, operation_number, customer_name, customer_phone, address, end_address,
@@ -1439,6 +1510,9 @@ SELECT
     -- El punto que traía el cliente (null si no es manual): el aparato vuelve a él SIN conexión copiando
     -- estos tres a `endLat`/`endLng`/`endAddress`.
     punto_cliente_lat, punto_cliente_lng, punto_cliente_address,
+    -- La factura anulada y quitada de su ruta (00027): sólo viaja en las filas archivadas que
+    -- `anuladas_desde` deja entrar; en el resto, null.
+    anulada_at, anulada_de_ruta_id,
     stop_order, delivered_at, resultado, resultado_at, resultado_nota,
     created_at, updated_at, cambiado_at
 FROM marcados

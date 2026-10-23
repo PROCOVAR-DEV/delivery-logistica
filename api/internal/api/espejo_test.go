@@ -108,6 +108,9 @@ type pedidoSync struct {
 	clienteLat     *float64
 	clienteLng     *float64
 	clienteDir     string
+	// La factura anulada y quitada de su ruta (00027): `anulada_at` y `anulada_de_ruta_id`.
+	anuladaAt   *time.Time
+	anuladaRuta uuid.UUID
 }
 
 // cambiadoAt es el `GREATEST(o.updated_at, max(oi.updated_at))` de la consulta.
@@ -146,7 +149,9 @@ func (q *espejoFalso) DiferenciasDePedidos(_ context.Context, arg sqlc.Diferenci
 		if arg.BranchID.Valid && [16]byte(p.sucursal) != arg.BranchID.Bytes {
 			continue
 		}
-		if p.archivado && !arg.ConArchivados {
+		// Como el SQL: las anuladas recientes entran aunque estén archivadas.
+		anuladaReciente := arg.AnuladasDesde.Valid && p.anuladaAt != nil && !p.anuladaAt.Before(arg.AnuladasDesde.Time)
+		if p.archivado && !arg.ConArchivados && !anuladaReciente {
 			continue
 		}
 		fila := sqlc.DiferenciasDePedidosRow{
@@ -178,6 +183,10 @@ func (q *espejoFalso) DiferenciasDePedidos(_ context.Context, arg sqlc.Diferenci
 			fila.PuntoManualAt = pgtype.Timestamptz{Time: *p.puntoManualAt, Valid: true}
 		}
 		fila.PuntoClienteLat, fila.PuntoClienteLng = p.clienteLat, p.clienteLng
+		if p.anuladaAt != nil {
+			fila.AnuladaAt = pgtype.Timestamptz{Time: *p.anuladaAt, Valid: true}
+			fila.AnuladaDeRutaID = pgtype.UUID{Bytes: [16]byte(p.anuladaRuta), Valid: true}
+		}
 		if p.clienteDir != "" {
 			dir := p.clienteDir
 			fila.PuntoClienteAddress = &dir

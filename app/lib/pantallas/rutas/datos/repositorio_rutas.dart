@@ -281,6 +281,16 @@ class RutaConTodo {
   int get sinMarcar => paradas.where((p) => p.resultado == null).length;
 }
 
+/// Una factura cancelada y quitada de su ruta, con el nombre de la ruta si sigue en la copia.
+class FacturaCancelada {
+  const FacturaCancelada({required this.factura, this.rutaNombre});
+
+  final FacturaAnulada factura;
+
+  /// El nombre de la ruta de la que salio, o nulo si ya no esta en este aparato.
+  final String? rutaNombre;
+}
+
 class ConsultasRutas {
   ConsultasRutas(this._base) : _pedidos = ConsultasPedidos(_base);
 
@@ -299,6 +309,60 @@ class ConsultasRutas {
     }
     return consulta.watch();
   }
+
+  /// LAS FACTURAS CANCELADAS EN VENTRA QUE SE QUITARON DE SU RUTA (esquema 15), las de los ultimos
+  /// 7 dias, de la mas nueva a la mas vieja. Es un STREAM sobre la tabla (`facturas_anuladas`) y
+  /// sobre `routes` (el nombre de la ruta): llega con la bajada, con la pantalla ya abierta.
+  ///
+  /// [rutaId] las acota a una ruta (el detalle). [soloSinVer] deja fuera las que «Entendido» ya dio
+  /// por vistas en ESTE aparato (la lista de Rutas); el detalle las enseña todas. [ahora] es el reloj
+  /// de la aplicacion: la ventana de 7 dias se cuenta desde ahi.
+  Stream<List<FacturaCancelada>> facturasCanceladas({
+    required DateTime ahora,
+    String? sucursalId,
+    String? rutaId,
+    bool soloSinVer = true,
+  }) {
+    final f = _base.facturasAnuladas;
+    final consulta =
+        _base.select(f).join([
+            leftOuterJoin(_base.routes, _base.routes.id.equalsExp(f.rutaId)),
+          ])
+          ..where(
+            f.anuladaAt.isBiggerOrEqualValue(
+              ahora.subtract(ventanaDeFacturasAnuladas),
+            ),
+          )
+          ..orderBy([OrderingTerm.desc(f.anuladaAt)]);
+    if (soloSinVer) consulta.where(f.vistaAt.isNull());
+    if (sucursalId != null && sucursalId.isNotEmpty) {
+      consulta.where(f.branchId.equals(sucursalId));
+    }
+    if (rutaId != null) consulta.where(f.rutaId.equals(rutaId));
+    return consulta.watch().map(
+      (filas) => [
+        for (final fila in filas)
+          FacturaCancelada(
+            factura: fila.readTable(f),
+            rutaNombre: _nombreDeLaRuta(fila.readTableOrNull(_base.routes)),
+          ),
+      ],
+    );
+  }
+
+  /// Como se llama la ruta en pantalla: su nombre («Centro») y, si no lo tiene, su codigo.
+  static String? _nombreDeLaRuta(Ruta? ruta) {
+    if (ruta == null) return null;
+    final nombre = ruta.name?.trim() ?? '';
+    return nombre.isNotEmpty ? nombre : ruta.routeCode;
+  }
+
+  /// «Entendido»: deja vistas, en ESTE aparato, estas facturas. No se borra nada: el aviso sigue
+  /// existiendo para el detalle de la ruta hasta que pasen los 7 dias.
+  Future<void> marcarVistas(Iterable<String> ids, DateTime ahora) =>
+      (_base.update(_base.facturasAnuladas)
+            ..where((f) => f.id.isIn(ids.toList()) & f.vistaAt.isNull()))
+          .write(FacturasAnuladasCompanion(vistaAt: Value(ahora)));
 
   /// Una ruta con sus paradas, su vehiculo y su sucursal.
   Stream<RutaConTodo?> rutaConTodo(String rutaId) {

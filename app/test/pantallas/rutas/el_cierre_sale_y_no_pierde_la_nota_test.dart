@@ -142,6 +142,12 @@ void main() {
     await asentar(tester);
   }
 
+  /// Al completar hay que decidir TODAS las paradas (23/10/2026): atajo «Todas: Entregado».
+  Future<void> marcarTodas(WidgetTester tester) async {
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Entregado').first);
+    await asentar(tester);
+  }
+
   Future<void> pulsar(WidgetTester tester, String boton) async {
     await tester.tap(find.widgetWithText(FilledButton, boton));
     await asentar(tester);
@@ -166,7 +172,7 @@ void main() {
   testWidgets('guardar y completar bien: el cajón sale, sin pregunta, y la pantalla de debajo sigue', (tester) async {
     await sembrar();
     await montar(tester, modo: ModoDelCierre.alCompletar);
-    await marcarDos(tester);
+    await marcarTodas(tester);
     await pulsar(tester, 'Guardar y completar');
     cajonCerradoYPantalla2('completar');
     expect(alCompletarLlamado, isTrue);
@@ -197,7 +203,7 @@ void main() {
   testWidgets('sin conexión (cola): completar cierra el cajón sin preguntar y avisa a la lista', (tester) async {
     await sembrar();
     await montar(tester, modo: ModoDelCierre.alCompletar, web: false);
-    await marcarDos(tester);
+    await marcarTodas(tester);
     await pulsar(tester, 'Guardar y completar');
     cajonCerradoYPantalla2('completar sin conexión');
     expect(alCompletarLlamado, isTrue);
@@ -211,7 +217,7 @@ void main() {
       modo: ModoDelCierre.alCompletar,
       dice: (p) async => p.metodo == 'POST' ? parcial() : RespuestaFalsa(200),
     );
-    await marcarDos(tester);
+    await marcarTodas(tester);
     await pulsar(tester, 'Guardar y completar');
     await tester.tap(find.widgetWithText(FilledButton, 'Entendido'));
     await asentar(tester);
@@ -228,7 +234,8 @@ void main() {
       resultadoNota: Value('viejo'),
     ));
     await montar(tester, modo: ModoDelCierre.marcar);
-    await tester.enterText(find.byType(TextField).first, 'nuevo motivo');
+    // El primer TextField es el BUSCADOR de la hoja (23/10/2026); el de la nota va después.
+    await tester.enterText(find.byType(TextField).at(1), 'nuevo motivo');
     await asentar(tester);
     unawaited(tester.binding.handlePopRoute());
     await asentar(tester);

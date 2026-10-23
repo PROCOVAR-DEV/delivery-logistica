@@ -476,27 +476,9 @@ type ParteAPedido struct {
 	HTTP int `json:"http,omitempty"`
 }
 
-// AvisoDeParada es un pedido y en qué punto del reparto quedó.
-type AvisoDeParada struct {
-	// PedidoID es el id EN PEDIDO, no el nuestro. Cada copia del espejo lo guarda en
-	// `external_id`; un pedido sin él no tiene a quién avisarle y no entra en el lote.
-	PedidoID string `json:"pedidoId"`
-	Estado   string `json:"estado"`
-	Nota     string `json:"nota,omitempty"`
-
-	// At es LA HORA DEL SUCESO, no la de la llamada.
-	//
-	// Es la diferencia entre que en PEDIDO ponga las cuatro o las siete y media. Con el
-	// trabajo sin conexión, el logístico marca el cierre a las 16:04 en un patio sin
-	// señal y la cola sube a las 19:30: el vendedor tiene que ver cuándo recibió su
-	// cliente, no cuándo pilló señal el teléfono (`docs/sincronizacion.md`, «La hora es
-	// la del aparato»).
-	//
-	// `omitzero` y no `omitempty`: un `time.Time` vacío no es «vacío» para el JSON, se
-	// serializaría como el año 1, y PEDIDO se creería esa fecha. Sin hora, el campo no
-	// va y PEDIDO pone la suya, que es lo que dice el contrato (`at?`).
-	At time.Time `json:"at,omitzero"`
-}
+// AvisoDeParada es una entrega y en qué punto del reparto quedó. Vive en `alcance` (junto a
+// `AvisoDeLaEntrega`, que decide su forma) para que el espejo también pueda encolarlo.
+type AvisoDeParada = alcance.AvisoDeParada
 
 // horaDelSuceso: CUÁNDO PASÓ, que no siempre es cuándo se está contando.
 //
@@ -1186,15 +1168,11 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 	// acto —armar la ruta— y tienen que constar con la misma hora, no con la de cada
 	// vuelta del bucle.
 	cuando := horaDelSuceso(r)
-	var avisos []AvisoDeParada
+	idsAvisar := make([]uuid.UUID, 0, len(pedidos))
 	for _, p := range pedidos {
-		if p.Source != nil && *p.Source == sqlc.ProcedenciaPedido && p.ExternalID != nil {
-			avisos = append(avisos, AvisoDeParada{
-				PedidoID: *p.ExternalID, Estado: estadoDespachado, At: cuando,
-			})
-		}
+		idsAvisar = append(idsAvisar, p.ID)
 	}
-	s.avisarDeFondo(r, avisos)
+	s.avisarDeFondo(r, s.avisosDeLasEntregas(r, ar, idsAvisar, estadoDespachado, cuando))
 	// DE LA RUTA QUE SE ACABA DE CREAR, no del alcance de quien la creó.
 	avisarCambioDeRutas(r.Context(), deLaFilaPg(creada.BranchID))
 
@@ -1954,8 +1932,15 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		universo := map[uuid.UUID]sqlc.ListarParadasQueViajaronEnRutaRow{}
+		idsViajaron := make([]uuid.UUID, 0, len(viajaron))
 		for _, p := range viajaron {
 			universo[p.ID] = p
+			idsViajaron = append(idsViajaron, p.ID)
+		}
+		// Lo que decide A QUIÉN se avisa (folio, factura) no viene en la consulta de paradas.
+		paraAvisar, err := tx.EntregasParaAvisar(r.Context(), idsViajaron)
+		if err != nil {
+			return err
 		}
 
 		// LA HORA DEL CIERRE, que es el caso por el que existe todo esto. Una hoja de cierre
@@ -1987,7 +1972,7 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 				rechazar(e, msgParadaAjena)
 				continue
 			}
-			parada, iba := universo[pedidoID]
+			_, iba := universo[pedidoID]
 			if !iba {
 				rechazar(e, msgParadaAjena)
 				continue
@@ -2048,12 +2033,10 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			}
 			aplicado := string(resultado)
 			salida.Aplicados = append(salida.Aplicados, aplicadoDeCierre{OrderID: pedidoID.String(), Resultado: &aplicado})
-			if parada.Source != nil && *parada.Source == sqlc.ProcedenciaPedido && parada.ExternalID != nil {
-				aviso := AvisoDeParada{PedidoID: *parada.ExternalID, Estado: string(resultado), At: cuando}
-				if nota != nil {
-					aviso.Nota = *nota
-				}
-				// UN AVISO POR PEDIDO, EL ÚLTIMO — y es el que la base acaba teniendo.
+			if aviso, hay := alcance.AvisoDeLaEntrega(paraAvisar[pedidoID], string(resultado), cuando, derefONada(nota)); hay {
+				// UN AVISO POR FACTURA, EL ÚLTIMO — y es el que la base acaba teniendo. (Para
+				// una entrega de un pedido de PEDIDO, por pedido: ver `AvisoDeParada.Clave`.
+				// Dos facturas del mismo folio son dos avisos.)
 				//
 				// Una hoja de cierre puede traer el mismo `orderId` dos veces: la cola del
 				// aparato junta apuntes cuando vuelve la señal, y una corrección —«entregado»
@@ -2066,9 +2049,9 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 				//
 				// `aplicados` NO se toca: sigue llevando una entrada por cada cosa que se
 				// procesó, que es el acuse que el aparato compara con lo que mandó.
-				if donde, repetido := dondeEstaElAviso(avisos, aviso.PedidoID); repetido {
-					httpx.Registro(r).Warn("la hoja de cierre trae el mismo pedido dos veces: a PEDIDO va el último",
-						"ruta", ruta.ID, "pedido", aviso.PedidoID,
+				if donde, repetido := dondeEstaElAviso(avisos, aviso.Clave()); repetido {
+					httpx.Registro(r).Warn("la hoja de cierre trae la misma entrega dos veces: a PEDIDO va el último",
+						"ruta", ruta.ID, "pedido", aviso.PedidoID, "folio", aviso.Folio, "factura", aviso.Factura,
 						"antes", avisos[donde].Estado, "ahora", aviso.Estado)
 					avisos[donde] = aviso
 				} else {
@@ -2278,9 +2261,9 @@ func idParaElRegistro(id pgtype.UUID) string {
 // Es una búsqueda lineal y está bien que lo sea: una hoja de cierre son las paradas de UN
 // camión —decenas, no miles— y un mapa aquí obligaría a mantener dos estructuras a la vez
 // con el mismo contenido, que es como se separan. Ver el porqué en `cerrarRuta`.
-func dondeEstaElAviso(avisos []AvisoDeParada, pedidoID string) (int, bool) {
+func dondeEstaElAviso(avisos []AvisoDeParada, clave string) (int, bool) {
 	for i, a := range avisos {
-		if a.PedidoID == pedidoID {
+		if a.Clave() == clave {
 			return i, true
 		}
 	}
@@ -2933,14 +2916,11 @@ func (s *Servidor) avisosDeLasParadas(r *http.Request, a *alcance.Acotado, ruta 
 		httpx.Registro(r).Error("no se pudieron leer las paradas para avisar a PEDIDO", "ruta", ruta, "err", err)
 		return nil
 	}
-	cuando := horaDelSuceso(r)
-	var avisos []AvisoDeParada
+	ids := make([]uuid.UUID, 0, len(paradas))
 	for _, p := range paradas {
-		if p.Source != nil && *p.Source == sqlc.ProcedenciaPedido && p.ExternalID != nil {
-			avisos = append(avisos, AvisoDeParada{PedidoID: *p.ExternalID, Estado: estado, At: cuando})
-		}
+		ids = append(ids, p.ID)
 	}
-	return avisos
+	return s.avisosDeLasEntregas(r, a, ids, estado, horaDelSuceso(r))
 }
 
 // avisarDeFondo dispara y olvida. Lo que NO puede pasar es que no se pueda armar o

@@ -477,8 +477,8 @@ salida…» o «Ninguna de las 3 paradas tiene coordenadas guardadas…».
 
 Arriba lee lo que dice:
 
-   > «Antes de dar la ruta por completada: ¿cómo acabó cada parada? Lo que dejes sin
-   > marcar se da por no entregado y cuenta como que sigue en el camión.»
+   > «Antes de dar la ruta por completada: ¿cómo acabó cada factura? Hasta que decidas
+   > todas, el botón de guardar queda apagado.»
 
 1. **Por cada parada**, toca uno de los tres botones: **«Entregado»** (verde),
    **«Devuelto»** (rojo) o **«Cancelado»** (gris).
@@ -523,8 +523,8 @@ pero te lo dice.
    completada»**. <!-- señala: rutas-completar -->
    - **Siempre abre primero la hoja de estados**, aunque hubiera marcas anteriores:
 
-   > «Antes de dar la ruta por completada: ¿cómo acabó cada parada? Lo que dejes sin
-   > marcar se da por no entregado y cuenta como que sigue en el camión.»
+   > «Antes de dar la ruta por completada: ¿cómo acabó cada factura? Hasta que decidas
+   > todas, el botón de guardar queda apagado.»
 
 2. Márcalas y **toca «Guardar y completar»**. Revisa las marcas antes de confirmar. <!-- señala: rutas-guardar-el-cierre -->
    - **La ruta se va al «Historial»**, el camión queda libre, y las facturas no
@@ -574,8 +574,7 @@ Y dos firmas: **«Entregó (chofer)»** y **«Recibió en almacén»**.
 El botón pasa a ser **«Ver cierre»** y es **sólo lectura**: no hay botones de
 resultado, ni campo de nota, ni botón de guardar. Arriba lo dice:
 
-> «La ruta ya está completada: así acabó cada parada. **Para corregir algo, hay que
-> hacerlo en PEDIDO.**»
+> «La ruta ya está completada: así acabó cada factura.»
 
 ---
 

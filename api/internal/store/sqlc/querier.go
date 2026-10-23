@@ -148,6 +148,26 @@ type Querier interface {
 	// vista y en su orden, sqlc reutiliza el modelo de la vista y lo llama
 	// `AlmacenesDelPedidoSinMedirum`. Con un alias emite un `...Row` que se puede leer.
 	AlmacenesDelPedidoSinMedir(ctx context.Context, arg AlmacenesDelPedidoSinMedirParams) ([]AlmacenesDelPedidoSinMedirRow, error)
+	// QUITAR DE SU RUTA LA FACTURA QUE VENTRA YA NO MANDA y dejarla MARCADA (00027, Jose y Amado,
+	// 23/10/2026). Es `SoltarParadaPlanificada` (`DELETE /api/routes/{id}/stops/{orderId}`) con tres
+	// diferencias, y las tres son a propósito:
+	//
+	//   · sirve para rutas `planned` Y `in_progress` (la anulada ya iba en el camión), nunca `completed`
+	//     ni `cancelled`: el histórico se fija al completar;
+	//   · la fila NO se borra: queda `archivado = true` con `anulada_at` y `anulada_de_ruta_id`, y así
+	//     ninguna lista, contador, armado ni tablero la cuenta (todas excluyen `archivado`) y la app
+	//     puede decir «esta factura se canceló y se quitó de la ruta X»;
+	//   · NO vuelve a su zona del tablero (`board_route_origins` se borra sin restaurar): una factura
+	//     cancelada no tiene que reaparecer en ninguna columna. Su colocación, si la hubiera, también se va.
+	//
+	// `ultima_ruta_id` a NULL por lo mismo que en `SoltarParadaPlanificada` (la parada fantasma, 07/10/2026):
+	// el trigger de totales (`refrescar_totales_de_ruta`) recalcula peso, importe y «sin cotizar» de la ruta
+	// en esta misma sentencia. Los `stop_order` de las demás no se renumeran (queda un hueco, como allí).
+	//
+	// LAS GUARDAS ESTÁN AQUÍ Y SÓLO AQUÍ (quien llama no las repite): factura (`factura:`), ruta sin
+	// completar, SIN resultado y SIN entrega, y aún no anulada. Entre la lectura y esta orden el logístico
+	// puede haber cerrado la ruta, y una factura que ya se entregó no se toca.
+	AnularEntregasDeFacturaEnRuta(ctx context.Context, ids []uuid.UUID) ([]AnularEntregasDeFacturaEnRutaRow, error)
 	// ---------------------------------------------------------------------------
 	// Lo que sale
 	// ---------------------------------------------------------------------------
@@ -648,6 +668,13 @@ type Querier interface {
 	//     contarle al aparato para que lo BORRE. Quien contesta la bajada mira `archivado` y
 	//     lo manda a `quitados`.
 	//
+	// LAS FACTURAS ANULADAS RECIENTES (00027) ENTRAN TAMBIÉN, con `anuladas_desde` puesto: son filas
+	// archivadas que el aparato NUEVO quiere ver (para decir «la factura 47412 se canceló y se quitó de
+	// la ruta Centro») y que, sin esto, saldrían sólo en `quitados`. Va en la carga inicial también: un
+	// aparato que se instala hoy tiene que enterarse de lo que se canceló ayer. Nulo = no se pide (el
+	// aparato anterior a la 1.0.43, que no sabe qué hacer con una fila archivada). Quien contesta la
+	// bajada decide qué hace con ellas (`pedidosDeLaBajada`).
+	//
 	// Las dos sucursales del WHERE son las de la casa: `sucursal` es el alcance, que lo pone
 	// `internal/alcance` y no se puede pasar desde fuera, y `branch_id` es la que pide quien
 	// llama. Van en AND: la segunda estrecha, nunca amplía.
@@ -761,7 +788,14 @@ type Querier interface {
 	// Ventra no fue preguntada por ella. El día se pasa a hora de Cuba igual que los filtros de
 	// fecha de la factura (issue 16, `coalesce(factura_at, order_date, created_at)`).
 	// `ocupada` es lo que impide retirarla: va o fue en una ruta, o tiene resultado.
+	//
+	// LAS YA ANULADAS (`anulada_at`, 00027) NO SE LISTAN: ya se quitaron de su ruta y se marcaron. Sin esta
+	// línea el ciclo siguiente las vería «sin ruta, y ya no vienen» y las BORRARÍA, y con ellas el aviso.
 	EntregasDeFacturaEnVentana(ctx context.Context, arg EntregasDeFacturaEnVentanaParams) ([]EntregasDeFacturaEnVentanaRow, error)
+	// Lo que hace falta de una entrega para decidir A QUIÉN y CÓMO avisarle a PEDIDO
+	// (`alcance.AvisoDeLaEntrega`). Las consultas de paradas no traen `folio` ni `factura_numero`.
+	// Sin alcance, como el buzón: lo llama quien ya tiene los ids dentro de su alcance, o el espejo.
+	EntregasParaAvisar(ctx context.Context, ids []uuid.UUID) ([]EntregasParaAvisarRow, error)
 	// ¿YA LO ADOPTÓ UNA FACTURA? La pregunta del lado de PEDIDO: si hay una fila de factura con
 	// ese (sucursal, folio), el pedido de PEDIDO NO crea otra. No es un fallo: es la convivencia.
 	ExisteEntregaDeFacturaDelFolio(ctx context.Context, arg ExisteEntregaDeFacturaDelFolioParams) (bool, error)
@@ -1561,6 +1595,9 @@ type Querier interface {
 	// si el panel contara otra cosa, diría «40 por repartir» y el armador ofrecería 12, y la
 	// respuesta correcta sería «ninguno de los dos». `sin_ruta` y `peso_pendiente` llevan las mismas condiciones que
 	// `PanelPorSucursal` y que `ContarPedidosDisponibles`.
+	// NO CUENTA LO ARCHIVADO (23/10/2026, 00027): una factura anulada y quitada de su ruta queda
+	// archivada, sin ruta y con coordenadas, y sin esto entraba en `sin_ruta` y en `peso_pendiente`
+	// como si hubiera que repartirla. Es la misma regla de `ListarPedidosDisponibles`.
 	PanelResumen(ctx context.Context, arg PanelResumenParams) (PanelResumenRow, error)
 	// ---------------------------------------------------------------------------
 	// De una columna sale una ruta  (POST /api/board/columns/[id]/route)
@@ -1814,6 +1851,7 @@ type Querier interface {
 	// Lo cotejado de una sucursal, para comparar contra la de Next mientras las dos están en
 	// pie. Los NULL se cuentan aparte de los `sin_factura`: no son lo mismo y confundirlos es
 	// exactamente lo que hay que poder ver.
+	// Sin lo archivado (00027): una factura anulada y quitada de su ruta no es una factura que cuadre.
 	ResumenDeCotejo(ctx context.Context, arg ResumenDeCotejoParams) (ResumenDeCotejoRow, error)
 	// ---------------------------------------------------------------------------
 	// Cómo va, en una lectura

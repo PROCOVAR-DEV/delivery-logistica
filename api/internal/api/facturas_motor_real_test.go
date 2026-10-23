@@ -142,6 +142,7 @@ type entornoReal struct {
 	e        *espejo.Espejo
 	registro *bytes.Buffer
 	ahora    time.Time
+	acotado  *alcance.Acotado // el alcance de servicio del espejo (todas las sucursales)
 }
 
 func nuevoEntornoReal(t *testing.T) *entornoReal {
@@ -225,6 +226,7 @@ func nuevoEntornoReal(t *testing.T) *entornoReal {
 	if err != nil {
 		t.Fatal(err)
 	}
+	env.acotado = acotado
 	base2 := espejo.BaseDelReparto{Acotado: acotado}
 	o := espejo.PorDefecto()
 	o.Clave, o.Fuente = "k", espejo.FuenteDeFactura
@@ -702,9 +704,13 @@ func TestMotorReal_LaRetiradaRespetaSusGuardas(t *testing.T) {
 	if !env.hay(ex["FE"]) {
 		t.Error("y la nueva entra")
 	}
-	// R (ruta) y D (resultado) son las dos que se dejan.
-	if !strings.Contains(env.registro.String(), "anuladasConRuta=2") || !strings.Contains(env.registro.String(), "ANULADAS que ya van en una ruta") {
-		t.Errorf("la anulada con ruta se cuenta y se dice:\n%s", env.registro.String())
+	// R (ruta sin completar) se QUITA de su ruta y se marca anulada (00027); D (resultado) se deja.
+	if !env.estaAnulada(env.idDe(ex["FR"])) || env.estaAnulada(env.idDe(ex["FD"])) {
+		t.Error("R sale de su ruta y queda anulada; D (con resultado) no se toca")
+	}
+	if !strings.Contains(env.registro.String(), "anuladasQuitadasDeRuta=1") || !strings.Contains(env.registro.String(), "anuladasConRuta=1") ||
+		!strings.Contains(env.registro.String(), "se quitó de su ruta") {
+		t.Errorf("la anulada quitada de su ruta y la que se deja se cuentan y se dicen:\n%s", env.registro.String())
 	}
 	if !strings.Contains(env.registro.String(), "retiradas=1") {
 		t.Errorf("y las retiradas se cuentan:\n%s", env.registro.String())
@@ -1293,8 +1299,9 @@ func TestMotorReal_LaFilaAntiguaSinNingunaFacturaVivaSeRetiraOSeCuenta(t *testin
 	if env.entero(`SELECT count(*) FROM orders WHERE id = $1`, libre) != 0 {
 		t.Error("la antigua sin ruta y sin ninguna factura viva se retira")
 	}
-	if env.entero(`SELECT count(*) FROM orders WHERE id = $1`, enRuta) != 1 || !strings.Contains(env.registro.String(), "anuladasConRuta=1") {
-		t.Errorf("la que va en una ruta se deja y se cuenta\n%s", env.registro.String())
+	if env.entero(`SELECT count(*) FROM orders WHERE id = $1`, enRuta) != 1 || !env.estaAnulada(enRuta) ||
+		!strings.Contains(env.registro.String(), "anuladasQuitadasDeRuta=1") {
+		t.Errorf("la que va en una ruta viva se quita de ella y queda anulada (la fila no se borra)\n%s", env.registro.String())
 	}
 	if !env.hay(env.exAntiguo("PXX-810")) {
 		t.Error("y conserva su clave antigua: nadie la adoptó")
@@ -1346,14 +1353,15 @@ func TestMotorReal_LaFacturaCanceladaSeRetiraEnElMismoRepaso(t *testing.T) {
 		t.Errorf("la viva dice solo 47415: %q", c)
 	}
 
-	// Si la cancelada ya iba en una ruta, se deja y se cuenta (nunca se borra lo que está en el camión).
+	// Si la cancelada ya iba en una ruta, se QUITA de ella y se marca (nunca se borra lo que está en el camión).
 	env.ventra.poner(cancelada, viva)
 	env.ciclo()
 	env.enRuta(env.idDe(env.exF("47412", "2026-10-19")), 1)
 	env.ventra.poner(viva)
 	env.registro.Reset()
 	env.ciclo()
-	if !env.hay(env.exF("47412", "2026-10-19")) || !strings.Contains(env.registro.String(), "anuladasConRuta=1") {
-		t.Errorf("la cancelada con ruta se conserva y se cuenta\n%s", env.registro.String())
+	if !env.hay(env.exF("47412", "2026-10-19")) || !env.estaAnulada(env.idDe(env.exF("47412", "2026-10-19"))) ||
+		!strings.Contains(env.registro.String(), "anuladasQuitadasDeRuta=1") {
+		t.Errorf("la cancelada con ruta se quita de ella y queda marcada\n%s", env.registro.String())
 	}
 }

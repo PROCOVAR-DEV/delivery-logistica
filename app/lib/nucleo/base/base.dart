@@ -10,6 +10,10 @@ export 'tablas/catalogos.dart';
 
 part 'base.g.dart';
 
+/// Cuanto tiempo se le sigue diciendo a un aparato que una factura se cancelo y se quito de su
+/// ruta. Es la misma ventana que usa el servidor (`alcance.VentanaDeFacturasAnuladas`).
+const ventanaDeFacturasAnuladas = Duration(days: 7);
+
 /// Las colecciones que baja `GET /sync/bajada`. Son las claves de `cambios` y
 /// las mismas que las filas de `frescura`.
 abstract final class Colecciones {
@@ -123,6 +127,7 @@ abstract final class ClaveDePreferencia {
     VehicleTypes,
     Vehicles,
     Distribuidores,
+    FacturasAnuladas,
     Products,
     Customers,
     Orders,
@@ -219,8 +224,15 @@ class BaseLocal extends _$BaseLocal {
   /// `order_items` gana `factura_numero`, nula. ADITIVA: la cola de `apuntes` no se toca. Lo que
   /// ya estaba se rellena una vez por aparato con una bajada entera de los pedidos
   /// (`RegistroDeFrescura.rebajarLosPedidosPorLaFacturaDeSusRenglones`). Ver el `desde < 14`.
+  ///
+  /// ## 15 — las facturas canceladas que se quitaron de su ruta (23/10/2026)
+  ///
+  /// Tabla NUEVA `facturas_anuladas` (ver `FacturasAnuladas`). ADITIVA: la cola de `apuntes` no se
+  /// toca. Nace vacia y se llena con la bajada; la copia que ya existia se rebaja UNA vez
+  /// (`RegistroDeFrescura.rebajarLasFacturasAnuladas`) para enterarse de las de la ultima semana.
+  /// Ver el `desde < 15`.
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -405,6 +417,16 @@ class BaseLocal extends _$BaseLocal {
           await m.addColumn(orderItems, orderItems.facturaNumero);
         }
       }
+      if (desde < 15) {
+        // LAS FACTURAS ANULADAS. Solo si la tabla falta: un `CREATE TABLE` de una que ya esta LANZA
+        // y la base no abre (la cola, secuestrada), como en la 8.
+        final tablas = (await customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'table'",
+        ).get()).map((f) => f.read<String>('name')).toSet();
+        if (!tablas.contains(facturasAnuladas.actualTableName)) {
+          await m.createTable(facturasAnuladas);
+        }
+      }
     },
     beforeOpen: (detalles) async {
       // Las claves ajenas van ENCENDIDAS. SQLite las trae apagadas por defecto y
@@ -520,6 +542,7 @@ class BaseLocal extends _$BaseLocal {
         products,
         vehicles,
         distribuidores,
+        facturasAnuladas,
         vehicleTypes,
         warehouses,
         branches,

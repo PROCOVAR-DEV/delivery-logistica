@@ -127,6 +127,14 @@ func (s *Servidor) DrenarElBuzon(ctx context.Context, a *alcance.Acotado) (envia
 	avisos := make([]AvisoDeParada, 0, len(pend))
 	for _, p := range pend {
 		av := AvisoDeParada{PedidoID: p.PedidoID, Estado: p.Estado}
+		if p.Factura != nil {
+			// Aviso por factura: lo que se manda es lo que se guardó, y `pedido_id` (la clave de
+			// lectura de la tabla) NO va, o PEDIDO buscaría un pedido que no existe.
+			av = AvisoDeParada{
+				Folio: derefONada(p.Folio), Sucursal: derefONada(p.Sucursal),
+				Factura: *p.Factura, PuntoDeVenta: derefONada(p.PuntoDeVenta), Estado: p.Estado,
+			}
+		}
 		if p.Nota != nil {
 			av.Nota = *p.Nota
 		}

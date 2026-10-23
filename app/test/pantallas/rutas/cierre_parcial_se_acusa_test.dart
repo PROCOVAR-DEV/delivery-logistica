@@ -139,6 +139,10 @@ void main() {
   Future<void> marcarDosYGuardar(WidgetTester tester, String boton) async {
     await tester.tap(botonDeParada('Entregado', 0));
     await tester.tap(botonDeParada('Entregado', 1));
+    // Al completar hay que decidir TODAS (23/10/2026): la tercera también.
+    if (boton == 'Guardar y completar') {
+      await tester.tap(botonDeParada('Entregado', 2));
+    }
     await asentar(tester);
     await tester.tap(find.widgetWithText(FilledButton, boton));
     await asentar(tester);

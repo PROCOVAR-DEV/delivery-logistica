@@ -213,6 +213,8 @@ de delivery, y resultado del cierre de ruta.
 | `puntoManualPor` | String? | sí | — | el `sub` de quien lo puso; `NULL` si no es manual |
 | `puntoManualAt` | DateTime? | sí | — | cuándo; `NULL` si no es manual |
 | `puntoClienteLat` / `puntoClienteLng` / `puntoClienteAddress` | Float? / Float? / String? | sí | — | el punto que traía el CLIENTE mientras el de entrega es manual (el espejo sigue actualizándolo en cada repaso). `NULL` si no es manual. Es a lo que vuelve `DELETE /api/orders/{id}/punto`, y baja en la bajada para volver SIN conexión |
+| `anuladaAt` | DateTime? | sí | — | **propio del reparto** (migración `00027`, 23/10/2026). Cuándo el espejo quitó de su ruta una factura que Ventra dejó de mandar. `NULL` = no anulada. **Implica `archivado = true`** (CHECK `orders_anulada_archivada_chk`). La reactivación del upsert la pone a NULL |
+| `anuladaDeRutaId` | UUID? | sí | — | la ruta de la que salió la anulada. Sin clave ajena a propósito (la ruta puede borrarse). Local: tabla `facturas_anuladas` (esquema 15), solo el aviso de los últimos 7 días; `vistaAt` es de ese aparato |
 | `folio` | String? | sí | — | el folio del pedido de PEDIDO del que sale esta factura (migración `00025`); `NULL` si la factura no viene de un pedido. Baja en la bajada (esquema local 13, 21/10/2026) para decir en la tabla de Facturas de qué pedido viene |
 | `source` | String? | sí | — | `"pedido"` \| `null` (manual), §3.5 |
 | `orderDate` | DateTime? | sí | — | fecha DEL PEDIDO en PEDIDO (≠ `createdAt`) |

@@ -172,6 +172,17 @@ type BaseDeFacturas interface {
 	// RetirarEntregasDeFactura borra las que se pidan, y SOLO las que no van en una ruta ni
 	// tienen resultado (la guarda está también en el DELETE). Devuelve cuántas borró.
 	RetirarEntregasDeFactura(ctx context.Context, ids []uuid.UUID) (int64, error)
+	// AnularEntregasEnRuta quita de su ruta las que se pidan y las deja MARCADAS como anuladas
+	// (00027). Devuelve SOLO las que quitó: la ruta sin completar, sin resultado ni entrega y aún
+	// no anulada se decide en el UPDATE, no aquí.
+	AnularEntregasEnRuta(ctx context.Context, ids []uuid.UUID) ([]EntregaAnulada, error)
+}
+
+// EntregaAnulada es una factura que el espejo quitó de su ruta porque Ventra ya no la manda.
+type EntregaAnulada struct {
+	ID         uuid.UUID
+	ExternalID string
+	RutaID     uuid.UUID
 }
 
 // EntregaGuardada es una entrega de factura que ya está en la base. `Ocupada` es que va o fue
@@ -237,4 +248,23 @@ func (b BaseDelReparto) EntregasDeFacturaEnVentana(
 
 func (b BaseDelReparto) RetirarEntregasDeFactura(ctx context.Context, ids []uuid.UUID) (int64, error) {
 	return b.Acotado.EspejoRetirarEntregasDeFactura(ctx, ids)
+}
+
+func (b BaseDelReparto) AnularEntregasEnRuta(ctx context.Context, ids []uuid.UUID) ([]EntregaAnulada, error) {
+	filas, err := b.Acotado.EspejoAnularEntregasEnRuta(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	salida := make([]EntregaAnulada, 0, len(filas))
+	for _, f := range filas {
+		a := EntregaAnulada{ID: f.ID}
+		if f.ExternalID != nil {
+			a.ExternalID = *f.ExternalID
+		}
+		if f.RutaID.Valid {
+			a.RutaID = uuid.UUID(f.RutaID.Bytes)
+		}
+		salida = append(salida, a)
+	}
+	return salida, nil
 }

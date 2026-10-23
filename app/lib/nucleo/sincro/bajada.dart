@@ -185,6 +185,8 @@ class Bajada {
     await _frescura.rebajarLosPedidosPorSuFolio();
     // Y otra por la factura de cada renglón (frescura.dart, 22/10/2026, esquema 14).
     await _frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
+    // Y otra por las facturas anuladas de la ultima semana (frescura.dart, 23/10/2026, esquema 15).
+    await _frescura.rebajarLasFacturasAnuladas();
 
     for (var vuelta = 0; vuelta < maximoDeTandas; vuelta++) {
       final desde = await _frescura.desde(Colecciones.pedidos);
@@ -502,6 +504,19 @@ class Bajada {
         }
       }
 
+      // LAS FACTURAS CANCELADAS QUE SE QUITARON DE SU RUTA (esquema 15). No es una coleccion de la
+      // copia sino un aviso derivado de las mismas filas de `orders`: viaja con su tanda, sin marca
+      // propia. Una api anterior no la manda y no pasa nada (no hay aviso que dar).
+      final avisos = cambios[_facturasAnuladas];
+      if (avisos is Map<Object?, Object?>) {
+        for (final fila
+            in ((avisos['puestos'] as List<Object?>?) ?? const [])
+                .whereType<Map<Object?, Object?>>()) {
+          await _facturaAnulada(fila);
+        }
+      }
+      await _olvidarLasAnuladasViejas();
+
       // La marca, DENTRO de la misma transaccion que las filas.
       //
       // `distribuidores` SOLO si vino en `cambios`. Una api anterior a la 00019 no la
@@ -547,6 +562,39 @@ class Bajada {
         completa: completa,
       );
     }
+  }
+
+  /// La clave de `cambios` donde el servidor manda las facturas anuladas (no es una [Colecciones]).
+  static const _facturasAnuladas = 'facturasAnuladas';
+
+  /// Una factura anulada: se guarda y NO se toca `vistaAt` (es de este aparato). Si ya estaba, se
+  /// actualiza lo del servidor y se deja lo visto como estaba.
+  Future<void> _facturaAnulada(Map<Object?, Object?> j) async {
+    final id = _texto(j['id']);
+    final cuando = _fecha(j['anuladaAt']);
+    if (id == null || cuando == null) return;
+    await _base
+        .into(_base.facturasAnuladas)
+        .insertOnConflictUpdate(
+          FacturasAnuladasCompanion(
+            id: Value(id),
+            numero: Value(
+              _texto(j['facturaNumero']) ?? _texto(j['operationNumber']),
+            ),
+            cliente: Value(_texto(j['customerName']) ?? ''),
+            branchId: Value(_texto(j['branchId'])),
+            rutaId: Value(_texto(j['anuladaDeRutaId'])),
+            anuladaAt: Value(cuando),
+          ),
+        );
+  }
+
+  /// El aviso dura [ventanaDeFacturasAnuladas]: pasado el plazo se olvida, como en el servidor.
+  Future<void> _olvidarLasAnuladasViejas() async {
+    final corte = _reloj().subtract(ventanaDeFacturasAnuladas);
+    await (_base.delete(
+      _base.facturasAnuladas,
+    )..where((f) => f.anuladaAt.isSmallerThanValue(corte))).go();
   }
 
   Future<void> _poner(String coleccion, Map<Object?, Object?> j) async {
@@ -775,6 +823,12 @@ class Bajada {
   Future<void> _pedido(Map<Object?, Object?> j) async {
     final id = _texto(j['id']);
     if (id == null) return;
+
+    // Una factura anulada que VUELVE (Ventra la reactivo) llega aqui como pedido vivo: el aviso
+    // de que se cancelo ya no es verdad.
+    await (_base.delete(
+      _base.facturasAnuladas,
+    )..where((f) => f.id.equals(id))).go();
 
     await _base
         .into(_base.orders)

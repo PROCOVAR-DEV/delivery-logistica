@@ -371,8 +371,7 @@ te bloquea, pero te lo dice.
 1. **Clic en «Marcar como completada»**. <!-- señala: rutas-completar -->
    - **Siempre abre primero la hoja de estados**, aunque hubiera marcas anteriores:
 
-   > «Lo que dejes sin marcar se da por no entregado y cuenta como que sigue en el
-   > camión.»
+   > «Hasta que decidas todas las facturas, el botón de guardar queda apagado.»
 
 2. Márcalas y **clic en «Guardar y completar»**. Revisa las marcas antes de confirmar. <!-- señala: rutas-guardar-el-cierre -->
    - **La ruta se va al «Historial»**, el camión queda libre, y las facturas no
@@ -398,8 +397,8 @@ web, en cambio, lo que se guardó vale. Ver
    - Lleva **«Tiene que quedar en el camión»** (con la columna **«Bajó»** en blanco
      para contar a mano) y **«De quién es lo que vuelve»**.
 
-**Una ruta completada ya no se toca.** El cierre pasa a sólo lectura: «Para corregir
-algo, hay que hacerlo en PEDIDO.»
+**Una ruta completada ya no se toca.** El cierre pasa a sólo lectura: «La ruta ya está
+completada: así acabó cada factura.»
 
 ---
 

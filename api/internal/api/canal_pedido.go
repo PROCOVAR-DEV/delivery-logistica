@@ -1,4 +1,11 @@
-// EL CANAL DE SALIDA HACIA PEDIDO: contarle en qué punto del reparto va cada pedido.
+// EL CANAL DE SALIDA HACIA PEDIDO: contarle en qué punto del reparto va cada entrega.
+//
+// DESDE EL 22/10/2026 LA QUE MANDA ES LA FACTURA, no el pedido. Las entregas nacen de facturas de
+// Ventra y su `external_id` no lo conoce PEDIDO, así que el aviso de una entrega de factura lleva
+// `folio` (el pedido, para localizarlo) + `sucursal` + `factura` + `puntoDeVenta`, UNO por factura
+// (un pedido con dos facturas manda dos). Una factura sin folio no tiene a quién avisar y no sale.
+// El aviso de un pedido de PEDIDO sigue llevando `pedidoId`. Quién decide la forma es
+// `alcance.AvisoDeLaEntrega`; este fichero sólo lo manda. Orden de despliegue: PEDIDO primero.
 //
 // POR QUÉ EXISTE: en PEDIDO el vendedor ve su pedido y nada más —no sabe si salió, si
 // llegó o si volvió al almacén—. Lo sabe el reparto, porque es donde pasan esas cosas: se

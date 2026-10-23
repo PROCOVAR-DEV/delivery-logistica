@@ -160,7 +160,7 @@ func (q *Queries) AvisoAPedidoSeReintenta(ctx context.Context, arg AvisoAPedidoS
 }
 
 const avisosAPedidoPendientes = `-- name: AvisosAPedidoPendientes :many
-SELECT id, pedido_id, folio, estado, nota, ocurrio_at, intentos
+SELECT id, pedido_id, folio, estado, nota, ocurrio_at, intentos, sucursal, factura, punto_de_venta
 FROM avisos_a_pedido
 WHERE situacion = 'pendiente'
 ORDER BY created_at ASC
@@ -169,13 +169,16 @@ FOR UPDATE SKIP LOCKED
 `
 
 type AvisosAPedidoPendientesRow struct {
-	ID        uuid.UUID          `json:"id"`
-	PedidoID  string             `json:"pedido_id"`
-	Folio     *string            `json:"folio"`
-	Estado    string             `json:"estado"`
-	Nota      *string            `json:"nota"`
-	OcurrioAt pgtype.Timestamptz `json:"ocurrio_at"`
-	Intentos  int32              `json:"intentos"`
+	ID           uuid.UUID          `json:"id"`
+	PedidoID     string             `json:"pedido_id"`
+	Folio        *string            `json:"folio"`
+	Estado       string             `json:"estado"`
+	Nota         *string            `json:"nota"`
+	OcurrioAt    pgtype.Timestamptz `json:"ocurrio_at"`
+	Intentos     int32              `json:"intentos"`
+	Sucursal     *string            `json:"sucursal"`
+	Factura      *string            `json:"factura"`
+	PuntoDeVenta *string            `json:"punto_de_venta"`
 }
 
 // Los que hay que mandar, los más viejos primero: un aviso no se queda al fondo porque
@@ -198,6 +201,9 @@ func (q *Queries) AvisosAPedidoPendientes(ctx context.Context, tope int32) ([]Av
 			&i.Nota,
 			&i.OcurrioAt,
 			&i.Intentos,
+			&i.Sucursal,
+			&i.Factura,
+			&i.PuntoDeVenta,
 		); err != nil {
 			return nil, err
 		}
@@ -547,19 +553,23 @@ func (q *Queries) DondeEstanLosPedidos(ctx context.Context, pedidoIds []uuid.UUI
 
 const encolarAvisoAPedido = `-- name: EncolarAvisoAPedido :exec
 
-INSERT INTO avisos_a_pedido (pedido_id, folio, estado, nota, ocurrio_at)
+INSERT INTO avisos_a_pedido (pedido_id, folio, estado, nota, ocurrio_at, sucursal, factura, punto_de_venta)
 VALUES (
     $1, $2, $3,
-    $4, $5
+    $4, $5,
+    $6, $7, $8
 )
 `
 
 type EncolarAvisoAPedidoParams struct {
-	PedidoID  string             `json:"pedido_id"`
-	Folio     *string            `json:"folio"`
-	Estado    string             `json:"estado"`
-	Nota      *string            `json:"nota"`
-	OcurrioAt pgtype.Timestamptz `json:"ocurrio_at"`
+	PedidoID     string             `json:"pedido_id"`
+	Folio        *string            `json:"folio"`
+	Estado       string             `json:"estado"`
+	Nota         *string            `json:"nota"`
+	OcurrioAt    pgtype.Timestamptz `json:"ocurrio_at"`
+	Sucursal     *string            `json:"sucursal"`
+	Factura      *string            `json:"factura"`
+	PuntoDeVenta *string            `json:"punto_de_venta"`
 }
 
 // ---------------------------------------------------------------------------
@@ -575,6 +585,9 @@ func (q *Queries) EncolarAvisoAPedido(ctx context.Context, arg EncolarAvisoAPedi
 		arg.Estado,
 		arg.Nota,
 		arg.OcurrioAt,
+		arg.Sucursal,
+		arg.Factura,
+		arg.PuntoDeVenta,
 	)
 	return err
 }

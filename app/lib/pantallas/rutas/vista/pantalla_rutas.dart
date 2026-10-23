@@ -55,6 +55,7 @@ import '../../pedidos/vista/kit.dart';
 import '../datos/repositorio_rutas.dart';
 import '../estado/proveedores_rutas.dart';
 import 'asistente_nueva_ruta.dart';
+import 'aviso_de_facturas_canceladas.dart';
 import 'detalle_ruta.dart';
 import 'lista_rutas.dart';
 
@@ -269,6 +270,9 @@ class PantallaRutas extends ConsumerWidget {
                   ),
                   const _MandoDeLosFiltros(enEscritorio: false),
                 ],
+                // LAS FACTURAS CANCELADAS EN VENTRA QUE SE QUITARON DE SU RUTA, mientras haya alguna
+                // sin ver en este aparato (Jose y Amado, 23/10/2026). No ocupa nada si no hay.
+                const AvisoDeFacturasCanceladas(),
                 Expanded(
                   child: _LaListaBajoSusFiltros(
                     enEscritorio: enEscritorio,

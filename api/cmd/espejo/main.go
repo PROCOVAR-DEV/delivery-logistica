@@ -35,6 +35,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+
 	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/auth"
 	"procovar/reparto-api/internal/config"
@@ -102,6 +104,16 @@ func correr() error {
 	}
 
 	proceso := espejo.Nuevo(opciones, espejo.BaseDelReparto{Acotado: acotado}, reg)
+
+	// UNA FACTURA CANCELADA EN VENTRA SE AVISA A PEDIDO como `cancelado` (por folio y factura), por el
+	// mismo buzón y con los mismos reintentos que el cierre de ruta (Jose, 23/10/2026: el estado de cada
+	// factura va a PEDIDO en todos sus cambios, no sólo al completar la ruta). Sin folio no hay a quién
+	// avisar y no se hace ruido. Un fallo se registra: el ciclo siguiente lo repite (el aviso es idempotente).
+	proceso.AvisarCancelada = func(ctx context.Context, c espejo.EntregaCancelada) {
+		if _, err := acotado.AvisarFacturasCanceladas(ctx, []uuid.UUID{c.ID}, proceso.Ahora()); err != nil {
+			reg.Error("no se pudo avisar a PEDIDO de una factura cancelada", "externalId", c.ExternalID, "err", err)
+		}
+	}
 
 	// LA FACTURA DE VENTRA COMO FUENTE (issue 20, Fase A), sólo si `SYNC_FUENTE` la incluye. Por
 	// defecto es `pedido` y no se monta nada: desplegar esto no cambia el espejo. El lector es

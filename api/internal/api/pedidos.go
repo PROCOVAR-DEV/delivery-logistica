@@ -263,6 +263,10 @@ type PedidoSalida struct {
 	PuntoClienteLat     *float64 `json:"puntoClienteLat"`
 	PuntoClienteLng     *float64 `json:"puntoClienteLng"`
 	PuntoClienteAddress *string  `json:"puntoClienteAddress"`
+	// La factura que Ventra dejó de mandar y el espejo quitó de su ruta (00027): cuándo y de cuál.
+	// Siempre con `archivado` en true. null = no está anulada.
+	AnuladaAt       *time.Time `json:"anuladaAt"`
+	AnuladaDeRutaID *uuid.UUID `json:"anuladaDeRutaId"`
 	// ¿ESE `weight` SALE DE ALGO? Campo NUEVO, no un tipo cambiado: `weight` sigue siendo
 	// un número y una APK instalada lo lee igual que ayer.
 	//
@@ -361,11 +365,14 @@ type PedidoDetalleSalida struct {
 	PuntoClienteLat     *float64   `json:"puntoClienteLat"`
 	PuntoClienteLng     *float64   `json:"puntoClienteLng"`
 	PuntoClienteAddress *string    `json:"puntoClienteAddress"`
-	FacturaEstado       *string    `json:"facturaEstado"`
-	FacturaNumero       *string    `json:"facturaNumero"`
-	FacturaAt           *time.Time `json:"facturaAt"`
-	FacturaDomicilio    *float64   `json:"facturaDomicilio"`
-	FacturaCorregidoAt  *time.Time `json:"facturaCorregidoAt"`
+	// La factura anulada y quitada de su ruta (00027). Ver `PedidoSalida.AnuladaAt`.
+	AnuladaAt          *time.Time `json:"anuladaAt"`
+	AnuladaDeRutaID    *uuid.UUID `json:"anuladaDeRutaId"`
+	FacturaEstado      *string    `json:"facturaEstado"`
+	FacturaNumero      *string    `json:"facturaNumero"`
+	FacturaAt          *time.Time `json:"facturaAt"`
+	FacturaDomicilio   *float64   `json:"facturaDomicilio"`
+	FacturaCorregidoAt *time.Time `json:"facturaCorregidoAt"`
 	// DE DÓNDE SON `items`, `weight` y las unidades: `factura` o `pedido`.
 	//
 	// Cuando la factura cambió lo que se pidió, lo que llega aquí YA son las líneas de la
@@ -813,7 +820,8 @@ func (s *Servidor) detalleDePedido(w http.ResponseWriter, r *http.Request, a *al
 		PedidoCosto: x.PedidoCosto, Municipio: x.Municipio, Vendedor: x.Vendedor,
 		SucursalCodigo: x.SucursalCodigo, FacturaEstado: textoDe(x.FacturaEstado),
 		PuntoManual: x.PuntoManual, PuntoManualPor: x.PuntoManualPor, PuntoManualAt: hora(x.PuntoManualAt),
-		Folio:           x.Folio,
+		Folio:     x.Folio,
+		AnuladaAt: hora(x.AnuladaAt), AnuladaDeRutaID: idOpcional(x.AnuladaDeRutaID),
 		PuntoClienteLat: x.PuntoClienteLat, PuntoClienteLng: x.PuntoClienteLng, PuntoClienteAddress: x.PuntoClienteAddress,
 		FacturaNumero: x.FacturaNumero, FacturaAt: hora(x.FacturaAt),
 		FacturaDomicilio: x.FacturaDomicilio, FacturaCorregidoAt: hora(x.FacturaCorregidoAt),
@@ -1376,7 +1384,8 @@ func dePedido(x sqlc.ListarPedidosRow, items []RenglonSalida) PedidoSalida {
 		PuntoManualPor:    x.PuntoManualPor,
 		PuntoManualAt:     hora(x.PuntoManualAt),
 		Folio:             x.Folio,
-		PuntoClienteLat:   x.PuntoClienteLat, PuntoClienteLng: x.PuntoClienteLng, PuntoClienteAddress: x.PuntoClienteAddress,
+		AnuladaAt:         hora(x.AnuladaAt), AnuladaDeRutaID: idOpcional(x.AnuladaDeRutaID),
+		PuntoClienteLat: x.PuntoClienteLat, PuntoClienteLng: x.PuntoClienteLng, PuntoClienteAddress: x.PuntoClienteAddress,
 	}
 	if id := idOpcional(x.RouteID); id != nil {
 		p.Route = &RutaDePedido{

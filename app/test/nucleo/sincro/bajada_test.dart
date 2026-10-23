@@ -240,6 +240,7 @@ void main() {
         await frescura.rebajarLosPedidosPorSuAlmacen();
         await frescura.rebajarLosPedidosPorSuFolio();
         await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
+        await frescura.rebajarLasFacturasAnuladas();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -261,6 +262,7 @@ void main() {
         await frescura.rebajarLosPedidosPorSuAlmacen();
         await frescura.rebajarLosPedidosPorSuFolio();
         await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
+        await frescura.rebajarLasFacturasAnuladas();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -307,6 +309,39 @@ void main() {
           reason:
               'la copia de antes del esquema 13 no tiene el folio de las facturas que no cambiaron: '
               'tiene que bajarlas ENTERAS una vez, o la columna «Pedido» sale en blanco para siempre',
+        );
+        expect(
+          peticiones.last.parametros['desde'],
+          '2026-10-15T01:00:00.000Z',
+          reason: 'una sola vez: luego, por diferencias',
+        );
+      });
+
+      // 23/10/2026 (esquema 15): las facturas canceladas de la última semana no llegan por diferencias
+      // a un aparato cuya marca ya pasó de la hora en que se anularon. EN PAREJA: quien ya hizo todas
+      // las demás hace ESTA una vez, y luego no.
+      test('los pedidos se rebajan enteros una vez por las facturas anuladas aunque ya se hicieran las demás', () async {
+        await frescura.rebajarLosPedidosUnaVez();
+        await frescura.rebajarLasRutasUnaVez();
+        await frescura.rebajarLosPedidosPorSuAlmacen();
+        await frescura.rebajarLosPedidosPorSuFolio();
+        await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
+        await frescura.marcar(
+          Colecciones.pedidos,
+          hasta: '2026-10-14T00:00:00.000Z',
+        );
+        final peticiones = <PeticionVista>[];
+        final bajada = contando(peticiones);
+
+        await bajada.ciclo();
+        await bajada.ciclo();
+
+        expect(
+          peticiones.first.parametros['desde'],
+          isNull,
+          reason:
+              'sin la carga entera, una factura anulada ANTES de la marca de este aparato no se '
+              'avisa nunca: la cancelada sigue sin decirse',
         );
         expect(
           peticiones.last.parametros['desde'],

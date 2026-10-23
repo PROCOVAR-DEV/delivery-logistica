@@ -323,7 +323,20 @@ lanza.
 ### Aviso de estado a PEDIDO (`avisarEstadoAPedido` / `avisarEstadoDeFondo`)
 
 `EstadoEntrega = 'despachado' | 'en_transito' | 'entregado' | 'devuelto' | 'cancelado'`.
-Aviso: `{ pedidoId, estado, nota?, at? }`. Se manda en tandas de 200.
+Aviso: dos formas, nunca las dos a la vez (lo vacío se omite del JSON, ni un `pedidoId: ""`):
+
+- **Entrega de FACTURA** (`external_id = factura:<SUC>:<punto>:<número>:<fecha>`, desde el 22/10/2026):
+  `{ folio, sucursal, factura, puntoDeVenta?, estado, nota?, at? }`. `folio` = el pedido (`orders.folio`),
+  `sucursal` = código de Reparto (STG…), `factura` = `orders.factura_numero`, `puntoDeVenta` sale del
+  `external_id`. **Un aviso por FACTURA**: un pedido con dos facturas manda dos, y en un cierre la misma
+  factura marcada dos veces manda sólo la última. Una factura SIN folio no tiene a quién avisar: no sale
+  nada y no hay error ni ruido.
+- **Pedido de PEDIDO** (`source = pedido`, id propio): `{ pedidoId, estado, nota?, at? }`, como siempre.
+
+Quién decide la forma es UNA función (`alcance.AvisoDeLaEntrega`), usada al armar (`despachado`), al
+cerrar, al despachar y por el espejo cuando Ventra cancela una factura (`AvisarFacturaCancelada`, estado
+`cancelado`). El buzón (`avisos_a_pedido`, 00028) guarda folio/sucursal/factura/punto y los reenvía
+idénticos; un reintento viejo con `pedidoId` sigue yendo. Se manda en tandas de 200.
 Resultado: `{ ok: boolean, enviados: number, aplicados: number, error?: string }`.
 Sin `SERVICE_API_KEY` → `{ ok:false, enviados:0, aplicados:0, error:'falta SERVICE_API_KEY' }`.
 `avisarEstadoDeFondo` es la versión "dispara y olvida" (no bloquea ni falla la petición).
@@ -521,8 +534,8 @@ caso aparte: es un pedido más, y entra o no según la regla de arriba (facturad
     firma falsa, y quien la lee después da por calculado lo que nadie calculó.
 - **NO ocupa el vehículo** (el camión se marca `in_use` al pasar la ruta a `in_progress`).
 - `avisarCambio('rutas')`.
-- `avisarEstadoDeFondo` con `{ pedidoId: externalId, estado: 'despachado' }` para los pedidos
-  con `source='pedido'` y `externalId` no nulo (de fondo: si PEDIDO falla, la ruta se crea).
+- `avisarEstadoDeFondo` con `despachado` por entrega (`pedidoId` en las de PEDIDO; folio + factura en
+  las de factura, ver «Aviso de estado a PEDIDO»), de fondo: si PEDIDO falla, la ruta se crea.
 
 - **Respuesta 201**: la `Route` completa recargada, con `vehicle:{id,name,type,plate,capacity}`
   y `orders[]` completos ordenados por `stopOrder asc`.
@@ -1289,10 +1302,25 @@ dos pedidos; un folio que se queda vacío al normalizarlo (`---`) no es un folio
 
 **Lo que ya no viene en Ventra** («ya no va», `Espejo.retirarLoQueYaNoViene`): una entrega de factura que
 estaba dentro de la ventana consultada y ya no aparece (factura anulada) se retira si NO va en ninguna ruta
-ni tiene resultado; si va, se deja y se cuenta como «anulada con ruta». **Guardas**: nunca si la respuesta
+ni tiene resultado. Si va en una ruta SIN COMPLETAR (`planned`/`in_progress`) y sin resultado ni entrega, se
+**QUITA de la ruta y se MARCA** (23/10/2026, 00027): `route_id` y `ultima_ruta_id` a NULL (el trigger de totales
+refresca la ruta; los `stop_order` de las demás no se renumeran, como en `DELETE /api/routes/{id}/stops/{orderId}`),
+`anulada_at = now()`, `anulada_de_ruta_id` = la ruta de la que salió y `archivado = true` (ninguna lista, contador,
+armado ni tablero la cuenta; no vuelve a su zona). Si va en una ruta completada/cancelada o tiene resultado o entrega,
+se deja (historial) y se cuenta `anuladasConRuta`; las quitadas de su ruta se cuentan `anuladasQuitadasDeRuta`. Si la
+factura **reaparece**, el upsert la reactiva en la MISMA fila (`archivado = false`, marcas a NULL). **Guardas**: nunca si la respuesta
 de esa sucursal falló o vino vacía cuando en la base hay entregas de esa ventana (un error, no una
 anulación), ni fuera de la ventana consultada, ni lo que no es `factura:`; y el propio `DELETE` repite la
-guarda de ruta/resultado. El borrado deja su lápida y los aparatos lo quitan.
+guarda de ruta/resultado, y el `UPDATE` que quita de la ruta repite las suyas (ruta sin completar, sin resultado,
+sin entrega, aún no anulada). El borrado deja su lápida y los aparatos lo quitan.
+
+**La anulada llega al aparato** (`GET /api/sync/cambios`): archivada, sale en `quitados` de `orders` (también en la
+carga completa) y, aparte, en la clave `facturasAnuladas` (`{puestos, quitados: []}`, sin marca propia: deriva de las
+mismas filas de la tanda) con `{id, operationNumber, customerName, facturaNumero, branchId, anuladaAt,
+anuladaDeRutaId, updatedAt}` si `anuladaAt` es de los últimos 7 días (`alcance.VentanaDeFacturasAnuladas`); el alcance
+es el de siempre (token). Una versión anterior de la app ignora la clave. `GET /api/orders` y `GET /api/orders/{id}`
+llevan `anuladaAt` y `anuladaDeRutaId` (null = no anulada). **Gancho para PEDIDO**: `Espejo.AvisarCancelada` (nil = nada)
+se llama una vez por factura borrada o quitada de su ruta, nunca por las que se dejan ni en las guardas.
 
 **Ya no existe «el repaso nunca encoge una entrega»** (auditoría G2, 20/10/2026; quitada el 22/10/2026 con
 `entregasQueEncogerian`, `repasoQueVeLasEntregasAbiertas`, `ConducesGuardados`, `FechaDeLaEntregaAbiertaMasAntigua`
@@ -1312,7 +1340,7 @@ como `factura:<SUC>:<folio normalizado>` con el conduce «a, b». Al escribir un
 |---|---|
 | El número de la factura está en su conduce («a» o «a, b, …») y la clave nueva no existe | **se adopta**: se le reescribe el `external_id` a la clave nueva de ESA factura; conserva `id`, ruta, orden, resultado y punto a mano, y el guardado normal reescribe sus renglones y su conduce con esa sola factura |
 | Varias facturas vivas en el mismo conduce | las procesa el espejo **ordenadas por número** (`UnaEntregaPorFactura`, determinista, igual en repaso y barrido): la PRIMERA adopta; las demás nacen como filas nuevas, sin ruta (Sin colocar) |
-| Ninguna de sus facturas viene viva | nadie la adopta: `retirarLoQueYaNoViene` la retira si no va en ruta ni tiene resultado, o la deja marcada `anuladasConRuta` si sí |
+| Ninguna de sus facturas viene viva | nadie la adopta: `retirarLoQueYaNoViene` la retira si no va en ruta ni tiene resultado, la quita de su ruta y la marca anulada si la ruta está sin completar, o la deja (`anuladasConRuta`) si es historial |
 | El número no está en su conduce (otra factura del mismo folio) | no se adopta |
 
 Guardas de la adopción: candado y transacción de `alFolio`; solo el `external_id` antiguo EXACTO (`factura:<SUC>:<folio

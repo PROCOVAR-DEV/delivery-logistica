@@ -52,7 +52,13 @@ type baseDeFacturasFalsa struct {
 	guardadas map[string][]EntregaGuardada
 	ventanas  []string
 	retiradas []uuid.UUID
-	fallo     error
+	// anuladas: lo que se pidió quitar de su ruta (00027). `noSePuede` son las que el UPDATE real
+	// rechazaría (ruta completada, resultado…): la base falsa no las devuelve.
+	anuladas  []uuid.UUID
+	noSePuede map[uuid.UUID]bool
+	// deMenos: cuántas borra de menos el DELETE real respecto a las pedidas (la guarda repetida en el SQL).
+	deMenos int
+	fallo   error
 }
 
 func (b *baseDeFacturasFalsa) PuntosDeClientes(_ context.Context, s string) ([]PuntoDeCliente, error) {
@@ -67,7 +73,26 @@ func (b *baseDeFacturasFalsa) EntregasDeFacturaEnVentana(_ context.Context, s st
 }
 func (b *baseDeFacturasFalsa) RetirarEntregasDeFactura(_ context.Context, ids []uuid.UUID) (int64, error) {
 	b.retiradas = append(b.retiradas, ids...)
-	return int64(len(ids)), b.fallo
+	return int64(len(ids) - b.deMenos), b.fallo
+}
+
+func (b *baseDeFacturasFalsa) AnularEntregasEnRuta(_ context.Context, ids []uuid.UUID) ([]EntregaAnulada, error) {
+	b.anuladas = append(b.anuladas, ids...)
+	var hechas []EntregaAnulada
+	for _, id := range ids {
+		if !b.noSePuede[id] {
+			externo := ""
+			for _, gs := range b.guardadas {
+				for _, g := range gs {
+					if g.ID == id {
+						externo = g.ExternalID
+					}
+				}
+			}
+			hechas = append(hechas, EntregaAnulada{ID: id, ExternalID: externo, RutaID: uuid.New()})
+		}
+	}
+	return hechas, b.fallo
 }
 
 // montarFacturas arma un espejo de facturas con registro capturado.
@@ -250,16 +275,36 @@ func TestLaFacturaAnuladaSinRutaSeRetira(t *testing.T) {
 	}
 }
 
-func TestLaAnuladaQueYaVaEnUnaRutaSeDejaYSeDice(t *testing.T) {
+func TestLaAnuladaQueVaEnUnaRutaVivaSeQuitaDeLaRutaYSeDice(t *testing.T) {
 	_, _, enRuta := entregasGuardadas()
 	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: unaFacturaDeSantiago()}
 	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {enRuta}}}
 	e, reg := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
 	_ = e.Ciclo(context.Background())
 	if len(b.retiradas) != 0 {
-		t.Fatalf("lo que ya va en el camión no se borra: %v", b.retiradas)
+		t.Fatalf("lo que ya está en el camión no se borra: %v", b.retiradas)
 	}
-	if !strings.Contains(reg.String(), "ANULADAS que ya van en una ruta") || !strings.Contains(reg.String(), "anuladasConRuta=1") {
+	if len(b.anuladas) != 1 || b.anuladas[0] != enRuta.ID {
+		t.Fatalf("se pide quitarla de su ruta y marcarla: %v", b.anuladas)
+	}
+	if !strings.Contains(reg.String(), "se quitó de su ruta") || !strings.Contains(reg.String(), "anuladasQuitadasDeRuta=1") ||
+		!strings.Contains(reg.String(), "anuladasConRuta=0") {
+		t.Errorf("se quita y SE DICE:\n%s", reg.String())
+	}
+}
+
+// Si el UPDATE no la deja (ruta completada, resultado, entregada) la fila se queda como está y se cuenta.
+func TestLaAnuladaQueElUpdateNoDejaQuitarSeDejaYSeCuenta(t *testing.T) {
+	_, _, enRuta := entregasGuardadas()
+	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: unaFacturaDeSantiago()}
+	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {enRuta}}, noSePuede: map[uuid.UUID]bool{enRuta.ID: true}}
+	e, reg := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
+	_ = e.Ciclo(context.Background())
+	if len(b.retiradas) != 0 {
+		t.Fatalf("lo que ya está en el camión no se borra: %v", b.retiradas)
+	}
+	if !strings.Contains(reg.String(), "historial") || !strings.Contains(reg.String(), "anuladasConRuta=1") ||
+		!strings.Contains(reg.String(), "anuladasQuitadasDeRuta=0") {
 		t.Errorf("se deja y SE DICE:\n%s", reg.String())
 	}
 }
@@ -267,13 +312,13 @@ func TestLaAnuladaQueYaVaEnUnaRutaSeDejaYSeDice(t *testing.T) {
 func TestUnaRespuestaVaciaConEntregasEnLaBaseNoEsUnaAnulacion(t *testing.T) {
 	// Una base de Ventra caída contesta lista vacía y SIN error. Tomarlo por «se anularon todas»
 	// borraría la ventana entera de una sucursal. Es un ERROR y no se retira nada.
-	viene, anulada, _ := entregasGuardadas()
+	viene, anulada, enRuta := entregasGuardadas()
 	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: map[string][]FacturaDeVentra{"santiago": {}}}
-	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {viene, anulada}}}
+	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {viene, anulada, enRuta}}}
 	e, reg := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
 	_ = e.Ciclo(context.Background())
-	if len(b.retiradas) != 0 {
-		t.Fatalf("una respuesta vacía no retira NADA: %v", b.retiradas)
+	if len(b.retiradas) != 0 || len(b.anuladas) != 0 {
+		t.Fatalf("una respuesta vacía no retira NI QUITA DE SU RUTA nada: %v %v", b.retiradas, b.anuladas)
 	}
 	if !strings.Contains(reg.String(), "se toma por un ERROR") {
 		t.Errorf("y tiene que decirlo:\n%s", reg.String())
@@ -290,15 +335,15 @@ func TestUnaRespuestaVaciaSinEntregasEnLaBaseEsNormal(t *testing.T) {
 }
 
 func TestSiVentraFallaNoSeRetiraNada(t *testing.T) {
-	viene, anulada, _ := entregasGuardadas()
+	viene, anulada, enRuta := entregasGuardadas()
 	f := &facturasFalsas{
 		bases:  map[string]string{"STG": "santiago"},
 		fallos: map[string]error{"santiago": errors.New("Ventra 500")},
 	}
-	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {viene, anulada}}}
+	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {viene, anulada, enRuta}}}
 	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
 	_ = e.Ciclo(context.Background())
-	if len(b.retiradas) != 0 || len(b.ventanas) != 0 {
+	if len(b.retiradas) != 0 || len(b.ventanas) != 0 || len(b.anuladas) != 0 {
 		t.Fatalf("un fallo no es una anulación: ni se mira la base (%v) ni se retira (%v)", b.ventanas, b.retiradas)
 	}
 }
@@ -361,7 +406,7 @@ func TestLaFacturaCanceladaDeUnPedidoSeRetiraEnElMismoRepasoYLaVivaSeQueda(t *te
 	}
 }
 
-func TestLaCanceladaQueYaVaEnUnaRutaSeDejaAunqueLaVivaSiga(t *testing.T) {
+func TestLaCanceladaQueYaVaEnUnaRutaSeQuitaDeEllaAunqueLaVivaSiga(t *testing.T) {
 	cancelada, viva, respuesta := dosFacturasDelMismoPedido()
 	cancelada.Ocupada = true
 	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: respuesta}
@@ -369,8 +414,8 @@ func TestLaCanceladaQueYaVaEnUnaRutaSeDejaAunqueLaVivaSiga(t *testing.T) {
 	e, reg := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
 	e.ultimoBarridoDeFacturas = map[string]time.Time{"STG": hoy}
 	_ = e.Ciclo(context.Background())
-	if len(b.retiradas) != 0 || !strings.Contains(reg.String(), "anuladasConRuta=1") {
-		t.Fatalf("la cancelada que va en una ruta se deja y se cuenta; retiradas %v\n%s", b.retiradas, reg.String())
+	if len(b.retiradas) != 0 || len(b.anuladas) != 1 || b.anuladas[0] != cancelada.ID || !strings.Contains(reg.String(), "anuladasQuitadasDeRuta=1") {
+		t.Fatalf("la cancelada que va en una ruta se QUITA de ella (y la viva no); retiradas %v anuladas %v\n%s", b.retiradas, b.anuladas, reg.String())
 	}
 }
 
@@ -529,4 +574,39 @@ func TestConDomicilioCobradoJuzgaCadaFacturaPorSi(t *testing.T) {
 	if len(con) != 1 || sin != 1 || con[0].Conduce() != "2" {
 		t.Fatalf("la 2 cobra 0.35 (cuenta) y la 1 cobra 0 (no): con=%d sin=%d", len(con), sin)
 	}
+}
+
+// EL GANCHO PARA AVISAR A PEDIDO: una vez por factura retirada o quitada de una ruta; nunca por una
+// que se deja ni por las guardas que no retiran.
+func TestElGanchoDeCanceladaSeLlamaUnaVezPorFacturaQueSale(t *testing.T) {
+	viene, borrable, enRuta := entregasGuardadas()
+	historial := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47002:2026-09-13", Ocupada: true}
+	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: unaFacturaDeSantiago()}
+	b := &baseDeFacturasFalsa{
+		guardadas: map[string][]EntregaGuardada{"STG": {viene, borrable, enRuta, historial}},
+		noSePuede: map[uuid.UUID]bool{historial.ID: true},
+	}
+	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
+	llamadas := map[string]int{}
+	e.AvisarCancelada = func(_ context.Context, c EntregaCancelada) { llamadas[c.ExternalID]++ }
+	_ = e.Ciclo(context.Background())
+	if len(llamadas) != 2 || llamadas[borrable.ExternalID] != 1 || llamadas[enRuta.ExternalID] != 1 {
+		t.Fatalf("una vez la borrada y una la quitada de su ruta; ni la que viene ni la de historial: %v", llamadas)
+	}
+}
+
+func TestElGanchoDeCanceladaNoSeLlamaEnLasGuardasQueNoRetiran(t *testing.T) {
+	viene, borrable, enRuta := entregasGuardadas()
+	llamado := 0
+	probar := func(nombre string, f *facturasFalsas) {
+		b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {viene, borrable, enRuta}}}
+		e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
+		e.AvisarCancelada = func(context.Context, EntregaCancelada) { llamado++ }
+		_ = e.Ciclo(context.Background())
+		if llamado != 0 {
+			t.Fatalf("%s: no retira nada y no avisa de nada (%d avisos)", nombre, llamado)
+		}
+	}
+	probar("respuesta vacía", &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: map[string][]FacturaDeVentra{"santiago": {}}})
+	probar("Ventra falla", &facturasFalsas{bases: map[string]string{"STG": "santiago"}, fallos: map[string]error{"santiago": errors.New("Ventra 500")}})
 }

@@ -167,8 +167,7 @@ Al guardar, los resultados de las paradas quedan registrados. Después la ruta p
 
 **Siempre abre primero la hoja de estados**, y avisa:
 
-> «Lo que dejes sin marcar se da por no entregado y cuenta como que sigue en el
-> camión.»
+> «Hasta que decidas todas las facturas, el botón de guardar queda apagado.»
 
 Al completarla:
 
@@ -183,7 +182,7 @@ quedar en el camión», con una columna **«Bajó»** en blanco para contar a ma
 sección **«De quién es lo que vuelve»**.
 
 **Una ruta completada no se puede corregir aquí.** El cierre pasa a solo lectura:
-«Para corregir algo, hay que hacerlo en PEDIDO.»
+«La ruta ya está completada: así acabó cada factura.»
 
 ---
 

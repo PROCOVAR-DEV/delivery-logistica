@@ -310,13 +310,11 @@ class _BarraDeMarcar extends ConsumerWidget {
           ),
           if (marcadas.isNotEmpty) ...[
             const SizedBox(width: 8),
-            FilledButton(
+            BotonPrincipal(
               key: const ValueKey('colocar-marcadas'),
-              onPressed: alColocar,
-              style: FilledButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-              ),
-              child: const Text('Colocar en una zona'),
+              icono: Icons.move_down_outlined,
+              texto: 'Colocar en una zona',
+              alPulsar: alColocar,
             ),
           ],
         ],

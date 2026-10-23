@@ -129,8 +129,10 @@ void main() {
     // estado». O sea que el camino de verdad es este, y es el que hay que
     // vigilar: el cajon guarda, completa, y **despues** mueve la pestaña.
     //
-    // Se guarda sin marcar nada a proposito: dejar una parada sin marcar es como
-    // se dice «eso siguio en el camion», y el boton tiene que funcionar igual.
+    // Desde el 23/10/2026 hay que decidir TODAS las paradas antes de completar
+    // (el botón sigue apagado mientras falte alguna): atajo «Todas: Entregado».
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Entregado').first);
+    await asentar(tester);
     await tester.tap(
       find.widgetWithText(FilledButton, 'Guardar y completar'),
     );

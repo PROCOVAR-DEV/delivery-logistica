@@ -391,7 +391,8 @@ SELECT
     count(*) FILTER (WHERE o.factura_estado = 'sin_factura')    AS sin_factura,
     count(*) FILTER (WHERE o.factura_estado IS NULL)            AS sin_cotejar
 FROM orders o
-WHERE ($1::uuid IS NULL OR o.branch_id = $1::uuid)
+WHERE NOT o.archivado
+  AND ($1::uuid IS NULL OR o.branch_id = $1::uuid)
   AND ($2::timestamptz IS NULL
        OR coalesce(o.order_date, o.created_at) >= $2::timestamptz)
 `
@@ -412,6 +413,7 @@ type ResumenDeCotejoRow struct {
 // Lo cotejado de una sucursal, para comparar contra la de Next mientras las dos están en
 // pie. Los NULL se cuentan aparte de los `sin_factura`: no son lo mismo y confundirlos es
 // exactamente lo que hay que poder ver.
+// Sin lo archivado (00027): una factura anulada y quitada de su ruta no es una factura que cuadre.
 func (q *Queries) ResumenDeCotejo(ctx context.Context, arg ResumenDeCotejoParams) (ResumenDeCotejoRow, error) {
 	row := q.db.QueryRow(ctx, resumenDeCotejo, arg.Sucursal, arg.Desde)
 	var i ResumenDeCotejoRow

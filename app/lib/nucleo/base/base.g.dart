@@ -2576,6 +2576,468 @@ class DistribuidoresCompanion extends UpdateCompanion<Distribuidor> {
   }
 }
 
+class $FacturasAnuladasTable extends FacturasAnuladas
+    with TableInfo<$FacturasAnuladasTable, FacturaAnulada> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FacturasAnuladasTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _numeroMeta = const VerificationMeta('numero');
+  @override
+  late final GeneratedColumn<String> numero = GeneratedColumn<String>(
+    'numero',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _clienteMeta = const VerificationMeta(
+    'cliente',
+  );
+  @override
+  late final GeneratedColumn<String> cliente = GeneratedColumn<String>(
+    'cliente',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _branchIdMeta = const VerificationMeta(
+    'branchId',
+  );
+  @override
+  late final GeneratedColumn<String> branchId = GeneratedColumn<String>(
+    'branch_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rutaIdMeta = const VerificationMeta('rutaId');
+  @override
+  late final GeneratedColumn<String> rutaId = GeneratedColumn<String>(
+    'ruta_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _anuladaAtMeta = const VerificationMeta(
+    'anuladaAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> anuladaAt = GeneratedColumn<DateTime>(
+    'anulada_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _vistaAtMeta = const VerificationMeta(
+    'vistaAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> vistaAt = GeneratedColumn<DateTime>(
+    'vista_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    numero,
+    cliente,
+    branchId,
+    rutaId,
+    anuladaAt,
+    vistaAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'facturas_anuladas';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FacturaAnulada> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('numero')) {
+      context.handle(
+        _numeroMeta,
+        numero.isAcceptableOrUnknown(data['numero']!, _numeroMeta),
+      );
+    }
+    if (data.containsKey('cliente')) {
+      context.handle(
+        _clienteMeta,
+        cliente.isAcceptableOrUnknown(data['cliente']!, _clienteMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_clienteMeta);
+    }
+    if (data.containsKey('branch_id')) {
+      context.handle(
+        _branchIdMeta,
+        branchId.isAcceptableOrUnknown(data['branch_id']!, _branchIdMeta),
+      );
+    }
+    if (data.containsKey('ruta_id')) {
+      context.handle(
+        _rutaIdMeta,
+        rutaId.isAcceptableOrUnknown(data['ruta_id']!, _rutaIdMeta),
+      );
+    }
+    if (data.containsKey('anulada_at')) {
+      context.handle(
+        _anuladaAtMeta,
+        anuladaAt.isAcceptableOrUnknown(data['anulada_at']!, _anuladaAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_anuladaAtMeta);
+    }
+    if (data.containsKey('vista_at')) {
+      context.handle(
+        _vistaAtMeta,
+        vistaAt.isAcceptableOrUnknown(data['vista_at']!, _vistaAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FacturaAnulada map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FacturaAnulada(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      numero: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}numero'],
+      ),
+      cliente: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cliente'],
+      )!,
+      branchId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}branch_id'],
+      ),
+      rutaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ruta_id'],
+      ),
+      anuladaAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}anulada_at'],
+      )!,
+      vistaAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}vista_at'],
+      ),
+    );
+  }
+
+  @override
+  $FacturasAnuladasTable createAlias(String alias) {
+    return $FacturasAnuladasTable(attachedDatabase, alias);
+  }
+}
+
+class FacturaAnulada extends DataClass implements Insertable<FacturaAnulada> {
+  /// El `id` de la entrega en el servidor (`orders.id`).
+  final String id;
+
+  /// El numero de la factura de Ventra (`factura_numero`); nulo si no lo trae.
+  final String? numero;
+  final String cliente;
+  final String? branchId;
+
+  /// La ruta de la que se quito (`anulada_de_ruta_id`). Puede no estar en `routes` (borrada).
+  final String? rutaId;
+  final DateTime anuladaAt;
+  final DateTime? vistaAt;
+  const FacturaAnulada({
+    required this.id,
+    this.numero,
+    required this.cliente,
+    this.branchId,
+    this.rutaId,
+    required this.anuladaAt,
+    this.vistaAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || numero != null) {
+      map['numero'] = Variable<String>(numero);
+    }
+    map['cliente'] = Variable<String>(cliente);
+    if (!nullToAbsent || branchId != null) {
+      map['branch_id'] = Variable<String>(branchId);
+    }
+    if (!nullToAbsent || rutaId != null) {
+      map['ruta_id'] = Variable<String>(rutaId);
+    }
+    map['anulada_at'] = Variable<DateTime>(anuladaAt);
+    if (!nullToAbsent || vistaAt != null) {
+      map['vista_at'] = Variable<DateTime>(vistaAt);
+    }
+    return map;
+  }
+
+  FacturasAnuladasCompanion toCompanion(bool nullToAbsent) {
+    return FacturasAnuladasCompanion(
+      id: Value(id),
+      numero: numero == null && nullToAbsent
+          ? const Value.absent()
+          : Value(numero),
+      cliente: Value(cliente),
+      branchId: branchId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(branchId),
+      rutaId: rutaId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rutaId),
+      anuladaAt: Value(anuladaAt),
+      vistaAt: vistaAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(vistaAt),
+    );
+  }
+
+  factory FacturaAnulada.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FacturaAnulada(
+      id: serializer.fromJson<String>(json['id']),
+      numero: serializer.fromJson<String?>(json['numero']),
+      cliente: serializer.fromJson<String>(json['cliente']),
+      branchId: serializer.fromJson<String?>(json['branchId']),
+      rutaId: serializer.fromJson<String?>(json['rutaId']),
+      anuladaAt: serializer.fromJson<DateTime>(json['anuladaAt']),
+      vistaAt: serializer.fromJson<DateTime?>(json['vistaAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'numero': serializer.toJson<String?>(numero),
+      'cliente': serializer.toJson<String>(cliente),
+      'branchId': serializer.toJson<String?>(branchId),
+      'rutaId': serializer.toJson<String?>(rutaId),
+      'anuladaAt': serializer.toJson<DateTime>(anuladaAt),
+      'vistaAt': serializer.toJson<DateTime?>(vistaAt),
+    };
+  }
+
+  FacturaAnulada copyWith({
+    String? id,
+    Value<String?> numero = const Value.absent(),
+    String? cliente,
+    Value<String?> branchId = const Value.absent(),
+    Value<String?> rutaId = const Value.absent(),
+    DateTime? anuladaAt,
+    Value<DateTime?> vistaAt = const Value.absent(),
+  }) => FacturaAnulada(
+    id: id ?? this.id,
+    numero: numero.present ? numero.value : this.numero,
+    cliente: cliente ?? this.cliente,
+    branchId: branchId.present ? branchId.value : this.branchId,
+    rutaId: rutaId.present ? rutaId.value : this.rutaId,
+    anuladaAt: anuladaAt ?? this.anuladaAt,
+    vistaAt: vistaAt.present ? vistaAt.value : this.vistaAt,
+  );
+  FacturaAnulada copyWithCompanion(FacturasAnuladasCompanion data) {
+    return FacturaAnulada(
+      id: data.id.present ? data.id.value : this.id,
+      numero: data.numero.present ? data.numero.value : this.numero,
+      cliente: data.cliente.present ? data.cliente.value : this.cliente,
+      branchId: data.branchId.present ? data.branchId.value : this.branchId,
+      rutaId: data.rutaId.present ? data.rutaId.value : this.rutaId,
+      anuladaAt: data.anuladaAt.present ? data.anuladaAt.value : this.anuladaAt,
+      vistaAt: data.vistaAt.present ? data.vistaAt.value : this.vistaAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FacturaAnulada(')
+          ..write('id: $id, ')
+          ..write('numero: $numero, ')
+          ..write('cliente: $cliente, ')
+          ..write('branchId: $branchId, ')
+          ..write('rutaId: $rutaId, ')
+          ..write('anuladaAt: $anuladaAt, ')
+          ..write('vistaAt: $vistaAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, numero, cliente, branchId, rutaId, anuladaAt, vistaAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FacturaAnulada &&
+          other.id == this.id &&
+          other.numero == this.numero &&
+          other.cliente == this.cliente &&
+          other.branchId == this.branchId &&
+          other.rutaId == this.rutaId &&
+          other.anuladaAt == this.anuladaAt &&
+          other.vistaAt == this.vistaAt);
+}
+
+class FacturasAnuladasCompanion extends UpdateCompanion<FacturaAnulada> {
+  final Value<String> id;
+  final Value<String?> numero;
+  final Value<String> cliente;
+  final Value<String?> branchId;
+  final Value<String?> rutaId;
+  final Value<DateTime> anuladaAt;
+  final Value<DateTime?> vistaAt;
+  final Value<int> rowid;
+  const FacturasAnuladasCompanion({
+    this.id = const Value.absent(),
+    this.numero = const Value.absent(),
+    this.cliente = const Value.absent(),
+    this.branchId = const Value.absent(),
+    this.rutaId = const Value.absent(),
+    this.anuladaAt = const Value.absent(),
+    this.vistaAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  FacturasAnuladasCompanion.insert({
+    required String id,
+    this.numero = const Value.absent(),
+    required String cliente,
+    this.branchId = const Value.absent(),
+    this.rutaId = const Value.absent(),
+    required DateTime anuladaAt,
+    this.vistaAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       cliente = Value(cliente),
+       anuladaAt = Value(anuladaAt);
+  static Insertable<FacturaAnulada> custom({
+    Expression<String>? id,
+    Expression<String>? numero,
+    Expression<String>? cliente,
+    Expression<String>? branchId,
+    Expression<String>? rutaId,
+    Expression<DateTime>? anuladaAt,
+    Expression<DateTime>? vistaAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (numero != null) 'numero': numero,
+      if (cliente != null) 'cliente': cliente,
+      if (branchId != null) 'branch_id': branchId,
+      if (rutaId != null) 'ruta_id': rutaId,
+      if (anuladaAt != null) 'anulada_at': anuladaAt,
+      if (vistaAt != null) 'vista_at': vistaAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  FacturasAnuladasCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? numero,
+    Value<String>? cliente,
+    Value<String?>? branchId,
+    Value<String?>? rutaId,
+    Value<DateTime>? anuladaAt,
+    Value<DateTime?>? vistaAt,
+    Value<int>? rowid,
+  }) {
+    return FacturasAnuladasCompanion(
+      id: id ?? this.id,
+      numero: numero ?? this.numero,
+      cliente: cliente ?? this.cliente,
+      branchId: branchId ?? this.branchId,
+      rutaId: rutaId ?? this.rutaId,
+      anuladaAt: anuladaAt ?? this.anuladaAt,
+      vistaAt: vistaAt ?? this.vistaAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (numero.present) {
+      map['numero'] = Variable<String>(numero.value);
+    }
+    if (cliente.present) {
+      map['cliente'] = Variable<String>(cliente.value);
+    }
+    if (branchId.present) {
+      map['branch_id'] = Variable<String>(branchId.value);
+    }
+    if (rutaId.present) {
+      map['ruta_id'] = Variable<String>(rutaId.value);
+    }
+    if (anuladaAt.present) {
+      map['anulada_at'] = Variable<DateTime>(anuladaAt.value);
+    }
+    if (vistaAt.present) {
+      map['vista_at'] = Variable<DateTime>(vistaAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FacturasAnuladasCompanion(')
+          ..write('id: $id, ')
+          ..write('numero: $numero, ')
+          ..write('cliente: $cliente, ')
+          ..write('branchId: $branchId, ')
+          ..write('rutaId: $rutaId, ')
+          ..write('anuladaAt: $anuladaAt, ')
+          ..write('vistaAt: $vistaAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ProductsTable extends Products with TableInfo<$ProductsTable, Producto> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -12038,6 +12500,9 @@ abstract class _$BaseLocal extends GeneratedDatabase {
   late final $VehicleTypesTable vehicleTypes = $VehicleTypesTable(this);
   late final $VehiclesTable vehicles = $VehiclesTable(this);
   late final $DistribuidoresTable distribuidores = $DistribuidoresTable(this);
+  late final $FacturasAnuladasTable facturasAnuladas = $FacturasAnuladasTable(
+    this,
+  );
   late final $ProductsTable products = $ProductsTable(this);
   late final $CustomersTable customers = $CustomersTable(this);
   late final $OrdersTable orders = $OrdersTable(this);
@@ -12058,6 +12523,7 @@ abstract class _$BaseLocal extends GeneratedDatabase {
     vehicleTypes,
     vehicles,
     distribuidores,
+    facturasAnuladas,
     products,
     customers,
     orders,
@@ -13280,6 +13746,246 @@ typedef $$DistribuidoresTableProcessedTableManager =
         BaseReferences<_$BaseLocal, $DistribuidoresTable, Distribuidor>,
       ),
       Distribuidor,
+      PrefetchHooks Function()
+    >;
+typedef $$FacturasAnuladasTableCreateCompanionBuilder =
+    FacturasAnuladasCompanion Function({
+      required String id,
+      Value<String?> numero,
+      required String cliente,
+      Value<String?> branchId,
+      Value<String?> rutaId,
+      required DateTime anuladaAt,
+      Value<DateTime?> vistaAt,
+      Value<int> rowid,
+    });
+typedef $$FacturasAnuladasTableUpdateCompanionBuilder =
+    FacturasAnuladasCompanion Function({
+      Value<String> id,
+      Value<String?> numero,
+      Value<String> cliente,
+      Value<String?> branchId,
+      Value<String?> rutaId,
+      Value<DateTime> anuladaAt,
+      Value<DateTime?> vistaAt,
+      Value<int> rowid,
+    });
+
+class $$FacturasAnuladasTableFilterComposer
+    extends Composer<_$BaseLocal, $FacturasAnuladasTable> {
+  $$FacturasAnuladasTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get numero => $composableBuilder(
+    column: $table.numero,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cliente => $composableBuilder(
+    column: $table.cliente,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get branchId => $composableBuilder(
+    column: $table.branchId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rutaId => $composableBuilder(
+    column: $table.rutaId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get anuladaAt => $composableBuilder(
+    column: $table.anuladaAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get vistaAt => $composableBuilder(
+    column: $table.vistaAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$FacturasAnuladasTableOrderingComposer
+    extends Composer<_$BaseLocal, $FacturasAnuladasTable> {
+  $$FacturasAnuladasTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get numero => $composableBuilder(
+    column: $table.numero,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cliente => $composableBuilder(
+    column: $table.cliente,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get branchId => $composableBuilder(
+    column: $table.branchId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rutaId => $composableBuilder(
+    column: $table.rutaId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get anuladaAt => $composableBuilder(
+    column: $table.anuladaAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get vistaAt => $composableBuilder(
+    column: $table.vistaAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$FacturasAnuladasTableAnnotationComposer
+    extends Composer<_$BaseLocal, $FacturasAnuladasTable> {
+  $$FacturasAnuladasTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get numero =>
+      $composableBuilder(column: $table.numero, builder: (column) => column);
+
+  GeneratedColumn<String> get cliente =>
+      $composableBuilder(column: $table.cliente, builder: (column) => column);
+
+  GeneratedColumn<String> get branchId =>
+      $composableBuilder(column: $table.branchId, builder: (column) => column);
+
+  GeneratedColumn<String> get rutaId =>
+      $composableBuilder(column: $table.rutaId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get anuladaAt =>
+      $composableBuilder(column: $table.anuladaAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get vistaAt =>
+      $composableBuilder(column: $table.vistaAt, builder: (column) => column);
+}
+
+class $$FacturasAnuladasTableTableManager
+    extends
+        RootTableManager<
+          _$BaseLocal,
+          $FacturasAnuladasTable,
+          FacturaAnulada,
+          $$FacturasAnuladasTableFilterComposer,
+          $$FacturasAnuladasTableOrderingComposer,
+          $$FacturasAnuladasTableAnnotationComposer,
+          $$FacturasAnuladasTableCreateCompanionBuilder,
+          $$FacturasAnuladasTableUpdateCompanionBuilder,
+          (
+            FacturaAnulada,
+            BaseReferences<_$BaseLocal, $FacturasAnuladasTable, FacturaAnulada>,
+          ),
+          FacturaAnulada,
+          PrefetchHooks Function()
+        > {
+  $$FacturasAnuladasTableTableManager(
+    _$BaseLocal db,
+    $FacturasAnuladasTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FacturasAnuladasTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FacturasAnuladasTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FacturasAnuladasTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> numero = const Value.absent(),
+                Value<String> cliente = const Value.absent(),
+                Value<String?> branchId = const Value.absent(),
+                Value<String?> rutaId = const Value.absent(),
+                Value<DateTime> anuladaAt = const Value.absent(),
+                Value<DateTime?> vistaAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FacturasAnuladasCompanion(
+                id: id,
+                numero: numero,
+                cliente: cliente,
+                branchId: branchId,
+                rutaId: rutaId,
+                anuladaAt: anuladaAt,
+                vistaAt: vistaAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> numero = const Value.absent(),
+                required String cliente,
+                Value<String?> branchId = const Value.absent(),
+                Value<String?> rutaId = const Value.absent(),
+                required DateTime anuladaAt,
+                Value<DateTime?> vistaAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FacturasAnuladasCompanion.insert(
+                id: id,
+                numero: numero,
+                cliente: cliente,
+                branchId: branchId,
+                rutaId: rutaId,
+                anuladaAt: anuladaAt,
+                vistaAt: vistaAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$FacturasAnuladasTableProcessedTableManager =
+    ProcessedTableManager<
+      _$BaseLocal,
+      $FacturasAnuladasTable,
+      FacturaAnulada,
+      $$FacturasAnuladasTableFilterComposer,
+      $$FacturasAnuladasTableOrderingComposer,
+      $$FacturasAnuladasTableAnnotationComposer,
+      $$FacturasAnuladasTableCreateCompanionBuilder,
+      $$FacturasAnuladasTableUpdateCompanionBuilder,
+      (
+        FacturaAnulada,
+        BaseReferences<_$BaseLocal, $FacturasAnuladasTable, FacturaAnulada>,
+      ),
+      FacturaAnulada,
       PrefetchHooks Function()
     >;
 typedef $$ProductsTableCreateCompanionBuilder =
@@ -17516,6 +18222,8 @@ class $BaseLocalManager {
       $$VehiclesTableTableManager(_db, _db.vehicles);
   $$DistribuidoresTableTableManager get distribuidores =>
       $$DistribuidoresTableTableManager(_db, _db.distribuidores);
+  $$FacturasAnuladasTableTableManager get facturasAnuladas =>
+      $$FacturasAnuladasTableTableManager(_db, _db.facturasAnuladas);
   $$ProductsTableTableManager get products =>
       $$ProductsTableTableManager(_db, _db.products);
   $$CustomersTableTableManager get customers =>

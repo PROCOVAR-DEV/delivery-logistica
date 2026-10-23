@@ -398,7 +398,7 @@ Al confirmar, la ruta pasa al Historial y el camión queda libre.
 guardado, y la pantalla **no te deja pasar sin leerlo**: se abre un cajón titulado
 **«Ruta completada: 2 paradas no se guardaron»** (si fue una sola, «Ruta completada: 1
 parada no se guardó»). Dice «El resto del cierre sí quedó guardado.» y «Estas paradas
-se quedaron sin resultado. Apunta su conduce y corrígelas en PEDIDO.», y debajo, en
+se quedaron sin resultado. Apunta su factura y corrígelas desde Reparto.», y debajo, en
 negrita, una línea por parada:
 
 > **Conduce PTB25-261005-1480: esa factura no va en esta ruta**
@@ -426,8 +426,8 @@ encontrarla.
    <!-- señala: rutas-completar -->
    - **Siempre abre primero la hoja de estados**, aunque hubiera marcas anteriores:
 
-   > «Antes de dar la ruta por completada: ¿cómo acabó cada parada? Lo que dejes sin
-   > marcar se da por no entregado y cuenta como que sigue en el camión.»
+   > «Antes de dar la ruta por completada: ¿cómo acabó cada factura? Hasta que decidas
+   > todas, el botón de guardar queda apagado.»
 
 2. Márcalas y **clic en «Guardar y completar»**. Revisa las marcas antes de confirmar. <!-- señala: rutas-guardar-el-cierre -->
    - **La ruta se va al «Historial»**, el camión queda libre, y las facturas no
@@ -451,8 +451,7 @@ encontrarla.
 El botón es **«Ver cierre»** y es **sólo lectura**: sin botones de resultado y sin
 botón de guardar.
 
-> «La ruta ya está completada: así acabó cada parada. **Para corregir algo, hay que
-> hacerlo en PEDIDO.**»
+> «La ruta ya está completada: así acabó cada factura.»
 
 ---
 

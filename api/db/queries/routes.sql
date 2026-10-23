@@ -784,17 +784,18 @@ WHERE vehicle_id = sqlc.arg('vehiculo_id')
 -- El porqué entero está en `00010_avisos_a_pedido.sql`.
 
 -- name: EncolarAvisoAPedido :exec
-INSERT INTO avisos_a_pedido (pedido_id, folio, estado, nota, ocurrio_at)
+INSERT INTO avisos_a_pedido (pedido_id, folio, estado, nota, ocurrio_at, sucursal, factura, punto_de_venta)
 VALUES (
     sqlc.arg('pedido_id'), sqlc.narg('folio'), sqlc.arg('estado'),
-    sqlc.narg('nota'), sqlc.arg('ocurrio_at')
+    sqlc.narg('nota'), sqlc.arg('ocurrio_at'),
+    sqlc.narg('sucursal'), sqlc.narg('factura'), sqlc.narg('punto_de_venta')
 );
 
 -- Los que hay que mandar, los más viejos primero: un aviso no se queda al fondo porque
 -- entren otros. `FOR UPDATE SKIP LOCKED` para que dos procesos del reparto —la api y el
 -- espejo— no manden el mismo dos veces.
 -- name: AvisosAPedidoPendientes :many
-SELECT id, pedido_id, folio, estado, nota, ocurrio_at, intentos
+SELECT id, pedido_id, folio, estado, nota, ocurrio_at, intentos, sucursal, factura, punto_de_venta
 FROM avisos_a_pedido
 WHERE situacion = 'pendiente'
 ORDER BY created_at ASC

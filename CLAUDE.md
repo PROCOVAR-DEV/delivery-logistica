@@ -198,6 +198,9 @@ concreto. Ya hay tres así:
   `alcance.alFolio` la PRIMERA de sus facturas vivas (el espejo las procesa ordenadas por número) y conserva id, ruta y punto; las
   demás facturas del conduce nacen como filas nuevas (Sin colocar). Si ninguna de sus facturas vive, se retira (o se cuenta
   «anulada con ruta»). Caso de Amado: `47412, 47415` en ruta, la 47412 cancelada: la 47415 hereda la ruta.
+  **La factura cancelada que ya va en una ruta SIN COMPLETAR (y sin resultado) se QUITA de la ruta y se INFORMA** (23/10/2026, Jose y
+  Amado): el espejo la marca `orders.anulada_at`/`anulada_de_ruta_id` (00027) y la deja `archivado` (nadie la cuenta); la app avisa en
+  Rutas, «Entendido» por aparato. Ruta completada o con resultado: historial, no se toca. Reaparece: se reactiva en la misma fila.
   El corte y la limpieza son fases posteriores: `docs/contratos-api.md`, «La entrega que nace de una FACTURA».
 
 ---

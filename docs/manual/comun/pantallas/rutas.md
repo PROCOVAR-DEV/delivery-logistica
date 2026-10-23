@@ -24,6 +24,15 @@ puestos, ese número y las tarjetas que ves pueden no coincidir.
 
 ---
 
+## Si Ventra cancela una factura que ya iba en una ruta
+
+Si una factura que ya estaba en una ruta **planificada o en curso** se cancela en Ventra, Reparto la **quita sola de
+la ruta** (el peso y el importe de la ruta se rehacen) y arriba de la lista sale un aviso ámbar: «La factura 47412
+(cliente) fue cancelada en Ventra y se quitó de la ruta Centro», con la hora. Pulsa **«Entendido»** cuando lo hayas
+leído: desaparece de ese aparato (en la web vuelve al recargar, hasta que pasen 7 días). En el detalle de esa ruta
+sigue la línea. Una ruta **completada** no se toca: es historial. Si el teléfono tenía la ruta en curso sin señal y ya
+había marcado esa parada, el servidor rechazará ese resultado y lo verás en la bandeja.
+
 ## Buscar y filtrar
 
 Los filtros viven en una sección que **se pliega y se despliega** con el botón
@@ -619,8 +628,8 @@ parada(s)».
 
 | Modo | Cuándo | Qué dice arriba |
 |---|---|---|
-| **Al completar** | Sólo al pulsar «Marcar como completada», siempre antes de confirmar | «Antes de dar la ruta por completada: ¿cómo acabó cada parada? **Lo que dejes sin marcar se da por no entregado y cuenta como que sigue en el camión.**» |
-| **Solo lectura** | Ruta completada, botón «Ver cierre» | «La ruta ya está completada: así acabó cada parada. **Para corregir algo, hay que hacerlo en PEDIDO.**» |
+| **Al completar** | Sólo al pulsar «Marcar como completada», siempre antes de confirmar | «Antes de dar la ruta por completada: ¿cómo acabó cada factura? **Hasta que decidas todas, el botón de guardar queda apagado.**» |
+| **Solo lectura** | Ruta completada, botón «Ver cierre» | «La ruta ya está completada: así acabó cada factura.» |
 
 ### Qué se pregunta en cada parada
 
@@ -685,7 +694,7 @@ factura no va en esta ruta». **Cada forma lo maneja distinto**, y a propósito:
   > **Ruta completada: 2 paradas no se guardaron**
   > El resto del cierre sí quedó guardado.
   >
-  > Estas paradas se quedaron sin resultado. Apunta su conduce y corrígelas en PEDIDO.
+  > Estas paradas se quedaron sin resultado. Apunta su factura y corrígelas desde Reparto.
   >
   > **Conduce PTB25-261005-1480: esa factura no va en esta ruta**
   > **Conduce PTB25-261005-1502: esa factura no va en esta ruta**

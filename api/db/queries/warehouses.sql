@@ -124,7 +124,9 @@ SELECT
     count(*) FILTER (WHERE o.factura_estado = 'sin_factura')    AS sin_factura,
     count(*) FILTER (WHERE o.factura_estado IS NULL)            AS sin_cotejar
 FROM orders o
-WHERE (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
+-- Sin lo archivado (00027): una factura anulada y quitada de su ruta no es una factura que cuadre.
+WHERE NOT o.archivado
+  AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
   AND (sqlc.narg('desde')::timestamptz IS NULL
        OR coalesce(o.order_date, o.created_at) >= sqlc.narg('desde')::timestamptz);
 

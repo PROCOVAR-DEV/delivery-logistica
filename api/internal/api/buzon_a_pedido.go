@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/store/sqlc"
 )
@@ -51,27 +49,11 @@ func (s *Servidor) encolarAvisos(
 ) int {
 	puestos := 0
 	for _, av := range avisos {
-		cuando := av.At
-		if cuando.IsZero() {
-			cuando = time.Now().UTC()
-		}
-		var nota *string
-		if av.Nota != "" {
-			n := av.Nota
-			nota = &n
-		}
-		err := a.EncolarAvisoAPedido(ctx, sqlc.EncolarAvisoAPedidoParams{
-			PedidoID: av.PedidoID,
-			Estado:   av.Estado,
-			Nota:     nota,
-			// La hora del SUCESO, no la de la llamada: con el trabajo sin conexión
-			// pueden ser tres horas distintas, y la que vale para el vendedor es
-			// cuándo recibió su cliente. Ver `AvisoDeParada.At`.
-			OcurrioAt: pgtype.Timestamptz{Time: cuando, Valid: true},
-		})
-		if err != nil {
+		// La hora del SUCESO, no la de la llamada: ver `AvisoDeParada.At`. El aviso se guarda
+		// con todos sus campos (folio, factura…) para que el reintento lleve lo mismo.
+		if err := a.EncolarAviso(ctx, av); err != nil {
 			s.reg.Error("no se pudo apuntar el aviso a PEDIDO en el buzón",
-				"ruta", ruta, "pedido", av.PedidoID, "err", err)
+				"ruta", ruta, "pedido", av.PedidoID, "folio", av.Folio, "factura", av.Factura, "err", err)
 			continue
 		}
 		puestos++

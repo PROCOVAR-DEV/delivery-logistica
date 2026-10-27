@@ -434,15 +434,14 @@ saberlo leer:
    posición, y la bajada siguiente las coloca. En la web no hay cola y es inmediato. Ver
    `tablero.md` §7.6-bis. Tampoco hay que renumerar ni recalcular nada a mano: quitar una
    parada deja el hueco en `stop_order` y no toca `total_distance`.
-2. **Colocar una tarjeta sin domicilio cobrado, o marcada a domicilio y sin cotizar.** El
-   servidor lo rechaza con
+2. **Colocar una tarjeta que no entra** (hoy: sin factura o sin cotejar; el domicilio cobrado y el cotizado
+   dejaron de exigirse el 16/10/2026). El servidor lo rechaza con
    un 409. Como arrastrar en la APK no llama a nadie, **el aparato dice el mismo «no» antes
    de colocar** (las mismas palabras que el servidor, para que no haya dos idiomas) y no
    encola el apunte: si se encolara, el rechazo llegaría horas después a la bandeja con la
    zona ya preparada. Lo mismo vale para armar con un camión inactivo
    (`El vehículo está inactivo y no se puede asignar a una ruta.`) y para los tres «no» de
-   armar (`facturado` —`igual` o `cambiado` desde el 15/10/2026—, `domicilio cobrado`,
-   `domicilio cotizado` si el vendedor lo marcó), con la regla de
+   armar (`facturado` —`igual` o `cambiado` desde el 15/10/2026—), con la regla de
    `app/lib/nucleo/regla_de_entrada.dart`.
 3. **Cerrar una ruta con una parada que el servidor rechaza.** El sincronizador convierte
    cualquier 4xx en un rechazo del apunte **entero**, sin leer `aplicados`: la hoja queda

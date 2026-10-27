@@ -453,7 +453,7 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
      `"En una ruta sólo entra lo facturado y que cuadre. …"` y tenía el motivo
      `cambió en la factura` (`cambiado` no entraba: «en el camión sólo sube lo que cuadra con
      la factura», Jose, 07/10/2026); ese motivo ya no existe.
-6-bis. **Domicilio cobrado** (Amado, 07/10/2026, incidencia 6): todo pedido tiene que traer
+6-bis. **[RETIRADO, ver 6-ter]** Domicilio cobrado (Amado, 07/10/2026, incidencia 6): todo pedido tiene que traer
    `facturaDomicilio > 0` (lo cobrado en el mostrador). Si alguno no → `409`
    `"En una ruta sólo entra lo facturado con domicilio cobrado. <N> no cumplen: <detalle>"`,
    con el mismo formato de cinco nombrados + `" y <N-5> más."` / `"."`. El cero y los
@@ -489,7 +489,7 @@ ese número se puede usar y mostrar como conduce. Todos los rechazos del armado 
 (`409` de arriba, `descartados` del tablero) **nombran cada pedido por ese número** y sólo
 caen al nombre del cliente si falta. Un cobro a domicilio «que sale como conduce» no es un
 caso aparte: es un pedido más, y entra o no según la regla de arriba (facturado `igual` o
-`cambiado`, domicilio cobrado, y cotizado si el vendedor lo marcó).
+`cambiado`; el domicilio cobrado y el cotizado dejaron de exigirse el 16/10/2026).
 
 ### Cálculo y escritura
 
@@ -848,10 +848,9 @@ decisión explícita en la bandeja (Reintentar o Descartar), sin descartar datos
   - `costoMin`: número, opcional. Descarta si `(pedidoCosto ?? 0) < costoMin`.
   - Para ambos: cadena vacía o no numérica → se ignora el filtro.
 - **Condiciones fijas, no negociables**: `source = 'pedido'`, `routeId IS NULL`,
-  `endLat IS NOT NULL`, `endLng IS NOT NULL`, `facturaEstado IN ('igual','cambiado')` y, desde
-  el 07/10/2026 (Amado), **`facturaDomicilio > 0`** (domicilio cobrado) y, desde el
-  15/10/2026 (issue 10), **`pedidoCosto IS NOT NULL OR requiereDomicilio IS NOT TRUE`**
-  (domicilio cotizado sólo si el vendedor lo marcó; antes `pedidoCosto IS NOT NULL` siempre).
+  `endLat IS NOT NULL`, `endLng IS NOT NULL` y `facturaEstado IN ('igual','cambiado')`. Desde el
+  16/10/2026 (Jose) **ya no se exigen** `facturaDomicilio > 0` (07/10, Amado) ni
+  `pedidoCosto IS NOT NULL OR requiereDomicilio IS NOT TRUE` (15/10, issue 10): entra todo lo facturado.
   **La lista ofrece exactamente lo que una ruta acepta, `cambiado` incluido** (hasta el
   15/10/2026 ofrecía `cambiado` y el armador lo rechazaba). Por eso `cotizado=0` sólo puede
   traer pedidos sin marcar; y como todo lo de aquí trae el domicilio cobrado, `domicilio=1`
@@ -2488,10 +2487,9 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
 Lo que no puede subir se cae **nombrado** en `descartados[]` (`pedidoId`, `operationNumber`
 —el conduce—, `customerName`, `motivo`, `queHacer`) y la ruta sale con el resto; si no queda
 ninguno, `409` con `descartados` dentro. Motivos de la factura y el domicilio, en este orden
-(tras `ya se entregó` y `archivado en PEDIDO`): `sin cotejar` (nulo), `sin factura`,
-**`la factura no tiene domicilio cobrado`** y **`domicilio sin cotizar`** (los dos últimos,
-Amado 07/10/2026; `domicilio sin cotizar` sólo si `requiereDomicilio = true` desde el
-15/10/2026). **`cambiado` sube** desde el 15/10/2026 (issue 10 de Amado): el motivo
+(tras `ya se entregó` y `archivado en PEDIDO`): `sin cotejar` (nulo) y `sin factura`.
+Los motivos `la factura no tiene domicilio cobrado` y `domicilio sin cotizar` (Amado 07/10/2026)
+**ya no los da el servidor** desde el 16/10/2026. **`cambiado` sube** desde el 15/10/2026 (issue 10 de Amado): el motivo
 `cambió en la factura` ya no existe.
 
 **Lo que el aparato no eligió se nombra con su motivo VERDADERO (1.0.29).** Cuando la APK manda

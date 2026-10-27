@@ -108,6 +108,9 @@ WHERE
         OR o.customer_name    ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.operation_number ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.factura_numero   ILIKE '%' || sqlc.narg('q')::text || '%'
+        -- Y la de un miembro de su conduce: el miembro no es fila, se encuentra por su principal.
+        OR EXISTS (SELECT 1 FROM orders m WHERE m.conduce_principal_id = o.id
+                     AND m.factura_numero ILIKE '%' || sqlc.narg('q')::text || '%')
         OR o.end_address      ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.address          ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.municipio        ILIKE '%' || sqlc.narg('q')::text || '%'
@@ -238,6 +241,9 @@ WHERE
         OR o.customer_name    ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.operation_number ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.factura_numero   ILIKE '%' || sqlc.narg('q')::text || '%'
+        -- Y la de un miembro de su conduce: el miembro no es fila, se encuentra por su principal.
+        OR EXISTS (SELECT 1 FROM orders m WHERE m.conduce_principal_id = o.id
+                     AND m.factura_numero ILIKE '%' || sqlc.narg('q')::text || '%')
         OR o.end_address      ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.address          ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.municipio        ILIKE '%' || sqlc.narg('q')::text || '%'
@@ -353,6 +359,9 @@ WHERE
         OR o.customer_name    ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.operation_number ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.factura_numero   ILIKE '%' || sqlc.narg('q')::text || '%'
+        -- Y la de un miembro de su conduce: el miembro no es fila, se encuentra por su principal.
+        OR EXISTS (SELECT 1 FROM orders m WHERE m.conduce_principal_id = o.id
+                     AND m.factura_numero ILIKE '%' || sqlc.narg('q')::text || '%')
         OR o.end_address      ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.address          ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.municipio        ILIKE '%' || sqlc.narg('q')::text || '%'
@@ -437,6 +446,9 @@ WHERE
         OR o.customer_name    ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.operation_number ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.factura_numero   ILIKE '%' || sqlc.narg('q')::text || '%'
+        -- Y la de un miembro de su conduce: el miembro no es fila, se encuentra por su principal.
+        OR EXISTS (SELECT 1 FROM orders m WHERE m.conduce_principal_id = o.id
+                     AND m.factura_numero ILIKE '%' || sqlc.narg('q')::text || '%')
         OR o.end_address      ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.address          ILIKE '%' || sqlc.narg('q')::text || '%'
         OR o.municipio        ILIKE '%' || sqlc.narg('q')::text || '%'

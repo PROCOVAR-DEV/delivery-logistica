@@ -439,6 +439,9 @@ WHERE
         OR o.customer_name    ILIKE '%' || $3::text || '%'
         OR o.operation_number ILIKE '%' || $3::text || '%'
         OR o.factura_numero   ILIKE '%' || $3::text || '%'
+        -- Y la de un miembro de su conduce: el miembro no es fila, se encuentra por su principal.
+        OR EXISTS (SELECT 1 FROM orders m WHERE m.conduce_principal_id = o.id
+                     AND m.factura_numero ILIKE '%' || $3::text || '%')
         OR o.end_address      ILIKE '%' || $3::text || '%'
         OR o.address          ILIKE '%' || $3::text || '%'
         OR o.municipio        ILIKE '%' || $3::text || '%'
@@ -577,6 +580,9 @@ WHERE
         OR o.customer_name    ILIKE '%' || $3::text || '%'
         OR o.operation_number ILIKE '%' || $3::text || '%'
         OR o.factura_numero   ILIKE '%' || $3::text || '%'
+        -- Y la de un miembro de su conduce: el miembro no es fila, se encuentra por su principal.
+        OR EXISTS (SELECT 1 FROM orders m WHERE m.conduce_principal_id = o.id
+                     AND m.factura_numero ILIKE '%' || $3::text || '%')
         OR o.end_address      ILIKE '%' || $3::text || '%'
         OR o.address          ILIKE '%' || $3::text || '%'
         OR o.municipio        ILIKE '%' || $3::text || '%'
@@ -1773,6 +1779,9 @@ WHERE
         OR o.customer_name    ILIKE '%' || $3::text || '%'
         OR o.operation_number ILIKE '%' || $3::text || '%'
         OR o.factura_numero   ILIKE '%' || $3::text || '%'
+        -- Y la de un miembro de su conduce: el miembro no es fila, se encuentra por su principal.
+        OR EXISTS (SELECT 1 FROM orders m WHERE m.conduce_principal_id = o.id
+                     AND m.factura_numero ILIKE '%' || $3::text || '%')
         OR o.end_address      ILIKE '%' || $3::text || '%'
         OR o.address          ILIKE '%' || $3::text || '%'
         OR o.municipio        ILIKE '%' || $3::text || '%'
@@ -2074,6 +2083,9 @@ WHERE
         OR o.customer_name    ILIKE '%' || $3::text || '%'
         OR o.operation_number ILIKE '%' || $3::text || '%'
         OR o.factura_numero   ILIKE '%' || $3::text || '%'
+        -- Y la de un miembro de su conduce: el miembro no es fila, se encuentra por su principal.
+        OR EXISTS (SELECT 1 FROM orders m WHERE m.conduce_principal_id = o.id
+                     AND m.factura_numero ILIKE '%' || $3::text || '%')
         OR o.end_address      ILIKE '%' || $3::text || '%'
         OR o.address          ILIKE '%' || $3::text || '%'
         OR o.municipio        ILIKE '%' || $3::text || '%'

@@ -1082,3 +1082,28 @@ func TestMotorReal_Conduces_ElPreDespachoLlevaLosRenglonesDeTodoElConduce(t *tes
 }
 
 var _ = time.Now
+
+// La búsqueda `q` de Facturas encuentra un conduce por el número de CUALQUIERA de sus facturas: el miembro no es fila
+// propia, así que se llega a él por su principal (y lista y contador dicen lo mismo).
+func TestMotorReal_Conduces_LaBusquedaEncuentraAlConducePorUnMiembro(t *testing.T) {
+	e := nuevoEntornoDeConduces(t)
+	a := e.factura("47313", "Hector Luis Pérez", 10)
+	b := e.factura("47314", "Hector Luis Pérez", 5)
+	otra := e.factura("50000", "Otro Cliente", 1)
+	if code, cuerpo := e.crear(e.jwt, a, b); code != http.StatusCreated {
+		t.Fatalf("crear contestó %d: %s", code, cuerpo)
+	}
+	code, cuerpo := e.llamar(e.jwt, http.MethodGet, "/api/orders?q=47314", "")
+	if code != http.StatusOK {
+		t.Fatalf("GET /api/orders?q=47314: %d %s", code, cuerpo)
+	}
+	r := decodificar[struct {
+		Orders []struct {
+			ID uuid.UUID `json:"id"`
+		} `json:"orders"`
+		Total int64 `json:"total"`
+	}](t, cuerpo)
+	if len(r.Orders) != 1 || r.Orders[0].ID != a || r.Total != 1 {
+		t.Fatalf("buscar el 47314 (miembro) tenía que traer sólo la principal %s (y no %s): %+v", a, otra, r)
+	}
+}

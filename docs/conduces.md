@@ -104,5 +104,5 @@ El contrato exacto (JSON y motivos literales) está en `docs/contratos-api.md`, 
   `api/internal/store/conduces_visibilidad_test.go`. Los miembros SÍ bajan en la bajada (`conducePrincipalId`).
 - **Cancelaciones (regla 7)**: una cancelación que llega con la principal y un miembro en la misma tanda no rompe nada; el miembro
   sobreviviente queda suelto y fuera de la ruta.
-- **No se hizo**: la búsqueda `q` de Facturas encuentra una principal por SU número, no por el de un miembro (los miembros no son
-  filas). `GET /api/orders` trae `conduce.facturas` para que la fila diga «Conduce 47313 + 47314».
+- **Búsqueda (27/10/2026)**: `q` de Facturas encuentra un conduce por el número de CUALQUIERA de sus facturas (la fila que sale es
+  la principal; lo ata `TestMotorReal_Conduces_LaBusquedaEncuentraAlConducePorUnMiembro`). `GET /api/orders` trae `conduce.facturas` para que la fila diga «Conduce 47313 + 47314».

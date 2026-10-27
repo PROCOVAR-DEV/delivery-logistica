@@ -358,10 +358,9 @@ anteriores en silencio**. Si no hay ninguna condición → `{}`.
      de bien. Quedan fuera `sin_factura` (no hay nada que llevar) y el NULL.
    - **Y `cambiado` entra a una ruta** desde el 15/10/2026 (issue 10 de Amado; del 07/10 al
      15/10 el armado lo rechazaba: «en el camión sólo sube lo que cuadra con la factura»). Desde
-     el **07/10/2026 (Amado)** la lista de disponibles, «Sin colocar» del tablero, su contador,
-     `ColocarPedido` y los recuentos del panel exigen además **domicilio cobrado**
-     (`factura_domicilio > 0`) y, desde el 15/10/2026, **cotizado si el vendedor lo marcó**
-     (`pedido_costo` no nulo o `requiere_domicilio IS NOT TRUE`): ver §15.13.
+     el 07/10/2026 (Amado) se exigía además **domicilio cobrado** y, desde el 15/10, **cotizado si el
+     vendedor lo marcó**; **ya no se exigen (16/10/2026, Jose)**: entra todo lo facturado, `igual` o
+     `cambiado`. Ver §15.13.
    - `cuadra` → `facturaEstado = 'igual'` (sólo lo comprobado y coincidente).
    - `sin_cotejar` → `facturaEstado IS NULL`.
    - cualquier otro valor no vacío → `facturaEstado = <valor>`.
@@ -1058,12 +1057,12 @@ recién elegidos. **Es el mismo fallo ya corregido para LEER (`scopeWhere`) que 
    > cuadre.` y el motivo `cambió en la factura`, que ya no existe. Lo cambió un caso real de
    > Santiago: `PBF26-2610131268`, factura 47061, pedido «PARRANDA 0.33L ×20» sin marcar
    > domicilio, facturado «CERVEZA PARRANDA 500 ML BLISTER 6U ×20» con «ENTREGA A DOMICILIO» 1.31.
-3-bis. **Domicilio cobrado — 409** (Amado, 07/10/2026). Todo pedido tiene que traer
+3-bis. **[RETIRADO el 16/10/2026 (Jose): el servidor ya no lo exige ni existe ese 409.]** Domicilio cobrado — 409 (Amado, 07/10/2026). Todo pedido tenía que traer
    `facturaDomicilio > 0`. Mensaje:
    `` `En una ruta sólo entra lo facturado con domicilio cobrado. ${n} no cumplen: ` + detalle + (n > 5 ? ` y ${n-5} más.` : '.') ``
    con el `detalle` de siempre (5 primeros por número de operación). Nulo, cero y negativo no
    cuentan como cobrado.
-3-ter. **Domicilio cotizado, si el vendedor lo marcó — 409** (Amado, 07/10/2026; acotado el
+3-ter. **[RETIRADO el 16/10/2026 (Jose): tampoco existe ya.]** Domicilio cotizado, si el vendedor lo marcó — 409 (Amado, 07/10/2026; acotado el
    15/10/2026, issue 10). Todo pedido con `requiereDomicilio = true` tiene que traer `pedidoCosto`
    no nulo (el cero SÍ es una cotización; el nulo no). Uno sin marcar no lo necesita: Entrega
    sólo cotiza los marcados, y exigírselo lo dejaba fuera para siempre. Mensaje:
@@ -1206,12 +1205,14 @@ pasa a **EN CURSO** y se libera al **completarla**.
 > domicilio, ya que el domicilio ahora es un servicio que se cobra. Si se permite cualquier
 > pedido, es una vulnerabilidad.»
 
-**Entra a una ruta, o a una zona del tablero, el pedido que cumple LAS TRES:**
+**Entra a una ruta, o a una zona del tablero, el pedido que cumple LA PRIMERA** (las otras dos, con su
+historia, se quitaron el 16/10/2026 por orden de Jose —«por ahora que entren todos los pedidos con
+facturas»— y siguen escritas abajo sólo como memoria; no las aplica nada):
 
 ```
 entra ⇔ factura_estado IN ('igual','cambiado')
-        AND factura_domicilio > 0
-        AND (pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE)
+        -- RETIRADAS 16/10/2026: AND factura_domicilio > 0
+        -- RETIRADAS 16/10/2026: AND (pedido_costo IS NOT NULL OR requiere_domicilio IS NOT TRUE)
 ```
 
 1. **Facturado**: `facturaEstado IN ('igual','cambiado')`. `cambiado` entra desde el

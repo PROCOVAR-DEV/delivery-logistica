@@ -42,7 +42,7 @@
 # justo.
 ARG FLUTTER_VERSION=3.47.4
 
-FROM debian:bookworm-slim AS build
+FROM debian:trixie-slim AS build
 # Lo que pide el SDK para compilar para web, y `libsqlite3` para poder PROBAR.
 #
 # `libsqlite3-dev` no es un adorno: las pruebas de este proyecto abren bases de
@@ -55,7 +55,7 @@ FROM debian:bookworm-slim AS build
 # Y **el `-dev` y no el `-0`**, aunque aquí no se compile nada de C: `libsqlite3-0`
 # instala sólo `libsqlite3.so.0`, y Dart abre la biblioteca por su nombre SIN
 # versión. El enlace `libsqlite3.so` lo trae el paquete de desarrollo y nada más.
-# Comprobado en un `debian:bookworm-slim` limpio antes de volver a desplegar, que
+# Comprobado en un `debian:bookworm-slim` limpio (y vuelto a construir en `trixie-slim` el 23/10/2026) antes de volver a desplegar, que
 # si no el segundo intento habría caído por lo mismo con otro nombre.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git curl unzip xz-utils ca-certificates libsqlite3-dev \
@@ -237,7 +237,7 @@ RUN sh /deploy/preparar-web.sh build/web
 # enseña a no fiarse de las guardas.
 RUN test -f build/web/sqlite3.wasm     || (echo "FALTA sqlite3.wasm en build/web"     && exit 1)
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30-alpine
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build/web /usr/share/nginx/html
 

@@ -31,7 +31,7 @@ dependencies:
   riverpod_annotation: 4.0.0
 
   # Navegacion, con URL de verdad en web.
-  go_router: 18.0.1
+  go_router: 18.1.1
 
   # Base local — el MISMO Dart y el MISMO SQL en Android y en web.
   drift: 2.31.0
@@ -50,24 +50,24 @@ dependencies:
   dio: 5.11.1
 
   # El par de tokens, SOLO en la APK. En web manda la cookie.
-  flutter_secure_storage: 11.1.1
+  flutter_secure_storage: 11.2.0
 
-  synchronized: 3.4.2  # el Lock del candado de renovacion
-  ulid: 2.0.1          # las claves de idempotencia (01J8…)
+  synchronized: 3.5.0  # el Lock del candado de renovacion
+  ulid: 2.2.0          # las claves de idempotencia (01J8…)
   uuid: 4.6.0          # los id provisionales local-…
 
   # Lo impreso — PLAN.md §4.1. `pdf` construye la hoja y `printing` la
   # previsualiza, la manda a imprimir y la comparte, en web y en Android.
-  pdf: 3.13.0
-  printing: 5.15.0
+  pdf: 3.13.1
+  printing: 5.15.1
 
   intl: 0.20.3
   collection: 1.19.1
-  web: 1.1.1           # nada de dart:html
+  web: 1.1.2           # nada de dart:html
 
-  connectivity_plus: 7.3.1   # PISTA de que hay red, nunca la verdad
-  device_info_plus: 13.2.0   # el nombre del aparato para POST /sync/aparato
-  package_info_plus: 10.2.1
+  connectivity_plus: 7.3.2   # PISTA de que hay red, nunca la verdad
+  device_info_plus: 13.3.0   # el nombre del aparato para POST /sync/aparato
+  package_info_plus: 10.2.2
 
   # Las tres tipografias de delivery (Bricolage Grotesque, Hanken Grotesk y
   # JetBrains Mono). Los .ttf van EMBEBIDOS en `assets/google_fonts/`: el
@@ -78,7 +78,7 @@ dependencies:
   # ruta en Google Maps** desde el detalle de Rutas. Hace falta un plugin porque
   # el mismo codigo corre en web y en la APK: en web es una pestana nueva, en
   # Android es la aplicacion de Google Maps. La version, exacta.
-  url_launcher: 6.3.2
+  url_launcher: 6.3.3
 
   # COMPARTIR la ruta con el chofer: el cajon de compartir del sistema.
   #
@@ -93,7 +93,7 @@ dependencies:
   #
   # Trae los seis destinos (android, ios, linux, macos, web, windows), asi que
   # no rompe ni la web ni el escritorio. La version, exacta como todas.
-  share_plus: 13.3.0
+  share_plus: 13.3.1
 
   # EXPORTAR A EXCEL (pliego §7). **Las dos ya estaban en el arbol** como
   # dependencias transitivas de `pdf`/`printing` y en las mismas versiones que
@@ -103,7 +103,7 @@ dependencies:
   #
   # Por que NO el paquete `excel`, que era lo que decia el comentario viejo de
   # `pantalla_informes.dart`: `excel` 4.0.6 pide `archive ^3.6.1` y
-  # `xml >=5 <7`, y este arbol resuelve hoy `archive 4.0.9` y `xml 7.0.1`
+  # `xml >=5 <7`, y este arbol resuelve hoy `archive 4.5.2` y `xml 7.1.0`
   # porque se los pide `printing`. Meterlo obligaria a BAJAR las dos por debajo
   # de lo que necesita lo impreso — que es lo que sale por la impresora del
   # almacen todos los dias— para ganar un escritor de hojas de 200 lineas. El
@@ -114,8 +114,8 @@ dependencies:
   # entrega ya la resuelven `share_plus` (APK), `dart:io` + `path_provider`
   # (escritorio) y un `Blob` con `package:web` (navegador). Ver
   # `datos/entrega_del_excel.dart`.
-  archive: 4.0.9
-  xml: 7.0.1
+  archive: 4.5.2
+  xml: 7.1.0
 
 dev_dependencies:
   flutter_test:

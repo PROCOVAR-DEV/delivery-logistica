@@ -13,7 +13,7 @@
 # proceso (ver api/internal/api/eventos.go). Con dos réplicas no falla nada, no aparece
 # ningún error, y la mitad de las pantallas deja de enterarse de los cambios. Está
 # explicado en docs/despliegue.md §«Una sola réplica».
-ARG GO_VERSION=1.27
+ARG GO_VERSION=1.27.3
 
 FROM golang:${GO_VERSION}-alpine AS build
 WORKDIR /src
@@ -184,9 +184,9 @@ RUN go vet ./... && go test ./...
 
 RUN go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/api ./cmd/api
 
-# Imagen final: sólo el binario. `static-debian12` trae los certificados CA, que hacen
+# Imagen final: sólo el binario. `static-debian13` trae los certificados CA, que hacen
 # falta para hablar por HTTPS con Accesos (auth.procovar.cloud) y con PEDIDO.
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 WORKDIR /app
 COPY --from=build /out/api /app/api
 

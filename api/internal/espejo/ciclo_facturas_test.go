@@ -610,3 +610,27 @@ func TestElGanchoDeCanceladaNoSeLlamaEnLasGuardasQueNoRetiran(t *testing.T) {
 	probar("respuesta vacía", &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: map[string][]FacturaDeVentra{"santiago": {}}})
 	probar("Ventra falla", &facturasFalsas{bases: map[string]string{"STG": "santiago"}, fallos: map[string]error{"santiago": errors.New("Ventra 500")}})
 }
+
+// EL AVISO DE LO QUE NO SE PUDO RESOLVER SE ESCRIBE CUANDO CAMBIA, no en cada vuelta del ciclo (3.497 renglones
+// iguales en 3 días de producción). Y si desaparece y vuelve, se dice otra vez.
+func TestElAvisoSoloSeEscribeCuandoCambia(t *testing.T) {
+	e := &Espejo{}
+	if !e.cambioDeAviso("sinPunto:STG", "12/0") {
+		t.Fatal("la primera vez se dice")
+	}
+	if e.cambioDeAviso("sinPunto:STG", "12/0") {
+		t.Fatal("lo mismo de la vuelta anterior no se repite")
+	}
+	if !e.cambioDeAviso("sinPunto:STG", "13/0") {
+		t.Fatal("si cambia, se dice")
+	}
+	if e.cambioDeAviso("sinPunto:GTO", "") {
+		t.Fatal("sin nada que decir no se dice")
+	}
+	if e.cambioDeAviso("sinPunto:STG", "") || !e.cambioDeAviso("sinPunto:STG", "13/0") {
+		t.Fatal("al volver a 0 se olvida: si reaparece, se dice otra vez")
+	}
+	if !e.cambioDeAviso("sinPunto:GTO", "2/0") {
+		t.Fatal("cada sucursal lleva su cuenta")
+	}
+}

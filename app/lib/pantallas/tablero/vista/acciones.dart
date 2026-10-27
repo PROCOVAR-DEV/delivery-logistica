@@ -685,15 +685,15 @@ abstract final class AccionesTablero {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('¿Qué se hace con ellos?'),
+          const Text('¿Qué se hace con ellas?'),
           if (columna.sinPedido > 0) ...[
             const SizedBox(height: 4),
             // Que el número no desconcierte: la zona enseña menos tarjetas que
             // las que cuenta el servidor.
             Text(
-              '${columna.sinPedido} de ellos no se ven en este aparato '
-              '(sus facturas no están cargados aquí, por ejemplo porque los '
-              'archivaron), pero siguen puestos en el servidor.',
+              '${columna.sinPedido} de ellas no se ven en este aparato '
+              '(no están cargadas aquí, por ejemplo porque las '
+              'archivaron), pero siguen puestas en el servidor.',
               style: Theme.of(contexto).textTheme.bodySmall,
             ),
           ],

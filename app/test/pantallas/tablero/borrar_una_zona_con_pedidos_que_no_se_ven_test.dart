@@ -513,7 +513,7 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.textContaining('2 de ellos no se ven en este aparato'),
+          find.textContaining('2 de ellas no se ven en este aparato'),
           findsOneWidget,
           reason: 'la zona enseña 1 tarjeta y el servidor cuenta 3: se explica',
         );

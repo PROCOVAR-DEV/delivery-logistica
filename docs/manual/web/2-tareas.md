@@ -217,7 +217,7 @@ mano con su nombre.» Con **«Sí, borrar «Centro»»** y **«No, dejarla»**.
 
 **Al borrar una zona con facturas** no te deja sin decidir qué pasa con ellos:
 
-> **«Centro» tiene 8 facturas puestas** — ¿Qué se hace con ellos?
+> **«Centro» tiene 8 facturas puestas** — ¿Qué se hace con ellas?
 
 Y dos salidas: **«Devolver las 8 facturas a «Sin colocar» y borrar»** o **«Mover las 8 facturas a otra
 zona y borrar»**. Cuenta los que cuenta el servidor, también los que este aparato no ve (por ejemplo, facturas ya archivadas): lo dice debajo.

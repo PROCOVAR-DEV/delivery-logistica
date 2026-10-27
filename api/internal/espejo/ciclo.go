@@ -60,6 +60,29 @@ type Espejo struct {
 	// ultimoBarridoDeFacturas: por sucursal, cuándo se barrió su histórico de facturas con ÉXITO.
 	// Si falla no se apunta, y el ciclo siguiente vuelve a intentarlo en vez de esperar un día.
 	ultimoBarridoDeFacturas map[string]time.Time
+
+	// avisosYaDados: la «firma» del último aviso de cada clase y sucursal (`sinPunto`, `sinPeso`). El ciclo
+	// gira cada minuto y la situación (12 entregas sin coordenadas) dura días: repetir el WARN en cada vuelta
+	// fueron 3.497 renglones en 3 días y tapaba lo que sí importa. Se dice cuando CAMBIA, y al volver a 0 se
+	// olvida para que, si reaparece, se diga otra vez.
+	avisosYaDados map[string]string
+}
+
+// cambioDeAviso dice si hay que escribir el aviso de `clave` con esa `firma`: la primera vez y cada vez que
+// cambia. Una firma vacía es «ya no hay nada que decir» y se olvida.
+func (e *Espejo) cambioDeAviso(clave, firma string) bool {
+	if e.avisosYaDados == nil {
+		e.avisosYaDados = map[string]string{}
+	}
+	if firma == "" {
+		delete(e.avisosYaDados, clave)
+		return false
+	}
+	if e.avisosYaDados[clave] == firma {
+		return false
+	}
+	e.avisosYaDados[clave] = firma
+	return true
 }
 
 // Nuevo arma el espejo con los clientes de verdad.

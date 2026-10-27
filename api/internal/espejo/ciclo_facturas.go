@@ -22,6 +22,7 @@ package espejo
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -158,12 +159,21 @@ func (e *Espejo) facturasDeLaSucursal(
 	// LO QUE NO SE PUDO RESOLVER SE DICE, no se esconde. Cada cifra tiene su arreglo y su dueño:
 	// el punto lo pone el logístico a mano (o se corrige el cliente en PEDIDO), el peso lo pone
 	// quien mantiene el catálogo de Ventra.
+	firmaSinPunto := ""
 	if resumen.SinPunto > 0 {
+		firmaSinPunto = fmt.Sprintf("%d/%d", resumen.SinPunto, resumen.PuntoAmbiguo)
+	}
+	if e.cambioDeAviso("sinPunto:"+codigo, firmaSinPunto) {
 		e.Reg.Warn("entregas de factura SIN coordenadas: se guardan igual y se ubican a mano (PUT /api/orders/{id}/punto) "+
 			"o corrigiendo el cliente en PEDIDO",
 			"sucursal", codigo, "sinPunto", resumen.SinPunto, "dudosas", resumen.PuntoAmbiguo)
 	}
+	firmaSinPeso := ""
 	if len(resumen.ProductosSinPeso) > 0 || len(resumen.ProductosFueraDelCatalogo) > 0 {
+		firmaSinPeso = fmt.Sprintf("%v|%v|%d", codigosOrdenados(resumen.ProductosSinPeso),
+			codigosOrdenados(resumen.ProductosFueraDelCatalogo), resumen.ConProductosSinPeso)
+	}
+	if e.cambioDeAviso("sinPeso:"+codigo, firmaSinPeso) {
 		e.Reg.Warn("productos de factura SIN peso: cuentan como «sin peso» hasta que el catálogo de Ventra lo tenga",
 			"sucursal", codigo,
 			"conPesoCero", codigosOrdenados(resumen.ProductosSinPeso),

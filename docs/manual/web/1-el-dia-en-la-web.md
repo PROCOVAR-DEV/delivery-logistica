@@ -206,11 +206,13 @@ Camión: F-350
   entrarán en la ruta y te lo dirá.
 - **«Cambió en la factura»** — **en ámbar**: **sí sale**. Sólo avisa de que al camión va
   lo facturado, no lo que se pidió.
-- **Sin domicilio cobrado, o marcado a domicilio y sin cotizar** — esas facturas **ni
-  salen en «Sin colocar»**, y
-  si intentas colocarlos te lo rechaza con su motivo («No se puede asociar al tablero:
-  la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el domicilio
-  del pedido.»). Ver [Tablero](../comun/pantallas/tablero.md#qué-se-puede-colocar-en-una-zona).
+- **El domicilio sin cobrar o sin cotizar** — ya **no frena** (por ahora, desde el
+  16/10/2026): esas facturas salen en «Sin colocar», se colocan y suben. Los avisos
+  «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
+  registrado.» y «…primero cotiza el domicilio…» ya no existen. Lo que sí rechaza
+  colocar: «Esa factura ya se entregó», «Esa factura ya está en una ruta» y «Esa factura
+  va dentro del conduce 47313: arma el conduce entero» (un miembro de conduce).
+  Ver [Tablero](../comun/pantallas/tablero.md#qué-se-puede-colocar-en-una-zona).
 - **«sin ubicar»** en vez de los kilómetros — esa factura no tiene coordenadas de
   entrega y **no puede ir en una ruta**.
 - **«2 facturas de este cliente hoy»** — son dos facturas de verdad. **La aplicación no
@@ -273,8 +275,8 @@ Cada factura sale por su **conduce** (el número de operación de la factura).
 
 ### Qué entra y qué no
 
-**Sólo entran las facturas repartibles** (facturadas, cuadren o no, con el domicilio
-cobrado y, si el vendedor lo marcó, cotizado). Los que no, **se descartan: se quedan en la zona y marcados**. No
+**Sólo entran las facturas repartibles** (facturadas, cuadren o no; con o sin el domicilio
+cobrado o cotizado). Los que no, **se descartan: se quedan en la zona y marcados**. No
 desaparece nada. **Si algunos entran y otros no**, la ruta se arma con los que entran y,
 al llegar a Rutas, una franja roja nombra a los que se quedaron fuera, cada uno por su
 conduce:

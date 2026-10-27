@@ -388,7 +388,7 @@ func validarEntrega(apuntes []apunteDeEntrega, ahora time.Time) *falloDeEntrega 
 		case !metodoAdmitidoEnRevision(a.Metodo):
 			return noAdmitida("%s%s: el método %q no se puede entregar a revisión.", donde, a.Clave, a.Metodo)
 		case !rutaAdmitidaEnRevision(a.Ruta):
-			return noAdmitida("%s%s: la ruta %q no se puede entregar a revisión (sólo /routes…, /board…, /vehicles…, /vehicle-types…, /distribuidores… y /orders/{id}/punto).", donde, a.Clave, a.Ruta)
+			return noAdmitida("%s%s: la ruta %q no se puede entregar a revisión (sólo /routes…, /board…, /vehicles…, /vehicle-types…, /distribuidores…, /orders/{id}/punto y /conduces…).", donde, a.Clave, a.Ruta)
 		case a.Provisional != "" && !reProvisionalDeRevision.MatchString(a.Provisional):
 			return noAdmitida("%s%s: el identificador provisional no es válido (letras, números y `_.:-`, hasta 100).", donde, a.Clave)
 		case a.Hecho.IsZero():

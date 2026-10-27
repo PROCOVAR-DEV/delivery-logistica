@@ -241,6 +241,7 @@ void main() {
         await frescura.rebajarLosPedidosPorSuFolio();
         await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
         await frescura.rebajarLasFacturasAnuladas();
+        await frescura.rebajarLosPedidosPorSuConduce();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -263,6 +264,7 @@ void main() {
         await frescura.rebajarLosPedidosPorSuFolio();
         await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
         await frescura.rebajarLasFacturasAnuladas();
+        await frescura.rebajarLosPedidosPorSuConduce();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -342,6 +344,40 @@ void main() {
           reason:
               'sin la carga entera, una factura anulada ANTES de la marca de este aparato no se '
               'avisa nunca: la cancelada sigue sin decirse',
+        );
+        expect(
+          peticiones.last.parametros['desde'],
+          '2026-10-15T01:00:00.000Z',
+          reason: 'una sola vez: luego, por diferencias',
+        );
+      });
+
+      // 27/10/2026 (esquema 16): las facturas que ya se juntaron en un conduce en el servidor no
+      // traen su `conducePrincipalId` por diferencias. EN PAREJA: quien ya hizo todas las demás
+      // hace ESTA una vez, y luego no.
+      test('los pedidos se rebajan enteros una vez por su conduce aunque ya se hicieran las demás', () async {
+        await frescura.rebajarLosPedidosUnaVez();
+        await frescura.rebajarLasRutasUnaVez();
+        await frescura.rebajarLosPedidosPorSuAlmacen();
+        await frescura.rebajarLosPedidosPorSuFolio();
+        await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
+        await frescura.rebajarLasFacturasAnuladas();
+        await frescura.marcar(
+          Colecciones.pedidos,
+          hasta: '2026-10-14T00:00:00.000Z',
+        );
+        final peticiones = <PeticionVista>[];
+        final bajada = contando(peticiones);
+
+        await bajada.ciclo();
+        await bajada.ciclo();
+
+        expect(
+          peticiones.first.parametros['desde'],
+          isNull,
+          reason:
+              'sin la carga entera, los miembros de un conduce ya hecho salen como facturas '
+              'sueltas PARA SIEMPRE y la principal sin su «Conduce a + b»',
         );
         expect(
           peticiones.last.parametros['desde'],

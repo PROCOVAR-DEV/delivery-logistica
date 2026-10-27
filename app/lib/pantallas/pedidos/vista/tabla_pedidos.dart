@@ -26,6 +26,7 @@ import 'package:flutter/material.dart';
 
 import '../../../diseno/tema.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/conduce.dart' show ConduceDe;
 import '../../../nucleo/fecha_de_la_factura.dart' show diaDeLaFacturaEnCuba;
 import '../../../nucleo/numero_de_factura.dart';
 import '../../ayuda/datos/controles_senalados.dart';
@@ -79,8 +80,14 @@ class TablaPedidos extends StatelessWidget {
     required this.alAbrir,
     required this.ahora,
     required this.conSucursal,
+    this.conduces = const {},
     super.key,
   });
+
+  /// Los conduces de esta página, por principal (`docs/conduces.md`): la fila de una principal dice
+  /// «Conduce 47313 + 47314» y suma el peso y el domicilio de todas sus facturas. Sus miembros no
+  /// están en [pedidos]: la consulta los esconde (`noEsMiembro`).
+  final Map<String, ConduceDe> conduces;
 
   final List<Pedido> pedidos;
   final Map<String, List<RenglonConPeso>> renglones;
@@ -123,6 +130,7 @@ class TablaPedidos extends StatelessWidget {
                 // una fila ya no ocupa media pantalla.
                 key: ValueKey('tarjeta-${pedido.id}'),
                 pedido: pedido,
+                conduce: conduces[pedido.id],
                 estadoDeSuRuta: pedido.routeId == null
                     ? null
                     : rutas[pedido.routeId]?.status,
@@ -151,6 +159,7 @@ class TablaPedidos extends StatelessWidget {
             _Fila(
               esLaPrimera: cual == 0,
               pedido: pedido,
+              conduce: conduces[pedido.id],
               columnas: columnas,
               renglones: renglones[pedido.id] ?? const [],
               estadoDeSuRuta: pedido.routeId == null
@@ -246,6 +255,7 @@ Widget _celda({required int flex, required Widget hijo}) => Expanded(
 class _Fila extends StatelessWidget {
   const _Fila({
     required this.pedido,
+    required this.conduce,
     required this.columnas,
     required this.renglones,
     required this.estadoDeSuRuta,
@@ -266,6 +276,7 @@ class _Fila extends StatelessWidget {
   final bool esLaPrimera;
 
   final Pedido pedido;
+  final ConduceDe? conduce;
   final ColumnasVisibles columnas;
   final List<RenglonConPeso> renglones;
   final String? estadoDeSuRuta;
@@ -280,7 +291,9 @@ class _Fila extends StatelessWidget {
     final reparto = estadoDeReparto(pedido, estadoDeSuRuta);
     // Lo que cuesta el domicilio de esta parada: el precio de Entrega si lo hay y, si no, lo que
     // cobró la propia factura. Antes sólo miraba Entrega y salía «sin cotizar» en todas las filas.
-    final costo = costoDeLaParada(pedido.pedidoCosto, pedido.facturaDomicilio);
+    final costo = conduce != null
+        ? conduce!.domicilioUsd
+        : costoDeLaParada(pedido.pedidoCosto, pedido.facturaDomicilio);
 
     return ControlSenalado(
       nombre: Senalado.pedidosAbrirElPedido,
@@ -313,7 +326,11 @@ class _Fila extends StatelessWidget {
                   flex: 4,
                   hijo: Align(
                     alignment: Alignment.centerLeft,
-                    child: _Factura(pedido: pedido, conCobro: false),
+                    child: _Factura(
+                      pedido: pedido,
+                      conCobro: false,
+                      conduce: conduce,
+                    ),
                   ),
                 ),
               _celda(flex: 2, hijo: _Fecha(pedido: pedido)),
@@ -415,7 +432,7 @@ class _Fila extends StatelessWidget {
               _celda(
                 flex: 2,
                 hijo: Text(
-                  kg(pedido.weight),
+                  kg(conduce?.pesoKg ?? pedido.weight),
                   textAlign: TextAlign.right,
                   style: Tipos.mono(tamano: 13, color: Colores.tinta),
                 ),
@@ -549,6 +566,7 @@ class _CabeceraDeTarjetas extends StatelessWidget {
 class _Tarjeta extends StatelessWidget {
   const _Tarjeta({
     required this.pedido,
+    required this.conduce,
     required this.estadoDeSuRuta,
     required this.codigoDeRuta,
     required this.marcado,
@@ -568,6 +586,7 @@ class _Tarjeta extends StatelessWidget {
   final bool esLaPrimera;
 
   final Pedido pedido;
+  final ConduceDe? conduce;
   final String? estadoDeSuRuta;
   final String? codigoDeRuta;
   final bool marcado;
@@ -617,6 +636,7 @@ class _Tarjeta extends StatelessWidget {
                       claveDeLaFactura: ValueKey(
                         'tarjeta-factura-${pedido.id}',
                       ),
+                      conduce: conduce?.etiqueta,
                     ),
                     const SizedBox(height: 2),
                     // Folio y fecha en la misma linea mientras quepan, y en dos
@@ -650,14 +670,22 @@ class _Tarjeta extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          kg(pedido.weight),
+                          kg(conduce?.pesoKg ?? pedido.weight),
                           style: Tipos.mono(tamano: 13, color: Colores.tinta),
                         ),
                         Text(
-                          usd(pedido.pedidoCosto),
+                          usd(
+                            conduce != null
+                                ? conduce!.domicilioUsd
+                                : pedido.pedidoCosto,
+                          ),
                           style: Tipos.mono(
                             tamano: 13,
-                            color: pedido.pedidoCosto == null
+                            color:
+                                (conduce != null
+                                        ? conduce!.domicilioUsd
+                                        : pedido.pedidoCosto) ==
+                                    null
                                 ? Colores.tintaSuave
                                 : Colores.tinta,
                           ),
@@ -678,7 +706,11 @@ class _Tarjeta extends StatelessWidget {
                         // Sin el número: ya está arriba, con su rótulo. La insignia
                         // se queda con lo que SÓLO ella dice, que es el estado
                         // (verde cuadra, ámbar cambió) y la marca del domicilio.
-                        _Factura(pedido: pedido, conNumero: false),
+                        _Factura(
+                          pedido: pedido,
+                          conNumero: false,
+                          conduce: conduce,
+                        ),
                       ],
                     ),
                   ],
@@ -766,9 +798,13 @@ class _Factura extends StatelessWidget {
     required this.pedido,
     this.conNumero = true,
     this.conCobro = true,
+    this.conduce,
   });
 
   final Pedido pedido;
+
+  /// Si la fila es la principal de un conduce, la insignia dice «Conduce 47313 + 47314».
+  final ConduceDe? conduce;
 
   /// Si la celda lleva, además del número, la marca del domicilio (la tarjeta del teléfono). La TABLA no:
   /// el domicilio tiene su columna («Precio») y dos marcas apiladas en una celda estrecha partían la fila
@@ -787,7 +823,8 @@ class _Factura extends StatelessWidget {
     // El MISMO texto que la tarjeta, la ficha, el tablero y los reportes (`NumeroDeFactura`):
     // crudo, la comilla de Excel de una factura que bajó antes del arreglo se veía aquí
     // y en ningún otro sitio.
-    final numero = NumeroDeFactura.de(pedido.facturaNumero) ?? '—';
+    final numero =
+        conduce?.etiqueta ?? NumeroDeFactura.de(pedido.facturaNumero) ?? '—';
     switch (pedido.facturaEstado) {
       case EstadoFactura.igual:
         return _conMarca(

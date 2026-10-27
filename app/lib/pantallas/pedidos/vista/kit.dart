@@ -303,8 +303,13 @@ class FacturaYCliente extends StatelessWidget {
     required this.cliente,
     this.facturadaEl,
     this.claveDeLaFactura,
+    this.conduce,
     super.key,
   });
+
+  /// «Conduce 47313 + 47314» cuando esta fila es la PRINCIPAL de un conduce (`docs/conduces.md`):
+  /// sustituye al «Factura N» del título. Nulo = una factura suelta.
+  final String? conduce;
 
   /// `factura_at`: cuándo se facturó. Si hay número, la fecha va DESPUÉS de él
   /// (`Factura 47061 · 15/10/2026`, issue 16 de Amado): en el día de Cuba, el mismo por el que
@@ -321,7 +326,7 @@ class FacturaYCliente extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
-    final factura = etiquetaDeFactura(facturaNumero);
+    final factura = conduce ?? etiquetaDeFactura(facturaNumero);
     final fecha = factura == null ? null : diaDeLaFacturaEnCuba(facturadaEl);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

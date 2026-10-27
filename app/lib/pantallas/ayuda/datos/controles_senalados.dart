@@ -113,6 +113,18 @@ abstract final class Senalado {
   static const pedidosPreDespachoDeLoFiltrado =
       'pedidos-pre-despacho-de-lo-filtrado';
 
+  /// Las pestañas «Facturas» y «Conduces» de la pantalla de Facturas.
+  static const pedidosPestanas = 'pedidos-pestanas';
+
+  /// «Crear conduce», en la franja de lo marcado.
+  static const pedidosCrearConduce = 'pedidos-crear-conduce';
+
+  /// «Crear conduce», en el cajón de confirmación.
+  static const pedidosConfirmarConduce = 'pedidos-confirmar-conduce';
+
+  /// «Deshacer conduce», en la pestaña «Conduces» y en la ficha de la principal.
+  static const pedidosDeshacerConduce = 'pedidos-deshacer-conduce';
+
   // ------------------------------------------------------------------- RUTAS
   static const rutasNuevaRuta = 'rutas-nueva-ruta';
   static const rutasAsistenteSucursal = 'rutas-asistente-sucursal';
@@ -353,6 +365,10 @@ abstract final class Senalado {
     pedidosZonaDestino,
     pedidosMandar,
     pedidosPreDespachoDeLoFiltrado,
+    pedidosPestanas,
+    pedidosCrearConduce,
+    pedidosConfirmarConduce,
+    pedidosDeshacerConduce,
     rutasNuevaRuta,
     rutasAsistenteSucursal,
     rutasAsistenteAlmacen,

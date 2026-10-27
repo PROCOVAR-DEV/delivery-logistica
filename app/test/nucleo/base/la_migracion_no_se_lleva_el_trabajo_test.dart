@@ -501,7 +501,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 15);
+        expect(nueva.schemaVersion, 16);
       },
     );
   }
@@ -665,7 +665,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 15);
+        expect(nueva.schemaVersion, 16);
       },
     );
   }
@@ -759,7 +759,7 @@ void main() {
         (await nueva.customSelect('PRAGMA user_version').getSingle()).read<int>(
           'user_version',
         ),
-        15,
+        16,
       );
 
       // LA COLUMNA EXISTE, preguntándoselo a SQLite, ANTES de que el Tablero
@@ -884,7 +884,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          15,
+          16,
         );
 
         // Y SE PUEDE ESCRIBIR: es lo que hará la bajada.
@@ -971,7 +971,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          15,
+          16,
         );
 
         // CADA UNA de las seis columnas está en la tabla, por su nombre en SQL (una
@@ -1095,7 +1095,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          15,
+          16,
         );
         // Y SE PUEDE ESCRIBIR Y LEER.
         await (nueva.update(nueva.orderItems)..where((r) => r.id.equals('r-1')))
@@ -1180,7 +1180,77 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          15,
+          16,
+        );
+      },
+    );
+  }
+
+  // LA 16: LOS CONDUCES (27/10/2026). `orders.conduce_principal_id`, nula. Una columna ADITIVA, con la
+  // cola dentro y en las dos formas que puede tener el aparato: sin la columna (el de verdad) y CON ella
+  // ya puesta (copia nacida con el esquema nuevo y el `user_version` atrás: un `ADD COLUMN` repetido
+  // LANZA y la base no abriría, con la cola secuestrada dentro).
+  for (final yaEstaba in [false, true]) {
+    test(
+      'desde la 15: el conduce de cada factura ${yaEstaba ? 'CON' : 'SIN'} la columna '
+      'abre y no pierde nada',
+      () async {
+        final fichero = await _ficheroDePrueba();
+        addTearDown(() async {
+          if (fichero.existsSync()) await fichero.delete();
+        });
+        final ayer = BaseLocal.con(NativeDatabase(fichero));
+        await ayer
+            .into(ayer.apuntes)
+            .insert(
+              ApuntesCompanion.insert(
+                clave: '01J8-conduce',
+                hechoAt: DateTime(2026, 10, 27, 9),
+                metodo: 'PATCH',
+                ruta: '/api/routes/r-1',
+                cuerpo: '{"x":1}',
+              ),
+            );
+        await ayer.customStatement(
+          'INSERT INTO orders (id, customer_name, address, weight, archivado) '
+          "VALUES ('ped-1', 'Bodega La Rica', 'Calle 1', 75, 0)",
+        );
+        if (!yaEstaba) {
+          // El índice se crea al abrir (`indicesDeLaBase`); sin quitarlo, SQLite no deja soltar la columna.
+          await ayer.customStatement('DROP INDEX orders_conduce_idx');
+          await ayer.customStatement(
+            'ALTER TABLE orders DROP COLUMN conduce_principal_id',
+          );
+        }
+        await ayer.customStatement('PRAGMA user_version = 15');
+        await ayer.close();
+
+        final nueva = BaseLocal.con(NativeDatabase(fichero));
+        addTearDown(nueva.close);
+
+        expect(
+          (await nueva.select(nueva.apuntes).get()).map((a) => a.clave),
+          ['01J8-conduce'],
+          reason:
+              'la cola sin subir es el trabajo del día y sobrevive al salto',
+        );
+        final factura = await nueva.select(nueva.orders).getSingle();
+        expect(
+          (factura.customerName, factura.conducePrincipalId),
+          ('Bodega La Rica', null),
+          reason: 'la factura de ayer sigue, suelta (ni principal ni miembro)',
+        );
+        // Y SE PUEDE ESCRIBIR Y LEER.
+        await (nueva.update(nueva.orders)..where((o) => o.id.equals('ped-1')))
+            .write(const OrdersCompanion(conducePrincipalId: Value('ped-0')));
+        expect(
+          (await nueva.select(nueva.orders).getSingle()).conducePrincipalId,
+          'ped-0',
+        );
+        expect(
+          (await nueva.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          16,
         );
       },
     );

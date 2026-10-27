@@ -27,6 +27,7 @@ library;
 import 'package:drift/drift.dart';
 
 import 'base/base.dart';
+import 'conduce.dart' show noEsMiembro, noEsMiembroSql;
 
 /// `igual` o `cambiado`. NULL es «sin cotejar» y no entra.
 bool facturaQueEntra(String? estado) =>
@@ -57,8 +58,12 @@ String costoDeLaParadaSql([String prefijo = '']) =>
 /// tablero y disponibles del asistente).
 ///
 /// TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
+///
+/// Y NO ES MIEMBRO DE UN CONDUCE (27/10/2026, `docs/conduces.md` regla 3): un miembro no sale como fila
+/// propia en ninguna lista ni contador que pase por aquí; se elige su principal y ella lo lleva.
 Expression<bool> entraEnRuta($OrdersTable o) =>
-    o.facturaEstado.isIn(const [EstadoFactura.igual, EstadoFactura.cambiado]);
+    o.facturaEstado.isIn(const [EstadoFactura.igual, EstadoFactura.cambiado]) &
+    noEsMiembro(o);
 
 /// LLEVA DOMICILIO: el vendedor lo marcó O la factura lo cobró (`facturaDomicilio > 0`). Es el
 /// filtro `domicilio` de los pedidos («Sólo con domicilio» = `1`), el mismo que el SQL de
@@ -74,4 +79,5 @@ Expression<bool> conDomicilio($OrdersTable o) =>
 /// [entraEnRuta] en SQL de SQLite, para las consultas a mano (el Panel).
 ///
 /// TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro, restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
-const entraEnRutaSql = "o.factura_estado IN ('igual', 'cambiado')";
+const entraEnRutaSql =
+    "o.factura_estado IN ('igual', 'cambiado') AND $noEsMiembroSql";

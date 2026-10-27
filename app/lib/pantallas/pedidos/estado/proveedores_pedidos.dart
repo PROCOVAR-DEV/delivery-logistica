@@ -9,6 +9,7 @@ import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/conduce.dart';
 import '../../../nucleo/proveedores.dart';
 // Del Tablero se usa lo de LEER y lo de ESCRIBIR, sin tocarlo: «Mandar a una
 // zona» tiene que colocar por el mismo camino que el arrastre o serian dos
@@ -16,6 +17,7 @@ import '../../../nucleo/proveedores.dart';
 import '../../tablero/datos/esquema.dart';
 import '../../tablero/datos/modelos.dart';
 import '../../tablero/estado/proveedores.dart';
+import '../datos/acciones_de_conduce.dart';
 import '../datos/acciones_de_pedido.dart';
 import '../datos/filtros_pedidos.dart';
 import '../datos/mandar_al_tablero.dart';
@@ -83,6 +85,11 @@ final filtrosPedidosProvider =
 
 /// Lo marcado a mano. Es LOCAL y no se guarda: el pre-despacho de lo elegido se
 /// arma y se imprime en el momento.
+///
+/// **EL ORDEN DE MARCADO ES DATO** (27/10/2026, conduces): la primera factura marcada es la PRINCIPAL del
+/// conduce. Un `Set` literal conserva el orden de inserción, y `alternar` y `marcarPagina` copian con
+/// `{...state}` sin reordenar; no se cambie por un `HashSet` ni se ordene. Lo ata
+/// `test/pantallas/pedidos/conduces_test.dart`.
 class SeleccionPedidos extends Notifier<Set<String>> {
   @override
   Set<String> build() => <String>{};
@@ -310,6 +317,88 @@ final accionesDePedidoProvider = Provider<AccionesDePedido>(
     enVivo: ref.watch(escrituraEnVivoProvider),
   ),
 );
+
+/// Lo que los conduces escriben: juntar, deshacer, sacar. Mismas tres formas que
+/// [accionesDePedidoProvider] (web al servidor, APK y escritorio a la cola).
+final accionesDeConduceProvider = Provider<AccionesDeConduce>(
+  (ref) => AccionesDeConduce(
+    ref.watch(baseProvider),
+    ref.watch(colaProvider),
+    reloj: ref.watch(relojProvider),
+    enVivo: ref.watch(escrituraEnVivoProvider),
+  ),
+);
+
+/// LOS CONDUCES DE LA PÁGINA: por principal, con sus miembros, para que la fila diga «Conduce 47313 +
+/// 47314» y sume su peso y su domicilio. STREAM sobre `orders` (§3-ter): en la web llega con la bajada.
+final conducesDePaginaProvider = StreamProvider<Map<String, ConduceDe>>((ref) {
+  final pagina = ref.watch(paginaPedidosProvider).value;
+  if (pagina == null) return const Stream<Map<String, ConduceDe>>.empty();
+  return mirarConduces(
+    ref.watch(baseProvider),
+    principales: [for (final p in pagina) p.id],
+  );
+});
+
+/// El conduce que ENCABEZA esta factura (la ficha), o `null` si no encabeza ninguno.
+final conduceDeLaFichaProvider = StreamProvider.family<ConduceDe?, String>(
+  (ref, principalId) => mirarConduces(
+    ref.watch(baseProvider),
+    principales: [principalId],
+  ).map((m) => m[principalId]),
+);
+
+/// TODOS los conduces de la sucursal mirada: la pestaña «Conduces».
+final conducesDeLaSucursalProvider = StreamProvider<List<ConduceDe>>((ref) {
+  return mirarConduces(
+    ref.watch(baseProvider),
+    sucursalId: ref.watch(sucursalMiradaProvider),
+  ).map(
+    (m) =>
+        [for (final c in m.values) c]
+          ..sort((a, b) => a.numeros.compareTo(b.numeros)),
+  );
+});
+
+/// LAS FACTURAS MARCADAS, EN EL ORDEN EN QUE SE MARCARON (la primera es la principal del conduce), con
+/// las que ya son principal de un conduce. [seleccionPedidosProvider] es un `Set` literal (ordenado por
+/// inserción) y ese orden es DATO: aquí se respeta, no se reordena por la base.
+final facturasMarcadasProvider =
+    StreamProvider<
+      ({
+        List<Pedido> elegidas,
+        Set<String> principales,
+        Map<String, String?> codigosDeRuta,
+        Map<String, String> numerosDePrincipal,
+      })
+    >((ref) {
+      final base = ref.watch(baseProvider);
+      final ids = ref.watch(seleccionPedidosProvider).toList();
+      if (ids.isEmpty) {
+        return Stream.value((
+          elegidas: const <Pedido>[],
+          principales: const <String>{},
+          codigosDeRuta: const <String, String?>{},
+          numerosDePrincipal: const <String, String>{},
+        ));
+      }
+      return (base.select(base.orders)..where((o) => o.id.isIn(ids)))
+          .watch()
+          .asyncMap((filas) async {
+            final porId = {for (final f in filas) f.id: f};
+            final elegidas = [
+              for (final id in ids)
+                if (porId[id] != null) porId[id]!,
+            ];
+            final c = await contextoParaJuntar(base, elegidas);
+            return (
+              elegidas: elegidas,
+              principales: c.principales,
+              codigosDeRuta: c.codigosDeRuta,
+              numerosDePrincipal: c.numerosDePrincipal,
+            );
+          });
+    });
 
 /// ¿Se bajaron los pedidos alguna vez?
 ///

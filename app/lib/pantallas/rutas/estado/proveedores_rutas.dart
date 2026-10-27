@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart' show immutable, listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/conduce.dart' show ConduceDe, mirarConduces;
 import '../../../nucleo/proveedores.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
 import '../../pedidos/estado/proveedores_pedidos.dart';
@@ -287,6 +288,20 @@ final camionesOcupadosProvider = StreamProvider<Map<String, RutaQueOcupa>>(
 final paradasDeRutaProvider = StreamProvider.family<List<Pedido>, String>(
   (ref, rutaId) => ref.watch(consultasRutasProvider).mirarParadasDe(rutaId),
 );
+
+/// LOS CONDUCES DE UNA RUTA, por principal (`docs/conduces.md`): cada parada que encabeza uno dice
+/// «Conduce 47313 + 47314» y lista sus facturas. Stream por lo mismo que las paradas (§3-ter).
+final conducesDeRutaProvider =
+    StreamProvider.family<Map<String, ConduceDe>, String>((ref, rutaId) {
+      final paradas = ref.watch(paradasDeRutaProvider(rutaId)).value;
+      if (paradas == null) {
+        return const Stream<Map<String, ConduceDe>>.empty();
+      }
+      return mirarConduces(
+        ref.watch(baseProvider),
+        principales: [for (final p in paradas) p.id],
+      );
+    });
 
 /// Los renglones de las paradas: de aqui sale la `Carga total` y el bloque
 /// `Queda en el camión` del cierre.

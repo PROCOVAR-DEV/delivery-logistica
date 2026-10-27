@@ -700,6 +700,18 @@ func (s *Servidor) listarRutas(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, r, http.StatusOK, salida)
 }
 
+// conMiembros suma a lo de la parada lo de los miembros de su conduce (00029): una parada por conduce, con el
+// precio y el costo de todas sus facturas. Sin miembros devuelve el propio, tal cual (nil incluido).
+func conMiembros(propio *float64, miembros float64) *float64 {
+	if miembros == 0 {
+		return propio
+	}
+	if propio != nil {
+		miembros += *propio
+	}
+	return &miembros
+}
+
 // paradasPorRuta trae las paradas de varias rutas con sus renglones, ya agrupadas.
 func (s *Servidor) paradasPorRuta(r *http.Request, a *alcance.Acotado, rutas []uuid.UUID) (map[uuid.UUID][]ParadaSalida, error) {
 	porRuta := map[uuid.UUID][]ParadaSalida{}
@@ -730,8 +742,8 @@ func (s *Servidor) paradasPorRuta(r *http.Request, a *alcance.Acotado, rutas []u
 			ID: p.ID, OperationNumber: p.OperationNumber, CustomerName: p.CustomerName,
 			CustomerPhone: p.CustomerPhone, Address: p.Address, EndAddress: p.EndAddress,
 			EndLat: p.EndLat, EndLng: p.EndLng, Lat: p.Lat, Lng: p.Lng,
-			Status: string(p.Status), Weight: p.Weight, Price: p.Price,
-			PedidoCosto: costoDeLaParada(p.PedidoCosto, p.FacturaDomicilio), SegmentKm: p.SegmentKm, StopOrder: p.StopOrder,
+			Status: string(p.Status), Weight: p.Weight, Price: conMiembros(p.Price, p.CostoDeMiembros),
+			PedidoCosto: conMiembros(costoDeLaParada(p.PedidoCosto, p.FacturaDomicilio), p.CostoDeMiembros), SegmentKm: p.SegmentKm, StopOrder: p.StopOrder,
 			TripLeg: string(p.TripLeg), Municipio: p.Municipio, ExternalID: p.ExternalID,
 			Resultado: textoDeResultado(p.Resultado), ResultadoAt: hora(p.ResultadoAt),
 			ResultadoNota: p.ResultadoNota, DeliveredAt: hora(p.DeliveredAt),
@@ -902,6 +914,12 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 	// pedidos que ya se repartieron amanecen con `route_id` nulo, vuelven a la lista de
 	// disponibles y se pueden armar otra vez. Ahí el camión sale con mercancía que ya
 	// está en casa del cliente.
+	// UN MIEMBRO DE CONDUCE NO SE ARMA SUELTO (00029, `docs/conduces.md` regla 4): se elige su principal y el
+	// conduce entra entero. Va antes que los demás cortes porque su arreglo es otro (elegir otra tarjeta).
+	if mensaje := mensajeMiembroSuelto(pedidos); mensaje != "" {
+		httpx.Error(w, r, http.StatusConflict, mensaje)
+		return
+	}
 	if mensaje := mensajeYaEntregados(pedidos); mensaje != "" {
 		httpx.Error(w, r, http.StatusConflict, mensaje)
 		return
@@ -1524,6 +1542,11 @@ func (s *Servidor) quitarParadaPlanificada(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if errors.Is(err, errParadaNoPertenece) {
+		// Un MIEMBRO de conduce no se quita solo de la ruta (00029): la parada es el conduce.
+		if m, esMiembro := motivoDeMiembroSuelto(r, a, pedidoID); esMiembro {
+			httpx.Error(w, r, http.StatusConflict, m)
+			return
+		}
 		httpx.Error(w, r, http.StatusConflict, msgParadaNoPertenece)
 		return
 	}
@@ -1850,6 +1873,9 @@ type aplicadoDeCierre struct {
 	// «se quitó» no es un resultado: escribir `""` ahí obligaría a quien lo lea a
 	// distinguir dos formas del mismo vacío.
 	Resultado *string `json:"resultado"`
+	// Los MIEMBROS del conduce a los que se aplicó igual (00029, regla 5). Sólo viene en una principal con miembros;
+	// `aplicados` y `rechazados` hablan de PARADAS (la principal), y los miembros se nombran aquí, no como entradas.
+	Miembros []string `json:"miembros,omitempty"`
 }
 
 type rechazadoDeCierre struct {
@@ -1937,8 +1963,19 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			universo[p.ID] = p
 			idsViajaron = append(idsViajaron, p.ID)
 		}
+		// LOS MIEMBROS DE CADA CONDUCE (00029, regla 5): el resultado de la principal se aplica a ellos en la misma
+		// sentencia (`MarcarResultadoDeParada`) y CADA UNA avisa a PEDIDO por su cuenta.
+		miembrosLeidos, err := tx.MiembrosDeConduces(r.Context(), idsViajaron)
+		if err != nil {
+			return err
+		}
+		losMiembros := miembrosDe(miembrosLeidos)
+		idsParaAvisar := append([]uuid.UUID(nil), idsViajaron...)
+		for _, m := range miembrosLeidos {
+			idsParaAvisar = append(idsParaAvisar, m.ID)
+		}
 		// Lo que decide A QUIÉN se avisa (folio, factura) no viene en la consulta de paradas.
-		paraAvisar, err := tx.EntregasParaAvisar(r.Context(), idsViajaron)
+		paraAvisar, err := tx.EntregasParaAvisar(r.Context(), idsParaAvisar)
 		if err != nil {
 			return err
 		}
@@ -1974,7 +2011,13 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			}
 			_, iba := universo[pedidoID]
 			if !iba {
-				rechazar(e, msgParadaAjena)
+				// Un MIEMBRO de conduce no se marca solo (00029, regla 5): el resultado se marca sobre la principal
+				// y se aplica a sus miembros. El motivo lo dice con el número de la principal.
+				if m, esMiembro := motivoDeMiembroSuelto(r, tx, pedidoID); esMiembro {
+					rechazar(e, m)
+				} else {
+					rechazar(e, msgParadaAjena)
+				}
 				continue
 			}
 			// QUITAR LA MARCA — 28/09/2026. Jose: «desmarco el estado de cierre y no se
@@ -2032,31 +2075,43 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			aplicado := string(resultado)
-			salida.Aplicados = append(salida.Aplicados, aplicadoDeCierre{OrderID: pedidoID.String(), Resultado: &aplicado})
-			if aviso, hay := alcance.AvisoDeLaEntrega(paraAvisar[pedidoID], string(resultado), cuando, derefONada(nota)); hay {
-				// UN AVISO POR FACTURA, EL ÚLTIMO — y es el que la base acaba teniendo. (Para
-				// una entrega de un pedido de PEDIDO, por pedido: ver `AvisoDeParada.Clave`.
-				// Dos facturas del mismo folio son dos avisos.)
-				//
-				// Una hoja de cierre puede traer el mismo `orderId` dos veces: la cola del
-				// aparato junta apuntes cuando vuelve la señal, y una corrección —«entregado»
-				// y luego «devuelto»— es justo el caso S3 del guion de QA. En la base no hay
-				// duda: son dos UPDATE seguidos y manda el segundo. En PEDIDO sí la había,
-				// porque se le mandaban LOS DOS en el mismo lote y cuál gana depende de en qué
-				// orden los aplique él. Ahí es donde el vendedor ve «entregado» sobre un pedido
-				// que volvió en el camión: un estado creíble y equivocado, y las dos
-				// aplicaciones diciendo cosas distintas del mismo pedido.
-				//
-				// `aplicados` NO se toca: sigue llevando una entrada por cada cosa que se
-				// procesó, que es el acuse que el aparato compara con lo que mandó.
-				if donde, repetido := dondeEstaElAviso(avisos, aviso.Clave()); repetido {
-					httpx.Registro(r).Warn("la hoja de cierre trae la misma entrega dos veces: a PEDIDO va el último",
-						"ruta", ruta.ID, "pedido", aviso.PedidoID, "folio", aviso.Folio, "factura", aviso.Factura,
-						"antes", avisos[donde].Estado, "ahora", aviso.Estado)
-					avisos[donde] = aviso
-				} else {
-					avisos = append(avisos, aviso)
+			ap := aplicadoDeCierre{OrderID: pedidoID.String(), Resultado: &aplicado}
+			for _, m := range losMiembros[pedidoID] {
+				ap.Miembros = append(ap.Miembros, m.ID.String())
+			}
+			salida.Aplicados = append(salida.Aplicados, ap)
+			// La principal y, uno por uno, sus miembros: UN AVISO POR FACTURA.
+			quienes := []uuid.UUID{pedidoID}
+			for _, m := range losMiembros[pedidoID] {
+				quienes = append(quienes, m.ID)
+			}
+			for _, quien := range quienes {
+				if aviso, hay := alcance.AvisoDeLaEntrega(paraAvisar[quien], string(resultado), cuando, derefONada(nota)); hay {
+					// UN AVISO POR FACTURA, EL ÚLTIMO — y es el que la base acaba teniendo. (Para
+					// una entrega de un pedido de PEDIDO, por pedido: ver `AvisoDeParada.Clave`.
+					// Dos facturas del mismo folio son dos avisos.)
+					//
+					// Una hoja de cierre puede traer el mismo `orderId` dos veces: la cola del
+					// aparato junta apuntes cuando vuelve la señal, y una corrección —«entregado»
+					// y luego «devuelto»— es justo el caso S3 del guion de QA. En la base no hay
+					// duda: son dos UPDATE seguidos y manda el segundo. En PEDIDO sí la había,
+					// porque se le mandaban LOS DOS en el mismo lote y cuál gana depende de en qué
+					// orden los aplique él. Ahí es donde el vendedor ve «entregado» sobre un pedido
+					// que volvió en el camión: un estado creíble y equivocado, y las dos
+					// aplicaciones diciendo cosas distintas del mismo pedido.
+					//
+					// `aplicados` NO se toca: sigue llevando una entrada por cada cosa que se
+					// procesó, que es el acuse que el aparato compara con lo que mandó.
+					if donde, repetido := dondeEstaElAviso(avisos, aviso.Clave()); repetido {
+						httpx.Registro(r).Warn("la hoja de cierre trae la misma entrega dos veces: a PEDIDO va el último",
+							"ruta", ruta.ID, "pedido", aviso.PedidoID, "folio", aviso.Folio, "factura", aviso.Factura,
+							"antes", avisos[donde].Estado, "ahora", aviso.Estado)
+						avisos[donde] = aviso
+					} else {
+						avisos = append(avisos, aviso)
+					}
 				}
+
 			}
 		}
 
@@ -2613,6 +2668,17 @@ func quienEs(operacion *string, cliente string) string {
 		return *operacion
 	}
 	return cliente
+}
+
+// mensajeMiembroSuelto nombra al primer MIEMBRO de conduce que llegó solo a un armado, con el número de su
+// principal: «Esa factura va dentro del conduce 47313: arma el conduce entero». "" si no hay ninguno.
+func mensajeMiembroSuelto(pedidos []sqlc.PedidosParaArmarRutaRow) string {
+	for _, p := range pedidos {
+		if p.ConducePrincipalID.Valid {
+			return fmt.Sprintf(fmtMiembroSuelto, numeroDeLaFila(p.ConducePrincipalNumero, nil, uuid.UUID(p.ConducePrincipalID.Bytes)))
+		}
+	}
+	return ""
 }
 
 // mensajeYaEntregados arma el 409 de los que ya se repartieron, o "" si ninguno.

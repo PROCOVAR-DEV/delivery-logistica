@@ -274,6 +274,8 @@ func TestAplicarVuelveAPasarLaListaBlanca(t *testing.T) {
 			"M14": {"DELETE", "/distribuidores/x/y"},
 			// Y la del punto de entrega (issue 19): `DELETE /orders/{id}` borraría el pedido y NO está abierta.
 			"M15": {"DELETE", "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, "M16": {"PUT", "/orders/a/b/punto"},
+			// Y la de los conduces (27/10/2026), con la misma forma.
+			"M17": {"DELETE", "/conduces/a/b"}, "M18": {"DELETE", "/conduces/a/miembros"}, "M19": {"POST", "/conducesx"},
 		}
 		for clave, mr := range malos {
 			cu := `{}`
@@ -366,6 +368,33 @@ func TestAplicarAdmiteElPuntoDeEntrega(t *testing.T) {
 			}
 		}
 		if len(e.aplicador.llamadas) != 2 || e.aplicador.llamadas[0].Ruta != ruta || e.aplicador.llamadas[1].Token != "token-de-admin-punto" {
+			t.Fatalf("llamadas al reparto: %+v", e.aplicador.llamadas)
+		}
+	})
+}
+
+// LOS CONDUCES SE APLICAN (27/10/2026): crear (`POST /conduces`), deshacer y sacar un miembro llegan al reparto con el
+// token del REVISOR. Es la pareja de M17-M19 de arriba: las tres formas buenas pasan, las otras no.
+func TestAplicarAdmiteLosConduces(t *testing.T) {
+	paraCadaMotor(t, func(t *testing.T, e *entorno) {
+		hecho := e.hechoHaceUnaHora()
+		id := "6f9619ff-8b86-d011-b42d-00c04fc964ff"
+		crudo := fmt.Sprintf(`{"aparato":%q,"apuntes":[`+
+			`{"clave":"C1","hecho":%q,"metodo":"POST","ruta":"/conduces","cuerpo":{"principalId":%q,"ids":[%q]}},`+
+			`{"clave":"C2","hecho":%q,"metodo":"DELETE","ruta":"/conduces/%s/miembros/%s"},`+
+			`{"clave":"C3","hecho":%q,"metodo":"DELETE","ruta":"/conduces/%s"}]}`,
+			e.aparato.ID.String(), hecho, id, id, hecho, id, id, hecho, id)
+		w, _ := e.entregarCuerpo(crudo)
+		e.esperar(w, http.StatusOK, "")
+		e.comoRevisor("admin-conduce", "ADMINISTRADOR", e.sucursal)
+		for _, clave := range []string{"C1", "C2", "C3"} {
+			w = e.aplicarUno(e.aparato.ID, clave, nil)
+			e.esperar(w, http.StatusOK, "")
+			if r := resultadosDe(t, w).Resultados; len(r) != 1 || r[0].Estado != EstadoAplicado {
+				t.Errorf("%s: tenía que aplicarse: %+v", clave, r)
+			}
+		}
+		if len(e.aplicador.llamadas) != 3 || e.aplicador.llamadas[0].Ruta != "/conduces" || e.aplicador.llamadas[2].Token != "token-de-admin-conduce" {
 			t.Fatalf("llamadas al reparto: %+v", e.aplicador.llamadas)
 		}
 	})

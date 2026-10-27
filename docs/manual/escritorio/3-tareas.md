@@ -13,6 +13,8 @@ manual de la web:
 
 - [Buscar una factura](../web/2-tareas.md#buscar-una-factura)
 - [Filtrar y ordenar la lista de facturas](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-facturas)
+- [Sacar una factura de un conduce o deshacerlo](../web/2-tareas.md#sacar-una-factura-de-un-conduce-o-deshacerlo)
+- [Juntar facturas en un conduce](../web/2-tareas.md#juntar-facturas-en-un-conduce) (**lo único distinto**: aquí funciona sin señal, como en el teléfono; el cambio sube cuando haya)
 - [Mandar varias facturas a una zona de golpe](../web/2-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe)
 - [Ver el detalle de una factura](../web/2-tareas.md#ver-el-detalle-de-una-factura)
 - [Poner el punto de entrega de una factura a mano](../web/2-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano) (**lo único distinto**: aquí funciona sin señal, como en el teléfono; ver abajo)

@@ -592,25 +592,48 @@ func (q *Queries) EncolarAvisoAPedido(ctx context.Context, arg EncolarAvisoAPedi
 	return err
 }
 
-const engancharPedidoARuta = `-- name: EngancharPedidoARuta :execrows
-UPDATE orders SET
-    route_id       = $1,
-    ultima_ruta_id = $1,
-    stop_order     = $2,
-    trip_leg       = 'outbound',
-    segment_km     = $3,
-    price          = coalesce($4::double precision, 0),
-    resultado      = NULL,
-    resultado_at   = NULL,
-    resultado_nota = NULL,
-    delivered_at   = NULL
-WHERE id = $5
-  AND route_id IS NULL
-  AND resultado IS DISTINCT FROM 'entregado'::stop_result
-  AND delivered_at IS NULL
-  -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
-  -- restaurar ` + "`" + `factura_domicilio > 0` + "`" + ` (ver Notas/Pendiente/Delivery.md).
-  AND ($6::uuid IS NULL OR branch_id = $6::uuid)
+const engancharPedidoARuta = `-- name: EngancharPedidoARuta :one
+WITH parada AS (
+    UPDATE orders o SET
+        route_id       = $1,
+        ultima_ruta_id = $1,
+        stop_order     = $2,
+        trip_leg       = 'outbound',
+        segment_km     = $3,
+        price          = coalesce($4::double precision, 0),
+        resultado      = NULL,
+        resultado_at   = NULL,
+        resultado_nota = NULL,
+        delivered_at   = NULL
+    WHERE o.id = $5
+      AND o.conduce_principal_id IS NULL
+      AND o.route_id IS NULL
+      AND o.resultado IS DISTINCT FROM 'entregado'::stop_result
+      AND o.delivered_at IS NULL
+      -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
+      -- restaurar ` + "`" + `factura_domicilio > 0` + "`" + ` (ver Notas/Pendiente/Delivery.md).
+      AND ($6::uuid IS NULL OR o.branch_id = $6::uuid)
+    RETURNING o.id AS id
+), miembros AS (
+    UPDATE orders m SET
+        route_id       = $1,
+        ultima_ruta_id = $1,
+        stop_order     = NULL,
+        trip_leg       = 'outbound',
+        segment_km     = NULL,
+        price          = 0,
+        resultado      = NULL,
+        resultado_at   = NULL,
+        resultado_nota = NULL,
+        delivered_at   = NULL
+    WHERE m.conduce_principal_id IN (SELECT parada.id FROM parada)
+      AND m.route_id IS NULL
+      AND m.resultado IS DISTINCT FROM 'entregado'::stop_result
+      AND m.delivered_at IS NULL
+      AND NOT m.archivado
+    RETURNING m.id
+)
+SELECT count(*) FROM parada
 `
 
 type EngancharPedidoARutaParams struct {
@@ -674,8 +697,15 @@ type EngancharPedidoARutaParams struct {
 //
 // LAS DOS PUERTAS pasan por aquí: `POST /api/routes` y `POST /api/board/columns/{id}/route`
 // (`TableroEngancharPedidoARuta` es la misma consulta con otro envoltorio).
+//
+// UN CONDUCE ENTRA ENTERO EN LA MISMA SENTENCIA (00029, conduces.md regla 4): al enganchar la principal, sus
+// miembros se enganchan a la MISMA ruta y se les quita lo que traían (`resultado`…, es un intento nuevo). Los
+// miembros no llevan `stop_order`, `segment_km` ni `price`: la parada es la principal, y lo que cuesta el conduce
+// entero lo suma `conduce_costo` al leer las paradas. Un miembro nunca se engancha solo: el `WHERE` de la primera cláusula exige `conduce_principal_id IS NULL`.
+//
+// Devuelve cuántas PRINCIPALES/sueltas se engancharon (0 o 1): lo que antes era `:execrows`.
 func (q *Queries) EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoARutaParams) (int64, error) {
-	result, err := q.db.Exec(ctx, engancharPedidoARuta,
+	row := q.db.QueryRow(ctx, engancharPedidoARuta,
 		arg.RutaID,
 		arg.StopOrder,
 		arg.SegmentKm,
@@ -683,10 +713,9 @@ func (q *Queries) EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoA
 		arg.PedidoID,
 		arg.Sucursal,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const fijarOrdenDeParada = `-- name: FijarOrdenDeParada :execrows
@@ -695,6 +724,8 @@ UPDATE orders SET
     segment_km = $2
 WHERE id = $3
   AND route_id = $4
+  -- Un miembro no es una parada y no tiene posición: se ordena su principal (00029).
+  AND conduce_principal_id IS NULL
   AND ($5::uuid IS NULL OR branch_id = $5::uuid)
 `
 
@@ -819,19 +850,37 @@ func (q *Queries) FijarTotalesDeRuta(ctx context.Context, arg FijarTotalesDeRuta
 	return i, err
 }
 
-const limpiarResultadoDeParada = `-- name: LimpiarResultadoDeParada :execrows
-UPDATE orders SET
-    resultado      = NULL,
-    ultima_ruta_id = $1,
-    resultado_at   = NULL,
-    resultado_nota = NULL,
-    delivered_at   = NULL,
-    status         = 'pending'::order_status,
-    route_id       = $1
-WHERE id = $2
-  AND (route_id = $1
-       OR (route_id IS NULL AND ultima_ruta_id = $1 AND resultado IS NOT NULL))
-  AND ($3::uuid IS NULL OR branch_id = $3::uuid)
+const limpiarResultadoDeParada = `-- name: LimpiarResultadoDeParada :one
+WITH parada AS (
+    UPDATE orders o SET
+        resultado      = NULL,
+        ultima_ruta_id = $1,
+        resultado_at   = NULL,
+        resultado_nota = NULL,
+        delivered_at   = NULL,
+        status         = 'pending'::order_status,
+        route_id       = $1
+    WHERE o.id = $2
+      AND o.conduce_principal_id IS NULL
+      AND (o.route_id = $1
+           OR (o.route_id IS NULL AND o.ultima_ruta_id = $1 AND o.resultado IS NOT NULL))
+      AND ($3::uuid IS NULL OR o.branch_id = $3::uuid)
+    RETURNING o.id AS id
+), miembros AS (
+    UPDATE orders m SET
+        resultado      = NULL,
+        ultima_ruta_id = $1,
+        resultado_at   = NULL,
+        resultado_nota = NULL,
+        delivered_at   = NULL,
+        status         = 'pending'::order_status,
+        route_id       = $1
+    WHERE m.conduce_principal_id IN (SELECT parada.id FROM parada)
+      AND (m.route_id = $1
+           OR (m.route_id IS NULL AND m.ultima_ruta_id = $1 AND m.resultado IS NOT NULL))
+    RETURNING m.id
+)
+SELECT count(*) FROM parada
 `
 
 type LimpiarResultadoDeParadaParams struct {
@@ -869,12 +918,13 @@ type LimpiarResultadoDeParadaParams struct {
 // El `WHERE` es el mismo que el de marcar, y por lo mismo: también por `ultima_ruta_id`
 // cuando la parada ya soltó su `route_id` CON UN RESULTADO, para poder desmarcar un
 // devuelto. Cero filas es «ese pedido no va en esta ruta», el rechazo del contrato.
+//
+// Y SE DESMARCA IGUAL EN SUS MIEMBROS (00029, regla 5): lo que se aplicó al conduce se deshace en el conduce.
 func (q *Queries) LimpiarResultadoDeParada(ctx context.Context, arg LimpiarResultadoDeParadaParams) (int64, error) {
-	result, err := q.db.Exec(ctx, limpiarResultadoDeParada, arg.RutaID, arg.PedidoID, arg.Sucursal)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	row := q.db.QueryRow(ctx, limpiarResultadoDeParada, arg.RutaID, arg.PedidoID, arg.Sucursal)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const listarAvisosAPedido = `-- name: ListarAvisosAPedido :many
@@ -942,12 +992,18 @@ func (q *Queries) ListarAvisosAPedido(ctx context.Context, arg ListarAvisosAPedi
 const listarParadasDeRuta = `-- name: ListarParadasDeRuta :many
 SELECT
     o.id, o.operation_number, o.customer_name, o.customer_phone, o.address,
-    o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status, o.weight,
-    o.price, o.segment_km, o.stop_order, o.trip_leg, o.resultado,
+    o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status,
+    -- UN CONDUCE ES UNA PARADA (00029, regla 4): la principal pesa y cuesta lo de todo su conduce, y los
+    -- miembros no salen como paradas. Así las paradas suman lo mismo que los totales de la ruta.
+    (o.weight + conduce_peso(o.id))::double precision AS weight,
+    o.price,
+    conduce_costo(o.id) AS costo_de_miembros,
+    o.segment_km, o.stop_order, o.trip_leg, o.resultado,
     o.resultado_at, o.resultado_nota, o.delivered_at, o.municipio,
     o.pedido_costo, o.factura_domicilio, o.external_id, o.source, o.branch_id
 FROM orders o
 WHERE o.route_id = $1
+  AND o.conduce_principal_id IS NULL
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC
 `
@@ -971,6 +1027,7 @@ type ListarParadasDeRutaRow struct {
 	Status           OrderStatus        `json:"status"`
 	Weight           float64            `json:"weight"`
 	Price            *float64           `json:"price"`
+	CostoDeMiembros  float64            `json:"costo_de_miembros"`
 	SegmentKm        *float64           `json:"segment_km"`
 	StopOrder        *int32             `json:"stop_order"`
 	TripLeg          TripLeg            `json:"trip_leg"`
@@ -1012,6 +1069,7 @@ func (q *Queries) ListarParadasDeRuta(ctx context.Context, arg ListarParadasDeRu
 			&i.Status,
 			&i.Weight,
 			&i.Price,
+			&i.CostoDeMiembros,
 			&i.SegmentKm,
 			&i.StopOrder,
 			&i.TripLeg,
@@ -1039,12 +1097,17 @@ func (q *Queries) ListarParadasDeRuta(ctx context.Context, arg ListarParadasDeRu
 const listarParadasDeRutas = `-- name: ListarParadasDeRutas :many
 SELECT
     o.route_id, o.id, o.operation_number, o.customer_name, o.customer_phone, o.address,
-    o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status, o.weight,
-    o.price, o.segment_km, o.stop_order, o.trip_leg, o.resultado,
+    o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status,
+    -- Igual que en ` + "`" + `ListarParadasDeRuta` + "`" + `: una parada por conduce, con el peso y el precio de todo él.
+    (o.weight + conduce_peso(o.id))::double precision AS weight,
+    o.price,
+    conduce_costo(o.id) AS costo_de_miembros,
+    o.segment_km, o.stop_order, o.trip_leg, o.resultado,
     o.resultado_at, o.resultado_nota, o.delivered_at, o.municipio,
     o.pedido_costo, o.factura_domicilio, o.external_id, o.source, o.branch_id
 FROM orders o
 WHERE o.route_id = ANY($1::uuid[])
+  AND o.conduce_principal_id IS NULL
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC
 `
@@ -1069,6 +1132,7 @@ type ListarParadasDeRutasRow struct {
 	Status           OrderStatus        `json:"status"`
 	Weight           float64            `json:"weight"`
 	Price            *float64           `json:"price"`
+	CostoDeMiembros  float64            `json:"costo_de_miembros"`
 	SegmentKm        *float64           `json:"segment_km"`
 	StopOrder        *int32             `json:"stop_order"`
 	TripLeg          TripLeg            `json:"trip_leg"`
@@ -1116,6 +1180,7 @@ func (q *Queries) ListarParadasDeRutas(ctx context.Context, arg ListarParadasDeR
 			&i.Status,
 			&i.Weight,
 			&i.Price,
+			&i.CostoDeMiembros,
 			&i.SegmentKm,
 			&i.StopOrder,
 			&i.TripLeg,
@@ -1148,6 +1213,8 @@ SELECT
 FROM orders o
 WHERE (o.route_id = $1
        OR (o.route_id IS NULL AND o.ultima_ruta_id = $1 AND o.resultado IS NOT NULL))
+  -- LA PARADA ES EL CONDUCE (00029, regla 5): el cierre marca la principal y el servidor lo aplica a sus miembros.
+  AND o.conduce_principal_id IS NULL
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC
 `
@@ -1233,13 +1300,16 @@ func (q *Queries) ListarParadasQueViajaronEnRuta(ctx context.Context, arg Listar
 const listarRenglonesDeRuta = `-- name: ListarRenglonesDeRuta :many
 SELECT
     oi.order_id, oi.linea, oi.description, oi.quantity, oi.packs, oi.product_id,
-    o.customer_name, o.stop_order, o.resultado
+    o.customer_name,
+    -- Un miembro hereda la posición de su principal para salir pegado a ella en la hoja de carga.
+    coalesce(pr.stop_order, o.stop_order) AS stop_order, o.resultado
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
+LEFT JOIN orders pr ON pr.id = o.conduce_principal_id
 WHERE (o.route_id = $1
        OR (o.route_id IS NULL AND o.ultima_ruta_id = $1 AND o.resultado IS NOT NULL))
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
-ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC
+ORDER BY coalesce(pr.stop_order, o.stop_order) ASC NULLS LAST, o.id ASC, oi.linea ASC
 `
 
 type ListarRenglonesDeRutaParams struct {
@@ -1301,12 +1371,17 @@ func (q *Queries) ListarRenglonesDeRuta(ctx context.Context, arg ListarRenglones
 
 const listarRenglonesDeRutas = `-- name: ListarRenglonesDeRutas :many
 SELECT
-    o.route_id, oi.order_id, oi.linea, oi.description, oi.quantity, oi.packs, oi.product_id
+    o.route_id,
+    -- LOS RENGLONES DE UN MIEMBRO CUELGAN DE LA PARADA DE SU PRINCIPAL (00029, regla 6): la parada es el
+    -- conduce y lo que sube al camión por ella son los renglones de todas sus facturas.
+    coalesce(o.conduce_principal_id, oi.order_id) AS order_id,
+    oi.linea, oi.description, oi.quantity, oi.packs, oi.product_id
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
+LEFT JOIN orders pr ON pr.id = o.conduce_principal_id
 WHERE o.route_id = ANY($1::uuid[])
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
-ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC
+ORDER BY coalesce(pr.stop_order, o.stop_order) ASC NULLS LAST, o.id ASC, oi.linea ASC
 `
 
 type ListarRenglonesDeRutasParams struct {
@@ -1390,7 +1465,8 @@ SELECT
     v.capacity    AS vehiculo_capacidad,
     vt.nombre     AS vehiculo_tipo,
     -- Cuántas paradas lleva, para no tener que traerlas todas sólo para enseñar el número.
-    (SELECT count(*) FROM orders o WHERE o.route_id = r.id) AS paradas
+    -- UNA PARADA POR CONDUCE (00029, regla 4): un miembro va con su principal y no cuenta.
+    (SELECT count(*) FROM orders o WHERE o.route_id = r.id AND o.conduce_principal_id IS NULL) AS paradas
 FROM routes r
 LEFT JOIN branches      b  ON b.id  = r.branch_id
 LEFT JOIN vehicles      v  ON v.id  = r.vehicle_id
@@ -1497,29 +1573,56 @@ func (q *Queries) ListarRutas(ctx context.Context, arg ListarRutasParams) ([]Lis
 	return items, nil
 }
 
-const marcarResultadoDeParada = `-- name: MarcarResultadoDeParada :execrows
+const marcarResultadoDeParada = `-- name: MarcarResultadoDeParada :one
 
-UPDATE orders SET
-    resultado      = $1::stop_result,
-    ultima_ruta_id = $2,
-    resultado_at   = now(),
-    resultado_nota = $3,
-    delivered_at = CASE
-        WHEN $1::stop_result = 'entregado' THEN now()
-        ELSE NULL
-    END,
-    status = CASE
-        WHEN $1::stop_result = 'entregado' THEN 'delivered'::order_status
-        ELSE 'pending'::order_status
-    END,
-    route_id = CASE
-        WHEN $1::stop_result = 'entregado' THEN $2
-        ELSE NULL
-    END
-WHERE id = $4
-  AND (route_id = $2
-       OR (route_id IS NULL AND ultima_ruta_id = $2 AND resultado IS NOT NULL))
-  AND ($5::uuid IS NULL OR branch_id = $5::uuid)
+WITH parada AS (
+    UPDATE orders o SET
+        resultado      = $1::stop_result,
+        ultima_ruta_id = $2,
+        resultado_at   = now(),
+        resultado_nota = $3,
+        delivered_at = CASE
+            WHEN $1::stop_result = 'entregado' THEN now()
+            ELSE NULL
+        END,
+        status = CASE
+            WHEN $1::stop_result = 'entregado' THEN 'delivered'::order_status
+            ELSE 'pending'::order_status
+        END,
+        route_id = CASE
+            WHEN $1::stop_result = 'entregado' THEN $2
+            ELSE NULL
+        END
+    WHERE o.id = $4
+      AND o.conduce_principal_id IS NULL
+      AND (o.route_id = $2
+           OR (o.route_id IS NULL AND o.ultima_ruta_id = $2 AND o.resultado IS NOT NULL))
+      AND ($5::uuid IS NULL OR o.branch_id = $5::uuid)
+    RETURNING o.id AS id
+), miembros AS (
+    UPDATE orders m SET
+        resultado      = $1::stop_result,
+        ultima_ruta_id = $2,
+        resultado_at   = now(),
+        resultado_nota = $3,
+        delivered_at = CASE
+            WHEN $1::stop_result = 'entregado' THEN now()
+            ELSE NULL
+        END,
+        status = CASE
+            WHEN $1::stop_result = 'entregado' THEN 'delivered'::order_status
+            ELSE 'pending'::order_status
+        END,
+        route_id = CASE
+            WHEN $1::stop_result = 'entregado' THEN $2
+            ELSE NULL
+        END
+    WHERE m.conduce_principal_id IN (SELECT parada.id FROM parada)
+      AND (m.route_id = $2
+           OR (m.route_id IS NULL AND m.ultima_ruta_id = $2 AND m.resultado IS NOT NULL))
+    RETURNING m.id
+)
+SELECT count(*) FROM parada
 `
 
 type MarcarResultadoDeParadaParams struct {
@@ -1556,18 +1659,22 @@ type MarcarResultadoDeParadaParams struct {
 //     sabe explicar tres semanas después.
 //
 // Ni `devuelto` ni `cancelado` tocan inventario: el reintegro lo hace Ventra.
+//
+// EL RESULTADO DE UNA PRINCIPAL SE APLICA IGUAL A SUS MIEMBROS (00029, conduces.md regla 5), en la misma
+// sentencia y cada fila con su `resultado*`, su `delivered_at` y su `status`. El `WHERE` de la primera cláusula
+// exige `conduce_principal_id IS NULL`: marcar un MIEMBRO suelto no existe (cero filas = «no va en esta ruta»).
+// Devuelve cuántas PARADAS se marcaron (0 o 1), lo que antes era `:execrows`.
 func (q *Queries) MarcarResultadoDeParada(ctx context.Context, arg MarcarResultadoDeParadaParams) (int64, error) {
-	result, err := q.db.Exec(ctx, marcarResultadoDeParada,
+	row := q.db.QueryRow(ctx, marcarResultadoDeParada,
 		arg.Resultado,
 		arg.RutaID,
 		arg.Nota,
 		arg.PedidoID,
 		arg.Sucursal,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const obtenerRuta = `-- name: ObtenerRuta :one
@@ -1693,7 +1800,15 @@ const pedidosParaArmarRuta = `-- name: PedidosParaArmarRuta :many
 
 SELECT
     o.id, o.operation_number, o.customer_name, o.end_lat, o.end_lng,
-    o.weight, o.pedido_costo, o.factura_estado, o.branch_id, o.external_id, o.source,
+    -- EL CAMIÓN CARGA EL CONDUCE ENTERO (00029): el peso de una principal es el de todas sus facturas. Es el
+    -- que se compara con la capacidad del camión.
+    (o.weight + conduce_peso(o.id))::double precision AS weight,
+    o.pedido_costo, o.factura_estado, o.branch_id, o.external_id, o.source,
+    -- UN MIEMBRO NO SE ARMA SUELTO (conduces.md regla 4): sale como DATO y lo nombra el manejador con el número de
+    -- su principal («Esa factura va dentro del conduce …»), igual que ` + "`" + `factura_estado` + "`" + `.
+    o.conduce_principal_id,
+    (SELECT coalesce(nullif(btrim(p.factura_numero), ''), p.operation_number)
+       FROM orders p WHERE p.id = o.conduce_principal_id) AS conduce_principal_numero,
     -- LO QUE YA SE ENTREGÓ NO VUELVE A SUBIR A UN CAMIÓN, y ` + "`" + `route_id IS NULL` + "`" + ` no lo
     -- sabe: un entregado conserva su ` + "`" + `route_id` + "`" + `, pero la clave ajena es ` + "`" + `ON DELETE SET
     -- NULL` + "`" + ` (` + "`" + `db/migrations/00001_init.sql:446` + "`" + `), así que el día que alguien borre la
@@ -1736,20 +1851,22 @@ type PedidosParaArmarRutaParams struct {
 }
 
 type PedidosParaArmarRutaRow struct {
-	ID               uuid.UUID          `json:"id"`
-	OperationNumber  *string            `json:"operation_number"`
-	CustomerName     string             `json:"customer_name"`
-	EndLat           *float64           `json:"end_lat"`
-	EndLng           *float64           `json:"end_lng"`
-	Weight           float64            `json:"weight"`
-	PedidoCosto      *float64           `json:"pedido_costo"`
-	FacturaEstado    *FacturaEstado     `json:"factura_estado"`
-	BranchID         pgtype.UUID        `json:"branch_id"`
-	ExternalID       *string            `json:"external_id"`
-	Source           *Procedencia       `json:"source"`
-	DeliveredAt      pgtype.Timestamptz `json:"delivered_at"`
-	Resultado        *StopResult        `json:"resultado"`
-	FacturaDomicilio *float64           `json:"factura_domicilio"`
+	ID                     uuid.UUID          `json:"id"`
+	OperationNumber        *string            `json:"operation_number"`
+	CustomerName           string             `json:"customer_name"`
+	EndLat                 *float64           `json:"end_lat"`
+	EndLng                 *float64           `json:"end_lng"`
+	Weight                 float64            `json:"weight"`
+	PedidoCosto            *float64           `json:"pedido_costo"`
+	FacturaEstado          *FacturaEstado     `json:"factura_estado"`
+	BranchID               pgtype.UUID        `json:"branch_id"`
+	ExternalID             *string            `json:"external_id"`
+	Source                 *Procedencia       `json:"source"`
+	ConducePrincipalID     pgtype.UUID        `json:"conduce_principal_id"`
+	ConducePrincipalNumero *string            `json:"conduce_principal_numero"`
+	DeliveredAt            pgtype.Timestamptz `json:"delivered_at"`
+	Resultado              *StopResult        `json:"resultado"`
+	FacturaDomicilio       *float64           `json:"factura_domicilio"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1794,6 +1911,8 @@ func (q *Queries) PedidosParaArmarRuta(ctx context.Context, arg PedidosParaArmar
 			&i.BranchID,
 			&i.ExternalID,
 			&i.Source,
+			&i.ConducePrincipalID,
+			&i.ConducePrincipalNumero,
 			&i.DeliveredAt,
 			&i.Resultado,
 			&i.FacturaDomicilio,
@@ -1944,10 +2063,22 @@ WITH liberada AS (
       AND o.route_id = $2
       AND r.id = o.route_id
       AND r.status = 'planned'
+      -- Un MIEMBRO no se quita solo de la ruta: la parada es el conduce (00029, regla 4). Cero filas.
+      AND o.conduce_principal_id IS NULL
       AND o.delivered_at IS NULL
       AND o.resultado IS NULL
       AND ($3::uuid IS NULL OR o.branch_id = $3::uuid)
     RETURNING o.id AS id
+), miembros AS (
+    -- QUITAR LA PRINCIPAL DE LA RUTA SUELTA A SUS MIEMBROS CON ELLA (regla 4). Siguen en su conduce.
+    UPDATE orders m SET
+        route_id = NULL, ultima_ruta_id = NULL, stop_order = NULL, segment_km = NULL,
+        trip_leg = 'outbound'
+    FROM liberada l
+    WHERE m.conduce_principal_id = l.id
+      AND m.route_id = $2
+      AND m.delivered_at IS NULL
+      AND m.resultado IS NULL
 ), origen AS (
     DELETE FROM board_route_origins o
     WHERE o.route_id = $2

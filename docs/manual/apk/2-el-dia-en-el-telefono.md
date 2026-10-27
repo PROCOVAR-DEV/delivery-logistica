@@ -245,18 +245,21 @@ facturado, no lo que se pidió.
 
 ### Si una factura no te deja colocarla
 
-A una zona sólo se coloca lo que tiene **el domicilio cobrado en la factura** y, si el
-vendedor lo marcó, **cotizado en Entrega**. Las que no cumplen **ni salen en «Sin colocar»**, y si llegas a
-intentarlo (por ejemplo, desde Facturas con «Mandar a una zona») sale el motivo y la
-tarjeta se queda donde estaba:
+A una zona se coloca toda factura **facturada** (cuadre o haya cambiado). **El domicilio
+cobrado ya no se exige** (por ahora): es un dato, no una condición. Las que no están
+facturadas **ni salen en «Sin colocar»**, y si llegas a intentarlo (por ejemplo, desde
+Facturas con «Mandar a una zona») sale el motivo y la tarjeta se queda donde estaba:
 
-> «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
-> registrado.»
+> «Esa factura ya se entregó»
 >
-> «No se puede asociar al tablero: primero cotiza el domicilio de la factura.»
+> «Esa factura ya está en una ruta»
+>
+> «Esa factura va dentro del conduce 47313: arma el conduce entero»
 
-Lo dice **al momento, aunque no haya señal**: no te llega horas después a la bandeja.
-Se arregla cobrando o cotizando en Entrega, no aquí.
+El último es de un **miembro de un conduce**: se coloca la principal (aquí, la 47313) y el
+conduce entero va con ella. Lo dice **al momento, aunque no haya señal**: no te llega
+horas después a la bandeja. Los avisos viejos del domicilio («…no tiene un cobro de
+domicilio registrado» y «…primero cotiza el domicilio…») se retiraron el 16/10/2026.
 
 ### Si una factura dice «2 facturas de este cliente hoy»
 
@@ -323,12 +326,12 @@ PTB25-261005-1523 · MARTA CRUZ: sin factura
 ```
 
 Cada una sale por su **conduce** (el número de operación de la factura). Saca esas de
-la zona (o resuélvelas en PEDIDO o en Entrega) y vuelve a armar.
+la zona (o resuélvelas en PEDIDO) y vuelve a armar.
 
 ### Qué entró y qué no
 
-**Sólo entran en la ruta las facturas repartibles**: cuadren o no, con el
-domicilio cobrado y, si el vendedor lo marcó, cotizado. **Sin señal se arma con la misma regla que el servidor**:
+**Sólo entran en la ruta las facturas repartibles**: las facturadas (cuadren o no), con
+o sin el domicilio cobrado o cotizado. **Sin señal se arma con la misma regla que el servidor**:
 el teléfono dice el mismo «no» que diría él, en el momento. Las que no cumplen **se
 descartan**: **se quedan puestas en la zona y marcadas**. No se pierde nada, y la zona
 no se te queda vacía sin explicación.
@@ -340,8 +343,8 @@ Rutas, una franja roja nombra a las que se quedaron fuera, cada una por su **con
 > PTB25-261005-1511 · LUIS PÉREZ: sin factura
 > PTB25-261005-1523 · MARTA CRUZ: sin factura
 
-(Con una sola: «pero 1 factura no entró».) Arréglalas donde dice el motivo —cobrando o
-cotizando en Entrega, o en PEDIDO— y vuelve a armar. **Si no entra ninguna, no se arma
+(Con una sola: «pero 1 factura no entró».) Arréglalas donde dice el motivo —en
+PEDIDO— y vuelve a armar. **Si no entra ninguna, no se arma
 la ruta** y sale el recuadro rojo de arriba: «La columna no tiene ninguna factura que se
 pueda repartir hoy», con la lista.
 

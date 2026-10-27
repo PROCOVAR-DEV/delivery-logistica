@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -67,6 +68,11 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 	q.sync = append(q.sync, pedidoSync{
 		id: ped2, sucursal: sucStg, nombre: "Normal", marca: time.Now().UTC().Add(-30 * time.Minute),
 	})
+	// Y uno que es MIEMBRO de un conduce (00029, regla 9): BAJA, con la principal en `conducePrincipalId`.
+	q.sync = append(q.sync, pedidoSync{
+		id: ped3, sucursal: sucStg, nombre: "Miembro", marca: time.Now().UTC().Add(-20 * time.Minute),
+		conducePrincipal: ped1,
+	})
 
 	cambios := bajadaDe(t, q, tokenTab(t, sucStg.String()),
 		"?desde="+desde.Format(time.RFC3339Nano))
@@ -103,6 +109,8 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 		"puntoClienteLat", "puntoClienteLng", "puntoClienteAddress",
 		// De qué pedido de PEDIDO viene la factura (00025): la tabla de la app lo dice.
 		"folio",
+		// Los conduces (00029): la principal de un miembro. Sin ella el aparato no puede ocultarlo ni juntarlo.
+		"conducePrincipalId",
 	})
 	// Y no basta con la clave: `"facturaAt": nil` también la tiene. El valor tiene que ser
 	// el del pedido, en el formato de las demás fechas.
@@ -130,6 +138,15 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 	}
 	if normal["puntoManual"] != false {
 		t.Errorf("orders: puntoManual de un pedido normal = %v, tenía que ser false", normal["puntoManual"])
+	}
+	// Los miembros de conduce NO se filtran de la bajada (regla 9) y llevan a su principal; el resto, null.
+	miembro := cambios["cambios"].(map[string]any)["orders"].(map[string]any)["puestos"].([]any)[2].(map[string]any)
+	if got := fmt.Sprint(miembro["conducePrincipalId"]); got != ped1.String() {
+		t.Errorf("orders: un miembro de conduce trae conducePrincipalId = %v y tenía que ser la principal %s", got, ped1)
+	}
+	if normal["conducePrincipalId"] != nil || pedido["conducePrincipalId"] != nil {
+		t.Errorf("orders: una factura que no es miembro trae conducePrincipalId (%v / %v) y tenía que ser null",
+			normal["conducePrincipalId"], pedido["conducePrincipalId"])
 	}
 	llego, _ := pedido["facturaAt"].(string)
 	esperada := facturadoEl.Format(time.RFC3339Nano)

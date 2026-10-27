@@ -44,7 +44,7 @@ Los filtros van en una fila bajo la cabecera:
 |---|---|
 | **«Estado de reparto en delivery»** | «Cualquier reparto» |
 | **«Municipio del cliente»** | «Todos los municipios» |
-| **«Cobro del domicilio»** | «Cualquier cobro». Con importe o en $0; no es cuentas por cobrar |
+| **«Precio del domicilio»** | «Cualquier precio de domicilio». Con importe o en $0; no es cuentas por cobrar |
 | **«Pedido de origen»** | «Con o sin pedido» |
 | **«Vendedor de la factura»** | «Todos los vendedores». Uno o varios: casillas en un cajón, salen los de cualquiera de los marcados |
 | **«Cómo se ordena esta página»** | «Más recientes» |
@@ -135,6 +135,52 @@ factura que ya tiene uno.
 
 ---
 
+## Juntar facturas en un conduce
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Facturas»**.
+
+Un conduce es lo que sale con el camión y puede juntar varias facturas **del mismo
+cliente** en UNA parada. **La primera que marcas es la principal**: la que lo crea y dice a
+qué cliente va dedicado.
+
+1. **Menú → «Facturas»** y **marca las facturas** que van juntas: clic en su casilla. La
+   **primera** que marques será la principal. <!-- señala: pedidos-marcar-uno -->
+2. **Clic en «Crear conduce»**, en la franja azul de lo marcado (sale con dos o más).
+   <!-- señala: pedidos-crear-conduce -->
+   - Se abre el cajón **«Crear conduce»** y te dice quién manda: **«La principal será 47313
+     (Cliente). Las demás irán con ella»**.
+3. **Clic en «Crear conduce»**, abajo del cajón. <!-- señala: pedidos-confirmar-conduce -->
+   - En la lista, la principal pasa a decir **«Conduce 47313 + 47314»** con el peso y el
+     domicilio de todas sus facturas. Las demás **ya no salen como filas**: van con ella.
+
+**Si no se puede, el cajón lo dice y el botón queda apagado:** clientes distintos («Un
+conduce junta facturas del mismo cliente»), de otra sucursal, o una factura que ya va en una
+ruta, ya se entregó o ya va en otro conduce.
+
+**Al armar una ruta o mandar a una zona, elige la principal**: el conduce entero se mueve con
+ella y es UNA parada. En el cierre de la ruta, lo que marques en esa parada vale para todas
+sus facturas.
+
+---
+
+## Sacar una factura de un conduce o deshacerlo
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Facturas»**.
+
+1. **En «Facturas», abre la pestaña «Conduces»**. <!-- señala: pedidos-pestanas -->
+   - Arriba pone qué es un conduce y debajo salen los que hay, con sus facturas.
+2. **«Sacar»**, al lado de una factura, la devuelve a ser una factura suelta.
+3. **«Deshacer conduce»** suelta todas. <!-- señala: pedidos-deshacer-conduce -->
+   - También está en la ficha de la principal (clic en su fila).
+
+**No se puede sacar ni deshacer un conduce que ya va en una ruta o tiene resultado**: el
+botón sale apagado y dice por qué. Si el servidor dice que no, aquí mismo sale su motivo,
+tal cual.
+
+---
+
 ## Mandar varias facturas a una zona de golpe
 <!-- tarea -->
 
@@ -160,14 +206,14 @@ factura que ya tiene uno.
 ```
 No se pudieron mandar 2, y siguen marcados:
 PTB25-261005-1480 · Ana: Esa factura ya está en una ruta
-PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.
+PTB25-261005-1502 · Luis: Esa factura va dentro del conduce 47313: arma el conduce entero
 ```
 
 Cada factura sale por su **conduce** (el número de operación). Los motivos
-son los mismos que daría el servidor: ya entregado, ya en una ruta, **sin domicilio
-cobrado en la factura** o **marcado a domicilio y sin cotizar en Entrega**, además de
-«Archivado en PEDIDO»,
-«Sin cotejar», «Sin factura», «Sin coordenadas de entrega» o «Es de otra sucursal».
+son los mismos que daría el servidor: ya entregado, ya en una ruta o miembro suelto de
+un conduce, además de «Archivado en PEDIDO», «Sin cotejar», «Sin factura», «Sin
+coordenadas de entrega» o «Es de otra sucursal». **El domicilio sin cobrar o sin cotizar
+ya no es un motivo.**
 
 **Las que sí fueron pierden la marca; las que no, se quedan marcadas.**
 
@@ -259,11 +305,10 @@ Es el camino largo, para cuando la ruta no sale de una zona entera.
 5. **«Facturas»** — marca las que quieras.
    - **La barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»** y
      **«Camión lleno — no cabe más»**.
-   - **Sólo salen las facturas repartibles (cuadren o no con el pedido), con el domicilio cobrado y,
-     si el vendedor lo marcó, cotizado en Entrega.** Si te falta alguna, es casi
-     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. El filtro de
-     domicilio arranca en «Sólo con domicilio», que cuenta lo marcado por el vendedor
-     **y** lo cobrado en la factura: no esconde a las que el vendedor no marcó.
+   - **Sólo salen las facturas facturadas (cuadren o no con el pedido).** Ya no se exige el
+     domicilio cobrado ni cotizado. Pero el filtro de domicilio arranca en «Sólo con
+     domicilio», que cuenta lo marcado por el vendedor **o** lo cobrado en la factura: si te
+     falta una que ni el vendedor marcó ni la factura cobró, elige **«Con y sin domicilio»**.
    - **Las filas que ya no caben se apagan**, con el motivo «No cabe en el camión».
    - Puedes marcar **una zona entera del tablero** con su casilla. Te dirá qué entró:
      **«9 de 12 de «Vista» · 1 ya estaban · 1 ya no se pueden repartir hoy · 1 no caben

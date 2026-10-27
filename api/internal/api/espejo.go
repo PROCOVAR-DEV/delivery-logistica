@@ -1726,11 +1726,14 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 			"puntoClienteLat":     f.PuntoClienteLat,
 			"puntoClienteLng":     f.PuntoClienteLng,
 			"puntoClienteAddress": f.PuntoClienteAddress,
-			"stopOrder":           f.StopOrder,
-			"deliveredAt":         hora(f.DeliveredAt),
-			"resultado":           textoDe(f.Resultado),
-			"resultadoNota":       f.ResultadoNota,
-			"items":               items,
+			// LOS MIEMBROS DE UN CONDUCE BAJAN (00029, regla 9): el aparato trabaja sin conexión y los oculta él
+			// (regla 3). `conducePrincipalId` = la principal (uuid) o null. Lo ata `la_bajada_no_pierde_campos_test.go`.
+			"conducePrincipalId": idOpcional(f.ConducePrincipalID),
+			"stopOrder":          f.StopOrder,
+			"deliveredAt":        hora(f.DeliveredAt),
+			"resultado":          textoDe(f.Resultado),
+			"resultadoNota":      f.ResultadoNota,
+			"items":              items,
 			// La marca que el aparato guarda para la próxima vez. Es `cambiado_at` y NO
 			// `updated_at`: con la del pedido a secas, un pedido al que sólo le cambió un
 			// renglón volvería a salir en cada bajada para siempre.

@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 
 import '../../../nucleo/almacenes/almacen_de_referencia.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/conduce.dart';
 import '../../../nucleo/fecha_de_la_factura.dart';
 import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/registro/registro.dart';
@@ -363,8 +364,12 @@ SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.almacen_id,
        v.name     AS vehiculo_nombre,
        v.plate    AS vehiculo_matricula,
        v.capacity AS vehiculo_capacidad,
+       -- Los MIEMBROS de un conduce no son tarjetas (`nucleo/conduce.dart`): no se cuentan.
        (SELECT count(*) FROM ${EsquemaTablero.colocaciones} p
-         WHERE p.column_id = c.id) AS pedidos,
+         WHERE p.column_id = c.id
+           AND NOT EXISTS (SELECT 1 FROM orders o
+                            WHERE o.id = p.order_id
+                              AND o.conduce_principal_id IS NOT NULL)) AS pedidos,
        -- Las que arriba SI estan puestas y este aparato no puede guardar por no
        -- tener el pedido. No suman a `pedidos` (no hay tarjeta que pintar) pero
        -- borrar la zona las cuenta, igual que el servidor.
@@ -372,12 +377,18 @@ SELECT c.id, c.branch_id, c.nombre, c.posicion, c.vehicle_id, c.almacen_id,
          WHERE s.column_id = c.id
            AND NOT EXISTS (SELECT 1 FROM ${EsquemaTablero.colocaciones} p
                             WHERE p.order_id = s.order_id)) AS sin_pedido,
-       (SELECT coalesce(sum(o.weight), 0) FROM ${EsquemaTablero.colocaciones} p
-          JOIN orders o ON o.id = p.order_id
-         WHERE p.column_id = c.id) AS peso_kg,
-       (SELECT coalesce(sum(${costoDeLaParadaSql('o.')}), 0) FROM ${EsquemaTablero.colocaciones} p
-          JOIN orders o ON o.id = p.order_id
-         WHERE p.column_id = c.id) AS costo_usd,
+       -- El peso y el costo de la zona suman TODAS las filas de cada conduce: la principal puesta
+       -- y sus miembros (`orders.conduce_principal_id` apunta a ella).
+       (SELECT coalesce(sum(o.weight), 0) FROM orders o
+         WHERE o.id IN (SELECT p.order_id FROM ${EsquemaTablero.colocaciones} p
+                         WHERE p.column_id = c.id)
+            OR o.conduce_principal_id IN (SELECT p.order_id FROM ${EsquemaTablero.colocaciones} p
+                                           WHERE p.column_id = c.id)) AS peso_kg,
+       (SELECT coalesce(sum(${costoDeLaParadaSql('o.')}), 0) FROM orders o
+         WHERE o.id IN (SELECT p.order_id FROM ${EsquemaTablero.colocaciones} p
+                         WHERE p.column_id = c.id)
+            OR o.conduce_principal_id IN (SELECT p.order_id FROM ${EsquemaTablero.colocaciones} p
+                                           WHERE p.column_id = c.id)) AS costo_usd,
        -- «SIN SUBIR» SALE DE LA COLA, no del id.
        --
        -- Antes se leia del prefijo `local-…`, y eso dejo de valer el 16/09/2026:
@@ -469,12 +480,15 @@ SELECT p.order_id, p.column_id, p.posicion, p.colocado_at, c.almacen_id,
 FROM ${EsquemaTablero.colocaciones} p
 JOIN ${EsquemaTablero.columnas} c ON c.id = p.column_id
 JOIN orders o ON o.id = p.order_id
-WHERE c.branch_id = ?1
+WHERE c.branch_id = ?1 AND $noEsMiembroSql
 ORDER BY c.posicion ASC, p.posicion ASC''',
           variables: [Variable<String>(sucursalId)],
         )
         .get();
 
+    final conduces = await conducesDeUnaVez(_base, [
+      for (final f in filas) f.read<String>('order_id'),
+    ]);
     final repes = <String, int>{};
     for (final f in filas) {
       final clave = f.read<String>('customer_name').trim().toLowerCase();
@@ -502,7 +516,10 @@ ORDER BY c.posicion ASC, p.posicion ASC''',
               address:
                   f.readNullable<String>('end_address') ??
                   f.read<String>('address'),
-              weight: f.read<double>('weight'),
+              weight:
+                  conduces[f.read<String>('order_id')]?.pesoKg ??
+                  f.read<double>('weight'),
+              conduce: conduces[f.read<String>('order_id')],
               pedidoCosto: f.readNullable<double>('pedido_costo'),
               municipio: f.readNullable<String>('municipio'),
               vendedor: f.readNullable<String>('vendedor'),
@@ -544,7 +561,7 @@ SELECT
 FROM ${EsquemaTablero.colocaciones} p
 JOIN ${EsquemaTablero.columnas} c ON c.id = p.column_id
 JOIN orders o ON o.id = p.order_id
-WHERE c.branch_id = ?1''',
+WHERE c.branch_id = ?1 AND $noEsMiembroSql''',
           variables: [Variable<String>(sucursalId)],
         )
         .getSingle();
@@ -689,7 +706,8 @@ WHERE c.branch_id = ?1''',
       // de Entrega O lo cobrado en la factura (`facturaDomicilio > 0`); «sin cobro», ninguno de los dos.
       consulta.where((t) {
         // `coalesce`: un cobro vacío no es «desconocido» sino «sin cobro» (si no, el `not` lo pierde).
-        final cobrado = t.pedidoCosto.isNotNull() |
+        final cobrado =
+            t.pedidoCosto.isNotNull() |
             coalesce([t.facturaDomicilio, const Constant<double>(0)])
                 .isBiggerThanValue(0);
         return conCobro ? cobrado : cobrado.not();
@@ -723,6 +741,9 @@ WHERE c.branch_id = ?1''',
       return porCercania != 0 ? porCercania : _porFechaDeFactura(a, b);
     });
 
+    final conduces = await conducesDeUnaVez(_base, [
+      for (final p in filas) p.id,
+    ]);
     final repes = <String, int>{};
     for (final p in filas) {
       final clave = p.customerName.trim().toLowerCase();
@@ -737,7 +758,8 @@ WHERE c.branch_id = ?1''',
             customerName: p.customerName,
             customerPhone: p.customerPhone,
             address: p.endAddress ?? p.address,
-            weight: p.weight,
+            weight: conduces[p.id]?.pesoKg ?? p.weight,
+            conduce: conduces[p.id],
             pedidoCosto: p.pedidoCosto,
             municipio: p.municipio,
             vendedor: p.vendedor,
@@ -772,9 +794,14 @@ WHERE c.branch_id = ?1''',
   Future<(List<String> municipios, List<String> vendedores)> facetas(
     String sucursalId,
   ) async {
-    final filas = await (_base.select(
-      _base.orders,
-    )..where((t) => t.branchId.equals(sucursalId) & t.routeId.isNull())).get();
+    final filas =
+        await (_base.select(_base.orders)..where(
+              (t) =>
+                  t.branchId.equals(sucursalId) &
+                  t.routeId.isNull() &
+                  noEsMiembro(t),
+            ))
+            .get();
     final municipios =
         filas
             .map((p) => p.municipio)

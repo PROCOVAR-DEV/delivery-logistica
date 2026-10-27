@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/cola/cola_salida.dart';
 import '../../../nucleo/cola/provisionales.dart';
+import '../../../nucleo/conduce.dart';
 import '../../../nucleo/red/escritura_en_vivo.dart';
 import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/reloj.dart';
@@ -277,6 +278,12 @@ class RepositorioTablero {
     final pedido = await (_base.select(
       _base.orders,
     )..where((o) => o.id.equals(pedidoId))).getSingleOrNull();
+    // UN MIEMBRO DE UN CONDUCE NO SE COLOCA SUELTO (`docs/conduces.md` regla 4): se coloca su principal.
+    // Con el literal del servidor, que nombra a la principal (409).
+    final deMiembro = pedido == null
+        ? null
+        : await motivoDeMiembro(_base, pedido);
+    if (deMiembro != null) throw RechazoDelTablero(deMiembro);
     final motivo = pedido == null ? null : porQueNoSePuedeColocar(pedido);
     if (motivo != null) throw RechazoDelTablero(motivo);
     await _noSiEstaInactiva(columnaId);
@@ -1160,10 +1167,13 @@ class RepositorioTablero {
               totalPrice: Value(
                 ImporteDeRuta.espejoDelTotalDelServidor(
                   buenos.map(
-                    (t) => costoDeLaParada(
-                      t.pedido.pedidoCosto,
-                      t.pedido.facturaDomicilio,
-                    ),
+                    // Un conduce es UNA parada que cobra el domicilio de todas sus facturas.
+                    (t) =>
+                        t.pedido.conduce?.domicilioUsd ??
+                        costoDeLaParada(
+                          t.pedido.pedidoCosto,
+                          t.pedido.facturaDomicilio,
+                        ),
                   ),
                 ),
               ),
@@ -1241,7 +1251,20 @@ class RepositorioTablero {
           'DELETE FROM $_tablaColocaciones WHERE order_id = ?1',
           [pedido.pedidoId],
         );
+        // Y los miembros de su conduce, si el servidor los puso en la zona: van con ella.
+        await _base.customStatement(
+          'DELETE FROM $_tablaColocaciones WHERE order_id IN '
+          '(SELECT id FROM orders WHERE conduce_principal_id = ?1)',
+          [pedido.pedidoId],
+        );
       }
+      // LOS MIEMBROS VAN CON LA PRINCIPAL a la ruta (`docs/conduces.md` regla 4).
+      await llevarLosMiembrosALaRuta(
+        _base,
+        [for (final t in buenos) t.pedido.pedidoId],
+        rutaId,
+        _reloj(),
+      );
 
       // En la web ya esta arriba —y con el id del servidor puesto—, asi que no
       // hay nada que encolar. Lo que quede de distinto entre lo que se escribio

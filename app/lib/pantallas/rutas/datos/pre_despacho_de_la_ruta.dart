@@ -103,7 +103,12 @@ Future<PreDespachoDeLaRuta> preDespachoDeLaRuta(
 ) async {
   final totales = await pedidos.preDespachoDe([for (final p in paradas) p.id]);
 
-  final enOrden = [...paradas]..sort(ordenDeLasFacturas);
+  // EL CONDUCE SE REPARTE FACTURA POR FACTURA (`docs/conduces.md` regla 6): cada miembro sale en su
+  // sitio, con sus renglones, detrás de las demás facturas por número. `totales` ya los lleva.
+  final miembros = await pedidos.miembrosDeLosConduces([
+    for (final p in paradas) p.id,
+  ]);
+  final enOrden = [...paradas, ...miembros]..sort(ordenDeLasFacturas);
   final facturas = <papel.FacturaDelPreDespacho>[];
   var partidas = false;
   for (final parada in enOrden) {
@@ -117,7 +122,9 @@ Future<PreDespachoDeLaRuta> preDespachoDeLaRuta(
         ? await pedidos.preDespachoPorFactura(parada.id)
         : null;
     if (partido == null) {
-      final suyo = await pedidos.preDespachoDe([parada.id]);
+      final suyo = await pedidos.preDespachoDe([
+        parada.id,
+      ], conSusMiembros: false);
       facturas.add(
         papel.FacturaDelPreDespacho(
           numero: NumeroDeFactura.de(parada.facturaNumero),

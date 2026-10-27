@@ -973,6 +973,134 @@ repaso (cada minuto, los últimos tres días) CONSERVA `end_address, lat, lng, e
 `delivery_distance_km`, y guarda lo que trae el cliente en `punto_cliente_*`. Su `WHERE … IS DISTINCT
 FROM` compara contra esos valores efectivos: un pedido con punto manual y sin más cambios no se reescribe.
 
+## Conduces — `POST /api/conduces`, `DELETE /api/conduces/{principalId}`, `DELETE /api/conduces/{principalId}/miembros/{id}` (00029, 27/10/2026)
+
+La especificación y el porqué están en `docs/conduces.md`. Un **conduce** junta varias facturas del MISMO cliente en UNA
+parada: la **principal** es la primera que se marca y las demás son **miembros** (`orders.conduce_principal_id` apunta a la
+principal). Cada factura sigue siendo UNA fila con su número, su estado y su resultado. Lo escribe SOLO una persona, por aquí;
+el espejo nunca lo toca.
+
+- **Auth**: usuario (`sesion`), como `PUT /api/orders/{id}/punto`. `401` sin sesión. **Alcance**: sí. Una factura de otra
+  sucursal (o que no existe) es `404 {"error":"No encontrado"}` sin revelar que existe; quien ve las ocho (SUPER ADMIN,
+  DESARROLLADOR) que mezcla sucursales recibe el `422` de abajo.
+- **Los errores son siempre** `{ "error": "<motivo literal en español>" }` y el motivo **nombra la factura que lo impide**
+  por su número de factura (`facturaNumero`; el de operación si no hay otro). **409** = conflicto de ESTADO (se arregla
+  cambiando el estado); **422** = DATOS que no valen (no se arreglan reintentando). Los 422 se comprueban antes que los 409.
+- **«El mismo cliente»**: `customerName` igual tras pasar a minúsculas y colapsar los espacios (`trim` y espacios internos
+  repetidos a uno). **No se pliegan las tildes** («Pérez» y «Perez» son dos clientes). El aparato lo comprueba igual en local.
+
+### `POST /api/conduces` — crear (o AMPLIAR un conduce que ya existe)
+
+```json
+{ "principalId": "<uuid>", "ids": ["<uuid>", "<uuid>"] }
+```
+
+`ids` (≥ 1, sin repetir, sin la principal) son los miembros. La principal SÍ puede ser ya principal de un conduce: así se
+añaden miembros a uno existente. **201** `{ "principalId": "<uuid>", "miembros": ["<uuid>", …] }` — los miembros del conduce
+**DESPUÉS** de crear (también los que ya tenía), ordenados por número de factura (los números más cortos primero: `999`
+antes que `1000`). Un miembro que tuviera tarjeta en una zona del tablero **la pierde** (vuelve a «Sin colocar» si el
+conduce se deshace; mientras es miembro no se coloca).
+
+| Estado | `error` (literal; `<n>` = número de factura) | Cuándo |
+|---|---|---|
+| 422 | `Marca al menos una factura, además de la principal, para el conduce` | `ids` vacío o ausente |
+| 422 | `principalId e ids tienen que ser ids de facturas` | algo que no es un uuid |
+| 422 | `La factura <n> está repetida` | el mismo id dos veces en `ids` |
+| 422 | `La factura <n> es la principal: no va también entre las demás` | la principal dentro de `ids` |
+| 422 | `La factura <n> es de otra sucursal: un conduce no mezcla sucursales` | (sólo para quien ve varias sucursales) |
+| 422 | `La factura <n> es de otro cliente (<nombre>): un conduce junta facturas de un solo cliente` | cliente distinto al de la principal |
+| 404 | `No encontrado` | alguna no existe o no es de tu sucursal |
+| 409 | `La factura <n> está anulada` / `está archivada` | `anulada_at` / `archivado` |
+| 409 | `La factura <n> ya va en la ruta <código>` | `route_id` (el código `RT-…`; `otra ruta` si no se puede leer) |
+| 409 | `La factura <n> ya está entregada` | `delivered_at` o `resultado = entregado` |
+| 409 | `La factura <n> ya tiene resultado (devuelto)` | cualquier otro `resultado` (`devuelto`, `cancelado`) |
+| 409 | `La factura <n> ya es miembro del conduce <principal>` | una de `ids` ya es miembro de otro |
+| 409 | `La factura <n> es miembro del conduce <principal>: no puede ser la principal` | la principal es miembro |
+| 409 | `La factura <n> ya es la principal de otro conduce` | una de `ids` ya tiene miembros |
+| 409 | `Una factura del conduce cambió mientras se guardaba: vuelve a intentarlo` | la carrera: entre la lectura y la escritura alguien la movió. No se guarda NADA |
+
+### `DELETE /api/conduces/{principalId}` — deshacer
+
+Todos los miembros vuelven a ser facturas sueltas. **200** `{ "principalId": "<uuid>", "liberados": ["<uuid>", …] }`.
+Sólo si NINGUNA fila del conduce (la principal ni los miembros) va en una ruta o tiene resultado:
+`409 La factura <n> ya va en la ruta <código>` / `ya está entregada` / `ya tiene resultado (<r>)` (con el número de la que lo
+impide). Además: `404 La factura <n> no encabeza ningún conduce` (la factura existe pero no tiene miembros);
+`409 La factura <n> es miembro del conduce <principal>: deshaz ese` (se llamó con un miembro); `404 No encontrado`;
+`409` de la carrera (el de arriba).
+
+### `DELETE /api/conduces/{principalId}/miembros/{id}` — sacar UN miembro
+
+**200** `{ "principalId": "<uuid>", "id": "<uuid>" }`. Misma condición que deshacer (todo el conduce libre de ruta y de
+resultado). `404 La factura <n> no es miembro de ese conduce`, `404 No encontrado`, y los 409 de deshacer. Si era el último
+miembro, la principal queda como una factura suelta.
+
+### Avisos en vivo y rastro
+
+Los tres avisan `pedidos` y `tablero` (con la sucursal de la FILA, no la del alcance) y dejan su renglón de rastro
+(`conduce creado`, `conduce deshecho`, `miembro sacado de un conduce`).
+
+### Qué ve cada lectura (regla 3 de `conduces.md`)
+
+Los MIEMBROS **no salen como filas propias** — y su contador tampoco los cuenta — en: `GET /api/orders` y su `total`,
+`GET /api/orders/available` y su `total`, `GET /api/board/unplaced` y su `total`, las facetas, `GET /api/board` (tarjetas, conteos
+por zona; la zona **pesa y cuesta el conduce entero**), el Panel (los conteos son de filas propias, las sumas de kg e importe
+llevan todas las facturas) y las paradas de una ruta.
+
+- **`conducePrincipalId`** (uuid o `null`) viaja en TODA fila de `orders` (`GET /api/orders/{id}`, el catálogo, la bajada).
+- **`conduce`** cuelga de la PRINCIPAL en `GET /api/orders`, `GET /api/orders/available` y `GET /api/orders/{id}`;
+  `null` en las demás: `{ "facturas": ["47313", "47314"], "miembros": 1 }` — la principal primero, luego los miembros por número
+  de factura. `weight` y `pedidoCosto` de una fila siguen siendo los de SU factura: los suma quien los pinta.
+- **`GET /api/orders?resumen=1`**: `pesoTotal` y el pre-despacho suman los renglones y el peso de TODAS las filas del conduce.
+- **`GET /api/sync/cambios`** (la bajada): los miembros **SÍ bajan** (con `conducePrincipalId`) para que el aparato trabaje sin
+  conexión y los oculte él (regla 9). Una factura que sale de un conduce (se saca, se deshace, se cancela, el espejo borra la
+  principal) sube su `updatedAt` y vuelve a bajar con `conducePrincipalId: null`. Aparato: esquema local 16.
+
+### Armar, colocar, quitar de la ruta (regla 4)
+
+- **Se elige la PRINCIPAL; el servidor mueve el conduce entero.** `POST /api/routes`, `POST /api/board/columns/{id}/route`
+  (`EngancharPedidoARuta`, una sola sentencia): la principal y TODOS sus miembros reciben `route_id` y `ultima_ruta_id`, y se les
+  limpian `resultado`/`resultado_nota`/`delivered_at` (intento nuevo). **Los miembros no llevan `stop_order`, `segment_km` ni
+  `price`**: la parada es la principal.
+- **Elegir un MIEMBRO suelto se rechaza** con `409` y el motivo literal
+  **`Esa factura va dentro del conduce <principal>: arma el conduce entero`** (`<principal>` = su número de factura) en:
+  `POST /api/routes`, `PUT /api/board/placements/{id}`, `DELETE /api/routes/{id}/stops/{orderId}` y como motivo de la
+  entrada en `rechazados` del cierre. Un armado con un miembro NO arma nada.
+- **Una parada por conduce**: `GET /api/routes`, `GET /api/routes/{id}` (`orders[]`), `ListarRutas.paradas` (el «n paradas» de la
+  bajada) y `PUT /api/routes/{id}/stops` (reordenar) hablan de paradas = principales y sueltas. La parada de una principal trae
+  `weight` = el de todo el conduce, y `price` / `pedidoCosto` = los de todo el conduce; sus `items` son los renglones de TODAS
+  sus facturas (la ficha de cada factura sí trae el `facturaNumero` de cada renglón; los `items` de la parada, no). `totalWeight`, `totalPrice` y `paradasSinCotizar` salen
+  del trigger de la 00014/00023/00029: el peso y el importe suman TODAS las filas de la ruta; **`paradasSinCotizar` cuenta
+  paradas** (un conduce está sin cotizar sólo si ninguna de sus facturas trae costo).
+- **Quitar la principal de una ruta planificada suelta a los miembros con ella** (siguen en su conduce, sin ruta). Borrar la
+  ruta (`DELETE /api/routes/{id}`) los suelta igual que a todas sus filas. `capacidad del camión`: el peso que se compara es el
+  del conduce entero.
+
+### Cierre de la ruta (regla 5)
+
+`POST /api/routes/{id}/results` se manda **SOBRE LA PRINCIPAL** (la parada): su `resultado`, `nota` y hora se aplican igual a
+todos sus miembros en la misma sentencia, cada fila con su `resultado*`, `delivered_at` y `status`; `resultado: null` (desmarcar)
+también. **`aplicados` y `rechazados` hablan de PARADAS** (la principal); los miembros se nombran **dentro** de la entrada de la
+principal: `{ "orderId": "<principal>", "resultado": "entregado", "miembros": ["<uuid>", …] }` (`miembros` sólo si los hay;
+un cliente anterior lo ignora). Marcar un MIEMBRO solo se rechaza (`409` con `rechazados[].motivo` =
+`Esa factura va dentro del conduce <principal>: arma el conduce entero`), y no se guarda nada de esa entrada.
+**Avisos a PEDIDO: uno POR FACTURA** (un conduce de 3 facturas son 3 avisos, cada uno con su `folio`/`factura`; la
+deduplicación por factura es la de siempre). Lo mismo al despachar (`estadoDespachado` / `en tránsito`): se avisa de cada factura.
+
+### El espejo (regla 7)
+
+`GuardarPedidoDelEspejo` **no nombra** `conduce_principal_id`: una fila miembro reescrita por el espejo sigue siendo miembro.
+Si Ventra deja de mandar una factura (cancelada): un **miembro** sale del conduce y se retira como cualquier otra (borrada si no
+va en ruta; quitada de su ruta y marcada `anulada_at` si iba en una no completada); la **principal** cancelada deja a los miembros
+SUELTOS (nunca se destruyen) y, si ella iba en una ruta no completada, los miembros salen de la ruta con ella (quedan en «Sin
+colocar», vivos). Una factura que PEDIDO archiva sale de su conduce (si es la principal, suelta a los miembros). La base lo
+garantiza con `ON DELETE SET NULL` y dos triggers (`conduce_sin_cadenas`, `conduce_al_archivar`).
+
+### Cola sin señal
+
+Las tres formas — `POST /conduces`, `DELETE /conduces/{id}` y `DELETE /conduces/{id}/miembros/{id}` — están en la lista blanca de
+la bandeja de revisión (`sync/internal/sincro/revision_limites.go`: ya son **diecinueve** formas). Un 4xx del servidor deja el
+apunte `rechazado` en la bandeja con el motivo literal de esta sección.
+
 ## `DELETE /api/orders/[id]`
 
 - **Auth**: usuario. **Alcance**: sí. `404 {"error":"Not found"}`.
@@ -2274,8 +2402,8 @@ solo** `409`/`404`, y el motivo se elige en este orden de prioridad:
 |---|---|---|
 | 409 | `Ese pedido ya se entregó` | `deliveredAt` o `resultado = 'entregado'`. Va **primero**: un entregado no está esperando a nada. |
 | 409 | `Ese pedido ya está en una ruta` | `routeId` puesto |
-| 409 | `No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.` | `facturaDomicilio` nulo o `<= 0` (Amado, 07/10/2026) |
-| 409 | `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` | `pedidoCosto` nulo **y** `requiereDomicilio = true` (Amado, 07/10/2026; sólo los marcados desde el 15/10/2026, issue 10) |
+| 409 | ~~`No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.`~~ | **Retirado el 16/10/2026: ya no se emite** (era `facturaDomicilio` nulo o `<= 0`, Amado, 07/10/2026; Jose: «por ahora que entren todos los pedidos con facturas») |
+| 409 | ~~`No se puede asociar al tablero: primero cotiza el domicilio del pedido.`~~ | **Retirado el 16/10/2026: ya no se emite** (era `pedidoCosto` nulo **y** `requiereDomicilio = true`, Amado, 07/10/2026 y issue 10) |
 | 409 | `La zona «<nombre>» está inactiva` | el pedido existe y está libre, y la zona es de tu alcance pero está apagada (`activa = false`, 00022; ver «Zonas inactivas»). Va **antes** que el 404 de la zona |
 | 404 | `Esa zona del tablero ya no existe` | el pedido existe y está libre: lo que no cuadra es la columna |
 | 404 | `Ese pedido no existe o no es de tu sucursal` | no existe **o** es de otra sucursal (no se distingue) |
@@ -2827,8 +2955,8 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `Sólo se pueden retirar paradas de una ruta planificada` |
 | `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `La factura no pertenece a una ruta planificada o ya fue retirada` |
 | `/api/routes/{id}/stops` PUT | 400/409 | los de su sección («reordenar las paradas») |
-| `/api/board/placements/[id]` PUT | 409 | `No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.` |
-| `/api/board/placements/[id]` PUT | 409 | `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` |
+| `/api/board/placements/[id]` PUT | 409 | ~~`No se puede asociar al tablero: la factura no tiene un cobro de domicilio registrado.`~~ — retirado el 16/10/2026: ya no se emite |
+| `/api/board/placements/[id]` PUT | 409 | ~~`No se puede asociar al tablero: primero cotiza el domicilio del pedido.`~~ — retirado el 16/10/2026: ya no se emite |
 | `/api/routes/[id]` GET/PATCH/DELETE | 404 | `No encontrado` |
 | `/api/routes/[id]/results` | 404 | `No encontrada` |
 | `/api/routes/[id]/results` | 400 | `No vino ningún resultado` |

@@ -12,7 +12,7 @@ void main() {
   tearDown(() => base.close());
 
   test('la base arranca en el esquema 8 con todas las tablas', () async {
-    expect(base.schemaVersion, 15);
+    expect(base.schemaVersion, 16);
     final nombres = base.allTables.map((t) => t.actualTableName).toSet();
     expect(
       nombres,

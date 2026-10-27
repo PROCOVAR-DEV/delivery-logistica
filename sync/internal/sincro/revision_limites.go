@@ -57,7 +57,7 @@ func metodoAdmitidoEnRevision(m string) bool {
 // LA LISTA BLANCA DE RUTAS, POR FORMA (auditoría final, B3, 09/10/2026). La cola SÓLO emite estas, que son las
 // ÚNICAS rutas de escritura de `reparto-api` sobre rutas, tablero y —desde el 16/10/2026, issue 14 de Amado— el
 // mantenimiento de la flota (camiones, tipos y distribuidores) y —desde el 20/10/2026, issue 19— el punto de
-// entrega de un pedido: DIECISÉIS formas en total, con el `/api` que pone `reparto.Aplicar`:
+// entrega de un pedido y —desde el 27/10/2026— los conduces: DIECINUEVE formas en total, con el `/api` que pone `reparto.Aplicar`:
 //
 //	/routes                       /routes/{id}            /routes/{id}/stops/{pedido}     /routes/{id}/results
 //	/routes/{id}/stops            (PUT, reordenar las paradas: issue 11, 15/10/2026)
@@ -67,6 +67,8 @@ func metodoAdmitidoEnRevision(m string) bool {
 //	/vehicle-types                /vehicle-types/{id}
 //	/distribuidores               /distribuidores/{id}
 //	/orders/{id}/punto            (PUT y DELETE: el punto de entrega puesto a mano, issue 19, 20/10/2026)
+//	/conduces                     /conduces/{principal}   /conduces/{principal}/miembros/{id}
+//	                              (POST crear, DELETE deshacer y DELETE sacar un miembro: los conduces, 27/10/2026)
 //
 // DE `/orders` ENTRA SÓLO `/orders/{id}/punto`, y no `/orders` ni `/orders/{id}`: la forma exacta, con id, deja pasar
 // el `PUT`/`DELETE` del punto de entrega (la APK y el escritorio lo ponen sin conexión) y NO abre `DELETE
@@ -95,6 +97,7 @@ var reRutaDeRevision = regexp.MustCompile(`^(?:` +
 	`|/board/placements/` + idDeRutaEnRevision +
 	`|/(?:vehicles|vehicle-types|distribuidores)(?:/` + idDeRutaEnRevision + `)?` +
 	`|/orders/` + idDeRutaEnRevision + `/punto` +
+	`|/conduces(?:/` + idDeRutaEnRevision + `(?:/miembros/` + idDeRutaEnRevision + `)?)?` +
 	`)(?:\?[A-Za-z0-9._~=&,+:-]*)?$`)
 
 // Ojo: `..` y `//` ya los rechaza la forma en el camino (un segmento no lleva puntos ni va vacío), pero `..` sigue

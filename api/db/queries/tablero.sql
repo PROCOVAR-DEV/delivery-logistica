@@ -45,16 +45,20 @@ LEFT JOIN vehicles v ON v.id = c.vehicle_id
 LEFT JOIN LATERAL (
     SELECT
         count(*)                                     AS pedidos,
-        coalesce(sum(o.weight), 0)::double precision AS peso_kg,
+        -- UNA TARJETA POR CONDUCE (00029): un miembro no se coloca y no cuenta, pero la principal pesa y cuesta lo
+        -- de todo su conduce (el camión de la zona carga todas sus facturas).
+        coalesce(sum(o.weight + conduce_peso(o.id)), 0)::double precision AS peso_kg,
         -- El costo del domicilio es el de PEDIDO (`pedido_costo`), que es el que puso el
         -- repartidor desde Entrega. `delivery_price` NO participa: es otro número —el
         -- viaje dedicado— y confundirlos es cobrar uno por el otro.
         -- Y si no está cotizado, lo COBRADO en la factura (Amado, 16/10/2026): misma regla que
         -- `costoDeLaParada` (Go) y `costoDeLaParada` (Dart).
-        coalesce(sum(coalesce(o.pedido_costo, CASE WHEN o.factura_domicilio > 0 THEN o.factura_domicilio END)), 0)::double precision AS costo_usd
+        coalesce(sum(coalesce(o.pedido_costo, CASE WHEN o.factura_domicilio > 0 THEN o.factura_domicilio END)
+                     + conduce_costo(o.id)), 0)::double precision AS costo_usd
     FROM board_placements p
     JOIN orders o ON o.id = p.order_id
     WHERE p.column_id = c.id
+      AND o.conduce_principal_id IS NULL
 ) t ON true
 WHERE c.branch_id = sqlc.arg('branch_id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)
@@ -266,6 +270,8 @@ FROM board_placements p
 JOIN board_columns c ON c.id = p.column_id
 JOIN orders o        ON o.id = p.order_id
 WHERE c.branch_id = sqlc.arg('branch_id')
+  -- Un miembro de conduce no es una tarjeta (00029): no se coloca, va dentro de su principal.
+  AND o.conduce_principal_id IS NULL
   AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)
 ORDER BY c.posicion ASC, p.posicion ASC;
 
@@ -290,6 +296,7 @@ FROM board_placements p
 JOIN board_columns c ON c.id = p.column_id
 JOIN orders o        ON o.id = p.order_id
 WHERE c.branch_id = sqlc.arg('branch_id')
+  AND o.conduce_principal_id IS NULL
   AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid);
 
 -- ---------------------------------------------------------------------------
@@ -401,6 +408,8 @@ WHERE
     -- `archivado` es el borrado blando de PEDIDO y son la INMENSA MAYORIA del historico
     -- (50.810 de 55.622), asi que olvidarlo no es un detalle: es ofrecer el archivo entero.
     AND NOT o.archivado
+    -- Un miembro de conduce no es una fila propia (00029, conduces.md regla 3). Lista y contador, la misma línea.
+    AND o.conduce_principal_id IS NULL
     -- SIN DOMICILIO NO SE COLOCA, Y LO QUE DICE «LLEVA DOMICILIO» ES EL COBRO DE LA FACTURA.
     --
     -- Desde el 25/09/2026 aquí iba `requiere_domicilio IS TRUE` (Jose: «sin domicilio no los
@@ -591,6 +600,8 @@ WHERE
     -- La misma línea que la lista, y en el mismo sitio para que se vean juntas al
     -- compararlas a ojo.
     AND NOT o.archivado
+    -- Un miembro de conduce no es una fila propia (00029, conduces.md regla 3). Lista y contador, la misma línea.
+    AND o.conduce_principal_id IS NULL
     -- SIN DOMICILIO NO SE COLOCA, Y LO QUE DICE «LLEVA DOMICILIO» ES EL COBRO DE LA FACTURA.
     --
     -- Desde el 25/09/2026 aquí iba `requiere_domicilio IS TRUE` (Jose: «sin domicilio no los
@@ -768,6 +779,8 @@ WITH puesta AS (
       -- Una zona inactiva no admite tarjetas (00022). Quien lo traduce al 409 es `porQueNoSePudoColocar`.
       AND c.activa
       AND o.route_id IS NULL
+      -- UN MIEMBRO DE CONDUCE NO SE COLOCA (00029): se coloca su principal y él va con ella.
+      AND o.conduce_principal_id IS NULL
       -- Y NO SE PUEDE COLOCAR LO QUE YA SE ENTREGÓ. `route_id IS NULL` no lo cubre: la
       -- clave ajena es `ON DELETE SET NULL`, así que borrar la ruta de ayer deja sueltos a
       -- los entregados. Quien lo traduce a un 409 con su motivo es `porQueNoSePudoColocar`.
@@ -870,7 +883,9 @@ JOIN board_columns c ON c.id = q.column_id;
 -- name: PedidosDeColumnaParaArmarRuta :many
 SELECT
     o.id, o.operation_number, o.customer_name, o.end_lat, o.end_lng,
-    o.weight, o.pedido_costo, o.factura_estado, o.factura_domicilio, o.branch_id,
+    -- El camión carga el conduce entero (00029): el peso de una principal es el de todas sus facturas.
+    (o.weight + conduce_peso(o.id))::double precision AS weight,
+    o.pedido_costo, o.factura_estado, o.factura_domicilio, o.branch_id,
     o.external_id, o.source, o.archivado, o.requiere_domicilio,
     -- SE ENTREGA EL DATO, NO SE FILTRA AQUÍ, igual que `factura_estado` y por lo mismo:
     -- un `WHERE` que los descarte deja el descarte sin nada que decir, y el logístico se
@@ -884,6 +899,7 @@ JOIN orders o        ON o.id = p.order_id
 WHERE p.column_id = sqlc.arg('columna_id')
   AND o.source = 'pedido'
   AND o.route_id IS NULL
+  AND o.conduce_principal_id IS NULL
   AND o.end_lat IS NOT NULL
   AND o.end_lng IS NOT NULL
   AND (sqlc.narg('sucursal')::uuid IS NULL OR c.branch_id = sqlc.narg('sucursal')::uuid)

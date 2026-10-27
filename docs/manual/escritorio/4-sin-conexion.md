@@ -35,9 +35,8 @@ ruta» (si está planificada), ver y sacar los PDF del pre-despacho y el post-de
 consultar Facturas, Clientes y Reportes.
 
 **Armar la ruta de una zona sin conexión usa la misma regla que el servidor**: sólo
-entran las facturas (cuadren o no), con el domicilio cobrado y, si el
-vendedor lo marcó, cotizado. Las
-demás se descartan y se nombran por su conduce, y si no entra ninguna no se arma la
+entran las facturas facturadas (cuadren o no), con o sin el domicilio cobrado o
+cotizado. Las demás se descartan y se nombran por su conduce, y si no entra ninguna no se arma la
 ruta.
 
 El mapa de la ruta se dibuja igual: **las paradas, su orden y el recorrido**. Si

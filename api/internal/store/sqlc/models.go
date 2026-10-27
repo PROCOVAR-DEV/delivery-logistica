@@ -740,6 +740,8 @@ type Order struct {
 	AnuladaAt pgtype.Timestamptz `json:"anulada_at"`
 	// la ruta de la que salió la factura anulada (00027). Sin clave ajena a propósito: la ruta puede borrarse después
 	AnuladaDeRutaID pgtype.UUID `json:"anulada_de_ruta_id"`
+	// conduce (00029): NULL = factura suelta o PRINCIPAL de un conduce; uuid = MIEMBRO y apunta a su principal. Sin cadenas. Solo lo escribe una persona
+	ConducePrincipalID pgtype.UUID `json:"conduce_principal_id"`
 }
 
 type OrderItem struct {

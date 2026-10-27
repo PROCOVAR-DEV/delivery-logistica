@@ -15,6 +15,7 @@ import 'package:drift/drift.dart';
 import '../../../nucleo/regla_de_entrada.dart' show costoDeLaParadaSql;
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/conduce.dart';
 import '../../../nucleo/fecha_de_la_factura.dart';
 import '../../../nucleo/numero_de_factura.dart';
 import 'filtros_pedidos.dart';
@@ -353,6 +354,11 @@ class ConsultasPedidos {
 
     void anadir(Expression<bool> mas) => todo = todo & mas;
 
+    // LOS MIEMBROS DE UN CONDUCE NO SON FILAS (`docs/conduces.md` regla 3): ni en la lista, ni en su
+    // contador, ni en el pre-despacho de lo filtrado —éste los suma aparte, ver [_conSusMiembros]—. Va
+    // aquí, en el único `donde` que comparten la lista, el contador y las facetas.
+    anadir(noEsMiembro(o));
+
     if (sucursalId != null && sucursalId.isNotEmpty) {
       anadir(o.branchId.equals(sucursalId));
     }
@@ -377,7 +383,18 @@ class ConsultasPedidos {
           ..where(_base.orderItems.description.lower().contains(q)),
       );
 
-      anadir(enElPedido | enLosProductos);
+      // Y el conduce que ENCABEZA: se encuentra por el número de CUALQUIERA de sus facturas (los
+      // miembros no son filas, así que si no, buscar «47314» no daría nada).
+      final enSusMiembros = o.id.isInQuery(
+        _base.selectOnly(_base.orders)
+          ..addColumns([_base.orders.conducePrincipalId])
+          ..where(
+            _base.orders.conducePrincipalId.isNotNull() &
+                _base.orders.facturaNumero.lower().contains(q),
+          ),
+      );
+
+      anadir(enElPedido | enLosProductos | enSusMiembros);
     }
 
     switch (f.archivado) {
@@ -601,13 +618,42 @@ class ConsultasPedidos {
   Future<TotalesPreDespacho> preDespachoDeLoFiltrado(
     FiltrosPedidos f, {
     String? sucursalId,
-  }) => _preDespacho(donde(f, sucursalId: sucursalId));
+  }) => _preDespacho(_conSusMiembros(donde(f, sucursalId: sucursalId)));
+
+  /// [filtro] y, además, los MIEMBROS de los conduces que cumplen [filtro]: el pre-despacho saca del
+  /// almacén los renglones de TODAS las facturas del conduce (regla 6), aunque en la lista sólo salga
+  /// su principal.
+  Expression<bool> _conSusMiembros(Expression<bool> filtro) {
+    final o = _base.orders;
+    return filtro |
+        o.conducePrincipalId.isInQuery(
+          _base.selectOnly(_base.orders)
+            ..addColumns([_base.orders.id])
+            ..where(filtro),
+        );
+  }
 
   /// El pre-despacho de LO MARCADO a mano.
-  Future<TotalesPreDespacho> preDespachoDe(List<String> pedidoIds) {
+  ///
+  /// [conSusMiembros]: las facturas que van dentro del conduce de cada una de [pedidoIds] cuentan con
+  /// ella (regla 6 de `docs/conduces.md`). `false` da SÓLO esas filas: lo usa «Por producto y
+  /// factura», que reparte el conduce factura por factura.
+  Future<TotalesPreDespacho> preDespachoDe(
+    List<String> pedidoIds, {
+    bool conSusMiembros = true,
+  }) {
     if (pedidoIds.isEmpty) return Future.value(const TotalesPreDespacho([]));
-    return _preDespacho(_base.orders.id.isIn(pedidoIds));
+    return _preDespacho(
+      conSusMiembros
+          ? _base.orders.id.isIn(pedidoIds) |
+                _base.orders.conducePrincipalId.isIn(pedidoIds)
+          : _base.orders.id.isIn(pedidoIds),
+    );
   }
+
+  /// Los miembros de estos conduces (para repartirlos factura por factura).
+  Future<List<Pedido>> miembrosDeLosConduces(List<String> principales) =>
+      miembrosDe(_base, principales);
 
   /// El pre-despacho de UN pedido PARTIDO POR FACTURA — issue 22 de Maikel (22/10/2026).
   ///
@@ -861,6 +907,7 @@ class ConsultasPedidos {
         ..where(
           columna.isNotNull() &
               columna.equals('').not() &
+              noEsMiembro(_base.orders) &
               (sucursalId == null || sucursalId.isEmpty
                   ? const Constant(true)
                   : _base.orders.branchId.equals(sucursalId)),

@@ -239,7 +239,10 @@ WITH quitadas AS (
     UPDATE orders o SET
         anulada_at = now(), anulada_de_ruta_id = o.route_id, archivado = true,
         route_id = NULL, ultima_ruta_id = NULL, stop_order = NULL, segment_km = NULL,
-        trip_leg = 'outbound'
+        trip_leg = 'outbound',
+        -- UNA FACTURA CANCELADA SALE DE SU CONDUCE (00029, regla 7). La actualización es de ella; los demás
+        -- miembros los suelta ` + "`" + `liberados` + "`" + `, aquí abajo.
+        conduce_principal_id = NULL
     FROM routes r
     WHERE o.id = ANY($1::uuid[])
       AND o.source = 'pedido'
@@ -251,6 +254,20 @@ WITH quitadas AS (
       AND o.delivered_at IS NULL
       AND o.anulada_at IS NULL
     RETURNING o.id, o.external_id, o.anulada_de_ruta_id AS ruta_id
+), liberados AS (
+    -- SI SE CANCELA LA PRINCIPAL, LOS MIEMBROS QUEDAN SUELTOS (regla 7): salen de su conduce y, como la principal
+    -- ya no va en la ruta, también de la ruta (si no tienen resultado: un miembro entregado es historial). Nada
+    -- se destruye. Los miembros que SON de ` + "`" + `quitadas` + "`" + ` (cancelados en la misma tanda) los trata la primera
+    -- cláusula: tocar dos veces la misma fila en una sentencia no está definido.
+    UPDATE orders m SET
+        conduce_principal_id = NULL,
+        route_id       = CASE WHEN m.resultado IS NULL AND m.delivered_at IS NULL THEN NULL ELSE m.route_id END,
+        ultima_ruta_id = CASE WHEN m.resultado IS NULL AND m.delivered_at IS NULL THEN NULL ELSE m.ultima_ruta_id END,
+        stop_order     = CASE WHEN m.resultado IS NULL AND m.delivered_at IS NULL THEN NULL ELSE m.stop_order END,
+        segment_km     = CASE WHEN m.resultado IS NULL AND m.delivered_at IS NULL THEN NULL ELSE m.segment_km END
+    FROM quitadas q
+    WHERE m.conduce_principal_id = q.id
+      AND NOT EXISTS (SELECT 1 FROM quitadas q2 WHERE q2.id = m.id)
 ), origenes AS (
     DELETE FROM board_route_origins b
     USING quitadas q
@@ -413,7 +430,9 @@ SELECT count(*)
 FROM orders o
 LEFT JOIN routes r ON r.id = o.route_id
 WHERE
-    ($1::uuid  IS NULL OR o.branch_id = $1::uuid)
+    -- UN MIEMBRO DE CONDUCE NO ES UNA FILA PROPIA (00029, ` + "`" + `docs/conduces.md` + "`" + ` regla 3). Lista y contador, la misma línea.
+    o.conduce_principal_id IS NULL
+    AND ($1::uuid  IS NULL OR o.branch_id = $1::uuid)
     AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
     AND (
         $3::text IS NULL
@@ -548,6 +567,9 @@ WHERE
     -- Aquí importa el doble: este recuento es el ` + "`" + `total` + "`" + ` que la pantalla enseña encima de
     -- la lista, así que sin esto diría «2.771 disponibles» sobre una lista de 1.423.
     AND NOT o.archivado
+    -- UN MIEMBRO DE CONDUCE NO ES UNA FILA PROPIA (00029, ` + "`" + `docs/conduces.md` + "`" + ` regla 3): se ve dentro de su
+    -- principal. Lista y contador llevan la MISMA línea, y lo ata ` + "`" + `conduces_visibilidad_test.go` + "`" + `.
+    AND o.conduce_principal_id IS NULL
     AND ($1::uuid  IS NULL OR o.branch_id = $1::uuid)
     AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
     AND (
@@ -906,6 +928,8 @@ marcados AS (
         o.folio,
         o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
         o.anulada_at, o.anulada_de_ruta_id,
+        -- LOS MIEMBROS DE CONDUCE BAJAN AL APARATO (regla 9): trabaja sin conexión y los oculta él. NO se filtran aquí.
+        o.conduce_principal_id,
         o.stop_order, o.delivered_at, o.resultado, o.resultado_at, o.resultado_nota,
         o.created_at, o.updated_at,
         GREATEST(
@@ -945,6 +969,7 @@ SELECT
     -- La factura anulada y quitada de su ruta (00027): sólo viaja en las filas archivadas que
     -- ` + "`" + `anuladas_desde` + "`" + ` deja entrar; en el resto, null.
     anulada_at, anulada_de_ruta_id,
+    conduce_principal_id,
     stop_order, delivered_at, resultado, resultado_at, resultado_nota,
     created_at, updated_at, cambiado_at
 FROM marcados
@@ -1014,6 +1039,7 @@ type DiferenciasDePedidosRow struct {
 	PuntoClienteAddress *string            `json:"punto_cliente_address"`
 	AnuladaAt           pgtype.Timestamptz `json:"anulada_at"`
 	AnuladaDeRutaID     pgtype.UUID        `json:"anulada_de_ruta_id"`
+	ConducePrincipalID  pgtype.UUID        `json:"conduce_principal_id"`
 	StopOrder           *int32             `json:"stop_order"`
 	DeliveredAt         pgtype.Timestamptz `json:"delivered_at"`
 	Resultado           *StopResult        `json:"resultado"`
@@ -1135,6 +1161,7 @@ func (q *Queries) DiferenciasDePedidos(ctx context.Context, arg DiferenciasDePed
 			&i.PuntoClienteAddress,
 			&i.AnuladaAt,
 			&i.AnuladaDeRutaID,
+			&i.ConducePrincipalID,
 			&i.StopOrder,
 			&i.DeliveredAt,
 			&i.Resultado,
@@ -1243,6 +1270,7 @@ const facetasMunicipios = `-- name: FacetasMunicipios :many
 SELECT o.municipio AS valor, count(*) AS pedidos
 FROM orders o
 WHERE o.municipio IS NOT NULL
+  AND o.conduce_principal_id IS NULL
   AND ($1::uuid IS NULL OR o.branch_id = $1::uuid)
 GROUP BY o.municipio
 ORDER BY o.municipio ASC
@@ -1287,6 +1315,7 @@ SELECT
 FROM orders o
 LEFT JOIN branches b ON b.id = o.branch_id
 WHERE o.branch_id IS NOT NULL
+  AND o.conduce_principal_id IS NULL
   AND ($1::uuid IS NULL OR o.branch_id = $1::uuid)
 GROUP BY o.branch_id, b.name, b.external_id
 ORDER BY b.name ASC NULLS LAST
@@ -1330,6 +1359,7 @@ const facetasVendedores = `-- name: FacetasVendedores :many
 SELECT o.vendedor AS valor, count(*) AS pedidos
 FROM orders o
 WHERE o.vendedor IS NOT NULL
+  AND o.conduce_principal_id IS NULL
   AND ($1::uuid IS NULL OR o.branch_id = $1::uuid)
 GROUP BY o.vendedor
 ORDER BY o.vendedor ASC
@@ -1715,7 +1745,7 @@ SELECT
     o.municipio, o.vendedor, o.sucursal_codigo, o.branch_id, o.updated_at,
     o.punto_manual, o.punto_manual_por, o.punto_manual_at,
     o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
-    o.folio, o.anulada_at, o.anulada_de_ruta_id,
+    o.folio, o.anulada_at, o.anulada_de_ruta_id, o.conduce_principal_id,
     r.name          AS ruta_nombre,
     r.route_code    AS ruta_codigo,
     r.status        AS ruta_estado,
@@ -1734,7 +1764,9 @@ LEFT JOIN vehicles v ON v.id = r.vehicle_id
 LEFT JOIN branches b ON b.id = o.branch_id
 LEFT JOIN peso_de_los_pedidos pp ON pp.id = o.id
 WHERE
-    ($1::uuid  IS NULL OR o.branch_id = $1::uuid)
+    -- UN MIEMBRO DE CONDUCE NO ES UNA FILA PROPIA (00029, ` + "`" + `docs/conduces.md` + "`" + ` regla 3). Lista y contador, la misma línea.
+    o.conduce_principal_id IS NULL
+    AND ($1::uuid  IS NULL OR o.branch_id = $1::uuid)
     AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
     AND (
         $3::text IS NULL
@@ -1872,6 +1904,7 @@ type ListarPedidosRow struct {
 	Folio               *string            `json:"folio"`
 	AnuladaAt           pgtype.Timestamptz `json:"anulada_at"`
 	AnuladaDeRutaID     pgtype.UUID        `json:"anulada_de_ruta_id"`
+	ConducePrincipalID  pgtype.UUID        `json:"conduce_principal_id"`
 	RutaNombre          *string            `json:"ruta_nombre"`
 	RutaCodigo          *string            `json:"ruta_codigo"`
 	RutaEstado          *RouteStatus       `json:"ruta_estado"`
@@ -1958,6 +1991,7 @@ func (q *Queries) ListarPedidos(ctx context.Context, arg ListarPedidosParams) ([
 			&i.Folio,
 			&i.AnuladaAt,
 			&i.AnuladaDeRutaID,
+			&i.ConducePrincipalID,
 			&i.RutaNombre,
 			&i.RutaCodigo,
 			&i.RutaEstado,
@@ -2023,6 +2057,9 @@ WHERE
     -- ` + "`" + `archivado` + "`" + ` es el borrado blando de PEDIDO y son la INMENSA MAYORIA del historico
     -- (50.810 de 55.622), asi que olvidarlo no es un detalle: es ofrecer el archivo entero.
     AND NOT o.archivado
+    -- UN MIEMBRO DE CONDUCE NO ES UNA FILA PROPIA (00029, ` + "`" + `docs/conduces.md` + "`" + ` regla 3): se ve dentro de su
+    -- principal. Lista y contador llevan la MISMA línea, y lo ata ` + "`" + `conduces_visibilidad_test.go` + "`" + `.
+    AND o.conduce_principal_id IS NULL
     -- alcance por sucursal
     AND ($1::uuid IS NULL OR o.branch_id = $1::uuid)
     -- ` + "`" + `branch_id` + "`" + ` de la query: estrecha, nunca amplía. Va en AND con el alcance, así que
@@ -2610,7 +2647,7 @@ SELECT
     o.created_at, o.updated_at,
     o.punto_manual, o.punto_manual_por, o.punto_manual_at,
     o.punto_cliente_lat, o.punto_cliente_lng, o.punto_cliente_address,
-    o.folio, o.anulada_at, o.anulada_de_ruta_id,
+    o.folio, o.anulada_at, o.anulada_de_ruta_id, o.conduce_principal_id,
     r.name  AS ruta_nombre,
     v.name  AS vehiculo_nombre,
     v.plate AS vehiculo_matricula,
@@ -2689,6 +2726,7 @@ type ObtenerPedidoRow struct {
 	Folio               *string            `json:"folio"`
 	AnuladaAt           pgtype.Timestamptz `json:"anulada_at"`
 	AnuladaDeRutaID     pgtype.UUID        `json:"anulada_de_ruta_id"`
+	ConducePrincipalID  pgtype.UUID        `json:"conduce_principal_id"`
 	RutaNombre          *string            `json:"ruta_nombre"`
 	VehiculoNombre      *string            `json:"vehiculo_nombre"`
 	VehiculoMatricula   *string            `json:"vehiculo_matricula"`
@@ -2759,6 +2797,7 @@ func (q *Queries) ObtenerPedido(ctx context.Context, arg ObtenerPedidoParams) (O
 		&i.Folio,
 		&i.AnuladaAt,
 		&i.AnuladaDeRutaID,
+		&i.ConducePrincipalID,
 		&i.RutaNombre,
 		&i.VehiculoNombre,
 		&i.VehiculoMatricula,
@@ -2772,7 +2811,8 @@ const panelPorSucursal = `-- name: PanelPorSucursal :many
 SELECT
     o.branch_id,
     b.name    AS sucursal_nombre,
-    count(*)  AS pedidos,
+    -- Filas propias (el miembro va dentro de su principal, 00029); el peso lleva todas las facturas.
+    count(*) FILTER (WHERE o.conduce_principal_id IS NULL) AS pedidos,
     coalesce(sum(o.weight), 0)::double precision AS peso_kg
 FROM orders o
 LEFT JOIN branches b ON b.id = o.branch_id
@@ -2824,11 +2864,15 @@ func (q *Queries) PanelPorSucursal(ctx context.Context, sucursal pgtype.UUID) ([
 const panelResumen = `-- name: PanelResumen :one
 
 SELECT
-    count(*)                                                        AS total_pedidos,
-    count(*) FILTER (WHERE o.route_id IS NULL
+    -- LOS CONTEOS SON DE FILAS PROPIAS (un miembro de conduce va dentro de su principal, 00029) y las SUMAS
+    -- de peso e importe llevan todas las facturas: el camión carga el conduce entero.
+    count(*) FILTER (WHERE o.conduce_principal_id IS NULL)          AS total_pedidos,
+    count(*) FILTER (WHERE o.conduce_principal_id IS NULL
+                       AND o.route_id IS NULL
                        AND o.end_lat IS NOT NULL
                        AND o.factura_estado IN ('igual','cambiado')) AS sin_ruta,
-    count(*) FILTER (WHERE o.delivered_at >= $1::timestamptz) AS entregados_hoy,
+    count(*) FILTER (WHERE o.conduce_principal_id IS NULL
+                       AND o.delivered_at >= $1::timestamptz) AS entregados_hoy,
     coalesce(sum(o.weight) FILTER (WHERE o.route_id IS NULL
                        AND o.end_lat IS NOT NULL
                        AND o.factura_estado IN ('igual','cambiado')), 0)::double precision AS peso_pendiente,
@@ -3272,7 +3316,8 @@ FROM order_items oi
 JOIN orders o        ON o.id = oi.order_id
 LEFT JOIN products p ON p.id = oi.product_id
 WHERE btrim(oi.description) <> ''
-  AND o.id = ANY($1::uuid[])
+  -- Y LOS DE SUS MIEMBROS (conduces, regla 6): se pide por la principal y salen los renglones de todo el conduce.
+  AND (o.id = ANY($1::uuid[]) OR o.conduce_principal_id = ANY($1::uuid[]))
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
 GROUP BY btrim(oi.description)
 ORDER BY formatos DESC, producto ASC

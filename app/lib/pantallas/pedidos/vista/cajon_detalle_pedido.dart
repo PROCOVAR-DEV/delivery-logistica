@@ -24,6 +24,7 @@ import '../datos/formato.dart';
 import '../datos/repositorio_pedidos.dart';
 import '../estado/proveedores_pedidos.dart';
 import 'cajon_ubicar_entrega.dart';
+import 'conduces.dart';
 import 'kit.dart';
 
 class CajonDetallePedido extends ConsumerWidget {
@@ -179,6 +180,7 @@ class _Ficha extends StatelessWidget {
                 ..._ubicarLaEntrega(context, ficha),
               ],
             ),
+            SeccionConduceDeLaFicha(pedido: p),
             _Seccion(
               titulo: 'Recorrido',
               hijos: [

@@ -92,6 +92,64 @@ retiró el 03/09/2026 (`POST /api/orders` ya no existe).
 (para los enlaces y favoritos que ya existen). Título de la pantalla y del menú:
 «Facturas». Subtítulo: `Todas las facturas acumuladas de todas las rutas`.
 
+### Pestañas «Facturas» y «Conduces» (27/10/2026, `docs/conduces.md`)
+
+La pantalla tiene dos pestañas (`diseno/pestanas.dart`, carrusel bajo 900 px y dos botones por encima):
+**Facturas** (la lista de siempre, con sus filtros en la dirección `/facturas?...`, que no cambian) y
+**Conduces**. La pestaña vive en la pantalla y no en la dirección.
+
+Un **conduce** junta varias facturas del MISMO cliente en UNA parada. Lo crea una persona; el espejo nunca
+junta. Los miembros bajan al aparato con `conducePrincipalId` (esquema local 16) y **no salen como filas
+propias** en: la lista de Facturas y su contador (`noEsMiembro` en `ConsultasPedidos.donde`, que comparten
+lista, contador y facetas), «Sin colocar», los disponibles del asistente, el tablero (tarjetas y su zona), el
+Panel y el armado (`nucleo/conduce.dart`, `nucleo/regla_de_entrada.dart`). La fila/tarjeta de la **principal**
+dice `Conduce 47313 + 47314` (los números unidos, la principal primero) y enseña el peso y el domicilio SUMADOS de
+todas sus facturas.
+
+**Pestaña «Conduces».** Arriba el texto (literal): `Un conduce es lo que sale con el camión y puede juntar varias
+facturas; la primera que marques es la que lo crea y dice a qué cliente va dedicado.` Debajo, `Crear conduce`
+(`BotonPrincipal`, icono de eslabón; apagado, con el motivo al lado, mientras no haya dos marcadas que se puedan
+juntar) y los conduces de la sucursal: por cada uno `Conduce <números>`, el cliente, `<n> facturas · <peso> ·
+<domicilio>`, el estado de reparto de la principal, una línea `Con ella: <factura>` con su botón `Sacar` por cada
+miembro y `Deshacer conduce` (`BotonDestructivo`). `Sacar` y `Deshacer conduce` se apagan —y el motivo sale
+escrito debajo— si alguna factura del conduce va en una ruta o tiene resultado. Sin ninguno: `Aún no hay conduces
+en esta sucursal.`
+
+**Crear.** En la franja de lo marcado, con **dos o más** facturas, sale `Crear conduce` (icono de eslabón, sin
+fondo). **La primera marcada es la principal**: el orden de marcado se conserva (`SeleccionPedidos` es un `Set`
+ordenado por inserción y nadie lo reordena). El gesto abre un cajón `Crear conduce` que dice `La principal será
+47313 (<Cliente>). Las demás irán con ella` y lista `Principal:` / `Con ella:`. Si no se puede, el cajón DICE por
+qué y `Crear conduce` (`BotonPrincipal`) queda apagado, con los literales del servidor (`contratos-api.md`,
+«Conduces»; `<n>` = número de factura): `Marca al menos una factura, además de la principal, para el conduce`,
+`La factura <n> es de otra sucursal: un conduce no mezcla sucursales`, `La factura <n> es de otro cliente (<nombre>): un
+conduce junta facturas de un solo cliente` (mismo cliente = nombre en minúsculas y espacios colapsados, SIN plegar tildes),
+`La factura <n> está archivada` / `ya va en la ruta <RT-…>` / `ya está entregada` / `ya tiene resultado (<r>)` / `ya es
+miembro del conduce <principal>` / `ya es la principal de otro conduce`. Son las reglas del servidor (la principal SÍ puede ser ya principal: se le añaden
+miembros). Al crear, las facturas dejan de estar marcadas.
+
+**Las tres formas.** APK y escritorio: se valida aquí, se escribe `conduce_principal_id` y se encola
+`POST /conduces`, `DELETE /conduces/{id}` o `DELETE /conduces/{id}/miembros/{id}` (aplicación optimista; el
+servidor manda y la bajada trae la verdad); si el servidor rechaza el apunte queda en la bandeja con su motivo
+literal. Web: va directo al servidor y espera; un 409/422 se dice con su `error` literal dentro del cajón o de la
+tarjeta del conduce, y no se escribe nada.
+
+**Ficha de la factura.** La principal de un conduce lleva una sección `Conduce` (`Conduce 47313 + 47314`, sus
+facturas y `Deshacer conduce`); un miembro dice `Esta factura va dentro de un conduce: se mueve con su principal.`
+
+**Armar, colocar, quitar.** Se elige la PRINCIPAL; un miembro suelto no entra (en el armado y en la zona, el literal del servidor `Esa factura va dentro del conduce <principal>: arma el conduce entero`). Los dos armados locales
+(asistente y zona) mueven a la principal y a todos sus miembros (`route_id`, `ultima_ruta_id`) y el miembro **no
+recibe `stop_order`**: la parada es una por conduce (`mirarParadasDe`, `paradasPorRuta` y el «n paradas» la
+cuentan una). El peso y el domicilio de la parada, de la ruta y de la zona suman todas las filas. Quitar la
+principal de una ruta planificada quita a los miembros.
+
+**Cierre de ruta con conduces.** El conduce es UNA parada en la hoja del cierre: `Conduce 47313 + 47314` con sus
+facturas listadas debajo (`Principal:` / `Con ella:`). Lo que se marca en ella (resultado, nota, hora) se aplica a
+las facturas miembro en la base local, cada fila con su propio `resultado*`; la cola manda sólo el cierre de la
+principal (un `orderId` de miembro se rechazaría con 409 y el sincronizador rechaza el apunte ENTERO) y el servidor
+cascadea y avisa a PEDIDO factura por factura. Buscar en Facturas el número de un miembro encuentra la fila de su principal. El `Faltan N parada(s) por decidir`, `<n> parada(s)` y el buscador cuentan
+conduces, no facturas; buscar el número de CUALQUIERA de sus facturas encuentra la parada. El pre-despacho y «Por
+producto y factura» reparten el conduce factura por factura (cada renglón guarda su `factura_numero`).
+
 ### Arranque acotado (importante)
 
 La lista **arranca filtrada** a lo que puede subir a un camión: `factura=con_factura` y
@@ -271,9 +329,10 @@ Título = nombre del cliente, subtítulo = folio. Secciones:
   - Sin factura: `Todavía no aparece facturado en Ventra.`
   - Con `igual` o `cambiado`, una línea más que dice si entra a una ruta (15/10/2026,
     `lineaDeRutaDeLaFicha`, que pregunta a `porQueNoSePuedeColocar` y no repite la regla):
-    `Puede ir a una ruta.` / `No entra a una ruta: la factura no tiene un cobro de domicilio registrado.`
-    / `No entra a una ruta: se marcó domicilio y Entrega todavía no lo cotizó.` Nada si ya va
-    en una ruta, está entregado o archivado (ni si no tiene punto de entrega).
+    `Puede ir a una ruta.` Nada si ya va en una ruta, está entregado o archivado (ni si no
+    tiene punto de entrega). Las líneas `No entra a una ruta: la factura no tiene un cobro de
+    domicilio registrado.` y `…se marcó domicilio y Entrega todavía no lo cotizó.` se retiraron el
+    16/10/2026 (el domicilio ya no frena; ver `CLAUDE.md` §2).
   - Y si hay línea de domicilio: `La factura cobró <n.nn> USD de domicilio.`
 - `Domicilio` (caja verde si hay precio; gris si no): `Distancia` (`<n.nn> km` o `—`), `Peso total`
   (`<n.nn> kg`), y a la derecha el precio del domicilio —`costoDeLaParada`: el de Entrega y, si no, el que cobró la

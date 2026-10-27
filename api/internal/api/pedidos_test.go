@@ -928,3 +928,8 @@ func TestElAltaManualDePedidosYaNoExiste(t *testing.T) {
 		t.Fatalf("el 405 también sale en JSON: %s", w.Body.String())
 	}
 }
+
+// MiembrosDeConduces: este doble no tiene conduces (00029); los conduces se prueban contra Postgres de verdad.
+func (d *dobleDePedidos) MiembrosDeConduces(context.Context, sqlc.MiembrosDeConducesParams) ([]sqlc.MiembrosDeConducesRow, error) {
+	return nil, nil
+}

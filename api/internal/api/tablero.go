@@ -1495,6 +1495,14 @@ func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request,
 		httpx.Error(w, r, http.StatusNotFound, msgPedidoNoEsta)
 		return
 	}
+	// UN MIEMBRO DE CONDUCE NO SE COLOCA (00029, `docs/conduces.md` regla 4): se coloca su principal y él va con
+	// ella. Primero, porque su arreglo es otro (elegir la tarjeta del conduce) y vale aunque esté libre.
+	if p.ConducePrincipalID.Valid {
+		if m, ok := motivoDeMiembroSuelto(r, a, pedido); ok {
+			httpx.Error(w, r, http.StatusConflict, m)
+			return
+		}
+	}
 	// PRIMERO EL ENTREGADO Y DESPUÉS LA RUTA, y el orden es lo que importa aquí.
 	//
 	// Un entregado conserva su `route_id` mientras la ruta exista, así que mirando la

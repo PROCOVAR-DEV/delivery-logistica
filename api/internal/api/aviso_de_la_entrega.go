@@ -19,6 +19,12 @@ import (
 func (s *Servidor) avisosDeLasEntregas(
 	r *http.Request, a *alcance.Acotado, ids []uuid.UUID, estado string, cuando time.Time,
 ) []AvisoDeParada {
+	// UN CONDUCE AVISA POR CADA FACTURA (00029, regla 5): a PEDIDO no le importa que viajen juntas.
+	ids, err := conSusMiembros(r, a, ids)
+	if err != nil {
+		httpx.Registro(r).Error("no se pudieron leer los miembros de los conduces para avisar a PEDIDO", "err", err)
+		return nil
+	}
 	filas, err := a.EntregasParaAvisar(r.Context(), ids)
 	if err != nil {
 		httpx.Registro(r).Error("no se pudieron leer las entregas para avisar a PEDIDO", "err", err)

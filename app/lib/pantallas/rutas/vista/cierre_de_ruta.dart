@@ -16,6 +16,8 @@ import '../../../impresion/armar_post_despacho.dart' as papel;
 import '../../../impresion/post_despacho.dart' show pdfPostDespacho;
 import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/conduce.dart' show ConduceDe;
+import '../../../nucleo/numero_de_factura.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
 import '../../../nucleo/proveedores.dart';
@@ -130,15 +132,20 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
 
   /// ¿La parada responde a lo que se busca? Por número de factura, cliente, dirección o
   /// conduce, sin mayúsculas. Un filtro vacío deja pasar todo.
-  bool _coincide(Pedido p, String filtro) {
+  ///
+  /// Una parada que es un CONDUCE responde también por el número de CADA una de sus facturas: buscar
+  /// «47314» encuentra la parada de «47313 + 47314» (`docs/conduces.md`).
+  bool _coincide(Pedido p, String filtro, [ConduceDe? conduce]) {
     final q = filtro.trim().toLowerCase();
     if (q.isEmpty) return true;
     return [
-      p.facturaNumero,
+      for (final f in conduce?.facturas ?? [p]) ...[
+        f.facturaNumero,
+        f.operationNumber,
+      ],
       p.customerName,
       p.endAddress,
       p.address,
-      p.operationNumber,
     ].any((t) => (t ?? '').toLowerCase().contains(q));
   }
 
@@ -446,13 +453,18 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
         ref.watch(renglonesDeParadasProvider(widget.rutaId)).value ??
         const <String, List<RenglonConPeso>>{};
 
+    final conduces =
+        ref.watch(conducesDeRutaProvider(widget.rutaId)).value ??
+        const <String, ConduceDe>{};
+
     _partirDeLoGuardado(paradas);
 
     final sinMarcar = paradas.where((p) => _resultados[p.id] == null).length;
     // Con el buscador activo sólo se pintan las que coinciden, con su posición real.
     final visibles = [
       for (var i = 0; i < paradas.length; i++)
-        if (_coincide(paradas[i], _filtro)) (i, paradas[i]),
+        if (_coincide(paradas[i], _filtro, conduces[paradas[i].id]))
+          (i, paradas[i]),
     ];
     final hoja = armarPostDespacho([
       for (final parada in paradas)
@@ -688,6 +700,7 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
                   esLaPrimera: i == visibles.first.$1,
                   numero: parada.stopOrder ?? (i + 1),
                   pedido: parada,
+                  conduce: conduces[parada.id],
                   resultado: _resultados[parada.id],
                   nota: _nota(parada.id),
                   soloLectura: _soloLectura,
@@ -792,6 +805,7 @@ class _Parada extends StatelessWidget {
     required this.esLaPrimera,
     required this.numero,
     required this.pedido,
+    required this.conduce,
     required this.resultado,
     required this.nota,
     required this.soloLectura,
@@ -801,6 +815,10 @@ class _Parada extends StatelessWidget {
 
   final int numero;
   final Pedido pedido;
+
+  /// Si la parada es un CONDUCE: UNA parada con sus facturas listadas debajo («47313 + 47314»).
+  /// Lo que se marque aquí se aplica a todas (`AccionesDeRuta.cerrar`).
+  final ConduceDe? conduce;
   final String? resultado;
   final TextEditingController nota;
 
@@ -859,7 +877,16 @@ class _Parada extends StatelessWidget {
                         claveDeLaFactura: ValueKey(
                           'cierre-factura-${pedido.id}',
                         ),
+                        conduce: conduce?.etiqueta,
                       ),
+                      if (conduce != null)
+                        for (final f in conduce!.facturas)
+                          Text(
+                            '${f.id == pedido.id ? 'Principal' : 'Con ella'}: '
+                            '${NumeroDeFactura.de(f.facturaNumero) ?? f.operationNumber ?? f.customerName}',
+                            key: ValueKey('cierre-conduce-${f.id}'),
+                            style: TextStyle(color: Colores.gris, fontSize: 12),
+                          ),
                       Text(
                         pedido.endAddress ?? pedido.address,
                         style: TextStyle(color: Colores.gris),

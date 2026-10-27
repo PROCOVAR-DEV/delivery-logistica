@@ -525,6 +525,12 @@ type Querier interface {
 	// Va acotada igual que el `INSERT`: sin el `branch_id` aquí, mandar el id de la zona de
 	// otra sucursal la devolvería, y eso es enseñar lo que no es de uno.
 	CrearColumna(ctx context.Context, arg CrearColumnaParams) (CrearColumnaRow, error)
+	// CREAR (o AMPLIAR) UN CONDUCE: las `ids` pasan a ser miembros de la principal. Una sola sentencia con TODAS las
+	// guardas en el WHERE: cada miembro suelto (ni miembro ni principal de otro), libre (sin ruta, sin resultado, sin
+	// entrega, sin archivar) y de la MISMA sucursal que una principal que también está libre y no es miembro. Un
+	// miembro que tuviera tarjeta en una zona del tablero la pierde: va dentro de su principal y ya no se coloca.
+	// Devuelve los que se juntaron; si son menos que los pedidos, el manejador deshace todo (409).
+	CrearConduce(ctx context.Context, arg CrearConduceParams) ([]uuid.UUID, error)
 	// Nace en la sucursal de quien llama (`branch_id` lo rellena `alcance.Acotado`). El manejador no
 	// llama a esta consulta sin sucursal: en modo «todas» contesta 400.
 	CrearDistribuidor(ctx context.Context, arg CrearDistribuidorParams) (Distribuidore, error)
@@ -592,6 +598,9 @@ type Querier interface {
 	// Retirar una moneda es desactivarla, no borrarla: los importes ya guardados se
 	// convirtieron con su tasa y sin la fila no hay forma de volver a explicarlos.
 	DesactivarMoneda(ctx context.Context, code string) (int64, error)
+	// DESHACER: todos los miembros vuelven a ser facturas sueltas. Solo si NINGUNA fila del conduce (la principal ni
+	// los miembros) va en una ruta o tiene resultado: lo que ya salió del almacén es historia.
+	DeshacerConduce(ctx context.Context, arg DeshacerConduceParams) ([]uuid.UUID, error)
 	// Sólo un vehículo de referencia por sucursal, y lo impide el índice único parcial
 	// `vehicles_una_referencia_por_sucursal`. Por eso hay que DESMARCAR a los demás antes de
 	// marcar el nuevo, y las dos cosas dentro de la MISMA transacción: si no, el INSERT choca
@@ -778,6 +787,13 @@ type Querier interface {
 	//
 	// LAS DOS PUERTAS pasan por aquí: `POST /api/routes` y `POST /api/board/columns/{id}/route`
 	// (`TableroEngancharPedidoARuta` es la misma consulta con otro envoltorio).
+	//
+	// UN CONDUCE ENTRA ENTERO EN LA MISMA SENTENCIA (00029, conduces.md regla 4): al enganchar la principal, sus
+	// miembros se enganchan a la MISMA ruta y se les quita lo que traían (`resultado`…, es un intento nuevo). Los
+	// miembros no llevan `stop_order`, `segment_km` ni `price`: la parada es la principal, y lo que cuesta el conduce
+	// entero lo suma `conduce_costo` al leer las paradas. Un miembro nunca se engancha solo: el `WHERE` de la primera cláusula exige `conduce_principal_id IS NULL`.
+	//
+	// Devuelve cuántas PRINCIPALES/sueltas se engancharon (0 o 1): lo que antes era `:execrows`.
 	EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoARutaParams) (int64, error)
 	// ---------------------------------------------------------------------------
 	// Lo que ya no viene en Ventra  (issue 20, «ya no va»)
@@ -990,6 +1006,20 @@ type Querier interface {
 	//
 	// Va sin alcance: la bajada entra con clave de servicio y recorre las ocho sucursales.
 	GuardarVentaFacturada(ctx context.Context, arg GuardarVentaFacturadaParams) (GuardarVentaFacturadaRow, error)
+	// Conduces (super factura): juntar varias facturas de un mismo cliente en UNA parada.
+	// La especificación entera, `docs/conduces.md`; el contrato, `docs/contratos-api.md` «Conduces».
+	//
+	// `orders.conduce_principal_id` (00029): NULL = factura suelta o PRINCIPAL; uuid = MIEMBRO, apunta a su principal.
+	// Solo lo escribe una persona, y SOLO estas consultas (el upsert del espejo no lo nombra).
+	//
+	// EL ALCANCE VA EN EL SQL (`sucursal`), como en todos los ficheros de esta carpeta. Y las reglas se comprueban
+	// DOS veces: el manejador lee con `LeerFilasParaConduce` (con candado) para poder NOMBRAR la factura que lo
+	// impide, y la escritura repite las guardas en su `WHERE` por si algo cambió entre las dos cosas; cero filas de
+	// más o de menos deshacen la transacción.
+	// Las filas que importan a un conduce, CON CANDADO (FOR UPDATE): las pedidas por id más, si se da `principal`,
+	// la principal y todos sus miembros. Dentro de una transacción, nadie las mueve mientras se decide.
+	// Con alcance: una fila de otra sucursal no devuelve nada, que es el mismo 404 que si no existiera.
+	LeerFilasParaConduce(ctx context.Context, arg LeerFilasParaConduceParams) ([]LeerFilasParaConduceRow, error)
 	// ---------------------------------------------------------------------------
 	// El punto de entrega puesto a mano  (PUT / DELETE /api/orders/{id}/punto, 00024)
 	// ---------------------------------------------------------------------------
@@ -1026,6 +1056,8 @@ type Querier interface {
 	// El `WHERE` es el mismo que el de marcar, y por lo mismo: también por `ultima_ruta_id`
 	// cuando la parada ya soltó su `route_id` CON UN RESULTADO, para poder desmarcar un
 	// devuelto. Cero filas es «ese pedido no va en esta ruta», el rechazo del contrato.
+	//
+	// Y SE DESMARCA IGUAL EN SUS MIEMBROS (00029, regla 5): lo que se aplicó al conduce se deshace en el conduce.
 	LimpiarResultadoDeParada(ctx context.Context, arg LimpiarResultadoDeParadaParams) (int64, error)
 	// La pantalla de administración: los últimos avisos, con lo que pasó con cada uno.
 	ListarAvisosAPedido(ctx context.Context, arg ListarAvisosAPedidoParams) ([]ListarAvisosAPedidoRow, error)
@@ -1514,7 +1546,17 @@ type Querier interface {
 	//     sabe explicar tres semanas después.
 	//
 	// Ni `devuelto` ni `cancelado` tocan inventario: el reintegro lo hace Ventra.
+	//
+	// EL RESULTADO DE UNA PRINCIPAL SE APLICA IGUAL A SUS MIEMBROS (00029, conduces.md regla 5), en la misma
+	// sentencia y cada fila con su `resultado*`, su `delivered_at` y su `status`. El `WHERE` de la primera cláusula
+	// exige `conduce_principal_id IS NULL`: marcar un MIEMBRO suelto no existe (cero filas = «no va en esta ruta»).
+	// Devuelve cuántas PARADAS se marcaron (0 o 1), lo que antes era `:execrows`.
 	MarcarResultadoDeParada(ctx context.Context, arg MarcarResultadoDeParadaParams) (int64, error)
+	// LOS MIEMBROS DE VARIAS PRINCIPALES de una vez: lo que enseña `conduce` en `GET /api/orders` y lo que necesita el
+	// cierre para avisar a PEDIDO por cada factura. En el orden en que se leen, que es el del número de factura
+	// (primero los más cortos: «999» antes que «1000») y el id para desempatar. Sin archivadas: una factura archivada
+	// sale de su conduce (00029, trigger) y no cuenta.
+	MiembrosDeConduces(ctx context.Context, arg MiembrosDeConducesParams) ([]MiembrosDeConducesRow, error)
 	// Mover lo de una columna a otra de golpe, para poder borrar la primera sin perder el
 	// trabajo. Las tarjetas se ponen DETRÁS de lo que ya haya en la de destino, en su mismo
 	// orden relativo: quien juntó dos zonas no quiere que se le mezclen las paradas.
@@ -1923,6 +1965,8 @@ type Querier interface {
 	// El alcance se copia de `ListarVehiculos`: se acota por la sucursal de la RUTA, que es la
 	// misma por la que se acota `ContarVehiculosEnRuta`.
 	RutasAbiertasDeLaFlota(ctx context.Context, sucursal pgtype.UUID) ([]RutasAbiertasDeLaFlotaRow, error)
+	// SACAR UN MIEMBRO: misma condición que deshacer (ninguna fila del conduce en ruta ni con resultado).
+	SacarMiembroDeConduce(ctx context.Context, arg SacarMiembroDeConduceParams) (int64, error)
 	// Una sucursal nueva nace con COPIA de los tipos «de todas» (nombre, costo y estado), como
 	// las que ya existían cuando la 00018 se los dio a cada una. Sin esto empezaría con el catálogo
 	// vacío y su primer camión (`type` por defecto «truck») daría 400. Va en la misma transacción

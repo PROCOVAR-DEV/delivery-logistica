@@ -187,6 +187,8 @@ class Bajada {
     await _frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
     // Y otra por las facturas anuladas de la ultima semana (frescura.dart, 23/10/2026, esquema 15).
     await _frescura.rebajarLasFacturasAnuladas();
+    // Y otra por el conduce de cada factura (frescura.dart, 27/10/2026, esquema 16).
+    await _frescura.rebajarLosPedidosPorSuConduce();
 
     for (var vuelta = 0; vuelta < maximoDeTandas; vuelta++) {
       final desde = await _frescura.desde(Colecciones.pedidos);
@@ -916,6 +918,8 @@ class Bajada {
             puntoManualPor: Value(_texto(j['puntoManualPor'])),
             puntoManualAt: Value(_fecha(j['puntoManualAt'])),
             folio: Value(_texto(j['folio'])),
+            // El conduce: nulo = suelta o principal; con valor = miembro (`docs/conduces.md`).
+            conducePrincipalId: Value(_texto(j['conducePrincipalId'])),
             puntoClienteLat: Value(_numero(j['puntoClienteLat'])),
             puntoClienteLng: Value(_numero(j['puntoClienteLng'])),
             puntoClienteAddress: Value(_texto(j['puntoClienteAddress'])),

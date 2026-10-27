@@ -46,6 +46,7 @@ import 'package:drift/drift.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/cola/cola_salida.dart';
 import '../../../nucleo/cola/provisionales.dart';
+import '../../../nucleo/conduce.dart';
 import '../../../nucleo/red/escritura_en_vivo.dart';
 import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/registro/registro.dart';
@@ -403,6 +404,15 @@ class AccionesDeRuta {
       );
     }
 
+    // UN MIEMBRO SUELTO NO SE ARMA: el servidor responde 409 con el número de su principal y NO arma
+    // nada (`docs/contratos-api.md`, «Conduces»).
+    for (final p
+        in await (_base.select(_base.orders)..where(
+              (o) => o.id.isIn(pedidoIds) & o.conducePrincipalId.isNotNull(),
+            ))
+            .get()) {
+      throw RechazoLocal((await motivoDeMiembro(_base, p))!);
+    }
     final pedidos = await _pedidosArmables(pedidoIds, sucursalId);
 
     // EL REPETIDO NO ES UN CONFLICTO. Mandar dos veces el mismo id devolvia UNA
@@ -434,7 +444,12 @@ class AccionesDeRuta {
       throw RechazoLocal(_mensajeDeFactura(noFacturados));
     }
 
-    final pesoTotal = pedidos.fold<double>(0, (suma, p) => suma + p.weight);
+    // LOS MIEMBROS DE UN CONDUCE PESAN Y COBRAN CON SU PRINCIPAL: van en el mismo camión
+    // (`docs/conduces.md` regla 4). Son filas, no paradas.
+    final miembros = await miembrosDe(_base, [for (final p in pedidos) p.id]);
+    final pesoTotal =
+        pedidos.fold<double>(0, (suma, p) => suma + p.weight) +
+        miembros.fold<double>(0, (suma, m) => suma + m.weight);
     final vehiculo = await (_base.select(
       _base.vehicles,
     )..where((v) => v.id.equals(vehiculoId))).getSingleOrNull();
@@ -567,7 +582,7 @@ class AccionesDeRuta {
               // El porqué entero está en `espejoDelTotalDelServidor`.
               totalPrice: Value(
                 ImporteDeRuta.espejoDelTotalDelServidor(
-                  pedidos.map(
+                  [...pedidos, ...miembros].map(
                     (p) => costoDeLaParada(p.pedidoCosto, p.facturaDomicilio),
                   ),
                 ),
@@ -630,6 +645,8 @@ class AccionesDeRuta {
           ),
         );
       }
+      // Y los miembros de cada conduce, con ella a la misma ruta y sin parada propia.
+      await llevarLosMiembrosALaRuta(_base, orden, rutaId, ahora);
     });
 
     await _cola.encolar(
@@ -835,6 +852,8 @@ class AccionesDeRuta {
             // subirlo a un camión es ir a casa de alguien que ya recibió.
             o.archivado.equals(false) &
             o.deliveredAt.isNull() &
+            // Un MIEMBRO de un conduce no se arma suelto: se elige su principal y ella lo lleva.
+            noEsMiembro(o) &
             o.endLat.isNotNull() &
             o.endLng.isNotNull() &
             (sucursalId == null || sucursalId.isEmpty
@@ -1134,53 +1153,57 @@ class AccionesDeRuta {
   /// (devuelto o cancelado).
   ///
   /// Los dos «no» son los LITERALES del servidor, en su orden.
-  Future<void> quitarParada(String rutaId, String pedidoId) =>
-      _unaSola('quitar-parada:$rutaId:$pedidoId', () async {
-        final ruta = await _ruta(rutaId);
-        if (ruta == null) throw const RechazoLocal('No encontrada');
-        if (ruta.status != EstadoRuta.planificada) {
-          throw const RechazoLocal(msgSoloSeRetiranDeRutaPlanificada);
-        }
-        // La parada tiene que estar en ESTA ruta y sin resultado ni entrega: lo
-        // que el servidor exige en el `WHERE` de `SoltarParadaPlanificada`. Sin
-        // esta guarda la APK soltaria algo que luego el servidor rechaza con un
-        // 409 que llega horas despues a la bandeja.
-        final parada = await (_base.select(
-          _base.orders,
-        )..where((o) => o.id.equals(pedidoId))).getSingleOrNull();
-        if (parada == null ||
-            parada.routeId != rutaId ||
-            parada.resultado != null ||
-            parada.deliveredAt != null) {
-          throw const RechazoLocal(msgParadaNoPerteneceAPlanificada);
-        }
-        final enVivo = _enVivo;
-        if (enVivo != null) {
-          await _mandar(
-            enVivo,
-            metodo: 'DELETE',
-            ruta: '/routes/$rutaId/stops/$pedidoId',
-          );
-        }
-        await (_base.update(
-          _base.orders,
-        )..where((o) => o.id.equals(pedidoId))).write(
-          const OrdersCompanion(
-            routeId: Value(null),
-            ultimaRutaId: Value(null),
-            stopOrder: Value(null),
-            segmentKm: Value(null),
-            tripLeg: Value(Tramo.ida),
-          ),
+  Future<void> quitarParada(String rutaId, String pedidoId) => _unaSola(
+    'quitar-parada:$rutaId:$pedidoId',
+    () async {
+      final ruta = await _ruta(rutaId);
+      if (ruta == null) throw const RechazoLocal('No encontrada');
+      if (ruta.status != EstadoRuta.planificada) {
+        throw const RechazoLocal(msgSoloSeRetiranDeRutaPlanificada);
+      }
+      // La parada tiene que estar en ESTA ruta y sin resultado ni entrega: lo
+      // que el servidor exige en el `WHERE` de `SoltarParadaPlanificada`. Sin
+      // esta guarda la APK soltaria algo que luego el servidor rechaza con un
+      // 409 que llega horas despues a la bandeja.
+      final parada = await (_base.select(
+        _base.orders,
+      )..where((o) => o.id.equals(pedidoId))).getSingleOrNull();
+      if (parada == null ||
+          parada.routeId != rutaId ||
+          parada.resultado != null ||
+          parada.deliveredAt != null) {
+        throw const RechazoLocal(msgParadaNoPerteneceAPlanificada);
+      }
+      final enVivo = _enVivo;
+      if (enVivo != null) {
+        await _mandar(
+          enVivo,
+          metodo: 'DELETE',
+          ruta: '/routes/$rutaId/stops/$pedidoId',
         );
-        if (enVivo == null) {
-          await _cola.encolar(
-            metodo: 'DELETE',
-            ruta: '/routes/$rutaId/stops/$pedidoId',
-            cuerpo: const <String, Object?>{},
-          );
-        }
-      });
+      }
+      await (_base.update(
+        _base.orders,
+      )..where((o) => o.id.equals(pedidoId))).write(
+        const OrdersCompanion(
+          routeId: Value(null),
+          ultimaRutaId: Value(null),
+          stopOrder: Value(null),
+          segmentKm: Value(null),
+          tripLeg: Value(Tramo.ida),
+        ),
+      );
+      // Quitar la principal quita a los miembros (`docs/conduces.md` regla 4).
+      await soltarLosMiembrosDeLaRuta(_base, [pedidoId]);
+      if (enVivo == null) {
+        await _cola.encolar(
+          metodo: 'DELETE',
+          ruta: '/routes/$rutaId/stops/$pedidoId',
+          cuerpo: const <String, Object?>{},
+        );
+      }
+    },
+  );
 
   /// REORDENAR LAS PARADAS de una ruta no completada (issue 11 de Amado).
   ///
@@ -1209,7 +1232,7 @@ class AccionesDeRuta {
     // created_at`): es «el orden que traían» de las que no tienen punto.
     final cargadas =
         await (_base.select(_base.orders)
-              ..where((o) => o.routeId.equals(rutaId))
+              ..where((o) => o.routeId.equals(rutaId) & noEsMiembro(o))
               ..orderBy([
                 (o) => OrderingTerm.asc(o.stopOrder, nulls: NullsOrder.last),
                 (o) => OrderingTerm.asc(o.createdAt),
@@ -1514,39 +1537,46 @@ class AccionesDeRuta {
         //    que es por donde se eligieron las paradas (`ultimaRutaId`).
         //
         // Es lo mismo que hace el servidor en `LimpiarResultadoDeParada`.
-        await (_base.update(
-          _base.orders,
-        )..where((o) => o.id.equals(marca.pedidoId))).write(
-          marca.quitaLaMarca
-              ? OrdersCompanion(
-                  resultado: const Value(null),
-                  ultimaRutaId: Value(rutaId),
-                  resultadoAt: const Value(null),
-                  resultadoNota: const Value(null),
-                  deliveredAt: const Value(null),
-                  status: const Value(EstadoPedido.pendiente),
-                  routeId: Value(rutaId),
-                  updatedAt: Value(ahora),
-                )
-              : OrdersCompanion(
-                  resultado: Value(marca.resultado),
-                  ultimaRutaId: Value(rutaId),
-                  resultadoAt: Value(ahora),
-                  resultadoNota: Value(nota),
-                  deliveredAt: Value(marca.seEntrego ? ahora : null),
-                  status: Value(
-                    marca.seEntrego
-                        ? EstadoPedido.entregado
-                        : EstadoPedido.pendiente,
-                  ),
-                  // Lo que NO se entrega suelta su `routeId` y vuelve a la lista
-                  // de disponibles para la ruta de manana. `ultimaRutaId` y
-                  // `stopOrder` no se tocan NUNCA: son lo que ata el pedido a la
-                  // hoja de cierre.
-                  routeId: Value(marca.seEntrego ? rutaId : null),
-                  updatedAt: Value(ahora),
-                ),
-        );
+        //
+        // **EL RESULTADO DE UNA PRINCIPAL SE APLICA IGUAL A SUS MIEMBROS** (`docs/conduces.md` regla 5):
+        // el conduce es una parada y lo que se marca en ella es de todas sus facturas, cada fila con su
+        // propio `resultado*`. El apunte que sube es SOLO el de la principal: el servidor cascadea.
+        await (_base.update(_base.orders)..where(
+              (o) =>
+                  o.id.equals(marca.pedidoId) |
+                  o.conducePrincipalId.equals(marca.pedidoId),
+            ))
+            .write(
+              marca.quitaLaMarca
+                  ? OrdersCompanion(
+                      resultado: const Value(null),
+                      ultimaRutaId: Value(rutaId),
+                      resultadoAt: const Value(null),
+                      resultadoNota: const Value(null),
+                      deliveredAt: const Value(null),
+                      status: const Value(EstadoPedido.pendiente),
+                      routeId: Value(rutaId),
+                      updatedAt: Value(ahora),
+                    )
+                  : OrdersCompanion(
+                      resultado: Value(marca.resultado),
+                      ultimaRutaId: Value(rutaId),
+                      resultadoAt: Value(ahora),
+                      resultadoNota: Value(nota),
+                      deliveredAt: Value(marca.seEntrego ? ahora : null),
+                      status: Value(
+                        marca.seEntrego
+                            ? EstadoPedido.entregado
+                            : EstadoPedido.pendiente,
+                      ),
+                      // Lo que NO se entrega suelta su `routeId` y vuelve a la lista
+                      // de disponibles para la ruta de manana. `ultimaRutaId` y
+                      // `stopOrder` no se tocan NUNCA: son lo que ata el pedido a la
+                      // hoja de cierre.
+                      routeId: Value(marca.seEntrego ? rutaId : null),
+                      updatedAt: Value(ahora),
+                    ),
+            );
       }
     });
 

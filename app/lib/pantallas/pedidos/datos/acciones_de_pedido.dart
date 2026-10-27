@@ -31,6 +31,7 @@ import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/cola/cola_salida.dart';
+import '../../../nucleo/conduce.dart' show noEsMiembro;
 import '../../../nucleo/red/escritura_en_vivo.dart';
 import '../../../nucleo/registro/registro.dart';
 import '../../../nucleo/reloj.dart';
@@ -281,7 +282,7 @@ class AccionesDePedido {
   Future<void> _recalcularElTotal(Ruta ruta, Punto origen) async {
     final cargadas =
         await (_base.select(_base.orders)
-              ..where((o) => o.routeId.equals(ruta.id))
+              ..where((o) => o.routeId.equals(ruta.id) & noEsMiembro(o))
               ..orderBy([
                 (o) => OrderingTerm.asc(o.stopOrder, nulls: NullsOrder.last),
                 (o) => OrderingTerm.asc(o.createdAt),

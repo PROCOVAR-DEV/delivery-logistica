@@ -3,9 +3,11 @@
 // total. Lo unico que cambia sin red es que el mapa se queda sin baldosas y que
 // `Abrir en Google Maps` no puede salir.
 
+import 'package:collection/collection.dart' show ListEquality;
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/conduce.dart';
 import '../../../nucleo/fecha_de_la_factura.dart';
 import '../../../nucleo/regla_de_entrada.dart';
 import '../../pedidos/datos/repositorio_pedidos.dart';
@@ -379,21 +381,26 @@ class ConsultasRutas {
     });
   }
 
-  Future<List<Pedido>> paradasDe(String rutaId) {
-    final consulta = _base.select(_base.orders)
-      ..where(
-        (o) =>
-            o.routeId.equals(rutaId) |
-            (o.routeId.isNull() &
-                o.ultimaRutaId.equals(rutaId) &
-                o.resultado.isNotNull()),
-      )
-      ..orderBy([
-        (o) => OrderingTerm.asc(o.stopOrder),
-        (o) => OrderingTerm.asc(o.customerName),
-      ]);
-    return consulta.get();
-  }
+  Future<List<Pedido>> paradasDe(String rutaId) async =>
+      conMiembrosSumados(_base, await _consultaDeParadas(rutaId).get());
+
+  /// LA PARADA ES UNA POR CONDUCE (`docs/conduces.md` regla 4): los miembros no son paradas, van con
+  /// su principal (`noEsMiembro`). Sus pesos y su domicilio se suman a ella en [conMiembrosSumados].
+  SimpleSelectStatement<$OrdersTable, Pedido> _consultaDeParadas(
+    String rutaId,
+  ) => _base.select(_base.orders)
+    ..where(
+      (o) =>
+          (o.routeId.equals(rutaId) |
+              (o.routeId.isNull() &
+                  o.ultimaRutaId.equals(rutaId) &
+                  o.resultado.isNotNull())) &
+          noEsMiembro(o),
+    )
+    ..orderBy([
+      (o) => OrderingTerm.asc(o.stopOrder),
+      (o) => OrderingTerm.asc(o.customerName),
+    ]);
 
   /// CUANTAS PARADAS LLEVA CADA RUTA, todas de una vez.
   ///
@@ -410,7 +417,8 @@ class ConsultasRutas {
     final cuantas = _base.orders.id.count();
     final consulta = _base.selectOnly(_base.orders)
       ..addColumns([_base.orders.ultimaRutaId, cuantas])
-      ..where(_base.orders.ultimaRutaId.isNotNull())
+      // Una parada por conduce: los miembros no cuentan (`noEsMiembro`).
+      ..where(_base.orders.ultimaRutaId.isNotNull() & noEsMiembro(_base.orders))
       ..groupBy([_base.orders.ultimaRutaId]);
     return consulta.watch().map(
       (filas) => <String, int>{
@@ -488,21 +496,14 @@ class ConsultasRutas {
   /// Paradas actuales y las ya soltadas por devolución/cancelación que siguen
   /// perteneciendo al historial de esta ruta. Las QUITADAS no: ver
   /// [RutaConTodo.paradas].
-  Stream<List<Pedido>> mirarParadasDe(String rutaId) {
-    final consulta = _base.select(_base.orders)
-      ..where(
-        (o) =>
-            o.routeId.equals(rutaId) |
-            (o.routeId.isNull() &
-                o.ultimaRutaId.equals(rutaId) &
-                o.resultado.isNotNull()),
-      )
-      ..orderBy([
-        (o) => OrderingTerm.asc(o.stopOrder),
-        (o) => OrderingTerm.asc(o.customerName),
-      ]);
-    return consulta.watch();
-  }
+  ///
+  /// Se relee con CADA escritura en `orders` (`sobreOrders`) y no con el `watch` de la consulta de las
+  /// principales: si sólo cambia un miembro (se saca del conduce), las principales son las mismas y el
+  /// peso sumado de la parada se quedaría viejo.
+  Stream<List<Pedido>> mirarParadasDe(String rutaId) => sobreOrders(
+    _base,
+    () => paradasDe(rutaId),
+  ).distinct(const ListEquality<Pedido>().equals);
 
   Future<Vehiculo?> _vehiculo(String? id) async => id == null
       ? null
@@ -675,8 +676,27 @@ class ConsultasRutas {
   /// Los renglones de unos pedidos, con el peso por empaque ya resuelto. Se
   /// reutiliza el de Pedidos: la carga del camion y el pre-despacho tienen que
   /// contar igual en las dos pantallas.
-  Future<Map<String, List<RenglonConPeso>>> renglonesDe(List<String> ids) =>
-      _pedidos.renglonesDe(ids);
+  ///
+  /// Los renglones de los miembros de un conduce se suman a la lista de su principal: es UNA parada
+  /// y lo que se baja en ella son las facturas de todo el conduce.
+  Future<Map<String, List<RenglonConPeso>>> renglonesDe(
+    List<String> ids,
+  ) async {
+    final miembros = await miembrosDe(_base, ids);
+    final todos = await _pedidos.renglonesDe([
+      ...ids,
+      for (final m in miembros) m.id,
+    ]);
+    if (miembros.isEmpty) return todos;
+    return {
+      for (final id in ids)
+        id: [
+          ...?todos[id],
+          for (final m in miembros)
+            if (m.conducePrincipalId == id) ...?todos[m.id],
+        ],
+    };
+  }
 }
 
 /// EL `?? 0` DE `costoMin`, QUE ES UN CONTRATO Y NO UN DESCUIDO.

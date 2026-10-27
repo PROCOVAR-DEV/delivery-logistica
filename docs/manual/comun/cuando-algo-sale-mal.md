@@ -20,21 +20,22 @@ Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
    trae el día.
 6. **Si no tiene coordenadas de entrega**, no entra en el Tablero ni en «Facturas
    sin ruta». Se ve en Facturas, marcada.
-7. **Si no tiene el domicilio cobrado o cotizado.** A las rutas nuevas, al Tablero
-   («Sin colocar») y al recuento de «Facturas sin ruta» del Panel sólo llega lo
-   **facturado** (cuadre o haya cambiado en la factura), con el **domicilio cobrado**
-   (importe mayor que cero en la factura) y, si el vendedor marcó domicilio,
-   **cotizado en Entrega**. Una factura a la que le falte algo de eso sigue existiendo —se
-   ve en Facturas— pero no se ofrece para repartir. En la marca de «Factura» de Facturas
-   se ve si falta el cobro: «Domicilio sin precio puesto» en gris, o «Dom. $0.46» en verde
-   si está cobrado; y la ficha de la factura dice en una línea si puede ir a una ruta y,
-   si no, por qué. No es un fallo: se arregla cobrando o cotizando en Entrega. Ver
+7. **Si no está facturada.** A las rutas nuevas, al Tablero («Sin colocar») y al
+   recuento de «Facturas sin ruta» del Panel llega **toda factura facturada** (cuadre
+   o haya cambiado en la factura). **Ya no se exige que cobre el domicilio ni que
+   Entrega lo haya cotizado** (por ahora, Jose, 16/10/2026): eso es un dato, no una
+   condición. Una factura **sin factura** o **sin cotejar** sigue existiendo —se ve en
+   Facturas— pero no se ofrece para repartir. En la marca de «Factura» de Facturas se
+   ve el cobro: «Domicilio sin precio puesto» en gris (no impide ir a una ruta), o
+   «Dom. $0.46» en verde si está cobrado; y la ficha de la factura dice «Puede ir a una
+   ruta.» cuando puede. Para ver sólo las cobradas, usa el filtro **«Precio del
+   domicilio»** de Facturas o **«Cobro del domicilio»** de «Sin colocar». Ver
    [Las reglas del reparto](las-reglas-del-reparto.md).
 8. **En el asistente de Rutas, el filtro «Sólo con domicilio»**, que es como arranca,
-   ya NO esconde las facturas que el vendedor no marcó a domicilio si la factura lo
-   cobra (desde el 15/10/2026): «con domicilio» es marcado **o** cobrado. Si aun así
-   falta uno, no está facturado, no tiene el domicilio cobrado o, marcado, no está
-   cotizado en Entrega.
+   esconde las facturas que ni el vendedor marcó a domicilio ni la factura cobró:
+   «con domicilio» es marcado **o** cobrado. Aunque esas facturas entran en una ruta,
+   no salen mientras el filtro esté así: elige **«Con y sin domicilio»** para verlas.
+   Si aun así falta una, no está facturada.
 
 ---
 
@@ -69,7 +70,7 @@ Por orden de probabilidad:
 | **«Camión 1 está marcado EN EL TALLER. La ruta se arma igual…»** | Es un aviso en ámbar, no un error: la ruta se arma. Si el camión ya volvió, sácalo del taller en Vehículos |
 
 Y si lo que echas en falta son **facturas** en la lista del asistente: sólo trae lo
-facturado con el domicilio cobrado, y cotizado si el vendedor lo marcó. Lee
+facturado (y, con el filtro «Sólo con domicilio» que arranca puesto, lo marcado o cobrado). Lee
 [Una factura no aparece](#una-factura-no-aparece) antes de buscar un error.
 
 ---
@@ -81,9 +82,16 @@ sale uno de estos motivos:
 
 | El aviso | Qué significa |
 |---|---|
-| **«No se puede asociar al tablero: primero cotiza el domicilio del pedido.»** | El vendedor marcó domicilio y falta el costo de Entrega. Cotízalo allí y vuelve |
-| **«Esa factura ya se entregó»** | Ya se repartió |
-| **«Esa factura ya está en una ruta»** | Se lo llevó otra ruta |
+| **«Esa factura ya se entregó»** | Ya se repartió. No se arregla: no vuelve a una zona |
+| **«Esa factura ya está en una ruta»** | Se la llevó otra ruta. Se arregla sola cuando esa ruta se cierre, o quitándola de la ruta si aún está planificada |
+| **«Esa factura va dentro del conduce 47313: arma el conduce entero»** | Es miembro de un conduce: no se coloca suelta. Coloca la factura principal (47313) y el conduce entero va con ella |
+| **«La zona «Centro» está inactiva»** | La zona está apagada. Actívala en sus opciones o elige otra |
+
+**Ya no hay motivo de domicilio.** «…la factura no tiene un cobro de domicilio
+registrado» y «…primero cotiza el domicilio del pedido» se retiraron el 16/10/2026: el
+cobro y la cotización del domicilio ya no impiden colocar. Si una factura no se deja
+colocar por otra causa (sin factura, sin cotejar, archivada), el aparato lo dice antes de
+colocar —ver [Mandar a una zona](pantallas/pedidos.md#mandar-a-una-zona)—.
 
 En la APK y el escritorio sale **al momento**, no horas después: el aparato lo dice
 antes de colocar.

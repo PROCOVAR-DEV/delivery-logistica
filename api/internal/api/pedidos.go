@@ -267,6 +267,12 @@ type PedidoSalida struct {
 	// Siempre con `archivado` en true. null = no está anulada.
 	AnuladaAt       *time.Time `json:"anuladaAt"`
 	AnuladaDeRutaID *uuid.UUID `json:"anuladaDeRutaId"`
+	// CONDUCES (00029, `docs/conduces.md`). `conducePrincipalId` es la principal si esta factura es MIEMBRO de un
+	// conduce (null si es suelta o principal); en `GET /api/orders` los miembros no salen como filas propias, así que
+	// aquí sólo se ve en la ficha. `conduce` cuelga de la PRINCIPAL: `{ facturas: ["47313","47314"], miembros: 1 }`,
+	// la principal primero; null en las demás.
+	ConducePrincipalID *uuid.UUID     `json:"conducePrincipalId"`
+	Conduce            *ConduceSalida `json:"conduce"`
 	// ¿ESE `weight` SALE DE ALGO? Campo NUEVO, no un tipo cambiado: `weight` sigue siendo
 	// un número y una APK instalada lo lee igual que ayer.
 	//
@@ -294,6 +300,8 @@ type PedidoSalida struct {
 // que el catálogo, y son los del contrato: el armador de rutas pinta una tabla de hasta
 // dos mil filas y cada campo de más son dos mil campos de más por el cable.
 type PedidoDisponibleSalida struct {
+	// Si es la PRINCIPAL de un conduce: sus facturas (00029). Los miembros no salen en esta lista.
+	Conduce            *ConduceSalida  `json:"conduce"`
 	ID                 uuid.UUID       `json:"id"`
 	OrderDate          *time.Time      `json:"orderDate"`
 	CreatedAt          *time.Time      `json:"createdAt"`
@@ -366,13 +374,19 @@ type PedidoDetalleSalida struct {
 	PuntoClienteLng     *float64   `json:"puntoClienteLng"`
 	PuntoClienteAddress *string    `json:"puntoClienteAddress"`
 	// La factura anulada y quitada de su ruta (00027). Ver `PedidoSalida.AnuladaAt`.
-	AnuladaAt          *time.Time `json:"anuladaAt"`
-	AnuladaDeRutaID    *uuid.UUID `json:"anuladaDeRutaId"`
-	FacturaEstado      *string    `json:"facturaEstado"`
-	FacturaNumero      *string    `json:"facturaNumero"`
-	FacturaAt          *time.Time `json:"facturaAt"`
-	FacturaDomicilio   *float64   `json:"facturaDomicilio"`
-	FacturaCorregidoAt *time.Time `json:"facturaCorregidoAt"`
+	AnuladaAt       *time.Time `json:"anuladaAt"`
+	AnuladaDeRutaID *uuid.UUID `json:"anuladaDeRutaId"`
+	// CONDUCES (00029, `docs/conduces.md`). `conducePrincipalId` es la principal si esta factura es MIEMBRO de un
+	// conduce (null si es suelta o principal); en `GET /api/orders` los miembros no salen como filas propias, así que
+	// aquí sólo se ve en la ficha. `conduce` cuelga de la PRINCIPAL: `{ facturas: ["47313","47314"], miembros: 1 }`,
+	// la principal primero; null en las demás.
+	ConducePrincipalID *uuid.UUID     `json:"conducePrincipalId"`
+	Conduce            *ConduceSalida `json:"conduce"`
+	FacturaEstado      *string        `json:"facturaEstado"`
+	FacturaNumero      *string        `json:"facturaNumero"`
+	FacturaAt          *time.Time     `json:"facturaAt"`
+	FacturaDomicilio   *float64       `json:"facturaDomicilio"`
+	FacturaCorregidoAt *time.Time     `json:"facturaCorregidoAt"`
 	// DE DÓNDE SON `items`, `weight` y las unidades: `factura` o `pedido`.
 	//
 	// Cuando la factura cambió lo que se pidió, lo que llega aquí YA son las líneas de la
@@ -514,8 +528,15 @@ func (s *Servidor) listarPedidos(w http.ResponseWriter, r *http.Request) {
 		Paginas:     paginas(total, porPagina),
 		ResumenTope: TopeResumen,
 	}
+	conduces, err := s.conducesDe(r, a, facturasDeLaPagina(filas))
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
 	for _, x := range filas {
-		salida.Orders = append(salida.Orders, dePedido(x, renglones[x.ID]))
+		p := dePedido(x, renglones[x.ID])
+		p.Conduce = conduces[x.ID]
+		salida.Orders = append(salida.Orders, p)
 	}
 
 	// El pre-despacho: sólo si lo piden y sólo si cabe.
@@ -563,6 +584,17 @@ func (s *Servidor) preDespacho(r *http.Request, a *alcance.Acotado, f filtrosPed
 	for _, x := range todos {
 		ids = append(ids, x.ID)
 		peso += x.Weight
+	}
+	// El peso de lo filtrado lleva también el de los MIEMBROS de cada conduce (00029): la lista sólo trae a la
+	// principal, pero el camión carga todas sus facturas (y `ResumenPreDespacho` ya les suma los renglones).
+	if len(ids) > 0 {
+		miembros, err := a.MiembrosDeConduces(r.Context(), ids)
+		if err != nil {
+			return nil, 0, err
+		}
+		for _, m := range miembros {
+			peso += m.Weight
+		}
 	}
 	// Rodaja VACÍA, no nil: «se pidió, se calculó y no hay nada» sale `[]`, que es
 	// distinto de `null` («no se pudo calcular»).
@@ -658,9 +690,19 @@ func (s *Servidor) pedidosDisponibles(w http.ResponseWriter, r *http.Request) {
 		Total:     total,
 		Truncated: truncado,
 	}
+	paraConduce := make([]facturaDeFila, 0, len(quedan))
+	for _, x := range quedan {
+		paraConduce = append(paraConduce, facturaDeFila{ID: x.ID})
+	}
+	conduces, err := s.conducesDe(r, a, paraConduce)
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
 	for _, x := range quedan {
 		salida.Orders = append(salida.Orders, PedidoDisponibleSalida{
-			ID: x.ID, OrderDate: hora(x.OrderDate), CreatedAt: hora(x.CreatedAt),
+			Conduce: conduces[x.ID],
+			ID:      x.ID, OrderDate: hora(x.OrderDate), CreatedAt: hora(x.CreatedAt),
 			OperationNumber: x.OperationNumber, CustomerName: x.CustomerName,
 			Address: x.Address, EndAddress: x.EndAddress,
 			EndLat: x.EndLat, EndLng: x.EndLng, Weight: x.Weight,
@@ -822,7 +864,8 @@ func (s *Servidor) detalleDePedido(w http.ResponseWriter, r *http.Request, a *al
 		PuntoManual: x.PuntoManual, PuntoManualPor: x.PuntoManualPor, PuntoManualAt: hora(x.PuntoManualAt),
 		Folio:     x.Folio,
 		AnuladaAt: hora(x.AnuladaAt), AnuladaDeRutaID: idOpcional(x.AnuladaDeRutaID),
-		PuntoClienteLat: x.PuntoClienteLat, PuntoClienteLng: x.PuntoClienteLng, PuntoClienteAddress: x.PuntoClienteAddress,
+		ConducePrincipalID: idOpcional(x.ConducePrincipalID),
+		PuntoClienteLat:    x.PuntoClienteLat, PuntoClienteLng: x.PuntoClienteLng, PuntoClienteAddress: x.PuntoClienteAddress,
 		FacturaNumero: x.FacturaNumero, FacturaAt: hora(x.FacturaAt),
 		FacturaDomicilio: x.FacturaDomicilio, FacturaCorregidoAt: hora(x.FacturaCorregidoAt),
 		ItemsOrigen: x.ItemsOrigen,
@@ -831,6 +874,12 @@ func (s *Servidor) detalleDePedido(w http.ResponseWriter, r *http.Request, a *al
 		ResultadoNota: x.ResultadoNota, CreatedAt: hora(x.CreatedAt),
 		UpdatedAt: hora(x.UpdatedAt), Items: items,
 	}
+	conduces, err := s.conducesDe(r, a, []facturaDeFila{{ID: id}})
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return PedidoDetalleSalida{}, false
+	}
+	salida.Conduce = conduces[id]
 	if id := idOpcional(x.RouteID); id != nil {
 		salida.Route = &RutaDePedido{ID: id, Name: x.RutaNombre}
 	}
@@ -1385,7 +1434,8 @@ func dePedido(x sqlc.ListarPedidosRow, items []RenglonSalida) PedidoSalida {
 		PuntoManualAt:     hora(x.PuntoManualAt),
 		Folio:             x.Folio,
 		AnuladaAt:         hora(x.AnuladaAt), AnuladaDeRutaID: idOpcional(x.AnuladaDeRutaID),
-		PuntoClienteLat: x.PuntoClienteLat, PuntoClienteLng: x.PuntoClienteLng, PuntoClienteAddress: x.PuntoClienteAddress,
+		ConducePrincipalID: idOpcional(x.ConducePrincipalID),
+		PuntoClienteLat:    x.PuntoClienteLat, PuntoClienteLng: x.PuntoClienteLng, PuntoClienteAddress: x.PuntoClienteAddress,
 	}
 	if id := idOpcional(x.RouteID); id != nil {
 		p.Route = &RutaDePedido{

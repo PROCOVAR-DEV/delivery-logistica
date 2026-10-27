@@ -175,6 +175,7 @@ func (s *Servidor) Rutas() http.Handler {
 	// El orden no importa para el enrutado —ServeMux resuelve por especificidad, no por
 	// orden de registro— pero sí para leerlo: primero lo que se usa todos los días.
 	s.rutasPedidos(rt, sesion, admin)
+	s.rutasConduces(rt, sesion)
 	s.rutasDeReparto(rt, sesion, admin)
 	s.rutasTablero(rt, sesion, admin)
 	s.rutasClientes(rt, sesion, admin)

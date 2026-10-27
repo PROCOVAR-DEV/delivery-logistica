@@ -438,18 +438,21 @@ facturado, no lo que se pidió.
 
 ### Si una factura no te deja colocarla
 
-A una zona sólo se coloca lo que tiene **el domicilio cobrado en la factura** y, si el
-vendedor lo marcó, **cotizado en Entrega**. Las que no cumplen **ni salen en «Sin colocar»**, y si llegas a
-intentarlo (por ejemplo, desde Facturas con «Mandar a una zona») sale el motivo y la
-tarjeta se queda donde estaba:
+A una zona se coloca toda factura **facturada** (cuadre o haya cambiado). **El domicilio
+cobrado ya no se exige** (por ahora): es un dato, no una condición. Las que no están
+facturadas **ni salen en «Sin colocar»**, y si llegas a intentarlo (por ejemplo, desde
+Facturas con «Mandar a una zona») sale el motivo y la tarjeta se queda donde estaba:
 
-> «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
-> registrado.»
+> «Esa factura ya se entregó»
 >
-> «No se puede asociar al tablero: primero cotiza el domicilio de la factura.»
+> «Esa factura ya está en una ruta»
+>
+> «Esa factura va dentro del conduce 47313: arma el conduce entero»
 
-Lo dice **al momento, aunque no haya señal**: no te llega horas después a la bandeja.
-Se arregla cobrando o cotizando en Entrega, no aquí.
+El último es de un **miembro de un conduce**: se coloca la principal (aquí, la 47313) y el
+conduce entero va con ella. Lo dice **al momento, aunque no haya señal**: no te llega
+horas después a la bandeja. Los avisos viejos del domicilio («…no tiene un cobro de
+domicilio registrado» y «…primero cotiza el domicilio…») se retiraron el 16/10/2026.
 
 ### Si una factura dice «2 facturas de este cliente hoy»
 
@@ -516,12 +519,12 @@ PTB25-261005-1523 · MARTA CRUZ: sin factura
 ```
 
 Cada una sale por su **conduce** (el número de operación de la factura). Saca esas de
-la zona (o resuélvelas en PEDIDO o en Entrega) y vuelve a armar.
+la zona (o resuélvelas en PEDIDO) y vuelve a armar.
 
 ### Qué entró y qué no
 
-**Sólo entran en la ruta las facturas repartibles**: cuadren o no, con el
-domicilio cobrado y, si el vendedor lo marcó, cotizado. **Sin señal se arma con la misma regla que el servidor**:
+**Sólo entran en la ruta las facturas repartibles**: las facturadas (cuadren o no), con
+o sin el domicilio cobrado o cotizado. **Sin señal se arma con la misma regla que el servidor**:
 el teléfono dice el mismo «no» que diría él, en el momento. Las que no cumplen **se
 descartan**: **se quedan puestas en la zona y marcadas**. No se pierde nada, y la zona
 no se te queda vacía sin explicación.
@@ -533,8 +536,8 @@ Rutas, una franja roja nombra a las que se quedaron fuera, cada una por su **con
 > PTB25-261005-1511 · LUIS PÉREZ: sin factura
 > PTB25-261005-1523 · MARTA CRUZ: sin factura
 
-(Con una sola: «pero 1 factura no entró».) Arréglalas donde dice el motivo —cobrando o
-cotizando en Entrega, o en PEDIDO— y vuelve a armar. **Si no entra ninguna, no se arma
+(Con una sola: «pero 1 factura no entró».) Arréglalas donde dice el motivo —en
+PEDIDO— y vuelve a armar. **Si no entra ninguna, no se arma
 la ruta** y sale el recuadro rojo de arriba: «La columna no tiene ninguna factura que se
 pueda repartir hoy», con la lista.
 
@@ -1006,6 +1009,55 @@ factura que ya tiene uno.
 
 ---
 
+## Juntar facturas en un conduce
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Facturas»**.
+
+Un conduce es lo que sale con el camión y puede juntar varias facturas **del mismo
+cliente** en UNA parada. **La primera que marcas es la principal**: la que lo crea y dice a
+qué cliente va dedicado. **Funciona sin señal**: se guarda en el teléfono y sube cuando
+haya.
+
+1. **Toca la casilla de las facturas** que van juntas. La **primera** que toques será la
+   principal. <!-- señala: pedidos-marcar-uno -->
+2. **Toca «Crear conduce»**, en la franja azul de lo marcado (sale con dos o más).
+   <!-- señala: pedidos-crear-conduce -->
+   - Se abre el cajón **«Crear conduce»**: **«La principal será 47313 (Cliente). Las demás
+     irán con ella»**.
+3. **Toca «Crear conduce»**, abajo del cajón. <!-- señala: pedidos-confirmar-conduce -->
+   - La principal pasa a decir **«Conduce 47313 + 47314»** con el peso y el domicilio de
+     todas. Las demás **ya no salen como tarjetas**: van con ella.
+
+**Si no se puede, el cajón lo dice y el botón queda apagado:** clientes distintos, otra
+sucursal, o una factura que ya va en una ruta, ya se entregó o ya va en otro conduce.
+
+**Si el servidor lo rechaza al subir** (porque en la oficina alguien movió una de las
+facturas), el cambio queda en la bandeja de errores de **«Sincronización»** con su motivo,
+sin perderse, hasta que decidas.
+
+**Al armar una ruta o mandar a una zona, elige la principal**: el conduce entero se mueve
+con ella y es UNA parada. En el cierre, lo que marques en esa parada vale para todas sus
+facturas.
+
+---
+
+## Sacar una factura de un conduce o deshacerlo
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Facturas»**.
+
+1. **En «Facturas», pasa a la pestaña «Conduces»** (la flecha de las bolitas).
+   <!-- señala: pedidos-pestanas -->
+2. **«Sacar»**, al lado de una factura, la devuelve a ser una factura suelta.
+3. **«Deshacer conduce»** suelta todas. <!-- señala: pedidos-deshacer-conduce -->
+   - También está en la ficha de la principal (toca su tarjeta).
+
+**No se puede sacar ni deshacer un conduce que ya va en una ruta o tiene resultado**: el
+botón sale apagado y dice por qué.
+
+---
+
 ## Mandar varias facturas a una zona de golpe
 <!-- tarea -->
 
@@ -1039,14 +1091,14 @@ En ámbar: **«No se pudieron mandar 2, y siguen marcados:»** y debajo, una a u
 
 ```
 PTB25-261005-1480 · Ana: Esa factura ya está en una ruta
-PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio de la factura.
+PTB25-261005-1502 · Luis: Esa factura va dentro del conduce 47313: arma el conduce entero
 ```
 
 Cada factura sale por su **conduce** (el número de operación de la factura). Los motivos
-son los mismos que daría el servidor: ya entregada, ya en una ruta, **sin domicilio
-cobrado en la factura** o **marcado a domicilio y sin cotizar en Entrega**, además de
-«Archivado en PEDIDO»,
-«Sin cotejar», «Sin factura», «Sin coordenadas de entrega» o «Es de otra sucursal».
+son los mismos que daría el servidor: ya entregada, ya en una ruta o miembro suelto de
+un conduce, además de «Archivado en PEDIDO», «Sin cotejar», «Sin factura», «Sin
+coordenadas de entrega» o «Es de otra sucursal». **El domicilio sin cobrar o sin cotizar
+ya no es un motivo.**
 
 **Las que sí fueron pierden la marca; las que no, se quedan marcadas** para que
 puedas seguir con ellas.
@@ -1163,11 +1215,10 @@ Es el camino largo. Sirve cuando la ruta no sale de una zona entera.
    <!-- señala: rutas-asistente-buscar -->
    - En el teléfono los filtros van **uno por línea**: sucursal, día, buscador,
      vendedor, municipio, «km máx.», «costo mín.», estado, domicilio y cotización.
-   - **Sólo salen las facturas (cuadren o no), con el domicilio cobrado y,
-     si el vendedor lo marcó, cotizado en Entrega.** Si te falta alguna, es casi
-     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. El filtro de
-     domicilio arranca en «Sólo con domicilio», que cuenta lo marcado por el vendedor
-     **y** lo cobrado en la factura: no esconde a las que el vendedor no marcó.
+   - **Sólo salen las facturas facturadas (cuadren o no).** Ya no se exige el domicilio
+     cobrado ni cotizado. Pero el filtro de domicilio arranca en «Sólo con domicilio», que
+     cuenta lo marcado por el vendedor **o** lo cobrado en la factura: si te falta una que
+     ni el vendedor marcó ni la factura cobró, elige **«Con y sin domicilio»**.
    - **Mira la barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»**
      y **«Camión lleno — no cabe más»**.
    - **Las filas de las facturas que ya no caben se apagan**, con el motivo: «No cabe
@@ -2129,21 +2180,22 @@ Es la consulta más frecuente, y casi nunca es un fallo. Mira en este orden:
    trae el día.
 6. **Si no tiene coordenadas de entrega**, no entra en el Tablero ni en «Facturas
    sin ruta». Se ve en Facturas, marcada.
-7. **Si no tiene el domicilio cobrado o cotizado.** A las rutas nuevas, al Tablero
-   («Sin colocar») y al recuento de «Facturas sin ruta» del Panel sólo llega lo
-   **facturado** (cuadre o haya cambiado en la factura), con el **domicilio cobrado**
-   (importe mayor que cero en la factura) y, si el vendedor marcó domicilio,
-   **cotizado en Entrega**. Una factura a la que le falte algo de eso sigue existiendo —se
-   ve en Facturas— pero no se ofrece para repartir. En la marca de «Factura» de Facturas
-   se ve si falta el cobro: «Domicilio sin precio puesto» en gris, o «Dom. $0.46» en verde
-   si está cobrado; y la ficha de la factura dice en una línea si puede ir a una ruta y,
-   si no, por qué. No es un fallo: se arregla cobrando o cotizando en Entrega. Ver
+7. **Si no está facturada.** A las rutas nuevas, al Tablero («Sin colocar») y al
+   recuento de «Facturas sin ruta» del Panel llega **toda factura facturada** (cuadre
+   o haya cambiado en la factura). **Ya no se exige que cobre el domicilio ni que
+   Entrega lo haya cotizado** (por ahora, Jose, 16/10/2026): eso es un dato, no una
+   condición. Una factura **sin factura** o **sin cotejar** sigue existiendo —se ve en
+   Facturas— pero no se ofrece para repartir. En la marca de «Factura» de Facturas se
+   ve el cobro: «Domicilio sin precio puesto» en gris (no impide ir a una ruta), o
+   «Dom. $0.46» en verde si está cobrado; y la ficha de la factura dice «Puede ir a una
+   ruta.» cuando puede. Para ver sólo las cobradas, usa el filtro **«Precio del
+   domicilio»** de Facturas o **«Cobro del domicilio»** de «Sin colocar». Ver
    [Las reglas del reparto](las-reglas-del-reparto.md).
 8. **En el asistente de Rutas, el filtro «Sólo con domicilio»**, que es como arranca,
-   ya NO esconde las facturas que el vendedor no marcó a domicilio si la factura lo
-   cobra (desde el 15/10/2026): «con domicilio» es marcado **o** cobrado. Si aun así
-   falta uno, no está facturado, no tiene el domicilio cobrado o, marcado, no está
-   cotizado en Entrega.
+   esconde las facturas que ni el vendedor marcó a domicilio ni la factura cobró:
+   «con domicilio» es marcado **o** cobrado. Aunque esas facturas entran en una ruta,
+   no salen mientras el filtro esté así: elige **«Con y sin domicilio»** para verlas.
+   Si aun así falta una, no está facturada.
 
 ---
 
@@ -2178,7 +2230,7 @@ Por orden de probabilidad:
 | **«Camión 1 está marcado EN EL TALLER. La ruta se arma igual…»** | Es un aviso en ámbar, no un error: la ruta se arma. Si el camión ya volvió, sácalo del taller en Vehículos |
 
 Y si lo que echas en falta son **facturas** en la lista del asistente: sólo trae lo
-facturado con el domicilio cobrado, y cotizado si el vendedor lo marcó. Lee
+facturado (y, con el filtro «Sólo con domicilio» que arranca puesto, lo marcado o cobrado). Lee
 [Una factura no aparece](#una-factura-no-aparece) antes de buscar un error.
 
 ---
@@ -2190,9 +2242,16 @@ sale uno de estos motivos:
 
 | El aviso | Qué significa |
 |---|---|
-| **«No se puede asociar al tablero: primero cotiza el domicilio del pedido.»** | El vendedor marcó domicilio y falta el costo de Entrega. Cotízalo allí y vuelve |
-| **«Esa factura ya se entregó»** | Ya se repartió |
-| **«Esa factura ya está en una ruta»** | Se lo llevó otra ruta |
+| **«Esa factura ya se entregó»** | Ya se repartió. No se arregla: no vuelve a una zona |
+| **«Esa factura ya está en una ruta»** | Se la llevó otra ruta. Se arregla sola cuando esa ruta se cierre, o quitándola de la ruta si aún está planificada |
+| **«Esa factura va dentro del conduce 47313: arma el conduce entero»** | Es miembro de un conduce: no se coloca suelta. Coloca la factura principal (47313) y el conduce entero va con ella |
+| **«La zona «Centro» está inactiva»** | La zona está apagada. Actívala en sus opciones o elige otra |
+
+**Ya no hay motivo de domicilio.** «…la factura no tiene un cobro de domicilio
+registrado» y «…primero cotiza el domicilio del pedido» se retiraron el 16/10/2026: el
+cobro y la cotización del domicilio ya no impiden colocar. Si una factura no se deja
+colocar por otra causa (sin factura, sin cotejar, archivada), el aparato lo dice antes de
+colocar —ver [Mandar a una zona](pantallas/pedidos.md#mandar-a-una-zona)—.
 
 En la APK y el escritorio sale **al momento**, no horas después: el aparato lo dice
 antes de colocar.
@@ -3750,10 +3809,9 @@ queda por repartir, cuántos camiones están fuera y si falta algo por configura
 Detalles que hay que saber:
 
 - **«Facturas sin ruta»** cuenta las facturas que **hoy se pueden meter en una ruta**: sin ruta, con coordenadas de entrega, **facturado** (cuadre o haya cambiado en
-  la factura), con el **domicilio cobrado** (importe mayor que cero en la factura) y,
-  si el vendedor marcó domicilio, **cotizado en Entrega**. Es la misma cuenta que la
-  lista de disponibles al armar una ruta, así que los dos números coinciden. Una factura
-  sin coordenadas, sin factura, sin cobro de domicilio o marcada y sin cotizar no entra.
+  la factura). Por ahora (Jose, 16/10/2026) **no se mira el domicilio**: ni que la factura
+  lo cobre, ni que Entrega lo haya cotizado. Es la misma regla de entrada que la lista de
+  disponibles al armar una ruta (antes de aplicar los filtros de esa pantalla). Una factura sin coordenadas, sin factura o sin cotejar no entra.
 - **«Entregados hoy»** usa el **reloj del aparato**, no el del servidor. Si el
   reloj del teléfono está mal, este número está mal.
 - **«Vehículos»** saca el camión de la **ruta**, no de la factura.
@@ -3907,17 +3965,21 @@ filtro de sucursal.
 Al entrar, la pantalla **viene acotada a propósito** y lo dice:
 
 > «Enseñando sólo lo que tiene factura —cuadre o no— y sin archivar. A una ruta
-> entra lo facturado con el domicilio cobrado: si la factura cambió, al camión va lo
-> facturado.»
+> entra lo facturado: si la factura cambió, al camión va lo facturado.»
+
+(El domicilio cobrado ya no se exige para entrar a una ruta: es un dato que se ve
+en la columna «Domicilio».)
 
 Debajo, el botón **«Ver todas las facturas»**, que quita ese acotado.
 
 Si no encuentras una factura, esto es lo primero que hay que probar.
 
 **Esta lista enseña lo que tiene factura; no todo lo que sale entra en una ruta.** A una
-ruta nueva o a una zona sólo entra lo que además tiene **el domicilio cobrado** en la
-factura. Una factura que cambió respecto de lo pedido sí entra: al camión va lo
-facturado. Ver [Las reglas del reparto](../las-reglas-del-reparto.md).
+ruta nueva o a una zona entra toda factura **facturada** (que cuadre o que haya cambiado);
+no entran las «sin facturar» ni las «sin cotejar», ni las que ya se entregaron, ya van en
+una ruta o están archivadas. **El domicilio cobrado ya no es una condición, es un dato**
+(por ahora): se ve en la columna «Domicilio» y se filtra con «Precio del domicilio». Una
+factura que cambió respecto de lo pedido sí entra: al camión va lo facturado. Ver [Las reglas del reparto](../las-reglas-del-reparto.md).
 
 ---
 
@@ -4065,9 +4127,10 @@ Así se ve **antes de marcar** si una factura trae el domicilio cobrado o no: ha
 puede que no cobrara el domicilio. Con «sin facturar» o «sin cotejar»
 no sale esta marca, porque ya está dicho que falta la factura.
 
-**El ámbar sólo sale si ése es el motivo.** Una factura que ya va en una ruta, que ya se
-entregó o que está archivada no tiene nada que colocar, así que lleva sólo el número de
-factura (o el «Dom.» verde, si la factura sí cobró el domicilio). Un devuelto o cancelado
+**El gris «Domicilio sin precio puesto» sólo sale si la factura podría ir a una ruta.** Una
+factura que ya va en una ruta, que ya se entregó o que está archivada no tiene nada que
+colocar, así que lleva sólo el número de factura (o el «Dom.» verde, si la factura sí cobró
+el domicilio). Un devuelto o cancelado
 sí lo lleva, porque se puede volver a meter en otra ruta.
 
 La columna «Factura» **se ve siempre** en la tabla (desde 768 px de ancho, también en una
@@ -4087,7 +4150,8 @@ botones:
 
 1. El del pre-despacho
 2. **«Mandar a una zona»**
-3. **«Quitar la marca»**
+3. **«Crear conduce»** (sólo con dos o más marcadas: ver «Los conduces»)
+4. **«Quitar la marca»**
 
 ### El de lo filtrado
 
@@ -4167,14 +4231,12 @@ Lleva, en este orden:
      dice en cambio «…, pero los productos de abajo son los del pedido: la factura no se
      pudo atar a este pedido.», y si no se sabe, sólo «Al camión va lo facturado.».
    - Gris: «Todavía no aparece facturado en Ventra.»
-   - Con factura, una línea que dice si puede ir a una ruta:
-     - «Puede ir a una ruta.»
-     - «No entra a una ruta: la factura no tiene un cobro de domicilio registrado.»
-     - «No entra a una ruta: se marcó domicilio y Entrega todavía no lo cotizó.»
-
-     No sale nada si la factura ya va en una ruta, ya se entregó o está archivada.
-   - Y si la factura cobró domicilio: «La factura cobró 15.00 USD de domicilio.»
-     **Sin ese cobro, la factura no se ofrece para una ruta ni para una zona.**
+   - Con factura, una línea que dice «Puede ir a una ruta.» Ya no hay una línea de «No entra
+     a una ruta» por el domicilio (se retiró el 16/10/2026). No sale nada si la factura ya
+     va en una ruta, ya se entregó, está archivada o no tiene punto de entrega.
+   - Y si la factura cobró domicilio: «La factura cobró 15.00 USD de domicilio.» Es un
+     dato: **con o sin ese cobro, la factura se ofrece para una ruta y para una zona** si está
+     facturada.
 4. **El bloque del domicilio** — «Distancia 4.35 km · Peso total 128.0 kg» y, a la
    derecha, el **precio del domicilio**: lo que cotizó Entrega o, si no, lo que cobró la
    propia factura. Debajo:
@@ -4251,6 +4313,32 @@ tiene uno.
 
 ---
 
+## Los conduces: varias facturas, una parada
+
+Un **conduce** es lo que sale con el camión y puede juntar varias facturas **del mismo cliente** en UNA
+parada. Lo crea una persona; nada junta facturas solo. La pantalla tiene dos pestañas: **«Facturas»** (la
+lista de siempre) y **«Conduces»**.
+
+- **Crear.** Marca las facturas y toca **«Crear conduce»** en la franja de lo marcado. **La primera que
+  marcas es la principal**: el cajón lo dice («La principal será 47313 (Cliente). Las demás irán con
+  ella») y, si no se puede juntar, dice por qué y el botón queda apagado: clientes distintos, otra
+  sucursal, o una factura que ya va en una ruta, ya se entregó o ya va en otro conduce.
+- **Cómo se ve.** La principal pasa a decir **«Conduce 47313 + 47314»** y enseña el peso y el domicilio de
+  todas sus facturas juntas. **Las demás no salen como filas**: ni en la lista de Facturas y su
+  contador, ni en «Sin colocar», ni en el asistente de rutas, ni en el tablero, ni en el Panel.
+- **La pestaña «Conduces».** Arriba, qué es un conduce; debajo, los que hay: la principal, el cliente,
+  cuántas facturas, el peso y cómo va. Cada factura que va con la principal tiene **«Sacar»**, y el
+  conduce **«Deshacer conduce»** (que también está en la ficha de la principal). No se puede sacar ni
+  deshacer un conduce que ya va en una ruta o tiene resultado: el botón sale apagado y lo dice.
+- **Rutas y zonas.** Se elige la principal y el conduce entero se mueve con ella, como UNA parada. Quitar
+  la principal de la ruta quita a todas. En el cierre de la ruta, lo que se marca en esa parada vale para
+  todas sus facturas, y el servidor avisa a PEDIDO de cada una por separado.
+- **Sin señal** (APK y escritorio): crear, deshacer y sacar se guardan en el aparato y suben cuando haya
+  señal; si el servidor dice que no, queda en la bandeja de errores con su motivo. En la web va directo al
+  servidor y, si dice que no, sale su motivo tal cual.
+
+---
+
 ## «Mandar a una zona»
 
 Con facturas marcadas, el botón **«Mandar a una zona»** abre el cajón **«Mandar a
@@ -4278,17 +4366,9 @@ Y si alguno se quedó, en ámbar:
 
 > «No se pudieron mandar 2, y siguen marcados:»
 > `PTB25-261005-1480 · Ana: Esa factura ya está en una ruta`
-> `PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.`
+> `PTB25-261005-1502 · Luis: Esa factura va dentro del conduce 47313: arma el conduce entero`
 
 Cada factura sale por su **conduce**, que es su número de operación.
-
-Si alguna se quedó por el domicilio sin cobrar, el cajón añade debajo del aviso una
-línea de ayuda:
-
-> «Mira la marca de Factura en Facturas: ahí se ve si el domicilio está cobrado.»
-
-Sólo sale con ese motivo: con los demás (archivado, otra sucursal…) la marca de «Factura»
-no tiene la respuesta.
 
 Los motivos posibles: «No está en este aparato», «Es de otra sucursal», «Sin
 coordenadas de entrega», «Archivado en PEDIDO», «Sin cotejar», «Sin factura», y los
@@ -4296,12 +4376,16 @@ mismos «no» que da el servidor al colocar una tarjeta:
 
 - «Esa factura ya se entregó»
 - «Esa factura ya está en una ruta»
-- «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
-  registrado.»
-- «No se puede asociar al tablero: primero cotiza el domicilio del pedido.»
+- «Esa factura va dentro del conduce 47313: arma el conduce entero» — es **miembro de
+  un conduce** (47313 es el número de su principal): no se coloca suelta, se coloca la
+  principal y el conduce entero va con ella.
 
-**A una zona sólo se coloca lo que tiene el domicilio cobrado, y cotizado si el vendedor
-lo marcó.** Es la misma regla que para armar una ruta: ver [Tablero](tablero.md).
+**El domicilio ya no frena.** «…la factura no tiene un cobro de domicilio registrado» y
+«…primero cotiza el domicilio del pedido» se retiraron el 16/10/2026: el cobro de la
+factura y la cotización de Entrega ya no deciden si una factura se coloca en una zona.
+Para colocar basta con estar facturada (que cuadre o haya cambiado) y que no esté
+entregada, en una ruta, archivada ni sea miembro suelto de un conduce. Ver
+[Tablero](tablero.md#qué-se-puede-colocar-en-una-zona).
 
 **Las que sí fueron pierden la marca; las que no, se quedan marcadas** para poder
 seguir trabajando con ellos.
@@ -5004,38 +5088,35 @@ el cajón para ponerle a mano el punto de entrega a esa factura, sin salir del a
 **Cuidado con «costo mín.»:** una factura sin cotizar cuenta como cero, así que
 cualquier «costo mín.» mayor que cero lo deja fuera.
 
-#### Qué facturas se ofrecen: lo facturado y con el domicilio cobrado
+#### Qué facturas se ofrecen: toda factura facturada
 
-Esta lista **sólo trae facturas que cumplen las tres cosas a la vez**. Los demás no se
-ofrecen, y no hay filtro que los haga salir:
+**Por ahora (Jose, 16/10/2026) esta lista trae toda factura facturada**, cuadre o no con lo
+pedido. Ya **no** se exige que la factura cobre el domicilio, ni que Entrega lo haya
+cotizado, ni se mira la casilla de domicilio del vendedor: el domicilio cobrado es un
+**dato**, no una condición. Lo que **no** se ofrece, y ningún filtro lo hace salir:
 
-1. **Facturados**, cuadren o no con lo pedido. Si la factura cambió («Cambió en la
-   factura»), **sí entra**: al camión va lo facturado, porque sus productos ya
-   son los de la factura.
-2. **Con el domicilio cobrado**: la factura trae un importe de domicilio **mayor que
-   cero**. El domicilio es un servicio que se cobra; sin cobro no se reparte.
-3. **Cotizados en Entrega, si el vendedor marcó domicilio**: entonces el repartidor
-   tiene que haber puesto ya el costo. (Un costo de cero **sí** es un precio puesto; lo
-   que no vale es que esté vacío.) Si el vendedor **no** lo marcó, no se le pide:
-   Entrega sólo cotiza los marcados, y lo que dice que va a domicilio es el cobro de la
-   factura.
+1. Las **sin factura** y las **sin cotejar**.
+2. Las que **ya se entregaron** o **ya van en otra ruta**.
+3. Las **archivadas** en PEDIDO y las **sin punto de entrega**.
+4. Las que son **miembro de un conduce**: se elige la principal y el conduce entero va con ella.
 
-Esto no se puede cambiar con los filtros. Los dos del final («Si lleva domicilio» y
-«Si Entrega ya le puso costo de domicilio») **sólo recortan lo que ya cumple las tres**:
+Si la factura cambió («Cambió en la factura»), **sí entra**: al camión va lo facturado,
+porque sus productos ya son los de la factura.
 
-- **«Con domicilio» es marcado por el vendedor O cobrado en la factura**, y «Sin
-  domicilio» es ni lo uno ni lo otro. Como aquí todo trae el domicilio cobrado, **«Sólo
-  con domicilio», que es como arranca, no deja fuera a nadie**, tampoco a los que el
-  vendedor no marcó (hasta el 15/10/2026 sí los escondía), y «Sólo sin domicilio» sale
-  vacío.
-- **«Sin cotizar» sólo puede traer facturas que el vendedor no marcó** (los marcados sin
-  cotizar no entran).
+**Pero el filtro de domicilio puede esconder facturas.** Los dos filtros del final
+recortan la lista:
 
-**Por eso la lista puede salir corta**, sobre todo mientras Entrega no haya cotizado
-más domicilios. No es un fallo: lo que falta no se ha cobrado o no se ha cotizado, y se
-arregla cobrando o cotizando en Entrega, no en esta pantalla. El Panel («Facturas sin
-ruta») cuenta con este mismo criterio, y la mitad «Sin colocar» del Tablero también
-(ver [Tablero](tablero.md)).
+- **«Si lleva domicilio»** arranca en **«Sólo con domicilio»**, que es marcado por el
+  vendedor **O** cobrado en la factura. Una factura que ni el vendedor marcó ni la factura
+  cobró **no sale** mientras esté así, aunque sí podría entrar en la ruta. Para verlas,
+  elige **«Con y sin domicilio»**. «Limpiar» vuelve a «Sólo con domicilio».
+- **«Si Entrega ya le puso costo de domicilio»** arranca en «Cotizados y sin cotizar», que
+  no esconde a nadie. «Sin cotizar» deja sólo las que Entrega no ha cotizado, aunque la
+  factura cobre domicilio.
+
+**Si te falta una factura**, no es por el domicilio: mira si está facturada, si ya va en una
+ruta o si es miembro de un conduce. El Panel («Facturas sin ruta») cuenta con esta misma
+regla de entrada, y la mitad «Sin colocar» del Tablero también (ver [Tablero](tablero.md)).
 
 ### La barra de capacidad
 
@@ -5097,29 +5178,31 @@ comprueban en este orden:
    Los motivos posibles: «ya se entregó y no puede volver a un camión», «ya va en
    la ruta RT-…», «PEDIDO lo archivó», «sin coordenadas de entrega», «no vino de
    PEDIDO».
-5. **Facturación** — lo que no tiene factura. Cada factura sale por su conduce, con su
+5. **Miembro suelto de un conduce** y **ya entregada**:
+
+   > «Esa factura va dentro del conduce 47313: arma el conduce entero»
+   >
+   > «2 de las facturas elegidas YA SE ENTREGARON y no pueden volver a un camión: PTB25-261005-1480, PTB25-261005-1502.»
+
+   El primero nombra la factura principal del conduce (aquí, la 47313). **No hay «no» por
+   domicilio**: «En una ruta sólo entra lo facturado con domicilio cobrado» y «No se puede
+   crear la ruta: N facturas no tienen cotizado el domicilio en Entrega» se retiraron el
+   16/10/2026.
+
+6. **Facturación** — lo que no tiene factura. Cada factura sale por su conduce, con su
    motivo:
 
    > «En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin
    > facturar), PTB25-261005-1502 (sin cotejar), PTB25-261005-1511 (sin facturar).»
 
    Una factura que cambió **no** sale aquí: entra, con lo facturado.
-6. **Domicilio cobrado** — la factura no trae importe de domicilio:
 
-   > «En una ruta sólo entra lo facturado con domicilio cobrado. 2 no cumplen:
-   > PTB25-261005-1480, PTB25-261005-1502.»
-7. **Domicilio cotizado** — el vendedor marcó domicilio y Entrega todavía no le puso
-   costo:
-
-   > «No se puede crear la ruta: 2 facturas no tienen cotizado el domicilio en
-   > Entrega: PTB25-261005-1480, PTB25-261005-1502.»
-
-   En los tres, **salen como mucho cinco facturas** y, si hay más, acaba en «y 4
+   En los de facturación y entregadas, **salen como mucho cinco facturas** y, si hay más, acaba en «y 4
    más.». Se nombran por el conduce (el número de operación de la factura).
-8. **Camión de baja**:
+7. **Camión de baja**:
 
    > «El vehículo está inactivo y no se puede asignar a una ruta.»
-9. **Capacidad**:
+8. **Capacidad**:
 
    > «Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»
 
@@ -5444,9 +5527,9 @@ tablero de «todas».
 ## Las dos mitades
 
 - **Izquierda: «Sin colocar (308)»** — las facturas que todavía no están en ninguna
-  zona. El número cuenta **facturas**. Sólo salen las que tienen **el domicilio cobrado
-  en la factura** y, si el vendedor lo marcó, **ya cotizado en Entrega** (ver
-  [Qué se puede colocar](#qué-se-puede-colocar-en-una-zona)).
+  zona. El número cuenta **facturas**. Salen todas las
+  **facturadas** (cuadren o no), con o sin domicilio cobrado: el cobro es un dato, no una
+  condición (ver [Qué se puede colocar](#qué-se-puede-colocar-en-una-zona)).
 - **Derecha: las zonas** — «Centro», «Vista Alegre», «Carretera»… Las pones tú,
   con los nombres que se usen en tu sucursal.
 
@@ -5653,17 +5736,19 @@ Si todavía no hay zonas:
 
 ## Qué se puede colocar en una zona
 
-A una zona sólo se coloca una factura **con el domicilio cobrado** (y **cotizado**, si
-el vendedor marcó domicilio). Son las mismas condiciones de la lista de disponibles de
-Rutas, y se piden por una razón: el domicilio es un servicio que se cobra, y una zona
-entera no se debe preparar con facturas que luego la ruta no va a aceptar.
+**Por ahora (Jose, 16/10/2026) a una zona se coloca toda factura facturada**: que cuadre con
+el pedido o que haya cambiado. Ya **no** se exige que la factura cobre el domicilio ni que
+Entrega lo haya cotizado, ni se mira la casilla de domicilio del vendedor. El domicilio
+cobrado es un **dato** (la columna «Domicilio» de Facturas, el filtro **«Cobro del
+domicilio»** de «Sin colocar»), no una condición. Es la misma regla de la lista de
+disponibles de Rutas.
 
-1. **Domicilio cobrado**: la factura trae un importe de domicilio **mayor que cero**.
-   Es lo que dice que la factura va a domicilio, aunque el vendedor no marcara la
-   casilla.
-2. **Domicilio cotizado, si el vendedor lo marcó**: Entrega ya le puso el costo. Si no
-   lo marcó, no se pide: Entrega sólo cotiza los marcados.
-3. **Que no se haya entregado ya ni vaya en otra ruta.**
+Lo que **sí frena**:
+
+1. **Sin factura o sin cotejar**: no sale en «Sin colocar».
+2. **Que ya se haya entregado** o **que ya vaya en una ruta**.
+3. **Archivada** (PEDIDO le dio de baja) o **sin punto de entrega**: no sale en «Sin colocar».
+4. **Que sea miembro de un conduce**: se coloca la principal y el conduce va entero con ella.
 
 Lo que no cumple **no sale en «Sin colocar»**. Y si se intenta colocar igualmente
 —arrastrándolo, o desde «Mandar a una zona» en Facturas—, **se rechaza con un mensaje
@@ -5671,9 +5756,14 @@ claro** y la tarjeta se queda donde estaba:
 
 | Mensaje | Qué pasa |
 |---|---|
-| «No se puede asociar al tablero: primero cotiza el domicilio del pedido.» | El vendedor marcó domicilio y Entrega todavía no le puso costo |
-| «Esa factura ya se entregó» | Ya se repartió |
-| «Esa factura ya está en una ruta» | Se lo llevó otra ruta |
+| «Esa factura ya se entregó» | Ya se repartió. No se arregla: no vuelve a una zona |
+| «Esa factura ya está en una ruta» | Se la llevó otra ruta |
+| «Esa factura va dentro del conduce 47313: arma el conduce entero» | Es miembro de un conduce (47313 es su principal). Coloca la principal, no esta |
+| «La zona «Centro» está inactiva» | La zona está apagada: actívala o elige otra |
+
+Los dos avisos viejos —«No se puede asociar al tablero: la factura no tiene un cobro de
+domicilio registrado.» y «…primero cotiza el domicilio del pedido.»— **ya no existen**:
+se retiraron el 16/10/2026.
 
 **Es lo mismo con señal y sin ella.** En la APK y el escritorio el aparato lo dice en
 el momento, antes de colocar, para que el «no» no te llegue horas después a la
@@ -5683,9 +5773,9 @@ bandeja de rechazados con la zona ya preparada.
 ámbar, y al armar la ruta **entra** como cualquier otra: al camión va lo facturado, no
 lo que se pidió. La marca se queda para que se vea.
 
-Si te falta una factura que esperabas, probablemente es éste el motivo: **no se ha
-cobrado el domicilio en la factura, o el vendedor lo marcó y Entrega no lo ha
-cotizado**. Se arregla cobrando o cotizando en Entrega, no aquí.
+Si te falta una factura que esperabas, mira si **no está facturada o cotejada**, si ya
+va en una ruta o si es miembro de un conduce. Que el domicilio no esté cobrado ni
+cotizado **no** es el motivo.
 
 ---
 
@@ -5775,8 +5865,8 @@ la ruta nueva ya elegida.
 
 **Lo que entra en la ruta:** sólo las facturas de esa zona que se pueden repartir, con
 **la misma regla que usa el servidor**, **con señal y sin ella**: facturados (también
-los que «Cambió en la factura», que suben con lo facturado), con el **domicilio
-cobrado** en la factura y, si el vendedor lo marcó, **cotizado** en Entrega. Los demás
+los que «Cambió en la factura», que suben con lo facturado), con o sin domicilio cobrado
+o cotizado. Los demás
 se **descartan**: **se quedan puestos en la zona y
 marcados**, y la aplicación los nombra por su conduce (ver
 [Si la ruta sale con menos facturas](#si-la-ruta-sale-con-menos-facturas)). No
@@ -5830,9 +5920,9 @@ PTB25-261005-1523 · MARTA CRUZ: sin factura
 ```
 
 Los motivos posibles, por este orden de prioridad: «Archivado en PEDIDO», «Ya va en otra
-ruta», «Sin cotejar», «Sin factura» (las cuatro son las marcas rojas de la tarjeta), «ya
-se entregó», «la factura no tiene domicilio cobrado» y «domicilio sin cotizar» (sólo si
-el vendedor marcó domicilio). Son los mismos con señal y sin ella. «Cambió en la
+ruta», «Sin cotejar», «Sin factura» (las cuatro son las marcas rojas de la tarjeta) y
+«ya se entregó». **No hay motivo de domicilio**: que no esté cobrado ni cotizado ya no
+descarta. Son los mismos con señal y sin ella. «Cambió en la
 factura» ya no descarta: esa factura entra.
 
 ### Si la ruta sale con menos facturas
@@ -5847,7 +5937,7 @@ factura que se quedó fuera:
 
 (Con una sola dice «pero 1 factura no entró». La franja se queda unos seis segundos:
 léela antes de que se vaya; las facturas siguen marcadas en la zona.) Esas facturas **siguen en su zona**, marcadas;
-se arreglan donde dice el motivo (cobrando o cotizando en Entrega, o en PEDIDO) y se
+se arreglan donde dice el motivo (en PEDIDO, o cuando se cotee la factura) y se
 vuelve a armar. Cuando no se cae ninguno, la franja es la de siempre: «Ruta armada con lo
 que se puede repartir de «Centro».»
 
@@ -6866,9 +6956,10 @@ parada de 5: sin ella no hay importe de la ruta.»
 
 **Un total a medias es peor que ninguno**: parece completo y se queda corto.
 
-**Ojo con las facturas que el vendedor no marcó a domicilio.** Entran en una ruta aunque
-Entrega no los haya cotizado (Entrega sólo cotiza los marcados), así que van **sin
-precio de domicilio** y la ruta los cuenta en «sin cotizar». Mientras nadie les ponga
+**Ojo con las facturas sin precio de domicilio.** Entran en una ruta aunque Entrega no las
+haya cotizado y la factura no cobre domicilio (el domicilio ya no es condición de
+entrada), así que van **sin precio de domicilio** y la ruta las cuenta en «sin cotizar».
+(Si la factura sí cobró domicilio, ese cobro es el precio de la parada.) Mientras nadie les ponga
 precio, esa ruta no enseña su total. Está pendiente de decidir qué hacer con ellos.
 
 ### Por qué un domicilio se queda sin cotizar
@@ -7165,6 +7256,8 @@ arrastra.
 | Ver el detalle de una factura | **Facturas** | [ir](../apk/3-tareas.md#ver-el-detalle-de-una-factura) | [ir](../web/2-tareas.md#ver-el-detalle-de-una-factura) |
 | Poner el punto de entrega de una factura a mano (y volver al del cliente) | **Facturas** | [ir](../apk/3-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano) | [ir](../web/2-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano) |
 | Filtrar y ordenar la lista | **Facturas** | — | [ir](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-facturas) |
+| Juntar facturas en un conduce (y sacarlas o deshacerlo) | **Facturas** | [ir](../apk/3-tareas.md#juntar-facturas-en-un-conduce) | [ir](../web/2-tareas.md#juntar-facturas-en-un-conduce) |
+| Sacar una factura de un conduce o deshacerlo | **Facturas** | [ir](../apk/3-tareas.md#sacar-una-factura-de-un-conduce-o-deshacerlo) | [ir](../web/2-tareas.md#sacar-una-factura-de-un-conduce-o-deshacerlo) |
 | Mandar varias facturas a una zona de golpe | **Facturas** | [ir](../apk/3-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe) | [ir](../web/2-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe) |
 | Sacar el pre-despacho de lo filtrado | **Facturas** | [ir](../apk/3-tareas.md#sacar-el-pre-despacho-de-lo-que-tienes-filtrado) | — |
 
@@ -7577,11 +7670,13 @@ Camión: F-350                       sin subir
   factura»** — las cuatro **en rojo**: hoy **no salen**.
 - **«Cambió en la factura»** — **en ámbar**: **sí sale**. Sólo avisa de que al camión va
   lo facturado, no lo que se pidió.
-- **Sin domicilio cobrado, o marcado a domicilio y sin cotizar** — **ni salen en «Sin
-  colocar»**; si intentas
-  colocarlas, te lo rechaza al momento con su motivo («No se puede asociar al tablero:
-  la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el
-  domicilio de la factura.»), aunque no haya conexión.
+- **El domicilio sin cobrar o sin cotizar** — ya **no frena** (por ahora, desde el
+  16/10/2026): esas facturas salen en «Sin colocar» y se colocan. Los avisos «No se puede
+  asociar al tablero: la factura no tiene un cobro de domicilio registrado.» y
+  «…primero cotiza el domicilio…» ya no existen. Si intentas colocar una que no se
+  puede, te lo rechaza al momento, aunque no haya conexión: «Esa factura ya se entregó»,
+  «Esa factura ya está en una ruta» o «Esa factura va dentro del conduce 47313: arma el
+  conduce entero» (un miembro de conduce).
 - **«sin ubicar»** — sin coordenadas de entrega: **no puede ir en una ruta**.
 - **«2 facturas de este cliente hoy»** — son dos de verdad. **No se juntan.**
 
@@ -7636,8 +7731,7 @@ PTB25-261005-1523 · MARTA CRUZ: sin factura
 ### Qué entra y qué no
 
 **Sin conexión se arma con la misma regla que el servidor**: sólo entran las facturas
-(cuadren o no), con el domicilio cobrado y, si el vendedor lo marcó,
-cotizado. Las demás se descartan, se
+facturadas (cuadren o no), con o sin el domicilio cobrado o cotizado. Las demás se descartan, se
 quedan puestas en la zona y marcadas, y se nombran por su **conduce** (el número de
 operación de la factura). **Si algunas entran y otras no**, la ruta se arma con las que
 entran y una franja roja dice cuál se quedó fuera:
@@ -7869,6 +7963,8 @@ manual de la web:
 
 - [Buscar una factura](../web/2-tareas.md#buscar-una-factura)
 - [Filtrar y ordenar la lista de facturas](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-facturas)
+- [Sacar una factura de un conduce o deshacerlo](../web/2-tareas.md#sacar-una-factura-de-un-conduce-o-deshacerlo)
+- [Juntar facturas en un conduce](../web/2-tareas.md#juntar-facturas-en-un-conduce) (**lo único distinto**: aquí funciona sin señal, como en el teléfono; el cambio sube cuando haya)
 - [Mandar varias facturas a una zona de golpe](../web/2-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe)
 - [Ver el detalle de una factura](../web/2-tareas.md#ver-el-detalle-de-una-factura)
 - [Poner el punto de entrega de una factura a mano](../web/2-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano) (**lo único distinto**: aquí funciona sin señal, como en el teléfono; ver abajo)
@@ -8092,9 +8188,8 @@ ruta» (si está planificada), ver y sacar los PDF del pre-despacho y el post-de
 consultar Facturas, Clientes y Reportes.
 
 **Armar la ruta de una zona sin conexión usa la misma regla que el servidor**: sólo
-entran las facturas (cuadren o no), con el domicilio cobrado y, si el
-vendedor lo marcó, cotizado. Las
-demás se descartan y se nombran por su conduce, y si no entra ninguna no se arma la
+entran las facturas facturadas (cuadren o no), con o sin el domicilio cobrado o
+cotizado. Las demás se descartan y se nombran por su conduce, y si no entra ninguna no se arma la
 ruta.
 
 El mapa de la ruta se dibuja igual: **las paradas, su orden y el recorrido**. Si
@@ -8696,11 +8791,13 @@ Camión: F-350
   entrarán en la ruta y te lo dirá.
 - **«Cambió en la factura»** — **en ámbar**: **sí sale**. Sólo avisa de que al camión va
   lo facturado, no lo que se pidió.
-- **Sin domicilio cobrado, o marcado a domicilio y sin cotizar** — esas facturas **ni
-  salen en «Sin colocar»**, y
-  si intentas colocarlos te lo rechaza con su motivo («No se puede asociar al tablero:
-  la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el domicilio
-  del pedido.»). Ver [Tablero](../comun/pantallas/tablero.md#qué-se-puede-colocar-en-una-zona).
+- **El domicilio sin cobrar o sin cotizar** — ya **no frena** (por ahora, desde el
+  16/10/2026): esas facturas salen en «Sin colocar», se colocan y suben. Los avisos
+  «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
+  registrado.» y «…primero cotiza el domicilio…» ya no existen. Lo que sí rechaza
+  colocar: «Esa factura ya se entregó», «Esa factura ya está en una ruta» y «Esa factura
+  va dentro del conduce 47313: arma el conduce entero» (un miembro de conduce).
+  Ver [Tablero](../comun/pantallas/tablero.md#qué-se-puede-colocar-en-una-zona).
 - **«sin ubicar»** en vez de los kilómetros — esa factura no tiene coordenadas de
   entrega y **no puede ir en una ruta**.
 - **«2 facturas de este cliente hoy»** — son dos facturas de verdad. **La aplicación no
@@ -8763,8 +8860,8 @@ Cada factura sale por su **conduce** (el número de operación de la factura).
 
 ### Qué entra y qué no
 
-**Sólo entran las facturas repartibles** (facturadas, cuadren o no, con el domicilio
-cobrado y, si el vendedor lo marcó, cotizado). Los que no, **se descartan: se quedan en la zona y marcados**. No
+**Sólo entran las facturas repartibles** (facturadas, cuadren o no; con o sin el domicilio
+cobrado o cotizado). Los que no, **se descartan: se quedan en la zona y marcados**. No
 desaparece nada. **Si algunos entran y otros no**, la ruta se arma con los que entran y,
 al llegar a Rutas, una franja roja nombra a los que se quedaron fuera, cada uno por su
 conduce:
@@ -9030,7 +9127,7 @@ Los filtros van en una fila bajo la cabecera:
 |---|---|
 | **«Estado de reparto en delivery»** | «Cualquier reparto» |
 | **«Municipio del cliente»** | «Todos los municipios» |
-| **«Cobro del domicilio»** | «Cualquier cobro». Con importe o en $0; no es cuentas por cobrar |
+| **«Precio del domicilio»** | «Cualquier precio de domicilio». Con importe o en $0; no es cuentas por cobrar |
 | **«Pedido de origen»** | «Con o sin pedido» |
 | **«Vendedor de la factura»** | «Todos los vendedores». Uno o varios: casillas en un cajón, salen los de cualquiera de los marcados |
 | **«Cómo se ordena esta página»** | «Más recientes» |
@@ -9121,6 +9218,52 @@ factura que ya tiene uno.
 
 ---
 
+## Juntar facturas en un conduce
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Facturas»**.
+
+Un conduce es lo que sale con el camión y puede juntar varias facturas **del mismo
+cliente** en UNA parada. **La primera que marcas es la principal**: la que lo crea y dice a
+qué cliente va dedicado.
+
+1. **Menú → «Facturas»** y **marca las facturas** que van juntas: clic en su casilla. La
+   **primera** que marques será la principal. <!-- señala: pedidos-marcar-uno -->
+2. **Clic en «Crear conduce»**, en la franja azul de lo marcado (sale con dos o más).
+   <!-- señala: pedidos-crear-conduce -->
+   - Se abre el cajón **«Crear conduce»** y te dice quién manda: **«La principal será 47313
+     (Cliente). Las demás irán con ella»**.
+3. **Clic en «Crear conduce»**, abajo del cajón. <!-- señala: pedidos-confirmar-conduce -->
+   - En la lista, la principal pasa a decir **«Conduce 47313 + 47314»** con el peso y el
+     domicilio de todas sus facturas. Las demás **ya no salen como filas**: van con ella.
+
+**Si no se puede, el cajón lo dice y el botón queda apagado:** clientes distintos («Un
+conduce junta facturas del mismo cliente»), de otra sucursal, o una factura que ya va en una
+ruta, ya se entregó o ya va en otro conduce.
+
+**Al armar una ruta o mandar a una zona, elige la principal**: el conduce entero se mueve con
+ella y es UNA parada. En el cierre de la ruta, lo que marques en esa parada vale para todas
+sus facturas.
+
+---
+
+## Sacar una factura de un conduce o deshacerlo
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Facturas»**.
+
+1. **En «Facturas», abre la pestaña «Conduces»**. <!-- señala: pedidos-pestanas -->
+   - Arriba pone qué es un conduce y debajo salen los que hay, con sus facturas.
+2. **«Sacar»**, al lado de una factura, la devuelve a ser una factura suelta.
+3. **«Deshacer conduce»** suelta todas. <!-- señala: pedidos-deshacer-conduce -->
+   - También está en la ficha de la principal (clic en su fila).
+
+**No se puede sacar ni deshacer un conduce que ya va en una ruta o tiene resultado**: el
+botón sale apagado y dice por qué. Si el servidor dice que no, aquí mismo sale su motivo,
+tal cual.
+
+---
+
 ## Mandar varias facturas a una zona de golpe
 <!-- tarea -->
 
@@ -9146,14 +9289,14 @@ factura que ya tiene uno.
 ```
 No se pudieron mandar 2, y siguen marcados:
 PTB25-261005-1480 · Ana: Esa factura ya está en una ruta
-PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.
+PTB25-261005-1502 · Luis: Esa factura va dentro del conduce 47313: arma el conduce entero
 ```
 
 Cada factura sale por su **conduce** (el número de operación). Los motivos
-son los mismos que daría el servidor: ya entregado, ya en una ruta, **sin domicilio
-cobrado en la factura** o **marcado a domicilio y sin cotizar en Entrega**, además de
-«Archivado en PEDIDO»,
-«Sin cotejar», «Sin factura», «Sin coordenadas de entrega» o «Es de otra sucursal».
+son los mismos que daría el servidor: ya entregado, ya en una ruta o miembro suelto de
+un conduce, además de «Archivado en PEDIDO», «Sin cotejar», «Sin factura», «Sin
+coordenadas de entrega» o «Es de otra sucursal». **El domicilio sin cobrar o sin cotizar
+ya no es un motivo.**
 
 **Las que sí fueron pierden la marca; las que no, se quedan marcadas.**
 
@@ -9245,11 +9388,10 @@ Es el camino largo, para cuando la ruta no sale de una zona entera.
 5. **«Facturas»** — marca las que quieras.
    - **La barra de capacidad**: «115.6 / 10000 kg (1%)». Al 100 % sale **«LLENO»** y
      **«Camión lleno — no cabe más»**.
-   - **Sólo salen las facturas repartibles (cuadren o no con el pedido), con el domicilio cobrado y,
-     si el vendedor lo marcó, cotizado en Entrega.** Si te falta alguna, es casi
-     seguro por eso: se arregla cobrando o cotizando en Entrega, no aquí. El filtro de
-     domicilio arranca en «Sólo con domicilio», que cuenta lo marcado por el vendedor
-     **y** lo cobrado en la factura: no esconde a las que el vendedor no marcó.
+   - **Sólo salen las facturas facturadas (cuadren o no con el pedido).** Ya no se exige el
+     domicilio cobrado ni cotizado. Pero el filtro de domicilio arranca en «Sólo con
+     domicilio», que cuenta lo marcado por el vendedor **o** lo cobrado en la factura: si te
+     falta una que ni el vendedor marcó ni la factura cobró, elige **«Con y sin domicilio»**.
    - **Las filas que ya no caben se apagan**, con el motivo «No cabe en el camión».
    - Puedes marcar **una zona entera del tablero** con su casilla. Te dirá qué entró:
      **«9 de 12 de «Vista» · 1 ya estaban · 1 ya no se pueden repartir hoy · 1 no caben

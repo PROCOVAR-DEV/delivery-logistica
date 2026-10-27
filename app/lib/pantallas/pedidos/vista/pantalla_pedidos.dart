@@ -18,6 +18,7 @@ import '../../../diseno/anchos.dart';
 import '../../../diseno/barra_de_filtros.dart';
 import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/rango_de_fechas.dart';
+import '../../../diseno/pestanas.dart';
 import '../../../diseno/selector_multiple.dart';
 import '../../../diseno/tabla_ancha.dart';
 import '../../../diseno/tema.dart';
@@ -38,6 +39,7 @@ import '../datos/repositorio_pedidos.dart';
 import '../estado/proveedores_pedidos.dart';
 import 'cajon_detalle_pedido.dart';
 import 'cajon_mandar_al_tablero.dart';
+import 'conduces.dart';
 import 'kit.dart';
 import 'tabla_pedidos.dart';
 import 'vista_pre_despacho.dart';
@@ -60,8 +62,8 @@ class PantallaPedidos extends ConsumerStatefulWidget {
   /// El texto literal de la franja azul del arranque acotado.
   static const franjaAzul =
       'Enseñando sólo lo que tiene factura —cuadre o no— y sin archivar. A una '
-      'ruta entra lo facturado con el domicilio cobrado: si la factura cambió, '
-      'al camión va lo facturado.';
+      'ruta entra lo facturado: si la factura cambió, al camión va lo '
+      'facturado.';
 
   /// El gesto de la barra de lo marcado que abre el cajón del tablero. Literal
   /// aquí arriba para que la prueba busque lo que lee quien está delante.
@@ -75,6 +77,10 @@ class _PantallaPedidosState extends ConsumerState<PantallaPedidos> {
   /// Lo que traía el enlace y no se pudo aplicar. Se lee UNA vez, al montar: a
   /// partir de ahí quien manda es la barra de filtros.
   late final List<String> _noSePudieron;
+
+  /// La pestaña: 0 = Facturas (la lista de siempre, con sus filtros en la dirección), 1 = Conduces
+  /// (`docs/conduces.md`). Es de la pantalla y no de la dirección: los filtros de `/facturas` no cambian.
+  int _pestana = 0;
 
   @override
   void initState() {
@@ -118,98 +124,129 @@ class _PantallaPedidosState extends ConsumerState<PantallaPedidos> {
       child: ListView(
         padding: EdgeInsets.all(estrecho ? Aire.md : Aire.xl),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Todas las facturas acumuladas de todas las rutas',
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: Colores.tintaSuave),
-                ),
-              ),
-              // El reloj de datos de ESTA pantalla. La franja del armazon dice
-              // la frescura global; esta dice la de las colecciones que se estan
-              // mirando, que es lo que decide si se arma la ruta de hoy o la de
-              // ayer (caso S8).
-              const BarraDeDatos(colecciones: ColeccionesDePantalla.pedidos),
-            ],
-          ),
-          // LO QUE EL ENLACE TRAÍA Y NO SE PUDO APLICAR, ANTES QUE NADA.
-          //
-          // Va encima de la franja azul y encima del conteo a propósito: quien
-          // abrió un enlace tiene que enterarse de que la lista NO está acotada
-          // como el enlace decía, antes de leer un número y creérselo.
-          if (_noSePudieron.isNotEmpty) _FranjaNoSePudo(_noSePudieron),
-          if (filtros.arranqueAcotado) const _FranjaAzul(),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: Aire.md),
-            child: Row(
+          // EN EL TELÉFONO, UNO ENCIMA DEL OTRO (27/10/2026). Con algo sin subir la barra de datos mide
+          // más de la mitad de la fila: el subtítulo se quedaba en una letra por línea (656 px de alto) y
+          // desbordaba 55 px a 390. Sale ahora porque crear un conduce deja un apunte en la cola.
+          if (estrecho) ...[
+            Text(
+              'Todas las facturas acumuladas de todas las rutas',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: Colores.tintaSuave),
+            ),
+            const SizedBox(height: Aire.xs),
+            const BarraDeDatos(colecciones: ColeccionesDePantalla.pedidos),
+          ] else
+            Row(
               children: [
                 Expanded(
                   child: Text(
-                    textoDelConteo(total.value ?? 0, filtros, fechaCorta),
-                    style: Tipos.texto(
-                      tamano: 13,
-                      peso: FontWeight.w500,
-                      color: Colores.tintaSuave,
-                    ),
+                    'Todas las facturas acumuladas de todas las rutas',
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: Colores.tintaSuave),
                   ),
                 ),
-                if (total.isLoading || pagina.isLoading)
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colores.tintaSuave,
-                    ),
-                  ),
+                // El reloj de datos de ESTA pantalla. La franja del armazon dice
+                // la frescura global; esta dice la de las colecciones que se estan
+                // mirando, que es lo que decide si se arma la ruta de hoy o la de
+                // ayer (caso S8).
+                const BarraDeDatos(colecciones: ColeccionesDePantalla.pedidos),
               ],
             ),
+          ControlSenalado(
+            nombre: Senalado.pedidosPestanas,
+            child: Padding(
+              padding: const EdgeInsets.only(top: Aire.sm),
+              child: PestanasQueCaben(
+                indice: _pestana,
+                etiquetas: const ['Facturas', TextosDeConduces.pestana],
+                alCambiar: (i) => setState(() => _pestana = i),
+              ),
+            ),
           ),
-          const _BarraDeFiltros(),
-          const _PreDespachoDeLoElegido(),
-          const SizedBox(height: Aire.lg),
-          // Una lista vacia de una coleccion que nunca se bajo NO es «no hay
-          // nada»: es un fallo que se lee como un dato (caso S7). Se dice con
-          // otras palabras y antes de mirar el total.
-          // La tabla y su paginacion van dentro de la MISMA caja blanca: en
-          // delivery la paginacion es el pie de la tabla (`border-t bg-white`),
-          // no una barra suelta debajo.
-          TarjetaDeTabla(
-            pie: (total.value ?? 0) > 0
-                ? Paginacion(
-                    pagina: filtros.pagina,
-                    porPagina: ConsultasPedidos.porPagina,
-                    total: total.value ?? 0,
-                    alIr: (n) =>
-                        ref.read(filtrosPedidosProvider.notifier).irAPagina(n),
-                  )
-                : null,
-            // EN LA WEB SON TRES CASOS, NO UNO — 17/09/2026.
+          if (_pestana == 1)
+            const Padding(
+              padding: EdgeInsets.only(top: Aire.md),
+              child: PestanaConduces(),
+            )
+          else ...[
+            // LO QUE EL ENLACE TRAÍA Y NO SE PUDO APLICAR, ANTES QUE NADA.
             //
-            // Esta pantalla se quedó fuera de la pasada que separó los tres, y
-            // era **la que Jose nombró**: en la web salía «Esta pantalla no se
-            // ha descargado todavía. Con conexión baja sola» en cada carga,
-            // porque su base nace vacía. Dos de las frases que él lleva todo el
-            // día pidiendo que desaparezcan, en la pantalla de la queja.
-            child: descargados.value == false
-                ? switch (ref.watch(porQueEstaVacioProvider)) {
-                    // El aparato: ahí «no se ha descargado» es un estado real.
-                    PorQueEstaVacio.noSeDescargo => const EstadoVacio(
-                      SinDescargar.textoDeLaPantallaVacia,
+            // Va encima de la franja azul y encima del conteo a propósito: quien
+            // abrió un enlace tiene que enterarse de que la lista NO está acotada
+            // como el enlace decía, antes de leer un número y creérselo.
+            if (_noSePudieron.isNotEmpty) _FranjaNoSePudo(_noSePudieron),
+            if (filtros.arranqueAcotado) const _FranjaAzul(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: Aire.md),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      textoDelConteo(total.value ?? 0, filtros, fechaCorta),
+                      style: Tipos.texto(
+                        tamano: 13,
+                        peso: FontWeight.w500,
+                        color: Colores.tintaSuave,
+                      ),
                     ),
-                    // La web, el primer segundo: cargando y sin acusar a nadie.
-                    PorQueEstaVacio.todaviaBajando => EstadoVacio(
-                      TextosDeLaWeb.cargando('las facturas'),
+                  ),
+                  if (total.isLoading || pagina.isLoading)
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colores.tintaSuave,
+                      ),
                     ),
-                    // Y si no llegó, se dice y se deja entrar.
-                    PorQueEstaVacio.noPudoBajar => EstadoVacio(
-                      TextosDeLaWeb.noPudoBajar('las facturas'),
-                    ),
-                  }
-                : _Cuerpo(filtros: filtros, pagina: pagina, total: total),
-          ),
+                ],
+              ),
+            ),
+            const _BarraDeFiltros(),
+            const _PreDespachoDeLoElegido(),
+            const SizedBox(height: Aire.lg),
+            // Una lista vacia de una coleccion que nunca se bajo NO es «no hay
+            // nada»: es un fallo que se lee como un dato (caso S7). Se dice con
+            // otras palabras y antes de mirar el total.
+            // La tabla y su paginacion van dentro de la MISMA caja blanca: en
+            // delivery la paginacion es el pie de la tabla (`border-t bg-white`),
+            // no una barra suelta debajo.
+            TarjetaDeTabla(
+              pie: (total.value ?? 0) > 0
+                  ? Paginacion(
+                      pagina: filtros.pagina,
+                      porPagina: ConsultasPedidos.porPagina,
+                      total: total.value ?? 0,
+                      alIr: (n) => ref
+                          .read(filtrosPedidosProvider.notifier)
+                          .irAPagina(n),
+                    )
+                  : null,
+              // EN LA WEB SON TRES CASOS, NO UNO — 17/09/2026.
+              //
+              // Esta pantalla se quedó fuera de la pasada que separó los tres, y
+              // era **la que Jose nombró**: en la web salía «Esta pantalla no se
+              // ha descargado todavía. Con conexión baja sola» en cada carga,
+              // porque su base nace vacía. Dos de las frases que él lleva todo el
+              // día pidiendo que desaparezcan, en la pantalla de la queja.
+              child: descargados.value == false
+                  ? switch (ref.watch(porQueEstaVacioProvider)) {
+                      // El aparato: ahí «no se ha descargado» es un estado real.
+                      PorQueEstaVacio.noSeDescargo => const EstadoVacio(
+                        SinDescargar.textoDeLaPantallaVacia,
+                      ),
+                      // La web, el primer segundo: cargando y sin acusar a nadie.
+                      PorQueEstaVacio.todaviaBajando => EstadoVacio(
+                        TextosDeLaWeb.cargando('las facturas'),
+                      ),
+                      // Y si no llegó, se dice y se deja entrar.
+                      PorQueEstaVacio.noPudoBajar => EstadoVacio(
+                        TextosDeLaWeb.noPudoBajar('las facturas'),
+                      ),
+                    }
+                  : _Cuerpo(filtros: filtros, pagina: pagina, total: total),
+            ),
+          ],
         ],
       ),
     );
@@ -663,6 +700,7 @@ class _Cuerpo extends ConsumerWidget {
       pedidos: filas,
       renglones: renglones,
       rutas: rutas,
+      conduces: ref.watch(conducesDePaginaProvider).value ?? const {},
       seleccion: seleccion,
       conSucursal: ref.watch(sucursalMiradaProvider) == null,
       ahora: ref.watch(relojProvider)(),
@@ -745,6 +783,18 @@ class _PreDespachoDeLoElegido extends ConsumerWidget {
                     child: const Text(PantallaPedidos.mandarAUnaZona),
                   ),
                 ),
+                // JUNTAR LO MARCADO EN UN CONDUCE (`docs/conduces.md`): la primera marcada es la
+                // principal. Con dos o más; el cajón dice si se puede y por qué no.
+                if (seleccion.length >= 2)
+                  ControlSenalado(
+                    nombre: Senalado.pedidosCrearConduce,
+                    child: TextButton.icon(
+                      key: const ValueKey('barra-crear-conduce'),
+                      onPressed: () => abrirCrearConduce(context),
+                      icon: const Icon(Icons.link),
+                      label: const Text(TextosDeConduces.crear),
+                    ),
+                  ),
                 TextButton(
                   onPressed: () => ref
                       .read(seleccionPedidosProvider.notifier)

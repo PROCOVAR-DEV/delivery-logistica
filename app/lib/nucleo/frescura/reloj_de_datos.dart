@@ -253,15 +253,17 @@ class RelojDeDatos extends StatelessWidget {
     final tema = Theme.of(context);
     final color = estado.enAmbar ? Colores.ambar : Colores.tintaSuave;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // `Wrap` y no `Row`: a 390 px «Datos del 27/10 — … » más «1 sin subir» no caben en una línea (55 px
+    // de desborde, 27/10/2026, al crear un conduce sin señal) y el segundo baja entero a la siguiente.
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
       children: [
         Text(
           estado.texto,
           style: tema.textTheme.bodySmall?.copyWith(color: color),
         ),
         if (sinSubir > 0) ...[
-          const SizedBox(width: 8),
           // Nada se descarta en silencio: lo que queda sin subir se ve y se
           // puede abrir.
           TextButton(

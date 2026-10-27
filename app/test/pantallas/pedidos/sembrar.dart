@@ -114,6 +114,9 @@ Future<void> sembrarPedido(
   bool? requiereDomicilio = true,
   String? estado,
   DateTime? fechaComprometida,
+
+  /// Es MIEMBRO del conduce de esta principal (`orders.conduce_principal_id`); nulo = suelta o principal.
+  String? conducePrincipalId,
 }) => base
     .into(base.orders)
     .insert(
@@ -148,6 +151,7 @@ Future<void> sembrarPedido(
         requiereDomicilio: Value(requiereDomicilio),
         estado: Value(estado),
         fechaComprometida: Value(fechaComprometida),
+        conducePrincipalId: Value(conducePrincipalId),
       ),
     );
 

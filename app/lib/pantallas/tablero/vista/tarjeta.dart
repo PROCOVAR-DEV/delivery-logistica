@@ -186,6 +186,9 @@ class TarjetaDePedido extends ConsumerWidget {
                 cliente: pedido.customerName,
                 facturadaEl: pedido.facturaAt,
                 claveDeLaFactura: const ValueKey('tarjeta-factura'),
+                // La principal de un conduce dice «Conduce 47313 + 47314» y su peso ya es el de todo
+                // el conduce (`TarjetaPedido.conduce`).
+                conduce: pedido.conduce?.etiqueta,
               ),
               Text(
                 pedido.address,
@@ -197,8 +200,9 @@ class TarjetaDePedido extends ConsumerWidget {
               Text(
                 [
                   pesoBonito(pedido.weight),
-                  if (pedido.pedidoCosto != null)
-                    dineroBonito(ref, pedido.pedidoCosto!),
+                  if (pedido.conduce?.domicilioUsd ?? pedido.pedidoCosto
+                      case final costo?)
+                    dineroBonito(ref, costo),
                   if (pedido.municipio != null) pedido.municipio!,
                   if (posicion != null && pedido.kmAlAlmacen.isFinite)
                     kmBonito(pedido.kmAlAlmacen),

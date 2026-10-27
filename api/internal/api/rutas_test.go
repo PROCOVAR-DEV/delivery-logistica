@@ -2194,3 +2194,14 @@ func (d *dobleDeRutas) EncolarAvisoAPedido(_ context.Context, p sqlc.EncolarAvis
 	d.avisosEncolados = append(d.avisosEncolados, p)
 	return nil
 }
+
+// MiembrosDeConduces: este doble no tiene conduces (00029); los conduces se prueban contra Postgres de verdad.
+func (d *dobleDeRutas) MiembrosDeConduces(context.Context, sqlc.MiembrosDeConducesParams) ([]sqlc.MiembrosDeConducesRow, error) {
+	return nil, nil
+}
+
+// ObtenerPedido: para `motivoDeMiembroSuelto`. Este doble no tiene conduces: «no se lee» (el mismo cero filas de un
+// pedido ajeno), que deja al manejador con su motivo de siempre.
+func (d *dobleDeRutas) ObtenerPedido(context.Context, sqlc.ObtenerPedidoParams) (sqlc.ObtenerPedidoRow, error) {
+	return sqlc.ObtenerPedidoRow{}, pgx.ErrNoRows
+}

@@ -111,6 +111,8 @@ type pedidoSync struct {
 	// La factura anulada y quitada de su ruta (00027): `anulada_at` y `anulada_de_ruta_id`.
 	anuladaAt   *time.Time
 	anuladaRuta uuid.UUID
+	// Es MIEMBRO de un conduce (00029): la principal. Cero = suelta o principal.
+	conducePrincipal uuid.UUID
 }
 
 // cambiadoAt es el `GREATEST(o.updated_at, max(oi.updated_at))` de la consulta.
@@ -183,6 +185,9 @@ func (q *espejoFalso) DiferenciasDePedidos(_ context.Context, arg sqlc.Diferenci
 			fila.PuntoManualAt = pgtype.Timestamptz{Time: *p.puntoManualAt, Valid: true}
 		}
 		fila.PuntoClienteLat, fila.PuntoClienteLng = p.clienteLat, p.clienteLng
+		if p.conducePrincipal != uuid.Nil {
+			fila.ConducePrincipalID = pgtype.UUID{Bytes: [16]byte(p.conducePrincipal), Valid: true}
+		}
 		if p.anuladaAt != nil {
 			fila.AnuladaAt = pgtype.Timestamptz{Time: *p.anuladaAt, Valid: true}
 			fila.AnuladaDeRutaID = pgtype.UUID{Bytes: [16]byte(p.anuladaRuta), Valid: true}

@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/conduce.dart' show noEsMiembroSql;
 import '../../../nucleo/regla_de_entrada.dart';
 import '../../../nucleo/reloj.dart';
 
@@ -124,16 +125,21 @@ class ConsultasPanel {
     final sql =
         '''
 SELECT
+  -- Los MIEMBROS de un conduce no son facturas aparte (`nucleo/conduce.dart`, `noEsMiembroSql`): ni en
+  -- el total, ni en lo entregado hoy —que abre la lista de Facturas y tiene que cuadrar con ella—.
   (SELECT COUNT(*) FROM orders o
-     WHERE (?1 IS NULL OR o.branch_id = ?1)) AS total_pedidos,
+     WHERE (?1 IS NULL OR o.branch_id = ?1) AND $noEsMiembroSql) AS total_pedidos,
   (SELECT COUNT(*) FROM orders o
      WHERE (?1 IS NULL OR o.branch_id = ?1) AND $_repartible) AS sin_ruta,
-  (SELECT COALESCE(SUM(o.weight), 0) FROM orders o
+  -- El peso de un conduce es el de la principal MÁS el de sus miembros.
+  (SELECT COALESCE(SUM(o.weight + COALESCE((SELECT SUM(m.weight) FROM orders m
+                                              WHERE m.conduce_principal_id = o.id), 0)), 0)
+     FROM orders o
      WHERE (?1 IS NULL OR o.branch_id = ?1) AND $_repartible) AS peso_pendiente,
   (SELECT COALESCE(SUM(o.pedido_costo), 0) FROM orders o
      WHERE (?1 IS NULL OR o.branch_id = ?1)) AS total_domicilios,
   (SELECT COUNT(*) FROM orders o
-     WHERE (?1 IS NULL OR o.branch_id = ?1)
+     WHERE (?1 IS NULL OR o.branch_id = ?1) AND $noEsMiembroSql
        AND o.delivered_at IS NOT NULL
        AND o.delivered_at >= ?2) AS entregados_hoy,
   -- LOS DE HOY QUE SIGUEN EN UNA RUTA ABIERTA. Mismo `WHERE` que el de arriba
@@ -143,7 +149,7 @@ SELECT
   -- de Rutas no lo enseñe es que la ruta NO esté cerrada, no que esté rodando.
   -- Una planificada o una cancelada tampoco salen allí.
   (SELECT COUNT(*) FROM orders o
-     WHERE (?1 IS NULL OR o.branch_id = ?1)
+     WHERE (?1 IS NULL OR o.branch_id = ?1) AND $noEsMiembroSql
        AND o.delivered_at IS NOT NULL
        AND o.delivered_at >= ?2
        AND o.route_id IS NOT NULL
@@ -223,7 +229,8 @@ SELECT
         '''
 SELECT COALESCE(b.name, 'Sin sucursal') AS sucursal,
        COUNT(*) AS pedidos,
-       COALESCE(SUM(o.weight), 0) AS peso
+       COALESCE(SUM(o.weight + COALESCE((SELECT SUM(m.weight) FROM orders m
+                                          WHERE m.conduce_principal_id = o.id), 0)), 0) AS peso
   FROM orders o
   LEFT JOIN branches b ON b.id = o.branch_id
  WHERE (?1 IS NULL OR o.branch_id = ?1)

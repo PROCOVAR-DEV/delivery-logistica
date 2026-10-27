@@ -39,7 +39,8 @@ SELECT
     v.capacity    AS vehiculo_capacidad,
     vt.nombre     AS vehiculo_tipo,
     -- Cuántas paradas lleva, para no tener que traerlas todas sólo para enseñar el número.
-    (SELECT count(*) FROM orders o WHERE o.route_id = r.id) AS paradas
+    -- UNA PARADA POR CONDUCE (00029, regla 4): un miembro va con su principal y no cuenta.
+    (SELECT count(*) FROM orders o WHERE o.route_id = r.id AND o.conduce_principal_id IS NULL) AS paradas
 FROM routes r
 LEFT JOIN branches      b  ON b.id  = r.branch_id
 LEFT JOIN vehicles      v  ON v.id  = r.vehicle_id
@@ -107,12 +108,18 @@ FOR UPDATE;
 -- name: ListarParadasDeRuta :many
 SELECT
     o.id, o.operation_number, o.customer_name, o.customer_phone, o.address,
-    o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status, o.weight,
-    o.price, o.segment_km, o.stop_order, o.trip_leg, o.resultado,
+    o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status,
+    -- UN CONDUCE ES UNA PARADA (00029, regla 4): la principal pesa y cuesta lo de todo su conduce, y los
+    -- miembros no salen como paradas. Así las paradas suman lo mismo que los totales de la ruta.
+    (o.weight + conduce_peso(o.id))::double precision AS weight,
+    o.price,
+    conduce_costo(o.id) AS costo_de_miembros,
+    o.segment_km, o.stop_order, o.trip_leg, o.resultado,
     o.resultado_at, o.resultado_nota, o.delivered_at, o.municipio,
     o.pedido_costo, o.factura_domicilio, o.external_id, o.source, o.branch_id
 FROM orders o
 WHERE o.route_id = sqlc.arg('ruta_id')
+  AND o.conduce_principal_id IS NULL
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC;
 
@@ -145,6 +152,8 @@ SELECT
 FROM orders o
 WHERE (o.route_id = sqlc.arg('ruta_id')
        OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL))
+  -- LA PARADA ES EL CONDUCE (00029, regla 5): el cierre marca la principal y el servidor lo aplica a sus miembros.
+  AND o.conduce_principal_id IS NULL
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC;
 
@@ -161,13 +170,16 @@ ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC;
 -- name: ListarRenglonesDeRuta :many
 SELECT
     oi.order_id, oi.linea, oi.description, oi.quantity, oi.packs, oi.product_id,
-    o.customer_name, o.stop_order, o.resultado
+    o.customer_name,
+    -- Un miembro hereda la posición de su principal para salir pegado a ella en la hoja de carga.
+    coalesce(pr.stop_order, o.stop_order) AS stop_order, o.resultado
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
+LEFT JOIN orders pr ON pr.id = o.conduce_principal_id
 WHERE (o.route_id = sqlc.arg('ruta_id')
        OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL))
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
-ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC;
+ORDER BY coalesce(pr.stop_order, o.stop_order) ASC NULLS LAST, o.id ASC, oi.linea ASC;
 
 -- Las paradas de VARIAS rutas de una vez, para el tablero.
 --
@@ -180,12 +192,17 @@ ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC;
 -- name: ListarParadasDeRutas :many
 SELECT
     o.route_id, o.id, o.operation_number, o.customer_name, o.customer_phone, o.address,
-    o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status, o.weight,
-    o.price, o.segment_km, o.stop_order, o.trip_leg, o.resultado,
+    o.end_address, o.end_lat, o.end_lng, o.lat, o.lng, o.status,
+    -- Igual que en `ListarParadasDeRuta`: una parada por conduce, con el peso y el precio de todo él.
+    (o.weight + conduce_peso(o.id))::double precision AS weight,
+    o.price,
+    conduce_costo(o.id) AS costo_de_miembros,
+    o.segment_km, o.stop_order, o.trip_leg, o.resultado,
     o.resultado_at, o.resultado_nota, o.delivered_at, o.municipio,
     o.pedido_costo, o.factura_domicilio, o.external_id, o.source, o.branch_id
 FROM orders o
 WHERE o.route_id = ANY(sqlc.arg('ruta_ids')::uuid[])
+  AND o.conduce_principal_id IS NULL
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
 ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC;
 
@@ -197,12 +214,17 @@ ORDER BY o.stop_order ASC NULLS LAST, o.created_at ASC;
 -- `ListarRenglonesDeRuta`, que es la del post-despacho.
 -- name: ListarRenglonesDeRutas :many
 SELECT
-    o.route_id, oi.order_id, oi.linea, oi.description, oi.quantity, oi.packs, oi.product_id
+    o.route_id,
+    -- LOS RENGLONES DE UN MIEMBRO CUELGAN DE LA PARADA DE SU PRINCIPAL (00029, regla 6): la parada es el
+    -- conduce y lo que sube al camión por ella son los renglones de todas sus facturas.
+    coalesce(o.conduce_principal_id, oi.order_id) AS order_id,
+    oi.linea, oi.description, oi.quantity, oi.packs, oi.product_id
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
+LEFT JOIN orders pr ON pr.id = o.conduce_principal_id
 WHERE o.route_id = ANY(sqlc.arg('ruta_ids')::uuid[])
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
-ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC;
+ORDER BY coalesce(pr.stop_order, o.stop_order) ASC NULLS LAST, o.id ASC, oi.linea ASC;
 
 -- ---------------------------------------------------------------------------
 -- Armado de ruta  (POST /api/routes)
@@ -229,7 +251,15 @@ ORDER BY o.stop_order ASC NULLS LAST, oi.linea ASC;
 -- name: PedidosParaArmarRuta :many
 SELECT
     o.id, o.operation_number, o.customer_name, o.end_lat, o.end_lng,
-    o.weight, o.pedido_costo, o.factura_estado, o.branch_id, o.external_id, o.source,
+    -- EL CAMIÓN CARGA EL CONDUCE ENTERO (00029): el peso de una principal es el de todas sus facturas. Es el
+    -- que se compara con la capacidad del camión.
+    (o.weight + conduce_peso(o.id))::double precision AS weight,
+    o.pedido_costo, o.factura_estado, o.branch_id, o.external_id, o.source,
+    -- UN MIEMBRO NO SE ARMA SUELTO (conduces.md regla 4): sale como DATO y lo nombra el manejador con el número de
+    -- su principal («Esa factura va dentro del conduce …»), igual que `factura_estado`.
+    o.conduce_principal_id,
+    (SELECT coalesce(nullif(btrim(p.factura_numero), ''), p.operation_number)
+       FROM orders p WHERE p.id = o.conduce_principal_id) AS conduce_principal_numero,
     -- LO QUE YA SE ENTREGÓ NO VUELVE A SUBIR A UN CAMIÓN, y `route_id IS NULL` no lo
     -- sabe: un entregado conserva su `route_id`, pero la clave ajena es `ON DELETE SET
     -- NULL` (`db/migrations/00001_init.sql:446`), así que el día que alguien borre la
@@ -385,25 +415,55 @@ RETURNING id, name, route_code, status, origin_address, origin_lat, origin_lng,
 --
 -- LAS DOS PUERTAS pasan por aquí: `POST /api/routes` y `POST /api/board/columns/{id}/route`
 -- (`TableroEngancharPedidoARuta` es la misma consulta con otro envoltorio).
--- name: EngancharPedidoARuta :execrows
-UPDATE orders SET
-    route_id       = sqlc.arg('ruta_id'),
-    ultima_ruta_id = sqlc.arg('ruta_id'),
-    stop_order     = sqlc.arg('stop_order'),
-    trip_leg       = 'outbound',
-    segment_km     = sqlc.narg('segment_km'),
-    price          = coalesce(sqlc.narg('price')::double precision, 0),
-    resultado      = NULL,
-    resultado_at   = NULL,
-    resultado_nota = NULL,
-    delivered_at   = NULL
-WHERE id = sqlc.arg('pedido_id')
-  AND route_id IS NULL
-  AND resultado IS DISTINCT FROM 'entregado'::stop_result
-  AND delivered_at IS NULL
-  -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
-  -- restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
-  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
+-- name: EngancharPedidoARuta :one
+--
+-- UN CONDUCE ENTRA ENTERO EN LA MISMA SENTENCIA (00029, conduces.md regla 4): al enganchar la principal, sus
+-- miembros se enganchan a la MISMA ruta y se les quita lo que traían (`resultado`…, es un intento nuevo). Los
+-- miembros no llevan `stop_order`, `segment_km` ni `price`: la parada es la principal, y lo que cuesta el conduce
+-- entero lo suma `conduce_costo` al leer las paradas. Un miembro nunca se engancha solo: el `WHERE` de la primera cláusula exige `conduce_principal_id IS NULL`.
+--
+-- Devuelve cuántas PRINCIPALES/sueltas se engancharon (0 o 1): lo que antes era `:execrows`.
+WITH parada AS (
+    UPDATE orders o SET
+        route_id       = sqlc.arg('ruta_id'),
+        ultima_ruta_id = sqlc.arg('ruta_id'),
+        stop_order     = sqlc.arg('stop_order'),
+        trip_leg       = 'outbound',
+        segment_km     = sqlc.narg('segment_km'),
+        price          = coalesce(sqlc.narg('price')::double precision, 0),
+        resultado      = NULL,
+        resultado_at   = NULL,
+        resultado_nota = NULL,
+        delivered_at   = NULL
+    WHERE o.id = sqlc.arg('pedido_id')
+      AND o.conduce_principal_id IS NULL
+      AND o.route_id IS NULL
+      AND o.resultado IS DISTINCT FROM 'entregado'::stop_result
+      AND o.delivered_at IS NULL
+      -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
+      -- restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
+      AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
+    RETURNING o.id AS id
+), miembros AS (
+    UPDATE orders m SET
+        route_id       = sqlc.arg('ruta_id'),
+        ultima_ruta_id = sqlc.arg('ruta_id'),
+        stop_order     = NULL,
+        trip_leg       = 'outbound',
+        segment_km     = NULL,
+        price          = 0,
+        resultado      = NULL,
+        resultado_at   = NULL,
+        resultado_nota = NULL,
+        delivered_at   = NULL
+    WHERE m.conduce_principal_id IN (SELECT parada.id FROM parada)
+      AND m.route_id IS NULL
+      AND m.resultado IS DISTINCT FROM 'entregado'::stop_result
+      AND m.delivered_at IS NULL
+      AND NOT m.archivado
+    RETURNING m.id
+)
+SELECT count(*) FROM parada;
 
 -- El recorrido y la firma de quién ordenó, ya con las paradas puestas.
 -- `total_distance` es el CIRCUITO CERRADO: los tramos más el regreso al origen. El camión
@@ -448,6 +508,8 @@ UPDATE orders SET
     segment_km = sqlc.narg('segment_km')
 WHERE id = sqlc.arg('pedido_id')
   AND route_id = sqlc.arg('ruta_id')
+  -- Un miembro no es una parada y no tiene posición: se ordena su principal (00029).
+  AND conduce_principal_id IS NULL
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
 
 -- ---------------------------------------------------------------------------
@@ -533,28 +595,60 @@ RETURNING id, name, route_code, status, vehicle_id, branch_id,
 --     sabe explicar tres semanas después.
 --
 -- Ni `devuelto` ni `cancelado` tocan inventario: el reintegro lo hace Ventra.
--- name: MarcarResultadoDeParada :execrows
-UPDATE orders SET
-    resultado      = sqlc.arg('resultado')::stop_result,
-    ultima_ruta_id = sqlc.arg('ruta_id'),
-    resultado_at   = now(),
-    resultado_nota = sqlc.narg('nota'),
-    delivered_at = CASE
-        WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN now()
-        ELSE NULL
-    END,
-    status = CASE
-        WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN 'delivered'::order_status
-        ELSE 'pending'::order_status
-    END,
-    route_id = CASE
-        WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')
-        ELSE NULL
-    END
-WHERE id = sqlc.arg('pedido_id')
-  AND (route_id = sqlc.arg('ruta_id')
-       OR (route_id IS NULL AND ultima_ruta_id = sqlc.arg('ruta_id') AND resultado IS NOT NULL))
-  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
+-- name: MarcarResultadoDeParada :one
+--
+-- EL RESULTADO DE UNA PRINCIPAL SE APLICA IGUAL A SUS MIEMBROS (00029, conduces.md regla 5), en la misma
+-- sentencia y cada fila con su `resultado*`, su `delivered_at` y su `status`. El `WHERE` de la primera cláusula
+-- exige `conduce_principal_id IS NULL`: marcar un MIEMBRO suelto no existe (cero filas = «no va en esta ruta»).
+-- Devuelve cuántas PARADAS se marcaron (0 o 1), lo que antes era `:execrows`.
+WITH parada AS (
+    UPDATE orders o SET
+        resultado      = sqlc.arg('resultado')::stop_result,
+        ultima_ruta_id = sqlc.arg('ruta_id'),
+        resultado_at   = now(),
+        resultado_nota = sqlc.narg('nota'),
+        delivered_at = CASE
+            WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN now()
+            ELSE NULL
+        END,
+        status = CASE
+            WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN 'delivered'::order_status
+            ELSE 'pending'::order_status
+        END,
+        route_id = CASE
+            WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')
+            ELSE NULL
+        END
+    WHERE o.id = sqlc.arg('pedido_id')
+      AND o.conduce_principal_id IS NULL
+      AND (o.route_id = sqlc.arg('ruta_id')
+           OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL))
+      AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
+    RETURNING o.id AS id
+), miembros AS (
+    UPDATE orders m SET
+        resultado      = sqlc.arg('resultado')::stop_result,
+        ultima_ruta_id = sqlc.arg('ruta_id'),
+        resultado_at   = now(),
+        resultado_nota = sqlc.narg('nota'),
+        delivered_at = CASE
+            WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN now()
+            ELSE NULL
+        END,
+        status = CASE
+            WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN 'delivered'::order_status
+            ELSE 'pending'::order_status
+        END,
+        route_id = CASE
+            WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')
+            ELSE NULL
+        END
+    WHERE m.conduce_principal_id IN (SELECT parada.id FROM parada)
+      AND (m.route_id = sqlc.arg('ruta_id')
+           OR (m.route_id IS NULL AND m.ultima_ruta_id = sqlc.arg('ruta_id') AND m.resultado IS NOT NULL))
+    RETURNING m.id
+)
+SELECT count(*) FROM parada;
 
 -- QUITAR LA MARCA DE UNA PARADA — 28/09/2026.
 --
@@ -585,19 +679,39 @@ WHERE id = sqlc.arg('pedido_id')
 -- El `WHERE` es el mismo que el de marcar, y por lo mismo: también por `ultima_ruta_id`
 -- cuando la parada ya soltó su `route_id` CON UN RESULTADO, para poder desmarcar un
 -- devuelto. Cero filas es «ese pedido no va en esta ruta», el rechazo del contrato.
--- name: LimpiarResultadoDeParada :execrows
-UPDATE orders SET
-    resultado      = NULL,
-    ultima_ruta_id = sqlc.arg('ruta_id'),
-    resultado_at   = NULL,
-    resultado_nota = NULL,
-    delivered_at   = NULL,
-    status         = 'pending'::order_status,
-    route_id       = sqlc.arg('ruta_id')
-WHERE id = sqlc.arg('pedido_id')
-  AND (route_id = sqlc.arg('ruta_id')
-       OR (route_id IS NULL AND ultima_ruta_id = sqlc.arg('ruta_id') AND resultado IS NOT NULL))
-  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid);
+-- name: LimpiarResultadoDeParada :one
+--
+-- Y SE DESMARCA IGUAL EN SUS MIEMBROS (00029, regla 5): lo que se aplicó al conduce se deshace en el conduce.
+WITH parada AS (
+    UPDATE orders o SET
+        resultado      = NULL,
+        ultima_ruta_id = sqlc.arg('ruta_id'),
+        resultado_at   = NULL,
+        resultado_nota = NULL,
+        delivered_at   = NULL,
+        status         = 'pending'::order_status,
+        route_id       = sqlc.arg('ruta_id')
+    WHERE o.id = sqlc.arg('pedido_id')
+      AND o.conduce_principal_id IS NULL
+      AND (o.route_id = sqlc.arg('ruta_id')
+           OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL))
+      AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
+    RETURNING o.id AS id
+), miembros AS (
+    UPDATE orders m SET
+        resultado      = NULL,
+        ultima_ruta_id = sqlc.arg('ruta_id'),
+        resultado_at   = NULL,
+        resultado_nota = NULL,
+        delivered_at   = NULL,
+        status         = 'pending'::order_status,
+        route_id       = sqlc.arg('ruta_id')
+    WHERE m.conduce_principal_id IN (SELECT parada.id FROM parada)
+      AND (m.route_id = sqlc.arg('ruta_id')
+           OR (m.route_id IS NULL AND m.ultima_ruta_id = sqlc.arg('ruta_id') AND m.resultado IS NOT NULL))
+    RETURNING m.id
+)
+SELECT count(*) FROM parada;
 
 -- DÓNDE ESTÁN ESTOS PEDIDOS, para el renglón del servidor cuando un cierre rechaza paradas.
 --
@@ -660,10 +774,22 @@ WITH liberada AS (
       AND o.route_id = sqlc.arg('ruta_id')
       AND r.id = o.route_id
       AND r.status = 'planned'
+      -- Un MIEMBRO no se quita solo de la ruta: la parada es el conduce (00029, regla 4). Cero filas.
+      AND o.conduce_principal_id IS NULL
       AND o.delivered_at IS NULL
       AND o.resultado IS NULL
       AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
     RETURNING o.id AS id
+), miembros AS (
+    -- QUITAR LA PRINCIPAL DE LA RUTA SUELTA A SUS MIEMBROS CON ELLA (regla 4). Siguen en su conduce.
+    UPDATE orders m SET
+        route_id = NULL, ultima_ruta_id = NULL, stop_order = NULL, segment_km = NULL,
+        trip_leg = 'outbound'
+    FROM liberada l
+    WHERE m.conduce_principal_id = l.id
+      AND m.route_id = sqlc.arg('ruta_id')
+      AND m.delivered_at IS NULL
+      AND m.resultado IS NULL
 ), origen AS (
     DELETE FROM board_route_origins o
     WHERE o.route_id = sqlc.arg('ruta_id')

@@ -31,10 +31,9 @@ queda por repartir, cuántos camiones están fuera y si falta algo por configura
 Detalles que hay que saber:
 
 - **«Facturas sin ruta»** cuenta las facturas que **hoy se pueden meter en una ruta**: sin ruta, con coordenadas de entrega, **facturado** (cuadre o haya cambiado en
-  la factura), con el **domicilio cobrado** (importe mayor que cero en la factura) y,
-  si el vendedor marcó domicilio, **cotizado en Entrega**. Es la misma cuenta que la
-  lista de disponibles al armar una ruta, así que los dos números coinciden. Una factura
-  sin coordenadas, sin factura, sin cobro de domicilio o marcada y sin cotizar no entra.
+  la factura). Por ahora (Jose, 16/10/2026) **no se mira el domicilio**: ni que la factura
+  lo cobre, ni que Entrega lo haya cotizado. Es la misma regla de entrada que la lista de
+  disponibles al armar una ruta (antes de aplicar los filtros de esa pantalla). Una factura sin coordenadas, sin factura o sin cotejar no entra.
 - **«Entregados hoy»** usa el **reloj del aparato**, no el del servidor. Si el
   reloj del teléfono está mal, este número está mal.
 - **«Vehículos»** saca el camión de la **ruta**, no de la factura.

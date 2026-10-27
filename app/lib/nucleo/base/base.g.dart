@@ -5252,6 +5252,17 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _conducePrincipalIdMeta =
+      const VerificationMeta('conducePrincipalId');
+  @override
+  late final GeneratedColumn<String> conducePrincipalId =
+      GeneratedColumn<String>(
+        'conduce_principal_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _customerPhoneMeta = const VerificationMeta(
     'customerPhone',
   );
@@ -5388,6 +5399,7 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
     puntoClienteLng,
     puntoClienteAddress,
     folio,
+    conducePrincipalId,
     customerPhone,
     stopOrder,
     deliveredAt,
@@ -5754,6 +5766,15 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
         folio.isAcceptableOrUnknown(data['folio']!, _folioMeta),
       );
     }
+    if (data.containsKey('conduce_principal_id')) {
+      context.handle(
+        _conducePrincipalIdMeta,
+        conducePrincipalId.isAcceptableOrUnknown(
+          data['conduce_principal_id']!,
+          _conducePrincipalIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('customer_phone')) {
       context.handle(
         _customerPhoneMeta,
@@ -6007,6 +6028,10 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
         DriftSqlType.string,
         data['${effectivePrefix}folio'],
       ),
+      conducePrincipalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conduce_principal_id'],
+      ),
       customerPhone: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}customer_phone'],
@@ -6144,6 +6169,11 @@ class Pedido extends DataClass implements Insertable<Pedido> {
   /// 21/10/2026). Nulo si la factura no viene de ningún pedido o si la copia es anterior
   /// al esquema 13: la bajada lo trae al volver a pasar cada fila.
   final String? folio;
+
+  /// EL CONDUCE (`orders.conduce_principal_id`, 00029, 27/10/2026; `docs/conduces.md`). Nulo = factura
+  /// suelta o PRINCIPAL de un conduce; con valor = MIEMBRO, y apunta a su principal. Sin cadenas. Los
+  /// miembros bajan al aparato pero NO salen como filas propias (`nucleo/conduce.dart`).
+  final String? conducePrincipalId;
   final String? customerPhone;
   final int? stopOrder;
   final DateTime? deliveredAt;
@@ -6199,6 +6229,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     this.puntoClienteLng,
     this.puntoClienteAddress,
     this.folio,
+    this.conducePrincipalId,
     this.customerPhone,
     this.stopOrder,
     this.deliveredAt,
@@ -6332,6 +6363,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     }
     if (!nullToAbsent || folio != null) {
       map['folio'] = Variable<String>(folio);
+    }
+    if (!nullToAbsent || conducePrincipalId != null) {
+      map['conduce_principal_id'] = Variable<String>(conducePrincipalId);
     }
     if (!nullToAbsent || customerPhone != null) {
       map['customer_phone'] = Variable<String>(customerPhone);
@@ -6480,6 +6514,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       folio: folio == null && nullToAbsent
           ? const Value.absent()
           : Value(folio),
+      conducePrincipalId: conducePrincipalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(conducePrincipalId),
       customerPhone: customerPhone == null && nullToAbsent
           ? const Value.absent()
           : Value(customerPhone),
@@ -6569,6 +6606,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
         json['puntoClienteAddress'],
       ),
       folio: serializer.fromJson<String?>(json['folio']),
+      conducePrincipalId: serializer.fromJson<String?>(
+        json['conducePrincipalId'],
+      ),
       customerPhone: serializer.fromJson<String?>(json['customerPhone']),
       stopOrder: serializer.fromJson<int?>(json['stopOrder']),
       deliveredAt: serializer.fromJson<DateTime?>(json['deliveredAt']),
@@ -6629,6 +6669,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       'puntoClienteLng': serializer.toJson<double?>(puntoClienteLng),
       'puntoClienteAddress': serializer.toJson<String?>(puntoClienteAddress),
       'folio': serializer.toJson<String?>(folio),
+      'conducePrincipalId': serializer.toJson<String?>(conducePrincipalId),
       'customerPhone': serializer.toJson<String?>(customerPhone),
       'stopOrder': serializer.toJson<int?>(stopOrder),
       'deliveredAt': serializer.toJson<DateTime?>(deliveredAt),
@@ -6687,6 +6728,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     Value<double?> puntoClienteLng = const Value.absent(),
     Value<String?> puntoClienteAddress = const Value.absent(),
     Value<String?> folio = const Value.absent(),
+    Value<String?> conducePrincipalId = const Value.absent(),
     Value<String?> customerPhone = const Value.absent(),
     Value<int?> stopOrder = const Value.absent(),
     Value<DateTime?> deliveredAt = const Value.absent(),
@@ -6776,6 +6818,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
         ? puntoClienteAddress.value
         : this.puntoClienteAddress,
     folio: folio.present ? folio.value : this.folio,
+    conducePrincipalId: conducePrincipalId.present
+        ? conducePrincipalId.value
+        : this.conducePrincipalId,
     customerPhone: customerPhone.present
         ? customerPhone.value
         : this.customerPhone,
@@ -6885,6 +6930,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           ? data.puntoClienteAddress.value
           : this.puntoClienteAddress,
       folio: data.folio.present ? data.folio.value : this.folio,
+      conducePrincipalId: data.conducePrincipalId.present
+          ? data.conducePrincipalId.value
+          : this.conducePrincipalId,
       customerPhone: data.customerPhone.present
           ? data.customerPhone.value
           : this.customerPhone,
@@ -6953,6 +7001,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           ..write('puntoClienteLng: $puntoClienteLng, ')
           ..write('puntoClienteAddress: $puntoClienteAddress, ')
           ..write('folio: $folio, ')
+          ..write('conducePrincipalId: $conducePrincipalId, ')
           ..write('customerPhone: $customerPhone, ')
           ..write('stopOrder: $stopOrder, ')
           ..write('deliveredAt: $deliveredAt, ')
@@ -7013,6 +7062,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     puntoClienteLng,
     puntoClienteAddress,
     folio,
+    conducePrincipalId,
     customerPhone,
     stopOrder,
     deliveredAt,
@@ -7072,6 +7122,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           other.puntoClienteLng == this.puntoClienteLng &&
           other.puntoClienteAddress == this.puntoClienteAddress &&
           other.folio == this.folio &&
+          other.conducePrincipalId == this.conducePrincipalId &&
           other.customerPhone == this.customerPhone &&
           other.stopOrder == this.stopOrder &&
           other.deliveredAt == this.deliveredAt &&
@@ -7129,6 +7180,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
   final Value<double?> puntoClienteLng;
   final Value<String?> puntoClienteAddress;
   final Value<String?> folio;
+  final Value<String?> conducePrincipalId;
   final Value<String?> customerPhone;
   final Value<int?> stopOrder;
   final Value<DateTime?> deliveredAt;
@@ -7185,6 +7237,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     this.puntoClienteLng = const Value.absent(),
     this.puntoClienteAddress = const Value.absent(),
     this.folio = const Value.absent(),
+    this.conducePrincipalId = const Value.absent(),
     this.customerPhone = const Value.absent(),
     this.stopOrder = const Value.absent(),
     this.deliveredAt = const Value.absent(),
@@ -7242,6 +7295,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     this.puntoClienteLng = const Value.absent(),
     this.puntoClienteAddress = const Value.absent(),
     this.folio = const Value.absent(),
+    this.conducePrincipalId = const Value.absent(),
     this.customerPhone = const Value.absent(),
     this.stopOrder = const Value.absent(),
     this.deliveredAt = const Value.absent(),
@@ -7301,6 +7355,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     Expression<double>? puntoClienteLng,
     Expression<String>? puntoClienteAddress,
     Expression<String>? folio,
+    Expression<String>? conducePrincipalId,
     Expression<String>? customerPhone,
     Expression<int>? stopOrder,
     Expression<DateTime>? deliveredAt,
@@ -7362,6 +7417,8 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
       if (puntoClienteAddress != null)
         'punto_cliente_address': puntoClienteAddress,
       if (folio != null) 'folio': folio,
+      if (conducePrincipalId != null)
+        'conduce_principal_id': conducePrincipalId,
       if (customerPhone != null) 'customer_phone': customerPhone,
       if (stopOrder != null) 'stop_order': stopOrder,
       if (deliveredAt != null) 'delivered_at': deliveredAt,
@@ -7421,6 +7478,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     Value<double?>? puntoClienteLng,
     Value<String?>? puntoClienteAddress,
     Value<String?>? folio,
+    Value<String?>? conducePrincipalId,
     Value<String?>? customerPhone,
     Value<int?>? stopOrder,
     Value<DateTime?>? deliveredAt,
@@ -7478,6 +7536,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
       puntoClienteLng: puntoClienteLng ?? this.puntoClienteLng,
       puntoClienteAddress: puntoClienteAddress ?? this.puntoClienteAddress,
       folio: folio ?? this.folio,
+      conducePrincipalId: conducePrincipalId ?? this.conducePrincipalId,
       customerPhone: customerPhone ?? this.customerPhone,
       stopOrder: stopOrder ?? this.stopOrder,
       deliveredAt: deliveredAt ?? this.deliveredAt,
@@ -7637,6 +7696,9 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     if (folio.present) {
       map['folio'] = Variable<String>(folio.value);
     }
+    if (conducePrincipalId.present) {
+      map['conduce_principal_id'] = Variable<String>(conducePrincipalId.value);
+    }
     if (customerPhone.present) {
       map['customer_phone'] = Variable<String>(customerPhone.value);
     }
@@ -7716,6 +7778,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
           ..write('puntoClienteLng: $puntoClienteLng, ')
           ..write('puntoClienteAddress: $puntoClienteAddress, ')
           ..write('folio: $folio, ')
+          ..write('conducePrincipalId: $conducePrincipalId, ')
           ..write('customerPhone: $customerPhone, ')
           ..write('stopOrder: $stopOrder, ')
           ..write('deliveredAt: $deliveredAt, ')
@@ -14812,6 +14875,7 @@ typedef $$OrdersTableCreateCompanionBuilder =
       Value<double?> puntoClienteLng,
       Value<String?> puntoClienteAddress,
       Value<String?> folio,
+      Value<String?> conducePrincipalId,
       Value<String?> customerPhone,
       Value<int?> stopOrder,
       Value<DateTime?> deliveredAt,
@@ -14870,6 +14934,7 @@ typedef $$OrdersTableUpdateCompanionBuilder =
       Value<double?> puntoClienteLng,
       Value<String?> puntoClienteAddress,
       Value<String?> folio,
+      Value<String?> conducePrincipalId,
       Value<String?> customerPhone,
       Value<int?> stopOrder,
       Value<DateTime?> deliveredAt,
@@ -15116,6 +15181,11 @@ class $$OrdersTableFilterComposer extends Composer<_$BaseLocal, $OrdersTable> {
 
   ColumnFilters<String> get folio => $composableBuilder(
     column: $table.folio,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get conducePrincipalId => $composableBuilder(
+    column: $table.conducePrincipalId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -15399,6 +15469,11 @@ class $$OrdersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get conducePrincipalId => $composableBuilder(
+    column: $table.conducePrincipalId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get customerPhone => $composableBuilder(
     column: $table.customerPhone,
     builder: (column) => ColumnOrderings(column),
@@ -15635,6 +15710,11 @@ class $$OrdersTableAnnotationComposer
   GeneratedColumn<String> get folio =>
       $composableBuilder(column: $table.folio, builder: (column) => column);
 
+  GeneratedColumn<String> get conducePrincipalId => $composableBuilder(
+    column: $table.conducePrincipalId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get customerPhone => $composableBuilder(
     column: $table.customerPhone,
     builder: (column) => column,
@@ -15742,6 +15822,7 @@ class $$OrdersTableTableManager
                 Value<double?> puntoClienteLng = const Value.absent(),
                 Value<String?> puntoClienteAddress = const Value.absent(),
                 Value<String?> folio = const Value.absent(),
+                Value<String?> conducePrincipalId = const Value.absent(),
                 Value<String?> customerPhone = const Value.absent(),
                 Value<int?> stopOrder = const Value.absent(),
                 Value<DateTime?> deliveredAt = const Value.absent(),
@@ -15798,6 +15879,7 @@ class $$OrdersTableTableManager
                 puntoClienteLng: puntoClienteLng,
                 puntoClienteAddress: puntoClienteAddress,
                 folio: folio,
+                conducePrincipalId: conducePrincipalId,
                 customerPhone: customerPhone,
                 stopOrder: stopOrder,
                 deliveredAt: deliveredAt,
@@ -15856,6 +15938,7 @@ class $$OrdersTableTableManager
                 Value<double?> puntoClienteLng = const Value.absent(),
                 Value<String?> puntoClienteAddress = const Value.absent(),
                 Value<String?> folio = const Value.absent(),
+                Value<String?> conducePrincipalId = const Value.absent(),
                 Value<String?> customerPhone = const Value.absent(),
                 Value<int?> stopOrder = const Value.absent(),
                 Value<DateTime?> deliveredAt = const Value.absent(),
@@ -15912,6 +15995,7 @@ class $$OrdersTableTableManager
                 puntoClienteLng: puntoClienteLng,
                 puntoClienteAddress: puntoClienteAddress,
                 folio: folio,
+                conducePrincipalId: conducePrincipalId,
                 customerPhone: customerPhone,
                 stopOrder: stopOrder,
                 deliveredAt: deliveredAt,

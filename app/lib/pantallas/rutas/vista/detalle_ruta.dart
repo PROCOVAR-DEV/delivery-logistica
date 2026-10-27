@@ -28,6 +28,8 @@ import '../../../diseno/tema.dart';
 import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
 import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/conduce.dart' show ConduceDe;
+import '../../../nucleo/numero_de_factura.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
@@ -514,6 +516,9 @@ class _Acciones extends ConsumerWidget {
           final renglones =
               ref.watch(renglonesDeParadasProvider(ruta.ruta.id)).value ??
               const <String, List<RenglonConPeso>>{};
+          final conduces =
+              ref.watch(conducesDeRutaProvider(ruta.ruta.id)).value ??
+              const <String, ConduceDe>{};
           return Cajon(
             titulo: 'Paradas y precio por cliente (${paradas.length})',
             subtitulo: ruta.ruta.routeCode ?? ruta.ruta.id,
@@ -536,6 +541,7 @@ class _Acciones extends ConsumerWidget {
                   origenLat: viva.originLat,
                   origenLng: viva.originLng,
                   lineas: renglones[parada.id] ?? const <RenglonConPeso>[],
+                  conduce: conduces[parada.id],
                   alQuitar: viva.status == EstadoRuta.planificada
                       ? () => _quitarDeLaRuta(context, ref, viva.id, parada)
                       : null,
@@ -985,11 +991,16 @@ class TarjetaDeParada extends StatelessWidget {
     this.alQuitar,
     this.alUbicar,
     this.asa,
+    this.conduce,
     super.key,
   });
 
   final int numero;
   final Pedido parada;
+
+  /// Si la parada es un CONDUCE (`docs/conduces.md`): dice «Conduce 47313 + 47314» y lista sus
+  /// facturas. El peso de [parada] ya es el de todo el conduce (`conMiembrosSumados`).
+  final ConduceDe? conduce;
 
   /// «Ubicar la entrega» (issue 19 de Amado): el cajón donde se le pone a mano el
   /// punto de entrega a esta parada. `null` donde no se puede (parada entregada o
@@ -1053,7 +1064,16 @@ class TarjetaDeParada extends StatelessWidget {
                   facturadaEl: parada.facturaAt,
                   cliente: parada.customerName,
                   claveDeLaFactura: ValueKey('parada-factura-${parada.id}'),
+                  conduce: conduce?.etiqueta,
                 ),
+                if (conduce != null)
+                  for (final f in conduce!.facturas)
+                    Text(
+                      '${f.id == parada.id ? 'Principal' : 'Con ella'}: '
+                      '${NumeroDeFactura.de(f.facturaNumero) ?? f.operationNumber ?? f.customerName}',
+                      key: ValueKey('parada-conduce-${f.id}'),
+                      style: TextStyle(color: Colores.gris, fontSize: 12),
+                    ),
                 const SizedBox(height: 2),
                 Text(
                   parada.endAddress ?? parada.address,

@@ -157,9 +157,10 @@ var guardasDelReparto = []guarda{
 			"para un entregado es falso: esa ruta puede que ni exista.",
 	},
 	{
-		fichero:   "routes.sql",
-		consulta:  "EngancharPedidoARuta",
-		enElWhere: []string{"route_id IS NULL"},
+		fichero:  "routes.sql",
+		consulta: "EngancharPedidoARuta",
+		// Con alias `o.` desde la 00029 (conduces): el UPDATE va en un CTE y sin alias `id` era ambiguo.
+		enElWhere: []string{"o.route_id IS NULL", "o.conduce_principal_id IS NULL"},
 		porQue: "LA ÚNICA GUARDA CONTRA LA CARRERA DE VERDAD. La validación de más arriba se\n" +
 			"hizo hace unos milisegundos y con diez logísticos armando rutas a la vez eso es\n" +
 			"una foto vieja. El cero filas de este UPDATE es lo que levanta `errSeLoLlevaron`\n" +
@@ -167,10 +168,11 @@ var guardasDelReparto = []guarda{
 			"dos creen tenerlo.",
 	},
 	{
-		fichero:    "routes.sql",
-		consulta:   "MarcarResultadoDeParada",
-		enElWhere:  []string{"(route_id = sqlc.arg('ruta_id')"},
-		enElCuerpo: []string{"OR (route_id IS NULL AND ultima_ruta_id = sqlc.arg('ruta_id') AND resultado IS NOT NULL)", "WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')"},
+		fichero:  "routes.sql",
+		consulta: "MarcarResultadoDeParada",
+		// Con alias `o.` desde la 00029 (conduces): el UPDATE va en un CTE y sin alias `id` era ambiguo.
+		enElWhere:  []string{"(o.route_id = sqlc.arg('ruta_id')", "o.conduce_principal_id IS NULL"},
+		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL)", "WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')"},
 		porQue: "Las dos mitades del cierre.\n" +
 			"  · El `WHERE` acepta la parada que sigue en `route_id` y la ya soltada cuya\n" +
 			"    `ultima_ruta_id` apunta a esta ruta; cualquier otra ruta queda excluida.\n" +
@@ -198,7 +200,7 @@ var guardasDelReparto = []guarda{
 	{
 		fichero:    "routes.sql",
 		consulta:   "LimpiarResultadoDeParada",
-		enElCuerpo: []string{"OR (route_id IS NULL AND ultima_ruta_id = sqlc.arg('ruta_id') AND resultado IS NOT NULL)"},
+		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL)"},
 		porQue:     "Desmarcar una parada que no viajó le pondría `route_id` a un pedido quitado de la ruta.",
 	},
 	{

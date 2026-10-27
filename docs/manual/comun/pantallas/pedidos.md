@@ -20,17 +20,21 @@ filtro de sucursal.
 Al entrar, la pantalla **viene acotada a propósito** y lo dice:
 
 > «Enseñando sólo lo que tiene factura —cuadre o no— y sin archivar. A una ruta
-> entra lo facturado con el domicilio cobrado: si la factura cambió, al camión va lo
-> facturado.»
+> entra lo facturado: si la factura cambió, al camión va lo facturado.»
+
+(El domicilio cobrado ya no se exige para entrar a una ruta: es un dato que se ve
+en la columna «Domicilio».)
 
 Debajo, el botón **«Ver todas las facturas»**, que quita ese acotado.
 
 Si no encuentras una factura, esto es lo primero que hay que probar.
 
 **Esta lista enseña lo que tiene factura; no todo lo que sale entra en una ruta.** A una
-ruta nueva o a una zona sólo entra lo que además tiene **el domicilio cobrado** en la
-factura. Una factura que cambió respecto de lo pedido sí entra: al camión va lo
-facturado. Ver [Las reglas del reparto](../las-reglas-del-reparto.md).
+ruta nueva o a una zona entra toda factura **facturada** (que cuadre o que haya cambiado);
+no entran las «sin facturar» ni las «sin cotejar», ni las que ya se entregaron, ya van en
+una ruta o están archivadas. **El domicilio cobrado ya no es una condición, es un dato**
+(por ahora): se ve en la columna «Domicilio» y se filtra con «Precio del domicilio». Una
+factura que cambió respecto de lo pedido sí entra: al camión va lo facturado. Ver [Las reglas del reparto](../las-reglas-del-reparto.md).
 
 ---
 
@@ -178,9 +182,10 @@ Así se ve **antes de marcar** si una factura trae el domicilio cobrado o no: ha
 puede que no cobrara el domicilio. Con «sin facturar» o «sin cotejar»
 no sale esta marca, porque ya está dicho que falta la factura.
 
-**El ámbar sólo sale si ése es el motivo.** Una factura que ya va en una ruta, que ya se
-entregó o que está archivada no tiene nada que colocar, así que lleva sólo el número de
-factura (o el «Dom.» verde, si la factura sí cobró el domicilio). Un devuelto o cancelado
+**El gris «Domicilio sin precio puesto» sólo sale si la factura podría ir a una ruta.** Una
+factura que ya va en una ruta, que ya se entregó o que está archivada no tiene nada que
+colocar, así que lleva sólo el número de factura (o el «Dom.» verde, si la factura sí cobró
+el domicilio). Un devuelto o cancelado
 sí lo lleva, porque se puede volver a meter en otra ruta.
 
 La columna «Factura» **se ve siempre** en la tabla (desde 768 px de ancho, también en una
@@ -200,7 +205,8 @@ botones:
 
 1. El del pre-despacho
 2. **«Mandar a una zona»**
-3. **«Quitar la marca»**
+3. **«Crear conduce»** (sólo con dos o más marcadas: ver «Los conduces»)
+4. **«Quitar la marca»**
 
 ### El de lo filtrado
 
@@ -280,14 +286,12 @@ Lleva, en este orden:
      dice en cambio «…, pero los productos de abajo son los del pedido: la factura no se
      pudo atar a este pedido.», y si no se sabe, sólo «Al camión va lo facturado.».
    - Gris: «Todavía no aparece facturado en Ventra.»
-   - Con factura, una línea que dice si puede ir a una ruta:
-     - «Puede ir a una ruta.»
-     - «No entra a una ruta: la factura no tiene un cobro de domicilio registrado.»
-     - «No entra a una ruta: se marcó domicilio y Entrega todavía no lo cotizó.»
-
-     No sale nada si la factura ya va en una ruta, ya se entregó o está archivada.
-   - Y si la factura cobró domicilio: «La factura cobró 15.00 USD de domicilio.»
-     **Sin ese cobro, la factura no se ofrece para una ruta ni para una zona.**
+   - Con factura, una línea que dice «Puede ir a una ruta.» Ya no hay una línea de «No entra
+     a una ruta» por el domicilio (se retiró el 16/10/2026). No sale nada si la factura ya
+     va en una ruta, ya se entregó, está archivada o no tiene punto de entrega.
+   - Y si la factura cobró domicilio: «La factura cobró 15.00 USD de domicilio.» Es un
+     dato: **con o sin ese cobro, la factura se ofrece para una ruta y para una zona** si está
+     facturada.
 4. **El bloque del domicilio** — «Distancia 4.35 km · Peso total 128.0 kg» y, a la
    derecha, el **precio del domicilio**: lo que cotizó Entrega o, si no, lo que cobró la
    propia factura. Debajo:
@@ -364,6 +368,32 @@ tiene uno.
 
 ---
 
+## Los conduces: varias facturas, una parada
+
+Un **conduce** es lo que sale con el camión y puede juntar varias facturas **del mismo cliente** en UNA
+parada. Lo crea una persona; nada junta facturas solo. La pantalla tiene dos pestañas: **«Facturas»** (la
+lista de siempre) y **«Conduces»**.
+
+- **Crear.** Marca las facturas y toca **«Crear conduce»** en la franja de lo marcado. **La primera que
+  marcas es la principal**: el cajón lo dice («La principal será 47313 (Cliente). Las demás irán con
+  ella») y, si no se puede juntar, dice por qué y el botón queda apagado: clientes distintos, otra
+  sucursal, o una factura que ya va en una ruta, ya se entregó o ya va en otro conduce.
+- **Cómo se ve.** La principal pasa a decir **«Conduce 47313 + 47314»** y enseña el peso y el domicilio de
+  todas sus facturas juntas. **Las demás no salen como filas**: ni en la lista de Facturas y su
+  contador, ni en «Sin colocar», ni en el asistente de rutas, ni en el tablero, ni en el Panel.
+- **La pestaña «Conduces».** Arriba, qué es un conduce; debajo, los que hay: la principal, el cliente,
+  cuántas facturas, el peso y cómo va. Cada factura que va con la principal tiene **«Sacar»**, y el
+  conduce **«Deshacer conduce»** (que también está en la ficha de la principal). No se puede sacar ni
+  deshacer un conduce que ya va en una ruta o tiene resultado: el botón sale apagado y lo dice.
+- **Rutas y zonas.** Se elige la principal y el conduce entero se mueve con ella, como UNA parada. Quitar
+  la principal de la ruta quita a todas. En el cierre de la ruta, lo que se marca en esa parada vale para
+  todas sus facturas, y el servidor avisa a PEDIDO de cada una por separado.
+- **Sin señal** (APK y escritorio): crear, deshacer y sacar se guardan en el aparato y suben cuando haya
+  señal; si el servidor dice que no, queda en la bandeja de errores con su motivo. En la web va directo al
+  servidor y, si dice que no, sale su motivo tal cual.
+
+---
+
 ## «Mandar a una zona»
 
 Con facturas marcadas, el botón **«Mandar a una zona»** abre el cajón **«Mandar a
@@ -391,17 +421,9 @@ Y si alguno se quedó, en ámbar:
 
 > «No se pudieron mandar 2, y siguen marcados:»
 > `PTB25-261005-1480 · Ana: Esa factura ya está en una ruta`
-> `PTB25-261005-1502 · Luis: No se puede asociar al tablero: primero cotiza el domicilio del pedido.`
+> `PTB25-261005-1502 · Luis: Esa factura va dentro del conduce 47313: arma el conduce entero`
 
 Cada factura sale por su **conduce**, que es su número de operación.
-
-Si alguna se quedó por el domicilio sin cobrar, el cajón añade debajo del aviso una
-línea de ayuda:
-
-> «Mira la marca de Factura en Facturas: ahí se ve si el domicilio está cobrado.»
-
-Sólo sale con ese motivo: con los demás (archivado, otra sucursal…) la marca de «Factura»
-no tiene la respuesta.
 
 Los motivos posibles: «No está en este aparato», «Es de otra sucursal», «Sin
 coordenadas de entrega», «Archivado en PEDIDO», «Sin cotejar», «Sin factura», y los
@@ -409,12 +431,16 @@ mismos «no» que da el servidor al colocar una tarjeta:
 
 - «Esa factura ya se entregó»
 - «Esa factura ya está en una ruta»
-- «No se puede asociar al tablero: la factura no tiene un cobro de domicilio
-  registrado.»
-- «No se puede asociar al tablero: primero cotiza el domicilio del pedido.»
+- «Esa factura va dentro del conduce 47313: arma el conduce entero» — es **miembro de
+  un conduce** (47313 es el número de su principal): no se coloca suelta, se coloca la
+  principal y el conduce entero va con ella.
 
-**A una zona sólo se coloca lo que tiene el domicilio cobrado, y cotizado si el vendedor
-lo marcó.** Es la misma regla que para armar una ruta: ver [Tablero](tablero.md).
+**El domicilio ya no frena.** «…la factura no tiene un cobro de domicilio registrado» y
+«…primero cotiza el domicilio del pedido» se retiraron el 16/10/2026: el cobro de la
+factura y la cotización de Entrega ya no deciden si una factura se coloca en una zona.
+Para colocar basta con estar facturada (que cuadre o haya cambiado) y que no esté
+entregada, en una ruta, archivada ni sea miembro suelto de un conduce. Ver
+[Tablero](tablero.md#qué-se-puede-colocar-en-una-zona).
 
 **Las que sí fueron pierden la marca; las que no, se quedan marcadas** para poder
 seguir trabajando con ellos.

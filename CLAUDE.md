@@ -429,8 +429,15 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   traen su cobro: no hay filtro «con cobro». Los filtros propios de la factura son «Pedido de origen» (con/sin pedido) y
   los de siempre; el precio de Entrega («Precio del pedido») sólo cuenta para las que traen pedido. Una factura sin
   pedido no trae el punto del cliente: la fila avisa «Sin ubicación» y el logístico lo pone con «Ubicar la entrega».
-  **Pendiente (sin construir): los CONDUCES** — una pestaña «Conduces» donde el logístico junta varias facturas en una
-  («super factura»; la primera marcada la crea y dice a qué cliente va); ver `~/Notas/Procovar/Pendiente/Delivery.md`.
+  **CONDUCES (27/10/2026, `docs/conduces.md`):** el logístico junta a mano varias facturas DEL MISMO CLIENTE en UNA parada
+  («super factura»); **la primera que marca es la PRINCIPAL**. `orders.conduce_principal_id` (00029): NULL = factura suelta o
+  principal; no NULL = miembro, que viaja con su principal. **El conduce no suma ni mezcla datos en la principal** (el espejo
+  reescribe cada fila desde su factura y no toca ese campo): los totales salen de las filas con `route_id`. Los miembros NO salen
+  como filas en listas, contadores, tablero, Panel ni armado (condición única: `noEsMiembro(Sql)` en Dart y `conduce_principal_id IS
+  NULL` en cada consulta, atada con pruebas) pero SÍ bajan al aparato. Armar o quitar la principal mueve a sus miembros; **el cierre se
+  sube SOLO sobre la principal** (un miembro suelto da 409; el servidor cascadea el resultado y avisa a PEDIDO POR FACTURA).
+  `POST /api/conduces`, `DELETE /api/conduces/{id}` y `…/miembros/{id}` (lista blanca del sync: diecinueve formas). Cancelada la
+  principal, los miembros se liberan. «Mismo cliente» = `customerName` en minúsculas y espacios colapsados, sin plegar tildes.
 - **El camión en el taller es AVISO, no bloqueo** (Jose, 28/09/2026; la 1.0.28 lo bloqueó por
   error y se revirtió en la 1.0.29): una sucursal con UN camión olvidado en `maintenance` se
   quedaría sin poder armar rutas. Se ofrece con un aviso ámbar «en el taller». Lo que NUNCA se
@@ -531,7 +538,7 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   reparto y tienen que ser cero): el payload de alguien sin permiso no se ejecuta con la autoridad de nadie hasta que una persona
   lo decide. **Quién revisa: ADMINISTRADOR de esa sucursal, SUPER ADMIN y DESARROLLADOR, y nadie revisa lo suyo** (Jose, 08/10/2026;
   por nombre de rol, `identidad.RolDeRevisor`; LOGISTICO no revisa). Aplicar reenvía por la misma tubería que la subida, con el token
-  **del revisor** (jamás uno de servicio), la lista blanca de ruta POR FORMA (las dieciséis rutas de escritura de `/routes`, `/board`, `/vehicles`, `/vehicle-types`, `/distribuidores` y `/orders/{id}/punto`; la novena, `PUT /routes/{id}/stops`, reordenar, 15/10/2026; las seis de la flota, 16/10/2026; la dieciséis, el punto de entrega a mano, 20/10/2026) y `X-Sucursal-Id` forzada; un 4xx del reparto
+  **del revisor** (jamás uno de servicio), la lista blanca de ruta POR FORMA (las diecinueve formas de escritura de `/routes`, `/board`, `/vehicles`, `/vehicle-types`, `/distribuidores`, `/orders/{id}/punto` y `/conduces` (27/10/2026: `POST /conduces`, `DELETE /conduces/{id}` y `DELETE /conduces/{id}/miembros/{id}`); la novena, `PUT /routes/{id}/stops`, reordenar, 15/10/2026; las seis de la flota, 16/10/2026; la dieciséis, el punto de entrega a mano, 20/10/2026) y `X-Sucursal-Id` forzada; un 4xx del reparto
   deja el apunte `rechazado` con el motivo LITERAL y a la vista, un 5xx o la red no es un rechazo; «aplicar todo en orden» **se
   detiene** en el primer fallo; un `aplicando` de más de 10 minutos sale `interrumpido` y se reintenta solo confirmándolo a mano (la
   API no lee `X-Apunte`). **Descartar se ESCRIBE, no se borra** —motivo de ≥5 letras con nombre y hora; lo exigen el `CHECK` y los

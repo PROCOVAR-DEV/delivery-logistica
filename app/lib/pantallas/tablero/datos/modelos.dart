@@ -1,4 +1,5 @@
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/conduce.dart' show ConduceDe;
 
 /// El punto desde el que se mide la cercania: el almacen principal de la
 /// sucursal (§3 «De donde sale la distancia»).
@@ -317,7 +318,13 @@ class TarjetaPedido {
     this.rutaId,
     this.resultado,
     this.deliveredAt,
+    this.conduce,
   });
+
+  /// El conduce que esta tarjeta ENCABEZA (`docs/conduces.md`): sus miembros no salen como tarjetas,
+  /// van con ella. Con él, [weight] ya es el peso de TODO el conduce y la tarjeta dice
+  /// «Conduce 47313 + 47314». Nulo = una factura suelta.
+  final ConduceDe? conduce;
 
   final String pedidoId;
   final String? operationNumber;

@@ -154,9 +154,10 @@ parada de 5: sin ella no hay importe de la ruta.»
 
 **Un total a medias es peor que ninguno**: parece completo y se queda corto.
 
-**Ojo con las facturas que el vendedor no marcó a domicilio.** Entran en una ruta aunque
-Entrega no los haya cotizado (Entrega sólo cotiza los marcados), así que van **sin
-precio de domicilio** y la ruta los cuenta en «sin cotizar». Mientras nadie les ponga
+**Ojo con las facturas sin precio de domicilio.** Entran en una ruta aunque Entrega no las
+haya cotizado y la factura no cobre domicilio (el domicilio ya no es condición de
+entrada), así que van **sin precio de domicilio** y la ruta las cuenta en «sin cotizar».
+(Si la factura sí cobró domicilio, ese cobro es el precio de la parada.) Mientras nadie les ponga
 precio, esa ruta no enseña su total. Está pendiente de decidir qué hacer con ellos.
 
 ### Por qué un domicilio se queda sin cotizar

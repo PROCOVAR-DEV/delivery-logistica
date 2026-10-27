@@ -123,6 +123,15 @@ class RegistroDeFrescura {
   static const yaRebajadosPorLasFacturasAnuladas =
       'una-vez:pedidos-con-facturas-anuladas';
 
+  /// LOS PEDIDOS SE VUELVEN A BAJAR ENTEROS UNA VEZ POR APARATO, por el conduce — 27/10/2026
+  /// (esquema 16, `docs/conduces.md`).
+  ///
+  /// La bajada lee `conducePrincipalId`. Pero es POR DIFERENCIAS: las facturas que ya se juntaron
+  /// en el servidor antes de actualizar la aplicacion no vuelven a viajar, y en una APK o un
+  /// escritorio con la copia ya hecha saldrian como facturas sueltas PARA SIEMPRE (los miembros
+  /// a la vista, la principal sin su «Conduce a + b»). En la web no cambia nada: su base nace vacia.
+  static const yaRebajadosPorSuConduce = 'una-vez:pedidos-con-conduce';
+
   /// LOS CAMIONES CON SU FICHA ENTERA — 16/10/2026 (issue 14). Hasta la 1.0.38 la bajada
   /// guardaba de cada camion solo lo basico (sin tipo, costo por km, notas ni
   /// «para domicilio»). Se piden ENTEROS (`completas=vehicles`) una vez, no con una
@@ -166,6 +175,9 @@ class RegistroDeFrescura {
     yaRebajadosPorLaFacturaDeSusRenglones,
     const [Colecciones.pedidos],
   );
+
+  Future<void> rebajarLosPedidosPorSuConduce() =>
+      rebajarUnaVez(yaRebajadosPorSuConduce, const [Colecciones.pedidos]);
 
   Future<void> rebajarLasFacturasAnuladas() => rebajarUnaVez(
     yaRebajadosPorLasFacturasAnuladas,

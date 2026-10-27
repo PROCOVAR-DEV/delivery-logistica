@@ -298,6 +298,38 @@ void main() {
     expect((q.puntoManual, q.puntoClienteLat), (false, null));
   });
 
+  test('la factura llega con el conduce al que pertenece (27/10/2026)', () async {
+    await conEsto(<String, Object?>{
+      'orders': conjunto([
+        <String, Object?>{
+          'id': 'f-47313',
+          'customerName': 'Cliente',
+          'address': 'Calle 1',
+          'facturaNumero': '47313',
+        },
+        <String, Object?>{
+          'id': 'f-47314',
+          'customerName': 'Cliente',
+          'address': 'Calle 1',
+          'facturaNumero': '47314',
+          'conducePrincipalId': 'f-47313',
+        },
+      ]),
+    }).ciclo();
+
+    final filas = {
+      for (final p in await base.select(base.orders).get()) p.id: p,
+    };
+    expect(filas['f-47313']!.conducePrincipalId, isNull, reason: 'la principal no apunta a nadie');
+    expect(
+      filas['f-47314']!.conducePrincipalId,
+      'f-47313',
+      reason:
+          'si la bajada no lo copia, el miembro sale como factura suelta en todas las listas y la '
+          'principal nunca dice «Conduce 47313 + 47314»',
+    );
+  });
+
   test('el almacén llega con su código, que no es el de la sucursal', () async {
     final bajada = Bajada(
       cliente: clienteFalso((PeticionVista p) async {

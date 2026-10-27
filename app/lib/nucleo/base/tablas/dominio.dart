@@ -277,6 +277,11 @@ class Orders extends Table {
   /// al esquema 13: la bajada lo trae al volver a pasar cada fila.
   TextColumn get folio => text().nullable()();
 
+  /// EL CONDUCE (`orders.conduce_principal_id`, 00029, 27/10/2026; `docs/conduces.md`). Nulo = factura
+  /// suelta o PRINCIPAL de un conduce; con valor = MIEMBRO, y apunta a su principal. Sin cadenas. Los
+  /// miembros bajan al aparato pero NO salen como filas propias (`nucleo/conduce.dart`).
+  TextColumn get conducePrincipalId => text().nullable()();
+
   TextColumn get customerPhone => text().nullable()();
 
   IntColumn get stopOrder => integer().nullable()();

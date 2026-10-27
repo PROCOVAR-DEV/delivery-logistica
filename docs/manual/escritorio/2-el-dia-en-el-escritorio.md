@@ -184,11 +184,13 @@ Camión: F-350                       sin subir
   factura»** — las cuatro **en rojo**: hoy **no salen**.
 - **«Cambió en la factura»** — **en ámbar**: **sí sale**. Sólo avisa de que al camión va
   lo facturado, no lo que se pidió.
-- **Sin domicilio cobrado, o marcado a domicilio y sin cotizar** — **ni salen en «Sin
-  colocar»**; si intentas
-  colocarlas, te lo rechaza al momento con su motivo («No se puede asociar al tablero:
-  la factura no tiene un cobro de domicilio registrado.» / «…primero cotiza el
-  domicilio de la factura.»), aunque no haya conexión.
+- **El domicilio sin cobrar o sin cotizar** — ya **no frena** (por ahora, desde el
+  16/10/2026): esas facturas salen en «Sin colocar» y se colocan. Los avisos «No se puede
+  asociar al tablero: la factura no tiene un cobro de domicilio registrado.» y
+  «…primero cotiza el domicilio…» ya no existen. Si intentas colocar una que no se
+  puede, te lo rechaza al momento, aunque no haya conexión: «Esa factura ya se entregó»,
+  «Esa factura ya está en una ruta» o «Esa factura va dentro del conduce 47313: arma el
+  conduce entero» (un miembro de conduce).
 - **«sin ubicar»** — sin coordenadas de entrega: **no puede ir en una ruta**.
 - **«2 facturas de este cliente hoy»** — son dos de verdad. **No se juntan.**
 
@@ -243,8 +245,7 @@ PTB25-261005-1523 · MARTA CRUZ: sin factura
 ### Qué entra y qué no
 
 **Sin conexión se arma con la misma regla que el servidor**: sólo entran las facturas
-(cuadren o no), con el domicilio cobrado y, si el vendedor lo marcó,
-cotizado. Las demás se descartan, se
+facturadas (cuadren o no), con o sin el domicilio cobrado o cotizado. Las demás se descartan, se
 quedan puestas en la zona y marcadas, y se nombran por su **conduce** (el número de
 operación de la factura). **Si algunas entran y otras no**, la ruta se arma con las que
 entran y una franja roja dice cuál se quedó fuera:

@@ -99,6 +99,8 @@ arrastra.
 | Ver el detalle de una factura | **Facturas** | [ir](../apk/3-tareas.md#ver-el-detalle-de-una-factura) | [ir](../web/2-tareas.md#ver-el-detalle-de-una-factura) |
 | Poner el punto de entrega de una factura a mano (y volver al del cliente) | **Facturas** | [ir](../apk/3-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano) | [ir](../web/2-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano) |
 | Filtrar y ordenar la lista | **Facturas** | — | [ir](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-facturas) |
+| Juntar facturas en un conduce (y sacarlas o deshacerlo) | **Facturas** | [ir](../apk/3-tareas.md#juntar-facturas-en-un-conduce) | [ir](../web/2-tareas.md#juntar-facturas-en-un-conduce) |
+| Sacar una factura de un conduce o deshacerlo | **Facturas** | [ir](../apk/3-tareas.md#sacar-una-factura-de-un-conduce-o-deshacerlo) | [ir](../web/2-tareas.md#sacar-una-factura-de-un-conduce-o-deshacerlo) |
 | Mandar varias facturas a una zona de golpe | **Facturas** | [ir](../apk/3-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe) | [ir](../web/2-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe) |
 | Sacar el pre-despacho de lo filtrado | **Facturas** | [ir](../apk/3-tareas.md#sacar-el-pre-despacho-de-lo-que-tienes-filtrado) | — |
 

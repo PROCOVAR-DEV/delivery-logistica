@@ -15,9 +15,9 @@ tablero de «todas».
 ## Las dos mitades
 
 - **Izquierda: «Sin colocar (308)»** — las facturas que todavía no están en ninguna
-  zona. El número cuenta **facturas**. Sólo salen las que tienen **el domicilio cobrado
-  en la factura** y, si el vendedor lo marcó, **ya cotizado en Entrega** (ver
-  [Qué se puede colocar](#qué-se-puede-colocar-en-una-zona)).
+  zona. El número cuenta **facturas**. Salen todas las
+  **facturadas** (cuadren o no), con o sin domicilio cobrado: el cobro es un dato, no una
+  condición (ver [Qué se puede colocar](#qué-se-puede-colocar-en-una-zona)).
 - **Derecha: las zonas** — «Centro», «Vista Alegre», «Carretera»… Las pones tú,
   con los nombres que se usen en tu sucursal.
 
@@ -224,17 +224,19 @@ Si todavía no hay zonas:
 
 ## Qué se puede colocar en una zona
 
-A una zona sólo se coloca una factura **con el domicilio cobrado** (y **cotizado**, si
-el vendedor marcó domicilio). Son las mismas condiciones de la lista de disponibles de
-Rutas, y se piden por una razón: el domicilio es un servicio que se cobra, y una zona
-entera no se debe preparar con facturas que luego la ruta no va a aceptar.
+**Por ahora (Jose, 16/10/2026) a una zona se coloca toda factura facturada**: que cuadre con
+el pedido o que haya cambiado. Ya **no** se exige que la factura cobre el domicilio ni que
+Entrega lo haya cotizado, ni se mira la casilla de domicilio del vendedor. El domicilio
+cobrado es un **dato** (la columna «Domicilio» de Facturas, el filtro **«Cobro del
+domicilio»** de «Sin colocar»), no una condición. Es la misma regla de la lista de
+disponibles de Rutas.
 
-1. **Domicilio cobrado**: la factura trae un importe de domicilio **mayor que cero**.
-   Es lo que dice que la factura va a domicilio, aunque el vendedor no marcara la
-   casilla.
-2. **Domicilio cotizado, si el vendedor lo marcó**: Entrega ya le puso el costo. Si no
-   lo marcó, no se pide: Entrega sólo cotiza los marcados.
-3. **Que no se haya entregado ya ni vaya en otra ruta.**
+Lo que **sí frena**:
+
+1. **Sin factura o sin cotejar**: no sale en «Sin colocar».
+2. **Que ya se haya entregado** o **que ya vaya en una ruta**.
+3. **Archivada** (PEDIDO le dio de baja) o **sin punto de entrega**: no sale en «Sin colocar».
+4. **Que sea miembro de un conduce**: se coloca la principal y el conduce va entero con ella.
 
 Lo que no cumple **no sale en «Sin colocar»**. Y si se intenta colocar igualmente
 —arrastrándolo, o desde «Mandar a una zona» en Facturas—, **se rechaza con un mensaje
@@ -242,9 +244,14 @@ claro** y la tarjeta se queda donde estaba:
 
 | Mensaje | Qué pasa |
 |---|---|
-| «No se puede asociar al tablero: primero cotiza el domicilio del pedido.» | El vendedor marcó domicilio y Entrega todavía no le puso costo |
-| «Esa factura ya se entregó» | Ya se repartió |
-| «Esa factura ya está en una ruta» | Se lo llevó otra ruta |
+| «Esa factura ya se entregó» | Ya se repartió. No se arregla: no vuelve a una zona |
+| «Esa factura ya está en una ruta» | Se la llevó otra ruta |
+| «Esa factura va dentro del conduce 47313: arma el conduce entero» | Es miembro de un conduce (47313 es su principal). Coloca la principal, no esta |
+| «La zona «Centro» está inactiva» | La zona está apagada: actívala o elige otra |
+
+Los dos avisos viejos —«No se puede asociar al tablero: la factura no tiene un cobro de
+domicilio registrado.» y «…primero cotiza el domicilio del pedido.»— **ya no existen**:
+se retiraron el 16/10/2026.
 
 **Es lo mismo con señal y sin ella.** En la APK y el escritorio el aparato lo dice en
 el momento, antes de colocar, para que el «no» no te llegue horas después a la
@@ -254,9 +261,9 @@ bandeja de rechazados con la zona ya preparada.
 ámbar, y al armar la ruta **entra** como cualquier otra: al camión va lo facturado, no
 lo que se pidió. La marca se queda para que se vea.
 
-Si te falta una factura que esperabas, probablemente es éste el motivo: **no se ha
-cobrado el domicilio en la factura, o el vendedor lo marcó y Entrega no lo ha
-cotizado**. Se arregla cobrando o cotizando en Entrega, no aquí.
+Si te falta una factura que esperabas, mira si **no está facturada o cotejada**, si ya
+va en una ruta o si es miembro de un conduce. Que el domicilio no esté cobrado ni
+cotizado **no** es el motivo.
 
 ---
 
@@ -346,8 +353,8 @@ la ruta nueva ya elegida.
 
 **Lo que entra en la ruta:** sólo las facturas de esa zona que se pueden repartir, con
 **la misma regla que usa el servidor**, **con señal y sin ella**: facturados (también
-los que «Cambió en la factura», que suben con lo facturado), con el **domicilio
-cobrado** en la factura y, si el vendedor lo marcó, **cotizado** en Entrega. Los demás
+los que «Cambió en la factura», que suben con lo facturado), con o sin domicilio cobrado
+o cotizado. Los demás
 se **descartan**: **se quedan puestos en la zona y
 marcados**, y la aplicación los nombra por su conduce (ver
 [Si la ruta sale con menos facturas](#si-la-ruta-sale-con-menos-facturas)). No
@@ -401,9 +408,9 @@ PTB25-261005-1523 · MARTA CRUZ: sin factura
 ```
 
 Los motivos posibles, por este orden de prioridad: «Archivado en PEDIDO», «Ya va en otra
-ruta», «Sin cotejar», «Sin factura» (las cuatro son las marcas rojas de la tarjeta), «ya
-se entregó», «la factura no tiene domicilio cobrado» y «domicilio sin cotizar» (sólo si
-el vendedor marcó domicilio). Son los mismos con señal y sin ella. «Cambió en la
+ruta», «Sin cotejar», «Sin factura» (las cuatro son las marcas rojas de la tarjeta) y
+«ya se entregó». **No hay motivo de domicilio**: que no esté cobrado ni cotizado ya no
+descarta. Son los mismos con señal y sin ella. «Cambió en la
 factura» ya no descarta: esa factura entra.
 
 ### Si la ruta sale con menos facturas
@@ -418,7 +425,7 @@ factura que se quedó fuera:
 
 (Con una sola dice «pero 1 factura no entró». La franja se queda unos seis segundos:
 léela antes de que se vaya; las facturas siguen marcadas en la zona.) Esas facturas **siguen en su zona**, marcadas;
-se arreglan donde dice el motivo (cobrando o cotizando en Entrega, o en PEDIDO) y se
+se arreglan donde dice el motivo (en PEDIDO, o cuando se cotee la factura) y se
 vuelve a armar. Cuando no se cae ninguno, la franja es la de siempre: «Ruta armada con lo
 que se puede repartir de «Centro».»
 

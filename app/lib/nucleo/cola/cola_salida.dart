@@ -260,7 +260,7 @@ class ColaDeSalida {
         if (aviso.isNotEmpty) {
           Registro.aviso(
             'el servidor dejo fuera ${resultado.descartados.length} '
-            'pedido(s) de $clave: $aviso',
+            'factura(s) de $clave: $aviso',
           );
         }
 

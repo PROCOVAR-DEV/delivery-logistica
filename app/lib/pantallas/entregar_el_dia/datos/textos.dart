@@ -90,8 +90,8 @@ abstract final class TextosDeEntregarElDia {
   static const noSubioTodo = 'No subió todo al camión';
 
   static const noSubioTodoDetalle =
-      'La ruta se armó arriba, pero con menos pedidos de los que pusiste en la '
-      'zona. Esto es lo que el servidor dejó fuera y por qué. Si alguno se '
+      'La ruta se armó arriba, pero con menos facturas de las que pusiste en la '
+      'zona. Esto es lo que el servidor dejó fuera y por qué. Si alguna se '
       'entregó igual, hay que mirarlo antes de que salga en otra ruta.';
 
   static const noSubioTodoLeido = 'Ya lo he visto';

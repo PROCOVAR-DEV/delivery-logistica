@@ -291,7 +291,7 @@ Las facturas se nombran por su **conduce**, que es su número de operación
 | **«Se requiere un vehículo para crear la ruta»** | Vuelve al tramo «Vehículo» |
 | **«En una ruta sólo entra lo facturado. 3 no cumplen: PTB25-261005-1480 (sin facturar)…»** | Desmarca ésas |
 | **«El vehículo está inactivo y no se puede asignar a una ruta.»** | Ese camión está dado de baja. Elige otro |
-| **«2 de los 12 pedidos elegidos no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Desmarca ésas |
+| **«2 de las 12 facturas elegidas no pueden ir en esta ruta: PTB25-261005-1480 (ya va en la ruta RT-20260922-003)…»** | Desmarca ésas |
 | **«Peso total (1250.5 kg) supera la capacidad del vehículo (1000 kg)»** | Quita facturas o cambia de camión |
 
 ---

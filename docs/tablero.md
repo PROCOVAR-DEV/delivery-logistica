@@ -113,7 +113,7 @@ decide si hace falta la cotización. Sin eso la tarjeta **ni se ofrece**, y si s
 colocar igualmente (arrastrar, o «Mandar a una zona» desde Pedidos) se rechaza con un mensaje
 claro: `No se puede asociar al tablero: la factura no tiene un cobro de domicilio
 registrado.` / `No se puede asociar al tablero: primero cotiza el domicilio del pedido.` (sólo
-si está marcado; más `Ese pedido ya se entregó` y `Ese pedido ya está en una ruta`). Colocar
+si está marcado; más `Esa factura ya se entregó` y `Ese pedido ya está en una ruta`). Colocar
 **no mira** el estado de la factura; «Sin colocar» ofrece `igual` y `cambiado` (la `cambiado`
 con su marca **ámbar** desde el 15/10/2026: avisa y sale; de la 1.0.29 a la 1.0.37 fue roja y
 no salía), y lo que no sube lo descarta después **al armar la zona** (`sin cotejar`, `sin
@@ -470,14 +470,14 @@ creyendo que estaba vacía se entera al día siguiente, cuando a la ruta le falt
 paradas. Con RESTRICT, el contrato está obligado a preguntar qué se hace con lo de dentro:
 
 ```
-DELETE /api/board/columns/<id>            → 409 {"error":"«Centro» tiene 8 pedidos puestos",
+DELETE /api/board/columns/<id>            → 409 {"error":"«Centro» tiene 8 facturas puestas",
                                                   "pedidos": 8}
 DELETE /api/board/columns/<id>?vaciar=1   → las tarjetas vuelven a «sin colocar», y se borra
 DELETE /api/board/columns/<id>?destino=<id> → las tarjetas se van a la otra columna, detrás
                                               de lo que ya haya y en su orden, y se borra
 ```
 
-Se pregunta con `ContarPedidosEnColumna` para poder decir «tiene 8 pedidos puestos» en vez
+Se pregunta con `ContarPedidosEnColumna` para poder decir «tiene 8 facturas puestas» en vez
 de devolverle a la persona el error de clave ajena de Postgres, que no entiende nadie.
 
 ### 7.6-bis · Borrar la ruta que salió de una columna — 07/10/2026 (Amado, incidencia 3)
@@ -538,9 +538,9 @@ Errores propios, literales:
 | Situación | Respuesta |
 |---|---|
 | La sucursal no tiene almacén con coordenadas | `409 {"error":"<Sucursal> no tiene ningún almacén con coordenadas"}` |
-| Columna con pedidos y sin decir qué hacer | `409 {"error":"«<nombre>» tiene N pedidos puestos","pedidos":N}` |
+| Columna con pedidos y sin decir qué hacer | `409 {"error":"«<nombre>» tiene N facturas puestas","pedidos":N}` |
 | Colocar un pedido que ya va en una ruta | `409 {"error":"Ese pedido ya está en una ruta"}` |
-| Colocar un pedido que YA SE ENTREGÓ | `409 {"error":"Ese pedido ya se entregó"}` — se mira ANTES que la ruta: un entregado conserva su `route_id`, y decir «ya está en una ruta» manda a esperar a que se cierre un camión que puede que ya no exista |
+| Colocar un pedido que YA SE ENTREGÓ | `409 {"error":"Esa factura ya se entregó"}` — se mira ANTES que la ruta: un entregado conserva su `route_id`, y decir «ya está en una ruta» manda a esperar a que se cierre un camión que puede que ya no exista |
 | Armar la zona con una tarjeta ya entregada | `201`, y la tarjeta sale en `descartados` con `motivo:"ya se entregó"`. No bloquea la zona |
 | Colocar un pedido de otra sucursal | `404 {"error":"Ese pedido no existe o no es de tu sucursal"}` — se contesta lo MISMO que si no existiera: decir «existe pero no es tuyo» ya es contar algo de otra sucursal |
 | Tocar una zona que ya no está —o con un id que no es un uuid— | `404 {"error":"Esa zona del tablero ya no existe"}` |

@@ -349,7 +349,7 @@ void main() {
     test('rechazada: ni ruta, ni tarjetas movidas, y con su motivo', () async {
       final columna = await conUnaColumnaPuesta();
       contesta = (p) async => RespuestaFalsa(409, const <String, Object?>{
-        'error': 'Uno de los pedidos se subió a otra ruta mientras se armaba '
+        'error': 'Una de las facturas se subió a otra ruta mientras se armaba '
             'ésta. Vuelve a intentarlo.',
       });
 
@@ -362,7 +362,7 @@ void main() {
           isA<RechazoDelTablero>().having(
             (r) => r.mensaje,
             'mensaje',
-            startsWith('Uno de los pedidos se subió a otra ruta'),
+            startsWith('Una de las facturas se subió a otra ruta'),
           ),
         ),
       );
@@ -495,7 +495,7 @@ void main() {
     test('borrar con tarjetas dentro y sin decir qué hacer: no sale ni una '
         'petición', () async {
       // La guarda es de aquí y se comprueba ANTES de tocar la red: «"Vista"
-      // tiene 2 pedidos puestos» se puede decir sin preguntarle a nadie.
+      // tiene 2 facturas puestas» se puede decir sin preguntarle a nadie.
       await expectLater(
         () => enLaWeb.borrarColumna(vista),
         throwsA(
@@ -529,7 +529,7 @@ void main() {
           return RespuestaFalsa(200, const <String, Object?>{});
         }
         return RespuestaFalsa(409, const <String, Object?>{
-          'error': '«Vista» tiene 2 pedidos puestos',
+          'error': '«Vista» tiene 2 facturas puestas',
           'pedidos': 2,
         });
       };
@@ -541,7 +541,7 @@ void main() {
               .having(
                 (r) => r.mensaje,
                 'mensaje',
-                '«Vista» tiene 2 pedidos puestos',
+                '«Vista» tiene 2 facturas puestas',
               )
               // El número viaja aparte del texto: es lo que decide si hay que
               // vaciar dos tarjetas o mover ochenta.

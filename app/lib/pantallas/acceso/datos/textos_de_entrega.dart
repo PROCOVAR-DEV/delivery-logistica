@@ -64,7 +64,7 @@ abstract final class TextosDelPanel {
           ? 'Cierre de una ruta'
           : 'Cambio en una ruta';
     }
-    if (ruta.startsWith('/board/placements')) return 'Pedido movido en el tablero';
+    if (ruta.startsWith('/board/placements')) return 'Factura movida en el tablero';
     if (ruta.endsWith('/route')) return 'Ruta armada desde una zona';
     if (ruta.startsWith('/board/columns')) return 'Cambio en una zona del tablero';
     return 'Un cambio';

@@ -2,7 +2,7 @@
 // 16/10/2026.
 //
 // Lo que se vio en producción: `DELETE /api/board/columns/{id}` contestó 409
-// «tiene 9 pedidos puestos» cuatro veces en doce minutos, para tres zonas. En la
+// «tiene 9 facturas puestas» cuatro veces en doce minutos, para tres zonas. En la
 // app de escritorio la zona se quitaba de la pantalla, el servidor decía que no,
 // la zona volvía con la siguiente bajada y a la persona sólo le quedaba una
 // etiqueta «rechazada» sin motivo ni acción. «Se eliminan en la interfaz pero no
@@ -268,7 +268,7 @@ void main() {
 
   // ---------------------------------------------------------------------------
   group('el rechazo del servidor se ve en la zona y se decide ahí', () {
-    const elNo = '«$_vacia» tiene 4 pedidos puestos';
+    const elNo = '«$_vacia» tiene 4 facturas puestas';
 
     Future<void> asentar(WidgetTester tester) => tester.pumpAndSettle(
       const Duration(milliseconds: 100),
@@ -597,7 +597,7 @@ void main() {
       await servicio().descargar(sucursalStg);
       contesta = (p) async => p.metodo == 'DELETE'
           ? RespuestaFalsa(409, <String, Object?>{
-              'error': '«$_vacia» tiene 4 pedidos puestos',
+              'error': '«$_vacia» tiene 4 facturas puestas',
               'pedidos': 4,
             })
           : RespuestaFalsa(200, _foto());
@@ -611,7 +611,7 @@ void main() {
               .having(
                 (r) => r.mensaje,
                 'mensaje',
-                '«$_vacia» tiene 4 pedidos puestos',
+                '«$_vacia» tiene 4 facturas puestas',
               )
               .having((r) => r.pedidos, 'pedidos', 4),
         ),

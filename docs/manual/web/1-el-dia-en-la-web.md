@@ -150,7 +150,7 @@ Un camión en el taller sale con **«EN EL TALLER»** en ámbar. **Se puede eleg
 igual**: es aviso, no bloqueo. Lo que no sale nunca es un camión **«Inactivo»** (dado de
 baja); si no te sale el que buscas, mira su tarjeta en **Menú → «Vehículos»**.
 
-## 4.3 Repartir los pedidos — arrastrando
+## 4.3 Repartir las facturas — arrastrando
 <!-- tarea -->
 
 **Empieza en:** **Menú → «Tablero»**.

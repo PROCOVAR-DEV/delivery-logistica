@@ -460,7 +460,7 @@ falta salida, vehículo o facturas, o si hay sobrepeso.
      `Desde (fecha de la factura)` / `Hasta (fecha de la factura)` / `sólo ese día` / ✕ (los dos días
      incluidos; hasta el 15/10/2026 era un solo `Día de los pedidos` con `Todos los días`,
      issue 13 de Amado).
-   - Selector **de varios** `Vendedor del pedido` / `Todos los vendedores` (con buscador siempre; issue 18 de Amado).
+   - Selector **de varios** `Vendedor de la factura` / `Todos los vendedores` (con buscador siempre; issue 18 de Amado).
    - `km máx.` (número) y `costo mín.` (número).
    - Selector `Estado del pedido en PEDIDO` / `Cualquier estado`: `En proceso`=`en_proceso`,
      `Completada`=`completada`, `Expirada`=`expirada`.

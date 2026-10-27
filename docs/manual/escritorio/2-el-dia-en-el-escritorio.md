@@ -131,7 +131,7 @@ el que buscas, mira su tarjeta en **«Vehículos»**.
 **Si dice «Esta sucursal no tiene vehículos activos en este aparato»**, con conexión ve
 a **«Vehículos»** y da de alta uno o actívalo; baja con la siguiente sincronización.
 
-## 3.3 Repartir los pedidos — arrastrando
+## 3.3 Repartir las facturas — arrastrando
 <!-- tarea -->
 
 **Empieza en:** **Menú → «Tablero»**.

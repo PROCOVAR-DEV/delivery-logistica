@@ -180,7 +180,7 @@ La zona lo sigue nombrando, pero **al armar la ruta el servidor no lo acepta**: 
 vehículo está inactivo y no se puede asignar a una ruta.» Elige otro en «Camión
 previsto».
 
-## 3.3 Repartir los pedidos por zonas
+## 3.3 Repartir las facturas por zonas
 <!-- tarea -->
 
 **Empieza en:** **Menú → «Tablero»**.
@@ -267,7 +267,7 @@ Métetelas en la misma zona **a propósito**.
 
 No tiene coordenadas de entrega. **Esa factura no puede ir en una ruta.**
 
-## 3.4 Mover, subir, bajar o sacar un pedido de una zona
+## 3.4 Mover, subir, bajar o sacar una factura de una zona
 <!-- tarea -->
 
 **Empieza en:** **Menú → «Tablero»**.

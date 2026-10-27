@@ -1330,7 +1330,7 @@ func TestArmarRutaNombraTambienLoQueNoEsUnIdentificador(t *testing.T) {
 		t.Fatalf("código %d: %s", w.Code, w.Body.String())
 	}
 	const esperado = "1 de las 2 facturas elegidas no puede ir en esta ruta: " +
-		"local-7 (no es un identificador de pedido)."
+		"local-7 (no es un identificador de factura)."
 	if got := errorDeRutas(t, w); got != esperado {
 		t.Fatalf("mensaje:\n  %q\nse esperaba:\n  %q", got, esperado)
 	}

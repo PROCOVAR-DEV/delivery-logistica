@@ -434,7 +434,7 @@ endLng IS NOT NULL` y, si hay sucursal de ruta, `AND branchId = <sucursal>`.
    | `sin coordenadas de entrega` | `endLat`/`endLng` nulos. Pasa: el upsert del espejo escribe `end_lat = excluded.end_lat` sin `coalesce`. |
    | `no vino de PEDIDO` | `source <> 'pedido'`. |
    | `no existe o no es de tu sucursal` | la consulta no devuelve fila. **No se dice cuál de las dos**, igual que en `GET /api/routes/{id}`: decir «existe pero es de Holguín» ya es contar algo de Holguín. |
-   | `no es un identificador de pedido` | el texto ni siquiera es un uuid. |
+   | `no es un identificador de factura` | el texto ni siquiera es un uuid. |
    | `cambió mientras se armaba` | ninguna de las anteriores. Un motivo equivocado es peor que ninguno. |
 6. **Sólo se reparte lo facturado** (`facturaQueEntra`): `noFacturados = orders.filter(o =>
    !['igual','cambiado'].includes(o.facturaEstado))`. Si hay alguno → `409` con mensaje
@@ -617,7 +617,7 @@ la ruta entera. **No existe en delivery (Next): es propio del reparto.**
 
 | Código | Mensaje | Cuándo |
 |---|---|---|
-| 400 | `Identificador de pedido no válido` | `orderId` no es un uuid |
+| 400 | `Identificador de factura no válido` | `orderId` no es un uuid |
 | 404 | `No encontrado` | la ruta no existe o no es de tu sucursal |
 | 409 | `Sólo se pueden retirar paradas de una ruta planificada` | la ruta está `in_progress`, `completed` o `cancelled` |
 | 409 | `La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico.` | se completó entre la lectura y la escritura |
@@ -656,7 +656,7 @@ Issue 11 de Amado: «que las paradas se puedan reordenar utilizando la interfaz 
 | Código | Mensaje | Cuándo |
 |---|---|---|
 | 400 | ``Manda `orden` con todas las paradas de la ruta en su nuevo orden, o `porCercania: true`.`` | ni una forma ni otra, o las dos |
-| 400 | `Identificador de pedido no válido` | un id de `orden` no es un uuid |
+| 400 | `Identificador de factura no válido` | un id de `orden` no es un uuid |
 | 400 | `El nuevo orden repite la parada <conduce>: cada parada va una sola vez.` | un id repetido |
 | 404 | `No encontrado` | la ruta no existe o no es de tu sucursal |
 | 409 | `El nuevo orden no coincide con las paradas de la ruta (<falta X \| faltan X, Y>; <sobra 1 pedido que no va en ella \| sobran N pedidos que no van en ella>). Vuelve a abrir la ruta y ordénala otra vez.` | la lista no es exactamente la de las paradas cargadas (también si una se fue mientras se ordenaba: `una parada dejó la ruta mientras se ordenaba`) |
@@ -2446,7 +2446,7 @@ DEFAULT true` (las existentes siguen activas).
 
 - **Una ruta que se borra o a la que se le quita una parada ya no devuelve la tarjeta a una zona
   inactiva**: el pedido se queda en «Sin colocar» (`board_route_origins` se gasta igual).
-- **Borrar una zona inactiva** funciona como siempre (`409 «X» tiene N pedidos puestos` si los tuviera,
+- **Borrar una zona inactiva** funciona como siempre (`409 «X» tiene N facturas puestas` si los tuviera,
   `?destino=`, `?vaciar=1`); una inactiva no tiene pedidos puestos.
 - **La lista blanca del sincronizador** ya admite `PATCH /board/columns/{id}` (la cola de la APK y la
   bandeja de revisión): `sync/internal/sincro/revision_limites.go`, probado con ese `PATCH`.
@@ -2823,7 +2823,7 @@ segundo «número rojo». Ninguna pantalla lo enseña todavía.
 | `/api/routes` POST | 409 | `En una ruta sólo entra lo facturado. <N> no cumplen: <conduce> (sin facturar\|sin cotejar)[ y <K> más.\|.]` |
 | `/api/routes` POST, `/api/routes/[id]` PATCH, `/api/board/columns/[id]/route` | 400 | `El vehículo está inactivo y no se puede asignar a una ruta.` |
 | `/api/routes` POST | 400 | `Peso total (<X.X> kg) supera la capacidad del vehículo (<C> kg)` |
-| `/api/routes/{id}/stops/{orderId}` DELETE | 400 | `Identificador de pedido no válido` |
+| `/api/routes/{id}/stops/{orderId}` DELETE | 400 | `Identificador de factura no válido` |
 | `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `Sólo se pueden retirar paradas de una ruta planificada` |
 | `/api/routes/{id}/stops/{orderId}` DELETE | 409 | `La factura no pertenece a una ruta planificada o ya fue retirada` |
 | `/api/routes/{id}/stops` PUT | 400/409 | los de su sección («reordenar las paradas») |

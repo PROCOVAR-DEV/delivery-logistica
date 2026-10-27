@@ -144,7 +144,7 @@ void main() {
     final repartir = tareas.singleWhere(
       (t) =>
           t.camino == camino &&
-          t.titulo.endsWith('Repartir los pedidos — arrastrando'),
+          t.titulo.endsWith('Repartir las facturas — arrastrando'),
     );
 
     for (final conGuia in [false, true]) {

@@ -968,7 +968,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
       // son decenas de vendedores y bajar la lista a mano no es buscar.
       SelectorMultiple(
         key: const ValueKey('Vendedor del pedido'),
-        titulo: 'Vendedor del pedido',
+        titulo: 'Vendedor de la factura',
         todos: 'Todos los vendedores',
         plural: 'vendedores',
         desdeCuantasBusca: 1,
@@ -2133,7 +2133,7 @@ class _CabeceraDeZona extends StatelessWidget {
                     if (enLaLista < zona.pedidos)
                       Text(
                         enLaLista == 0
-                            ? 'Los ${zona.pedidos} están fuera por los filtros de arriba'
+                            ? 'Las ${zona.pedidos} están fuera por los filtros de arriba'
                             : '${zona.pedidos - enLaLista} fuera por los filtros de arriba',
                         style: Tipos.texto(tamano: 11, color: Colores.ambar),
                         maxLines: 1,

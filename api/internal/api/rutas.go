@@ -1489,7 +1489,7 @@ func (s *Servidor) quitarParadaPlanificada(w http.ResponseWriter, r *http.Reques
 	}
 	pedidoID, err := uuid.Parse(strings.TrimSpace(r.PathValue("orderId")))
 	if err != nil {
-		httpx.Error(w, r, http.StatusBadRequest, "Identificador de pedido no válido")
+		httpx.Error(w, r, http.StatusBadRequest, "Identificador de factura no válido")
 		return
 	}
 	antes, err := a.ObtenerRuta(r.Context(), rutaID)
@@ -1658,7 +1658,7 @@ func (s *Servidor) ordenarParadas(w http.ResponseWriter, r *http.Request) {
 	for _, crudo := range c.Orden {
 		pid, err := uuid.Parse(strings.TrimSpace(crudo))
 		if err != nil {
-			httpx.Error(w, r, http.StatusBadRequest, "Identificador de pedido no válido")
+			httpx.Error(w, r, http.StatusBadRequest, "Identificador de factura no válido")
 			return
 		}
 		pedido = append(pedido, pid)
@@ -2211,7 +2211,7 @@ func (s *Servidor) registrarDondeEstabanLosRechazados(r *http.Request, a *alcanc
 	if len(ids) > 0 {
 		filas, err := a.DondeEstanLosPedidos(r.Context(), ids)
 		if err != nil {
-			reg.Warn("no se pudo leer dónde estaban los pedidos que el cierre rechazó",
+			reg.Warn("no se pudo leer dónde estaban las facturas que el cierre rechazó",
 				"ruta", ruta, "err", err)
 		}
 		for _, f := range filas {
@@ -2233,7 +2233,7 @@ func (s *Servidor) registrarDondeEstabanLosRechazados(r *http.Request, a *alcanc
 				"ruta", ruta, "pedido", recortarTexto(rc.OrderID, topeDelOrderIDEnElRegistro),
 				"motivo", rc.Motivo)
 		case !hay:
-			reg.Warn("parada rechazada en el cierre: el pedido no existe",
+			reg.Warn("parada rechazada en el cierre: la factura no existe",
 				"ruta", ruta, "pedido", id, "numero_operacion", rc.NumeroOperacion, "motivo", rc.Motivo)
 		default:
 			reg.Warn("parada rechazada en el cierre",
@@ -2556,7 +2556,7 @@ func (s *Servidor) motivosDelArmado(ctx context.Context, ar *alcance.Acotado, fa
 		apuntar(fmt.Sprintf("%s (%s)", quienEs(fila.OperationNumber, fila.CustomerName), porQueNoSeArma(fila)))
 	}
 	for _, texto := range noSonID {
-		apuntar(fmt.Sprintf("%s (no es un identificador de pedido)", texto))
+		apuntar(fmt.Sprintf("%s (no es un identificador de factura)", texto))
 	}
 
 	mensaje := strings.Join(detalle, ", ")
@@ -2649,7 +2649,7 @@ func mensajeYaEntregados(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 	if len(malos) == 1 {
 		entregaron, pueden = "YA SE ENTREGÓ", "no puede"
 	}
-	mensaje := fmt.Sprintf("%d de los pedidos elegidos %s y %s volver "+
+	mensaje := fmt.Sprintf("%d de las facturas elegidas %s y %s volver "+
 		"a un camión: %s", len(malos), entregaron, pueden, strings.Join(detalle, ", "))
 	if len(malos) > 5 {
 		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
@@ -2683,7 +2683,7 @@ func mensajeSinMapa(pedidos []sqlc.PedidosParaArmarRutaRow, sinMapa []uuid.UUID)
 	if len(sinMapa) == 1 {
 		tienen, les = "tiene", "le"
 	}
-	mensaje := fmt.Sprintf("%d de los pedidos elegidos %s el punto de entrega fuera del mapa "+
+	mensaje := fmt.Sprintf("%d de las facturas elegidas %s el punto de entrega fuera del mapa "+
 		"y no se %s puede calcular el recorrido: %s",
 		len(sinMapa), tienen, les, strings.Join(detalle, ", "))
 	if len(sinMapa) > 5 {

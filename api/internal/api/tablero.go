@@ -1260,7 +1260,7 @@ func (s *Servidor) borrarColumna(w http.ResponseWriter, r *http.Request) {
 		// El 409 del contrato, con el número dentro: sin él, la persona no sabe si lo
 		// que tiene que hacer es vaciar dos tarjetas o mover ochenta.
 		httpx.JSON(w, r, http.StatusConflict, map[string]any{
-			"error":   fmt.Sprintf("«%s» tiene %d pedidos puestos", columna.Nombre, dentro),
+			"error":   cuantasPuestas(columna.Nombre, dentro),
 			"pedidos": dentro,
 		})
 		return
@@ -1291,6 +1291,15 @@ var (
 	errColumnaNoEstaba   = errors.New("la columna no existe en este alcance")
 	errDestinoNoVale     = errors.New("la columna de destino no sirve")
 )
+
+// cuantasPuestas es el «no» del borrado, con el singular del aparato (acciones.dart):
+// «Centro» tiene 1 factura puesta / «Centro» tiene 3 facturas puestas.
+func cuantasPuestas(nombre string, n int64) string {
+	if n == 1 {
+		return fmt.Sprintf("«%s» tiene 1 factura puesta", nombre)
+	}
+	return fmt.Sprintf("«%s» tiene %d facturas puestas", nombre, n)
+}
 
 // esRestriccionDeColumna reconoce el 23503 de Postgres (foreign_key_violation), que es lo
 // que devuelve el `ON DELETE RESTRICT` de `board_placements.column_id`.
@@ -2064,7 +2073,7 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	})
 	if errors.Is(err, errSeLoLlevaron) {
 		httpx.Error(w, r, http.StatusConflict,
-			"Uno de los pedidos se subió a otra ruta mientras se armaba ésta. Vuelve a intentarlo.")
+			"Una de las facturas se subió a otra ruta mientras se armaba ésta. Vuelve a intentarlo.")
 		return
 	}
 	if err != nil {
@@ -2136,7 +2145,7 @@ func porQueNoEsCandidato(t sqlc.ListarPedidosColocadosRow) (motivo, queHacer str
 	// en el de esta mañana. Lo que hay que hacer es distinto y no se puede adivinar.
 	case t.Resultado != nil && *t.Resultado == sqlc.StopResultEntregado:
 		return "ya se entregó",
-			"Ese pedido ya se repartió. Quita la tarjeta de la zona: volver a subirlo " +
+			"Esa factura ya se repartió. Quita la tarjeta de la zona: volver a subirlo " +
 				"a un camión lo entregaría dos veces."
 	case t.RouteID.Valid:
 		return "ya va en otra ruta",
@@ -2426,7 +2435,7 @@ func motivoDeCorteDelArmado(p sqlc.PedidosDeColumnaParaArmarRutaRow) (motivo, qu
 	// Sin esto, la zona de ayer vuelve a parir la ruta de ayer.
 	case p.DeliveredAt.Valid || (p.Resultado != nil && *p.Resultado == sqlc.StopResultEntregado):
 		motivo = "ya se entregó"
-		queHacer = "Ese pedido ya se repartió. Quita la tarjeta de la zona: volver a " +
+		queHacer = "Esa factura ya se repartió. Quita la tarjeta de la zona: volver a " +
 			"subirlo a un camión lo entregaría dos veces."
 	case p.Archivado:
 		motivo = "archivado en PEDIDO"

@@ -192,8 +192,8 @@ void main() {
         const delCamino = <String>{
           '3.1 Crear una zona',
           '3.2 Ponerle el camión a la zona — HAZLO AHORA',
-          '3.3 Repartir los pedidos por zonas',
-          '3.4 Mover, subir, bajar o sacar un pedido de una zona',
+          '3.3 Repartir las facturas por zonas',
+          '3.4 Mover, subir, bajar o sacar una factura de una zona',
           '4. Armar la ruta',
           // LAS MISMAS, CON LOS NOMBRES QUE LLEVAN EN LA WEB Y EN EL ESCRITORIO.
           //
@@ -207,8 +207,8 @@ void main() {
           // no permitir en el camino principal.
           '4.1 Crear una zona',
           '4.2 Ponerle el camión a la zona — HAZLO AHORA',
-          '4.3 Repartir los pedidos — arrastrando',
-          '3.3 Repartir los pedidos — arrastrando',
+          '4.3 Repartir las facturas — arrastrando',
+          '3.3 Repartir las facturas — arrastrando',
           '4.4 Reordenar las zonas',
           '3.4 Reordenar las zonas',
           '5. Armar la ruta',

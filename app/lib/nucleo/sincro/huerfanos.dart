@@ -422,7 +422,7 @@ class Huerfanos {
       Registro.aviso(
         'zona del tablero $id: estaba en el aparato y no en el servidor, y no le '
         'quedaba ningún apunte que la subiera. Se vuelve a encolar con sus '
-        '${dentro.length} pedidos',
+        '${dentro.length} facturas',
       );
     }
 

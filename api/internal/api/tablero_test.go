@@ -1130,7 +1130,7 @@ func TestBorrarColumnaConPedidosDaElErrorClaroYNoUn500(t *testing.T) {
 		t.Fatalf("tenía que ser 409 y fue %d: %s", w.Code, w.Body.String())
 	}
 	m := leerTab(t, w)
-	if m["error"] != "«Centro» tiene 3 pedidos puestos" {
+	if m["error"] != "«Centro» tiene 3 facturas puestas" {
 		t.Fatalf("mensaje %q", m["error"])
 	}
 	if n, _ := m["pedidos"].(float64); n != 3 {

@@ -229,7 +229,7 @@ func escenarioDeZonasInactivas(t *testing.T, m mundoDeZonas) {
 	// El 409 de borrar con pedidos sigue como estaba.
 	cod, cuerpo = m.pedir(t, http.MethodDelete, "/api/board/columns/"+norte, m.jwt, "")
 	esperar(t, "borrar con pedidos sin destino ni vaciar", cod, http.StatusConflict)
-	if !strings.Contains(cuerpo["error"].(string), "tiene 1 pedidos puestos") {
+	if !strings.Contains(cuerpo["error"].(string), "tiene 1 factura puesta") {
 		t.Fatalf("el 409 de borrar con pedidos cambió: %v", cuerpo)
 	}
 	// Un PATCH con `activa` que no es booleano es un 400, no se ignora.

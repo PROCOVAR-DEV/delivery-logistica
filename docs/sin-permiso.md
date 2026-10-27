@@ -181,7 +181,7 @@ entregar y el literal de lo que falló. Los literales que ya existen en el códi
 El estado vive en la fila local del apunte (esquema Drift 7, `app/lib/nucleo/base/tablas/aparato.dart`) y lo pinta el panel con
 `TextosDelPanel.estadoDe` (`textos_de_entrega.dart`). Cada fila empieza por **qué es el apunte, dicho con palabras** y sacado de
 la ruta, que es lo único que lo dice: «Resultados de entrega de una ruta», «Parada quitada de una ruta», «Ruta nueva», «Ruta
-eliminada», «Cierre de una ruta», «Cambio en una ruta», «Pedido movido en el tablero», «Ruta armada desde una zona», «Cambio
+eliminada», «Cierre de una ruta», «Cambio en una ruta», «Factura movida en el tablero», «Ruta armada desde una zona», «Cambio
 en una zona del tablero» o, si no es ninguna, «Un cambio».
 
 | Estado local | Qué guarda | Lo que lee la persona |

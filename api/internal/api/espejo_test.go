@@ -5,6 +5,7 @@ package api
 // compilación y no «cuando haya una Ventra a mano».
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -246,6 +247,13 @@ func (q *espejoFalso) PedidosQueSalieronDelAlcance(_ context.Context, arg sqlc.P
 		if arg.Hasta.Valid && f.salioAt.After(arg.Hasta.Time) {
 			continue
 		}
+		// El cursor (hora, id) del SQL: (salio_at, order_id) > (marca, id).
+		if arg.CursorMarca.Valid {
+			c := arg.CursorMarca.Time
+			if f.salioAt.Before(c) || (f.salioAt.Equal(c) && bytes.Compare(f.pedido[:], arg.CursorID.Bytes[:]) <= 0) {
+				continue
+			}
+		}
 		if arg.Sucursal.Valid && [16]byte(f.sucursal) != arg.Sucursal.Bytes {
 			continue
 		}
@@ -264,7 +272,12 @@ func (q *espejoFalso) PedidosQueSalieronDelAlcance(_ context.Context, arg sqlc.P
 			SalioAt:  pgtype.Timestamptz{Time: f.salioAt, Valid: true},
 		})
 	}
-	sort.Slice(filas, func(i, j int) bool { return filas[i].SalioAt.Time.Before(filas[j].SalioAt.Time) })
+	sort.Slice(filas, func(i, j int) bool {
+		if !filas[i].SalioAt.Time.Equal(filas[j].SalioAt.Time) {
+			return filas[i].SalioAt.Time.Before(filas[j].SalioAt.Time)
+		}
+		return bytes.Compare(filas[i].OrderID[:], filas[j].OrderID[:]) < 0
+	})
 	if int(arg.Tope) < len(filas) {
 		filas = filas[:arg.Tope]
 	}

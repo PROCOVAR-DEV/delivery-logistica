@@ -401,13 +401,22 @@ const VentanaDeFacturasAnuladas = 7 * 24 * time.Hour
 // NO SE LLAMA EN LA CARGA INICIAL y por eso no tiene sentido sin `Desde`: al aparato que
 // empieza vacío no hay nada que quitarle, y mandarle los borrados de los últimos dos años
 // es gastarle la conexión en decirle que borre lo que nunca tuvo.
-func (a *Acotado) EspejoPedidosQueSalieron(ctx context.Context, v VentanaDeBajada) ([]sqlc.PedidosQueSalieronDelAlcanceRow, error) {
+//
+// POR LOTES: con cursor (la última lápida servida, `(hora, id)`) la tanda sigue DESPUÉS de ella y el
+// `desde` no se mira —como en `TandaDelPadron`—; sin cursor es la primera tanda de la cadena.
+func (a *Acotado) EspejoPedidosQueSalieron(ctx context.Context, v VentanaDeBajada, cursorMarca *time.Time, cursorID *uuid.UUID) ([]sqlc.PedidosQueSalieronDelAlcanceRow, error) {
+	desde := v.Desde
+	if cursorMarca != nil {
+		desde = nil
+	}
 	return a.q.PedidosQueSalieronDelAlcance(ctx, sqlc.PedidosQueSalieronDelAlcanceParams{
-		Desde:    marcaPg(v.Desde),
-		Hasta:    marcaPg(&v.Hasta),
-		Sucursal: a.sucursalPg(),
-		BranchID: aPg(v.Sucursal),
-		Tope:     v.Tope,
+		Desde:       marcaPg(desde),
+		Hasta:       marcaPg(&v.Hasta),
+		CursorMarca: marcaPg(cursorMarca),
+		CursorID:    aPg(cursorID),
+		Sucursal:    a.sucursalPg(),
+		BranchID:    aPg(v.Sucursal),
+		Tope:        v.Tope,
 	})
 }
 

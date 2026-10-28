@@ -654,6 +654,9 @@ func (c cursorDeTanda) leer() (*time.Time, *uuid.UUID) {
 type porDondeSeguir struct {
 	Productos cursorDeTanda `json:"p"`
 	Clientes  cursorDeTanda `json:"c"`
+	// Lapidas: por dónde seguir con lo que se fue de las facturas (`quitados` de orders). Es la única
+	// colección de lápidas que se sirve por cursor: una sola transacción tumbó 2.828 con la misma hora.
+	Lapidas cursorDeTanda `json:"l"`
 }
 
 // leerPorDondeSeguir saca el cursor de la query. Uno ilegible se trata como «empieza de
@@ -809,11 +812,12 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	//
 	// LO PRIMERO, y no por orden alfabético: es lo que el logístico se baja cada mañana y
 	// lo único sin lo cual el día sin conexión no existe.
-	pedidos, anuladas, corte, err := s.pedidosDeLaBajada(r, a, ventana)
+	pedidos, anuladas, corte, curLapidas, err := s.pedidosDeLaBajada(r, a, ventana, seguir.Lapidas)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
+	siguiente.Lapidas = curLapidas
 	salida.Cambios["orders"] = pedidos
 	// Las facturas que el espejo quitó de su ruta por anuladas (00027): no es una colección de
 	// la base del aparato sino un aviso derivado de las mismas filas de `orders` de esta tanda,
@@ -1540,7 +1544,7 @@ func (s *Servidor) quitadosDe(
 //     archivado sigue apareciendo en el tablero y alguien lo carga en el camión.
 //  3. Los renglones VIAJAN CON SU PEDIDO. Si cambió una línea, lo que hay que mandar no es
 //     un aviso: es la lista de mercancía nueva, o el despacho prepara lo de ayer.
-func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alcance.VentanaDeBajada) (Conjunto, Conjunto, *time.Time, error) {
+func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alcance.VentanaDeBajada, lapidas cursorDeTanda) (Conjunto, Conjunto, *time.Time, cursorDeTanda, error) {
 	ctx := r.Context()
 	tope := int(v.Tope)
 
@@ -1552,7 +1556,7 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 
 	filas, err := a.EspejoDiferenciasDePedidos(ctx, sonda)
 	if err != nil {
-		return Conjunto{}, Conjunto{}, nil, err
+		return Conjunto{}, Conjunto{}, nil, cursorDeTanda{}, err
 	}
 	filas, corte := recortarPorMarca(r, filas, tope, func(f sqlc.DiferenciasDePedidosRow) time.Time {
 		return f.CambiadoAt.Time
@@ -1573,7 +1577,7 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 	if len(vivos) > 0 {
 		lineas, err := a.ListarRenglonesDePedidos(ctx, vivos)
 		if err != nil {
-			return Conjunto{}, Conjunto{}, nil, err
+			return Conjunto{}, Conjunto{}, nil, cursorDeTanda{}, err
 		}
 		for _, l := range lineas {
 			renglones[l.OrderID] = append(renglones[l.OrderID], map[string]any{
@@ -1746,13 +1750,19 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 	// EN LA CARGA INICIAL NO SE PREGUNTA. El aparato empieza vacío: no hay nada que
 	// quitarle, y mandarle los borrados de los últimos dos años es gastarle la conexión
 	// en decirle que borre lo que nunca tuvo.
+	var cursorSalidas cursorDeTanda
 	if v.Desde != nil {
-		salidas, err := a.EspejoPedidosQueSalieron(ctx, sonda)
+		marcaL, idL := lapidas.leer()
+		salidas, err := a.EspejoPedidosQueSalieron(ctx, sonda, marcaL, idL)
 		if err != nil {
-			return Conjunto{}, Conjunto{}, nil, err
+			return Conjunto{}, Conjunto{}, nil, cursorDeTanda{}, err
 		}
-		salidas, corteSalidas := recortarPorMarca(r, salidas, tope,
-			func(f sqlc.PedidosQueSalieronDelAlcanceRow) time.Time { return f.SalioAt.Time })
+		// POR LOTES: un grupo de lápidas con la misma hora más grande que el tope se reparte en tandas
+		// con el cursor `(hora, id)` y no se pierde ninguna (21/10/2026: 2.828 de Santiago a la vez).
+		salidas, curLapidas, corteSalidas := tandaDeLaBajada(r, salidas, tope, "orders (lo que se fue)",
+			func(f sqlc.PedidosQueSalieronDelAlcanceRow) time.Time { return f.SalioAt.Time },
+			func(f sqlc.PedidosQueSalieronDelAlcanceRow) uuid.UUID { return f.OrderID })
+		cursorSalidas = curLapidas
 		for _, f := range salidas {
 			quitados = append(quitados, f.OrderID.String())
 		}
@@ -1762,7 +1772,7 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 		corte = laMasAtrasada(corte, corteSalidas)
 	}
 
-	return Conjunto{Puestos: puestos, Quitados: quitados}, Conjunto{Puestos: anuladas, Quitados: []string{}}, corte, nil
+	return Conjunto{Puestos: puestos, Quitados: quitados}, Conjunto{Puestos: anuladas, Quitados: []string{}}, corte, cursorSalidas, nil
 }
 
 // recortarPorMarca deja la tanda en `tope` filas y dice por qué marca se cortó.

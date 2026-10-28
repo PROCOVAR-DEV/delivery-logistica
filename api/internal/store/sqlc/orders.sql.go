@@ -2939,25 +2939,33 @@ SELECT f.order_id, f.branch_id, f.motivo, f.salio_at
 FROM orders_fuera_de_alcance f
 WHERE ($1::timestamptz IS NULL OR f.salio_at >  $1::timestamptz)
   AND ($2::timestamptz IS NULL OR f.salio_at <= $2::timestamptz)
+  -- POR LOTES, CON CURSOR (28/10/2026): una transacción puede tumbar miles de facturas con la MISMA hora
+  -- (el 21/10/2026 fueron 2.828 de Santiago) y, si el corte cae dentro de ese grupo, la marca sola no
+  -- sabe seguir: las que quedaban no llegaron nunca a ningún aparato. El cursor es (hora, id) de la
+  -- última lápida servida; con él, quien llama deja ` + "`" + `desde` + "`" + ` en NULL.
+  AND ($3::timestamptz IS NULL
+       OR (f.salio_at, f.order_id) > ($3::timestamptz, $4::uuid))
   -- El alcance primero, como siempre: aunque quien llama pida otra sucursal, sólo puede
   -- enterarse de lo que se fue de la suya.
-  AND ($3::uuid  IS NULL OR f.branch_id = $3::uuid)
-  AND ($4::uuid IS NULL OR f.branch_id = $4::uuid)
+  AND ($5::uuid  IS NULL OR f.branch_id = $5::uuid)
+  AND ($6::uuid IS NULL OR f.branch_id = $6::uuid)
   AND (
-      $3::uuid  IS NOT NULL
-      OR $4::uuid IS NOT NULL
+      $5::uuid  IS NOT NULL
+      OR $6::uuid IS NOT NULL
       OR f.motivo = 'borrado'
   )
 ORDER BY f.salio_at ASC, f.order_id ASC
-LIMIT $5
+LIMIT $7
 `
 
 type PedidosQueSalieronDelAlcanceParams struct {
-	Desde    pgtype.Timestamptz `json:"desde"`
-	Hasta    pgtype.Timestamptz `json:"hasta"`
-	Sucursal pgtype.UUID        `json:"sucursal"`
-	BranchID pgtype.UUID        `json:"branch_id"`
-	Tope     int32              `json:"tope"`
+	Desde       pgtype.Timestamptz `json:"desde"`
+	Hasta       pgtype.Timestamptz `json:"hasta"`
+	CursorMarca pgtype.Timestamptz `json:"cursor_marca"`
+	CursorID    pgtype.UUID        `json:"cursor_id"`
+	Sucursal    pgtype.UUID        `json:"sucursal"`
+	BranchID    pgtype.UUID        `json:"branch_id"`
+	Tope        int32              `json:"tope"`
 }
 
 type PedidosQueSalieronDelAlcanceRow struct {
@@ -2986,6 +2994,8 @@ func (q *Queries) PedidosQueSalieronDelAlcance(ctx context.Context, arg PedidosQ
 	rows, err := q.db.Query(ctx, pedidosQueSalieronDelAlcance,
 		arg.Desde,
 		arg.Hasta,
+		arg.CursorMarca,
+		arg.CursorID,
 		arg.Sucursal,
 		arg.BranchID,
 		arg.Tope,

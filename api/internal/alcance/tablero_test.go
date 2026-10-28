@@ -369,7 +369,7 @@ var consultasDelTablero = []struct {
 		return err
 	}},
 	{"EspejoPedidosQueSalieron", func(ctx context.Context, a *alcance.Acotado) error {
-		_, err := a.EspejoPedidosQueSalieron(ctx, ventanaPidiendoHolguin())
+		_, err := a.EspejoPedidosQueSalieron(ctx, ventanaPidiendoHolguin(), nil, nil)
 		return err
 	}},
 

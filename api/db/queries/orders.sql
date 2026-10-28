@@ -1596,6 +1596,12 @@ SELECT f.order_id, f.branch_id, f.motivo, f.salio_at
 FROM orders_fuera_de_alcance f
 WHERE (sqlc.narg('desde')::timestamptz IS NULL OR f.salio_at >  sqlc.narg('desde')::timestamptz)
   AND (sqlc.narg('hasta')::timestamptz IS NULL OR f.salio_at <= sqlc.narg('hasta')::timestamptz)
+  -- POR LOTES, CON CURSOR (28/10/2026): una transacción puede tumbar miles de facturas con la MISMA hora
+  -- (el 21/10/2026 fueron 2.828 de Santiago) y, si el corte cae dentro de ese grupo, la marca sola no
+  -- sabe seguir: las que quedaban no llegaron nunca a ningún aparato. El cursor es (hora, id) de la
+  -- última lápida servida; con él, quien llama deja `desde` en NULL.
+  AND (sqlc.narg('cursor_marca')::timestamptz IS NULL
+       OR (f.salio_at, f.order_id) > (sqlc.narg('cursor_marca')::timestamptz, sqlc.narg('cursor_id')::uuid))
   -- El alcance primero, como siempre: aunque quien llama pida otra sucursal, sólo puede
   -- enterarse de lo que se fue de la suya.
   AND (sqlc.narg('sucursal')::uuid  IS NULL OR f.branch_id = sqlc.narg('sucursal')::uuid)

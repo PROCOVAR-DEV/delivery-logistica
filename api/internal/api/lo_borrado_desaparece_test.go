@@ -424,3 +424,58 @@ func TestUnaMarcaMasViejaQueElHorizonteAvisa(t *testing.T) {
 		t.Fatalf("avisó de lápidas podadas con un «desde» de hace una hora: %q", aviso)
 	}
 }
+
+// UN GRUPO DE LÁPIDAS CON LA MISMA HORA MÁS GRANDE QUE EL TOPE LLEGA ENTERO, POR LOTES (28/10/2026).
+//
+// El 21/10/2026 el espejo borró 2.828 facturas de Santiago en UNA transacción (misma hora al
+// microsegundo) con el tope en 2.000: el corte no podía caer sin partir el grupo y las 828 de más no
+// llegaron nunca a ningún aparato, que siguió enseñando facturas que ya no existen (Maikel metió 171 en
+// la zona «descarte»). Aquí, 7 lápidas con la misma hora y tope 3: la cadena de `continuar` las trae
+// las 7, sin repetir ni saltar ninguna.
+func TestUnGrupoDeLapidasConLaMismaHoraLlegaEnteroPorLotes(t *testing.T) {
+	q := nuevoEspejo()
+	ahora := time.Now().UTC()
+	misma := ahora.Add(-6 * time.Hour)
+	quitar := map[string]bool{}
+	for range 7 {
+		id := uuid.New()
+		quitar[id.String()] = true
+		q.salidas = append(q.salidas, salidaSync{
+			pedido: id, sucursal: sucStg, motivo: sqlc.SalidaDePedidoBorrado, salioAt: misma,
+		})
+	}
+
+	desde := ahora.Add(-12 * time.Hour)
+	continuar := ""
+	llegaron := map[string]int{}
+	for vuelta := 0; vuelta < 10; vuelta++ {
+		cola := "?tope=3&desde=" + desde.Format(time.RFC3339Nano)
+		if continuar != "" {
+			cola += "&continuar=" + continuar
+		}
+		m := bajadaDe(t, q, tokenTab(t, sucStg.String()), cola)
+		for id := range bajasDe(t, m, "orders") {
+			llegaron[id]++
+		}
+		if truncado, _ := m["truncado"].(bool); !truncado {
+			break
+		}
+		continuar, _ = m["continuar"].(string)
+		if continuar == "" {
+			t.Fatal("dice «truncado» y no da por dónde seguir: el aparato repetiría la misma tanda")
+		}
+		h, err := time.Parse(time.RFC3339, m["hasta"].(string))
+		if err != nil {
+			t.Fatalf("«hasta» ilegible: %v", m["hasta"])
+		}
+		desde = h
+	}
+	for id := range quitar {
+		if llegaron[id] != 1 {
+			t.Errorf("la lápida %s llegó %d veces (tenía que ser 1): %v", id, llegaron[id], llegaron)
+		}
+	}
+	if len(llegaron) != len(quitar) {
+		t.Errorf("llegaron %d lápidas y había %d", len(llegaron), len(quitar))
+	}
+}

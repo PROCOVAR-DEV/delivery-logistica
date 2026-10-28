@@ -282,6 +282,16 @@ Sembrar en el `setUp` es justo el caso que un `Future` resuelve bien. Moldes en
 
 ---
 
+## 3-ter-bis. Un tope sobre filas que comparten hora PIERDE datos sin avisar, y el aparato se cuadra
+
+El 21/10/2026 se borraron 2.828 facturas de Santiago en una transacción (misma hora) con un tope de 2.000 en las lápidas: **828 no llegaron
+nunca** y el aparato de Maikel siguió enseñando facturas que no existen. Hoy las lápidas van por lotes con cursor `(hora, id)` y el aparato
+se cuadra una vez al día con `GET /api/sync/cuadre` (quita lo que sobra, pide lo que falta, cierra los rechazados de lo que ya no existe y
+**lo avisa**). Entero en `docs/sincronizacion.md` («Las lápidas van POR LOTES…»). **Regla:** cualquier tope sobre filas con la misma marca
+lleva cursor, no solo marca; y toda colección nueva que el aparato guarde entra en el cuadre (`Cuadre.tablas` y el endpoint).
+
+---
+
 ## 3-quater. El proxy se queda con `/api` y con `/sync` antes que la aplicación
 
 En el servidor, Traefik reparte por camino, y lo suyo no llega nunca a la web:

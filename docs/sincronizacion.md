@@ -98,6 +98,32 @@ colecciones, y es el de `orders`**: olvidar sólo el de rutas no cambiaría la p
 **`truncado`** existe porque la primera bajada de una sucursal grande no cabe de una vez en
 la conexión de allá. Se pide por tandas hasta que venga `false`.
 
+### Las lápidas van POR LOTES con cursor, y el aparato se CUADRA una vez al día — 28/10/2026
+
+**Lo que pasó.** La bajada por diferencias solo borra lo que le dicen en `quitados` (las lápidas: `orders_fuera_de_alcance` y
+`bajas_de_la_bajada`). El 21/10/2026 el espejo borró 2.828 facturas de Santiago en UNA transacción, todas con la misma hora; el servidor
+las servía con tope de 2.000 y, al no poder cortar sin partir el grupo, mandó 2.000 y dio la marca por entregada: **las 828 de más no
+llegaron nunca a ningún aparato** y siguieron enseñando facturas que ya no existen (Maikel metió 171 en la zona «descarte» seis días
+después).
+
+**El arreglo, en dos capas, independientes:**
+
+1. **Cursor `(hora, id)` en las lápidas** (facturas y TODAS las colecciones; `continuar` lleva `l` y `b` por colección): un grupo con la
+   misma hora mayor que el tope se reparte en tandas, de una en una, sin perder ni repetir. Lo atan
+   `TestUnGrupoDeLapidasConLaMismaHoraLlegaEnteroPorLotes`, `TestUnGrupoDeBajasConLaMismaHoraLlegaEnteroPorLotes` y
+   `TestMotorReal_LasBajasPorLotesConCursor`.
+2. **El cuadre** (`GET /api/sync/cuadre`, `app/lib/nucleo/sincro/cuadre.dart`): la red de seguridad si una lápida se pierde por
+   cualquier otro motivo. Una vez cada 20 h, con la bajada ENTERA y solo en APK/escritorio (la web nace vacía en cada carga y no lleva
+   cola), el aparato pide los ids de TODO lo que debería tener (orders, routes, customers, products, vehicles, vehicle_types,
+   distribuidores, branches; el tablero se baja como foto) y **quita lo que sobra**. Y **pide lo que falta**: si el servidor tiene filas que
+   el aparato no, olvida la marca y la siguiente bajada es completa.
+
+**Lo que el cuadre NO toca (guardas):** una colección que el servidor dice `truncado` o que llega vacía con filas locales; lo creado en
+el aparato (`local-…`) y lo que nombra un apunte pendiente (trabajo sin subir); un cuadre que borraría más del 95 % (con más de 20
+filas). Los apuntes **rechazados** que nombran una factura quitada se cierran solos (`descartado`, con su motivo; no se borran) y **todo
+se dice** en la franja de estado («Se quitaron N facturas que ya no existen», con lista y «Entendido»). Si algo se quita de más, el
+servidor lo vuelve a mandar. La lista de facturas del cuadre son las NO archivadas: la anulada reciente baja como aviso, no como fila.
+
 ### `continuar`: por dónde seguir en lo que no tiene marca — 15/09/2026
 
 **`truncado` sin esto era mentira, y costó un cuarto de los clientes.** Se probó la

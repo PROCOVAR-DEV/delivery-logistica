@@ -30,11 +30,11 @@ func TestElCuadreDaLosIdsDeLoQueElAparatoDebeTener(t *testing.T) {
 	for _, id := range m["colecciones"].(map[string]any)["orders"].([]any) {
 		hay[id.(string)] = true
 	}
-	if !hay[viva.id.String()] || !hay[anulada.id.String()] {
-		t.Fatalf("faltan la viva o la anulada reciente: %v", hay)
+	if !hay[viva.id.String()] {
+		t.Fatalf("falta la viva: %v", hay)
 	}
-	if hay[archivada.id.String()] || hay[ajena.id.String()] {
-		t.Fatalf("sobran la archivada o la de otra sucursal: %v", hay)
+	if hay[archivada.id.String()] || hay[ajena.id.String()] || hay[anulada.id.String()] {
+		t.Fatalf("sobran la archivada, la anulada (baja como aviso, no como fila) o la de otra sucursal: %v", hay)
 	}
 	if tr, _ := m["truncado"].([]any); len(tr) != 0 {
 		t.Fatalf("no se pasó del tope y dice truncado: %v", tr)

@@ -26,11 +26,10 @@ func TestMotorReal_ElCuadreDeFacturas(t *testing.T) {
 	b.exec(`UPDATE orders SET anulada_at = now() - interval '30 days' WHERE id = $1`, vieja)
 	ajena := b.pedido(listo("ajena", hol))
 
-	desde := time.Now().Add(-VentanaAnuladasParaLaPrueba)
 	ids := func(sucursal pgtype.UUID, tope int32) map[uuid.UUID]bool {
 		t.Helper()
 		filas, err := b.q.IdsDePedidosParaElCuadre(b.ctx, IdsDePedidosParaElCuadreParams{
-			Sucursal: sucursal, AnuladasDesde: pgtype.Timestamptz{Time: desde, Valid: true}, Tope: tope,
+			Sucursal: sucursal, Tope: tope,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -43,11 +42,11 @@ func TestMotorReal_ElCuadreDeFacturas(t *testing.T) {
 	}
 
 	santiago := ids(alcance(stg), 100)
-	if !santiago[viva] || !santiago[anulada] {
-		t.Fatalf("faltan la viva o la anulada de ayer: %v", santiago)
+	if !santiago[viva] {
+		t.Fatalf("falta la viva: %v", santiago)
 	}
-	if santiago[archivadaID] || santiago[vieja] || santiago[ajena] {
-		t.Fatalf("sobran la archivada, la anulada de hace un mes o la de otra sucursal: %v", santiago)
+	if santiago[archivadaID] || santiago[anulada] || santiago[vieja] || santiago[ajena] {
+		t.Fatalf("sobran la archivada, las anuladas (bajan como aviso, no como fila) o la de otra sucursal: %v", santiago)
 	}
 	if !ids(sinAlcance, 100)[ajena] {
 		t.Fatal("quien ve «todas» tenía que ver también la de Holguín")
@@ -56,9 +55,6 @@ func TestMotorReal_ElCuadreDeFacturas(t *testing.T) {
 		t.Fatalf("el tope no se respeta: %d", n)
 	}
 }
-
-// VentanaAnuladasParaLaPrueba: los 7 días de `alcance.VentanaDeFacturasAnuladas` (no se importa: sqlc no depende de alcance).
-const VentanaAnuladasParaLaPrueba = 7 * 24 * time.Hour
 
 // EL CURSOR (hora, clave) DE LAS LÁPIDAS contra Postgres de verdad: un grupo con la MISMA hora se reparte en lotes sin
 // perder ni repetir ninguna (28/10/2026). Lo que sólo ve la base: la comparación de tupla `(salio_at, clave) > (…)`.

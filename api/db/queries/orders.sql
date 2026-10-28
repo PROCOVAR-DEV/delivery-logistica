@@ -1634,16 +1634,14 @@ WHERE source = 'pedido' AND external_id = ANY(sqlc.arg('external_ids')::text[]);
 -- EL CUADRE DE LAS FACTURAS DEL APARATO (28/10/2026, Jose: «el sync se hizo para algo»). La bajada por diferencias
 -- solo borra lo que le dicen en `quitados`, y una lápida que no llega (el 21/10/2026 se perdieron 828 de Santiago
 -- por un grupo con la misma hora mayor que el tope) deja facturas FANTASMA en el aparato para siempre. Esto es la
--- red de seguridad: los ids de TODO lo que el aparato debería tener (lo que bajaría una carga completa: las no
--- archivadas y las anuladas de los últimos días), para que quite lo que ya no está. Mismo alcance y misma
+-- red de seguridad: los ids de TODO lo que el aparato debería tener (las NO archivadas: la anulada reciente baja como
+-- aviso, no como fila, así que no cuenta), para que quite lo que sobra y pida lo que falta. Mismo alcance y misma
 -- sucursal que `DiferenciasDePedidos`; sin renglones, solo ids.
 -- name: IdsDePedidosParaElCuadre :many
 SELECT o.id
 FROM orders o
 WHERE (sqlc.narg('sucursal')::uuid  IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid)
   AND (sqlc.narg('branch_id')::uuid IS NULL OR o.branch_id = sqlc.narg('branch_id')::uuid)
-  AND (NOT o.archivado
-       OR (sqlc.narg('anuladas_desde')::timestamptz IS NOT NULL
-           AND o.anulada_at >= sqlc.narg('anuladas_desde')::timestamptz))
+  AND NOT o.archivado
 ORDER BY o.id
 LIMIT sqlc.arg('tope');

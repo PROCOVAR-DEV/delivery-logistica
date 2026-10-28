@@ -144,8 +144,7 @@ func (q *espejoFalso) IdsDePedidosParaElCuadre(_ context.Context, arg sqlc.IdsDe
 		if arg.BranchID.Valid && [16]byte(p.sucursal) != arg.BranchID.Bytes {
 			continue
 		}
-		reciente := p.anuladaAt != nil && arg.AnuladasDesde.Valid && !p.anuladaAt.Before(arg.AnuladasDesde.Time)
-		if p.archivado && !reciente {
+		if p.archivado {
 			continue
 		}
 		ids = append(ids, p.id)

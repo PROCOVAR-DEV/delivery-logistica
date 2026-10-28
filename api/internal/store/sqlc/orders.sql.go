@@ -1694,33 +1694,25 @@ SELECT o.id
 FROM orders o
 WHERE ($1::uuid  IS NULL OR o.branch_id = $1::uuid)
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
-  AND (NOT o.archivado
-       OR ($3::timestamptz IS NOT NULL
-           AND o.anulada_at >= $3::timestamptz))
+  AND NOT o.archivado
 ORDER BY o.id
-LIMIT $4
+LIMIT $3
 `
 
 type IdsDePedidosParaElCuadreParams struct {
-	Sucursal      pgtype.UUID        `json:"sucursal"`
-	BranchID      pgtype.UUID        `json:"branch_id"`
-	AnuladasDesde pgtype.Timestamptz `json:"anuladas_desde"`
-	Tope          int32              `json:"tope"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+	BranchID pgtype.UUID `json:"branch_id"`
+	Tope     int32       `json:"tope"`
 }
 
 // EL CUADRE DE LAS FACTURAS DEL APARATO (28/10/2026, Jose: «el sync se hizo para algo»). La bajada por diferencias
 // solo borra lo que le dicen en `quitados`, y una lápida que no llega (el 21/10/2026 se perdieron 828 de Santiago
 // por un grupo con la misma hora mayor que el tope) deja facturas FANTASMA en el aparato para siempre. Esto es la
-// red de seguridad: los ids de TODO lo que el aparato debería tener (lo que bajaría una carga completa: las no
-// archivadas y las anuladas de los últimos días), para que quite lo que ya no está. Mismo alcance y misma
+// red de seguridad: los ids de TODO lo que el aparato debería tener (las NO archivadas: la anulada reciente baja como
+// aviso, no como fila, así que no cuenta), para que quite lo que sobra y pida lo que falta. Mismo alcance y misma
 // sucursal que `DiferenciasDePedidos`; sin renglones, solo ids.
 func (q *Queries) IdsDePedidosParaElCuadre(ctx context.Context, arg IdsDePedidosParaElCuadreParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, idsDePedidosParaElCuadre,
-		arg.Sucursal,
-		arg.BranchID,
-		arg.AnuladasDesde,
-		arg.Tope,
-	)
+	rows, err := q.db.Query(ctx, idsDePedidosParaElCuadre, arg.Sucursal, arg.BranchID, arg.Tope)
 	if err != nil {
 		return nil, err
 	}

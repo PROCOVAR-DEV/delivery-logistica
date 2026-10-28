@@ -1012,8 +1012,8 @@ type Querier interface {
 	// EL CUADRE DE LAS FACTURAS DEL APARATO (28/10/2026, Jose: «el sync se hizo para algo»). La bajada por diferencias
 	// solo borra lo que le dicen en `quitados`, y una lápida que no llega (el 21/10/2026 se perdieron 828 de Santiago
 	// por un grupo con la misma hora mayor que el tope) deja facturas FANTASMA en el aparato para siempre. Esto es la
-	// red de seguridad: los ids de TODO lo que el aparato debería tener (lo que bajaría una carga completa: las no
-	// archivadas y las anuladas de los últimos días), para que quite lo que ya no está. Mismo alcance y misma
+	// red de seguridad: los ids de TODO lo que el aparato debería tener (las NO archivadas: la anulada reciente baja como
+	// aviso, no como fila, así que no cuenta), para que quite lo que sobra y pida lo que falta. Mismo alcance y misma
 	// sucursal que `DiferenciasDePedidos`; sin renglones, solo ids.
 	IdsDePedidosParaElCuadre(ctx context.Context, arg IdsDePedidosParaElCuadreParams) ([]uuid.UUID, error)
 	// Conduces (super factura): juntar varias facturas de un mismo cliente en UNA parada.

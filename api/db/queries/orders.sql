@@ -726,7 +726,7 @@ RETURNING id, operation_number, customer_name, address, end_address, end_lat,
 -- name: LeerPedidoParaElPunto :one
 SELECT
     o.id, o.branch_id, o.almacen_salida_codigo, o.route_id, o.resultado, o.delivered_at,
-    o.punto_manual, o.punto_cliente_lat, o.punto_cliente_lng
+    o.punto_manual, o.punto_cliente_lat, o.punto_cliente_lng, o.customer_name
 FROM orders o
 WHERE o.id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid);

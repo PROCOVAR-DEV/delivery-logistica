@@ -813,6 +813,18 @@ type Product struct {
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
+type PuntosDeCliente struct {
+	SucursalCodigo string             `json:"sucursal_codigo"`
+	Clave          string             `json:"clave"`
+	Nombre         string             `json:"nombre"`
+	Lat            float64            `json:"lat"`
+	Lng            float64            `json:"lng"`
+	Direccion      *string            `json:"direccion"`
+	PuestoPor      *string            `json:"puesto_por"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RecepcionesDelWebhook struct {
 	ID         uuid.UUID          `json:"id"`
 	Origen     string             `json:"origen"`

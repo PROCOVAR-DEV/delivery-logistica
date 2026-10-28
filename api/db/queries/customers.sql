@@ -333,3 +333,19 @@ WHERE source = sqlc.arg('source')::procedencia
 SELECT codigo, name, lat, lng
 FROM customers
 WHERE source = 'pedido' AND sucursal_codigo = sqlc.arg('sucursal_codigo')::text;
+
+-- LOS PUNTOS QUE EL LOGÍSTICO UBICÓ (00030): se suman a los clientes del padrón al buscar el punto de una factura.
+-- name: PuntosGuardadosDeLaSucursal :many
+SELECT nombre, lat, lng FROM puntos_de_clientes WHERE sucursal_codigo = sqlc.arg('sucursal_codigo')::text;
+
+-- GUARDA (o corrige) EL PUNTO DE UN CLIENTE al ubicar una entrega a mano. La sucursal sale de la sucursal de la
+-- factura; sin código de Accesos no se guarda (cero filas, y no pasa nada).
+-- name: GuardarPuntoDeCliente :exec
+INSERT INTO puntos_de_clientes (sucursal_codigo, clave, nombre, lat, lng, direccion, puesto_por)
+SELECT b.external_id, sqlc.arg('clave')::text, sqlc.arg('nombre')::text, sqlc.arg('lat')::double precision,
+       sqlc.arg('lng')::double precision, sqlc.narg('direccion')::text, sqlc.narg('por')::text
+FROM branches b
+WHERE b.id = sqlc.arg('branch_id')::uuid AND b.external_id IS NOT NULL
+ON CONFLICT (sucursal_codigo, clave) DO UPDATE SET
+    nombre = EXCLUDED.nombre, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+    direccion = coalesce(EXCLUDED.direccion, puntos_de_clientes.direccion), puesto_por = EXCLUDED.puesto_por;

@@ -805,6 +805,19 @@ func (a *Acotado) EspejoPuntosDeClientes(ctx context.Context, sucursalCodigo str
 	return a.q.PuntosDeClientesDeLaSucursal(ctx, sucursalCodigo)
 }
 
+// EspejoPuntosGuardados: los puntos que el logístico ubicó a mano, por cliente (00030). Sin alcance, como el
+// padrón: es del espejo.
+func (a *Acotado) EspejoPuntosGuardados(ctx context.Context, sucursalCodigo string) ([]sqlc.PuntosGuardadosDeLaSucursalRow, error) {
+	return a.q.PuntosGuardadosDeLaSucursal(ctx, sucursalCodigo)
+}
+
+// GuardarPuntoDeCliente guarda el punto que se acaba de ubicar a mano para el cliente de esa factura. La
+// sucursal es la de la factura (que ya se leyó con el alcance), y quien lo puso, el actor.
+func (a *Acotado) GuardarPuntoDeCliente(ctx context.Context, arg sqlc.GuardarPuntoDeClienteParams) error {
+	arg.Por = a.ActorRef()
+	return a.q.GuardarPuntoDeCliente(ctx, arg)
+}
+
 // EspejoPesosDeProductos: peso y unidades por unidad de venta de los productos de una
 // sucursal (tabla `products`, la que baja Ventra), para pesar los renglones de una factura.
 func (a *Acotado) EspejoPesosDeProductos(ctx context.Context, sucursalCodigo string) ([]sqlc.PesosDeProductosDeLaSucursalRow, error) {

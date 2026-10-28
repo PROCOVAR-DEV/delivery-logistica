@@ -527,6 +527,42 @@ func (q *Queries) GuardarClienteDelEspejo(ctx context.Context, arg GuardarClient
 	return i, err
 }
 
+const guardarPuntoDeCliente = `-- name: GuardarPuntoDeCliente :exec
+INSERT INTO puntos_de_clientes (sucursal_codigo, clave, nombre, lat, lng, direccion, puesto_por)
+SELECT b.external_id, $1::text, $2::text, $3::double precision,
+       $4::double precision, $5::text, $6::text
+FROM branches b
+WHERE b.id = $7::uuid AND b.external_id IS NOT NULL
+ON CONFLICT (sucursal_codigo, clave) DO UPDATE SET
+    nombre = EXCLUDED.nombre, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+    direccion = coalesce(EXCLUDED.direccion, puntos_de_clientes.direccion), puesto_por = EXCLUDED.puesto_por
+`
+
+type GuardarPuntoDeClienteParams struct {
+	Clave     string    `json:"clave"`
+	Nombre    string    `json:"nombre"`
+	Lat       float64   `json:"lat"`
+	Lng       float64   `json:"lng"`
+	Direccion *string   `json:"direccion"`
+	Por       *string   `json:"por"`
+	BranchID  uuid.UUID `json:"branch_id"`
+}
+
+// GUARDA (o corrige) EL PUNTO DE UN CLIENTE al ubicar una entrega a mano. La sucursal sale de la sucursal de la
+// factura; sin código de Accesos no se guarda (cero filas, y no pasa nada).
+func (q *Queries) GuardarPuntoDeCliente(ctx context.Context, arg GuardarPuntoDeClienteParams) error {
+	_, err := q.db.Exec(ctx, guardarPuntoDeCliente,
+		arg.Clave,
+		arg.Nombre,
+		arg.Lat,
+		arg.Lng,
+		arg.Direccion,
+		arg.Por,
+		arg.BranchID,
+	)
+	return err
+}
+
 const listarClientes = `-- name: ListarClientes :many
 
 
@@ -769,6 +805,37 @@ func (q *Queries) PuntosDeClientesDeLaSucursal(ctx context.Context, sucursalCodi
 			&i.Lat,
 			&i.Lng,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const puntosGuardadosDeLaSucursal = `-- name: PuntosGuardadosDeLaSucursal :many
+SELECT nombre, lat, lng FROM puntos_de_clientes WHERE sucursal_codigo = $1::text
+`
+
+type PuntosGuardadosDeLaSucursalRow struct {
+	Nombre string  `json:"nombre"`
+	Lat    float64 `json:"lat"`
+	Lng    float64 `json:"lng"`
+}
+
+// LOS PUNTOS QUE EL LOGÍSTICO UBICÓ (00030): se suman a los clientes del padrón al buscar el punto de una factura.
+func (q *Queries) PuntosGuardadosDeLaSucursal(ctx context.Context, sucursalCodigo string) ([]PuntosGuardadosDeLaSucursalRow, error) {
+	rows, err := q.db.Query(ctx, puntosGuardadosDeLaSucursal, sucursalCodigo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PuntosGuardadosDeLaSucursalRow
+	for rows.Next() {
+		var i PuntosGuardadosDeLaSucursalRow
+		if err := rows.Scan(&i.Nombre, &i.Lat, &i.Lng); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

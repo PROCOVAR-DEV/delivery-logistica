@@ -40,6 +40,7 @@ import (
 
 	"procovar/reparto-api/internal/alcance"
 	"procovar/reparto-api/internal/cotizar"
+	"procovar/reparto-api/internal/espejo"
 	"procovar/reparto-api/internal/httpx"
 	"procovar/reparto-api/internal/store/sqlc"
 )
@@ -116,6 +117,16 @@ func (s *Servidor) ponerPuntoDeEntrega(w http.ResponseWriter, r *http.Request) {
 			})
 			if err != nil {
 				return PuntoSalida{}, err
+			}
+			// EL PUNTO SE GUARDA PARA EL CLIENTE (28/10/2026, Jose): la factura siguiente de este cliente nace
+			// con él. Sin nombre de cliente, o con el genérico «Cliente», no hay a quién guardárselo.
+			if clave := espejo.ClaveDeCliente(fila.CustomerName); clave != "" && clave != "CLIENTE" && fila.BranchID.Valid {
+				if err := tx.GuardarPuntoDeCliente(r.Context(), sqlc.GuardarPuntoDeClienteParams{
+					BranchID: uuid.UUID(fila.BranchID.Bytes), Clave: clave, Nombre: fila.CustomerName,
+					Lat: *c.Lat, Lng: *c.Lng, Direccion: c.Direccion,
+				}); err != nil {
+					return PuntoSalida{}, err
+				}
 			}
 			return PuntoSalida{
 				ID: f.ID, EndLat: f.EndLat, EndLng: f.EndLng, EndAddress: f.EndAddress,

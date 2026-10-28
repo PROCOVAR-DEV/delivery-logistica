@@ -242,16 +242,60 @@ func NuevosPuntos(clientes []PuntoDeCliente) *PuntosDeClientes {
 	return p
 }
 
-// normalizarReferencia: mayúsculas y sin espacios. Así «sc06 tcp0158» y «SC06TCP0158» son el
-// mismo código, que es como los escribe quien teclea la nota de una venta.
+// normalizarReferencia: mayúsculas, sin espacios y sin tildes. Así «sc06 tcp0158» y «SC06TCP0158» son el
+// mismo código, que es como los escribe quien teclea la nota de una venta, y «Acuña» y «ACUNA» el mismo
+// nombre (Ventra y el padrón no escriben igual). Sin tildes y NADA MÁS: una letra distinta («GONZALES» por
+// «GONZALEZ») sigue siendo otro nombre, y un punto adivinado es un domicilio cobrado a la distancia de otra casa.
 func normalizarReferencia(s string) string {
 	var b strings.Builder
 	for _, r := range s {
 		if !unicode.IsSpace(r) {
-			b.WriteRune(unicode.ToUpper(r))
+			b.WriteRune(sinTilde(unicode.ToUpper(r)))
 		}
 	}
 	return b.String()
+}
+
+func sinTilde(r rune) rune {
+	switch r {
+	case 'Á', 'À', 'Ä', 'Â':
+		return 'A'
+	case 'É', 'È', 'Ë', 'Ê':
+		return 'E'
+	case 'Í', 'Ì', 'Ï', 'Î':
+		return 'I'
+	case 'Ó', 'Ò', 'Ö', 'Ô':
+		return 'O'
+	case 'Ú', 'Ù', 'Ü', 'Û':
+		return 'U'
+	case 'Ñ':
+		return 'N'
+	}
+	return r
+}
+
+// ClaveDeCliente es la clave con la que se guarda y se busca el punto de un cliente por su nombre
+// (`puntos_de_clientes`, 00030): la misma normalización de [PuntosDeClientes].
+func ClaveDeCliente(nombre string) string { return normalizarReferencia(nombre) }
+
+// FusionarPuntos suma los puntos que el logístico ubicó a mano a los del padrón. UN PUNTO GUARDADO MANDA sobre
+// los del padrón con su mismo nombre: lo decidió una persona con la factura delante, y el padrón los daba por
+// dudosos (no encontrado, o ambiguo).
+func FusionarPuntos(padron, guardados []PuntoDeCliente) []PuntoDeCliente {
+	if len(guardados) == 0 {
+		return padron
+	}
+	manda := make(map[string]bool, len(guardados))
+	for _, g := range guardados {
+		manda[ClaveDeCliente(g.Nombre)] = true
+	}
+	salida := make([]PuntoDeCliente, 0, len(padron)+len(guardados))
+	for _, c := range padron {
+		if !manda[ClaveDeCliente(c.Nombre)] {
+			salida = append(salida, c)
+		}
+	}
+	return append(salida, guardados...)
 }
 
 // Cómo se halló (o no) el punto. Se cuenta en el ciclo: un cliente sin punto es una entrega
@@ -380,6 +424,16 @@ func (e EntregaDeFactura) APedido(ctx ContextoDeMapeo) (PedidoDeFuera, InformeDe
 
 	// --- Las coordenadas: del espejo de clientes ------------------------------
 	lat, lng, como := ctx.Puntos.Buscar(referencia)
+	// LA REFERENCIA NO LO HALLÓ: se prueba con el nombre del cliente de la factura (28/10/2026, Jose: «compara
+	// con la base de datos de clientes: si el cliente de la factura existe, le pones su dirección»). Pasa cuando
+	// el vendedor teclea mal la referencia (47636: «GONZALES» por «GONZALEZ») o no la pone.
+	if como != PuntoPorCodigo && como != PuntoPorNombre && nombre != "" {
+		if l2, g2, c2 := ctx.Puntos.Buscar(nombre); c2 == PuntoPorCodigo || c2 == PuntoPorNombre {
+			lat, lng, como = l2, g2, c2
+		} else if como == PuntoNoEncontrado {
+			como = c2
+		}
+	}
 	inf.Punto = como
 	if como == PuntoPorCodigo || como == PuntoPorNombre {
 		p.Cliente.Latitud, p.Cliente.Longitud = &lat, &lng

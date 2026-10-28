@@ -206,7 +206,16 @@ func (b BaseDelReparto) PuntosDeClientes(ctx context.Context, sucursal string) (
 		}
 		salida = append(salida, c)
 	}
-	return salida, nil
+	// Y LOS QUE EL LOGÍSTICO UBICÓ A MANO (00030): un cliente más del padrón, y manda sobre el del mismo nombre.
+	guardados, err := b.Acotado.EspejoPuntosGuardados(ctx, sucursal)
+	if err != nil {
+		return nil, err
+	}
+	puestos := make([]PuntoDeCliente, 0, len(guardados))
+	for _, g := range guardados {
+		puestos = append(puestos, PuntoDeCliente{Nombre: g.Nombre, Lat: g.Lat, Lng: g.Lng})
+	}
+	return FusionarPuntos(salida, puestos), nil
 }
 
 func (b BaseDelReparto) ProductosDeVentra(ctx context.Context, sucursal string) (map[string]ProductoDeVentra, error) {

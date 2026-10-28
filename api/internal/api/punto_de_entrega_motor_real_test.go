@@ -22,6 +22,7 @@ import (
 	"procovar/reparto-api/internal/auth"
 	"procovar/reparto-api/internal/config"
 	"procovar/reparto-api/internal/cotizar"
+	"procovar/reparto-api/internal/espejo"
 	"procovar/reparto-api/internal/httpx"
 	"procovar/reparto-api/internal/store/sqlc"
 )
@@ -146,6 +147,20 @@ func TestMotorReal_ElPuntoDeEntregaAMano(t *testing.T) {
 	// --- PUT en una parada de una ruta planificada -----------------------------------------
 	if r := llamar(http.MethodPut, dos, cuerpoDelPunto(latNuevo, lngNuevo, "Calle del logístico")); r.code != http.StatusOK {
 		t.Fatalf("PUT contestó %d: %s", r.code, r.body)
+	}
+	// EL PUNTO SE GUARDA PARA EL CLIENTE (00030): la factura siguiente de «Dos» nace con él, y es de la sucursal STG.
+	var guardados int
+	var glat, glng float64
+	if err := tx.QueryRow(ctx, `SELECT count(*), coalesce(max(lat),0), coalesce(max(lng),0) FROM puntos_de_clientes
+	                            WHERE sucursal_codigo = 'STG' AND clave = $1`, espejo.ClaveDeCliente("Dos")).Scan(&guardados, &glat, &glng); err != nil {
+		t.Fatal(err)
+	}
+	if guardados != 1 || glat != latNuevo || glng != lngNuevo {
+		t.Fatalf("el punto puesto a mano no se guardó para el cliente: %d filas (%v, %v)", guardados, glat, glng)
+	}
+	var enOtra int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM puntos_de_clientes WHERE sucursal_codigo <> 'STG'`).Scan(&enOtra); err != nil || enOtra != 0 {
+		t.Fatalf("el punto se guardó en otra sucursal: %d (%v)", enOtra, err)
 	}
 	f := leer(dos)
 	if !f.manual || f.endLat != latNuevo || f.endLng != lngNuevo {

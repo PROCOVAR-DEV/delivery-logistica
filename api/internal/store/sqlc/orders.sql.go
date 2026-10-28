@@ -1693,7 +1693,7 @@ const leerPedidoParaElPunto = `-- name: LeerPedidoParaElPunto :one
 
 SELECT
     o.id, o.branch_id, o.almacen_salida_codigo, o.route_id, o.resultado, o.delivered_at,
-    o.punto_manual, o.punto_cliente_lat, o.punto_cliente_lng
+    o.punto_manual, o.punto_cliente_lat, o.punto_cliente_lng, o.customer_name
 FROM orders o
 WHERE o.id = $1
   AND ($2::uuid IS NULL OR o.branch_id = $2::uuid)
@@ -1714,6 +1714,7 @@ type LeerPedidoParaElPuntoRow struct {
 	PuntoManual         bool               `json:"punto_manual"`
 	PuntoClienteLat     *float64           `json:"punto_cliente_lat"`
 	PuntoClienteLng     *float64           `json:"punto_cliente_lng"`
+	CustomerName        string             `json:"customer_name"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1735,6 +1736,7 @@ func (q *Queries) LeerPedidoParaElPunto(ctx context.Context, arg LeerPedidoParaE
 		&i.PuntoManual,
 		&i.PuntoClienteLat,
 		&i.PuntoClienteLng,
+		&i.CustomerName,
 	)
 	return i, err
 }

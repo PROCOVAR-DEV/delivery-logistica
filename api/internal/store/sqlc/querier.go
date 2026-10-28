@@ -985,6 +985,9 @@ type Querier interface {
 	// vaciar el catálogo de una sucursal — lo viejo se nota por `traido_at`, que dice si lo
 	// que se está mirando es de hace diez minutos o de hace tres días.
 	GuardarProductoDelCatalogo(ctx context.Context, arg GuardarProductoDelCatalogoParams) (GuardarProductoDelCatalogoRow, error)
+	// GUARDA (o corrige) EL PUNTO DE UN CLIENTE al ubicar una entrega a mano. La sucursal sale de la sucursal de la
+	// factura; sin código de Accesos no se guarda (cero filas, y no pasa nada).
+	GuardarPuntoDeCliente(ctx context.Context, arg GuardarPuntoDeClienteParams) error
 	// Guardar la tasa que vino de Accesos, por CÓDIGO de sucursal.
 	//
 	// DOS COSAS QUE NO SE VEN VENIR, las dos en el WHERE:
@@ -1796,6 +1799,8 @@ type Querier interface {
 	// hasta nueva orden de Jose (20/10/2026). Va sin alcance: es del espejo, que entra con clave
 	// de servicio, y la sucursal la pone quien llama. Solo los de PEDIDO (`source`).
 	PuntosDeClientesDeLaSucursal(ctx context.Context, sucursalCodigo string) ([]PuntosDeClientesDeLaSucursalRow, error)
+	// LOS PUNTOS QUE EL LOGÍSTICO UBICÓ (00030): se suman a los clientes del padrón al buscar el punto de una factura.
+	PuntosGuardadosDeLaSucursal(ctx context.Context, sucursalCodigo string) ([]PuntosGuardadosDeLaSucursalRow, error)
 	// Las tarjetas de los pedidos que acaban de subirse a una ruta salen del tablero.
 	//
 	// Se llama DENTRO de la misma transacción que engancha las paradas. La columna se vacía

@@ -27,7 +27,7 @@ func TestElCuadreDaLosIdsDeLoQueElAparatoDebeTener(t *testing.T) {
 	}
 	m := leerTab(t, w)
 	hay := map[string]bool{}
-	for _, id := range m["ids"].([]any) {
+	for _, id := range m["colecciones"].(map[string]any)["orders"].([]any) {
 		hay[id.(string)] = true
 	}
 	if !hay[viva.id.String()] || !hay[anulada.id.String()] {
@@ -36,16 +36,25 @@ func TestElCuadreDaLosIdsDeLoQueElAparatoDebeTener(t *testing.T) {
 	if hay[archivada.id.String()] || hay[ajena.id.String()] {
 		t.Fatalf("sobran la archivada o la de otra sucursal: %v", hay)
 	}
-	if tr, _ := m["truncado"].(bool); tr {
-		t.Fatal("no se pasó del tope y dice truncado")
+	if tr, _ := m["truncado"].([]any); len(tr) != 0 {
+		t.Fatalf("no se pasó del tope y dice truncado: %v", tr)
+	}
+	// TODAS las colecciones que guarda el aparato salen, cada una como array (nunca null).
+	cols := m["colecciones"].(map[string]any)
+	for _, c := range []string{"orders", "branches", "vehicles", "vehicle_types", "distribuidores", "routes", "products", "customers"} {
+		if _, ok := cols[c].([]any); !ok {
+			t.Errorf("falta la colección %q o no es un array: %#v", c, cols[c])
+		}
 	}
 }
 
-func TestElCuadreSinNadaDaUnArrayVacioNoNull(t *testing.T) {
+func TestElCuadreNuncaDaNullEnNingunaColeccion(t *testing.T) {
 	h := montarTab(t, nuevoEspejo())
 	w := pedirTab(t, h, http.MethodGet, "/api/sync/cuadre", tokenTab(t, sucStg.String()), "")
 	m := leerTab(t, w)
-	if ids, ok := m["ids"].([]any); !ok || len(ids) != 0 {
-		t.Fatalf("«ids» tenía que ser [] y fue %#v: el aparato no recorre un null", m["ids"])
+	for nombre, v := range m["colecciones"].(map[string]any) {
+		if _, ok := v.([]any); !ok {
+			t.Fatalf("«%s» tenía que ser un array y fue %#v: el aparato no recorre un null", nombre, v)
+		}
 	}
 }

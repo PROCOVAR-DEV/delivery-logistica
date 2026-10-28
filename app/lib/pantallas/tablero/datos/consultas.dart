@@ -610,6 +610,42 @@ WHERE c.branch_id = ?1 AND $noEsMiembroSql''',
   /// nulo) si el vendedor lo marco (issue 10, 15/10/2026): sin ellos la tarjeta
   /// se ofrecia aqui y `colocar` la rechazaba (`porQueNoSePuedeColocar`), o se
   /// colocaba y fallaba al armar la zona.
+  /// LAS FACTURAS QUE NO TIENEN PUNTO DE ENTREGA y por eso no salen en [sinColocar] (28/10/2026, Jose: «que las
+  /// que vengan sin punto el logístico pueda poner la dirección él mismo… desde el tablero, sin salir»).
+  ///
+  /// Sin coordenadas no hay parada: no se puede colocar en una zona ni meter en una ruta. Ventra manda la
+  /// dirección en texto y el punto sale del padrón de clientes por código o por nombre; si el vendedor
+  /// escribió mal la referencia («GONZALES» por «GONZALEZ») o la factura no trae cliente, queda sin punto y
+  /// hasta hoy NO SE VEÍA EN EL TABLERO. Las condiciones son las de [sinColocar] MENOS las coordenadas: en
+  /// cuanto se ubica una, sale de aquí y entra en la lista de al lado.
+  Stream<List<FacturaSinUbicar>> sinUbicar(String sucursalId) async* {
+    await _listo();
+    final o = _base.orders;
+    final consulta = _base.select(o)
+      ..where(
+        (t) =>
+            t.branchId.equals(sucursalId) &
+            t.source.equals(Procedencia.pedido) &
+            t.routeId.isNull() &
+            t.deliveredAt.isNull() &
+            t.archivado.equals(false) &
+            (t.endLat.isNull() | t.endLng.isNull()) &
+            entraEnRuta(t),
+      )
+      ..orderBy([(t) => OrderingTerm.asc(t.orderDate)]);
+    yield* consulta.watch().map(
+      (filas) => [
+        for (final f in filas)
+          FacturaSinUbicar(
+            pedidoId: f.id,
+            factura: f.facturaNumero,
+            cliente: f.customerName,
+            direccion: f.endAddress ?? f.address,
+          ),
+      ],
+    );
+  }
+
   Future<MitadIzquierda> sinColocar(
     String sucursalId,
     AlmacenOrigen origen, {

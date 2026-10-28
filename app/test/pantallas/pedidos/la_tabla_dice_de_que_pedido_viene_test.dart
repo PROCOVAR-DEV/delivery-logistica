@@ -108,7 +108,9 @@ void main() {
 
     expect(find.byKey(const ValueKey('fila-sin-ubicacion-p1')), findsOneWidget);
     expect(
-      find.text('Sin ubicación: ponle la dirección en «Ubicar la entrega»'),
+      find.text(
+        'Sin ubicación: es obligatoria para ir en una ruta. Ponla en «Ubicar la entrega»',
+      ),
       findsOneWidget,
     );
   });

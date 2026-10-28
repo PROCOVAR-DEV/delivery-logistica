@@ -405,9 +405,9 @@ class _Fila extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          'Sin ubicación: ponle la dirección en «Ubicar la entrega»',
+                          'Sin ubicación: es obligatoria para ir en una ruta. Ponla en «Ubicar la entrega»',
                           key: ValueKey('fila-sin-ubicacion-${pedido.id}'),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: Tipos.texto(
                             tamano: 11.5,

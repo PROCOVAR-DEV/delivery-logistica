@@ -127,9 +127,8 @@ final sucursalDelTableroProvider = FutureProvider<String?>((ref) async {
       // sucursal, y el tablero entero volveria a leerse con su rueda.
       .distinct()
       .listen(
-        (id) => primera.isCompleted
-            ? ref.invalidateSelf()
-            : primera.complete(id),
+        (id) =>
+            primera.isCompleted ? ref.invalidateSelf() : primera.complete(id),
         onError: (Object e, StackTrace pila) {
           if (!primera.isCompleted) primera.completeError(e, pila);
         },
@@ -285,6 +284,16 @@ final camionesProvider = StreamProvider<List<Vehiculo>>((ref) {
         .tableUpdates(TableUpdateQuery.onTable(base.vehicles))
         .asyncMap((_) => mirar());
   }();
+});
+
+/// LAS FACTURAS SIN PUNTO DE ENTREGA de la sucursal que se mira (STREAM: se vacía solo en cuanto se ubica una).
+final sinUbicarProvider = StreamProvider<List<FacturaSinUbicar>>((ref) {
+  final sucursal = ref.watch(sucursalDelTableroProvider);
+  final sucursalId = sucursal.value;
+  if (sucursal.isLoading || sucursalId == null) {
+    return const Stream<List<FacturaSinUbicar>>.empty();
+  }
+  return ref.watch(consultasTableroProvider).sinUbicar(sucursalId);
 });
 
 /// De cuando son los datos del tablero. Va arriba, con todas las letras: un

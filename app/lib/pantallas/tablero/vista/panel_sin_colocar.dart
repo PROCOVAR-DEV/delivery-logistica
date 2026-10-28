@@ -12,6 +12,8 @@ import '../../../diseno/tema.dart';
 import '../../../nucleo/proveedores.dart' show relojProvider;
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
+import '../../pedidos/vista/cajon_ubicar_entrega.dart'
+    show abrirUbicarLaEntrega;
 import '../datos/modelos.dart';
 import '../estado/filtros_en_la_url.dart';
 import '../estado/proveedores.dart';
@@ -203,6 +205,10 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
                   ],
                 ),
               ),
+            // LAS QUE VIENEN SIN PUNTO, A LA VISTA Y CON SU SALIDA (28/10/2026, Jose): sin coordenadas una factura no
+            // se puede colocar ni meter en una ruta, y no salía en ninguna parte del tablero. Aquí se dice qué
+            // pasa y se ubica sin salir de la pantalla.
+            const _SinUbicar(),
             const SizedBox(height: 4),
             Expanded(
               child: izquierda.pedidos.isEmpty
@@ -264,6 +270,108 @@ class _PanelSinColocarState extends ConsumerState<PanelSinColocar> {
       titulo: 'Filtros',
       contenido: (contexto) =>
           _Filtros(municipios: facetas.$1, vendedores: facetas.$2),
+    );
+  }
+}
+
+/// LAS FACTURAS SIN PUNTO DE ENTREGA, DENTRO DEL TABLERO.
+///
+/// Ventra manda la dirección en texto y el punto sale del padrón de clientes; si no se encuentra (la
+/// referencia mal escrita, una factura sin cliente), la factura no tiene coordenadas y NO PUEDE entrar en
+/// una zona ni en una ruta. Quien lo arregla es el logístico: «Ubicar la entrega» abre el cajón encima del
+/// tablero, y en cuanto guarda el punto la factura se va de aquí y aparece en «Sin colocar». Sin nada que
+/// ubicar, no ocupa sitio.
+class _SinUbicar extends ConsumerWidget {
+  const _SinUbicar();
+
+  static const _alto = 168.0;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final facturas = ref.watch(sinUbicarProvider).value ?? const [];
+    if (facturas.isEmpty) return const SizedBox.shrink();
+    final tema = Theme.of(context);
+    final n = facturas.length;
+    return Container(
+      key: const ValueKey('tablero-sin-ubicar'),
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+      decoration: BoxDecoration(
+        color: ColoresTablero.ambar.withValues(alpha: 0.10),
+        border: Border.all(color: ColoresTablero.ambar),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+            child: Text(
+              n == 1 ? '1 factura sin ubicación' : '$n facturas sin ubicación',
+              style: tema.textTheme.titleSmall?.copyWith(
+                color: ColoresTablero.ambar,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              'Hay que ubicarlas: sin ubicación no se pueden colocar en una zona ni meter en una ruta. '
+              'Pulsa «Ubicar la entrega», pon la dirección y guarda; la factura pasa sola a «Sin colocar».',
+              style: tema.textTheme.bodySmall,
+            ),
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: _alto),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: n,
+              itemBuilder: (contexto, i) {
+                final f = facturas[i];
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 2, 4, 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${f.factura == null ? '' : 'Factura ${f.factura} · '}${f.cliente}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: tema.textTheme.bodyMedium,
+                            ),
+                            Text(
+                              f.direccion,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: tema.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton.icon(
+                        key: ValueKey('tablero-ubicar-${f.pedidoId}'),
+                        onPressed: () =>
+                            abrirUbicarLaEntrega(contexto, f.pedidoId),
+                        icon: const Icon(
+                          Icons.edit_location_alt_outlined,
+                          size: 18,
+                        ),
+                        label: const Text('Ubicar la entrega'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: ColoresTablero.ambar,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
+      ),
     );
   }
 }

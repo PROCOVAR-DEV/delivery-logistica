@@ -295,6 +295,21 @@ enum MarcaTarjeta {
 }
 
 /// Lo comun a las dos mitades: una tarjeta de pedido.
+/// Una factura sin punto de entrega: lo justo para mostrarla en el tablero y abrir «Ubicar la entrega».
+class FacturaSinUbicar {
+  const FacturaSinUbicar({
+    required this.pedidoId,
+    required this.factura,
+    required this.cliente,
+    required this.direccion,
+  });
+
+  final String pedidoId;
+  final String? factura;
+  final String cliente;
+  final String direccion;
+}
+
 class TarjetaPedido {
   const TarjetaPedido({
     required this.pedidoId,

@@ -36,6 +36,7 @@ import '../datos/estado_reparto.dart';
 import '../datos/formato.dart';
 import '../datos/mandar_al_tablero.dart' show domicilioSinCobroSenalado;
 import '../datos/repositorio_pedidos.dart';
+import 'cajon_ubicar_entrega.dart' show abrirUbicarLaEntrega;
 import 'kit.dart';
 
 /// Que columnas caben a este ancho.
@@ -401,20 +402,10 @@ class _Fila extends StatelessWidget {
                     // UNA FACTURA SIN PEDIDO NO TRAE EL PUNTO DEL CLIENTE (21/10/2026, Jose): sin
                     // coordenadas no hay parada, y el logístico tiene que saber que la dirección
                     // se la pone él. Es el aviso; lo que lo arregla es «Ubicar la entrega».
-                    if (pedido.endLat == null || pedido.endLng == null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          'Sin ubicación: es obligatoria para ir en una ruta. Ponla en «Ubicar la entrega»',
-                          key: ValueKey('fila-sin-ubicacion-${pedido.id}'),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Tipos.texto(
-                            tamano: 11.5,
-                            color: Colores.ambar,
-                          ),
-                        ),
-                      ),
+                    //
+                    // CADA FACTURA SIN PUNTO LLEVA SU BOTÓN (28/10/2026, Jose): el aviso solo no bastaba, hay
+                    // que poder ubicarla desde la propia fila.
+                    if (_faltaElPunto(pedido)) _SinUbicacion(pedido: pedido),
                   ],
                 ),
               ),
@@ -563,6 +554,47 @@ class _CabeceraDeTarjetas extends StatelessWidget {
 ///  - las insignias y las cifras van en un `Wrap`, **nunca en `Expanded`**: un
 ///    `Expanded` reparte el ancho a partes y le puede tocar una celda de 39 px,
 ///    que es exactamente como se rompe una palabra letra a letra.
+bool _faltaElPunto(Pedido p) => p.endLat == null || p.endLng == null;
+
+/// EL AVISO DE «SIN UBICACIÓN» CON SU BOTÓN, igual en la fila de escritorio y en la tarjeta del móvil (Jose,
+/// 28/10/2026: «cada factura debe llevar su botón para ubicar la entrega»). Sin coordenadas no hay parada: la
+/// factura no entra en el tablero ni en una ruta hasta que el logístico la ubica, y desde aquí lo hace sin
+/// abrir nada más.
+class _SinUbicacion extends StatelessWidget {
+  const _SinUbicacion({required this.pedido});
+
+  final Pedido pedido;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 2),
+    child: Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 4,
+      children: [
+        Text(
+          'Sin ubicación: es obligatoria para ir en una ruta.',
+          key: ValueKey('fila-sin-ubicacion-${pedido.id}'),
+          style: Tipos.texto(tamano: 11.5, color: Colores.ambar),
+        ),
+        TextButton.icon(
+          key: ValueKey('fila-ubicar-${pedido.id}'),
+          onPressed: () => abrirUbicarLaEntrega(context, pedido.id),
+          icon: const Icon(Icons.edit_location_alt_outlined, size: 16),
+          label: const Text('Ubicar la entrega'),
+          style: TextButton.styleFrom(
+            foregroundColor: Colores.ambar,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            textStyle: Tipos.texto(tamano: 11.5),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _Tarjeta extends StatelessWidget {
   const _Tarjeta({
     required this.pedido,
@@ -663,6 +695,7 @@ class _Tarjeta extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Tipos.texto(tamano: 13, color: Colores.tinta),
                     ),
+                    if (_faltaElPunto(pedido)) _SinUbicacion(pedido: pedido),
                     const SizedBox(height: 6),
                     Wrap(
                       spacing: Aire.sm,

@@ -35,8 +35,12 @@ void main() {
         createdAt: DateTime(2026, 10, 20),
       );
 
-  Future<void> pintar(WidgetTester tester, List<Pedido> pedidos) async {
-    tester.view.physicalSize = const Size(1440, 900);
+  Future<void> pintar(
+    WidgetTester tester,
+    List<Pedido> pedidos, {
+    double ancho = 1440,
+  }) async {
+    tester.view.physicalSize = Size(ancho, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -108,16 +112,30 @@ void main() {
 
     expect(find.byKey(const ValueKey('fila-sin-ubicacion-p1')), findsOneWidget);
     expect(
-      find.text(
-        'Sin ubicación: es obligatoria para ir en una ruta. Ponla en «Ubicar la entrega»',
-      ),
+      find.text('Sin ubicación: es obligatoria para ir en una ruta.'),
       findsOneWidget,
     );
+    // Y CADA FACTURA SIN PUNTO LLEVA SU BOTÓN (Jose, 28/10/2026), en la propia fila.
+    expect(find.byKey(const ValueKey('fila-ubicar-p1')), findsOneWidget);
+  });
+
+  // Y en la tarjeta del móvil (bajo 768 px) también: cada factura sin punto lleva su botón.
+  testWidgets('en el móvil, la tarjeta sin punto también lleva su botón', (
+    tester,
+  ) async {
+    await pintar(tester, [
+      pedido(id: 'p1'),
+      pedido(id: 'p2', conPunto: true),
+    ], ancho: 400);
+
+    expect(find.byKey(const ValueKey('fila-ubicar-p1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('fila-ubicar-p2')), findsNothing);
   });
 
   testWidgets('con punto de entrega, la fila no avisa de nada', (tester) async {
     await pintar(tester, [pedido(id: 'p1', conPunto: true)]);
 
     expect(find.byKey(const ValueKey('fila-sin-ubicacion-p1')), findsNothing);
+    expect(find.byKey(const ValueKey('fila-ubicar-p1')), findsNothing);
   });
 }

@@ -18,6 +18,8 @@ import '../pantallas/ayuda/datos/controles_senalados.dart';
 import '../pantallas/ayuda/vista/control_senalado.dart';
 import '../pantallas/entregar_el_dia/vista/cajon_entregar_el_dia.dart';
 import '../pantallas/traer_el_dia/vista/cajon_traer_el_dia.dart';
+import '../nucleo/sincro/cuadre.dart' show ResultadoDelCuadre;
+import 'cajon_del_cuadre.dart';
 import 'estado_navegacion.dart';
 
 /// LA FRANJA DE ESTADO. Arriba, a lo ancho, en las siete pantallas.
@@ -105,6 +107,8 @@ class FranjaDeEstado extends ConsumerWidget {
     // aqui, no se dice en ningun sitio. Ver `nucleo/cola/cola_salida.dart`,
     // `descartesSinLeer`.
     final descartados = ref.watch(descartadosProvider).value ?? const [];
+    // LO QUE EL CUADRE DIARIO QUITÓ (nucleo/sincro/cuadre.dart): se dice, y se queda hasta «Entendido».
+    final cuadre = ref.watch(avisoDelCuadreProvider);
 
     // Mientras la consulta de frescura no ha contestado NO se dice «sin
     // descargar»: seria acusar de vacio a algo que aun no se ha mirado. Se
@@ -148,12 +152,14 @@ class FranjaDeEstado extends ConsumerWidget {
                 sinConexion ||
                 huerfano.hayAlguno ||
                 aMedias != null ||
-                descartados.isNotEmpty,
+                descartados.isNotEmpty ||
+                cuadre != null,
             sinConexion: sinConexion,
             actualizando: actualizando,
             huerfano: huerfano,
             aMedias: aMedias,
             descartados: descartados.length,
+            cuadre: cuadre,
             // Que se puede hacer ahora mismo. Las reglas viven en
             // `sincro/que_se_puede.dart`, no aqui: son de negocio y las mira
             // tambien la tarjeta del Panel.
@@ -177,6 +183,7 @@ class FranjaDeEstado extends ConsumerWidget {
     required List<TrabajoHuerfano> huerfano,
     required String? aMedias,
     required int descartados,
+    required ResultadoDelCuadre? cuadre,
     required QueSePuede puede,
   }) {
     return Container(
@@ -302,6 +309,17 @@ class FranjaDeEstado extends ConsumerWidget {
                 // pedido, el porque y que hacer— y su sitio es el cajon, que
                 // es adonde lleva esto. Lo que tiene que hacer esta linea es
                 // que alguien lo abra.
+                if (cuadre != null)
+                  _Linea(
+                    texto: cuadre.facturas > 0
+                        ? 'Se quitaron ${cuadre.facturas} '
+                              '${cuadre.facturas == 1 ? 'factura que ya no existe' : 'facturas que ya no existen'}'
+                              ' del servidor. Toca para ver qué pasó'
+                        : cuadre.faltaban.isNotEmpty
+                        ? 'Al aparato le faltaban datos del servidor y se vuelven a bajar. Toca para ver qué pasó'
+                        : 'El aparato se cuadró con el servidor. Toca para ver qué pasó',
+                    alPulsar: () => abrirCajonDelCuadre(context),
+                  ),
                 if (descartados > 0)
                   _Linea(
                     texto: descartados == 1

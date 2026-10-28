@@ -139,6 +139,9 @@ class RegistroDeFrescura {
   static const yaBajadosLosVehiculosConSuFicha = 'una-vez:vehiculos-con-ficha';
   static const yaBajadosLosAlmacenesConCodigo = 'una-vez:almacenes-con-codigo';
 
+  /// LA HORA DEL ÚLTIMO CUADRE con el servidor (`nucleo/sincro/cuadre.dart`): una vez al día, no en cada vuelta.
+  static const cuadreDiario = 'cuadre:diario';
+
   /// Olvida el cursor de [colecciones] UNA vez por aparato, y deja escrito en [marca]
   /// que ya se hizo.
   ///

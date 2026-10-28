@@ -5,6 +5,8 @@ import '../frescura/frescura.dart';
 import '../red/cliente_api.dart';
 import '../registro/registro.dart';
 import '../reloj.dart';
+import 'cuadre.dart';
+import '../cola/cola_salida.dart';
 
 /// POR DONDE VA LA BAJADA, para quien la este mirando.
 ///
@@ -61,10 +63,25 @@ class Bajada {
     required BaseLocal base,
     required RegistroDeFrescura frescura,
     Reloj reloj = relojDelAparato,
+    ColaDeSalida? cola,
+    void Function(ResultadoDelCuadre)? alCuadrar,
   }) : _cliente = cliente,
        _base = base,
        _frescura = frescura,
-       _reloj = reloj;
+       _reloj = reloj,
+       _alCuadrar = alCuadrar,
+       _conCola = cola;
+
+  /// El cuadre diario con el servidor (`cuadre.dart`). Sólo existe si hay cola: es lo que lo activa (la web, que
+  /// no tiene base propia ni cola, no lo lleva: su copia nace vacía en cada carga y no puede arrastrar fantasmas).
+  late final Cuadre? _cuadre = _conCola == null
+      ? null
+      : Cuadre(cliente: _cliente, base: _base, cola: _conCola, quitar: _quitar);
+  final ColaDeSalida? _conCola;
+  final void Function(ResultadoDelCuadre)? _alCuadrar;
+
+  /// Cada cuánto toca cuadrar.
+  static const cadaCuantoElCuadre = Duration(hours: 20);
 
   final ClienteApi _cliente;
   final BaseLocal _base;
@@ -311,6 +328,9 @@ class Bajada {
       Registro.info('la bajada venia truncada: otra tanda desde $hasta');
     }
 
+    if (quedoPor == null)
+      await _cuadrarSiToca(completa: completa, sucursal: sucursal);
+
     return ResumenDeBajada(
       puestos: puestos,
       quitados: quitados,
@@ -318,6 +338,52 @@ class Bajada {
       tandas: tandas,
       quedoPor: quedoPor,
     );
+  }
+
+  /// EL CUADRE DIARIO (28/10/2026): la red de seguridad de las lápidas. Sólo con la bajada ENTERA y una vez cada
+  /// [cadaCuantoElCuadre]; tras una carga completa no hace falta (la copia acaba de nacer del servidor) y sólo se
+  /// anota. Si falla, NO tumba la bajada: es una ayuda, y mañana se vuelve a intentar.
+  Future<void> _cuadrarSiToca({
+    required bool completa,
+    String? sucursal,
+  }) async {
+    final cuadre = _cuadre;
+    if (cuadre == null) return;
+    try {
+      final ultimo = (await _frescura.leer(RegistroDeFrescura.cuadreDiario))
+          ?.bajadaAt;
+      if (!completa &&
+          ultimo != null &&
+          _reloj().difference(ultimo) < cadaCuantoElCuadre) {
+        return;
+      }
+      if (!completa) {
+        final r = await cuadre.cuadrar(sucursal: sucursal);
+        if (r.noCuadradas.isNotEmpty) {
+          Registro.aviso('cuadre: no se cuadró ${r.noCuadradas.join('; ')}');
+        }
+        if (r.faltaban.isNotEmpty) {
+          // Al aparato le faltan filas que el servidor tiene: la bajada por diferencias no las va a pedir sola.
+          // Se olvida la marca y la SIGUIENTE vuelta es una carga completa.
+          await _frescura.olvidarElCursor(const [Colecciones.pedidos]);
+          Registro.aviso(
+            'cuadre: faltaban ${r.totalQueFaltaba} filas; la próxima bajada es completa',
+          );
+        }
+        if (r.hayQueDecir) _alCuadrar?.call(r);
+      }
+      await _frescura.marcar(
+        RegistroDeFrescura.cuadreDiario,
+        hasta: null,
+        completa: true,
+      );
+    } on Object catch (e, pila) {
+      Registro.fallo(
+        'el cuadre con el servidor no se pudo hacer; se reintenta en el próximo ciclo',
+        e,
+        pila,
+      );
+    }
   }
 
   /// Los almacenes, que NO vienen en `cambios`.

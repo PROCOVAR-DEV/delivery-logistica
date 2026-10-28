@@ -28,6 +28,7 @@ import 'red/salud.dart';
 import 'red/veredicto_del_sistema.dart';
 import 'reloj.dart';
 import 'sincro/bajada.dart';
+import 'sincro/cuadre.dart';
 import 'sincro/entrega_a_revision.dart';
 import 'sincro/ciclo.dart';
 import 'sincro/huerfanos.dart';
@@ -363,8 +364,34 @@ final bajadaProvider = Provider<Bajada>(
     base: ref.watch(baseProvider),
     frescura: ref.watch(frescuraProvider),
     reloj: ref.watch(relojProvider),
+    // EL CUADRE DIARIO sólo en la APK y el escritorio (los que arrastran copia propia): la web no lo lleva.
+    cola: ref.watch(trabajaSinConexionProvider) ? ref.watch(colaProvider) : null,
+    alCuadrar: (r) => ref.read(avisoDelCuadreProvider.notifier).poner(r),
   ),
 );
+
+/// LO QUE EL CUADRE QUITÓ O CERRÓ, para decírselo a la persona (28/10/2026: «que notifique lo que ocurrió»).
+/// Se queda hasta que dice «Entendido»; si el aparato cuadra otra vez antes, se SUMA.
+final avisoDelCuadreProvider =
+    NotifierProvider<AvisoDelCuadre, ResultadoDelCuadre?>(AvisoDelCuadre.new);
+
+class AvisoDelCuadre extends Notifier<ResultadoDelCuadre?> {
+  @override
+  ResultadoDelCuadre? build() => null;
+
+  void poner(ResultadoDelCuadre nuevo) {
+    final antes = state;
+    state = antes == null
+        ? nuevo
+        : ResultadoDelCuadre(
+            quitadas: [...antes.quitadas, ...nuevo.quitadas],
+            apuntesCerrados: antes.apuntesCerrados + nuevo.apuntesCerrados,
+            noCuadradas: nuevo.noCuadradas,
+          );
+  }
+
+  void entendido() => state = null;
+}
 
 final provisionalesProvider = Provider<Provisionales>(
   (ref) =>

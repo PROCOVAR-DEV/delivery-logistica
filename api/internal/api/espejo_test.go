@@ -134,6 +134,28 @@ type salidaSync struct {
 	salioAt  time.Time
 }
 
+// IdsDePedidosParaElCuadre REPITE EL `WHERE` DEL SQL: no archivados (y las anuladas recientes), del alcance y la sucursal.
+func (q *espejoFalso) IdsDePedidosParaElCuadre(_ context.Context, arg sqlc.IdsDePedidosParaElCuadreParams) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	for _, p := range q.sync {
+		if arg.Sucursal.Valid && [16]byte(p.sucursal) != arg.Sucursal.Bytes {
+			continue
+		}
+		if arg.BranchID.Valid && [16]byte(p.sucursal) != arg.BranchID.Bytes {
+			continue
+		}
+		reciente := p.anuladaAt != nil && arg.AnuladasDesde.Valid && !p.anuladaAt.Before(arg.AnuladasDesde.Time)
+		if p.archivado && !reciente {
+			continue
+		}
+		ids = append(ids, p.id)
+	}
+	if int(arg.Tope) < len(ids) {
+		ids = ids[:arg.Tope]
+	}
+	return ids, nil
+}
+
 func (q *espejoFalso) DiferenciasDePedidos(_ context.Context, arg sqlc.DiferenciasDePedidosParams) ([]sqlc.DiferenciasDePedidosRow, error) {
 	var filas []sqlc.DiferenciasDePedidosRow
 	for _, p := range q.sync {

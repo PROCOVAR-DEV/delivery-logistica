@@ -82,6 +82,8 @@ func (s *Servidor) rutasEspejo(rt *httpx.Router, sesion, admin []httpx.Medio) {
 
 	// La bajada del aparato.
 	rt.ManejarFunc(http.MethodGet, "/api/sync/cambios", s.cambiosDesde, sesion...)
+	// El cuadre diario de las facturas del aparato: la red de seguridad de las lápidas.
+	rt.ManejarFunc(http.MethodGet, "/api/sync/cuadre", s.cuadreDeFacturas, sesion...)
 }
 
 // servicioOSesion deja pasar a quien traiga la clave de servicio O una sesión válida.

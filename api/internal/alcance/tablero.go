@@ -391,6 +391,17 @@ func (a *Acotado) EspejoDiferenciasDePedidos(ctx context.Context, v VentanaDeBaj
 	})
 }
 
+// EspejoIdsParaElCuadre: los ids de lo que una carga completa le bajaría al aparato (ver `IdsDePedidosParaElCuadre`).
+func (a *Acotado) EspejoIdsParaElCuadre(ctx context.Context, v VentanaDeBajada) ([]uuid.UUID, error) {
+	desdeAnuladas := v.Hasta.Add(-VentanaDeFacturasAnuladas)
+	return a.q.IdsDePedidosParaElCuadre(ctx, sqlc.IdsDePedidosParaElCuadreParams{
+		Sucursal:      a.sucursalPg(),
+		BranchID:      aPg(v.Sucursal),
+		AnuladasDesde: marcaPg(&desdeAnuladas),
+		Tope:          v.Tope,
+	})
+}
+
 // VentanaDeFacturasAnuladas es cuánto tiempo se le sigue diciendo al aparato que una factura se
 // canceló y se quitó de su ruta (Jose y Amado, 23/10/2026). Pasado el plazo la fila anulada sigue en
 // el servidor, archivada, pero ya no baja: el aparato olvida el aviso por su cuenta.

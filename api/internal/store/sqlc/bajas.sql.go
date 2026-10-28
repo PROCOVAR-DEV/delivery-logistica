@@ -20,6 +20,11 @@ WHERE b.coleccion = $1::coleccion_de_la_bajada
   -- ventanas seguidas no se pisan ni dejan hueco.
   AND ($2::timestamptz IS NULL OR b.salio_at >  $2::timestamptz)
   AND ($3::timestamptz IS NULL OR b.salio_at <= $3::timestamptz)
+  -- POR LOTES, CON CURSOR (28/10/2026): un grupo de lápidas con la MISMA hora mayor que el tope no cabe sin partirse,
+  -- y la marca sola no sabe seguir (el 21/10/2026 se perdieron 828 de facturas así). El cursor es (hora, clave) de la
+  -- última servida; con él, quien llama deja ` + "`" + `desde` + "`" + ` en NULL.
+  AND ($4::timestamptz IS NULL
+       OR (b.salio_at, b.clave) > ($4::timestamptz, $5::text))
   -- EL ALCANCE PRIMERO, como siempre: aunque quien llama pida otra sucursal, sólo puede
   -- enterarse de lo que se fue de la suya.
   --
@@ -31,29 +36,31 @@ WHERE b.coleccion = $1::coleccion_de_la_bajada
   -- puesto en ` + "`" + `false` + "`" + ` donde toca ` + "`" + `true` + "`" + `, un camión sin sucursal que se da de baja no se le
   -- quita a nadie y se queda en los ocho teléfonos; puesto en ` + "`" + `true` + "`" + ` donde toca ` + "`" + `false` + "`" + `,
   -- se le manda a un aparato acotado una lápida de algo que nunca fue suyo.
-  AND ($4::uuid IS NULL
-       OR b.branch_id = $4::uuid
-       OR (b.branch_id IS NULL AND $5::boolean))
+  AND ($6::uuid IS NULL
+       OR b.branch_id = $6::uuid
+       OR (b.branch_id IS NULL AND $7::boolean))
   -- Y la sucursal PEDIDA, que es otra cosa: el tablero se sirve por sucursal (el Super
   -- Admin dice cuál mira) y sus dos colecciones tienen que acotarse igual que sus listas.
   -- Las demás lo dejan nulo, como sus listas.
-  AND ($6::uuid IS NULL OR b.branch_id = $6::uuid)
+  AND ($8::uuid IS NULL OR b.branch_id = $8::uuid)
   -- SIN NINGUNA SUCURSAL —quien ve las ocho— sólo cuentan los BORRADOS: algo que se mudó
   -- de Santiago a Holguín no se le ha ido de la vista, y mandárselo en ` + "`" + `quitados` + "`" + ` le
   -- borraría del aparato algo que existe y que está en su lista.
   AND (
-      $4::uuid  IS NOT NULL
-      OR $6::uuid IS NOT NULL
+      $6::uuid  IS NOT NULL
+      OR $8::uuid IS NOT NULL
       OR b.motivo = 'borrado'
   )
 ORDER BY b.salio_at ASC, b.clave ASC
-LIMIT $7
+LIMIT $9
 `
 
 type BajasDeLaBajadaParams struct {
 	Coleccion          ColeccionDeLaBajada `json:"coleccion"`
 	Desde              pgtype.Timestamptz  `json:"desde"`
 	Hasta              pgtype.Timestamptz  `json:"hasta"`
+	CursorMarca        pgtype.Timestamptz  `json:"cursor_marca"`
+	CursorClave        *string             `json:"cursor_clave"`
 	Sucursal           pgtype.UUID         `json:"sucursal"`
 	SinSucursalTambien bool                `json:"sin_sucursal_tambien"`
 	BranchID           pgtype.UUID         `json:"branch_id"`
@@ -87,6 +94,8 @@ func (q *Queries) BajasDeLaBajada(ctx context.Context, arg BajasDeLaBajadaParams
 		arg.Coleccion,
 		arg.Desde,
 		arg.Hasta,
+		arg.CursorMarca,
+		arg.CursorClave,
 		arg.Sucursal,
 		arg.SinSucursalTambien,
 		arg.BranchID,

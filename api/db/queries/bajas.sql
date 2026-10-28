@@ -18,6 +18,11 @@ WHERE b.coleccion = sqlc.arg('coleccion')::coleccion_de_la_bajada
   -- ventanas seguidas no se pisan ni dejan hueco.
   AND (sqlc.narg('desde')::timestamptz IS NULL OR b.salio_at >  sqlc.narg('desde')::timestamptz)
   AND (sqlc.narg('hasta')::timestamptz IS NULL OR b.salio_at <= sqlc.narg('hasta')::timestamptz)
+  -- POR LOTES, CON CURSOR (28/10/2026): un grupo de lápidas con la MISMA hora mayor que el tope no cabe sin partirse,
+  -- y la marca sola no sabe seguir (el 21/10/2026 se perdieron 828 de facturas así). El cursor es (hora, clave) de la
+  -- última servida; con él, quien llama deja `desde` en NULL.
+  AND (sqlc.narg('cursor_marca')::timestamptz IS NULL
+       OR (b.salio_at, b.clave) > (sqlc.narg('cursor_marca')::timestamptz, sqlc.narg('cursor_clave')::text))
   -- EL ALCANCE PRIMERO, como siempre: aunque quien llama pida otra sucursal, sólo puede
   -- enterarse de lo que se fue de la suya.
   --

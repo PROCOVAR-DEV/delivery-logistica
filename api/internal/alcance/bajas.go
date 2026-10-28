@@ -13,6 +13,7 @@ package alcance
 
 import (
 	"context"
+	"time"
 
 	"procovar/reparto-api/internal/store/sqlc"
 )
@@ -40,10 +41,18 @@ func (a *Acotado) EspejoBajas(
 	coleccion sqlc.ColeccionDeLaBajada,
 	v VentanaDeBajada,
 	sinSucursalTambien bool,
+	cursorMarca *time.Time,
+	cursorClave *string,
 ) ([]sqlc.BajasDeLaBajadaRow, error) {
+	desde := v.Desde
+	if cursorMarca != nil {
+		desde = nil // con cursor, el `desde` no se mira (como en `TandaDelPadron`)
+	}
 	return a.q.BajasDeLaBajada(ctx, sqlc.BajasDeLaBajadaParams{
 		Coleccion:          coleccion,
-		Desde:              marcaPg(v.Desde),
+		CursorMarca:        marcaPg(cursorMarca),
+		CursorClave:        cursorClave,
+		Desde:              marcaPg(desde),
 		Hasta:              marcaPg(&v.Hasta),
 		Sucursal:           a.sucursalPg(), // el alcance, que aquí no se negocia
 		BranchID:           aPg(v.Sucursal),

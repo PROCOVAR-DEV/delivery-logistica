@@ -659,6 +659,8 @@ type porDondeSeguir struct {
 	// Lapidas: por dónde seguir con lo que se fue de las facturas (`quitados` de orders). Es la única
 	// colección de lápidas que se sirve por cursor: una sola transacción tumbó 2.828 con la misma hora.
 	Lapidas cursorDeTanda `json:"l"`
+	// Bajas: lo mismo para las lápidas de las DEMÁS colecciones (`bajas_de_la_bajada`), una por colección.
+	Bajas map[string]cursorDeTanda `json:"b,omitempty"`
 }
 
 // leerPorDondeSeguir saca el cursor de la query. Uno ilegible se trata como «empieza de
@@ -780,6 +782,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// Lo que va a pedir la tanda siguiente. Se copia el cursor de entrada y se van
 	// moviendo los desplazamientos de lo que no cupo.
 	siguiente := seguir
+	cursores := &cursoresDeBajas{seguir: seguir.Bajas, siguiente: map[string]cursorDeTanda{}}
 
 	// La sucursal de la bajada se resuelve ARRIBA porque los pedidos la necesitan igual
 	// que el tablero: el alcance va aparte y en AND, así que esto estrecha y nunca amplía.
@@ -891,7 +894,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// borrada en la lista, o borrar del aparato una que existe— sólo el segundo destruye
 	// algo. `branches` son ocho filas que se repintan enteras en cuanto se quita la
 	// elección.
-	quitadas, corteSuc, err := s.quitadosDe(r, a,
+	quitadas, corteSuc, err := s.quitadosDe(r, a, cursores,
 		sqlc.ColeccionDeLaBajadaBranches, ventanaDelAlcance, false, vivas)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
@@ -943,7 +946,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// lleva `OR v.branch_id IS NULL`: un camión sin sucursal lo ven los ocho aparatos, así
 	// que cuando se da de baja hay que quitárselo a los ocho. Puesto en false, ese camión
 	// se queda en los ocho teléfonos para siempre.
-	quitados, corteVeh, err := s.quitadosDe(r, a,
+	quitados, corteVeh, err := s.quitadosDe(r, a, cursores,
 		sqlc.ColeccionDeLaBajadaVehicles, ventanaDeVehiculos, true, vivas)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
@@ -991,7 +994,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// aparato. Quien ve «todas» (sucursal nula) recibe todas las lápidas de todos modos, y ahí
 	// sí le sirven: su lista son justo los «de todas». Un tipo no se muda de sucursal: sin
 	// `movido`.
-	quitados, corteTip, err := s.quitadosDe(r, a,
+	quitados, corteTip, err := s.quitadosDe(r, a, cursores,
 		sqlc.ColeccionDeLaBajadaVehicleTypes, ventanaDeTipos, false, vivas)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
@@ -1036,7 +1039,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// `sinSucursalTambien` en FALSE: `ListarDistribuidores` filtra `d.branch_id = <la mía>` a secas
 	// y un distribuidor siempre tiene sucursal (NOT NULL); la lápida lleva la del distribuidor que
 	// se fue, que es el aparato al que hay que avisar. Mismo alcance que su lista.
-	quitados, corteDist, err := s.quitadosDe(r, a,
+	quitados, corteDist, err := s.quitadosDe(r, a, cursores,
 		sqlc.ColeccionDeLaBajadaDistribuidores, ventanaDeDistribuidores, false, vivas)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
@@ -1101,7 +1104,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// `sinSucursalTambien` en FALSE: `ListarRutas` filtra `r.branch_id = <la mía>` a secas,
 	// y una ruta sin sucursal no la ve un aparato acotado. Ponerlo en true le mandaría
 	// lápidas de rutas que nunca tuvo.
-	quitadas, corteRut, err := s.quitadosDe(r, a,
+	quitadas, corteRut, err := s.quitadosDe(r, a, cursores,
 		sqlc.ColeccionDeLaBajadaRoutes, ventanaDelAlcance, false, vivas)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
@@ -1167,7 +1170,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// entera contra la que tachar. Se puede prescindir de la red porque la única lápida que
 	// puede nacer aquí es `borrado` —no hay `movido` sin columna de sucursal— y una fila
 	// borrada no puede estar a la vez en `puestos`.
-	quitados, corteProd, err := s.quitadosDe(r, a,
+	quitados, corteProd, err := s.quitadosDe(r, a, cursores,
 		sqlc.ColeccionDeLaBajadaProducts, ventanaDelAlcance, true, nil)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
@@ -1218,7 +1221,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// cubre: el padrón también se acota por `sucursal_codigo`, las lápidas no lo llevan, y
 	// un cliente al que le cambian el código se le queda puesto al aparato de la sucursal
 	// vieja. Lo que sí queda resuelto —y es lo gordo— es el borrado de verdad.
-	quitados, corteCli, err := s.quitadosDe(r, a,
+	quitados, corteCli, err := s.quitadosDe(r, a, cursores,
 		sqlc.ColeccionDeLaBajadaCustomers, ventanaDelAlcance, true, nil)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
@@ -1301,7 +1304,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 		// colecciones del tablero se sirven POR SUCURSAL, igual que sus listas, y una
 		// lápida acotada distinto que su lista es cómo se borra de más. Una zona borrada
 		// desde la web es justo el caso que Jose nombró.
-		quitadas, corteCol, err := s.quitadosDe(r, a,
+		quitadas, corteCol, err := s.quitadosDe(r, a, cursores,
 			sqlc.ColeccionDeLaBajadaBoardColumns, ventana, false, vivas)
 		if err != nil {
 			httpx.ErrorInterno(w, r, err)
@@ -1342,7 +1345,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 		// la MISMA clave— y sin tachar contra lo que está vivo, la bajada diría «tenla» y
 		// «bórrala» a la vez. El disparador de 00006 ya quita la lápida al volver a
 		// colocarla; esto es el segundo cierre, del lado de quien contesta.
-		quitadas, corteColoc, err := s.quitadosDe(r, a,
+		quitadas, corteColoc, err := s.quitadosDe(r, a, cursores,
 			sqlc.ColeccionDeLaBajadaBoardPlacements, ventana, false, vivas)
 		if err != nil {
 			httpx.ErrorInterno(w, r, err)
@@ -1408,6 +1411,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 		// quedó corto fueron los pedidos: el catálogo y el padrón ya sirvieron su tanda y
 		// el cursor evita volver a mandarla. Quien no lo devuelva NO pierde nada —para eso
 		// `hasta` es la marca de la última fila servida—, sólo repite trabajo.
+		siguiente.Bajas = cursores.siguiente
 		salida.Continuar = siguiente.escribir()
 	}
 	httpx.JSON(w, r, http.StatusOK, salida)
@@ -1487,6 +1491,7 @@ func conjuntoCon(puestos []any, quitados []string) Conjunto {
 func (s *Servidor) quitadosDe(
 	r *http.Request,
 	a *alcance.Acotado,
+	cursores *cursoresDeBajas,
 	coleccion sqlc.ColeccionDeLaBajada,
 	v alcance.VentanaDeBajada,
 	sinSucursalTambien bool,
@@ -1495,6 +1500,13 @@ func (s *Servidor) quitadosDe(
 	if v.Desde == nil {
 		return nil, nil, nil
 	}
+	// POR LOTES: con el cursor de la tanda anterior sigue DESPUÉS de la última lápida servida.
+	marcaL, idL := cursores.seguir[string(coleccion)].leer()
+	var claveL *string
+	if idL != nil {
+		c := idL.String()
+		claveL = &c
+	}
 
 	// SE PIDE UNA FILA DE MÁS, como en los pedidos: es la forma barata de distinguir
 	// «caben justo `tope`» de «hay más y no caben». Con exactamente `tope` filas las dos
@@ -1502,12 +1514,14 @@ func (s *Servidor) quitadosDe(
 	sonda := v
 	sonda.Tope = v.Tope + 1
 
-	filas, err := a.EspejoBajas(r.Context(), coleccion, sonda, sinSucursalTambien)
+	filas, err := a.EspejoBajas(r.Context(), coleccion, sonda, sinSucursalTambien, marcaL, claveL)
 	if err != nil {
 		return nil, nil, err
 	}
-	filas, corte := recortarPorMarca(r, filas, int(v.Tope),
-		func(f sqlc.BajasDeLaBajadaRow) time.Time { return f.SalioAt.Time })
+	filas, cursor, corte := tandaDeLaBajada(r, filas, int(v.Tope), string(coleccion),
+		func(f sqlc.BajasDeLaBajadaRow) time.Time { return f.SalioAt.Time },
+		func(f sqlc.BajasDeLaBajadaRow) uuid.UUID { id, _ := uuid.Parse(f.Clave); return id })
+	cursores.siguiente[string(coleccion)] = cursor
 
 	quitados := make([]string, 0, len(filas))
 	for _, f := range filas {
@@ -1528,6 +1542,12 @@ func (s *Servidor) quitadosDe(
 // ---------------------------------------------------------------------------
 // Los pedidos de la bajada
 // ---------------------------------------------------------------------------
+
+// cursoresDeBajas: por dónde seguir con las lápidas de cada colección, entre una tanda y la siguiente.
+type cursoresDeBajas struct {
+	seguir    map[string]cursorDeTanda // el que trae la petición
+	siguiente map[string]cursorDeTanda // el que se devuelve en `continuar`
+}
 
 // pedidosDeLaBajada arma el conjunto `orders`: lo que cambió y lo que hay que borrar.
 //

@@ -59,3 +59,52 @@ func TestMotorReal_ElCuadreDeFacturas(t *testing.T) {
 
 // VentanaAnuladasParaLaPrueba: los 7 días de `alcance.VentanaDeFacturasAnuladas` (no se importa: sqlc no depende de alcance).
 const VentanaAnuladasParaLaPrueba = 7 * 24 * time.Hour
+
+// EL CURSOR (hora, clave) DE LAS LÁPIDAS contra Postgres de verdad: un grupo con la MISMA hora se reparte en lotes sin
+// perder ni repetir ninguna (28/10/2026). Lo que sólo ve la base: la comparación de tupla `(salio_at, clave) > (…)`.
+func TestMotorReal_LasBajasPorLotesConCursor(t *testing.T) {
+	pool := motorReal(t)
+	b := nuevoBanco(t, pool)
+	suc := b.sucursal()
+	misma := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+	claves := map[string]bool{}
+	for range 7 {
+		c := uuid.NewString()
+		claves[c] = true
+		b.exec(`INSERT INTO bajas_de_la_bajada (coleccion, clave, branch_id, motivo, salio_at)
+		        VALUES ('routes', $1, $2, 'borrado', $3)`, c, suc, misma)
+	}
+	visto := map[string]int{}
+	var marca *pgtype.Timestamptz
+	var clave *string
+	for vuelta := 0; vuelta < 10; vuelta++ {
+		p := BajasDeLaBajadaParams{
+			Coleccion: ColeccionDeLaBajadaRoutes, Sucursal: alcance(suc),
+			Desde: pgtype.Timestamptz{Time: misma.Add(-time.Hour), Valid: true}, Tope: 3,
+		}
+		if marca != nil {
+			p.CursorMarca, p.CursorClave, p.Desde = *marca, clave, pgtype.Timestamptz{}
+		}
+		filas, err := b.q.BajasDeLaBajada(b.ctx, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(filas) == 0 {
+			break
+		}
+		for _, f := range filas {
+			visto[f.Clave]++
+		}
+		ultima := filas[len(filas)-1]
+		m, c := ultima.SalioAt, ultima.Clave
+		marca, clave = &m, &c
+	}
+	if len(visto) != len(claves) {
+		t.Fatalf("llegaron %d de %d: %v", len(visto), len(claves), visto)
+	}
+	for c := range claves {
+		if visto[c] != 1 {
+			t.Fatalf("la baja %s llegó %d veces", c, visto[c])
+		}
+	}
+}

@@ -338,6 +338,13 @@ func (q *espejoFalso) BajasDeLaBajada(_ context.Context, arg sqlc.BajasDeLaBajad
 		if arg.Hasta.Valid && b.salioAt.After(arg.Hasta.Time) {
 			continue
 		}
+		// El cursor (hora, clave) del SQL: (salio_at, clave) > (marca, clave).
+		if arg.CursorMarca.Valid {
+			c := arg.CursorMarca.Time
+			if b.salioAt.Before(c) || (b.salioAt.Equal(c) && arg.CursorClave != nil && b.clave <= *arg.CursorClave) {
+				continue
+			}
+		}
 		if arg.Sucursal.Valid {
 			cuadra := b.sucursal != nil && [16]byte(*b.sucursal) == arg.Sucursal.Bytes
 			if !cuadra && !(b.sucursal == nil && arg.SinSucursalTambien) {

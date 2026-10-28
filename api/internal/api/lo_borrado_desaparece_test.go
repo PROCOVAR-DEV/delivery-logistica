@@ -479,3 +479,55 @@ func TestUnGrupoDeLapidasConLaMismaHoraLlegaEnteroPorLotes(t *testing.T) {
 		t.Errorf("llegaron %d lápidas y había %d", len(llegaron), len(quitar))
 	}
 }
+
+// LO MISMO PARA LAS LÁPIDAS DE LAS DEMÁS COLECCIONES (clientes, rutas, camiones, zonas…): un grupo con la misma hora
+// mayor que el tope llega entero por lotes con el cursor `(hora, clave)` (28/10/2026). Clientes tuvo uno de 1.711,
+// a un borrado grande del tope.
+func TestUnGrupoDeBajasConLaMismaHoraLlegaEnteroPorLotes(t *testing.T) {
+	q := nuevoEspejo()
+	ahora := time.Now().UTC()
+	misma := ahora.Add(-6 * time.Hour)
+	quitar := map[string]bool{}
+	for range 7 {
+		id := uuid.New()
+		quitar[id.String()] = true
+		q.bajas = append(q.bajas, bajaSync{
+			coleccion: sqlc.ColeccionDeLaBajadaRoutes, clave: id.String(),
+			sucursal: &sucStg, motivo: sqlc.MotivoDeBajaBorrado, salioAt: misma,
+		})
+	}
+
+	desde := ahora.Add(-12 * time.Hour)
+	continuar := ""
+	llegaron := map[string]int{}
+	for vuelta := 0; vuelta < 10; vuelta++ {
+		cola := "?tope=3&desde=" + desde.Format(time.RFC3339Nano)
+		if continuar != "" {
+			cola += "&continuar=" + continuar
+		}
+		m := bajadaDe(t, q, tokenTab(t, sucStg.String()), cola)
+		for id := range bajasDe(t, m, "routes") {
+			llegaron[id]++
+		}
+		if truncado, _ := m["truncado"].(bool); !truncado {
+			break
+		}
+		continuar, _ = m["continuar"].(string)
+		if continuar == "" {
+			t.Fatal("dice «truncado» y no da por dónde seguir")
+		}
+		h, err := time.Parse(time.RFC3339, m["hasta"].(string))
+		if err != nil {
+			t.Fatalf("«hasta» ilegible: %v", m["hasta"])
+		}
+		desde = h
+	}
+	for id := range quitar {
+		if llegaron[id] != 1 {
+			t.Errorf("la baja %s llegó %d veces (tenía que ser 1): %v", id, llegaron[id], llegaron)
+		}
+	}
+	if len(llegaron) != len(quitar) {
+		t.Errorf("llegaron %d bajas y había %d", len(llegaron), len(quitar))
+	}
+}

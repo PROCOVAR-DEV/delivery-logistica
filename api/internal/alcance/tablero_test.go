@@ -378,7 +378,7 @@ var consultasDelTablero = []struct {
 	// que se ve de más: es una orden de BORRAR. Sin el narg, a un GESTOR de Santiago que
 	// pida `?sucursal=<Holguín>` se le manda quitar del teléfono las rutas de Holguín.
 	{"EspejoBajas", func(ctx context.Context, a *alcance.Acotado) error {
-		_, err := a.EspejoBajas(ctx, sqlc.ColeccionDeLaBajadaRoutes, ventanaPidiendoHolguin(), false)
+		_, err := a.EspejoBajas(ctx, sqlc.ColeccionDeLaBajadaRoutes, ventanaPidiendoHolguin(), false, nil, nil)
 		return err
 	}},
 }

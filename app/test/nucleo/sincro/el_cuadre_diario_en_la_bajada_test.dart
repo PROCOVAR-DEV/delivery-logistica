@@ -46,8 +46,9 @@ void main() {
     cliente: clienteFalso((p) async {
       if (p.ruta.contains('/sync/cuadre')) {
         pedidosAlCuadre++;
-        if (cuadreFalla)
+        if (cuadreFalla) {
           return RespuestaFalsa(500, <String, Object?>{'error': 'x'});
+        }
         return RespuestaFalsa(200, <String, Object?>{
           'colecciones': <String, Object?>{'orders': idsDelServidor},
           'truncado': <String>[],

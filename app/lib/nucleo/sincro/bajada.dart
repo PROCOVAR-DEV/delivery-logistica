@@ -328,8 +328,9 @@ class Bajada {
       Registro.info('la bajada venia truncada: otra tanda desde $hasta');
     }
 
-    if (quedoPor == null)
+    if (quedoPor == null) {
       await _cuadrarSiToca(completa: completa, sucursal: sucursal);
+    }
 
     return ResumenDeBajada(
       puestos: puestos,

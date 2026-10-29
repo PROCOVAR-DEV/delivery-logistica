@@ -255,6 +255,15 @@ la APK que reconocen el `sin_permiso` de Accesos (`docs/sin-permiso.md`). La 1.0
 `PATCH /api/orders`, camión de otra sucursal, armado local del Tablero como el servidor, cajón de
 acuse en el cierre parcial; ver `docs/reglas-negocio.md` §15.14).
 
+**Reparto 1.0.48+49 (29/10/2026, commit `1692365`)**: la app manda a Accesos `X-Aparato-Id` (UUID v7 por instalación), `X-Aparato-Nombre` y `X-Aparato-Huella`, y al
+sincronizador el id (migración `00005` de `sync`); pantalla `/dispositivos?aparato=<id>` («Ver actividad» de Accesos). APK `reparto-1.0.48-261029.apk` (82.230.704 B,
+sha256 `a2d9b378…db60f`, firma `01529f5a…0b21`) y Windows `reparto-1.0.48-windows-setup.exe` (16.552.746 B, sha256 `f4651a77…49ac6`), ejecución de CI 40958552315.
+Esta vez la APK se publicó con `deploy/publicar-apk.sh` (vía `vps-vpn`) ANTES que Windows, al revés que en versiones anteriores: por eso el guion de Windows tuvo que esperar el
+Android ya en 1.0.48 y hubo que actualizar la tarjeta de Android del portal (id 12) a mano (`update-portal-android48.py`) antes de la de Windows (id 13). Los guiones de la
+publicación viven en el servidor (`/var/lib/procovar/verificacion-guia-20261006/rutas-historico/publicacion-1.0.48/`), copiados de la 1.0.47 con los números cambiados. La
+comprobación de rango falló a la primera (200 y luego 206) y se reanudó con `--mode resume`. **Playwright para el navegador real**: la carpeta `node_modules` está vacía en el
+servidor; se instala dentro del contenedor (`npm i playwright@1.63.0 @playwright/test@1.63.0`) y se borra después. **Falta la prueba física** en un teléfono y un PC.
+
 Android y Windows están publicados como **1.0.33+34**, con el anuncio global y las dos
 tarjetas del portal actualizadas (los diarios `.publish-*-1.0.33*` están en `production_verified`).
 **Falta la prueba física** en un teléfono con una base 1.0.27 llena (el esquema local pasa de la 4

@@ -23,6 +23,8 @@ type filaAparato struct {
 	Persona  string    `json:"persona"`
 	Sucursal uuid.UUID `json:"sucursal"`
 	Nombre   *string   `json:"nombre"`
+	// El `X-Aparato-Id` de Accesos: de aquí sale el enlace «Ver actividad» de la pantalla Dispositivos. Nulo = aún no se ha unido.
+	Instalacion *string `json:"instalacion"`
 
 	Visto *time.Time `json:"visto"`
 	Alta  *time.Time `json:"alta"`
@@ -141,6 +143,7 @@ func (s *Servicio) estado(w http.ResponseWriter, r *http.Request) {
 			Persona:     f.Persona,
 			Sucursal:    f.BranchID,
 			Nombre:      f.Nombre,
+			Instalacion: f.InstalacionID,
 			Visto:       hora(f.VistoAt),
 			Alta:        hora(f.AltaAt),
 			Bajada:      hora(f.BajadaAt),

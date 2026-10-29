@@ -151,6 +151,8 @@ final dioAuthProvider = Provider<Dio>(
         // Su propio `User-Agent` en la APK y el escritorio (la web no): Accesos
         // enseña el aparato en «Dispositivos y sesiones». Ver `red/agente_de_usuario.dart`.
         ..interceptors.add(InterceptorDeAgente())
+        // Y su identidad (`X-Aparato-Id`, UUID v7): Accesos lo enseña en «Dispositivos».
+        ..interceptors.add(InterceptorDeAparato())
         ..interceptors.add(
           // ESTE CLIENTE TAMBIEN CUENTA PARA LA SALUD DE LA RED, y es el que mas.
           //

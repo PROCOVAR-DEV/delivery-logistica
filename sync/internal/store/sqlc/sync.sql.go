@@ -37,15 +37,16 @@ func (q *Queries) AbrirEstado(ctx context.Context, aparatoID uuid.UUID) error {
 const altaAparato = `-- name: AltaAparato :one
 
 
-INSERT INTO aparatos (persona, branch_id, nombre, visto_at)
-VALUES ($1, $2, $3, now())
-RETURNING id, persona, branch_id, nombre, visto_at, created_at, updated_at
+INSERT INTO aparatos (persona, branch_id, nombre, instalacion_id, visto_at)
+VALUES ($1, $2, $3, $4, now())
+RETURNING id, persona, branch_id, nombre, visto_at, created_at, updated_at, instalacion_id
 `
 
 type AltaAparatoParams struct {
-	Persona  string    `json:"persona"`
-	BranchID uuid.UUID `json:"branch_id"`
-	Nombre   *string   `json:"nombre"`
+	Persona       string    `json:"persona"`
+	BranchID      uuid.UUID `json:"branch_id"`
+	Nombre        *string   `json:"nombre"`
+	InstalacionID *string   `json:"instalacion_id"`
 }
 
 // Las consultas del sincronizador, para sqlc.
@@ -77,7 +78,12 @@ type AltaAparatoParams struct {
 // El alta de una instalación: `POST /sync/aparato`. El uuid lo pone la base y es lo que el
 // aparato guarda; nunca se lo inventa él.
 func (q *Queries) AltaAparato(ctx context.Context, arg AltaAparatoParams) (Aparato, error) {
-	row := q.db.QueryRow(ctx, altaAparato, arg.Persona, arg.BranchID, arg.Nombre)
+	row := q.db.QueryRow(ctx, altaAparato,
+		arg.Persona,
+		arg.BranchID,
+		arg.Nombre,
+		arg.InstalacionID,
+	)
 	var i Aparato
 	err := row.Scan(
 		&i.ID,
@@ -87,6 +93,7 @@ func (q *Queries) AltaAparato(ctx context.Context, arg AltaAparatoParams) (Apara
 		&i.VistoAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InstalacionID,
 	)
 	return i, err
 }
@@ -302,7 +309,7 @@ func (q *Queries) AnotarSubida(ctx context.Context, arg AnotarSubidaParams) erro
 }
 
 const aparatoPorId = `-- name: AparatoPorId :one
-SELECT id, persona, branch_id, nombre, visto_at, created_at, updated_at FROM aparatos WHERE id = $1
+SELECT id, persona, branch_id, nombre, visto_at, created_at, updated_at, instalacion_id FROM aparatos WHERE id = $1
 `
 
 func (q *Queries) AparatoPorId(ctx context.Context, id uuid.UUID) (Aparato, error) {
@@ -316,6 +323,7 @@ func (q *Queries) AparatoPorId(ctx context.Context, id uuid.UUID) (Aparato, erro
 		&i.VistoAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InstalacionID,
 	)
 	return i, err
 }
@@ -370,7 +378,7 @@ func (q *Queries) AparatosConPendientes(ctx context.Context, sucursal pgtype.UUI
 }
 
 const aparatosDeSucursal = `-- name: AparatosDeSucursal :many
-SELECT id, persona, branch_id, nombre, visto_at, created_at, updated_at FROM aparatos
+SELECT id, persona, branch_id, nombre, visto_at, created_at, updated_at, instalacion_id FROM aparatos
 WHERE branch_id = $1
 ORDER BY created_at
 `
@@ -394,6 +402,7 @@ func (q *Queries) AparatosDeSucursal(ctx context.Context, branchID uuid.UUID) ([
 			&i.VistoAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.InstalacionID,
 		); err != nil {
 			return nil, err
 		}
@@ -559,7 +568,7 @@ func (q *Queries) BuscarApunte(ctx context.Context, arg BuscarApunteParams) (Bus
 }
 
 const estadoDeAparato = `-- name: EstadoDeAparato :one
-SELECT a.id, a.persona, a.branch_id, a.nombre, a.visto_at, a.created_at AS alta_at,
+SELECT a.id, a.persona, a.branch_id, a.nombre, a.instalacion_id, a.visto_at, a.created_at AS alta_at,
        e.bajada_at, e.bajada_hasta, e.subida_at, e.pendientes, e.rechazados
 FROM aparatos a
 JOIN aparato_estado e ON e.aparato_id = a.id
@@ -567,17 +576,18 @@ WHERE a.id = $1
 `
 
 type EstadoDeAparatoRow struct {
-	ID          uuid.UUID          `json:"id"`
-	Persona     string             `json:"persona"`
-	BranchID    uuid.UUID          `json:"branch_id"`
-	Nombre      *string            `json:"nombre"`
-	VistoAt     pgtype.Timestamptz `json:"visto_at"`
-	AltaAt      pgtype.Timestamptz `json:"alta_at"`
-	BajadaAt    pgtype.Timestamptz `json:"bajada_at"`
-	BajadaHasta pgtype.Timestamptz `json:"bajada_hasta"`
-	SubidaAt    pgtype.Timestamptz `json:"subida_at"`
-	Pendientes  int32              `json:"pendientes"`
-	Rechazados  int32              `json:"rechazados"`
+	ID            uuid.UUID          `json:"id"`
+	Persona       string             `json:"persona"`
+	BranchID      uuid.UUID          `json:"branch_id"`
+	Nombre        *string            `json:"nombre"`
+	InstalacionID *string            `json:"instalacion_id"`
+	VistoAt       pgtype.Timestamptz `json:"visto_at"`
+	AltaAt        pgtype.Timestamptz `json:"alta_at"`
+	BajadaAt      pgtype.Timestamptz `json:"bajada_at"`
+	BajadaHasta   pgtype.Timestamptz `json:"bajada_hasta"`
+	SubidaAt      pgtype.Timestamptz `json:"subida_at"`
+	Pendientes    int32              `json:"pendientes"`
+	Rechazados    int32              `json:"rechazados"`
 }
 
 // «¿Qué le queda a este aparato?», de un tirón.
@@ -589,6 +599,7 @@ func (q *Queries) EstadoDeAparato(ctx context.Context, id uuid.UUID) (EstadoDeAp
 		&i.Persona,
 		&i.BranchID,
 		&i.Nombre,
+		&i.InstalacionID,
 		&i.VistoAt,
 		&i.AltaAt,
 		&i.BajadaAt,
@@ -601,7 +612,7 @@ func (q *Queries) EstadoDeAparato(ctx context.Context, id uuid.UUID) (EstadoDeAp
 }
 
 const panelDeEstado = `-- name: PanelDeEstado :many
-SELECT a.id, a.persona, a.branch_id, a.nombre, a.visto_at, a.created_at AS alta_at,
+SELECT a.id, a.persona, a.branch_id, a.nombre, a.instalacion_id, a.visto_at, a.created_at AS alta_at,
        e.bajada_at, e.bajada_hasta, e.subida_at, e.pendientes, e.rechazados,
        -- Cuánto lleva sin subir, EN SEGUNDOS y sin decimales.
        --
@@ -622,6 +633,7 @@ type PanelDeEstadoRow struct {
 	Persona          string             `json:"persona"`
 	BranchID         uuid.UUID          `json:"branch_id"`
 	Nombre           *string            `json:"nombre"`
+	InstalacionID    *string            `json:"instalacion_id"`
 	VistoAt          pgtype.Timestamptz `json:"visto_at"`
 	AltaAt           pgtype.Timestamptz `json:"alta_at"`
 	BajadaAt         pgtype.Timestamptz `json:"bajada_at"`
@@ -652,6 +664,7 @@ func (q *Queries) PanelDeEstado(ctx context.Context, sucursal pgtype.UUID) ([]Pa
 			&i.Persona,
 			&i.BranchID,
 			&i.Nombre,
+			&i.InstalacionID,
 			&i.VistoAt,
 			&i.AltaAt,
 			&i.BajadaAt,
@@ -949,4 +962,21 @@ func (q *Queries) UltimosApuntesDeAparato(ctx context.Context, arg UltimosApunte
 		return nil, err
 	}
 	return items, nil
+}
+
+const vincularInstalacion = `-- name: VincularInstalacion :exec
+UPDATE aparatos SET instalacion_id = $1::text
+WHERE id = $2::uuid AND instalacion_id IS DISTINCT FROM $1::text
+`
+
+type VincularInstalacionParams struct {
+	Instalacion string    `json:"instalacion"`
+	ID          uuid.UUID `json:"id"`
+}
+
+// Une el aparato con la instalación de Accesos (`X-Aparato-Id`). Solo escribe si cambia: se llama en cada petición y no debe mover
+// `updated_at` de balde.
+func (q *Queries) VincularInstalacion(ctx context.Context, arg VincularInstalacionParams) error {
+	_, err := q.db.Exec(ctx, vincularInstalacion, arg.Instalacion, arg.ID)
+	return err
 }

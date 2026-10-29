@@ -250,5 +250,12 @@ func (s *Servicio) aparatoDeLaPeticion(w http.ResponseWriter, r *http.Request, q
 		httpx.Fallo(w, http.StatusForbidden, "Ese aparato no es de tu sucursal")
 		return sqlc.Aparato{}, false
 	}
+	// LA UNIÓN CON ACCESOS: el aparato manda su `X-Aparato-Id` en cada petición y aquí se anota a qué aparato de «Dispositivos» corresponde
+	// (los dados de alta antes de esto se unen en su primera petición). Es constancia: si falla no se rompe la bajada ni la subida.
+	if inst := instalacionDeLaPeticion(r); inst != nil && (aparato.InstalacionID == nil || *aparato.InstalacionID != *inst) {
+		if err := s.datos.VincularInstalacion(r.Context(), sqlc.VincularInstalacionParams{ID: aparato.ID, Instalacion: *inst}); err != nil {
+			s.log.Warn("no se pudo unir el aparato con su instalación de Accesos", "aparato", aparato.ID, "err", err)
+		}
+	}
 	return aparato, true
 }

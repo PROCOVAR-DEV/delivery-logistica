@@ -9,6 +9,7 @@ import '../pantallas/pedidos/registro.dart';
 import '../pantallas/revision/registro.dart';
 import '../pantallas/rutas/registro.dart';
 import '../pantallas/mapa/registro.dart';
+import '../pantallas/actividad_de_aparato/registro.dart';
 import '../pantallas/sincronizacion/registro.dart';
 import '../pantallas/tablero/registro.dart';
 import '../pantallas/webhook/registro.dart';
@@ -55,6 +56,7 @@ List<PantallaRegistrada> pantallasDeLaAplicacion() => <PantallaRegistrada>[
   // el menu SOLO para ADMINISTRADOR, SUPER ADMIN y DESARROLLADOR, y tambien en
   // la web. El porque entero, en su `registro.dart`.
   registrarRevision(),
+  registrarActividadDeAparato(),
 
   // CÓMO VA EL CANAL CON PEDIDO. Fuera del menú, y **sólo en la web**.
   //

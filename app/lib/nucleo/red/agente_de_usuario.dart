@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../registro/registro.dart';
+import 'id_del_aparato.dart';
 
 /// EL `User-Agent` DE LA APK Y DEL ESCRITORIO — 08/10/2026.
 ///
@@ -84,6 +85,52 @@ class InterceptorDeAgente extends Interceptor {
       } on Object catch (e) {
         Registro.aviso('no se pudo leer la versión para el User-Agent: $e');
       }
+    }
+    handler.next(options);
+  }
+}
+
+/// Pone `X-Aparato-Id` (UUID v7, estable por instalación) y `X-Aparato-Nombre`
+/// en cada petición del Dio de Accesos: así Accesos sabe QUÉ aparato renueva y
+/// lo enseña en «Dispositivos». Sin id (web, o un fallo del disco) no pone nada.
+class InterceptorDeAparato extends Interceptor {
+  InterceptorDeAparato({
+    Future<String?> Function()? id,
+    Future<String?> Function()? nombre,
+    Future<String?> Function()? huella,
+    this.plazo = const Duration(seconds: 2),
+  }) : _id = id ?? idDelAparato,
+       _nombre = nombre ?? nombreDelAparato,
+       _huella = huella ?? huellaDelAparato;
+
+  final Future<String?> Function() _id;
+  final Future<String?> Function() _nombre;
+  final Future<String?> Function() _huella;
+
+  /// Cuánto se espera, como mucho, a que se lea la identidad.
+  final Duration plazo;
+
+  @override
+  Future<void> onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    try {
+      // Las tres lecturas a la vez y con TOPE: un `reg` o un disco colgados no
+      // pueden dejar sin salir la renovación de la sesión (auditoría 29/10/2026).
+      // Pasado el plazo la petición sale sin esas cabeceras; las lecturas siguen
+      // y la siguiente petición ya las encuentra hechas (se recuerdan).
+      final r = await Future.wait<String?>([_id(), _nombre(), _huella()])
+          .timeout(plazo);
+      final id = r[0];
+      if (id != null) {
+        options.headers['X-Aparato-Id'] = id;
+        if (r[1] != null) options.headers['X-Aparato-Nombre'] = r[1];
+        // Lo que junta esta instalación con las de otras aplicaciones del mismo aparato.
+        if (r[2] != null) options.headers['X-Aparato-Huella'] = r[2];
+      }
+    } on Object catch (e) {
+      Registro.aviso('no se pudo poner la identidad del aparato: $e');
     }
     handler.next(options);
   }

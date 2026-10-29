@@ -2,6 +2,7 @@ package sincro
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -71,9 +72,10 @@ func (s *Servicio) alta(w http.ResponseWriter, r *http.Request) {
 		nombre = textoOpcional(*entrada.Nombre, topeNombreDeAparato)
 	}
 	aparato, err := s.datos.AltaAparato(ctx, sqlc.AltaAparatoParams{
-		Persona:  quien.Persona,
-		BranchID: sucursal,
-		Nombre:   nombre,
+		Persona:       quien.Persona,
+		BranchID:      sucursal,
+		Nombre:        nombre,
+		InstalacionID: instalacionDeLaPeticion(r),
 	})
 	if err != nil {
 		s.log.Error("no se pudo dar de alta el aparato", "persona", quien.Persona, "err", err)
@@ -96,4 +98,14 @@ func (s *Servicio) alta(w http.ResponseWriter, r *http.Request) {
 		Sucursal: aparato.BranchID,
 		Nombre:   aparato.Nombre,
 	})
+}
+
+// instalacionDeLaPeticion es el `X-Aparato-Id` de Accesos (el UUID de la INSTALACIÓN que se ve en «Dispositivos»), o nil si no viene o no
+// es un UUID. Solo identifica: sirve para ir de un aparato de Accesos a su actividad aquí, nunca para autenticar ni para dar alcance.
+func instalacionDeLaPeticion(r *http.Request) *string {
+	crudo := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Aparato-Id")))
+	if _, err := uuid.Parse(crudo); err != nil || len(crudo) != 36 {
+		return nil
+	}
+	return &crudo
 }

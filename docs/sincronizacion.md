@@ -496,3 +496,13 @@ saberlo leer:
 Ocho horas sin conexión dejan el token de acceso caducado. Si la cola sale con el viejo,
 todo responde 401 y se para con el trabajo del día dentro. Ver `identidad.md`, y en especial
 el candado: **una sola renovación en vuelo**.
+
+## La instalación de Accesos y «Ver actividad» — 29/10/2026
+
+Cada petición de la APK y el escritorio lleva `X-Aparato-Id` (el UUID v7 de ESA instalación, el mismo que Accesos enseña en «Dispositivos»; la web no lo manda). El
+sincronizador lo anota en `aparatos.instalacion_id` (migración `00005`): en el alta (`POST /sync/aparato`) y, para los aparatos dados de alta antes, en su primera
+petición con la cabecera (`bajada`/`subida`). Solo identifica: no da alcance ni permiso, y una cabecera que no es un UUID se ignora sin romper nada. `GET /sync/estado`
+devuelve `instalacion` en cada aparato, y la pantalla `/dispositivos?aparato=<id>` de la app (web incluida; lectura de oficina, no cola de nadie) lo busca ahí y enseña su
+actividad: cuándo bajó y subió, pendientes y rechazos con su motivo. Es el destino de `ClientApp.dispositivosUrl` de `delivery-apk` en Accesos.
+Además la app manda a Accesos `X-Aparato-Nombre` y `X-Aparato-Huella` (sha256 de `procovar:` + el id de la máquina) para que Reparto y el CRM de una misma tablet cuenten
+como UN aparato (`auth/docs/dispositivos.md`).

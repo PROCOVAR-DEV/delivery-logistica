@@ -102,13 +102,25 @@ func (b *baseFalsa) EnTransaccion(ctx context.Context, fn func(sqlc.Querier) err
 
 func (b *baseFalsa) AltaAparato(ctx context.Context, arg sqlc.AltaAparatoParams) (sqlc.Aparato, error) {
 	a := sqlc.Aparato{
-		ID:       uuid.New(),
-		Persona:  arg.Persona,
-		BranchID: arg.BranchID,
-		Nombre:   arg.Nombre,
+		ID:            uuid.New(),
+		Persona:       arg.Persona,
+		BranchID:      arg.BranchID,
+		Nombre:        arg.Nombre,
+		InstalacionID: arg.InstalacionID,
 	}
 	b.aparatos[a.ID] = a
 	return a, nil
+}
+
+func (b *baseFalsa) VincularInstalacion(ctx context.Context, arg sqlc.VincularInstalacionParams) error {
+	a, hay := b.aparatos[arg.ID]
+	if !hay {
+		return nil
+	}
+	i := arg.Instalacion
+	a.InstalacionID = &i
+	b.aparatos[arg.ID] = a
+	return nil
 }
 
 func (b *baseFalsa) AparatoPorId(ctx context.Context, id uuid.UUID) (sqlc.Aparato, error) {
@@ -262,7 +274,7 @@ func (b *baseFalsa) PanelDeEstado(ctx context.Context, sucursal pgtype.UUID) ([]
 		}
 		e := b.estados[id]
 		filas = append(filas, sqlc.PanelDeEstadoRow{
-			ID: a.ID, Persona: a.Persona, BranchID: a.BranchID, Nombre: a.Nombre,
+			ID: a.ID, Persona: a.Persona, BranchID: a.BranchID, Nombre: a.Nombre, InstalacionID: a.InstalacionID,
 			VistoAt: a.VistoAt, AltaAt: a.CreatedAt,
 			BajadaAt: e.BajadaAt, BajadaHasta: e.BajadaHasta, SubidaAt: e.SubidaAt,
 			Pendientes: e.Pendientes, Rechazados: e.Rechazados,

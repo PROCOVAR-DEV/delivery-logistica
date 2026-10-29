@@ -60,6 +60,7 @@ class AparatoDelPanel {
     required this.pendientes,
     required this.rechazados,
     this.nombre,
+    this.instalacion,
     this.visto,
     this.alta,
     this.bajada,
@@ -73,6 +74,7 @@ class AparatoDelPanel {
     persona: _texto(j['persona']),
     sucursal: _texto(j['sucursal']),
     nombre: j['nombre'] as String?,
+    instalacion: j['instalacion'] as String?,
     visto: _fecha(j['visto']),
     alta: _fecha(j['alta']),
     bajada: _fecha(j['bajada']),
@@ -94,6 +96,9 @@ class AparatoDelPanel {
   final String persona;
   final String sucursal;
   final String? nombre;
+
+  /// El `X-Aparato-Id` de Accesos (lo que se ve en «Dispositivos»): de aquí sale «Ver actividad». Vacío = aún no se ha unido.
+  final String? instalacion;
 
   /// La ultima peticion de este aparato, suba o baje. Es lo que distingue «el
   /// telefono esta apagado en un cajon» de «el telefono trabaja pero no sube».

@@ -100,13 +100,14 @@ func (ns NullRevisionEstado) Value() (driver.Value, error) {
 }
 
 type Aparato struct {
-	ID        uuid.UUID          `json:"id"`
-	Persona   string             `json:"persona"`
-	BranchID  uuid.UUID          `json:"branch_id"`
-	Nombre    *string            `json:"nombre"`
-	VistoAt   pgtype.Timestamptz `json:"visto_at"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID            uuid.UUID          `json:"id"`
+	Persona       string             `json:"persona"`
+	BranchID      uuid.UUID          `json:"branch_id"`
+	Nombre        *string            `json:"nombre"`
+	VistoAt       pgtype.Timestamptz `json:"visto_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	InstalacionID *string            `json:"instalacion_id"`
 }
 
 type AparatoEstado struct {

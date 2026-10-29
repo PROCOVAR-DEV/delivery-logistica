@@ -28,9 +28,15 @@
 -- El alta de una instalación: `POST /sync/aparato`. El uuid lo pone la base y es lo que el
 -- aparato guarda; nunca se lo inventa él.
 -- name: AltaAparato :one
-INSERT INTO aparatos (persona, branch_id, nombre, visto_at)
-VALUES ($1, $2, $3, now())
+INSERT INTO aparatos (persona, branch_id, nombre, instalacion_id, visto_at)
+VALUES ($1, $2, $3, $4, now())
 RETURNING *;
+
+-- Une el aparato con la instalación de Accesos (`X-Aparato-Id`). Solo escribe si cambia: se llama en cada petición y no debe mover
+-- `updated_at` de balde.
+-- name: VincularInstalacion :exec
+UPDATE aparatos SET instalacion_id = sqlc.arg('instalacion')::text
+WHERE id = sqlc.arg('id')::uuid AND instalacion_id IS DISTINCT FROM sqlc.arg('instalacion')::text;
 
 -- name: AparatoPorId :one
 SELECT * FROM aparatos WHERE id = $1;
@@ -82,7 +88,7 @@ WHERE aparato_id = sqlc.arg('aparato_id');
 
 -- «¿Qué le queda a este aparato?», de un tirón.
 -- name: EstadoDeAparato :one
-SELECT a.id, a.persona, a.branch_id, a.nombre, a.visto_at, a.created_at AS alta_at,
+SELECT a.id, a.persona, a.branch_id, a.nombre, a.instalacion_id, a.visto_at, a.created_at AS alta_at,
        e.bajada_at, e.bajada_hasta, e.subida_at, e.pendientes, e.rechazados
 FROM aparatos a
 JOIN aparato_estado e ON e.aparato_id = a.id
@@ -95,7 +101,7 @@ WHERE a.id = $1;
 -- FIRST), luego el que lleva más tiempo sin hacerlo. Ordenar por sucursal dejaría a Palma
 -- enterrada entre nueve filas verdes.
 -- name: PanelDeEstado :many
-SELECT a.id, a.persona, a.branch_id, a.nombre, a.visto_at, a.created_at AS alta_at,
+SELECT a.id, a.persona, a.branch_id, a.nombre, a.instalacion_id, a.visto_at, a.created_at AS alta_at,
        e.bajada_at, e.bajada_hasta, e.subida_at, e.pendientes, e.rechazados,
        -- Cuánto lleva sin subir, EN SEGUNDOS y sin decimales.
        --

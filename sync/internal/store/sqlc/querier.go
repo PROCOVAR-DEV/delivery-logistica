@@ -230,6 +230,9 @@ type Querier interface {
 	TocarAparato(ctx context.Context, id uuid.UUID) error
 	// Lo último que mandó un aparato, para mirar un caso concreto cuando algo no cuadra.
 	UltimosApuntesDeAparato(ctx context.Context, arg UltimosApuntesDeAparatoParams) ([]Apunte, error)
+	// Une el aparato con la instalación de Accesos (`X-Aparato-Id`). Solo escribe si cambia: se llama en cada petición y no debe mover
+	// `updated_at` de balde.
+	VincularInstalacion(ctx context.Context, arg VincularInstalacionParams) error
 }
 
 var _ Querier = (*Queries)(nil)

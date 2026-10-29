@@ -6,6 +6,7 @@ import '../identidad/renovador.dart';
 import '../registro/registro.dart';
 import 'de_quien_viene.dart';
 import 'fallos.dart';
+import 'instalacion.dart';
 import 'interceptor_fallos.dart';
 import 'interceptor_sesion.dart';
 
@@ -107,6 +108,8 @@ class ClienteApi {
         esWeb: esWeb,
       ),
       const InterceptorFallos(),
+      // Su `X-Aparato-Id`: une al aparato con «Dispositivos» de Accesos (`red/instalacion.dart`).
+      InterceptorDeInstalacion(),
     ]);
     return ClienteApi(
       dio: dio,

@@ -3,7 +3,7 @@ description: "reparto-app — la interfaz del reparto, web y APK del mismo codig
 # Privado: nunca sale a pub.dev.
 publish_to: 'none'
 
-version: 1.0.47+48
+version: 1.0.48+49
 
 environment:
   sdk: ^3.13.3
@@ -116,6 +116,7 @@ dependencies:
   # `datos/entrega_del_excel.dart`.
   archive: 4.5.2
   xml: 7.1.0
+  android_id: 0.6.0      # la HUELLA del aparato (ANDROID_ID): junta Reparto y CRM de una misma tablet en Accesos
 
 dev_dependencies:
   flutter_test:

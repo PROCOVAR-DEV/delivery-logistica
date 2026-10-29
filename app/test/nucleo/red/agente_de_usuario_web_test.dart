@@ -33,6 +33,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/red/agente_de_usuario.dart';
+import 'package:reparto/nucleo/red/instalacion.dart';
 
 import '../../apoyo/servidor_falso.dart';
 
@@ -42,21 +43,43 @@ void main() {
     expect(plataformaParaElAgente(), isNull);
   });
 
-  test('el interceptor POR DEFECTO no pone User-Agent en el navegador', () async {
+  test(
+    'el interceptor POR DEFECTO no pone User-Agent en el navegador',
+    () async {
+      final servidor = ServidorFalso((p) async => RespuestaFalsa(200));
+      final dio = Dio(BaseOptions(baseUrl: 'https://auth.test/api/auth'))
+        ..httpClientAdapter = servidor
+        // La plataforma, POR DEFECTO: el cableado que va a produccion, `kIsWeb` de verdad. La version
+        // es de mentira (ver arriba): si la guarda fallara, la cabecera SALDRIA y esta prueba lo veria.
+        ..interceptors.add(InterceptorDeAgente(version: () async => '9.9.9'));
+
+      await dio.post<Object?>('/token', data: <String, Object?>{});
+
+      expect(servidor.vistas, hasLength(1));
+      expect(
+        servidor.vistas.single.cabeceras.containsKey('User-Agent'),
+        isFalse,
+        reason: 'el navegador pone el suyo; el nuestro rompe CORS (preflight)',
+      );
+    },
+  );
+
+  // LA IDENTIDAD DEL APARATO TAMPOCO SALE EN LA WEB (auditoría 29/10/2026, mutación M7): `X-Aparato-*` no está en
+  // `Access-Control-Allow-Headers` de Accesos, así que si saliera el navegador haría un preflight que el login no pasa. Con los
+  // interceptores POR DEFECTO (el cableado que va a producción: `id_del_aparato.dart` elige el destino con `dart.library.io`).
+  test('los interceptores de identidad POR DEFECTO no ponen X-Aparato-* en el navegador', () async {
     final servidor = ServidorFalso((p) async => RespuestaFalsa(200));
     final dio = Dio(BaseOptions(baseUrl: 'https://auth.test/api/auth'))
       ..httpClientAdapter = servidor
-      // La plataforma, POR DEFECTO: el cableado que va a produccion, `kIsWeb` de verdad. La version
-      // es de mentira (ver arriba): si la guarda fallara, la cabecera SALDRIA y esta prueba lo veria.
-      ..interceptors.add(InterceptorDeAgente(version: () async => '9.9.9'));
+      ..interceptors.add(InterceptorDeAparato())
+      ..interceptors.add(InterceptorDeInstalacion());
 
-    await dio.post<Object?>('/token', data: <String, Object?>{});
+    await dio.post<Object?>('/refresh', data: <String, Object?>{});
 
     expect(servidor.vistas, hasLength(1));
-    expect(
-      servidor.vistas.single.cabeceras.containsKey('User-Agent'),
-      isFalse,
-      reason: 'el navegador pone el suyo; el nuestro rompe CORS (preflight)',
-    );
+    final puestas = servidor.vistas.single.cabeceras.keys
+        .where((k) => k.toLowerCase().startsWith('x-aparato'))
+        .toList();
+    expect(puestas, isEmpty, reason: 'saldrian: $puestas');
   });
 }

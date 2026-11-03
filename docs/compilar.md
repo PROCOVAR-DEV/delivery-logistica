@@ -255,6 +255,12 @@ la APK que reconocen el `sin_permiso` de Accesos (`docs/sin-permiso.md`). La 1.0
 `PATCH /api/orders`, camión de otra sucursal, armado local del Tablero como el servidor, cajón de
 acuse en el cierre parcial; ver `docs/reglas-negocio.md` §15.14).
 
+**Reparto 1.0.49+50 (03/11/2026, commit `44deff4`)**: el mapa de Rutas pide las teselas de OpenStreetMap y el trazado de OSRM con `User-Agent: ProcovarReparto/<versión> (<sistema>)` (sin él
+OpenStreetMap contestaba cada tesela con «403 Access blocked», visto por Amado en el escritorio de Windows; la APK tenía lo mismo) y el aviso de actualización dice «Te queda 1 cosa por subir». APK
+`reparto-1.0.49-261103.apk` (82.230.704 B, sha256 `faf76b60…c17a`, firma `01529f5a…0b21`) y Windows `reparto-1.0.49-windows-setup.exe` (16.551.124 B, sha256 `119234b1…dd9e`), CI 41715376396; tarjetas
+12 y 13 del portal verificadas con navegador real (5/5). Misma cadena que la 1.0.48 (guiones en `…/publicacion-1.0.49/`); esta vez se publicó la APK primero y las tarjetas del portal después de Windows. **Falta
+comprobar en un aparato que el mapa carga las calles.**
+
 **Reparto 1.0.48+49 (29/10/2026, commit `1692365`)**: la app manda a Accesos `X-Aparato-Id` (UUID v7 por instalación), `X-Aparato-Nombre` y `X-Aparato-Huella`, y al
 sincronizador el id (migración `00005` de `sync`); pantalla `/dispositivos?aparato=<id>` («Ver actividad» de Accesos). APK `reparto-1.0.48-261029.apk` (82.230.704 B,
 sha256 `a2d9b378…db60f`, firma `01529f5a…0b21`) y Windows `reparto-1.0.48-windows-setup.exe` (16.552.746 B, sha256 `f4651a77…49ac6`), ejecución de CI 40958552315.

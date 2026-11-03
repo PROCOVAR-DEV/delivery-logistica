@@ -454,8 +454,8 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
         firma: 'sube:${publicada.version}',
         titular: 'Hay una versión nueva, pero antes hay que subir el trabajo',
         detalle:
-            'Te quedan $sinSubir cosas por subir. Instalar ahora puede '
-            'llevárselas: primero sube, después actualiza.',
+            '${_teQuedan(sinSubir)} por subir. Instalar ahora puede '
+            '${sinSubir == 1 ? 'llevársela' : 'llevárselas'}: primero sube, después actualiza.',
       ),
       // `PrimeroSube` con la cola ya vacia no se enseña: el estado es de antes
       // de la subida y lo que viene detras es el aviso bueno, el de instalar.
@@ -679,8 +679,8 @@ class _CajonDeLaVersion extends ConsumerWidget {
           if (sinSubir > 0)
             ..._elMotivo(
               clave: claveDeLaColaPendiente,
-              'Te quedan $sinSubir cosas por subir. Instalar ahora puede '
-              'llevárselas, así que el botón de instalar está apagado: primero '
+              '${_teQuedan(sinSubir)} por subir. Instalar ahora puede '
+              '${sinSubir == 1 ? 'llevársela' : 'llevárselas'}, así que el botón de instalar está apagado: primero '
               'sube el trabajo (desde la franja de arriba o la pantalla de '
               'Sincronización) y después instala. Lo descargado se queda aquí.',
             ),
@@ -1129,3 +1129,6 @@ class _PieDeLaDescargaState extends State<_PieDeLaDescarga> {
     ],
   );
 }
+
+/// «Te queda 1 cosa» / «Te quedan 3 cosas»: antes salía «Te quedan 1 cosas por subir» (Amado, 03/11/2026).
+String _teQuedan(int n) => n == 1 ? 'Te queda 1 cosa' : 'Te quedan $n cosas';

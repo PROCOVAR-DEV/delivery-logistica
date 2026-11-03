@@ -51,6 +51,34 @@ String? plataformaDelAgente({
 String? plataformaParaElAgente() =>
     plataformaDelAgente(esWeb: kIsWeb, destino: defaultTargetPlatform);
 
+/// El `User-Agent` de esta aplicación para quien NO es Accesos: las teselas de OpenStreetMap y el trazado de OSRM.
+///
+/// OpenStreetMap BLOQUEA a quien no se identifica: con el agente por defecto de Dart (`Dart/3.x (dart:io)`) contesta cada tesela con
+/// una imagen «403 Access blocked · App is not following the tile usage policy» (Amado, 03/11/2026, en el mapa de Rutas del
+/// escritorio de Windows; lo mismo pasaba en la APK). Con `ProcovarReparto/<versión> (<sistema>)` la política se cumple. En la web
+/// no hay agente que poner (el navegador manda el suyo y no deja tocarlo): devuelve `null`.
+Future<String?> agenteDeEstaApp() => _agenteDeEstaApp ??= agenteSiAplica(
+  plataforma: plataformaParaElAgente(),
+  version: () async => (await PackageInfo.fromPlatform()).version,
+);
+Future<String?>? _agenteDeEstaApp;
+
+/// El agente de [agenteDeEstaApp] con la plataforma y la versión por parámetro, para poder probarlo. Nunca lanza.
+Future<String?> agenteSiAplica({
+  required String? plataforma,
+  required Future<String> Function() version,
+}) async {
+  if (plataforma == null) return null;
+  try {
+    return agenteDeReparto(await version(), plataforma);
+  } on Object catch (e) {
+    Registro.aviso(
+      'no se pudo leer la versión para el User-Agent de las teselas: $e',
+    );
+    return null;
+  }
+}
+
 /// Pone el `User-Agent` propio en cada petición del Dio de Accesos (`/token`,
 /// `/refresh`, `/logout`). Si no se puede saber la versión, la petición sale con
 /// el de siempre: un agente bonito no vale una petición de renovar que no sale.

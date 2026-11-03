@@ -36,7 +36,9 @@ import 'package:reparto/nucleo/proveedores.dart';
 
 import '../apoyo/base_de_prueba.dart';
 
-final elApk = Uint8List.fromList(List.generate(40000, (i) => (i * 13 + 5) % 251));
+final elApk = Uint8List.fromList(
+  List.generate(40000, (i) => (i * 13 + 5) % 251),
+);
 final suHuella = sha256.convert(elApk).toString();
 
 const laUrl = 'https://archivos.procovar.cloud/reparto/apk/reparto-1.5.0.apk';
@@ -266,37 +268,36 @@ void main() {
     await desmontar(tester);
   });
 
-  testWidgets(
-    'sin tamaño ni huella anunciados, SIGUE abriendo el navegador',
-    (tester) async {
-      // Una api anterior al 22/09/2026: anuncia la URL y nada más.
-      const vieja = VersionPublicada(
-        version: '1.5.0',
-        compilacion: 12,
-        descargas: {'android': laUrl},
-      );
-      final m = await montar(tester, publicada: vieja);
-      await abrirElCajon(tester);
+  testWidgets('sin tamaño ni huella anunciados, SIGUE abriendo el navegador', (
+    tester,
+  ) async {
+    // Una api anterior al 22/09/2026: anuncia la URL y nada más.
+    const vieja = VersionPublicada(
+      version: '1.5.0',
+      compilacion: 12,
+      descargas: {'android': laUrl},
+    );
+    final m = await montar(tester, publicada: vieja);
+    await abrirElCajon(tester);
 
-      expect(
-        find.text('Descargar e instalar'),
-        findsNothing,
-        reason:
-            'sin `bytes` no hay barra honesta y sin `sha256` no hay forma de '
-            'saber si llegó entero: bajarlo dentro sería una barra que miente y '
-            'un APK que nadie comprueba',
-      );
-      expect(find.text('Descargar'), findsOneWidget);
-      expect(find.textContaining('navegador'), findsOneWidget);
+    expect(
+      find.text('Descargar e instalar'),
+      findsNothing,
+      reason:
+          'sin `bytes` no hay barra honesta y sin `sha256` no hay forma de '
+          'saber si llegó entero: bajarlo dentro sería una barra que miente y '
+          'un APK que nadie comprueba',
+    );
+    expect(find.text('Descargar'), findsOneWidget);
+    expect(find.textContaining('navegador'), findsOneWidget);
 
-      await tester.tap(find.text('Descargar'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Descargar'));
+    await tester.pumpAndSettle();
 
-      expect(m.navegador(), 1);
-      expect(m.servidor.peticiones, 0);
-      await desmontar(tester);
-    },
-  );
+    expect(m.navegador(), 1);
+    expect(m.servidor.peticiones, 0);
+    await desmontar(tester);
+  });
 
   testWidgets(
     'SIN PERMISO: se ofrece el ajuste Y el navegador, y nada se pierde',
@@ -441,7 +442,7 @@ void main() {
       }
 
       expect(
-        find.textContaining('Te quedan 1 cosas por subir'),
+        find.textContaining('Te queda 1 cosa por subir'),
         findsOneWidget,
         reason:
             'el cajón no dice que queda trabajo sin subir: un botón apagado sin '

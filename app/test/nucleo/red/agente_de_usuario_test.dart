@@ -12,10 +12,13 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show NetworkImage;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/proveedores.dart';
 import 'package:reparto/nucleo/red/agente_de_usuario.dart';
+import 'package:reparto/pantallas/rutas/datos/mapa_en_vivo.dart'
+    show imagenDeTesela;
 
 import '../../apoyo/servidor_falso.dart';
 
@@ -244,5 +247,45 @@ void main() {
           ? false
           : 'no estan el parser de Accesos o node en esta maquina',
     );
+  });
+
+  // LAS TESELAS DE OPENSTREETMAP — Amado, 03/11/2026: «403 Access blocked · App is not following the tile usage policy».
+  group('el agente para OpenStreetMap y OSRM', () {
+    test('lleva la versión y el sistema, como el de Accesos', () async {
+      final a = await agenteSiAplica(
+        plataforma: 'Windows',
+        version: () async => '1.0.48',
+      );
+      expect(a, 'ProcovarReparto/1.0.48 (Windows)');
+    });
+
+    test('en la web no hay agente (el navegador no deja ponerlo)', () async {
+      expect(
+        await agenteSiAplica(plataforma: null, version: () async => '1.0.48'),
+        isNull,
+      );
+    });
+
+    test('si no se puede leer la versión, no lanza: sin agente', () async {
+      expect(
+        await agenteSiAplica(
+          plataforma: 'Android',
+          version: () async => throw StateError('sin plugin'),
+        ),
+        isNull,
+      );
+    });
+
+    test('la tesela lleva el User-Agent; sin agente va sin cabeceras', () {
+      final con = imagenDeTesela(
+        'https://tile.test/1/2/3.png',
+        'ProcovarReparto/1.0.48 (Windows)',
+      );
+      expect((con as NetworkImage).headers, {
+        'User-Agent': 'ProcovarReparto/1.0.48 (Windows)',
+      });
+      final sin = imagenDeTesela('https://tile.test/1/2/3.png', null);
+      expect((sin as NetworkImage).headers, isNull);
+    });
   });
 }

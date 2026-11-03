@@ -38,6 +38,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../nucleo/red/agente_de_usuario.dart';
 import '../../../nucleo/registro/registro.dart';
 import 'geo.dart';
 
@@ -77,9 +78,12 @@ class CallesDeOsm implements FondoDeCalles {
     }
   }
 
-  Future<ui.Image> _bajar(String url) {
+  Future<ui.Image> _bajar(String url) async {
     final espera = Completer<ui.Image>();
-    final flujo = NetworkImage(url).resolve(ImageConfiguration.empty);
+    final flujo = imagenDeTesela(
+      url,
+      await agenteDeEstaApp(),
+    ).resolve(ImageConfiguration.empty);
     late ImageStreamListener oyente;
     oyente = ImageStreamListener(
       (info, _) {
@@ -95,6 +99,11 @@ class CallesDeOsm implements FondoDeCalles {
     return espera.future;
   }
 }
+
+/// La tesela con SU `User-Agent`: sin él OpenStreetMap contesta «403 Access blocked» (ver [agenteDeEstaApp]). Sin agente (la web) va
+/// sin cabeceras: el navegador no deja ponerlas y un `User-Agent` ahí rompería CORS.
+ImageProvider imagenDeTesela(String url, String? agente) =>
+    NetworkImage(url, headers: agente == null ? null : {'User-Agent': agente});
 
 /// El que no trae nada. Es lo que se usa en las pruebas y lo que deja el mapa
 /// **exactamente** como se ve en el patio de un almacen.
@@ -129,6 +138,7 @@ class CallesDeOsrm implements RecorridoPorCalles {
     if (puntos.length < 2) return null;
     final coordenadas = [for (final p in puntos) '${p.lng},${p.lat}'].join(';');
     try {
+      final agente = await agenteDeEstaApp();
       final respuesta = await _cliente.get<Map<String, Object?>>(
         'https://router.project-osrm.org/route/v1/driving/$coordenadas',
         queryParameters: const {'overview': 'full', 'geometries': 'geojson'},
@@ -138,6 +148,8 @@ class CallesDeOsrm implements RecorridoPorCalles {
           // pintar; el croquis ya esta debajo y no necesita a nadie.
           receiveTimeout: const Duration(seconds: 8),
           sendTimeout: const Duration(seconds: 8),
+          // Identificarse también aquí (misma razón que las teselas); en la web no se pone.
+          headers: agente == null ? null : {'User-Agent': agente},
         ),
       );
       return leerLaGeometria(respuesta.data);

@@ -7,7 +7,7 @@ teléfono**, el APK trae el mapa dentro y el seguimiento (GPS, horas, cobro) sub
 
 Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · ⏸ aparcado (no cuenta en el %) · 🔒 espera tu visto bueno
 
-**TOTAL: 32 %** (10,7 de 33 tareas)
+**TOTAL: 30 %** (10,7 de 36 tareas)
 
 ## 1. Reparto — servidor (API y sync): 54 % (7 de 13)
 
@@ -25,16 +25,19 @@ Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · �
 - ☐ 12. Página web del enlace (`/r/<token>`: «abre este enlace con la app del distribuidor»)
 - 🔒 13. Despliegue en producción (migraciones 00032 y 00033, API, sync, web)
 
-## 2. Reparto — aplicación de la oficina (web, escritorio, APK): 0 % (0 de 8)
+## 2. Reparto — aplicación de la oficina (web, **Windows**, APK de Reparto): 0 % (0 de 11)
 
-- ☐ 1. «Enviar a distribuidor»: crea el enlace de la ruta y lo comparte por WhatsApp (sustituye al enlace de Google Maps)
+- ☐ 1. «Enviar a distribuidor»: crea el enlace de la ruta y lo comparte por WhatsApp (sustituye al enlace de Google Maps); en web, Windows y APK
 - ☐ 2. Estado del enlace por ruta: sin reclamar / reclamado por qué teléfono / soltar y renovar
 - ☐ 3. Recorrido real de la ruta: mapa, traza del GPS, cada parada con su hora real, tiempo en la parada y cobro
 - ☐ 4. Vista por vehículo: la vida de cada vehículo (sus rutas, quién las hizo, qué hizo en cada una)
 - ☐ 5. «Dónde están ahora»: último punto de cada distribuidor con ruta en curso
 - ☐ 6. Revisión de rutas completadas por el distribuidor (la logística confirma o corrige: dos llaves)
 - ☐ 7. Asignar vehículo ↔ distribuidor en Vehículos y Distribuidores
-- ☐ 8. Publicar la versión (web, APK, Windows, portal) 🔒
+- ☐ 8. Publicar la **web** de Reparto con lo nuevo 🔒
+- ☐ 9. Publicar el **APK de Reparto** (el de la oficina y los logísticos) con lo nuevo 🔒
+- ☐ 10. **Windows**: comprobar que las pantallas nuevas (enviar a distribuidor, recorrido real, vehículos, dónde están) funcionan en el escritorio, compilar el instalador en la CI, verificarlo y publicarlo con la tarjeta 13 del portal 🔒
+- ☐ 11. Portal: actualizar las tarjetas de Reparto (APK de Reparto y Windows) y verificarlas con navegador real 🔒
 
 ## 3. APK `reparto-distribucion` (la app del distribuidor): 27 % (estimado)
 

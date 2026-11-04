@@ -9,6 +9,29 @@ Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · �
 
 **TOTAL: 30 %** (10,7 de 36 tareas)
 
+## ORDEN DE TRABAJO (por prioridad)
+
+**P0 — sin esto no se puede ni mandar una ruta ni usarla** (en curso, en este orden)
+1. Servidor 8 y 9: cancelar ruta (solo sin entregadas) y «no entregada» con motivo
+2. Servidor 12: página del enlace `/r/<token>` (adonde llega quien abre el enlace sin la app)
+3. Reparto app 1 y 2: **«Enviar a distribuidor»** y el estado del enlace por ruta (web, Windows y APK de Reparto)
+4. APK distribuidor 1, 7 y 8: entrada propia, mapa detallado dentro y pruebas con `flutter test` entero
+
+**P1 — control de la logística sobre lo que hace el distribuidor**
+5. Servidor 10 + Reparto app 6: revisión por logística (la segunda llave)
+6. Reparto app 3: recorrido real de la ruta (mapa, traza, horas, cobro)
+7. Servidor 11 + Reparto app 7: vehículo ↔ distribuidor
+
+**P2 — administración de toda la vida de la distribución**
+8. Reparto app 4: vista por vehículo (historial)
+9. Reparto app 5: dónde están ahora
+
+**P3 — salida a producción** (todo 🔒: cada paso con tu visto bueno)
+10. Despliegue del servidor (migraciones 00032-33, API, sync) y de Accesos (rol)
+11. Web de Reparto, APK de Reparto, **Windows** y tarjetas del portal
+12. Compilar y publicar el APK del distribuidor + canal de descarga + tarjeta del portal
+13. Prueba en teléfono real (tuya) y cierre al 100 %
+
 ## 1. Reparto — servidor (API y sync): 54 % (7 de 13)
 
 - ✔ 1. Lista blanca del distribuidor en la API y en el sync (falla cerrado; lo que no está, 403)

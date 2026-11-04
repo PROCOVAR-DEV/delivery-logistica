@@ -30,13 +30,14 @@ def main():
     ap.add_argument('--compilacion', required=True, type=int)
     ap.add_argument('--apk', required=True)
     ap.add_argument('--fecha-apk', default=None, help='AAMMDD de la APK nueva (por defecto, la de hoy, como en publicar-apk.sh)')
+    ap.add_argument('--compilacion-desde', type=int, default=None, help='compilación de la N (por defecto, la nueva - 1; hay que decirla si se salta una versión)')
     ap.add_argument('--salida', required=True)
     ap.add_argument('--origen', default=None, help='directorio con los guiones de la N (si no, el servidor)')
     a = ap.parse_args()
     n, m = a.desde, a.a
     sufijo_n, sufijo_m = n.replace('.0.', '').replace('.', ''), m.replace('.0.', '').replace('.', '')  # 1.0.50 -> 150 (solo para nombres)
     num_n, num_m = n.split('.')[-1], m.split('.')[-1]  # '50', '51'
-    comp_n = a.compilacion - 1
+    comp_n = a.compilacion_desde if a.compilacion_desde is not None else a.compilacion - 1
     out = pathlib.Path(a.salida); out.mkdir(parents=True, exist_ok=True)
 
     # 1 · los guiones de la N

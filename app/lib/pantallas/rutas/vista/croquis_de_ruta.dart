@@ -261,6 +261,7 @@ Trazado trazar(
   final puntos = <Punto>[
     ?recorrido.origen,
     for (final p in recorrido.dibujables) p.punto!,
+    ...recorrido.traza,
   ];
   if (puntos.isEmpty || tamano.isEmpty) return Trazado.vacio;
 
@@ -575,7 +576,7 @@ class _CroquisDeRutaState extends State<CroquisDeRuta> {
     }
 
     // **Ya traido = no se vuelve a pedir**, aunque el widget sea otro.
-    if (!_recorridosTraidos.containsKey(_claveDelRecorrido)) {
+    if (!widget.recorrido.soloTraza && !_recorridosTraidos.containsKey(_claveDelRecorrido)) {
       // SOLO LA IDA: almacen → parada 1 → … → ultima parada.
       //
       // El regreso se pide aparte, y no es capricho. Jose, 17/09/2026: «sigue
@@ -848,7 +849,7 @@ class _CroquisDeRutaState extends State<CroquisDeRuta> {
         ),
       ),
       const SizedBox(height: 8),
-      const _Leyenda(),
+      if (!widget.recorrido.soloTraza) const _Leyenda(),
     ],
   );
 
@@ -925,7 +926,7 @@ class _CroquisDeRutaState extends State<CroquisDeRuta> {
         .clamp(4.0, math.max(4.0, tamano.width - ancho - 4))
         .toDouble();
     // Con la línea de «Punto puesto a mano» el globo mide una línea más.
-    final alto = punto.parada.manual ? 102.0 : 84.0;
+    final alto = punto.parada.detalle != null ? 128.0 : punto.parada.manual ? 102.0 : 84.0;
     final arriba = punto.donde.dy + 16 > tamano.height - alto
         ? punto.donde.dy - alto
         : punto.donde.dy + 16;
@@ -981,7 +982,7 @@ class _CroquisDeRutaState extends State<CroquisDeRuta> {
                 // apaga y «sin cotizar» desaparecía del todo. Jose, 17/09/2026:
                 // «los tooltips no se ven casi, qué mierda es esto en negro».
                 Text(
-                  usd(punto.parada.importe),
+                  punto.parada.detalle ?? usd(punto.parada.importe),
                   style: const TextStyle(
                     color: ColoresDelMapa.importeEnGlobo,
                     fontSize: 13,
@@ -1353,7 +1354,7 @@ class _PintorDelCroquis extends CustomPainter {
     final ida = porCarretera == null
         ? trazado.ida
         : [for (final p in porCarretera!) trazado.de(p)];
-    if (ida.length > 1) {
+    if (ida.length > 1 && !recorrido.soloTraza) {
       lienzo.drawPath(
         Path()..addPolygon(ida, false),
         Paint()
@@ -1371,9 +1372,10 @@ class _PintorDelCroquis extends CustomPainter {
     //    patron. Solo se pinta aparte cuando la linea es recta: con el recorrido
     //    por carretera el regreso ya viene dentro del trazado que dio OSRM.
     final origen = trazado.origen;
+    _traza(lienzo, trazado, hayCalles);
     // Se pinta SIEMPRE, con calles y sin ellas. Antes solo salia sin calles, y
     // entonces la leyenda prometia un regreso que no estaba dibujado.
-    if (origen != null && trazado.paradas.isNotEmpty) {
+    if (origen != null && trazado.paradas.isNotEmpty && !recorrido.soloTraza) {
       final pincel = Paint()
         ..color = ColoresDelMapa.regreso
         ..strokeWidth = hayCalles ? 3.5 : 2.5
@@ -1461,6 +1463,27 @@ class _PintorDelCroquis extends CustomPainter {
         9,
       );
     }
+  }
+
+  /// LA TRAZA REAL DEL GPS: la línea por donde fue el teléfono, con sus flechas, un punto verde donde empezó y uno oscuro donde
+  /// acaba. Va debajo de las paradas para que sus números se lean.
+  void _traza(Canvas lienzo, Trazado trazado, bool hayCalles) {
+    final puntos = [for (final p in recorrido.traza) trazado.de(p)];
+    if (puntos.isEmpty) return;
+    if (puntos.length > 1) {
+      lienzo.drawPath(
+        Path()..addPolygon(puntos, false),
+        Paint()
+          ..color = ColoresDelMapa.traza
+          ..strokeWidth = hayCalles ? 3.5 : 2.5
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..style = PaintingStyle.stroke,
+      );
+      _flechas(lienzo, puntos, ColoresDelMapa.traza, hayCalles);
+    }
+    lienzo.drawCircle(puntos.first, 5, Paint()..color = ColoresDelMapa.salida);
+    lienzo.drawCircle(puntos.last, 5, Paint()..color = Colores.tinta);
   }
 
   bool _calles(Canvas lienzo, Trazado trazado) {

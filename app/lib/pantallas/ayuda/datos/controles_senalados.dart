@@ -145,7 +145,7 @@ abstract final class Senalado {
   static const rutasPostDespacho = 'rutas-post-despacho';
   static const rutasResultadoDeLaParada = 'rutas-resultado-de-la-parada';
 
-  static const rutasAbrirEnGoogleMaps = 'rutas-abrir-en-google-maps';
+  static const rutasEnviarADistribuidor = 'rutas-enviar-a-distribuidor';
   static const rutasWhatsApp = 'rutas-whatsapp';
   static const rutasCompartir = 'rutas-compartir';
   static const rutasCopiar = 'rutas-copiar';
@@ -386,7 +386,7 @@ abstract final class Senalado {
     rutasGuardarElCierre,
     rutasPostDespacho,
     rutasResultadoDeLaParada,
-    rutasAbrirEnGoogleMaps,
+    rutasEnviarADistribuidor,
     rutasWhatsApp,
     rutasCompartir,
     rutasCopiar,

@@ -31,6 +31,10 @@ import '../../../nucleo/base/base.dart';
 import '../../../nucleo/conduce.dart' show ConduceDe;
 import '../../../nucleo/numero_de_factura.dart';
 import '../../../nucleo/proveedores.dart';
+import '../../distribucion/datos/api_distribucion.dart' show rutaYaEstaEnElServidor;
+import '../../distribucion/vista/enviar_a_distribuidor.dart';
+import '../../distribucion/vista/recorrido_real.dart';
+import '../../distribucion/vista/revision_de_rutas.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
 import '../../distribuidores/datos/distribuidor_de_la_ruta.dart';
@@ -163,12 +167,25 @@ class DetalleDeRuta extends ConsumerWidget {
         ),
       ],
       const SizedBox(height: 12),
-      // EL MAPA, con sus cuatro gestos —abrir en Google Maps, WhatsApp,
-      // compartir y copiar. Antes aqui habia medio gesto: un boton que
-      // copiaba el enlace al portapapeles y nada mas, con el mapa sin portar
-      // del Next. Jose, 17/09/2026: «El mapa, ¿por qué no me sale el mapa con
-      // la ruta, si teníamos hasta para compartir la ruta por WhatsApp?».
+      // EL MAPA (el croquis) y, debajo, ENVIAR A DISTRIBUIDOR: el enlace de la
+      // ruta por WhatsApp, que sustituye al de Google Maps.
       MapaDeLaRuta(ruta: conTodo),
+      const SizedBox(height: 10),
+      EnviarADistribuidor(ruta: conTodo),
+      // EL RECORRIDO REAL (GPS del distribuidor): solo si la ruta ya salió y el servidor la conoce, y solo se ve el botón si hay puntos.
+      if ((conTodo.ruta.status == EstadoRuta.enCurso || conTodo.ruta.status == EstadoRuta.completada) &&
+          rutaYaEstaEnElServidor(conTodo.ruta.id)) ...[
+        const SizedBox(height: 8),
+        EntradaAlRecorridoReal(
+          rutaId: conTodo.ruta.id,
+          titulo: conTodo.ruta.routeCode ?? conTodo.ruta.id,
+        ),
+      ],
+      // LA SEGUNDA LLAVE: en una completada que el servidor marca como revisable, «Pendiente de revisión» o «Revisada ✓».
+      if (conTodo.ruta.status == EstadoRuta.completada && rutaYaEstaEnElServidor(conTodo.ruta.id)) ...[
+        const SizedBox(height: 8),
+        RevisionDeLaRuta(rutaId: conTodo.ruta.id),
+      ],
       const SizedBox(height: 12),
       _Paradas(ruta: conTodo),
       const SizedBox(height: 20),

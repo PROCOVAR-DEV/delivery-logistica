@@ -87,6 +87,7 @@ class VehiculoDeLaApi {
     this.rutas = 0,
     this.pedidos = 0,
     this.rutaActiva,
+    this.distribuidorId,
   });
 
   factory VehiculoDeLaApi.deJson(Map<String, Object?> j) {
@@ -103,6 +104,7 @@ class VehiculoDeLaApi {
       costoKmUsd: _numero(j['costoKmUsd']),
       usarParaDomicilio: j['usarParaDomicilio'] == true,
       notas: j['notes'] as String?,
+      distribuidorId: j['distribuidorId'] as String?,
       rutas: (_numero(cuenta?['routes']) ?? 0).toInt(),
       pedidos: (_numero(cuenta?['orders']) ?? 0).toInt(),
       // `routes` trae CERO O UNA ruta, la abierta que manda. La lista viene del
@@ -123,6 +125,10 @@ class VehiculoDeLaApi {
   final String? placa;
   final double? costoKmUsd;
   final bool usarParaDomicilio;
+
+  /// QUIEN LO LLEVA POR DEFECTO (el servidor, `vehicles.distribuidorId`). Nulo = nadie, o el servidor no lo manda todavia.
+  /// La copia local de la APK no lo trae (la bajada no lo lleva aun): alli se lee en vivo, ver `distribuidorDeCadaVehiculoProvider`.
+  final String? distribuidorId;
   final String? notas;
   final int rutas;
   final int pedidos;
@@ -360,6 +366,8 @@ class DatosVehiculo {
     this.notas,
     this.costoKmUsd,
     this.usarParaDomicilio,
+    this.distribuidorId,
+    this.conDistribuidor = false,
   });
 
   final String nombre;
@@ -372,6 +380,11 @@ class DatosVehiculo {
   final double? costoKmUsd;
   final bool? usarParaDomicilio;
 
+  /// «Lo lleva»: el distribuidor por defecto. Solo viaja si [conDistribuidor]: sin ello (la ficha no pudo leer quien lo lleva,
+  /// o la pantalla no ofrece el selector) NO se manda la clave y el servidor deja lo que tenia, en vez de borrarlo con un nulo.
+  final String? distribuidorId;
+  final bool conDistribuidor;
+
   Map<String, Object?> aJson() => <String, Object?>{
     'name': nombre,
     'type': tipo,
@@ -382,5 +395,6 @@ class DatosVehiculo {
     'notes': notas,
     'costoKmUsd': costoKmUsd,
     'usarParaDomicilio': usarParaDomicilio,
+    if (conDistribuidor) 'distribuidorId': distribuidorId,
   };
 }

@@ -41,6 +41,7 @@ class ParadaDelRecorrido {
     this.entregada = false,
     this.esRegreso = false,
     this.manual = false,
+    this.detalle,
   });
 
   final String id;
@@ -86,12 +87,29 @@ class ParadaDelRecorrido {
   /// parada NO está donde dice la geolocalización del cliente.
   final bool manual;
 
+  /// Si viene, el globo enseña ESTE texto (varias líneas) en vez del importe del domicilio. Lo usa el recorrido REAL de la ruta
+  /// (hora, resultado y cobro de la parada) y «dónde están ahora» (hace cuánto mandó su punto).
+  final String? detalle;
+
   bool get seDibuja => punto != null;
 }
 
 /// La ruta lista para dibujar: de donde sale, por donde pasa y en que orden.
 class Recorrido {
-  const Recorrido({required this.paradas, this.origen, this.nombreDelOrigen});
+  const Recorrido({
+    required this.paradas,
+    this.origen,
+    this.nombreDelOrigen,
+    this.traza = const [],
+    this.soloTraza = false,
+  });
+
+  /// LA TRAZA DEL GPS del teléfono (recorrido REAL, en orden de hora). Se dibuja encima del fondo y entra en el encuadre.
+  final List<Punto> traza;
+
+  /// Dibuja SOLO lo real: sin la línea planificada entre paradas, sin regreso al depósito, sin consulta de calles y sin la
+  /// leyenda del plan. Lo usan el recorrido real y «dónde están ahora».
+  final bool soloTraza;
 
   /// EL ALMACEN DE SALIDA, que es tambien el de llegada: el camion vuelve. Es
   /// lo mismo que pinta el patron con la estrella verde y `isOrigin`.

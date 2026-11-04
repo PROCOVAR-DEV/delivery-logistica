@@ -311,14 +311,14 @@ cuanto suba**. Es normal y no hay que hacer nada.
    - Pasa a **«En curso»**, **el camión queda ocupado**, y la vista salta a esa
      pestaña.
 
-## Mandarle el recorrido
+## Mandarle la ruta al distribuidor
 <!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
-1. Baja hasta **«Recorrido»** y **clic en «Abrir en Google Maps»** para verlo tú.
-   <!-- señala: rutas-abrir-en-google-maps -->
-2. **Clic en «WhatsApp»** para mandárselo al chófer. <!-- señala: rutas-whatsapp -->
+1. Baja hasta **«Enviar a distribuidor»**: ahí dice si la ruta ya tiene teléfono.
+   <!-- señala: rutas-enviar-a-distribuidor -->
+2. **Clic en «WhatsApp»** para mandarle su enlace al distribuidor. <!-- señala: rutas-whatsapp -->
 3. **«Compartir»**, si lo quieres por otro sitio. <!-- señala: rutas-compartir -->
 4. O **«Copiar»**, y lo pegas tú. <!-- señala: rutas-copiar -->
 

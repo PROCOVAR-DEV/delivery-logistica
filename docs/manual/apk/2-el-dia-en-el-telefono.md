@@ -428,14 +428,14 @@ almacén.
    - La ruta pasa a **«En curso»**, **el camión queda ocupado**, y la vista **salta
      sola a la pestaña «En curso»** con la ruta abierta.
 
-## Mandarle el recorrido al chófer
+## Mandarle la ruta al distribuidor
 <!-- tarea -->
 
 **Empieza en:** **Menú → «Rutas»**.
 
-1. Dentro del detalle, **baja hasta el bloque «Recorrido»** y **toca «Abrir en
-   Google Maps»** para verlo tú. <!-- señala: rutas-abrir-en-google-maps -->
-2. **Toca «WhatsApp»** para mandárselo al chófer.
+1. Dentro del detalle, **baja hasta «Enviar a distribuidor»**: ahí dice si la ruta
+   ya tiene teléfono. <!-- señala: rutas-enviar-a-distribuidor -->
+2. **Toca «WhatsApp»** para mandarle su enlace al distribuidor.
    <!-- señala: rutas-whatsapp -->
 3. O **«Compartir»**, si lo quieres por otro sitio.
    <!-- señala: rutas-compartir -->
@@ -445,21 +445,17 @@ almacén.
 Se manda un mensaje así:
 
    ```
-   Ruta RT-20260928-001 — Reparto Vista
-   3 paradas · 68.0 km (incl. regreso) · Camión 1 (P-001) · 28/9/2026
-   https://www.google.com/maps/dir/?api=1&origin=...
+   Tu ruta RT-20260928-001 · Reparto Vista · 28/9/2026 · 3 paradas:
+   https://reparto.procovar.cloud/r/…
+   Necesitas la app Reparto Distribuidor; si no la tienes, el enlace te dice cómo instalarla.
    ```
 
-**Esto necesita señal.** Es de las pocas cosas de la aplicación que la necesitan.
+**Esto necesita señal**: el enlace lo crea el servidor en ese momento. Sin señal, la pantalla lo dice.
 
-### Si dice «Google admite 25 paradas: 3 paradas quedan fuera»
+### Si ya tiene teléfono
 
-El enlace no admite más. Las tres últimas hay que decírselas aparte.
-
-### Si «Abrir en Google Maps» está apagado
-
-Debajo te dice por qué: «Esta ruta no tiene guardadas las coordenadas del almacén de
-salida…» o «Ninguna de las 3 paradas tiene coordenadas guardadas…».
+Debajo de «Enviar a distribuidor» dice «Asignada a <teléfono> el <fecha>». Para pasarla a otro teléfono, toca
+**«Soltar y mandar a otro teléfono»** y confirma: el teléfono anterior la pierde y se crea un enlace nuevo.
 
 ---
 

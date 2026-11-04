@@ -4,7 +4,7 @@
 // caras: quien lee «1 empaques» en una hoja de almacén duda del 1.
 //
 // El patrón NO se inventa aquí: ya estaba en las rutas —«3 paradas» / «1
-// parada», `EnlaceDeLaRuta.cuantasParadas`— y es un ternario sobre `== 1` pegado
+// parada», `cuantasParadas`— y es un ternario sobre `== 1` pegado
 // al número. Lo que se hizo fue barrer los que quedaban y traerlos a ése.
 //
 // LOS TRES CASOS DE CADA UNO, y el tercero es el que se olvida:
@@ -38,9 +38,9 @@ TotalesPreDespacho _conProductos(int cuantos, {double empaques = 20}) =>
 void main() {
   group('el patrón de la casa, que es el que se copió', () {
     test('«3 paradas» / «1 parada», y el cero en plural', () {
-      expect(EnlaceDeLaRuta.cuantasParadas(0), '0 paradas');
-      expect(EnlaceDeLaRuta.cuantasParadas(1), '1 parada');
-      expect(EnlaceDeLaRuta.cuantasParadas(3), '3 paradas');
+      expect(cuantasParadas(0), '0 paradas');
+      expect(cuantasParadas(1), '1 parada');
+      expect(cuantasParadas(3), '3 paradas');
     });
   });
 

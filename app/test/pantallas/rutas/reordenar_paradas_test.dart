@@ -21,7 +21,6 @@ import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/nucleo/red/cliente_api.dart';
 import 'package:reparto/nucleo/red/escritura_en_vivo.dart';
 import 'package:reparto/pantallas/rutas/datos/acciones_rutas.dart';
-import 'package:reparto/pantallas/rutas/datos/enlace_de_la_ruta.dart';
 import 'package:reparto/pantallas/rutas/datos/geo.dart';
 import 'package:reparto/pantallas/rutas/datos/recorrido.dart';
 import 'package:reparto/pantallas/rutas/datos/repositorio_rutas.dart';
@@ -276,7 +275,7 @@ void main() {
   // enlace de Google Maps y el post-despacho leen las paradas de
   // `ConsultasRutas` (por `stopOrder`); la cabecera, `routes.total_distance`.
   test(
-    'el croquis, Google Maps y la cabecera salen en el orden nuevo',
+    'el croquis y la cabecera salen en el orden nuevo',
     () async {
       await sembrarLaRuta();
       Future<Recorrido> recorridoActual() async => recorridoDe(
@@ -285,8 +284,10 @@ void main() {
           paradas: await ConsultasRutas(base).paradasDe('R1'),
         ),
       );
-      final antes = enlaceDeLaRuta(await recorridoActual()).url!;
-      expect(antes, contains('waypoints=0.0,0.3|0.0,0.05|0.0,0.15'));
+      expect(
+        [for (final p in (await recorridoActual()).paradas) p.id],
+        ['lejos', 'cerca', 'medio'],
+      );
 
       await enElAparato.reordenar('R1');
 
@@ -294,10 +295,6 @@ void main() {
       expect(
         [for (final p in recorrido.paradas) '${p.numero}:${p.id}'],
         ['1:cerca', '2:medio', '3:lejos'],
-      );
-      expect(
-        enlaceDeLaRuta(recorrido).url,
-        contains('waypoints=0.0,0.05|0.0,0.15|0.0,0.3'),
       );
       expect(
         (await laRuta()).totalDistance,

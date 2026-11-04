@@ -2,6 +2,7 @@ import '../pantallas/acceso/registro.dart';
 import '../pantallas/almacenes/registro.dart';
 import '../pantallas/ayuda/registro.dart';
 import '../pantallas/clientes/registro.dart';
+import '../pantallas/distribucion/registro.dart';
 import '../pantallas/vehiculos/registro.dart';
 import '../pantallas/informes/registro.dart';
 import '../pantallas/panel/registro.dart';
@@ -42,6 +43,9 @@ List<PantallaRegistrada> pantallasDeLaAplicacion() => <PantallaRegistrada>[
   registrarPedidos(),
   registrarClientes(),
   registrarVehiculos(),
+
+  // DISTRIBUCIÓN: dónde están los distribuidores ahora y las rutas que cerraron desde su teléfono y esperan revisión. Siempre en vivo.
+  registrarDistribucion(),
   registrarAlmacenes(),
 
   // Sincronizacion es otra pantalla NUEVA (`docs/sincronizacion.md` §3): el

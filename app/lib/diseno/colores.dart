@@ -369,6 +369,9 @@ abstract final class ColoresDelMapa {
   /// El recorrido de ida, y sus flechas de sentido.
   static const recorrido = Color(0xFF2563EB);
 
+  /// La traza REAL del GPS del teléfono (no es el plan: es por donde fue).
+  static const traza = Color(0xFF7C3AED);
+
   /// El regreso al depósito, a rayas.
   static const regreso = Color(0xFFF97316);
 

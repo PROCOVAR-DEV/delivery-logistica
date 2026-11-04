@@ -1,11 +1,9 @@
-// EL BLOQUE DEL MAPA dentro del detalle de una ruta: el croquis, la linea que
-// DICE lo que se esta viendo, lo que se queda fuera, y los cuatro gestos —abrir
-// en Google Maps, WhatsApp, compartir y copiar.
+// EL BLOQUE DEL MAPA dentro del detalle de una ruta: el croquis y la linea que
+// DICE lo que se esta viendo.
 //
-// Jose, 17/09/2026: «El mapa, ¿por qué no me sale el mapa con la ruta, si
-// teníamos hasta para compartir la ruta por WhatsApp?». Tenia razon en las dos
-// mitades: el mapa no se porto del Next, y de compartir solo habia medio gesto
-// (un boton que copiaba el enlace al portapapeles y ya).
+// Los gestos de mandar la ruta (antes: abrir en Google Maps, WhatsApp, compartir y
+// copiar) ya no estan aqui: ahora la ruta se manda al distribuidor con su enlace,
+// en `distribucion/vista/enviar_a_distribuidor.dart`.
 //
 // ## La linea que DICE lo que se esta viendo
 //
@@ -36,17 +34,10 @@ import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart' show BotonPrincipal;
 import '../../../mapa/proveedores_de_mapa.dart';
 import '../../../nucleo/plataforma.dart';
-import '../../../nucleo/registro/registro.dart';
-import '../../ayuda/datos/controles_senalados.dart';
-import '../../ayuda/vista/control_senalado.dart';
 import '../../mapa/registro.dart';
-import '../../pedidos/datos/formato.dart';
-import '../datos/abrir_y_compartir.dart';
-import '../datos/enlace_de_la_ruta.dart';
 import '../datos/mapa_en_vivo.dart';
 import '../datos/recorrido.dart';
 import '../datos/repositorio_rutas.dart';
-import '../estado/proveedores_rutas.dart' show consultasRutasProvider;
 import 'croquis_de_ruta.dart';
 
 /// LAS FRASES, con nombre y publicas.
@@ -113,32 +104,10 @@ abstract final class TextosDelMapa {
     que.recorridoPorCarretera ? recorridoPorCarretera : recorridoAproximado,
     siempre,
   ].where((t) => t.isNotEmpty).join(' ');
-
-  /// Cuando abrir Google Maps no sale. **Nombra el motivo**, que es la regla de
-  /// la casa: «no se pudo» no le dice a nadie que hacer.
-  static const noSeAbrio =
-      'No se pudo abrir Google Maps. Hace falta señal y una aplicación que abra '
-      'enlaces; mientras tanto, «Copiar» deja el enlace en el portapapeles.';
-
-  static const noSeCompartio =
-      'Este aparato no ofreció ningún modo de compartir. Con «Copiar» el enlace '
-      'queda en el portapapeles.';
-
-  static const noSeAbrioWhatsApp =
-      'No se pudo abrir WhatsApp. Comprueba que está instalado; mientras tanto, '
-      '«Copiar» deja el mensaje en el portapapeles.';
-
-  static const copiado = 'Copiado. Ya se puede pegar en un chat.';
 }
 
-/// Las claves con las que la prueba pulsa. Publicas y por nombre: buscarlas por
-/// el texto del boton ataria la prueba a como se llama hoy.
-const claveDeAbrirEnGoogleMaps = ValueKey('mapa-abrir-en-google-maps');
-const claveDeWhatsApp = ValueKey('mapa-compartir-por-whatsapp');
-const claveDeCompartir = ValueKey('mapa-compartir-con-el-sistema');
-const claveDeCopiar = ValueKey('mapa-copiar-el-mensaje');
+/// La clave con la que la prueba encuentra el recuadro de «sin recorrido».
 const claveDeSinRecorrido = ValueKey('mapa-sin-recorrido');
-const claveDeLoQueQuedaFuera = ValueKey('mapa-lo-que-queda-fuera');
 
 class MapaDeLaRuta extends ConsumerStatefulWidget {
   const MapaDeLaRuta({required this.ruta, super.key});
@@ -161,7 +130,6 @@ class _MapaDeLaRutaState extends ConsumerState<MapaDeLaRuta> {
   @override
   Widget build(BuildContext context) {
     final recorrido = recorridoDe(widget.ruta);
-    final enlace = enlaceDeLaRuta(recorrido);
     final enElAparato = ref.watch(trabajaSinConexionProvider);
 
     return Column(
@@ -218,24 +186,6 @@ class _MapaDeLaRutaState extends ConsumerState<MapaDeLaRuta> {
           const SizedBox(height: 8),
           _SinMapaDescargado(),
         ],
-
-        // LO QUE NO VIAJA EN EL ENLACE, con su numero y su motivo. El comentario
-        // que traia el patron vale palabra por palabra: un enlace que se come
-        // cinco paradas en silencio manda al chofer a dar media vuelta.
-        if (enlace.loQueQuedaFuera != null) ...[
-          const SizedBox(height: 6),
-          _Aviso(key: claveDeLoQueQuedaFuera, texto: enlace.loQueQuedaFuera!),
-        ],
-
-        // Y si NO HAY enlace, se dice por que, aunque el mapa se vea bien: son
-        // dos cosas distintas y fallan por separado.
-        if (!enlace.hay) ...[
-          const SizedBox(height: 6),
-          _Aviso(texto: enlace.motivo!),
-        ],
-
-        const SizedBox(height: 10),
-        _Acciones(ruta: widget.ruta, enlace: enlace),
       ],
     );
   }
@@ -268,159 +218,6 @@ class _SinRecorrido extends StatelessWidget {
       ),
     ),
   );
-}
-
-class _Aviso extends StatelessWidget {
-  const _Aviso({required this.texto, super.key});
-
-  final String texto;
-
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: Colores.ambarFondo,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Text(texto, style: TextStyle(fontSize: 11, color: Colores.tinta)),
-    ),
-  );
-}
-
-class _Acciones extends ConsumerWidget {
-  const _Acciones({required this.ruta, required this.enlace});
-
-  final RutaConTodo ruta;
-  final EnlaceDeLaRuta enlace;
-
-  /// Lo que lleva cada parada, leído UNA vez al pulsar (no se vigila: un `watch` aquí dejaría un stream de Drift vivo en cada
-  /// mapa que se abre, y el mensaje solo hace falta cuando alguien comparte). Si la base no contesta, el mensaje sale igual, sin
-  /// productos: compartir la ruta no puede depender de eso.
-  Future<Map<String, List<LineaDeEntrega>>> _productos(WidgetRef ref) async {
-    try {
-      final porParada = await ref
-          .read(consultasRutasProvider)
-          .renglonesDe([for (final p in ruta.paradas) p.id]);
-      return {
-        for (final e in porParada.entries)
-          e.key: [
-            for (final r in e.value)
-              (cantidad: r.empaques, producto: r.renglon.description),
-          ],
-      };
-    } on Object catch (e) {
-      Registro.aviso('no se pudieron leer los productos de las paradas para el mensaje: $e');
-      return const {};
-    }
-  }
-
-  /// El texto que se manda. Se arma una sola vez por pulsación y lo usan los tres gestos, para
-  /// que el chofer reciba lo mismo venga por donde venga. Lleva, por parada, la factura y lo que se baja
-  /// (04/11/2026): Google Maps no admite notas en las paradas, así que va aquí, en el mismo orden.
-  Future<String> _mensaje(WidgetRef ref) async {
-    final r = ruta.ruta;
-    final vehiculo = ruta.vehiculo;
-    final productos = await _productos(ref);
-    return mensajeParaElChofer(
-      titulo: [
-        'Ruta ${r.routeCode ?? r.id}',
-        if (r.name != null) r.name!,
-      ].join(' — '),
-      resumen: [
-        EnlaceDeLaRuta.cuantasParadas(ruta.paradas.length),
-        '${r.totalDistance.toStringAsFixed(1)} km (incl. regreso)',
-        if (vehiculo != null)
-          vehiculo.plate == null
-              ? vehiculo.name
-              : '${vehiculo.name} (${vehiculo.plate})',
-        fechaCorta(r.deliveryDate),
-      ].join(' · '),
-      enlace: enlace,
-      paradas: listaDeParadasParaElChofer(
-        recorridoDe(ruta),
-        productos: productos,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final aparato = ref.watch(abrirYCompartirProvider);
-    final mensajero = ScaffoldMessenger.maybeOf(context);
-
-    void decir(String texto) => mensajero?.showSnackBar(
-      SnackBar(content: Text(texto), duration: const Duration(seconds: 5)),
-    );
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        // ABRIR EN GOOGLE MAPS. Es el unico que se apaga sin enlace: no hay nada
-        // que abrir. Los otros tres siguen sirviendo, porque un mensaje que dice
-        // «esta ruta no tiene coordenadas del almacen» le sirve al chofer para
-        // llamar a la oficina, y un boton muerto no le sirve para nada.
-        ControlSenalado(
-          nombre: Senalado.rutasAbrirEnGoogleMaps,
-          child: FilledButton.icon(
-            key: claveDeAbrirEnGoogleMaps,
-            icon: const Icon(Icons.map_outlined, size: 18),
-            label: const Text('Abrir en Google Maps'),
-            onPressed: !enlace.hay
-                ? null
-                : () async {
-                    if (!await aparato.abrir(Uri.parse(enlace.url!))) {
-                      decir(TextosDelMapa.noSeAbrio);
-                    }
-                  },
-          ),
-        ),
-        ControlSenalado(
-          nombre: Senalado.rutasWhatsApp,
-          child: OutlinedButton.icon(
-            key: claveDeWhatsApp,
-            icon: const Icon(Icons.chat_outlined, size: 18),
-            label: const Text('WhatsApp'),
-            onPressed: () async {
-              if (!await aparato.abrir(enlaceDeWhatsApp(await _mensaje(ref)))) {
-                decir(TextosDelMapa.noSeAbrioWhatsApp);
-              }
-            },
-          ),
-        ),
-        ControlSenalado(
-          nombre: Senalado.rutasCompartir,
-          child: OutlinedButton.icon(
-            key: claveDeCompartir,
-            icon: const Icon(Icons.ios_share, size: 18),
-            label: const Text('Compartir'),
-            onPressed: () async {
-              if (!await aparato.compartir(
-                texto: await _mensaje(ref),
-                asunto: 'Ruta ${ruta.ruta.routeCode ?? ruta.ruta.id}',
-              )) {
-                decir(TextosDelMapa.noSeCompartio);
-              }
-            },
-          ),
-        ),
-        ControlSenalado(
-          nombre: Senalado.rutasCopiar,
-          child: OutlinedButton.icon(
-            key: claveDeCopiar,
-            icon: const Icon(Icons.copy_all_outlined, size: 18),
-            label: const Text('Copiar'),
-            onPressed: () async {
-              if (await aparato.copiar(await _mensaje(ref))) {
-                decir(TextosDelMapa.copiado);
-              }
-            },
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// «No tienes el mapa de Cuba» + el botón que lleva a bajarlo.

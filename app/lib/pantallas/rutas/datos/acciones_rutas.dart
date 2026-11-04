@@ -79,7 +79,7 @@ import 'importe_de_la_ruta.dart';
 /// sin ellos.
 ///
 /// El patron de plural es el de la casa —`n == 1 ? singular : plural`, como
-/// `EnlaceDeLaRuta.cuantasParadas`—, con el cero cayendo en plural.
+/// `cuantasParadas`—, con el cero cayendo en plural.
 String encabezadoDelArmado(int seCaen, int seEligieron) {
   final verbo = seCaen == 1 ? 'no puede ir' : 'no pueden ir';
   if (seEligieron == 1) return 'La factura elegida $verbo en esta ruta: ';

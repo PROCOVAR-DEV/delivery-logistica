@@ -32,7 +32,7 @@ Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · �
 12. Compilar y publicar el APK del distribuidor + canal de descarga + tarjeta del portal
 13. Prueba en teléfono real (tuya) y cierre al 100 %
 
-## 1. Reparto — servidor (API y sync): 92 % (12 de 13; solo falta el despliegue)
+## 1. Reparto — servidor (API y sync): 93 % (13 de 14; solo falta el despliegue)
 
 - ✔ 1. Lista blanca del distribuidor en la API y en el sync (falla cerrado; lo que no está, 403)
 - ✔ 2. Alcance por teléfono: solo ve y toca las rutas asignadas a su teléfono (rutas, pedidos, renglones, vehículos, bajada y cuadre)
@@ -46,7 +46,8 @@ Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · �
 - ✔ 10. Revisión por logística (`revisadaAt/revisadaPor`, `POST /api/routes/{id}/revision`, migración 00034; solo la oficina, solo rutas completadas) — con prueba e2e
 - ✔ 11. Vehículo ↔ distribuidor en la API (`distribuidorId` al crear/editar, en la lista, en el detalle y en la bajada; la app lo propone al armar la ruta) — con prueba e2e
 - ✔ 12. Página web del enlace `/r/<código>` (avisa que hay que instalar la app y da la descarga; abre la app con intent) y `assetlinks.json` para que WhatsApp abra la app directamente — probada con nginx local. Falta, al publicar el APK, subir el alias `reparto-distribuidor-ultimo.apk`
-- 🔒 13. Despliegue en producción (migraciones 00032 y 00033, API, sync, web)
+- ✔ 14. Vehículo ↔ teléfono: el enlace lleva el vehículo y el distribuidor, el teléfono se vincula al vehículo (uno a uno), la oficina desvincula (403 `dispositivo_desvinculado`, la APK se vacía) y el servidor conserva la historia por id de dispositivo (migración 00035) — con prueba e2e
+- 🔒 13. Despliegue en producción (migraciones 00032 a 00035, API, sync, web)
 
 ## 2. Reparto — aplicación de la oficina (web, **Windows**, APK de Reparto): 0 % (0 de 11)
 

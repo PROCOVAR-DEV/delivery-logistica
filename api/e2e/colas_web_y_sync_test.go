@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"sync"
 	"testing"
 	"time"
@@ -245,3 +246,144 @@ func TestUnIdMalNoBloqueaLaColaDelAparato(t *testing.T) {
 		t.Fatalf("el de detrás tenía que entrar: %+v", r)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// RUTAS — el caso que originó todo esto (códigos repetidos, 03/11/2026)
+// ---------------------------------------------------------------------------
+
+const alfabeto = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+// codigoDe es la regla del código de ruta, escrita OTRA VEZ aquí a propósito (no se importa la del servidor): fecha UTC del id + 30 bits.
+func codigoDe(id string) string {
+	u := uuid.MustParse(id)
+	ms := int64(u[0])<<40 | int64(u[1])<<32 | int64(u[2])<<24 | int64(u[3])<<16 | int64(u[4])<<8 | int64(u[5])
+	n := (uint32(u[12])<<24 | uint32(u[13])<<16 | uint32(u[14])<<8 | uint32(u[15])) & (1<<30 - 1)
+	var c [6]byte
+	for i := 5; i >= 0; i-- {
+		c[i] = alfabeto[n&31]
+		n >>= 5
+	}
+	return time.UnixMilli(ms).UTC().Format("060102") + "-" + string(c[:])
+}
+
+// siembraDeRuta deja un camión y n pedidos que entran en una ruta (facturados, con domicilio cobrado y coordenadas).
+func (s *stack) siembraDeRuta(n int) (camion string, pedidos []string) {
+	s.t.Helper()
+	ctx := context.Background()
+	var tipo uuid.UUID
+	if err := s.db.QueryRow(ctx, `INSERT INTO vehicle_types (nombre, branch_id) VALUES ($1, $2) RETURNING id`, "tipo-"+uuid.NewString(), s.sucursal).Scan(&tipo); err != nil {
+		s.t.Fatal(err)
+	}
+	var v uuid.UUID
+	if err := s.db.QueryRow(ctx, `INSERT INTO vehicles (name, vehicle_type_id, branch_id) VALUES ($1, $2, $3) RETURNING id`, "camion-"+uuid.NewString()[:8], tipo, s.sucursal).Scan(&v); err != nil {
+		s.t.Fatal(err)
+	}
+	for i := 0; i < n; i++ {
+		var p uuid.UUID
+		if err := s.db.QueryRow(ctx, `
+INSERT INTO orders (customer_name, address, weight, branch_id, source, external_id, end_lat, end_lng, requiere_domicilio,
+                    factura_estado, factura_domicilio, pedido_costo, trip_leg)
+VALUES ($1, 'calle 1', 10, $2, 'pedido'::procedencia, $3, 20.0, -75.0, true, 'igual'::factura_estado, 5, 10, 'outbound'::trip_leg)
+RETURNING id`, fmt.Sprintf("cliente-%d", i), s.sucursal, "ext-"+uuid.NewString()).Scan(&p); err != nil {
+			s.t.Fatal(err)
+		}
+		pedidos = append(pedidos, p.String())
+	}
+	return v.String(), pedidos
+}
+
+func (s *stack) cuerpoDeRuta(id, camion string, pedidos []string) map[string]any {
+	return map[string]any{"id": id, "name": "Ruta e2e", "vehicleId": camion, "originLat": 20.0, "originLng": -75.0, "orderIds": pedidos, "optimizar": true}
+}
+
+func (s *stack) rutaDe(cuerpo []byte) (id, codigo string) {
+	s.t.Helper()
+	var r struct {
+		ID        string `json:"id"`
+		RouteCode string `json:"routeCode"`
+	}
+	if json.Unmarshal(cuerpo, &r) != nil || r.ID == "" {
+		s.t.Fatalf("respuesta de ruta ilegible: %s", cuerpo)
+	}
+	return r.ID, r.RouteCode
+}
+
+func (s *stack) pedidosEnLaRuta(ruta string) int {
+	s.t.Helper()
+	var n int
+	if err := s.db.QueryRow(context.Background(), `SELECT count(*) FROM orders WHERE route_id = $1`, ruta).Scan(&n); err != nil {
+		s.t.Fatal(err)
+	}
+	return n
+}
+
+// 4 · La ruta armada sin señal: el aparato la sube por su cola (id y código suyos) y luego la web manda el MISMO alta (su reintento).
+// Una sola ruta, el código que sale del id, y los pedidos enganchados una sola vez. El cierre que viaja detrás en la misma cola
+// va al mismo id, sin traducir nada.
+func TestLaRutaDelAparatoYElReintentoDeLaWebSonUnaSola(t *testing.T) {
+	s := levantar(t)
+	ap := s.aparato()
+	camion, pedidos := s.siembraDeRuta(2)
+	ruta := nuevo()
+	cuerpo := s.cuerpoDeRuta(ruta, camion, pedidos)
+
+	r := s.subir(ap,
+		apunte{Clave: clave(), Hecho: ahora(), Metodo: "POST", Ruta: "/routes", Cuerpo: cuerpo, Provisional: ruta},
+		apunte{Clave: clave(), Hecho: ahora(), Metodo: "POST", Ruta: "/routes/" + ruta + "/results",
+			Cuerpo: map[string]any{"resultados": []map[string]any{{"orderId": pedidos[0], "resultado": "entregado"}}}},
+	)
+	if len(r) != 2 || r[0].Estado != "aplicado" || r[0].ID != ruta {
+		t.Fatalf("el alta de la ruta por la cola del aparato: %+v", r)
+	}
+	if r[1].Estado != "aplicado" {
+		t.Fatalf("el cierre iba detrás con el MISMO id y tenía que aplicarse: %+v", r[1])
+	}
+
+	code, b := s.web("POST", "/routes", cuerpo) // el reintento de la web, con el mismo id
+	if code != 200 && code != 201 {
+		t.Fatalf("la web con el mismo id: %d %s", code, b)
+	}
+	id, codigo := s.rutaDe(b)
+	if id != ruta || codigo != codigoDe(ruta) {
+		t.Fatalf("id=%s código=%s, esperaba %s / %s", id, codigo, ruta, codigoDe(ruta))
+	}
+	if s.cuantos("routes", ruta) != 1 || s.pedidosEnLaRuta(ruta) != 2 {
+		t.Fatalf("tenía que haber UNA ruta con sus 2 pedidos enganchados una vez")
+	}
+	if ok, _ := regexpFormato(codigo); !ok {
+		t.Fatalf("el código %q no es AAMMDD-XXXXXX", codigo)
+	}
+}
+
+// 5 · El choque de verdad: una ruta ya tiene el código que le saldría a la nueva. La nueva CONSERVA su id y recibe otro código libre;
+// nunca dos rutas con el mismo código.
+func TestSiElCodigoChocaLaRutaConservaSuIdYRecibeOtro(t *testing.T) {
+	s := levantar(t)
+	ap := s.aparato()
+	camion, pedidos := s.siembraDeRuta(1)
+	ruta := nuevo()
+	ocupado := codigoDe(ruta)
+	if _, err := s.db.Exec(context.Background(), `INSERT INTO routes (branch_id, status, name, route_code) VALUES ($1, 'planned', 'ocupa el codigo', $2)`, s.sucursal, ocupado); err != nil {
+		t.Fatal(err)
+	}
+
+	r := s.subir(ap, apunte{Clave: clave(), Hecho: ahora(), Metodo: "POST", Ruta: "/routes", Cuerpo: s.cuerpoDeRuta(ruta, camion, pedidos), Provisional: ruta})
+	if len(r) != 1 || r[0].Estado != "aplicado" || r[0].ID != ruta {
+		t.Fatalf("la ruta con el código ocupado tenía que entrar con SU id: %+v", r)
+	}
+	var codigo string
+	if err := s.db.QueryRow(context.Background(), `SELECT route_code FROM routes WHERE id = $1`, ruta).Scan(&codigo); err != nil {
+		t.Fatal(err)
+	}
+	if codigo == "" || codigo == ocupado {
+		t.Fatalf("tenía que recibir OTRO código y tiene %q (ocupado %q)", codigo, ocupado)
+	}
+	var cuantas int
+	if err := s.db.QueryRow(context.Background(), `SELECT count(*) FROM routes WHERE route_code = $1`, ocupado).Scan(&cuantas); err != nil || cuantas != 1 {
+		t.Fatalf("el código ocupado lo tiene %d rutas (err %v)", cuantas, err)
+	}
+}
+
+var reFormato = regexp.MustCompile(`^[0-9]{6}-[0-9A-HJKMNP-TV-Z]{6}$`)
+
+func regexpFormato(c string) (bool, error) { return reFormato.MatchString(c), nil }

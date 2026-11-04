@@ -84,7 +84,7 @@ class Huerfanos {
     // cuerpo de una zona del tablero desde la base, y de estas no. Por eso son
     // las unicas que se pueden dar por perdidas a mano — a una zona no hay que
     // renunciar, sube sola en cuanto haya senal.
-    Sitio('routes', 'ruta', 'rutas'),
+    rutas,
     Sitio('vehicles', 'vehículo', 'vehículos'),
     Sitio('vehicle_types', 'tipo de vehículo', 'tipos de vehículo'),
     Sitio('distribuidores', 'distribuidor', 'distribuidores'),
@@ -318,7 +318,18 @@ class Huerfanos {
   /// Se saca a constante por lo mismo que [zonasDelTablero]: la pantalla y las
   /// pruebas necesitan nombrar el sitio, y escribirlo otra vez a mano seria una
   /// segunda copia de la condicion.
-  static const rutas = Sitio('routes', 'ruta', 'rutas');
+  ///
+  /// **Su id ya no lleva `local-`** (04/11/2026): la ruta nace en el aparato con su UUIDv7 definitivo. «Todavía no está arriba»
+  /// es entonces que el apunte que la CREA (`provisional = id`) existe y NO se aplicó. Se sigue mirando también el `local-` de
+  /// las rutas de antes de la 1.0.51, que pueden estar aún en la cola de un aparato.
+  static const rutas = Sitio(
+    'routes',
+    'ruta',
+    'rutas',
+    condicion:
+        "(t.id LIKE 'local-%' OR EXISTS (SELECT 1 FROM apuntes x "
+        "WHERE x.provisional = t.id AND x.estado <> 'aplicado'))",
+  );
 
   /// La zona del tablero, que es la unica que hoy se sabe reconstruir.
   static const zonasDelTablero = Sitio(

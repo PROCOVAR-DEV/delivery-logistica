@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
@@ -75,6 +76,38 @@ void main() {
       );
     }
   }
+
+  test('una RUTA con UUIDv7 es huérfana si su alta se descartó; con el alta viva o aplicada, no', () async {
+    // 04/11/2026: sin `local-` en el id, lo que dice «esto no está arriba» es el apunte que la CREA y no se aplicó.
+    const pendiente = '01a1a72e-6cc0-7abc-8def-0123456789ab';
+    const descartada = '01a1a72e-6cc0-7abc-8def-0123456789ac';
+    const aplicada = '01a1a72e-6cc0-7abc-8def-0123456789ad';
+    for (final id in [pendiente, descartada, aplicada]) {
+      await base.customStatement("INSERT INTO routes (id) VALUES ('$id')");
+    }
+    var n = 0;
+    for (final e in {
+      pendiente: EstadoApunte.pendiente,
+      descartada: EstadoApunte.descartado,
+      aplicada: EstadoApunte.aplicado,
+    }.entries) {
+      await base
+          .into(base.apuntes)
+          .insert(
+            ApuntesCompanion.insert(
+              clave: 'r${n++}',
+              hechoAt: DateTime(2026, 11, 4),
+              metodo: 'POST',
+              ruta: '/routes',
+              cuerpo: '{"id":"${e.key}"}',
+              provisional: Value(e.key),
+              estado: Value(e.value),
+            ),
+          );
+    }
+
+    expect(await Huerfanos(base).idsDe(Huerfanos.rutas), [descartada]);
+  });
 
   test('una zona local SIN apunte que la suba es trabajo huérfano', () async {
     await zonaLocal('local-abc', pedidos: ['p1', 'p2']);

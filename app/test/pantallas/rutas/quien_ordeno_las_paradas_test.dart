@@ -35,7 +35,6 @@ void main() {
       base,
       cola,
       reloj: reloj.leer,
-      sufijoAparato: 'MSI',
     );
     await sembrarCatalogo(base);
 

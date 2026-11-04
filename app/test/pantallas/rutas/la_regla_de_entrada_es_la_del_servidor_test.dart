@@ -28,6 +28,7 @@ import 'package:reparto/pantallas/tablero/datos/consultas.dart';
 import 'package:reparto/pantallas/tablero/datos/modelos.dart';
 import 'package:reparto/pantallas/tablero/datos/repositorio.dart';
 
+import '../../apoyo/uuid_v7.dart';
 import '../../apoyo/base_de_prueba.dart';
 import '../tablero/apoyo.dart';
 
@@ -169,7 +170,6 @@ void main() {
       final acciones = AccionesDeRuta(
         base,
         ColaDeSalida(base),
-        sufijoAparato: 'MSI',
       );
       Future<String> armar() => acciones.armar(
         vehiculoId: 'v1',
@@ -178,7 +178,7 @@ void main() {
         origenLng: almacenLng,
       );
       if (entra) {
-        expect(await armar(), startsWith('local-'), reason: nota);
+        expect(await armar(), matches(unUuidV7), reason: nota);
       } else {
         await expectLater(
           armar,

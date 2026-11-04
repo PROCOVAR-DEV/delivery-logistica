@@ -6,15 +6,23 @@
 // pudo» y el servidor dice «3 de los 8 pedidos ya están en otra ruta», la persona
 // aprende que la aplicacion miente a veces.
 
-import 'package:drift/drift.dart' show Value;
+import 'dart:convert';
+
+import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
+import 'package:reparto/nucleo/codigo_de_ruta.dart';
 import 'package:reparto/pantallas/rutas/datos/acciones_rutas.dart';
 
 import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/reloj_falso.dart';
 import '../pedidos/sembrar.dart';
+
+/// El id de una ruta hecha en el aparato: un UUIDv7 definitivo, sin `local-` (04/11/2026).
+final unUuidV7 = RegExp(
+  r'^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+);
 
 void main() {
   late BaseLocal base;
@@ -26,12 +34,7 @@ void main() {
     base = baseDePrueba();
     reloj = RelojFalso(DateTime.utc(2026, 9, 14, 16, 5));
     cola = ColaDeSalida(base, reloj: reloj.leer);
-    acciones = AccionesDeRuta(
-      base,
-      cola,
-      reloj: reloj.leer,
-      sufijoAparato: 'MSI',
-    );
+    acciones = AccionesDeRuta(base, cola, reloj: reloj.leer);
     await sembrarCatalogo(base);
 
     // Tres paradas en el ecuador, a 0.1 / 0.3 / 0.2 grados de longitud del
@@ -93,17 +96,18 @@ void main() {
     nombre: 'Reparto de la mañana',
   );
 
-  test('la ruta se arma entera en el aparato y sale con id local', () async {
+  test('la ruta se arma entera en el aparato y sale con su UUIDv7 y su codigo', () async {
     final rutaId = await armarLasTres();
-    expect(rutaId, startsWith('local-'));
+    expect(rutaId, matches(unUuidV7));
 
     final ruta = await (base.select(
       base.routes,
     )..where((r) => r.id.equals(rutaId))).getSingle();
 
-    // El codigo lleva el sufijo del aparato: sin el, dos sucursales sin red el
-    // mismo dia generarian los dos `RT-20260914-001`.
-    expect(ruta.routeCode, 'RT-20260914-001-MSI');
+    // El codigo SALE DEL ID (fecha UTC del id + 30 bits suyos): sin prefijo y sin
+    // contar nada, asi que dos aparatos sin red nunca generan el mismo.
+    expect(ruta.routeCode, codigoDeRutaDe(rutaId));
+    expect(ruta.routeCode, matches(RegExp(r'^\d{6}-[0-9A-HJKMNP-TV-Z]{6}$')));
     expect(ruta.totalWeight, 600);
     // 10 + 60 + 30 (los `pedidoCosto` sembrados son 10 por defecto) — aqui los
     // tres valen 10, asi que el total es 30.
@@ -355,7 +359,7 @@ void main() {
           sucursalId: 'B1',
         );
 
-        expect(rutaId, startsWith('local-'));
+        expect(rutaId, matches(unUuidV7));
         // Y cada pedido entra UNA vez: si el repetido se colara como parada, la
         // hoja de ruta mandaría al camión dos veces a la misma puerta.
         final paradas = await (base.select(
@@ -411,7 +415,7 @@ void main() {
       await (base.update(base.orders)..where((o) => o.id.equals('q3'))).write(
         const OrdersCompanion(facturaDomicilio: Value(null)),
       );
-      expect(await armarLasTres(), startsWith('local-'));
+      expect(await armarLasTres(), matches(unUuidV7));
     });
 
     test(
@@ -420,7 +424,7 @@ void main() {
         await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
           const OrdersCompanion(pedidoCosto: Value(null)),
         );
-        expect(await armarLasTres(), startsWith('local-'));
+        expect(await armarLasTres(), matches(unUuidV7));
       },
     );
 
@@ -434,14 +438,14 @@ void main() {
           requiereDomicilio: Value(false),
         ),
       );
-      expect(await armarLasTres(), startsWith('local-'));
+      expect(await armarLasTres(), matches(unUuidV7));
     });
 
     test('un domicilio cotizado en CERO si entra: cero es un precio', () async {
       await (base.update(base.orders)..where((o) => o.id.equals('q2'))).write(
         const OrdersCompanion(pedidoCosto: Value(0)),
       );
-      expect(await armarLasTres(), startsWith('local-'));
+      expect(await armarLasTres(), matches(unUuidV7));
     });
 
     // UN CAMION DE BAJA NO SALE — Amado, 07/10/2026 (incidencia 4).
@@ -468,7 +472,7 @@ void main() {
       await (base.update(base.vehicles)..where((v) => v.id.equals('V1'))).write(
         const VehiclesCompanion(isActive: Value(true)),
       );
-      expect(await armarLasTres(), startsWith('local-'));
+      expect(await armarLasTres(), matches(unUuidV7));
     });
 
     test(
@@ -561,25 +565,44 @@ void main() {
     },
   );
 
-  test('los numeros de ruta se van sucediendo en el aparato', () async {
-    await armarLasTres();
-    await sembrarPedido(
-      base,
-      id: 'q4',
-      cliente: 'Dani',
-      peso: 10,
-      endLat: 0,
-      endLng: 0.4,
-    );
-    final segunda = await acciones.armar(
-      vehiculoId: 'V1',
-      pedidoIds: ['q4'],
-      origenLat: 0,
-      origenLng: 0,
-    );
-    final ruta = await (base.select(
-      base.routes,
-    )..where((r) => r.id.equals(segunda))).getSingle();
-    expect(ruta.routeCode, 'RT-20260914-002-MSI');
-  });
+  test(
+    'cada ruta del aparato trae su codigo propio y el id viaja en el apunte',
+    () async {
+      final primera = await armarLasTres();
+      await sembrarPedido(
+        base,
+        id: 'q4',
+        cliente: 'Dani',
+        peso: 10,
+        endLat: 0,
+        endLng: 0.4,
+      );
+      final segunda = await acciones.armar(
+        vehiculoId: 'V1',
+        pedidoIds: ['q4'],
+        origenLat: 0,
+        origenLng: 0,
+      );
+      final codigos = [
+        for (final id in [primera, segunda])
+          (await (base.select(
+            base.routes,
+          )..where((r) => r.id.equals(id))).getSingle()).routeCode,
+      ];
+      expect(codigos[0], isNot(codigos[1]));
+
+      // El servidor RESPETA lo que el aparato ya hizo: el id va en el cuerpo del alta y el apunte
+      // sigue nombrando a la ruta que crea, para lo huerfano y para el cuadre.
+      final apuntes = await (base.select(
+        base.apuntes,
+      )..orderBy([(a) => OrderingTerm.asc(a.orden)])).get();
+      final altas = apuntes.where((a) => a.ruta == '/routes').toList();
+      expect(altas.length, 2);
+      expect(altas.map((a) => a.provisional), [primera, segunda]);
+      expect(altas.map((a) => (jsonDecode(a.cuerpo) as Map)['id']), [
+        primera,
+        segunda,
+      ]);
+    },
+  );
 }

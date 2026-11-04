@@ -62,7 +62,18 @@ class Cuadre {
       for (final c in (datos['truncado'] as List<Object?>?) ?? const []) '$c',
     };
 
-    final enUso = await _loQueNombranLosApuntesPendientes();
+    final enUsoPendiente = await _loQueNombranLosApuntes([
+      EstadoApunte.pendiente,
+    ]);
+    // LO QUE CREÓ UN APUNTE RECHAZADO O EN REVISIÓN TAMPOCO SE QUITA (04/11/2026). Antes lo protegía el `local-` del id;
+    // ahora que una ruta nace con su UUIDv7 definitivo, sin esto el cuadre borraría una ruta cuyo alta quedó rechazada
+    // y la persona perdería lo que aún puede reintentar. Solo fuera de los pedidos: ahí un rechazado sobre una factura
+    // que ya no existe se CIERRA a propósito (`_cerrarLosRechazadosDeLoQueYaNoExiste`).
+    final enUsoConRechazos = await _loQueNombranLosApuntes([
+      EstadoApunte.pendiente,
+      EstadoApunte.rechazado,
+      EstadoApunte.enRevision,
+    ]);
     final quitadas = <QuitadaDelCuadre>[];
     final noCuadradas = <String>[];
     final faltaban = <String, int>{};
@@ -99,6 +110,9 @@ class Cuadre {
         continue;
       }
 
+      final enUso = coleccion == Colecciones.pedidos
+          ? enUsoPendiente
+          : enUsoConRechazos;
       final sobran = [
         for (final f in locales)
           if (!vivas.contains(f.id) &&
@@ -161,10 +175,10 @@ class Cuadre {
 
   /// El TEXTO de los apuntes que TODAVÍA NO SE RESOLVIERON (pendientes): trabajo sin subir. Un id está «en uso» si
   /// aparece tal cual en alguno (la ruta o el cuerpo): sin suponer cómo es el id.
-  Future<_Texto> _loQueNombranLosApuntesPendientes() async {
+  Future<_Texto> _loQueNombranLosApuntes(List<EstadoApunte> estados) async {
     final vivos = await (_base.select(
       _base.apuntes,
-    )..where((a) => a.estado.equalsValue(EstadoApunte.pendiente))).get();
+    )..where((a) => a.estado.isInValues(estados))).get();
     return _Texto([for (final a in vivos) '${a.ruta} ${a.cuerpo}']);
   }
 

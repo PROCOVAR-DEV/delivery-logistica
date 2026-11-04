@@ -41,7 +41,6 @@ void main() {
       base,
       ColaDeSalida(base, reloj: reloj.leer),
       reloj: reloj.leer,
-      sufijoAparato: 'MSI',
     );
   });
 

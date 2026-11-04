@@ -32,7 +32,7 @@ void main() {
     base = baseDePrueba();
     final reloj = RelojFalso(DateTime.utc(2026, 10, 14, 9));
     cola = ColaDeSalida(base, reloj: reloj.leer);
-    acciones = AccionesDeRuta(base, cola, reloj: reloj.leer, sufijoAparato: 'MSI');
+    acciones = AccionesDeRuta(base, cola, reloj: reloj.leer);
     await sembrarCatalogo(base);
     await sembrarPedido(
       base, id: 'q1', cliente: 'Ana', folio: 'F-001', peso: 10, endLat: 0, endLng: 0.1,

@@ -39,7 +39,7 @@ void main() {
     base = baseDePrueba();
     reloj = RelojFalso(DateTime.utc(2026, 9, 21, 16, 5));
     cola = ColaDeSalida(base, reloj: reloj.leer);
-    acciones = AccionesDeRuta(base, cola, reloj: reloj.leer, sufijoAparato: 'MSI');
+    acciones = AccionesDeRuta(base, cola, reloj: reloj.leer);
     consultas = ConsultasRutas(base);
     await sembrarCatalogo(base);
   });

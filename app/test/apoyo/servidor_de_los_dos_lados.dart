@@ -366,7 +366,9 @@ class ServidorDeLosDosLados {
           'La columna no tiene ningún pedido que se pueda repartir hoy',
         );
       }
-      final rutaId = 'ruta-servidor-${++_cuantasRutas}';
+      // Como el servidor de verdad (04/11/2026): si el aparato manda el id de la ruta, lo RESPETA.
+      final rutaId =
+          cuerpo['id'] as String? ?? 'ruta-servidor-${++_cuantasRutas}';
       rutas[rutaId] = van;
       for (final pedidoId in van) {
         puestas.remove(pedidoId);

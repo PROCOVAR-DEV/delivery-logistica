@@ -28,6 +28,8 @@ import 'package:reparto/nucleo/red/cliente_api.dart';
 import 'package:reparto/nucleo/red/escritura_en_vivo.dart';
 import 'package:reparto/pantallas/rutas/datos/acciones_rutas.dart';
 
+import '../../apoyo/uuid_v7.dart';
+import 'package:reparto/nucleo/codigo_de_ruta.dart';
 import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/reloj_falso.dart';
 import '../../apoyo/servidor_falso.dart';
@@ -56,7 +58,6 @@ void main() {
       base,
       cola,
       reloj: reloj.leer,
-      sufijoAparato: 'WEB',
       enVivo: EscrituraEnVivo(
         // Sin esperas: un `FalloDeRed` no se reintenta cuatro veces dentro de
         // una prueba, que es como se pasa de 40 ms a 15 s sin enterarse.
@@ -67,7 +68,6 @@ void main() {
       base,
       cola,
       reloj: reloj.leer,
-      sufijoAparato: 'MSI',
     );
 
     await sembrarCatalogo(base);
@@ -628,7 +628,7 @@ void main() {
             'la APK arma la ruta en el patio de un almacén, sin señal: si esto '
             'llama a alguien, no se puede armar una ruta sin red',
       );
-      expect(rutaId, startsWith('local-'));
+      expect(rutaId, matches(unUuidV7));
       expect(await cuantosApuntes(), 1);
 
       final apunte = (await cola.pendientes().first).single;
@@ -639,11 +639,12 @@ void main() {
       expect(cuerpo['orderIds'], ['q1', 'q2']);
       expect(cuerpo['optimizar'], true);
 
-      // Y el código de ruta lo sigue poniendo el aparato, con su sufijo.
+      // Y el código de ruta lo pone el aparato, y sale del id (04/11/2026).
       final ruta = await (base.select(
         base.routes,
       )..where((r) => r.id.equals(rutaId))).getSingle();
-      expect(ruta.routeCode, 'RT-20260922-001-MSI');
+      expect(ruta.routeCode, codigoDeRutaDe(rutaId));
+      expect(cuerpo['id'], rutaId);
     });
 
     test('iniciar y eliminar en la APK: local + cola, sin red', () async {

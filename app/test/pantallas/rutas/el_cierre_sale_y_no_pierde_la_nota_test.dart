@@ -83,7 +83,6 @@ void main() {
                 base,
                 ref.watch(colaProvider),
                 reloj: () => hora,
-                sufijoAparato: 'WEB',
                 enVivo: EscrituraEnVivo(ClienteApi(dio: dio, esperas: const <Duration>[])),
               ),
             ),

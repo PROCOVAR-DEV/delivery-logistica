@@ -22,9 +22,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/apunte.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
-import 'package:reparto/nucleo/cola/provisionales.dart';
 import 'package:reparto/pantallas/rutas/datos/acciones_rutas.dart';
 
+import '../../apoyo/uuid_v7.dart';
 import '../../apoyo/reloj_falso.dart';
 import '../pedidos/sembrar.dart';
 
@@ -47,7 +47,6 @@ void main() {
       base,
       cola,
       reloj: reloj.leer,
-      sufijoAparato: 'MSI',
     );
   }
 
@@ -236,7 +235,7 @@ void main() {
   );
 
   test(
-    'una ruta armada sin red: el cierre deja de decir `local-` cuando sube',
+    'una ruta armada sin red: su id ya es el definitivo y el cierre sigue nombrándola cuando sube',
     () async {
       // Un pedido suelto con coordenadas, para armar la ruta aqui mismo.
       await sembrarPedido(
@@ -254,7 +253,7 @@ void main() {
         origenLng: 0,
         sucursalId: 'B1',
       );
-      expect(rutaId, startsWith('local-'));
+      expect(rutaId, matches(unUuidV7));
 
       await acciones.cerrar(rutaId, const [
         MarcaDeParada(pedidoId: 'p9', resultado: ResultadoParada.entregado),
@@ -264,28 +263,23 @@ void main() {
       expect(pendientes.length, 2);
       expect(pendientes.last.ruta, '/routes/$rutaId/results');
 
-      // Sube la creacion de la ruta y el servidor devuelve el id de verdad.
+      // Sube la creacion de la ruta: el servidor respeta el id del aparato.
       await cola.resolver(
         pendientes.first.clave,
-        const ResultadoApunte(estado: EstadoResultado.aplicado, id: 'cm2xreal'),
+        ResultadoApunte(estado: EstadoResultado.aplicado, id: rutaId),
       );
 
       pendientes = await cola.pendientes().first;
       expect(pendientes.length, 1);
       expect(
         pendientes.single.ruta,
-        '/routes/cm2xreal/results',
-        reason:
-            'sin esto el cierre se perderia JUSTO DESPUES de subir (caso S4)',
+        '/routes/$rutaId/results',
+        reason: 'el cierre no se pierde JUSTO DESPUES de subir (caso S4)',
       );
-      expect(pendientes.single.ruta, isNot(contains('local-')));
-
-      // Y la fila local tambien deja de decir `local-`.
       final ruta = await (base.select(
         base.routes,
-      )..where((r) => r.id.equals('cm2xreal'))).getSingleOrNull();
+      )..where((r) => r.id.equals(rutaId))).getSingleOrNull();
       expect(ruta, isNotNull);
-      expect(await Provisionales(base).real(rutaId), 'cm2xreal');
     },
   );
 

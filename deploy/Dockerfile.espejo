@@ -89,6 +89,7 @@ COPY docs/orden-de-paradas.casos.json /docs/orden-de-paradas.casos.json
 # Los dos van aquí y no en el `.dockerignore`: se excluye lo que se REGENERA, nunca lo que
 # se NECESITA, y un fichero de `docs/` puede ser código para una prueba.
 COPY docs/almacen-de-origen.casos.json /docs/almacen-de-origen.casos.json
+COPY docs/codigo-de-ruta.casos.json /docs/codigo-de-ruta.casos.json
 COPY docker-compose.yml /docker-compose.yml
 
 # Y EL TERCERO, QUE VOLVIÓ A MORDER — 29/09/2026, y con eso van TRES veces.

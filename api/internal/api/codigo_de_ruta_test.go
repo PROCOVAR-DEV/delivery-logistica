@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -147,5 +149,29 @@ func TestSinCodigosRepetidosEnMuchosIds(t *testing.T) {
 			t.Fatalf("código repetido %q en la ruta %d", c, i)
 		}
 		vistos[c] = true
+	}
+}
+
+// Los casos de `docs/codigo-de-ruta.casos.json` los lee TAMBIÉN la prueba de Dart (app/test/nucleo/codigo_de_ruta_test.dart): salen de una
+// implementación independiente, y así el aparato y el servidor no pueden calcular códigos distintos para el mismo id sin que salte.
+func TestLosCasosCompartidosDanElMismoCodigo(t *testing.T) {
+	crudo, err := os.ReadFile("../../../docs/codigo-de-ruta.casos.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f struct {
+		Casos []struct{ Nota, ID, Codigo string } `json:"casos"`
+	}
+	if err := json.Unmarshal(crudo, &f); err != nil || len(f.Casos) < 8 {
+		t.Fatalf("casos: %d err=%v", len(f.Casos), err)
+	}
+	for _, c := range f.Casos {
+		id, err := uuid.Parse(c.ID)
+		if err != nil || id.Version() != 7 {
+			t.Fatalf("%s: %q no es v7", c.Nota, c.ID)
+		}
+		if got := codigoDeRutaDe(id); got != c.Codigo {
+			t.Errorf("%s: %s dio %q y el fichero dice %q", c.Nota, c.ID, got, c.Codigo)
+		}
 	}
 }

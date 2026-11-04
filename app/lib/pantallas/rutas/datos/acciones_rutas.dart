@@ -44,6 +44,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/codigo_de_ruta.dart';
 import '../../../nucleo/cola/cola_salida.dart';
 import '../../../nucleo/cola/provisionales.dart';
 import '../../../nucleo/conduce.dart';
@@ -260,10 +261,8 @@ class AccionesDeRuta {
     this._base,
     this._cola, {
     Reloj reloj = relojDelAparato,
-    String sufijoAparato = 'LOC',
     EscrituraEnVivo? enVivo,
   }) : _reloj = reloj,
-       _sufijo = sufijoAparato,
        _enVivo = enVivo;
 
   final BaseLocal _base;
@@ -299,10 +298,6 @@ class AccionesDeRuta {
       throw RechazoLocal(no.motivo);
     }
   }
-
-  /// El sufijo que distingue los codigos de ruta generados sin conexion. Sin el,
-  /// dos sucursales sin red el mismo dia generan `RT-20260914-001` las dos.
-  final String _sufijo;
 
   /// LO QUE YA VA DE CAMINO, por accion.
   ///
@@ -520,7 +515,13 @@ class AccionesDeRuta {
     // directo habria dos copias del mismo cuerpo y una se quedaria atras. Es
     // exactamente lo que le paso al mensaje de `_porQueNoSePuedenArmar`: el
     // servidor lo cambio el 21/09 y el aparato se quedo con el literal viejo.
+    //
+    // **El id lo pone EL APARATO** (UUIDv7, 04/11/2026), con conexión o sin ella, y de él sale el código de la ruta
+    // (`codigoDeRutaDe`): la ruta nace entera y no espera al servidor. El servidor lo RESPETA; solo si el código
+    // chocara con otro le daría uno nuevo, conservando el id, y la siguiente bajada lo traería.
+    final rutaId = Provisionales.nuevoIdReal();
     final cuerpo = <String, Object?>{
+      'id': rutaId,
       'name': ?nombre,
       'branchId': sucursalDeLaRuta,
       'vehicleId': vehiculoId,
@@ -556,8 +557,7 @@ class AccionesDeRuta {
       return _guardarLaRutaQueVolvio(respuesta);
     }
 
-    final rutaId = Provisionales.nuevoId();
-    final codigo = await _codigoDeRuta();
+    final codigo = codigoDeRutaDe(rutaId);
 
     await _base.transaction(() async {
       await _base
@@ -653,9 +653,9 @@ class AccionesDeRuta {
       metodo: 'POST',
       ruta: '/routes',
       cuerpo: cuerpo,
-      // La bisagra: cuando esto suba, el id de verdad sustituye a `local-…` en
-      // la cola y en las filas locales. Sin esto, el cierre de la tarde se iria
-      // a `/routes/local-9f3a/results` y se perderia justo despues de subir.
+      // Sigue nombrando a la ruta que este apunte CREA: es lo que la ata a su apunte para lo huérfano
+      // (`Huerfanos`) y para que el cuadre no la quite mientras no suba. El id ya es el definitivo, así que al subir
+      // `sustituir` no tiene nada que cambiar.
       provisional: rutaId,
     );
 
@@ -1007,31 +1007,6 @@ class AccionesDeRuta {
     final cola = n > 5 ? ' y ${n - 5} más.' : '.';
     return 'En una ruta sólo entra lo facturado. '
         '$n no cumplen: $detalle$cola';
-  }
-
-  /// `RT-YYYYMMDD-NNN-<aparato>`.
-  ///
-  /// El formato es el de `generateRouteCode()` mas el sufijo del aparato
-  /// (PLAN.md §3.2): el `NNN` sale de contar lo que hay **en este aparato**, asi
-  /// que sin el sufijo dos sucursales sin red generarian el mismo codigo el mismo
-  /// dia. **Al aplicarse en el servidor manda el del servidor** y la fila local se
-  /// reescribe con la respuesta.
-  Future<String> _codigoDeRuta() async {
-    final hoy = _reloj().toUtc();
-    final fecha =
-        '${hoy.year.toString().padLeft(4, '0')}'
-        '${hoy.month.toString().padLeft(2, '0')}'
-        '${hoy.day.toString().padLeft(2, '0')}';
-    final prefijo = 'RT-$fecha-';
-
-    final cuenta = _base.routes.id.count();
-    final fila =
-        await (_base.selectOnly(_base.routes)
-              ..addColumns([cuenta])
-              ..where(_base.routes.routeCode.like('$prefijo%')))
-            .getSingle();
-    final siguiente = (fila.read(cuenta) ?? 0) + 1;
-    return '$prefijo${siguiente.toString().padLeft(3, '0')}-$_sufijo';
   }
 
   // ---------------------------------------------------------------------------

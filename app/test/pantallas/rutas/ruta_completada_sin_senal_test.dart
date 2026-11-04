@@ -21,6 +21,7 @@ import 'package:reparto/pantallas/tablero/datos/esquema.dart';
 import 'package:reparto/pantallas/tablero/datos/modelos.dart';
 import 'package:reparto/pantallas/tablero/estado/proveedores.dart';
 
+import '../../apoyo/uuid_v7.dart';
 import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/reloj_falso.dart';
 import '../../apoyo/servidor_de_los_dos_lados.dart';
@@ -136,7 +137,6 @@ void main() {
     base,
     ColaDeSalida(base, reloj: reloj.leer),
     reloj: reloj.leer,
-    sufijoAparato: 'MSI',
   );
 
   /// Los pedidos que están puestos en alguna zona, se pinte lo que se pinte.
@@ -183,7 +183,7 @@ void main() {
 
     final mando = contenedor.read(tableroProvider.notifier);
     final rutaId = await mando.armarRuta(zonaVista);
-    expect(rutaId, startsWith('local-'));
+    expect(rutaId, matches(unUuidV7));
 
     // Armar ya vacía el tablero. Esto es lo que se midió a mano y salió bien.
     expect(await enUnaRuta(), deLaZona);
@@ -288,12 +288,11 @@ void main() {
     expect(await subirLaCola().ciclo(), 3);
     expect(servidor.aplicados, [
       '/board/columns/$zonaVista/route',
-      // El cierre ya NO dice `local-…`: la respuesta de la ruta trajo el id de
-      // verdad y `Provisionales` lo sustituyó en la cola antes de mandarlo.
-      '/routes/ruta-servidor-1/results',
-      '/routes/ruta-servidor-1',
+      // El cierre nombra la ruta por su id, que es el definitivo desde que se armó (UUIDv7 del aparato).
+      '/routes/$rutaId/results',
+      '/routes/$rutaId',
     ]);
-    expect(servidor.rutas['ruta-servidor-1'], deLaZona);
+    expect(servidor.rutas[rutaId], deLaZona);
     for (final id in deLaZona) {
       expect(servidor.resultados[id], ResultadoParada.entregado);
     }
@@ -304,14 +303,14 @@ void main() {
     // mañana, o el reintento, se irían a un sitio que no existe (caso S4).
     expect(
       (await base.select(base.routes).get()).single.id,
-      'ruta-servidor-1',
+      rutaId,
       reason:
           'la ruta subió y el servidor devolvió su id: si aquí sigue el '
           '«local-…», el aparato y el servidor hablan de dos rutas distintas',
     );
     final conRutaBuena = await (base.select(
       base.orders,
-    )..where((o) => o.routeId.equals('ruta-servidor-1'))).get();
+    )..where((o) => o.routeId.equals(rutaId))).get();
     expect((conRutaBuena.map((o) => o.id).toList()..sort()), deLaZona);
     expect(servidor.puestas.keys.toList(), [
       'p7',
@@ -441,7 +440,7 @@ void main() {
     expect(await subirLaCola().ciclo(), 3);
 
     // LO QUE PASA HOY, dicho sin adornos:
-    expect(servidor.rutas['ruta-servidor-1'], [
+    expect(servidor.rutas[rutaId], [
       'p1',
       'p2',
       'p4',

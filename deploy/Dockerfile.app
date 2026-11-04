@@ -103,6 +103,7 @@ COPY herramientas/mapa-cuba/niveles.go /herramientas/mapa-cuba/niveles.go
 #    cargar y ESTA IMAGEN NO CONSTRUYE — comprobado el 24/09/2026, que es como se descubrió
 #    que faltaba.
 COPY docs/almacen-de-origen.casos.json /docs/almacen-de-origen.casos.json
+COPY docs/codigo-de-ruta.casos.json /docs/codigo-de-ruta.casos.json
 
 #  * `docs/armado-rechazado.casos.json` — el CUARTO, y del mismo tipo (29/09/2026). La
 #    cabecera del «no» del armado —«3 de los 4 pedidos elegidos no pueden ir en esta

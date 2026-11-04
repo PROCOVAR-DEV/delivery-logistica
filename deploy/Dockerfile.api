@@ -106,6 +106,7 @@ COPY docs/orden-de-paradas.casos.json /docs/orden-de-paradas.casos.json
 # Misma ruta que el de arriba: desde `/src/internal/cotizar`, `../../../docs/…` cae en
 # `/docs/…`.
 COPY docs/almacen-de-origen.casos.json /docs/almacen-de-origen.casos.json
+COPY docs/codigo-de-ruta.casos.json /docs/codigo-de-ruta.casos.json
 
 # Y EL TERCERO — 29/09/2026
 #

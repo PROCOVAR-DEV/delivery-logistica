@@ -102,6 +102,52 @@ void main() {
     expect(await cuantas(), 3);
   });
 
+  test('una RUTA hecha en el aparato (UUIDv7, sin local-) no se quita mientras su alta sea pendiente, rechazada o en revisión', () async {
+    // 04/11/2026: la ruta ya no nace con `local-`. Lo que la protege es que un apunte vivo la nombre; si no, el cuadre
+    // se la llevaría aunque su alta siga en la bandeja esperando a una persona.
+    const viva = '01a1a72e-6cc0-7abc-8def-0123456789ab';
+    const pendiente = '01a1a72e-6cc0-7abc-8def-0123456789ac';
+    const rechazada = '01a1a72e-6cc0-7abc-8def-0123456789ad';
+    const enRevision = '01a1a72e-6cc0-7abc-8def-0123456789ae';
+    const fantasma = '01a1a72e-6cc0-7abc-8def-0123456789af';
+    for (final id in [viva, pendiente, rechazada, enRevision, fantasma]) {
+      await base.customStatement("INSERT INTO routes (id) VALUES ('$id')");
+    }
+    var n = 0;
+    for (final e in {
+      pendiente: EstadoApunte.pendiente,
+      rechazada: EstadoApunte.rechazado,
+      enRevision: EstadoApunte.enRevision,
+    }.entries) {
+      await base
+          .into(base.apuntes)
+          .insert(
+            ApuntesCompanion.insert(
+              clave: 'k${n++}',
+              hechoAt: DateTime(2026, 11, 4),
+              metodo: 'POST',
+              ruta: '/routes',
+              cuerpo: '{"id":"${e.key}"}',
+              provisional: Value(e.key),
+              estado: Value(e.value),
+            ),
+          );
+    }
+
+    await cuadre(
+      servidor(
+        orders: ['x'],
+        otras: {
+          'routes': [viva],
+        },
+      ),
+    ).cuadrar();
+
+    expect(quitadas, [
+      'routes:$fantasma',
+    ], reason: 'solo la que ningun apunte vivo nombra');
+  });
+
   test('una lista VACÍA o TRUNCADA del servidor no borra nada (es un error, no «no hay nada»)', () async {
     await factura('a', '1');
     await factura('b', '2');

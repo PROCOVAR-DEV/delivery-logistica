@@ -8,6 +8,7 @@ import 'package:reparto/pantallas/tablero/datos/modelos.dart';
 import 'package:reparto/pantallas/rutas/datos/geo.dart';
 import 'package:reparto/pantallas/tablero/datos/repositorio.dart';
 
+import '../../apoyo/uuid_v7.dart';
 import '../../apoyo/base_de_prueba.dart';
 import 'apoyo.dart';
 
@@ -51,7 +52,7 @@ void main() {
       sucursalId: sucursalStg,
     );
 
-    expect(rutaId, startsWith('local-'));
+    expect(rutaId, matches(unUuidV7));
     final ruta = await (base.select(
       base.routes,
     )..where((r) => r.id.equals(rutaId))).getSingle();
@@ -100,6 +101,8 @@ void main() {
     // viajaba.
     final cuerpo = jsonDecode(ultimo.cuerpo) as Map<String, Object?>;
     final dia = cuerpo.remove('deliveryDate');
+    // El id lo pone el aparato (UUIDv7) y es el de la ruta que se acaba de armar.
+    expect(cuerpo.remove('id'), rutaId);
     expect(cuerpo, {
       'vehiculoId': 'v1',
       'optimizar': false,

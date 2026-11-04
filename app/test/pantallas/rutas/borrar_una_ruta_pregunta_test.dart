@@ -75,7 +75,6 @@ void main() {
         base,
         cola,
         reloj: reloj.leer,
-        sufijoAparato: 'WEB',
         // Sin esperas: un fallo de red no se reintenta cuatro veces dentro de
         // una prueba.
         enVivo: EscrituraEnVivo(
@@ -86,7 +85,6 @@ void main() {
         base,
         cola,
         reloj: reloj.leer,
-        sufijoAparato: 'MSI',
       );
 
       await sembrarCatalogo(base);

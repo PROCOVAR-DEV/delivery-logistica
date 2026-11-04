@@ -26,6 +26,7 @@ import 'package:reparto/pantallas/tablero/datos/consultas.dart';
 import 'package:reparto/pantallas/tablero/datos/modelos.dart';
 import 'package:reparto/pantallas/tablero/datos/repositorio.dart';
 
+import '../../apoyo/uuid_v7.dart';
 import '../../apoyo/base_de_prueba.dart';
 import 'apoyo.dart';
 
@@ -199,7 +200,7 @@ void main() {
         sucursalId: sucursalStg,
       );
 
-      expect(rutaId, startsWith('local-'));
+      expect(rutaId, matches(unUuidV7));
     });
   });
 }

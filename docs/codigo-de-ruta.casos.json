@@ -1,0 +1,50 @@
+{
+ "_": "Casos del código de ruta (04/11/2026): AAMMDD-XXXXXX sacado del UUIDv7 de la ruta. Fecha = los 48 bits de milisegundos del id, en UTC; XXXXXX = los 30 bits bajos de los últimos 4 bytes, en el alfabeto de Crockford (0-9A-HJKMNP-TV-Z). Los leen las pruebas de Go (api/internal/api/codigo_de_ruta_test.go) y de Dart (app/test/nucleo/codigo_de_ruta_test.dart); salen de una implementación INDEPENDIENTE (Python) para que los dos lados no coincidan por copiar el mismo fallo.",
+ "casos": [
+  {
+   "nota": "un dia normal",
+   "id": "01a1a72e-6cc0-7abc-8def-0123456789ab",
+   "codigo": "261104-2PF2DB"
+  },
+  {
+   "nota": "los 30 bits en cero",
+   "id": "01a1a72e-6cc0-7000-8000-000000000000",
+   "codigo": "261104-000000"
+  },
+  {
+   "nota": "los 32 bits llenos: solo cuentan 30",
+   "id": "01a1a72e-6cc0-7fff-8fff-ffffffffffff",
+   "codigo": "261104-ZZZZZZ"
+  },
+  {
+   "nota": "el bit 30 y 31 a uno no cambian el codigo",
+   "id": "01a1a72e-6cc0-7abc-8def-0123c0000001",
+   "codigo": "261104-000001"
+  },
+  {
+   "nota": "medianoche UTC: el ultimo milisegundo de ayer",
+   "id": "01a1a3da-fbff-7123-8456-89abcdef1234",
+   "codigo": "261103-6YY4HM"
+  },
+  {
+   "nota": "medianoche UTC: el primer milisegundo de hoy",
+   "id": "01a1a3da-fc00-7123-8456-89abcdef1234",
+   "codigo": "261104-6YY4HM"
+  },
+  {
+   "nota": "fin de año",
+   "id": "01a2ce8b-d018-79ab-8cde-012345678901",
+   "codigo": "261231-2PF281"
+  },
+  {
+   "nota": "año nuevo",
+   "id": "01a2ce8b-d400-79ab-8cde-012345678901",
+   "codigo": "270101-2PF281"
+  },
+  {
+   "nota": "29 de febrero (bisiesto)",
+   "id": "01ab58a7-6200-7777-8888-123456789abc",
+   "codigo": "280229-B7H6NW"
+  }
+ ]
+}

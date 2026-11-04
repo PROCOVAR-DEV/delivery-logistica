@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/codigo_de_ruta.dart';
 import '../../../nucleo/cola/cola_salida.dart';
 import '../../../nucleo/cola/provisionales.dart';
 import '../../../nucleo/conduce.dart';
@@ -1015,8 +1016,15 @@ class RepositorioTablero {
       throw RechazoDelTablero(no.mensaje);
     }
 
+    // LA RUTA NACE CON SU ID Y SU CÓDIGO, PUESTOS AQUÍ (04/11/2026). Un UUIDv7 del aparato, con conexión o sin ella, y de él
+    // sale el código (`codigoDeRutaDe`, el mismo que calcula el servidor). El servidor lo respeta; solo si el código chocara
+    // con otro conservaría el id y le daría uno nuevo, que traería la siguiente bajada.
+    final idDelAparato = Provisionales.nuevoIdReal();
+    var rutaId = idDelAparato;
+
     // El cuerpo, UNO SOLO: lo manda la web ahora y lo encola la APK para luego.
     final cuerpo = <String, Object?>{
+      'id': idDelAparato,
       'nombre': ?nombre,
       'vehiculoId': ?columna?.vehiculoId,
       // Solo viaja si hay uno: su ausencia es «sin distribuidor».
@@ -1081,7 +1089,6 @@ class RepositorioTablero {
     // demas gestos, porque aqui la respuesta **es un dato que hace falta**: sin
     // el id del servidor no se puede ni empezar a escribir la fila.
     final enVivo = _enVivo;
-    final String rutaId;
     // QUIEN SE QUEDA FUERA: en la APK y el escritorio lo sabe ya el aparato; en
     // la web se le suma lo que cuente el servidor.
     var fuera = descartados;
@@ -1119,8 +1126,6 @@ class RepositorioTablero {
         );
       }
       rutaId = id;
-    } else {
-      rutaId = Provisionales.nuevoId();
     }
 
     await _base.transaction(() async {
@@ -1129,6 +1134,10 @@ class RepositorioTablero {
           .insert(
             RoutesCompanion.insert(
               id: rutaId,
+              // Si el servidor contestó con OTRO id (no debería), su código no sale de este: lo trae la bajada.
+              routeCode: Value(
+                rutaId == idDelAparato ? codigoDeRutaDe(rutaId) : null,
+              ),
               name: Value(nombre ?? columna?.nombre),
               distribuidorId: Value(distribuidor?.id),
               status: const Value(EstadoRuta.planificada),

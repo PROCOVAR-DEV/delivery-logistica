@@ -199,7 +199,7 @@ void main() {
     // tenga puesto, y p3 entró después de que el camión saliera. Un bulto que
     // nadie cargó, contado como repartido.
     expect(
-      servidor.rutas['ruta-servidor-1'],
+      servidor.rutas.values.single,
       ['p1', 'p2'],
       reason:
           'la ruta tiene que ser EXACTAMENTE la que armó el aparato: p3 entró '
@@ -233,7 +233,7 @@ void main() {
     servidor.hayRed = true;
     expect(await subirLaCola().ciclo(), 1);
 
-    expect(servidor.rutas['ruta-servidor-1'], ['p1']);
+    expect(servidor.rutas.values.single, ['p1']);
 
     // ESE es el pedido que su repartidor puede llevar entregado, así que hay
     // que decirlo con su nombre y no con un uuid.
@@ -277,7 +277,7 @@ void main() {
     servidor.hayRed = true;
     expect(await subirLaCola().ciclo(), 1);
 
-    expect(servidor.rutas['ruta-servidor-1'], ['p1', 'p2']);
+    expect(servidor.rutas.values.single, ['p1', 'p2']);
     expect(
       await avisos(),
       isEmpty,

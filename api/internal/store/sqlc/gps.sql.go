@@ -13,7 +13,7 @@ import (
 )
 
 const guardarPuntoGps = `-- name: GuardarPuntoGps :execrows
-INSERT INTO puntos_gps (id, distribuidor_id, persona_id, branch_id, ruta_ids, lat, lng, precision_m, velocidad_ms, rumbo, hora, evento, pedido_id)
+INSERT INTO puntos_gps (id, dispositivo_id, distribuidor_id, branch_id, ruta_ids, lat, lng, precision_m, velocidad_ms, rumbo, hora, evento, pedido_id)
 VALUES ($1, $2, $3, $4, $5::uuid[],
         $6, $7, $8, $9, $10,
         $11, $12, $13)
@@ -22,8 +22,8 @@ ON CONFLICT (id) DO NOTHING
 
 type GuardarPuntoGpsParams struct {
 	ID           uuid.UUID          `json:"id"`
-	Distribuidor uuid.UUID          `json:"distribuidor"`
-	Persona      string             `json:"persona"`
+	Dispositivo  uuid.UUID          `json:"dispositivo"`
+	Distribuidor pgtype.UUID        `json:"distribuidor"`
 	Sucursal     uuid.UUID          `json:"sucursal"`
 	RutaIds      []uuid.UUID        `json:"ruta_ids"`
 	Lat          float64            `json:"lat"`
@@ -40,8 +40,8 @@ type GuardarPuntoGpsParams struct {
 func (q *Queries) GuardarPuntoGps(ctx context.Context, arg GuardarPuntoGpsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, guardarPuntoGps,
 		arg.ID,
+		arg.Dispositivo,
 		arg.Distribuidor,
-		arg.Persona,
 		arg.Sucursal,
 		arg.RutaIds,
 		arg.Lat,
@@ -249,32 +249,37 @@ func (q *Queries) PuntosDeUnaRuta(ctx context.Context, arg PuntosDeUnaRutaParams
 	return items, nil
 }
 
-const rutasDelDistribuidorEntre = `-- name: RutasDelDistribuidorEntre :many
+const rutasDelDispositivoEntre = `-- name: RutasDelDispositivoEntre :many
 
-SELECT r.id FROM routes r
-WHERE r.id = ANY($1::uuid[]) AND r.distribuidor_id = $2
+SELECT r.id, r.distribuidor_id FROM routes r
+WHERE r.id = ANY($1::uuid[]) AND r.dispositivo_id = $2
 `
 
-type RutasDelDistribuidorEntreParams struct {
-	RutaIds      []uuid.UUID `json:"ruta_ids"`
-	Distribuidor pgtype.UUID `json:"distribuidor"`
+type RutasDelDispositivoEntreParams struct {
+	RutaIds     []uuid.UUID `json:"ruta_ids"`
+	Dispositivo pgtype.UUID `json:"dispositivo"`
+}
+
+type RutasDelDispositivoEntreRow struct {
+	ID             uuid.UUID   `json:"id"`
+	DistribuidorID pgtype.UUID `json:"distribuidor_id"`
 }
 
 // EL GPS DEL DISTRIBUIDOR (00033, 04/11/2026). Lo manda el aparato por lotes; lo lee solo la oficina.
-// De las rutas que dice el punto, SOLO las de este distribuidor (incluidas las ya completadas: el punto de «fin» llega después de completar).
-func (q *Queries) RutasDelDistribuidorEntre(ctx context.Context, arg RutasDelDistribuidorEntreParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, rutasDelDistribuidorEntre, arg.RutaIds, arg.Distribuidor)
+// De las rutas que dice el punto, SOLO las asignadas a este teléfono (incluidas las ya completadas: el punto de «fin» llega después de completar).
+func (q *Queries) RutasDelDispositivoEntre(ctx context.Context, arg RutasDelDispositivoEntreParams) ([]RutasDelDispositivoEntreRow, error) {
+	rows, err := q.db.Query(ctx, rutasDelDispositivoEntre, arg.RutaIds, arg.Dispositivo)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []RutasDelDispositivoEntreRow
 	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i RutasDelDispositivoEntreRow
+		if err := rows.Scan(&i.ID, &i.DistribuidorID); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -294,7 +299,7 @@ ORDER BY p.distribuidor_id, p.hora DESC
 `
 
 type UltimoPuntoDeCadaDistribuidorRow struct {
-	DistribuidorID     uuid.UUID          `json:"distribuidor_id"`
+	DistribuidorID     pgtype.UUID        `json:"distribuidor_id"`
 	DistribuidorNombre string             `json:"distribuidor_nombre"`
 	Lat                float64            `json:"lat"`
 	Lng                float64            `json:"lng"`

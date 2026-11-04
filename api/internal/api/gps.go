@@ -149,14 +149,16 @@ func (s *Servidor) recibirPuntosGps(w http.ResponseWriter, r *http.Request) {
 	for u := range pedidas {
 		ids = append(ids, u)
 	}
-	suyas, err := a.RutasDeEsteDistribuidor(r.Context(), ids)
+	suyas, err := a.RutasDeEsteDispositivo(r.Context(), ids)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
 	mias := map[uuid.UUID]bool{}
-	for _, u := range suyas {
-		mias[u] = true
+	deQuien := map[uuid.UUID]pgtype.UUID{} // quién lleva cada ruta (puede no tener distribuidor)
+	for _, x := range suyas {
+		mias[x.ID] = true
+		deQuien[x.ID] = x.DistribuidorID
 	}
 
 	ahora := time.Now().UTC()
@@ -168,7 +170,7 @@ func (s *Servidor) recibirPuntosGps(w http.ResponseWriter, r *http.Request) {
 			rechazados = append(rechazados, puntoGpsRechazado{ID: e.ID, Motivo: motivo})
 			continue
 		}
-		nuevo, err := a.GuardarPuntoGps(r.Context(), p)
+		nuevo, err := a.GuardarPuntoGps(r.Context(), p, deQuien[p.RutaIDs[0]])
 		if err != nil {
 			httpx.ErrorInterno(w, r, err)
 			return

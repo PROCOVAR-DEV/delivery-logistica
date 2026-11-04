@@ -89,22 +89,23 @@ type Acotado struct {
 	codigo   *string    // el `external_id` de esa sucursal (CAM, HAB, STG...)
 	persona  *uuid.UUID // la sucursal DE LA PERSONA, ignorando la cabecera
 
-	// EL DISTRIBUIDOR DE LA SESIÓN (04/11/2026): nil = no es un distribuidor. Con valor, TODA consulta de rutas y de lo que cuelga de ellas se
-	// estrecha a las rutas de ese distribuidor. Lo rellena [Porteria.Resolver] desde la base (`distribuidores.persona_id`), nunca el cliente,
-	// y **falla cerrado**: un usuario con el rol DISTRIBUIDOR sin distribuidor ligado no resuelve alcance (403), no «ve toda la sucursal».
-	distribuidor *uuid.UUID
+	// EL TELÉFONO DEL DISTRIBUIDOR (04/11/2026): nil = no es un distribuidor. Con valor, TODA consulta de rutas y de lo que cuelga de ellas se estrecha
+	// a las rutas asignadas a ESE teléfono (`routes.dispositivo_id`). Lo rellena [Porteria.Resolver] desde la base y el claim `dispositivo` del
+	// token (que firma Reparto al reclamar un enlace), nunca el cliente, y **falla cerrado**: con el rol DISTRIBUIDOR sin dispositivo vivo
+	// (o de otra sucursal) no hay alcance (403), no «ve toda la sucursal».
+	dispositivo *uuid.UUID
 }
 
-// ErrSinDistribuidor: la persona lleva el rol DISTRIBUIDOR pero ningún distribuidor de Reparto está ligado a ella (o el suyo está
-// retirado). Es un `ErrSinAlcance` (sale como 403) con su texto: dice qué falta y quién lo arregla.
-var ErrSinDistribuidor = errSinDistribuidor{}
+// ErrSinDispositivo: la persona lleva el rol DISTRIBUIDOR pero su token no trae un dispositivo, o ese dispositivo no existe, está dado de baja o
+// es de otra sucursal. Es un `ErrSinAlcance` (sale como 403) con su texto.
+var ErrSinDispositivo = errSinDispositivo{}
 
-type errSinDistribuidor struct{}
+type errSinDispositivo struct{}
 
-func (errSinDistribuidor) Error() string {
-	return "tu usuario no está ligado a ningún distribuidor activo: pide en la oficina que lo liguen"
+func (errSinDispositivo) Error() string {
+	return "este teléfono no tiene rutas asignadas o fue dado de baja: pide a tu logístico que te mande el enlace de tu ruta"
 }
-func (errSinDistribuidor) Is(destino error) bool { return destino == ErrSinAlcance }
+func (errSinDispositivo) Is(destino error) bool { return destino == ErrSinAlcance }
 
 // ErrSinAlcance: no pertenece a ninguna sucursal y tampoco tiene un rol que las vea
 // todas, así que no hay nada que pueda ver. Sale como 403 con este texto: dice qué falta y
@@ -190,21 +191,24 @@ func (p *Porteria) Resolver(ctx context.Context, u *auth.Usuario, cabecera strin
 	if err != nil || u == nil || !u.EsDistribuidor() {
 		return a, err
 	}
-	// UN DISTRIBUIDOR SOLO VE LO SUYO, y se resuelve DESPUÉS de la sucursal: tiene que ser de ella.
-	persona := u.ID
-	d, errD := a.q.DistribuidorDeLaPersona(ctx, &persona)
+	// UN DISTRIBUIDOR SOLO VE LO DE SU TELÉFONO, y se resuelve DESPUÉS de la sucursal: el teléfono tiene que ser de ella.
+	id, errID := uuid.Parse(u.Dispositivo)
+	if errID != nil {
+		return nil, ErrSinDispositivo
+	}
+	d, errD := a.q.DispositivoDistribuidor(ctx, id)
 	switch {
 	case errors.Is(errD, pgx.ErrNoRows):
-		return nil, ErrSinDistribuidor
+		return nil, ErrSinDispositivo
 	case errD != nil:
 		return nil, errD // «no pude comprobarlo» no es «es de todos»: se responde 500
 	case !d.Activo:
-		return nil, ErrSinDistribuidor
+		return nil, ErrSinDispositivo
 	case a.sucursal == nil || *a.sucursal != d.BranchID:
-		return nil, ErrSinDistribuidor
+		return nil, ErrSinDispositivo
 	}
-	id := d.ID
-	a.distribuidor = &id
+	a.dispositivo = &id
+	_ = a.q.TocarDispositivoDistribuidor(ctx, id) // «visto por última vez»: un fallo aquí no tumba nada
 	return a, nil
 }
 
@@ -446,14 +450,14 @@ func (a *Acotado) ActorRef() *string {
 // sucursalPg es el parámetro que espera sqlc: NULL cuando son todas.
 func (a *Acotado) sucursalPg() pgtype.UUID { return aPg(a.sucursal) }
 
-// distribuidorPg: el distribuidor de la sesión para el SQL (`NULL` = no es un distribuidor, no filtra).
-func (a *Acotado) distribuidorPg() pgtype.UUID { return aPg(a.distribuidor) }
+// dispositivoPg: el teléfono de la sesión para el SQL (`NULL` = no es un distribuidor, no filtra).
+func (a *Acotado) dispositivoPg() pgtype.UUID { return aPg(a.dispositivo) }
 
-// EsDelDistribuidor: la sesión es de un distribuidor (y ya se resolvió quién).
-func (a *Acotado) EsDelDistribuidor() bool { return a.distribuidor != nil }
+// EsDelDistribuidor: la sesión es de un distribuidor (y ya se resolvió su teléfono).
+func (a *Acotado) EsDelDistribuidor() bool { return a.dispositivo != nil }
 
-// Distribuidor: su id, o nil si no es un distribuidor.
-func (a *Acotado) Distribuidor() *uuid.UUID { return a.distribuidor }
+// Dispositivo: el id de su teléfono, o nil si no es un distribuidor.
+func (a *Acotado) Dispositivo() *uuid.UUID { return a.dispositivo }
 
 // personaPg es la sucursal DE LA PERSONA, sin la elegida por cabecera.
 //

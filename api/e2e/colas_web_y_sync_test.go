@@ -390,34 +390,45 @@ var reFormato = regexp.MustCompile(`^[0-9]{6}-[0-9A-HJKMNP-TV-Z]{6}$`)
 func regexpFormato(c string) (bool, error) { return reFormato.MatchString(c), nil }
 
 // ---------------------------------------------------------------------------
-// EL DISTRIBUIDOR SOLO VE Y TOCA LO SUYO (04/11/2026) — contra la API y el sync reales
+// EL DISTRIBUIDOR TRABAJA POR ENLACE, SIN CUENTA (04/11/2026) — contra la API y el sync reales
 // ---------------------------------------------------------------------------
 
-// como devuelve el mismo stack pero hablando con OTRO token (el de otra persona).
+// como devuelve el mismo stack pero hablando con OTRO token.
 func (s *stack) como(token string) *stack {
 	otro := *s
 	otro.token = token
 	return &otro
 }
 
-func (s *stack) tokenDe(sub, rol, sucursal string) string {
-	return jwt(env("REPARTO_E2E_JWT_SECRET", "secreto-de-desarrollo-de-mas-de-32-caracteres"), map[string]any{
-		"sub": sub, "email": sub + "@procovar.cu", "role": rol, "branchId": sucursal,
-		"entradas": []string{"delivery.entrar"}, "exp": time.Now().Add(time.Hour).Unix(),
-	})
+// sinSesion llama sin ningún token (lo que hace el teléfono al reclamar un enlace).
+func (s *stack) sinSesion(metodo, ruta string, cuerpo any) (int, []byte) {
+	s.t.Helper()
+	var r io.Reader
+	if cuerpo != nil {
+		b, _ := json.Marshal(cuerpo)
+		r = bytes.NewReader(b)
+	}
+	req, _ := http.NewRequest(metodo, s.api+"/api"+ruta, r)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	return res.StatusCode, b
 }
 
-func (s *stack) distribuidor(nombre, persona string) uuid.UUID {
+func (s *stack) distribuidor(nombre string) uuid.UUID {
 	s.t.Helper()
 	var id uuid.UUID
-	if err := s.db.QueryRow(context.Background(), `INSERT INTO distribuidores (branch_id, nombre, persona_id) VALUES ($1, $2, NULLIF($3, '')) RETURNING id`,
-		s.sucursal, nombre, persona).Scan(&id); err != nil {
+	if err := s.db.QueryRow(context.Background(), `INSERT INTO distribuidores (branch_id, nombre) VALUES ($1, $2) RETURNING id`, s.sucursal, nombre).Scan(&id); err != nil {
 		s.t.Fatal(err)
 	}
 	return id
 }
 
-// rutaDe arma una ruta (la arma el logístico) con ese distribuidor y devuelve su id y sus pedidos.
+// rutaConDistribuidor arma una ruta (la arma el logístico) con ese distribuidor.
 func (s *stack) rutaConDistribuidor(d uuid.UUID) (ruta string, camion string, pedidos []string) {
 	s.t.Helper()
 	camion, pedidos = s.siembraDeRuta(2)
@@ -429,6 +440,44 @@ func (s *stack) rutaConDistribuidor(d uuid.UUID) (ruta string, camion string, pe
 	}
 	return ruta, camion, pedidos
 }
+
+// enlace pide el enlace de la ruta (como la oficina) y devuelve su token.
+func (s *stack) enlace(ruta string, renovar bool) string {
+	s.t.Helper()
+	code, b := s.web("POST", "/routes/"+ruta+"/enlace", map[string]any{"renovar": renovar})
+	var e struct{ Token, URL string }
+	if (code != 200 && code != 201) || json.Unmarshal(b, &e) != nil || e.Token == "" || !strings.Contains(e.URL, "/r/"+e.Token) {
+		s.t.Fatalf("enlace de la ruta: %d %s", code, b)
+	}
+	return e.Token
+}
+
+type telefono struct {
+	id      string
+	secreto string
+	acceso  string
+}
+
+// reclama es lo que hace el teléfono al abrir el enlace: sin token de nadie, con su id y (si ya lo conoce) su secreto.
+func (s *stack) reclama(tel *telefono, token string) (int, []byte) {
+	s.t.Helper()
+	cuerpo := map[string]any{"token": token, "dispositivoId": tel.id, "nombre": "Samsung e2e"}
+	if tel.secreto != "" {
+		cuerpo["secreto"] = tel.secreto
+	}
+	code, b := s.sinSesion("POST", "/d/reclamar", cuerpo)
+	if code == 200 {
+		var r struct{ Acceso, Secreto string }
+		_ = json.Unmarshal(b, &r)
+		tel.acceso = r.Acceso
+		if r.Secreto != "" {
+			tel.secreto = r.Secreto
+		}
+	}
+	return code, b
+}
+
+func (s *stack) nuevoTelefono() *telefono { return &telefono{id: nuevo()} }
 
 func idsDe(t *testing.T, cuerpo []byte, ruta ...string) []string {
 	t.Helper()
@@ -456,118 +505,6 @@ func idsDe(t *testing.T, cuerpo []byte, ruta ...string) []string {
 	return ids
 }
 
-func TestElDistribuidorSoloVeYTocaSusRutas(t *testing.T) {
-	s := levantar(t)
-	sub1, sub2 := "dist1-"+uuid.NewString()[:8], "dist2-"+uuid.NewString()[:8]
-	d1, d2 := s.distribuidor("Uno e2e", sub1), s.distribuidor("Dos e2e", sub2)
-	rutaA, camionA, pedidosA := s.rutaConDistribuidor(d1)
-	rutaB, _, pedidosB := s.rutaConDistribuidor(d2)
-	dist := s.como(s.tokenDe(sub1, "DISTRIBUIDOR", s.sucursal.String()))
-
-	// 1 · su lista: solo la suya
-	code, b := dist.web("GET", "/routes", nil)
-	if code != 200 {
-		t.Fatalf("GET /routes: %d %s", code, b)
-	}
-	vistas := map[string]bool{}
-	var lista []map[string]any
-	_ = json.Unmarshal(b, &lista)
-	for _, r := range lista {
-		vistas[r["id"].(string)] = true
-	}
-	if !vistas[rutaA] || vistas[rutaB] {
-		t.Fatalf("tenía que ver SOLO su ruta: %v", vistas)
-	}
-	// 2 · la de otro es un 404 (no «prohibido»: ni se le dice que existe)
-	if code, _ := dist.web("GET", "/routes/"+rutaB, nil); code != 404 {
-		t.Fatalf("la ruta de otro distribuidor: %d, tenía que ser 404", code)
-	}
-	if code, _ := dist.web("POST", "/routes/"+rutaB+"/results", map[string]any{"resultados": []map[string]any{{"orderId": pedidosB[0], "resultado": "entregado"}}}); code != 404 {
-		t.Fatalf("cerrar la ruta de otro: %d, tenía que ser 404", code)
-	}
-	// 3 · todo lo que no es suyo es un 403 con su marca
-	for _, c := range []struct{ metodo, ruta string }{{"GET", "/orders"}, {"GET", "/vehicles"}, {"GET", "/customers"}, {"GET", "/distribuidores"}, {"POST", "/routes"}, {"DELETE", "/routes/" + rutaA}} {
-		code, b := dist.web(c.metodo, c.ruta, nil)
-		if code != 403 || !strings.Contains(string(b), "no_es_para_el_distribuidor") {
-			t.Errorf("%s %s: %d %s, tenía que ser 403 con su marca", c.metodo, c.ruta, code, b)
-		}
-	}
-	// 4 · en SU ruta: marca una parada y la inicia; pero no la renombra ni le cambia el camión
-	if code, b := dist.web("PATCH", "/routes/"+rutaA, map[string]any{"name": "me la quedo"}); code != 403 {
-		t.Errorf("renombrar su ruta: %d %s, tenía que ser 403", code, b)
-	}
-	if code, b := dist.web("PATCH", "/routes/"+rutaA, map[string]any{"distribuidorId": d2.String()}); code != 403 {
-		t.Errorf("pasarle su ruta a otro: %d %s, tenía que ser 403", code, b)
-	}
-	if code, b := dist.web("PATCH", "/routes/"+rutaA, map[string]any{"status": "in_progress"}); code != 200 {
-		t.Errorf("iniciar su ruta: %d %s", code, b)
-	}
-	if code, b := dist.web("POST", "/routes/"+rutaA+"/results", map[string]any{"resultados": []map[string]any{{"orderId": pedidosA[0], "resultado": "entregado"}}}); code != 200 {
-		t.Errorf("marcar su parada: %d %s", code, b)
-	}
-	// 5 · su bajada: solo lo suyo (pedidos, ruta, camión, él mismo) y NADA de clientes, catálogo ni tablero
-	code, b = dist.web("GET", "/sync/cambios", nil)
-	if code != 200 {
-		t.Fatalf("GET /sync/cambios: %d %s", code, b)
-	}
-	pedidos := idsDe(t, b, "cambios", "orders", "puestos")
-	if len(pedidos) != 2 || !contiene(pedidos, pedidosA...) || contiene(pedidos, pedidosB...) {
-		t.Fatalf("la bajada de pedidos tenía que ser solo los de su ruta: %v", pedidos)
-	}
-	if rs := idsDe(t, b, "cambios", "routes", "puestos"); len(rs) != 1 || rs[0] != rutaA {
-		t.Fatalf("la bajada de rutas: %v", rs)
-	}
-	if ds := idsDe(t, b, "cambios", "distribuidores", "puestos"); len(ds) != 1 || ds[0] != d1.String() {
-		t.Fatalf("la bajada de distribuidores: %v", ds)
-	}
-	if vs := idsDe(t, b, "cambios", "vehicles", "puestos"); len(vs) != 1 || vs[0] != camionA {
-		t.Fatalf("la bajada de vehículos: %v", vs)
-	}
-	for _, k := range []string{"customers", "products", "boardColumns", "boardPlacements", "vehicle_types"} {
-		if n := len(idsDe(t, b, "cambios", k, "puestos")); n != 0 {
-			t.Errorf("a un distribuidor no se le baja %q (%d filas)", k, n)
-		}
-	}
-	// 6 · el cuadre: igual
-	code, b = dist.web("GET", "/sync/cuadre", nil)
-	if code != 200 {
-		t.Fatalf("GET /sync/cuadre: %d %s", code, b)
-	}
-	if ps := idsDe(t, b, "colecciones", "orders"); len(ps) != 2 || !contiene(ps, pedidosA...) {
-		t.Fatalf("el cuadre de pedidos: %v", ps)
-	}
-	if rs := idsDe(t, b, "colecciones", "routes"); len(rs) != 1 || rs[0] != rutaA {
-		t.Fatalf("el cuadre de rutas: %v", rs)
-	}
-	// 7 · FALLA CERRADO: con el rol DISTRIBUIDOR pero sin distribuidor ligado, o de otra sucursal, no ve NADA
-	sinLigar := s.como(s.tokenDe("nadie-"+uuid.NewString()[:8], "DISTRIBUIDOR", s.sucursal.String()))
-	if code, b := sinLigar.web("GET", "/routes", nil); code != 403 {
-		t.Errorf("distribuidor sin ligar: %d %s, tenía que ser 403", code, b)
-	}
-	var otraSucursal uuid.UUID
-	if err := s.db.QueryRow(context.Background(), `INSERT INTO branches (name, lat, lng) VALUES ($1, 20, -75) RETURNING id`, "otra-"+uuid.NewString()).Scan(&otraSucursal); err != nil {
-		t.Fatal(err)
-	}
-	ajeno := s.como(s.tokenDe(sub1, "DISTRIBUIDOR", otraSucursal.String()))
-	if code, b := ajeno.web("GET", "/routes", nil); code != 403 {
-		t.Errorf("su distribuidor es de otra sucursal: %d %s, tenía que ser 403", code, b)
-	}
-	// 8 · el sync: da de alta su aparato y sube, pero no ve el panel ni la bandeja
-	if code, _ := dist.llamar(dist.sync, "GET", "/sync/estado", nil, nil); code != 403 {
-		t.Errorf("/sync/estado para un distribuidor: %d, tenía que ser 403", code)
-	}
-	if code, _ := dist.llamar(dist.sync, "POST", "/sync/aparato", map[string]any{"nombre": "movil e2e"}, map[string]string{"X-Aparato-Id": uuid.NewString()}); code != 200 && code != 201 {
-		t.Errorf("dar de alta su aparato: %d", code)
-	}
-	// y el logístico sigue viendo las dos
-	code, b = s.web("GET", "/routes", nil)
-	var todas []map[string]any
-	_ = json.Unmarshal(b, &todas)
-	if code != 200 || len(todas) < 2 {
-		t.Errorf("el logístico tenía que seguir viendo las rutas de todos: %d %d", code, len(todas))
-	}
-}
-
 func contiene(lista []string, quien ...string) bool {
 	m := map[string]bool{}
 	for _, x := range lista {
@@ -581,14 +518,179 @@ func contiene(lista []string, quien ...string) bool {
 	return false
 }
 
-// EL GPS: lo manda el distribuidor, lo ve la oficina, y el distribuidor no ve NADA de ello (04/11/2026).
+func TestElTelefonoSoloVeYTocaLasRutasQueReclamo(t *testing.T) {
+	s := levantar(t)
+	d1, d2 := s.distribuidor("Uno e2e"), s.distribuidor("Dos e2e")
+	rutaA, camionA, pedidosA := s.rutaConDistribuidor(d1)
+	rutaB, _, pedidosB := s.rutaConDistribuidor(d2)
+	rutaC, _, pedidosC := s.rutaConDistribuidor(d1)
+
+	// el enlace es de la oficina: el mismo enlace se devuelve mientras nadie lo suelta
+	tokenA := s.enlace(rutaA, false)
+	if s.enlace(rutaA, false) != tokenA {
+		t.Fatalf("pedir el enlace dos veces tenía que dar el mismo")
+	}
+	tokenB, tokenC := s.enlace(rutaB, false), s.enlace(rutaC, false)
+
+	// SIN CUENTA: el teléfono reclama el enlace de la ruta A y trabaja con lo que recibe
+	tel := s.nuevoTelefono()
+	if code, b := s.reclama(tel, tokenA); code != 200 || tel.acceso == "" || tel.secreto == "" {
+		t.Fatalf("reclamar: %d %s", code, b)
+	}
+	dist := s.como(tel.acceso)
+
+	code, b := dist.web("GET", "/routes", nil)
+	var lista []map[string]any
+	_ = json.Unmarshal(b, &lista)
+	if code != 200 || len(lista) != 1 || lista[0]["id"] != rutaA {
+		t.Fatalf("tenía que ver SOLO la ruta que reclamó: %d %s", code, b)
+	}
+	// las demás son un 404: ni se le dice que existen
+	for _, otra := range []string{rutaB, rutaC} {
+		if code, _ := dist.web("GET", "/routes/"+otra, nil); code != 404 {
+			t.Fatalf("una ruta que no reclamó: %d, tenía que ser 404", code)
+		}
+	}
+	if code, _ := dist.web("POST", "/routes/"+rutaB+"/results", map[string]any{"resultados": []map[string]any{{"orderId": pedidosB[0], "resultado": "entregado"}}}); code != 404 {
+		t.Fatalf("cerrar una ruta ajena: %d, tenía que ser 404", code)
+	}
+	// ACUMULA: reclama una segunda ruta con el mismo teléfono (con su secreto) y ahora ve las dos
+	if code, b := s.reclama(tel, tokenC); code != 200 {
+		t.Fatalf("segunda ruta: %d %s", code, b)
+	}
+	dist = s.como(tel.acceso)
+	_, b = dist.web("GET", "/routes", nil)
+	lista = nil
+	_ = json.Unmarshal(b, &lista)
+	if len(lista) != 2 {
+		t.Fatalf("tenía que ver sus DOS rutas: %s", b)
+	}
+	// todo lo que no es suyo, 403 con su marca
+	for _, c := range []struct{ metodo, ruta string }{{"GET", "/orders"}, {"GET", "/vehicles"}, {"GET", "/customers"}, {"POST", "/routes"}, {"DELETE", "/routes/" + rutaA}, {"POST", "/routes/" + rutaA + "/enlace"}} {
+		code, b := dist.web(c.metodo, c.ruta, nil)
+		if code != 403 || !strings.Contains(string(b), "no_es_para_el_distribuidor") {
+			t.Errorf("%s %s: %d %s, tenía que ser 403 con su marca", c.metodo, c.ruta, code, b)
+		}
+	}
+	// en SU ruta: inicia y marca, pero no renombra ni cambia de camión
+	if code, b := dist.web("PATCH", "/routes/"+rutaA, map[string]any{"name": "me la quedo"}); code != 403 {
+		t.Errorf("renombrar: %d %s", code, b)
+	}
+	if code, b := dist.web("PATCH", "/routes/"+rutaA, map[string]any{"status": "in_progress"}); code != 200 {
+		t.Errorf("iniciar: %d %s", code, b)
+	}
+	if code, b := dist.web("POST", "/routes/"+rutaA+"/results", map[string]any{"resultados": []map[string]any{{"orderId": pedidosA[0], "resultado": "entregado"}}}); code != 200 {
+		t.Errorf("marcar: %d %s", code, b)
+	}
+	// su bajada: solo lo de sus dos rutas, y nada de clientes ni catálogo ni tablero
+	code, b = dist.web("GET", "/sync/cambios", nil)
+	if code != 200 {
+		t.Fatalf("cambios: %d %s", code, b)
+	}
+	pedidos := idsDe(t, b, "cambios", "orders", "puestos")
+	if len(pedidos) != 4 || contiene(pedidos, pedidosB...) || !contiene(pedidos, pedidosA...) || !contiene(pedidos, pedidosC...) {
+		t.Fatalf("la bajada de pedidos: %v", pedidos)
+	}
+	if rs := idsDe(t, b, "cambios", "routes", "puestos"); len(rs) != 2 || contiene(rs, rutaB) {
+		t.Fatalf("la bajada de rutas: %v", rs)
+	}
+	if vs := idsDe(t, b, "cambios", "vehicles", "puestos"); !contiene(vs, camionA) || len(vs) != 2 {
+		t.Fatalf("la bajada de vehículos: %v", vs)
+	}
+	for _, k := range []string{"customers", "products", "boardColumns", "boardPlacements", "vehicle_types"} {
+		if n := len(idsDe(t, b, "cambios", k, "puestos")); n != 0 {
+			t.Errorf("a un distribuidor no se le baja %q (%d filas)", k, n)
+		}
+	}
+	code, b = dist.web("GET", "/sync/cuadre", nil)
+	if ps := idsDe(t, b, "colecciones", "orders"); code != 200 || len(ps) != 4 || contiene(ps, pedidosB...) {
+		t.Fatalf("el cuadre de pedidos: %d %v", code, ps)
+	}
+	// el sync: da de alta su aparato y sube, pero no ve el panel
+	if code, _ := dist.llamar(dist.sync, "GET", "/sync/estado", nil, nil); code != 403 {
+		t.Errorf("/sync/estado: %d, tenía que ser 403", code)
+	}
+	if code, _ := dist.llamar(dist.sync, "POST", "/sync/aparato", map[string]any{"nombre": "movil e2e"}, map[string]string{"X-Aparato-Id": uuid.NewString()}); code != 200 && code != 201 {
+		t.Errorf("alta del aparato: %d", code)
+	}
+
+	// UNA RUTA, UN TELÉFONO: otro teléfono con el mismo enlace recibe 403 y no ve nada
+	otro := s.nuevoTelefono()
+	if code, b := s.reclama(otro, tokenA); code != 403 || !strings.Contains(string(b), "ruta_de_otro_dispositivo") {
+		t.Errorf("otro teléfono con el enlace reclamado: %d %s", code, b)
+	}
+	// el mismo teléfono puede volver a abrir su enlace (idempotente) y se le da un acceso nuevo
+	if code, _ := s.reclama(tel, tokenA); code != 200 {
+		t.Errorf("reabrir su propio enlace: %d", code)
+	}
+	// un teléfono conocido con otro secreto no entra
+	malo := &telefono{id: tel.id, secreto: "no-es-el-secreto"}
+	if code, _ := s.reclama(malo, tokenB); code != 401 {
+		t.Errorf("secreto incorrecto: %d, tenía que ser 401", code)
+	}
+	if code, _ := s.sinSesion("POST", "/d/renovar", map[string]any{"dispositivoId": tel.id, "secreto": "no-es-el-secreto"}); code != 401 {
+		t.Errorf("renovar con secreto incorrecto: %d", code)
+	}
+	if code, b := s.sinSesion("POST", "/d/renovar", map[string]any{"dispositivoId": tel.id, "secreto": tel.secreto}); code != 200 || !strings.Contains(string(b), "acceso") {
+		t.Errorf("renovar: %d %s", code, b)
+	}
+	// un enlace que no existe, o un token cualquiera
+	if code, _ := s.reclama(s.nuevoTelefono(), "token-que-no-existe"); code != 404 {
+		t.Errorf("enlace inexistente: %d", code)
+	}
+	// SOLTAR LA RUTA (la oficina): se revoca, el teléfono la pierde y se puede mandar a otro
+	nuevoToken := s.enlace(rutaC, true)
+	if nuevoToken == tokenC {
+		t.Fatalf("renovar tenía que dar un token nuevo")
+	}
+	if code, b := s.reclama(s.nuevoTelefono(), tokenC); code != 410 {
+		t.Errorf("el enlace viejo: %d %s, tenía que ser 410", code, b)
+	}
+	_, b = s.como(tel.acceso).web("GET", "/routes", nil)
+	lista = nil
+	_ = json.Unmarshal(b, &lista)
+	if len(lista) != 1 || lista[0]["id"] != rutaA {
+		t.Errorf("tras soltar la ruta C el teléfono tenía que ver solo la A: %s", b)
+	}
+	// DAR DE BAJA EL TELÉFONO corta su acceso al instante, aunque el token no haya caducado
+	if _, err := s.db.Exec(context.Background(), `UPDATE dispositivos_distribuidor SET activo = false WHERE id = $1`, tel.id); err != nil {
+		t.Fatal(err)
+	}
+	if code, b := s.como(tel.acceso).web("GET", "/routes", nil); code != 403 {
+		t.Errorf("teléfono dado de baja: %d %s, tenía que ser 403", code, b)
+	}
+	// un token con el rol pero sin dispositivo (o con uno que no existe) no ve nada
+	falso := s.como(jwt(env("REPARTO_E2E_JWT_SECRET", "secreto-de-desarrollo-de-mas-de-32-caracteres"), map[string]any{
+		"sub": "disp-x", "role": "DISTRIBUIDOR", "roles": []string{"DISTRIBUIDOR"}, "branchId": s.sucursal.String(),
+		"entradas": []string{"delivery.entrar"}, "dispositivo": nuevo(), "exp": time.Now().Add(time.Hour).Unix(),
+	}))
+	if code, _ := falso.web("GET", "/routes", nil); code != 403 {
+		t.Errorf("dispositivo inexistente: %d", code)
+	}
+	// y el logístico sigue viendo todas
+	_, b = s.web("GET", "/routes", nil)
+	var todas []map[string]any
+	_ = json.Unmarshal(b, &todas)
+	if len(todas) < 3 {
+		t.Errorf("el logístico tenía que seguir viendo las rutas de todos: %d", len(todas))
+	}
+	// el estado del enlace, para la oficina
+	if code, b := s.web("GET", "/routes/"+rutaA+"/enlace", nil); code != 200 || !strings.Contains(string(b), "reclamado") {
+		t.Errorf("estado del enlace: %d %s", code, b)
+	}
+}
+
+// EL GPS: lo manda el teléfono, lo ve la oficina, y el distribuidor no ve NADA de ello.
 func TestElGpsLoVeLaOficinaYNoElDistribuidor(t *testing.T) {
 	s := levantar(t)
-	sub1 := "gps1-" + uuid.NewString()[:8]
-	d1, d2 := s.distribuidor("Gps Uno", sub1), s.distribuidor("Gps Dos", "gps2-"+uuid.NewString()[:8])
+	d1, d2 := s.distribuidor("Gps Uno"), s.distribuidor("Gps Dos")
 	rutaA, camionA, pedidosA := s.rutaConDistribuidor(d1)
 	rutaB, _, _ := s.rutaConDistribuidor(d2)
-	dist := s.como(s.tokenDe(sub1, "DISTRIBUIDOR", s.sucursal.String()))
+	tel := s.nuevoTelefono()
+	if code, b := s.reclama(tel, s.enlace(rutaA, false)); code != 200 {
+		t.Fatalf("reclamar: %d %s", code, b)
+	}
+	dist := s.como(tel.acceso)
 
 	hace := func(d time.Duration) string { return time.Now().UTC().Add(-d).Format(time.RFC3339Nano) }
 	punto := func(id string, rutas []string, lat, lng float64, hora string, evento string) map[string]any {
@@ -598,7 +700,6 @@ func TestElGpsLoVeLaOficinaYNoElDistribuidor(t *testing.T) {
 		}
 		return p
 	}
-
 	if code, b := dist.web("PATCH", "/routes/"+rutaA, map[string]any{"status": "in_progress"}); code != 200 {
 		t.Fatalf("iniciar: %d %s", code, b)
 	}
@@ -606,8 +707,8 @@ func TestElGpsLoVeLaOficinaYNoElDistribuidor(t *testing.T) {
 	lote := map[string]any{"puntos": []map[string]any{
 		punto(p1, []string{rutaA}, 20.01, -75.01, hace(30*time.Minute), "inicio"),
 		punto(p2, []string{rutaA}, 20.02, -75.02, hace(20*time.Minute), ""),
-		punto(nuevo(), []string{rutaB}, 20.03, -75.03, hace(10*time.Minute), ""),                                   // ruta de otro: se rechaza
-		punto(uuid.NewString(), []string{rutaA}, 20.04, -75.04, hace(5*time.Minute), ""),                           // id v4: se rechaza
+		punto(nuevo(), []string{rutaB}, 20.03, -75.03, hace(10*time.Minute), ""),                                   // ruta que no es de su teléfono
+		punto(uuid.NewString(), []string{rutaA}, 20.04, -75.04, hace(5*time.Minute), ""),                           // id v4
 		punto(nuevo(), []string{rutaA}, 20.05, -75.05, time.Now().UTC().Add(2*time.Hour).Format(time.RFC3339), ""), // futuro
 		punto(nuevo(), []string{rutaA}, 99, -75.05, hace(time.Minute), ""),                                         // fuera de rango
 	}}
@@ -639,7 +740,6 @@ func TestElGpsLoVeLaOficinaYNoElDistribuidor(t *testing.T) {
 		punto(nuevo(), []string{rutaA}, 20.06, -75.06, hace(time.Minute), ""),
 	}})
 
-	// EL DISTRIBUIDOR NO VE NADA DE ESTO
 	for _, ruta := range []string{"/routes/" + rutaA + "/track", "/vehicles/" + camionA + "/historial", "/tracking/ahora"} {
 		if code, b := dist.web("GET", ruta, nil); code != 403 || !strings.Contains(string(b), "no_es_para_el_distribuidor") {
 			t.Errorf("GET %s como distribuidor: %d %s, tenía que ser 403", ruta, code, b)
@@ -649,7 +749,6 @@ func TestElGpsLoVeLaOficinaYNoElDistribuidor(t *testing.T) {
 		t.Errorf("POST /track como logístico: %d, tenía que ser 403", code)
 	}
 
-	// LA OFICINA: el recorrido con la hora real y el cobro
 	code, b = s.web("GET", "/routes/"+rutaA+"/track", nil)
 	if code != 200 {
 		t.Fatalf("recorrido: %d %s", code, b)

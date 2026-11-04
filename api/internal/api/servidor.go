@@ -160,6 +160,7 @@ func (s *Servidor) Rutas() http.Handler {
 	// Distribuidores: quién reparte, POR SUCURSAL (issue 7, `distribuidores.go`).
 	s.rutasDeDistribuidores(rt, sesion)
 	s.rutasDeGps(rt, sesion)
+	s.rutasDeDispositivos(rt, sesion)
 
 	// Ajustes. Globales: llevan sesión pero el alcance no pinta nada (y aun así se monta,
 	// porque es por donde se llega a las consultas).

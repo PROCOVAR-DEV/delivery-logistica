@@ -182,6 +182,7 @@ type Querier interface {
 	// Lo que entra
 	// ---------------------------------------------------------------------------
 	ApuntarRecepcionDelWebhook(ctx context.Context, arg ApuntarRecepcionDelWebhookParams) error
+	AsignarRutaADispositivo(ctx context.Context, arg AsignarRutaADispositivoParams) error
 	// ---------------------------------------------------------------------------
 	// Asignación de varios camiones a un pedido
 	// ---------------------------------------------------------------------------
@@ -524,10 +525,12 @@ type Querier interface {
 	// miembro que tuviera tarjeta en una zona del tablero la pierde: va dentro de su principal y ya no se coloca.
 	// Devuelve los que se juntaron; si son menos que los pedidos, el manejador deshace todo (409).
 	CrearConduce(ctx context.Context, arg CrearConduceParams) ([]uuid.UUID, error)
+	CrearDispositivoDistribuidor(ctx context.Context, arg CrearDispositivoDistribuidorParams) (CrearDispositivoDistribuidorRow, error)
 	// Nace en la sucursal de quien llama (`branch_id` lo rellena `alcance.Acotado`). El manejador no
 	// llama a esta consulta sin sucursal: en modo «todas» contesta 400.
 	// EL REINTENTO (04/11/2026): mismo id del aparato = el distribuidor que ya estaba, no un segundo.
 	CrearDistribuidor(ctx context.Context, arg CrearDistribuidorParams) (CrearDistribuidorRow, error)
+	CrearEnlaceDeRuta(ctx context.Context, arg CrearEnlaceDeRutaParams) (CrearEnlaceDeRutaRow, error)
 	CrearOrigen(ctx context.Context, arg CrearOrigenParams) (SavedOrigin, error)
 	// LA CONSTANCIA DEL PESO, que estaba dada de alta y no la escribía nadie.
 	//
@@ -711,8 +714,9 @@ type Querier interface {
 	// «ENTREGA A DOMICILIO» que no sale en la pantalla pero sí baja al teléfono es el mismo
 	// cobro duplicado, en el aparato que trabaja sin conexión y sin nadie que lo desmienta.
 	DiferenciasDeProductos(ctx context.Context, arg DiferenciasDeProductosParams) ([]Product, error)
-	// EL USUARIO DEL DISTRIBUIDOR (00032, 04/11/2026). `persona_id` es el `sub` del token de Accesos.
-	DistribuidorDeLaPersona(ctx context.Context, persona *string) (DistribuidorDeLaPersonaRow, error)
+	// LOS TELÉFONOS DE LOS DISTRIBUIDORES Y SUS ENLACES (00032, 04/11/2026). Sin cuenta de Accesos: el logístico manda un enlace por ruta y el
+	// teléfono que lo reclama queda como dueño de esa ruta.
+	DispositivoDistribuidor(ctx context.Context, id uuid.UUID) (DispositivoDistribuidorRow, error)
 	// DÓNDE ESTÁN ESTOS PEDIDOS, para el renglón del servidor cuando un cierre rechaza paradas.
 	//
 	// Un «ese pedido no va en esta ruta» llegó a Amado con 409 y sin que el servidor dijera POR
@@ -794,6 +798,10 @@ type Querier interface {
 	//
 	// Devuelve cuántas PRINCIPALES/sueltas se engancharon (0 o 1): lo que antes era `:execrows`.
 	EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoARutaParams) (int64, error)
+	// Para el RECLAMAR: el enlace por su token (con la ruta y su sucursal), sin acotar: aún no hay sesión.
+	EnlaceDeRutaPorToken(ctx context.Context, token string) (EnlaceDeRutaPorTokenRow, error)
+	// El enlace vivo de una ruta (acotado a la sucursal de la oficina que pregunta).
+	EnlaceVivoDeUnaRuta(ctx context.Context, arg EnlaceVivoDeUnaRutaParams) (EnlaceVivoDeUnaRutaRow, error)
 	// ---------------------------------------------------------------------------
 	// Lo que ya no viene en Ventra  (issue 20, «ya no va»)
 	// ---------------------------------------------------------------------------
@@ -1045,7 +1053,6 @@ type Querier interface {
 	// sale (para medir los km como la cotización), en qué ruta va y si ya se entregó. Con alcance:
 	// un pedido de otra sucursal no devuelve fila, que es el mismo 404 que si no existiera.
 	LeerPedidoParaElPunto(ctx context.Context, arg LeerPedidoParaElPuntoParams) (LeerPedidoParaElPuntoRow, error)
-	LigarPersonaADistribuidor(ctx context.Context, arg LigarPersonaADistribuidorParams) (LigarPersonaADistribuidorRow, error)
 	// QUITAR LA MARCA DE UNA PARADA — 28/09/2026.
 	//
 	// Jose: «desmarco el estado de cierre y no se guarda cuando salgo por q razon».
@@ -1872,6 +1879,8 @@ type Querier interface {
 	// Un pedido que ya no está NO es un error: el aviso puede llegar dos veces —el stream
 	// entrega al menos una— y la segunda no encuentra nada. Por eso `:execrows` y no `:one`.
 	QuitarPedidosDelEspejo(ctx context.Context, externalIds []string) (int64, error)
+	// Reclamar es ATÓMICO: solo gana quien lo encuentre sin dueño (o ya suyo). Devuelve 0 filas si lo ganó otro teléfono entre medias.
+	ReclamarEnlaceDeRuta(ctx context.Context, arg ReclamarEnlaceDeRutaParams) (int64, error)
 	// Los renglones se reescriben enteros en cada pasada del espejo: PEDIDO puede haber
 	// quitado una línea, y un UPDATE línea a línea dejaría la vieja colgada. Se borran y se
 	// vuelven a poner dentro de la MISMA transacción que el upsert de arriba.
@@ -1955,6 +1964,8 @@ type Querier interface {
 	// DEVUELVE LA SUCURSAL DEL TIPO, por lo mismo que `BorrarVehiculo`: de ahí sale el aviso en
 	// vivo. `:one`: cero filas es «no existe O no es de tu sucursal», o sea el 404.
 	RetirarTipoDeVehiculo(ctx context.Context, arg RetirarTipoDeVehiculoParams) (pgtype.UUID, error)
+	// Soltar el enlace: lo revoca y deja la ruta sin dueño, para mandarle uno nuevo a otro teléfono.
+	RevocarEnlacesDeUnaRuta(ctx context.Context, ruta uuid.UUID) error
 	// La ruta viva más reciente de un camión, para la tarjeta de la flota.
 	RutaActivaDeVehiculo(ctx context.Context, arg RutaActivaDeVehiculoParams) (RutaActivaDeVehiculoRow, error)
 	// ---------------------------------------------------------------------------
@@ -1991,10 +2002,12 @@ type Querier interface {
 	// misma por la que se acota `ContarVehiculosEnRuta`.
 	RutasAbiertasDeLaFlota(ctx context.Context, sucursal pgtype.UUID) ([]RutasAbiertasDeLaFlotaRow, error)
 	// EL GPS DEL DISTRIBUIDOR (00033, 04/11/2026). Lo manda el aparato por lotes; lo lee solo la oficina.
-	// De las rutas que dice el punto, SOLO las de este distribuidor (incluidas las ya completadas: el punto de «fin» llega después de completar).
-	RutasDelDistribuidorEntre(ctx context.Context, arg RutasDelDistribuidorEntreParams) ([]uuid.UUID, error)
+	// De las rutas que dice el punto, SOLO las asignadas a este teléfono (incluidas las ya completadas: el punto de «fin» llega después de completar).
+	RutasDelDispositivoEntre(ctx context.Context, arg RutasDelDispositivoEntreParams) ([]RutasDelDispositivoEntreRow, error)
 	// SACAR UN MIEMBRO: misma condición que deshacer (ninguna fila del conduce en ruta ni con resultado).
 	SacarMiembroDeConduce(ctx context.Context, arg SacarMiembroDeConduceParams) (int64, error)
+	// El secreto con el que el teléfono se identifica al reclamar otra ruta o renovar su acceso.
+	SecretoDelDispositivo(ctx context.Context, id uuid.UUID) (SecretoDelDispositivoRow, error)
 	// Una sucursal nueva nace con COPIA de los tipos «de todas» (nombre, costo y estado), como
 	// las que ya existían cuando la 00018 se los dio a cada una. Sin esto empezaría con el catálogo
 	// vacío y su primer camión (`type` por defecto «truck») daría 400. Va en la misma transacción
@@ -2040,6 +2053,8 @@ type Querier interface {
 	// `orders_ultima_ruta_fk` (`ON DELETE SET NULL`) la suelta sola cuando `BorrarRuta`
 	// elimina la fila.
 	SoltarPedidosDeRuta(ctx context.Context, arg SoltarPedidosDeRutaParams) (int64, error)
+	SoltarRutaDeSuDispositivo(ctx context.Context, ruta uuid.UUID) error
+	TocarDispositivoDistribuidor(ctx context.Context, id uuid.UUID) error
 	// Hasta cuándo se tiene facturación de una sucursal.
 	//
 	// Es lo que distingue «este pedido no está facturado» de «de ese día todavía no hemos

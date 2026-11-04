@@ -28,8 +28,11 @@ WHERE (sqlc.narg('solo_activos')::boolean IS NULL
        OR NOT sqlc.narg('solo_activos')::boolean
        OR d.activo)
   AND (sqlc.narg('sucursal')::uuid IS NULL OR d.branch_id = sqlc.narg('sucursal')::uuid)
-  -- UN DISTRIBUIDOR SOLO VE EL SUYO (04/11/2026).
-  AND (sqlc.narg('distribuidor')::uuid IS NULL OR d.id = sqlc.narg('distribuidor')::uuid)
+  -- UN DISTRIBUIDOR SOLO VE A QUIEN LLEVA SUS RUTAS (04/11/2026).
+  AND (sqlc.narg('dispositivo')::uuid IS NULL
+       OR d.id IN (SELECT r.distribuidor_id FROM routes r
+                   WHERE r.dispositivo_id = sqlc.narg('dispositivo')::uuid AND r.distribuidor_id IS NOT NULL
+                     AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
 ORDER BY b.name ASC, lower(d.nombre) ASC, d.id ASC;
 
 -- Uno, para validar el `distribuidorId` que viene en el cuerpo de una ruta. Cero filas es «no
@@ -47,12 +50,12 @@ WITH nuevo AS (
     INSERT INTO distribuidores (id, branch_id, nombre, activo)
     VALUES (coalesce(sqlc.narg('id')::uuid, uuid_generate_v7()), sqlc.arg('branch_id'), sqlc.arg('nombre'), sqlc.arg('activo'))
     ON CONFLICT (id) DO NOTHING
-    RETURNING id, branch_id, nombre, activo, created_at, updated_at, persona_id
+    RETURNING id, branch_id, nombre, activo, created_at, updated_at
 )
-SELECT id, branch_id, nombre, activo, created_at, updated_at, persona_id FROM nuevo
+SELECT id, branch_id, nombre, activo, created_at, updated_at FROM nuevo
 UNION ALL
 -- EL REINTENTO (04/11/2026): mismo id del aparato = el distribuidor que ya estaba, no un segundo.
-SELECT d.id, d.branch_id, d.nombre, d.activo, d.created_at, d.updated_at, d.persona_id
+SELECT d.id, d.branch_id, d.nombre, d.activo, d.created_at, d.updated_at
 FROM distribuidores d
 WHERE sqlc.narg('id')::uuid IS NOT NULL AND d.id = sqlc.narg('id')::uuid
   AND d.branch_id = sqlc.arg('branch_id');
@@ -65,7 +68,7 @@ UPDATE distribuidores SET
     activo = coalesce(sqlc.narg('activo')::boolean, activo)
 WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
-RETURNING id, branch_id, nombre, activo, created_at, updated_at, persona_id;
+RETURNING id, branch_id, nombre, activo, created_at, updated_at;
 
 -- Retirar NO es borrar: se desactiva. Deja de ofrecerse en una ruta nueva y las rutas que ya lo
 -- llevan siguen diciendo quién las repartió. DEVUELVE LA SUCURSAL del distribuidor, de donde sale
@@ -88,13 +91,3 @@ WHERE d.id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR d.branch_id = sqlc.narg('sucursal')::uuid)
   AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.distribuidor_id = d.id)
 RETURNING d.branch_id;
-
--- EL USUARIO DEL DISTRIBUIDOR (00032, 04/11/2026). `persona_id` es el `sub` del token de Accesos.
--- name: DistribuidorDeLaPersona :one
-SELECT id, branch_id, nombre, activo FROM distribuidores WHERE persona_id = sqlc.arg('persona');
-
--- name: LigarPersonaADistribuidor :one
-UPDATE distribuidores SET persona_id = sqlc.narg('persona')
-WHERE id = sqlc.arg('id')
-  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
-RETURNING id, branch_id, nombre, activo, persona_id;

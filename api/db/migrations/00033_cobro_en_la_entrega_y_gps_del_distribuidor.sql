@@ -16,8 +16,8 @@ ALTER TABLE orders
 
 CREATE TABLE puntos_gps (
     id              uuid PRIMARY KEY,
-    distribuidor_id uuid NOT NULL REFERENCES distribuidores (id),
-    persona_id      text NOT NULL,
+    dispositivo_id  uuid NOT NULL REFERENCES dispositivos_distribuidor (id),
+    distribuidor_id uuid REFERENCES distribuidores (id) ON DELETE SET NULL,
     branch_id       uuid NOT NULL REFERENCES branches (id),
     ruta_ids        uuid[] NOT NULL DEFAULT '{}',
     lat             double precision NOT NULL CHECK (lat BETWEEN -90 AND 90),
@@ -31,7 +31,7 @@ CREATE TABLE puntos_gps (
     pedido_id       uuid
 );
 CREATE INDEX puntos_gps_ruta_idx ON puntos_gps USING gin (ruta_ids);
-CREATE INDEX puntos_gps_distribuidor_hora_idx ON puntos_gps (distribuidor_id, hora);
+CREATE INDEX puntos_gps_dispositivo_hora_idx ON puntos_gps (dispositivo_id, hora);
 CREATE INDEX puntos_gps_branch_hora_idx ON puntos_gps (branch_id, hora DESC);
 
 -- +goose Down

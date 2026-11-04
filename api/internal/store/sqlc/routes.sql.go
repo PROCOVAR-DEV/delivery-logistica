@@ -219,20 +219,20 @@ const bloquearRuta = `-- name: BloquearRuta :one
 SELECT status FROM routes
 WHERE id = $1
   AND ($2::uuid IS NULL OR branch_id = $2::uuid)
-  AND ($3::uuid IS NULL OR distribuidor_id = $3::uuid)
+  AND ($3::uuid IS NULL OR dispositivo_id = $3::uuid)
 FOR UPDATE
 `
 
 type BloquearRutaParams struct {
-	ID           uuid.UUID   `json:"id"`
-	Sucursal     pgtype.UUID `json:"sucursal"`
-	Distribuidor pgtype.UUID `json:"distribuidor"`
+	ID          uuid.UUID   `json:"id"`
+	Sucursal    pgtype.UUID `json:"sucursal"`
+	Dispositivo pgtype.UUID `json:"dispositivo"`
 }
 
 // Serializa completar, editar, borrar y marcar sobre la MISMA fila.
 // Debe llamarse dentro de EnTx y conservar el bloqueo hasta terminar la escritura.
 func (q *Queries) BloquearRuta(ctx context.Context, arg BloquearRutaParams) (RouteStatus, error) {
-	row := q.db.QueryRow(ctx, bloquearRuta, arg.ID, arg.Sucursal, arg.Distribuidor)
+	row := q.db.QueryRow(ctx, bloquearRuta, arg.ID, arg.Sucursal, arg.Dispositivo)
 	var status RouteStatus
 	err := row.Scan(&status)
 	return status, err
@@ -1481,16 +1481,16 @@ LEFT JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
 LEFT JOIN distribuidores dist ON dist.id = r.distribuidor_id
 WHERE ($1::uuid IS NULL OR r.branch_id = $1::uuid)
   AND ($2::route_status IS NULL OR r.status = $2::route_status)
-  -- EL DISTRIBUIDOR SOLO VE SUS RUTAS (04/11/2026): lo rellena ` + "`" + `alcance.Acotado` + "`" + `, nunca el manejador. Nulo = no es un distribuidor.
+  -- EL DISTRIBUIDOR SOLO VE LAS RUTAS ASIGNADAS A SU TELÉFONO (04/11/2026): lo rellena ` + "`" + `alcance.Acotado` + "`" + `, nunca el manejador. Nulo = no es un distribuidor.
   AND ($3::uuid IS NULL
-       OR (r.distribuidor_id = $3::uuid AND r.status IN ('planned', 'in_progress')))
+       OR (r.dispositivo_id = $3::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
 ORDER BY r.created_at DESC
 `
 
 type ListarRutasParams struct {
-	Sucursal     pgtype.UUID  `json:"sucursal"`
-	Estado       *RouteStatus `json:"estado"`
-	Distribuidor pgtype.UUID  `json:"distribuidor"`
+	Sucursal    pgtype.UUID  `json:"sucursal"`
+	Estado      *RouteStatus `json:"estado"`
+	Dispositivo pgtype.UUID  `json:"dispositivo"`
 }
 
 type ListarRutasRow struct {
@@ -1535,7 +1535,7 @@ type ListarRutasRow struct {
 // El tablero de rutas  (GET /api/routes)
 // ---------------------------------------------------------------------------
 func (q *Queries) ListarRutas(ctx context.Context, arg ListarRutasParams) ([]ListarRutasRow, error) {
-	rows, err := q.db.Query(ctx, listarRutas, arg.Sucursal, arg.Estado, arg.Distribuidor)
+	rows, err := q.db.Query(ctx, listarRutas, arg.Sucursal, arg.Estado, arg.Dispositivo)
 	if err != nil {
 		return nil, err
 	}
@@ -1738,13 +1738,13 @@ LEFT JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
 LEFT JOIN distribuidores dist ON dist.id = r.distribuidor_id
 WHERE r.id = $1
   AND ($2::uuid IS NULL OR r.branch_id = $2::uuid)
-  AND ($3::uuid IS NULL OR r.distribuidor_id = $3::uuid)
+  AND ($3::uuid IS NULL OR r.dispositivo_id = $3::uuid)
 `
 
 type ObtenerRutaParams struct {
-	ID           uuid.UUID   `json:"id"`
-	Sucursal     pgtype.UUID `json:"sucursal"`
-	Distribuidor pgtype.UUID `json:"distribuidor"`
+	ID          uuid.UUID   `json:"id"`
+	Sucursal    pgtype.UUID `json:"sucursal"`
+	Dispositivo pgtype.UUID `json:"dispositivo"`
 }
 
 type ObtenerRutaRow struct {
@@ -1785,7 +1785,7 @@ type ObtenerRutaRow struct {
 // La cabecera. Cero filas es «no existe O no es de tu sucursal»: desde fuera son lo mismo,
 // y tienen que serlo, porque decir «existe pero no es tuya» ya es contar algo.
 func (q *Queries) ObtenerRuta(ctx context.Context, arg ObtenerRutaParams) (ObtenerRutaRow, error) {
-	row := q.db.QueryRow(ctx, obtenerRuta, arg.ID, arg.Sucursal, arg.Distribuidor)
+	row := q.db.QueryRow(ctx, obtenerRuta, arg.ID, arg.Sucursal, arg.Dispositivo)
 	var i ObtenerRutaRow
 	err := row.Scan(
 		&i.ID,

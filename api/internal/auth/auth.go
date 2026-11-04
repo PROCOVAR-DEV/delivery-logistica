@@ -59,6 +59,10 @@ type Usuario struct {
 	Entradas    []string
 	HayEntradas bool
 
+	// Dispositivo: el id del teléfono de un DISTRIBUIDOR (claim `dispositivo`). Vacío en cualquier otra persona. El alcance del distribuidor sale
+	// de él: solo las rutas asignadas a ese teléfono (`internal/alcance`).
+	Dispositivo string
+
 	// IatMs: cuándo se emitió el token, en MILISEGUNDOS (claim `iatms`). Lo firman la cookie de la
 	// web (`auth_web.go`) y, desde el 08/10/2026, Accesos en el token de acceso de la APK. Cero = no
 	// lo trae (una cookie anterior a este cambio, o un token de Accesos anterior a él).
@@ -456,6 +460,7 @@ func (v *Verificador) Verificar(token string) (*Usuario, error) {
 		u.Rol = u.Roles[0]
 	}
 	u.Entradas, u.HayEntradas = LeerEntradas(c.Entradas)
+	u.Dispositivo = strings.TrimSpace(c.Dispositivo)
 	u.FirmadoPorLaWeb = c.Web
 	if c.IatMs != nil {
 		u.IatMs = int64(*c.IatMs)
@@ -484,6 +489,8 @@ type reclamos struct {
 	BranchID      string   `json:"branchId"`
 	BranchIDSnake string   `json:"branch_id"`
 	Sucursal      string   `json:"sucursal"`
+	// `dispositivo`: el teléfono de un DISTRIBUIDOR (lo firma Reparto al reclamar un enlace, `dispositivos.go`). Sin cuenta de Accesos.
+	Dispositivo string   `json:"dispositivo"`
 	Exp           *float64 `json:"exp"`
 	Nbf           *float64 `json:"nbf"`
 	// `iat` NO se usa para decidir nada —un token sin él vale igual— y está aquí sólo para

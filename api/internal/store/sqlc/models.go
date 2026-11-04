@@ -642,6 +642,17 @@ type Customer struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type DispositivosDistribuidor struct {
+	ID             uuid.UUID          `json:"id"`
+	Nombre         *string            `json:"nombre"`
+	BranchID       uuid.UUID          `json:"branch_id"`
+	DistribuidorID pgtype.UUID        `json:"distribuidor_id"`
+	SecretoHash    []byte             `json:"secreto_hash"`
+	Activo         bool               `json:"activo"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	LastSeenAt     pgtype.Timestamptz `json:"last_seen_at"`
+}
+
 type Distribuidore struct {
 	ID        uuid.UUID          `json:"id"`
 	BranchID  uuid.UUID          `json:"branch_id"`
@@ -649,7 +660,17 @@ type Distribuidore struct {
 	Activo    bool               `json:"activo"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-	PersonaID *string            `json:"persona_id"`
+}
+
+type EnlacesDeRutum struct {
+	ID            uuid.UUID          `json:"id"`
+	RutaID        uuid.UUID          `json:"ruta_id"`
+	Token         string             `json:"token"`
+	CreadoPor     *string            `json:"creado_por"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	DispositivoID pgtype.UUID        `json:"dispositivo_id"`
+	ReclamadoAt   pgtype.Timestamptz `json:"reclamado_at"`
+	RevocadoAt    pgtype.Timestamptz `json:"revocado_at"`
 }
 
 type EnviosDelWebhook struct {
@@ -830,8 +851,8 @@ type PuntosDeCliente struct {
 
 type PuntosGp struct {
 	ID             uuid.UUID          `json:"id"`
-	DistribuidorID uuid.UUID          `json:"distribuidor_id"`
-	PersonaID      string             `json:"persona_id"`
+	DispositivoID  uuid.UUID          `json:"dispositivo_id"`
+	DistribuidorID pgtype.UUID        `json:"distribuidor_id"`
 	BranchID       uuid.UUID          `json:"branch_id"`
 	RutaIds        []uuid.UUID        `json:"ruta_ids"`
 	Lat            float64            `json:"lat"`
@@ -880,6 +901,7 @@ type Route struct {
 	// Cuántas paradas entraron en la ruta sin costo de domicilio, contadas al armarla. NULL = no consta (rutas anteriores a esta migración); 0 = estaban todas cotizadas.
 	ParadasSinCotizar *int32      `json:"paradas_sin_cotizar"`
 	DistribuidorID    pgtype.UUID `json:"distribuidor_id"`
+	DispositivoID     pgtype.UUID `json:"dispositivo_id"`
 }
 
 type SavedOrigin struct {

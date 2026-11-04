@@ -326,7 +326,7 @@ func idOpcionalPg(id *uuid.UUID) pgtype.UUID {
 }
 
 func (a *Acotado) EspejoListarRutas(ctx context.Context) ([]sqlc.ListarRutasRow, error) {
-	return a.q.ListarRutas(ctx, sqlc.ListarRutasParams{Sucursal: a.sucursalPg(), Distribuidor: a.distribuidorPg()})
+	return a.q.ListarRutas(ctx, sqlc.ListarRutasParams{Sucursal: a.sucursalPg(), Dispositivo: a.dispositivoPg()})
 }
 
 func (a *Acotado) EspejoDiferenciasDeClientes(ctx context.Context, t TandaDelPadron) ([]sqlc.DiferenciasDeClientesRow, error) {
@@ -381,7 +381,7 @@ func (a *Acotado) EspejoDiferenciasDePedidos(ctx context.Context, v VentanaDeBaj
 		// Las facturas anuladas de los últimos días entran aunque estén archivadas (00027).
 		AnuladasDesde: marcaPg(&desdeAnuladas),
 		Tope:          v.Tope,
-		Distribuidor:  a.distribuidorPg(), // un distribuidor solo recibe los pedidos de SUS rutas
+		Dispositivo:  a.dispositivoPg(), // un distribuidor solo recibe los pedidos de SUS rutas
 	})
 }
 
@@ -391,7 +391,7 @@ func (a *Acotado) EspejoIdsParaElCuadre(ctx context.Context, v VentanaDeBajada) 
 		Sucursal:     a.sucursalPg(),
 		BranchID:     aPg(v.Sucursal),
 		Tope:         v.Tope,
-		Distribuidor: a.distribuidorPg(),
+		Dispositivo: a.dispositivoPg(),
 	})
 }
 

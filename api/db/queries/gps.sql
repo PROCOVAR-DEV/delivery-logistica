@@ -1,14 +1,14 @@
 -- EL GPS DEL DISTRIBUIDOR (00033, 04/11/2026). Lo manda el aparato por lotes; lo lee solo la oficina.
 
--- De las rutas que dice el punto, SOLO las de este distribuidor (incluidas las ya completadas: el punto de «fin» llega después de completar).
--- name: RutasDelDistribuidorEntre :many
-SELECT r.id FROM routes r
-WHERE r.id = ANY(sqlc.arg('ruta_ids')::uuid[]) AND r.distribuidor_id = sqlc.arg('distribuidor');
+-- De las rutas que dice el punto, SOLO las asignadas a este teléfono (incluidas las ya completadas: el punto de «fin» llega después de completar).
+-- name: RutasDelDispositivoEntre :many
+SELECT r.id, r.distribuidor_id FROM routes r
+WHERE r.id = ANY(sqlc.arg('ruta_ids')::uuid[]) AND r.dispositivo_id = sqlc.arg('dispositivo');
 
 -- Idempotente por `id`: un punto ya recibido no se duplica ni falla. Devuelve las filas NUEVAS.
 -- name: GuardarPuntoGps :execrows
-INSERT INTO puntos_gps (id, distribuidor_id, persona_id, branch_id, ruta_ids, lat, lng, precision_m, velocidad_ms, rumbo, hora, evento, pedido_id)
-VALUES (sqlc.arg('id'), sqlc.arg('distribuidor'), sqlc.arg('persona'), sqlc.arg('sucursal'), sqlc.arg('ruta_ids')::uuid[],
+INSERT INTO puntos_gps (id, dispositivo_id, distribuidor_id, branch_id, ruta_ids, lat, lng, precision_m, velocidad_ms, rumbo, hora, evento, pedido_id)
+VALUES (sqlc.arg('id'), sqlc.arg('dispositivo'), sqlc.narg('distribuidor'), sqlc.arg('sucursal'), sqlc.arg('ruta_ids')::uuid[],
         sqlc.arg('lat'), sqlc.arg('lng'), sqlc.narg('precision_m'), sqlc.narg('velocidad_ms'), sqlc.narg('rumbo'),
         sqlc.arg('hora'), sqlc.narg('evento'), sqlc.narg('pedido_id'))
 ON CONFLICT (id) DO NOTHING;

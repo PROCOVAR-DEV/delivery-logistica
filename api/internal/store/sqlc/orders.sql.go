@@ -955,7 +955,7 @@ marcados AS (
                AND o.anulada_at >= $7::timestamptz))
       AND ($8::uuid IS NULL OR coalesce(o.route_id, o.ultima_ruta_id) IN (
             SELECT r.id FROM routes r
-            WHERE r.distribuidor_id = $8::uuid AND r.status IN ('planned', 'in_progress')))
+            WHERE r.dispositivo_id = $8::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
 )
 SELECT
     id, operation_number, customer_name, customer_phone, address, end_address,
@@ -998,7 +998,7 @@ type DiferenciasDePedidosParams struct {
 	BranchID      pgtype.UUID        `json:"branch_id"`
 	ConArchivados bool               `json:"con_archivados"`
 	AnuladasDesde pgtype.Timestamptz `json:"anuladas_desde"`
-	Distribuidor  pgtype.UUID        `json:"distribuidor"`
+	Dispositivo   pgtype.UUID        `json:"dispositivo"`
 }
 
 type DiferenciasDePedidosRow struct {
@@ -1117,7 +1117,7 @@ func (q *Queries) DiferenciasDePedidos(ctx context.Context, arg DiferenciasDePed
 		arg.BranchID,
 		arg.ConArchivados,
 		arg.AnuladasDesde,
-		arg.Distribuidor,
+		arg.Dispositivo,
 	)
 	if err != nil {
 		return nil, err
@@ -1709,16 +1709,16 @@ WHERE ($1::uuid  IS NULL OR o.branch_id = $1::uuid)
   -- El cuadre del distribuidor lista SOLO lo suyo: lo que no esté aquí lo quita el aparato (una ruta que se completó o se pasó a otro).
   AND ($3::uuid IS NULL OR coalesce(o.route_id, o.ultima_ruta_id) IN (
         SELECT r.id FROM routes r
-        WHERE r.distribuidor_id = $3::uuid AND r.status IN ('planned', 'in_progress')))
+        WHERE r.dispositivo_id = $3::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
 ORDER BY o.id
 LIMIT $4
 `
 
 type IdsDePedidosParaElCuadreParams struct {
-	Sucursal     pgtype.UUID `json:"sucursal"`
-	BranchID     pgtype.UUID `json:"branch_id"`
-	Distribuidor pgtype.UUID `json:"distribuidor"`
-	Tope         int32       `json:"tope"`
+	Sucursal    pgtype.UUID `json:"sucursal"`
+	BranchID    pgtype.UUID `json:"branch_id"`
+	Dispositivo pgtype.UUID `json:"dispositivo"`
+	Tope        int32       `json:"tope"`
 }
 
 // EL CUADRE DE LAS FACTURAS DEL APARATO (28/10/2026, Jose: «el sync se hizo para algo»). La bajada por diferencias
@@ -1731,7 +1731,7 @@ func (q *Queries) IdsDePedidosParaElCuadre(ctx context.Context, arg IdsDePedidos
 	rows, err := q.db.Query(ctx, idsDePedidosParaElCuadre,
 		arg.Sucursal,
 		arg.BranchID,
-		arg.Distribuidor,
+		arg.Dispositivo,
 		arg.Tope,
 	)
 	if err != nil {

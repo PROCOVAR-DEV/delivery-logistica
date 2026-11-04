@@ -48,9 +48,9 @@ LEFT JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
 LEFT JOIN distribuidores dist ON dist.id = r.distribuidor_id
 WHERE (sqlc.narg('sucursal')::uuid IS NULL OR r.branch_id = sqlc.narg('sucursal')::uuid)
   AND (sqlc.narg('estado')::route_status IS NULL OR r.status = sqlc.narg('estado')::route_status)
-  -- EL DISTRIBUIDOR SOLO VE SUS RUTAS (04/11/2026): lo rellena `alcance.Acotado`, nunca el manejador. Nulo = no es un distribuidor.
-  AND (sqlc.narg('distribuidor')::uuid IS NULL
-       OR (r.distribuidor_id = sqlc.narg('distribuidor')::uuid AND r.status IN ('planned', 'in_progress')))
+  -- EL DISTRIBUIDOR SOLO VE LAS RUTAS ASIGNADAS A SU TELÉFONO (04/11/2026): lo rellena `alcance.Acotado`, nunca el manejador. Nulo = no es un distribuidor.
+  AND (sqlc.narg('dispositivo')::uuid IS NULL
+       OR (r.dispositivo_id = sqlc.narg('dispositivo')::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
 ORDER BY r.created_at DESC;
 
 -- ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ LEFT JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
 LEFT JOIN distribuidores dist ON dist.id = r.distribuidor_id
 WHERE r.id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR r.branch_id = sqlc.narg('sucursal')::uuid)
-  AND (sqlc.narg('distribuidor')::uuid IS NULL OR r.distribuidor_id = sqlc.narg('distribuidor')::uuid);
+  AND (sqlc.narg('dispositivo')::uuid IS NULL OR r.dispositivo_id = sqlc.narg('dispositivo')::uuid);
 
 -- Serializa completar, editar, borrar y marcar sobre la MISMA fila.
 -- Debe llamarse dentro de EnTx y conservar el bloqueo hasta terminar la escritura.
@@ -104,7 +104,7 @@ WHERE r.id = sqlc.arg('id')
 SELECT status FROM routes
 WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
-  AND (sqlc.narg('distribuidor')::uuid IS NULL OR distribuidor_id = sqlc.narg('distribuidor')::uuid)
+  AND (sqlc.narg('dispositivo')::uuid IS NULL OR dispositivo_id = sqlc.narg('dispositivo')::uuid)
 FOR UPDATE;
 
 -- Las paradas, en el orden en que el camión las visita.

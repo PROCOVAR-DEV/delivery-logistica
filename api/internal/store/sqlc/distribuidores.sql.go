@@ -18,7 +18,7 @@ UPDATE distribuidores SET
     activo = coalesce($2::boolean, activo)
 WHERE id = $3
   AND ($4::uuid IS NULL OR branch_id = $4::uuid)
-RETURNING id, branch_id, nombre, activo, created_at, updated_at, persona_id
+RETURNING id, branch_id, nombre, activo, created_at, updated_at
 `
 
 type ActualizarDistribuidorParams struct {
@@ -45,7 +45,6 @@ func (q *Queries) ActualizarDistribuidor(ctx context.Context, arg ActualizarDist
 		&i.Activo,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.PersonaID,
 	)
 	return i, err
 }
@@ -81,11 +80,11 @@ WITH nuevo AS (
     INSERT INTO distribuidores (id, branch_id, nombre, activo)
     VALUES (coalesce($1::uuid, uuid_generate_v7()), $2, $3, $4)
     ON CONFLICT (id) DO NOTHING
-    RETURNING id, branch_id, nombre, activo, created_at, updated_at, persona_id
+    RETURNING id, branch_id, nombre, activo, created_at, updated_at
 )
-SELECT id, branch_id, nombre, activo, created_at, updated_at, persona_id FROM nuevo
+SELECT id, branch_id, nombre, activo, created_at, updated_at FROM nuevo
 UNION ALL
-SELECT d.id, d.branch_id, d.nombre, d.activo, d.created_at, d.updated_at, d.persona_id
+SELECT d.id, d.branch_id, d.nombre, d.activo, d.created_at, d.updated_at
 FROM distribuidores d
 WHERE $1::uuid IS NOT NULL AND d.id = $1::uuid
   AND d.branch_id = $2
@@ -105,7 +104,6 @@ type CrearDistribuidorRow struct {
 	Activo    bool               `json:"activo"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-	PersonaID *string            `json:"persona_id"`
 }
 
 // Nace en la sucursal de quien llama (`branch_id` lo rellena `alcance.Acotado`). El manejador no
@@ -126,65 +124,6 @@ func (q *Queries) CrearDistribuidor(ctx context.Context, arg CrearDistribuidorPa
 		&i.Activo,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.PersonaID,
-	)
-	return i, err
-}
-
-const distribuidorDeLaPersona = `-- name: DistribuidorDeLaPersona :one
-SELECT id, branch_id, nombre, activo FROM distribuidores WHERE persona_id = $1
-`
-
-type DistribuidorDeLaPersonaRow struct {
-	ID       uuid.UUID `json:"id"`
-	BranchID uuid.UUID `json:"branch_id"`
-	Nombre   string    `json:"nombre"`
-	Activo   bool      `json:"activo"`
-}
-
-// EL USUARIO DEL DISTRIBUIDOR (00032, 04/11/2026). `persona_id` es el `sub` del token de Accesos.
-func (q *Queries) DistribuidorDeLaPersona(ctx context.Context, persona *string) (DistribuidorDeLaPersonaRow, error) {
-	row := q.db.QueryRow(ctx, distribuidorDeLaPersona, persona)
-	var i DistribuidorDeLaPersonaRow
-	err := row.Scan(
-		&i.ID,
-		&i.BranchID,
-		&i.Nombre,
-		&i.Activo,
-	)
-	return i, err
-}
-
-const ligarPersonaADistribuidor = `-- name: LigarPersonaADistribuidor :one
-UPDATE distribuidores SET persona_id = $1
-WHERE id = $2
-  AND ($3::uuid IS NULL OR branch_id = $3::uuid)
-RETURNING id, branch_id, nombre, activo, persona_id
-`
-
-type LigarPersonaADistribuidorParams struct {
-	Persona  *string     `json:"persona"`
-	ID       uuid.UUID   `json:"id"`
-	Sucursal pgtype.UUID `json:"sucursal"`
-}
-
-type LigarPersonaADistribuidorRow struct {
-	ID        uuid.UUID `json:"id"`
-	BranchID  uuid.UUID `json:"branch_id"`
-	Nombre    string    `json:"nombre"`
-	Activo    bool      `json:"activo"`
-	PersonaID *string   `json:"persona_id"`
-}
-
-func (q *Queries) LigarPersonaADistribuidor(ctx context.Context, arg LigarPersonaADistribuidorParams) (LigarPersonaADistribuidorRow, error) {
-	row := q.db.QueryRow(ctx, ligarPersonaADistribuidor, arg.Persona, arg.ID, arg.Sucursal)
-	var i LigarPersonaADistribuidorRow
-	err := row.Scan(
-		&i.ID,
-		&i.BranchID,
-		&i.Nombre,
-		&i.Activo,
-		&i.PersonaID,
 	)
 	return i, err
 }
@@ -201,15 +140,18 @@ WHERE ($1::boolean IS NULL
        OR NOT $1::boolean
        OR d.activo)
   AND ($2::uuid IS NULL OR d.branch_id = $2::uuid)
-  -- UN DISTRIBUIDOR SOLO VE EL SUYO (04/11/2026).
-  AND ($3::uuid IS NULL OR d.id = $3::uuid)
+  -- UN DISTRIBUIDOR SOLO VE A QUIEN LLEVA SUS RUTAS (04/11/2026).
+  AND ($3::uuid IS NULL
+       OR d.id IN (SELECT r.distribuidor_id FROM routes r
+                   WHERE r.dispositivo_id = $3::uuid AND r.distribuidor_id IS NOT NULL
+                     AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
 ORDER BY b.name ASC, lower(d.nombre) ASC, d.id ASC
 `
 
 type ListarDistribuidoresParams struct {
-	SoloActivos  *bool       `json:"solo_activos"`
-	Sucursal     pgtype.UUID `json:"sucursal"`
-	Distribuidor pgtype.UUID `json:"distribuidor"`
+	SoloActivos *bool       `json:"solo_activos"`
+	Sucursal    pgtype.UUID `json:"sucursal"`
+	Dispositivo pgtype.UUID `json:"dispositivo"`
 }
 
 type ListarDistribuidoresRow struct {
@@ -242,7 +184,7 @@ type ListarDistribuidoresRow struct {
 //
 // `rutas` dice cuántas rutas lo usan: de ahí sale «se retira, no se borra».
 func (q *Queries) ListarDistribuidores(ctx context.Context, arg ListarDistribuidoresParams) ([]ListarDistribuidoresRow, error) {
-	rows, err := q.db.Query(ctx, listarDistribuidores, arg.SoloActivos, arg.Sucursal, arg.Distribuidor)
+	rows, err := q.db.Query(ctx, listarDistribuidores, arg.SoloActivos, arg.Sucursal, arg.Dispositivo)
 	if err != nil {
 		return nil, err
 	}

@@ -414,18 +414,17 @@ LEFT JOIN branches b  ON b.id  = v.branch_id
 WHERE ($1::uuid IS NULL
        OR v.branch_id = $1::uuid
        OR v.branch_id IS NULL)
-  -- UN DISTRIBUIDOR SOLO RECIBE LOS VEHÍCULOS DE SUS RUTAS PLANIFICADAS O EN CURSO (04/11/2026), y el suyo propio si lo lleva por defecto.
+  -- UN DISTRIBUIDOR SOLO RECIBE LOS VEHÍCULOS DE LAS RUTAS ASIGNADAS A SU TELÉFONO, planificadas o en curso (04/11/2026).
   AND ($2::uuid IS NULL
-       OR v.distribuidor_id = $2::uuid
        OR v.id IN (SELECT r.vehicle_id FROM routes r
-                   WHERE r.distribuidor_id = $2::uuid
-                     AND r.status IN ('planned', 'in_progress') AND r.vehicle_id IS NOT NULL))
+                   WHERE r.dispositivo_id = $2::uuid
+                     AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days')) AND r.vehicle_id IS NOT NULL))
 ORDER BY v.created_at DESC
 `
 
 type ListarVehiculosParams struct {
-	Sucursal     pgtype.UUID `json:"sucursal"`
-	Distribuidor pgtype.UUID `json:"distribuidor"`
+	Sucursal    pgtype.UUID `json:"sucursal"`
+	Dispositivo pgtype.UUID `json:"dispositivo"`
 }
 
 type ListarVehiculosRow struct {
@@ -464,7 +463,7 @@ type ListarVehiculosRow struct {
 // La lista  (GET /api/vehicles)
 // ---------------------------------------------------------------------------
 func (q *Queries) ListarVehiculos(ctx context.Context, arg ListarVehiculosParams) ([]ListarVehiculosRow, error) {
-	rows, err := q.db.Query(ctx, listarVehiculos, arg.Sucursal, arg.Distribuidor)
+	rows, err := q.db.Query(ctx, listarVehiculos, arg.Sucursal, arg.Dispositivo)
 	if err != nil {
 		return nil, err
 	}

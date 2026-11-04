@@ -42,12 +42,11 @@ LEFT JOIN branches b  ON b.id  = v.branch_id
 WHERE (sqlc.narg('sucursal')::uuid IS NULL
        OR v.branch_id = sqlc.narg('sucursal')::uuid
        OR v.branch_id IS NULL)
-  -- UN DISTRIBUIDOR SOLO RECIBE LOS VEHÍCULOS DE SUS RUTAS PLANIFICADAS O EN CURSO (04/11/2026), y el suyo propio si lo lleva por defecto.
-  AND (sqlc.narg('distribuidor')::uuid IS NULL
-       OR v.distribuidor_id = sqlc.narg('distribuidor')::uuid
+  -- UN DISTRIBUIDOR SOLO RECIBE LOS VEHÍCULOS DE LAS RUTAS ASIGNADAS A SU TELÉFONO, planificadas o en curso (04/11/2026).
+  AND (sqlc.narg('dispositivo')::uuid IS NULL
        OR v.id IN (SELECT r.vehicle_id FROM routes r
-                   WHERE r.distribuidor_id = sqlc.narg('distribuidor')::uuid
-                     AND r.status IN ('planned', 'in_progress') AND r.vehicle_id IS NOT NULL))
+                   WHERE r.dispositivo_id = sqlc.narg('dispositivo')::uuid
+                     AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days')) AND r.vehicle_id IS NOT NULL))
 ORDER BY v.created_at DESC;
 
 -- name: ObtenerVehiculo :one

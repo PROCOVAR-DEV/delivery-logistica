@@ -14,6 +14,7 @@ import '../../pedidos/vista/kit.dart' show EstadoVacio, Insignia;
 import '../datos/api_distribucion.dart';
 import '../datos/modelos.dart';
 import 'recorrido_real.dart';
+import 'vinculo_del_vehiculo.dart';
 
 abstract final class TextosDelHistorial {
   static const vacio = 'Este vehículo todavía no ha hecho ninguna ruta.';
@@ -37,7 +38,28 @@ Future<void> abrirHistorialDelVehiculo(
   contexto,
   titulo: 'Historial · $nombre',
   subtitulo: 'Sus rutas, de la más reciente a la más antigua',
-  cuerpo: (_) => HistorialDelVehiculo(vehiculoId: vehiculoId),
+  cuerpo: (c) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        'Teléfono',
+        style: Theme.of(c).textTheme.titleSmall
+            ?.copyWith(fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 6),
+      VinculoDelVehiculo(vehiculoId: vehiculoId, nombre: nombre),
+      const SizedBox(height: 8),
+      HistorialDeVinculos(vehiculoId: vehiculoId),
+      const SizedBox(height: 20),
+      Text(
+        'Rutas',
+        style: Theme.of(c).textTheme.titleSmall
+            ?.copyWith(fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 6),
+      HistorialDelVehiculo(vehiculoId: vehiculoId),
+    ],
+  ),
 );
 
 class HistorialDelVehiculo extends ConsumerWidget {

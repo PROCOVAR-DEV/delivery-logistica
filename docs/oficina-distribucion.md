@@ -21,6 +21,7 @@ Código: `app/lib/pantallas/distribucion/` (`datos/modelos.dart`, `datos/api_dis
 | 4 | Vehículos → tarjeta → **Historial** | Cajón con las rutas del vehículo (más reciente primero): fecha, quién las hizo, paradas / entregadas / devueltas / cobradas, km, duración, salida y llegada; al tocar una con GPS, su Recorrido real. |
 | 5 | Menú → **Distribución** → «Dónde están» | Mapa con el último punto de cada distribuidor con ruta en curso, hace cuánto lo mandó y **aviso en ámbar pasados 10 minutos**. Se refresca solo cada 30 s y con «Actualizar». |
 | 6 | Mismo menú → «Por revisar (n)» y el detalle de una ruta completada | «Pendiente de revisión» / «Revisada ✓ por <quién> el <fecha>» y botón **Confirmar revisión**. Lista filtrable (Pendientes / Revisadas / Todas + buscador por código, distribuidor o vehículo); al tocar una fila, su revisión y su recorrido juntos. |
+| 8 | Vehículos → tarjeta («Vinculado al teléfono X desde <fecha>» y **Desvincular**) y su **Historial** | El enlace de la ruta lleva el vehículo y el teléfono que lo abre queda vinculado a él. **Desvincular** (solo oficina) pregunta en un cajón («El teléfono se vaciará y las rutas abiertas quedarán libres; lo que no haya enviado se perderá. El servidor conserva todo el histórico.»), con motivo opcional. Tras desvincular, las rutas que quedaron sueltas salen con **Enviar enlace nuevo** (WhatsApp; pide un enlace fresco con `renovar:true`, porque el anterior quedó revocado). El historial del vehículo lleva, además de sus rutas, la lista de teléfonos que ha llevado (desde, hasta, quién, motivo). «Enviar a distribuidor» enseña el vehículo de la ruta y, si no tiene, no deja enviar y lo dice. |
 | 7 | Vehículos → ficha → **Lo lleva**; asistente de Nueva ruta | Selector del distribuidor por defecto del vehículo. Al elegir vehículo en el asistente se propone ese distribuidor (si es de la sucursal y está en activo), con la frase «Propuesto porque suele llevar este vehículo.». |
 
 ## Contrato esperado del servidor
@@ -41,7 +42,12 @@ GET  /vehicles/{id}/historial   -> {"vehiculoId","rutas":[{id,codigo,nombre,esta
 GET  /tracking/ahora            -> {"distribuidores":[{distribuidorId,distribuidor,lat,lng,hora,recibidoAt,velocidad,rutaIds}]}
 GET  /routes                    -> la lista de siempre; cada ruta lleva además "revisadaAt" (nulo = pendiente) y "revisadaPor"
 POST /routes/{id}/revision      {"confirmar":true} -> 200 la ruta con revisadaAt/revisadaPor
-GET/POST/PATCH /vehicles        aceptan y devuelven "distribuidorId" (quién lo lleva por defecto)
+GET/POST/PATCH /vehicles        aceptan y devuelven "distribuidorId" (quién lo lleva por defecto); GET además "dispositivoId",
+                                "dispositivoNombre", "vinculadoAt" (nulos = sin teléfono)
+POST /vehicles/{id}/desvincular {motivo?}  -> 200 {desvinculado:true, dispositivoId, rutasSueltas:[ids]}; 409 si no está vinculado
+GET  /vehicles/{id}/vinculos    -> [{id,dispositivoId,dispositivo,desde,hasta,vinculadoPor,desvinculadoPor,motivo}]
+409 en POST /routes/{id}/enlace si la ruta no tiene vehículo ('Asigna un vehículo…'); 409 en PATCH vehicleId de una ruta que ya está
+en un teléfono ('desvincula el vehículo del telefono antes de cambiarlo') — la app enseña la frase tal cual
 ```
 
 Decisiones de lectura que el servidor debe respetar:

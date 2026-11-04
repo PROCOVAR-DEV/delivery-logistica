@@ -471,6 +471,8 @@ class RevisionDeRuta {
     this.revisadaPor,
     this.distribuidorId,
     this.vehiculoId,
+    this.fecha,
+    this.paradas = 0,
   });
 
   factory RevisionDeRuta.deJson(Map<String, Object?> j) {
@@ -489,6 +491,8 @@ class RevisionDeRuta {
       revisadaPor: _texto(j['revisadaPor']),
       distribuidorId: _texto(j['distribuidorId']),
       vehiculoId: _texto(j['vehicleId']),
+      fecha: _hora(j['deliveryDate']),
+      paradas: (j['orders'] as List?)?.length ?? 0,
     );
   }
 
@@ -505,10 +509,52 @@ class RevisionDeRuta {
   final String? distribuidorId;
   final String? vehiculoId;
 
+  /// Día de reparto y cuántas paradas lleva (para escribir el mensaje al distribuidor sin pedir nada más).
+  final DateTime? fecha;
+  final int paradas;
+
   bool get completada => estado == 'completed';
 
   /// Solo se revisa lo completado y que el servidor marca como revisable.
   bool get seRevisa => completada && llevaRevision;
   bool get pendiente => seRevisa && revisadaAt == null;
   bool get revisada => seRevisa && revisadaAt != null;
+}
+
+// ------------------------------------------------------------------ VINCULO VEHICULO <-> TELEFONO
+
+/// Un renglón de `GET /api/vehicles/{id}/vinculos`: un teléfono que llevó (o lleva) este vehículo. [hasta] nulo = sigue vinculado.
+class VinculoDeVehiculo {
+  const VinculoDeVehiculo({
+    required this.id,
+    this.dispositivoId,
+    this.dispositivo,
+    this.desde,
+    this.hasta,
+    this.vinculadoPor,
+    this.desvinculadoPor,
+    this.motivo,
+  });
+
+  factory VinculoDeVehiculo.deJson(Map<String, Object?> j) => VinculoDeVehiculo(
+    id: '${j['id'] ?? ''}',
+    dispositivoId: _texto(j['dispositivoId']),
+    dispositivo: _texto(j['dispositivo']),
+    desde: _hora(j['desde']),
+    hasta: _hora(j['hasta']),
+    vinculadoPor: _texto(j['vinculadoPor']),
+    desvinculadoPor: _texto(j['desvinculadoPor']),
+    motivo: _texto(j['motivo']),
+  );
+
+  final String id;
+  final String? dispositivoId;
+  final String? dispositivo;
+  final DateTime? desde;
+  final DateTime? hasta;
+  final String? vinculadoPor;
+  final String? desvinculadoPor;
+  final String? motivo;
+
+  bool get vigente => hasta == null;
 }

@@ -20,6 +20,7 @@ import '../../ayuda/vista/control_senalado.dart';
 import '../../../nucleo/base/base.dart' show Distribuidor;
 import '../../distribucion/datos/api_distribucion.dart';
 import '../../distribucion/vista/historial_del_vehiculo.dart';
+import '../../distribucion/vista/vinculo_del_vehiculo.dart';
 import '../../distribuidores/estado/proveedores_distribuidores.dart';
 import '../../distribuidores/vista/cajon_distribuidores.dart';
 import '../datos/vehiculo_api.dart';
@@ -738,6 +739,7 @@ class _Rejilla extends ConsumerWidget {
                       alUsarParaDomicilio: () =>
                           control.usarParaDomicilio(v.id),
                       alVerHistorial: () => abrirHistorialDelVehiculo(context, v.id, v.nombre),
+                      vinculo: VinculoDelVehiculo(vehiculoId: v.id, nombre: v.nombre, compacto: true),
                     ),
                   ),
               ],

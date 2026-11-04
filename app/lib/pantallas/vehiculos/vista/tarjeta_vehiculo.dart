@@ -22,6 +22,7 @@ class TarjetaVehiculo extends StatelessWidget {
     required this.importe,
     this.esLaPrimera = false,
     this.alVerHistorial,
+    this.vinculo,
     super.key,
   });
 
@@ -47,6 +48,9 @@ class TarjetaVehiculo extends StatelessWidget {
 
   /// «Historial»: las rutas de este vehículo y su recorrido real (`distribucion/`). `null` = no se ofrece.
   final VoidCallback? alVerHistorial;
+
+  /// «Vinculado al teléfono X» y «Desvincular» (`distribucion/vista/vinculo_del_vehiculo.dart`). `null` = no se ofrece.
+  final Widget? vinculo;
 
   /// Los colores son los SEMANTICOS del kit, no unos propios: azul = en marcha,
   /// ambar = atencion, verde = listo. Los tenia repetidos aqui y por eso el «en
@@ -290,6 +294,7 @@ class TarjetaVehiculo extends StatelessWidget {
               ),
             ),
           ],
+          ?vinculo,
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,

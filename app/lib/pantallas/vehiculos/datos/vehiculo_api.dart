@@ -88,6 +88,9 @@ class VehiculoDeLaApi {
     this.pedidos = 0,
     this.rutaActiva,
     this.distribuidorId,
+    this.dispositivoId,
+    this.dispositivoNombre,
+    this.vinculadoAt,
   });
 
   factory VehiculoDeLaApi.deJson(Map<String, Object?> j) {
@@ -105,6 +108,9 @@ class VehiculoDeLaApi {
       usarParaDomicilio: j['usarParaDomicilio'] == true,
       notas: j['notes'] as String?,
       distribuidorId: j['distribuidorId'] as String?,
+      dispositivoId: j['dispositivoId'] as String?,
+      dispositivoNombre: j['dispositivoNombre'] as String?,
+      vinculadoAt: j['vinculadoAt'] is String ? DateTime.tryParse(j['vinculadoAt']! as String)?.toLocal() : null,
       rutas: (_numero(cuenta?['routes']) ?? 0).toInt(),
       pedidos: (_numero(cuenta?['orders']) ?? 0).toInt(),
       // `routes` trae CERO O UNA ruta, la abierta que manda. La lista viene del
@@ -129,6 +135,12 @@ class VehiculoDeLaApi {
   /// QUIEN LO LLEVA POR DEFECTO (el servidor, `vehicles.distribuidorId`). Nulo = nadie, o el servidor no lo manda todavia.
   /// La copia local de la APK no lo trae (la bajada no lo lleva aun): alli se lee en vivo, ver `distribuidorDeCadaVehiculoProvider`.
   final String? distribuidorId;
+
+  /// EL TELÉFONO AL QUE ESTÁ VINCULADO (el enlace de su ruta lo vincula). Nulo = ninguno, o la copia local de la APK, que no lo trae:
+  /// allí se lee en vivo (`vehiculosEnVivoProvider`). Se quita con «Desvincular» (`distribucion/vista/vinculo_del_vehiculo.dart`).
+  final String? dispositivoId;
+  final String? dispositivoNombre;
+  final DateTime? vinculadoAt;
   final String? notas;
   final int rutas;
   final int pedidos;

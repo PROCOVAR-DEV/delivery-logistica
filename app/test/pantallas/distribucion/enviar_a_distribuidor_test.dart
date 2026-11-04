@@ -8,6 +8,7 @@
 //  * sin red, o con la ruta cerrada, la pantalla lo dice con su motivo y no finge.
 
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,6 +38,7 @@ void main() {
   RutaConTodo laRuta({
     String id = 'R1',
     String estado = EstadoRuta.planificada,
+    bool conVehiculo = true,
   }) {
     final base = rutaAMano(
       id: id,
@@ -47,8 +49,12 @@ void main() {
       ],
     );
     return RutaConTodo(
-      ruta: base.ruta.copyWith(status: estado),
+      ruta: base.ruta.copyWith(
+        status: estado,
+        vehicleId: conVehiculo ? const Value('V1') : const Value(null),
+      ),
       paradas: base.paradas,
+      vehiculo: conVehiculo ? camionAMano() : null,
     );
   }
 
@@ -161,6 +167,46 @@ void main() {
         isNull,
       );
     });
+  });
+
+  group('el vehículo de la ruta', () {
+    testWidgets('se enseña el vehículo que lleva el enlace', (tester) async {
+      await pintar(tester, laRuta());
+      expect(find.text('Vehículo: Camión 1 (P-001)'), findsOneWidget);
+    });
+
+    testWidgets('una ruta SIN vehículo no se puede enviar y lo dice', (
+      tester,
+    ) async {
+      await pintar(tester, laRuta(conVehiculo: false));
+      expect(
+        find.textContaining('Esta ruta no tiene vehículo'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(claveDeEnviarWhatsApp))
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets(
+      'si el servidor da 409 por falta de vehículo, sale su frase literal',
+      (tester) async {
+        await pintar(tester, laRuta());
+        contesta = (_) async => RespuestaFalsa(409, {
+          'error': 'Asigna un vehículo a la ruta antes de enviarla.',
+        });
+        await tester.tap(find.byKey(claveDeEnviarWhatsApp));
+        await asentar(tester);
+        expect(aparato.abiertos, isEmpty);
+        expect(
+          find.text('Asigna un vehículo a la ruta antes de enviarla.'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   group('lo que sale al pulsar', () {

@@ -9,6 +9,7 @@ import '../../../nucleo/cola/provisionales.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../../nucleo/red/cliente_api.dart';
 import '../../../nucleo/red/fallos.dart';
+import '../../vehiculos/datos/vehiculo_api.dart' show VehiculoDeLaApi;
 import '../../vehiculos/estado/estado_vehiculos.dart'
     show repositorioVehiculosProvider;
 import 'modelos.dart';
@@ -73,6 +74,28 @@ class ApiDistribucion {
     ];
   }
 
+  /// `POST /api/vehicles/{id}/desvincular {motivo?}`: el teléfono pierde el acceso y su APK se vacía; las rutas planificadas o en
+  /// curso quedan sin dueño y SU ENLACE SE REVOCA. Devuelve los ids de esas rutas. 409 = no estaba vinculado (frase del servidor).
+  Future<List<String>> desvincular(String vehiculoId, {String? motivo}) async {
+    final j = _mapa(
+      await _api.mandar<Object?>('POST', '/vehicles/$vehiculoId/desvincular', {
+        if (motivo != null && motivo.trim().isNotEmpty) 'motivo': motivo.trim(),
+      }),
+    );
+    return [for (final r in (j['rutasSueltas'] as List?) ?? const []) '$r'];
+  }
+
+  /// `GET /api/vehicles/{id}/vinculos`: los teléfonos que ha llevado, el más reciente primero.
+  Future<List<VinculoDeVehiculo>> vinculosDe(String vehiculoId) async {
+    final lista = await _api.pedir<Object?>('/vehicles/$vehiculoId/vinculos');
+    return [
+      for (final v in (lista as List?) ?? const [])
+        VinculoDeVehiculo.deJson(_mapa(v)),
+    ]..sort(
+      (a, b) => (b.desde ?? DateTime(0)).compareTo(a.desde ?? DateTime(0)),
+    );
+  }
+
   /// La segunda llave: `POST /api/routes/{id}/revision {"confirmar":true}`.
   Future<void> confirmarRevision(String rutaId) => _api.mandar<Object?>(
     'POST',
@@ -118,12 +141,32 @@ final revisionDeLaRutaProvider = Provider.autoDispose
 
 /// Quién lleva cada vehículo por defecto, leído del servidor (`GET /api/vehicles`, el mismo del listado), tambien en la APK: la copia
 /// local de la flota no trae ese campo todavía.
+/// LOS VEHÍCULOS EN VIVO (`GET /api/vehicles`), tambien en la APK: la copia local de la flota no trae ni quién los lleva por defecto
+/// ni a qué teléfono están vinculados. Una sola petición para las dos cosas.
+final vehiculosEnVivoProvider =
+    FutureProvider.autoDispose<Map<String, VehiculoDeLaApi>>(
+      (ref) async => {
+        for (final v in await ref.watch(repositorioVehiculosProvider).listar())
+          v.id: v,
+      },
+    );
+
+/// Quién lleva cada vehículo por defecto, sacado de los vehículos en vivo.
 final distribuidorDeCadaVehiculoProvider =
     FutureProvider.autoDispose<Map<String, String?>>(
       (ref) async => {
-        for (final v in await ref.watch(repositorioVehiculosProvider).listar())
+        for (final v in (await ref.watch(
+          vehiculosEnVivoProvider.future,
+        )).values)
           v.id: v.distribuidorId,
       },
+    );
+
+/// Los teléfonos que ha llevado un vehículo.
+final vinculosDelVehiculoProvider = FutureProvider.autoDispose
+    .family<List<VinculoDeVehiculo>, String>(
+      (ref, vehiculoId) =>
+          ref.watch(apiDistribucionProvider).vinculosDe(vehiculoId),
     );
 
 /// ¿La ruta ya existe en el servidor? Una ruta armada sin red tiene un id `local-…` que el servidor no conoce.

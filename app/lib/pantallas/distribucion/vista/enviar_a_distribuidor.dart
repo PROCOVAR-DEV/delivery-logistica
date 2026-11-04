@@ -41,6 +41,10 @@ abstract final class TextosDeEnviar {
       '${cuando == null ? '' : ' el ${fechaYHora(cuando)}'}.';
   static const rutaSinSubir =
       'Esta ruta todavía no ha subido al servidor. Conecta el aparato para que se sincronice y luego envíala.';
+  static String vehiculo(String nombre, String? placa) =>
+      'Vehículo: $nombre${placa == null ? '' : ' ($placa)'}';
+  static const sinVehiculo =
+      'Esta ruta no tiene vehículo. Asígnale uno antes de enviarla: el enlace lleva el vehículo, y el teléfono que lo abra queda vinculado a él.';
   static const rutaCerrada =
       'La ruta ya está cerrada: no se puede enviar a un distribuidor.';
   static const soltar = 'Soltar y mandar a otro teléfono';
@@ -53,9 +57,40 @@ abstract final class TextosDeEnviar {
       'Ruta soltada. Ya puedes mandar el enlace nuevo a otro teléfono.';
 }
 
+/// Crea u obtiene el enlace de la ruta (`POST`) y escribe el mensaje que se le manda al distribuidor. Con [renovar] el enlace es
+/// SIEMPRE uno nuevo (la ruta se suelta de su teléfono antes). Lanza lo que lance la API: 409 si la ruta está cerrada o no tiene vehículo.
+Future<String> mensajeConEnlace(
+  ApiDistribucion api, {
+  required String rutaId,
+  required String codigo,
+  required String fecha,
+  required int paradas,
+  String? nombre,
+  bool renovar = false,
+}) async {
+  final enlace = await api.crearEnlace(rutaId, renovar: renovar);
+  final url = enlace.url;
+  if (url == null) throw const _SinEnlace();
+  return mensajeParaElDistribuidor(
+    codigo: codigo,
+    nombre: nombre,
+    fecha: fecha,
+    paradas: paradas,
+    url: url,
+  );
+}
+
+class _SinEnlace implements Exception {
+  const _SinEnlace();
+
+  @override
+  String toString() => 'El servidor no devolvió el enlace de la ruta.';
+}
+
 const claveDeEnviarWhatsApp = ValueKey('enviar-whatsapp');
 const claveDeEnviarCompartir = ValueKey('enviar-compartir');
 const claveDeEnviarCopiar = ValueKey('enviar-copiar');
+const claveDelVehiculoDeLaRuta = ValueKey('enviar-vehiculo');
 const claveDeEstadoDelEnlace = ValueKey('enviar-estado-del-enlace');
 const claveDeSoltarLaRuta = ValueKey('enviar-soltar');
 const claveDeConfirmarSoltar = ValueKey('enviar-confirmar-soltar');
@@ -95,27 +130,17 @@ class _EnviarADistribuidorState extends ConsumerState<EnviarADistribuidor> {
       _fallo = null;
     });
     try {
-      final enlace = await ref
-          .read(apiDistribucionProvider)
-          .crearEnlace(_rutaId);
-      final url = enlace.url;
-      if (url == null) {
-        if (mounted) {
-          setState(
-            () => _fallo = 'El servidor no devolvió el enlace de la ruta.',
-          );
-        }
-        return null;
-      }
-      ref.invalidate(enlaceDeLaRutaProvider(_rutaId));
       final r = widget.ruta.ruta;
-      return mensajeParaElDistribuidor(
+      final mensaje = await mensajeConEnlace(
+        ref.read(apiDistribucionProvider),
+        rutaId: _rutaId,
         codigo: r.routeCode ?? r.id,
         nombre: r.name,
         fecha: fechaCorta(r.deliveryDate),
         paradas: widget.ruta.paradas.length,
-        url: url,
       );
+      ref.invalidate(enlaceDeLaRutaProvider(_rutaId));
+      return mensaje;
     } on Object catch (e) {
       if (mounted) setState(() => _fallo = motivoDelFallo(e));
       return null;
@@ -208,11 +233,15 @@ class _EnviarADistribuidorState extends ConsumerState<EnviarADistribuidor> {
         : null;
     final tema = Theme.of(context);
 
+    final sinVehiculo = widget.ruta.ruta.vehicleId == null;
     final bloqueo = !enElServidor
         ? TextosDeEnviar.rutaSinSubir
         : cerrada
         ? TextosDeEnviar.rutaCerrada
+        : sinVehiculo
+        ? TextosDeEnviar.sinVehiculo
         : null;
+    final vehiculo = widget.ruta.vehiculo;
     final puede = bloqueo == null && !_ocupado;
 
     final linea = switch (enlace) {
@@ -246,6 +275,12 @@ class _EnviarADistribuidorState extends ConsumerState<EnviarADistribuidor> {
             ),
           ),
           const SizedBox(height: 6),
+          if (vehiculo != null)
+            Text(
+              TextosDeEnviar.vehiculo(vehiculo.name, vehiculo.plate),
+              key: claveDelVehiculoDeLaRuta,
+              style: tema.textTheme.bodySmall,
+            ),
           if (linea != null)
             Text(
               linea,

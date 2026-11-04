@@ -112,7 +112,8 @@ func (e *Espejo) facturasDeLaSucursal(
 			"de", de, "sucursal", codigo, "base", base, "ventana", ventana, "err", err)
 		return 0, false
 	}
-	entregas, sinPrecio := ConDomicilioCobrado(UnaEntregaPorFactura(codigo, facturas))
+	entregas := UnaEntregaPorFactura(codigo, facturas)
+	sinPrecio := SinPrecioDeDomicilio(entregas)
 
 	// Lo que hace falta de la base para armar y pesar. Si no se puede leer, esta sucursal espera
 	// al ciclo siguiente: guardar sin los puntos borraría las coordenadas de lo ya guardado, y

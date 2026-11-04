@@ -513,7 +513,7 @@ func TestSinFacturasConfiguradasCorrerSeNiega(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// El domicilio en $0 no es un domicilio (Amado y Jose, 21/10/2026)
+// El domicilio en $0 SÍ entra (Jose, 04/11/2026; el 21/10/2026 se dejaban fuera)
 // ---------------------------------------------------------------------------
 
 func conUnoEnCero() map[string][]FacturaDeVentra {
@@ -523,56 +523,48 @@ func conUnoEnCero() map[string][]FacturaDeVentra {
 	}}
 }
 
-func TestUnaFacturaConElDomicilioEnCeroNoSeGuarda(t *testing.T) {
+func TestUnaFacturaConElDomicilioEnCeroSeGuardaIgual(t *testing.T) {
 	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: conUnoEnCero()}
 	d := &repartoFalso{}
 	e, reg := montarFacturas(FuenteDeFactura, f, &baseDeFacturasFalsa{}, &pedidoFalso{}, d)
 	if err := e.Ciclo(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.lotes) != 1 || len(d.lotes[0]) != 1 || d.lotes[0][0].ID != "factura:STG:2:47252:2026-09-13" {
-		t.Fatalf("sólo la del domicilio cobrado llega a la puerta; llegó %+v", d.lotes)
+	if len(d.lotes) != 1 || len(d.lotes[0]) != 2 {
+		t.Fatalf("las dos llegan a la puerta, también la de domicilio en $0; llegó %+v", d.lotes)
+	}
+	ids := map[string]bool{}
+	for _, p := range d.lotes[0] {
+		ids[p.ID] = true
+	}
+	if !ids["factura:STG:2:47252:2026-09-13"] || !ids["factura:STG:2:47253:2026-09-13"] {
+		t.Errorf("faltó una de las dos: %v", ids)
 	}
 	if !strings.Contains(reg.String(), "sinPrecioDeDomicilio=1") {
-		t.Errorf("y se dice cuántas se dejaron fuera:\n%s", reg.String())
+		t.Errorf("y se dice cuántas van sin precio de domicilio:\n%s", reg.String())
 	}
 }
 
-// En pareja: la de domicilio cobrado SÍ se guarda (la prueba de arriba la comprueba) y la guardada que
-// ahora va en $0 se retira sola si no va en ninguna ruta.
-func TestLaEntregaGuardadaQueAhoraVaEnCeroSeRetiraSiNoVaEnRuta(t *testing.T) {
+// En pareja: la guardada que va en $0 NO se retira (antes se retiraba sola si no iba en ninguna ruta).
+func TestLaEntregaGuardadaEnCeroNoSeRetira(t *testing.T) {
 	enCero := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47253:2026-09-13"}
 	cobrada := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47252:2026-09-13"}
 	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: conUnoEnCero()}
 	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {cobrada, enCero}}}
 	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
 	_ = e.Ciclo(context.Background())
-	if len(b.retiradas) != 1 || b.retiradas[0] != enCero.ID {
-		t.Fatalf("se retira SOLO la de $0 (%v); retiradas: %v", enCero.ID, b.retiradas)
-	}
-}
-
-func TestLaEntregaEnCeroQueYaVaEnUnaRutaSeDeja(t *testing.T) {
-	enRuta := EntregaGuardada{ID: uuid.New(), ExternalID: "factura:STG:2:47253:2026-09-13", Ocupada: true}
-	f := &facturasFalsas{bases: map[string]string{"STG": "santiago"}, respuestas: conUnoEnCero()}
-	b := &baseDeFacturasFalsa{guardadas: map[string][]EntregaGuardada{"STG": {enRuta}}}
-	e, _ := montarFacturas(FuenteDeFactura, f, b, &pedidoFalso{}, &repartoFalso{})
-	_ = e.Ciclo(context.Background())
 	if len(b.retiradas) != 0 {
-		t.Fatalf("lo que ya va en el camión no se borra aunque ahora cuente $0: %v", b.retiradas)
+		t.Fatalf("ya no se retira nada por ir en $0: %v", b.retiradas)
 	}
 }
 
-func TestConDomicilioCobradoJuzgaCadaFacturaPorSi(t *testing.T) {
-	// Dos facturas del mismo pedido son dos entregas: la de 0 se deja fuera y la de 0.35 entra, sin
-	// que la una arrastre a la otra.
+func TestSinPrecioDeDomicilioCuentaSoloLasDeCero(t *testing.T) {
 	todas := UnaEntregaPorFactura("STG", []FacturaDeVentra{
 		factura("1", "2026-09-13", "2", "PED-A", cerveza(1), domicilio(0)),
 		factura("2", "2026-09-13", "2", "PED-A", cerveza(1), domicilio(0.35)),
 	})
-	con, sin := ConDomicilioCobrado(todas)
-	if len(con) != 1 || sin != 1 || con[0].Conduce() != "2" {
-		t.Fatalf("la 2 cobra 0.35 (cuenta) y la 1 cobra 0 (no): con=%d sin=%d", len(con), sin)
+	if n := SinPrecioDeDomicilio(todas); n != 1 || len(todas) != 2 {
+		t.Fatalf("la 1 cobra 0 (cuenta como sin precio) y la 2 cobra 0.35; ninguna se descarta: sin=%d total=%d", n, len(todas))
 	}
 }
 

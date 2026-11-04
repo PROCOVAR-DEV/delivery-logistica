@@ -1295,11 +1295,10 @@ En Santiago **dos de cada tres pedidos salen de AURORA** y se medían todos desd
 
 ### La entrega que nace de una FACTURA (issue 20, Fase A — 20/10/2026)
 
-> **Sólo cuentan las de domicilio COBRADO (21/10/2026, Amado y Jose).** Una entrega cuya suma de líneas de
-> domicilio es $0 —la línea ENTREGA A DOMICILIO está en Ventra pero con el precio sin poner— **no se guarda**
-> (`espejo.ConDomicilioCobrado`), y como el ciclo retira «lo que ya no viene», las ya guardadas sin ruta ni resultado
-> se van solas; las que ya van en una ruta se quedan y se dicen. El log dice cuántas se dejaron fuera
-> (`sinPrecioDeDomicilio`). Para reactivarlas basta quitar ese filtro: Ventra las sigue mandando.
+> **Entran TODAS las facturas con domicilio, también las de $0 (04/11/2026, Jose).** El 21/10/2026 se dejaban fuera las que traían la
+> línea ENTREGA A DOMICILIO sin precio (`espejo.ConDomicilioCobrado`); el 04/11/2026 se pidió que aparezcan en todo Reparto (Rutas,
+> Tablero, Facturas), así que el filtro se quitó. Quedan con `factura_domicilio = 0` («Sin cobro de domicilio» en gris) y el
+> logístico las separa con el filtro «Cobro del domicilio». El log sigue contando cuántas van sin precio (`sinPrecioDeDomicilio`).
 
 
 **Decisión de Jose:** Reparto deja de alimentarse de los PEDIDOS de PEDIDO y pasa a alimentarse de las

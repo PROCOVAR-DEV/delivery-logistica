@@ -554,22 +554,19 @@ func (e EntregaDeFactura) DomicilioUsd() float64 {
 	return math.Round(suma*100) / 100
 }
 
-// ConDomicilioCobrado separa las entregas cuyo domicilio trae un importe de las que lo llevan en $0
-// (Amado y Jose, 21/10/2026: «las que tienen costo 0 que no me salgan en domicilio»: unos 200 domicilios
-// reales, a lo sumo 400, y no los 1.600 que salen si se cuentan las de precio sin poner). Una entrega en $0
-// NO se guarda, y como el ciclo retira «lo que ya no viene», las que ya estaban guardadas sin ruta ni
-// resultado se van solas; las que ya van en una ruta se quedan y se dicen. Se reactiva quitando este filtro:
-// Ventra sigue mandándolas y vuelven en el ciclo siguiente.
-func ConDomicilioCobrado(entregas []EntregaDeFactura) (con []EntregaDeFactura, sinPrecio int) {
-	con = make([]EntregaDeFactura, 0, len(entregas))
+// SinPrecioDeDomicilio cuenta las entregas cuyo domicilio va en $0 (la línea de domicilio está pero sin precio). SE GUARDAN IGUAL
+// (Jose, 04/11/2026: «las facturas con valor cero de entrega a domicilio, aunque no tengan cobro, tienen que aparecer»): el 21/10/2026
+// se dejaban fuera (Amado y Jose, «las que tienen costo 0 que no me salgan») y se volvió a pedir que entren. Ventra siempre las mandó;
+// el contador sólo sirve para el registro. Con `factura_domicilio = 0` el aparato las enseña como «Sin cobro de domicilio» y el
+// logístico las filtra con «Cobro del domicilio».
+func SinPrecioDeDomicilio(entregas []EntregaDeFactura) int {
+	n := 0
 	for _, en := range entregas {
-		if en.DomicilioUsd() > 0 {
-			con = append(con, en)
-			continue
+		if en.DomicilioUsd() <= 0 {
+			n++
 		}
-		sinPrecio++
 	}
-	return con, sinPrecio
+	return n
 }
 
 // direccionConCiudad: la dirección y, si la ciudad no está ya dentro, la ciudad detrás.

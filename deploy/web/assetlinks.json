@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "cloud.procovar.reparto.distribuidor",
+    "sha256_cert_fingerprints": ["01:52:9F:5A:6F:B1:A2:38:98:57:45:AF:F1:3C:DC:F7:E8:E8:5B:62:49:92:F4:E3:28:BD:E9:89:8F:D8:0B:21"]
+  }
+}]

@@ -241,6 +241,9 @@ RUN test -f build/web/sqlite3.wasm     || (echo "FALTA sqlite3.wasm en build/web
 FROM nginx:1.30-alpine
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build/web /usr/share/nginx/html
+# El enlace de la ruta del distribuidor (/r/<codigo>) y la verificación de App Links.
+COPY deploy/web/enlace.html /usr/share/nginx/html/enlace.html
+COPY deploy/web/assetlinks.json /usr/share/nginx/html/.well-known/assetlinks.json
 
 # 8080 y no 80: es el Container Port que se pone en el dominio de Dokploy.
 EXPOSE 8080

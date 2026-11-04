@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Tu ruta de reparto</title>
+<style>
+  :root { color-scheme: light dark; --fondo:#f6f7f9; --tarjeta:#fff; --texto:#1b1f24; --suave:#5b6470; --acento:#0b6b57; --borde:#d5dae0; }
+  @media (prefers-color-scheme: dark) { :root { --fondo:#0f1215; --tarjeta:#181c21; --texto:#eceff3; --suave:#9aa4b0; --acento:#4cc7a8; --borde:#2b3138; } }
+  body { margin:0; background:var(--fondo); color:var(--texto); font:16px/1.5 system-ui,sans-serif; display:flex; min-height:100vh; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
+  main { background:var(--tarjeta); border:1px solid var(--borde); border-radius:14px; padding:24px; max-width:440px; width:100%; box-sizing:border-box; }
+  h1 { font-size:1.25rem; margin:0 0 8px; }
+  p { margin:8px 0; color:var(--suave); }
+  a.boton { display:flex; align-items:center; justify-content:center; gap:8px; margin:12px 0 0; padding:12px 16px; border:2px solid var(--acento); border-radius:10px; color:var(--acento); text-decoration:none; font-weight:600; background:transparent; }
+  code { background:var(--fondo); border:1px solid var(--borde); border-radius:6px; padding:2px 6px; word-break:break-all; color:var(--texto); }
+  small { color:var(--suave); display:block; margin-top:16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tu ruta de reparto</h1>
+  <p>Este enlace se abre con la aplicación <strong>Reparto Distribuidor</strong>.</p>
+  <a class="boton" id="abrir" href="#">Abrir mi ruta en la aplicación</a>
+  <p style="margin-top:20px"><strong>Si no tienes la aplicación instalada, hay que instalarla primero.</strong> Descárgala, instálala (el teléfono puede pedirte permiso para instalar) y vuelve a tocar este enlace.</p>
+  <a class="boton" id="instalar" href="https://archivos.procovar.cloud/reparto/apk/reparto-distribuidor-ultimo.apk">Descargar la aplicación</a>
+  <small>Si el enlace no abre la aplicación, ábrela, elige «Agregar ruta a mano» y escribe este código: <code id="codigo"></code></small>
+</main>
+<script>
+  (function () {
+    var m = location.pathname.match(/^\/r\/([^\/?#]+)/);
+    var token = m ? decodeURIComponent(m[1]) : "";
+    document.getElementById("codigo").textContent = token || "(sin código)";
+    // Intent de Android: abre la app si está; si no, el navegador cae al enlace de descarga.
+    var respaldo = encodeURIComponent("https://archivos.procovar.cloud/reparto/apk/reparto-distribuidor-ultimo.apk");
+    document.getElementById("abrir").href = "intent://reparto.procovar.cloud/r/" + encodeURIComponent(token) +
+      "#Intent;scheme=https;package=cloud.procovar.reparto.distribuidor;S.browser_fallback_url=" + respaldo + ";end";
+  })();
+</script>
+</body>
+</html>

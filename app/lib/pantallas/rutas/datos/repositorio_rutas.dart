@@ -44,6 +44,15 @@ enum PestanaRutas {
     PestanaRutas.enCurso => estado == EstadoRuta.enCurso,
     PestanaRutas.historial => estado == EstadoRuta.completada,
   };
+
+  /// Lo mismo para «Reparto Distribuidor»: aqui la ruta CANCELADA es historial (en
+  /// el resto de la aplicacion cae en «Planificadas», como siempre).
+  bool agrupaParaElDistribuidor(String estado) => switch (this) {
+    PestanaRutas.activas => estado == EstadoRuta.planificada,
+    PestanaRutas.enCurso => estado == EstadoRuta.enCurso,
+    PestanaRutas.historial =>
+      estado == EstadoRuta.completada || estado == EstadoRuta.cancelada,
+  };
 }
 
 /// `estado` — el estado del pedido **en PEDIDO**, del paso 4 del asistente.

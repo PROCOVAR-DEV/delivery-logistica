@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 
 import '../../../diseno/preguntar_antes_de_borrar.dart';
 import '../../../diseno/tema.dart';
+import '../../../distribuidor/modo_distribuidor.dart';
+import '../../../distribuidor/siguiente_parada_en_la_lista.dart';
+import '../../../distribuidor/vista_historial.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/frescura/primera_bajada.dart';
 import '../../../nucleo/frescura/reloj_de_datos.dart';
@@ -96,6 +99,12 @@ class ListaDeRutas extends ConsumerWidget {
     //
     // La constante, no el literal: la misma frase escrita a mano en dos sitios
     // se separa en cuanto alguien cambie uno, y esta es la que ya usa Pedidos.
+    // El distribuidor ve su historial con sus cuentas, no la lista de planificacion.
+    if (ref.watch(modoDistribuidorProvider) &&
+        pestana == PestanaRutas.historial) {
+      return const ListaDelHistorial();
+    }
+
     if (descargadas == false) {
       return switch (ref.watch(porQueEstaVacioProvider)) {
         // El aparato: ahi «no se ha descargado» es un estado de verdad.
@@ -112,7 +121,18 @@ class ListaDeRutas extends ConsumerWidget {
         ),
       };
     }
-    if (rutas.isEmpty) return EstadoVacio(pestana.vacio);
+    if (rutas.isEmpty) {
+      return EstadoVacio(
+        // «Crea la primera» no es para quien no arma rutas.
+        ref.watch(modoDistribuidorProvider)
+            ? switch (pestana) {
+                PestanaRutas.activas => 'Sin rutas planificadas.',
+                PestanaRutas.enCurso => 'Sin rutas en curso.',
+                PestanaRutas.historial => 'Sin rutas completadas aún.',
+              }
+            : pestana.vacio,
+      );
+    }
 
     final desde = (pagina - 1) * ConsultasRutas.porPagina;
     final visibles = rutas.skip(desde).take(ConsultasRutas.porPagina).toList();
@@ -359,6 +379,7 @@ class _TarjetaDeRuta extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final elegida = ref.watch(rutaElegidaProvider) == ruta.id;
+    final esDistribuidor = ref.watch(modoDistribuidorProvider);
     // EL SOBREPESO SE MIDE CONTRA LAS PARADAS, no contra `ruta.totalWeight`
     // — 28/09/2026. Esa columna es el total del dia en que se armo y nadie la
     // vuelve a calcular; aqui decide si el camion cabe, y un camion que no cabe
@@ -497,6 +518,10 @@ class _TarjetaDeRuta extends ConsumerWidget {
                 //    respecto a la de al lado, que es lo que arregla
                 //    `tarjetas_de_la_misma_altura_test.dart`.
                 const SizedBox(height: 6),
+                if (esDistribuidor && ruta.status == EstadoRuta.enCurso)
+                  SiguienteParadaEnLaLista(rutaId: ruta.id),
+                // El distribuidor ni borra ni ve importes (decision A del plan).
+                if (!esDistribuidor)
                 SizedBox(
                   // 48 Y NO 32 — 28/09/2026, al quitarle el relleno a los botones.
                   //

@@ -25,6 +25,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../diseno/tema.dart';
+import '../../../distribuidor/modo_distribuidor.dart';
+import '../../../distribuidor/proveedores_distribuidor.dart';
+import '../../../distribuidor/ruta_guiada.dart';
+import '../../../distribuidor/vista_historial.dart';
 import '../../../impresion/pre_despacho.dart' show pdfPreDespacho;
 import '../../../impresion/vista_previa.dart';
 import '../../../nucleo/base/base.dart';
@@ -128,12 +132,36 @@ class DetalleDeRuta extends ConsumerWidget {
       sucursal: datos.sucursal,
     );
 
+    final distribuidor = ref.watch(modoDistribuidorProvider);
+    // Una ruta ya cerrada: sus paradas con lo que marco y a que hora.
+    if (distribuidor &&
+        (conTodo.ruta.status == EstadoRuta.completada ||
+            conTodo.ruta.status == EstadoRuta.cancelada)) {
+      final historial = DetalleDelHistorial(rutaId: conTodo.ruta.id);
+      return enCajon
+          ? historial
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(
+                12,
+                12,
+                12,
+                rellenoAlFinalDelDetalle,
+              ),
+              children: [historial],
+            );
+    }
     final piezas = <Widget>[
       // La cabecera, SÓLO fuera del cajón: dentro, el código de la ruta y la ✕
       // los pone el propio cajón (ver [enCajon]).
       if (!enCajon) ...[_Cabecera(ruta: conTodo), const SizedBox(height: 8)],
       _Acciones(ruta: conTodo),
       const SizedBox(height: 12),
+      // LA RUTA GUIADA: la parada de ahora y nada mas. Solo para el distribuidor y
+      // solo con la ruta en curso (`distribuidor/ruta_guiada.dart`).
+      if (distribuidor && conTodo.ruta.status == EstadoRuta.enCurso) ...[
+        RutaGuiada(rutaId: conTodo.ruta.id),
+        const SizedBox(height: 12),
+      ],
       // Las facturas que se cancelaron en Ventra y se quitaron de ESTA ruta (esquema 15).
       FacturasCanceladasDeLaRuta(rutaId: conTodo.ruta.id),
       // EN QUE ANDA EL CAMION DE ESTA RUTA. Entra por parametro y no lo lee la
@@ -149,16 +177,18 @@ class DetalleDeRuta extends ConsumerWidget {
                   .watch(camionesOcupadosProvider)
                   .value?[conTodo.ruta.vehicleId],
         seSabeLaOcupacion: ref.watch(camionesOcupadosProvider).value != null,
+        conImporte: !distribuidor,
       ),
       // QUIÉN REPARTE (issue 7): el nombre sale de la tabla local, así un renombrado se ve
       // aquí sin tocar la ruta. Va FUERA de `LineaDeDatosDeLaRuta` a propósito: esa cabecera
       // se prueba suelta, sin `ProviderScope`, y este renglón lee un provider (15/10/2026: la
       // fusión lo metió dentro y once pruebas de la cabecera reventaron).
       const SizedBox(height: 4),
-      DistribuidorDeLaRuta(distribuidorId: conTodo.ruta.distribuidorId),
+      if (!distribuidor)
+        DistribuidorDeLaRuta(distribuidorId: conTodo.ruta.distribuidorId),
       // CÓMO ESTÁ ORDENADA (issue 11 de Amado). Sólo donde aún se puede cambiar:
       // ver `comoEstaOrdenada`, por qué en una completada no se enseña.
-      if (conTodo.ruta.status != EstadoRuta.completada) ...[
+      if (!distribuidor && conTodo.ruta.status != EstadoRuta.completada) ...[
         const SizedBox(height: 4),
         Text(
           comoEstaOrdenada(optimizada: conTodo.ruta.optimized),
@@ -192,7 +222,8 @@ class DetalleDeRuta extends ConsumerWidget {
       // EL PRE-DESPACHO, EN TODAS LAS RUTAS. Antes sólo lo tenía la que se
       // armaba a mano en el asistente; la que salía del tablero no lo traía.
       // Ver `datos/pre_despacho_de_la_ruta.dart`.
-      _PreDespacho(ruta: conTodo),
+      // (Y es la hoja de carga del almacen, con importes: no es del chofer.)
+      if (!distribuidor) _PreDespacho(ruta: conTodo),
     ];
 
     // Dentro del cajón el que se desplaza es el cuerpo del cajón: aquí una
@@ -415,7 +446,13 @@ class _Acciones extends ConsumerWidget {
               icono: Icons.play_arrow,
               texto: 'Iniciar ruta',
               alPulsar: () => hacer(() async {
-                await acciones.iniciar(ruta.ruta.id);
+                // El distribuidor inicia por la guia: ademas de iniciar, deja el
+                // punto de GPS de `inicio`.
+                if (ref.read(modoDistribuidorProvider)) {
+                  await ref.read(guiaDeRutaProvider).iniciar(ruta.ruta.id);
+                } else {
+                  await acciones.iniciar(ruta.ruta.id);
+                }
                 // **Y se va con ella a la pestaña donde acaba de caer.**
                 //
                 // Iniciar la saca de `Planificadas` —correctamente: ya no esta
@@ -450,7 +487,9 @@ class _Acciones extends ConsumerWidget {
               child: const Text('Ver cierre'),
             ),
           ),
-        if (estado == EstadoRuta.enCurso)
+        // El distribuidor no completa a mano: la ruta se cierra SOLA al marcar la ultima
+        // parada (`distribuidor/ruta_guiada.dart`).
+        if (estado == EstadoRuta.enCurso && !ref.watch(modoDistribuidorProvider))
           ControlSenalado(
             nombre: Senalado.rutasCompletar,
             child: BotonPrincipal(
@@ -545,7 +584,11 @@ class _Acciones extends ConsumerWidget {
               // cada parada lleva su asa y arriba «Ordenar por cercanía».
               child: ParadasOrdenables(
                 rutaId: viva.id,
-                estado: viva.status,
+                // El distribuidor ve el orden y no lo toca: con «completada» la lista sale
+                // sin asas ni «Ordenar por cercania».
+                estado: ref.read(modoDistribuidorProvider)
+                    ? EstadoRuta.completada
+                    : viva.status,
                 optimizada: viva.optimized,
                 paradas: paradas,
                 alReordenar: ({orden}) => ref
@@ -559,13 +602,17 @@ class _Acciones extends ConsumerWidget {
                   origenLng: viva.originLng,
                   lineas: renglones[parada.id] ?? const <RenglonConPeso>[],
                   conduce: conduces[parada.id],
-                  alQuitar: viva.status == EstadoRuta.planificada
+                  conImporte: !ref.read(modoDistribuidorProvider),
+                  alQuitar:
+                      viva.status == EstadoRuta.planificada &&
+                          !ref.read(modoDistribuidorProvider)
                       ? () => _quitarDeLaRuta(context, ref, viva.id, parada)
                       : null,
                   // Solo donde se puede: sin entregar y en una ruta no completada
                   // (la misma pregunta que le hace el cajón y la acción).
                   alUbicar:
-                      porQueNoSeLePuedeCambiarElPunto(parada, viva) == null
+                      !ref.read(modoDistribuidorProvider) &&
+                          porQueNoSeLePuedeCambiarElPunto(parada, viva) == null
                       ? () => abrirUbicarLaEntrega(context, parada.id)
                       : null,
                 ),
@@ -693,8 +740,12 @@ class LineaDeDatosDeLaRuta extends StatelessWidget {
     this.ahora,
     this.ocupacionDelCamion,
     this.seSabeLaOcupacion = false,
+    this.conImporte = true,
     super.key,
   });
+
+  /// `false` para el distribuidor: la app no sabe importes de factura.
+  final bool conImporte;
 
   final RutaConTodo ruta;
 
@@ -772,7 +823,7 @@ class LineaDeDatosDeLaRuta extends StatelessWidget {
           // que podía mentir: en la APK 1.0.13, `RT-20260928-003` decía «420
           // kg» encima de dos paradas de 419,7 y 96,8. El porqué entero está en
           // `datos/peso_de_la_ruta.dart`.
-          '${pesoDeLaRuta(ruta.pesoTotal)} · ${importe.rotulo} · '
+          '${pesoDeLaRuta(ruta.pesoTotal)} · ${conImporte ? '${importe.rotulo} · ' : ''}'
           // «Sin vehículo», LO MISMO QUE EN LA LISTA. Un `—` aquí se lee como
           // «no se sabe» estando al lado de otros dos que sí lo son, y no es
           // eso: es que esta ruta no lleva camión asignado, que es un dato.
@@ -788,7 +839,7 @@ class LineaDeDatosDeLaRuta extends StatelessWidget {
         // se sabe; esto dice a donde ir a arreglarlo, que es lo unico que sirve
         // a quien lo lee. Sale **solo cuando falta alguna**: un aviso que sale
         // siempre deja de leerse (`CLAUDE.md` §3-quinquies).
-        if (queFalta != null) ...[
+        if (conImporte && queFalta != null) ...[
           const SizedBox(height: 4),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1009,8 +1060,12 @@ class TarjetaDeParada extends StatelessWidget {
     this.alUbicar,
     this.asa,
     this.conduce,
+    this.conImporte = true,
     super.key,
   });
+
+  /// `false` para el distribuidor (decision A: nada de importes).
+  final bool conImporte;
 
   final int numero;
   final Pedido parada;
@@ -1207,18 +1262,19 @@ class TarjetaDeParada extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          if (conImporte) const SizedBox(width: 12),
           // EL IMPORTE, EN GRANDE Y A LA DERECHA. Es el dato que se viene a
           // buscar aquí, y alineado a la derecha los de todas las paradas caen
           // en la misma columna: así se recorren con el ojo sin leer.
-          Text(
-            usd(costoDeLaParada(parada.pedidoCosto, parada.facturaDomicilio)),
-            style: Tipos.mono(
-              tamano: 15,
-              peso: FontWeight.w700,
-              color: Colores.primario,
+          if (conImporte)
+            Text(
+              usd(costoDeLaParada(parada.pedidoCosto, parada.facturaDomicilio)),
+              style: Tipos.mono(
+                tamano: 15,
+                peso: FontWeight.w700,
+                color: Colores.primario,
+              ),
             ),
-          ),
         ],
       ),
     ),

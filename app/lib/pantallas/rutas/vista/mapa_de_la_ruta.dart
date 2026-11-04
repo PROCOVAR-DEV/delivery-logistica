@@ -35,6 +35,7 @@ import '../../../diseno/tema.dart' show BotonPrincipal;
 import '../../../mapa/proveedores_de_mapa.dart';
 import '../../../nucleo/plataforma.dart';
 import '../../mapa/registro.dart';
+import '../../../distribuidor/modo_distribuidor.dart';
 import '../datos/mapa_en_vivo.dart';
 import '../datos/recorrido.dart';
 import '../datos/repositorio_rutas.dart';
@@ -131,6 +132,9 @@ class _MapaDeLaRutaState extends ConsumerState<MapaDeLaRuta> {
   Widget build(BuildContext context) {
     final recorrido = recorridoDe(widget.ruta);
     final enElAparato = ref.watch(trabajaSinConexionProvider);
+    // «Reparto Distribuidor» trae el mapa DENTRO de la APK: nunca ofrece bajarlo, no
+    // comparte la ruta y no usa enlaces de Maps aqui (navega parada a parada).
+    final distribuidor = ref.watch(modoDistribuidorProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,6 +186,7 @@ class _MapaDeLaRutaState extends ConsumerState<MapaDeLaRuta> {
         // el aparato de sin-conexión) y **sólo si no hay paquete**. Con el mapa
         // ya bajado no se dice nada: un aviso que sale siempre deja de leerse.
         if (enElAparato &&
+            !distribuidor &&
             ref.watch(paqueteGuardadoProvider).value == null) ...[
           const SizedBox(height: 8),
           _SinMapaDescargado(),

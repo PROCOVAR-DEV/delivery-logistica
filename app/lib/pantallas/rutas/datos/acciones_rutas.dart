@@ -101,6 +101,10 @@ class RechazoLocal implements Exception {
   String toString() => mensaje;
 }
 
+/// Cancelar una ruta con entregas hechas no se puede (el servidor tambien lo dice).
+const msgNoSeCancelaConEntregas =
+    'No se puede cancelar una ruta que ya tiene paradas entregadas.';
+
 /// El mismo rechazo del servidor para el histórico ya completado.
 const msgRutaCompletada =
     'La ruta está completada y no se puede modificar ni eliminar: se conserva como histórico.';
@@ -176,9 +180,20 @@ class MarcaDeParada {
     required this.pedidoId,
     required this.resultado,
     this.nota,
+    this.cobrado,
+    this.marcadoAt,
   });
 
   final String pedidoId;
+
+  /// SOLO «Reparto Distribuidor»: si el distribuidor cobro en esa parada (el aviso
+  /// del chofer, `cobro_entrega` en el servidor; NO sustituye a «facturado en
+  /// Ventra»). Nulo = no viaja en el cuerpo, como siempre.
+  final bool? cobrado;
+
+  /// SOLO «Reparto Distribuidor»: la hora del APARATO de la marca. Viaja como
+  /// `hora` (ISO UTC) para que el servidor no tenga que fiarse de la hora a la que sube.
+  final DateTime? marcadoAt;
 
   /// `entregado` | `devuelto` | `cancelado`, **o `null` = QUITAR LA MARCA**.
   ///
@@ -207,6 +222,8 @@ class MarcaDeParada {
     'orderId': pedidoId,
     'resultado': resultado,
     'nota': nota,
+    'cobrado': ?cobrado,
+    if (marcadoAt != null) 'hora': marcadoAt!.toUtc().toIso8601String(),
   };
 }
 
@@ -1098,6 +1115,49 @@ class AccionesDeRuta {
     );
   }
 
+  /// CANCELAR LA RUTA ENTERA (solo «Reparto Distribuidor»): `PATCH /routes/{id}`
+  /// `{"status":"cancelled","motivo":...}`. Pide motivo; el servidor solo la deja
+  /// cancelar si NO hay ninguna parada entregada, y el aparato lo dice antes con las
+  /// mismas palabras. Libera el vehiculo y queda en cola como todo.
+  Future<void> cancelar(String rutaId, {required String motivo}) async {
+    final ahora = _reloj();
+    final ruta = await _ruta(rutaId);
+    if (ruta == null) throw const RechazoLocal('No encontrada');
+    _exigirRutaEditable(ruta);
+    final razon = motivo.trim();
+    if (razon.isEmpty) {
+      throw const RechazoLocal('Escribe el motivo de la cancelación.');
+    }
+    final entregadas =
+        await (_base.select(_base.orders)..where(
+              (o) =>
+                  o.ultimaRutaId.equals(rutaId) &
+                  o.resultado.equals(ResultadoParada.entregado),
+            ))
+            .get();
+    if (entregadas.isNotEmpty) {
+      throw const RechazoLocal(msgNoSeCancelaConEntregas);
+    }
+    await _base.transaction(() async {
+      await (_base.update(_base.routes)..where((r) => r.id.equals(rutaId))).write(
+        RoutesCompanion(
+          status: const Value(EstadoRuta.cancelada),
+          finishedAt: Value(ahora),
+          updatedAt: Value(ahora),
+        ),
+      );
+      await _ocuparVehiculo(ruta.vehicleId, EstadoVehiculo.disponible);
+    });
+    await _cola.encolar(
+      metodo: 'PATCH',
+      ruta: '/routes/$rutaId',
+      cuerpo: <String, Object?>{
+        'status': EstadoRuta.cancelada,
+        'motivo': razon.length <= topeDeNota ? razon : razon.substring(0, topeDeNota),
+      },
+    );
+  }
+
   /// `Eliminar`, sólo rutas no completadas.
   ///
   /// **No borra pedidos**: les suelta la ruta y los devuelve a la lista de
@@ -1392,6 +1452,24 @@ class AccionesDeRuta {
   ///
   /// Devuelve qué paradas quedaron guardadas y la `clave` del apunte, que es con
   /// lo que se le sigue la pista (`ResultadoCierreDeRuta`).
+  /// UNA parada marcada por el distribuidor, con SU hora del aparato y si cobro.
+  /// Es `cerrar` con una sola marca: misma base local, misma cola.
+  Future<ResultadoCierreDeRuta> marcarParada(
+    String rutaId, {
+    required String pedidoId,
+    required String resultado,
+    String? nota,
+    required bool cobrado,
+  }) => cerrar(rutaId, [
+    MarcaDeParada(
+      pedidoId: pedidoId,
+      resultado: resultado,
+      nota: nota,
+      cobrado: cobrado,
+      marcadoAt: _reloj(),
+    ),
+  ]);
+
   Future<ResultadoCierreDeRuta> cerrar(
     String rutaId,
     List<MarcaDeParada> marcas,
@@ -1458,6 +1536,8 @@ class AccionesDeRuta {
           // consta, y el servidor hace lo mismo (`LimpiarResultadoDeParada`
           // pone `resultado_nota` a NULL).
           nota: marca.quitaLaMarca ? null : _notaLimpia(marca.nota),
+          cobrado: marca.cobrado,
+          marcadoAt: marca.marcadoAt,
         ),
     ];
 
@@ -1499,6 +1579,21 @@ class AccionesDeRuta {
     await _base.transaction(() async {
       for (final marca in aplicadas) {
         final nota = marca.nota;
+        // El «cobrado» del distribuidor se queda en SU tabla (la bajada no la pisa).
+        if (marca.quitaLaMarca) {
+          await (_base.delete(_base.cobrosDeEntrega)
+                ..where((c) => c.pedidoId.equals(marca.pedidoId)))
+              .go();
+        } else if (marca.cobrado != null) {
+          await _base
+              .into(_base.cobrosDeEntrega)
+              .insertOnConflictUpdate(
+                CobrosDeEntregaCompanion.insert(
+                  pedidoId: marca.pedidoId,
+                  cobrado: marca.cobrado!,
+                ),
+              );
+        }
         // QUITAR LA MARCA DESHACE LO DE ABAJO, COLUMNA POR COLUMNA. Media vuelta
         // atras es peor que ninguna, y hay dos que no son obvias:
         //
@@ -1536,9 +1631,9 @@ class AccionesDeRuta {
                   : OrdersCompanion(
                       resultado: Value(marca.resultado),
                       ultimaRutaId: Value(rutaId),
-                      resultadoAt: Value(ahora),
+                      resultadoAt: Value(marca.marcadoAt ?? ahora),
                       resultadoNota: Value(nota),
-                      deliveredAt: Value(marca.seEntrego ? ahora : null),
+                      deliveredAt: Value(marca.seEntrego ? (marca.marcadoAt ?? ahora) : null),
                       status: Value(
                         marca.seEntrego
                             ? EstadoPedido.entregado

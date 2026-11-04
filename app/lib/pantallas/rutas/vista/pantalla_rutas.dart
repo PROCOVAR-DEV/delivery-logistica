@@ -47,6 +47,8 @@ import '../../../diseno/caja_de_busqueda.dart';
 import '../../../diseno/pestanas.dart';
 import '../../../diseno/rango_de_fechas.dart';
 import '../../../diseno/tema.dart';
+import '../../../distribuidor/dispositivo/pantalla_anadir_ruta.dart';
+import '../../../distribuidor/modo_distribuidor.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../ayuda/datos/controles_senalados.dart';
@@ -353,16 +355,18 @@ class PantallaRutas extends ConsumerWidget {
 /// acción. **Con los dos paneles va siempre al extremo derecho DEL PANEL, en el
 /// renglón del título** (issue 13 de Amado, 15/10/2026): a todo lo ancho era un
 /// renglón de 48 px que se le quitaba a la lista.
-class _CabeceraDeLaLista extends StatelessWidget {
+class _CabeceraDeLaLista extends ConsumerWidget {
   const _CabeceraDeLaLista({required this.enEscritorio});
 
   /// Con los dos paneles: título y botón en UN renglón (issue 13).
   final bool enEscritorio;
 
   @override
-  Widget build(BuildContext context) {
-    const titulo = Text(
-      'Planificador de Rutas',
+  Widget build(BuildContext context, WidgetRef ref) {
+    // El distribuidor no arma rutas: ni boton ni hueco para el.
+    final distribuidor = ref.watch(modoDistribuidorProvider);
+    final titulo = Text(
+      distribuidor ? 'Mis rutas' : 'Planificador de Rutas',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(fontWeight: FontWeight.bold),
@@ -375,7 +379,16 @@ class _CabeceraDeLaLista extends StatelessWidget {
     // letra a letra), asi que un `Icons.add` al lado seria el mismo signo
     // dos veces y el boton no diria de que es la ruta. Es el mismo glifo con
     // el que el tablero arma la ruta de una zona.
-    final boton = ControlSenalado(
+    final boton = distribuidor
+        // En su lugar, el respaldo del enlace: «Agregar ruta a mano», con y sin rutas.
+        ? BotonPrincipal(
+            key: const ValueKey('mis-rutas-agregar-a-mano'),
+            icono: Icons.add_road,
+            texto: tituloAgregarRuta,
+            enUnaLinea: true,
+            alPulsar: () => abrirAgregarRutaAMano(context),
+          )
+        : ControlSenalado(
       nombre: Senalado.rutasNuevaRuta,
       child: BotonPrincipal(
         icono: Icons.route_outlined,
@@ -396,7 +409,7 @@ class _CabeceraDeLaLista extends StatelessWidget {
     if (enEscritorio) {
       return Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -426,7 +439,7 @@ class _CabeceraDeLaLista extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Wrap(
+                Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
@@ -461,7 +474,7 @@ class _CabeceraDeLaLista extends StatelessWidget {
           // hasta allí. A 700 px pasa de 219,4 a 439.
           return Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -632,6 +645,8 @@ class _MandoDeLosFiltros extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // El distribuidor no filtra: ve sus pocas rutas y ya.
+    if (ref.watch(modoDistribuidorProvider)) return const SizedBox.shrink();
     final cuantos = ref.watch(filtrosRutasProvider.select((f) => f.cuantos));
     final plegados = ref.watch(filtrosPlegadosProvider) ?? enEscritorio;
 
@@ -716,7 +731,9 @@ class _LaListaBajoSusFiltros extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final plegados = ref.watch(filtrosPlegadosProvider) ?? enEscritorio;
+    final plegados =
+        ref.watch(modoDistribuidorProvider) ||
+        (ref.watch(filtrosPlegadosProvider) ?? enEscritorio);
     return LayoutBuilder(
       builder: (contexto, medidas) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

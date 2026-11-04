@@ -10,6 +10,7 @@ import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:flutter/foundation.dart' show immutable, listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../distribuidor/modo_distribuidor.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/conduce.dart' show ConduceDe, mirarConduces;
 import '../../../nucleo/proveedores.dart';
@@ -42,7 +43,10 @@ final accionesDeRutaProvider = Provider<AccionesDeRuta>(
 
 class PestanaElegida extends Notifier<PestanaRutas> {
   @override
-  PestanaRutas build() => PestanaRutas.activas;
+  // El distribuidor abre en lo que esta haciendo: sus rutas en curso.
+  PestanaRutas build() => ref.read(modoDistribuidorProvider)
+      ? PestanaRutas.enCurso
+      : PestanaRutas.activas;
 
   void elegir(PestanaRutas cual) => state = cual;
 }
@@ -190,9 +194,16 @@ final sucursalesProvider = StreamProvider<List<Sucursal>>(
 /// pliego.
 final contadoresDePestanaProvider = Provider<Map<PestanaRutas, int>>((ref) {
   final rutas = ref.watch(todasLasRutasProvider).value ?? const <Ruta>[];
+  final distribuidor = ref.watch(modoDistribuidorProvider);
   return {
     for (final pestana in PestanaRutas.values)
-      pestana: rutas.where((r) => pestana.agrupa(r.status)).length,
+      pestana: rutas
+          .where(
+            (r) => distribuidor
+                ? pestana.agrupaParaElDistribuidor(r.status)
+                : pestana.agrupa(r.status),
+          )
+          .length,
   };
 });
 
@@ -248,7 +259,10 @@ final rutasDePestanaProvider = Provider.family<List<Ruta>, PestanaRutas>((
   return filtrarRutas(
     [
       for (final ruta in rutas)
-        if (pestana.agrupa(ruta.status)) ruta,
+        if (ref.watch(modoDistribuidorProvider)
+            ? pestana.agrupaParaElDistribuidor(ruta.status)
+            : pestana.agrupa(ruta.status))
+          ruta,
     ],
     ref.watch(filtrosRutasProvider),
     vehiculos: vehiculos,

@@ -29,6 +29,11 @@ GoRouter crearEnrutador({
   List<PantallaRegistrada>? pantallas,
   String inicial = rutaDeInicio,
   Portero? portero,
+
+  /// Un enlace con el que se abrio la app (en frio, `/r/<token>`, de «Reparto
+  /// Distribuidor»): arranca por la espera llevandolo de destino, como si hubiera
+  /// sido la direccion de una pantalla.
+  String? enlaceDeEntrada,
 }) {
   final lista = pantallas ?? pantallasDeLaAplicacion();
 
@@ -45,7 +50,11 @@ GoRouter crearEnrutador({
   ];
 
   return GoRouter(
-    initialLocation: portero == null ? inicial : rutaDeArranque,
+    initialLocation: portero == null
+        ? inicial
+        : (enlaceDeEntrada == null || enlaceDeEntrada == '/'
+              ? rutaDeArranque
+              : '$rutaDeArranque?$claveDelDestino=${Uri.encodeQueryComponent(enlaceDeEntrada)}'),
     // Lo que hace que el portero funcione sin que ninguna pantalla llame a
     // `context.go`: al cambiar el estado de la sesion, el enrutador vuelve a
     // pasar por `redirect` y la persona aterriza donde toca.

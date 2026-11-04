@@ -161,7 +161,7 @@ Future<ResultadoDelArranque> arrancar(Ref ref) async {
   }
 
   try {
-    final nueva = await ref.read(renovadorProvider).renovar(guardada);
+    final nueva = await ref.read(renovadorProvider).alArrancar(guardada);
     return ResultadoDelArranque(Arranque.dentro, sesion: nueva);
   } on SesionMuerta {
     // El refresh ya no vale. Los tokens los borro el propio renovador. La base

@@ -946,6 +946,10 @@ final entregaARevisionProvider = Provider<EntregaARevision>(
   ),
 );
 
+/// Un paso extra tras subir la cola de apuntes. Nulo salvo en «Reparto Distribuidor»,
+/// que lo usa para subir los puntos de GPS (`main_distribuidor.dart`).
+final despuesDeSubirProvider = Provider<Future<void> Function()?>((ref) => null);
+
 final cicloProvider = Provider<CicloDeSincronizacion>(
   (ref) => CicloDeSincronizacion(
     almacen: ref.watch(almacenSesionProvider),
@@ -982,6 +986,7 @@ final cicloProvider = Provider<CicloDeSincronizacion>(
         ref.read(marchaDelCicloProvider.notifier).avanza(avance),
     alAcabar: ref.watch(alAcabarElCicloProvider),
     // Solo si hay algo `enRevision` (lo decide el servicio, sin red si no).
+    despuesDeSubir: ref.watch(despuesDeSubirProvider),
     consultarRevision: () => ref
         .read(entregaARevisionProvider)
         .consultarConSesion(

@@ -153,7 +153,9 @@ class CicloDeSincronizacion {
     void Function(AvanceDelCiclo)? alAvanzar,
     void Function(ResumenDelCiclo)? alAcabar,
     Future<int> Function()? consultarRevision,
-  }) : _consultarRevision = consultarRevision,
+    Future<void> Function()? despuesDeSubir,
+  }) : _despuesDeSubir = despuesDeSubir,
+       _consultarRevision = consultarRevision,
        _alAvanzar = alAvanzar,
        _alAcabar = alAcabar,
        _almacen = almacen,
@@ -188,6 +190,11 @@ class CicloDeSincronizacion {
   /// `GET /sync/revision/mias` **solo si hay algo `enRevision`** (si no, ni una
   /// peticion): el ciclo de quien nunca entrego nada no cambia.
   final Future<int> Function()? _consultarRevision;
+
+  /// Lo que va DESPUES de la cola de apuntes y antes de bajar: los puntos de GPS de
+  /// «Reparto Distribuidor» (`distribuidor/gps/subida_del_recorrido.dart`). Nulo en la
+  /// aplicacion de siempre. No lanza (salvo `SesionMuerta`, que es del ciclo).
+  final Future<void> Function()? _despuesDeSubir;
 
   /// COMO QUEDO, para quien lleve la cuenta de si las peticiones llegan.
   ///
@@ -420,6 +427,7 @@ class CicloDeSincronizacion {
       _alAvanzar?.call(const AvanceDelCiclo(PasoDelCiclo.subir));
       subidos = await _subida.ciclo(alSubirUno: (van) => subidos = van);
       pasos.add(PasoDelCiclo.subir);
+      await _despuesDeSubir?.call();
 
       // 3-bis · LO ENTREGADO A REVISION: ¿lo han aplicado o descartado? Una
       // consulta de mas por vuelta SOLO para quien tiene algo en revision, y una

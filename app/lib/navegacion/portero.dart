@@ -623,7 +623,10 @@ String? redirigir({
       if (soloRuta == rutaDeAcceso ||
           soloRuta == rutaDeArranque ||
           soloRuta == rutaDeConfiguracion ||
-          soloRuta == rutaDeSinPermiso) {
+          soloRuta == rutaDeSinPermiso ||
+          // El enlace de una ruta del distribuidor (`/r/<token>`) ya se reclamo en la
+          // puerta: volver a el la reclamaria otra vez.
+          soloRuta.startsWith('/r/')) {
         return inicio;
       }
       return destino;

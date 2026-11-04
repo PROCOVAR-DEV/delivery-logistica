@@ -161,6 +161,10 @@ class Renovador {
   /// menos de [margenParaRenovar]. Devuelve si se renovó. Es lo que usa el ciclo;
   /// el 401, el aviso de Accesos y el arranque siguen llamando a [renovar] a secas,
   /// porque ahí renovar es justo lo que se pide.
+  /// Lo que se hace con la sesion guardada AL ARRANCAR. Aqui, renovar siempre; el
+  /// dispositivo del distribuidor (`distribuidor/dispositivo/`) solo si le queda poco.
+  Future<Sesion> alArrancar(Sesion guardada) => renovar(guardada);
+
   Future<bool> renovarSiHaceFalta(Sesion vista) async {
     final queda = vista.leQueda(_reloj());
     if (queda != null && queda > margenParaRenovar) return false;

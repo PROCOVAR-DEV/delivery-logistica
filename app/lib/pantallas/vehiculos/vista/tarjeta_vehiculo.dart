@@ -10,6 +10,8 @@ import '../../ayuda/vista/control_senalado.dart';
 import '../datos/vehiculo_api.dart';
 
 /// La tarjeta de la rejilla. Pliego: `pantallas.md` §5.
+const claveDelHistorialDelVehiculo = ValueKey('vehiculo-historial');
+
 class TarjetaVehiculo extends StatelessWidget {
   const TarjetaVehiculo({
     required this.vehiculo,
@@ -19,6 +21,7 @@ class TarjetaVehiculo extends StatelessWidget {
     required this.alUsarParaDomicilio,
     required this.importe,
     this.esLaPrimera = false,
+    this.alVerHistorial,
     super.key,
   });
 
@@ -41,6 +44,9 @@ class TarjetaVehiculo extends StatelessWidget {
   final VoidCallback alEliminar;
   final VoidCallback alMarcarDisponible;
   final VoidCallback alUsarParaDomicilio;
+
+  /// «Historial»: las rutas de este vehículo y su recorrido real (`distribucion/`). `null` = no se ofrece.
+  final VoidCallback? alVerHistorial;
 
   /// Los colores son los SEMANTICOS del kit, no unos propios: azul = en marcha,
   /// ambar = atencion, verde = listo. Los tenia repetidos aqui y por eso el «en
@@ -120,6 +126,15 @@ class TarjetaVehiculo extends StatelessWidget {
                 color: _colorEstado,
                 fondo: _fondoEstado,
               ),
+              // El historial va arriba y de icono, no abajo con los botones: la fila de abajo ya cuenta con el ancho justo.
+              if (alVerHistorial != null)
+                IconButton(
+                  key: claveDelHistorialDelVehiculo,
+                  tooltip: 'Historial: sus rutas y su recorrido real',
+                  icon: const Icon(Icons.history, size: 20),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: alVerHistorial,
+                ),
             ],
           ),
           // DADO DE BAJA — Amado, 07/10/2026 (incidencia 4). Un camion con rutas

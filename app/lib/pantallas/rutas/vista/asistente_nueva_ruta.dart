@@ -749,6 +749,7 @@ class _AsistenteState extends ConsumerState<AsistenteNuevaRuta> {
         SelectorDeDistribuidor(
           sucursalId: _sucursalId,
           elegido: _distribuidorId,
+          vehiculoId: _vehiculoId,
           alElegir: (id) => setState(() => _distribuidorId = id),
         ),
         const SizedBox(height: 8),

@@ -17,6 +17,10 @@ import '../../../diseno/tema.dart';
 import '../../../navegacion/estado_navegacion.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
+import '../../../nucleo/base/base.dart' show Distribuidor;
+import '../../distribucion/datos/api_distribucion.dart';
+import '../../distribucion/vista/historial_del_vehiculo.dart';
+import '../../distribuidores/estado/proveedores_distribuidores.dart';
 import '../../distribuidores/vista/cajon_distribuidores.dart';
 import '../datos/vehiculo_api.dart';
 import '../estado/estado_vehiculos.dart';
@@ -73,9 +77,20 @@ class _PantallaVehiculosState extends ConsumerState<PantallaVehiculos> {
       (contexto) => Consumer(
         builder: (contexto, ref, _) {
           final ajustes = ref.watch(ajustesVehiculosProvider).value ?? _ajustes;
+          // «Lo lleva»: quién lo conduce por defecto, leído EN VIVO del servidor (la copia local de la APK no lo trae). Uno nuevo
+          // no tiene nada que leer.
+          final quienLoLleva = vehiculo == null ? null : ref.watch(distribuidorDeCadaVehiculoProvider);
+          final distribuidores = [
+            for (final d in ref.watch(distribuidoresDeLaBarraProvider).value ?? const <Distribuidor>[])
+              if (d.activo) (id: d.id, nombre: d.nombre),
+          ];
           return StatefulBuilder(
             builder: (contexto, repintar) => FichaVehiculo(
               vehiculo: vehiculo,
+              distribuidores: distribuidores,
+              loLleva: quienLoLleva?.value?[vehiculo?.id],
+              loLlevaSeSabe: vehiculo == null || quienLoLleva?.hasValue == true,
+              loLlevaFallo: quienLoLleva?.hasError == true ? motivoDelFallo(quienLoLleva!.error!) : null,
               tipos: _tiposVisibles(ajustes),
               cupRate: ajustes.cupRate,
               guardando: _guardando,
@@ -722,6 +737,7 @@ class _Rejilla extends ConsumerWidget {
                       alMarcarDisponible: () => control.marcarDisponible(v.id),
                       alUsarParaDomicilio: () =>
                           control.usarParaDomicilio(v.id),
+                      alVerHistorial: () => abrirHistorialDelVehiculo(context, v.id, v.nombre),
                     ),
                   ),
               ],

@@ -5,9 +5,13 @@ import '../../../diseno/cajon.dart';
 import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart';
 import '../../ayuda/datos/controles_senalados.dart';
+import '../../pedidos/vista/kit.dart' show OpcionSelector, Selector;
 import '../../ayuda/vista/control_senalado.dart';
 import '../datos/costo_km.dart';
 import '../datos/vehiculo_api.dart';
+
+const claveDeLoLleva = ValueKey('ficha-vehiculo-lo-lleva');
+const claveDeLoLlevaSinDato = ValueKey('ficha-vehiculo-lo-lleva-sin-dato');
 
 /// La ficha de vehiculo (cajon/modal `lg`). Pliego: `pantallas.md` §5.
 ///
@@ -23,6 +27,10 @@ class FichaVehiculo extends StatefulWidget {
     required this.alGuardar,
     this.vehiculo,
     this.alCrearTipo,
+    this.distribuidores,
+    this.loLleva,
+    this.loLlevaSeSabe = true,
+    this.loLlevaFallo,
     super.key,
   });
 
@@ -42,6 +50,16 @@ class FichaVehiculo extends StatefulWidget {
   /// pruebas que no miran esto.
   final Future<bool> Function(TipoDeVehiculo)? alCrearTipo;
 
+  /// «LO LLEVA» (tarea 7): los distribuidores que se pueden elegir (`id`, nombre), y el que lleva hoy este vehículo. `null` en
+  /// [distribuidores] = la pantalla no ofrece el selector. [loLlevaSeSabe] en `false` = no se pudo leer quién lo lleva (sin red):
+  /// no se ofrece cambiarlo a ciegas y NO se manda nada, para no borrarlo.
+  final List<({String id, String nombre})>? distribuidores;
+  final String? loLleva;
+  final bool loLlevaSeSabe;
+
+  /// Por qué no se pudo leer (el motivo del servidor), o `null` si solo falta que llegue.
+  final String? loLlevaFallo;
+
   @override
   State<FichaVehiculo> createState() => _FichaVehiculoState();
 }
@@ -57,6 +75,7 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
   late String _estado;
   late bool _domicilio;
   late bool _activo;
+  String? _loLleva;
 
   bool _creandoTipo = false;
   bool _guardandoTipo = false;
@@ -85,6 +104,7 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
     _estado = v?.estado ?? 'available';
     _domicilio = v?.usarParaDomicilio ?? false;
     _activo = v?.activo ?? true;
+    _loLleva = widget.loLleva ?? v?.distribuidorId;
   }
 
   @override
@@ -106,6 +126,41 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
   }
 
   bool get _esNuevo => widget.vehiculo == null;
+
+  /// «Lo lleva»: quién lo conduce por defecto. Al armar una ruta con este vehículo se propone ese distribuidor.
+  Widget _selectorLoLleva() {
+    if (!widget.loLlevaSeSabe) {
+      return Text(
+        widget.loLlevaFallo == null
+            ? 'Leyendo quién lleva este vehículo…'
+            : 'No se pudo leer quién lleva este vehículo: ${widget.loLlevaFallo}. Se queda como está.',
+        key: claveDeLoLlevaSinDato,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colores.ambar),
+      );
+    }
+    final lista = widget.distribuidores!;
+    final vale = lista.any((d) => d.id == _loLleva);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Selector<String>(
+          key: claveDeLoLleva,
+          titulo: 'Lo lleva',
+          valor: vale ? _loLleva! : '',
+          opciones: [
+            const OpcionSelector('', 'Nadie en particular'),
+            for (final d in lista) OpcionSelector(d.id, d.nombre),
+          ],
+          alElegir: (id) => setState(() => _loLleva = id.isEmpty ? null : id),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'El distribuidor que suele llevarlo: al armar una ruta con este vehículo se propone él.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
 
   void _elegirTipo(String? nombre) {
     if (nombre == null) return;
@@ -178,6 +233,8 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
       costoKmUsd: double.tryParse(_costo.text.trim()),
       usarParaDomicilio: _domicilio,
       activo: _activo,
+      distribuidorId: _loLleva,
+      conDistribuidor: widget.distribuidores != null && widget.loLlevaSeSabe,
     ),
   );
 
@@ -436,6 +493,10 @@ class _FichaVehiculoState extends State<FichaVehiculo> {
               ),
             ),
             const SizedBox(height: 8),
+            if (widget.distribuidores != null) ...[
+              _selectorLoLleva(),
+              const SizedBox(height: 8),
+            ],
             ControlSenalado(
               nombre: Senalado.vehiculosNotas,
               child: TextField(

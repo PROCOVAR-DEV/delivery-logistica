@@ -5,6 +5,7 @@ import '../../../diseno/colores.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../pedidos/vista/kit.dart' show OpcionSelector, Selector;
+import '../../distribucion/datos/api_distribucion.dart' show distribuidorDeCadaVehiculoProvider;
 import '../estado/proveedores_distribuidores.dart';
 import 'cajon_distribuidores.dart';
 
@@ -39,6 +40,7 @@ class SelectorDeDistribuidor extends ConsumerStatefulWidget {
     required this.sucursalId,
     required this.elegido,
     required this.alElegir,
+    this.vehiculoId,
     super.key,
   });
 
@@ -51,9 +53,15 @@ class SelectorDeDistribuidor extends ConsumerStatefulWidget {
 
   final ValueChanged<String?> alElegir;
 
+  /// EL VEHÍCULO DE LA RUTA (tarea 7). Al ponerlo o cambiarlo, si ese vehículo tiene un distribuidor por defecto («Lo lleva», en
+  /// Vehículos) y es de esta sucursal y está en activo, se PROPONE: se deja elegido y se dice por qué, y la persona lo cambia si
+  /// quiere. Se lee en vivo del servidor; si no hay red no se propone nada (la ruta se arma igual).
+  final String? vehiculoId;
+
   static const claveDelSelector = ValueKey('selector-de-distribuidor');
   static const claveDelEnlace = ValueKey('enlace-a-distribuidores');
   static const claveDelAvisoSinElegir = ValueKey('distribuidor-sin-elegir');
+  static const claveDeLoPropuesto = ValueKey('distribuidor-propuesto');
 
   static const textoSinNinguno = 'Sin distribuidor';
   static const titulo = 'Distribuidor (opcional)';
@@ -69,6 +77,34 @@ class _SelectorDeDistribuidorState
   /// de sucursal (otra lista, otro recuerdo) y no antes: si la persona elige «Sin
   /// distribuidor» a proposito, no se le vuelve a poner el de siempre.
   String? _recordadoParaLaSucursal;
+
+  /// El id que se propuso por el vehículo, mientras siga elegido (si la persona elige otro, el aviso se va).
+  String? _propuesto;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.vehiculoId != null) _proponer(widget.vehiculoId!);
+  }
+
+  @override
+  void didUpdateWidget(SelectorDeDistribuidor viejo) {
+    super.didUpdateWidget(viejo);
+    if (widget.vehiculoId != null && widget.vehiculoId != viejo.vehiculoId) _proponer(widget.vehiculoId!);
+  }
+
+  Future<void> _proponer(String vehiculo) async {
+    try {
+      final loLleva = (await ref.read(distribuidorDeCadaVehiculoProvider.future))[vehiculo];
+      if (!mounted || loLleva == null || widget.vehiculoId != vehiculo) return;
+      final validos = await ref.read(distribuidoresParaRutaNuevaProvider(widget.sucursalId).future);
+      if (!mounted || widget.vehiculoId != vehiculo || !validos.any((d) => d.id == loLleva)) return;
+      setState(() => _propuesto = loLleva);
+      widget.alElegir(loLleva);
+    } on Object catch (_) {
+      // Sin red o sin permiso: no se propone nada. Elegir quien reparte sigue siendo cosa de la persona.
+    }
+  }
 
   Future<void> _recordar(List<Distribuidor> lista) async {
     final sucursal = widget.sucursalId;
@@ -86,6 +122,7 @@ class _SelectorDeDistribuidorState
   Future<void> _elegir(String id) async {
     final sucursal = widget.sucursalId;
     final valor = id.isEmpty ? null : id;
+    if (valor != _propuesto) setState(() => _propuesto = null);
     // El recuerdo se guarda tambien al elegir «Sin distribuidor» (se borra): si no,
     // la proxima ruta resucitaria al de dos rutas atras.
     if (sucursal != null) {
@@ -133,6 +170,12 @@ class _SelectorDeDistribuidorState
           'Quien responde de la entrega y de devolver las facturas entregadas.',
           style: tema.textTheme.bodySmall,
         ),
+        if (_propuesto != null && _propuesto == widget.elegido)
+          Text(
+            'Propuesto porque suele llevar este vehículo.',
+            key: SelectorDeDistribuidor.claveDeLoPropuesto,
+            style: tema.textTheme.bodySmall,
+          ),
         if (lista.isEmpty) ...[
           const SizedBox(height: 4),
           Text(

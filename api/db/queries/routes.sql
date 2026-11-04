@@ -329,15 +329,12 @@ LEFT JOIN routes r ON r.id = o.route_id
 WHERE o.id = ANY(sqlc.arg('pedido_ids')::uuid[])
   AND (sqlc.narg('sucursal')::uuid IS NULL OR o.branch_id = sqlc.narg('sucursal')::uuid);
 
--- Cuántas rutas se llevan hoy, para el `NNN` de `RT-YYYYMMDD-NNN`.
---
--- OJO: no es atómico. Dos armados a la vez leen el mismo número y salen con el mismo
--- código. Delivery tenía la misma carrera; se hereda tal cual para no cambiar el formato
--- del código, que es lo que la gente se dice por teléfono. Si empieza a chocar, la salida
--- es una secuencia por día, no un reintento.
--- name: ContarRutasDelDia :one
-SELECT count(*) FROM routes r
-WHERE r.route_code LIKE sqlc.arg('prefijo')::text || '%';
+-- ¿Ya existe una ruta con este código? El código corto sale del UUIDv7 de la ruta (`api/codigo_de_ruta.go`) y,
+-- aunque casi nunca choca, se mira ANTES de crear; el índice único `routes_route_code_uniq` (00031) es la garantía
+-- final: nunca puede haber dos rutas con el mismo código (Jose, 04/11/2026). Sin alcance a propósito: el código es
+-- de toda la casa.
+-- name: ExisteCodigoDeRuta :one
+SELECT EXISTS (SELECT 1 FROM routes WHERE route_code = sqlc.arg('codigo')::text);
 
 -- La ruta nace `planned` y `optimized` en false: los totales y el orden de visita se
 -- calculan después, con las paradas ya enganchadas, y se fijan con `FijarTotalesDeRuta`.
@@ -350,9 +347,11 @@ WHERE r.route_code LIKE sqlc.arg('prefijo')::text || '%';
 -- nombre del Super Admin y escondió los de Holguín a sus propios compañeros de Holguín.
 -- name: CrearRuta :one
 INSERT INTO routes (
-    name, route_code, origin_address, origin_lat, origin_lng,
+    id, name, route_code, origin_address, origin_lat, origin_lng,
     delivery_date, vehicle_id, branch_id, creado_por, distribuidor_id
 ) VALUES (
+    -- El id lo pone el servidor (UUIDv7) y de él sale el código; sin id, la base pone uno (UUIDv7, `uuid_generate_v7()`).
+    COALESCE(sqlc.narg('id')::uuid, uuid_generate_v7()),
     sqlc.narg('name'), sqlc.arg('route_code'), sqlc.narg('origin_address'),
     sqlc.arg('origin_lat'), sqlc.arg('origin_lng'), sqlc.narg('delivery_date'),
     sqlc.narg('vehicle_id'), sqlc.narg('branch_id'), sqlc.narg('creado_por'),

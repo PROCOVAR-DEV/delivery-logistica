@@ -479,13 +479,6 @@ type Querier interface {
 	// el enum lo tiene declarado para no obligar a un ALTER TYPE el día que se use, y el
 	// tablero ya lo descarta.
 	ContarRutasActivas(ctx context.Context, sucursal pgtype.UUID) (int64, error)
-	// Cuántas rutas se llevan hoy, para el `NNN` de `RT-YYYYMMDD-NNN`.
-	//
-	// OJO: no es atómico. Dos armados a la vez leen el mismo número y salen con el mismo
-	// código. Delivery tenía la misma carrera; se hereda tal cual para no cambiar el formato
-	// del código, que es lo que la gente se dice por teléfono. Si empieza a chocar, la salida
-	// es una secuencia por día, no un reintento.
-	ContarRutasDelDia(ctx context.Context, prefijo string) (int64, error)
 	// ---------------------------------------------------------------------------
 	// Panel
 	// ---------------------------------------------------------------------------
@@ -812,6 +805,11 @@ type Querier interface {
 	// (`alcance.AvisoDeLaEntrega`). Las consultas de paradas no traen `folio` ni `factura_numero`.
 	// Sin alcance, como el buzón: lo llama quien ya tiene los ids dentro de su alcance, o el espejo.
 	EntregasParaAvisar(ctx context.Context, ids []uuid.UUID) ([]EntregasParaAvisarRow, error)
+	// ¿Ya existe una ruta con este código? El código corto sale del UUIDv7 de la ruta (`api/codigo_de_ruta.go`) y,
+	// aunque casi nunca choca, se mira ANTES de crear; el índice único `routes_route_code_uniq` (00031) es la garantía
+	// final: nunca puede haber dos rutas con el mismo código (Jose, 04/11/2026). Sin alcance a propósito: el código es
+	// de toda la casa.
+	ExisteCodigoDeRuta(ctx context.Context, codigo string) (bool, error)
 	// ¿YA LO ADOPTÓ UNA FACTURA? La pregunta del lado de PEDIDO: si hay una fila de factura con
 	// ese (sucursal, folio), el pedido de PEDIDO NO crea otra. No es un fallo: es la convivencia.
 	ExisteEntregaDeFacturaDelFolio(ctx context.Context, arg ExisteEntregaDeFacturaDelFolioParams) (bool, error)

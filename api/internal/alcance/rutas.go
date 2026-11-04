@@ -114,11 +114,10 @@ func (a *Acotado) PorQueNoSePuedeArmar(ctx context.Context, pedidos []uuid.UUID)
 	})
 }
 
-// ContarRutasDelDia NO lleva alcance a propósito: el `NNN` de `RT-YYYYMMDD-NNN` es de toda
-// la casa. Numerar por sucursal daría dos rutas distintas con el MISMO código el mismo
-// día, y ese código es lo que la gente se dice por teléfono.
-func (a *Acotado) ContarRutasDelDia(ctx context.Context, prefijo string) (int64, error) {
-	return a.q.ContarRutasDelDia(ctx, prefijo)
+// ExisteCodigoDeRuta NO lleva alcance a propósito: el código de una ruta es único en toda la casa (índice único 00031); mirar solo
+// la sucursal dejaría chocar a dos sucursales distintas.
+func (a *Acotado) ExisteCodigoDeRuta(ctx context.Context, codigo string) (bool, error) {
+	return a.q.ExisteCodigoDeRuta(ctx, codigo)
 }
 
 // CrearRuta: el alcance MANDA sobre lo que traiga el cuerpo. Quien está acotado crea la
@@ -206,7 +205,7 @@ func (a *Acotado) LimpiarResultadoDeParada(ctx context.Context, ruta, pedido uui
 	})
 }
 
-// DondeEstanLosPedidos NO lleva alcance a propósito, igual que `ContarRutasDelDia` y
+// DondeEstanLosPedidos NO lleva alcance a propósito, igual que `ExisteCodigoDeRuta` y
 // `ObtenerVehiculoParaCapacidad`, y por una razón más estrecha que las suyas: es el
 // diagnóstico del REGISTRO del servidor cuando un cierre rechaza paradas, y su resultado
 // no sale nunca en la respuesta. Con alcance, el pedido de otra sucursal —que es una de las

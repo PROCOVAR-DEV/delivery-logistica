@@ -398,19 +398,22 @@ func (d *dobleDeRutas) PorQueNoSePuedeArmar(_ context.Context, arg sqlc.PorQueNo
 	return salida, nil
 }
 
-func (d *dobleDeRutas) ContarRutasDelDia(_ context.Context, prefijo string) (int64, error) {
-	var n int64
+func (d *dobleDeRutas) ExisteCodigoDeRuta(_ context.Context, codigo string) (bool, error) {
 	for _, r := range d.rutas {
-		if strings.HasPrefix(r.codigo, prefijo) {
-			n++
+		if r.codigo == codigo {
+			return true, nil
 		}
 	}
-	return n, nil
+	return false, nil
 }
 
 func (d *dobleDeRutas) CrearRuta(_ context.Context, arg sqlc.CrearRutaParams) (sqlc.CrearRutaRow, error) {
+	id := uuid.New()
+	if arg.ID.Valid {
+		id = uuid.UUID(arg.ID.Bytes) // el que puso el servidor o el aparato (UUIDv7)
+	}
 	r := &rutaDeRutas{
-		id: uuid.New(), nombre: arg.Name, estado: sqlc.RouteStatusPlanned,
+		id: id, nombre: arg.Name, estado: sqlc.RouteStatusPlanned,
 		origenLat: arg.OriginLat, origenLng: arg.OriginLng, creadoPor: arg.CreadoPor,
 		creada: time.Now(),
 	}
@@ -1057,8 +1060,11 @@ func TestArmarRutaEnganchaLosPedidosConSusCuatroCampos(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &ruta); err != nil {
 		t.Fatalf("respuesta ilegible: %v", err)
 	}
-	if ruta.RouteCode == nil || !strings.HasPrefix(*ruta.RouteCode, "RT-") || !strings.HasSuffix(*ruta.RouteCode, "-001") {
-		t.Fatalf("el código de ruta no es RT-AAAAMMDD-001: %v", ruta.RouteCode)
+	if ruta.RouteCode == nil || !codigoCortoValido(*ruta.RouteCode) {
+		t.Fatalf("el código de ruta no es de 6 caracteres sin prefijo: %v", ruta.RouteCode)
+	}
+	if id, err := uuid.Parse(ruta.ID.String()); err != nil || id.Version() != 7 || *ruta.RouteCode != codigoDeRutaDe(id) {
+		t.Fatalf("el id de la ruta tiene que ser un UUIDv7 y su código salir de él: id=%v código=%v", ruta.ID, *ruta.RouteCode)
 	}
 	if ruta.Status != string(sqlc.RouteStatusPlanned) {
 		t.Fatalf("una ruta recién armada nace planned, y nació %q", ruta.Status)

@@ -213,13 +213,6 @@ func (a *Acotado) TableroVehiculoParaCapacidad(ctx context.Context, id uuid.UUID
 	return a.q.ObtenerVehiculoParaCapacidad(ctx, id)
 }
 
-// TableroContarRutasDelDia no lleva alcance a propósito: el `NNN` de `RT-YYYYMMDD-NNN` es
-// de TODA la casa. Numerar por sucursal daría dos rutas con el mismo código el mismo día,
-// y ese código es lo que la gente se dice por teléfono.
-func (a *Acotado) TableroContarRutasDelDia(ctx context.Context, prefijo string) (int64, error) {
-	return a.q.ContarRutasDelDia(ctx, prefijo)
-}
-
 // TableroCrearRuta: la ruta NACE en la sucursal del tablero, no en la del alcance — el
 // Super Admin no tiene alcance y aun así la ruta que arma es de la sucursal que está
 // mirando. Por eso `branch_id` llega por argumento.

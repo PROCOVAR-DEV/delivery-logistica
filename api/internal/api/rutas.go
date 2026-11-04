@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
@@ -760,6 +761,8 @@ func (s *Servidor) paradasPorRuta(r *http.Request, a *alcance.Acotado, rutas []u
 // ---------------------------------------------------------------------------
 
 type cuerpoRuta struct {
+	// El id UUIDv7 que le puso el aparato (con o sin conexión); sin él, lo pone el servidor. Ver `codigo_de_ruta.go`.
+	ID            httpx.Opcional[string]  `json:"id"`
 	Name          httpx.Opcional[string]  `json:"name"`
 	VehicleID     httpx.Opcional[string]  `json:"vehicleId"`
 	OriginAddress httpx.Opcional[string]  `json:"originAddress"`
@@ -1075,18 +1078,23 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 
 	// --- El código de ruta --------------------------------------------------
 	//
-	// `RT-YYYYMMDD-NNN` con la fecha de HOY EN UTC, y el NNN de contar las del día. Se
-	// cuenta, no se lee el máximo: si se borra una ruta del día el siguiente código se
-	// repite, y dos armados a la vez pueden chocar. Se hereda tal cual porque ese código
-	// es lo que la gente se dice por teléfono; si empieza a chocar, la salida es una
-	// secuencia por día, no un reintento.
-	prefijo := "RT-" + time.Now().UTC().Format("20060102") + "-"
-	delDia, err := ar.ContarRutasDelDia(r.Context(), prefijo)
+	// La ruta nace con un UUIDv7 (el del aparato o uno nuevo del servidor) y de él sale su código corto (`codigo_de_ruta.go`); la base
+	// lo exige único. Antes se contaban las rutas del día +1 y al borrar una se repetía (03/11/2026).
+	propuesto, err := idDeRutaDelAparato(c.ID.Con(""))
+	if err != nil {
+		httpx.Error(w, r, http.StatusBadRequest, err.Error())
+		return
+	}
+	idDeLaRuta, codigo, cambioDeCodigo, err := idYCodigoDeRuta(r.Context(), ar.ExisteCodigoDeRuta, propuesto)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	codigo := fmt.Sprintf("%s%03d", prefijo, delDia+1)
+	if cambioDeCodigo {
+		// COINCIDIÓ con el de otra ruta (casi imposible): la ruta conserva su id y recibe otro código. El aparato lo recibe en su
+		// siguiente bajada (la ruta sube con su `routeCode` nuevo) y la app lo AVISA. Queda constancia aquí.
+		slog.Warn("el código de la ruta coincidió con otro: se le dio uno nuevo", "ruta", idDeLaRuta, "propuesto", codigoDeRutaDe(propuesto), "nuevo", codigo)
+	}
 
 	// --- La escritura, ENTERA O NADA ---------------------------------------
 	//
@@ -1102,6 +1110,7 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 	err = ar.EnTx(r.Context(), func(tx *alcance.Acotado) error {
 		var err error
 		creada, err = tx.CrearRuta(r.Context(), sqlc.CrearRutaParams{
+			ID:             pgDe(idDeLaRuta),
 			Name:           aTexto(strings.TrimSpace(c.Name.Con(""))),
 			RouteCode:      &codigo,
 			OriginAddress:  aTexto(strings.TrimSpace(c.OriginAddress.Con(""))),

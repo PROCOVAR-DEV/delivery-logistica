@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/url"
@@ -1579,6 +1580,8 @@ func (s *Servidor) quitarPedidoDelTablero(w http.ResponseWriter, r *http.Request
 // ---------------------------------------------------------------------------
 
 type cuerpoArmar struct {
+	// El id UUIDv7 de la ruta, puesto por el aparato (con o sin conexión); sin él, lo pone el servidor (`codigo_de_ruta.go`).
+	ID         httpx.Opcional[string] `json:"id"`
 	Nombre     httpx.Opcional[string] `json:"nombre"`
 	VehiculoID httpx.Opcional[string] `json:"vehiculoId"`
 	// QUIÉN REPARTE (issue 7). Opcional: vacío o null = sin distribuidor. Si viene tiene que ser de la
@@ -1994,10 +1997,20 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	codigo, err := s.codigoDeRuta(r, a)
+	propuesto, err := idDeRutaDelAparato(c.ID.Con(""))
+	if err != nil {
+		httpx.Error(w, r, http.StatusBadRequest, err.Error())
+		return
+	}
+	idDeLaRuta, codigo, cambioDeCodigo, err := idYCodigoDeRuta(r.Context(), a.ExisteCodigoDeRuta, propuesto)
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
+	}
+	if cambioDeCodigo {
+		// COINCIDIÓ con el de otra ruta (casi imposible): la ruta conserva su id y recibe otro código. El aparato lo recibe en su
+		// siguiente bajada (la ruta sube con su `routeCode` nuevo) y la app lo AVISA. Queda constancia aquí.
+		slog.Warn("el código de la ruta coincidió con otro: se le dio uno nuevo", "ruta", idDeLaRuta, "propuesto", codigoDeRutaDe(propuesto), "nuevo", codigo)
 	}
 	nombre := strings.TrimSpace(c.Nombre.Con(columna.Nombre))
 
@@ -2007,6 +2020,7 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	err = a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
 		var err error
 		ruta, err = tx.TableroCrearRuta(r.Context(), sqlc.CrearRutaParams{
+			ID:             pgDe(idDeLaRuta),
 			Name:           &nombre,
 			RouteCode:      &codigo,
 			OriginAddress:  aTexto(almacen.Nombre),
@@ -2174,21 +2188,6 @@ func porQueNoEsCandidato(t sqlc.ListarPedidosColocadosRow) (motivo, queHacer str
 	// peor que ninguno, que es exactamente lo que pasó con el 409 de «otra ruta».
 	return "ya no se puede meter en una ruta",
 		"Cambió mientras se armaba. Vuelve a abrir el tablero para ver cómo está."
-}
-
-// codigoDeRuta arma el `RT-YYYYMMDD-NNN`.
-//
-// OJO: no es atómico, y se hereda así. Dos armados a la vez leen el mismo número y salen
-// con el mismo código; delivery tenía la misma carrera. Se mantiene para no cambiar el
-// formato, que es lo que la gente se dice por teléfono. Si empieza a chocar, la salida es
-// una secuencia por día, no un reintento.
-func (s *Servidor) codigoDeRuta(r *http.Request, a *alcance.Acotado) (string, error) {
-	prefijo := "RT-" + time.Now().Format("20060102")
-	n, err := a.TableroContarRutasDelDia(r.Context(), prefijo)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%s-%03d", prefijo, n+1), nil
 }
 
 // ---------------------------------------------------------------------------

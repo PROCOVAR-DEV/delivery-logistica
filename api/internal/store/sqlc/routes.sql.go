@@ -384,33 +384,17 @@ func (q *Queries) ContarRutasActivas(ctx context.Context, sucursal pgtype.UUID) 
 	return count, err
 }
 
-const contarRutasDelDia = `-- name: ContarRutasDelDia :one
-SELECT count(*) FROM routes r
-WHERE r.route_code LIKE $1::text || '%'
-`
-
-// Cuántas rutas se llevan hoy, para el `NNN` de `RT-YYYYMMDD-NNN`.
-//
-// OJO: no es atómico. Dos armados a la vez leen el mismo número y salen con el mismo
-// código. Delivery tenía la misma carrera; se hereda tal cual para no cambiar el formato
-// del código, que es lo que la gente se dice por teléfono. Si empieza a chocar, la salida
-// es una secuencia por día, no un reintento.
-func (q *Queries) ContarRutasDelDia(ctx context.Context, prefijo string) (int64, error) {
-	row := q.db.QueryRow(ctx, contarRutasDelDia, prefijo)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const crearRuta = `-- name: CrearRuta :one
 INSERT INTO routes (
-    name, route_code, origin_address, origin_lat, origin_lng,
+    id, name, route_code, origin_address, origin_lat, origin_lng,
     delivery_date, vehicle_id, branch_id, creado_por, distribuidor_id
 ) VALUES (
-    $1, $2, $3,
-    $4, $5, $6,
-    $7, $8, $9,
-    $10
+    -- El id lo pone el servidor (UUIDv7) y de él sale el código; sin id, la base pone uno (UUIDv7, ` + "`" + `uuid_generate_v7()` + "`" + `).
+    COALESCE($1::uuid, uuid_generate_v7()),
+    $2, $3, $4,
+    $5, $6, $7,
+    $8, $9, $10,
+    $11
 )
 RETURNING id, name, route_code, status, origin_address, origin_lat, origin_lng,
           total_distance, total_weight, total_price, delivery_date, vehicle_id,
@@ -419,6 +403,7 @@ RETURNING id, name, route_code, status, origin_address, origin_lat, origin_lng,
 `
 
 type CrearRutaParams struct {
+	ID             pgtype.UUID        `json:"id"`
 	Name           *string            `json:"name"`
 	RouteCode      *string            `json:"route_code"`
 	OriginAddress  *string            `json:"origin_address"`
@@ -464,6 +449,7 @@ type CrearRutaRow struct {
 // nombre del Super Admin y escondió los de Holguín a sus propios compañeros de Holguín.
 func (q *Queries) CrearRuta(ctx context.Context, arg CrearRutaParams) (CrearRutaRow, error) {
 	row := q.db.QueryRow(ctx, crearRuta,
+		arg.ID,
 		arg.Name,
 		arg.RouteCode,
 		arg.OriginAddress,
@@ -716,6 +702,21 @@ func (q *Queries) EngancharPedidoARuta(ctx context.Context, arg EngancharPedidoA
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const existeCodigoDeRuta = `-- name: ExisteCodigoDeRuta :one
+SELECT EXISTS (SELECT 1 FROM routes WHERE route_code = $1::text)
+`
+
+// ¿Ya existe una ruta con este código? El código corto sale del UUIDv7 de la ruta (`api/codigo_de_ruta.go`) y,
+// aunque casi nunca choca, se mira ANTES de crear; el índice único `routes_route_code_uniq` (00031) es la garantía
+// final: nunca puede haber dos rutas con el mismo código (Jose, 04/11/2026). Sin alcance a propósito: el código es
+// de toda la casa.
+func (q *Queries) ExisteCodigoDeRuta(ctx context.Context, codigo string) (bool, error) {
+	row := q.db.QueryRow(ctx, existeCodigoDeRuta, codigo)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const fijarOrdenDeParada = `-- name: FijarOrdenDeParada :execrows

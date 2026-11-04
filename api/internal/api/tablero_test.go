@@ -1540,7 +1540,7 @@ func (q *tableroFalso) PedidosDeColumnaParaArmarRuta(_ context.Context, arg sqlc
 	return salida, nil
 }
 
-func (q *tableroFalso) ContarRutasDelDia(context.Context, string) (int64, error) { return 4, nil }
+func (q *tableroFalso) ExisteCodigoDeRuta(context.Context, string) (bool, error) { return false, nil }
 
 func (q *tableroFalso) CrearRuta(_ context.Context, arg sqlc.CrearRutaParams) (sqlc.CrearRutaRow, error) {
 	q.rutaCreada = &arg
@@ -1616,8 +1616,8 @@ func TestArmarLaRutaDeUnaColumnaVaciaSusTarjetasYDejaLaColumna(t *testing.T) {
 	if q.totales == nil || q.totales.TotalDistance <= 0 {
 		t.Fatalf("totales: %+v", q.totales)
 	}
-	if *q.rutaCreada.RouteCode != "RT-"+time.Now().Format("20060102")+"-005" {
-		t.Fatalf("código de ruta %q", *q.rutaCreada.RouteCode)
+	if id := uuid.UUID(q.rutaCreada.ID.Bytes); id.Version() != 7 || *q.rutaCreada.RouteCode != codigoDeRutaDe(id) || !codigoCortoValido(*q.rutaCreada.RouteCode) {
+		t.Fatalf("la ruta tiene que nacer con un UUIDv7 y un código corto que salga de él: id=%v código=%q", id, *q.rutaCreada.RouteCode)
 	}
 }
 

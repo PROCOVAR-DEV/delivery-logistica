@@ -11,8 +11,8 @@ void main() {
   setUp(() => base = baseDePrueba());
   tearDown(() => base.close());
 
-  test('la base arranca en el esquema 8 con todas las tablas', () async {
-    expect(base.schemaVersion, 16);
+  test('la base arranca en el esquema 17 con todas las tablas', () async {
+    expect(base.schemaVersion, 17);
     final nombres = base.allTables.map((t) => t.actualTableName).toSet();
     expect(
       nombres,
@@ -32,6 +32,8 @@ void main() {
         'equivalencias',
         'frescura',
         'preferencias',
+        'puntos_gps',
+        'cobros_de_entrega',
       ]),
     );
     // `currencies` SE QUITO ENTERA (esquema 2). Era la tabla que leia el

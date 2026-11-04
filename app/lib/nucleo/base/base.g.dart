@@ -8752,6 +8752,17 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Ruta> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _revisadaAtMeta = const VerificationMeta(
+    'revisadaAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> revisadaAt = GeneratedColumn<DateTime>(
+    'revisada_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _optimizedMeta = const VerificationMeta(
     'optimized',
   );
@@ -8808,6 +8819,7 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Ruta> {
     branchId,
     startedAt,
     finishedAt,
+    revisadaAt,
     optimized,
     createdAt,
     updatedAt,
@@ -8940,6 +8952,12 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Ruta> {
         finishedAt.isAcceptableOrUnknown(data['finished_at']!, _finishedAtMeta),
       );
     }
+    if (data.containsKey('revisada_at')) {
+      context.handle(
+        _revisadaAtMeta,
+        revisadaAt.isAcceptableOrUnknown(data['revisada_at']!, _revisadaAtMeta),
+      );
+    }
     if (data.containsKey('optimized')) {
       context.handle(
         _optimizedMeta,
@@ -9035,6 +9053,10 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Ruta> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}finished_at'],
       ),
+      revisadaAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}revisada_at'],
+      ),
       optimized: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}optimized'],
@@ -9079,6 +9101,11 @@ class Ruta extends DataClass implements Insertable<Ruta> {
   final String? branchId;
   final DateTime? startedAt;
   final DateTime? finishedAt;
+
+  /// Cuando la logistica reviso la ruta ya cerrada (`revisadaAt` del servidor, esquema 17).
+  /// Nulo = «pendiente de revision» o «el servidor no lo manda»: solo lo enseña «Reparto
+  /// Distribuidor» y, si no viene, no se dice nada.
+  final DateTime? revisadaAt;
   final bool optimized;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -9100,6 +9127,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     this.branchId,
     this.startedAt,
     this.finishedAt,
+    this.revisadaAt,
     required this.optimized,
     this.createdAt,
     this.updatedAt,
@@ -9147,6 +9175,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     }
     if (!nullToAbsent || finishedAt != null) {
       map['finished_at'] = Variable<DateTime>(finishedAt);
+    }
+    if (!nullToAbsent || revisadaAt != null) {
+      map['revisada_at'] = Variable<DateTime>(revisadaAt);
     }
     map['optimized'] = Variable<bool>(optimized);
     if (!nullToAbsent || createdAt != null) {
@@ -9199,6 +9230,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
       finishedAt: finishedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(finishedAt),
+      revisadaAt: revisadaAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(revisadaAt),
       optimized: Value(optimized),
       createdAt: createdAt == null && nullToAbsent
           ? const Value.absent()
@@ -9232,6 +9266,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
       branchId: serializer.fromJson<String?>(json['branchId']),
       startedAt: serializer.fromJson<DateTime?>(json['startedAt']),
       finishedAt: serializer.fromJson<DateTime?>(json['finishedAt']),
+      revisadaAt: serializer.fromJson<DateTime?>(json['revisadaAt']),
       optimized: serializer.fromJson<bool>(json['optimized']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
@@ -9258,6 +9293,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
       'branchId': serializer.toJson<String?>(branchId),
       'startedAt': serializer.toJson<DateTime?>(startedAt),
       'finishedAt': serializer.toJson<DateTime?>(finishedAt),
+      'revisadaAt': serializer.toJson<DateTime?>(revisadaAt),
       'optimized': serializer.toJson<bool>(optimized),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'updatedAt': serializer.toJson<DateTime?>(updatedAt),
@@ -9282,6 +9318,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     Value<String?> branchId = const Value.absent(),
     Value<DateTime?> startedAt = const Value.absent(),
     Value<DateTime?> finishedAt = const Value.absent(),
+    Value<DateTime?> revisadaAt = const Value.absent(),
     bool? optimized,
     Value<DateTime?> createdAt = const Value.absent(),
     Value<DateTime?> updatedAt = const Value.absent(),
@@ -9307,6 +9344,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     branchId: branchId.present ? branchId.value : this.branchId,
     startedAt: startedAt.present ? startedAt.value : this.startedAt,
     finishedAt: finishedAt.present ? finishedAt.value : this.finishedAt,
+    revisadaAt: revisadaAt.present ? revisadaAt.value : this.revisadaAt,
     optimized: optimized ?? this.optimized,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
     updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
@@ -9344,6 +9382,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
       finishedAt: data.finishedAt.present
           ? data.finishedAt.value
           : this.finishedAt,
+      revisadaAt: data.revisadaAt.present
+          ? data.revisadaAt.value
+          : this.revisadaAt,
       optimized: data.optimized.present ? data.optimized.value : this.optimized,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -9370,6 +9411,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
           ..write('branchId: $branchId, ')
           ..write('startedAt: $startedAt, ')
           ..write('finishedAt: $finishedAt, ')
+          ..write('revisadaAt: $revisadaAt, ')
           ..write('optimized: $optimized, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -9378,7 +9420,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     name,
     routeCode,
@@ -9396,10 +9438,11 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     branchId,
     startedAt,
     finishedAt,
+    revisadaAt,
     optimized,
     createdAt,
     updatedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -9421,6 +9464,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
           other.branchId == this.branchId &&
           other.startedAt == this.startedAt &&
           other.finishedAt == this.finishedAt &&
+          other.revisadaAt == this.revisadaAt &&
           other.optimized == this.optimized &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -9444,6 +9488,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
   final Value<String?> branchId;
   final Value<DateTime?> startedAt;
   final Value<DateTime?> finishedAt;
+  final Value<DateTime?> revisadaAt;
   final Value<bool> optimized;
   final Value<DateTime?> createdAt;
   final Value<DateTime?> updatedAt;
@@ -9466,6 +9511,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
     this.branchId = const Value.absent(),
     this.startedAt = const Value.absent(),
     this.finishedAt = const Value.absent(),
+    this.revisadaAt = const Value.absent(),
     this.optimized = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -9489,6 +9535,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
     this.branchId = const Value.absent(),
     this.startedAt = const Value.absent(),
     this.finishedAt = const Value.absent(),
+    this.revisadaAt = const Value.absent(),
     this.optimized = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -9512,6 +9559,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
     Expression<String>? branchId,
     Expression<DateTime>? startedAt,
     Expression<DateTime>? finishedAt,
+    Expression<DateTime>? revisadaAt,
     Expression<bool>? optimized,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -9535,6 +9583,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
       if (branchId != null) 'branch_id': branchId,
       if (startedAt != null) 'started_at': startedAt,
       if (finishedAt != null) 'finished_at': finishedAt,
+      if (revisadaAt != null) 'revisada_at': revisadaAt,
       if (optimized != null) 'optimized': optimized,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -9560,6 +9609,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
     Value<String?>? branchId,
     Value<DateTime?>? startedAt,
     Value<DateTime?>? finishedAt,
+    Value<DateTime?>? revisadaAt,
     Value<bool>? optimized,
     Value<DateTime?>? createdAt,
     Value<DateTime?>? updatedAt,
@@ -9583,6 +9633,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
       branchId: branchId ?? this.branchId,
       startedAt: startedAt ?? this.startedAt,
       finishedAt: finishedAt ?? this.finishedAt,
+      revisadaAt: revisadaAt ?? this.revisadaAt,
       optimized: optimized ?? this.optimized,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -9644,6 +9695,9 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
     if (finishedAt.present) {
       map['finished_at'] = Variable<DateTime>(finishedAt.value);
     }
+    if (revisadaAt.present) {
+      map['revisada_at'] = Variable<DateTime>(revisadaAt.value);
+    }
     if (optimized.present) {
       map['optimized'] = Variable<bool>(optimized.value);
     }
@@ -9679,6 +9733,7 @@ class RoutesCompanion extends UpdateCompanion<Ruta> {
           ..write('branchId: $branchId, ')
           ..write('startedAt: $startedAt, ')
           ..write('finishedAt: $finishedAt, ')
+          ..write('revisadaAt: $revisadaAt, ')
           ..write('optimized: $optimized, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -12556,6 +12611,879 @@ class PreferenciasCompanion extends UpdateCompanion<Preferencia> {
   }
 }
 
+class $PuntosGpsTable extends PuntosGps
+    with TableInfo<$PuntosGpsTable, PuntoDeRecorrido> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PuntosGpsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rutaIdsMeta = const VerificationMeta(
+    'rutaIds',
+  );
+  @override
+  late final GeneratedColumn<String> rutaIds = GeneratedColumn<String>(
+    'ruta_ids',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _latMeta = const VerificationMeta('lat');
+  @override
+  late final GeneratedColumn<double> lat = GeneratedColumn<double>(
+    'lat',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lngMeta = const VerificationMeta('lng');
+  @override
+  late final GeneratedColumn<double> lng = GeneratedColumn<double>(
+    'lng',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _precisionMeta = const VerificationMeta(
+    'precision',
+  );
+  @override
+  late final GeneratedColumn<double> precision = GeneratedColumn<double>(
+    'precision',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _velocidadMeta = const VerificationMeta(
+    'velocidad',
+  );
+  @override
+  late final GeneratedColumn<double> velocidad = GeneratedColumn<double>(
+    'velocidad',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rumboMeta = const VerificationMeta('rumbo');
+  @override
+  late final GeneratedColumn<double> rumbo = GeneratedColumn<double>(
+    'rumbo',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _horaMeta = const VerificationMeta('hora');
+  @override
+  late final GeneratedColumn<DateTime> hora = GeneratedColumn<DateTime>(
+    'hora',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _eventoMeta = const VerificationMeta('evento');
+  @override
+  late final GeneratedColumn<String> evento = GeneratedColumn<String>(
+    'evento',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pedidoIdMeta = const VerificationMeta(
+    'pedidoId',
+  );
+  @override
+  late final GeneratedColumn<String> pedidoId = GeneratedColumn<String>(
+    'pedido_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _subidoMeta = const VerificationMeta('subido');
+  @override
+  late final GeneratedColumn<bool> subido = GeneratedColumn<bool>(
+    'subido',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("subido" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    rutaIds,
+    lat,
+    lng,
+    precision,
+    velocidad,
+    rumbo,
+    hora,
+    evento,
+    pedidoId,
+    subido,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'puntos_gps';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PuntoDeRecorrido> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('ruta_ids')) {
+      context.handle(
+        _rutaIdsMeta,
+        rutaIds.isAcceptableOrUnknown(data['ruta_ids']!, _rutaIdsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rutaIdsMeta);
+    }
+    if (data.containsKey('lat')) {
+      context.handle(
+        _latMeta,
+        lat.isAcceptableOrUnknown(data['lat']!, _latMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_latMeta);
+    }
+    if (data.containsKey('lng')) {
+      context.handle(
+        _lngMeta,
+        lng.isAcceptableOrUnknown(data['lng']!, _lngMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_lngMeta);
+    }
+    if (data.containsKey('precision')) {
+      context.handle(
+        _precisionMeta,
+        precision.isAcceptableOrUnknown(data['precision']!, _precisionMeta),
+      );
+    }
+    if (data.containsKey('velocidad')) {
+      context.handle(
+        _velocidadMeta,
+        velocidad.isAcceptableOrUnknown(data['velocidad']!, _velocidadMeta),
+      );
+    }
+    if (data.containsKey('rumbo')) {
+      context.handle(
+        _rumboMeta,
+        rumbo.isAcceptableOrUnknown(data['rumbo']!, _rumboMeta),
+      );
+    }
+    if (data.containsKey('hora')) {
+      context.handle(
+        _horaMeta,
+        hora.isAcceptableOrUnknown(data['hora']!, _horaMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_horaMeta);
+    }
+    if (data.containsKey('evento')) {
+      context.handle(
+        _eventoMeta,
+        evento.isAcceptableOrUnknown(data['evento']!, _eventoMeta),
+      );
+    }
+    if (data.containsKey('pedido_id')) {
+      context.handle(
+        _pedidoIdMeta,
+        pedidoId.isAcceptableOrUnknown(data['pedido_id']!, _pedidoIdMeta),
+      );
+    }
+    if (data.containsKey('subido')) {
+      context.handle(
+        _subidoMeta,
+        subido.isAcceptableOrUnknown(data['subido']!, _subidoMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PuntoDeRecorrido map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PuntoDeRecorrido(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      rutaIds: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ruta_ids'],
+      )!,
+      lat: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}lat'],
+      )!,
+      lng: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}lng'],
+      )!,
+      precision: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}precision'],
+      ),
+      velocidad: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}velocidad'],
+      ),
+      rumbo: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rumbo'],
+      ),
+      hora: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}hora'],
+      )!,
+      evento: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}evento'],
+      ),
+      pedidoId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pedido_id'],
+      ),
+      subido: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}subido'],
+      )!,
+    );
+  }
+
+  @override
+  $PuntosGpsTable createAlias(String alias) {
+    return $PuntosGpsTable(attachedDatabase, alias);
+  }
+}
+
+class PuntoDeRecorrido extends DataClass
+    implements Insertable<PuntoDeRecorrido> {
+  final String id;
+
+  /// JSON: `["R1","R2"]`.
+  final String rutaIds;
+  final double lat;
+  final double lng;
+  final double? precision;
+  final double? velocidad;
+  final double? rumbo;
+  final DateTime hora;
+  final String? evento;
+  final String? pedidoId;
+  final bool subido;
+  const PuntoDeRecorrido({
+    required this.id,
+    required this.rutaIds,
+    required this.lat,
+    required this.lng,
+    this.precision,
+    this.velocidad,
+    this.rumbo,
+    required this.hora,
+    this.evento,
+    this.pedidoId,
+    required this.subido,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['ruta_ids'] = Variable<String>(rutaIds);
+    map['lat'] = Variable<double>(lat);
+    map['lng'] = Variable<double>(lng);
+    if (!nullToAbsent || precision != null) {
+      map['precision'] = Variable<double>(precision);
+    }
+    if (!nullToAbsent || velocidad != null) {
+      map['velocidad'] = Variable<double>(velocidad);
+    }
+    if (!nullToAbsent || rumbo != null) {
+      map['rumbo'] = Variable<double>(rumbo);
+    }
+    map['hora'] = Variable<DateTime>(hora);
+    if (!nullToAbsent || evento != null) {
+      map['evento'] = Variable<String>(evento);
+    }
+    if (!nullToAbsent || pedidoId != null) {
+      map['pedido_id'] = Variable<String>(pedidoId);
+    }
+    map['subido'] = Variable<bool>(subido);
+    return map;
+  }
+
+  PuntosGpsCompanion toCompanion(bool nullToAbsent) {
+    return PuntosGpsCompanion(
+      id: Value(id),
+      rutaIds: Value(rutaIds),
+      lat: Value(lat),
+      lng: Value(lng),
+      precision: precision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(precision),
+      velocidad: velocidad == null && nullToAbsent
+          ? const Value.absent()
+          : Value(velocidad),
+      rumbo: rumbo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rumbo),
+      hora: Value(hora),
+      evento: evento == null && nullToAbsent
+          ? const Value.absent()
+          : Value(evento),
+      pedidoId: pedidoId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pedidoId),
+      subido: Value(subido),
+    );
+  }
+
+  factory PuntoDeRecorrido.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PuntoDeRecorrido(
+      id: serializer.fromJson<String>(json['id']),
+      rutaIds: serializer.fromJson<String>(json['rutaIds']),
+      lat: serializer.fromJson<double>(json['lat']),
+      lng: serializer.fromJson<double>(json['lng']),
+      precision: serializer.fromJson<double?>(json['precision']),
+      velocidad: serializer.fromJson<double?>(json['velocidad']),
+      rumbo: serializer.fromJson<double?>(json['rumbo']),
+      hora: serializer.fromJson<DateTime>(json['hora']),
+      evento: serializer.fromJson<String?>(json['evento']),
+      pedidoId: serializer.fromJson<String?>(json['pedidoId']),
+      subido: serializer.fromJson<bool>(json['subido']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'rutaIds': serializer.toJson<String>(rutaIds),
+      'lat': serializer.toJson<double>(lat),
+      'lng': serializer.toJson<double>(lng),
+      'precision': serializer.toJson<double?>(precision),
+      'velocidad': serializer.toJson<double?>(velocidad),
+      'rumbo': serializer.toJson<double?>(rumbo),
+      'hora': serializer.toJson<DateTime>(hora),
+      'evento': serializer.toJson<String?>(evento),
+      'pedidoId': serializer.toJson<String?>(pedidoId),
+      'subido': serializer.toJson<bool>(subido),
+    };
+  }
+
+  PuntoDeRecorrido copyWith({
+    String? id,
+    String? rutaIds,
+    double? lat,
+    double? lng,
+    Value<double?> precision = const Value.absent(),
+    Value<double?> velocidad = const Value.absent(),
+    Value<double?> rumbo = const Value.absent(),
+    DateTime? hora,
+    Value<String?> evento = const Value.absent(),
+    Value<String?> pedidoId = const Value.absent(),
+    bool? subido,
+  }) => PuntoDeRecorrido(
+    id: id ?? this.id,
+    rutaIds: rutaIds ?? this.rutaIds,
+    lat: lat ?? this.lat,
+    lng: lng ?? this.lng,
+    precision: precision.present ? precision.value : this.precision,
+    velocidad: velocidad.present ? velocidad.value : this.velocidad,
+    rumbo: rumbo.present ? rumbo.value : this.rumbo,
+    hora: hora ?? this.hora,
+    evento: evento.present ? evento.value : this.evento,
+    pedidoId: pedidoId.present ? pedidoId.value : this.pedidoId,
+    subido: subido ?? this.subido,
+  );
+  PuntoDeRecorrido copyWithCompanion(PuntosGpsCompanion data) {
+    return PuntoDeRecorrido(
+      id: data.id.present ? data.id.value : this.id,
+      rutaIds: data.rutaIds.present ? data.rutaIds.value : this.rutaIds,
+      lat: data.lat.present ? data.lat.value : this.lat,
+      lng: data.lng.present ? data.lng.value : this.lng,
+      precision: data.precision.present ? data.precision.value : this.precision,
+      velocidad: data.velocidad.present ? data.velocidad.value : this.velocidad,
+      rumbo: data.rumbo.present ? data.rumbo.value : this.rumbo,
+      hora: data.hora.present ? data.hora.value : this.hora,
+      evento: data.evento.present ? data.evento.value : this.evento,
+      pedidoId: data.pedidoId.present ? data.pedidoId.value : this.pedidoId,
+      subido: data.subido.present ? data.subido.value : this.subido,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PuntoDeRecorrido(')
+          ..write('id: $id, ')
+          ..write('rutaIds: $rutaIds, ')
+          ..write('lat: $lat, ')
+          ..write('lng: $lng, ')
+          ..write('precision: $precision, ')
+          ..write('velocidad: $velocidad, ')
+          ..write('rumbo: $rumbo, ')
+          ..write('hora: $hora, ')
+          ..write('evento: $evento, ')
+          ..write('pedidoId: $pedidoId, ')
+          ..write('subido: $subido')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    rutaIds,
+    lat,
+    lng,
+    precision,
+    velocidad,
+    rumbo,
+    hora,
+    evento,
+    pedidoId,
+    subido,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PuntoDeRecorrido &&
+          other.id == this.id &&
+          other.rutaIds == this.rutaIds &&
+          other.lat == this.lat &&
+          other.lng == this.lng &&
+          other.precision == this.precision &&
+          other.velocidad == this.velocidad &&
+          other.rumbo == this.rumbo &&
+          other.hora == this.hora &&
+          other.evento == this.evento &&
+          other.pedidoId == this.pedidoId &&
+          other.subido == this.subido);
+}
+
+class PuntosGpsCompanion extends UpdateCompanion<PuntoDeRecorrido> {
+  final Value<String> id;
+  final Value<String> rutaIds;
+  final Value<double> lat;
+  final Value<double> lng;
+  final Value<double?> precision;
+  final Value<double?> velocidad;
+  final Value<double?> rumbo;
+  final Value<DateTime> hora;
+  final Value<String?> evento;
+  final Value<String?> pedidoId;
+  final Value<bool> subido;
+  final Value<int> rowid;
+  const PuntosGpsCompanion({
+    this.id = const Value.absent(),
+    this.rutaIds = const Value.absent(),
+    this.lat = const Value.absent(),
+    this.lng = const Value.absent(),
+    this.precision = const Value.absent(),
+    this.velocidad = const Value.absent(),
+    this.rumbo = const Value.absent(),
+    this.hora = const Value.absent(),
+    this.evento = const Value.absent(),
+    this.pedidoId = const Value.absent(),
+    this.subido = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PuntosGpsCompanion.insert({
+    required String id,
+    required String rutaIds,
+    required double lat,
+    required double lng,
+    this.precision = const Value.absent(),
+    this.velocidad = const Value.absent(),
+    this.rumbo = const Value.absent(),
+    required DateTime hora,
+    this.evento = const Value.absent(),
+    this.pedidoId = const Value.absent(),
+    this.subido = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       rutaIds = Value(rutaIds),
+       lat = Value(lat),
+       lng = Value(lng),
+       hora = Value(hora);
+  static Insertable<PuntoDeRecorrido> custom({
+    Expression<String>? id,
+    Expression<String>? rutaIds,
+    Expression<double>? lat,
+    Expression<double>? lng,
+    Expression<double>? precision,
+    Expression<double>? velocidad,
+    Expression<double>? rumbo,
+    Expression<DateTime>? hora,
+    Expression<String>? evento,
+    Expression<String>? pedidoId,
+    Expression<bool>? subido,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (rutaIds != null) 'ruta_ids': rutaIds,
+      if (lat != null) 'lat': lat,
+      if (lng != null) 'lng': lng,
+      if (precision != null) 'precision': precision,
+      if (velocidad != null) 'velocidad': velocidad,
+      if (rumbo != null) 'rumbo': rumbo,
+      if (hora != null) 'hora': hora,
+      if (evento != null) 'evento': evento,
+      if (pedidoId != null) 'pedido_id': pedidoId,
+      if (subido != null) 'subido': subido,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PuntosGpsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? rutaIds,
+    Value<double>? lat,
+    Value<double>? lng,
+    Value<double?>? precision,
+    Value<double?>? velocidad,
+    Value<double?>? rumbo,
+    Value<DateTime>? hora,
+    Value<String?>? evento,
+    Value<String?>? pedidoId,
+    Value<bool>? subido,
+    Value<int>? rowid,
+  }) {
+    return PuntosGpsCompanion(
+      id: id ?? this.id,
+      rutaIds: rutaIds ?? this.rutaIds,
+      lat: lat ?? this.lat,
+      lng: lng ?? this.lng,
+      precision: precision ?? this.precision,
+      velocidad: velocidad ?? this.velocidad,
+      rumbo: rumbo ?? this.rumbo,
+      hora: hora ?? this.hora,
+      evento: evento ?? this.evento,
+      pedidoId: pedidoId ?? this.pedidoId,
+      subido: subido ?? this.subido,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (rutaIds.present) {
+      map['ruta_ids'] = Variable<String>(rutaIds.value);
+    }
+    if (lat.present) {
+      map['lat'] = Variable<double>(lat.value);
+    }
+    if (lng.present) {
+      map['lng'] = Variable<double>(lng.value);
+    }
+    if (precision.present) {
+      map['precision'] = Variable<double>(precision.value);
+    }
+    if (velocidad.present) {
+      map['velocidad'] = Variable<double>(velocidad.value);
+    }
+    if (rumbo.present) {
+      map['rumbo'] = Variable<double>(rumbo.value);
+    }
+    if (hora.present) {
+      map['hora'] = Variable<DateTime>(hora.value);
+    }
+    if (evento.present) {
+      map['evento'] = Variable<String>(evento.value);
+    }
+    if (pedidoId.present) {
+      map['pedido_id'] = Variable<String>(pedidoId.value);
+    }
+    if (subido.present) {
+      map['subido'] = Variable<bool>(subido.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PuntosGpsCompanion(')
+          ..write('id: $id, ')
+          ..write('rutaIds: $rutaIds, ')
+          ..write('lat: $lat, ')
+          ..write('lng: $lng, ')
+          ..write('precision: $precision, ')
+          ..write('velocidad: $velocidad, ')
+          ..write('rumbo: $rumbo, ')
+          ..write('hora: $hora, ')
+          ..write('evento: $evento, ')
+          ..write('pedidoId: $pedidoId, ')
+          ..write('subido: $subido, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CobrosDeEntregaTable extends CobrosDeEntrega
+    with TableInfo<$CobrosDeEntregaTable, CobroDeEntrega> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CobrosDeEntregaTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _pedidoIdMeta = const VerificationMeta(
+    'pedidoId',
+  );
+  @override
+  late final GeneratedColumn<String> pedidoId = GeneratedColumn<String>(
+    'pedido_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cobradoMeta = const VerificationMeta(
+    'cobrado',
+  );
+  @override
+  late final GeneratedColumn<bool> cobrado = GeneratedColumn<bool>(
+    'cobrado',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("cobrado" IN (0, 1))',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [pedidoId, cobrado];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cobros_de_entrega';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CobroDeEntrega> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('pedido_id')) {
+      context.handle(
+        _pedidoIdMeta,
+        pedidoId.isAcceptableOrUnknown(data['pedido_id']!, _pedidoIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pedidoIdMeta);
+    }
+    if (data.containsKey('cobrado')) {
+      context.handle(
+        _cobradoMeta,
+        cobrado.isAcceptableOrUnknown(data['cobrado']!, _cobradoMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cobradoMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {pedidoId};
+  @override
+  CobroDeEntrega map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CobroDeEntrega(
+      pedidoId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pedido_id'],
+      )!,
+      cobrado: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}cobrado'],
+      )!,
+    );
+  }
+
+  @override
+  $CobrosDeEntregaTable createAlias(String alias) {
+    return $CobrosDeEntregaTable(attachedDatabase, alias);
+  }
+}
+
+class CobroDeEntrega extends DataClass implements Insertable<CobroDeEntrega> {
+  final String pedidoId;
+  final bool cobrado;
+  const CobroDeEntrega({required this.pedidoId, required this.cobrado});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['pedido_id'] = Variable<String>(pedidoId);
+    map['cobrado'] = Variable<bool>(cobrado);
+    return map;
+  }
+
+  CobrosDeEntregaCompanion toCompanion(bool nullToAbsent) {
+    return CobrosDeEntregaCompanion(
+      pedidoId: Value(pedidoId),
+      cobrado: Value(cobrado),
+    );
+  }
+
+  factory CobroDeEntrega.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CobroDeEntrega(
+      pedidoId: serializer.fromJson<String>(json['pedidoId']),
+      cobrado: serializer.fromJson<bool>(json['cobrado']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'pedidoId': serializer.toJson<String>(pedidoId),
+      'cobrado': serializer.toJson<bool>(cobrado),
+    };
+  }
+
+  CobroDeEntrega copyWith({String? pedidoId, bool? cobrado}) => CobroDeEntrega(
+    pedidoId: pedidoId ?? this.pedidoId,
+    cobrado: cobrado ?? this.cobrado,
+  );
+  CobroDeEntrega copyWithCompanion(CobrosDeEntregaCompanion data) {
+    return CobroDeEntrega(
+      pedidoId: data.pedidoId.present ? data.pedidoId.value : this.pedidoId,
+      cobrado: data.cobrado.present ? data.cobrado.value : this.cobrado,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CobroDeEntrega(')
+          ..write('pedidoId: $pedidoId, ')
+          ..write('cobrado: $cobrado')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(pedidoId, cobrado);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CobroDeEntrega &&
+          other.pedidoId == this.pedidoId &&
+          other.cobrado == this.cobrado);
+}
+
+class CobrosDeEntregaCompanion extends UpdateCompanion<CobroDeEntrega> {
+  final Value<String> pedidoId;
+  final Value<bool> cobrado;
+  final Value<int> rowid;
+  const CobrosDeEntregaCompanion({
+    this.pedidoId = const Value.absent(),
+    this.cobrado = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CobrosDeEntregaCompanion.insert({
+    required String pedidoId,
+    required bool cobrado,
+    this.rowid = const Value.absent(),
+  }) : pedidoId = Value(pedidoId),
+       cobrado = Value(cobrado);
+  static Insertable<CobroDeEntrega> custom({
+    Expression<String>? pedidoId,
+    Expression<bool>? cobrado,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (pedidoId != null) 'pedido_id': pedidoId,
+      if (cobrado != null) 'cobrado': cobrado,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CobrosDeEntregaCompanion copyWith({
+    Value<String>? pedidoId,
+    Value<bool>? cobrado,
+    Value<int>? rowid,
+  }) {
+    return CobrosDeEntregaCompanion(
+      pedidoId: pedidoId ?? this.pedidoId,
+      cobrado: cobrado ?? this.cobrado,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (pedidoId.present) {
+      map['pedido_id'] = Variable<String>(pedidoId.value);
+    }
+    if (cobrado.present) {
+      map['cobrado'] = Variable<bool>(cobrado.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CobrosDeEntregaCompanion(')
+          ..write('pedidoId: $pedidoId, ')
+          ..write('cobrado: $cobrado, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$BaseLocal extends GeneratedDatabase {
   _$BaseLocal(QueryExecutor e) : super(e);
   $BaseLocalManager get managers => $BaseLocalManager(this);
@@ -12577,6 +13505,10 @@ abstract class _$BaseLocal extends GeneratedDatabase {
   late final $EquivalenciasTable equivalencias = $EquivalenciasTable(this);
   late final $FrescuraTable frescura = $FrescuraTable(this);
   late final $PreferenciasTable preferencias = $PreferenciasTable(this);
+  late final $PuntosGpsTable puntosGps = $PuntosGpsTable(this);
+  late final $CobrosDeEntregaTable cobrosDeEntrega = $CobrosDeEntregaTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -12598,6 +13530,8 @@ abstract class _$BaseLocal extends GeneratedDatabase {
     equivalencias,
     frescura,
     preferencias,
+    puntosGps,
+    cobrosDeEntrega,
   ];
   @override
   DriftDatabaseOptions get options =>
@@ -16386,6 +17320,7 @@ typedef $$RoutesTableCreateCompanionBuilder =
       Value<String?> branchId,
       Value<DateTime?> startedAt,
       Value<DateTime?> finishedAt,
+      Value<DateTime?> revisadaAt,
       Value<bool> optimized,
       Value<DateTime?> createdAt,
       Value<DateTime?> updatedAt,
@@ -16410,6 +17345,7 @@ typedef $$RoutesTableUpdateCompanionBuilder =
       Value<String?> branchId,
       Value<DateTime?> startedAt,
       Value<DateTime?> finishedAt,
+      Value<DateTime?> revisadaAt,
       Value<bool> optimized,
       Value<DateTime?> createdAt,
       Value<DateTime?> updatedAt,
@@ -16506,6 +17442,11 @@ class $$RoutesTableFilterComposer extends Composer<_$BaseLocal, $RoutesTable> {
 
   ColumnFilters<DateTime> get finishedAt => $composableBuilder(
     column: $table.finishedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get revisadaAt => $composableBuilder(
+    column: $table.revisadaAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16619,6 +17560,11 @@ class $$RoutesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get revisadaAt => $composableBuilder(
+    column: $table.revisadaAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get optimized => $composableBuilder(
     column: $table.optimized,
     builder: (column) => ColumnOrderings(column),
@@ -16709,6 +17655,11 @@ class $$RoutesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<DateTime> get revisadaAt => $composableBuilder(
+    column: $table.revisadaAt,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get optimized =>
       $composableBuilder(column: $table.optimized, builder: (column) => column);
 
@@ -16764,6 +17715,7 @@ class $$RoutesTableTableManager
                 Value<String?> branchId = const Value.absent(),
                 Value<DateTime?> startedAt = const Value.absent(),
                 Value<DateTime?> finishedAt = const Value.absent(),
+                Value<DateTime?> revisadaAt = const Value.absent(),
                 Value<bool> optimized = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
@@ -16786,6 +17738,7 @@ class $$RoutesTableTableManager
                 branchId: branchId,
                 startedAt: startedAt,
                 finishedAt: finishedAt,
+                revisadaAt: revisadaAt,
                 optimized: optimized,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -16810,6 +17763,7 @@ class $$RoutesTableTableManager
                 Value<String?> branchId = const Value.absent(),
                 Value<DateTime?> startedAt = const Value.absent(),
                 Value<DateTime?> finishedAt = const Value.absent(),
+                Value<DateTime?> revisadaAt = const Value.absent(),
                 Value<bool> optimized = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
@@ -16832,6 +17786,7 @@ class $$RoutesTableTableManager
                 branchId: branchId,
                 startedAt: startedAt,
                 finishedAt: finishedAt,
+                revisadaAt: revisadaAt,
                 optimized: optimized,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -18294,6 +19249,465 @@ typedef $$PreferenciasTableProcessedTableManager =
       Preferencia,
       PrefetchHooks Function()
     >;
+typedef $$PuntosGpsTableCreateCompanionBuilder =
+    PuntosGpsCompanion Function({
+      required String id,
+      required String rutaIds,
+      required double lat,
+      required double lng,
+      Value<double?> precision,
+      Value<double?> velocidad,
+      Value<double?> rumbo,
+      required DateTime hora,
+      Value<String?> evento,
+      Value<String?> pedidoId,
+      Value<bool> subido,
+      Value<int> rowid,
+    });
+typedef $$PuntosGpsTableUpdateCompanionBuilder =
+    PuntosGpsCompanion Function({
+      Value<String> id,
+      Value<String> rutaIds,
+      Value<double> lat,
+      Value<double> lng,
+      Value<double?> precision,
+      Value<double?> velocidad,
+      Value<double?> rumbo,
+      Value<DateTime> hora,
+      Value<String?> evento,
+      Value<String?> pedidoId,
+      Value<bool> subido,
+      Value<int> rowid,
+    });
+
+class $$PuntosGpsTableFilterComposer
+    extends Composer<_$BaseLocal, $PuntosGpsTable> {
+  $$PuntosGpsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rutaIds => $composableBuilder(
+    column: $table.rutaIds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get lat => $composableBuilder(
+    column: $table.lat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get lng => $composableBuilder(
+    column: $table.lng,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get precision => $composableBuilder(
+    column: $table.precision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get velocidad => $composableBuilder(
+    column: $table.velocidad,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rumbo => $composableBuilder(
+    column: $table.rumbo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get hora => $composableBuilder(
+    column: $table.hora,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get evento => $composableBuilder(
+    column: $table.evento,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pedidoId => $composableBuilder(
+    column: $table.pedidoId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get subido => $composableBuilder(
+    column: $table.subido,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PuntosGpsTableOrderingComposer
+    extends Composer<_$BaseLocal, $PuntosGpsTable> {
+  $$PuntosGpsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rutaIds => $composableBuilder(
+    column: $table.rutaIds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get lat => $composableBuilder(
+    column: $table.lat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get lng => $composableBuilder(
+    column: $table.lng,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get precision => $composableBuilder(
+    column: $table.precision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get velocidad => $composableBuilder(
+    column: $table.velocidad,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rumbo => $composableBuilder(
+    column: $table.rumbo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get hora => $composableBuilder(
+    column: $table.hora,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get evento => $composableBuilder(
+    column: $table.evento,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pedidoId => $composableBuilder(
+    column: $table.pedidoId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get subido => $composableBuilder(
+    column: $table.subido,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PuntosGpsTableAnnotationComposer
+    extends Composer<_$BaseLocal, $PuntosGpsTable> {
+  $$PuntosGpsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get rutaIds =>
+      $composableBuilder(column: $table.rutaIds, builder: (column) => column);
+
+  GeneratedColumn<double> get lat =>
+      $composableBuilder(column: $table.lat, builder: (column) => column);
+
+  GeneratedColumn<double> get lng =>
+      $composableBuilder(column: $table.lng, builder: (column) => column);
+
+  GeneratedColumn<double> get precision =>
+      $composableBuilder(column: $table.precision, builder: (column) => column);
+
+  GeneratedColumn<double> get velocidad =>
+      $composableBuilder(column: $table.velocidad, builder: (column) => column);
+
+  GeneratedColumn<double> get rumbo =>
+      $composableBuilder(column: $table.rumbo, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get hora =>
+      $composableBuilder(column: $table.hora, builder: (column) => column);
+
+  GeneratedColumn<String> get evento =>
+      $composableBuilder(column: $table.evento, builder: (column) => column);
+
+  GeneratedColumn<String> get pedidoId =>
+      $composableBuilder(column: $table.pedidoId, builder: (column) => column);
+
+  GeneratedColumn<bool> get subido =>
+      $composableBuilder(column: $table.subido, builder: (column) => column);
+}
+
+class $$PuntosGpsTableTableManager
+    extends
+        RootTableManager<
+          _$BaseLocal,
+          $PuntosGpsTable,
+          PuntoDeRecorrido,
+          $$PuntosGpsTableFilterComposer,
+          $$PuntosGpsTableOrderingComposer,
+          $$PuntosGpsTableAnnotationComposer,
+          $$PuntosGpsTableCreateCompanionBuilder,
+          $$PuntosGpsTableUpdateCompanionBuilder,
+          (
+            PuntoDeRecorrido,
+            BaseReferences<_$BaseLocal, $PuntosGpsTable, PuntoDeRecorrido>,
+          ),
+          PuntoDeRecorrido,
+          PrefetchHooks Function()
+        > {
+  $$PuntosGpsTableTableManager(_$BaseLocal db, $PuntosGpsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PuntosGpsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PuntosGpsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PuntosGpsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> rutaIds = const Value.absent(),
+                Value<double> lat = const Value.absent(),
+                Value<double> lng = const Value.absent(),
+                Value<double?> precision = const Value.absent(),
+                Value<double?> velocidad = const Value.absent(),
+                Value<double?> rumbo = const Value.absent(),
+                Value<DateTime> hora = const Value.absent(),
+                Value<String?> evento = const Value.absent(),
+                Value<String?> pedidoId = const Value.absent(),
+                Value<bool> subido = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PuntosGpsCompanion(
+                id: id,
+                rutaIds: rutaIds,
+                lat: lat,
+                lng: lng,
+                precision: precision,
+                velocidad: velocidad,
+                rumbo: rumbo,
+                hora: hora,
+                evento: evento,
+                pedidoId: pedidoId,
+                subido: subido,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String rutaIds,
+                required double lat,
+                required double lng,
+                Value<double?> precision = const Value.absent(),
+                Value<double?> velocidad = const Value.absent(),
+                Value<double?> rumbo = const Value.absent(),
+                required DateTime hora,
+                Value<String?> evento = const Value.absent(),
+                Value<String?> pedidoId = const Value.absent(),
+                Value<bool> subido = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PuntosGpsCompanion.insert(
+                id: id,
+                rutaIds: rutaIds,
+                lat: lat,
+                lng: lng,
+                precision: precision,
+                velocidad: velocidad,
+                rumbo: rumbo,
+                hora: hora,
+                evento: evento,
+                pedidoId: pedidoId,
+                subido: subido,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PuntosGpsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$BaseLocal,
+      $PuntosGpsTable,
+      PuntoDeRecorrido,
+      $$PuntosGpsTableFilterComposer,
+      $$PuntosGpsTableOrderingComposer,
+      $$PuntosGpsTableAnnotationComposer,
+      $$PuntosGpsTableCreateCompanionBuilder,
+      $$PuntosGpsTableUpdateCompanionBuilder,
+      (
+        PuntoDeRecorrido,
+        BaseReferences<_$BaseLocal, $PuntosGpsTable, PuntoDeRecorrido>,
+      ),
+      PuntoDeRecorrido,
+      PrefetchHooks Function()
+    >;
+typedef $$CobrosDeEntregaTableCreateCompanionBuilder =
+    CobrosDeEntregaCompanion Function({
+      required String pedidoId,
+      required bool cobrado,
+      Value<int> rowid,
+    });
+typedef $$CobrosDeEntregaTableUpdateCompanionBuilder =
+    CobrosDeEntregaCompanion Function({
+      Value<String> pedidoId,
+      Value<bool> cobrado,
+      Value<int> rowid,
+    });
+
+class $$CobrosDeEntregaTableFilterComposer
+    extends Composer<_$BaseLocal, $CobrosDeEntregaTable> {
+  $$CobrosDeEntregaTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get pedidoId => $composableBuilder(
+    column: $table.pedidoId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get cobrado => $composableBuilder(
+    column: $table.cobrado,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CobrosDeEntregaTableOrderingComposer
+    extends Composer<_$BaseLocal, $CobrosDeEntregaTable> {
+  $$CobrosDeEntregaTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get pedidoId => $composableBuilder(
+    column: $table.pedidoId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get cobrado => $composableBuilder(
+    column: $table.cobrado,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CobrosDeEntregaTableAnnotationComposer
+    extends Composer<_$BaseLocal, $CobrosDeEntregaTable> {
+  $$CobrosDeEntregaTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get pedidoId =>
+      $composableBuilder(column: $table.pedidoId, builder: (column) => column);
+
+  GeneratedColumn<bool> get cobrado =>
+      $composableBuilder(column: $table.cobrado, builder: (column) => column);
+}
+
+class $$CobrosDeEntregaTableTableManager
+    extends
+        RootTableManager<
+          _$BaseLocal,
+          $CobrosDeEntregaTable,
+          CobroDeEntrega,
+          $$CobrosDeEntregaTableFilterComposer,
+          $$CobrosDeEntregaTableOrderingComposer,
+          $$CobrosDeEntregaTableAnnotationComposer,
+          $$CobrosDeEntregaTableCreateCompanionBuilder,
+          $$CobrosDeEntregaTableUpdateCompanionBuilder,
+          (
+            CobroDeEntrega,
+            BaseReferences<_$BaseLocal, $CobrosDeEntregaTable, CobroDeEntrega>,
+          ),
+          CobroDeEntrega,
+          PrefetchHooks Function()
+        > {
+  $$CobrosDeEntregaTableTableManager(
+    _$BaseLocal db,
+    $CobrosDeEntregaTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CobrosDeEntregaTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CobrosDeEntregaTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CobrosDeEntregaTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> pedidoId = const Value.absent(),
+                Value<bool> cobrado = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CobrosDeEntregaCompanion(
+                pedidoId: pedidoId,
+                cobrado: cobrado,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String pedidoId,
+                required bool cobrado,
+                Value<int> rowid = const Value.absent(),
+              }) => CobrosDeEntregaCompanion.insert(
+                pedidoId: pedidoId,
+                cobrado: cobrado,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CobrosDeEntregaTableProcessedTableManager =
+    ProcessedTableManager<
+      _$BaseLocal,
+      $CobrosDeEntregaTable,
+      CobroDeEntrega,
+      $$CobrosDeEntregaTableFilterComposer,
+      $$CobrosDeEntregaTableOrderingComposer,
+      $$CobrosDeEntregaTableAnnotationComposer,
+      $$CobrosDeEntregaTableCreateCompanionBuilder,
+      $$CobrosDeEntregaTableUpdateCompanionBuilder,
+      (
+        CobroDeEntrega,
+        BaseReferences<_$BaseLocal, $CobrosDeEntregaTable, CobroDeEntrega>,
+      ),
+      CobroDeEntrega,
+      PrefetchHooks Function()
+    >;
 
 class $BaseLocalManager {
   final _$BaseLocal _db;
@@ -18330,4 +19744,8 @@ class $BaseLocalManager {
       $$FrescuraTableTableManager(_db, _db.frescura);
   $$PreferenciasTableTableManager get preferencias =>
       $$PreferenciasTableTableManager(_db, _db.preferencias);
+  $$PuntosGpsTableTableManager get puntosGps =>
+      $$PuntosGpsTableTableManager(_db, _db.puntosGps);
+  $$CobrosDeEntregaTableTableManager get cobrosDeEntrega =>
+      $$CobrosDeEntregaTableTableManager(_db, _db.cobrosDeEntrega);
 }

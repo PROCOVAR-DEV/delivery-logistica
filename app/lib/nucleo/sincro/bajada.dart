@@ -749,6 +749,8 @@ class Bajada {
                 branchId: Value(_texto(j['branchId'])),
                 startedAt: Value(_fecha(j['startedAt'])),
                 finishedAt: Value(_fecha(j['finishedAt'])),
+                // Solo la ensena «Reparto Distribuidor»; si el servidor no la manda, queda nula.
+                revisadaAt: Value(_fecha(j['revisadaAt'])),
                 createdAt: Value(_fecha(j['createdAt'])),
                 updatedAt: Value(_fecha(j['updatedAt'])),
               ),

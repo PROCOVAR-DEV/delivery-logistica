@@ -140,6 +140,8 @@ abstract final class ClaveDePreferencia {
     Equivalencias,
     Frescura,
     Preferencias,
+    PuntosGps,
+    CobrosDeEntrega,
   ],
 )
 class BaseLocal extends _$BaseLocal {
@@ -232,13 +234,18 @@ class BaseLocal extends _$BaseLocal {
   /// (`RegistroDeFrescura.rebajarLasFacturasAnuladas`) para enterarse de las de la ultima semana.
   /// Ver el `desde < 15`.
   ///
+  /// ## 17 — el GPS del distribuidor (04/11/2026, `docs/app-distribuidor.md`)
+  ///
+  /// Tablas NUEVAS `puntos_gps` y `cobros_de_entrega` (solo del aparato) y `routes.revisada_at`, nula.
+  /// ADITIVAS: la cola de `apuntes` no se toca. Nacen vacias. Ver el `desde < 17`.
+  ///
   /// ## 16 — los conduces (27/10/2026, `docs/conduces.md`)
   ///
   /// `orders` gana `conduce_principal_id`, nula. ADITIVA: la cola de `apuntes` no se toca. Los aparatos
   /// ya instalados lo reciben con una bajada entera de los pedidos, una vez
   /// (`RegistroDeFrescura.rebajarLosPedidosPorSuConduce`). Ver el `desde < 16`.
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -442,6 +449,25 @@ class BaseLocal extends _$BaseLocal {
           await m.addColumn(orders, orders.conducePrincipalId);
         }
       }
+      if (desde < 17) {
+        // EL GPS DEL DISTRIBUIDOR. Solo si falta, por lo mismo que la 5, la 7 y la 8: un
+        // `CREATE TABLE` de una que ya esta LANZA y deja la base sin abrir (la cola dentro).
+        final tablas = (await customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'table'",
+        ).get()).map((f) => f.read<String>('name')).toSet();
+        if (!tablas.contains(puntosGps.actualTableName)) {
+          await m.createTable(puntosGps);
+        }
+        if (!tablas.contains(cobrosDeEntrega.actualTableName)) {
+          await m.createTable(cobrosDeEntrega);
+        }
+        final deRutas = (await customSelect(
+          'PRAGMA table_info(routes)',
+        ).get()).map((f) => f.read<String>('name')).toSet();
+        if (!deRutas.contains(routes.revisadaAt.name)) {
+          await m.addColumn(routes, routes.revisadaAt);
+        }
+      }
     },
     beforeOpen: (detalles) async {
       // Las claves ajenas van ENCENDIDAS. SQLite las trae apagadas por defecto y
@@ -502,6 +528,8 @@ class BaseLocal extends _$BaseLocal {
         'ON orders (ultima_ruta_id, stop_order)',
     // La cola: cuántos quedan, y si una zona tiene algo sin subir.
     'CREATE INDEX IF NOT EXISTS apuntes_estado_idx ON apuntes (estado)',
+    // Los puntos de GPS por subir y los viejos por podar (`PuntosGpsLocales`).
+    'CREATE INDEX IF NOT EXISTS puntos_gps_subido_idx ON puntos_gps (subido, hora)',
     // Los miembros de un conduce (`nucleo/conduce.dart`): cada lista los esconde con ella.
     'CREATE INDEX IF NOT EXISTS orders_conduce_idx ON orders (conduce_principal_id)',
   ];

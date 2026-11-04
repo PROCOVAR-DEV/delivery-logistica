@@ -387,6 +387,11 @@ class Routes extends Table {
   TextColumn get branchId => text().nullable()();
   DateTimeColumn get startedAt => dateTime().nullable()();
   DateTimeColumn get finishedAt => dateTime().nullable()();
+
+  /// Cuando la logistica reviso la ruta ya cerrada (`revisadaAt` del servidor, esquema 17).
+  /// Nulo = «pendiente de revision» o «el servidor no lo manda»: solo lo enseña «Reparto
+  /// Distribuidor» y, si no viene, no se dice nada.
+  DateTimeColumn get revisadaAt => dateTime().nullable()();
   BoolColumn get optimized => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().nullable()();
   DateTimeColumn get updatedAt => dateTime().nullable()();

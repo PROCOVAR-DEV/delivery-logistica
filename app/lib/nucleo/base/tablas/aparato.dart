@@ -158,3 +158,54 @@ class Preferencias extends Table {
   @override
   Set<Column<Object>> get primaryKey => {clave};
 }
+
+/// LOS PUNTOS DE GPS de «Reparto Distribuidor» (`lib/distribuidor/gps/`,
+/// `docs/app-distribuidor.md`). Solo del aparato: la tabla no la conoce el
+/// servidor, que recibe los puntos por `POST /api/track` y los guarda en lo suyo.
+///
+/// ## Reglas
+///  * El [id] es un UUIDv7 puesto por el aparato (`Provisionales.nuevoIdReal()`):
+///    la subida es IDEMPOTENTE por ese id, asi que un reintento tras un corte no
+///    duplica nada.
+///  * La [hora] es la del APARATO, la del momento de la lectura (regla 7).
+///  * UN solo flujo de ubicacion para todas las rutas en curso: [rutaIds] es la
+///    lista (JSON) de las que estaban en curso en ese instante, no un punto por ruta.
+///  * [evento]: `inicio` | `parada` | `fin`, o nulo si es un punto del recorrido.
+///    [pedidoId] solo lo llevan los de `parada`.
+///  * RETENCION LOCAL: los [subido] se podan a los 90 dias; **los no subidos no se
+///    borran NUNCA**, ni a los 90 ni a los 900 (`PuntosGpsLocales.podar`).
+@DataClassName('PuntoDeRecorrido')
+class PuntosGps extends Table {
+  TextColumn get id => text()();
+
+  /// JSON: `["R1","R2"]`.
+  TextColumn get rutaIds => text()();
+  RealColumn get lat => real()();
+  RealColumn get lng => real()();
+  RealColumn get precision => real().nullable()();
+  RealColumn get velocidad => real().nullable()();
+  RealColumn get rumbo => real().nullable()();
+  DateTimeColumn get hora => dateTime()();
+  TextColumn get evento => text().nullable()();
+  TextColumn get pedidoId => text().nullable()();
+  BoolColumn get subido => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// SI EL DISTRIBUIDOR COBRO en una parada («cobrado: si/no»), SOLO en este aparato.
+///
+/// Es una tabla aparte y no una columna de `orders` por una razon concreta: la
+/// bajada reescribe la fila entera del pedido (`Bajada._pedido`) y borraria un
+/// campo que solo existe aqui. Se escribe al marcar la parada, junto a su resultado,
+/// y el historial del distribuidor la lee para contar «cobradas». El servidor lo
+/// recibe en el cuerpo de `POST /routes/{id}/results` (`cobrado`).
+@DataClassName('CobroDeEntrega')
+class CobrosDeEntrega extends Table {
+  TextColumn get pedidoId => text()();
+  BoolColumn get cobrado => boolean()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {pedidoId};
+}

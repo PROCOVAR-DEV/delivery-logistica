@@ -226,7 +226,7 @@ void main() {
         'rutaId': 'R1',
       });
     };
-    var guardados = <String>[];
+    final guardados = <String>[];
     final s = AnadirRuta(
       cliente: ClienteDeDispositivo(
         Dio(BaseOptions(baseUrl: 'https://ejemplo.test/api'))

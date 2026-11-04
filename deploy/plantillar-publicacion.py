@@ -96,7 +96,9 @@ def main():
         cuerpo = cuerpo.replace(f"{{'{m}': {comp_n}}}", f"{{'{m}': {a.compilacion}}}")
         # d) la política ACUMULADA: se conservan todas las líneas y se AÑADE la de la N
         if lineas_politica:
-            propia = lineas_politica[-1].replace(prev_n1, n)
+            # La última línea es la del último Windows que se publicó, que no tiene por qué ser la N-1 (la 1.0.52 no llevó Windows).
+            ver_ult = re.search(r'reparto-(1\.0\.\d+)-windows', lineas_politica[-1]).group(1)
+            propia = lineas_politica[-1].replace(ver_ult, n)
             assert propia.count(f'reparto-{n}-') == 2, 'no pude escribir la línea de la política'
             ya = any(f'reparto-{n}-windows-setup.exe' in l for l in lineas_politica)
             ancla = next(i for i, l in enumerate(cuerpo.splitlines(keepends=True)) if l.startswith('source,runid'))

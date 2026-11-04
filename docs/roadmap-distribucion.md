@@ -63,19 +63,19 @@ Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · �
 - ☐ 10. **Windows**: comprobar que las pantallas nuevas (enviar a distribuidor, recorrido real, vehículos, dónde están) funcionan en el escritorio, compilar el instalador en la CI, verificarlo y publicarlo con la tarjeta 13 del portal 🔒
 - ☐ 11. Portal: actualizar las tarjetas de Reparto (APK de Reparto y Windows) y verificarlas con navegador real 🔒
 
-## 3. APK `reparto-distribucion` (la app del distribuidor): 27 % (estimado)
+## 3. APK `reparto-distribucion` (la app del distribuidor): 80 % (8 de 10; compila y pasa `flutter test` entero; sin probar en teléfono)
 
 Hecho por un agente aparte en una copia del repo (rama `feat/app-distribuidor`, sin subir). Los % son una estimación por lo escrito hasta ahora; ninguna
 pieza está dada por buena hasta que pasen sus pruebas y `flutter test` entero.
 
-- ☐ 1. Entrada propia (`main_distribuidor.dart`) y segundo `applicationId` opcional — 0 %
-- ◔ 2. Reclamar el enlace (abrir `/r/<token>`, pegar el enlace, dispositivo, secreto, renovar el acceso) — ~60 %
-- ◔ 3. Mis rutas y ruta guiada (siguiente parada, qué entregar y cobrar, cronómetros, varias rutas a la vez) — ~60 %
-- ◔ 4. Marcar paradas (entregado / «no entregada» con motivo / cobrado sí-no), completar sola, cancelar la ruta — ~40 %
-- ◔ 5. Historial y registros del propio distribuidor — ~50 %
-- ◔ 6. GPS (captura con servicio en primer plano, base local, subida por lotes, aviso de ubicación) — ~60 %
-- ☐ 7. Mapa detallado de Cuba dentro del APK (se instala solo en el primer arranque, sin red) — 0 %
-- ☐ 8. Pruebas, `flutter analyze` y `flutter test` entero — 0 %
+- ✔ 1. Entrada propia (`main_distribuidor.dart`) y segundo `applicationId` opcional
+- ✔ 2. Reclamar el enlace (abrir `/r/<token>`, pegar el enlace, dispositivo, secreto, renovar el acceso)
+- ✔ 3. Mis rutas y ruta guiada (siguiente parada, qué entregar y cobrar, cronómetros, varias rutas a la vez)
+- ✔ 4. Marcar paradas (entregado / «no entregada» con motivo / cobrado sí-no), completar sola, cancelar la ruta
+- ✔ 5. Historial y registros del propio distribuidor
+- ✔ 6. GPS (captura con servicio en primer plano, base local, subida por lotes, aviso de ubicación)
+- ✔ 7. Mapa detallado de Cuba dentro del APK (se instala solo en el primer arranque, sin red)
+- ✔ 8. Pruebas, `flutter analyze` y `flutter test` entero
 - ☐ 9. Compilar y publicar el 2.º APK (script del mapa, canal de descarga, tarjeta del portal) 🔒 — 0 %
 - ☐ 10. Prueba en un teléfono real, sin conexión y con GPS (la haces tú; yo no puedo) — 0 %
 

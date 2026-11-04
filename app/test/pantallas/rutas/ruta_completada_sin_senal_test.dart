@@ -25,6 +25,7 @@ import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/reloj_falso.dart';
 import '../../apoyo/servidor_de_los_dos_lados.dart';
 import '../tablero/apoyo.dart';
+import '../../apoyo/sin_filtro_de_mes.dart';
 
 /// LA RUTA ARMADA **Y COMPLETADA** SIN SEÑAL, CON LA WEB TRABAJANDO A LA VEZ.
 ///
@@ -99,6 +100,7 @@ void main() {
       ..httpClientAdapter = servidor.adaptador;
     return ProviderContainer.test(
       overrides: [
+        filtrosSinMes,
         baseProvider.overrideWith((ref) => base),
         clienteApiProvider.overrideWithValue(
           ClienteApi(dio: dio, esperas: const <Duration>[]),

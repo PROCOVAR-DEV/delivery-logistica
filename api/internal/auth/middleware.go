@@ -41,6 +41,10 @@ func (v *Verificador) Exigir(siguiente http.Handler) http.Handler {
 		if !PermitirReparto(w, r, u) {
 			return
 		}
+		// EL DISTRIBUIDOR SOLO HACE LO SUYO (lista blanca, falla cerrado): ver `distribuidor.go`.
+		if !permitirAlDistribuidor(w, r, u) {
+			return
+		}
 		ctx := context.WithValue(r.Context(), claveUsuario, u)
 		siguiente.ServeHTTP(w, r.WithContext(ctx))
 	})

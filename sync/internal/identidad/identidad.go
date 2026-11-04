@@ -179,6 +179,10 @@ func Exigir(fuente Fuente, siguiente http.Handler) http.Handler {
 			httpx.Fallo(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
+		// El distribuidor solo sube su cola (lista blanca, falla cerrado): ver `distribuidor.go`.
+		if !permitirAlDistribuidor(w, r, id) {
+			return
+		}
 		siguiente.ServeHTTP(w, r.WithContext(Con(r.Context(), id)))
 	})
 }

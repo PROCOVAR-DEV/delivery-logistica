@@ -100,7 +100,10 @@ Dentro de la aplicación de Reparto de siempre (web, escritorio y APK), solo par
 2. **Distribuidor**: sus rutas, paradas por hora, tiempo medio por parada, km, hora de inicio y fin, entregas y devueltos.
 3. **Dónde están ahora**: mapa con el último punto de cada distribuidor con ruta en curso y hace cuánto lo mandó; aviso si pasan
    N minutos sin señal.
-4. En Distribuidores y Vehículos: asignar usuario y vehículo.
+4. **Por vehículo** (decisión de Jose, 04/11/2026): la entrada principal del seguimiento es el vehículo —«la vida de distribución» de cada
+   uno—: sus rutas por fecha, quién lo llevó, y al abrir una, su recorrido real. Es una pantalla sencilla: lista de vehículos → rutas del
+   vehículo → recorrido. El resumen por distribuidor es la otra vista de los mismos datos.
+5. En Distribuidores y Vehículos: asignar usuario y vehículo.
 
 ## 6. Publicación
 
@@ -113,7 +116,7 @@ Dentro de la aplicación de Reparto de siempre (web, escritorio y APK), solo par
 | # | Pieza | Depende de | Estado |
 |---|---|---|---|
 | 1 | Servidor: `persona_id`, `vehicles.distribuidor_id`, alcance, lista blanca, SQL acotado, pruebas e2e | — | por empezar |
-| 2 | Accesos: rol `DISTRIBUIDOR` (código, tests; despliegue con visto bueno) | — | por empezar |
+| 2 | Accesos: rol `DISTRIBUIDOR` + rutas de servicio para crear/gestionar sus usuarios; en Reparto, la sección «Usuario de la app» de Distribuidores | — | por empezar |
 | 3 | App del distribuidor (entrada, mis rutas, parada con cobro, completar sola, navegar) | 1 | por empezar |
 | 4 | GPS: captura, tabla local, subida, `route_tracks` | 1, 3 | por empezar |
 | 5 | Administración: recorrido real, distribuidor, dónde están | 4 | por empezar |
@@ -142,7 +145,13 @@ Nada de esto se publica hasta que las piezas 1–3 estén probadas de punta a pu
 - **E. Quién ve el seguimiento:** logístico, administrador, super admin y desarrollador (de su sucursal los dos primeros).
 - **F. Aviso a los distribuidores.** Pantalla al abrir la app por primera vez —«Reparto registra tu ubicación mientras haces una ruta
   para un mejor trabajo»— con «Aceptar», y la notificación fija mientras dura la ruta. La aceptación se guarda (quién y cuándo).
-- **Usuarios en Accesos.** Los crea Jose: 11 (La Habana: Angel, Augusto, Felix, Juan, Kensy, Sander; Santiago: Jorge Perez Perez, Julian
+- **Crear los usuarios DESDE REPARTO (Jose, 04/11/2026).** En la pantalla de Distribuidores, cada distribuidor tiene su sección «Usuario de la
+  app»: se crea ahí su usuario (nombre de usuario y contraseña), con el rol `DISTRIBUIDOR` y la sucursal del distribuidor, y queda **ligado**
+  (`distribuidores.persona_id` = el usuario de Accesos) en el mismo acto. Se puede cambiar la contraseña y desactivarlo. Es la misma base de
+  usuarios que Accesos: se ve y se gestiona **de los dos lados**, desde Reparto o desde Accesos. Reparto no guarda contraseñas ni usuarios:
+  le pide a Accesos por la puerta de servicio firmada (la misma de los almacenes). Accesos gana tres rutas de servicio (crear, cambiar clave,
+  activar/desactivar) acotadas al rol `DISTRIBUIDOR`: por esa puerta NO se puede crear ni tocar a nadie con otro rol.
+- **Usuarios en Accesos (alternativa manual).** Los crea Jose: 11 (La Habana: Angel, Augusto, Felix, Juan, Kensy, Sander; Santiago: Jorge Perez Perez, Julian
   La Rosa Rios, Oberlandis Torres Torres, Wilson Columbie, Yasmany Banos Perez), rol `DISTRIBUIDOR`, una contraseña común guardada en
   `.secretos/distribuidores-clave` (fichero suyo, permisos 600). Reparto no crea cuentas ni toca contraseñas: `scripts/alta-distribuidores.ts`
   (en el repo de Accesos) las crea cuando él lo ejecuta, leyendo la clave del fichero sin imprimirla. Una contraseña común tiene un coste

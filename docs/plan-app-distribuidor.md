@@ -80,12 +80,12 @@ siempre sale idéntico), nombre «Reparto Distribuidor».
 - **Captura**: mientras la ruta está «en curso», servicio en primer plano de Android con notificación fija («Reparto: ruta en
   curso»), un punto cada ~20 s o 30 m. No se sigue fuera de la ruta. Permisos: ubicación precisa, servicio en primer plano de
   ubicación y notificaciones; no se pide ubicación en segundo plano salvo que haga falta.
-- **Local primero**: tabla `puntos_gps` en Drift (id UUIDv7, ruta, lat, lng, precisión, velocidad, rumbo, hora del aparato, evento
+- **Local primero**: tabla `puntos_gps` en Drift (id UUIDv7, `ruta_ids` (las rutas en curso en ese instante), lat, lng, precisión, velocidad, rumbo, hora del aparato, evento
   `inicio` | `parada` | `fin`, pedido, subido). Cada marca de parada guarda un punto con su evento.
-- **Subida por lotes** cuando hay red (hasta 200 puntos): `POST /api/routes/{id}/track`, idempotente por `id`. Si falla, se reintenta:
+- **Subida por lotes** cuando hay red (hasta 200 puntos): `POST /api/track` con `{"puntos":[{"id","rutaIds":[...],"lat","lng",...}]}`, idempotente por `id`. Si falla, se reintenta:
   no se pierde nada.
 - **Servidor**: tabla `route_tracks` (índice por ruta y hora) y lectura `GET /api/routes/{id}/track` **prohibida** a `DISTRIBUIDOR`.
-  Retención propuesta: 90 días (luego se poda).
+  En el servidor no se borra (ver D).
 - Volumen: ~1.400 puntos por ruta de 8 h; despreciable.
 - **Límites que hay que decir claro**: no está probado en un teléfono real hasta que se instale; algunos móviles matan el servicio
   para ahorrar batería (hay que pedir que se quite la optimización de batería); sin señal de GPS dentro de almacenes no hay puntos.
@@ -121,12 +121,29 @@ Dentro de la aplicación de Reparto de siempre (web, escritorio y APK), solo par
 
 Nada de esto se publica hasta que las piezas 1–3 estén probadas de punta a punta contra la API y el sync reales.
 
-## 8. Decisiones de Jose
+## 8. Decisiones de Jose (04/11/2026) y lo que cambian en el diseño
 
-- **A. Qué cobra el distribuidor**: solo el domicilio (lo que Reparto sabe hoy), o también el importe de la factura (haría falta
-  traerlo de Ventra).
-- **B. GPS**: solo con la ruta en curso (propuesto) o durante toda la jornada.
-- **C. Vínculos**: confirmar quién lleva cada camión y fulgón (los triciclos se deducen por el nombre; los camiones no).
-- **D. Retención del GPS**: 90 días propuestos.
-- **E. Quién ve el seguimiento**: LOGISTICO, ADMINISTRADOR, SUPER ADMIN y DESARROLLADOR de la sucursal (propuesto).
-- **F. Avisar a los distribuidores** de que la app registra su posición durante la ruta (la notificación fija ya lo muestra).
+- **A. Cobro.** No importa si es el domicilio o el importe: Reparto no lo sabe. El distribuidor solo marca, por parada, **cobrado: sí /
+  no** (campo propio de la entrega, `cobro_entrega`, que es el aviso del distribuidor y NO sustituye a «cobrado = facturado en Ventra»).
+  No se enseñan importes que no se sabe de dónde salen.
+- **B. GPS solo con la ruta en curso, y puede haber VARIAS rutas en curso a la vez** (el mismo distribuidor, varias rutas): un solo flujo de
+  ubicación y cada punto lleva la lista de rutas activas en ese momento (`ruta_ids`), no un punto por ruta. Se activa al iniciar la
+  primera ruta y se apaga cuando no queda ninguna en curso.
+- **La ruta la inicia el propio distribuidor** y la app lo va guiando: le marca **la siguiente parada por el orden de la ruta**, le dice
+  qué tiene que entregar y cobrar ahí, controla el tiempo de cada parada y de la ruta entera, y pasa a la siguiente al marcar.
+- **C. Vínculos.** Lo que no tenga nadie asignado se asigna después con las pantallas nuevas (usuario ↔ distribuidor en Distribuidores,
+  distribuidor ↔ vehículo en Vehículos). **La sesión del distribuidor no se cierra sola**: se mantiene activa (token de refresco
+  largo, sin cierre por inactividad ni por «sesión única» al abrir otra), porque pasa horas sin conexión. Pide a Accesos una política
+  propia para el rol `DISTRIBUIDOR`.
+- **Qué rutas baja.** Solo las **suyas**, las que están **planificadas o en curso**. Al completarse salen de su lista.
+- **D. Retención.** 90 días **en el móvil** (los puntos ya subidos se podan a los 90; los que no han subido NO se borran nunca). En el
+  **servidor no se borra nada**. Volumen: ~1.000 puntos por ruta de 8 h (uno cada ~30 s o 30 m); con 11 distribuidores es del orden
+  de 4 millones de filas al año (unos 400 MB con su índice): se vigila, y si el disco aprieta se archiva por meses, no se borra.
+- **E. Quién ve el seguimiento:** logístico, administrador, super admin y desarrollador (de su sucursal los dos primeros).
+- **F. Aviso a los distribuidores.** Pantalla al abrir la app por primera vez —«Reparto registra tu ubicación mientras haces una ruta
+  para un mejor trabajo»— con «Aceptar», y la notificación fija mientras dura la ruta. La aceptación se guarda (quién y cuándo).
+- **Usuarios en Accesos.** Los crea Jose: 11 (La Habana: Angel, Augusto, Felix, Juan, Kensy, Sander; Santiago: Jorge Perez Perez, Julian
+  La Rosa Rios, Oberlandis Torres Torres, Wilson Columbie, Yasmany Banos Perez), rol `DISTRIBUIDOR`, una contraseña común guardada en
+  `.secretos/distribuidores-clave` (fichero suyo, permisos 600). Reparto no crea cuentas ni toca contraseñas: `scripts/alta-distribuidores.ts`
+  (en el repo de Accesos) las crea cuando él lo ejecuta, leyendo la clave del fichero sin imprimirla. Una contraseña común tiene un coste
+  conocido: quien la filtre entra como cualquiera de los 11; por eso el GPS y las marcas se atribuyen al `sub` del token, no a la clave.

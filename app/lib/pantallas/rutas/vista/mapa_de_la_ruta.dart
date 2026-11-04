@@ -36,6 +36,7 @@ import '../../../diseno/colores.dart';
 import '../../../diseno/tema.dart' show BotonPrincipal;
 import '../../../mapa/proveedores_de_mapa.dart';
 import '../../../nucleo/plataforma.dart';
+import '../../../nucleo/registro/registro.dart';
 import '../../ayuda/datos/controles_senalados.dart';
 import '../../ayuda/vista/control_senalado.dart';
 import '../../mapa/registro.dart';
@@ -45,6 +46,7 @@ import '../datos/enlace_de_la_ruta.dart';
 import '../datos/mapa_en_vivo.dart';
 import '../datos/recorrido.dart';
 import '../datos/repositorio_rutas.dart';
+import '../estado/proveedores_rutas.dart' show consultasRutasProvider;
 import 'croquis_de_ruta.dart';
 
 /// LAS FRASES, con nombre y publicas.
@@ -292,11 +294,34 @@ class _Acciones extends ConsumerWidget {
   final RutaConTodo ruta;
   final EnlaceDeLaRuta enlace;
 
-  /// El texto que se manda. Se arma una sola vez y lo usan los tres gestos, para
-  /// que el chofer reciba lo mismo venga por donde venga.
-  String get _mensaje {
+  /// Lo que lleva cada parada, leído UNA vez al pulsar (no se vigila: un `watch` aquí dejaría un stream de Drift vivo en cada
+  /// mapa que se abre, y el mensaje solo hace falta cuando alguien comparte). Si la base no contesta, el mensaje sale igual, sin
+  /// productos: compartir la ruta no puede depender de eso.
+  Future<Map<String, List<LineaDeEntrega>>> _productos(WidgetRef ref) async {
+    try {
+      final porParada = await ref
+          .read(consultasRutasProvider)
+          .renglonesDe([for (final p in ruta.paradas) p.id]);
+      return {
+        for (final e in porParada.entries)
+          e.key: [
+            for (final r in e.value)
+              (cantidad: r.empaques, producto: r.renglon.description),
+          ],
+      };
+    } on Object catch (e) {
+      Registro.aviso('no se pudieron leer los productos de las paradas para el mensaje: $e');
+      return const {};
+    }
+  }
+
+  /// El texto que se manda. Se arma una sola vez por pulsación y lo usan los tres gestos, para
+  /// que el chofer reciba lo mismo venga por donde venga. Lleva, por parada, la factura y lo que se baja
+  /// (04/11/2026): Google Maps no admite notas en las paradas, así que va aquí, en el mismo orden.
+  Future<String> _mensaje(WidgetRef ref) async {
     final r = ruta.ruta;
     final vehiculo = ruta.vehiculo;
+    final productos = await _productos(ref);
     return mensajeParaElChofer(
       titulo: [
         'Ruta ${r.routeCode ?? r.id}',
@@ -312,6 +337,10 @@ class _Acciones extends ConsumerWidget {
         fechaCorta(r.deliveryDate),
       ].join(' · '),
       enlace: enlace,
+      paradas: listaDeParadasParaElChofer(
+        recorridoDe(ruta),
+        productos: productos,
+      ),
     );
   }
 
@@ -354,7 +383,7 @@ class _Acciones extends ConsumerWidget {
             icon: const Icon(Icons.chat_outlined, size: 18),
             label: const Text('WhatsApp'),
             onPressed: () async {
-              if (!await aparato.abrir(enlaceDeWhatsApp(_mensaje))) {
+              if (!await aparato.abrir(enlaceDeWhatsApp(await _mensaje(ref)))) {
                 decir(TextosDelMapa.noSeAbrioWhatsApp);
               }
             },
@@ -368,7 +397,7 @@ class _Acciones extends ConsumerWidget {
             label: const Text('Compartir'),
             onPressed: () async {
               if (!await aparato.compartir(
-                texto: _mensaje,
+                texto: await _mensaje(ref),
                 asunto: 'Ruta ${ruta.ruta.routeCode ?? ruta.ruta.id}',
               )) {
                 decir(TextosDelMapa.noSeCompartio);
@@ -383,7 +412,9 @@ class _Acciones extends ConsumerWidget {
             icon: const Icon(Icons.copy_all_outlined, size: 18),
             label: const Text('Copiar'),
             onPressed: () async {
-              if (await aparato.copiar(_mensaje)) decir(TextosDelMapa.copiado);
+              if (await aparato.copiar(await _mensaje(ref))) {
+                decir(TextosDelMapa.copiado);
+              }
             },
           ),
         ),

@@ -27,6 +27,7 @@
 // Y cuenta **las dos** formas de quedarse fuera: pasarse del tope y no tener
 // coordenadas. La vieja solo avisaba de la primera.
 
+import '../../pedidos/datos/formato.dart' show cantidad, usd;
 import 'recorrido.dart';
 
 /// Google admite 25 paradas en un enlace. Mas alla se recortan y **se dice**
@@ -156,6 +157,61 @@ EnlaceDeLaRuta enlaceDeLaRuta(Recorrido recorrido) {
   );
 }
 
+/// LA LISTA DE LO QUE SE ENTREGA EN CADA PARADA (04/11/2026, Jose: «los distribuidores se van a la calle con el Google Maps pero no
+/// tienen la factura que tienen que entregar en cada punto»).
+///
+/// **Google Maps no deja ponerle nombre ni nota a una parada** del enlace (`maps/dir/?api=1` solo admite coordenadas, direcciones o
+/// identificadores de lugar), y mirado con el enlace de verdad: la lista del recorrido NO enseña letras, y a cada parada le pone el
+/// nombre del sitio más cercano que encuentra («Comida», «Casa Manrique»…), no el de nuestro cliente. Lo ÚNICO que Maps respeta es el
+/// ORDEN: las paradas salen en el orden del enlace. Por eso esta lista se numera por la posición en el enlace (1.ª, 2.ª…), que es la
+/// que el chofer cuenta en el mapa, y no por el número de la parada en la app (que cuenta también las que no tienen coordenadas).
+///
+/// Las que no entran en el enlace (sin coordenadas, o más allá del tope) no llevan número y se dicen en su línea.
+/// Lo que se baja en una parada: `20 × CERVEZA PARRANDA 500 ML BLISTER 6U` (empaques de la línea, y su descripción).
+typedef LineaDeEntrega = ({double cantidad, String producto});
+
+/// Cuántos productos se escriben por parada como mucho: una factura de treinta líneas haría un mensaje que nadie lee ni WhatsApp
+/// acepta en un enlace. Lo que sobra se DICE («y 5 productos más»); el detalle completo está en la hoja de la ruta.
+const topeDeProductosPorParada = 12;
+
+List<String> listaDeParadasParaElChofer(
+  Recorrido recorrido, {
+  Map<String, List<LineaDeEntrega>> productos = const {},
+}) {
+  final enElEnlace = <String>{
+    for (final p in recorrido.paradas.take(topeDeParadasEnElEnlace))
+      if (p.seDibuja) p.id,
+  };
+  var posicion = 0;
+  final lineas = <String>[];
+  for (final p in recorrido.paradas) {
+    final dentro = enElEnlace.contains(p.id);
+    final direccion = (p.direccion ?? '').trim();
+    final partes = [
+      p.factura ?? 'Sin número de factura',
+      p.etiqueta,
+      if (direccion.isNotEmpty) direccion,
+      if (p.importe != null) 'domicilio ${usd(p.importe)}',
+    ];
+    final cabeza = dentro ? '${++posicion}.' : '—';
+    final aviso = dentro
+        ? ''
+        : p.seDibuja
+        ? ' · no entra en el enlace de Google Maps'
+        : ' · sin ubicación: no sale en el mapa';
+    lineas.add('$cabeza ${partes.join(' · ')}$aviso');
+    final de = productos[p.id] ?? const <LineaDeEntrega>[];
+    for (final l in de.take(topeDeProductosPorParada)) {
+      lineas.add('   · ${cantidad(l.cantidad)} × ${l.producto}');
+    }
+    if (de.length > topeDeProductosPorParada) {
+      final mas = de.length - topeDeProductosPorParada;
+      lineas.add('   · y $mas ${mas == 1 ? 'producto más' : 'productos más'}');
+    }
+  }
+  return lineas;
+}
+
 /// EL MENSAJE QUE LE LLEGA AL CHOFER.
 ///
 /// Lleva el enlace **y ademas el texto**, en este orden y no al reves: en
@@ -169,9 +225,12 @@ String mensajeParaElChofer({
   required String titulo,
   required String resumen,
   required EnlaceDeLaRuta enlace,
+  List<String> paradas = const [],
 }) => [
   titulo,
   resumen,
+  if (paradas.isNotEmpty)
+    'Qué se entrega en cada parada, en el MISMO ORDEN en que Google Maps las lleva:\n${paradas.join('\n')}',
   if (enlace.loQueQuedaFuera != null) enlace.loQueQuedaFuera!,
   if (enlace.hay) enlace.url! else enlace.motivo!,
 ].join('\n');

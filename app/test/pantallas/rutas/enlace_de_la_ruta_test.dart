@@ -225,4 +225,162 @@ void main() {
       expect(uri.toString(), isNot(contains('&b=2')));
     });
   });
+
+  group('la lista de facturas por parada (04/11/2026)', () {
+    ParadaDelRecorrido conFactura(
+      int n, {
+      double? lat,
+      double? lng,
+      String? factura,
+      String? direccion,
+      double? importe,
+    }) => ParadaDelRecorrido(
+      id: 'p$n',
+      numero: n,
+      etiqueta: 'Cliente $n',
+      factura: factura,
+      direccion: direccion,
+      importe: importe,
+      punto: (lat == null || lng == null) ? null : Punto(lat, lng),
+    );
+
+    test('cada parada lleva su posición en el recorrido, su factura, su cliente y su dirección', () {
+      final r = conParadas([
+        conFactura(
+          1,
+          lat: 21.1,
+          lng: -77.1,
+          factura: 'Factura 47061 · 15/10/2026',
+          direccion: 'Calle 3 #45',
+          importe: 1.31,
+        ),
+        conFactura(
+          2,
+          lat: 21.2,
+          lng: -77.2,
+          factura: 'Factura 47062 · 15/10/2026',
+        ),
+      ]);
+      final lista = listaDeParadasParaElChofer(r);
+      expect(
+        lista[0],
+        r'1. Factura 47061 · 15/10/2026 · Cliente 1 · Calle 3 #45 · domicilio $1.31',
+      );
+      expect(lista[1], '2. Factura 47062 · 15/10/2026 · Cliente 2');
+    });
+
+    test('sin número de factura lo dice; una parada sin coordenadas no lleva número ni gasta el siguiente', () {
+      final r = conParadas([
+        conFactura(1, lat: 21.1, lng: -77.1),
+        conFactura(2, factura: 'Factura 2'),
+        conFactura(3, lat: 21.3, lng: -77.3, factura: 'Factura 3'),
+      ]);
+      final lista = listaDeParadasParaElChofer(r);
+      expect(lista[0], startsWith('1. Sin número de factura'));
+      expect(
+        lista[1],
+        '— Factura 2 · Cliente 2 · sin ubicación: no sale en el mapa',
+      );
+      expect(
+        lista[2],
+        startsWith('2. Factura 3'),
+        reason: 'la 2.ª parada DEL ENLACE (la que cuenta el chofer en Maps), no la 3.ª de la app',
+      );
+    });
+
+    test('el número de la lista es la posición de la parada en el enlace', () {
+      final r = conParadas([
+        for (var i = 1; i <= 25; i++)
+          conFactura(i, lat: 21 + i / 100, lng: -77, factura: 'F$i'),
+      ]);
+      final lista = listaDeParadasParaElChofer(r);
+      expect(lista.first, startsWith('1. F1 ·'));
+      expect(lista.last, startsWith('25. F25 ·'));
+      expect(enlaceDeLaRuta(r).paradasEnElEnlace, 25);
+    });
+
+    test('las que se pasan del tope se dicen y no llevan número', () {
+      final r = conParadas([
+        for (var i = 1; i <= 27; i++)
+          conFactura(i, lat: 21 + i / 100, lng: -77, factura: 'F$i'),
+      ]);
+      final lista = listaDeParadasParaElChofer(r);
+      expect(lista[25], contains('no entra en el enlace de Google Maps'));
+      expect(lista[25], startsWith('— '));
+    });
+
+    test('el mensaje lleva la lista ANTES del enlace, y el enlace sigue siendo la última línea', () {
+      final r = conParadas([
+        conFactura(1, lat: 21.1, lng: -77.1, factura: 'Factura 47061'),
+      ]);
+      final enlace = enlaceDeLaRuta(r);
+      final mensaje = mensajeParaElChofer(
+        titulo: 'Ruta X',
+        resumen: '1 parada',
+        enlace: enlace,
+        paradas: listaDeParadasParaElChofer(r),
+      );
+      expect(mensaje.split('\n').last, enlace.url);
+      expect(mensaje, contains('Qué se entrega en cada parada'));
+      expect(
+        mensaje.indexOf('Factura 47061'),
+        lessThan(mensaje.indexOf('google.com/maps')),
+      );
+    });
+
+    test('sin lista el mensaje es el de siempre', () {
+      final enlace = enlaceDeLaRuta(
+        conParadas([conFactura(1, lat: 21.1, lng: -77.1)]),
+      );
+      expect(
+        mensajeParaElChofer(titulo: 'T', resumen: 'R', enlace: enlace),
+        isNot(contains('Qué se entrega en cada parada')),
+      );
+    });
+  });
+
+  group('los productos de cada parada (04/11/2026)', () {
+    ParadaDelRecorrido parada1(String id, int n, double lat) => ParadaDelRecorrido(
+      id: id,
+      numero: n,
+      etiqueta: 'Cliente $n',
+      factura: 'Factura $n',
+      punto: Punto(lat, -77),
+    );
+
+    test('cada parada lista lo que se baja: cantidad × producto, debajo de su factura', () {
+      final r = conParadas([parada1('a', 1, 21.1), parada1('b', 2, 21.2)]);
+      final lista = listaDeParadasParaElChofer(
+        r,
+        productos: {
+          'a': [(cantidad: 20.0, producto: 'CERVEZA PARRANDA 500 ML BLISTER 6U'), (cantidad: 2.5, producto: 'MALTA GUAJIRA')],
+          'b': [(cantidad: 7.0, producto: 'SERVILLETA PROSITO PACA 24P')],
+        },
+      );
+      expect(lista, [
+        '1. Factura 1 · Cliente 1',
+        '   · 20 × CERVEZA PARRANDA 500 ML BLISTER 6U',
+        '   · 2.50 × MALTA GUAJIRA',
+        '2. Factura 2 · Cliente 2',
+        '   · 7 × SERVILLETA PROSITO PACA 24P',
+      ]);
+    });
+
+    test('una factura de muchas líneas se recorta y SE DICE cuántos productos faltan', () {
+      final r = conParadas([parada1('a', 1, 21.1)]);
+      final lista = listaDeParadasParaElChofer(
+        r,
+        productos: {
+          'a': [for (var i = 1; i <= 15; i++) (cantidad: i.toDouble(), producto: 'P$i')],
+        },
+      );
+      expect(lista.length, 1 + topeDeProductosPorParada + 1);
+      expect(lista.last, '   · y 3 productos más');
+    });
+
+    test('una parada sin renglones bajados no inventa productos', () {
+      final r = conParadas([parada1('a', 1, 21.1)]);
+      expect(listaDeParadasParaElChofer(r), ['1. Factura 1 · Cliente 1']);
+    });
+  });
 }

@@ -61,6 +61,7 @@ def main():
         return r[0]
     todo = '\n'.join(origen.values())
     apk_sha_n = uno(r"ANDROID_SHA = '([0-9a-f]{64})'", todo, 'ANDROID_SHA')
+    apk_bytes_n = uno(r"APP_DESCARGA_ANDROID_BYTES': '(\d+)'", todo, 'APP_DESCARGA_ANDROID_BYTES')  # los bytes de la APK de la N
     win_prev = {}  # los de la N-1, tal como los trae allow-windows (old_files)
     for f, b, s in re.findall(r"\{'file':'(reparto-[\d.]+-windows(?:-setup\.exe|\.zip))','bytes':(\d+),'sha256':'([0-9a-f]{64})'\}", todo):
         win_prev[f] = (int(b), s)
@@ -87,6 +88,7 @@ def main():
         for viejo, nuevo in pares:
             cuerpo = cuerpo.replace(viejo, nuevo)
         cuerpo = cuerpo.replace(apk_sha_n, apk_sha)
+        cuerpo = cuerpo.replace(apk_bytes_n, str(apk_bytes))  # la APK nueva casi nunca pesa lo mismo que la anterior
         # c) compilación
         cuerpo = re.sub(rf"(==\s?){comp_n}\b", lambda mo: f"{mo.group(1)}{a.compilacion}", cuerpo)
         cuerpo = cuerpo.replace(f"'APP_ULTIMA_COMPILACION': '{comp_n}'", f"'APP_ULTIMA_COMPILACION': '{a.compilacion}'")

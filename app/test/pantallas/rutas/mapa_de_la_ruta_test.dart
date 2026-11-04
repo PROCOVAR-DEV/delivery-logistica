@@ -91,7 +91,11 @@ void main() {
     WidgetTester tester,
     RutaConTodo ruta, {
     required bool enElAparato,
+    BaseLocal? conBase,
   }) async {
+    // La pantalla lee de la base los productos de cada parada (para el mensaje del chofer): sin una inyectada abriría la de verdad.
+    final base = conBase ?? baseDePrueba();
+    if (conBase == null) addTearDown(base.close);
     tester.view.physicalSize = const Size(1000, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -99,6 +103,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          baseProvider.overrideWithValue(base),
           // El destino se pone por provider y no compilando para web: es lo que
           // deja ejercitar las dos mitades de la regla 1 en la misma suite.
           trabajaSinConexionProvider.overrideWithValue(enElAparato),
@@ -361,6 +366,56 @@ void main() {
       );
     });
 
+    testWidgets('el mensaje de WhatsApp lleva, por parada, la factura y lo que se baja (producto y cantidad)', (
+      tester,
+    ) async {
+      // 04/11/2026, Jose: «no tengo nada que identifique qué factura y qué productos o cantidad se pueden quedar en cada punto».
+      // Google Maps no admite notas por parada, así que va en el mensaje, en el mismo orden en que Maps lleva las paradas.
+      final base = baseDePrueba();
+      addTearDown(base.close);
+      await sembrarCatalogo(base);
+      await base
+          .into(base.routes)
+          .insert(RoutesCompanion.insert(id: 'R1', branchId: const Value('B1')));
+      for (var i = 1; i <= 3; i++) {
+        await sembrarPedido(
+          base,
+          id: 'p$i',
+          cliente: 'Cliente $i',
+          facturaNumero: 'F-$i',
+          ultimaRutaId: 'R1',
+          orden: i,
+          endLat: 21 + i / 100,
+          endLng: -77 - i / 100,
+        );
+        await sembrarRenglon(
+          base,
+          id: 'r$i',
+          pedidoId: 'p$i',
+          producto: 'Arroz $i',
+          unidades: 10,
+          empaques: 2.0 * i,
+        );
+      }
+
+      await pintar(tester, laRutaDeSiempre(), enElAparato: true, conBase: base);
+      await tester.tap(find.byKey(claveDeCopiar));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+      await tester.pump();
+
+      final texto = aparato.copiados.single;
+      expect(texto, contains('Qué se entrega en cada parada'));
+      expect(texto, contains('1. '));
+      expect(texto, contains('   · 2 × Arroz 1'));
+      expect(texto, contains('   · 6 × Arroz 3'));
+      expect(
+        texto.indexOf('Arroz 1'),
+        lessThan(texto.indexOf('Arroz 3')),
+        reason: 'en el orden de las paradas',
+      );
+      expect(texto.split('\n').last, startsWith('https://www.google.com/maps'));
+    });
+
     testWidgets('«Compartir» saca el cajon del sistema con texto y asunto', (
       tester,
     ) async {
@@ -479,10 +534,13 @@ void main() {
       tester.view.physicalSize = telefono;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
+      final base = baseDePrueba();
+      addTearDown(base.close);
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            baseProvider.overrideWithValue(base),
             trabajaSinConexionProvider.overrideWithValue(true),
             abrirYCompartirProvider.overrideWithValue(aparato),
             fondoDeCallesProvider.overrideWithValue(const SinCalles()),
@@ -800,6 +858,8 @@ void main() {
       expect(caja.bottom, lessThanOrEqualTo(telefono.height));
       // Y se puede pulsar de verdad, que es lo que no se podia en el original.
       await tester.tap(find.byKey(claveDeCopiar));
+      // El mensaje lee de la base los productos de cada parada (Drift responde en tiempo real, fuera del reloj falso).
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
       await tester.pump();
       expect(aparato.copiados, hasLength(1));
     });

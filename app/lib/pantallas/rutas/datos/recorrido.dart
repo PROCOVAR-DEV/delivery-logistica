@@ -35,6 +35,7 @@ class ParadaDelRecorrido {
     required this.numero,
     required this.etiqueta,
     this.factura,
+    this.direccion,
     this.punto,
     this.importe,
     this.entregada = false,
@@ -54,6 +55,9 @@ class ParadaDelRecorrido {
   /// «Factura 47061 · 15/10/2026» (`facturaConFecha`), la primera línea del globo (issue 17
   /// de Amado), o `null` = el pedido no tiene número: el globo dice «Sin número de factura».
   final String? factura;
+
+  /// La dirección del cliente, para la lista que se manda al chofer (04/11/2026). `null` o vacía = no se escribe.
+  final String? direccion;
 
   /// `null` = esta parada no tiene coordenadas guardadas. Ni se dibuja ni entra
   /// en el enlace, y las dos cosas se dicen.
@@ -134,6 +138,7 @@ Recorrido recorridoDe(RutaConTodo ruta) {
           numero: indice + 1,
           etiqueta: parada.customerName,
           factura: facturaConFecha(parada.facturaNumero, parada.facturaAt),
+          direccion: parada.address,
           punto: (parada.endLat == null || parada.endLng == null)
               ? null
               : Punto(parada.endLat!, parada.endLng!),

@@ -554,19 +554,25 @@ func (e EntregaDeFactura) DomicilioUsd() float64 {
 	return math.Round(suma*100) / 100
 }
 
-// SinPrecioDeDomicilio cuenta las entregas cuyo domicilio va en $0 (la línea de domicilio está pero sin precio). SE GUARDAN IGUAL
-// (Jose, 04/11/2026: «las facturas con valor cero de entrega a domicilio, aunque no tengan cobro, tienen que aparecer»): el 21/10/2026
-// se dejaban fuera (Amado y Jose, «las que tienen costo 0 que no me salgan») y se volvió a pedir que entren. Ventra siempre las mandó;
-// el contador sólo sirve para el registro. Con `factura_domicilio = 0` el aparato las enseña como «Sin cobro de domicilio» y el
-// logístico las filtra con «Cobro del domicilio».
-func SinPrecioDeDomicilio(entregas []EntregaDeFactura) int {
-	n := 0
+// ConDomicilioDeCeroOMas deja las entregas cuyo domicilio vale 0 o MÁS y aparta las que lo traen NEGATIVO (un abono o un ajuste no es
+// llevar a domicilio). Las de $0 SÍ entran (Jose, 04/11/2026: «aunque tengan valor cero... >= 0»): el 21/10/2026 se dejaban fuera
+// (Amado y Jose, «las que tienen costo 0 que no me salgan») y se volvió a pedir que aparezcan en todo Reparto. Con
+// `factura_domicilio = 0` el aparato las enseña como «Sin cobro de domicilio» y el logístico las separa con «Cobro del domicilio».
+// Devuelve cuántas entran con $0 y cuántas se apartan por negativas, para el registro.
+func ConDomicilioDeCeroOMas(entregas []EntregaDeFactura) (con []EntregaDeFactura, enCero, negativas int) {
+	con = make([]EntregaDeFactura, 0, len(entregas))
 	for _, en := range entregas {
-		if en.DomicilioUsd() <= 0 {
-			n++
+		switch d := en.DomicilioUsd(); {
+		case d < 0:
+			negativas++
+		case d == 0:
+			enCero++
+			con = append(con, en)
+		default:
+			con = append(con, en)
 		}
 	}
-	return n
+	return con, enCero, negativas
 }
 
 // direccionConCiudad: la dirección y, si la ciudad no está ya dentro, la ciudad detrás.

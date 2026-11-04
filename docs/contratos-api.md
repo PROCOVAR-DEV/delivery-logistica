@@ -1295,7 +1295,7 @@ En Santiago **dos de cada tres pedidos salen de AURORA** y se medían todos desd
 
 ### La entrega que nace de una FACTURA (issue 20, Fase A — 20/10/2026)
 
-> **Entran TODAS las facturas con domicilio, también las de $0 (04/11/2026, Jose).** El 21/10/2026 se dejaban fuera las que traían la
+> **Entran las facturas con domicilio de 0 en adelante (04/11/2026, Jose); el domicilio NEGATIVO no entra.** El 21/10/2026 se dejaban fuera las que traían la
 > línea ENTREGA A DOMICILIO sin precio (`espejo.ConDomicilioCobrado`); el 04/11/2026 se pidió que aparezcan en todo Reparto (Rutas,
 > Tablero, Facturas), así que el filtro se quitó. Quedan con `factura_domicilio = 0` («Sin cobro de domicilio» en gris) y el
 > logístico las separa con el filtro «Cobro del domicilio». El log sigue contando cuántas van sin precio (`sinPrecioDeDomicilio`).

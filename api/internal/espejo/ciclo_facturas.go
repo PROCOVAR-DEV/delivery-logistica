@@ -112,8 +112,7 @@ func (e *Espejo) facturasDeLaSucursal(
 			"de", de, "sucursal", codigo, "base", base, "ventana", ventana, "err", err)
 		return 0, false
 	}
-	entregas := UnaEntregaPorFactura(codigo, facturas)
-	sinPrecio := SinPrecioDeDomicilio(entregas)
+	entregas, sinPrecio, negativas := ConDomicilioDeCeroOMas(UnaEntregaPorFactura(codigo, facturas))
 
 	// Lo que hace falta de la base para armar y pesar. Si no se puede leer, esta sucursal espera
 	// al ciclo siguiente: guardar sin los puntos borraría las coordenadas de lo ya guardado, y
@@ -156,7 +155,7 @@ func (e *Espejo) facturasDeLaSucursal(
 		"puntoPorCodigo", resumen.PuntoPorCodigo, "puntoPorNombre", resumen.PuntoPorNombre,
 		"sinPunto", resumen.SinPunto, "sinMercancia", resumen.SinMercancia,
 		"retiradas", retiradas, "anuladasQuitadasDeRuta", anuladas, "anuladasConRuta", conRuta,
-		"sinPrecioDeDomicilio", sinPrecio)
+		"sinPrecioDeDomicilio", sinPrecio, "domicilioNegativoApartadas", negativas)
 	// LO QUE NO SE PUDO RESOLVER SE DICE, no se esconde. Cada cifra tiene su arreglo y su dueño:
 	// el punto lo pone el logístico a mano (o se corrige el cliente en PEDIDO), el peso lo pone
 	// quien mantiene el catálogo de Ventra.

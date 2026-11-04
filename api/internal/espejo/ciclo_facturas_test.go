@@ -558,13 +558,20 @@ func TestLaEntregaGuardadaEnCeroNoSeRetira(t *testing.T) {
 	}
 }
 
-func TestSinPrecioDeDomicilioCuentaSoloLasDeCero(t *testing.T) {
+func TestElDomicilioVaDeCeroEnAdelanteYElNegativoSeAparta(t *testing.T) {
 	todas := UnaEntregaPorFactura("STG", []FacturaDeVentra{
 		factura("1", "2026-09-13", "2", "PED-A", cerveza(1), domicilio(0)),
 		factura("2", "2026-09-13", "2", "PED-A", cerveza(1), domicilio(0.35)),
+		factura("3", "2026-09-13", "2", "PED-A", cerveza(1), domicilio(-0.5)),
 	})
-	if n := SinPrecioDeDomicilio(todas); n != 1 || len(todas) != 2 {
-		t.Fatalf("la 1 cobra 0 (cuenta como sin precio) y la 2 cobra 0.35; ninguna se descarta: sin=%d total=%d", n, len(todas))
+	con, enCero, negativas := ConDomicilioDeCeroOMas(todas)
+	if len(con) != 2 || enCero != 1 || negativas != 1 {
+		t.Fatalf("entran la de 0 y la de 0.35; la de -0.5 se aparta: con=%d enCero=%d negativas=%d", len(con), enCero, negativas)
+	}
+	for _, en := range con {
+		if en.Conduce() == "3" {
+			t.Fatal("la factura con el domicilio negativo no puede entrar")
+		}
 	}
 }
 

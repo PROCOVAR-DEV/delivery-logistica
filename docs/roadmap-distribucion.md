@@ -7,7 +7,7 @@ teléfono**, el APK trae el mapa dentro y el seguimiento (GPS, horas, cobro) sub
 
 Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · ⏸ aparcado (no cuenta en el %) · 🔒 espera tu visto bueno
 
-**TOTAL: 30 %** (10,7 de 36 tareas)
+**TOTAL: 44 %** (15,7 de 36 tareas) — 04/11/2026, tarde
 
 ## ORDEN DE TRABAJO (por prioridad)
 
@@ -32,7 +32,7 @@ Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · �
 12. Compilar y publicar el APK del distribuidor + canal de descarga + tarjeta del portal
 13. Prueba en teléfono real (tuya) y cierre al 100 %
 
-## 1. Reparto — servidor (API y sync): 54 % (7 de 13)
+## 1. Reparto — servidor (API y sync): 92 % (12 de 13; solo falta el despliegue)
 
 - ✔ 1. Lista blanca del distribuidor en la API y en el sync (falla cerrado; lo que no está, 403)
 - ✔ 2. Alcance por teléfono: solo ve y toca las rutas asignadas a su teléfono (rutas, pedidos, renglones, vehículos, bajada y cuadre)
@@ -41,11 +41,11 @@ Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · �
 - ✔ 5. GPS: recepción por lotes, idempotente, varias rutas en curso a la vez
 - ✔ 6. GPS: lecturas de la oficina (recorrido de una ruta, historial por vehículo, dónde están ahora); el distribuidor no las ve
 - ✔ 7. Pruebas de extremo a extremo contra la API y el sync reales (7 pruebas) y de unidad
-- ☐ 8. Cancelar la ruta por el distribuidor (solo si no hay ninguna entregada)
-- ☐ 9. «No entregada» exige motivo (validación en el servidor)
-- ☐ 10. Revisión por logística (campo `revisadaAt`, endpoint y lista «por revisar»)
-- ☐ 11. Vehículo ↔ distribuidor en la API (asignar y proponer al armar la ruta)
-- ☐ 12. Página web del enlace (`/r/<token>`: «abre este enlace con la app del distribuidor»)
+- ✔ 8. Cancelar la ruta por el distribuidor (solo si no hay ninguna entregada; las paradas sin marcar quedan libres) — con prueba e2e
+- ✔ 9. «No entregada» exige motivo (validación en el servidor); completar exige todas las paradas marcadas — con prueba e2e
+- ✔ 10. Revisión por logística (`revisadaAt/revisadaPor`, `POST /api/routes/{id}/revision`, migración 00034; solo la oficina, solo rutas completadas) — con prueba e2e
+- ✔ 11. Vehículo ↔ distribuidor en la API (`distribuidorId` al crear/editar, en la lista, en el detalle y en la bajada; la app lo propone al armar la ruta) — con prueba e2e
+- ✔ 12. Página web del enlace `/r/<código>` (avisa que hay que instalar la app y da la descarga; abre la app con intent) y `assetlinks.json` para que WhatsApp abra la app directamente — probada con nginx local. Falta, al publicar el APK, subir el alias `reparto-distribuidor-ultimo.apk`
 - 🔒 13. Despliegue en producción (migraciones 00032 y 00033, API, sync, web)
 
 ## 2. Reparto — aplicación de la oficina (web, **Windows**, APK de Reparto): 0 % (0 de 11)

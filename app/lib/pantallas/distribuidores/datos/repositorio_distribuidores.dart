@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/cola/provisionales.dart';
 import '../../../nucleo/red/cliente_api.dart';
 import '../../vehiculos/datos/flota_local.dart';
 
@@ -96,7 +97,7 @@ class RepositorioDistribuidores {
     final dato = await _api.mandar<Map<String, Object?>>(
       'POST',
       '/distribuidores',
-      <String, Object?>{'nombre': nombre},
+      <String, Object?>{'id': Provisionales.nuevoIdReal(), 'nombre': nombre},
     );
     return _guardado(dato);
   }

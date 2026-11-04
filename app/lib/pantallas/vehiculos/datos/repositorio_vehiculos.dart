@@ -1,3 +1,4 @@
+import 'package:reparto/nucleo/cola/provisionales.dart';
 import 'package:reparto/nucleo/red/cliente_api.dart';
 import 'package:reparto/nucleo/red/fallos.dart';
 
@@ -62,7 +63,9 @@ class RepositorioVehiculos {
 
   Future<void> crear(DatosVehiculo datos) async {
     if (await _alAparato(alta: true)) return _local!.crearVehiculo(datos);
-    await _api.mandar<Object?>('POST', '/vehicles', datos.aJson());
+    // También en la web el id lo pone quien crea (UUIDv7, 04/11/2026): si la red reintenta el POST, llega el MISMO id y el servidor
+    // devuelve el camión que ya creó en vez de hacer otro.
+    await _api.mandar<Object?>('POST', '/vehicles', {...datos.aJson(), 'id': Provisionales.nuevoIdReal()});
   }
 
   Future<void> editar(String id, DatosVehiculo datos) async {
@@ -110,7 +113,7 @@ class RepositorioVehiculos {
         .where((t) => t.nombre == tipo.nombre && !t.activo)
         .firstOrNull;
     if (retirado != null) return _reactivar(retirado, tipo);
-    await _api.mandar<Object?>('POST', '/vehicle-types', tipo.aJson());
+    await _api.mandar<Object?>('POST', '/vehicle-types', {...tipo.aJson(), 'id': Provisionales.nuevoIdReal()});
   }
 
   Future<void> _reactivar(TipoDeVehiculo retirado, TipoDeVehiculo tipo) =>
@@ -196,7 +199,7 @@ class RepositorioVehiculos {
         if (existente != null) {
           await _reactivar(existente, t);
         } else {
-          await _api.mandar<Object?>('POST', '/vehicle-types', t.aJson());
+          await _api.mandar<Object?>('POST', '/vehicle-types', {...t.aJson(), 'id': Provisionales.nuevoIdReal()});
         }
         aplicadas++;
       }

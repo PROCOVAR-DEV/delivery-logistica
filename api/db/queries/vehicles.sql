@@ -17,7 +17,8 @@
 SELECT
     v.id, v.name, v.vehicle_type_id, v.plate, v.capacity, v.costo_km_usd,
     v.usar_para_domicilio, v.status, v.is_active, v.notes, v.branch_id,
-    v.created_at, v.updated_at,
+    v.created_at, v.updated_at, v.distribuidor_id,
+    coalesce((SELECT d.nombre FROM distribuidores d WHERE d.id = v.distribuidor_id), '')::text AS distribuidor_nombre,
     vt.nombre       AS tipo_nombre,
     vt.costo_km_usd AS tipo_costo_km_usd,
     b.name          AS sucursal_nombre,
@@ -53,7 +54,8 @@ ORDER BY v.created_at DESC;
 SELECT
     v.id, v.name, v.vehicle_type_id, v.plate, v.capacity, v.costo_km_usd,
     v.usar_para_domicilio, v.status, v.is_active, v.notes, v.branch_id,
-    v.created_at, v.updated_at,
+    v.created_at, v.updated_at, v.distribuidor_id,
+    coalesce((SELECT d.nombre FROM distribuidores d WHERE d.id = v.distribuidor_id), '')::text AS distribuidor_nombre,
     vt.nombre       AS tipo_nombre,
     vt.costo_km_usd AS tipo_costo_km_usd,
     (SELECT count(*) FROM routes r          WHERE r.vehicle_id  = v.id) AS rutas,
@@ -92,12 +94,12 @@ WHERE v.id = sqlc.arg('id');
 WITH nuevo AS (
     INSERT INTO vehicles (
         id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-        usar_para_domicilio, status, is_active, notes, branch_id
+        usar_para_domicilio, status, is_active, notes, branch_id, distribuidor_id
     ) VALUES (
         coalesce(sqlc.narg('id')::uuid, uuid_generate_v7()),
         sqlc.arg('name'), sqlc.arg('vehicle_type_id'), sqlc.narg('plate'),
         sqlc.arg('capacity'), sqlc.narg('costo_km_usd'), sqlc.arg('usar_para_domicilio'),
-        sqlc.arg('status'), sqlc.arg('is_active'), sqlc.narg('notes'), sqlc.narg('branch_id')
+        sqlc.arg('status'), sqlc.arg('is_active'), sqlc.narg('notes'), sqlc.narg('branch_id'), sqlc.narg('distribuidor_id')
     )
     ON CONFLICT (id) DO NOTHING
     RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
@@ -128,7 +130,9 @@ UPDATE vehicles SET
     status              = coalesce(sqlc.narg('status')::vehicle_status, status),
     is_active           = coalesce(sqlc.narg('is_active')::boolean, is_active),
     notes               = CASE WHEN sqlc.arg('tocar_notes')::boolean
-                               THEN sqlc.narg('notes')::text ELSE notes END
+                               THEN sqlc.narg('notes')::text ELSE notes END,
+    distribuidor_id     = CASE WHEN sqlc.arg('tocar_distribuidor')::boolean
+                               THEN sqlc.narg('distribuidor_id')::uuid ELSE distribuidor_id END
 WHERE id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL
        OR branch_id = sqlc.narg('sucursal')::uuid

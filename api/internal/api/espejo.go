@@ -942,7 +942,7 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 			// activo de uno dado de baja, y los ofrece todos. Es otra cosa que `status`
 			// (`available`, `in_use`, `maintenance`), que dice en qué anda hoy un camión
 			// activo: un camión inactivo conserva su historial y no se asigna a nada nuevo.
-			"isActive": v.IsActive,
+			"isActive": v.IsActive, "distribuidorId": idOpcional(v.DistribuidorID),
 			"branchId": idOpcional(v.BranchID), "updatedAt": hora(v.UpdatedAt),
 		})
 	}

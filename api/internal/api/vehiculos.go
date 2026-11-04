@@ -127,23 +127,25 @@ func costoKmValido(w http.ResponseWriter, r *http.Request, v httpx.Opcional[floa
 }
 
 type VehiculoSalida struct {
-	ID                uuid.UUID  `json:"id"`
-	Name              string     `json:"name"`
-	Type              string     `json:"type"` // el NOMBRE del tipo, que es lo que el cliente manda y enseña
-	VehicleTypeID     uuid.UUID  `json:"vehicleTypeId"`
-	Plate             *string    `json:"plate"`
-	Capacity          float64    `json:"capacity"`
-	CostoKmUsd        *float64   `json:"costoKmUsd"`
-	TipoCostoKmUsd    *float64   `json:"tipoCostoKmUsd"`
-	UsarParaDomicilio bool       `json:"usarParaDomicilio"`
-	IsActive          bool       `json:"isActive"`
-	Status            string     `json:"status"`
-	Notes             *string    `json:"notes"`
-	BranchID          *uuid.UUID `json:"branchId"`
-	SucursalNombre    *string    `json:"sucursalNombre,omitempty"`
-	CreatedAt         *time.Time `json:"createdAt"`
-	UpdatedAt         *time.Time `json:"updatedAt"`
-	Count             conteoVeh  `json:"_count"`
+	ID                 uuid.UUID  `json:"id"`
+	Name               string     `json:"name"`
+	Type               string     `json:"type"` // el NOMBRE del tipo, que es lo que el cliente manda y enseña
+	VehicleTypeID      uuid.UUID  `json:"vehicleTypeId"`
+	Plate              *string    `json:"plate"`
+	Capacity           float64    `json:"capacity"`
+	CostoKmUsd         *float64   `json:"costoKmUsd"`
+	TipoCostoKmUsd     *float64   `json:"tipoCostoKmUsd"`
+	UsarParaDomicilio  bool       `json:"usarParaDomicilio"`
+	IsActive           bool       `json:"isActive"`
+	Status             string     `json:"status"`
+	Notes              *string    `json:"notes"`
+	BranchID           *uuid.UUID `json:"branchId"`
+	SucursalNombre     *string    `json:"sucursalNombre,omitempty"`
+	CreatedAt          *time.Time `json:"createdAt"`
+	UpdatedAt          *time.Time `json:"updatedAt"`
+	Count              conteoVeh  `json:"_count"`
+	DistribuidorID     *uuid.UUID `json:"distribuidorId"`
+	DistribuidorNombre string     `json:"distribuidorNombre,omitempty"`
 
 	// EN QUÉ ANDA ESTE CAMIÓN. Cero o una ruta, la que lo tiene cogido ahora.
 	//
@@ -239,8 +241,8 @@ func (s *Servidor) listarVehiculos(w http.ResponseWriter, r *http.Request) {
 			Plate: f.Plate, Capacity: f.Capacity, CostoKmUsd: f.CostoKmUsd,
 			TipoCostoKmUsd: f.TipoCostoKmUsd, UsarParaDomicilio: f.UsarParaDomicilio,
 			Status: string(f.Status), IsActive: f.IsActive, Notes: f.Notes, BranchID: idOpcional(f.BranchID),
-			SucursalNombre: f.SucursalNombre,
-			CreatedAt:      hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
+			SucursalNombre: f.SucursalNombre, DistribuidorID: idOpcional(f.DistribuidorID), DistribuidorNombre: f.DistribuidorNombre,
+			CreatedAt: hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
 			Count:  conteoVeh{Routes: f.Rutas, Orders: f.Pedidos, OrderAssignments: f.Asignaciones},
 			Routes: laSuya(porCamion, f.ID),
 		})
@@ -277,6 +279,7 @@ func (s *Servidor) obtenerVehiculo(w http.ResponseWriter, r *http.Request) {
 		Plate: f.Plate, Capacity: f.Capacity, CostoKmUsd: f.CostoKmUsd,
 		TipoCostoKmUsd: f.TipoCostoKmUsd, UsarParaDomicilio: f.UsarParaDomicilio,
 		Status: string(f.Status), IsActive: f.IsActive, Notes: f.Notes, BranchID: idOpcional(f.BranchID),
+		DistribuidorID: idOpcional(f.DistribuidorID), DistribuidorNombre: f.DistribuidorNombre,
 		CreatedAt: hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
 		Count:  conteoVeh{Routes: f.Rutas, Orders: f.Pedidos, OrderAssignments: f.Asignaciones},
 		Routes: laSuya(rutasPorCamion(abiertas), f.ID),
@@ -295,6 +298,8 @@ type cuerpoVehiculo struct {
 	Notes             httpx.Opcional[string]  `json:"notes"`
 	CostoKmUsd        httpx.Opcional[float64] `json:"costoKmUsd"`
 	UsarParaDomicilio httpx.Opcional[bool]    `json:"usarParaDomicilio"`
+	// Quién lo lleva por defecto (vacío o null = nadie). Se propone al armar una ruta con este camión.
+	DistribuidorID httpx.Opcional[string] `json:"distribuidorId"`
 }
 
 // POST /api/vehicles
@@ -333,6 +338,10 @@ func (s *Servidor) crearVehiculo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	distribuidor, ok := distribuidorDeLaRuta(w, r, a, c.DistribuidorID.Con(""), a.SucursalDeAlta())
+	if !ok {
+		return
+	}
 	var creado sqlc.Vehicle
 	err := a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
 		if referencia {
@@ -357,6 +366,7 @@ func (s *Servidor) crearVehiculo(w http.ResponseWriter, r *http.Request) {
 			IsActive:          c.IsActive.Con(true),
 			Status:            estado,
 			Notes:             aTexto(c.Notes.Con("")),
+			DistribuidorID:    distribuidor,
 		})
 		return err
 	})
@@ -435,16 +445,24 @@ func (s *Servidor) actualizarVehiculo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	arg := sqlc.ActualizarVehiculoParams{
-		ID:         id,
-		Name:       c.Name.Puntero(),
-		TocarPlate: c.Plate.Presente,
-		Plate:      c.Plate.Valor,
-		Capacity:   c.Capacity.Puntero(),
-		TocarCosto: c.CostoKmUsd.Presente,
-		CostoKmUsd: c.CostoKmUsd.Valor,
-		TocarNotes: c.Notes.Presente,
-		Notes:      c.Notes.Valor,
-		IsActive:   c.IsActive.Puntero(),
+		ID:                id,
+		Name:              c.Name.Puntero(),
+		TocarPlate:        c.Plate.Presente,
+		Plate:             c.Plate.Valor,
+		Capacity:          c.Capacity.Puntero(),
+		TocarCosto:        c.CostoKmUsd.Presente,
+		CostoKmUsd:        c.CostoKmUsd.Valor,
+		TocarNotes:        c.Notes.Presente,
+		Notes:             c.Notes.Valor,
+		IsActive:          c.IsActive.Puntero(),
+		TocarDistribuidor: c.DistribuidorID.Presente,
+	}
+	if c.DistribuidorID.Presente {
+		d, ok := distribuidorDeLaRuta(w, r, a, c.DistribuidorID.Con(""), antes.BranchID)
+		if !ok {
+			return
+		}
+		arg.DistribuidorID = d
 	}
 	nombreTipo := antes.TipoNombre
 	if c.Type.Presente && c.Type.Valor != nil {
@@ -648,7 +666,7 @@ func deVehiculo(v sqlc.Vehicle, nombreTipo string) VehiculoSalida {
 		ID: v.ID, Name: v.Name, Type: nombreTipo, VehicleTypeID: v.VehicleTypeID,
 		Plate: v.Plate, Capacity: v.Capacity, CostoKmUsd: v.CostoKmUsd,
 		UsarParaDomicilio: v.UsarParaDomicilio, Status: string(v.Status), IsActive: v.IsActive, Notes: v.Notes,
-		BranchID:  idOpcional(v.BranchID),
+		BranchID: idOpcional(v.BranchID), DistribuidorID: idOpcional(v.DistribuidorID),
 		CreatedAt: hora(v.CreatedAt), UpdatedAt: hora(v.UpdatedAt),
 	}
 }

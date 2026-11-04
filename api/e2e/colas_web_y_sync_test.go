@@ -889,3 +889,47 @@ func TestElDistribuidorCompletaCancelaYLaOficinaRevisa(t *testing.T) {
 }
 
 const msgMotivo = "necesita su motivo"
+
+func TestElVehiculoLlevaSuDistribuidorPorDefecto(t *testing.T) {
+	s := levantar(t)
+	d := s.distribuidor("Del camion e2e")
+	camion, _ := s.siembraDeRuta(1)
+	leer := func() (string, string) {
+		code, b := s.web("GET", "/vehicles/"+camion, nil)
+		var v struct {
+			DistribuidorID     *string `json:"distribuidorId"`
+			DistribuidorNombre string  `json:"distribuidorNombre"`
+		}
+		if code != 200 || json.Unmarshal(b, &v) != nil {
+			t.Fatalf("leer camión: %d %s", code, b)
+		}
+		if v.DistribuidorID == nil {
+			return "", v.DistribuidorNombre
+		}
+		return *v.DistribuidorID, v.DistribuidorNombre
+	}
+	if id, _ := leer(); id != "" {
+		t.Fatalf("un camión nuevo no lleva distribuidor: %q", id)
+	}
+	if code, b := s.web("PATCH", "/vehicles/"+camion, map[string]any{"distribuidorId": d.String()}); code != 200 {
+		t.Fatalf("asignar: %d %s", code, b)
+	}
+	if id, n := leer(); id != d.String() || n != "Del camion e2e" {
+		t.Errorf("tras asignar: %q %q", id, n)
+	}
+	// un id que no existe es un 400 y no toca nada
+	if code, _ := s.web("PATCH", "/vehicles/"+camion, map[string]any{"distribuidorId": nuevo()}); code != 400 {
+		t.Errorf("distribuidor inexistente: %d, tenía que ser 400", code)
+	}
+	// la bajada del aparato lo trae
+	_, b := s.web("GET", "/sync/cambios", nil)
+	if !strings.Contains(string(b), d.String()) {
+		t.Errorf("la bajada de vehículos no lleva el distribuidor")
+	}
+	if code, b := s.web("PATCH", "/vehicles/"+camion, map[string]any{"distribuidorId": nil}); code != 200 {
+		t.Fatalf("quitar: %d %s", code, b)
+	}
+	if id, _ := leer(); id != "" {
+		t.Errorf("tras quitar sigue %q", id)
+	}
+}

@@ -25,5 +25,7 @@ class MainActivity : FlutterActivity() {
         // que se recrea al girar el telefono solo trae un callback contra una
         // pantalla que ya no existe.
         InstaladorDeApk(applicationContext).registrar(motor.dartExecutor.binaryMessenger)
+        // El mapa que viene dentro del APK del distribuidor (solo existe con el asset).
+        MapaIncluido(applicationContext).registrar(motor.dartExecutor.binaryMessenger)
     }
 }

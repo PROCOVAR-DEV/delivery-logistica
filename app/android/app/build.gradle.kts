@@ -18,6 +18,18 @@ val clavesDeFirma = Properties().apply {
 }
 val hayClaveDeVerdad = clavesDeFirma.getProperty("storeFile")?.isNotBlank() == true
 
+// «REPARTO DISTRIBUIDOR», el segundo APK del mismo proyecto (`docs/app-distribuidor.md`).
+//
+// Es OPCIONAL y por propiedad, NO un `productFlavor` (obligaria a `--flavor` y rompe el
+// pipeline). Sin ella el APK sale como siempre; con
+//   ORG_GRADLE_PROJECT_distribuidor=true flutter build apk --release -t lib/main_distribuidor.dart
+// cambia el `applicationId` (sufijo `.distribuidor`: se instala AL LADO del otro), el
+// nombre, el enlace que abre (`reparto.procovar.cloud/r/…`) y mete el mapa de Cuba dentro
+// (assets NATIVOS de Android: `herramientas/distribuidor-assets/`, que prepara
+// `deploy/preparar-mapa-distribuidor.sh`).
+val esDistribuidor = (project.findProperty("distribuidor") as String?) == "true"
+val carpetaDelMapaIncluido = file("../../herramientas/distribuidor-assets")
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -37,6 +49,10 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "cloud.procovar.reparto"
+        if (esDistribuidor) applicationIdSuffix = ".distribuidor"
+        manifestPlaceholders["nombreDeLaApp"] = if (esDistribuidor) "Reparto Distribuidor" else "Reparto"
+        // El enlace de una ruta. En el APK de siempre el filtro queda inerte (otro host).
+        manifestPlaceholders["hostDeEnlaces"] = if (esDistribuidor) "reparto.procovar.cloud" else "sin-enlaces.invalid"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // 23 fijo, no `flutter.minSdkVersion`: lo pide `sqlite3_flutter_libs`,
@@ -51,6 +67,12 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    if (esDistribuidor) {
+        // El mapa NO se comprime: se copia por trozos con `assets.open` (`MapaIncluido.kt`).
+        androidResources { noCompress += "pmtiles" }
+        sourceSets.getByName("main").assets.srcDir(carpetaDelMapaIncluido)
     }
 
     signingConfigs {
@@ -83,6 +105,25 @@ android {
                 signingConfigs.getByName("debug")
             }
         }
+    }
+}
+
+if (esDistribuidor) {
+    // Sin el mapa no se compila el APK del distribuidor: ellos van sin conexion.
+    val verificarElMapa = tasks.register("verificarMapaDelDistribuidor") {
+        doFirst {
+            val faltan = listOf("cuba-detallado.pmtiles", "cuba-detallado.json")
+                .filter { !File(carpetaDelMapaIncluido, it).exists() }
+            if (faltan.isNotEmpty()) {
+                throw GradleException(
+                    "falta el mapa (${faltan.joinToString()} en ${carpetaDelMapaIncluido.path}): " +
+                    "ejecuta deploy/preparar-mapa-distribuidor.sh"
+                )
+            }
+        }
+    }
+    tasks.configureEach {
+        if (name.startsWith("merge") && name.endsWith("Assets")) dependsOn(verificarElMapa)
     }
 }
 

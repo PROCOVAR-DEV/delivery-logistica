@@ -46,3 +46,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# El mapa que va DENTRO del APK del distribuidor (97 MB): lo deja deploy/preparar-mapa-distribuidor.sh
+/herramientas/distribuidor-assets/

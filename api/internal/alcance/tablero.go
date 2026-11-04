@@ -381,16 +381,16 @@ func (a *Acotado) EspejoDiferenciasDePedidos(ctx context.Context, v VentanaDeBaj
 		// Las facturas anuladas de los últimos días entran aunque estén archivadas (00027).
 		AnuladasDesde: marcaPg(&desdeAnuladas),
 		Tope:          v.Tope,
-		Dispositivo:  a.dispositivoPg(), // un distribuidor solo recibe los pedidos de SUS rutas
+		Dispositivo:   a.dispositivoPg(), // un distribuidor solo recibe los pedidos de SUS rutas
 	})
 }
 
 // EspejoIdsParaElCuadre: los ids de lo que una carga completa le bajaría al aparato (ver `IdsDePedidosParaElCuadre`).
 func (a *Acotado) EspejoIdsParaElCuadre(ctx context.Context, v VentanaDeBajada) ([]uuid.UUID, error) {
 	return a.q.IdsDePedidosParaElCuadre(ctx, sqlc.IdsDePedidosParaElCuadreParams{
-		Sucursal:     a.sucursalPg(),
-		BranchID:     aPg(v.Sucursal),
-		Tope:         v.Tope,
+		Sucursal:    a.sucursalPg(),
+		BranchID:    aPg(v.Sucursal),
+		Tope:        v.Tope,
 		Dispositivo: a.dispositivoPg(),
 	})
 }

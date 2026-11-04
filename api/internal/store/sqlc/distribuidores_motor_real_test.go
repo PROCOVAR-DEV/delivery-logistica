@@ -371,6 +371,8 @@ func TestMotorReal_Migracion00019Distribuidores(t *testing.T) {
 	// transaccionales; mientras dura, `routes` queda bloqueada: no se corre contra una base que use otro).
 	// Las migraciones POSTERIORES que cuelgan de `distribuidores` se deshacen primero, como haría goose en orden inverso: la 00032 le puso a
 	// `vehicles` una clave ajena (`distribuidor_id`) y Postgres no deja tirar la tabla con ella puesta. Todo dentro de esta transacción.
+	b.exec(`DROP TABLE IF EXISTS puntos_gps`)
+	b.exec(`ALTER TABLE dispositivos_distribuidor DROP COLUMN IF EXISTS distribuidor_id`)
 	b.exec(`ALTER TABLE vehicles DROP COLUMN IF EXISTS distribuidor_id`)
 	b.exec(down)
 	if got := b.entero(`SELECT count(*) FROM information_schema.columns WHERE table_name = 'routes' AND column_name = 'distribuidor_id'`); got != 0 {

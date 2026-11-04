@@ -491,8 +491,8 @@ type reclamos struct {
 	Sucursal      string   `json:"sucursal"`
 	// `dispositivo`: el teléfono de un DISTRIBUIDOR (lo firma Reparto al reclamar un enlace, `dispositivos.go`). Sin cuenta de Accesos.
 	Dispositivo string   `json:"dispositivo"`
-	Exp           *float64 `json:"exp"`
-	Nbf           *float64 `json:"nbf"`
+	Exp         *float64 `json:"exp"`
+	Nbf         *float64 `json:"nbf"`
 	// `iat` NO se usa para decidir nada —un token sin él vale igual— y está aquí sólo para
 	// poder contar `exp - iat` en el registro de un rechazo: es lo que separa la sesión de
 	// la web (7 días) de la de la APK (15 minutos) sin tener que creerse el token. Ver

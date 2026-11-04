@@ -270,6 +270,13 @@ func codigoDe(id string) string {
 // siembraDeRuta deja un camión y n pedidos que entran en una ruta (facturados, con domicilio cobrado y coordenadas).
 func (s *stack) siembraDeRuta(n int) (camion string, pedidos []string) {
 	s.t.Helper()
+	camion = s.nuevoCamion()
+	return camion, s.siembraDePedidos(n)
+}
+
+// nuevoCamion deja un camión (con su tipo) en la sucursal de la prueba.
+func (s *stack) nuevoCamion() string {
+	s.t.Helper()
 	ctx := context.Background()
 	var tipo uuid.UUID
 	if err := s.db.QueryRow(ctx, `INSERT INTO vehicle_types (nombre, branch_id) VALUES ($1, $2) RETURNING id`, "tipo-"+uuid.NewString(), s.sucursal).Scan(&tipo); err != nil {
@@ -279,6 +286,13 @@ func (s *stack) siembraDeRuta(n int) (camion string, pedidos []string) {
 	if err := s.db.QueryRow(ctx, `INSERT INTO vehicles (name, vehicle_type_id, branch_id) VALUES ($1, $2, $3) RETURNING id`, "camion-"+uuid.NewString()[:8], tipo, s.sucursal).Scan(&v); err != nil {
 		s.t.Fatal(err)
 	}
+	return v.String()
+}
+
+// siembraDePedidos deja n pedidos que entran en una ruta (facturados, con domicilio cobrado y coordenadas).
+func (s *stack) siembraDePedidos(n int) (pedidos []string) {
+	s.t.Helper()
+	ctx := context.Background()
 	for i := 0; i < n; i++ {
 		var p uuid.UUID
 		if err := s.db.QueryRow(ctx, `
@@ -290,7 +304,7 @@ RETURNING id`, fmt.Sprintf("cliente-%d", i), s.sucursal, "ext-"+uuid.NewString()
 		}
 		pedidos = append(pedidos, p.String())
 	}
-	return v.String(), pedidos
+	return pedidos
 }
 
 func (s *stack) cuerpoDeRuta(id, camion string, pedidos []string) map[string]any {
@@ -441,6 +455,19 @@ func (s *stack) rutaConDistribuidor(d uuid.UUID) (ruta string, camion string, pe
 	return ruta, camion, pedidos
 }
 
+// rutaConDistribuidorEnCamion arma otra ruta de ese distribuidor con un camión que ya existe (el teléfono acumula rutas del MISMO camión).
+func (s *stack) rutaConDistribuidorEnCamion(d uuid.UUID, camion string) (ruta string, pedidos []string) {
+	s.t.Helper()
+	pedidos = s.siembraDePedidos(2)
+	ruta = nuevo()
+	cuerpo := s.cuerpoDeRuta(ruta, camion, pedidos)
+	cuerpo["distribuidorId"] = d.String()
+	if code, b := s.web("POST", "/routes", cuerpo); code != 201 && code != 200 {
+		s.t.Fatalf("armar la ruta: %d %s", code, b)
+	}
+	return ruta, pedidos
+}
+
 // enlace pide el enlace de la ruta (como la oficina) y devuelve su token.
 func (s *stack) enlace(ruta string, renovar bool) string {
 	s.t.Helper()
@@ -523,7 +550,7 @@ func TestElTelefonoSoloVeYTocaLasRutasQueReclamo(t *testing.T) {
 	d1, d2 := s.distribuidor("Uno e2e"), s.distribuidor("Dos e2e")
 	rutaA, camionA, pedidosA := s.rutaConDistribuidor(d1)
 	rutaB, _, pedidosB := s.rutaConDistribuidor(d2)
-	rutaC, _, pedidosC := s.rutaConDistribuidor(d1)
+	rutaC, pedidosC := s.rutaConDistribuidorEnCamion(d1, camionA)
 
 	// el enlace es de la oficina: el mismo enlace se devuelve mientras nadie lo suelta
 	tokenA := s.enlace(rutaA, false)
@@ -594,7 +621,7 @@ func TestElTelefonoSoloVeYTocaLasRutasQueReclamo(t *testing.T) {
 	if rs := idsDe(t, b, "cambios", "routes", "puestos"); len(rs) != 2 || contiene(rs, rutaB) {
 		t.Fatalf("la bajada de rutas: %v", rs)
 	}
-	if vs := idsDe(t, b, "cambios", "vehicles", "puestos"); !contiene(vs, camionA) || len(vs) != 2 {
+	if vs := idsDe(t, b, "cambios", "vehicles", "puestos"); !contiene(vs, camionA) || len(vs) != 1 {
 		t.Fatalf("la bajada de vehículos: %v", vs)
 	}
 	for _, k := range []string{"customers", "products", "boardColumns", "boardPlacements", "vehicle_types"} {
@@ -931,5 +958,90 @@ func TestElVehiculoLlevaSuDistribuidorPorDefecto(t *testing.T) {
 	}
 	if id, _ := leer(); id != "" {
 		t.Errorf("tras quitar sigue %q", id)
+	}
+}
+
+func TestElVehiculoSeVinculaAlTelefonoYSeDesvincula(t *testing.T) {
+	s := levantar(t)
+	d := s.distribuidor("Vinculo e2e")
+	camionA, camionB := s.nuevoCamion(), s.nuevoCamion()
+	r1, _ := s.rutaConDistribuidorEnCamion(d, camionA)
+	r2, _ := s.rutaConDistribuidorEnCamion(d, camionA)
+	r3, _ := s.rutaConDistribuidorEnCamion(d, camionB)
+
+	// una ruta SIN camión no se puede mandar
+	sinCamion := nuevo()
+	if code, b := s.web("POST", "/routes", s.cuerpoDeRuta(sinCamion, camionB, s.siembraDePedidos(1))); code != 201 && code != 200 {
+		t.Fatalf("armar la ruta: %d %s", code, b)
+	}
+	if code, b := s.web("PATCH", "/routes/"+sinCamion, map[string]any{"vehicleId": nil}); code != 200 {
+		t.Fatalf("quitarle el camión: %d %s", code, b)
+	}
+	if code, _ := s.web("POST", "/routes/"+sinCamion+"/enlace", map[string]any{}); code != 409 {
+		t.Errorf("enlace de una ruta sin camión: %d, tenía que ser 409", code)
+	}
+
+	// el primer teléfono reclama y queda vinculado al camión A
+	t1 := s.nuevoTelefono()
+	code, b := s.reclama(t1, s.enlace(r1, false))
+	if code != 200 || !strings.Contains(string(b), "vinculoId") || !strings.Contains(string(b), camionA) {
+		t.Fatalf("reclamar: %d %s", code, b)
+	}
+	_, b = s.web("GET", "/vehicles/"+camionA, nil)
+	if !strings.Contains(string(b), t1.id) {
+		t.Errorf("el camión tenía que decir a qué teléfono está vinculado: %s", b)
+	}
+	// otro teléfono NO puede coger el mismo camión, ni este teléfono otro camión
+	if code, b := s.reclama(s.nuevoTelefono(), s.enlace(r2, false)); code != 403 || !strings.Contains(string(b), "vehiculo_de_otro_dispositivo") {
+		t.Errorf("otro teléfono en el mismo camión: %d %s", code, b)
+	}
+	if code, b := s.reclama(t1, s.enlace(r3, false)); code != 403 || !strings.Contains(string(b), "dispositivo_de_otro_vehiculo") {
+		t.Errorf("el mismo teléfono en otro camión: %d %s", code, b)
+	}
+	// el mismo teléfono SÍ acumula otra ruta del mismo camión
+	if code, b := s.reclama(t1, s.enlace(r2, false)); code != 200 {
+		t.Errorf("segunda ruta del mismo camión: %d %s", code, b)
+	}
+	// y una ruta en un teléfono no cambia de camión
+	if code, _ := s.web("PATCH", "/routes/"+r1, map[string]any{"vehicleId": camionB}); code != 409 {
+		t.Errorf("cambiar el camión de una ruta ya reclamada: %d, tenía que ser 409", code)
+	}
+	fono := s.como(t1.acceso)
+	if code, _ := fono.web("GET", "/routes", nil); code != 200 {
+		t.Fatalf("el teléfono vinculado ve sus rutas: %d", code)
+	}
+	if code, _ := fono.web("POST", "/vehicles/"+camionA+"/desvincular", map[string]any{}); code != 403 {
+		t.Errorf("el distribuidor no desvincula: %d", code)
+	}
+
+	// LA OFICINA DESVINCULA: el teléfono pierde el acceso y se le dice por qué; sus rutas abiertas quedan libres
+	code, b = s.web("POST", "/vehicles/"+camionA+"/desvincular", map[string]any{"motivo": "cambio de camion"})
+	if code != 200 || !strings.Contains(string(b), r1) || !strings.Contains(string(b), r2) {
+		t.Fatalf("desvincular: %d %s", code, b)
+	}
+	if code, b := fono.web("GET", "/routes", nil); code != 403 || !strings.Contains(string(b), "dispositivo_desvinculado") {
+		t.Errorf("tras desvincular: %d %s, tenía que ser 403 dispositivo_desvinculado", code, b)
+	}
+	if code, b := s.sinSesion("POST", "/d/renovar", map[string]any{"dispositivoId": t1.id, "secreto": t1.secreto}); code != 403 || !strings.Contains(string(b), "dispositivo_desvinculado") {
+		t.Errorf("renovar desvinculado: %d %s", code, b)
+	}
+	if code, _ := s.web("POST", "/vehicles/"+camionA+"/desvincular", map[string]any{}); code != 409 {
+		t.Errorf("desvincular dos veces: %d, tenía que ser 409", code)
+	}
+	// el servidor no borra nada: la historia del vínculo está, con quién y por qué
+	_, b = s.web("GET", "/vehicles/"+camionA+"/vinculos", nil)
+	if !strings.Contains(string(b), t1.id) || !strings.Contains(string(b), "cambio de camion") {
+		t.Errorf("la historia del vínculo: %s", b)
+	}
+	// el enlace viejo ya no vale y la ruta se manda con uno nuevo a OTRO teléfono, en el mismo camión
+	if code, _ := s.reclama(s.nuevoTelefono(), s.enlace(r1, false)); code != 200 {
+		t.Errorf("enlace nuevo de la ruta soltada a otro teléfono: %d", code)
+	}
+	// el teléfono vaciado puede empezar de nuevo con OTRO camión
+	if code, b := s.reclama(t1, s.enlace(r3, false)); code != 200 {
+		t.Errorf("teléfono desvinculado con otro camión: %d %s", code, b)
+	}
+	if code, _ := s.como(t1.acceso).web("GET", "/routes", nil); code != 200 {
+		t.Errorf("con su vínculo nuevo vuelve a ver sus rutas: %d", code)
 	}
 }

@@ -26,6 +26,39 @@ func (q *Queries) AsignarRutaADispositivo(ctx context.Context, arg AsignarRutaAD
 	return err
 }
 
+const cerrarVinculoDeVehiculo = `-- name: CerrarVinculoDeVehiculo :one
+UPDATE vinculos_vehiculo_dispositivo vv SET hasta = now(), desvinculado_por = $1, motivo = $2
+FROM vehicles v
+WHERE vv.vehicle_id = v.id AND vv.vehicle_id = $3 AND vv.hasta IS NULL
+  AND ($4::uuid IS NULL OR v.branch_id = $4::uuid OR v.branch_id IS NULL)
+RETURNING vv.id, vv.dispositivo_id
+`
+
+type CerrarVinculoDeVehiculoParams struct {
+	Por      *string     `json:"por"`
+	Motivo   *string     `json:"motivo"`
+	Vehiculo uuid.UUID   `json:"vehiculo"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
+
+type CerrarVinculoDeVehiculoRow struct {
+	ID            uuid.UUID `json:"id"`
+	DispositivoID uuid.UUID `json:"dispositivo_id"`
+}
+
+// Desvincular: cierra el vínculo vivo del vehículo (acotado a la sucursal de la oficina). 0 filas = no estaba vinculado (o no es de su sucursal).
+func (q *Queries) CerrarVinculoDeVehiculo(ctx context.Context, arg CerrarVinculoDeVehiculoParams) (CerrarVinculoDeVehiculoRow, error) {
+	row := q.db.QueryRow(ctx, cerrarVinculoDeVehiculo,
+		arg.Por,
+		arg.Motivo,
+		arg.Vehiculo,
+		arg.Sucursal,
+	)
+	var i CerrarVinculoDeVehiculoRow
+	err := row.Scan(&i.ID, &i.DispositivoID)
+	return i, err
+}
+
 const crearDispositivoDistribuidor = `-- name: CrearDispositivoDistribuidor :one
 INSERT INTO dispositivos_distribuidor (id, nombre, branch_id, distribuidor_id, secreto_hash)
 VALUES ($1, $2, $3, $4, $5)
@@ -91,6 +124,31 @@ func (q *Queries) CrearEnlaceDeRuta(ctx context.Context, arg CrearEnlaceDeRutaPa
 	return i, err
 }
 
+const crearVinculoDeVehiculo = `-- name: CrearVinculoDeVehiculo :one
+INSERT INTO vinculos_vehiculo_dispositivo (vehicle_id, dispositivo_id, branch_id, vinculado_por)
+VALUES ($1, $2, $3, $4)
+RETURNING id
+`
+
+type CrearVinculoDeVehiculoParams struct {
+	Vehiculo    uuid.UUID `json:"vehiculo"`
+	Dispositivo uuid.UUID `json:"dispositivo"`
+	Sucursal    uuid.UUID `json:"sucursal"`
+	Por         *string   `json:"por"`
+}
+
+func (q *Queries) CrearVinculoDeVehiculo(ctx context.Context, arg CrearVinculoDeVehiculoParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, crearVinculoDeVehiculo,
+		arg.Vehiculo,
+		arg.Dispositivo,
+		arg.Sucursal,
+		arg.Por,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const dispositivoDistribuidor = `-- name: DispositivoDistribuidor :one
 
 SELECT id, nombre, branch_id, distribuidor_id, activo FROM dispositivos_distribuidor WHERE id = $1
@@ -120,20 +178,23 @@ func (q *Queries) DispositivoDistribuidor(ctx context.Context, id uuid.UUID) (Di
 }
 
 const enlaceDeRutaPorToken = `-- name: EnlaceDeRutaPorToken :one
-SELECT e.id, e.ruta_id, e.dispositivo_id, e.reclamado_at, e.revocado_at, r.branch_id, r.distribuidor_id, r.status
+SELECT e.id, e.ruta_id, e.dispositivo_id, e.reclamado_at, e.revocado_at, r.branch_id, r.distribuidor_id, r.status, r.vehicle_id,
+       coalesce((SELECT d.nombre FROM distribuidores d WHERE d.id = r.distribuidor_id), '')::text AS distribuidor_nombre
 FROM enlaces_de_ruta e JOIN routes r ON r.id = e.ruta_id
 WHERE e.token = $1
 `
 
 type EnlaceDeRutaPorTokenRow struct {
-	ID             uuid.UUID          `json:"id"`
-	RutaID         uuid.UUID          `json:"ruta_id"`
-	DispositivoID  pgtype.UUID        `json:"dispositivo_id"`
-	ReclamadoAt    pgtype.Timestamptz `json:"reclamado_at"`
-	RevocadoAt     pgtype.Timestamptz `json:"revocado_at"`
-	BranchID       pgtype.UUID        `json:"branch_id"`
-	DistribuidorID pgtype.UUID        `json:"distribuidor_id"`
-	Status         RouteStatus        `json:"status"`
+	ID                 uuid.UUID          `json:"id"`
+	RutaID             uuid.UUID          `json:"ruta_id"`
+	DispositivoID      pgtype.UUID        `json:"dispositivo_id"`
+	ReclamadoAt        pgtype.Timestamptz `json:"reclamado_at"`
+	RevocadoAt         pgtype.Timestamptz `json:"revocado_at"`
+	BranchID           pgtype.UUID        `json:"branch_id"`
+	DistribuidorID     pgtype.UUID        `json:"distribuidor_id"`
+	Status             RouteStatus        `json:"status"`
+	VehicleID          pgtype.UUID        `json:"vehicle_id"`
+	DistribuidorNombre string             `json:"distribuidor_nombre"`
 }
 
 // Para el RECLAMAR: el enlace por su token (con la ruta y su sucursal), sin acotar: aún no hay sesión.
@@ -149,6 +210,8 @@ func (q *Queries) EnlaceDeRutaPorToken(ctx context.Context, token string) (Enlac
 		&i.BranchID,
 		&i.DistribuidorID,
 		&i.Status,
+		&i.VehicleID,
+		&i.DistribuidorNombre,
 	)
 	return i, err
 }
@@ -189,6 +252,61 @@ func (q *Queries) EnlaceVivoDeUnaRuta(ctx context.Context, arg EnlaceVivoDeUnaRu
 		&i.DispositivoNombre,
 	)
 	return i, err
+}
+
+const listarVinculosDeVehiculo = `-- name: ListarVinculosDeVehiculo :many
+SELECT vv.id, vv.dispositivo_id, d.nombre AS dispositivo_nombre, vv.desde, vv.hasta, vv.vinculado_por, vv.desvinculado_por, vv.motivo
+FROM vinculos_vehiculo_dispositivo vv
+JOIN vehicles v ON v.id = vv.vehicle_id
+JOIN dispositivos_distribuidor d ON d.id = vv.dispositivo_id
+WHERE vv.vehicle_id = $1
+  AND ($2::uuid IS NULL OR v.branch_id = $2::uuid OR v.branch_id IS NULL)
+ORDER BY vv.desde DESC
+`
+
+type ListarVinculosDeVehiculoParams struct {
+	Vehiculo uuid.UUID   `json:"vehiculo"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
+
+type ListarVinculosDeVehiculoRow struct {
+	ID                uuid.UUID          `json:"id"`
+	DispositivoID     uuid.UUID          `json:"dispositivo_id"`
+	DispositivoNombre *string            `json:"dispositivo_nombre"`
+	Desde             pgtype.Timestamptz `json:"desde"`
+	Hasta             pgtype.Timestamptz `json:"hasta"`
+	VinculadoPor      *string            `json:"vinculado_por"`
+	DesvinculadoPor   *string            `json:"desvinculado_por"`
+	Motivo            *string            `json:"motivo"`
+}
+
+func (q *Queries) ListarVinculosDeVehiculo(ctx context.Context, arg ListarVinculosDeVehiculoParams) ([]ListarVinculosDeVehiculoRow, error) {
+	rows, err := q.db.Query(ctx, listarVinculosDeVehiculo, arg.Vehiculo, arg.Sucursal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListarVinculosDeVehiculoRow
+	for rows.Next() {
+		var i ListarVinculosDeVehiculoRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DispositivoID,
+			&i.DispositivoNombre,
+			&i.Desde,
+			&i.Hasta,
+			&i.VinculadoPor,
+			&i.DesvinculadoPor,
+			&i.Motivo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const reclamarEnlaceDeRuta = `-- name: ReclamarEnlaceDeRuta :execrows
@@ -247,6 +365,38 @@ func (q *Queries) SoltarRutaDeSuDispositivo(ctx context.Context, ruta uuid.UUID)
 	return err
 }
 
+const soltarRutasAbiertasDeUnDispositivo = `-- name: SoltarRutasAbiertasDeUnDispositivo :many
+WITH enlaces AS (
+    UPDATE enlaces_de_ruta SET revocado_at = now()
+    WHERE revocado_at IS NULL
+      AND ruta_id IN (SELECT rr.id FROM routes rr WHERE rr.dispositivo_id = $1 AND rr.status IN ('planned', 'in_progress'))
+)
+UPDATE routes AS ru SET dispositivo_id = NULL
+WHERE ru.dispositivo_id = $1 AND ru.status IN ('planned', 'in_progress')
+RETURNING ru.id
+`
+
+// Las rutas planificadas o en curso del teléfono se sueltan y sus enlaces se revocan (se mandan a otro con un enlace nuevo). Las cerradas se quedan de historia.
+func (q *Queries) SoltarRutasAbiertasDeUnDispositivo(ctx context.Context, dispositivo pgtype.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, soltarRutasAbiertasDeUnDispositivo, dispositivo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const tocarDispositivoDistribuidor = `-- name: TocarDispositivoDistribuidor :exec
 UPDATE dispositivos_distribuidor SET last_seen_at = now() WHERE id = $1
 `
@@ -254,4 +404,37 @@ UPDATE dispositivos_distribuidor SET last_seen_at = now() WHERE id = $1
 func (q *Queries) TocarDispositivoDistribuidor(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, tocarDispositivoDistribuidor, id)
 	return err
+}
+
+const vinculoVivoDeDispositivo = `-- name: VinculoVivoDeDispositivo :one
+SELECT id, vehicle_id FROM vinculos_vehiculo_dispositivo WHERE dispositivo_id = $1 AND hasta IS NULL
+`
+
+type VinculoVivoDeDispositivoRow struct {
+	ID        uuid.UUID `json:"id"`
+	VehicleID uuid.UUID `json:"vehicle_id"`
+}
+
+func (q *Queries) VinculoVivoDeDispositivo(ctx context.Context, dispositivo uuid.UUID) (VinculoVivoDeDispositivoRow, error) {
+	row := q.db.QueryRow(ctx, vinculoVivoDeDispositivo, dispositivo)
+	var i VinculoVivoDeDispositivoRow
+	err := row.Scan(&i.ID, &i.VehicleID)
+	return i, err
+}
+
+const vinculoVivoDeVehiculo = `-- name: VinculoVivoDeVehiculo :one
+SELECT id, dispositivo_id FROM vinculos_vehiculo_dispositivo WHERE vehicle_id = $1 AND hasta IS NULL
+`
+
+type VinculoVivoDeVehiculoRow struct {
+	ID            uuid.UUID `json:"id"`
+	DispositivoID uuid.UUID `json:"dispositivo_id"`
+}
+
+// EL VÍNCULO VEHÍCULO <-> TELÉFONO (00035).
+func (q *Queries) VinculoVivoDeVehiculo(ctx context.Context, vehiculo uuid.UUID) (VinculoVivoDeVehiculoRow, error) {
+	row := q.db.QueryRow(ctx, vinculoVivoDeVehiculo, vehiculo)
+	var i VinculoVivoDeVehiculoRow
+	err := row.Scan(&i.ID, &i.DispositivoID)
+	return i, err
 }

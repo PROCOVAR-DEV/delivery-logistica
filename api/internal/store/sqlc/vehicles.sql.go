@@ -399,6 +399,9 @@ SELECT
     v.usar_para_domicilio, v.status, v.is_active, v.notes, v.branch_id,
     v.created_at, v.updated_at, v.distribuidor_id,
     coalesce((SELECT d.nombre FROM distribuidores d WHERE d.id = v.distribuidor_id), '')::text AS distribuidor_nombre,
+    vv.dispositivo_id AS dispositivo_vinculado_id,
+    coalesce(dd.nombre, '')::text AS dispositivo_vinculado_nombre,
+    vv.desde AS vinculado_at,
     vt.nombre       AS tipo_nombre,
     vt.costo_km_usd AS tipo_costo_km_usd,
     b.name          AS sucursal_nombre,
@@ -420,6 +423,8 @@ SELECT
 FROM vehicles v
 JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
 LEFT JOIN branches b  ON b.id  = v.branch_id
+LEFT JOIN vinculos_vehiculo_dispositivo vv ON vv.vehicle_id = v.id AND vv.hasta IS NULL
+LEFT JOIN dispositivos_distribuidor dd ON dd.id = vv.dispositivo_id
 WHERE ($1::uuid IS NULL
        OR v.branch_id = $1::uuid
        OR v.branch_id IS NULL)
@@ -437,27 +442,30 @@ type ListarVehiculosParams struct {
 }
 
 type ListarVehiculosRow struct {
-	ID                 uuid.UUID          `json:"id"`
-	Name               string             `json:"name"`
-	VehicleTypeID      uuid.UUID          `json:"vehicle_type_id"`
-	Plate              *string            `json:"plate"`
-	Capacity           float64            `json:"capacity"`
-	CostoKmUsd         *float64           `json:"costo_km_usd"`
-	UsarParaDomicilio  bool               `json:"usar_para_domicilio"`
-	Status             VehicleStatus      `json:"status"`
-	IsActive           bool               `json:"is_active"`
-	Notes              *string            `json:"notes"`
-	BranchID           pgtype.UUID        `json:"branch_id"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	DistribuidorID     pgtype.UUID        `json:"distribuidor_id"`
-	DistribuidorNombre string             `json:"distribuidor_nombre"`
-	TipoNombre         string             `json:"tipo_nombre"`
-	TipoCostoKmUsd     *float64           `json:"tipo_costo_km_usd"`
-	SucursalNombre     *string            `json:"sucursal_nombre"`
-	Rutas              int64              `json:"rutas"`
-	Pedidos            int64              `json:"pedidos"`
-	Asignaciones       int64              `json:"asignaciones"`
+	ID                         uuid.UUID          `json:"id"`
+	Name                       string             `json:"name"`
+	VehicleTypeID              uuid.UUID          `json:"vehicle_type_id"`
+	Plate                      *string            `json:"plate"`
+	Capacity                   float64            `json:"capacity"`
+	CostoKmUsd                 *float64           `json:"costo_km_usd"`
+	UsarParaDomicilio          bool               `json:"usar_para_domicilio"`
+	Status                     VehicleStatus      `json:"status"`
+	IsActive                   bool               `json:"is_active"`
+	Notes                      *string            `json:"notes"`
+	BranchID                   pgtype.UUID        `json:"branch_id"`
+	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                  pgtype.Timestamptz `json:"updated_at"`
+	DistribuidorID             pgtype.UUID        `json:"distribuidor_id"`
+	DistribuidorNombre         string             `json:"distribuidor_nombre"`
+	DispositivoVinculadoID     pgtype.UUID        `json:"dispositivo_vinculado_id"`
+	DispositivoVinculadoNombre string             `json:"dispositivo_vinculado_nombre"`
+	VinculadoAt                pgtype.Timestamptz `json:"vinculado_at"`
+	TipoNombre                 string             `json:"tipo_nombre"`
+	TipoCostoKmUsd             *float64           `json:"tipo_costo_km_usd"`
+	SucursalNombre             *string            `json:"sucursal_nombre"`
+	Rutas                      int64              `json:"rutas"`
+	Pedidos                    int64              `json:"pedidos"`
+	Asignaciones               int64              `json:"asignaciones"`
 }
 
 // La flota.
@@ -498,6 +506,9 @@ func (q *Queries) ListarVehiculos(ctx context.Context, arg ListarVehiculosParams
 			&i.UpdatedAt,
 			&i.DistribuidorID,
 			&i.DistribuidorNombre,
+			&i.DispositivoVinculadoID,
+			&i.DispositivoVinculadoNombre,
+			&i.VinculadoAt,
 			&i.TipoNombre,
 			&i.TipoCostoKmUsd,
 			&i.SucursalNombre,
@@ -572,6 +583,9 @@ SELECT
     v.usar_para_domicilio, v.status, v.is_active, v.notes, v.branch_id,
     v.created_at, v.updated_at, v.distribuidor_id,
     coalesce((SELECT d.nombre FROM distribuidores d WHERE d.id = v.distribuidor_id), '')::text AS distribuidor_nombre,
+    vv.dispositivo_id AS dispositivo_vinculado_id,
+    coalesce(dd.nombre, '')::text AS dispositivo_vinculado_nombre,
+    vv.desde AS vinculado_at,
     vt.nombre       AS tipo_nombre,
     vt.costo_km_usd AS tipo_costo_km_usd,
     (SELECT count(*) FROM routes r          WHERE r.vehicle_id  = v.id) AS rutas,
@@ -582,6 +596,8 @@ SELECT
     (SELECT count(*) FROM order_vehicles ov WHERE ov.vehicle_id = v.id) AS asignaciones
 FROM vehicles v
 JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
+LEFT JOIN vinculos_vehiculo_dispositivo vv ON vv.vehicle_id = v.id AND vv.hasta IS NULL
+LEFT JOIN dispositivos_distribuidor dd ON dd.id = vv.dispositivo_id
 WHERE v.id = $1
   AND ($2::uuid IS NULL
        OR v.branch_id = $2::uuid
@@ -594,26 +610,29 @@ type ObtenerVehiculoParams struct {
 }
 
 type ObtenerVehiculoRow struct {
-	ID                 uuid.UUID          `json:"id"`
-	Name               string             `json:"name"`
-	VehicleTypeID      uuid.UUID          `json:"vehicle_type_id"`
-	Plate              *string            `json:"plate"`
-	Capacity           float64            `json:"capacity"`
-	CostoKmUsd         *float64           `json:"costo_km_usd"`
-	UsarParaDomicilio  bool               `json:"usar_para_domicilio"`
-	Status             VehicleStatus      `json:"status"`
-	IsActive           bool               `json:"is_active"`
-	Notes              *string            `json:"notes"`
-	BranchID           pgtype.UUID        `json:"branch_id"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	DistribuidorID     pgtype.UUID        `json:"distribuidor_id"`
-	DistribuidorNombre string             `json:"distribuidor_nombre"`
-	TipoNombre         string             `json:"tipo_nombre"`
-	TipoCostoKmUsd     *float64           `json:"tipo_costo_km_usd"`
-	Rutas              int64              `json:"rutas"`
-	Pedidos            int64              `json:"pedidos"`
-	Asignaciones       int64              `json:"asignaciones"`
+	ID                         uuid.UUID          `json:"id"`
+	Name                       string             `json:"name"`
+	VehicleTypeID              uuid.UUID          `json:"vehicle_type_id"`
+	Plate                      *string            `json:"plate"`
+	Capacity                   float64            `json:"capacity"`
+	CostoKmUsd                 *float64           `json:"costo_km_usd"`
+	UsarParaDomicilio          bool               `json:"usar_para_domicilio"`
+	Status                     VehicleStatus      `json:"status"`
+	IsActive                   bool               `json:"is_active"`
+	Notes                      *string            `json:"notes"`
+	BranchID                   pgtype.UUID        `json:"branch_id"`
+	CreatedAt                  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                  pgtype.Timestamptz `json:"updated_at"`
+	DistribuidorID             pgtype.UUID        `json:"distribuidor_id"`
+	DistribuidorNombre         string             `json:"distribuidor_nombre"`
+	DispositivoVinculadoID     pgtype.UUID        `json:"dispositivo_vinculado_id"`
+	DispositivoVinculadoNombre string             `json:"dispositivo_vinculado_nombre"`
+	VinculadoAt                pgtype.Timestamptz `json:"vinculado_at"`
+	TipoNombre                 string             `json:"tipo_nombre"`
+	TipoCostoKmUsd             *float64           `json:"tipo_costo_km_usd"`
+	Rutas                      int64              `json:"rutas"`
+	Pedidos                    int64              `json:"pedidos"`
+	Asignaciones               int64              `json:"asignaciones"`
 }
 
 func (q *Queries) ObtenerVehiculo(ctx context.Context, arg ObtenerVehiculoParams) (ObtenerVehiculoRow, error) {
@@ -635,6 +654,9 @@ func (q *Queries) ObtenerVehiculo(ctx context.Context, arg ObtenerVehiculoParams
 		&i.UpdatedAt,
 		&i.DistribuidorID,
 		&i.DistribuidorNombre,
+		&i.DispositivoVinculadoID,
+		&i.DispositivoVinculadoNombre,
+		&i.VinculadoAt,
 		&i.TipoNombre,
 		&i.TipoCostoKmUsd,
 		&i.Rutas,

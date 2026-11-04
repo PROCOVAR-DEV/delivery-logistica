@@ -1470,6 +1470,11 @@ func (s *Servidor) cambiarCamionDeRuta(w http.ResponseWriter, r *http.Request, a
 		}
 		nuevo = &id
 	}
+	// UNA RUTA QUE YA ESTÁ EN UN TELÉFONO NO CAMBIA DE CAMIÓN: el teléfono está vinculado a ese vehículo. Primero se desvincula (Reparto > Vehículo).
+	if enTelefono := antes.DispositivoID.Valid; enTelefono && (nuevo == nil || !antes.VehicleID.Valid || *nuevo != uuid.UUID(antes.VehicleID.Bytes)) {
+		httpx.Error(w, r, http.StatusConflict, "Esta ruta ya está en un teléfono: desvincula el vehículo del teléfono antes de cambiarlo.")
+		return
+	}
 
 	err := a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
 		var err error

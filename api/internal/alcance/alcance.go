@@ -100,6 +100,20 @@ type Acotado struct {
 // es de otra sucursal. Es un `ErrSinAlcance` (sale como 403) con su texto.
 var ErrSinDispositivo = errSinDispositivo{}
 
+// ErrDesvinculado: el teléfono existe pero su vehículo fue desvinculado desde Reparto (o su token es de un vínculo anterior). Sale como 403 con el
+// código `dispositivo_desvinculado`, y la APK se vacía al verlo.
+var ErrDesvinculado = errDesvinculado{}
+
+type errDesvinculado struct{}
+
+func (errDesvinculado) Error() string {
+	return "este teléfono fue desvinculado de su vehículo: pide a tu logístico un enlace nuevo"
+}
+func (errDesvinculado) Is(destino error) bool { return destino == ErrSinAlcance }
+
+// CodigoDesvinculado es el `codigo` del 403 que la APK usa para vaciarse.
+const CodigoDesvinculado = "dispositivo_desvinculado"
+
 type errSinDispositivo struct{}
 
 func (errSinDispositivo) Error() string {
@@ -206,6 +220,16 @@ func (p *Porteria) Resolver(ctx context.Context, u *auth.Usuario, cabecera strin
 		return nil, ErrSinDispositivo
 	case a.sucursal == nil || *a.sucursal != d.BranchID:
 		return nil, ErrSinDispositivo
+	}
+	// EL VÍNCULO VIGENTE: el token trae el id de SU vínculo vehículo<->teléfono. Sin vínculo vivo, o con uno distinto, está desvinculado.
+	vinculo, errV := a.q.VinculoVivoDeDispositivo(ctx, id)
+	switch {
+	case errors.Is(errV, pgx.ErrNoRows):
+		return nil, ErrDesvinculado
+	case errV != nil:
+		return nil, errV
+	case vinculo.ID.String() != u.Vinculo:
+		return nil, ErrDesvinculado
 	}
 	a.dispositivo = &id
 	_ = a.q.TocarDispositivoDistribuidor(ctx, id) // «visto por última vez»: un fallo aquí no tumba nada
@@ -380,6 +404,9 @@ func (p *Porteria) Exigir(siguiente http.Handler) http.Handler {
 		}
 		a, err := p.Resolver(r.Context(), u, r.Header.Get(CabeceraSucursal))
 		switch {
+		case errors.Is(err, ErrDesvinculado):
+			httpx.ErrorConCodigo(w, r, http.StatusForbidden, err.Error(), CodigoDesvinculado)
+			return
 		case errors.Is(err, ErrSinAlcance):
 			// 403 y no 500: no es una avería, es que a esta cuenta le falta algo que se
 			// arregla en la oficina. El texto lo dice y sale tal cual en la pantalla.

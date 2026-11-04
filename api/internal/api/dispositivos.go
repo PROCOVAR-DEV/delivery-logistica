@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"procovar/reparto-api/internal/alcance"
@@ -43,6 +44,17 @@ const (
 	codigoRutaDeOtroTelf    = "ruta_de_otro_dispositivo"
 	codigoSecretoIncorrecto = "secreto_incorrecto"
 	codigoRutaCerrada       = "ruta_cerrada"
+
+	codigoRutaSinVehiculo        = "ruta_sin_vehiculo"
+	codigoVehiculoDeOtroTelf     = "vehiculo_de_otro_dispositivo"
+	codigoTelefonoDeOtroVehiculo = "dispositivo_de_otro_vehiculo"
+)
+
+// Errores internos del reclamar (dentro de la transacción) que salen como 403 con su código.
+var (
+	errVehiculoOcupado   = errors.New("vehiculo ocupado por otro telefono")
+	errTelefonoOcupado   = errors.New("telefono vinculado a otro vehiculo")
+	errCarreraDelVinculo = errors.New("otro telefono vinculo el vehiculo a la vez")
 )
 
 func (s *Servidor) rutasDeDispositivos(rt *httpx.Router, sesion []httpx.Medio) {
@@ -50,6 +62,8 @@ func (s *Servidor) rutasDeDispositivos(rt *httpx.Router, sesion []httpx.Medio) {
 	rt.ManejarFunc(http.MethodPost, "/api/d/renovar", s.renovarAccesoDelDispositivo)
 	rt.ManejarFunc(http.MethodPost, "/api/routes/{id}/enlace", s.crearEnlaceDeRuta, sesion...)
 	rt.ManejarFunc(http.MethodGet, "/api/routes/{id}/enlace", s.verEnlaceDeRuta, sesion...)
+	rt.ManejarFunc(http.MethodPost, "/api/vehicles/{id}/desvincular", s.desvincularVehiculo, sesion...)
+	rt.ManejarFunc(http.MethodGet, "/api/vehicles/{id}/vinculos", s.vinculosDeVehiculo, sesion...)
 }
 
 func hashDelSecreto(secreto string) []byte {
@@ -67,7 +81,7 @@ func aleatorio(n int) (string, error) {
 
 // firmarAccesoDelDispositivo firma el JWT (HS256, el mismo secreto con que verifica la API y el sync) del teléfono: rol DISTRIBUIDOR, la sucursal de
 // su ruta, la llave de entrar a Reparto y su `dispositivo`. El `sub` NO es una persona de Accesos: `disp-<id>`.
-func (s *Servidor) firmarAccesoDelDispositivo(id uuid.UUID, nombre string, sucursal uuid.UUID, ahora time.Time) (string, time.Time, error) {
+func (s *Servidor) firmarAccesoDelDispositivo(id uuid.UUID, vinculo uuid.UUID, nombre string, sucursal uuid.UUID, ahora time.Time) (string, time.Time, error) {
 	if s.cfg == nil || len(s.cfg.JWTSecret) == 0 {
 		return "", time.Time{}, errors.New("JWT_SECRET no está configurada")
 	}
@@ -76,7 +90,7 @@ func (s *Servidor) firmarAccesoDelDispositivo(id uuid.UUID, nombre string, sucur
 		"sub": "disp-" + id.String(), "id": "disp-" + id.String(), "name": nombre,
 		"role": "DISTRIBUIDOR", "roles": []string{"DISTRIBUIDOR"},
 		"branchId": sucursal.String(), "sucursal": sucursal.String(),
-		"entradas": []string{"delivery.entrar"}, "dispositivo": id.String(),
+		"entradas": []string{"delivery.entrar"}, "dispositivo": id.String(), "vinculo": vinculo.String(),
 		"iat": ahora.Unix(), "exp": caduca.Unix(),
 	}
 	cabecera, _ := json.Marshal(map[string]string{"alg": "HS256", "typ": "JWT"})
@@ -146,6 +160,12 @@ func (s *Servidor) reclamarEnlace(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusConflict, "La ruta no tiene sucursal: avisa a tu logístico.")
 		return
 	}
+	// EL ENLACE LLEVA EL VEHÍCULO (Jose, 04/11/2026): una ruta sin vehículo no se puede reclamar, porque el teléfono se vincula al vehículo de la ruta.
+	if !e.VehicleID.Valid {
+		errorConCodigo(w, r, http.StatusConflict, "Esta ruta todavía no tiene vehículo: avisa a tu logístico.", codigoRutaSinVehiculo)
+		return
+	}
+	vehiculo := uuid.UUID(e.VehicleID.Bytes)
 	sucursal := uuid.UUID(e.BranchID.Bytes)
 
 	// EL TELÉFONO: nuevo (se crea y se le da su secreto, una sola vez) o conocido (tiene que traer su secreto).
@@ -186,8 +206,10 @@ func (s *Servidor) reclamarEnlace(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// RECLAMAR, ATÓMICO: gana quien lo encuentre libre. Dos teléfonos con el mismo enlace a la vez: uno recibe 403.
+	// RECLAMAR, ATÓMICO: gana quien lo encuentre libre. Dos teléfonos con el mismo enlace a la vez: uno recibe 403. Y el teléfono se VINCULA al vehículo
+	// de la ruta: un vehículo en un solo teléfono y un teléfono en un solo vehículo (se cambia desvinculando desde Reparto).
 	var perdio bool
+	var vinculo uuid.UUID
 	err = s.porteria.EnTxSinAlcance(r.Context(), func(tx sqlc.Querier) error {
 		n, err := tx.ReclamarEnlaceDeRuta(r.Context(), sqlc.ReclamarEnlaceDeRutaParams{ID: e.ID, Dispositivo: pgtype.UUID{Bytes: disp, Valid: true}})
 		if err != nil {
@@ -197,9 +219,38 @@ func (s *Servidor) reclamarEnlace(w http.ResponseWriter, r *http.Request) {
 			perdio = true
 			return nil
 		}
+		if v, err := tx.VinculoVivoDeVehiculo(r.Context(), vehiculo); err == nil {
+			if v.DispositivoID != disp {
+				return errVehiculoOcupado
+			}
+			vinculo = v.ID
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		} else {
+			if _, err := tx.VinculoVivoDeDispositivo(r.Context(), disp); err == nil {
+				return errTelefonoOcupado
+			} else if !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
+			vinculo, err = tx.CrearVinculoDeVehiculo(r.Context(), sqlc.CrearVinculoDeVehiculoParams{Vehiculo: vehiculo, Dispositivo: disp, Sucursal: sucursal, Por: nil})
+			if err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+					return errCarreraDelVinculo
+				}
+				return err
+			}
+		}
 		return tx.AsignarRutaADispositivo(r.Context(), sqlc.AsignarRutaADispositivoParams{Dispositivo: pgtype.UUID{Bytes: disp, Valid: true}, Ruta: e.RutaID})
 	})
-	if err != nil {
+	switch {
+	case errors.Is(err, errVehiculoOcupado), errors.Is(err, errCarreraDelVinculo):
+		errorConCodigo(w, r, http.StatusForbidden, "Este vehículo ya está vinculado a otro teléfono: pide a tu logístico que lo desvincule.", codigoVehiculoDeOtroTelf)
+		return
+	case errors.Is(err, errTelefonoOcupado):
+		errorConCodigo(w, r, http.StatusForbidden, "Este teléfono ya está vinculado a otro vehículo: pide a tu logístico que lo desvincule.", codigoTelefonoDeOtroVehiculo)
+		return
+	case err != nil:
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
@@ -208,12 +259,19 @@ func (s *Servidor) reclamarEnlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	acceso, caduca, err := s.firmarAccesoDelDispositivo(disp, nombre, sucursal, time.Now())
+	acceso, caduca, err := s.firmarAccesoDelDispositivo(disp, vinculo, nombre, sucursal, time.Now())
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
 	}
-	salida := map[string]any{"acceso": acceso, "expira": caduca.UTC(), "rutaId": e.RutaID, "sucursal": sucursal}
+	salida := map[string]any{"acceso": acceso, "expira": caduca.UTC(), "rutaId": e.RutaID, "sucursal": sucursal, "vinculoId": vinculo, "vehiculoId": vehiculo}
+	if v, err := q.ObtenerVehiculo(r.Context(), sqlc.ObtenerVehiculoParams{ID: vehiculo}); err == nil {
+		salida["vehiculo"] = map[string]any{"id": vehiculo, "nombre": v.Name, "placa": v.Plate, "tipo": v.TipoNombre}
+	}
+	// Lo que alimenta el enlace: la ruta, el vehículo y quien reparte. Sin cuentas: todo viaja con el enlace y, con conexión, el sync lo lleva todo.
+	if e.DistribuidorID.Valid {
+		salida["distribuidor"] = map[string]any{"id": uuid.UUID(e.DistribuidorID.Bytes), "nombre": e.DistribuidorNombre}
+	}
 	if secretoNuevo != "" {
 		salida["secreto"] = secretoNuevo
 	}
@@ -256,7 +314,17 @@ func (s *Servidor) renovarAccesoDelDispositivo(w http.ResponseWriter, r *http.Re
 	if d.Nombre != nil {
 		nombre = *d.Nombre
 	}
-	acceso, caduca, err := s.firmarAccesoDelDispositivo(disp, nombre, dev.BranchID, time.Now())
+	// Sin vínculo vivo (desvinculado desde Reparto) no hay acceso que renovar: la APK se vacía.
+	vinculo, err := s.porteria.SinAlcance().VinculoVivoDeDispositivo(r.Context(), disp)
+	if errors.Is(err, pgx.ErrNoRows) {
+		errorConCodigo(w, r, http.StatusForbidden, "Este teléfono fue desvinculado de su vehículo: pide a tu logístico un enlace nuevo.", alcance.CodigoDesvinculado)
+		return
+	}
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	acceso, caduca, err := s.firmarAccesoDelDispositivo(disp, vinculo.ID, nombre, dev.BranchID, time.Now())
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return
@@ -303,6 +371,10 @@ func (s *Servidor) crearEnlaceDeRuta(w http.ResponseWriter, r *http.Request) {
 	}
 	if ruta.Status == sqlc.RouteStatusCompleted || ruta.Status == sqlc.RouteStatusCancelled {
 		httpx.Error(w, r, http.StatusConflict, "Esa ruta ya está cerrada: no se le manda enlace.")
+		return
+	}
+	if !ruta.VehicleID.Valid {
+		httpx.Error(w, r, http.StatusConflict, "Asigna un vehículo a la ruta antes de mandar el enlace: el teléfono se vincula a ese vehículo.")
 		return
 	}
 	existente, err := a.EnlaceVivoDeUnaRuta(r.Context(), id)
@@ -369,4 +441,93 @@ func (s *Servidor) verEnlaceDeRuta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, r, http.StatusOK, s.enlaceSalida(r, e.Token, e.CreatedAt.Time, e.DispositivoID, e.DispositivoNombre, e.ReclamadoAt))
+}
+
+// POST /api/vehicles/{id}/desvincular — la oficina. Cierra el vínculo vehículo<->teléfono: el teléfono pierde el acceso (403 `dispositivo_desvinculado`) y
+// su APK se vacía; sus rutas planificadas o en curso quedan sin dueño y sin enlace (se mandan a otro con uno nuevo). El servidor NO borra nada: las
+// rutas completadas, los puntos de GPS y el vínculo quedan de historia con el id del dispositivo.
+func (s *Servidor) desvincularVehiculo(w http.ResponseWriter, r *http.Request) {
+	a, ok := acotado(w, r)
+	if !ok {
+		return
+	}
+	id, ok := idDeRuta(w, r, httpx.MsgNoEncontrado)
+	if !ok {
+		return
+	}
+	var c struct {
+		Motivo string `json:"motivo"`
+	}
+	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&c)
+	var motivo *string
+	if m := strings.TrimSpace(c.Motivo); m != "" {
+		if len(m) > 300 {
+			m = m[:300]
+		}
+		motivo = &m
+	}
+	if _, err := a.ObtenerVehiculo(r.Context(), id); errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNoEncontrado)
+		return
+	} else if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	var cerrado sqlc.CerrarVinculoDeVehiculoRow
+	var sueltas []uuid.UUID
+	err := a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
+		var err error
+		cerrado, err = tx.CerrarVinculoDeVehiculo(r.Context(), id, motivo)
+		if err != nil {
+			return err
+		}
+		sueltas, err = tx.SoltarRutasAbiertasDeUnDispositivo(r.Context(), cerrado.DispositivoID)
+		return err
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusConflict, "Ese vehículo no está vinculado a ningún teléfono.")
+		return
+	}
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	avisarCambioDeVehiculos(r.Context(), deLaFilaPg(a.SucursalDeAlta()))
+	avisarCambioDeRutas(r.Context(), deLaFilaPg(a.SucursalDeAlta()))
+	if sueltas == nil {
+		sueltas = []uuid.UUID{}
+	}
+	httpx.JSON(w, r, http.StatusOK, map[string]any{"desvinculado": true, "dispositivoId": cerrado.DispositivoID, "rutasSueltas": sueltas})
+}
+
+// GET /api/vehicles/{id}/vinculos — la oficina: la historia de teléfonos que ha llevado este vehículo.
+func (s *Servidor) vinculosDeVehiculo(w http.ResponseWriter, r *http.Request) {
+	a, ok := acotado(w, r)
+	if !ok {
+		return
+	}
+	id, ok := idDeRuta(w, r, httpx.MsgNoEncontrado)
+	if !ok {
+		return
+	}
+	if _, err := a.ObtenerVehiculo(r.Context(), id); errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNoEncontrado)
+		return
+	} else if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	filas, err := a.ListarVinculosDeVehiculo(r.Context(), id)
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	salida := make([]map[string]any, 0, len(filas))
+	for _, f := range filas {
+		salida = append(salida, map[string]any{
+			"id": f.ID, "dispositivoId": f.DispositivoID, "dispositivo": f.DispositivoNombre,
+			"desde": hora(f.Desde), "hasta": hora(f.Hasta), "vinculadoPor": f.VinculadoPor, "desvinculadoPor": f.DesvinculadoPor, "motivo": f.Motivo,
+		})
+	}
+	httpx.JSON(w, r, http.StatusOK, salida)
 }

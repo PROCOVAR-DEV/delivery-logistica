@@ -972,3 +972,15 @@ type VentasFacturada struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
+
+type VinculosVehiculoDispositivo struct {
+	ID              uuid.UUID          `json:"id"`
+	VehicleID       uuid.UUID          `json:"vehicle_id"`
+	DispositivoID   uuid.UUID          `json:"dispositivo_id"`
+	BranchID        uuid.UUID          `json:"branch_id"`
+	Desde           pgtype.Timestamptz `json:"desde"`
+	Hasta           pgtype.Timestamptz `json:"hasta"`
+	VinculadoPor    *string            `json:"vinculado_por"`
+	DesvinculadoPor *string            `json:"desvinculado_por"`
+	Motivo          *string            `json:"motivo"`
+}

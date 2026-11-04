@@ -357,6 +357,8 @@ type Querier interface {
 	// irían separando hasta que un día alguien las lea como «la parada número 47» de una
 	// columna de nueve.
 	CerrarHuecoEnColumna(ctx context.Context, arg CerrarHuecoEnColumnaParams) (int64, error)
+	// Desvincular: cierra el vínculo vivo del vehículo (acotado a la sucursal de la oficina). 0 filas = no estaba vinculado (o no es de su sucursal).
+	CerrarVinculoDeVehiculo(ctx context.Context, arg CerrarVinculoDeVehiculoParams) (CerrarVinculoDeVehiculoRow, error)
 	// Los códigos a los que esta persona puede llegar. Es lo que filtra la respuesta de
 	// Accesos en `/api/almacenes`: Accesos devuelve las ocho sucursales y aquí se descartan
 	// las que no le tocan. Sólo las que TIENEN código: sin él no hay nada que cotejar.
@@ -597,6 +599,7 @@ type Querier interface {
 	// no cuestan igual. Vacío quiere decir «usa el del tipo», no «cero».
 	// EL REINTENTO (04/11/2026): mismo id del aparato = el camión que ya estaba, no un segundo.
 	CrearVehiculo(ctx context.Context, arg CrearVehiculoParams) (CrearVehiculoRow, error)
+	CrearVinculoDeVehiculo(ctx context.Context, arg CrearVinculoDeVehiculoParams) (uuid.UUID, error)
 	// Retirar una moneda es desactivarla, no borrarla: los importes ya guardados se
 	// convirtieron con su tasa y sin la fila no hay forma de volver a explicarlos.
 	DesactivarMoneda(ctx context.Context, code string) (int64, error)
@@ -1541,6 +1544,7 @@ type Querier interface {
 	// `sucursal_codigo`, y aquí es NOT NULL — una venta sin sucursal no existe. El llamante
 	// traduce su sucursal con `branches.external_id`; NULL significa todas.
 	ListarVentasFacturadas(ctx context.Context, arg ListarVentasFacturadasParams) ([]ListarVentasFacturadasRow, error)
+	ListarVinculosDeVehiculo(ctx context.Context, arg ListarVinculosDeVehiculoParams) ([]ListarVinculosDeVehiculoRow, error)
 	// La marca de agua del espejo: `since` de la próxima bajada.
 	//
 	// Se DERIVA de los datos y no de un contador aparte a propósito: un contador se adelanta
@@ -2061,6 +2065,8 @@ type Querier interface {
 	// elimina la fila.
 	SoltarPedidosDeRuta(ctx context.Context, arg SoltarPedidosDeRutaParams) (int64, error)
 	SoltarRutaDeSuDispositivo(ctx context.Context, ruta uuid.UUID) error
+	// Las rutas planificadas o en curso del teléfono se sueltan y sus enlaces se revocan (se mandan a otro con un enlace nuevo). Las cerradas se quedan de historia.
+	SoltarRutasAbiertasDeUnDispositivo(ctx context.Context, dispositivo pgtype.UUID) ([]uuid.UUID, error)
 	TocarDispositivoDistribuidor(ctx context.Context, id uuid.UUID) error
 	// Hasta cuándo se tiene facturación de una sucursal.
 	//
@@ -2085,6 +2091,9 @@ type Querier interface {
 	// El de referencia de una sucursal: con su capacidad y su costo por km define el CKK de la
 	// fórmula del domicilio. Si el vehículo no trae costo propio se cae al del tipo.
 	VehiculoDeReferenciaDeSucursal(ctx context.Context, sucursal pgtype.UUID) (VehiculoDeReferenciaDeSucursalRow, error)
+	VinculoVivoDeDispositivo(ctx context.Context, dispositivo uuid.UUID) (VinculoVivoDeDispositivoRow, error)
+	// EL VÍNCULO VEHÍCULO <-> TELÉFONO (00035).
+	VinculoVivoDeVehiculo(ctx context.Context, vehiculo uuid.UUID) (VinculoVivoDeVehiculoRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

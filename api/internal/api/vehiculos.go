@@ -127,24 +127,28 @@ func costoKmValido(w http.ResponseWriter, r *http.Request, v httpx.Opcional[floa
 }
 
 type VehiculoSalida struct {
-	ID                 uuid.UUID  `json:"id"`
-	Name               string     `json:"name"`
-	Type               string     `json:"type"` // el NOMBRE del tipo, que es lo que el cliente manda y enseña
-	VehicleTypeID      uuid.UUID  `json:"vehicleTypeId"`
-	Plate              *string    `json:"plate"`
-	Capacity           float64    `json:"capacity"`
-	CostoKmUsd         *float64   `json:"costoKmUsd"`
-	TipoCostoKmUsd     *float64   `json:"tipoCostoKmUsd"`
-	UsarParaDomicilio  bool       `json:"usarParaDomicilio"`
-	IsActive           bool       `json:"isActive"`
-	Status             string     `json:"status"`
-	Notes              *string    `json:"notes"`
-	BranchID           *uuid.UUID `json:"branchId"`
-	SucursalNombre     *string    `json:"sucursalNombre,omitempty"`
-	CreatedAt          *time.Time `json:"createdAt"`
-	UpdatedAt          *time.Time `json:"updatedAt"`
-	Count              conteoVeh  `json:"_count"`
-	DistribuidorID     *uuid.UUID `json:"distribuidorId"`
+	ID                uuid.UUID  `json:"id"`
+	Name              string     `json:"name"`
+	Type              string     `json:"type"` // el NOMBRE del tipo, que es lo que el cliente manda y enseña
+	VehicleTypeID     uuid.UUID  `json:"vehicleTypeId"`
+	Plate             *string    `json:"plate"`
+	Capacity          float64    `json:"capacity"`
+	CostoKmUsd        *float64   `json:"costoKmUsd"`
+	TipoCostoKmUsd    *float64   `json:"tipoCostoKmUsd"`
+	UsarParaDomicilio bool       `json:"usarParaDomicilio"`
+	IsActive          bool       `json:"isActive"`
+	Status            string     `json:"status"`
+	Notes             *string    `json:"notes"`
+	BranchID          *uuid.UUID `json:"branchId"`
+	SucursalNombre    *string    `json:"sucursalNombre,omitempty"`
+	CreatedAt         *time.Time `json:"createdAt"`
+	UpdatedAt         *time.Time `json:"updatedAt"`
+	Count             conteoVeh  `json:"_count"`
+	DistribuidorID    *uuid.UUID `json:"distribuidorId"`
+	// EL TELÉFONO AL QUE ESTÁ VINCULADO (00035): nulo = ninguno. Se quita con POST /api/vehicles/{id}/desvincular.
+	DispositivoID      *uuid.UUID `json:"dispositivoId"`
+	DispositivoNombre  string     `json:"dispositivoNombre,omitempty"`
+	VinculadoAt        *time.Time `json:"vinculadoAt"`
 	DistribuidorNombre string     `json:"distribuidorNombre,omitempty"`
 
 	// EN QUÉ ANDA ESTE CAMIÓN. Cero o una ruta, la que lo tiene cogido ahora.
@@ -242,6 +246,7 @@ func (s *Servidor) listarVehiculos(w http.ResponseWriter, r *http.Request) {
 			TipoCostoKmUsd: f.TipoCostoKmUsd, UsarParaDomicilio: f.UsarParaDomicilio,
 			Status: string(f.Status), IsActive: f.IsActive, Notes: f.Notes, BranchID: idOpcional(f.BranchID),
 			SucursalNombre: f.SucursalNombre, DistribuidorID: idOpcional(f.DistribuidorID), DistribuidorNombre: f.DistribuidorNombre,
+			DispositivoID: idOpcional(f.DispositivoVinculadoID), DispositivoNombre: f.DispositivoVinculadoNombre, VinculadoAt: hora(f.VinculadoAt),
 			CreatedAt: hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
 			Count:  conteoVeh{Routes: f.Rutas, Orders: f.Pedidos, OrderAssignments: f.Asignaciones},
 			Routes: laSuya(porCamion, f.ID),
@@ -280,6 +285,7 @@ func (s *Servidor) obtenerVehiculo(w http.ResponseWriter, r *http.Request) {
 		TipoCostoKmUsd: f.TipoCostoKmUsd, UsarParaDomicilio: f.UsarParaDomicilio,
 		Status: string(f.Status), IsActive: f.IsActive, Notes: f.Notes, BranchID: idOpcional(f.BranchID),
 		DistribuidorID: idOpcional(f.DistribuidorID), DistribuidorNombre: f.DistribuidorNombre,
+		DispositivoID: idOpcional(f.DispositivoVinculadoID), DispositivoNombre: f.DispositivoVinculadoNombre, VinculadoAt: hora(f.VinculadoAt),
 		CreatedAt: hora(f.CreatedAt), UpdatedAt: hora(f.UpdatedAt),
 		Count:  conteoVeh{Routes: f.Rutas, Orders: f.Pedidos, OrderAssignments: f.Asignaciones},
 		Routes: laSuya(rutasPorCamion(abiertas), f.ID),

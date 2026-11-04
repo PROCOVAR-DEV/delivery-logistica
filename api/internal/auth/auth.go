@@ -62,6 +62,8 @@ type Usuario struct {
 	// Dispositivo: el id del teléfono de un DISTRIBUIDOR (claim `dispositivo`). Vacío en cualquier otra persona. El alcance del distribuidor sale
 	// de él: solo las rutas asignadas a ese teléfono (`internal/alcance`).
 	Dispositivo string
+	// Vinculo: el id del vínculo vehículo<->teléfono vigente al firmar (claim `vinculo`). Al desvincular el vehículo deja de coincidir y el token muere.
+	Vinculo string
 
 	// IatMs: cuándo se emitió el token, en MILISEGUNDOS (claim `iatms`). Lo firman la cookie de la
 	// web (`auth_web.go`) y, desde el 08/10/2026, Accesos en el token de acceso de la APK. Cero = no
@@ -461,6 +463,7 @@ func (v *Verificador) Verificar(token string) (*Usuario, error) {
 	}
 	u.Entradas, u.HayEntradas = LeerEntradas(c.Entradas)
 	u.Dispositivo = strings.TrimSpace(c.Dispositivo)
+	u.Vinculo = strings.TrimSpace(c.Vinculo)
 	u.FirmadoPorLaWeb = c.Web
 	if c.IatMs != nil {
 		u.IatMs = int64(*c.IatMs)
@@ -491,6 +494,7 @@ type reclamos struct {
 	Sucursal      string   `json:"sucursal"`
 	// `dispositivo`: el teléfono de un DISTRIBUIDOR (lo firma Reparto al reclamar un enlace, `dispositivos.go`). Sin cuenta de Accesos.
 	Dispositivo string   `json:"dispositivo"`
+	Vinculo     string   `json:"vinculo"`
 	Exp         *float64 `json:"exp"`
 	Nbf         *float64 `json:"nbf"`
 	// `iat` NO se usa para decidir nada —un token sin él vale igual— y está aquí sólo para

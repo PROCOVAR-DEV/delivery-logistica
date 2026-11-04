@@ -19,6 +19,9 @@ SELECT
     v.usar_para_domicilio, v.status, v.is_active, v.notes, v.branch_id,
     v.created_at, v.updated_at, v.distribuidor_id,
     coalesce((SELECT d.nombre FROM distribuidores d WHERE d.id = v.distribuidor_id), '')::text AS distribuidor_nombre,
+    vv.dispositivo_id AS dispositivo_vinculado_id,
+    coalesce(dd.nombre, '')::text AS dispositivo_vinculado_nombre,
+    vv.desde AS vinculado_at,
     vt.nombre       AS tipo_nombre,
     vt.costo_km_usd AS tipo_costo_km_usd,
     b.name          AS sucursal_nombre,
@@ -40,6 +43,8 @@ SELECT
 FROM vehicles v
 JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
 LEFT JOIN branches b  ON b.id  = v.branch_id
+LEFT JOIN vinculos_vehiculo_dispositivo vv ON vv.vehicle_id = v.id AND vv.hasta IS NULL
+LEFT JOIN dispositivos_distribuidor dd ON dd.id = vv.dispositivo_id
 WHERE (sqlc.narg('sucursal')::uuid IS NULL
        OR v.branch_id = sqlc.narg('sucursal')::uuid
        OR v.branch_id IS NULL)
@@ -56,6 +61,9 @@ SELECT
     v.usar_para_domicilio, v.status, v.is_active, v.notes, v.branch_id,
     v.created_at, v.updated_at, v.distribuidor_id,
     coalesce((SELECT d.nombre FROM distribuidores d WHERE d.id = v.distribuidor_id), '')::text AS distribuidor_nombre,
+    vv.dispositivo_id AS dispositivo_vinculado_id,
+    coalesce(dd.nombre, '')::text AS dispositivo_vinculado_nombre,
+    vv.desde AS vinculado_at,
     vt.nombre       AS tipo_nombre,
     vt.costo_km_usd AS tipo_costo_km_usd,
     (SELECT count(*) FROM routes r          WHERE r.vehicle_id  = v.id) AS rutas,
@@ -66,6 +74,8 @@ SELECT
     (SELECT count(*) FROM order_vehicles ov WHERE ov.vehicle_id = v.id) AS asignaciones
 FROM vehicles v
 JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
+LEFT JOIN vinculos_vehiculo_dispositivo vv ON vv.vehicle_id = v.id AND vv.hasta IS NULL
+LEFT JOIN dispositivos_distribuidor dd ON dd.id = vv.dispositivo_id
 WHERE v.id = sqlc.arg('id')
   AND (sqlc.narg('sucursal')::uuid IS NULL
        OR v.branch_id = sqlc.narg('sucursal')::uuid

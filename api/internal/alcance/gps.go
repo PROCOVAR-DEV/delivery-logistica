@@ -93,3 +93,17 @@ func (a *Acotado) SoltarRutaDeSuDispositivo(ctx context.Context, ruta uuid.UUID)
 func (a *Acotado) CrearEnlaceDeRuta(ctx context.Context, ruta uuid.UUID, token string, creadoPor *string) (sqlc.CrearEnlaceDeRutaRow, error) {
 	return a.q.CrearEnlaceDeRuta(ctx, sqlc.CrearEnlaceDeRutaParams{Ruta: ruta, Token: token, CreadoPor: creadoPor})
 }
+
+// EL VÍNCULO VEHÍCULO <-> TELÉFONO (00035).
+func (a *Acotado) CerrarVinculoDeVehiculo(ctx context.Context, vehiculo uuid.UUID, motivo *string) (sqlc.CerrarVinculoDeVehiculoRow, error) {
+	por := a.ActorRef()
+	return a.q.CerrarVinculoDeVehiculo(ctx, sqlc.CerrarVinculoDeVehiculoParams{Vehiculo: vehiculo, Por: por, Motivo: motivo, Sucursal: a.sucursalPg()})
+}
+
+func (a *Acotado) SoltarRutasAbiertasDeUnDispositivo(ctx context.Context, dispositivo uuid.UUID) ([]uuid.UUID, error) {
+	return a.q.SoltarRutasAbiertasDeUnDispositivo(ctx, pgtype.UUID{Bytes: dispositivo, Valid: true})
+}
+
+func (a *Acotado) ListarVinculosDeVehiculo(ctx context.Context, vehiculo uuid.UUID) ([]sqlc.ListarVinculosDeVehiculoRow, error) {
+	return a.q.ListarVinculosDeVehiculo(ctx, sqlc.ListarVinculosDeVehiculoParams{Vehiculo: vehiculo, Sucursal: a.sucursalPg()})
+}

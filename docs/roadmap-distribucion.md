@@ -49,7 +49,7 @@ Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · �
 - ✔ 14. Vehículo ↔ teléfono: el enlace lleva el vehículo y el distribuidor, el teléfono se vincula al vehículo (uno a uno), la oficina desvincula (403 `dispositivo_desvinculado`, la APK se vacía) y el servidor conserva la historia por id de dispositivo (migración 00035) — con prueba e2e
 - 🔒 13. Despliegue en producción (migraciones 00032 a 00035, API, sync, web)
 
-## 2. Reparto — aplicación de la oficina (web, **Windows**, APK de Reparto): 0 % (0 de 11)
+## 2. Reparto — la MISMA aplicación de siempre (web, **Windows**, APK de Reparto) con el apartado nuevo «Distribución»: 0 % (0 de 11)
 
 - ☐ 1. «Enviar a distribuidor»: crea el enlace de la ruta y lo comparte por WhatsApp (sustituye al enlace de Google Maps); en web, Windows y APK
 - ☐ 2. Estado del enlace por ruta: sin reclamar / reclamado por qué teléfono / soltar y renovar

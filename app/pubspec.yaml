@@ -116,6 +116,10 @@ dependencies:
   # `datos/entrega_del_excel.dart`.
   archive: 4.5.2
   xml: 7.1.0
+  # GPS de «Reparto Distribuidor» (`lib/distribuidor/gps/`): UN flujo de ubicacion con el
+  # servicio en primer plano de Android mientras haya una ruta en curso. Se importa SOLO desde
+  # `servicio_geolocator.dart`; el resto habla con la interfaz `ServicioDeUbicacion`.
+  geolocator: 14.0.1
   android_id: 0.6.0      # la HUELLA del aparato (ANDROID_ID): junta Reparto y CRM de una misma tablet en Accesos
 
 dev_dependencies:

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -60,10 +62,12 @@ class ClienteApi {
     List<Duration> esperas = esperasPorDefecto,
     Future<void> Function(Duration)? esperar,
     void Function({required bool llego})? alIntentar,
+    bool ordenarEscrituras = false,
   }) : _dio = dio,
        _esperas = esperas,
        _esperar = esperar ?? Future<void>.delayed,
-       _alIntentar = alIntentar;
+       _alIntentar = alIntentar,
+       _ordenarEscrituras = ordenarEscrituras;
 
   /// El montaje de verdad: crea el Dio, le pone los interceptores EN ORDEN y
   /// devuelve el cliente.
@@ -116,6 +120,8 @@ class ClienteApi {
       esperas: esperas,
       esperar: esperar,
       alIntentar: alIntentar,
+      // LA COLA DEL NAVEGADOR (04/11/2026): solo en la web. La APK y el escritorio tienen la suya en disco (`ColaDeSalida`).
+      ordenarEscrituras: esWeb,
     );
   }
 
@@ -138,6 +144,19 @@ class ClienteApi {
   /// en menos de medio minuto en vez de en varios.
   final void Function({required bool llego})? _alIntentar;
 
+  /// LA COLA DEL NAVEGADOR (04/11/2026, Jose: «el navegador debe tener su cola también, que respete la de la subida de lo local»).
+  ///
+  /// Con esto puesto (solo la web), las escrituras —todo lo que no es un GET— salen **de una en una y en el orden en que se
+  /// pidieron**, igual que la cola del aparato: lo hecho antes sale antes, y un gesto no adelanta a otro (cerrar una ruta no puede
+  /// llegar antes que el alta que la crea). El reintento ante un corte de red ya está en [_conReintento] y manda el MISMO cuerpo,
+  /// o sea el mismo `id` que puso quien creó, así que el servidor devuelve lo que ya creó en vez de repetirlo.
+  ///
+  /// A propósito **en memoria y no en disco** (decisión de Jose, 16/09/2026: la web no guarda copia; una cola guardada en el
+  /// navegador atascó el tablero hora y media): si se cierra la pestaña, lo que no salió no sale. Y un gesto que falla **no
+  /// bloquea** a los siguientes.
+  final bool _ordenarEscrituras;
+  Future<void> _turno = Future<void>.value();
+
   Dio get dio => _dio;
 
   Future<T> pedir<T>(String ruta, {Map<String, Object?>? params}) =>
@@ -156,15 +175,28 @@ class ClienteApi {
     String ruta,
     Object? cuerpo, {
     bool reintentar = true,
-  }) => _conReintento(
-    () => _dio.request<T>(
-      ruta,
-      data: cuerpo,
-      options: Options(method: metodo),
-    ),
-    '$ruta $metodo',
-    reintentar: reintentar,
-  );
+  }) async {
+    Future<T> salir() => _conReintento(
+      () => _dio.request<T>(
+        ruta,
+        data: cuerpo,
+        options: Options(method: metodo),
+      ),
+      '$ruta $metodo',
+      reintentar: reintentar,
+    );
+    if (!_ordenarEscrituras) return salir();
+
+    final anterior = _turno;
+    final mio = Completer<void>();
+    _turno = mio.future; // nunca falla: se completa siempre, salga bien o mal el gesto
+    await anterior;
+    try {
+      return await salir();
+    } finally {
+      mio.complete();
+    }
+  }
 
   /// Reintenta **sólo** lo que es red o 5xx.
   ///

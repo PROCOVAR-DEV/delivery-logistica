@@ -522,3 +522,14 @@ tipo («las tablas ya separan»). El `id` va en el cuerpo del alta y **el servid
   creado con un apunte que no se aplicó; el cuadre diario no quita una fila que un apunte pendiente, rechazado o en revisión nombra (en los pedidos sigue cerrándose el
   rechazado cuyo pedido ya no existe).
 - Los almacenes se gestionan desde Accesos/CRM y no se crean en el aparato: siguen como están. El `local-…` de colas anteriores a la 1.0.51 se sigue entendiendo.
+
+### La cola del navegador — 04/11/2026
+
+La web también tiene su cola, **en memoria**: `ClienteApi` (con `ordenarEscrituras`, solo cuando es web) saca las escrituras de una en una y en el orden en que se pidieron, como la
+cola del aparato; un gesto que falla no bloquea a los siguientes, y el reintento por un corte de red manda el mismo cuerpo, o sea el mismo `id` que puso quien creó (el servidor
+devuelve lo que ya creó). **No se guarda en disco** a propósito (Jose, 16/09/2026: la web no guarda copia; una cola en el navegador atascó el tablero hora y media): cerrar la
+pestaña descarta lo que no salió. La APK y el escritorio no la usan: tienen `ColaDeSalida`. La bandeja de revisión es de administrador y va en línea.
+
+**Probado contra los servicios reales**: `api/e2e` levanta nada, usa el stack del portátil (`docker compose up -d --build postgres migraciones api sync`, `docs/entorno-local.md`) y corre con
+`REPARTO_E2E=1 go test ./e2e` (se salta solo sin el stack). Ata que la cola del aparato (`/sync/subida`, que reenvía a la API) y la del navegador (directo a `/api/*`) se respetan: el mismo
+alta por las dos no duplica, cada cola conserva su orden sin pisar a la otra, y un id que no es v7 se rechaza con motivo sin bloquear lo que va detrás.

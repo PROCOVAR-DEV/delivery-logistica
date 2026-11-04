@@ -1197,7 +1197,7 @@ pasa a **EN CURSO** y se libera al **completarla**.
 | Decimales de coordenadas mostradas | 5 | `geocode.ts` |
 | Fuzzy de producto | Damerau ≤ 1, token ≥ 4 chars, candidata **única** | `productMatch.ts` |
 | Clave de Ventra en el match por contención | longitud ≥ 4 | `emparejarVentra.ts` |
-| Formato de código de ruta | 6 caracteres del UUIDv7 de la ruta, único (04/11/2026; antes `RT-YYYYMMDD-NNN`, UTC, `count+1`) | `api/internal/api/codigo_de_ruta.go` |
+| Formato de código de ruta | `AAMMDD-XXXXXX` del UUIDv7 de la ruta (fecha + 6 caracteres), único (04/11/2026; antes `RT-YYYYMMDD-NNN`, UTC, `count+1`) | `api/internal/api/codigo_de_ruta.go` |
 
 ### 15.13 La regla de entrada a una ruta — Amado, 07/10/2026 y 15/10/2026 (`docs/incidencias-reparto.md`, puntos 2 y 6; issue 10, punto 3)
 

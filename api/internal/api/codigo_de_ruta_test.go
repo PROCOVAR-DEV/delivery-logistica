@@ -4,15 +4,17 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
 
-// EL CÓDIGO DE UNA RUTA SALE DE SU UUIDv7 (04/11/2026). Se ata: el formato corto y sin prefijo, que sale del id, que el id que manda el
+// EL CÓDIGO DE UNA RUTA SALE DE SU UUIDv7 (04/11/2026). Se ata: el formato `AAMMDD-XXXXXX` (fecha y código del id), que sale del id, que el id que manda el
 // aparato manda (y su código es el mismo en los dos lados), que un id que no es v7 se rechaza, y que un choque no repite nunca un código.
 
-var formatoDelCodigo = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{6}$`)
+var formatoDelCodigo = regexp.MustCompile(`^[0-9]{6}-[0-9A-HJKMNP-TV-Z]{6}$`)
 
 func codigoCortoValido(c string) bool { return formatoDelCodigo.MatchString(c) }
 
@@ -25,11 +27,26 @@ func TestElCodigoEsCortoSinPrefijoYSaleDelId(t *testing.T) {
 	if codigoDeRutaDe(id) != c {
 		t.Fatalf("el código tiene que salir SIEMPRE del mismo id")
 	}
-	// un valor conocido: los últimos 4 bytes 0x0000_0000 -> 000000 y 0x3FFF_FFFF -> ZZZZZZ (solo cuentan 30 bits)
+	// un valor conocido: 04/11/2026 15:30:00 UTC y los últimos 4 bytes a 0 / a 1 -> 261104-000000 y 261104-ZZZZZZ (solo cuentan 30 bits)
+	ms := uint64(time.Date(2026, 11, 4, 15, 30, 0, 0, time.UTC).UnixMilli())
 	var cero, lleno uuid.UUID
+	for i := 0; i < 6; i++ {
+		cero[i] = byte(ms >> (8 * (5 - i)))
+	}
+	cero[6], cero[8] = 0x70, 0x80 // versión 7, variante
+	lleno = cero
 	copy(lleno[12:], []byte{0xff, 0xff, 0xff, 0xff})
-	if codigoDeRutaDe(cero) != "000000" || codigoDeRutaDe(lleno) != "ZZZZZZ" {
+	if codigoDeRutaDe(cero) != "261104-000000" || codigoDeRutaDe(lleno) != "261104-ZZZZZZ" {
 		t.Fatalf("extremos: %q y %q", codigoDeRutaDe(cero), codigoDeRutaDe(lleno))
+	}
+	// la fecha es la del propio id: un id de ayer da la fecha de ayer
+	ayer := cero
+	ms2 := uint64(time.Date(2026, 11, 3, 23, 59, 59, 0, time.UTC).UnixMilli())
+	for i := 0; i < 6; i++ {
+		ayer[i] = byte(ms2 >> (8 * (5 - i)))
+	}
+	if !strings.HasPrefix(codigoDeRutaDe(ayer), "261103-") {
+		t.Fatalf("la fecha tiene que salir del id: %q", codigoDeRutaDe(ayer))
 	}
 }
 

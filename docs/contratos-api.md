@@ -494,7 +494,7 @@ caso aparte: es un pedido más, y entra o no según la regla de arriba (facturad
 ### Cálculo y escritura
 
 - `routeBranchId = opts.branchId ?? orders[0].branchId ?? null`.
-- **Código de ruta** (desde el 04/11/2026): 6 caracteres (alfabeto de Crockford, sin prefijo) sacados de los 30 bits aleatorios bajos del **UUIDv7 de la ruta**; el aparato (con o sin conexión) manda el `id` UUIDv7 en `POST /api/routes` y `POST /api/board/columns/{id}/routes` y el servidor lo RESPETA (el código sale del mismo id en los dos lados); solo si el código coincidiera con otra ruta se le da otro (el id se conserva) y se registra. `id` que no es UUIDv7: 400. Índice único `routes_route_code_uniq`. *(Texto anterior:)* `RT-YYYYMMDD-NNN`. `YYYYMMDD` de `new Date().toISOString().slice(0,10)`
+- **Código de ruta** (desde el 04/11/2026): `AAMMDD-XXXXXX` (sin prefijo de tipo; fecha UTC de creación, que lleva dentro el propio id, para buscar por fecha; y 6 caracteres de Crockford de los 30 bits aleatorios bajos) sacado del **UUIDv7 de la ruta**; el aparato (con o sin conexión) manda el `id` UUIDv7 en `POST /api/routes` y `POST /api/board/columns/{id}/routes` y el servidor lo RESPETA (el código sale del mismo id en los dos lados); solo si el código coincidiera con otra ruta se le da otro (el id se conserva) y se registra. `id` que no es UUIDv7: 400. Índice único `routes_route_code_uniq`. *(Texto anterior:)* `RT-YYYYMMDD-NNN`. `YYYYMMDD` de `new Date().toISOString().slice(0,10)`
   sin guiones (UTC). `NNN` = `count(Route where routeCode startsWith 'RT-<fecha>-') + 1`
   con `padStart(3,'0')`. (No es atómico: hay carrera bajo concurrencia.)
 - Se crea `Route` con `name || null`, `routeCode`, `userId = scope.actorId`, `vehicleId` (si

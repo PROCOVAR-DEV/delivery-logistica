@@ -301,7 +301,7 @@ pedido es el de su ruta.
 |---|---|---|---|---|
 | `id` | String | no | `cuid()` | PK |
 | `name` | String? | sí | — | |
-| `routeCode` | String? | sí | — | 6 caracteres sacados del UUIDv7 de la ruta (04/11/2026, `api/internal/api/codigo_de_ruta.go`), **UNIQUE** (`routes_route_code_uniq`, 00031); las anteriores a esa fecha son `RT-YYYYMMDD-NNN` |
+| `routeCode` | String? | sí | — | `AAMMDD-XXXXXX` sacado del UUIDv7 de la ruta (fecha UTC + 6 caracteres; 04/11/2026, `api/internal/api/codigo_de_ruta.go`), **UNIQUE** (`routes_route_code_uniq`, 00031); las anteriores a esa fecha son `RT-YYYYMMDD-NNN` |
 | `status` | String | no | `"planned"` | pseudo-enum, §3.3 |
 | `originAddress` | String? | sí | — | |
 | `originLat` | Float? | sí | — | |
@@ -628,7 +628,7 @@ compatibilidad de datos existentes; migrar a UUIDv7 obliga a reescribir todas la
 de base de datos; no persiste en ninguna tabla.
 
 **Códigos legibles generados**:
-- `Route.routeCode` = 6 caracteres del UUIDv7 de la ruta, único en toda la casa (desde el 04/11/2026; antes `RT-YYYYMMDD-NNN`, secuencia diaria por conteo que se repetía al borrar una ruta).
+- `Route.routeCode` = `AAMMDD-XXXXXX` sacado del UUIDv7 de la ruta (fecha UTC + 6 caracteres), único en toda la casa (desde el 04/11/2026; antes `RT-YYYYMMDD-NNN`, secuencia diaria por conteo que se repetía al borrar una ruta).
 
 **Referencias a sistemas externos**:
 

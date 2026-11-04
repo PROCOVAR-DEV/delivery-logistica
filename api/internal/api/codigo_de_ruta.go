@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -15,8 +16,8 @@ import (
 // Antes era `RT-YYYYMMDD-NNN`, y el NNN salía de CONTAR las rutas del día +1: al borrar una ruta, el siguiente código se repetía (el
 // 03/11/2026 hubo tres `RT-20261103-004` en La Habana, creadas desde la web minutos aparte, sin carrera de por medio).
 //
-// Ahora la ruta nace con un UUIDv7 y el código son 6 caracteres de su parte ALEATORIA, en el alfabeto de Crockford (sin I, L, O ni U:
-// no se confunden por teléfono), SIN prefijo. **Quien crea la ruta pone el id:** el aparato (con o sin conexión) manda el suyo y de él
+// Ahora la ruta nace con un UUIDv7 y el código es `AAMMDD-XXXXXX`: la fecha (UTC) que lleva dentro el propio id, un guion y 6
+// caracteres de su parte ALEATORIA, en el alfabeto de Crockford (sin I, L, O ni U: no se confunden por teléfono). Sin prefijo de tipo. **Quien crea la ruta pone el id:** el aparato (con o sin conexión) manda el suyo y de él
 // salen el mismo código en el aparato y en el servidor (`codigoDeRutaDe`, gemela de `app/lib/nucleo/codigo_de_ruta.dart`); la web, que no
 // tiene aparato, lo deja al servidor. Tres capas contra la repetición, en este orden:
 //
@@ -35,7 +36,10 @@ const intentosDeCodigoDeRuta = 8
 // errIdNoEsV7 es el id que manda el aparato cuando no es un UUIDv7 bien formado.
 var errIdNoEsV7 = errors.New("el id de la ruta tiene que ser un UUID v7")
 
-// codigoDeRutaDe saca el código de 6 caracteres de los 30 bits más bajos de un UUIDv7 (los últimos 4 bytes son aleatorios del todo).
+// codigoDeRutaDe saca el código `AAMMDD-XXXXXX` de un UUIDv7: la FECHA de creación (la hora que lleva dentro el propio id, en UTC, para
+// poder buscar por fecha: Jose, 04/11/2026), un guion y 6 caracteres de los 30 bits más bajos (los últimos 4 bytes son aleatorios del
+// todo). Todo sale del id, así que el aparato y el servidor calculan SIEMPRE el mismo código. UTC y no Cuba a propósito: no depende de
+// la zona horaria ni de la tabla de husos de ningún aparato ni contenedor.
 func codigoDeRutaDe(id uuid.UUID) string {
 	n := binary.BigEndian.Uint32(id[12:16]) & (1<<30 - 1)
 	var c [6]byte
@@ -43,7 +47,8 @@ func codigoDeRutaDe(id uuid.UUID) string {
 		c[i] = alfabetoDeCodigos[n&31]
 		n >>= 5
 	}
-	return string(c[:])
+	seg, nseg := id.Time().UnixTime()
+	return time.Unix(seg, nseg).UTC().Format("060102") + "-" + string(c[:])
 }
 
 // idDeRutaDelAparato lee el `id` que manda el aparato: vacío = no mandó ninguno (`uuid.Nil`), y si viene tiene que ser un UUIDv7.

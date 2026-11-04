@@ -860,6 +860,8 @@ WITH parada AS (
         ultima_ruta_id = $1,
         resultado_at   = NULL,
         resultado_nota = NULL,
+        cobro_entrega  = NULL,
+        cobro_entrega_at = NULL,
         delivered_at   = NULL,
         status         = 'pending'::order_status,
         route_id       = $1
@@ -875,6 +877,8 @@ WITH parada AS (
         ultima_ruta_id = $1,
         resultado_at   = NULL,
         resultado_nota = NULL,
+        cobro_entrega  = NULL,
+        cobro_entrega_at = NULL,
         delivered_at   = NULL,
         status         = 'pending'::order_status,
         route_id       = $1
@@ -1586,10 +1590,14 @@ WITH parada AS (
     UPDATE orders o SET
         resultado      = $1::stop_result,
         ultima_ruta_id = $2,
-        resultado_at   = now(),
-        resultado_nota = $3,
+        -- LA HORA REAL DEL APARATO (04/11/2026): si el distribuidor manda cuándo marcó la parada, esa es la hora; nunca en el futuro. Sin ella,
+        -- la del servidor (lo que hacía siempre, y lo que sigue pasando cuando el logístico marca de golpe desde la oficina).
+        resultado_at   = coalesce(LEAST($3::timestamptz, now()), now()),
+        resultado_nota = $4,
+        cobro_entrega    = coalesce($5::text, o.cobro_entrega),
+        cobro_entrega_at = CASE WHEN $5::text IS NOT NULL THEN coalesce(LEAST($3::timestamptz, now()), now()) ELSE o.cobro_entrega_at END,
         delivered_at = CASE
-            WHEN $1::stop_result = 'entregado' THEN now()
+            WHEN $1::stop_result = 'entregado' THEN coalesce(LEAST($3::timestamptz, now()), now())
             ELSE NULL
         END,
         status = CASE
@@ -1600,20 +1608,24 @@ WITH parada AS (
             WHEN $1::stop_result = 'entregado' THEN $2
             ELSE NULL
         END
-    WHERE o.id = $4
+    WHERE o.id = $6
       AND o.conduce_principal_id IS NULL
       AND (o.route_id = $2
            OR (o.route_id IS NULL AND o.ultima_ruta_id = $2 AND o.resultado IS NOT NULL))
-      AND ($5::uuid IS NULL OR o.branch_id = $5::uuid)
+      AND ($7::uuid IS NULL OR o.branch_id = $7::uuid)
     RETURNING o.id AS id
 ), miembros AS (
     UPDATE orders m SET
         resultado      = $1::stop_result,
         ultima_ruta_id = $2,
-        resultado_at   = now(),
-        resultado_nota = $3,
+        -- LA HORA REAL DEL APARATO (04/11/2026): si el distribuidor manda cuándo marcó la parada, esa es la hora; nunca en el futuro. Sin ella,
+        -- la del servidor (lo que hacía siempre, y lo que sigue pasando cuando el logístico marca de golpe desde la oficina).
+        resultado_at   = coalesce(LEAST($3::timestamptz, now()), now()),
+        resultado_nota = $4,
+        cobro_entrega    = coalesce($5::text, m.cobro_entrega),
+        cobro_entrega_at = CASE WHEN $5::text IS NOT NULL THEN coalesce(LEAST($3::timestamptz, now()), now()) ELSE m.cobro_entrega_at END,
         delivered_at = CASE
-            WHEN $1::stop_result = 'entregado' THEN now()
+            WHEN $1::stop_result = 'entregado' THEN coalesce(LEAST($3::timestamptz, now()), now())
             ELSE NULL
         END,
         status = CASE
@@ -1633,11 +1645,13 @@ SELECT count(*) FROM parada
 `
 
 type MarcarResultadoDeParadaParams struct {
-	Resultado StopResult  `json:"resultado"`
-	RutaID    pgtype.UUID `json:"ruta_id"`
-	Nota      *string     `json:"nota"`
-	PedidoID  uuid.UUID   `json:"pedido_id"`
-	Sucursal  pgtype.UUID `json:"sucursal"`
+	Resultado StopResult         `json:"resultado"`
+	RutaID    pgtype.UUID        `json:"ruta_id"`
+	Hora      pgtype.Timestamptz `json:"hora"`
+	Nota      *string            `json:"nota"`
+	Cobro     *string            `json:"cobro"`
+	PedidoID  uuid.UUID          `json:"pedido_id"`
+	Sucursal  pgtype.UUID        `json:"sucursal"`
 }
 
 // ---------------------------------------------------------------------------
@@ -1675,7 +1689,9 @@ func (q *Queries) MarcarResultadoDeParada(ctx context.Context, arg MarcarResulta
 	row := q.db.QueryRow(ctx, marcarResultadoDeParada,
 		arg.Resultado,
 		arg.RutaID,
+		arg.Hora,
 		arg.Nota,
+		arg.Cobro,
 		arg.PedidoID,
 		arg.Sucursal,
 	)

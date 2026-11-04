@@ -14,6 +14,8 @@ package alcance
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/google/uuid"
 
 	"procovar/reparto-api/internal/store/sqlc"
@@ -180,14 +182,23 @@ func (a *Acotado) ObtenerVehiculoParaCapacidad(ctx context.Context, id uuid.UUID
 // Cierre y borrado
 // ---------------------------------------------------------------------------
 
+// AnotacionesDeParada: lo que el APARATO añade al marcar una parada (04/11/2026). `Hora` es cuándo la marcó (la del aparato; el SQL la
+// recorta a «ahora» como mucho) y `Cobro` el aviso del distribuidor: `cobrado` o `no_cobrado` (nil = no lo dijo y no se toca).
+type AnotacionesDeParada struct {
+	Hora  pgtype.Timestamptz
+	Cobro *string
+}
+
 // MarcarResultadoDeParada lleva la ruta en el WHERE (`route_id`, o `ultima_ruta_id` si la
 // parada la soltó con un resultado): cero filas es «ese pedido no va en esta ruta», que es
 // el rechazo del contrato. Comprobarlo antes en Go sobre una lectura anterior es mirar una
 // foto vieja.
-func (a *Acotado) MarcarResultadoDeParada(ctx context.Context, ruta, pedido uuid.UUID, resultado sqlc.StopResult, nota *string) (int64, error) {
+func (a *Acotado) MarcarResultadoDeParada(ctx context.Context, ruta, pedido uuid.UUID, resultado sqlc.StopResult, nota *string, extra AnotacionesDeParada) (int64, error) {
 	return a.q.MarcarResultadoDeParada(ctx, sqlc.MarcarResultadoDeParadaParams{
 		Resultado: resultado,
 		Nota:      nota,
+		Hora:      extra.Hora,
+		Cobro:     extra.Cobro,
 		PedidoID:  pedido,
 		RutaID:    aPg(&ruta),
 		Sucursal:  a.sucursalPg(),

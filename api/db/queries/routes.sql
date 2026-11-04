@@ -609,10 +609,14 @@ WITH parada AS (
     UPDATE orders o SET
         resultado      = sqlc.arg('resultado')::stop_result,
         ultima_ruta_id = sqlc.arg('ruta_id'),
-        resultado_at   = now(),
+        -- LA HORA REAL DEL APARATO (04/11/2026): si el distribuidor manda cuándo marcó la parada, esa es la hora; nunca en el futuro. Sin ella,
+        -- la del servidor (lo que hacía siempre, y lo que sigue pasando cuando el logístico marca de golpe desde la oficina).
+        resultado_at   = coalesce(LEAST(sqlc.narg('hora')::timestamptz, now()), now()),
         resultado_nota = sqlc.narg('nota'),
+        cobro_entrega    = coalesce(sqlc.narg('cobro')::text, o.cobro_entrega),
+        cobro_entrega_at = CASE WHEN sqlc.narg('cobro')::text IS NOT NULL THEN coalesce(LEAST(sqlc.narg('hora')::timestamptz, now()), now()) ELSE o.cobro_entrega_at END,
         delivered_at = CASE
-            WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN now()
+            WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN coalesce(LEAST(sqlc.narg('hora')::timestamptz, now()), now())
             ELSE NULL
         END,
         status = CASE
@@ -633,10 +637,14 @@ WITH parada AS (
     UPDATE orders m SET
         resultado      = sqlc.arg('resultado')::stop_result,
         ultima_ruta_id = sqlc.arg('ruta_id'),
-        resultado_at   = now(),
+        -- LA HORA REAL DEL APARATO (04/11/2026): si el distribuidor manda cuándo marcó la parada, esa es la hora; nunca en el futuro. Sin ella,
+        -- la del servidor (lo que hacía siempre, y lo que sigue pasando cuando el logístico marca de golpe desde la oficina).
+        resultado_at   = coalesce(LEAST(sqlc.narg('hora')::timestamptz, now()), now()),
         resultado_nota = sqlc.narg('nota'),
+        cobro_entrega    = coalesce(sqlc.narg('cobro')::text, m.cobro_entrega),
+        cobro_entrega_at = CASE WHEN sqlc.narg('cobro')::text IS NOT NULL THEN coalesce(LEAST(sqlc.narg('hora')::timestamptz, now()), now()) ELSE m.cobro_entrega_at END,
         delivered_at = CASE
-            WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN now()
+            WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN coalesce(LEAST(sqlc.narg('hora')::timestamptz, now()), now())
             ELSE NULL
         END,
         status = CASE
@@ -692,6 +700,8 @@ WITH parada AS (
         ultima_ruta_id = sqlc.arg('ruta_id'),
         resultado_at   = NULL,
         resultado_nota = NULL,
+        cobro_entrega  = NULL,
+        cobro_entrega_at = NULL,
         delivered_at   = NULL,
         status         = 'pending'::order_status,
         route_id       = sqlc.arg('ruta_id')
@@ -707,6 +717,8 @@ WITH parada AS (
         ultima_ruta_id = sqlc.arg('ruta_id'),
         resultado_at   = NULL,
         resultado_nota = NULL,
+        cobro_entrega  = NULL,
+        cobro_entrega_at = NULL,
         delivered_at   = NULL,
         status         = 'pending'::order_status,
         route_id       = sqlc.arg('ruta_id')

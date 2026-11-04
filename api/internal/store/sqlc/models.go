@@ -742,7 +742,9 @@ type Order struct {
 	// la ruta de la que salió la factura anulada (00027). Sin clave ajena a propósito: la ruta puede borrarse después
 	AnuladaDeRutaID pgtype.UUID `json:"anulada_de_ruta_id"`
 	// conduce (00029): NULL = factura suelta o PRINCIPAL de un conduce; uuid = MIEMBRO y apunta a su principal. Sin cadenas. Solo lo escribe una persona
-	ConducePrincipalID pgtype.UUID `json:"conduce_principal_id"`
+	ConducePrincipalID pgtype.UUID        `json:"conduce_principal_id"`
+	CobroEntrega       *string            `json:"cobro_entrega"`
+	CobroEntregaAt     pgtype.Timestamptz `json:"cobro_entrega_at"`
 }
 
 type OrderItem struct {
@@ -824,6 +826,23 @@ type PuntosDeCliente struct {
 	PuestoPor      *string            `json:"puesto_por"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PuntosGp struct {
+	ID             uuid.UUID          `json:"id"`
+	DistribuidorID uuid.UUID          `json:"distribuidor_id"`
+	PersonaID      string             `json:"persona_id"`
+	BranchID       uuid.UUID          `json:"branch_id"`
+	RutaIds        []uuid.UUID        `json:"ruta_ids"`
+	Lat            float64            `json:"lat"`
+	Lng            float64            `json:"lng"`
+	PrecisionM     *float32           `json:"precision_m"`
+	VelocidadMs    *float32           `json:"velocidad_ms"`
+	Rumbo          *float32           `json:"rumbo"`
+	Hora           pgtype.Timestamptz `json:"hora"`
+	RecibidoAt     pgtype.Timestamptz `json:"recibido_at"`
+	Evento         *string            `json:"evento"`
+	PedidoID       pgtype.UUID        `json:"pedido_id"`
 }
 
 type RecepcionesDelWebhook struct {

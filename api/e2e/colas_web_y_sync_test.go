@@ -580,3 +580,123 @@ func contiene(lista []string, quien ...string) bool {
 	}
 	return false
 }
+
+// EL GPS: lo manda el distribuidor, lo ve la oficina, y el distribuidor no ve NADA de ello (04/11/2026).
+func TestElGpsLoVeLaOficinaYNoElDistribuidor(t *testing.T) {
+	s := levantar(t)
+	sub1 := "gps1-" + uuid.NewString()[:8]
+	d1, d2 := s.distribuidor("Gps Uno", sub1), s.distribuidor("Gps Dos", "gps2-"+uuid.NewString()[:8])
+	rutaA, camionA, pedidosA := s.rutaConDistribuidor(d1)
+	rutaB, _, _ := s.rutaConDistribuidor(d2)
+	dist := s.como(s.tokenDe(sub1, "DISTRIBUIDOR", s.sucursal.String()))
+
+	hace := func(d time.Duration) string { return time.Now().UTC().Add(-d).Format(time.RFC3339Nano) }
+	punto := func(id string, rutas []string, lat, lng float64, hora string, evento string) map[string]any {
+		p := map[string]any{"id": id, "rutaIds": rutas, "lat": lat, "lng": lng, "hora": hora, "precision": 8.5, "velocidad": 3.2, "rumbo": 90.0}
+		if evento != "" {
+			p["evento"] = evento
+		}
+		return p
+	}
+
+	if code, b := dist.web("PATCH", "/routes/"+rutaA, map[string]any{"status": "in_progress"}); code != 200 {
+		t.Fatalf("iniciar: %d %s", code, b)
+	}
+	p1, p2 := nuevo(), nuevo()
+	lote := map[string]any{"puntos": []map[string]any{
+		punto(p1, []string{rutaA}, 20.01, -75.01, hace(30*time.Minute), "inicio"),
+		punto(p2, []string{rutaA}, 20.02, -75.02, hace(20*time.Minute), ""),
+		punto(nuevo(), []string{rutaB}, 20.03, -75.03, hace(10*time.Minute), ""),                                   // ruta de otro: se rechaza
+		punto(uuid.NewString(), []string{rutaA}, 20.04, -75.04, hace(5*time.Minute), ""),                           // id v4: se rechaza
+		punto(nuevo(), []string{rutaA}, 20.05, -75.05, time.Now().UTC().Add(2*time.Hour).Format(time.RFC3339), ""), // futuro
+		punto(nuevo(), []string{rutaA}, 99, -75.05, hace(time.Minute), ""),                                         // fuera de rango
+	}}
+	code, b := dist.web("POST", "/track", lote)
+	if code != 200 {
+		t.Fatalf("POST /track: %d %s", code, b)
+	}
+	var r1 struct {
+		Recibidos  int `json:"recibidos"`
+		Nuevos     int `json:"nuevos"`
+		Rechazados []struct{ ID, Motivo string }
+	}
+	_ = json.Unmarshal(b, &r1)
+	if r1.Recibidos != 2 || r1.Nuevos != 2 || len(r1.Rechazados) != 4 {
+		t.Fatalf("el lote: %+v", r1)
+	}
+	code, b = dist.web("POST", "/track", lote) // el aparato no supo si llegó: lo manda otra vez
+	_ = json.Unmarshal(b, &r1)
+	if code != 200 || r1.Recibidos != 2 || r1.Nuevos != 0 {
+		t.Fatalf("el reintento: %d %+v", code, r1)
+	}
+	horaReal := hace(25 * time.Minute)
+	if code, b := dist.web("POST", "/routes/"+rutaA+"/results", map[string]any{"resultados": []map[string]any{
+		{"orderId": pedidosA[0], "resultado": "entregado", "hora": horaReal, "cobrado": true}}}); code != 200 {
+		t.Fatalf("marcar: %d %s", code, b)
+	}
+	dist.web("POST", "/track", map[string]any{"puntos": []map[string]any{
+		{"id": nuevo(), "rutaIds": []string{rutaA}, "lat": 20.015, "lng": -75.015, "hora": horaReal, "evento": "parada", "pedidoId": pedidosA[0]},
+		punto(nuevo(), []string{rutaA}, 20.06, -75.06, hace(time.Minute), ""),
+	}})
+
+	// EL DISTRIBUIDOR NO VE NADA DE ESTO
+	for _, ruta := range []string{"/routes/" + rutaA + "/track", "/vehicles/" + camionA + "/historial", "/tracking/ahora"} {
+		if code, b := dist.web("GET", ruta, nil); code != 403 || !strings.Contains(string(b), "no_es_para_el_distribuidor") {
+			t.Errorf("GET %s como distribuidor: %d %s, tenía que ser 403", ruta, code, b)
+		}
+	}
+	if code, _ := s.web("POST", "/track", lote); code != 403 {
+		t.Errorf("POST /track como logístico: %d, tenía que ser 403", code)
+	}
+
+	// LA OFICINA: el recorrido con la hora real y el cobro
+	code, b = s.web("GET", "/routes/"+rutaA+"/track", nil)
+	if code != 200 {
+		t.Fatalf("recorrido: %d %s", code, b)
+	}
+	var rec struct {
+		Puntos  []struct{ ID, Evento string } `json:"puntos"`
+		Paradas []struct {
+			PedidoID     string  `json:"pedidoId"`
+			Resultado    *string `json:"resultado"`
+			ResultadoAt  string  `json:"resultadoAt"`
+			CobroEntrega *string `json:"cobroEntrega"`
+		} `json:"paradas"`
+	}
+	_ = json.Unmarshal(b, &rec)
+	if len(rec.Puntos) != 4 {
+		t.Fatalf("los puntos del recorrido: %d %s", len(rec.Puntos), b)
+	}
+	hechas := 0
+	for _, p := range rec.Paradas {
+		if p.PedidoID == pedidosA[0] {
+			hechas++
+			real, _ := time.Parse(time.RFC3339Nano, horaReal)
+			vista, _ := time.Parse(time.RFC3339Nano, p.ResultadoAt)
+			if d := real.Sub(vista); d > time.Second || d < -time.Second {
+				t.Errorf("la hora de la parada tenía que ser la del aparato (%s) y es %s", horaReal, p.ResultadoAt)
+			}
+			if p.CobroEntrega == nil || *p.CobroEntrega != "cobrado" || p.Resultado == nil || *p.Resultado != "entregado" {
+				t.Errorf("la parada: %+v", p)
+			}
+		}
+	}
+	if hechas != 1 {
+		t.Fatalf("la parada marcada no salió en el recorrido")
+	}
+	code, b = s.web("GET", "/vehicles/"+camionA+"/historial", nil)
+	var hist struct {
+		Rutas []struct {
+			ID                                    string
+			Entregadas, Cobradas, Puntos, Paradas int64
+		} `json:"rutas"`
+	}
+	_ = json.Unmarshal(b, &hist)
+	if code != 200 || len(hist.Rutas) != 1 || hist.Rutas[0].ID != rutaA || hist.Rutas[0].Entregadas != 1 || hist.Rutas[0].Cobradas != 1 || hist.Rutas[0].Puntos != 4 || hist.Rutas[0].Paradas != 2 {
+		t.Fatalf("el historial del vehículo: %d %s", code, b)
+	}
+	code, b = s.web("GET", "/tracking/ahora", nil)
+	if code != 200 || !strings.Contains(string(b), d1.String()) {
+		t.Fatalf("dónde están ahora: %d %s", code, b)
+	}
+}

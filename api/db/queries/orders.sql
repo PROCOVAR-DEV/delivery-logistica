@@ -1525,6 +1525,7 @@ marcados AS (
         -- LOS MIEMBROS DE CONDUCE BAJAN AL APARATO (regla 9): trabaja sin conexión y los oculta él. NO se filtran aquí.
         o.conduce_principal_id,
         o.stop_order, o.delivered_at, o.resultado, o.resultado_at, o.resultado_nota,
+        o.cobro_entrega, o.cobro_entrega_at,
         o.created_at, o.updated_at,
         GREATEST(
             o.updated_at,
@@ -1568,6 +1569,7 @@ SELECT
     anulada_at, anulada_de_ruta_id,
     conduce_principal_id,
     stop_order, delivered_at, resultado, resultado_at, resultado_nota,
+    cobro_entrega, cobro_entrega_at,
     created_at, updated_at, cambiado_at
 FROM marcados
 WHERE sqlc.narg('hasta')::timestamptz IS NULL

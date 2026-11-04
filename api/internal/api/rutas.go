@@ -1886,6 +1886,10 @@ type entradaDeCierre struct {
 	// que para ellas nada cambia.
 	Resultado httpx.Opcional[string] `json:"resultado"`
 	Nota      *string                `json:"nota"`
+	// LA HORA REAL Y EL COBRO (04/11/2026), los dos opcionales y aditivos: las APK viejas y el logístico no los mandan. `hora` es cuándo el
+	// distribuidor marcó la parada, ISO-8601 del APARATO (se recorta a «ahora» como mucho); `cobrado` es lo que dijo de si cobró.
+	Hora    *string `json:"hora"`
+	Cobrado *bool   `json:"cobrado"`
 }
 
 type aplicadoDeCierre struct {
@@ -2085,7 +2089,7 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			//   - `delivered_at` se limpia cuando no se entregó, o un devuelto con la hora de
 			//     un intento anterior se pinta «entregado» en la lista;
 			//   - ni devuelto ni cancelado tocan INVENTARIO: el reintegro lo hace Ventra.
-			filas, err := tx.MarcarResultadoDeParada(r.Context(), ruta.ID, pedidoID, resultado, nota)
+			filas, err := tx.MarcarResultadoDeParada(r.Context(), ruta.ID, pedidoID, resultado, nota, anotacionesDe(e))
 			if err != nil {
 				return err
 			}
@@ -3133,4 +3137,23 @@ func armarRuta(d datosDeRuta, paradas []ParadaSalida) RutaSalida {
 		}
 	}
 	return salida
+}
+
+// anotacionesDe saca de una entrada del cierre la hora del aparato y el cobro. Una hora que no es ISO-8601 se IGNORA (se usa la del servidor): un
+// dato mal formado del teléfono no tumba el cierre del día.
+func anotacionesDe(e entradaDeCierre) alcance.AnotacionesDeParada {
+	var x alcance.AnotacionesDeParada
+	if e.Hora != nil {
+		if t, err := time.Parse(time.RFC3339, strings.TrimSpace(*e.Hora)); err == nil {
+			x.Hora = pgtype.Timestamptz{Time: t.UTC(), Valid: true}
+		}
+	}
+	if e.Cobrado != nil {
+		c := "no_cobrado"
+		if *e.Cobrado {
+			c = "cobrado"
+		}
+		x.Cobro = &c
+	}
+	return x
 }

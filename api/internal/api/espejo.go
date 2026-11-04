@@ -1775,7 +1775,10 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 			"deliveredAt":        hora(f.DeliveredAt),
 			"resultado":          textoDe(f.Resultado),
 			"resultadoNota":      f.ResultadoNota,
-			"items":              items,
+			// El aviso del distribuidor al marcar la parada (00033): `cobrado` | `no_cobrado` | null, y a qué hora lo dijo.
+			"cobroEntrega":   f.CobroEntrega,
+			"cobroEntregaAt": hora(f.CobroEntregaAt),
+			"items":          items,
 			// La marca que el aparato guarda para la próxima vez. Es `cambiado_at` y NO
 			// `updated_at`: con la del pedido a secas, un pedido al que sólo le cambió un
 			// renglón volvería a salir en cada bajada para siempre.

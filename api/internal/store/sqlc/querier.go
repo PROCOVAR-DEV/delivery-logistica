@@ -992,6 +992,8 @@ type Querier interface {
 	// GUARDA (o corrige) EL PUNTO DE UN CLIENTE al ubicar una entrega a mano. La sucursal sale de la sucursal de la
 	// factura; sin código de Accesos no se guarda (cero filas, y no pasa nada).
 	GuardarPuntoDeCliente(ctx context.Context, arg GuardarPuntoDeClienteParams) error
+	// Idempotente por `id`: un punto ya recibido no se duplica ni falla. Devuelve las filas NUEVAS.
+	GuardarPuntoGps(ctx context.Context, arg GuardarPuntoGpsParams) (int64, error)
 	// Guardar la tasa que vino de Accesos, por CÓDIGO de sucursal.
 	//
 	// DOS COSAS QUE NO SE VEN VENIR, las dos en el WHERE:
@@ -1013,6 +1015,8 @@ type Querier interface {
 	//
 	// Va sin alcance: la bajada entra con clave de servicio y recorre las ocho sucursales.
 	GuardarVentaFacturada(ctx context.Context, arg GuardarVentaFacturadaParams) (GuardarVentaFacturadaRow, error)
+	// La vida de un vehículo: sus rutas, de la más reciente a la más antigua, con lo que hizo cada una.
+	HistorialDeUnVehiculo(ctx context.Context, arg HistorialDeUnVehiculoParams) ([]HistorialDeUnVehiculoRow, error)
 	// EL CUADRE DE LAS FACTURAS DEL APARATO (28/10/2026, Jose: «el sync se hizo para algo»). La bajada por diferencias
 	// solo borra lo que le dicen en `quitados`, y una lápida que no llega (el 21/10/2026 se perdieron 828 de Santiago
 	// por un grupo con la misma hora mayor que el tope) deja facturas FANTASMA en el aparato para siempre. Esto es la
@@ -1656,6 +1660,8 @@ type Querier interface {
 	// archivada, sin ruta y con coordenadas, y sin esto entraba en `sin_ruta` y en `peso_pendiente`
 	// como si hubiera que repartirla. Es la misma regla de `ListarPedidosDisponibles`.
 	PanelResumen(ctx context.Context, arg PanelResumenParams) (PanelResumenRow, error)
+	// Las paradas de una ruta con lo que dijo el distribuidor (resultado, hora real y cobro), para ponerlas sobre el recorrido.
+	ParadasConSuHoraDeUnaRuta(ctx context.Context, ruta pgtype.UUID) ([]ParadasConSuHoraDeUnaRutaRow, error)
 	// ---------------------------------------------------------------------------
 	// De una columna sale una ruta  (POST /api/board/columns/[id]/route)
 	// ---------------------------------------------------------------------------
@@ -1811,6 +1817,8 @@ type Querier interface {
 	// hasta nueva orden de Jose (20/10/2026). Va sin alcance: es del espejo, que entra con clave
 	// de servicio, y la sucursal la pone quien llama. Solo los de PEDIDO (`source`).
 	PuntosDeClientesDeLaSucursal(ctx context.Context, sucursalCodigo string) ([]PuntosDeClientesDeLaSucursalRow, error)
+	// El recorrido de UNA ruta, en el orden en que se hizo. Acotado a la sucursal de quien pregunta.
+	PuntosDeUnaRuta(ctx context.Context, arg PuntosDeUnaRutaParams) ([]PuntosDeUnaRutaRow, error)
 	// LOS PUNTOS QUE EL LOGÍSTICO UBICÓ (00030): se suman a los clientes del padrón al buscar el punto de una factura.
 	PuntosGuardadosDeLaSucursal(ctx context.Context, sucursalCodigo string) ([]PuntosGuardadosDeLaSucursalRow, error)
 	// Las tarjetas de los pedidos que acaban de subirse a una ruta salen del tablero.
@@ -1982,6 +1990,9 @@ type Querier interface {
 	// El alcance se copia de `ListarVehiculos`: se acota por la sucursal de la RUTA, que es la
 	// misma por la que se acota `ContarVehiculosEnRuta`.
 	RutasAbiertasDeLaFlota(ctx context.Context, sucursal pgtype.UUID) ([]RutasAbiertasDeLaFlotaRow, error)
+	// EL GPS DEL DISTRIBUIDOR (00033, 04/11/2026). Lo manda el aparato por lotes; lo lee solo la oficina.
+	// De las rutas que dice el punto, SOLO las de este distribuidor (incluidas las ya completadas: el punto de «fin» llega después de completar).
+	RutasDelDistribuidorEntre(ctx context.Context, arg RutasDelDistribuidorEntreParams) ([]uuid.UUID, error)
 	// SACAR UN MIEMBRO: misma condición que deshacer (ninguna fila del conduce en ruta ni con resultado).
 	SacarMiembroDeConduce(ctx context.Context, arg SacarMiembroDeConduceParams) (int64, error)
 	// Una sucursal nueva nace con COPIA de los tipos «de todas» (nombre, costo y estado), como
@@ -2037,6 +2048,8 @@ type Querier interface {
 	// Ventra lleva caída desde el lunes. Con esa confusión se armó una ruta con un pedido sin
 	// facturar el 2 de septiembre.
 	UltimaFacturacionDeSucursal(ctx context.Context, sucursalCodigo string) (UltimaFacturacionDeSucursalRow, error)
+	// Dónde está cada distribuidor AHORA: su último punto, de los que tienen una ruta en curso.
+	UltimoPuntoDeCadaDistribuidor(ctx context.Context, sucursal pgtype.UUID) ([]UltimoPuntoDeCadaDistribuidorRow, error)
 	// Cuánto se ha pedido de cada producto últimamente, para ordenar el buscador por lo que la
 	// gente usa de verdad y no por orden alfabético.
 	//

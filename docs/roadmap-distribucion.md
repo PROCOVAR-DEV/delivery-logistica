@@ -7,7 +7,7 @@ teléfono**, el APK trae el mapa dentro y el seguimiento (GPS, horas, cobro) sub
 
 Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · ⏸ aparcado (no cuenta en el %) · 🔒 espera tu visto bueno
 
-**TOTAL: 44 %** (15,7 de 36 tareas) — 04/11/2026, tarde
+**TOTAL: 78 %** (29 de 37 tareas) — 04/11/2026, tarde
 
 ## ORDEN DE TRABAJO (por prioridad)
 
@@ -49,7 +49,7 @@ Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · �
 - ✔ 14. Vehículo ↔ teléfono: el enlace lleva el vehículo y el distribuidor, el teléfono se vincula al vehículo (uno a uno), la oficina desvincula (403 `dispositivo_desvinculado`, la APK se vacía) y el servidor conserva la historia por id de dispositivo (migración 00035) — con prueba e2e
 - 🔒 13. Despliegue en producción (migraciones 00032 a 00035, API, sync, web)
 
-## 2. Reparto — la MISMA aplicación de siempre (web, **Windows**, APK de Reparto) con el apartado nuevo «Distribución»: 0 % (0 de 11)
+## 2. Reparto — la MISMA aplicación de siempre (web, **Windows**, APK de Reparto) con el apartado nuevo «Distribución»: 64 % (7 de 11; lo hecho pasa `flutter test` entero)
 
 - ☐ 1. «Enviar a distribuidor»: crea el enlace de la ruta y lo comparte por WhatsApp (sustituye al enlace de Google Maps); en web, Windows y APK
 - ☐ 2. Estado del enlace por ruta: sin reclamar / reclamado por qué teléfono / soltar y renovar

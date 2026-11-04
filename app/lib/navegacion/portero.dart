@@ -227,6 +227,14 @@ class Portero extends ChangeNotifier {
     _poner(EstadoDeAcceso.fuera);
   }
 
+  /// «Reparto Distribuidor»: la oficina DESVINCULO este telefono de su vehiculo. La app ya
+  /// se vacio (`distribuidor/dispositivo/desvinculador.dart`); esto la deja en la pantalla
+  /// de «Agregar ruta» con [aviso] a la vista. Es [murio] con su mensaje.
+  void desvinculado(String aviso) {
+    _avisoDeSesion = aviso;
+    murio();
+  }
+
   /// ACCESOS AVISO (`sesion-invalidada`) A UN APARATO — APK y escritorio.
   ///
   /// **No se navega a ciegas**: se intenta renovar YA, y el resultado decide por

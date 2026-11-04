@@ -115,7 +115,9 @@ class Subida {
     required BaseLocal base,
     required Future<String?> Function() quienEsta,
     void Function()? alFaltarPermiso,
+    void Function()? alDesvincular,
   }) : _alFaltarPermiso = alFaltarPermiso,
+       _alDesvincular = alDesvincular,
        _cliente = cliente,
        _cola = cola,
        _aparato = aparato,
@@ -135,6 +137,10 @@ class Subida {
   /// Se avisa si el servidor devuelve, DENTRO de un 200, el rechazo de «no tienes
   /// permiso para entrar a Reparto». Ver [_aplicar].
   final void Function()? _alFaltarPermiso;
+
+  /// Lo mismo para «este telefono fue desvinculado» (solo «Reparto Distribuidor»): el
+  /// servidor ya no acepta nada de este telefono y la app se vacia.
+  final void Function()? _alDesvincular;
 
   /// Quien sabe el identificador de esta instalacion y sabe darla de alta.
   final IdentidadDelAparato _aparato;
@@ -314,6 +320,19 @@ class Subida {
       // para un sync que lo reenvie como rechazo dentro de un 200 (hoy lo hace:
       // `sync/internal/reparto`, «cualquier 4xx es rechazo»). Como el 401: no se
       // resuelve nada, el apunte sigue `pendiente` y el ciclo para.
+      // Y el de «este telefono fue desvinculado»: el servidor ya no acepta NADA de este
+      // telefono. Tampoco es un rechazo del apunte: la app se vacia (con lo que quede
+      // sin enviar contado, `Desvinculador`).
+      final motivoDelRechazo = resultado.motivo ?? '';
+      if (motivoDelRechazo.contains(marcaDispositivoDesvinculado) ||
+          motivoDelRechazo.contains('fue desvinculado')) {
+        _alDesvincular?.call();
+        throw const Rechazo(
+          403,
+          'Este telefono fue desvinculado de su vehiculo.',
+          marca: marcaDispositivoDesvinculado,
+        );
+      }
       if (resultado.motivo == textoSinPermisoDeReparto) {
         _alFaltarPermiso?.call();
         throw const Rechazo(

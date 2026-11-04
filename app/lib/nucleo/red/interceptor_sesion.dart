@@ -18,6 +18,7 @@ class InterceptorSesion extends Interceptor {
     this.sucursalMirada,
     this.alMorirLaSesion,
     this.alFaltarPermiso,
+    this.alDesvincular,
     this.bearerExplicito,
     this.esWeb = kIsWeb,
   }) : _almacen = almacen,
@@ -50,6 +51,11 @@ class InterceptorSesion extends Interceptor {
   /// Se avisa tantas veces como llegue: quien lo recibe (el portero) es
   /// idempotente, y asi no hay estado aqui que olvidar de soltar.
   final void Function()? alFaltarPermiso;
+
+  /// Se avisa cuando el servidor dice que ESTE TELEFONO fue desvinculado de su
+  /// vehiculo (403 `dispositivo_desvinculado`, ver [esDispositivoDesvinculado]). Solo
+  /// lo usa «Reparto Distribuidor», que se vacia. El 403 sigue su camino como `Rechazo`.
+  final void Function()? alDesvincular;
 
   /// EL BEARER SE DICE EXPLICITAMENTE Y LA COOKIE NO VIAJA — N4, 09/10/2026.
   ///
@@ -108,6 +114,7 @@ class InterceptorSesion extends Interceptor {
     // ANTES que el 401: es el mismo viaje, con otro destino. Sigue su camino
     // normal (acaba siendo un `Rechazo` 403 con su marca) y la cola no se entera.
     if (esSinPermisoDeReparto(err.response)) alFaltarPermiso?.call();
+    if (esDispositivoDesvinculado(err.response)) alDesvincular?.call();
 
     final esUn401 = err.response?.statusCode == 401;
     final yaSeIntento = err.requestOptions.extra[_yaReintentada] == true;
@@ -169,6 +176,16 @@ class InterceptorSesion extends Interceptor {
     if (fallo is SesionMuerta) alMorirLaSesion?.call();
     return original.copyWith(error: fallo);
   }
+}
+
+/// ¿ES ESTE EL 403 DE «ESTE TELEFONO FUE DESVINCULADO»? Mismas tres cosas que
+/// [esSinPermisoDeReparto]: 403, lo firma nuestra API y `codigo == dispositivo_desvinculado`.
+bool esDispositivoDesvinculado(Response<dynamic>? respuesta) {
+  if (respuesta?.statusCode != 403 || !contestoLoNuestro(respuesta)) {
+    return false;
+  }
+  final cuerpo = respuesta?.data;
+  return cuerpo is Map && cuerpo['codigo'] == marcaDispositivoDesvinculado;
 }
 
 /// ¿ES ESTE EL 403 DE «NO ENTRAS A REPARTO»? Las TRES cosas a la vez:

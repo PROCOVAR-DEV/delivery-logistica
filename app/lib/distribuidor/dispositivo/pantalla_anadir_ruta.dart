@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../diseno/tema.dart';
+import '../../navegacion/portero.dart' show porteroProvider;
 import '../../nucleo/red/fallos.dart' show FalloDeRed;
 import '../../pantallas/pedidos/vista/kit.dart';
 import 'cliente_de_dispositivo.dart';
@@ -156,13 +157,13 @@ class _FormularioDeRutaState extends ConsumerState<FormularioDeRuta> {
 }
 
 /// La puerta de la app y la pantalla del menu.
-class PantallaAnadirRuta extends StatelessWidget {
+class PantallaAnadirRuta extends ConsumerWidget {
   const PantallaAnadirRuta({this.enlaceInicial, super.key});
 
   final String? enlaceInicial;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
+  Widget build(BuildContext context, WidgetRef ref) => SafeArea(
     child: Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -178,6 +179,24 @@ class PantallaAnadirRuta extends StatelessWidget {
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 12),
+              // Por que se esta en la puerta: p. ej. «Este teléfono fue desvinculado…».
+              ListenableBuilder(
+                listenable: ref.watch(porteroProvider),
+                builder: (_, _) {
+                  final aviso = ref.read(porteroProvider).avisoDeSesion;
+                  return aviso == null
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            aviso,
+                            key: const ValueKey('anadir-ruta-aviso'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colores.ambar),
+                          ),
+                        );
+                },
+              ),
               const Text(
                 textoSinRutas,
                 key: ValueKey('anadir-ruta-texto'),

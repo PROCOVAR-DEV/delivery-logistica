@@ -329,7 +329,12 @@ ClienteApi _cliente(Ref ref, String baseUrl) => ClienteApi.montar(
   // Un 403 `sin_permiso_reparto`: la PERSONA no entra a Reparto. A su pantalla,
   // sin cerrar la sesion ni tocar la cola (`docs/sin-permiso.md`).
   alFaltarPermiso: () => ref.read(porteroProvider).sinPermiso(),
+  alDesvincular: () => ref.read(alDesvincularseProvider)?.call(),
 );
+
+/// Que hacer cuando el servidor dice «este telefono fue desvinculado». Nulo salvo en
+/// «Reparto Distribuidor» (`main_distribuidor.dart`), que se vacia.
+final alDesvincularseProvider = Provider<void Function()?>((ref) => null);
 
 final clienteApiProvider = Provider<ClienteApi>(
   (ref) => _cliente(ref, Entorno.apiUrl),
@@ -457,6 +462,7 @@ final subidaProvider = Provider<Subida>(
     base: ref.watch(baseProvider),
     quienEsta: () async => (await ref.read(almacenSesionProvider).leer())?.sub,
     alFaltarPermiso: () => ref.read(porteroProvider).sinPermiso(),
+    alDesvincular: () => ref.read(alDesvincularseProvider)?.call(),
   ),
 );
 

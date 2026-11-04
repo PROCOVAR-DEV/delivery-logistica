@@ -24,13 +24,16 @@ class RenovadorDeDispositivo extends Renovador {
     ClienteDeDispositivo cliente,
     AlmacenDeSesion almacen, {
     Reloj reloj = relojDelAparato,
-  }) : _cliente = cliente,
+    void Function()? alDesvincular,
+  }) : _alDesvincular = alDesvincular,
+       _cliente = cliente,
        _almacen = almacen,
        _reloj = reloj,
        super(Dio(), almacen, reloj: reloj);
 
   static const margenDelArranque = Duration(days: 30);
 
+  final void Function()? _alDesvincular;
   final ClienteDeDispositivo _cliente;
   final AlmacenDeSesion _almacen;
   final Reloj _reloj;
@@ -58,6 +61,10 @@ class RenovadorDeDispositivo extends Renovador {
         Registro.fallo('el acceso nuevo no quedo guardado');
       }
       return nueva;
+    } on DispositivoDesvinculado {
+      // La oficina lo desvinculo: la app se vacia (y borra el acceso ella misma).
+      _alDesvincular?.call();
+      rethrow;
     } on SesionMuerta {
       await _almacen.borrar();
       rethrow;

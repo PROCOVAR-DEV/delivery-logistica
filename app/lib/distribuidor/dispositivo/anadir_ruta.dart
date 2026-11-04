@@ -13,6 +13,7 @@ import '../../nucleo/reloj.dart';
 import 'cliente_de_dispositivo.dart';
 import 'enlace_de_ruta.dart';
 import 'renovador_de_dispositivo.dart';
+import 'vinculo.dart';
 
 const claveDelDispositivoId = 'dispositivoId';
 
@@ -26,8 +27,12 @@ class AnadirRuta {
     required Future<void> Function() esperarAlArranque,
     required Future<void> Function(Sesion) entrar,
     required Future<void> Function() bajarRutas,
+    Future<String?> Function()? leerSecreto,
+    Future<void> Function(VinculoDelTelefono)? guardarVinculo,
     Reloj reloj = relojDelAparato,
-  }) : _cliente = cliente,
+  }) : _leerSecreto = leerSecreto,
+       _guardarVinculo = guardarVinculo,
+       _cliente = cliente,
        _almacen = almacen,
        _leerId = leerId,
        _guardarId = guardarId,
@@ -46,6 +51,13 @@ class AnadirRuta {
   final Future<void> Function(Sesion) _entrar;
   final Future<void> Function() _bajar;
   final Reloj _reloj;
+
+  /// El secreto del telefono cuando NO hay sesion (tras vaciarse por una
+  /// desvinculacion se conserva, junto al id, para seguir siendo el mismo telefono).
+  final Future<String?> Function()? _leerSecreto;
+
+  /// Guarda el vehiculo y el distribuidor que trae el enlace (ya en la base del telefono).
+  final Future<void> Function(VinculoDelTelefono)? _guardarVinculo;
 
   /// Devuelve el id de la ruta reclamada. Lanza [EnlaceRechazado] con las palabras
   /// para la persona (o `FalloDeRed` si no hay red: reclamar necesita conexion).
@@ -72,13 +84,14 @@ class AnadirRuta {
       }
     }
     final pedidoA = _reloj();
+    final secretoGuardado = guardada?.refresh ?? await _leerSecreto?.call();
     final r = await _cliente.reclamar(
       token: token,
       dispositivoId: id,
       nombre: await _nombre() ?? 'Teléfono',
-      secreto: guardada?.refresh,
+      secreto: secretoGuardado,
     );
-    final secreto = r.secreto ?? guardada?.refresh;
+    final secreto = r.secreto ?? secretoGuardado;
     if (secreto == null || secreto.isEmpty) {
       throw const EnlaceRechazado(
         'El servidor no dio la clave de este teléfono. Inténtalo otra vez.',
@@ -101,6 +114,9 @@ class AnadirRuta {
     } else {
       await _bajar();
     }
+    // Despues de entrar: la base ya es la de este telefono.
+    final vinculo = VinculoDelTelefono.deLaRespuesta(r);
+    if (vinculo != null) await _guardarVinculo?.call(vinculo);
     return r.rutaId;
   }
 }

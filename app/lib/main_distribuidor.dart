@@ -4,6 +4,8 @@
 // conexion, subiendo cuando haya red. Compilar:
 //
 //   ORG_GRADLE_PROJECT_distribuidor=true flutter build apk --release -t lib/main_distribuidor.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +34,11 @@ List<Override> overridesDelDistribuidor() => [
   ),
   recorridoPorCallesProvider.overrideWith(
     (ref) => ref.watch(recorridoSoloLocalProvider),
+  ),
+  // La oficina desvincula el telefono: la app se vacia y vuelve a «Agregar ruta».
+  alDesvincularseProvider.overrideWith(
+    (ref) =>
+        () => unawaited(ref.read(desvinculadorProvider).vaciar()),
   ),
   // Tras la cola de apuntes, los puntos de GPS.
   despuesDeSubirProvider.overrideWith(

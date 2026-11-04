@@ -67,6 +67,26 @@ enlace por ruta, `https://reparto.procovar.cloud/r/<token>`.
 * En el `Sesion` guardado (almacén seguro de siempre): `sub` = dispositivoId, `refresh` = **el secreto**,
   `token` = el acceso. La base local es del dispositivo.
 
+### Vehículo, distribuidor y desvinculación
+
+El enlace trae vehículo y distribuidor: `POST /api/d/reclamar` devuelve además `vinculoId`, `vehiculoId`,
+`vehiculo {id,nombre,placa,tipo}` y `distribuidor {id,nombre}` (si la ruta lo tiene). La app los guarda en las
+preferencias de su base (`VinculoDelTelefono`) y los enseña en «Mis rutas» («Triciclo-Juan (P-77) · Juan»).
+Errores nuevos de reclamar (se enseña el `mensaje` del servidor): 403 `vehiculo_de_otro_dispositivo`,
+403 `dispositivo_de_otro_vehiculo`, 409 `ruta_sin_vehiculo`.
+
+**Desvinculado.** Cualquier llamada (rutas, sync, results, track, renovar) puede contestar 403
+`dispositivo_desvinculado`. Se detecta en el interceptor de `ClienteApi` (`alDesvincular`), en el renovador del
+dispositivo y en la segunda cerradura de `Subida._aplicar` (el sync convierte el 4xx en un rechazo dentro de un 200:
+se busca `dispositivo_desvinculado` o «fue desvinculado» en el motivo). La app se **vacía**
+(`Desvinculador`): borra todas las tablas de la base local (rutas, paradas, marcas, historial, puntos GPS, cola,
+vínculo, preferencias) y el acceso, y **conserva solo el id de dispositivo y el secreto** (en las preferencias de la
+base neutra). Vuelve a «Agregar ruta» con «Este teléfono fue desvinculado de su vehículo. Pide a tu logístico un
+enlace nuevo.» y, si había algo sin enviar, **una vez** cuántas marcas, cambios de ruta y puntos de GPS se descartaron.
+Un enlace nuevo funciona con el mismo id y el mismo secreto (es el mismo teléfono para el servidor). El mapa del APK
+no se toca. *Supuesto:* el motivo del rechazo que el sync devuelve dentro de un 200 contiene la marca o la frase; si
+el sync lo redacta distinto, el 403 directo de la API (renovar, `/api/track`, `results` en vivo) sigue funcionando.
+
 ### La sesión no se cierra sola (punto 8 del encargo)
 
 Antes (Accesos): token de acceso de 15 min y refresh de 30 días de un solo uso; pasados esos 30 días, o con un

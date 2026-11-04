@@ -21,6 +21,11 @@ library;
 /// persona. Ver `docs/sin-permiso.md`.
 const marcaSinPermisoDeReparto = 'sin_permiso_reparto';
 
+/// EL 403 DE «ESTE TELEFONO FUE DESVINCULADO DE SU VEHICULO» (`{"codigo": …}`), solo de
+/// «Reparto Distribuidor». Cualquier llamada puede contestarlo; la app se VACIA
+/// (`distribuidor/dispositivo/desvinculador.dart`).
+const marcaDispositivoDesvinculado = 'dispositivo_desvinculado';
+
 /// La frase literal de ese 403. Solo la usa la segunda cerradura de
 /// `Subida._aplicar`; lo que manda es [marcaSinPermisoDeReparto].
 const textoSinPermisoDeReparto = 'No tienes permiso para entrar a Reparto.';

@@ -9,6 +9,8 @@ import '../../nucleo/red/entorno.dart';
 import '../../nucleo/red/id_del_aparato.dart';
 import 'anadir_ruta.dart';
 import 'cliente_de_dispositivo.dart';
+import 'desvinculador.dart';
+import 'vinculo.dart';
 import 'renovador_de_dispositivo.dart';
 
 /// El Dio **crudo** de la API: sin `InterceptorSesion`. `reclamar` y `renovar` van
@@ -34,8 +36,26 @@ final renovadorDeDispositivoProvider = Provider<RenovadorDeDispositivo>(
     ref.watch(clienteDeDispositivoProvider),
     ref.watch(almacenSesionProvider),
     reloj: ref.watch(relojProvider),
+    alDesvincular: () => ref.read(alDesvincularseProvider)?.call(),
   ),
 );
+
+/// Vacia la app cuando la oficina desvincula el telefono. Se cuelga de
+/// [alDesvincularseProvider] en `main_distribuidor.dart`.
+final desvinculadorProvider = Provider<Desvinculador>((ref) {
+  final portero = ref.watch(porteroProvider);
+  return Desvinculador(
+    baseActual: () => ref.read(baseProvider),
+    almacen: ref.watch(almacenSesionProvider),
+    cambiarAVacio: (aviso) async => portero.desvinculado(aviso),
+    // Ya sin sesion: la base es la neutra, donde `AnadirRuta` busca el id y el secreto.
+    guardarIdentidad: (id, secreto) async {
+      final base = ref.read(baseProvider);
+      await base.anotarPreferencia(claveDelDispositivoId, id);
+      await base.anotarPreferencia(claveDelSecretoDelTelefono, secreto);
+    },
+  );
+});
 
 final anadirRutaProvider = Provider<AnadirRuta>((ref) {
   final portero = ref.watch(porteroProvider);
@@ -46,6 +66,14 @@ final anadirRutaProvider = Provider<AnadirRuta>((ref) {
     leerId: () => ref.read(baseProvider).preferencia(claveDelDispositivoId),
     guardarId: (id) =>
         ref.read(baseProvider).anotarPreferencia(claveDelDispositivoId, id),
+    leerSecreto: () =>
+        ref.read(baseProvider).preferencia(claveDelSecretoDelTelefono),
+    guardarVinculo: (v) async {
+      await ref
+          .read(baseProvider)
+          .anotarPreferencia(claveDelVinculo, v.aJson());
+      ref.invalidate(vinculoDelTelefonoProvider);
+    },
     nombreDelTelefono: nombreDelAparato,
     esperarAlArranque: () async {
       if (portero.estado != EstadoDeAcceso.comprobando) return;

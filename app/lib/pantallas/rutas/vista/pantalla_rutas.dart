@@ -48,6 +48,7 @@ import '../../../diseno/pestanas.dart';
 import '../../../diseno/rango_de_fechas.dart';
 import '../../../diseno/tema.dart';
 import '../../../distribuidor/dispositivo/pantalla_anadir_ruta.dart';
+import '../../../distribuidor/dispositivo/vinculo.dart';
 import '../../../distribuidor/modo_distribuidor.dart';
 import '../../../nucleo/base/base.dart';
 import '../../../nucleo/proveedores.dart';
@@ -275,6 +276,8 @@ class PantallaRutas extends ConsumerWidget {
                 // LAS FACTURAS CANCELADAS EN VENTRA QUE SE QUITARON DE SU RUTA, mientras haya alguna
                 // sin ver en este aparato (Jose y Amado, 23/10/2026). No ocupa nada si no hay.
                 const AvisoDeFacturasCanceladas(),
+                // Solo el distribuidor: el vehiculo y el distribuidor a los que esta ligado.
+                if (ref.watch(modoDistribuidorProvider)) const CartelDelVinculo(),
                 Expanded(
                   child: _LaListaBajoSusFiltros(
                     enEscritorio: enEscritorio,

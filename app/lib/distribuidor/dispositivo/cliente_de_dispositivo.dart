@@ -11,6 +11,10 @@ class RutaReclamada {
     this.secreto,
     this.expira,
     this.sucursal,
+    this.vinculoId,
+    this.vehiculoId,
+    this.vehiculo,
+    this.distribuidor,
   });
 
   /// El JWT (rol DISTRIBUIDOR, claim `dispositivo`).
@@ -21,6 +25,13 @@ class RutaReclamada {
   final DateTime? expira;
   final String rutaId;
   final String? sucursal;
+
+  /// El vinculo de este telefono con SU vehiculo (el enlace trae vehiculo y
+  /// distribuidor). `distribuidor` solo viene si la ruta lo tiene.
+  final String? vinculoId;
+  final String? vehiculoId;
+  final Map<String, Object?>? vehiculo; // {id, nombre, placa, tipo}
+  final Map<String, Object?>? distribuidor; // {id, nombre}
 }
 
 /// Un «no» del servidor al enlace, ya con las palabras para la persona.
@@ -31,6 +42,18 @@ class EnlaceRechazado implements Exception {
 
   @override
   String toString() => mensaje;
+}
+
+/// El 403 `dispositivo_desvinculado`: la oficina desvinculo este telefono de su vehiculo.
+/// Es un `Rechazo` con su marca para que el interceptor y el arranque lo traten como
+/// cualquier otro 403 de la API.
+class DispositivoDesvinculado extends Rechazo {
+  const DispositivoDesvinculado()
+    : super(
+        403,
+        'Este teléfono fue desvinculado de su vehículo.',
+        marca: marcaDispositivoDesvinculado,
+      );
 }
 
 class ClienteDeDispositivo {
@@ -68,6 +91,10 @@ class ClienteDeDispositivo {
         secreto: d['secreto'] as String?,
         expira: DateTime.tryParse('${d['expira'] ?? ''}'),
         sucursal: d['sucursal'] as String?,
+        vinculoId: d['vinculoId'] as String?,
+        vehiculoId: d['vehiculoId'] as String?,
+        vehiculo: _mapa(d['vehiculo']),
+        distribuidor: _mapa(d['distribuidor']),
       );
     } on DioException catch (e) {
       throw _traducir(e);
@@ -97,6 +124,7 @@ class ClienteDeDispositivo {
         expira: DateTime.tryParse('${r.data?['expira']}'),
       );
     } on DioException catch (e) {
+      if (_esDesvinculado(e)) throw const DispositivoDesvinculado();
       if (e.response?.statusCode == 401) {
         throw const SesionMuerta('el servidor ya no reconoce a este teléfono');
       }
@@ -104,13 +132,41 @@ class ClienteDeDispositivo {
     }
   }
 
+  static Map<String, Object?>? _mapa(Object? crudo) =>
+      crudo is Map ? Map<String, Object?>.from(crudo) : null;
+
+  static bool _esDesvinculado(DioException e) {
+    final cuerpo = e.response?.data;
+    return e.response?.statusCode == 403 &&
+        cuerpo is Map &&
+        (cuerpo['codigo'] ?? cuerpo['error']) == marcaDispositivoDesvinculado;
+  }
+
   Object _traducir(DioException e) {
+    if (_esDesvinculado(e)) return const DispositivoDesvinculado();
     final codigo = e.response?.statusCode;
     final cuerpo = e.response?.data;
     final marca = cuerpo is Map ? (cuerpo['error'] ?? cuerpo['codigo']) : null;
-    final mensaje = cuerpo is Map ? cuerpo['mensaje'] : null;
+    final mensaje = cuerpo is Map
+        ? (cuerpo['mensaje'] ?? cuerpo['message'])
+        : null;
     // Primero la marca del servidor (es lo que dice POR QUE), luego el numero.
     switch (marca) {
+      // El vehiculo/el telefono ya estan vinculados a otro: el mensaje es del servidor.
+      case 'vehiculo_de_otro_dispositivo':
+        return EnlaceRechazado(
+          mensaje is String && mensaje.isNotEmpty ? mensaje : 'Este vehículo ya está vinculado a otro teléfono: pide a tu logístico que lo desvincule.',
+        );
+      case 'dispositivo_de_otro_vehiculo':
+        return EnlaceRechazado(
+          mensaje is String && mensaje.isNotEmpty ? mensaje : 'Este teléfono ya está vinculado a otro vehículo: pide a tu logístico que lo desvincule.',
+        );
+      case 'ruta_sin_vehiculo':
+        return EnlaceRechazado(
+          mensaje is String && mensaje.isNotEmpty
+              ? mensaje
+              : 'Esta ruta no tiene vehículo asignado: avisa a tu logístico.',
+        );
       case 'ruta_de_otro_dispositivo':
         return const EnlaceRechazado(
           'Esta ruta ya está asignada a otro teléfono.',

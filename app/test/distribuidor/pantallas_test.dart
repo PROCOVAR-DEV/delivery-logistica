@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reparto/diseno/tema.dart' show BotonDestructivo;
+import 'package:reparto/distribuidor/dispositivo/vinculo.dart';
 import 'package:reparto/distribuidor/gps/servicio_de_ubicacion.dart';
 import 'package:reparto/distribuidor/modo_distribuidor.dart';
 import 'package:reparto/distribuidor/vista_historial.dart';
@@ -146,6 +147,24 @@ void main() {
       expect(find.byKey(const ValueKey('siguiente-parada-R1')), findsOneWidget);
       await desmontar(tester);
     });
+
+    testWidgets(
+      '«Mis rutas» dice a que vehiculo y distribuidor esta ligado el telefono',
+      (tester) async {
+        await sembrarRutaEnCurso();
+        await base.anotarPreferencia(
+          claveDelVinculo,
+          const VinculoDelTelefono(
+            vehiculo: 'Triciclo-Juan',
+            placa: 'P-77',
+            distribuidor: 'Juan',
+          ).aJson(),
+        );
+        await pintar(tester, const PantallaRutas());
+        expect(find.text('Triciclo-Juan (P-77) · Juan'), findsOneWidget);
+        await desmontar(tester);
+      },
+    );
 
     testWidgets(
       'la tarjeta de una ruta en curso dice la siguiente parada, sin Eliminar ni importes',

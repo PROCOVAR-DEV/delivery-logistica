@@ -85,12 +85,18 @@ class AnadirRuta {
     }
     final pedidoA = _reloj();
     final secretoGuardado = guardada?.refresh ?? await _leerSecreto?.call();
-    final r = await _cliente.reclamar(
-      token: token,
-      dispositivoId: id,
-      nombre: await _nombre() ?? 'Teléfono',
-      secreto: secretoGuardado,
-    );
+    final nombre = await _nombre() ?? 'Teléfono';
+    RutaReclamada r;
+    try {
+      r = await _cliente.reclamar(token: token, dispositivoId: id, nombre: nombre, secreto: secretoGuardado);
+    } on SecretoDelTelefonoNoCuadra {
+      // Sin ninguna clave guardada el servidor conoce un id cuya clave nunca nos llegó (el primer reclamo se perdió a medias): se estrena
+      // otro id. Con clave guardada es otra cosa (lo dieron de baja): se dice.
+      if (secretoGuardado != null && secretoGuardado.isNotEmpty) rethrow;
+      id = Provisionales.nuevoIdReal();
+      await _guardarId(id);
+      r = await _cliente.reclamar(token: token, dispositivoId: id, nombre: nombre);
+    }
     final secreto = r.secreto ?? secretoGuardado;
     if (secreto == null || secreto.isEmpty) {
       throw const EnlaceRechazado(

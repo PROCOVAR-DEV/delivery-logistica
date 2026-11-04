@@ -77,3 +77,9 @@ func permitirAlDistribuidor(w http.ResponseWriter, r *http.Request, u *Usuario) 
 	httpx.ErrorConCodigo(w, r, http.StatusForbidden, MsgNoEsParaElDistribuidor, CodigoNoEsParaElDistribuidor)
 	return false
 }
+
+// CerrarAlDistribuidor es para los manejadores que NO pasan por [Verificador.Exigir] (el canal de avisos en vivo): si la persona es un
+// distribuidor, 403 y devuelve false. El canal no está en su lista blanca: con él vería la actividad de los demás teléfonos de su sucursal.
+func CerrarAlDistribuidor(w http.ResponseWriter, r *http.Request, u *Usuario) bool {
+	return permitirAlDistribuidor(w, r, u)
+}

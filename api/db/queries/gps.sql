@@ -10,7 +10,9 @@ WHERE r.id = ANY(sqlc.arg('ruta_ids')::uuid[]) AND r.dispositivo_id = sqlc.arg('
 INSERT INTO puntos_gps (id, dispositivo_id, distribuidor_id, branch_id, ruta_ids, lat, lng, precision_m, velocidad_ms, rumbo, hora, evento, pedido_id)
 VALUES (sqlc.arg('id'), sqlc.arg('dispositivo'), sqlc.narg('distribuidor'), sqlc.arg('sucursal'), sqlc.arg('ruta_ids')::uuid[],
         sqlc.arg('lat'), sqlc.arg('lng'), sqlc.narg('precision_m'), sqlc.narg('velocidad_ms'), sqlc.narg('rumbo'),
-        sqlc.arg('hora'), sqlc.narg('evento'), sqlc.narg('pedido_id'))
+        sqlc.arg('hora'), sqlc.narg('evento'),
+        -- El pedido solo se guarda si es de una de las rutas del punto (auditoría 04/11/2026: se guardó el de otra sucursal).
+        (SELECT o.id FROM orders o WHERE o.id = sqlc.narg('pedido_id')::uuid AND coalesce(o.route_id, o.ultima_ruta_id) = ANY(sqlc.arg('ruta_ids')::uuid[])))
 ON CONFLICT (id) DO NOTHING;
 
 -- El recorrido de UNA ruta, en el orden en que se hizo. Acotado a la sucursal de quien pregunta.
@@ -38,16 +40,21 @@ WHERE r.vehicle_id = sqlc.arg('vehiculo')
 ORDER BY coalesce(r.started_at, r.delivery_date, r.created_at) DESC
 LIMIT sqlc.arg('tope');
 
--- Dónde está cada distribuidor AHORA: su último punto, de los que tienen una ruta en curso.
+-- Dónde está cada TELÉFONO AHORA: su último punto, de los que tienen una ruta en curso. Se identifica por el teléfono (siempre lo hay) y no por el
+-- distribuidor de la ruta (puede no tenerlo: el enlace solo exige vehículo); el distribuidor y el vehículo vinculado salen si existen.
 -- name: UltimoPuntoDeCadaDistribuidor :many
-SELECT DISTINCT ON (p.distribuidor_id)
-       p.distribuidor_id, d.nombre AS distribuidor_nombre, p.lat, p.lng, p.hora, p.recibido_at, p.velocidad_ms, p.ruta_ids
+SELECT DISTINCT ON (p.dispositivo_id)
+       p.dispositivo_id, p.distribuidor_id, coalesce(d.nombre, '')::text AS distribuidor_nombre,
+       coalesce(v.name, '')::text AS vehiculo_nombre,
+       p.lat, p.lng, p.hora, p.recibido_at, p.velocidad_ms, p.ruta_ids
 FROM puntos_gps p
-JOIN distribuidores d ON d.id = p.distribuidor_id
+LEFT JOIN distribuidores d ON d.id = p.distribuidor_id
+LEFT JOIN vinculos_vehiculo_dispositivo vv ON vv.dispositivo_id = p.dispositivo_id AND vv.hasta IS NULL
+LEFT JOIN vehicles v ON v.id = vv.vehicle_id
 WHERE (sqlc.narg('sucursal')::uuid IS NULL OR p.branch_id = sqlc.narg('sucursal')::uuid)
   AND p.hora > now() - interval '12 hours'
-  AND EXISTS (SELECT 1 FROM routes r WHERE r.distribuidor_id = p.distribuidor_id AND r.status = 'in_progress')
-ORDER BY p.distribuidor_id, p.hora DESC;
+  AND EXISTS (SELECT 1 FROM routes r WHERE r.dispositivo_id = p.dispositivo_id AND r.status = 'in_progress')
+ORDER BY p.dispositivo_id, p.hora DESC;
 
 -- Las paradas de una ruta con lo que dijo el distribuidor (resultado, hora real y cobro), para ponerlas sobre el recorrido.
 -- name: ParadasConSuHoraDeUnaRuta :many

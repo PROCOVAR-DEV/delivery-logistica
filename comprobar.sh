@@ -93,6 +93,18 @@ else
   paso "redis real"; echo "SALTADO (exporta REPARTO_REDIS_REAL_ADDR: docs/entorno-local.md §7-bis)"
 fi
 
+# LOS e2e DEL DISTRIBUIDOR (auditoría 04/11/2026): de 39 mutaciones de las guardas del teléfono solo 4 las cazaba `go test` (lista blanca, vínculo,
+# desvincular, alcance por teléfono viven en `api/e2e`). Prueban la API y el sync que estén LEVANTADOS (`docker compose up -d --build api sync`):
+# con REPARTO_E2E=1 se corren; sin él se dice SALTADO a gritos, como el motor real y Redis. Ojo: prueban la imagen que corre, no el árbol.
+echo "== e2e contra el stack local =="
+cd "$raiz/api"
+if [ -n "${REPARTO_E2E:-}" ]; then
+  paso "e2e";  go test -count=1 ./e2e >/dev/null 2>&1 && bien || mal
+else
+  paso "e2e"; echo "SALTADO (levanta el stack y exporta REPARTO_E2E=1: docs/entorno-local.md)"
+fi
+cd "$raiz"
+
 echo "== app (Flutter) =="
 cd "$raiz/app"
 paso "analyze"; flutter analyze >/dev/null 2>&1 && bien || mal

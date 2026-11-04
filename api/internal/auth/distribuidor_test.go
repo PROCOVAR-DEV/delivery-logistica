@@ -39,6 +39,10 @@ func TestListaBlancaDelDistribuidor(t *testing.T) {
 		{"POST", "/api/routes/" + id + "/results/x"},
 		{"GET", "/health"}, {"GET", ""}, {"GET", "/"},
 		{"GET", "/api/routes/" + id + "/../orders"},
+		// AUDITORÍA 04/11/2026 (M03): un teléfono no genera ni roba enlaces, ni confirma la revisión, ni desvincula ni mira el vínculo.
+		{"POST", "/api/routes/" + id + "/enlace"}, {"GET", "/api/routes/" + id + "/enlace"},
+		{"POST", "/api/routes/" + id + "/revision"}, {"POST", "/api/vehicles/" + id + "/desvincular"},
+		{"GET", "/api/vehicles/" + id + "/vinculos"}, {"GET", "/api/tracking/ahora"}, {"GET", "/api/vehicles/" + id + "/historial"},
 	}
 	for _, p := range prohibidas {
 		if auth.PermitidoAlDistribuidor(p.metodo, p.ruta) {

@@ -2076,7 +2076,8 @@ type Querier interface {
 	// Ventra lleva caída desde el lunes. Con esa confusión se armó una ruta con un pedido sin
 	// facturar el 2 de septiembre.
 	UltimaFacturacionDeSucursal(ctx context.Context, sucursalCodigo string) (UltimaFacturacionDeSucursalRow, error)
-	// Dónde está cada distribuidor AHORA: su último punto, de los que tienen una ruta en curso.
+	// Dónde está cada TELÉFONO AHORA: su último punto, de los que tienen una ruta en curso. Se identifica por el teléfono (siempre lo hay) y no por el
+	// distribuidor de la ruta (puede no tenerlo: el enlace solo exige vehículo); el distribuidor y el vehículo vinculado salen si existen.
 	UltimoPuntoDeCadaDistribuidor(ctx context.Context, sucursal pgtype.UUID) ([]UltimoPuntoDeCadaDistribuidorRow, error)
 	// Cuánto se ha pedido de cada producto últimamente, para ordenar el buscador por lo que la
 	// gente usa de verdad y no por orden alfabético.

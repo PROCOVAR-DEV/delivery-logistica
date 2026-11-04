@@ -970,6 +970,11 @@ func (s *Servidor) servirEventos(w http.ResponseWriter, r *http.Request, bus *Di
 	if !auth.PermitirReparto(w, r, u) {
 		return
 	}
+	// EL DISTRIBUIDOR NO ESCUCHA ESTE CANAL (auditoría 04/11/2026): no pasa por `Exigir`, así que la lista blanca no lo alcanzaba y un teléfono
+	// veía los avisos de actividad de los demás de su sucursal.
+	if !auth.CerrarAlDistribuidor(w, r, u) {
+		return
+	}
 
 	// Se engancha ANTES de abrir nada: si el servidor se para justo ahora, esta conexión
 	// tiene que poder cerrarse sola.

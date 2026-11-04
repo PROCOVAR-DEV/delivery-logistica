@@ -1336,7 +1336,7 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 	// LO QUE UN DISTRIBUIDOR PUEDE HACER CON SU RUTA (04/11/2026): iniciarla, completarla cuando todas sus paradas tienen resultado y cancelarla
 	// mientras no haya ninguna entregada. Nunca «planificada» otra vez, y el resto de estados de arriba es de la oficina.
 	if a.EsDelDistribuidor() && estado != nil {
-		if !s.distribuidorPuedePasarA(w, r, a, antes.ID, *estado) {
+		if !s.distribuidorPuedePasarA(w, r, a, antes.ID, antes.Status, *estado) {
 			return
 		}
 	}
@@ -3204,12 +3204,18 @@ const (
 	msgDistribuidorFaltanParadas     = "Faltan paradas por marcar: marca cada una como entregada o no entregada antes de completar la ruta."
 	msgDistribuidorEstadoNoPermitido = "Solo puedes iniciar, completar o cancelar tu ruta."
 	msgNoEntregadaNecesitaMotivo     = "Una parada no entregada necesita su motivo."
+	msgDistribuidorRutaCerrada       = "Esa ruta ya está cerrada: no se puede volver a iniciar."
 )
 
 // distribuidorPuedePasarA decide si un distribuidor puede llevar su ruta a ese estado. Contesta el 403/409 y devuelve false si no.
-func (s *Servidor) distribuidorPuedePasarA(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, ruta uuid.UUID, a2 sqlc.RouteStatus) bool {
+func (s *Servidor) distribuidorPuedePasarA(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, ruta uuid.UUID, actual, a2 sqlc.RouteStatus) bool {
 	switch a2 {
 	case sqlc.RouteStatusInProgress:
+		// Solo se INICIA lo que está sin cerrar: reabrir una ruta cancelada (incluso por la oficina) dejaba dos rutas en curso en el mismo camión.
+		if actual == sqlc.RouteStatusCompleted || actual == sqlc.RouteStatusCancelled {
+			httpx.Error(w, r, http.StatusConflict, msgDistribuidorRutaCerrada)
+			return false
+		}
 		return true
 	case sqlc.RouteStatusCompleted, sqlc.RouteStatusCancelled:
 		res, err := a.ResumenDeParadasDeRuta(r.Context(), ruta)

@@ -55,6 +55,8 @@ var (
 	errVehiculoOcupado   = errors.New("vehiculo ocupado por otro telefono")
 	errTelefonoOcupado   = errors.New("telefono vinculado a otro vehiculo")
 	errCarreraDelVinculo = errors.New("otro telefono vinculo el vehiculo a la vez")
+	errTelefonoYaCreado  = errors.New("el telefono nuevo ya fue creado por otro toque")
+	errPerdioElEnlace    = errors.New("otro telefono reclamo el enlace antes")
 )
 
 func (s *Servidor) rutasDeDispositivos(rt *httpx.Router, sesion []httpx.Medio) {
@@ -170,6 +172,7 @@ func (s *Servidor) reclamarEnlace(w http.ResponseWriter, r *http.Request) {
 
 	// EL TELÉFONO: nuevo (se crea y se le da su secreto, una sola vez) o conocido (tiene que traer su secreto).
 	var secretoNuevo string
+	var crearTelefono *sqlc.CrearDispositivoDistribuidorParams
 	dev, err := q.SecretoDelDispositivo(r.Context(), disp)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -182,11 +185,10 @@ func (s *Servidor) reclamarEnlace(w http.ResponseWriter, r *http.Request) {
 		if nombre != "" {
 			nom = &nombre
 		}
-		if _, err := q.CrearDispositivoDistribuidor(r.Context(), sqlc.CrearDispositivoDistribuidorParams{
+		// El teléfono NUEVO se crea DENTRO de la transacción del reclamo (auditoría 04/11/2026): si el reclamo falla (vehículo ocupado, enlace
+		// perdido) no queda un teléfono con un secreto que su dueño nunca recibió, y reintentar con el mismo id vuelve a ser un teléfono nuevo.
+		crearTelefono = &sqlc.CrearDispositivoDistribuidorParams{
 			ID: disp, Nombre: nom, Sucursal: sucursal, Distribuidor: e.DistribuidorID, SecretoHash: hashDelSecreto(secretoNuevo),
-		}); err != nil {
-			httpx.ErrorInterno(w, r, err)
-			return
 		}
 	case err != nil:
 		httpx.ErrorInterno(w, r, err)
@@ -208,16 +210,23 @@ func (s *Servidor) reclamarEnlace(w http.ResponseWriter, r *http.Request) {
 
 	// RECLAMAR, ATÓMICO: gana quien lo encuentre libre. Dos teléfonos con el mismo enlace a la vez: uno recibe 403. Y el teléfono se VINCULA al vehículo
 	// de la ruta: un vehículo en un solo teléfono y un teléfono en un solo vehículo (se cambia desvinculando desde Reparto).
-	var perdio bool
 	var vinculo uuid.UUID
 	err = s.porteria.EnTxSinAlcance(r.Context(), func(tx sqlc.Querier) error {
+		if crearTelefono != nil {
+			if _, err := tx.CrearDispositivoDistribuidor(r.Context(), *crearTelefono); err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+					return errTelefonoYaCreado // otro toque del mismo teléfono nuevo se adelantó: este no tiene su secreto
+				}
+				return err
+			}
+		}
 		n, err := tx.ReclamarEnlaceDeRuta(r.Context(), sqlc.ReclamarEnlaceDeRutaParams{ID: e.ID, Dispositivo: pgtype.UUID{Bytes: disp, Valid: true}})
 		if err != nil {
 			return err
 		}
 		if n == 0 {
-			perdio = true
-			return nil
+			return errPerdioElEnlace // deshace también el alta del teléfono nuevo
 		}
 		if v, err := tx.VinculoVivoDeVehiculo(r.Context(), vehiculo); err == nil {
 			if v.DispositivoID != disp {
@@ -244,6 +253,12 @@ func (s *Servidor) reclamarEnlace(w http.ResponseWriter, r *http.Request) {
 		return tx.AsignarRutaADispositivo(r.Context(), sqlc.AsignarRutaADispositivoParams{Dispositivo: pgtype.UUID{Bytes: disp, Valid: true}, Ruta: e.RutaID})
 	})
 	switch {
+	case errors.Is(err, errTelefonoYaCreado):
+		errorConCodigo(w, r, http.StatusConflict, "Este teléfono se está dando de alta en otro toque: espera un momento y vuelve a abrir el enlace.", "telefono_en_alta")
+		return
+	case errors.Is(err, errPerdioElEnlace):
+		errorConCodigo(w, r, http.StatusForbidden, "Esta ruta ya está asignada a otro teléfono.", codigoRutaDeOtroTelf)
+		return
 	case errors.Is(err, errVehiculoOcupado), errors.Is(err, errCarreraDelVinculo):
 		errorConCodigo(w, r, http.StatusForbidden, "Este vehículo ya está vinculado a otro teléfono: pide a tu logístico que lo desvincule.", codigoVehiculoDeOtroTelf)
 		return
@@ -252,10 +267,6 @@ func (s *Servidor) reclamarEnlace(w http.ResponseWriter, r *http.Request) {
 		return
 	case err != nil:
 		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	if perdio {
-		errorConCodigo(w, r, http.StatusForbidden, "Esta ruta ya está asignada a otro teléfono.", codigoRutaDeOtroTelf)
 		return
 	}
 

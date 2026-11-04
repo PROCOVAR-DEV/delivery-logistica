@@ -16,7 +16,9 @@ const guardarPuntoGps = `-- name: GuardarPuntoGps :execrows
 INSERT INTO puntos_gps (id, dispositivo_id, distribuidor_id, branch_id, ruta_ids, lat, lng, precision_m, velocidad_ms, rumbo, hora, evento, pedido_id)
 VALUES ($1, $2, $3, $4, $5::uuid[],
         $6, $7, $8, $9, $10,
-        $11, $12, $13)
+        $11, $12,
+        -- El pedido solo se guarda si es de una de las rutas del punto (auditoría 04/11/2026: se guardó el de otra sucursal).
+        (SELECT o.id FROM orders o WHERE o.id = $13::uuid AND coalesce(o.route_id, o.ultima_ruta_id) = ANY($5::uuid[])))
 ON CONFLICT (id) DO NOTHING
 `
 
@@ -288,19 +290,25 @@ func (q *Queries) RutasDelDispositivoEntre(ctx context.Context, arg RutasDelDisp
 }
 
 const ultimoPuntoDeCadaDistribuidor = `-- name: UltimoPuntoDeCadaDistribuidor :many
-SELECT DISTINCT ON (p.distribuidor_id)
-       p.distribuidor_id, d.nombre AS distribuidor_nombre, p.lat, p.lng, p.hora, p.recibido_at, p.velocidad_ms, p.ruta_ids
+SELECT DISTINCT ON (p.dispositivo_id)
+       p.dispositivo_id, p.distribuidor_id, coalesce(d.nombre, '')::text AS distribuidor_nombre,
+       coalesce(v.name, '')::text AS vehiculo_nombre,
+       p.lat, p.lng, p.hora, p.recibido_at, p.velocidad_ms, p.ruta_ids
 FROM puntos_gps p
-JOIN distribuidores d ON d.id = p.distribuidor_id
+LEFT JOIN distribuidores d ON d.id = p.distribuidor_id
+LEFT JOIN vinculos_vehiculo_dispositivo vv ON vv.dispositivo_id = p.dispositivo_id AND vv.hasta IS NULL
+LEFT JOIN vehicles v ON v.id = vv.vehicle_id
 WHERE ($1::uuid IS NULL OR p.branch_id = $1::uuid)
   AND p.hora > now() - interval '12 hours'
-  AND EXISTS (SELECT 1 FROM routes r WHERE r.distribuidor_id = p.distribuidor_id AND r.status = 'in_progress')
-ORDER BY p.distribuidor_id, p.hora DESC
+  AND EXISTS (SELECT 1 FROM routes r WHERE r.dispositivo_id = p.dispositivo_id AND r.status = 'in_progress')
+ORDER BY p.dispositivo_id, p.hora DESC
 `
 
 type UltimoPuntoDeCadaDistribuidorRow struct {
+	DispositivoID      uuid.UUID          `json:"dispositivo_id"`
 	DistribuidorID     pgtype.UUID        `json:"distribuidor_id"`
 	DistribuidorNombre string             `json:"distribuidor_nombre"`
+	VehiculoNombre     string             `json:"vehiculo_nombre"`
 	Lat                float64            `json:"lat"`
 	Lng                float64            `json:"lng"`
 	Hora               pgtype.Timestamptz `json:"hora"`
@@ -309,7 +317,8 @@ type UltimoPuntoDeCadaDistribuidorRow struct {
 	RutaIds            []uuid.UUID        `json:"ruta_ids"`
 }
 
-// Dónde está cada distribuidor AHORA: su último punto, de los que tienen una ruta en curso.
+// Dónde está cada TELÉFONO AHORA: su último punto, de los que tienen una ruta en curso. Se identifica por el teléfono (siempre lo hay) y no por el
+// distribuidor de la ruta (puede no tenerlo: el enlace solo exige vehículo); el distribuidor y el vehículo vinculado salen si existen.
 func (q *Queries) UltimoPuntoDeCadaDistribuidor(ctx context.Context, sucursal pgtype.UUID) ([]UltimoPuntoDeCadaDistribuidorRow, error) {
 	rows, err := q.db.Query(ctx, ultimoPuntoDeCadaDistribuidor, sucursal)
 	if err != nil {
@@ -320,8 +329,10 @@ func (q *Queries) UltimoPuntoDeCadaDistribuidor(ctx context.Context, sucursal pg
 	for rows.Next() {
 		var i UltimoPuntoDeCadaDistribuidorRow
 		if err := rows.Scan(
+			&i.DispositivoID,
 			&i.DistribuidorID,
 			&i.DistribuidorNombre,
+			&i.VehiculoNombre,
 			&i.Lat,
 			&i.Lng,
 			&i.Hora,

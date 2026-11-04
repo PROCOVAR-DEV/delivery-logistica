@@ -87,6 +87,10 @@ func validarPuntoGps(e puntoGpsEntrada, ahora time.Time, mias map[uuid.UUID]bool
 	if t.After(ahora.Add(10 * time.Minute)) {
 		return p, "la hora está en el futuro"
 	}
+	// El teléfono guarda 90 días y sube cuando hay red: más viejo que esto no es un punto de una ruta de ahora (auditoría: llegaron de 1970).
+	if t.Before(ahora.Add(-120 * 24 * time.Hour)) {
+		return p, "la hora es demasiado antigua"
+	}
 	p.Hora = t.UTC()
 	for _, c := range e.RutaIDs {
 		if r, err := uuid.Parse(strings.TrimSpace(c)); err == nil && mias[r] {
@@ -313,8 +317,9 @@ func (s *Servidor) dondeEstanAhora(w http.ResponseWriter, r *http.Request) {
 	salida := make([]map[string]any, 0, len(filas))
 	for _, f := range filas {
 		salida = append(salida, map[string]any{
-			"distribuidorId": f.DistribuidorID, "distribuidor": f.DistribuidorNombre,
-			"lat": f.Lat, "lng": f.Lng, "hora": hora(f.Hora), "recibidoAt": hora(f.RecibidoAt),
+			"dispositivoId": f.DispositivoID, "distribuidorId": idOpcional(f.DistribuidorID), "distribuidor": f.DistribuidorNombre,
+			"vehiculo": f.VehiculoNombre,
+			"lat":      f.Lat, "lng": f.Lng, "hora": hora(f.Hora), "recibidoAt": hora(f.RecibidoAt),
 			"velocidad": f.VelocidadMs, "rutaIds": f.RutaIds,
 		})
 	}

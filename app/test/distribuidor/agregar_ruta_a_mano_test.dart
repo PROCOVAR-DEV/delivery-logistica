@@ -208,4 +208,66 @@ void main() {
       ); // el aviso de «Ruta agregada»
     },
   );
+
+  // AUDITORIA 04/11/2026: si la respuesta del primer reclamo se perdio, el servidor conoce el id pero el telefono no tiene clave:
+  // la app estrena otro id y reintenta una vez.
+  test('sin clave guardada y con el id conocido por el servidor, estrena otro id y entra', () async {
+    final ids = <String>[];
+    var intentos = 0;
+    contesta = (p) {
+      intentos++;
+      ids.add('${(p.cuerpo as Map)['dispositivoId']}');
+      if (intentos == 1) {
+        return RespuestaFalsa(401, {'error': 'secreto_incorrecto'});
+      }
+      return RespuestaFalsa(200, {
+        'acceso': tokenDePrueba(sub: 'd', roles: const ['DISTRIBUIDOR']),
+        'secreto': 's2',
+        'rutaId': 'R1',
+      });
+    };
+    var guardados = <String>[];
+    final s = AnadirRuta(
+      cliente: ClienteDeDispositivo(
+        Dio(BaseOptions(baseUrl: 'https://ejemplo.test/api'))
+          ..httpClientAdapter = servidor,
+      ),
+      almacen: almacen,
+      leerId: () async => null,
+      guardarId: (id) async => guardados.add(id),
+      nombreDelTelefono: () async => 'Galaxy',
+      esperarAlArranque: () async {},
+      entrar: (_) async => entradas++,
+      bajarRutas: () async {},
+    );
+    expect(await s.anadir('https://reparto.procovar.cloud/r/AbC123xyz'), 'R1');
+    expect(intentos, 2);
+    expect(ids[0], isNot(ids[1]), reason: 'el segundo intento usa otro id');
+    expect(guardados.last, ids[1], reason: 'y se guarda el nuevo');
+  });
+
+  test(
+    'con clave guardada, un secreto que no cuadra no cambia de id: se dice',
+    () async {
+      contesta = (_) => RespuestaFalsa(401, {'error': 'secreto_incorrecto'});
+      final s = AnadirRuta(
+        cliente: ClienteDeDispositivo(
+          Dio(BaseOptions(baseUrl: 'https://ejemplo.test/api'))
+            ..httpClientAdapter = servidor,
+        ),
+        almacen: almacen,
+        leerId: () async => 'id-fijo',
+        guardarId: (_) async {},
+        leerSecreto: () async => 'clave',
+        nombreDelTelefono: () async => 'Galaxy',
+        esperarAlArranque: () async {},
+        entrar: (_) async => entradas++,
+        bajarRutas: () async {},
+      );
+      await expectLater(
+        s.anadir('AbC123xyz'),
+        throwsA(isA<SecretoDelTelefonoNoCuadra>()),
+      );
+    },
+  );
 }

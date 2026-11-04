@@ -1053,3 +1053,145 @@ func TestElVehiculoSeVinculaAlTelefonoYSeDesvincula(t *testing.T) {
 		t.Errorf("con su vínculo nuevo vuelve a ver sus rutas: %d", code)
 	}
 }
+
+// LOS HUECOS DE LA AUDITORÍA (04/11/2026): cada uno con la prueba que lo pisa.
+func TestLosHuecosDeLaAuditoriaQuedanTapados(t *testing.T) {
+	s := levantar(t)
+	secretoJWT := env("REPARTO_E2E_JWT_SECRET", "secreto-de-desarrollo-de-mas-de-32-caracteres")
+	d := s.distribuidor("Auditoria uno")
+	camion := s.nuevoCamion()
+	r1, _ := s.rutaConDistribuidorEnCamion(d, camion)
+
+	t1 := s.nuevoTelefono()
+	if code, b := s.reclama(t1, s.enlace(r1, false)); code != 200 {
+		t.Fatalf("reclamar: %d %s", code, b)
+	}
+	fono := s.como(t1.acceso)
+
+	// 1. el canal de avisos en vivo no es del distribuidor
+	if code, b := fono.web("GET", "/eventos", nil); code != 403 || !strings.Contains(string(b), "no_es_para_el_distribuidor") {
+		t.Errorf("/eventos con un teléfono: %d %s, tenía que ser 403", code, b)
+	}
+
+	// 2. un teléfono nuevo cuyo primer reclamo FALLA no queda bloqueado: tras desvincular el vehículo, el mismo id entra con su secreto
+	t2 := s.nuevoTelefono()
+	r2, _ := s.rutaConDistribuidorEnCamion(d, camion)
+	if code, b := s.reclama(t2, s.enlace(r2, false)); code != 403 || !strings.Contains(string(b), "vehiculo_de_otro_dispositivo") {
+		t.Fatalf("vehículo ocupado: %d %s", code, b)
+	}
+	if n := s.cuantos("dispositivos_distribuidor", t2.id); n != 0 {
+		t.Errorf("el reclamo fallido no debe dejar un teléfono huérfano: %d filas", n)
+	}
+	if code, b := s.web("POST", "/vehicles/"+camion+"/desvincular", map[string]any{}); code != 200 {
+		t.Fatalf("desvincular: %d %s", code, b)
+	}
+	if code, b := s.reclama(t2, s.enlace(r2, true)); code != 200 || t2.secreto == "" {
+		t.Errorf("el mismo teléfono reintenta y entra: %d %s", code, b)
+	}
+	// el token viejo de t1 (vínculo anterior) no vale aunque el vehículo vuelva a tener un teléfono
+	if code, b := fono.web("GET", "/routes", nil); code != 403 || !strings.Contains(string(b), "dispositivo_desvinculado") {
+		t.Errorf("token de un vínculo anterior: %d %s", code, b)
+	}
+
+	// 3. una ruta cancelada por la oficina no la reabre el teléfono
+	fono2 := s.como(t2.acceso)
+	if code, b := s.web("PATCH", "/routes/"+r2, map[string]any{"status": "cancelled"}); code != 200 {
+		t.Fatalf("cancelar desde la oficina: %d %s", code, b)
+	}
+	if code, b := fono2.web("PATCH", "/routes/"+r2, map[string]any{"status": "in_progress"}); code != 409 {
+		t.Errorf("reabrir una ruta cancelada: %d %s, tenía que ser 409", code, b)
+	}
+
+	// 4. «dónde están ahora» ve al teléfono aunque la ruta no tenga distribuidor
+	camionB := s.nuevoCamion()
+	cuerpo := s.cuerpoDeRuta(nuevo(), camionB, s.siembraDePedidos(1))
+	rSin := cuerpo["id"].(string)
+	if code, b := s.web("POST", "/routes", cuerpo); code != 201 && code != 200 {
+		t.Fatalf("ruta sin distribuidor: %d %s", code, b)
+	}
+	t3 := s.nuevoTelefono()
+	if code, b := s.reclama(t3, s.enlace(rSin, false)); code != 200 {
+		t.Fatalf("reclamar sin distribuidor: %d %s", code, b)
+	}
+	fono3 := s.como(t3.acceso)
+	if code, b := fono3.web("PATCH", "/routes/"+rSin, map[string]any{"status": "in_progress"}); code != 200 {
+		t.Fatalf("iniciar: %d %s", code, b)
+	}
+	punto := map[string]any{"puntos": []map[string]any{{"id": nuevo(), "rutaIds": []string{rSin}, "lat": 20.1, "lng": -75.1, "hora": ahora()}}}
+	if code, b := fono3.web("POST", "/track", punto); code != 200 {
+		t.Fatalf("track: %d %s", code, b)
+	}
+	if _, b := s.web("GET", "/tracking/ahora", nil); !strings.Contains(string(b), t3.id) {
+		t.Errorf("dónde están ahora tenía que traer al teléfono sin distribuidor: %s", b)
+	}
+	// GPS: una hora de hace 400 días se rechaza
+	viejo := map[string]any{"puntos": []map[string]any{{"id": nuevo(), "rutaIds": []string{rSin}, "lat": 20.1, "lng": -75.1,
+		"hora": time.Now().UTC().Add(-400 * 24 * time.Hour).Format(time.RFC3339)}}}
+	if _, b := fono3.web("POST", "/track", viejo); !strings.Contains(string(b), "demasiado antigua") {
+		t.Errorf("hora de hace 400 días: %s", b)
+	}
+
+	// 5. el cuadre y la bajada de un teléfono solo llevan lo suyo: nada de catálogo, clientes ni tablero, y solo SU distribuidor
+	otro := s.distribuidor("Auditoria otro")
+	rOtro, _ := s.rutaConDistribuidorEnCamion(otro, s.nuevoCamion())
+	_ = rOtro
+	_, b := fono3.web("GET", "/sync/cuadre", nil)
+	for _, k := range []string{"customers", "products", "vehicle_types", "boardColumns", "boardPlacements"} {
+		if n := len(idsDe(t, b, "colecciones", k)); n != 0 {
+			t.Errorf("el cuadre de un teléfono no lleva %q (%d)", k, n)
+		}
+	}
+	_, b = fono3.web("GET", "/sync/cambios", nil)
+	if ds := idsDe(t, b, "cambios", "distribuidores", "puestos"); contiene(ds, otro.String()) || contiene(ds, d.String()) {
+		t.Errorf("la bajada de un teléfono no lleva distribuidores de rutas que no son suyas: %v", ds)
+	}
+
+	// 6. un teléfono dado de baja, o de otra sucursal, no reclama ni renueva
+	baja := s.nuevoTelefono()
+	rBaja, _ := s.rutaConDistribuidorEnCamion(d, s.nuevoCamion())
+	if code, b := s.reclama(baja, s.enlace(rBaja, false)); code != 200 {
+		t.Fatalf("alta del teléfono: %d %s", code, b)
+	}
+	if _, err := s.db.Exec(context.Background(), `UPDATE dispositivos_distribuidor SET activo = false WHERE id = $1`, baja.id); err != nil {
+		t.Fatal(err)
+	}
+	rBaja2, _ := s.rutaConDistribuidorEnCamion(d, s.nuevoCamion())
+	if code, _ := s.reclama(baja, s.enlace(rBaja2, false)); code != 403 {
+		t.Errorf("teléfono dado de baja reclamando: %d, tenía que ser 403", code)
+	}
+	if code, _ := s.sinSesion("POST", "/d/renovar", map[string]any{"dispositivoId": baja.id, "secreto": baja.secreto}); code != 403 {
+		t.Errorf("teléfono dado de baja renovando: %d, tenía que ser 403", code)
+	}
+	var otraSucursal uuid.UUID
+	if err := s.db.QueryRow(context.Background(), `INSERT INTO branches (name, lat, lng) VALUES ($1, 20, -75) RETURNING id`, "e2e-otra-"+uuid.NewString()).Scan(&otraSucursal); err != nil {
+		t.Fatal(err)
+	}
+	ajeno := s.nuevoTelefono()
+	hashAjeno := sha256.Sum256([]byte("clave-del-ajeno"))
+	if _, err := s.db.Exec(context.Background(), `INSERT INTO dispositivos_distribuidor (id, branch_id, secreto_hash) VALUES ($1, $2, $3)`, ajeno.id, otraSucursal, hashAjeno[:]); err != nil {
+		t.Fatal(err)
+	}
+	ajeno.secreto = "clave-del-ajeno"
+	if code, _ := s.reclama(ajeno, s.enlace(rBaja2, false)); code != 403 {
+		t.Errorf("teléfono de otra sucursal reclamando: %d, tenía que ser 403", code)
+	}
+	// y un token con el teléfono de otra sucursal tampoco entra aunque el JWT sea válido y diga la sucursal de la ruta
+	var vOtra, vinculoAjeno uuid.UUID
+	var tipoOtra uuid.UUID
+	if err := s.db.QueryRow(context.Background(), `INSERT INTO vehicle_types (nombre, branch_id) VALUES ($1, $2) RETURNING id`, "t-"+uuid.NewString(), otraSucursal).Scan(&tipoOtra); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.db.QueryRow(context.Background(), `INSERT INTO vehicles (name, vehicle_type_id, branch_id) VALUES ('v-otra', $1, $2) RETURNING id`, tipoOtra, otraSucursal).Scan(&vOtra); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.db.QueryRow(context.Background(), `INSERT INTO vinculos_vehiculo_dispositivo (vehicle_id, dispositivo_id, branch_id) VALUES ($1, $2, $3) RETURNING id`, vOtra, ajeno.id, otraSucursal).Scan(&vinculoAjeno); err != nil {
+		t.Fatal(err)
+	}
+	falso := s.como(jwt(secretoJWT, map[string]any{
+		"sub": "disp-" + ajeno.id, "role": "DISTRIBUIDOR", "roles": []string{"DISTRIBUIDOR"}, "branchId": s.sucursal.String(),
+		"entradas": []string{"delivery.entrar"}, "dispositivo": ajeno.id, "vinculo": vinculoAjeno.String(), "exp": time.Now().Add(time.Hour).Unix(),
+	}))
+	if code, _ := falso.web("GET", "/routes", nil); code != 403 {
+		t.Errorf("teléfono de otra sucursal con un token de esta: %d, tenía que ser 403", code)
+	}
+}

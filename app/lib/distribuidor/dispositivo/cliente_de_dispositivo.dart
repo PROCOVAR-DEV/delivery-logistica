@@ -56,6 +56,13 @@ class DispositivoDesvinculado extends Rechazo {
       );
 }
 
+/// El 401 `secreto_incorrecto` al RECLAMAR: el servidor conoce este id de teléfono pero la clave no cuadra. Si el teléfono no tiene ninguna clave
+/// guardada es que la respuesta de su primer reclamo se perdió: se estrena otro id (auditoría 04/11/2026).
+class SecretoDelTelefonoNoCuadra extends EnlaceRechazado {
+  const SecretoDelTelefonoNoCuadra()
+    : super('Este teléfono no se reconoce. Pide a tu logístico que lo desvincule y vuelve a abrir el enlace.');
+}
+
 class ClienteDeDispositivo {
   ClienteDeDispositivo(this._dio);
 
@@ -152,6 +159,10 @@ class ClienteDeDispositivo {
         : null;
     // Primero la marca del servidor (es lo que dice POR QUE), luego el numero.
     switch (marca) {
+      case 'secreto_incorrecto':
+        return const SecretoDelTelefonoNoCuadra();
+      case 'telefono_en_alta':
+        return const EnlaceRechazado('Este teléfono se está dando de alta: espera un momento y vuelve a abrir el enlace.');
       // El vehiculo/el telefono ya estan vinculados a otro: el mensaje es del servidor.
       case 'vehiculo_de_otro_dispositivo':
         return EnlaceRechazado(

@@ -404,6 +404,7 @@ class DistribuidorAhora {
     required this.lat,
     required this.lng,
     this.distribuidor,
+    this.vehiculo,
     this.hora,
     this.recibidoAt,
     this.velocidad,
@@ -411,8 +412,10 @@ class DistribuidorAhora {
   });
 
   factory DistribuidorAhora.deJson(Map<String, Object?> j) => DistribuidorAhora(
-    distribuidorId: (j['distribuidorId'] ?? '') as String,
+    // Se identifica por el TELÉFONO: la ruta puede no tener distribuidor (el enlace solo exige vehículo).
+    distribuidorId: (j['dispositivoId'] ?? j['distribuidorId'] ?? '') as String,
     distribuidor: _texto(j['distribuidor']),
+    vehiculo: _texto(j['vehiculo']),
     lat: _num(j['lat']) ?? 0,
     lng: _num(j['lng']) ?? 0,
     hora: _hora(j['hora']),
@@ -423,6 +426,7 @@ class DistribuidorAhora {
 
   final String distribuidorId;
   final String? distribuidor;
+  final String? vehiculo;
   final double lat;
   final double lng;
 

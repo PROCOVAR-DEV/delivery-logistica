@@ -113,7 +113,7 @@ class _DondeEstanAhoraState extends ConsumerState<DondeEstanAhora> {
                 ParadaDelRecorrido(
                   id: d.distribuidorId,
                   numero: i + 1,
-                  etiqueta: d.distribuidor ?? 'Distribuidor',
+                  etiqueta: d.distribuidor ?? d.vehiculo ?? 'Distribuidor',
                   factura: TextosDeDondeEstan.haceCuanto(d.haceCuanto(ahora)),
                   punto: Punto(d.lat, d.lng),
                   // El color naranja del mapa = sin noticias hace rato.
@@ -142,7 +142,7 @@ class _DondeEstanAhoraState extends ConsumerState<DondeEstanAhora> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${i + 1}. ${d.distribuidor ?? 'Distribuidor'}',
+                    '${i + 1}. ${d.distribuidor ?? d.vehiculo ?? 'Distribuidor'}',
                     style: tema.textTheme.titleSmall,
                   ),
                   const SizedBox(height: 2),

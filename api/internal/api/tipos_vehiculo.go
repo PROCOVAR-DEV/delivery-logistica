@@ -109,6 +109,8 @@ func (s *Servidor) listarTiposDeVehiculo(w http.ResponseWriter, r *http.Request)
 }
 
 type cuerpoTipoVehiculo struct {
+	// ID lo pone el aparato al CREAR (UUIDv7); en un PATCH no se lee.
+	ID         httpx.Opcional[string]  `json:"id"`
 	Nombre     httpx.Opcional[string]  `json:"nombre"`
 	CostoKmUsd httpx.Opcional[float64] `json:"costoKmUsd"`
 	Activo     httpx.Opcional[bool]    `json:"activo"`
@@ -149,11 +151,20 @@ func (s *Servidor) crearTipoDeVehiculo(w http.ResponseWriter, r *http.Request) {
 	// `costo_km_usd` se deja vacío a propósito si no lo mandan: es un valor por defecto
 	// para los camiones de ese tipo, y ponerle un número inventado es peor que no
 	// tenerlo, porque se cobra igual y nadie lo revisa.
+	idDelAparato, ok := idDelAparatoPg(w, r, c.ID.Con(""))
+	if !ok {
+		return
+	}
 	t, err := a.CrearTipoDeVehiculo(r.Context(), sqlc.CrearTipoDeVehiculoParams{
+		ID:         idDelAparato,
 		Nombre:     nombre,
 		CostoKmUsd: c.CostoKmUsd.Valor,
 		Activo:     c.Activo.Con(true),
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusConflict, msgIdYaEnUso)
+		return
+	}
 	if err != nil {
 		// `nombre` es único DENTRO de la sucursal. Un choque aquí es que el tipo ya está, no un
 		// fallo del servidor: con un 500 la pantalla diría "error" y nadie sabría que basta con

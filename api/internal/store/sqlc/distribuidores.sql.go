@@ -76,22 +76,47 @@ func (q *Queries) BorrarDistribuidorSinUso(ctx context.Context, arg BorrarDistri
 }
 
 const crearDistribuidor = `-- name: CrearDistribuidor :one
-INSERT INTO distribuidores (branch_id, nombre, activo)
-VALUES ($1, $2, $3)
-RETURNING id, branch_id, nombre, activo, created_at, updated_at
+WITH nuevo AS (
+    INSERT INTO distribuidores (id, branch_id, nombre, activo)
+    VALUES (coalesce($1::uuid, uuid_generate_v7()), $2, $3, $4)
+    ON CONFLICT (id) DO NOTHING
+    RETURNING id, branch_id, nombre, activo, created_at, updated_at
+)
+SELECT id, branch_id, nombre, activo, created_at, updated_at FROM nuevo
+UNION ALL
+SELECT d.id, d.branch_id, d.nombre, d.activo, d.created_at, d.updated_at
+FROM distribuidores d
+WHERE $1::uuid IS NOT NULL AND d.id = $1::uuid
+  AND d.branch_id = $2
 `
 
 type CrearDistribuidorParams struct {
-	BranchID uuid.UUID `json:"branch_id"`
-	Nombre   string    `json:"nombre"`
-	Activo   bool      `json:"activo"`
+	ID       pgtype.UUID `json:"id"`
+	BranchID uuid.UUID   `json:"branch_id"`
+	Nombre   string      `json:"nombre"`
+	Activo   bool        `json:"activo"`
+}
+
+type CrearDistribuidorRow struct {
+	ID        uuid.UUID          `json:"id"`
+	BranchID  uuid.UUID          `json:"branch_id"`
+	Nombre    string             `json:"nombre"`
+	Activo    bool               `json:"activo"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 // Nace en la sucursal de quien llama (`branch_id` lo rellena `alcance.Acotado`). El manejador no
 // llama a esta consulta sin sucursal: en modo «todas» contesta 400.
-func (q *Queries) CrearDistribuidor(ctx context.Context, arg CrearDistribuidorParams) (Distribuidore, error) {
-	row := q.db.QueryRow(ctx, crearDistribuidor, arg.BranchID, arg.Nombre, arg.Activo)
-	var i Distribuidore
+// EL REINTENTO (04/11/2026): mismo id del aparato = el distribuidor que ya estaba, no un segundo.
+func (q *Queries) CrearDistribuidor(ctx context.Context, arg CrearDistribuidorParams) (CrearDistribuidorRow, error) {
+	row := q.db.QueryRow(ctx, crearDistribuidor,
+		arg.ID,
+		arg.BranchID,
+		arg.Nombre,
+		arg.Activo,
+	)
+	var i CrearDistribuidorRow
 	err := row.Scan(
 		&i.ID,
 		&i.BranchID,

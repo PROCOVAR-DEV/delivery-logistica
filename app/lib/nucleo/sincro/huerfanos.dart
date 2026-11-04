@@ -85,9 +85,9 @@ class Huerfanos {
     // las unicas que se pueden dar por perdidas a mano — a una zona no hay que
     // renunciar, sube sola en cuanto haya senal.
     rutas,
-    Sitio('vehicles', 'vehículo', 'vehículos'),
-    Sitio('vehicle_types', 'tipo de vehículo', 'tipos de vehículo'),
-    Sitio('distribuidores', 'distribuidor', 'distribuidores'),
+    vehiculos,
+    tiposDeVehiculo,
+    distribuidores,
     Sitio('warehouses', 'almacén', 'almacenes'),
   ];
 
@@ -326,9 +326,33 @@ class Huerfanos {
     'routes',
     'ruta',
     'rutas',
-    condicion:
-        "(t.id LIKE 'local-%' OR EXISTS (SELECT 1 FROM apuntes x "
-        "WHERE x.provisional = t.id AND x.estado <> 'aplicado'))",
+    condicion: _naceEnElAparatoYNoSubio,
+  );
+
+  /// «Todavía no está arriba» para lo que el aparato crea con su UUIDv7 definitivo (04/11/2026): que el apunte que lo CREA
+  /// (`provisional = id`) exista y no se aplicara. Más el `local-…` de antes de la 1.0.51, que puede seguir en una cola.
+  static const _naceEnElAparatoYNoSubio =
+      "(t.id LIKE 'local-%' OR EXISTS (SELECT 1 FROM apuntes x "
+      "WHERE x.provisional = t.id AND x.estado <> 'aplicado'))";
+
+  /// Camiones, tipos y distribuidores: lo mismo que [rutas], desde la misma fecha.
+  static const vehiculos = Sitio(
+    'vehicles',
+    'vehículo',
+    'vehículos',
+    condicion: _naceEnElAparatoYNoSubio,
+  );
+  static const tiposDeVehiculo = Sitio(
+    'vehicle_types',
+    'tipo de vehículo',
+    'tipos de vehículo',
+    condicion: _naceEnElAparatoYNoSubio,
+  );
+  static const distribuidores = Sitio(
+    'distribuidores',
+    'distribuidor',
+    'distribuidores',
+    condicion: _naceEnElAparatoYNoSubio,
   );
 
   /// La zona del tablero, que es la unica que hoy se sabe reconstruir.

@@ -190,6 +190,44 @@ func TestElCierreDeLaRutaVaAlIdDeVerdadYNoAlLocal(t *testing.T) {
 	}
 }
 
+// LA RUTA CON EL ID DEFINITIVO DEL APARATO (04/11/2026): el aparato ya no inventa un `local-…`; la ruta nace con su UUIDv7 y ese id va
+// en el cuerpo del alta y en todo lo que viene detrás. Aquí no hay nada que traducir: el cuerpo y la ruta llegan al reparto TAL CUAL,
+// el id que contesta el reparto es el mismo, y subirlo otra vez en otro envío (con otra clave) no cambia ni rompe nada.
+func TestLaRutaConElIdDelAparatoSubeTalCualYSuCierreNoSeToca(t *testing.T) {
+	b := montar(t)
+	propio, _ := uuid.NewV7()
+	b.aplicador.responde = func(p Peticion) (*uuid.UUID, error) {
+		if p.Ruta == "/api/routes" {
+			return &propio, nil // el reparto respeta el id del aparato
+		}
+		return nil, nil
+	}
+	arma := apunteEntrada{
+		Clave: "01J8E001", Hecho: enPunto(t, "2026-11-04T09:10:00Z"),
+		Metodo: http.MethodPost, Ruta: "/api/routes",
+		Cuerpo:      json.RawMessage(`{"id":"` + propio.String() + `","vehicleId":"v1","orderIds":["p1"]}`),
+		Provisional: propio.String(),
+	}
+	cierra := apunteEntrada{
+		Clave: "01J8E002", Hecho: enPunto(t, "2026-11-04T18:40:00Z"),
+		Metodo: http.MethodPost, Ruta: "/api/routes/" + propio.String() + "/results",
+		Cuerpo: json.RawMessage(`{"entregados":["p1"]}`),
+	}
+	_, res := b.subir([]apunteEntrada{arma, cierra}, b.quien)
+	if len(res) != 2 || res[0].Estado != EstadoAplicado || res[1].Estado != EstadoAplicado {
+		t.Fatalf("los dos tenían que aplicarse: %+v", res)
+	}
+	if res[0].ID == nil || *res[0].ID != propio {
+		t.Fatalf("el id que se devuelve al aparato es el suyo: %v", res[0].ID)
+	}
+	if got := b.aplicador.llamadas[0].Cuerpo; !strings.Contains(string(got), propio.String()) {
+		t.Fatalf("el id del aparato tiene que llegar al reparto en el cuerpo del alta: %s", got)
+	}
+	if got := b.aplicador.llamadas[1].Ruta; got != "/api/routes/"+propio.String()+"/results" {
+		t.Fatalf("el cierre fue a %q: no había nada que traducir", got)
+	}
+}
+
 // REORDENAR SIN SEÑAL una ruta armada sin señal (issue 11): el `PUT …/stops` sube al id de
 // verdad y su `orden` (ids de pedidos, que ya son del servidor) llega tal cual. La subida
 // normal no tiene lista blanca de rutas; la de la bandeja de revisión sí, y la ata

@@ -5,9 +5,15 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"procovar/reparto-api/internal/alcance"
+	"procovar/reparto-api/internal/httpx"
 )
 
 // EL ID DE UNA RUTA ES UN UUIDv7 Y SU CÓDIGO SALE DE ÉL — Jose, 04/11/2026: «no puedo tener rutas con códigos repetidos, para eso está
@@ -33,8 +39,11 @@ const alfabetoDeCodigos = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 const intentosDeCodigoDeRuta = 8
 
+// msgIdYaEnUso es el 409 de un alta cuyo id ya es de otra cosa (de otra sucursal): ni se crea ni se devuelve lo ajeno.
+const msgIdYaEnUso = "Ese id ya lo usa otra cosa: el aparato tiene que crear el alta con un id nuevo"
+
 // errIdNoEsV7 es el id que manda el aparato cuando no es un UUIDv7 bien formado.
-var errIdNoEsV7 = errors.New("el id de la ruta tiene que ser un UUID v7")
+var errIdNoEsV7 = errors.New("el «id» tiene que ser un UUID v7: lo pone el aparato al crearlo")
 
 // codigoDeRutaDe saca el código `AAMMDD-XXXXXX` de un UUIDv7: la FECHA de creación (la hora que lleva dentro el propio id, en UTC, para
 // poder buscar por fecha: Jose, 04/11/2026), un guion y 6 caracteres de los 30 bits más bajos (los últimos 4 bytes son aleatorios del
@@ -49,6 +58,41 @@ func codigoDeRutaDe(id uuid.UUID) string {
 	}
 	seg, nseg := id.Time().UnixTime()
 	return time.Unix(seg, nseg).UTC().Format("060102") + "-" + string(c[:])
+}
+
+// idDelAparatoPg es `idDeRutaDelAparato` para quien tiene que contestar: lee el `id` que manda el aparato al CREAR algo (camión,
+// tipo de vehículo, distribuidor…) y, si no vale, contesta el 400. `Valid` falso = no mandó ninguno, y lo pone la base (UUIDv7).
+func idDelAparatoPg(w http.ResponseWriter, r *http.Request, crudo string) (pgtype.UUID, bool) {
+	id, err := idDeRutaDelAparato(crudo)
+	if err != nil {
+		httpx.Error(w, r, http.StatusBadRequest, err.Error())
+		return pgtype.UUID{}, false
+	}
+	return pgDe(id), true
+}
+
+// laRutaDelAparatoYaEstaba es la rama del REINTENTO de las dos altas de ruta (`POST /routes` y armar una zona): el aparato manda dos
+// veces el mismo id porque no supo si la primera llegó, y se le devuelve la ruta que ya existe en vez de intentar armarla otra vez
+// (que chocaría contra sus propios pedidos, ya enganchados a ella). Acotado al alcance de quien llama: el id de una ruta ajena no se
+// devuelve. Devuelve true si ya contestó (también con el 400 de un id mal formado).
+func (s *Servidor) laRutaDelAparatoYaEstaba(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, crudo string) bool {
+	id, err := idDeRutaDelAparato(crudo)
+	if err != nil {
+		httpx.Error(w, r, http.StatusBadRequest, err.Error())
+		return true
+	}
+	if id == uuid.Nil {
+		return false
+	}
+	if _, err := a.ObtenerRuta(r.Context(), id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false
+		}
+		httpx.ErrorInterno(w, r, err)
+		return true
+	}
+	s.responderConLaRuta(w, r, a, id, http.StatusOK)
+	return true
 }
 
 // idDeRutaDelAparato lee el `id` que manda el aparato: vacío = no mandó ninguno (`uuid.Nil`), y si viene tiene que ser un UUIDv7.

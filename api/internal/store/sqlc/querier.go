@@ -526,7 +526,8 @@ type Querier interface {
 	CrearConduce(ctx context.Context, arg CrearConduceParams) ([]uuid.UUID, error)
 	// Nace en la sucursal de quien llama (`branch_id` lo rellena `alcance.Acotado`). El manejador no
 	// llama a esta consulta sin sucursal: en modo «todas» contesta 400.
-	CrearDistribuidor(ctx context.Context, arg CrearDistribuidorParams) (Distribuidore, error)
+	// EL REINTENTO (04/11/2026): mismo id del aparato = el distribuidor que ya estaba, no un segundo.
+	CrearDistribuidor(ctx context.Context, arg CrearDistribuidorParams) (CrearDistribuidorRow, error)
 	CrearOrigen(ctx context.Context, arg CrearOrigenParams) (SavedOrigin, error)
 	// LA CONSTANCIA DEL PESO, que estaba dada de alta y no la escribía nadie.
 	//
@@ -578,7 +579,9 @@ type Querier interface {
 	// El tipo NACE en la sucursal del alcance (`branch_id`, que lo rellena `alcance.Acotado`). El
 	// manejador NO llama a esta consulta sin sucursal: en modo «todas» contesta 400 y no crea ningún
 	// «de todas» (ver arriba). La tabla sí admite el nulo, porque así viven los de fábrica.
-	CrearTipoDeVehiculo(ctx context.Context, arg CrearTipoDeVehiculoParams) (VehicleType, error)
+	// EL REINTENTO (04/11/2026): el aparato pone el id (UUIDv7) y, si manda dos veces el mismo, se le devuelve el tipo que ya
+	// estaba y no se crean dos. Acotado a la misma sucursal: con el id de otra no se devuelve lo ajeno.
+	CrearTipoDeVehiculo(ctx context.Context, arg CrearTipoDeVehiculoParams) (CrearTipoDeVehiculoRow, error)
 	// ---------------------------------------------------------------------------
 	// Altas y cambios
 	// ---------------------------------------------------------------------------
@@ -587,7 +590,8 @@ type Querier interface {
 	//
 	// `costo_km_usd` puede quedar vacío: lo pone el camionero, y dos camiones del mismo tipo
 	// no cuestan igual. Vacío quiere decir «usa el del tipo», no «cero».
-	CrearVehiculo(ctx context.Context, arg CrearVehiculoParams) (Vehicle, error)
+	// EL REINTENTO (04/11/2026): mismo id del aparato = el camión que ya estaba, no un segundo.
+	CrearVehiculo(ctx context.Context, arg CrearVehiculoParams) (CrearVehiculoRow, error)
 	// Retirar una moneda es desactivarla, no borrarla: los importes ya guardados se
 	// convirtieron con su tasa y sin la fila no hay forma de volver a explicarlos.
 	DesactivarMoneda(ctx context.Context, code string) (int64, error)

@@ -78,9 +78,20 @@ SELECT EXISTS (SELECT 1 FROM vehicle_types vt WHERE vt.nombre = sqlc.arg('nombre
 -- manejador NO llama a esta consulta sin sucursal: en modo «todas» contesta 400 y no crea ningún
 -- «de todas» (ver arriba). La tabla sí admite el nulo, porque así viven los de fábrica.
 -- name: CrearTipoDeVehiculo :one
-INSERT INTO vehicle_types (nombre, costo_km_usd, activo, branch_id)
-VALUES (sqlc.arg('nombre'), sqlc.narg('costo_km_usd'), sqlc.arg('activo'), sqlc.narg('branch_id'))
-RETURNING id, nombre, costo_km_usd, activo, created_at, updated_at, branch_id;
+WITH nuevo AS (
+    INSERT INTO vehicle_types (id, nombre, costo_km_usd, activo, branch_id)
+    VALUES (coalesce(sqlc.narg('id')::uuid, uuid_generate_v7()), sqlc.arg('nombre'), sqlc.narg('costo_km_usd'), sqlc.arg('activo'), sqlc.narg('branch_id'))
+    ON CONFLICT (id) DO NOTHING
+    RETURNING id, nombre, costo_km_usd, activo, created_at, updated_at, branch_id
+)
+SELECT id, nombre, costo_km_usd, activo, created_at, updated_at, branch_id FROM nuevo
+UNION ALL
+-- EL REINTENTO (04/11/2026): el aparato pone el id (UUIDv7) y, si manda dos veces el mismo, se le devuelve el tipo que ya
+-- estaba y no se crean dos. Acotado a la misma sucursal: con el id de otra no se devuelve lo ajeno.
+SELECT t.id, t.nombre, t.costo_km_usd, t.activo, t.created_at, t.updated_at, t.branch_id
+FROM vehicle_types t
+WHERE sqlc.narg('id')::uuid IS NOT NULL AND t.id = sqlc.narg('id')::uuid
+  AND t.branch_id IS NOT DISTINCT FROM sqlc.narg('branch_id')::uuid;
 
 -- name: ActualizarTipoDeVehiculo :one
 UPDATE vehicle_types SET

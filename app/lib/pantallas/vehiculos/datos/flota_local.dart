@@ -227,7 +227,7 @@ ORDER BY d.nombre ASC
     final sucursal = await sucursalDeAlta();
     final tipo = d.tipo ?? 'truck';
     await _tipoExiste(tipo, sucursal);
-    final id = Provisionales.nuevoId();
+    final id = Provisionales.nuevoIdReal();
     await _base.transaction(() async {
       if (d.usarParaDomicilio == true) await _desmarcarReferencia(sucursal, id);
       await _base
@@ -252,7 +252,8 @@ ORDER BY d.nombre ASC
       await _cola.encolar(
         metodo: 'POST',
         ruta: '/vehicles',
-        cuerpo: d.aJson(),
+        // El id lo pone el APARATO (UUIDv7, 04/11/2026) y el servidor lo respeta; subir dos veces el mismo no crea dos.
+        cuerpo: {...d.aJson(), 'id': id},
         provisional: id,
       );
     });
@@ -366,7 +367,7 @@ ORDER BY d.nombre ASC
         );
         return;
       }
-      final id = Provisionales.nuevoId();
+      final id = Provisionales.nuevoIdReal();
       await _base
           .into(_base.vehicleTypes)
           .insert(
@@ -382,7 +383,11 @@ ORDER BY d.nombre ASC
       await _cola.encolar(
         metodo: 'POST',
         ruta: '/vehicle-types',
-        cuerpo: <String, Object?>{'nombre': nombre, 'costoKmUsd': tipo.costoKmUsd},
+        cuerpo: <String, Object?>{
+          'id': id,
+          'nombre': nombre,
+          'costoKmUsd': tipo.costoKmUsd,
+        },
         provisional: id,
       );
     });
@@ -447,7 +452,7 @@ ORDER BY d.nombre ASC
     final nombre = crudo.trim().split(RegExp(r'\s+')).join(' ');
     if (nombre.isEmpty) throw _no('El nombre del distribuidor es obligatorio');
     await _sinRepetir(sucursal, nombre, salvo: null);
-    final id = Provisionales.nuevoId();
+    final id = Provisionales.nuevoIdReal();
     await _base.transaction(() async {
       await _base
           .into(_base.distribuidores)
@@ -462,7 +467,7 @@ ORDER BY d.nombre ASC
       await _cola.encolar(
         metodo: 'POST',
         ruta: '/distribuidores',
-        cuerpo: <String, Object?>{'nombre': nombre},
+        cuerpo: <String, Object?>{'id': id, 'nombre': nombre},
         provisional: id,
       );
     });

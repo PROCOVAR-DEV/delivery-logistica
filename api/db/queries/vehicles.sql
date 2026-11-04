@@ -84,16 +84,30 @@ WHERE v.id = sqlc.arg('id');
 -- `costo_km_usd` puede quedar vacío: lo pone el camionero, y dos camiones del mismo tipo
 -- no cuestan igual. Vacío quiere decir «usa el del tipo», no «cero».
 -- name: CrearVehiculo :one
-INSERT INTO vehicles (
-    name, vehicle_type_id, plate, capacity, costo_km_usd,
-    usar_para_domicilio, status, is_active, notes, branch_id
-) VALUES (
-    sqlc.arg('name'), sqlc.arg('vehicle_type_id'), sqlc.narg('plate'),
-    sqlc.arg('capacity'), sqlc.narg('costo_km_usd'), sqlc.arg('usar_para_domicilio'),
-    sqlc.arg('status'), sqlc.arg('is_active'), sqlc.narg('notes'), sqlc.narg('branch_id')
+WITH nuevo AS (
+    INSERT INTO vehicles (
+        id, name, vehicle_type_id, plate, capacity, costo_km_usd,
+        usar_para_domicilio, status, is_active, notes, branch_id
+    ) VALUES (
+        coalesce(sqlc.narg('id')::uuid, uuid_generate_v7()),
+        sqlc.arg('name'), sqlc.arg('vehicle_type_id'), sqlc.narg('plate'),
+        sqlc.arg('capacity'), sqlc.narg('costo_km_usd'), sqlc.arg('usar_para_domicilio'),
+        sqlc.arg('status'), sqlc.arg('is_active'), sqlc.narg('notes'), sqlc.narg('branch_id')
+    )
+    ON CONFLICT (id) DO NOTHING
+    RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
+              usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
 )
-RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active;
+SELECT id, name, vehicle_type_id, plate, capacity, costo_km_usd,
+       usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
+FROM nuevo
+UNION ALL
+-- EL REINTENTO (04/11/2026): mismo id del aparato = el camión que ya estaba, no un segundo.
+SELECT v.id, v.name, v.vehicle_type_id, v.plate, v.capacity, v.costo_km_usd,
+       v.usar_para_domicilio, v.status, v.notes, v.branch_id, v.created_at, v.updated_at, v.is_active
+FROM vehicles v
+WHERE sqlc.narg('id')::uuid IS NOT NULL AND v.id = sqlc.narg('id')::uuid
+  AND v.branch_id IS NOT DISTINCT FROM sqlc.narg('branch_id')::uuid;
 
 -- name: ActualizarVehiculo :one
 UPDATE vehicles SET

@@ -163,17 +163,21 @@ func (d *dobleDeDistribuidores) ObtenerDistribuidor(_ context.Context, arg sqlc.
 	return sqlc.ObtenerDistribuidorRow{ID: x.ID, BranchID: x.BranchID, Nombre: x.Nombre, Activo: x.Activo}, nil
 }
 
-func (d *dobleDeDistribuidores) CrearDistribuidor(_ context.Context, arg sqlc.CrearDistribuidorParams) (sqlc.Distribuidore, error) {
+func (d *dobleDeDistribuidores) CrearDistribuidor(_ context.Context, arg sqlc.CrearDistribuidorParams) (sqlc.CrearDistribuidorRow, error) {
 	if d.falloAlEscribir != nil {
-		return sqlc.Distribuidore{}, d.falloAlEscribir
+		return sqlc.CrearDistribuidorRow{}, d.falloAlEscribir
 	}
 	if d.repetida(arg.Nombre, arg.BranchID, uuid.Nil) {
-		return sqlc.Distribuidore{}, &pgconn.PgError{Code: "23505"}
+		return sqlc.CrearDistribuidorRow{}, &pgconn.PgError{Code: "23505"}
 	}
-	x := sqlc.Distribuidore{ID: uuid.New(), BranchID: arg.BranchID, Nombre: arg.Nombre, Activo: arg.Activo}
+	id := uuid.New()
+	if arg.ID.Valid { // como la base: el id que manda el aparato manda
+		id = uuid.UUID(arg.ID.Bytes)
+	}
+	x := sqlc.Distribuidore{ID: id, BranchID: arg.BranchID, Nombre: arg.Nombre, Activo: arg.Activo}
 	d.lista = append(d.lista, distribuidorDePrueba{Distribuidore: x})
 	d.escritos++
-	return x, nil
+	return sqlc.CrearDistribuidorRow(x), nil
 }
 
 func (d *dobleDeDistribuidores) ActualizarDistribuidor(_ context.Context, arg sqlc.ActualizarDistribuidorParams) (sqlc.Distribuidore, error) {
@@ -610,6 +614,27 @@ func TestUnDistribuidorNuevoNaceEnLaSucursalDeQuienLoCrea(t *testing.T) {
 				t.Fatalf("el 400 llegó DESPUÉS de crear: %d escrituras", d.escritos)
 			}
 		})
+	}
+}
+
+// EL ID LO PONE EL APARATO (04/11/2026): un UUIDv7 que el servidor respeta; uno que no lo es (un `local-…` viejo, un v4) es un 400 y no se
+// crea nada. Sin id, lo pone la base.
+func TestElDistribuidorNaceConElIdDelAparato(t *testing.T) {
+	propio, _ := uuid.NewV7()
+	d, _, _ := nuevoDobleDeDistribuidores()
+	h := montarDist(t, d)
+	got := distribuidorDeRespuesta(t, llamarDist(t, h, http.MethodPost, "/api/distribuidores", logisticoDe(t, stgDeRutas), "",
+		`{"id":"`+propio.String()+`","nombre":"Ana Torres"}`), http.StatusCreated)
+	if got.ID != propio {
+		t.Fatalf("el id del aparato manda: pidió %s y quedó %s", propio, got.ID)
+	}
+	for _, malo := range []string{uuid.New().String(), "local-9f3a2b7c", "xx"} {
+		antes := d.escritos
+		w := llamarDist(t, h, http.MethodPost, "/api/distribuidores", logisticoDe(t, stgDeRutas), "", `{"id":"`+malo+`","nombre":"Otra"}`)
+		codigoDist(t, w, http.StatusBadRequest)
+		if d.escritos != antes {
+			t.Fatalf("%q: el 400 llegó DESPUÉS de crear", malo)
+		}
 	}
 }
 

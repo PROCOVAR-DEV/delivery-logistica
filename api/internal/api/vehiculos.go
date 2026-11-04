@@ -284,6 +284,8 @@ func (s *Servidor) obtenerVehiculo(w http.ResponseWriter, r *http.Request) {
 }
 
 type cuerpoVehiculo struct {
+	// ID lo pone el aparato al CREAR (UUIDv7); en un PATCH no se lee.
+	ID                httpx.Opcional[string]  `json:"id"`
 	Name              httpx.Opcional[string]  `json:"name"`
 	Type              httpx.Opcional[string]  `json:"type"`
 	Plate             httpx.Opcional[string]  `json:"plate"`
@@ -326,20 +328,26 @@ func (s *Servidor) crearVehiculo(w http.ResponseWriter, r *http.Request) {
 	// referencia. Marcarlo por descuido cambia el precio de todos los domicilios de esa
 	// sucursal, porque el CKK de la fórmula sale de ese vehículo.
 	referencia := c.UsarParaDomicilio.Con(false)
+	idDelAparato, ok := idDelAparatoPg(w, r, c.ID.Con(""))
+	if !ok {
+		return
+	}
 
 	var creado sqlc.Vehicle
 	err := a.EnTx(r.Context(), func(tx *alcance.Acotado) error {
 		if referencia {
 			// Se desmarca ANTES de insertar: el índice único parcial
 			// `vehicles_una_referencia_por_sucursal` rechazaría el INSERT si ya hubiera
-			// otro marcado. `uuid.Nil` como excepción porque el nuevo todavía no tiene
-			// id — no hay ninguna fila con ese id, así que no excluye a nadie.
-			if _, err := tx.DesmarcarReferenciaDeDomicilio(r.Context(), uuid.Nil); err != nil {
+			// otro marcado. La excepción es el id que manda el aparato (`uuid.Nil` si no manda ninguno: no hay
+			// fila con ese id y no excluye a nadie). Con el id puesto, un REINTENTO del alta no le quita la
+			// marca al camión que ya se creó con ella.
+			if _, err := tx.DesmarcarReferenciaDeDomicilio(r.Context(), uuid.UUID(idDelAparato.Bytes)); err != nil {
 				return err
 			}
 		}
 		var err error
 		creado, err = tx.CrearVehiculo(r.Context(), sqlc.CrearVehiculoParams{
+			ID:                idDelAparato,
 			Name:              *c.Name.Valor,
 			VehicleTypeID:     tipo,
 			Plate:             aTexto(c.Plate.Con("")),
@@ -352,6 +360,10 @@ func (s *Servidor) crearVehiculo(w http.ResponseWriter, r *http.Request) {
 		})
 		return err
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusConflict, msgIdYaEnUso)
+		return
+	}
 	if err != nil {
 		httpx.ErrorInterno(w, r, err)
 		return

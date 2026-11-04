@@ -1697,6 +1697,9 @@ func (s *Servidor) armarRutaDeColumna(w http.ResponseWriter, r *http.Request) {
 	if !httpx.LeerJSON(w, r, &c) {
 		return
 	}
+	if s.laRutaDelAparatoYaEstaba(w, r, a, c.ID.Con("")) {
+		return
+	}
 
 	// El día de la ruta. Ver [cuerpoArmar.FechaDeEntrega]: si el aparato no la manda
 	// —las APK viejas no lo hacen— se pone la de hoy, nunca nulo.

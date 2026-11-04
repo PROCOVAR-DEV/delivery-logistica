@@ -1119,6 +1119,41 @@ func TestArmarRutaEnganchaLosPedidosConSusCuatroCampos(t *testing.T) {
 
 // El camión NO se ocupa al armar: entre que se arma la ruta de mañana y sale, el camión
 // sigue disponible. Marcarlo aquí impedía armar la ruta mientras el camión está fuera.
+// EL REINTENTO DEL ALTA (04/11/2026): el aparato pone el id de la ruta y, si manda dos veces el mismo alta (no supo si llegó la primera),
+// se le devuelve la ruta que ya existe —200— y no se arma otra ni se rechaza porque sus pedidos «ya van en una ruta».
+func TestElAltaDeRutaConElMismoIdDevuelveLaQueYaEstaba(t *testing.T) {
+	d, stg, _ := datosDeReparto()
+	h := montarRutas(t, d)
+	propio, _ := uuid.NewV7()
+	cuerpo := strings.Replace(cuerpoDeArmado(camionStg.String(), stg[0], stg[1]), `{"name"`, `{"id":"`+propio.String()+`","name"`, 1)
+
+	primera := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t), cuerpo)
+	if primera.Code != http.StatusCreated {
+		t.Fatalf("la primera: %d %s", primera.Code, primera.Body.String())
+	}
+	var a RutaSalida
+	_ = json.Unmarshal(primera.Body.Bytes(), &a)
+	if a.ID != propio || a.RouteCode == nil || *a.RouteCode != codigoDeRutaDe(propio) {
+		t.Fatalf("el id y el código del aparato mandan: %v %v", a.ID, a.RouteCode)
+	}
+
+	segunda := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t), cuerpo)
+	if segunda.Code != http.StatusOK {
+		t.Fatalf("el reintento tenía que devolver la que ya estaba (200): %d %s", segunda.Code, segunda.Body.String())
+	}
+	var b RutaSalida
+	_ = json.Unmarshal(segunda.Body.Bytes(), &b)
+	if b.ID != propio || len(d.rutas) != 1 {
+		t.Fatalf("no tenía que haber dos rutas: %v, %d en la base", b.ID, len(d.rutas))
+	}
+
+	// y un id que no es v7 se rechaza antes de tocar nada
+	malo := strings.Replace(cuerpo, propio.String(), uuid.New().String(), 1)
+	if w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t), malo); w.Code != http.StatusBadRequest {
+		t.Fatalf("un id v4 es un 400: %d %s", w.Code, w.Body.String())
+	}
+}
+
 func TestArmarRutaNoOcupaElCamion(t *testing.T) {
 	d, stg, _ := datosDeReparto()
 	h := montarRutas(t, d)

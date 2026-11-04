@@ -125,16 +125,36 @@ func (q *Queries) BuscarTipoDeVehiculoPorNombre(ctx context.Context, arg BuscarT
 }
 
 const crearTipoDeVehiculo = `-- name: CrearTipoDeVehiculo :one
-INSERT INTO vehicle_types (nombre, costo_km_usd, activo, branch_id)
-VALUES ($1, $2, $3, $4)
-RETURNING id, nombre, costo_km_usd, activo, created_at, updated_at, branch_id
+WITH nuevo AS (
+    INSERT INTO vehicle_types (id, nombre, costo_km_usd, activo, branch_id)
+    VALUES (coalesce($1::uuid, uuid_generate_v7()), $2, $3, $4, $5)
+    ON CONFLICT (id) DO NOTHING
+    RETURNING id, nombre, costo_km_usd, activo, created_at, updated_at, branch_id
+)
+SELECT id, nombre, costo_km_usd, activo, created_at, updated_at, branch_id FROM nuevo
+UNION ALL
+SELECT t.id, t.nombre, t.costo_km_usd, t.activo, t.created_at, t.updated_at, t.branch_id
+FROM vehicle_types t
+WHERE $1::uuid IS NOT NULL AND t.id = $1::uuid
+  AND t.branch_id IS NOT DISTINCT FROM $5::uuid
 `
 
 type CrearTipoDeVehiculoParams struct {
+	ID         pgtype.UUID `json:"id"`
 	Nombre     string      `json:"nombre"`
 	CostoKmUsd *float64    `json:"costo_km_usd"`
 	Activo     bool        `json:"activo"`
 	BranchID   pgtype.UUID `json:"branch_id"`
+}
+
+type CrearTipoDeVehiculoRow struct {
+	ID         uuid.UUID          `json:"id"`
+	Nombre     string             `json:"nombre"`
+	CostoKmUsd *float64           `json:"costo_km_usd"`
+	Activo     bool               `json:"activo"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	BranchID   pgtype.UUID        `json:"branch_id"`
 }
 
 // El costo por km del tipo es un VALOR POR DEFECTO, no el bueno: cada vehículo puede tener
@@ -145,14 +165,17 @@ type CrearTipoDeVehiculoParams struct {
 // El tipo NACE en la sucursal del alcance (`branch_id`, que lo rellena `alcance.Acotado`). El
 // manejador NO llama a esta consulta sin sucursal: en modo «todas» contesta 400 y no crea ningún
 // «de todas» (ver arriba). La tabla sí admite el nulo, porque así viven los de fábrica.
-func (q *Queries) CrearTipoDeVehiculo(ctx context.Context, arg CrearTipoDeVehiculoParams) (VehicleType, error) {
+// EL REINTENTO (04/11/2026): el aparato pone el id (UUIDv7) y, si manda dos veces el mismo, se le devuelve el tipo que ya
+// estaba y no se crean dos. Acotado a la misma sucursal: con el id de otra no se devuelve lo ajeno.
+func (q *Queries) CrearTipoDeVehiculo(ctx context.Context, arg CrearTipoDeVehiculoParams) (CrearTipoDeVehiculoRow, error) {
 	row := q.db.QueryRow(ctx, crearTipoDeVehiculo,
+		arg.ID,
 		arg.Nombre,
 		arg.CostoKmUsd,
 		arg.Activo,
 		arg.BranchID,
 	)
-	var i VehicleType
+	var i CrearTipoDeVehiculoRow
 	err := row.Scan(
 		&i.ID,
 		&i.Nombre,

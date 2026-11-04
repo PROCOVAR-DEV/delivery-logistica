@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,8 @@ import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/red/fallos.dart';
 import 'package:reparto/pantallas/distribuidores/estado/proveedores_distribuidores.dart';
 import 'package:reparto/pantallas/vehiculos/datos/vehiculo_api.dart';
+
+import '../../apoyo/uuid_v7.dart';
 import 'package:reparto/pantallas/vehiculos/estado/estado_vehiculos.dart';
 import 'package:reparto/pantallas/vehiculos/vista/pantalla_vehiculos.dart';
 
@@ -113,7 +117,9 @@ void main() {
     // pero el tipo tiene que subir ANTES (la cola es FIFO).
     expect(await cola(), ['POST /vehicle-types', 'POST /vehicles']);
     final apuntes = await banco.base.select(banco.base.apuntes).get();
-    expect(apuntes.every((a) => a.provisional?.startsWith('local-') ?? false), isTrue);
+    // El id lo pone el aparato (UUIDv7, sin `local-`) y viaja en el cuerpo del alta (04/11/2026).
+    expect(apuntes.every((a) => unUuidV7.hasMatch(a.provisional ?? '')), isTrue);
+    expect(apuntes.map((a) => (jsonDecode(a.cuerpo) as Map)['id']), apuntes.map((a) => a.provisional));
     expect((await banco.base.select(banco.base.vehicles).get()).single.name, 'Triciclo 1');
     expect(banco.servidor.vistas, isEmpty);
     // Y se ve al momento en la flota del aparato.

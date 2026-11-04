@@ -113,7 +113,8 @@ func (a *Acotado) ObtenerVehiculo(ctx context.Context, id uuid.UUID) (sqlc.Obten
 // Super Admin— lo deja sin sucursal, que quiere decir «de todas».
 func (a *Acotado) CrearVehiculo(ctx context.Context, arg sqlc.CrearVehiculoParams) (sqlc.Vehicle, error) {
 	arg.BranchID = a.sucursalPg()
-	return a.q.CrearVehiculo(ctx, arg)
+	fila, err := a.q.CrearVehiculo(ctx, arg)
+	return sqlc.Vehicle(fila), err
 }
 
 func (a *Acotado) ActualizarVehiculo(ctx context.Context, arg sqlc.ActualizarVehiculoParams) (sqlc.Vehicle, error) {
@@ -201,7 +202,8 @@ func (a *Acotado) ExisteTipoDeVehiculoConNombre(ctx context.Context, nombre stri
 // CrearTipoDeVehiculo: el tipo NACE en la sucursal del alcance. El manejador no llama sin ella.
 func (a *Acotado) CrearTipoDeVehiculo(ctx context.Context, arg sqlc.CrearTipoDeVehiculoParams) (sqlc.VehicleType, error) {
 	arg.BranchID = a.sucursalPg()
-	return a.q.CrearTipoDeVehiculo(ctx, arg)
+	fila, err := a.q.CrearTipoDeVehiculo(ctx, arg)
+	return sqlc.VehicleType(fila), err
 }
 
 func (a *Acotado) ActualizarTipoDeVehiculo(ctx context.Context, arg sqlc.ActualizarTipoDeVehiculoParams) (sqlc.VehicleType, error) {
@@ -250,7 +252,8 @@ func (a *Acotado) ObtenerDistribuidor(ctx context.Context, id uuid.UUID) (sqlc.O
 // se pisa. El manejador no llama sin sucursal (modo «todas»).
 func (a *Acotado) CrearDistribuidor(ctx context.Context, arg sqlc.CrearDistribuidorParams) (sqlc.Distribuidore, error) {
 	arg.BranchID = uuid.UUID(a.sucursalPg().Bytes)
-	return a.q.CrearDistribuidor(ctx, arg)
+	fila, err := a.q.CrearDistribuidor(ctx, arg)
+	return sqlc.Distribuidore(fila), err
 }
 
 func (a *Acotado) ActualizarDistribuidor(ctx context.Context, arg sqlc.ActualizarDistribuidorParams) (sqlc.Distribuidore, error) {

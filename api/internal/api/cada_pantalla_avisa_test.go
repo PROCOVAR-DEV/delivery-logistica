@@ -356,11 +356,11 @@ func (d *dobleAvisos) DesmarcarReferenciaDeDomicilio(context.Context, sqlc.Desma
 	return 0, nil
 }
 
-func (d *dobleAvisos) CrearVehiculo(_ context.Context, arg sqlc.CrearVehiculoParams) (sqlc.Vehicle, error) {
-	return sqlc.Vehicle{
+func (d *dobleAvisos) CrearVehiculo(_ context.Context, arg sqlc.CrearVehiculoParams) (sqlc.CrearVehiculoRow, error) {
+	return sqlc.CrearVehiculoRow(sqlc.Vehicle{
 		ID: uuid.New(), Name: arg.Name, VehicleTypeID: arg.VehicleTypeID,
 		Capacity: arg.Capacity, Status: arg.Status, BranchID: arg.BranchID,
-	}, nil
+	}), nil
 }
 
 func (d *dobleAvisos) ObtenerVehiculo(_ context.Context, arg sqlc.ObtenerVehiculoParams) (sqlc.ObtenerVehiculoRow, error) {
@@ -436,14 +436,14 @@ func (d *dobleAvisos) ListarTiposDeVehiculo(_ context.Context, arg sqlc.ListarTi
 	return filas, nil
 }
 
-func (d *dobleAvisos) CrearTipoDeVehiculo(_ context.Context, arg sqlc.CrearTipoDeVehiculoParams) (sqlc.VehicleType, error) {
+func (d *dobleAvisos) CrearTipoDeVehiculo(_ context.Context, arg sqlc.CrearTipoDeVehiculoParams) (sqlc.CrearTipoDeVehiculoRow, error) {
 	if d.repetido(arg.Nombre, arg.BranchID, uuid.Nil) {
-		return sqlc.VehicleType{}, &pgconn.PgError{Code: "23505"}
+		return sqlc.CrearTipoDeVehiculoRow{}, &pgconn.PgError{Code: "23505"}
 	}
 	t := sqlc.VehicleType{ID: uuid.New(), Nombre: arg.Nombre, CostoKmUsd: arg.CostoKmUsd, Activo: arg.Activo, BranchID: arg.BranchID}
 	*d.catalogo() = append(*d.catalogo(), tipoDePrueba{VehicleType: t})
 	d.escritosTipos++
-	return t, nil
+	return sqlc.CrearTipoDeVehiculoRow(t), nil
 }
 
 func (d *dobleAvisos) ActualizarTipoDeVehiculo(_ context.Context, arg sqlc.ActualizarTipoDeVehiculoParams) (sqlc.VehicleType, error) {

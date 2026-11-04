@@ -41,9 +41,19 @@ WHERE d.id = sqlc.arg('id')
 -- Nace en la sucursal de quien llama (`branch_id` lo rellena `alcance.Acotado`). El manejador no
 -- llama a esta consulta sin sucursal: en modo «todas» contesta 400.
 -- name: CrearDistribuidor :one
-INSERT INTO distribuidores (branch_id, nombre, activo)
-VALUES (sqlc.arg('branch_id'), sqlc.arg('nombre'), sqlc.arg('activo'))
-RETURNING id, branch_id, nombre, activo, created_at, updated_at;
+WITH nuevo AS (
+    INSERT INTO distribuidores (id, branch_id, nombre, activo)
+    VALUES (coalesce(sqlc.narg('id')::uuid, uuid_generate_v7()), sqlc.arg('branch_id'), sqlc.arg('nombre'), sqlc.arg('activo'))
+    ON CONFLICT (id) DO NOTHING
+    RETURNING id, branch_id, nombre, activo, created_at, updated_at
+)
+SELECT id, branch_id, nombre, activo, created_at, updated_at FROM nuevo
+UNION ALL
+-- EL REINTENTO (04/11/2026): mismo id del aparato = el distribuidor que ya estaba, no un segundo.
+SELECT d.id, d.branch_id, d.nombre, d.activo, d.created_at, d.updated_at
+FROM distribuidores d
+WHERE sqlc.narg('id')::uuid IS NOT NULL AND d.id = sqlc.narg('id')::uuid
+  AND d.branch_id = sqlc.arg('branch_id');
 
 -- Renombrar o volver a activar/retirar. La sucursal de un distribuidor NO se cambia nunca: una
 -- ruta ya firmada por él seguiría apuntando a quien dejó de ser de su sucursal.

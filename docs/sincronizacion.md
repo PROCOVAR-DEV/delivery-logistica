@@ -506,3 +506,19 @@ devuelve `instalacion` en cada aparato, y la pantalla `/dispositivos?aparato=<id
 actividad: cuándo bajó y subió, pendientes y rechazos con su motivo. Es el destino de `ClientApp.dispositivosUrl` de `delivery-apk` en Accesos.
 Además la app manda a Accesos `X-Aparato-Nombre` y `X-Aparato-Huella` (sha256 de `procovar:` + el id de la máquina) para que Reparto y el CRM de una misma tablet cuenten
 como UN aparato (`auth/docs/dispositivos.md`).
+
+## Lo que el aparato crea nace con su UUIDv7 — 04/11/2026
+
+Rutas, camiones, tipos de vehículo y distribuidores se crean en el APARATO (con conexión o sin ella) con su **UUIDv7 definitivo**, sin `local-…` ni prefijos de
+tipo («las tablas ya separan»). El `id` va en el cuerpo del alta y **el servidor lo respeta**: ni lo cambia ni espera para que el aparato muestre la fila.
+
+- **La ruta lleva además su código** `AAMMDD-XXXXXX`, que sale SOLO del id (fecha UTC del id + 30 bits suyos, Crockford): el aparato y el servidor calculan el mismo
+  (`app/lib/nucleo/codigo_de_ruta.dart` ↔ `api/internal/api/codigo_de_ruta.go`, atados por `docs/codigo-de-ruta.casos.json`). Solo si el código chocara con otro (30 bits:
+  casi nunca) el servidor conserva el id, da otro código libre y lo deja en el registro; el aparato lo recibe en su siguiente bajada.
+- **Subir dos veces el mismo alta no crea dos**: `POST /routes`, el armado de una zona, `/vehicles`, `/vehicle-types` y `/distribuidores` devuelven lo que ya existía
+  (acotado a la sucursal de quien llama; el id de otra sucursal es un 409). El sync pasa el cuerpo tal cual: con el id ya definitivo no hay nada que traducir.
+- **Un `id` que no es UUIDv7 es un 400** (un `local-…` viejo, un v4).
+- **Qué protege lo que aún no subió** (antes lo hacía el prefijo `local-`): el apunte que CREA la fila (`provisional = id`). `Huerfanos` cuenta como «sin subir» lo
+  creado con un apunte que no se aplicó; el cuadre diario no quita una fila que un apunte pendiente, rechazado o en revisión nombra (en los pedidos sigue cerrándose el
+  rechazado cuyo pedido ya no existe).
+- Los almacenes se gestionan desde Accesos/CRM y no se crean en el aparato: siguen como están. El `local-…` de colas anteriores a la 1.0.51 se sigue entendiendo.

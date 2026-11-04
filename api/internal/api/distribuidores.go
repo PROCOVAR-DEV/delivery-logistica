@@ -109,6 +109,8 @@ func (s *Servidor) listarDistribuidores(w http.ResponseWriter, r *http.Request) 
 }
 
 type cuerpoDistribuidor struct {
+	// ID lo pone el aparato al CREAR (UUIDv7); en un PATCH no se lee.
+	ID     httpx.Opcional[string] `json:"id"`
 	Nombre httpx.Opcional[string] `json:"nombre"`
 	Activo httpx.Opcional[bool]   `json:"activo"`
 }
@@ -148,10 +150,19 @@ func (s *Servidor) crearDistribuidor(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusBadRequest, "El nombre del distribuidor es obligatorio")
 		return
 	}
+	idDelAparato, ok := idDelAparatoPg(w, r, c.ID.Con(""))
+	if !ok {
+		return
+	}
 	d, err := a.CrearDistribuidor(r.Context(), sqlc.CrearDistribuidorParams{
+		ID:     idDelAparato,
 		Nombre: nombre,
 		Activo: c.Activo.Con(true),
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusConflict, msgIdYaEnUso)
+		return
+	}
 	if err != nil {
 		// Un choque aquí es que el distribuidor ya está, no un fallo del servidor: con un 500 la
 		// pantalla diría «error» y nadie sabría que basta con elegir el que ya existe.

@@ -109,6 +109,37 @@ void main() {
     expect(await Huerfanos(base).idsDe(Huerfanos.rutas), [descartada]);
   });
 
+  test('camiones, tipos y distribuidores con UUIDv7 se tratan igual que las rutas', () async {
+    // 04/11/2026: la flota nace en el aparato con su id definitivo. Huérfano = el alta se descartó y no hay ninguno vivo.
+    final casos = <Sitio, String>{
+      Huerfanos.vehiculos: "INSERT INTO vehicles (id, name) VALUES (?1, 'v')",
+      Huerfanos.tiposDeVehiculo: "INSERT INTO vehicle_types (id, nombre) VALUES (?1, 't')",
+      Huerfanos.distribuidores: "INSERT INTO distribuidores (id, nombre) VALUES (?1, 'd')",
+    };
+    var n = 0;
+    for (final e in casos.entries) {
+      final descartado = '01a1a72e-6cc0-7abc-8def-0123456789a${n++}';
+      final vivo = '01a1a72e-6cc0-7abc-8def-0123456789b${n++}';
+      for (final id in [descartado, vivo]) {
+        await base.customStatement(e.value, [id]);
+      }
+      for (final entrada in {descartado: EstadoApunte.descartado, vivo: EstadoApunte.pendiente}.entries) {
+        await base.into(base.apuntes).insert(
+          ApuntesCompanion.insert(
+            clave: 'f${n++}',
+            hechoAt: DateTime(2026, 11, 4),
+            metodo: 'POST',
+            ruta: '/x',
+            cuerpo: '{}',
+            provisional: Value(entrada.key),
+            estado: Value(entrada.value),
+          ),
+        );
+      }
+      expect(await Huerfanos(base).idsDe(e.key), [descartado], reason: e.key.tabla);
+    }
+  });
+
   test('una zona local SIN apunte que la suba es trabajo huérfano', () async {
     await zonaLocal('local-abc', pedidos: ['p1', 'p2']);
 

@@ -255,19 +255,33 @@ func (q *Queries) ContarVehiculosEnRuta(ctx context.Context, sucursal pgtype.UUI
 
 const crearVehiculo = `-- name: CrearVehiculo :one
 
-INSERT INTO vehicles (
-    name, vehicle_type_id, plate, capacity, costo_km_usd,
-    usar_para_domicilio, status, is_active, notes, branch_id
-) VALUES (
-    $1, $2, $3,
-    $4, $5, $6,
-    $7, $8, $9, $10
+WITH nuevo AS (
+    INSERT INTO vehicles (
+        id, name, vehicle_type_id, plate, capacity, costo_km_usd,
+        usar_para_domicilio, status, is_active, notes, branch_id
+    ) VALUES (
+        coalesce($1::uuid, uuid_generate_v7()),
+        $2, $3, $4,
+        $5, $6, $7,
+        $8, $9, $10, $11
+    )
+    ON CONFLICT (id) DO NOTHING
+    RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
+              usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
 )
-RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
+SELECT id, name, vehicle_type_id, plate, capacity, costo_km_usd,
+       usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
+FROM nuevo
+UNION ALL
+SELECT v.id, v.name, v.vehicle_type_id, v.plate, v.capacity, v.costo_km_usd,
+       v.usar_para_domicilio, v.status, v.notes, v.branch_id, v.created_at, v.updated_at, v.is_active
+FROM vehicles v
+WHERE $1::uuid IS NOT NULL AND v.id = $1::uuid
+  AND v.branch_id IS NOT DISTINCT FROM $11::uuid
 `
 
 type CrearVehiculoParams struct {
+	ID                pgtype.UUID   `json:"id"`
 	Name              string        `json:"name"`
 	VehicleTypeID     uuid.UUID     `json:"vehicle_type_id"`
 	Plate             *string       `json:"plate"`
@@ -280,6 +294,22 @@ type CrearVehiculoParams struct {
 	BranchID          pgtype.UUID   `json:"branch_id"`
 }
 
+type CrearVehiculoRow struct {
+	ID                uuid.UUID          `json:"id"`
+	Name              string             `json:"name"`
+	VehicleTypeID     uuid.UUID          `json:"vehicle_type_id"`
+	Plate             *string            `json:"plate"`
+	Capacity          float64            `json:"capacity"`
+	CostoKmUsd        *float64           `json:"costo_km_usd"`
+	UsarParaDomicilio bool               `json:"usar_para_domicilio"`
+	Status            VehicleStatus      `json:"status"`
+	Notes             *string            `json:"notes"`
+	BranchID          pgtype.UUID        `json:"branch_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	IsActive          bool               `json:"is_active"`
+}
+
 // ---------------------------------------------------------------------------
 // Altas y cambios
 // ---------------------------------------------------------------------------
@@ -288,8 +318,10 @@ type CrearVehiculoParams struct {
 //
 // `costo_km_usd` puede quedar vacío: lo pone el camionero, y dos camiones del mismo tipo
 // no cuestan igual. Vacío quiere decir «usa el del tipo», no «cero».
-func (q *Queries) CrearVehiculo(ctx context.Context, arg CrearVehiculoParams) (Vehicle, error) {
+// EL REINTENTO (04/11/2026): mismo id del aparato = el camión que ya estaba, no un segundo.
+func (q *Queries) CrearVehiculo(ctx context.Context, arg CrearVehiculoParams) (CrearVehiculoRow, error) {
 	row := q.db.QueryRow(ctx, crearVehiculo,
+		arg.ID,
 		arg.Name,
 		arg.VehicleTypeID,
 		arg.Plate,
@@ -301,7 +333,7 @@ func (q *Queries) CrearVehiculo(ctx context.Context, arg CrearVehiculoParams) (V
 		arg.Notes,
 		arg.BranchID,
 	)
-	var i Vehicle
+	var i CrearVehiculoRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,

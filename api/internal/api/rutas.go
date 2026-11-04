@@ -807,6 +807,9 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 	if !httpx.LeerJSON(w, r, &c) {
 		return
 	}
+	if s.laRutaDelAparatoYaEstaba(w, r, a, c.ID.Con("")) {
+		return
+	}
 
 	// --- Validaciones, EN ESTE ORDEN (contrato §15.1) -----------------------
 	//

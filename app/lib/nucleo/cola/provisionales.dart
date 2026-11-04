@@ -63,6 +63,9 @@ class Provisionales {
   /// mano de que cambiaron y hay que saltarlas si todavia no existen.
   static const _fueraDeDrift = {'board_columns', 'board_placements'};
 
+  /// **YA NO LO USA NINGÚN ALTA (04/11/2026).** Rutas, camiones, tipos de vehículo y distribuidores nacen en el aparato con su
+  /// UUIDv7 definitivo ([nuevoIdReal]). Queda para entender las colas anteriores a la 1.0.51, que aún pueden llevar `local-…`.
+  ///
   /// Un id provisional nuevo. `local-` delante para que se reconozca de un
   /// vistazo en un registro, en la barra de direcciones o en un cuerpo JSON.
   ///

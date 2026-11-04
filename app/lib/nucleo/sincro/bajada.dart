@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import '../codigo_de_ruta.dart';
 import '../base/base.dart';
 import '../frescura/frescura.dart';
 import '../red/cliente_api.dart';
@@ -666,11 +667,41 @@ class Bajada {
     )..where((f) => f.anuladaAt.isSmallerThanValue(corte))).go();
   }
 
+  /// EL SERVIDOR CAMBIÓ EL CÓDIGO DE UNA RUTA HECHA AQUÍ (04/11/2026, Jose: «si coincide le otorgas uno nuevo, notificas qué pasó y se lo
+  /// cambias al local»). El código de una ruta del aparato sale de su UUIDv7 (`codigoDeRutaDe`) y el servidor lo respeta; si el que
+  /// llega es otro y el que guardaba el aparato era EL DE SU ID, hubo un choque: la fila se actualiza (lo hace el `insertOnConflictUpdate`
+  /// de abajo) y aquí se DICE. Si el que guardaba no era el derivado del id (una ruta de antes, o hecha en otra parte), no es un choque.
+  Future<void> _avisarSiCambioElCodigo(Map<Object?, Object?> j) async {
+    final alCuadrar = _alCuadrar;
+    final id = _texto(j['id']);
+    final nuevo = _texto(j['routeCode']);
+    if (alCuadrar == null || id == null || nuevo == null) return;
+    final local = await (_base.select(
+      _base.routes,
+    )..where((r) => r.id.equals(id))).getSingleOrNull();
+    final antes = local?.routeCode;
+    if (antes == null || antes == nuevo) return;
+    try {
+      if (codigoDeRutaDe(id) != antes) return;
+    } on FormatException {
+      return; // un id que no es UUID (de antes de la 1.0.51): no es un código derivado
+    }
+    Registro.aviso('el servidor cambió el código de la ruta $id: $antes -> $nuevo');
+    alCuadrar(
+      ResultadoDelCuadre(
+        codigosCambiados: [
+          CodigoCambiado(rutaId: id, antes: antes, ahora: nuevo),
+        ],
+      ),
+    );
+  }
+
   Future<void> _poner(String coleccion, Map<Object?, Object?> j) async {
     switch (coleccion) {
       case Colecciones.pedidos:
         await _pedido(j);
       case Colecciones.rutas:
+        await _avisarSiCambioElCodigo(j);
         await _base
             .into(_base.routes)
             .insertOnConflictUpdate(

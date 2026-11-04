@@ -389,6 +389,8 @@ class AvisoDelCuadre extends Notifier<ResultadoDelCuadre?> {
             quitadas: [...antes.quitadas, ...nuevo.quitadas],
             apuntesCerrados: antes.apuntesCerrados + nuevo.apuntesCerrados,
             noCuadradas: nuevo.noCuadradas,
+            faltaban: nuevo.faltaban.isNotEmpty ? nuevo.faltaban : antes.faltaban,
+            codigosCambiados: [...antes.codigosCambiados, ...nuevo.codigosCambiados],
           );
   }
 

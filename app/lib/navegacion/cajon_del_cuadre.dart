@@ -5,7 +5,7 @@ import '../diseno/cajon.dart';
 import '../diseno/colores.dart';
 import '../nucleo/base/base.dart';
 import '../nucleo/proveedores.dart';
-import '../nucleo/sincro/cuadre.dart' show QuitadaDelCuadre;
+import '../nucleo/sincro/cuadre.dart' show QuitadaDelCuadre, ResultadoDelCuadre;
 
 /// LO QUE EL CUADRE QUITÓ DE ESTE APARATO, dicho con todas las letras (28/10/2026, Jose: «que notifique lo que
 /// ocurrió»). El cuadre diario (`nucleo/sincro/cuadre.dart`) compara lo que el aparato guarda con lo que tiene el
@@ -16,6 +16,14 @@ Future<void> abrirCajonDelCuadre(BuildContext context) =>
 
 class CajonDelCuadre extends ConsumerWidget {
   const CajonDelCuadre({super.key});
+
+  /// Solo avisa de códigos cambiados (nada quitado, nada cerrado, nada que faltara): el texto de «se quitaron datos» no pinta.
+  static bool _soloCodigos(ResultadoDelCuadre? r) =>
+      r != null &&
+      r.codigosCambiados.isNotEmpty &&
+      r.quitadas.isEmpty &&
+      r.apuntesCerrados == 0 &&
+      r.faltaban.isEmpty;
 
   static const _lasQueSeEnsenan = 40;
 
@@ -29,7 +37,9 @@ class CajonDelCuadre extends ConsumerWidget {
     ];
     final otras = (r?.quitadas.length ?? 0) - facturas.length;
     return Cajon(
-      titulo: 'Se quitaron datos que ya no existen',
+      titulo: _soloCodigos(r)
+          ? 'Cambió el código de una ruta'
+          : 'Se quitaron datos que ya no existen',
       pie: Align(
         alignment: Alignment.centerRight,
         child: TextButton.icon(
@@ -45,7 +55,25 @@ class CajonDelCuadre extends ConsumerWidget {
       child: ListView(
         shrinkWrap: true,
         children: [
-          Text(
+          if ((r?.codigosCambiados ?? const []).isNotEmpty) ...[
+            Text(
+              'Hiciste ${r!.codigosCambiados.length == 1 ? 'una ruta' : 'rutas'} en este aparato y, al llegar al servidor, su código '
+              'ya era de otra ruta. La ruta es la misma y no se perdió nada: el servidor le dio un código nuevo y '
+              'el aparato ya lo tiene. Si lo imprimiste o lo apuntaste, usa el nuevo.',
+              style: tema.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            for (final c in r.codigosCambiados.take(_lasQueSeEnsenan))
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  '${c.antes}  →  ${c.ahora}',
+                  style: tema.textTheme.bodySmall,
+                ),
+              ),
+            const SizedBox(height: 12),
+          ],
+          if (!_soloCodigos(r)) Text(
             'Este aparato guardaba datos que el servidor ya no tiene. Es normal si una factura se canceló o se '
             'retiró: la bajada del día no siempre avisa de todo, y por eso el aparato se cuadra con el servidor '
             'una vez al día. No tienes que hacer nada: lo quitado no estaba en ninguna ruta tuya ni tenía nada '

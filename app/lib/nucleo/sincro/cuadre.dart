@@ -254,12 +254,27 @@ class QuitadaDelCuadre {
   final String? etiqueta;
 }
 
+/// Una ruta hecha en este aparato cuyo código el servidor CAMBIÓ al recibirla (04/11/2026). El aparato calcula el código de la ruta
+/// a partir de su UUIDv7 y el servidor lo respeta; solo si ese código ya era de otra ruta (casi nunca) conserva el id y da otro.
+class CodigoCambiado {
+  const CodigoCambiado({
+    required this.rutaId,
+    required this.antes,
+    required this.ahora,
+  });
+
+  final String rutaId;
+  final String antes;
+  final String ahora;
+}
+
 class ResultadoDelCuadre {
   const ResultadoDelCuadre({
     this.quitadas = const [],
     this.apuntesCerrados = 0,
     this.noCuadradas = const [],
     this.faltaban = const {},
+    this.codigosCambiados = const [],
   });
 
   static const nada = ResultadoDelCuadre();
@@ -275,8 +290,14 @@ class ResultadoDelCuadre {
   /// Lo que el servidor tiene y el aparato NO, por colección. La bajada fuerza entonces una carga completa.
   final Map<String, int> faltaban;
 
+  /// Rutas de este aparato a las que el servidor cambió el código (choque, casi imposible). La ruta es la misma, con el mismo id.
+  final List<CodigoCambiado> codigosCambiados;
+
   bool get hayQueDecir =>
-      quitadas.isNotEmpty || apuntesCerrados > 0 || faltaban.isNotEmpty;
+      quitadas.isNotEmpty ||
+      apuntesCerrados > 0 ||
+      faltaban.isNotEmpty ||
+      codigosCambiados.isNotEmpty;
 
   int get totalQueFaltaba => faltaban.values.fold(0, (a, b) => a + b);
 

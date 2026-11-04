@@ -315,6 +315,10 @@ class FranjaDeEstado extends ConsumerWidget {
                         ? 'Se quitaron ${cuadre.facturas} '
                               '${cuadre.facturas == 1 ? 'factura que ya no existe' : 'facturas que ya no existen'}'
                               ' del servidor. Toca para ver qué pasó'
+                        : cuadre.codigosCambiados.isNotEmpty
+                        ? (cuadre.codigosCambiados.length == 1
+                              ? 'El servidor cambió el código de una de tus rutas. Toca para ver cuál'
+                              : 'El servidor cambió el código de ${cuadre.codigosCambiados.length} de tus rutas. Toca para ver cuáles')
                         : cuadre.faltaban.isNotEmpty
                         ? 'Al aparato le faltaban datos del servidor y se vuelven a bajar. Toca para ver qué pasó'
                         : 'El aparato se cuadró con el servidor. Toca para ver qué pasó',

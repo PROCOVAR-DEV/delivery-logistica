@@ -533,3 +533,7 @@ pestaña descarta lo que no salió. La APK y el escritorio no la usan: tienen `C
 **Probado contra los servicios reales**: `api/e2e` levanta nada, usa el stack del portátil (`docker compose up -d --build postgres migraciones api sync`, `docs/entorno-local.md`) y corre con
 `REPARTO_E2E=1 go test ./e2e` (se salta solo sin el stack). Ata que la cola del aparato (`/sync/subida`, que reenvía a la API) y la del navegador (directo a `/api/*`) se respetan: el mismo
 alta por las dos no duplica, cada cola conserva su orden sin pisar a la otra, y un id que no es v7 se rechaza con motivo sin bloquear lo que va detrás.
+
+**Si el servidor cambia el código de una ruta hecha en el aparato** (choque, casi imposible): conserva el id, da otro código libre y lo deja en su registro (`slog.Warn`). El aparato lo recibe en la bajada
+—`Bajada._avisarSiCambioElCodigo`: la fila local ya guardaba el código derivado de su id y llega otro— y se lo DICE a la persona por la misma franja y cajón que el cuadre diario («El servidor cambió el
+código de una de tus rutas», con antes → después). Una ruta de antes de la 1.0.51 (código `RT-…`) o un id que no es UUID no cuentan como choque. Solo APK y escritorio.

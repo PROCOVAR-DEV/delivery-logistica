@@ -32,7 +32,7 @@ SELECT
     -- QUIÉN REPARTE (issue 7, 00019). Nulo = ruta histórica o armada sin distribuidor.
     r.distribuidor_id,
     -- La segunda llave (00034): cuándo y quién de la oficina la revisó. Nulo = pendiente.
-    r.revisada_at, r.revisada_por,
+    r.revisada_at, r.revisada_por, r.dispositivo_id,
     dist.nombre   AS distribuidor_nombre,
     b.name        AS sucursal_nombre,
     b.external_id AS sucursal_codigo,

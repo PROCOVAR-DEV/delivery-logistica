@@ -1498,7 +1498,7 @@ SELECT
     -- QUIÉN REPARTE (issue 7, 00019). Nulo = ruta histórica o armada sin distribuidor.
     r.distribuidor_id,
     -- La segunda llave (00034): cuándo y quién de la oficina la revisó. Nulo = pendiente.
-    r.revisada_at, r.revisada_por,
+    r.revisada_at, r.revisada_por, r.dispositivo_id,
     dist.nombre   AS distribuidor_nombre,
     b.name        AS sucursal_nombre,
     b.external_id AS sucursal_codigo,
@@ -1552,6 +1552,7 @@ type ListarRutasRow struct {
 	DistribuidorID     pgtype.UUID        `json:"distribuidor_id"`
 	RevisadaAt         pgtype.Timestamptz `json:"revisada_at"`
 	RevisadaPor        *string            `json:"revisada_por"`
+	DispositivoID      pgtype.UUID        `json:"dispositivo_id"`
 	DistribuidorNombre *string            `json:"distribuidor_nombre"`
 	SucursalNombre     *string            `json:"sucursal_nombre"`
 	SucursalCodigo     *string            `json:"sucursal_codigo"`
@@ -1604,6 +1605,7 @@ func (q *Queries) ListarRutas(ctx context.Context, arg ListarRutasParams) ([]Lis
 			&i.DistribuidorID,
 			&i.RevisadaAt,
 			&i.RevisadaPor,
+			&i.DispositivoID,
 			&i.DistribuidorNombre,
 			&i.SucursalNombre,
 			&i.SucursalCodigo,

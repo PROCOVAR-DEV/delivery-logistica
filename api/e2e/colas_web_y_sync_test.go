@@ -907,6 +907,14 @@ func TestElDistribuidorCompletaCancelaYLaOficinaRevisa(t *testing.T) {
 	if n := s.pedidosEnLaRuta(ruta3); n != 0 {
 		t.Errorf("al cancelar las paradas tenían que quedar libres, quedan %d en la ruta (%v)", n, pedidos3)
 	}
+	// una ruta cerrada por la OFICINA (sin teléfono) cuenta como revisada; solo se revisa lo que hizo un teléfono
+	rutaOficina, _, _ := s.rutaConDistribuidor(d)
+	if code, b := s.web("PATCH", "/routes/"+rutaOficina, map[string]any{"status": "completed"}); code != 200 {
+		t.Fatalf("completar desde la oficina: %d %s", code, b)
+	}
+	if _, b := s.web("GET", "/routes/"+rutaOficina, nil); !strings.Contains(string(b), `"revisadaPor":"oficina"`) {
+		t.Errorf("una ruta cerrada por la oficina tenía que venir revisada: %s", b)
+	}
 	// planificada: no la toca
 	ruta4, _, _ := s.rutaConDistribuidor(d)
 	dist4 := telefonoDe(ruta4)

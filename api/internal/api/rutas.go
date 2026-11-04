@@ -3077,7 +3077,7 @@ func deFilaDeLista(f sqlc.ListarRutasRow, paradas []ParadaSalida) RutaSalida {
 		ParadasSinCotizar: f.ParadasSinCotizar,
 		DeliveryDate:      f.DeliveryDate, VehicleID: f.VehicleID, BranchID: f.BranchID,
 		DistribuidorID: f.DistribuidorID, DistribuidorNombre: f.DistribuidorNombre,
-		RevisadaAt: f.RevisadaAt, RevisadaPor: f.RevisadaPor,
+		RevisadaAt: f.RevisadaAt, RevisadaPor: f.RevisadaPor, DispositivoID: f.DispositivoID,
 		CreadoPor: f.CreadoPor, StartedAt: f.StartedAt, FinishedAt: f.FinishedAt,
 		Optimized: f.Optimized, CreatedAt: f.CreatedAt, UpdatedAt: f.UpdatedAt,
 		SucursalNombre: f.SucursalNombre, SucursalCodigo: f.SucursalCodigo,
@@ -3094,7 +3094,7 @@ func deFilaDeDetalle(f sqlc.ObtenerRutaRow, paradas []ParadaSalida) RutaSalida {
 		ParadasSinCotizar: f.ParadasSinCotizar,
 		DeliveryDate:      f.DeliveryDate, VehicleID: f.VehicleID, BranchID: f.BranchID,
 		DistribuidorID: f.DistribuidorID, DistribuidorNombre: f.DistribuidorNombre,
-		RevisadaAt: f.RevisadaAt, RevisadaPor: f.RevisadaPor,
+		RevisadaAt: f.RevisadaAt, RevisadaPor: f.RevisadaPor, DispositivoID: f.DispositivoID,
 		CreadoPor: f.CreadoPor, StartedAt: f.StartedAt, FinishedAt: f.FinishedAt,
 		Optimized: f.Optimized, CreatedAt: f.CreatedAt, UpdatedAt: f.UpdatedAt,
 		SucursalNombre: f.SucursalNombre, SucursalCodigo: f.SucursalCodigo,
@@ -3125,6 +3125,7 @@ type datosDeRuta struct {
 	DistribuidorNombre *string
 	RevisadaAt         pgtype.Timestamptz
 	RevisadaPor        *string
+	DispositivoID      pgtype.UUID
 	CreadoPor          *string
 	StartedAt          pgtype.Timestamptz
 	FinishedAt         pgtype.Timestamptz
@@ -3155,6 +3156,12 @@ func armarRuta(d datosDeRuta, paradas []ParadaSalida) RutaSalida {
 	}
 	if salida.Orders == nil {
 		salida.Orders = []ParadaSalida{}
+	}
+	// SOLO SE REVISA LO QUE HIZO UN TELÉFONO: una ruta cerrada desde la oficina (sin teléfono) cuenta como revisada desde que se cerró.
+	if d.Status == string(sqlc.RouteStatusCompleted) && !d.DispositivoID.Valid && !d.RevisadaAt.Valid {
+		porLaOficina := "oficina"
+		salida.RevisadaAt = hora(firstValid(d.FinishedAt, d.UpdatedAt))
+		salida.RevisadaPor = &porLaOficina
 	}
 	if d.BranchID.Valid {
 		salida.Branch = &SucursalDeRuta{
@@ -3222,4 +3229,11 @@ func (s *Servidor) distribuidorPuedePasarA(w http.ResponseWriter, r *http.Reques
 	}
 	httpx.Error(w, r, http.StatusForbidden, msgDistribuidorEstadoNoPermitido)
 	return false
+}
+
+func firstValid(a, b pgtype.Timestamptz) pgtype.Timestamptz {
+	if a.Valid {
+		return a
+	}
+	return b
 }

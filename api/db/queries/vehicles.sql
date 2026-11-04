@@ -42,6 +42,12 @@ LEFT JOIN branches b  ON b.id  = v.branch_id
 WHERE (sqlc.narg('sucursal')::uuid IS NULL
        OR v.branch_id = sqlc.narg('sucursal')::uuid
        OR v.branch_id IS NULL)
+  -- UN DISTRIBUIDOR SOLO RECIBE LOS VEHÍCULOS DE SUS RUTAS PLANIFICADAS O EN CURSO (04/11/2026), y el suyo propio si lo lleva por defecto.
+  AND (sqlc.narg('distribuidor')::uuid IS NULL
+       OR v.distribuidor_id = sqlc.narg('distribuidor')::uuid
+       OR v.id IN (SELECT r.vehicle_id FROM routes r
+                   WHERE r.distribuidor_id = sqlc.narg('distribuidor')::uuid
+                     AND r.status IN ('planned', 'in_progress') AND r.vehicle_id IS NOT NULL))
 ORDER BY v.created_at DESC;
 
 -- name: ObtenerVehiculo :one
@@ -96,15 +102,15 @@ WITH nuevo AS (
     )
     ON CONFLICT (id) DO NOTHING
     RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-              usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
+              usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active, distribuidor_id
 )
 SELECT id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-       usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
+       usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active, distribuidor_id
 FROM nuevo
 UNION ALL
 -- EL REINTENTO (04/11/2026): mismo id del aparato = el camión que ya estaba, no un segundo.
 SELECT v.id, v.name, v.vehicle_type_id, v.plate, v.capacity, v.costo_km_usd,
-       v.usar_para_domicilio, v.status, v.notes, v.branch_id, v.created_at, v.updated_at, v.is_active
+       v.usar_para_domicilio, v.status, v.notes, v.branch_id, v.created_at, v.updated_at, v.is_active, v.distribuidor_id
 FROM vehicles v
 WHERE sqlc.narg('id')::uuid IS NOT NULL AND v.id = sqlc.narg('id')::uuid
   AND v.branch_id IS NOT DISTINCT FROM sqlc.narg('branch_id')::uuid;
@@ -129,7 +135,7 @@ WHERE id = sqlc.arg('id')
        OR branch_id = sqlc.narg('sucursal')::uuid
        OR branch_id IS NULL)
 RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active;
+          usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active, distribuidor_id;
 
 -- Sólo un vehículo de referencia por sucursal, y lo impide el índice único parcial
 -- `vehicles_una_referencia_por_sucursal`. Por eso hay que DESMARCAR a los demás antes de

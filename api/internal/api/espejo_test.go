@@ -427,7 +427,8 @@ func (q *espejoFalso) ListarSucursales(_ context.Context, persona pgtype.UUID) (
 // ahí está media prueba de este cambio: `ListarVehiculos` lleva `OR v.branch_id IS NULL`
 // —un camión sin sucursal lo ven los ocho aparatos— y `ListarRutas` no lo lleva. Si el
 // doble las acotara igual, una lápida acotada al revés pasaría inadvertida.
-func (q *espejoFalso) ListarVehiculos(_ context.Context, sucursal pgtype.UUID) ([]sqlc.ListarVehiculosRow, error) {
+func (q *espejoFalso) ListarVehiculos(_ context.Context, arg sqlc.ListarVehiculosParams) ([]sqlc.ListarVehiculosRow, error) {
+	sucursal := arg.Sucursal
 	var salida []sqlc.ListarVehiculosRow
 	for _, v := range q.vehiculosDelEspejo {
 		if sucursal.Valid && v.BranchID.Valid && v.BranchID.Bytes != sucursal.Bytes {

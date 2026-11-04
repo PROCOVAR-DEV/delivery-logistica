@@ -151,6 +151,9 @@ Nada de esto se publica hasta que las piezas 1–3 estén probadas de punta a pu
   usuarios que Accesos: se ve y se gestiona **de los dos lados**, desde Reparto o desde Accesos. Reparto no guarda contraseñas ni usuarios:
   le pide a Accesos por la puerta de servicio firmada (la misma de los almacenes). Accesos gana tres rutas de servicio (crear, cambiar clave,
   activar/desactivar) acotadas al rol `DISTRIBUIDOR`: por esa puerta NO se puede crear ni tocar a nadie con otro rol.
+  **Es un atajo, no la única puerta:** el usuario también se puede crear en Accesos. Por eso Reparto ofrece las DOS cosas en esa sección:
+  «Crear usuario» (atajo) y «Ligar un usuario que ya existe» (lista de los usuarios con rol `DISTRIBUIDOR` de esa sucursal que aún no
+  están ligados a nadie). Sea cual sea la puerta, el resultado es el mismo: `persona_id` puesto y el usuario visible en los dos lados.
 - **Usuarios en Accesos (alternativa manual).** Los crea Jose: 11 (La Habana: Angel, Augusto, Felix, Juan, Kensy, Sander; Santiago: Jorge Perez Perez, Julian
   La Rosa Rios, Oberlandis Torres Torres, Wilson Columbie, Yasmany Banos Perez), rol `DISTRIBUIDOR`, una contraseña común guardada en
   `.secretos/distribuidores-clave` (fichero suyo, permisos 600). Reparto no crea cuentas ni toca contraseñas: `scripts/alta-distribuidores.ts`

@@ -369,6 +369,9 @@ func TestMotorReal_Migracion00019Distribuidores(t *testing.T) {
 	// La base ya está en la 00019. Dentro de ESTA transacción se deshace, se siembra el estado de ANTES con
 	// rutas de verdad, se sube y se mira. Todo se revierte al terminar (los DDL de Postgres son
 	// transaccionales; mientras dura, `routes` queda bloqueada: no se corre contra una base que use otro).
+	// Las migraciones POSTERIORES que cuelgan de `distribuidores` se deshacen primero, como haría goose en orden inverso: la 00032 le puso a
+	// `vehicles` una clave ajena (`distribuidor_id`) y Postgres no deja tirar la tabla con ella puesta. Todo dentro de esta transacción.
+	b.exec(`ALTER TABLE vehicles DROP COLUMN IF EXISTS distribuidor_id`)
 	b.exec(down)
 	if got := b.entero(`SELECT count(*) FROM information_schema.columns WHERE table_name = 'routes' AND column_name = 'distribuidor_id'`); got != 0 {
 		t.Fatal("el Down dejó la columna routes.distribuidor_id")

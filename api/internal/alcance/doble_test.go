@@ -72,7 +72,8 @@ func (q *querierFalso) BuscarSucursalPorCodigo(_ context.Context, codigo *string
 // ListarVehiculos repite el WHERE del SQL de verdad (`db/queries/vehicles.sql`): sin
 // alcance salen todos; con alcance, los de esa sucursal MÁS los que no tienen ninguna,
 // que son los compartidos.
-func (q *querierFalso) ListarVehiculos(_ context.Context, sucursal pgtype.UUID) ([]sqlc.ListarVehiculosRow, error) {
+func (q *querierFalso) ListarVehiculos(_ context.Context, arg sqlc.ListarVehiculosParams) ([]sqlc.ListarVehiculosRow, error) {
+	sucursal := arg.Sucursal
 	q.sucursalPedida = append(q.sucursalPedida, sucursal)
 	var salida []sqlc.ListarVehiculosRow
 	for _, v := range q.vehiculos {

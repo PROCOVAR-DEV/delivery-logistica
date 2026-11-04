@@ -788,6 +788,10 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// que el tablero: el alcance va aparte y en AND, así que esto estrecha y nunca amplía.
 	sucursal := sucursalDeLaBajada(r, a)
 
+	// UN DISTRIBUIDOR SOLO BAJA LO SUYO (04/11/2026): sus rutas (planificadas o en curso), los pedidos de esas rutas con sus renglones, el vehículo
+	// de cada una, él mismo y su sucursal. Ni tipos de vehículo, ni catálogo, ni clientes, ni ajustes, ni tablero (va en `faltan`).
+	esDist := a.EsDelDistribuidor()
+
 	tope := int32(topeDeLaBajada(q))
 	ventana := alcance.VentanaDeBajada{
 		Desde: desde, Hasta: hasta, Sucursal: sucursal, Tope: tope,
@@ -966,42 +970,44 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// sucursal propia, o sólo los «de todas» en modo «todas» (`IS NOT DISTINCT FROM`, NO el
 	// `OR … IS NULL` de los camiones). Si fueran distintas, la pantalla de mantenimiento y el
 	// selector del aparato se contradirían.
-	tipos, err := a.ListarTiposDeVehiculo(r.Context(), nil)
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	puestos = nil
-	vivas = make(map[string]bool, len(tipos))
-	desdeDeTipos, ventanaDeTipos := desde, ventanaDelAlcance
-	if completas["vehicle_types"] {
-		desdeDeTipos, ventanaDeTipos.Desde = nil, nil
-	}
-	for _, t := range tipos {
-		vivas[t.ID.String()] = true
-		if !cambioDesde(t.UpdatedAt, desdeDeTipos) {
-			continue
+	if !esDist {
+		tipos, err := a.ListarTiposDeVehiculo(r.Context(), nil)
+		if err != nil {
+			httpx.ErrorInterno(w, r, err)
+			return
 		}
-		puestos = append(puestos, map[string]any{
-			"id": t.ID, "nombre": t.Nombre, "costoKmUsd": t.CostoKmUsd, "activo": t.Activo,
-			"branchId":  idOpcional(t.BranchID),
-			"createdAt": hora(t.CreatedAt), "updatedAt": hora(t.UpdatedAt),
-		})
+		puestos = nil
+		vivas = make(map[string]bool, len(tipos))
+		desdeDeTipos, ventanaDeTipos := desde, ventanaDelAlcance
+		if completas["vehicle_types"] {
+			desdeDeTipos, ventanaDeTipos.Desde = nil, nil
+		}
+		for _, t := range tipos {
+			vivas[t.ID.String()] = true
+			if !cambioDesde(t.UpdatedAt, desdeDeTipos) {
+				continue
+			}
+			puestos = append(puestos, map[string]any{
+				"id": t.ID, "nombre": t.Nombre, "costoKmUsd": t.CostoKmUsd, "activo": t.Activo,
+				"branchId":  idOpcional(t.BranchID),
+				"createdAt": hora(t.CreatedAt), "updatedAt": hora(t.UpdatedAt),
+			})
+		}
+		// `sinSucursalTambien` en FALSE, y razonado: `ListarTiposDeVehiculo` NO deja pasar los «de
+		// todas» a quien tiene sucursal, así que la lápida de uno de ésos (`branch_id` nulo; sólo lo
+		// borran migraciones, la API no lo permite) sería una orden sobre algo que nunca fue de ese
+		// aparato. Quien ve «todas» (sucursal nula) recibe todas las lápidas de todos modos, y ahí
+		// sí le sirven: su lista son justo los «de todas». Un tipo no se muda de sucursal: sin
+		// `movido`.
+		quitados, corteTip, err := s.quitadosDe(r, a, cursores,
+			sqlc.ColeccionDeLaBajadaVehicleTypes, ventanaDeTipos, false, vivas)
+		if err != nil {
+			httpx.ErrorInterno(w, r, err)
+			return
+		}
+		anotarCorte(corteTip)
+		salida.Cambios["vehicle_types"] = conjuntoCon(puestos, quitados)
 	}
-	// `sinSucursalTambien` en FALSE, y razonado: `ListarTiposDeVehiculo` NO deja pasar los «de
-	// todas» a quien tiene sucursal, así que la lápida de uno de ésos (`branch_id` nulo; sólo lo
-	// borran migraciones, la API no lo permite) sería una orden sobre algo que nunca fue de ese
-	// aparato. Quien ve «todas» (sucursal nula) recibe todas las lápidas de todos modos, y ahí
-	// sí le sirven: su lista son justo los «de todas». Un tipo no se muda de sucursal: sin
-	// `movido`.
-	quitados, corteTip, err := s.quitadosDe(r, a, cursores,
-		sqlc.ColeccionDeLaBajadaVehicleTypes, ventanaDeTipos, false, vivas)
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	anotarCorte(corteTip)
-	salida.Cambios["vehicle_types"] = conjuntoCon(puestos, quitados)
 
 	// --- Distribuidores -----------------------------------------------------
 	//
@@ -1118,66 +1124,68 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// de distinguir «caben justo» de «hay más», y dar por buena la primera deja al aparato
 	// sin volver a pedir lo que falta.
 	marcaCursor, idCursor := seguir.Productos.leer()
-	productos, err := a.EspejoDiferenciasDeProductos(r.Context(), alcance.TandaDelPadron{
-		Desde: desde, Hasta: hasta, Tope: tope + 1,
-		CursorMarca: marcaCursor, CursorID: idCursor,
-	})
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	// LA TANDA SIGUIENTE EMPIEZA DONDE ACABÓ ÉSTA, y el `hasta` que se devuelve es la
-	// marca de la última fila servida. Antes esto era
-	// `truncado = truncado || len(productos) >= TopeDeBajada` sobre una lista ordenada por
-	// NOMBRE: se decía que quedaba más y la marca que se devolvía era el reloj, así que lo
-	// que no cupo quedaba por debajo del próximo `desde` y no lo pedía nadie nunca más.
-	productos, curProd, corteProdTanda := tandaDeLaBajada(r, productos, int(tope), "products",
-		func(p sqlc.Product) time.Time { return p.UpdatedAt.Time },
-		func(p sqlc.Product) uuid.UUID { return p.ID })
-	siguiente.Productos = curProd
-	anotarCorte(corteProdTanda)
-	puestos = nil
-	for _, p := range productos {
-		// SIN `cambioDesde` AQUÍ, y no se olvidó: el filtro por marca vive EN EL SQL desde
-		// el 16/09/2026. Volver a filtrar en Go sobre las filas ya servidas descuadraría
-		// la cuenta del corte —se emitirían menos filas de las que el cursor da por
-		// servidas— y eso es exactamente cómo se pierde una fila sin que salte nada.
-		puestos = append(puestos, map[string]any{
-			"id": p.ID, "name": p.Name, "weight": p.Weight, "sku": p.Sku,
-			"sucursalCodigo": p.SucursalCodigo, "price": p.Price, "stock": p.Stock,
-			"unit": p.Unit, "category": p.Category, "updatedAt": hora(p.UpdatedAt),
+	if !esDist {
+		productos, err := a.EspejoDiferenciasDeProductos(r.Context(), alcance.TandaDelPadron{
+			Desde: desde, Hasta: hasta, Tope: tope + 1,
+			CursorMarca: marcaCursor, CursorID: idCursor,
 		})
+		if err != nil {
+			httpx.ErrorInterno(w, r, err)
+			return
+		}
+		// LA TANDA SIGUIENTE EMPIEZA DONDE ACABÓ ÉSTA, y el `hasta` que se devuelve es la
+		// marca de la última fila servida. Antes esto era
+		// `truncado = truncado || len(productos) >= TopeDeBajada` sobre una lista ordenada por
+		// NOMBRE: se decía que quedaba más y la marca que se devolvía era el reloj, así que lo
+		// que no cupo quedaba por debajo del próximo `desde` y no lo pedía nadie nunca más.
+		productos, curProd, corteProdTanda := tandaDeLaBajada(r, productos, int(tope), "products",
+			func(p sqlc.Product) time.Time { return p.UpdatedAt.Time },
+			func(p sqlc.Product) uuid.UUID { return p.ID })
+		siguiente.Productos = curProd
+		anotarCorte(corteProdTanda)
+		puestos = nil
+		for _, p := range productos {
+			// SIN `cambioDesde` AQUÍ, y no se olvidó: el filtro por marca vive EN EL SQL desde
+			// el 16/09/2026. Volver a filtrar en Go sobre las filas ya servidas descuadraría
+			// la cuenta del corte —se emitirían menos filas de las que el cursor da por
+			// servidas— y eso es exactamente cómo se pierde una fila sin que salte nada.
+			puestos = append(puestos, map[string]any{
+				"id": p.ID, "name": p.Name, "weight": p.Weight, "sku": p.Sku,
+				"sucursalCodigo": p.SucursalCodigo, "price": p.Price, "stock": p.Stock,
+				"unit": p.Unit, "category": p.Category, "updatedAt": hora(p.UpdatedAt),
+			})
+		}
+		// LAS LÁPIDAS DEL CATÁLOGO VAN SIN SUCURSAL, Y ESO SE DECIDIÓ ASÍ. Merece leerse
+		// entero, porque el catálogo NO es global: `EspejoListarProductos` lo acota por
+		// `sucursal_codigo` (el CÓDIGO —STG, HOL—, no el uuid), así que a un aparato le llegan
+		// ids que su lista nunca le enseñó.
+		//
+		//   · No borra de más, y eso es lo que decide. Una lápida sólo nace de un `DELETE` de
+		//     verdad: esa fila ya no existe para NADIE, así que quitársela a quien no la tenía
+		//     es una orden que no encuentra nada y no hace nada. Cuesta unos cuantos ids por la
+		//     conexión y no cuesta un solo dato.
+		//   · `sinSucursalTambien` EN TRUE es lo que las deja pasar: sus lápidas no llevan
+		//     sucursal y el alcance de quien pregunta sí. En false, a un logístico de Camagüey
+		//     no le llegaría NI UNA baja del catálogo.
+		//   · LO QUE SIGUE SIN CUBRIRSE, dicho para que no se dé por hecho: un producto al que
+		//     le CAMBIAN el `sucursal_codigo` sale del alcance sin borrarse y no lleva lápida,
+		//     así que se le queda puesto al aparato de la sucursal vieja. Es el mismo agujero
+		//     que había antes de esto; taparlo pide guardar el código en la lápida y un
+		//     disparador de `UPDATE OF sucursal_codigo`.
+		//
+		// Y `vivos` va nil: el catálogo se sirve POR TANDAS, así que aquí nunca está la lista
+		// entera contra la que tachar. Se puede prescindir de la red porque la única lápida que
+		// puede nacer aquí es `borrado` —no hay `movido` sin columna de sucursal— y una fila
+		// borrada no puede estar a la vez en `puestos`.
+		quitados, corteProd, err := s.quitadosDe(r, a, cursores,
+			sqlc.ColeccionDeLaBajadaProducts, ventanaDelAlcance, true, nil)
+		if err != nil {
+			httpx.ErrorInterno(w, r, err)
+			return
+		}
+		anotarCorte(corteProd)
+		salida.Cambios["products"] = conjuntoCon(puestos, quitados)
 	}
-	// LAS LÁPIDAS DEL CATÁLOGO VAN SIN SUCURSAL, Y ESO SE DECIDIÓ ASÍ. Merece leerse
-	// entero, porque el catálogo NO es global: `EspejoListarProductos` lo acota por
-	// `sucursal_codigo` (el CÓDIGO —STG, HOL—, no el uuid), así que a un aparato le llegan
-	// ids que su lista nunca le enseñó.
-	//
-	//   · No borra de más, y eso es lo que decide. Una lápida sólo nace de un `DELETE` de
-	//     verdad: esa fila ya no existe para NADIE, así que quitársela a quien no la tenía
-	//     es una orden que no encuentra nada y no hace nada. Cuesta unos cuantos ids por la
-	//     conexión y no cuesta un solo dato.
-	//   · `sinSucursalTambien` EN TRUE es lo que las deja pasar: sus lápidas no llevan
-	//     sucursal y el alcance de quien pregunta sí. En false, a un logístico de Camagüey
-	//     no le llegaría NI UNA baja del catálogo.
-	//   · LO QUE SIGUE SIN CUBRIRSE, dicho para que no se dé por hecho: un producto al que
-	//     le CAMBIAN el `sucursal_codigo` sale del alcance sin borrarse y no lleva lápida,
-	//     así que se le queda puesto al aparato de la sucursal vieja. Es el mismo agujero
-	//     que había antes de esto; taparlo pide guardar el código en la lápida y un
-	//     disparador de `UPDATE OF sucursal_codigo`.
-	//
-	// Y `vivos` va nil: el catálogo se sirve POR TANDAS, así que aquí nunca está la lista
-	// entera contra la que tachar. Se puede prescindir de la red porque la única lápida que
-	// puede nacer aquí es `borrado` —no hay `movido` sin columna de sucursal— y una fila
-	// borrada no puede estar a la vez en `puestos`.
-	quitados, corteProd, err := s.quitadosDe(r, a, cursores,
-		sqlc.ColeccionDeLaBajadaProducts, ventanaDelAlcance, true, nil)
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	anotarCorte(corteProd)
-	salida.Cambios["products"] = conjuntoCon(puestos, quitados)
 
 	// --- Clientes -----------------------------------------------------------
 	//
@@ -1185,50 +1193,52 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// único que trae la consulta. Significan cosas parecidas pero no iguales —`synced_at`
 	// es «cuándo lo trajo PEDIDO»—, y mientras sea eso lo que hay, es lo que se usa.
 	marcaCursor, idCursor = seguir.Clientes.leer()
-	clientes, err := a.EspejoDiferenciasDeClientes(r.Context(), alcance.TandaDelPadron{
-		Desde: desde, Hasta: hasta, Tope: tope + 1,
-		CursorMarca: marcaCursor, CursorID: idCursor,
-	})
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	clientes, curCli, corteCliTanda := tandaDeLaBajada(r, clientes, int(tope), "customers",
-		func(c sqlc.DiferenciasDeClientesRow) time.Time { return c.SyncedAt.Time },
-		func(c sqlc.DiferenciasDeClientesRow) uuid.UUID { return c.ID })
-	siguiente.Clientes = curCli
-	anotarCorte(corteCliTanda)
-	puestos = nil
-	for _, c := range clientes {
-		puestos = append(puestos, map[string]any{
-			"id": c.ID, "name": c.Name, "phone": c.Phone, "address": c.Address,
-			"municipio": c.Municipio, "zona": c.Zona, "lat": c.Lat, "lng": c.Lng,
-			"sucursalCodigo": c.SucursalCodigo, "codigo": c.Codigo,
-			"vendedor": c.Vendedor, "syncedAt": hora(c.SyncedAt),
-			// `source` FALTABA, y sin él los 8.000 del padrón salían como
-			// «Manual» en el aparato: la insignia de `tabla_clientes.dart` lee
-			// esta columna, y el filtro de origen devolvía **cero** para «de
-			// PEDIDO» y los ocho mil para «manual». Una lista creíble y al
-			// revés, que es el peor fallo de esta casa.
-			"source": textoDe(c.Source),
+	if !esDist {
+		clientes, err := a.EspejoDiferenciasDeClientes(r.Context(), alcance.TandaDelPadron{
+			Desde: desde, Hasta: hasta, Tope: tope + 1,
+			CursorMarca: marcaCursor, CursorID: idCursor,
 		})
+		if err != nil {
+			httpx.ErrorInterno(w, r, err)
+			return
+		}
+		clientes, curCli, corteCliTanda := tandaDeLaBajada(r, clientes, int(tope), "customers",
+			func(c sqlc.DiferenciasDeClientesRow) time.Time { return c.SyncedAt.Time },
+			func(c sqlc.DiferenciasDeClientesRow) uuid.UUID { return c.ID })
+		siguiente.Clientes = curCli
+		anotarCorte(corteCliTanda)
+		puestos = nil
+		for _, c := range clientes {
+			puestos = append(puestos, map[string]any{
+				"id": c.ID, "name": c.Name, "phone": c.Phone, "address": c.Address,
+				"municipio": c.Municipio, "zona": c.Zona, "lat": c.Lat, "lng": c.Lng,
+				"sucursalCodigo": c.SucursalCodigo, "codigo": c.Codigo,
+				"vendedor": c.Vendedor, "syncedAt": hora(c.SyncedAt),
+				// `source` FALTABA, y sin él los 8.000 del padrón salían como
+				// «Manual» en el aparato: la insignia de `tabla_clientes.dart` lee
+				// esta columna, y el filtro de origen devolvía **cero** para «de
+				// PEDIDO» y los ocho mil para «manual». Una lista creíble y al
+				// revés, que es el peor fallo de esta casa.
+				"source": textoDe(c.Source),
+			})
+		}
+		// EL PADRÓN ES EL QUE MÁS FALTA LE HACÍA. `BorrarClientesDelEspejoQueYaNoVienen` borra
+		// de golpe todos los que PEDIDO dejó de mandar, y sin lápida esos clientes se quedaban
+		// en el teléfono del repartidor hasta que alguien reinstalara la aplicación.
+		//
+		// Vale palabra por palabra lo escrito arriba para el catálogo, incluido lo que NO se
+		// cubre: el padrón también se acota por `sucursal_codigo`, las lápidas no lo llevan, y
+		// un cliente al que le cambian el código se le queda puesto al aparato de la sucursal
+		// vieja. Lo que sí queda resuelto —y es lo gordo— es el borrado de verdad.
+		quitados, corteCli, err := s.quitadosDe(r, a, cursores,
+			sqlc.ColeccionDeLaBajadaCustomers, ventanaDelAlcance, true, nil)
+		if err != nil {
+			httpx.ErrorInterno(w, r, err)
+			return
+		}
+		anotarCorte(corteCli)
+		salida.Cambios["customers"] = conjuntoCon(puestos, quitados)
 	}
-	// EL PADRÓN ES EL QUE MÁS FALTA LE HACÍA. `BorrarClientesDelEspejoQueYaNoVienen` borra
-	// de golpe todos los que PEDIDO dejó de mandar, y sin lápida esos clientes se quedaban
-	// en el teléfono del repartidor hasta que alguien reinstalara la aplicación.
-	//
-	// Vale palabra por palabra lo escrito arriba para el catálogo, incluido lo que NO se
-	// cubre: el padrón también se acota por `sucursal_codigo`, las lápidas no lo llevan, y
-	// un cliente al que le cambian el código se le queda puesto al aparato de la sucursal
-	// vieja. Lo que sí queda resuelto —y es lo gordo— es el borrado de verdad.
-	quitados, corteCli, err := s.quitadosDe(r, a, cursores,
-		sqlc.ColeccionDeLaBajadaCustomers, ventanaDelAlcance, true, nil)
-	if err != nil {
-		httpx.ErrorInterno(w, r, err)
-		return
-	}
-	anotarCorte(corteCli)
-	salida.Cambios["customers"] = conjuntoCon(puestos, quitados)
 
 	// --- Ajustes ------------------------------------------------------------
 	//
@@ -1239,24 +1249,28 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	//
 	// Si algún día se pudiera borrar, la lápida iría en `bajas_de_la_bajada` como las
 	// demás y este comentario se cambia por la llamada.
-	ajustes, err := a.ObtenerAjustes(r.Context())
-	switch {
-	case err == nil:
-		puestos = nil
-		if cambioDesde(ajustes.UpdatedAt, desde) {
-			puestos = append(puestos, map[string]any{
-				"currency": ajustes.Currency, "cupRate": ajustes.CupRate,
-				"cupRateUpdatedAt": hora(ajustes.CupRateUpdatedAt),
-				"catalogoTraidoAt": hora(ajustes.CatalogoTraidoAt),
-				"updatedAt":        hora(ajustes.UpdatedAt),
-			})
+	if esDist {
+		salida.Cambios["settings"] = conjunto(nil) // los ajustes (tasas, catálogo) son de la oficina
+	} else {
+		ajustes, err := a.ObtenerAjustes(r.Context())
+		switch {
+		case err == nil:
+			puestos = nil
+			if cambioDesde(ajustes.UpdatedAt, desde) {
+				puestos = append(puestos, map[string]any{
+					"currency": ajustes.Currency, "cupRate": ajustes.CupRate,
+					"cupRateUpdatedAt": hora(ajustes.CupRateUpdatedAt),
+					"catalogoTraidoAt": hora(ajustes.CatalogoTraidoAt),
+					"updatedAt":        hora(ajustes.UpdatedAt),
+				})
+			}
+			salida.Cambios["settings"] = conjunto(puestos)
+		case errors.Is(err, pgx.ErrNoRows):
+			salida.Cambios["settings"] = conjunto(nil)
+		default:
+			httpx.ErrorInterno(w, r, err)
+			return
 		}
-		salida.Cambios["settings"] = conjunto(puestos)
-	case errors.Is(err, pgx.ErrNoRows):
-		salida.Cambios["settings"] = conjunto(nil)
-	default:
-		httpx.ErrorInterno(w, r, err)
-		return
 	}
 
 	// --- El tablero ---------------------------------------------------------
@@ -1264,7 +1278,9 @@ func (s *Servidor) cambiosDesde(w http.ResponseWriter, r *http.Request) {
 	// Las dos colecciones del tablero son POR SUCURSAL, como el tablero mismo. Si quien
 	// pide no dice cuál —un Super Admin sin cabecera—, no se le manda el tablero de las
 	// ocho mezclado: se le dice que falta elegir.
-	if sucursal == nil {
+	if esDist {
+		salida.Faltan = append(salida.Faltan, "vehicle_types", "products", "customers", "boardColumns", "boardPlacements")
+	} else if sucursal == nil {
 		salida.Faltan = append(salida.Faltan, "boardColumns", "boardPlacements")
 		salida.Aviso = "para bajar el tablero hace falta decir la sucursal (?sucursal=<id>)"
 	} else {

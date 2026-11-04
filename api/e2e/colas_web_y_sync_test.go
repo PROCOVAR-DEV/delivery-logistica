@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -387,3 +388,195 @@ func TestSiElCodigoChocaLaRutaConservaSuIdYRecibeOtro(t *testing.T) {
 var reFormato = regexp.MustCompile(`^[0-9]{6}-[0-9A-HJKMNP-TV-Z]{6}$`)
 
 func regexpFormato(c string) (bool, error) { return reFormato.MatchString(c), nil }
+
+// ---------------------------------------------------------------------------
+// EL DISTRIBUIDOR SOLO VE Y TOCA LO SUYO (04/11/2026) — contra la API y el sync reales
+// ---------------------------------------------------------------------------
+
+// como devuelve el mismo stack pero hablando con OTRO token (el de otra persona).
+func (s *stack) como(token string) *stack {
+	otro := *s
+	otro.token = token
+	return &otro
+}
+
+func (s *stack) tokenDe(sub, rol, sucursal string) string {
+	return jwt(env("REPARTO_E2E_JWT_SECRET", "secreto-de-desarrollo-de-mas-de-32-caracteres"), map[string]any{
+		"sub": sub, "email": sub + "@procovar.cu", "role": rol, "branchId": sucursal,
+		"entradas": []string{"delivery.entrar"}, "exp": time.Now().Add(time.Hour).Unix(),
+	})
+}
+
+func (s *stack) distribuidor(nombre, persona string) uuid.UUID {
+	s.t.Helper()
+	var id uuid.UUID
+	if err := s.db.QueryRow(context.Background(), `INSERT INTO distribuidores (branch_id, nombre, persona_id) VALUES ($1, $2, NULLIF($3, '')) RETURNING id`,
+		s.sucursal, nombre, persona).Scan(&id); err != nil {
+		s.t.Fatal(err)
+	}
+	return id
+}
+
+// rutaDe arma una ruta (la arma el logístico) con ese distribuidor y devuelve su id y sus pedidos.
+func (s *stack) rutaConDistribuidor(d uuid.UUID) (ruta string, camion string, pedidos []string) {
+	s.t.Helper()
+	camion, pedidos = s.siembraDeRuta(2)
+	ruta = nuevo()
+	cuerpo := s.cuerpoDeRuta(ruta, camion, pedidos)
+	cuerpo["distribuidorId"] = d.String()
+	if code, b := s.web("POST", "/routes", cuerpo); code != 201 && code != 200 {
+		s.t.Fatalf("armar la ruta: %d %s", code, b)
+	}
+	return ruta, camion, pedidos
+}
+
+func idsDe(t *testing.T, cuerpo []byte, ruta ...string) []string {
+	t.Helper()
+	var x any
+	if err := json.Unmarshal(cuerpo, &x); err != nil {
+		t.Fatalf("respuesta ilegible: %s", cuerpo)
+	}
+	for _, k := range ruta {
+		m, _ := x.(map[string]any)
+		x = m[k]
+	}
+	var ids []string
+	if l, ok := x.([]any); ok {
+		for _, e := range l {
+			switch v := e.(type) {
+			case string:
+				ids = append(ids, v)
+			case map[string]any:
+				if id, ok := v["id"].(string); ok {
+					ids = append(ids, id)
+				}
+			}
+		}
+	}
+	return ids
+}
+
+func TestElDistribuidorSoloVeYTocaSusRutas(t *testing.T) {
+	s := levantar(t)
+	sub1, sub2 := "dist1-"+uuid.NewString()[:8], "dist2-"+uuid.NewString()[:8]
+	d1, d2 := s.distribuidor("Uno e2e", sub1), s.distribuidor("Dos e2e", sub2)
+	rutaA, camionA, pedidosA := s.rutaConDistribuidor(d1)
+	rutaB, _, pedidosB := s.rutaConDistribuidor(d2)
+	dist := s.como(s.tokenDe(sub1, "DISTRIBUIDOR", s.sucursal.String()))
+
+	// 1 · su lista: solo la suya
+	code, b := dist.web("GET", "/routes", nil)
+	if code != 200 {
+		t.Fatalf("GET /routes: %d %s", code, b)
+	}
+	vistas := map[string]bool{}
+	var lista []map[string]any
+	_ = json.Unmarshal(b, &lista)
+	for _, r := range lista {
+		vistas[r["id"].(string)] = true
+	}
+	if !vistas[rutaA] || vistas[rutaB] {
+		t.Fatalf("tenía que ver SOLO su ruta: %v", vistas)
+	}
+	// 2 · la de otro es un 404 (no «prohibido»: ni se le dice que existe)
+	if code, _ := dist.web("GET", "/routes/"+rutaB, nil); code != 404 {
+		t.Fatalf("la ruta de otro distribuidor: %d, tenía que ser 404", code)
+	}
+	if code, _ := dist.web("POST", "/routes/"+rutaB+"/results", map[string]any{"resultados": []map[string]any{{"orderId": pedidosB[0], "resultado": "entregado"}}}); code != 404 {
+		t.Fatalf("cerrar la ruta de otro: %d, tenía que ser 404", code)
+	}
+	// 3 · todo lo que no es suyo es un 403 con su marca
+	for _, c := range []struct{ metodo, ruta string }{{"GET", "/orders"}, {"GET", "/vehicles"}, {"GET", "/customers"}, {"GET", "/distribuidores"}, {"POST", "/routes"}, {"DELETE", "/routes/" + rutaA}} {
+		code, b := dist.web(c.metodo, c.ruta, nil)
+		if code != 403 || !strings.Contains(string(b), "no_es_para_el_distribuidor") {
+			t.Errorf("%s %s: %d %s, tenía que ser 403 con su marca", c.metodo, c.ruta, code, b)
+		}
+	}
+	// 4 · en SU ruta: marca una parada y la inicia; pero no la renombra ni le cambia el camión
+	if code, b := dist.web("PATCH", "/routes/"+rutaA, map[string]any{"name": "me la quedo"}); code != 403 {
+		t.Errorf("renombrar su ruta: %d %s, tenía que ser 403", code, b)
+	}
+	if code, b := dist.web("PATCH", "/routes/"+rutaA, map[string]any{"distribuidorId": d2.String()}); code != 403 {
+		t.Errorf("pasarle su ruta a otro: %d %s, tenía que ser 403", code, b)
+	}
+	if code, b := dist.web("PATCH", "/routes/"+rutaA, map[string]any{"status": "in_progress"}); code != 200 {
+		t.Errorf("iniciar su ruta: %d %s", code, b)
+	}
+	if code, b := dist.web("POST", "/routes/"+rutaA+"/results", map[string]any{"resultados": []map[string]any{{"orderId": pedidosA[0], "resultado": "entregado"}}}); code != 200 {
+		t.Errorf("marcar su parada: %d %s", code, b)
+	}
+	// 5 · su bajada: solo lo suyo (pedidos, ruta, camión, él mismo) y NADA de clientes, catálogo ni tablero
+	code, b = dist.web("GET", "/sync/cambios", nil)
+	if code != 200 {
+		t.Fatalf("GET /sync/cambios: %d %s", code, b)
+	}
+	pedidos := idsDe(t, b, "cambios", "orders", "puestos")
+	if len(pedidos) != 2 || !contiene(pedidos, pedidosA...) || contiene(pedidos, pedidosB...) {
+		t.Fatalf("la bajada de pedidos tenía que ser solo los de su ruta: %v", pedidos)
+	}
+	if rs := idsDe(t, b, "cambios", "routes", "puestos"); len(rs) != 1 || rs[0] != rutaA {
+		t.Fatalf("la bajada de rutas: %v", rs)
+	}
+	if ds := idsDe(t, b, "cambios", "distribuidores", "puestos"); len(ds) != 1 || ds[0] != d1.String() {
+		t.Fatalf("la bajada de distribuidores: %v", ds)
+	}
+	if vs := idsDe(t, b, "cambios", "vehicles", "puestos"); len(vs) != 1 || vs[0] != camionA {
+		t.Fatalf("la bajada de vehículos: %v", vs)
+	}
+	for _, k := range []string{"customers", "products", "boardColumns", "boardPlacements", "vehicle_types"} {
+		if n := len(idsDe(t, b, "cambios", k, "puestos")); n != 0 {
+			t.Errorf("a un distribuidor no se le baja %q (%d filas)", k, n)
+		}
+	}
+	// 6 · el cuadre: igual
+	code, b = dist.web("GET", "/sync/cuadre", nil)
+	if code != 200 {
+		t.Fatalf("GET /sync/cuadre: %d %s", code, b)
+	}
+	if ps := idsDe(t, b, "colecciones", "orders"); len(ps) != 2 || !contiene(ps, pedidosA...) {
+		t.Fatalf("el cuadre de pedidos: %v", ps)
+	}
+	if rs := idsDe(t, b, "colecciones", "routes"); len(rs) != 1 || rs[0] != rutaA {
+		t.Fatalf("el cuadre de rutas: %v", rs)
+	}
+	// 7 · FALLA CERRADO: con el rol DISTRIBUIDOR pero sin distribuidor ligado, o de otra sucursal, no ve NADA
+	sinLigar := s.como(s.tokenDe("nadie-"+uuid.NewString()[:8], "DISTRIBUIDOR", s.sucursal.String()))
+	if code, b := sinLigar.web("GET", "/routes", nil); code != 403 {
+		t.Errorf("distribuidor sin ligar: %d %s, tenía que ser 403", code, b)
+	}
+	var otraSucursal uuid.UUID
+	if err := s.db.QueryRow(context.Background(), `INSERT INTO branches (name, lat, lng) VALUES ($1, 20, -75) RETURNING id`, "otra-"+uuid.NewString()).Scan(&otraSucursal); err != nil {
+		t.Fatal(err)
+	}
+	ajeno := s.como(s.tokenDe(sub1, "DISTRIBUIDOR", otraSucursal.String()))
+	if code, b := ajeno.web("GET", "/routes", nil); code != 403 {
+		t.Errorf("su distribuidor es de otra sucursal: %d %s, tenía que ser 403", code, b)
+	}
+	// 8 · el sync: da de alta su aparato y sube, pero no ve el panel ni la bandeja
+	if code, _ := dist.llamar(dist.sync, "GET", "/sync/estado", nil, nil); code != 403 {
+		t.Errorf("/sync/estado para un distribuidor: %d, tenía que ser 403", code)
+	}
+	if code, _ := dist.llamar(dist.sync, "POST", "/sync/aparato", map[string]any{"nombre": "movil e2e"}, map[string]string{"X-Aparato-Id": uuid.NewString()}); code != 200 && code != 201 {
+		t.Errorf("dar de alta su aparato: %d", code)
+	}
+	// y el logístico sigue viendo las dos
+	code, b = s.web("GET", "/routes", nil)
+	var todas []map[string]any
+	_ = json.Unmarshal(b, &todas)
+	if code != 200 || len(todas) < 2 {
+		t.Errorf("el logístico tenía que seguir viendo las rutas de todos: %d %d", code, len(todas))
+	}
+}
+
+func contiene(lista []string, quien ...string) bool {
+	m := map[string]bool{}
+	for _, x := range lista {
+		m[x] = true
+	}
+	for _, q := range quien {
+		if m[q] {
+			return true
+		}
+	}
+	return false
+}

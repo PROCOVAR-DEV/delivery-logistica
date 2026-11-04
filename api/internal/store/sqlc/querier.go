@@ -711,6 +711,8 @@ type Querier interface {
 	// «ENTREGA A DOMICILIO» que no sale en la pantalla pero sí baja al teléfono es el mismo
 	// cobro duplicado, en el aparato que trabaja sin conexión y sin nadie que lo desmienta.
 	DiferenciasDeProductos(ctx context.Context, arg DiferenciasDeProductosParams) ([]Product, error)
+	// EL USUARIO DEL DISTRIBUIDOR (00032, 04/11/2026). `persona_id` es el `sub` del token de Accesos.
+	DistribuidorDeLaPersona(ctx context.Context, persona *string) (DistribuidorDeLaPersonaRow, error)
 	// DÓNDE ESTÁN ESTOS PEDIDOS, para el renglón del servidor cuando un cierre rechaza paradas.
 	//
 	// Un «ese pedido no va en esta ruta» llegó a Amado con 409 y sin que el servidor dijera POR
@@ -1039,6 +1041,7 @@ type Querier interface {
 	// sale (para medir los km como la cotización), en qué ruta va y si ya se entregó. Con alcance:
 	// un pedido de otra sucursal no devuelve fila, que es el mismo 404 que si no existiera.
 	LeerPedidoParaElPunto(ctx context.Context, arg LeerPedidoParaElPuntoParams) (LeerPedidoParaElPuntoRow, error)
+	LigarPersonaADistribuidor(ctx context.Context, arg LigarPersonaADistribuidorParams) (LigarPersonaADistribuidorRow, error)
 	// QUITAR LA MARCA DE UNA PARADA — 28/09/2026.
 	//
 	// Jose: «desmarco el estado de cierre y no se guarda cuando salgo por q razon».
@@ -1494,7 +1497,7 @@ type Querier interface {
 	// ---------------------------------------------------------------------------
 	// La lista  (GET /api/vehicles)
 	// ---------------------------------------------------------------------------
-	ListarVehiculos(ctx context.Context, sucursal pgtype.UUID) ([]ListarVehiculosRow, error)
+	ListarVehiculos(ctx context.Context, arg ListarVehiculosParams) ([]ListarVehiculosRow, error)
 	ListarVehiculosDePedido(ctx context.Context, arg ListarVehiculosDePedidoParams) ([]ListarVehiculosDePedidoRow, error)
 	// Almacenes y facturación de Ventra — el lado de la base.
 	//

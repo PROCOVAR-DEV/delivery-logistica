@@ -649,6 +649,7 @@ type Distribuidore struct {
 	Activo    bool               `json:"activo"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	PersonaID *string            `json:"persona_id"`
 }
 
 type EnviosDelWebhook struct {
@@ -899,6 +900,7 @@ type Vehicle struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	IsActive          bool               `json:"is_active"`
+	DistribuidorID    pgtype.UUID        `json:"distribuidor_id"`
 }
 
 type VehicleType struct {

@@ -2368,7 +2368,7 @@ func TestMotorReal_VehiculoInactivo(t *testing.T) {
 		t.Fatal("no se pudo marcar inactivo")
 	}
 	// Inactivo conserva su historial: sigue en la lista de la flota (la app lo filtra con `isActive`).
-	lista, err := b.q.ListarVehiculos(b.ctx, alcance(suc))
+	lista, err := b.q.ListarVehiculos(b.ctx, ListarVehiculosParams{Sucursal: alcance(suc)})
 	if err != nil || len(lista) != 1 || lista[0].IsActive {
 		t.Fatalf("la lista tiene que traerlo con is_active=false: %+v err=%v", lista, err)
 	}

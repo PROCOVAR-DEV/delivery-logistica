@@ -79,7 +79,8 @@ func (d *doble) BuscarSucursalPorCodigo(_ context.Context, codigo *string) (sqlc
 	return sqlc.BuscarSucursalPorCodigoRow{}, pgx.ErrNoRows
 }
 
-func (d *doble) ListarVehiculos(_ context.Context, sucursal pgtype.UUID) ([]sqlc.ListarVehiculosRow, error) {
+func (d *doble) ListarVehiculos(_ context.Context, arg sqlc.ListarVehiculosParams) ([]sqlc.ListarVehiculosRow, error) {
+	sucursal := arg.Sucursal
 	var salida []sqlc.ListarVehiculosRow
 	for _, v := range d.vehiculos {
 		if !sucursal.Valid || !v.BranchID.Valid || v.BranchID.Bytes == sucursal.Bytes {

@@ -32,7 +32,7 @@ WHERE id = $13
        OR branch_id = $14::uuid
        OR branch_id IS NULL)
 RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-          usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
+          usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active, distribuidor_id
 `
 
 type ActualizarVehiculoParams struct {
@@ -84,6 +84,7 @@ func (q *Queries) ActualizarVehiculo(ctx context.Context, arg ActualizarVehiculo
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsActive,
+		&i.DistribuidorID,
 	)
 	return i, err
 }
@@ -267,14 +268,14 @@ WITH nuevo AS (
     )
     ON CONFLICT (id) DO NOTHING
     RETURNING id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-              usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
+              usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active, distribuidor_id
 )
 SELECT id, name, vehicle_type_id, plate, capacity, costo_km_usd,
-       usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active
+       usar_para_domicilio, status, notes, branch_id, created_at, updated_at, is_active, distribuidor_id
 FROM nuevo
 UNION ALL
 SELECT v.id, v.name, v.vehicle_type_id, v.plate, v.capacity, v.costo_km_usd,
-       v.usar_para_domicilio, v.status, v.notes, v.branch_id, v.created_at, v.updated_at, v.is_active
+       v.usar_para_domicilio, v.status, v.notes, v.branch_id, v.created_at, v.updated_at, v.is_active, v.distribuidor_id
 FROM vehicles v
 WHERE $1::uuid IS NOT NULL AND v.id = $1::uuid
   AND v.branch_id IS NOT DISTINCT FROM $11::uuid
@@ -308,6 +309,7 @@ type CrearVehiculoRow struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	IsActive          bool               `json:"is_active"`
+	DistribuidorID    pgtype.UUID        `json:"distribuidor_id"`
 }
 
 // ---------------------------------------------------------------------------
@@ -348,6 +350,7 @@ func (q *Queries) CrearVehiculo(ctx context.Context, arg CrearVehiculoParams) (C
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.IsActive,
+		&i.DistribuidorID,
 	)
 	return i, err
 }
@@ -411,8 +414,19 @@ LEFT JOIN branches b  ON b.id  = v.branch_id
 WHERE ($1::uuid IS NULL
        OR v.branch_id = $1::uuid
        OR v.branch_id IS NULL)
+  -- UN DISTRIBUIDOR SOLO RECIBE LOS VEHÍCULOS DE SUS RUTAS PLANIFICADAS O EN CURSO (04/11/2026), y el suyo propio si lo lleva por defecto.
+  AND ($2::uuid IS NULL
+       OR v.distribuidor_id = $2::uuid
+       OR v.id IN (SELECT r.vehicle_id FROM routes r
+                   WHERE r.distribuidor_id = $2::uuid
+                     AND r.status IN ('planned', 'in_progress') AND r.vehicle_id IS NOT NULL))
 ORDER BY v.created_at DESC
 `
+
+type ListarVehiculosParams struct {
+	Sucursal     pgtype.UUID `json:"sucursal"`
+	Distribuidor pgtype.UUID `json:"distribuidor"`
+}
 
 type ListarVehiculosRow struct {
 	ID                uuid.UUID          `json:"id"`
@@ -449,8 +463,8 @@ type ListarVehiculosRow struct {
 // ---------------------------------------------------------------------------
 // La lista  (GET /api/vehicles)
 // ---------------------------------------------------------------------------
-func (q *Queries) ListarVehiculos(ctx context.Context, sucursal pgtype.UUID) ([]ListarVehiculosRow, error) {
-	rows, err := q.db.Query(ctx, listarVehiculos, sucursal)
+func (q *Queries) ListarVehiculos(ctx context.Context, arg ListarVehiculosParams) ([]ListarVehiculosRow, error) {
+	rows, err := q.db.Query(ctx, listarVehiculos, arg.Sucursal, arg.Distribuidor)
 	if err != nil {
 		return nil, err
 	}

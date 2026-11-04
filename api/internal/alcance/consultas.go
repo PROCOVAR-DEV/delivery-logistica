@@ -92,7 +92,7 @@ func (a *Acotado) CrearOrigen(ctx context.Context, arg sqlc.CrearOrigenParams) (
 // se puede usar.
 
 func (a *Acotado) ListarVehiculos(ctx context.Context) ([]sqlc.ListarVehiculosRow, error) {
-	return a.q.ListarVehiculos(ctx, a.sucursalPg())
+	return a.q.ListarVehiculos(ctx, sqlc.ListarVehiculosParams{Sucursal: a.sucursalPg(), Distribuidor: a.distribuidorPg()})
 }
 
 // RutasAbiertasDeLaFlota: en qué anda cada camión, DEDUCIDO de sus rutas.
@@ -240,7 +240,7 @@ func (a *Acotado) SembrarTiposDeVehiculoEnSucursal(ctx context.Context, sucursal
 // el manejador contesta 400 (un distribuidor sin sucursal no tiene dueño).
 
 func (a *Acotado) ListarDistribuidores(ctx context.Context, soloActivos *bool) ([]sqlc.ListarDistribuidoresRow, error) {
-	return a.q.ListarDistribuidores(ctx, sqlc.ListarDistribuidoresParams{SoloActivos: soloActivos, Sucursal: a.sucursalPg()})
+	return a.q.ListarDistribuidores(ctx, sqlc.ListarDistribuidoresParams{SoloActivos: soloActivos, Sucursal: a.sucursalPg(), Distribuidor: a.distribuidorPg()})
 }
 
 // ObtenerDistribuidor: cero filas es «no existe O no es de tu sucursal».

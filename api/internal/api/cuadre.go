@@ -89,16 +89,21 @@ func (s *Servidor) cuadreDeFacturas(w http.ResponseWriter, r *http.Request) {
 	}
 	poner("vehicles", ids)
 
-	tipos, err := a.ListarTiposDeVehiculo(ctx, nil)
-	if err != nil {
-		fallo(err)
-		return
+	// UN DISTRIBUIDOR SOLO CUADRA LO SUYO (04/11/2026): pedidos, rutas, su vehículo y él mismo. El resto no se le da y el aparato no lo toca
+	// (va en `faltan`): ni tipos, ni catálogo, ni clientes, ni tablero.
+	esDist := a.EsDelDistribuidor()
+	if !esDist {
+		tipos, err := a.ListarTiposDeVehiculo(ctx, nil)
+		if err != nil {
+			fallo(err)
+			return
+		}
+		ids = make([]string, 0, len(tipos))
+		for _, x := range tipos {
+			ids = append(ids, x.ID.String())
+		}
+		poner("vehicle_types", ids)
 	}
-	ids = make([]string, 0, len(tipos))
-	for _, x := range tipos {
-		ids = append(ids, x.ID.String())
-	}
-	poner("vehicle_types", ids)
 
 	distribuidores, err := a.ListarDistribuidores(ctx, nil)
 	if err != nil {
@@ -122,30 +127,34 @@ func (s *Servidor) cuadreDeFacturas(w http.ResponseWriter, r *http.Request) {
 	}
 	poner("routes", ids)
 
-	productos, err := a.EspejoDiferenciasDeProductos(ctx, alcance.TandaDelPadron{Hasta: hasta, Tope: TopeDelCuadre + 1})
-	if err != nil {
-		fallo(err)
-		return
-	}
-	ids = make([]string, 0, len(productos))
-	for _, x := range productos {
-		ids = append(ids, x.ID.String())
-	}
-	poner("products", ids)
+	if !esDist {
+		productos, err := a.EspejoDiferenciasDeProductos(ctx, alcance.TandaDelPadron{Hasta: hasta, Tope: TopeDelCuadre + 1})
+		if err != nil {
+			fallo(err)
+			return
+		}
+		ids = make([]string, 0, len(productos))
+		for _, x := range productos {
+			ids = append(ids, x.ID.String())
+		}
+		poner("products", ids)
 
-	clientes, err := a.EspejoDiferenciasDeClientes(ctx, alcance.TandaDelPadron{Hasta: hasta, Tope: TopeDelCuadre + 1})
-	if err != nil {
-		fallo(err)
-		return
+		clientes, err := a.EspejoDiferenciasDeClientes(ctx, alcance.TandaDelPadron{Hasta: hasta, Tope: TopeDelCuadre + 1})
+		if err != nil {
+			fallo(err)
+			return
+		}
+		ids = make([]string, 0, len(clientes))
+		for _, x := range clientes {
+			ids = append(ids, x.ID.String())
+		}
+		poner("customers", ids)
 	}
-	ids = make([]string, 0, len(clientes))
-	for _, x := range clientes {
-		ids = append(ids, x.ID.String())
-	}
-	poner("customers", ids)
 
-	// El tablero es de UNA sucursal: sin ella no se puede dar y el aparato no lo toca.
-	if sucursal == nil {
+	// El tablero es de UNA sucursal: sin ella no se puede dar y el aparato no lo toca. Y a un distribuidor no se le da nunca.
+	if esDist {
+		salida.Faltan = append(salida.Faltan, "vehicle_types", "products", "customers", "boardColumns", "boardPlacements")
+	} else if sucursal == nil {
 		salida.Faltan = append(salida.Faltan, "boardColumns", "boardPlacements")
 	} else {
 		columnas, err := a.ListarColumnasDelTablero(ctx, *sucursal, true)

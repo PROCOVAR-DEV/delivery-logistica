@@ -1257,6 +1257,9 @@ func (s *Servidor) responderConLaRuta(w http.ResponseWriter, r *http.Request, a 
 // PATCH /api/routes/{id}
 // ---------------------------------------------------------------------------
 
+// msgDistribuidorSoloEstado es el 403 de un distribuidor que toca algo de su ruta que no sea iniciarla o completarla.
+const msgDistribuidorSoloEstado = "Solo puedes iniciar o completar tu ruta."
+
 type cuerpoActualizarRuta struct {
 	VehicleID httpx.Opcional[string] `json:"vehicleId"`
 	Name      httpx.Opcional[string] `json:"name"`
@@ -1292,6 +1295,12 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 	}
 	var c cuerpoActualizarRuta
 	if !httpx.LeerJSON(w, r, &c) {
+		return
+	}
+	// UN DISTRIBUIDOR SOLO INICIA O COMPLETA SU RUTA (04/11/2026): no la renombra, no le cambia el camión y no se la pasa a otro. Va ANTES de
+	// leer la ruta: no se le cuenta nada de ella si pide lo que no puede.
+	if a.EsDelDistribuidor() && (c.VehicleID.Presente || c.Name.Presente || c.DistribuidorID.Presente) {
+		httpx.Error(w, r, http.StatusForbidden, msgDistribuidorSoloEstado)
 		return
 	}
 

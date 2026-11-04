@@ -88,7 +88,23 @@ type Acotado struct {
 	sucursal *uuid.UUID // nil = todas
 	codigo   *string    // el `external_id` de esa sucursal (CAM, HAB, STG...)
 	persona  *uuid.UUID // la sucursal DE LA PERSONA, ignorando la cabecera
+
+	// EL DISTRIBUIDOR DE LA SESIÓN (04/11/2026): nil = no es un distribuidor. Con valor, TODA consulta de rutas y de lo que cuelga de ellas se
+	// estrecha a las rutas de ese distribuidor. Lo rellena [Porteria.Resolver] desde la base (`distribuidores.persona_id`), nunca el cliente,
+	// y **falla cerrado**: un usuario con el rol DISTRIBUIDOR sin distribuidor ligado no resuelve alcance (403), no «ve toda la sucursal».
+	distribuidor *uuid.UUID
 }
+
+// ErrSinDistribuidor: la persona lleva el rol DISTRIBUIDOR pero ningún distribuidor de Reparto está ligado a ella (o el suyo está
+// retirado). Es un `ErrSinAlcance` (sale como 403) con su texto: dice qué falta y quién lo arregla.
+var ErrSinDistribuidor = errSinDistribuidor{}
+
+type errSinDistribuidor struct{}
+
+func (errSinDistribuidor) Error() string {
+	return "tu usuario no está ligado a ningún distribuidor activo: pide en la oficina que lo liguen"
+}
+func (errSinDistribuidor) Is(destino error) bool { return destino == ErrSinAlcance }
 
 // ErrSinAlcance: no pertenece a ninguna sucursal y tampoco tiene un rol que las vea
 // todas, así que no hay nada que pueda ver. Sale como 403 con este texto: dice qué falta y
@@ -170,6 +186,30 @@ func VeTodasLasSucursales(u *auth.Usuario) bool { return u.EsSuperAdmin() }
 //  3. Con pedida, SE COMPRUEBA QUE EXISTA. Si no existe: quien ve todas -> aviso y todas;
 //     cualquier otro rol -> `ErrSucursalSinAlta` (403 que nombra el código).
 func (p *Porteria) Resolver(ctx context.Context, u *auth.Usuario, cabecera string) (*Acotado, error) {
+	a, err := p.resolverSucursal(ctx, u, cabecera)
+	if err != nil || u == nil || !u.EsDistribuidor() {
+		return a, err
+	}
+	// UN DISTRIBUIDOR SOLO VE LO SUYO, y se resuelve DESPUÉS de la sucursal: tiene que ser de ella.
+	persona := u.ID
+	d, errD := a.q.DistribuidorDeLaPersona(ctx, &persona)
+	switch {
+	case errors.Is(errD, pgx.ErrNoRows):
+		return nil, ErrSinDistribuidor
+	case errD != nil:
+		return nil, errD // «no pude comprobarlo» no es «es de todos»: se responde 500
+	case !d.Activo:
+		return nil, ErrSinDistribuidor
+	case a.sucursal == nil || *a.sucursal != d.BranchID:
+		return nil, ErrSinDistribuidor
+	}
+	id := d.ID
+	a.distribuidor = &id
+	return a, nil
+}
+
+// resolverSucursal es la regla de la sucursal (la de siempre); [Porteria.Resolver] le añade lo del distribuidor.
+func (p *Porteria) resolverSucursal(ctx context.Context, u *auth.Usuario, cabecera string) (*Acotado, error) {
 	a := &Acotado{fuente: p.fuente, q: p.fuente.Consultas()}
 	if u == nil {
 		// Sin persona no hay alcance que resolver. Llegar aquí es un fallo de montaje
@@ -405,6 +445,15 @@ func (a *Acotado) ActorRef() *string {
 
 // sucursalPg es el parámetro que espera sqlc: NULL cuando son todas.
 func (a *Acotado) sucursalPg() pgtype.UUID { return aPg(a.sucursal) }
+
+// distribuidorPg: el distribuidor de la sesión para el SQL (`NULL` = no es un distribuidor, no filtra).
+func (a *Acotado) distribuidorPg() pgtype.UUID { return aPg(a.distribuidor) }
+
+// EsDelDistribuidor: la sesión es de un distribuidor (y ya se resolvió quién).
+func (a *Acotado) EsDelDistribuidor() bool { return a.distribuidor != nil }
+
+// Distribuidor: su id, o nil si no es un distribuidor.
+func (a *Acotado) Distribuidor() *uuid.UUID { return a.distribuidor }
 
 // personaPg es la sucursal DE LA PERSONA, sin la elegida por cabecera.
 //

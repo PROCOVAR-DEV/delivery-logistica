@@ -51,17 +51,17 @@ func (a *Acotado) EnSucursal(id *uuid.UUID) *Acotado {
 // ListarRutas no acepta filtro de estado a propósito: el contrato de `GET /api/routes`
 // dice «Query: ninguna». El parámetro existe en el SQL para quien lo necesite después.
 func (a *Acotado) ListarRutas(ctx context.Context) ([]sqlc.ListarRutasRow, error) {
-	return a.q.ListarRutas(ctx, sqlc.ListarRutasParams{Sucursal: a.sucursalPg()})
+	return a.q.ListarRutas(ctx, sqlc.ListarRutasParams{Sucursal: a.sucursalPg(), Distribuidor: a.distribuidorPg()})
 }
 
 func (a *Acotado) ObtenerRuta(ctx context.Context, id uuid.UUID) (sqlc.ObtenerRutaRow, error) {
-	return a.q.ObtenerRuta(ctx, sqlc.ObtenerRutaParams{ID: id, Sucursal: a.sucursalPg()})
+	return a.q.ObtenerRuta(ctx, sqlc.ObtenerRutaParams{ID: id, Sucursal: a.sucursalPg(), Distribuidor: a.distribuidorPg()})
 }
 
 // BloquearRuta se usa sólo dentro de EnTx: completar y cualquier modificación
 // comparten el bloqueo de la fila; una lectura anterior no protege el histórico.
 func (a *Acotado) BloquearRuta(ctx context.Context, id uuid.UUID) (sqlc.RouteStatus, error) {
-	return a.q.BloquearRuta(ctx, sqlc.BloquearRutaParams{ID: id, Sucursal: a.sucursalPg()})
+	return a.q.BloquearRuta(ctx, sqlc.BloquearRutaParams{ID: id, Sucursal: a.sucursalPg(), Distribuidor: a.distribuidorPg()})
 }
 
 // ParadasDeRutas trae las paradas de VARIAS rutas de una vez. Es lo que evita que pintar

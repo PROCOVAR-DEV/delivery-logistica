@@ -5,7 +5,8 @@ import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
+import 'package:reparto/navegacion/portero.dart'
+    show sucursalDeLaSesionProvider;
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/apunte.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
@@ -17,6 +18,7 @@ import 'package:reparto/pantallas/tablero/estado/proveedores.dart';
 
 import '../../apoyo/servidor_falso.dart';
 import 'apoyo.dart';
+import '../../apoyo/sin_filtro_de_mes.dart';
 
 /// LA PRUEBA QUE NO PUEDE FALTAR.
 ///
@@ -54,6 +56,7 @@ void main() {
       ..httpClientAdapter = servidor;
     return ProviderContainer.test(
       overrides: [
+        filtrosSinMes,
         // Sin `onDispose`: la base la cierra la prueba, que es justo lo que
         // quiere simular.
         baseProvider.overrideWith((ref) => base),
@@ -262,6 +265,7 @@ void main() {
     final dio = Dio()..httpClientAdapter = servidor;
     final contenedor = ProviderContainer.test(
       overrides: [
+        filtrosSinMes,
         baseProvider.overrideWith((ref) => base),
         // SIN ESPERAS. El tablero pide la foto del servidor al abrirse y aquí no
         // hay servidor: con los reintentos por defecto son 1+4+10 segundos por

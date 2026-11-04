@@ -37,6 +37,7 @@ import 'package:reparto/pantallas/tablero/estado/proveedores.dart';
 import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/servidor_falso.dart';
 import 'apoyo.dart';
+import '../../apoyo/sin_filtro_de_mes.dart';
 
 const rutaDeLosCasos = '../docs/orden-sin-colocar.casos.json';
 
@@ -138,6 +139,7 @@ void main() {
       ..httpClientAdapter = ServidorFalso((_) async => null);
     final contenedor = ProviderContainer.test(
       overrides: [
+        filtrosSinMes,
         baseProvider.overrideWith((ref) => base),
         clienteApiProvider.overrideWithValue(
           ClienteApi(dio: dio, esperas: const <Duration>[]),

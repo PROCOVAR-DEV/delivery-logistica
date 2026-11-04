@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../navegacion/portero.dart' show sucursalDeLaSesionProvider;
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/fecha_de_la_factura.dart' show diaEnCuba;
 import '../../../nucleo/proveedores.dart';
 import '../../../nucleo/refresco_en_vivo.dart';
 import '../../../nucleo/red/fallos.dart';
@@ -139,12 +140,21 @@ final sucursalDelTableroProvider = FutureProvider<String?>((ref) async {
 
 /// Los filtros de la mitad izquierda.
 class FiltrosTablero extends Notifier<FiltrosSinColocar> {
+  /// SOLO EL MES EN CURSO, por defecto — Jose, 04/11/2026: «si ya pasaron su fecha no las muestres, debería salir el mes, no
+  /// ponerle todas». La bandeja «Sin colocar» arranca en el día 1 del mes de Cuba y no enseña facturas de meses anteriores (pruebas
+  /// de septiembre y octubre que se quedaron sin ruta metían ruido a quien arma el día). Quien quiera ver más atrás quita el
+  /// «Desde» del filtro de fecha, igual que antes; «Limpiar» vuelve a este mes.
+  FiltrosSinColocar _delMes() {
+    final hoy = diaEnCuba(ref.read(relojProvider)());
+    return FiltrosSinColocar(desde: DateTime(hoy.year, hoy.month, 1));
+  }
+
   @override
-  FiltrosSinColocar build() => const FiltrosSinColocar();
+  FiltrosSinColocar build() => _delMes();
 
   void poner(FiltrosSinColocar filtros) => state = filtros;
 
-  void limpiar() => state = const FiltrosSinColocar();
+  void limpiar() => state = _delMes();
 }
 
 // AQUI VIVIA `loQueElServidorRechazoProvider`, Y SE QUITO EL 24/09/2026.

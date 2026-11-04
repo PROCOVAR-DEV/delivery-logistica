@@ -25,7 +25,8 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
+import 'package:reparto/navegacion/portero.dart'
+    show sucursalDeLaSesionProvider;
 import 'package:reparto/diseno/pestanas.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
@@ -39,6 +40,7 @@ import 'package:reparto/pantallas/tablero/vista/pantalla_tablero.dart';
 
 import '../../apoyo/servidor_falso.dart';
 import 'apoyo.dart';
+import '../../apoyo/sin_filtro_de_mes.dart';
 
 void main() {
   late BaseLocal base;
@@ -71,6 +73,7 @@ void main() {
     final dio = Dio()..httpClientAdapter = servidor;
     return ProviderScope(
       overrides: [
+        filtrosSinMes,
         baseProvider.overrideWith((ref) => base),
         clienteApiProvider.overrideWithValue(
           ClienteApi(dio: dio, esperas: const <Duration>[]),

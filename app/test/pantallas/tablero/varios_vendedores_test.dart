@@ -21,6 +21,7 @@ import 'package:reparto/pantallas/tablero/vista/panel_sin_colocar.dart';
 
 import '../../apoyo/base_de_prueba.dart';
 import 'apoyo.dart';
+import '../../apoyo/sin_filtro_de_mes.dart';
 
 const _largo = 'Luis Alberto Dominguez Hernandez';
 
@@ -50,6 +51,7 @@ void main() {
 
       final contenedor = ProviderContainer.test(
         overrides: [
+          filtrosSinMes,
           baseProvider.overrideWithValue(base),
           relojProvider.overrideWithValue(() => DateTime(2026, 9, 14, 10)),
         ],

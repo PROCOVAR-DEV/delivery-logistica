@@ -5,7 +5,8 @@ import 'package:drift/drift.dart' show Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
+import 'package:reparto/navegacion/portero.dart'
+    show sucursalDeLaSesionProvider;
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
@@ -20,6 +21,7 @@ import 'package:reparto/pantallas/tablero/estado/proveedores.dart';
 import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/servidor_de_los_dos_lados.dart';
 import 'apoyo.dart';
+import '../../apoyo/sin_filtro_de_mes.dart';
 
 /// LA MISMA TARJETA MOVIDA EN LOS DOS LADOS A LA VEZ.
 ///
@@ -79,6 +81,7 @@ void main() {
       ..httpClientAdapter = servidor.adaptador;
     return ProviderContainer.test(
       overrides: [
+        filtrosSinMes,
         baseProvider.overrideWith((ref) => base),
         // SIN ESPERAS: sin señal los reintentos por defecto son quince segundos
         // por prueba quemados esperando a una red que no existe.

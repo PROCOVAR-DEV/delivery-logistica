@@ -29,7 +29,8 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
+import 'package:reparto/navegacion/portero.dart'
+    show sucursalDeLaSesionProvider;
 import 'package:reparto/diseno/tema.dart';
 import 'package:reparto/navegacion/estado_navegacion.dart';
 import 'package:reparto/nucleo/base/base.dart';
@@ -45,6 +46,7 @@ import 'package:reparto/pantallas/tablero/vista/tarjeta.dart';
 
 import '../../apoyo/servidor_falso.dart';
 import 'apoyo.dart';
+import '../../apoyo/sin_filtro_de_mes.dart';
 
 const _escritorio = Size(1400, 900);
 
@@ -84,6 +86,7 @@ void main() {
     final dio = Dio()..httpClientAdapter = servidor;
     contenedor = ProviderContainer(
       overrides: [
+        filtrosSinMes,
         baseProvider.overrideWith((ref) => base),
         clienteApiProvider.overrideWithValue(
           ClienteApi(dio: dio, esperas: const <Duration>[]),
@@ -324,6 +327,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            filtrosSinMes,
             tasaDeLaMiradaProvider.overrideWithValue(
               const TasaDeLaMirada.no('en estas pruebas no hay tasa'),
             ),

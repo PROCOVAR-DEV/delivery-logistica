@@ -30,7 +30,8 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
+import 'package:reparto/navegacion/portero.dart'
+    show sucursalDeLaSesionProvider;
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
@@ -45,6 +46,7 @@ import 'package:reparto/pantallas/tablero/vista/pantalla_tablero.dart';
 
 import '../../apoyo/servidor_falso.dart';
 import 'apoyo.dart';
+import '../../apoyo/sin_filtro_de_mes.dart';
 
 const _escritorio = Size(1400, 900);
 
@@ -87,6 +89,7 @@ void main() {
     final dio = Dio()..httpClientAdapter = servidor;
     contenedor = ProviderContainer(
       overrides: [
+        filtrosSinMes,
         baseProvider.overrideWith((ref) => base),
         clienteApiProvider.overrideWithValue(
           ClienteApi(dio: dio, esperas: const <Duration>[]),
@@ -120,10 +123,7 @@ void main() {
 
     await sembrarSucursal(base);
     await sembrarAlmacen(base);
-    await RepositorioTablero(
-      base,
-      ColaDeSalida(base),
-    ).crearColumna(
+    await RepositorioTablero(base, ColaDeSalida(base)).crearColumna(
       sucursalId: sucursalStg,
       nombre: 'Centro',
       vehiculoId: conCamion ? 'v1' : null,
@@ -249,7 +249,9 @@ void main() {
     // ruta recién armada nace PLANIFICADA, así que llegar a Rutas con la
     // pestaña de antes puesta deja una lista donde esa ruta no está, y eso se
     // lee como que no se creó.
-    contenedor.read(pestanaRutasProvider.notifier).elegir(PestanaRutas.historial);
+    contenedor
+        .read(pestanaRutasProvider.notifier)
+        .elegir(PestanaRutas.historial);
 
     await tester.tap(find.byTooltip('Opciones de la columna'));
     await asentar(tester);

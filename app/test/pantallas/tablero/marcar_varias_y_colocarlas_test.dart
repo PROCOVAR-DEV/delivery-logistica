@@ -37,6 +37,7 @@ import 'package:reparto/pantallas/tablero/vista/pantalla_tablero.dart';
 
 import '../../apoyo/servidor_falso.dart';
 import 'apoyo.dart';
+import '../../apoyo/sin_filtro_de_mes.dart';
 
 void main() {
   late BaseLocal base;
@@ -72,6 +73,7 @@ void main() {
     final dio = Dio()..httpClientAdapter = servidor;
     contenedor = ProviderContainer(
       overrides: [
+        filtrosSinMes,
         baseProvider.overrideWith((ref) => base),
         clienteApiProvider.overrideWithValue(
           ClienteApi(dio: dio, esperas: const <Duration>[]),

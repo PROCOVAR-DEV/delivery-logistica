@@ -2,7 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reparto/navegacion/portero.dart' show sucursalDeLaSesionProvider;
+import 'package:reparto/navegacion/portero.dart'
+    show sucursalDeLaSesionProvider;
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/cola/cola_salida.dart';
 import 'package:reparto/nucleo/identidad/almacen_sesion.dart';
@@ -17,6 +18,7 @@ import 'package:sqlite3/sqlite3.dart' show SqliteException;
 import '../../apoyo/base_de_prueba.dart';
 import '../../apoyo/servidor_falso.dart';
 import 'apoyo.dart';
+import '../../apoyo/sin_filtro_de_mes.dart';
 
 /// EL TELÉFONO SE QUEDA SIN SITIO Y EL GESTO NO SE GUARDA.
 ///
@@ -75,6 +77,7 @@ void main() {
     final dio = Dio()..httpClientAdapter = servidor;
     return ProviderScope(
       overrides: [
+        filtrosSinMes,
         baseProvider.overrideWith((ref) => base),
         clienteApiProvider.overrideWithValue(
           ClienteApi(dio: dio, esperas: const <Duration>[]),
@@ -127,8 +130,9 @@ void main() {
 
     // 1 · NO SE GUARDÓ. Eso es cierto y no se arregla desde aquí.
     expect(
-      (await ColaDeSalida(base).lote())
-          .where((a) => a.ruta.startsWith('/board/placements/')),
+      (await ColaDeSalida(
+        base,
+      ).lote()).where((a) => a.ruta.startsWith('/board/placements/')),
       isEmpty,
       reason: 'sin sitio en el disco no hay apunte que valga',
     );

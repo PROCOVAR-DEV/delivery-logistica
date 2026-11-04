@@ -428,6 +428,8 @@ type Querier interface {
 	// ruta abierta detrás es una ruta que nadie va a cerrar nunca y que sigue contando como
 	// activa en el panel.
 	CompletarRutasDeVehiculo(ctx context.Context, arg CompletarRutasDeVehiculoParams) (int64, error)
+	// CONFIRMAR LA REVISIÓN DE UNA RUTA COMPLETADA (00034). Solo una completada, y solo una vez: confirmar otra vez no cambia quién ni cuándo.
+	ConfirmarRevisionDeRuta(ctx context.Context, arg ConfirmarRevisionDeRutaParams) (uuid.UUID, error)
 	// Los tres números de arriba de esa pantalla.
 	ContarAvisosAPedido(ctx context.Context) (ContarAvisosAPedidoRow, error)
 	// El total, con el MISMO where. Es el `total` de la respuesta: se cuenta antes del filtro
@@ -1053,6 +1055,9 @@ type Querier interface {
 	// sale (para medir los km como la cotización), en qué ruta va y si ya se entregó. Con alcance:
 	// un pedido de otra sucursal no devuelve fila, que es el mismo 404 que si no existiera.
 	LeerPedidoParaElPunto(ctx context.Context, arg LeerPedidoParaElPuntoParams) (LeerPedidoParaElPuntoRow, error)
+	// Al CANCELAR una ruta sus paradas sin resultado vuelven a estar disponibles (como al borrarla), sin perder de qué ruta eran (`ultima_ruta_id`):
+	// el historial del distribuidor sigue enseñando la ruta cancelada con sus paradas.
+	LiberarParadasSinResultadoDeUnaRuta(ctx context.Context, ruta pgtype.UUID) error
 	// QUITAR LA MARCA DE UNA PARADA — 28/09/2026.
 	//
 	// Jose: «desmarco el estado de cierre y no se guarda cuando salgo por q razon».
@@ -1929,6 +1934,8 @@ type Querier interface {
 	// exactamente lo que hay que poder ver.
 	// Sin lo archivado (00027): una factura anulada y quitada de su ruta no es una factura que cuadre.
 	ResumenDeCotejo(ctx context.Context, arg ResumenDeCotejoParams) (ResumenDeCotejoRow, error)
+	// CUÁNTAS PARADAS TIENE UNA RUTA Y EN QUÉ ESTÁN (04/11/2026): para decidir si el distribuidor puede completarla (todas marcadas) o cancelarla (ninguna entregada).
+	ResumenDeParadasDeRuta(ctx context.Context, ruta pgtype.UUID) (ResumenDeParadasDeRutaRow, error)
 	// ---------------------------------------------------------------------------
 	// Cómo va, en una lectura
 	// ---------------------------------------------------------------------------

@@ -1543,7 +1543,7 @@ marcados AS (
                AND o.anulada_at >= sqlc.narg('anuladas_desde')::timestamptz))
       AND (sqlc.narg('dispositivo')::uuid IS NULL OR coalesce(o.route_id, o.ultima_ruta_id) IN (
             SELECT r.id FROM routes r
-            WHERE r.dispositivo_id = sqlc.narg('dispositivo')::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
+            WHERE r.dispositivo_id = sqlc.narg('dispositivo')::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days') OR (r.status = 'cancelled' AND r.updated_at > now() - interval '30 days'))))
 )
 SELECT
     id, operation_number, customer_name, customer_phone, address, end_address,
@@ -1651,6 +1651,6 @@ WHERE (sqlc.narg('sucursal')::uuid  IS NULL OR o.branch_id = sqlc.narg('sucursal
   -- El cuadre del distribuidor lista SOLO lo suyo: lo que no esté aquí lo quita el aparato (una ruta que se completó o se pasó a otro).
   AND (sqlc.narg('dispositivo')::uuid IS NULL OR coalesce(o.route_id, o.ultima_ruta_id) IN (
         SELECT r.id FROM routes r
-        WHERE r.dispositivo_id = sqlc.narg('dispositivo')::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
+        WHERE r.dispositivo_id = sqlc.narg('dispositivo')::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days') OR (r.status = 'cancelled' AND r.updated_at > now() - interval '30 days'))))
 ORDER BY o.id
 LIMIT sqlc.arg('tope');

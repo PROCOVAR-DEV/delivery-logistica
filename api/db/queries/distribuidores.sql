@@ -32,7 +32,7 @@ WHERE (sqlc.narg('solo_activos')::boolean IS NULL
   AND (sqlc.narg('dispositivo')::uuid IS NULL
        OR d.id IN (SELECT r.distribuidor_id FROM routes r
                    WHERE r.dispositivo_id = sqlc.narg('dispositivo')::uuid AND r.distribuidor_id IS NOT NULL
-                     AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
+                     AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days') OR (r.status = 'cancelled' AND r.updated_at > now() - interval '30 days'))))
 ORDER BY b.name ASC, lower(d.nombre) ASC, d.id ASC;
 
 -- Uno, para validar el `distribuidorId` que viene en el cuerpo de una ruta. Cero filas es «no

@@ -31,6 +31,8 @@ SELECT
     r.started_at, r.finished_at, r.optimized, r.created_at, r.updated_at,
     -- QUIÉN REPARTE (issue 7, 00019). Nulo = ruta histórica o armada sin distribuidor.
     r.distribuidor_id,
+    -- La segunda llave (00034): cuándo y quién de la oficina la revisó. Nulo = pendiente.
+    r.revisada_at, r.revisada_por,
     dist.nombre   AS distribuidor_nombre,
     b.name        AS sucursal_nombre,
     b.external_id AS sucursal_codigo,
@@ -50,7 +52,7 @@ WHERE (sqlc.narg('sucursal')::uuid IS NULL OR r.branch_id = sqlc.narg('sucursal'
   AND (sqlc.narg('estado')::route_status IS NULL OR r.status = sqlc.narg('estado')::route_status)
   -- EL DISTRIBUIDOR SOLO VE LAS RUTAS ASIGNADAS A SU TELÉFONO (04/11/2026): lo rellena `alcance.Acotado`, nunca el manejador. Nulo = no es un distribuidor.
   AND (sqlc.narg('dispositivo')::uuid IS NULL
-       OR (r.dispositivo_id = sqlc.narg('dispositivo')::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
+       OR (r.dispositivo_id = sqlc.narg('dispositivo')::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days') OR (r.status = 'cancelled' AND r.updated_at > now() - interval '30 days'))))
 ORDER BY r.created_at DESC;
 
 -- ---------------------------------------------------------------------------
@@ -81,6 +83,8 @@ SELECT
     r.started_at, r.finished_at, r.optimized, r.created_at, r.updated_at,
     -- QUIÉN REPARTE (issue 7, 00019). Nulo = ruta histórica o armada sin distribuidor.
     r.distribuidor_id,
+    -- La segunda llave (00034): cuándo y quién de la oficina la revisó. Nulo = pendiente.
+    r.revisada_at, r.revisada_por,
     dist.nombre   AS distribuidor_nombre,
     b.name        AS sucursal_nombre,
     b.external_id AS sucursal_codigo,
@@ -982,3 +986,24 @@ SELECT
     count(*) FILTER (WHERE situacion = 'enviado')::bigint   AS enviados,
     count(*) FILTER (WHERE situacion = 'rechazado')::bigint AS rechazados
 FROM avisos_a_pedido;
+
+-- CUÁNTAS PARADAS TIENE UNA RUTA Y EN QUÉ ESTÁN (04/11/2026): para decidir si el distribuidor puede completarla (todas marcadas) o cancelarla (ninguna entregada).
+-- name: ResumenDeParadasDeRuta :one
+SELECT count(*)::int AS paradas,
+       count(*) FILTER (WHERE o.resultado IS NOT NULL)::int AS marcadas,
+       count(*) FILTER (WHERE o.resultado = 'entregado')::int AS entregadas
+FROM orders o
+WHERE coalesce(o.route_id, o.ultima_ruta_id) = sqlc.arg('ruta') AND o.conduce_principal_id IS NULL;
+
+-- Al CANCELAR una ruta sus paradas sin resultado vuelven a estar disponibles (como al borrarla), sin perder de qué ruta eran (`ultima_ruta_id`):
+-- el historial del distribuidor sigue enseñando la ruta cancelada con sus paradas.
+-- name: LiberarParadasSinResultadoDeUnaRuta :exec
+UPDATE orders SET ultima_ruta_id = route_id, route_id = NULL
+WHERE route_id = sqlc.arg('ruta') AND resultado IS NULL;
+
+-- CONFIRMAR LA REVISIÓN DE UNA RUTA COMPLETADA (00034). Solo una completada, y solo una vez: confirmar otra vez no cambia quién ni cuándo.
+-- name: ConfirmarRevisionDeRuta :one
+UPDATE routes SET revisada_at = coalesce(revisada_at, now()), revisada_por = coalesce(revisada_por, sqlc.narg('por'))
+WHERE id = sqlc.arg('id') AND status = 'completed'
+  AND (sqlc.narg('sucursal')::uuid IS NULL OR branch_id = sqlc.narg('sucursal')::uuid)
+RETURNING id;

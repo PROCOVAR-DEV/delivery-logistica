@@ -317,3 +317,18 @@ func (a *Acotado) ListarAvisosAPedido(ctx context.Context, p sqlc.ListarAvisosAP
 func (a *Acotado) ContarAvisosAPedido(ctx context.Context) (sqlc.ContarAvisosAPedidoRow, error) {
 	return a.q.ContarAvisosAPedido(ctx)
 }
+
+// ResumenDeParadasDeRuta: cuántas paradas tiene, cuántas marcadas y cuántas entregadas (para el cierre y la cancelación del distribuidor).
+func (a *Acotado) ResumenDeParadasDeRuta(ctx context.Context, ruta uuid.UUID) (sqlc.ResumenDeParadasDeRutaRow, error) {
+	return a.q.ResumenDeParadasDeRuta(ctx, pgtype.UUID{Bytes: ruta, Valid: true})
+}
+
+// LiberarParadasSinResultadoDeUnaRuta: al cancelar, las paradas sin resultado vuelven a estar disponibles.
+func (a *Acotado) LiberarParadasSinResultadoDeUnaRuta(ctx context.Context, ruta uuid.UUID) error {
+	return a.q.LiberarParadasSinResultadoDeUnaRuta(ctx, pgtype.UUID{Bytes: ruta, Valid: true})
+}
+
+// ConfirmarRevisionDeRuta: la oficina da por revisada una ruta completada (quién = quien pregunta; solo la primera vez).
+func (a *Acotado) ConfirmarRevisionDeRuta(ctx context.Context, ruta uuid.UUID) (uuid.UUID, error) {
+	return a.q.ConfirmarRevisionDeRuta(ctx, sqlc.ConfirmarRevisionDeRutaParams{ID: ruta, Por: a.ActorRef(), Sucursal: a.sucursalPg()})
+}

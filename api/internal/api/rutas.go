@@ -568,12 +568,15 @@ type RutaSalida struct {
 	BranchID          *uuid.UUID `json:"branchId"`
 	// QUIÉN REPARTE (issue 7). Nulo = ruta histórica o armada sin distribuidor: no se inventa uno.
 	DistribuidorID *uuid.UUID `json:"distribuidorId"`
-	CreadoPor      *string    `json:"creadoPor"`
-	StartedAt      *time.Time `json:"startedAt"`
-	FinishedAt     *time.Time `json:"finishedAt"`
-	Optimized      bool       `json:"optimized"`
-	CreatedAt      *time.Time `json:"createdAt"`
-	UpdatedAt      *time.Time `json:"updatedAt"`
+	// LA SEGUNDA LLAVE (00034): cuándo y quién de la oficina revisó la ruta completada. Nulo = pendiente de revisión.
+	RevisadaAt  *time.Time `json:"revisadaAt"`
+	RevisadaPor *string    `json:"revisadaPor"`
+	CreadoPor   *string    `json:"creadoPor"`
+	StartedAt   *time.Time `json:"startedAt"`
+	FinishedAt  *time.Time `json:"finishedAt"`
+	Optimized   bool       `json:"optimized"`
+	CreatedAt   *time.Time `json:"createdAt"`
+	UpdatedAt   *time.Time `json:"updatedAt"`
 	// `branch` no venía en delivery y tuvo que añadirse: el Super Admin veía las rutas de
 	// las ocho sucursales en una lista sin nada que las distinguiera, y dos rutas del
 	// mismo día con el mismo aspecto podían ser de Holguín y de La Habana.
@@ -1330,6 +1333,14 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 		estado = &e
 	}
 
+	// LO QUE UN DISTRIBUIDOR PUEDE HACER CON SU RUTA (04/11/2026): iniciarla, completarla cuando todas sus paradas tienen resultado y cancelarla
+	// mientras no haya ninguna entregada. Nunca «planificada» otra vez, y el resto de estados de arriba es de la oficina.
+	if a.EsDelDistribuidor() && estado != nil {
+		if !s.distribuidorPuedePasarA(w, r, a, antes.ID, *estado) {
+			return
+		}
+	}
+
 	// QUIÉN REPARTE: se valida ANTES de escribir nada, contra la sucursal de la ruta. Ausente no
 	// toca; vacío lo quita. Va por los dos caminos de abajo (la misma sentencia que el resto).
 	tocarDistribuidor := c.DistribuidorID.Presente
@@ -1407,6 +1418,13 @@ func (s *Servidor) actualizarRuta(w http.ResponseWriter, r *http.Request) {
 	if tocarDistribuidor {
 		rastroDeQuien(r, "ruta: distribuidor cambiado", "ruta", id,
 			"distribuidor_antes", idParaElRegistro(antes.DistribuidorID), "distribuidor_ahora", idParaElRegistro(distribuidor))
+	}
+	// UNA RUTA CANCELADA POR SU DISTRIBUIDOR suelta sus paradas sin resultado (vuelven a estar disponibles, sin perder de qué ruta eran).
+	if a.EsDelDistribuidor() && estado != nil && *estado == sqlc.RouteStatusCancelled {
+		if err := a.LiberarParadasSinResultadoDeUnaRuta(r.Context(), id); err != nil {
+			httpx.ErrorInterno(w, r, err)
+			return
+		}
 	}
 	// `antes` es la ruta leída al entrar, y la sucursal de una ruta no se cambia nunca: ni
 	// el estado ni el camión la mueven, así que es la misma antes y después.
@@ -2081,6 +2099,12 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 			}
 
 			nota := notaDeCierre(e.Nota)
+			// UN DISTRIBUIDOR QUE NO ENTREGA DICE POR QUÉ (04/11/2026, Jose: «cuando no entreguen, marcar como no entregada… así la logística
+			// revisa dos veces en vez de tener una sola palabra»). Sin motivo, la parada se rechaza y queda en su bandeja.
+			if a.EsDelDistribuidor() && resultado != sqlc.StopResultEntregado && (nota == nil || strings.TrimSpace(*nota) == "") {
+				rechazar(e, msgNoEntregadaNecesitaMotivo)
+				continue
+			}
 			// Aquí está TODO lo delicado del cierre, y va en una sola sentencia SQL:
 			//   - un entregado fija `delivered_at` y conserva su `route_id`;
 			//   - un devuelto o un cancelado SUELTAN `route_id` —vuelven a la lista de
@@ -3048,6 +3072,7 @@ func deFilaDeLista(f sqlc.ListarRutasRow, paradas []ParadaSalida) RutaSalida {
 		ParadasSinCotizar: f.ParadasSinCotizar,
 		DeliveryDate:      f.DeliveryDate, VehicleID: f.VehicleID, BranchID: f.BranchID,
 		DistribuidorID: f.DistribuidorID, DistribuidorNombre: f.DistribuidorNombre,
+		RevisadaAt: f.RevisadaAt, RevisadaPor: f.RevisadaPor,
 		CreadoPor: f.CreadoPor, StartedAt: f.StartedAt, FinishedAt: f.FinishedAt,
 		Optimized: f.Optimized, CreatedAt: f.CreatedAt, UpdatedAt: f.UpdatedAt,
 		SucursalNombre: f.SucursalNombre, SucursalCodigo: f.SucursalCodigo,
@@ -3064,6 +3089,7 @@ func deFilaDeDetalle(f sqlc.ObtenerRutaRow, paradas []ParadaSalida) RutaSalida {
 		ParadasSinCotizar: f.ParadasSinCotizar,
 		DeliveryDate:      f.DeliveryDate, VehicleID: f.VehicleID, BranchID: f.BranchID,
 		DistribuidorID: f.DistribuidorID, DistribuidorNombre: f.DistribuidorNombre,
+		RevisadaAt: f.RevisadaAt, RevisadaPor: f.RevisadaPor,
 		CreadoPor: f.CreadoPor, StartedAt: f.StartedAt, FinishedAt: f.FinishedAt,
 		Optimized: f.Optimized, CreatedAt: f.CreatedAt, UpdatedAt: f.UpdatedAt,
 		SucursalNombre: f.SucursalNombre, SucursalCodigo: f.SucursalCodigo,
@@ -3092,6 +3118,8 @@ type datosDeRuta struct {
 	BranchID           pgtype.UUID
 	DistribuidorID     pgtype.UUID
 	DistribuidorNombre *string
+	RevisadaAt         pgtype.Timestamptz
+	RevisadaPor        *string
 	CreadoPor          *string
 	StartedAt          pgtype.Timestamptz
 	FinishedAt         pgtype.Timestamptz
@@ -3114,6 +3142,7 @@ func armarRuta(d datosDeRuta, paradas []ParadaSalida) RutaSalida {
 		ParadasSinCotizar: d.ParadasSinCotizar,
 		DeliveryDate:      hora(d.DeliveryDate), VehicleID: idOpcional(d.VehicleID),
 		BranchID: idOpcional(d.BranchID), DistribuidorID: idOpcional(d.DistribuidorID), CreadoPor: d.CreadoPor,
+		RevisadaAt: hora(d.RevisadaAt), RevisadaPor: d.RevisadaPor,
 		StartedAt: hora(d.StartedAt), FinishedAt: hora(d.FinishedAt),
 		Optimized: d.Optimized, CreatedAt: hora(d.CreatedAt), UpdatedAt: hora(d.UpdatedAt),
 		// Siempre lista, nunca null: ver el comentario de `Items`.
@@ -3156,4 +3185,36 @@ func anotacionesDe(e entradaDeCierre) alcance.AnotacionesDeParada {
 		x.Cobro = &c
 	}
 	return x
+}
+
+const (
+	msgDistribuidorNoPuedeCancelar   = "No se puede cancelar: ya hay paradas entregadas. Completa la ruta."
+	msgDistribuidorFaltanParadas     = "Faltan paradas por marcar: marca cada una como entregada o no entregada antes de completar la ruta."
+	msgDistribuidorEstadoNoPermitido = "Solo puedes iniciar, completar o cancelar tu ruta."
+	msgNoEntregadaNecesitaMotivo     = "Una parada no entregada necesita su motivo."
+)
+
+// distribuidorPuedePasarA decide si un distribuidor puede llevar su ruta a ese estado. Contesta el 403/409 y devuelve false si no.
+func (s *Servidor) distribuidorPuedePasarA(w http.ResponseWriter, r *http.Request, a *alcance.Acotado, ruta uuid.UUID, a2 sqlc.RouteStatus) bool {
+	switch a2 {
+	case sqlc.RouteStatusInProgress:
+		return true
+	case sqlc.RouteStatusCompleted, sqlc.RouteStatusCancelled:
+		res, err := a.ResumenDeParadasDeRuta(r.Context(), ruta)
+		if err != nil {
+			httpx.ErrorInterno(w, r, err)
+			return false
+		}
+		if a2 == sqlc.RouteStatusCancelled && res.Entregadas > 0 {
+			httpx.Error(w, r, http.StatusConflict, msgDistribuidorNoPuedeCancelar)
+			return false
+		}
+		if a2 == sqlc.RouteStatusCompleted && res.Marcadas < res.Paradas {
+			httpx.Error(w, r, http.StatusConflict, msgDistribuidorFaltanParadas)
+			return false
+		}
+		return true
+	}
+	httpx.Error(w, r, http.StatusForbidden, msgDistribuidorEstadoNoPermitido)
+	return false
 }

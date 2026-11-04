@@ -799,3 +799,93 @@ func TestElGpsLoVeLaOficinaYNoElDistribuidor(t *testing.T) {
 		t.Fatalf("dónde están ahora: %d %s", code, b)
 	}
 }
+
+func TestElDistribuidorCompletaCancelaYLaOficinaRevisa(t *testing.T) {
+	s := levantar(t)
+	d := s.distribuidor("Cierre e2e")
+	marca := func(c *stack, ruta, pedido, res, nota string) (int, []byte) {
+		e := map[string]any{"orderId": pedido, "resultado": res, "cobrado": true}
+		if nota != "" {
+			e["nota"] = nota
+		}
+		return c.web("POST", "/routes/"+ruta+"/results", map[string]any{"resultados": []map[string]any{e}})
+	}
+	telefonoDe := func(ruta string) *stack {
+		tel := s.nuevoTelefono()
+		if code, b := s.reclama(tel, s.enlace(ruta, false)); code != 200 {
+			t.Fatalf("reclamar: %d %s", code, b)
+		}
+		return s.como(tel.acceso)
+	}
+
+	// COMPLETAR: solo con todas las paradas marcadas; «no entregada» exige su motivo
+	ruta, _, pedidos := s.rutaConDistribuidor(d)
+	dist := telefonoDe(ruta)
+	if code, b := dist.web("PATCH", "/routes/"+ruta, map[string]any{"status": "in_progress"}); code != 200 {
+		t.Fatalf("iniciar: %d %s", code, b)
+	}
+	if code, b := dist.web("PATCH", "/routes/"+ruta, map[string]any{"status": "completed"}); code != 409 || !strings.Contains(string(b), "Faltan paradas") {
+		t.Errorf("completar sin marcar: %d %s", code, b)
+	}
+	if _, b := marca(dist, ruta, pedidos[0], "devuelto", ""); !strings.Contains(string(b), msgMotivo) {
+		t.Errorf("no entregada sin motivo tenía que rechazarse: %s", b)
+	}
+	if code, b := dist.web("PATCH", "/routes/"+ruta, map[string]any{"status": "completed"}); code != 409 {
+		t.Errorf("completar con la parada rechazada: %d %s", code, b)
+	}
+	if code, b := marca(dist, ruta, pedidos[0], "devuelto", "el cliente no estaba"); code != 200 {
+		t.Fatalf("no entregada con motivo: %d %s", code, b)
+	}
+	if code, b := marca(dist, ruta, pedidos[1], "entregado", ""); code != 200 {
+		t.Fatalf("entregada: %d %s", code, b)
+	}
+	// REVISIÓN: solo cuando está completada, solo la oficina, y confirmar otra vez no cambia quién
+	if code, _ := s.web("POST", "/routes/"+ruta+"/revision", map[string]any{"confirmar": true}); code != 409 {
+		t.Errorf("revisar una ruta sin completar: %d, tenía que ser 409", code)
+	}
+	if code, b := dist.web("PATCH", "/routes/"+ruta, map[string]any{"status": "completed"}); code != 200 {
+		t.Fatalf("completar: %d %s", code, b)
+	}
+	if code, b := dist.web("POST", "/routes/"+ruta+"/revision", map[string]any{"confirmar": true}); code != 403 {
+		t.Errorf("el distribuidor no revisa: %d %s", code, b)
+	}
+	code, b := s.web("POST", "/routes/"+ruta+"/revision", map[string]any{"confirmar": true})
+	var r struct {
+		RevisadaAt  *string `json:"revisadaAt"`
+		RevisadaPor *string `json:"revisadaPor"`
+	}
+	if code != 200 || json.Unmarshal(b, &r) != nil || r.RevisadaAt == nil {
+		t.Fatalf("revisar: %d %s", code, b)
+	}
+	if code, b := s.web("POST", "/routes/"+ruta+"/revision", map[string]any{"confirmar": true}); code != 200 || !strings.Contains(string(b), *r.RevisadaAt) {
+		t.Errorf("revisar otra vez tenía que dejarlo igual: %d %s", code, b)
+	}
+
+	// CANCELAR: sin ninguna entregada sí (y las paradas vuelven a disponibles); con una entregada, no
+	ruta2, _, pedidos2 := s.rutaConDistribuidor(d)
+	dist2 := telefonoDe(ruta2)
+	_, _ = dist2.web("PATCH", "/routes/"+ruta2, map[string]any{"status": "in_progress"})
+	if code, b := marca(dist2, ruta2, pedidos2[0], "entregado", ""); code != 200 {
+		t.Fatalf("entregar: %d %s", code, b)
+	}
+	if code, b := dist2.web("PATCH", "/routes/"+ruta2, map[string]any{"status": "cancelled"}); code != 409 || !strings.Contains(string(b), "No se puede cancelar") {
+		t.Errorf("cancelar con una entregada: %d %s", code, b)
+	}
+	ruta3, _, pedidos3 := s.rutaConDistribuidor(d)
+	dist3 := telefonoDe(ruta3)
+	_, _ = dist3.web("PATCH", "/routes/"+ruta3, map[string]any{"status": "in_progress"})
+	if code, b := dist3.web("PATCH", "/routes/"+ruta3, map[string]any{"status": "cancelled"}); code != 200 {
+		t.Fatalf("cancelar sin entregadas: %d %s", code, b)
+	}
+	if n := s.pedidosEnLaRuta(ruta3); n != 0 {
+		t.Errorf("al cancelar las paradas tenían que quedar libres, quedan %d en la ruta (%v)", n, pedidos3)
+	}
+	// planificada: no la toca
+	ruta4, _, _ := s.rutaConDistribuidor(d)
+	dist4 := telefonoDe(ruta4)
+	if code, _ := dist4.web("PATCH", "/routes/"+ruta4, map[string]any{"status": "planned"}); code != 403 {
+		t.Errorf("volver a planificada: %d, tenía que ser 403", code)
+	}
+}
+
+const msgMotivo = "necesita su motivo"

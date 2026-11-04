@@ -57,6 +57,7 @@ func (s *Servidor) rutasDeGps(rt *httpx.Router, sesion []httpx.Medio) {
 	rt.ManejarFunc(http.MethodGet, "/api/routes/{id}/track", s.recorridoDeUnaRuta, sesion...)
 	rt.ManejarFunc(http.MethodGet, "/api/vehicles/{id}/historial", s.historialDeUnVehiculo, sesion...)
 	rt.ManejarFunc(http.MethodGet, "/api/tracking/ahora", s.dondeEstanAhora, sesion...)
+	rt.ManejarFunc(http.MethodPost, "/api/routes/{id}/revision", s.confirmarRevisionDeRuta, sesion...)
 }
 
 func f32(v *float64) *float32 {
@@ -318,4 +319,41 @@ func (s *Servidor) dondeEstanAhora(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	httpx.JSON(w, r, http.StatusOK, map[string]any{"distribuidores": salida})
+}
+
+// POST /api/routes/{id}/revision — la oficina confirma la revisión de una ruta completada por su distribuidor (la segunda llave). Una sola vez:
+// confirmar otra vez devuelve la ruta tal como está. Solo una ruta COMPLETADA.
+func (s *Servidor) confirmarRevisionDeRuta(w http.ResponseWriter, r *http.Request) {
+	a, ok := acotado(w, r)
+	if !ok {
+		return
+	}
+	id, ok := idDeRuta(w, r, httpx.MsgNoEncontrado)
+	if !ok {
+		return
+	}
+	var c struct {
+		Confirmar bool `json:"confirmar"`
+	}
+	if !httpx.LeerJSON(w, r, &c) || !c.Confirmar {
+		if !c.Confirmar {
+			httpx.Error(w, r, http.StatusBadRequest, "Manda {\"confirmar\": true} para confirmar la revisión.")
+		}
+		return
+	}
+	if _, err := a.ObtenerRuta(r.Context(), id); errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusNotFound, httpx.MsgNoEncontrado)
+		return
+	} else if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	if _, err := a.ConfirmarRevisionDeRuta(r.Context(), id); errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, http.StatusConflict, "Solo se revisa una ruta completada.")
+		return
+	} else if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	s.responderConLaRuta(w, r, a, id, http.StatusOK)
 }

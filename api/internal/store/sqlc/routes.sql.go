@@ -344,6 +344,27 @@ func (q *Queries) CompletarRutasDeVehiculo(ctx context.Context, arg CompletarRut
 	return result.RowsAffected(), nil
 }
 
+const confirmarRevisionDeRuta = `-- name: ConfirmarRevisionDeRuta :one
+UPDATE routes SET revisada_at = coalesce(revisada_at, now()), revisada_por = coalesce(revisada_por, $1)
+WHERE id = $2 AND status = 'completed'
+  AND ($3::uuid IS NULL OR branch_id = $3::uuid)
+RETURNING id
+`
+
+type ConfirmarRevisionDeRutaParams struct {
+	Por      *string     `json:"por"`
+	ID       uuid.UUID   `json:"id"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
+
+// CONFIRMAR LA REVISIÓN DE UNA RUTA COMPLETADA (00034). Solo una completada, y solo una vez: confirmar otra vez no cambia quién ni cuándo.
+func (q *Queries) ConfirmarRevisionDeRuta(ctx context.Context, arg ConfirmarRevisionDeRutaParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, confirmarRevisionDeRuta, arg.Por, arg.ID, arg.Sucursal)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const contarAvisosAPedido = `-- name: ContarAvisosAPedido :one
 SELECT
     count(*) FILTER (WHERE situacion = 'pendiente')::bigint AS pendientes,
@@ -851,6 +872,18 @@ func (q *Queries) FijarTotalesDeRuta(ctx context.Context, arg FijarTotalesDeRuta
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const liberarParadasSinResultadoDeUnaRuta = `-- name: LiberarParadasSinResultadoDeUnaRuta :exec
+UPDATE orders SET ultima_ruta_id = route_id, route_id = NULL
+WHERE route_id = $1 AND resultado IS NULL
+`
+
+// Al CANCELAR una ruta sus paradas sin resultado vuelven a estar disponibles (como al borrarla), sin perder de qué ruta eran (`ultima_ruta_id`):
+// el historial del distribuidor sigue enseñando la ruta cancelada con sus paradas.
+func (q *Queries) LiberarParadasSinResultadoDeUnaRuta(ctx context.Context, ruta pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, liberarParadasSinResultadoDeUnaRuta, ruta)
+	return err
 }
 
 const limpiarResultadoDeParada = `-- name: LimpiarResultadoDeParada :one
@@ -1464,6 +1497,8 @@ SELECT
     r.started_at, r.finished_at, r.optimized, r.created_at, r.updated_at,
     -- QUIÉN REPARTE (issue 7, 00019). Nulo = ruta histórica o armada sin distribuidor.
     r.distribuidor_id,
+    -- La segunda llave (00034): cuándo y quién de la oficina la revisó. Nulo = pendiente.
+    r.revisada_at, r.revisada_por,
     dist.nombre   AS distribuidor_nombre,
     b.name        AS sucursal_nombre,
     b.external_id AS sucursal_codigo,
@@ -1483,7 +1518,7 @@ WHERE ($1::uuid IS NULL OR r.branch_id = $1::uuid)
   AND ($2::route_status IS NULL OR r.status = $2::route_status)
   -- EL DISTRIBUIDOR SOLO VE LAS RUTAS ASIGNADAS A SU TELÉFONO (04/11/2026): lo rellena ` + "`" + `alcance.Acotado` + "`" + `, nunca el manejador. Nulo = no es un distribuidor.
   AND ($3::uuid IS NULL
-       OR (r.dispositivo_id = $3::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days'))))
+       OR (r.dispositivo_id = $3::uuid AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days') OR (r.status = 'cancelled' AND r.updated_at > now() - interval '30 days'))))
 ORDER BY r.created_at DESC
 `
 
@@ -1515,6 +1550,8 @@ type ListarRutasRow struct {
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	DistribuidorID     pgtype.UUID        `json:"distribuidor_id"`
+	RevisadaAt         pgtype.Timestamptz `json:"revisada_at"`
+	RevisadaPor        *string            `json:"revisada_por"`
 	DistribuidorNombre *string            `json:"distribuidor_nombre"`
 	SucursalNombre     *string            `json:"sucursal_nombre"`
 	SucursalCodigo     *string            `json:"sucursal_codigo"`
@@ -1565,6 +1602,8 @@ func (q *Queries) ListarRutas(ctx context.Context, arg ListarRutasParams) ([]Lis
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DistribuidorID,
+			&i.RevisadaAt,
+			&i.RevisadaPor,
 			&i.DistribuidorNombre,
 			&i.SucursalNombre,
 			&i.SucursalCodigo,
@@ -1723,6 +1762,8 @@ SELECT
     r.started_at, r.finished_at, r.optimized, r.created_at, r.updated_at,
     -- QUIÉN REPARTE (issue 7, 00019). Nulo = ruta histórica o armada sin distribuidor.
     r.distribuidor_id,
+    -- La segunda llave (00034): cuándo y quién de la oficina la revisó. Nulo = pendiente.
+    r.revisada_at, r.revisada_por,
     dist.nombre   AS distribuidor_nombre,
     b.name        AS sucursal_nombre,
     b.external_id AS sucursal_codigo,
@@ -1769,6 +1810,8 @@ type ObtenerRutaRow struct {
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	DistribuidorID     pgtype.UUID        `json:"distribuidor_id"`
+	RevisadaAt         pgtype.Timestamptz `json:"revisada_at"`
+	RevisadaPor        *string            `json:"revisada_por"`
 	DistribuidorNombre *string            `json:"distribuidor_nombre"`
 	SucursalNombre     *string            `json:"sucursal_nombre"`
 	SucursalCodigo     *string            `json:"sucursal_codigo"`
@@ -1809,6 +1852,8 @@ func (q *Queries) ObtenerRuta(ctx context.Context, arg ObtenerRutaParams) (Obten
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DistribuidorID,
+		&i.RevisadaAt,
+		&i.RevisadaPor,
 		&i.DistribuidorNombre,
 		&i.SucursalNombre,
 		&i.SucursalCodigo,
@@ -2038,6 +2083,28 @@ func (q *Queries) PorQueNoSePuedeArmar(ctx context.Context, arg PorQueNoSePuedeA
 		return nil, err
 	}
 	return items, nil
+}
+
+const resumenDeParadasDeRuta = `-- name: ResumenDeParadasDeRuta :one
+SELECT count(*)::int AS paradas,
+       count(*) FILTER (WHERE o.resultado IS NOT NULL)::int AS marcadas,
+       count(*) FILTER (WHERE o.resultado = 'entregado')::int AS entregadas
+FROM orders o
+WHERE coalesce(o.route_id, o.ultima_ruta_id) = $1 AND o.conduce_principal_id IS NULL
+`
+
+type ResumenDeParadasDeRutaRow struct {
+	Paradas    int32 `json:"paradas"`
+	Marcadas   int32 `json:"marcadas"`
+	Entregadas int32 `json:"entregadas"`
+}
+
+// CUÁNTAS PARADAS TIENE UNA RUTA Y EN QUÉ ESTÁN (04/11/2026): para decidir si el distribuidor puede completarla (todas marcadas) o cancelarla (ninguna entregada).
+func (q *Queries) ResumenDeParadasDeRuta(ctx context.Context, ruta pgtype.UUID) (ResumenDeParadasDeRutaRow, error) {
+	row := q.db.QueryRow(ctx, resumenDeParadasDeRuta, ruta)
+	var i ResumenDeParadasDeRutaRow
+	err := row.Scan(&i.Paradas, &i.Marcadas, &i.Entregadas)
+	return i, err
 }
 
 const rutaActivaDeVehiculo = `-- name: RutaActivaDeVehiculo :one

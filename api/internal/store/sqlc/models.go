@@ -899,9 +899,11 @@ type Route struct {
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 	// Cuántas paradas entraron en la ruta sin costo de domicilio, contadas al armarla. NULL = no consta (rutas anteriores a esta migración); 0 = estaban todas cotizadas.
-	ParadasSinCotizar *int32      `json:"paradas_sin_cotizar"`
-	DistribuidorID    pgtype.UUID `json:"distribuidor_id"`
-	DispositivoID     pgtype.UUID `json:"dispositivo_id"`
+	ParadasSinCotizar *int32             `json:"paradas_sin_cotizar"`
+	DistribuidorID    pgtype.UUID        `json:"distribuidor_id"`
+	DispositivoID     pgtype.UUID        `json:"dispositivo_id"`
+	RevisadaAt        pgtype.Timestamptz `json:"revisada_at"`
+	RevisadaPor       *string            `json:"revisada_por"`
 }
 
 type SavedOrigin struct {

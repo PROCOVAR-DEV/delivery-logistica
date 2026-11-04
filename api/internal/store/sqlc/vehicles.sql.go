@@ -418,7 +418,7 @@ WHERE ($1::uuid IS NULL
   AND ($2::uuid IS NULL
        OR v.id IN (SELECT r.vehicle_id FROM routes r
                    WHERE r.dispositivo_id = $2::uuid
-                     AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days')) AND r.vehicle_id IS NOT NULL))
+                     AND (r.status IN ('planned', 'in_progress') OR (r.status = 'completed' AND r.finished_at > now() - interval '30 days') OR (r.status = 'cancelled' AND r.updated_at > now() - interval '30 days')) AND r.vehicle_id IS NOT NULL))
 ORDER BY v.created_at DESC
 `
 

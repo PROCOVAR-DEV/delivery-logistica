@@ -255,6 +255,12 @@ la APK que reconocen el `sin_permiso` de Accesos (`docs/sin-permiso.md`). La 1.0
 `PATCH /api/orders`, camión de otra sucursal, armado local del Tablero como el servidor, cajón de
 acuse en el cierre parcial; ver `docs/reglas-negocio.md` §15.14).
 
+**Reparto 1.0.50+51 (04/11/2026, APK `3efbf6f`, Windows y web `6b7c94e`)**: la bandeja «Sin colocar» del Tablero arranca en el **mes en curso** (hora de Cuba; `FiltrosTablero._delMes`): lo anterior se ve quitando el «Desde»,
+«Limpiar» vuelve al mes. APK `reparto-1.0.50-261104.apk` (82.230.704 B, sha256 `7b1021f9…cddb`, firma `01529f5a…0b21`), Windows `reparto-1.0.50-windows-setup.exe` (16.551.060 B, sha256 `dfa60956…e71d`),
+CI 41842656846; portal verificado con navegador real (5/5). **La primera CI de Windows (41840607261) cayó por UNA prueba de Rutas** (`ruta_completada_sin_senal_test`) que armaba desde el Tablero con datos de septiembre: el filtro del mes
+se los ocultaba. Solo había corrido las carpetas del Tablero: **antes de subir, `flutter test` ENTERO** (3.658). Las pruebas con datos de otros meses parten sin filtro con `test/apoyo/sin_filtro_de_mes.dart`. Datos de La Habana: se archivaron 6
+facturas viejas sin ruta (copia `procovar_reparto_antes-archivar-habana_20261104-1342.dump`); las 3 entregadas se dejan (historial de `RT-20261023-001`).
+
 **Reparto 1.0.49+50 (03/11/2026, commit `44deff4`)**: el mapa de Rutas pide las teselas de OpenStreetMap y el trazado de OSRM con `User-Agent: ProcovarReparto/<versión> (<sistema>)` (sin él
 OpenStreetMap contestaba cada tesela con «403 Access blocked», visto por Amado en el escritorio de Windows; la APK tenía lo mismo) y el aviso de actualización dice «Te queda 1 cosa por subir». APK
 `reparto-1.0.49-261103.apk` (82.230.704 B, sha256 `faf76b60…c17a`, firma `01529f5a…0b21`) y Windows `reparto-1.0.49-windows-setup.exe` (16.551.124 B, sha256 `119234b1…dd9e`), CI 41715376396; tarjetas

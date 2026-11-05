@@ -7,7 +7,7 @@ teléfono**, el APK trae el mapa dentro y el seguimiento (GPS, horas, cobro) sub
 
 Leyenda: ✔ hecho y probado · ◔ en curso (con su %) · ☐ sin empezar · ⏸ aparcado (no cuenta en el %) · 🔒 espera tu visto bueno
 
-**TOTAL: 78 %** (29 de 37 tareas) — 04/11/2026, tarde
+**TOTAL: 97 %** — 05/11/2026: TODO está en producción como **Reparto 1.0.55+56** (servidor, web, APK, Windows, tarjetas 12, 13 y 15 del portal) con el issue 25 (facturas devueltas) incluido. Falta solo lo que no puedo hacer yo: la prueba física en un teléfono (enlace de WhatsApp, GPS, sin conexión) y desplegar Accesos (rol DISTRIBUIDOR), que espera tu visto bueno.
 
 ## ORDEN DE TRABAJO (por prioridad)
 

@@ -54,6 +54,10 @@ func TestMotorReal_Cancelar_UnaDevueltaSeCancelaYSeAvisaAPedido(t *testing.T) {
 	f := e.devuelta(e.factura("47500", "Cliente Arrepentido", 3))
 	col := e.id(`INSERT INTO board_columns (branch_id, nombre, posicion) VALUES ($1, 'Centro', 0) RETURNING id`, e.stg)
 	e.exec(`INSERT INTO board_placements (order_id, column_id, posicion) VALUES ($1, $2, 0)`, f, col)
+	// Y el origen de tablero que dejó una ruta vieja (`board_route_origins`, UNIQUE por factura): con él, borrar esa ruta
+	// devolvería la tarjeta a su zona. Una cancelada no vuelve a ninguna.
+	rutaVieja := e.id(`INSERT INTO routes (branch_id, status, name) VALUES ($1, 'planned', 'vieja') RETURNING id`, e.stg)
+	e.exec(`INSERT INTO board_route_origins (route_id, order_id, column_id, posicion) VALUES ($1, $2, $3, 0)`, rutaVieja, f, col)
 
 	// Antes de cancelar la devuelta vuelve: está en los disponibles.
 	_, cuerpo := e.llamar(e.jwt, http.MethodGet, "/api/orders/available", "")
@@ -83,6 +87,10 @@ func TestMotorReal_Cancelar_UnaDevueltaSeCancelaYSeAvisaAPedido(t *testing.T) {
 	var enZona int
 	if err := e.tx.QueryRow(e.ctx, `SELECT count(*) FROM board_placements WHERE order_id = $1`, f).Scan(&enZona); err != nil || enZona != 0 {
 		t.Fatalf("la cancelada sigue en una zona del tablero: %d (%v)", enZona, err)
+	}
+	var origenes int
+	if err := e.tx.QueryRow(e.ctx, `SELECT count(*) FROM board_route_origins WHERE order_id = $1`, f).Scan(&origenes); err != nil || origenes != 0 {
+		t.Fatalf("la cancelada conserva su origen de tablero y reaparecería al borrar la ruta: %d (%v)", origenes, err)
 	}
 
 	// PEDIDO se entera POR FACTURA, con la nota, y queda apuntado en el buzón.

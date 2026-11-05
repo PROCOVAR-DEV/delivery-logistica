@@ -446,7 +446,7 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   como filas en listas, contadores, tablero, Panel ni armado (condición única: `noEsMiembro(Sql)` en Dart y `conduce_principal_id IS
   NULL` en cada consulta, atada con pruebas) pero SÍ bajan al aparato. Armar o quitar la principal mueve a sus miembros; **el cierre se
   sube SOLO sobre la principal** (un miembro suelto da 409; el servidor cascadea el resultado y avisa a PEDIDO POR FACTURA).
-  `POST /api/conduces`, `DELETE /api/conduces/{id}` y `…/miembros/{id}` (lista blanca del sync: diecinueve formas). Cancelada la
+  `POST /api/conduces`, `DELETE /api/conduces/{id}` y `…/miembros/{id}` (lista blanca del sync: veinte formas). Cancelada la
   principal, los miembros se liberan. «Mismo cliente» = `customerName` en minúsculas y espacios colapsados, sin plegar tildes.
 - **El camión en el taller es AVISO, no bloqueo** (Jose, 28/09/2026; la 1.0.28 lo bloqueó por
   error y se revirtió en la 1.0.29): una sucursal con UN camión olvidado en `maintenance` se
@@ -464,9 +464,12 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   un DATO gris, ya no frena. El costo de la parada es `costoDeLaParada` (§2). Los casos
   (`reglaDeEntrada`, con los reales PBF26-2610131268 y PCC25-261014-1435) y `costoDeLaParada` están
   en `docs/armado-rechazado.casos.json`, que leen las pruebas de los dos lados y la del motor real.
-- **Reasignar un pedido devuelto o cancelado a otra ruta es un intento nuevo**: sin su
+- **Reasignar un pedido DEVUELTO a otra ruta es un intento nuevo**: sin su
   `resultado`, nota ni hora de entrega, en el servidor (`EngancharPedidoARuta`) y en los dos
-  armados locales. Un `entregado` no se puede reasignar nunca.
+  armados locales. Un `entregado` no se puede reasignar nunca, **y desde el 05/11/2026 (issue 25 de Amado, «Facturas
+  devueltas») tampoco un `cancelado` sin ruta**: «la cancelada es el cancelado ese» (Jose), `resultado = 'cancelado'` sin
+  columna nueva, terminal para el reparto (fuera de disponibles, «Sin colocar», tablero, armado y Panel). Se cancela una
+  devuelta con `POST /api/orders/{id}/cancelar` (`docs/contratos-api.md`); el reintento `409 ya_cancelada` el sync lo da por hecho.
 - **Un cierre parcial en la web no se avisa con algo que se va solo**: cajón que obliga a acusar
   recibo, con «Conduce <número>: <motivo>» de cada parada que no se guardó. La ruta se completa
   con lo guardado y es histórico: lo rechazado no se puede dejar pasar en silencio.
@@ -548,7 +551,7 @@ Lo demás lo atan `TestElRastroSeparaLaWebDeLaAPK`,
   reparto y tienen que ser cero): el payload de alguien sin permiso no se ejecuta con la autoridad de nadie hasta que una persona
   lo decide. **Quién revisa: ADMINISTRADOR de esa sucursal, SUPER ADMIN y DESARROLLADOR, y nadie revisa lo suyo** (Jose, 08/10/2026;
   por nombre de rol, `identidad.RolDeRevisor`; LOGISTICO no revisa). Aplicar reenvía por la misma tubería que la subida, con el token
-  **del revisor** (jamás uno de servicio), la lista blanca de ruta POR FORMA (las diecinueve formas de escritura de `/routes`, `/board`, `/vehicles`, `/vehicle-types`, `/distribuidores`, `/orders/{id}/punto` y `/conduces` (27/10/2026: `POST /conduces`, `DELETE /conduces/{id}` y `DELETE /conduces/{id}/miembros/{id}`); la novena, `PUT /routes/{id}/stops`, reordenar, 15/10/2026; las seis de la flota, 16/10/2026; la dieciséis, el punto de entrega a mano, 20/10/2026) y `X-Sucursal-Id` forzada; un 4xx del reparto
+  **del revisor** (jamás uno de servicio), la lista blanca de ruta POR FORMA (las veinte formas de escritura de `/routes`, `/board`, `/vehicles`, `/vehicle-types`, `/distribuidores`, `/orders/{id}/punto`, `POST /orders/{id}/cancelar` (05/11/2026, issue 25) y `/conduces` (27/10/2026: `POST /conduces`, `DELETE /conduces/{id}` y `DELETE /conduces/{id}/miembros/{id}`); la novena, `PUT /routes/{id}/stops`, reordenar, 15/10/2026; las seis de la flota, 16/10/2026; la dieciséis, el punto de entrega a mano, 20/10/2026) y `X-Sucursal-Id` forzada; un 4xx del reparto
   deja el apunte `rechazado` con el motivo LITERAL y a la vista, un 5xx o la red no es un rechazo; «aplicar todo en orden» **se
   detiene** en el primer fallo; un `aplicando` de más de 10 minutos sale `interrumpido` y se reintenta solo confirmándolo a mano (la
   API no lee `X-Apunte`). **Descartar se ESCRIBE, no se borra** —motivo de ≥5 letras con nombre y hora; lo exigen el `CHECK` y los

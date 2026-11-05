@@ -617,7 +617,7 @@ WITH parada AS (
     WHERE o.id = $5
       AND o.conduce_principal_id IS NULL
       AND o.route_id IS NULL
-      AND o.resultado IS DISTINCT FROM 'entregado'::stop_result
+      AND (o.resultado IS NULL OR o.resultado = 'devuelto')
       AND o.delivered_at IS NULL
       -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
       -- restaurar ` + "`" + `factura_domicilio > 0` + "`" + ` (ver Notas/Pendiente/Delivery.md).
@@ -637,7 +637,7 @@ WITH parada AS (
         delivered_at   = NULL
     WHERE m.conduce_principal_id IN (SELECT parada.id FROM parada)
       AND m.route_id IS NULL
-      AND m.resultado IS DISTINCT FROM 'entregado'::stop_result
+      AND (m.resultado IS NULL OR m.resultado = 'devuelto')
       AND m.delivered_at IS NULL
       AND NOT m.archivado
     RETURNING m.id
@@ -901,7 +901,13 @@ WITH parada AS (
     WHERE o.id = $2
       AND o.conduce_principal_id IS NULL
       AND (o.route_id = $1
-           OR (o.route_id IS NULL AND o.ultima_ruta_id = $1 AND o.resultado IS NOT NULL))
+           OR (o.route_id IS NULL AND o.ultima_ruta_id = $1 AND o.resultado IS NOT NULL
+               -- UN CANCELADO NO SE DESHACE POR AQUÍ (issue 25, auditoría G1): cancelar una devuelta (` + "`" + `POST /api/orders/{id}/cancelar` + "`" + `)
+               -- es terminal. Esta rama reconoce las paradas ya soltadas con un resultado para poder corregir un devuelto, y
+               -- un cancelado también lo cumple: sin esta línea, reenviar «devuelto», «entregado» o quitar la marca por
+               -- ` + "`" + `/results` + "`" + ` mientras la ruta no esté completada reabría la factura EN SILENCIO. Volver a marcar ` + "`" + `cancelado` + "`" + `
+               -- sí se admite (una hoja que se reenvía entera no se rechaza por repetirse).
+               AND o.resultado <> 'cancelado'))
       AND ($3::uuid IS NULL OR o.branch_id = $3::uuid)
     RETURNING o.id AS id
 ), miembros AS (
@@ -917,7 +923,13 @@ WITH parada AS (
         route_id       = $1
     WHERE m.conduce_principal_id IN (SELECT parada.id FROM parada)
       AND (m.route_id = $1
-           OR (m.route_id IS NULL AND m.ultima_ruta_id = $1 AND m.resultado IS NOT NULL))
+           OR (m.route_id IS NULL AND m.ultima_ruta_id = $1 AND m.resultado IS NOT NULL
+               -- UN CANCELADO NO SE DESHACE POR AQUÍ (issue 25, auditoría G1): cancelar una devuelta (` + "`" + `POST /api/orders/{id}/cancelar` + "`" + `)
+               -- es terminal. Esta rama reconoce las paradas ya soltadas con un resultado para poder corregir un devuelto, y
+               -- un cancelado también lo cumple: sin esta línea, reenviar «devuelto», «entregado» o quitar la marca por
+               -- ` + "`" + `/results` + "`" + ` mientras la ruta no esté completada reabría la factura EN SILENCIO. Volver a marcar ` + "`" + `cancelado` + "`" + `
+               -- sí se admite (una hoja que se reenvía entera no se rechaza por repetirse).
+               AND m.resultado <> 'cancelado'))
     RETURNING m.id
 )
 SELECT count(*) FROM parada
@@ -1652,7 +1664,13 @@ WITH parada AS (
     WHERE o.id = $6
       AND o.conduce_principal_id IS NULL
       AND (o.route_id = $2
-           OR (o.route_id IS NULL AND o.ultima_ruta_id = $2 AND o.resultado IS NOT NULL))
+           OR (o.route_id IS NULL AND o.ultima_ruta_id = $2 AND o.resultado IS NOT NULL
+               -- UN CANCELADO NO SE DESHACE POR AQUÍ (issue 25, auditoría G1): cancelar una devuelta (` + "`" + `POST /api/orders/{id}/cancelar` + "`" + `)
+               -- es terminal. Esta rama reconoce las paradas ya soltadas con un resultado para poder corregir un devuelto, y
+               -- un cancelado también lo cumple: sin esta línea, reenviar «devuelto», «entregado» o quitar la marca por
+               -- ` + "`" + `/results` + "`" + ` mientras la ruta no esté completada reabría la factura EN SILENCIO. Volver a marcar ` + "`" + `cancelado` + "`" + `
+               -- sí se admite (una hoja que se reenvía entera no se rechaza por repetirse).
+               AND (o.resultado <> 'cancelado' OR $1::stop_result = 'cancelado')))
       AND ($7::uuid IS NULL OR o.branch_id = $7::uuid)
     RETURNING o.id AS id
 ), miembros AS (
@@ -1679,7 +1697,13 @@ WITH parada AS (
         END
     WHERE m.conduce_principal_id IN (SELECT parada.id FROM parada)
       AND (m.route_id = $2
-           OR (m.route_id IS NULL AND m.ultima_ruta_id = $2 AND m.resultado IS NOT NULL))
+           OR (m.route_id IS NULL AND m.ultima_ruta_id = $2 AND m.resultado IS NOT NULL
+               -- UN CANCELADO NO SE DESHACE POR AQUÍ (issue 25, auditoría G1): cancelar una devuelta (` + "`" + `POST /api/orders/{id}/cancelar` + "`" + `)
+               -- es terminal. Esta rama reconoce las paradas ya soltadas con un resultado para poder corregir un devuelto, y
+               -- un cancelado también lo cumple: sin esta línea, reenviar «devuelto», «entregado» o quitar la marca por
+               -- ` + "`" + `/results` + "`" + ` mientras la ruta no esté completada reabría la factura EN SILENCIO. Volver a marcar ` + "`" + `cancelado` + "`" + `
+               -- sí se admite (una hoja que se reenvía entera no se rechaza por repetirse).
+               AND (m.resultado <> 'cancelado' OR $1::stop_result = 'cancelado')))
     RETURNING m.id
 )
 SELECT count(*) FROM parada

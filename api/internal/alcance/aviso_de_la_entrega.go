@@ -216,3 +216,33 @@ func textoONilDe(s string) *string {
 	}
 	return &s
 }
+
+// CancelarFacturaDevuelta cancela una factura DEVUELTA y sin ruta (y los miembros de su conduce) y APUNTA en el buzón
+// el aviso `cancelado` de cada una, con la nota. Llamarla DENTRO de `EnTx`: o se guardan la cancelación y su aviso,
+// o ninguno. Devuelve los ids cancelados y los avisos apuntados (los que tienen a quién avisar: una factura sin
+// folio no lo tiene y NO es un error). Cero ids = la guarda del `WHERE` no se cumplió (`pgx.ErrNoRows` no: lo decide
+// quien llama, que ya leyó la fila y sabe el motivo).
+func (a *Acotado) CancelarFacturaDevuelta(ctx context.Context, id uuid.UUID, nota *string, cuando time.Time) ([]uuid.UUID, []AvisoDeParada, error) {
+	ids, err := a.q.CancelarFacturaDevuelta(ctx, sqlc.CancelarFacturaDevueltaParams{ID: id, Nota: nota, Sucursal: a.sucursalPg()})
+	if err != nil || len(ids) == 0 {
+		return nil, nil, err
+	}
+	filas, err := a.EntregasParaAvisar(ctx, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	var avisos []AvisoDeParada
+	for _, quien := range ids {
+		e, ok := filas[quien]
+		if !ok {
+			continue
+		}
+		if av, hay := AvisoDeLaEntrega(e, "cancelado", cuando, derefTexto(nota)); hay {
+			if err := a.EncolarAviso(ctx, av); err != nil {
+				return nil, nil, err
+			}
+			avisos = append(avisos, av)
+		}
+	}
+	return ids, avisos, nil
+}

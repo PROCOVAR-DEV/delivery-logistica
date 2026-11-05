@@ -140,6 +140,7 @@ const (
 	msgSucursalNoEsta = "Esa sucursal no existe o no es tuya"
 
 	msgYaSeEntrego     = "Esa factura ya se entregó"
+	msgYaSeCancelo     = "Esa factura está cancelada"
 	msgColumnaSinNada  = "La columna no tiene ninguna factura que se pueda repartir hoy"
 	msgNombreRequerido = "La columna necesita un nombre"
 	// La lista de pedidos vino VACÍA. No es lo mismo que no mandarla: mandarla vacía es
@@ -1516,6 +1517,12 @@ func (s *Servidor) porQueNoSePudoColocar(w http.ResponseWriter, r *http.Request,
 		httpx.Error(w, r, http.StatusConflict, msgYaSeEntrego)
 		return
 	}
+	// UNA CANCELADA SIN RUTA NO VUELVE A UNA ZONA (issue 25 de Amado): el cliente no la quiere. Va antes que la ruta
+	// por lo mismo que el entregado: «otro la subió a un camión» sería mentira.
+	if p.Resultado != nil && *p.Resultado == sqlc.StopResultCancelado {
+		httpx.Error(w, r, http.StatusConflict, msgYaSeCancelo)
+		return
+	}
 	if p.RouteID.Valid {
 		httpx.Error(w, r, http.StatusConflict, msgYaVaEnUnaRuta)
 		return
@@ -2172,6 +2179,9 @@ func porQueNoEsCandidato(t sqlc.ListarPedidosColocadosRow) (motivo, queHacer str
 		return "ya se entregó",
 			"Esa factura ya se repartió. Quita la tarjeta de la zona: volver a subirlo " +
 				"a un camión lo entregaría dos veces."
+	case t.Resultado != nil && *t.Resultado == sqlc.StopResultCancelado:
+		return "está cancelada",
+			"El cliente la canceló. Quita la tarjeta de la zona."
 	case t.RouteID.Valid:
 		return "ya va en otra ruta",
 			"Otro lo subió a un camión. Quita la tarjeta de la zona."
@@ -2447,6 +2457,10 @@ func motivoDeCorteDelArmado(p sqlc.PedidosDeColumnaParaArmarRutaRow) (motivo, qu
 		motivo = "ya se entregó"
 		queHacer = "Esa factura ya se repartió. Quita la tarjeta de la zona: volver a " +
 			"subirlo a un camión lo entregaría dos veces."
+	case p.Resultado != nil && *p.Resultado == sqlc.StopResultCancelado:
+		// Sólo el devuelto se reasigna (issue 25 de Amado): una cancelada sin ruta ya no se reparte.
+		motivo = "está cancelada"
+		queHacer = "El cliente la canceló. Quita la tarjeta de la zona."
 	case p.Archivado:
 		motivo = "archivado en PEDIDO"
 		queHacer = "PEDIDO le dio de baja. Quita la tarjeta de la zona."

@@ -57,6 +57,10 @@ const (
 	msgRutaNoEncontrada = "No encontrada"
 	msgSinResultados    = "No vino ningún resultado"
 	msgParadaAjena      = "esa factura no va en esta ruta"
+	// UNA CANCELADA NO SE MARCA OTRA VEZ (issue 25, auditoría G1): ni otro resultado ni quitarle la marca.
+	msgParadaCancelada = "Esa factura ya está cancelada y no se puede marcar."
+	// msgNotaConNUL: Postgres no guarda un NUL en un `text` (500), y por la cola el apunte se reintentaría para siempre.
+	msgNotaConNUL = "La nota lleva un carácter no válido (NUL)"
 	// UN CAMIÓN INACTIVO NO SE ASIGNA A UNA RUTA (incidencia 4 de Amado, 07/10/2026). Es el
 	// mismo literal en los cuatro sitios que asignan camión —armar una ruta, cambiarle el
 	// camión, armar una zona y fijar el camión previsto de una zona—, para que quien lo lea
@@ -930,6 +934,11 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if mensaje := mensajeYaEntregados(pedidos); mensaje != "" {
+		httpx.Error(w, r, http.StatusConflict, mensaje)
+		return
+	}
+	// LAS CANCELADAS SIN RUTA TAMPOCO (issue 25 de Amado): sólo el devuelto se reasigna.
+	if mensaje := mensajeCanceladas(pedidos); mensaje != "" {
 		httpx.Error(w, r, http.StatusConflict, mensaje)
 		return
 	}
@@ -1989,6 +1998,12 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusBadRequest, msgSinResultados)
 		return
 	}
+	for _, e := range c.Resultados {
+		if e.Nota != nil && strings.ContainsRune(*e.Nota, 0) {
+			httpx.Error(w, r, http.StatusBadRequest, msgNotaConNUL)
+			return
+		}
+	}
 
 	salida := salidaDeCierre{Aplicados: []aplicadoDeCierre{}, Rechazados: []rechazadoDeCierre{}}
 	var avisos []AvisoDeParada
@@ -2057,7 +2072,14 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 				rechazar(e, msgParadaAjena)
 				continue
 			}
-			_, iba := universo[pedidoID]
+			parada, iba := universo[pedidoID]
+			if iba && parada.Resultado != nil && *parada.Resultado == sqlc.StopResultCancelado &&
+				!(e.Resultado.Presente && e.Resultado.Valor != nil && *e.Resultado.Valor == string(sqlc.StopResultCancelado)) {
+				// Sale en la hoja como cancelada (no se pierde) pero no se deshace: `MarcarResultadoDeParada` y
+				// `LimpiarResultadoDeParada` tampoco la tocan, y aquí se dice por qué en vez de un «no es de esta ruta».
+				rechazar(e, msgParadaCancelada)
+				continue
+			}
 			if !iba {
 				// Un MIEMBRO de conduce no se marca solo (00029, regla 5): el resultado se marca sobre la principal
 				// y se aplica a sus miembros. El motivo lo dice con el número de la principal.
@@ -2695,6 +2717,8 @@ func porQueNoSeArma(f sqlc.PorQueNoSePuedeArmarRow) string {
 	switch {
 	case f.DeliveredAt.Valid || (f.Resultado != nil && *f.Resultado == sqlc.StopResultEntregado):
 		return "ya se entregó y no puede volver a un camión"
+	case f.Resultado != nil && *f.Resultado == sqlc.StopResultCancelado:
+		return "está cancelada y no puede volver a un camión"
 	case f.RouteID.Valid:
 		if f.RutaCodigo != nil && *f.RutaCodigo != "" {
 			return "ya va en la ruta " + *f.RutaCodigo
@@ -2771,6 +2795,34 @@ func mensajeYaEntregados(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 	}
 	mensaje := fmt.Sprintf("%d de las facturas elegidas %s y %s volver "+
 		"a un camión: %s", len(malos), entregaron, pueden, strings.Join(detalle, ", "))
+	if len(malos) > 5 {
+		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
+	}
+	return mensaje + "."
+}
+
+// mensajeCanceladas arma el 409 de las facturas CANCELADAS (resultado `cancelado`, sin ruta), o "" si ninguna. Misma
+// forma que `mensajeYaEntregados`; el literal lo atan los casos de `docs/armado-rechazado.casos.json`.
+func mensajeCanceladas(pedidos []sqlc.PedidosParaArmarRutaRow) string {
+	var malos []string
+	for _, p := range pedidos {
+		if p.Resultado != nil && *p.Resultado == sqlc.StopResultCancelado {
+			malos = append(malos, quienEs(p.OperationNumber, p.CustomerName))
+		}
+	}
+	if len(malos) == 0 {
+		return ""
+	}
+	estan, pueden := "ESTÁN CANCELADAS", "no pueden"
+	if len(malos) == 1 {
+		estan, pueden = "ESTÁ CANCELADA", "no puede"
+	}
+	detalle := malos
+	if len(detalle) > 5 {
+		detalle = detalle[:5]
+	}
+	mensaje := fmt.Sprintf("%d de las facturas elegidas %s y %s volver a un camión: %s",
+		len(malos), estan, pueden, strings.Join(detalle, ", "))
 	if len(malos) > 5 {
 		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
 	}

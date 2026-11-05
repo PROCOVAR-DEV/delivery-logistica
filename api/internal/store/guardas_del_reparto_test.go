@@ -113,7 +113,7 @@ var guardasDelReparto = []guarda{
 	{
 		fichero:   "tablero.sql",
 		consulta:  "ColocarPedido",
-		enElWhere: []string{"o.route_id IS NULL", "o.delivered_at IS NULL", "(o.resultado IS NULL OR o.resultado <> 'entregado')"},
+		enElWhere: []string{"o.route_id IS NULL", "o.delivered_at IS NULL", "(o.resultado IS NULL OR o.resultado = 'devuelto')"},
 		porQue: "Es el `WHERE` que impide soltar en una zona una tarjeta de un pedido que\n" +
 			"ya va cargado en un camión o que ya se entregó. El cero filas de este INSERT es\n" +
 			"lo que `porQueNoSePudoColocar` traduce al 409 con su motivo: sin la condición no\n" +
@@ -122,7 +122,7 @@ var guardasDelReparto = []guarda{
 	{
 		fichero:   "tablero.sql",
 		consulta:  "ListarPedidosSinColocar",
-		enElWhere: []string{"o.route_id IS NULL", "o.delivered_at IS NULL", "(o.resultado IS NULL OR o.resultado <> 'entregado')"},
+		enElWhere: []string{"o.route_id IS NULL", "o.delivered_at IS NULL", "(o.resultado IS NULL OR o.resultado = 'devuelto')"},
 		porQue: "La mitad izquierda del tablero. Sin esto se le ofrece al logístico un pedido\n" +
 			"que ya va en un camión, o uno que YA SE ENTREGÓ y cuya ruta se borró — la clave\n" +
 			"ajena es ON DELETE SET NULL (db/migrations/00001_init.sql:446), así que el\n" +
@@ -131,7 +131,7 @@ var guardasDelReparto = []guarda{
 	{
 		fichero:   "tablero.sql",
 		consulta:  "ContarPedidosSinColocar",
-		enElWhere: []string{"o.route_id IS NULL", "o.delivered_at IS NULL", "(o.resultado IS NULL OR o.resultado <> 'entregado')"},
+		enElWhere: []string{"o.route_id IS NULL", "o.delivered_at IS NULL", "(o.resultado IS NULL OR o.resultado = 'devuelto')"},
 		porQue: "El número que va ENCIMA de esa lista, y tiene que filtrar lo mismo o dice\n" +
 			"«Sin colocar (722)» sobre una lista de 293. Ver contador_y_lista_test.go.",
 	},
@@ -160,7 +160,7 @@ var guardasDelReparto = []guarda{
 		fichero:  "routes.sql",
 		consulta: "EngancharPedidoARuta",
 		// Con alias `o.` desde la 00029 (conduces): el UPDATE va en un CTE y sin alias `id` era ambiguo.
-		enElWhere: []string{"o.route_id IS NULL", "o.conduce_principal_id IS NULL"},
+		enElWhere: []string{"o.route_id IS NULL", "o.conduce_principal_id IS NULL", "(o.resultado IS NULL OR o.resultado = 'devuelto')"},
 		porQue: "LA ÚNICA GUARDA CONTRA LA CARRERA DE VERDAD. La validación de más arriba se\n" +
 			"hizo hace unos milisegundos y con diez logísticos armando rutas a la vez eso es\n" +
 			"una foto vieja. El cero filas de este UPDATE es lo que levanta `errSeLoLlevaron`\n" +
@@ -172,13 +172,21 @@ var guardasDelReparto = []guarda{
 		consulta: "MarcarResultadoDeParada",
 		// Con alias `o.` desde la 00029 (conduces): el UPDATE va en un CTE y sin alias `id` era ambiguo.
 		enElWhere:  []string{"(o.route_id = sqlc.arg('ruta_id')", "o.conduce_principal_id IS NULL"},
-		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL)", "WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')"},
+		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL", "AND (o.resultado <> 'cancelado' OR sqlc.arg('resultado')::stop_result = 'cancelado'))", "WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')"},
 		porQue: "Las dos mitades del cierre.\n" +
 			"  · El `WHERE` acepta la parada que sigue en `route_id` y la ya soltada cuya\n" +
 			"    `ultima_ruta_id` apunta a esta ruta; cualquier otra ruta queda excluida.\n" +
 			"  · El `CASE` que fija `route_id` del entregado es lo que impide que un\n" +
 			"    pedido ya repartido vuelva a la lista de disponibles esa misma tarde. Con\n" +
 			"    `route_id = NULL` a secas, cerrar la ruta devuelve TODO al montón.",
+	},
+	{
+		fichero:   "orders.sql",
+		consulta:  "CancelarFacturaDevuelta",
+		enElWhere: []string{"o.resultado = 'devuelto'", "o.route_id IS NULL", "o.delivered_at IS NULL", "o.conduce_principal_id IS NULL", "o.branch_id = sqlc.narg('sucursal')::uuid"},
+		porQue: "CANCELAR UNA FACTURA DEVUELTA (issue 25). Es la guarda que vale; la lectura del manejador sólo da el\n" +
+			"motivo. Sin `resultado = 'devuelto'` se cancelaría una entregada o una sin marcar; sin `route_id IS NULL`,\n" +
+			"una que ya salió en otro camión; sin el alcance, la de otra sucursal.",
 	},
 	// ---- LA PARADA FANTASMA (07/10/2026): las cuatro preguntas «¿viajó este pedido en esta
 	// ruta?» tienen que contestar lo mismo, y un pedido quitado de la ruta no viajó. ----
@@ -200,8 +208,9 @@ var guardasDelReparto = []guarda{
 	{
 		fichero:    "routes.sql",
 		consulta:   "LimpiarResultadoDeParada",
-		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL)"},
-		porQue:     "Desmarcar una parada que no viajó le pondría `route_id` a un pedido quitado de la ruta.",
+		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL", "AND o.resultado <> 'cancelado'))"},
+		porQue: "Desmarcar una parada que no viajó le pondría `route_id` a un pedido quitado de la ruta. Y sin\n" +
+			"`<> 'cancelado'` (issue 25, G1) quitarle la marca a una cancelada la reabriría en silencio.",
 	},
 	{
 		fichero:    "routes.sql",
@@ -228,14 +237,14 @@ var guardasDelReparto = []guarda{
 	{
 		fichero:      "orders.sql",
 		consulta:     "ListarPedidosDisponibles",
-		enElWhere:    []string{"o.factura_estado IN ('igual', 'cambiado')"},
+		enElWhere:    []string{"o.factura_estado IN ('igual', 'cambiado')", "(o.resultado IS NULL OR o.resultado = 'devuelto')"},
 		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR"},
 		porQue:       "La lista del armador no puede ofrecer lo que el armador rechaza. Ver ColocarPedido.",
 	},
 	{
 		fichero:      "orders.sql",
 		consulta:     "ContarPedidosDisponibles",
-		enElWhere:    []string{"o.factura_estado IN ('igual', 'cambiado')"},
+		enElWhere:    []string{"o.factura_estado IN ('igual', 'cambiado')", "(o.resultado IS NULL OR o.resultado = 'devuelto')"},
 		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR"},
 		porQue:       "El total de arriba de la lista de disponibles, que tiene que ser el de la lista.",
 	},
@@ -274,14 +283,17 @@ var guardasDelReparto = []guarda{
 	{
 		fichero:      "orders.sql",
 		consulta:     "PanelPorSucursal",
-		enElWhere:    []string{"o.factura_estado IN ('igual','cambiado')"},
+		enElWhere:    []string{"o.factura_estado IN ('igual','cambiado')", "o.resultado IS DISTINCT FROM 'cancelado'::stop_result"},
 		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR", "factura_domicilio > 0"},
 		porQue:       "El panel cuenta lo repartible con el mismo listón que el armador, o dice «40 por repartir» y el armador ofrece 12.",
 	},
 	{
-		fichero:      "orders.sql",
-		consulta:     "PanelResumen",
-		enElCuerpo:   []string{"AND o.factura_estado IN ('igual','cambiado')) AS sin_ruta"},
+		fichero:  "orders.sql",
+		consulta: "PanelResumen",
+		enElCuerpo: []string{"AND o.factura_estado IN ('igual','cambiado')) AS sin_ruta",
+			// La cancelada sin ruta no cuenta en `sin_ruta` ni en `peso_pendiente` (dos veces).
+			"AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result AND o.end_lat IS NOT NULL AND o.factura_estado IN ('igual','cambiado')) AS sin_ruta",
+			"AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result AND o.end_lat IS NOT NULL AND o.factura_estado IN ('igual','cambiado')), 0)::double precision AS peso_pendiente"},
 		noEnElCuerpo: []string{"pedido_costo IS NOT NULL OR"},
 		porQue:       "`sin_ruta` del panel: mismo listón. `peso_pendiente` lo ata el motor real.",
 	},

@@ -900,3 +900,52 @@ func TestUn403ConCodigoDeSinPermisoNoEsRechazoPeroUnoSinCodigoSi(t *testing.T) {
 		})
 	}
 }
+
+// EL REINTENTO DE UNA CANCELACIÓN ES UN APUNTE YA HECHO (issue 25 de Amado, 05/11/2026).
+//
+// `POST /orders/{id}/cancelar` sobre una factura que ya está cancelada contesta 409 con `codigo: ya_cancelada`: el
+// estado que el apunte quería es el que hay, así que no se deja `rechazado` pidiendo a una persona que decida. EN
+// PAREJA: cualquier OTRO 409 de la misma ruta (va en una ruta, no está devuelta) SIGUE siendo un rechazo con su motivo
+// literal, y el mismo código en otro método o en otra ruta tampoco.
+func TestUn409YaCanceladaEsApunteHechoYElRestoSigueSiendoRechazo(t *testing.T) {
+	respuesta := func(cuerpo map[string]string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(cuerpo)
+		}))
+	}
+	aplicar := func(s *httptest.Server, metodo string) error {
+		_, err := Nuevo(s.URL, "k", 5*time.Second).Aplicar(context.Background(), sincro.Peticion{
+			Metodo: metodo, Ruta: "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff/cancelar",
+			Cuerpo: json.RawMessage(`{"nota":"se arrepintió"}`),
+			Hecho:  time.Now(), Sucursal: uuid.New(), Persona: "x", Clave: "01J9A777",
+		})
+		return err
+	}
+
+	ya := respuesta(map[string]string{"error": "La factura ya está cancelada", "codigo": "ya_cancelada"})
+	defer ya.Close()
+	if err := aplicar(ya, http.MethodPost); err != nil {
+		t.Fatalf("un 409 ya_cancelada es un apunte hecho, no un error ni un rechazo: %v", err)
+	}
+
+	va := respuesta(map[string]string{"error": "La factura va en una ruta: sólo se puede cancelar una factura devuelta que ya no esté en ninguna"})
+	defer va.Close()
+	var rechazo *sincro.Rechazo
+	if err := aplicar(va, http.MethodPost); !errors.As(err, &rechazo) || !strings.Contains(rechazo.Motivo, "va en una ruta") {
+		t.Fatalf("otro 409 de cancelar sigue siendo un rechazo con su motivo literal: %v", err)
+	}
+
+	// Sin el método ni la ruta de cancelar, el código por sí solo no lo da por hecho.
+	rechazo = nil
+	if err := aplicar(ya, http.MethodPut); !errors.As(err, &rechazo) {
+		t.Fatalf("el código fuera de un POST no es un apunte hecho: %v", err)
+	}
+	rechazo = nil
+	if _, err := Nuevo(ya.URL, "k", 5*time.Second).Aplicar(context.Background(), sincro.Peticion{
+		Metodo: http.MethodPost, Ruta: "/routes", Hecho: time.Now(), Sucursal: uuid.New(), Persona: "x", Clave: "01J9A778",
+	}); !errors.As(err, &rechazo) {
+		t.Fatalf("el código en otra ruta no es un apunte hecho: %v", err)
+	}
+}

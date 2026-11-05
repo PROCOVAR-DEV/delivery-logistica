@@ -287,7 +287,7 @@ aplica `trim()`. `q` además se pasa a minúsculas. Los usan `/api/orders` y
 | `municipio` | texto | `municipio = valor` (exacto) |
 | `vendedor` / `vendedores` | texto, **uno o varios** | `vendedor = ANY(lista)` (exacto): salen los pedidos de CUALQUIERA de ellos (unión). Se pueden mandar `vendedor=Ana&vendedor=Luis` (repetido), `vendedores=Ana,Luis` (separado por comas) o `vendedor=Ana` (el de UN vendedor de siempre, que las APK instaladas siguen mandando); si vienen de las dos formas se unen, sin repetidos y sin vacíos. Un nombre con coma sólo viaja entero en la forma repetida. Ninguno = todos (nunca «ninguno»: la lista vacía es `NULL`, no `{}`). Desde el 16/10/2026 (issue 18 de Amado) |
 | `branchId` | id | `branchId = valor`, **AND** con el alcance (no lo amplía) |
-| `reparto` | `sin_entregar` \| `en_despacho` \| `en_ruta` \| `entregado` \| `devuelto` | ver abajo |
+| `reparto` | `sin_entregar` \| `en_despacho` \| `en_ruta` \| `entregado` \| `devuelto` \| `cancelado` \| `nuevas` | ver abajo |
 | `factura` | `con_factura` \| `cuadra` \| `sin_cotejar` \| otro | ver abajo |
 | `desde` | `YYYY-MM-DD` | ver abajo |
 | `hasta` | `YYYY-MM-DD` | ver abajo |
@@ -298,11 +298,12 @@ aplica `trim()`. `q` además se pasa a minúsculas. Los usan `/api/orders` y
   - `en_proceso` → `AND[noCompletada, OR[{fechaComprometida:null},{fechaComprometida:{gte:now}}]]`.
   - `expirada` → `AND[noCompletada, {fechaComprometida:{lt:now}}]`.
 - `reparto`:
-  - `sin_entregar` → `routeId:null, deliveredAt:null, OR[{resultado:null},{resultado:{not:'entregado'}}]`.
+  - `sin_entregar` → `routeId:null, deliveredAt:null, OR[{resultado:null},{resultado:{not:'entregado'}}]` **y sin cancelados** (`resultado IS DISTINCT FROM 'cancelado'`, issue 25).
   - `en_despacho` → `routeId != null AND route.status = 'planned'`.
   - `en_ruta` → `routeId != null AND route.status = 'in_progress'`.
   - `entregado` → `OR[{resultado:'entregado'},{deliveredAt:{not:null}}]`.
-  - `devuelto` → `resultado IN ('devuelto','cancelado')`.
+  - `devuelto` → `resultado = 'devuelto' AND routeId IS NULL` (issue 25; antes `IN ('devuelto','cancelado')`).
+  - `cancelado` → `resultado = 'cancelado'`. `nuevas` → `routeId IS NULL AND deliveredAt IS NULL AND resultado IS NULL`.
 - `factura`:
   - `con_factura` → `facturaEstado IN ('igual','cambiado')`.
   - `cuadra` → `facturaEstado = 'igual'`.
@@ -972,6 +973,69 @@ repaso (cada minuto, los últimos tres días) CONSERVA `end_address, lat, lng, e
 `delivery_distance_km`, y guarda lo que trae el cliente en `punto_cliente_*`. Su `WHERE … IS DISTINCT
 FROM` compara contra esos valores efectivos: un pedido con punto manual y sin más cambios no se reescribe.
 
+## `POST /api/orders/{id}/cancelar` — cancelar una factura devuelta (issue 25 de Amado, 05/11/2026)
+
+«La cancelada es el cancelado ese» (Jose): **no hay estado, columna ni migración nuevos**. Cancelar es dejar
+`resultado = 'cancelado'` (el valor de `stop_result` que ya existía), con `resultado_at = now()` y `resultado_nota`. Una
+factura devuelta puede acabar en otra ruta otro día (se reasigna, como siempre) o cancelada porque el cliente se arrepintió.
+
+- **Cuerpo** (opcional): `{ "nota": "texto" }`, recortado, **máximo 500 caracteres** (`400 «La nota no puede pasar de 500
+  caracteres»`; `400` si no es JSON o `nota` no es texto). Sin nota (o en blanco) **se conserva la de la devolución**: no
+  se pierde el porqué.
+- **Sólo** `resultado = 'devuelto'`, **sin ruta** (`route_id IS NULL`) y sin entrega (`delivered_at IS NULL`). Si no, **409**
+  con el motivo en español: `«La factura ya está cancelada»` (con `"codigo":"ya_cancelada"`), `«La factura va en una ruta: …»`,
+  `«La factura no está devuelta: …»`, `«La factura va dentro de un conduce: cancela el conduce entero desde su factura
+  principal»`. La guarda que vale es la del `WHERE` de la escritura; la lectura previa sólo da el motivo (carrera: `409 «La
+  factura cambió mientras se cancelaba: vuelve a intentarlo»`).
+- **404** si no existe o no es de tu sucursal (el alcance falla cerrado: es lo mismo desde fuera). **401** sin sesión.
+  **El distribuidor NO puede**: no está en `auth.PermitidoAlDistribuidor` (403 con su marca).
+- **200**: la ficha de la factura (la forma de `GET /api/orders/{id}`), con `resultado: "cancelado"`, `resultadoAt` y
+  `resultadoNota`. La fila NO se archiva: sale de las listas de repartir por la regla de abajo, no por `archivado`.
+- **Cancelar la PRINCIPAL de un conduce cancela también a sus miembros** (el resultado de la principal es el de todos, regla 5
+  de `docs/conduces.md`). Un miembro suelto no se cancela.
+- **PEDIDO se entera POR FACTURA**: aviso `cancelado` (folio + sucursal + factura + punto de venta, con la nota) apuntado en el
+  buzón `avisos_a_pedido` DENTRO de la misma transacción y luego intentado en el acto, como el cierre de ruta. Una factura sin
+  folio no tiene a quién avisar y no es un error. Es el mismo aviso que ya mandaba el cierre cuando se marcaba una parada
+  `cancelado`.
+- **UNA CANCELADA ES TERMINAL: la hoja de cierre no la deshace** (auditoría G1). `POST /api/routes/{id}/results` sobre una factura
+  cancelada —con «devuelto», «entregado» o `null` (quitar la marca), mientras la ruta de origen no esté completada— la
+  rechaza en `rechazados[]` con `«Esa factura ya está cancelada y no se puede marcar.»` (409, las demás paradas de la hoja se
+  guardan como siempre) y la fila no cambia; `MarcarResultadoDeParada` y `LimpiarResultadoDeParada` tampoco la tocan
+  aunque llegara por otra puerta. Volver a mandar `cancelado` (una hoja reenviada entera) se admite. Un apunte de la cola del
+  aparato con una marca vieja sobre una cancelada queda `rechazado` en la bandeja con ese motivo (el 409 se lee entero:
+  «Se guardaron N de las M paradas… (<conduce> (Esa factura ya está cancelada…))»). **Consecuencia**: un `cancelado` puesto en
+  la hoja con un dedazo tampoco se corrige ya desde la hoja.
+- **`nota` con un NUL (`\u0000`) es `400 «La nota lleva un carácter no válido (NUL)»`**, aquí y en `nota` de `/results`
+  (antes 500, y por la cola el apunte se reintentaba para siempre).
+- **También se saca del tablero**: borra su `board_placements` y su `board_route_origins` (una cancelada no reaparece en
+  ninguna zona).
+- **Quién la canceló NO se guarda en la fila** (no hay columna): queda en el registro del servidor
+  (`factura devuelta cancelada`, con `actor` y `rol`) y no baja a los aparatos.
+- **REINTENTO**: repetir la petición sobre una factura ya cancelada es `409 «La factura ya está cancelada»` con
+  `"codigo": "ya_cancelada"`. El sincronizador (`sync/internal/reparto`) lo da por **apunte hecho** (el apunte queda
+  `aplicado`, no `rechazado`): el estado que quería es el que hay. Cualquier otro 409 de esta ruta SÍ es un rechazo con su
+  motivo literal.
+- **Avisos en vivo**: `pedidos` y `tablero` (con la sucursal de la fila).
+- **Cola sin señal**: entra en la lista blanca de la bandeja de revisión (`POST /orders/{id}/cancelar`: ya son **veinte** formas).
+
+**LA REGLA NUEVA QUE VIENE CON ESTO: un `cancelado` sin ruta ya no vuelve al pool.** Antes, devuelto y cancelado volvían los dos
+a disponibles; ahora **sólo el `devuelto` se reasigna** (un intento nuevo) y el `cancelado` es terminal para el reparto (el
+historial de la ruta donde se canceló se conserva). Cambian, todas con `resultado IS NULL OR resultado = 'devuelto'`:
+`ListarPedidosDisponibles` y `ContarPedidosDisponibles`, `ListarPedidosSinColocar` y `ContarPedidosSinColocar`, `ColocarPedido`
+(409 `«Esa factura está cancelada»`), `EngancharPedidoARuta` (principal y miembros; cero filas), y el armado (`POST /api/routes`:
+409 `«N de las facturas elegidas ESTÁ(N) CANCELADA(S) y no pued(e|en) volver a un camión: …»`; la zona del tablero: motivo
+`«está cancelada»`). `PanelResumen` (`sin_ruta`, `peso_pendiente`) y `PanelPorSucursal` no cuentan las canceladas. **Los
+filtros `reparto=` de `GET /api/orders` son los de la app** (`RepartoFiltro`): `sin_entregar` EXCLUYE los cancelados, `devuelto`
+es SÓLO `resultado='devuelto'` sin ruta (antes «devuelto o cancelado»), `cancelado` es sólo `resultado='cancelado'` y
+`nuevas` es sin ruta, sin entrega y sin resultado. Los casos compartidos (`docs/armado-rechazado.casos.json`, `reglaDeEntrada`: campo `resultado`,
+casos `devuelto-sin-ruta` y `cancelado-sin-ruta`) los leen Go, Postgres y Dart.
+
+**La bajada** (`cambios.orders.puestos`) lleva ahora **`resultadoAt`** (ISO UTC o `null`), que antes sólo estaba en la ficha;
+`resultado` y `resultadoNota` ya bajaban, también para los pedidos sin ruta. La cancelada NO está archivada, así que baja y se
+cuadra (`GET /api/sync/cuadre`) como cualquier factura. Los `cancelado` anteriores a este cambio tienen `resultadoAt` nulo en el
+aparato hasta que su fila vuelva a cambiar en el servidor. **Informes por periodo**: no se añadió endpoint ni filtro; la vista
+«Canceladas» filtra la base local del aparato por `resultado = 'cancelado'` y `resultadoAt`.
+
 ## Conduces — `POST /api/conduces`, `DELETE /api/conduces/{principalId}`, `DELETE /api/conduces/{principalId}/miembros/{id}` (00029, 27/10/2026)
 
 La especificación y el porqué están en `docs/conduces.md`. Un **conduce** junta varias facturas del MISMO cliente en UNA
@@ -1097,7 +1161,7 @@ garantiza con `ON DELETE SET NULL` y dos triggers (`conduce_sin_cadenas`, `condu
 ### Cola sin señal
 
 Las tres formas — `POST /conduces`, `DELETE /conduces/{id}` y `DELETE /conduces/{id}/miembros/{id}` — están en la lista blanca de
-la bandeja de revisión (`sync/internal/sincro/revision_limites.go`: ya son **diecinueve** formas). Un 4xx del servidor deja el
+la bandeja de revisión (`sync/internal/sincro/revision_limites.go`: ya son **veinte** formas). Un 4xx del servidor deja el
 apunte `rechazado` en la bandeja con el motivo literal de esta sección.
 
 ## `DELETE /api/orders/[id]`
@@ -2690,7 +2754,7 @@ entrega) y es de **esta persona y de esta sucursal**; (4) **cada** apunte, enter
 entrega con un solo apunte malo no guarda ninguno): `clave` `^[A-Za-z0-9_.:-]{1,100}$` y no repetida en el envío,
 método `POST|PUT|PATCH|DELETE`, **ruta de la lista blanca POR FORMA**: solo las dieciséis que la API tiene de escritura —`/routes`,
 `/routes/{id}`, `/routes/{id}/stops` (reordenar, 15/10/2026), `/routes/{id}/stops/{pedido}`, `/routes/{id}/results`, `/board/columns`, `/board/columns/{id}`,
-`/board/columns/{id}/route`, `/board/placements/{pedido}` y, desde el 16/10/2026 (issue 14, la flota sin señal), `/vehicles`, `/vehicle-types`, `/distribuidores` y sus `/{id}`, y, desde el 20/10/2026 (issue 19), `/orders/{id}/punto` (y SOLO eso de `/orders`: ni `/orders` ni `/orders/{id}`, que borra el pedido)—, con `{id}` = letras, números, `_` y `-` (un uuid, un `local-…`,
+`/board/columns/{id}/route`, `/board/placements/{pedido}` y, desde el 16/10/2026 (issue 14, la flota sin señal), `/vehicles`, `/vehicle-types`, `/distribuidores` y sus `/{id}`, y, desde el 20/10/2026 (issue 19), `/orders/{id}/punto` y, desde el 05/11/2026 (issue 25), `POST /orders/{id}/cancelar` (y SOLO eso de `/orders`: ni `/orders` ni `/orders/{id}`, que borra el pedido)—, con `{id}` = letras, números, `_` y `-` (un uuid, un `local-…`,
 `orden`; **nunca un punto**) y, a continuación, una query opcional de pares simples. La forma es la profundidad exacta: `POST /board`
 suelto, `/routes/.` o `/routes/a/b/c/d` dan 422 (antes valía «lo que venga detrás» y esas rutas entraban, el reparto contestaba 404
 y `Aplicar` lo tomaba por una caída que paraba «aplicar todo» en un apunte que jamás iba a entrar). Sin `..` ni `//`, ≤300 caracteres, `hecho` presente, no más de 24 h en el futuro ni más de 60 días en el pasado,

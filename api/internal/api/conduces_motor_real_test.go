@@ -38,6 +38,23 @@ type entornoDeConduces struct {
 	jwt      string // LOGISTICO de Santiago
 	jwtTodas string // SUPER ADMIN: ve las ocho
 	avisados []AvisoDeParada
+	// trasLeerPedido corre justo DESPUÉS de que el manejador lea la factura (`ObtenerPedido`) y antes de que escriba: ahí es
+	// donde una prueba mete la carrera que la lectura previa no vio (p. ej. la factura entra en una ruta).
+	trasLeerPedido func(id uuid.UUID)
+}
+
+// conGancho deja pasar todo al motor real y avisa a la prueba tras cada `ObtenerPedido`.
+type conGancho struct {
+	sqlc.Querier
+	e *entornoDeConduces
+}
+
+func (g conGancho) ObtenerPedido(ctx context.Context, arg sqlc.ObtenerPedidoParams) (sqlc.ObtenerPedidoRow, error) {
+	fila, err := g.Querier.ObtenerPedido(ctx, arg)
+	if err == nil && g.e.trasLeerPedido != nil {
+		g.e.trasLeerPedido(arg.ID)
+	}
+	return fila, err
 }
 
 func nuevoEntornoDeConduces(t *testing.T) *entornoDeConduces {
@@ -81,7 +98,7 @@ func nuevoEntornoDeConduces(t *testing.T) *entornoDeConduces {
 		t.Fatal(err)
 	}
 	reg := slog.New(slog.NewTextHandler(io.Discard, nil))
-	porteria := alcance.NuevaPorteria(fuenteDeMotorReal{q: sqlc.New(tx)}, reg)
+	porteria := alcance.NuevaPorteria(fuenteDeMotorReal{q: conGancho{Querier: sqlc.New(tx), e: e}}, reg)
 	verif := auth.NuevoVerificador([]byte(secretoDeRutas))
 	e.s = NuevoServidor(cfg, reg, porteria, verif, nil)
 	// El canal hacia PEDIDO: se captura lo que saldría en vez de salir.

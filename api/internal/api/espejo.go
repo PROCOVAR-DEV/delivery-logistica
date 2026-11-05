@@ -1774,7 +1774,10 @@ func (s *Servidor) pedidosDeLaBajada(r *http.Request, a *alcance.Acotado, v alca
 			"stopOrder":          f.StopOrder,
 			"deliveredAt":        hora(f.DeliveredAt),
 			"resultado":          textoDe(f.Resultado),
-			"resultadoNota":      f.ResultadoNota,
+			// CUÁNDO SE MARCÓ (issue 25 de Amado): la vista «Canceladas» filtra por periodo con esta hora. Faltaba en la bajada
+			// (existía en la ficha y en la hoja de ruta) y sin ella el aparato la tenía siempre nula.
+			"resultadoAt":   hora(f.ResultadoAt),
+			"resultadoNota": f.ResultadoNota,
 			// El aviso del distribuidor al marcar la parada (00033): `cobrado` | `no_cobrado` | null, y a qué hora lo dijo.
 			"cobroEntrega":   f.CobroEntrega,
 			"cobroEntregaAt": hora(f.CobroEntregaAt),

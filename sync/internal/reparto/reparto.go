@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -295,6 +296,13 @@ func (c *Cliente) Aplicar(ctx context.Context, p sincro.Peticion) (sincro.Aplica
 		// 403 con ese `codigo` SIN anotar nada. El 403 del alcance de sucursal NO lleva
 		// `codigo` y sigue siendo un rechazo de abajo: ahí el apunte sí es lo que sobra.
 		return sincro.Aplicado{}, &sincro.SinPermiso{Motivo: motivoDe(datos)}
+	case res.StatusCode == http.StatusConflict && p.Metodo == http.MethodPost && strings.HasSuffix(p.Ruta, "/cancelar") && esYaCancelada(datos):
+		// UN 409 `ya_cancelada` ES UN APUNTE YA HECHO (issue 25, 05/11/2026). `POST /api/orders/{id}/cancelar` sobre una
+		// factura que ya está cancelada —un reintento de la cola, o que otro la canceló antes— contesta 409 con ese
+		// `codigo`: el estado que el apunte quería es el que hay, y dejarlo `rechazado` pediría a una persona decidir
+		// sobre algo ya resuelto. Sólo ese código: cualquier otro 409 (va en una ruta, no está devuelta…) SÍ es un
+		// rechazo con su motivo literal, como siempre.
+		return sincro.Aplicado{}, nil
 	case res.StatusCode >= 400 && res.StatusCode < 500:
 		return sincro.Aplicado{}, &sincro.Rechazo{Motivo: motivoDe(datos)}
 	default:
@@ -352,6 +360,17 @@ func esSinPermisoDeReparto(datos []byte) bool {
 		Codigo string `json:"codigo"`
 	}
 	return json.Unmarshal(datos, &sobre) == nil && sobre.Codigo == identidad.CodigoSinPermisoReparto
+}
+
+// CodigoYaCancelada: el `codigo` del 409 de `POST /api/orders/{id}/cancelar` sobre una factura ya cancelada
+// (`reparto-api`, `CodigoYaCancelada`).
+const codigoYaCancelada = "ya_cancelada"
+
+func esYaCancelada(datos []byte) bool {
+	var sobre struct {
+		Codigo string `json:"codigo"`
+	}
+	return json.Unmarshal(datos, &sobre) == nil && sobre.Codigo == codigoYaCancelada
 }
 
 func motivoDe(datos []byte) string {

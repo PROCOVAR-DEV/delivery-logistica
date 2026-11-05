@@ -425,6 +425,76 @@ func (q *Queries) BuscarPedidoPorReferencia(ctx context.Context, arg BuscarPedid
 	return i, err
 }
 
+const cancelarFacturaDevuelta = `-- name: CancelarFacturaDevuelta :many
+WITH principal AS (
+    UPDATE orders o SET
+        resultado      = 'cancelado'::stop_result,
+        resultado_at   = now(),
+        resultado_nota = coalesce($1::text, o.resultado_nota)
+    WHERE o.id = $2
+      AND o.conduce_principal_id IS NULL
+      AND o.resultado = 'devuelto'
+      AND o.route_id IS NULL
+      AND o.delivered_at IS NULL
+      AND ($3::uuid IS NULL OR o.branch_id = $3::uuid)
+    RETURNING o.id
+), miembros AS (
+    UPDATE orders m SET
+        resultado      = 'cancelado'::stop_result,
+        resultado_at   = now(),
+        resultado_nota = coalesce($1::text, m.resultado_nota)
+    WHERE m.conduce_principal_id IN (SELECT principal.id FROM principal)
+      AND m.resultado = 'devuelto'
+      AND m.route_id IS NULL
+      AND m.delivered_at IS NULL
+    RETURNING m.id
+), colocaciones AS (
+    -- Una cancelada no tiene que reaparecer en ninguna columna del tablero (como la anulada, ` + "`" + `AnularEntregasDeFacturaEnRuta` + "`" + `).
+    DELETE FROM board_placements p USING principal q WHERE p.order_id = q.id
+), origenes AS (
+    DELETE FROM board_route_origins b USING principal q WHERE b.order_id = q.id
+)
+SELECT id FROM principal
+UNION ALL
+SELECT id FROM miembros
+`
+
+type CancelarFacturaDevueltaParams struct {
+	Nota     *string     `json:"nota"`
+	ID       uuid.UUID   `json:"id"`
+	Sucursal pgtype.UUID `json:"sucursal"`
+}
+
+// CANCELAR UNA FACTURA DEVUELTA (issue 25 de Amado, «Facturas devueltas», Jose 05/11/2026: «la cancelada es el
+// cancelado ese»). NO hay estado ni columna nueva: cancelar es `resultado = 'cancelado'`, el mismo valor que ya
+// existía (el cierre de ruta ya lo escribía), con su hora y su nota. Lo nuevo es la REGLA: un `cancelado` sin ruta
+// ya no vuelve al pool (ver `ListarPedidosDisponibles`); sólo el `devuelto` se reasigna.
+//
+// LAS GUARDAS ESTÁN AQUÍ Y EN NINGÚN OTRO SITIO (el manejador lee antes para dar el motivo, pero entre su lectura y
+// esta orden la factura pudo entrar en una ruta): sólo un `devuelto` SIN ruta y sin entrega, y del alcance. La
+// principal de un conduce arrastra a sus miembros (conduces.md regla 5: el resultado de la principal es el de todos);
+// un miembro suelto no se cancela (cero filas). Devuelve los ids cancelados: la principal y sus miembros.
+// `resultado_nota`: la de la cancelación y, si no hay, se conserva la de la devolución (no se pierde el porqué).
+func (q *Queries) CancelarFacturaDevuelta(ctx context.Context, arg CancelarFacturaDevueltaParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, cancelarFacturaDevuelta, arg.Nota, arg.ID, arg.Sucursal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const contarPedidos = `-- name: ContarPedidos :one
 SELECT count(*)
 FROM orders o
@@ -482,13 +552,21 @@ WHERE
         $10::text IS NULL
         OR ($10::text = 'sin_entregar'
             AND o.route_id IS NULL AND o.delivered_at IS NULL
-            AND (o.resultado IS NULL OR o.resultado <> 'entregado'))
+            AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+            -- Sin las canceladas (issue 25): ya no se reparten.
+            AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result)
         OR ($10::text = 'en_despacho' AND r.status = 'planned')
         OR ($10::text = 'en_ruta'     AND r.status = 'in_progress')
         OR ($10::text = 'entregado'
             AND (o.resultado = 'entregado' OR o.delivered_at IS NOT NULL))
         OR ($10::text = 'devuelto'
-            AND o.resultado IN ('devuelto', 'cancelado'))
+            -- SÓLO devueltas y sin ruta (issue 25, igual que la app: ` + "`" + `RepartoFiltro.devuelto` + "`" + `); las canceladas tienen su filtro.
+            AND o.resultado = 'devuelto' AND o.route_id IS NULL)
+        OR ($10::text = 'cancelado'
+            AND o.resultado = 'cancelado')
+        -- NUEVAS: sin ruta y sin resultado, para distinguirlas de las devueltas (la app: ` + "`" + `RepartoFiltro.nuevas` + "`" + `).
+        OR ($10::text = 'nuevas'
+            AND o.route_id IS NULL AND o.delivered_at IS NULL AND o.resultado IS NULL)
     )
     AND (
         $11::text IS NULL
@@ -560,7 +638,7 @@ WHERE
     -- a los que ya se repartieron y esta lista los volvería a ofrecer para el camión de
     -- mañana. Es el mismo par de columnas de ` + "`" + `reparto = 'sin_entregar'` + "`" + `, ahí abajo.
     AND o.delivered_at IS NULL
-    AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+    AND (o.resultado IS NULL OR o.resultado = 'devuelto')
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
@@ -623,7 +701,9 @@ WHERE
         $10::text IS NULL
         OR ($10::text = 'sin_entregar'
             AND o.route_id IS NULL AND o.delivered_at IS NULL
-            AND (o.resultado IS NULL OR o.resultado <> 'entregado'))
+            AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+            -- Sin las canceladas (issue 25): ya no se reparten.
+            AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result)
         OR ($10::text = 'en_despacho'
             AND EXISTS (SELECT 1 FROM routes r WHERE r.id = o.route_id AND r.status = 'planned'))
         OR ($10::text = 'en_ruta'
@@ -631,7 +711,13 @@ WHERE
         OR ($10::text = 'entregado'
             AND (o.resultado = 'entregado' OR o.delivered_at IS NOT NULL))
         OR ($10::text = 'devuelto'
-            AND o.resultado IN ('devuelto', 'cancelado'))
+            -- SÓLO devueltas y sin ruta (issue 25, igual que la app: ` + "`" + `RepartoFiltro.devuelto` + "`" + `); las canceladas tienen su filtro.
+            AND o.resultado = 'devuelto' AND o.route_id IS NULL)
+        OR ($10::text = 'cancelado'
+            AND o.resultado = 'cancelado')
+        -- NUEVAS: sin ruta y sin resultado, para distinguirlas de las devueltas (la app: ` + "`" + `RepartoFiltro.nuevas` + "`" + `).
+        OR ($10::text = 'nuevas'
+            AND o.route_id IS NULL AND o.delivered_at IS NULL AND o.resultado IS NULL)
     )
     AND (
         $11::text IS NULL
@@ -1887,13 +1973,21 @@ WHERE
         $10::text IS NULL
         OR ($10::text = 'sin_entregar'
             AND o.route_id IS NULL AND o.delivered_at IS NULL
-            AND (o.resultado IS NULL OR o.resultado <> 'entregado'))
+            AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+            -- Sin las canceladas (issue 25): ya no se reparten.
+            AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result)
         OR ($10::text = 'en_despacho' AND r.status = 'planned')
         OR ($10::text = 'en_ruta'     AND r.status = 'in_progress')
         OR ($10::text = 'entregado'
             AND (o.resultado = 'entregado' OR o.delivered_at IS NOT NULL))
         OR ($10::text = 'devuelto'
-            AND o.resultado IN ('devuelto', 'cancelado'))
+            -- SÓLO devueltas y sin ruta (issue 25, igual que la app: ` + "`" + `RepartoFiltro.devuelto` + "`" + `); las canceladas tienen su filtro.
+            AND o.resultado = 'devuelto' AND o.route_id IS NULL)
+        OR ($10::text = 'cancelado'
+            AND o.resultado = 'cancelado')
+        -- NUEVAS: sin ruta y sin resultado, para distinguirlas de las devueltas (la app: ` + "`" + `RepartoFiltro.nuevas` + "`" + `).
+        OR ($10::text = 'nuevas'
+            AND o.route_id IS NULL AND o.delivered_at IS NULL AND o.resultado IS NULL)
     )
     AND (
         $11::text IS NULL
@@ -2115,7 +2209,10 @@ WHERE
     -- a los que ya se repartieron y esta lista los volvería a ofrecer para el camión de
     -- mañana. Es el mismo par de columnas de ` + "`" + `reparto = 'sin_entregar'` + "`" + `, ahí abajo.
     AND o.delivered_at IS NULL
-    AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+    -- SÓLO EL DEVUELTO VUELVE (issue 25 de Amado, 05/11/2026): un ` + "`" + `cancelado` + "`" + ` sin ruta es una factura que el cliente
+    -- ya no quiere y no se reparte más. Misma línea en las dos listas, sus contadores, el tablero, ` + "`" + `ColocarPedido` + "`" + ` y
+    -- ` + "`" + `EngancharPedidoARuta` + "`" + `.
+    AND (o.resultado IS NULL OR o.resultado = 'devuelto')
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
@@ -2207,7 +2304,9 @@ WHERE
         $10::text IS NULL
         OR ($10::text = 'sin_entregar'
             AND o.route_id IS NULL AND o.delivered_at IS NULL
-            AND (o.resultado IS NULL OR o.resultado <> 'entregado'))
+            AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+            -- Sin las canceladas (issue 25): ya no se reparten.
+            AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result)
         OR ($10::text = 'en_despacho'
             AND EXISTS (SELECT 1 FROM routes r WHERE r.id = o.route_id AND r.status = 'planned'))
         OR ($10::text = 'en_ruta'
@@ -2215,7 +2314,13 @@ WHERE
         OR ($10::text = 'entregado'
             AND (o.resultado = 'entregado' OR o.delivered_at IS NOT NULL))
         OR ($10::text = 'devuelto'
-            AND o.resultado IN ('devuelto', 'cancelado'))
+            -- SÓLO devueltas y sin ruta (issue 25, igual que la app: ` + "`" + `RepartoFiltro.devuelto` + "`" + `); las canceladas tienen su filtro.
+            AND o.resultado = 'devuelto' AND o.route_id IS NULL)
+        OR ($10::text = 'cancelado'
+            AND o.resultado = 'cancelado')
+        -- NUEVAS: sin ruta y sin resultado, para distinguirlas de las devueltas (la app: ` + "`" + `RepartoFiltro.nuevas` + "`" + `).
+        OR ($10::text = 'nuevas'
+            AND o.route_id IS NULL AND o.delivered_at IS NULL AND o.resultado IS NULL)
     )
     -- ` + "`" + `sin_cotejar` + "`" + ` tiene opción propia porque NULL NO es «cuadra»: quiere decir que no se
     -- sabe —VPN a Ventra caída, pedido fuera de los días que se repasan, sucursal sin base—.
@@ -2895,6 +3000,8 @@ FROM orders o
 LEFT JOIN branches b ON b.id = o.branch_id
 WHERE o.route_id IS NULL
   AND NOT o.archivado
+  -- UNA FACTURA CANCELADA (resultado 'cancelado', sin ruta) NO ES REPARTIBLE: el cliente no la quiere (issue 25 de Amado).
+  AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result
   AND o.end_lat IS NOT NULL
   AND o.factura_estado IN ('igual','cambiado')
   -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
@@ -2946,11 +3053,13 @@ SELECT
     count(*) FILTER (WHERE o.conduce_principal_id IS NULL)          AS total_pedidos,
     count(*) FILTER (WHERE o.conduce_principal_id IS NULL
                        AND o.route_id IS NULL
+                       AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result
                        AND o.end_lat IS NOT NULL
                        AND o.factura_estado IN ('igual','cambiado')) AS sin_ruta,
     count(*) FILTER (WHERE o.conduce_principal_id IS NULL
                        AND o.delivered_at >= $1::timestamptz) AS entregados_hoy,
     coalesce(sum(o.weight) FILTER (WHERE o.route_id IS NULL
+                       AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result
                        AND o.end_lat IS NOT NULL
                        AND o.factura_estado IN ('igual','cambiado')), 0)::double precision AS peso_pendiente,
     coalesce(sum(o.pedido_costo), 0)::double precision              AS total_domicilios

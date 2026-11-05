@@ -1127,9 +1127,10 @@ func TestMotorReal_ParadasQueViajaronYSuResultado(t *testing.T) {
 		}
 		igualesTxt(t, "lista tras devolver", listar(t, e, e.ruta, alcance(e.suc)), []string{"o1", "o2", "o5"})
 
-		// marcarlo OTRA VEZ ya con route_id NULL (corregir un devuelto): sigue valiendo
+		// marcarlo OTRA VEZ ya con route_id NULL (corregir un devuelto): sigue valiendo. (Antes se corregía a
+		// `cancelado`; desde el issue 25 un cancelado es terminal y eso lo cubre `TestMotorReal_UnCanceladoNoSeDeshaceDesdeLaHoja`.)
 		n, err = e.q.MarcarResultadoDeParada(e.ctx, MarcarResultadoDeParadaParams{
-			Resultado: StopResultCancelado, RutaID: alcance(e.ruta), PedidoID: e.o2, Sucursal: sinAlcance})
+			Resultado: StopResultDevuelto, Nota: str("otra vez"), RutaID: alcance(e.ruta), PedidoID: e.o2, Sucursal: sinAlcance})
 		if err != nil || n != 1 {
 			t.Fatalf("re-marcar un devuelto: n=%d err=%v", n, err)
 		}
@@ -2079,6 +2080,7 @@ func TestMotorReal_LaReglaDeEntradaEsLaDelFichero(t *testing.T) {
 				FacturaDomicilio  *float64 `json:"facturaDomicilio"`
 				PedidoCosto       *float64 `json:"pedidoCosto"`
 				RequiereDomicilio *bool    `json:"requiereDomicilio"`
+				Resultado         *string  `json:"resultado"`
 				Entra             bool     `json:"entra"`
 			} `json:"casos"`
 		} `json:"reglaDeEntrada"`
@@ -2097,6 +2099,7 @@ func TestMotorReal_LaReglaDeEntradaEsLaDelFichero(t *testing.T) {
 			s := listo(c.OperationNumber, suc)
 			s.Factura, s.Domicilio, s.Costo = c.FacturaEstado, c.FacturaDomicilio, c.PedidoCosto
 			s.Requiere = c.RequiereDomicilio != nil && *c.RequiereDomicilio
+			s.Resultado = c.Resultado // devuelto/cancelado SIN ruta (issue 25): sólo el devuelto vuelve
 			p := b.pedido(s)
 			if c.RequiereDomicilio == nil {
 				b.exec(`UPDATE orders SET requiere_domicilio = NULL WHERE id = $1`, p)

@@ -103,6 +103,9 @@ func (s *Servidor) rutasPedidos(rt *httpx.Router, sesion, admin []httpx.Medio) {
 	rt.ManejarFunc(http.MethodPut, "/api/orders/{id}/punto", s.ponerPuntoDeEntrega, sesion...)
 	rt.ManejarFunc(http.MethodDelete, "/api/orders/{id}/punto", s.devolverPuntoDeEntregaAlCliente, sesion...)
 
+	// CANCELAR UNA FACTURA DEVUELTA (issue 25 de Amado). Ver `cancelar_factura.go`.
+	rt.ManejarFunc(http.MethodPost, "/api/orders/{id}/cancelar", s.cancelarFacturaDevuelta, sesion...)
+
 	rt.ManejarFunc(http.MethodPost, "/api/orders/recompute-weights", s.recalcularPesos, s.mediosDeServicio()...)
 
 	// POST /api/orders NO SE REGISTRA, y no es un olvido: el alta manual se retiró el
@@ -1304,7 +1307,7 @@ func leerFiltros(r *http.Request) filtrosPedido {
 		Cotizado:   unoOCero(valorDe("cotizado")),
 		Municipio:  opcional(valorDe("municipio")),
 		Vendedores: vendedoresDe(q),
-		Reparto:    deLaLista(valorDe("reparto"), "sin_entregar", "en_despacho", "en_ruta", "entregado", "devuelto"),
+		Reparto:    deLaLista(valorDe("reparto"), "sin_entregar", "en_despacho", "en_ruta", "entregado", "devuelto", "cancelado", "nuevas"),
 		// `factura` NO se valida contra una lista: el contrato dice que cualquier otro
 		// valor no vacío se compara tal cual contra `factura_estado`. La última rama del
 		// SQL es justo ésa.

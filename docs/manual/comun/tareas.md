@@ -101,6 +101,8 @@ arrastra.
 | Filtrar y ordenar la lista | **Facturas** | — | [ir](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-facturas) |
 | Juntar facturas en un conduce (y sacarlas o deshacerlo) | **Facturas** | [ir](../apk/3-tareas.md#juntar-facturas-en-un-conduce) | [ir](../web/2-tareas.md#juntar-facturas-en-un-conduce) |
 | Sacar una factura de un conduce o deshacerlo | **Facturas** | [ir](../apk/3-tareas.md#sacar-una-factura-de-un-conduce-o-deshacerlo) | [ir](../web/2-tareas.md#sacar-una-factura-de-un-conduce-o-deshacerlo) |
+| Cancelar una factura devuelta | **Facturas** | [ir](../apk/3-tareas.md#cancelar-una-factura-devuelta) | [ir](../web/2-tareas.md#cancelar-una-factura-devuelta) |
+| Ver las facturas canceladas por periodo y sacarlas a Excel | **Facturas** | [ir](../apk/3-tareas.md#ver-las-facturas-canceladas-por-periodo-y-sacarlas-a-excel) | [ir](../web/2-tareas.md#ver-las-facturas-canceladas-por-periodo-y-sacarlas-a-excel) |
 | Mandar varias facturas a una zona de golpe | **Facturas** | [ir](../apk/3-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe) | [ir](../web/2-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe) |
 | Sacar el pre-despacho de lo filtrado | **Facturas** | [ir](../apk/3-tareas.md#sacar-el-pre-despacho-de-lo-que-tienes-filtrado) | — |
 

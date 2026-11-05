@@ -181,6 +181,42 @@ tal cual.
 
 ---
 
+## Cancelar una factura devuelta
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Facturas»**.
+
+Una factura que volvió del camión (**«Devuelta»**) acaba de dos maneras: en **otra ruta otro día**, o **cancelada** porque el cliente se arrepintió. Las devueltas llevan una marca **«Devuelta»** con borde, para distinguirlas de las nuevas que han entrado. En la web el cambio **va al servidor y espera su respuesta**: si dice que no, aquí mismo sale su motivo, tal cual, y la factura sigue devuelta.
+
+1. **Clic en la factura devuelta** (la que lleva la marca **«Devuelta»**) para abrir su ficha.
+   - Para encontrarlas: **«Estado de reparto en delivery» → «Devueltas»**, o en el Tablero, **«Devueltas o nuevas» → «Devueltas»** en los filtros de «Sin colocar».
+2. **Clic en «Cancelar la factura»**, en la sección **«Devolución»**. <!-- señala: pedidos-cancelar-devuelta -->
+3. En el cajón, escribe una **nota** si quieres (es opcional, hasta 500 letras) y **Clic en «Cancelar la factura»**, abajo. <!-- señala: pedidos-confirmar-cancelar -->
+   - La factura queda **cancelada**: ya no sale en «Sin colocar», ni en el Tablero, ni al armar una ruta, ni en el Panel. La ficha pasa a decir **«Cancelada el …»** con tu nota.
+
+**Sólo se cancela una factura devuelta y sin ruta.** Si va en una ruta, va dentro de un conduce (cancela el conduce desde su principal y se cancelan todas) o ya está cancelada, el botón no sale o el cajón lo dice con las palabras del servidor.
+
+**No hay «deshacer» desde aquí**: una factura cancelada no vuelve a repartirse.
+
+---
+
+## Ver las facturas canceladas por periodo y sacarlas a Excel
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Facturas»**.
+
+Sirve para los reportes: **entran todas las canceladas**, las que cancelaste tú desde una devuelta y las que se cancelaron al cerrar una ruta.
+
+1. **En «Facturas», abre la pestaña «Canceladas»**. <!-- señala: pedidos-pestanas -->
+2. Elige el periodo con **«Desde (fecha de la cancelación)»** y **«Hasta (fecha de la cancelación)»**. Las fechas se cuentan en **hora de Cuba**, los dos días incluidos. Sin fechas salen todas.
+   - Cada una dice la **factura**, el **cliente**, **cuándo se canceló** y la **nota** («Sin nota» si no hay). Arriba, el contador: **«12 canceladas»**.
+3. **Clic en «Exportar a Excel»** para llevarte las del periodo. <!-- señala: pedidos-exportar-canceladas -->
+   - El navegador descarga el fichero. El fichero se llama `canceladas-AAAA-MM-DD.xlsx`, con una fila por factura y el total al final.
+
+**La lista enseña las 200 más recientes**; si hay más, lo dice. El Excel lleva **todas** las del periodo. **El Excel no dice quién la canceló**: ese dato no consta en la factura.
+
+---
+
 ## Mandar varias facturas a una zona de golpe
 <!-- tarea -->
 

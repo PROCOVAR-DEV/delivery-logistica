@@ -15,6 +15,8 @@ manual de la web:
 - [Filtrar y ordenar la lista de facturas](../web/2-tareas.md#filtrar-y-ordenar-la-lista-de-facturas)
 - [Sacar una factura de un conduce o deshacerlo](../web/2-tareas.md#sacar-una-factura-de-un-conduce-o-deshacerlo)
 - [Juntar facturas en un conduce](../web/2-tareas.md#juntar-facturas-en-un-conduce) (**lo único distinto**: aquí funciona sin señal, como en el teléfono; el cambio sube cuando haya)
+- [Cancelar una factura devuelta](../web/2-tareas.md#cancelar-una-factura-devuelta) (**lo único distinto**: aquí funciona sin señal, como en el teléfono; el cambio sube cuando haya)
+- [Ver las facturas canceladas por periodo y sacarlas a Excel](../web/2-tareas.md#ver-las-facturas-canceladas-por-periodo-y-sacarlas-a-excel) (**lo único distinto**: el Excel se guarda en la carpeta de Descargas)
 - [Mandar varias facturas a una zona de golpe](../web/2-tareas.md#mandar-varias-facturas-a-una-zona-de-golpe)
 - [Ver el detalle de una factura](../web/2-tareas.md#ver-el-detalle-de-una-factura)
 - [Poner el punto de entrega de una factura a mano](../web/2-tareas.md#poner-el-punto-de-entrega-de-una-factura-a-mano) (**lo único distinto**: aquí funciona sin señal, como en el teléfono; ver abajo)

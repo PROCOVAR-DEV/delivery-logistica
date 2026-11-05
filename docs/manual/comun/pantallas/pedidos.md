@@ -43,7 +43,7 @@ factura que cambió respecto de lo pedido sí entra: al camión va lo facturado.
 | Filtro | Por defecto | Qué hace |
 |---|---|---|
 | **Buscar** | vacío | Busca en cliente, folio, dirección, municipio, vendedor y productos. Busca solo, sin Intro |
-| **«Estado de reparto en delivery»** | «Cualquier reparto» | «Sin entregar», «En despacho», «En ruta», «Entregado», «Devuelto o cancelado». **Cada opción lleva al lado cuántas facturas hay en ese estado** (con el resto de filtros puestos) |
+| **«Estado de reparto en delivery»** | «Cualquier reparto» | «Sin entregar», «En despacho», «En ruta», «Entregado», «Devueltas» (volvieron del camión y siguen sin ruta; llevan la marca **«Devuelta»**) y «Nuevas» (sin ruta y sin resultado). Las canceladas tienen su propia pestaña, **«Canceladas»**. **Cada opción lleva al lado cuántas facturas hay en ese estado** (con el resto de filtros puestos) |
 | **«Municipio del cliente»** | «Todos los municipios» | Cada municipio con cuántas facturas tiene |
 | **«Precio del domicilio»** | «Cualquier precio de domicilio» | «Con precio puesto: el domicilio trae importe» o «Domicilio sin precio puesto: va en $0». Ventra sólo manda facturas con la línea de ENTREGA A DOMICILIO; en las «sin precio puesto» esa línea está pero con el importe en $0. **No es cuentas por cobrar:** no dice si el cliente ya pagó la factura, sino si la línea de entrega a domicilio de la factura trae un importe o va a cero |
 | **«Pedido de origen»** | «Con o sin pedido» | «Con pedido» o «Sin pedido»: si la factura viene de un pedido de PEDIDO (tiene su folio) o no |

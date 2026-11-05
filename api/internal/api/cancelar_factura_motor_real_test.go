@@ -5,11 +5,15 @@ package api
 // consultas reales por la puerta HTTP, en una transacción que se revierte. Se salta sin REPARTO_MOTOR_REAL_DSN.
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+
+	"procovar/reparto-api/internal/store/sqlc"
 )
 
 // devuelta deja una factura como la deja el cierre de una ruta con un devuelto: sin route_id, con la hoja
@@ -247,5 +251,184 @@ func TestMotorReal_Cancelar_UnConduceSeCancelaEnteroPorSuPrincipal(t *testing.T)
 	}
 	if len(e.avisados) != 2 || !facturas["47540:cancelado"] || !facturas["47541:cancelado"] {
 		t.Fatalf("PEDIDO tenía que enterarse de las dos facturas: %+v", e.avisados)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Auditoría del issue 25
+// ---------------------------------------------------------------------------
+
+type cierreDeRuta struct {
+	Error     string `json:"error"`
+	Aplicados []struct {
+		OrderID string `json:"orderId"`
+	} `json:"aplicados"`
+	Rechazados []struct {
+		OrderID string `json:"orderId"`
+		Motivo  string `json:"motivo"`
+	} `json:"rechazados"`
+}
+
+// G1 · UNA CANCELADA NO SE DESHACE POR `/results` MIENTRAS LA RUTA NO ESTÉ COMPLETADA. Ruta en curso, parada devuelta,
+// se cancela, y se reenvía «devuelto», «entregado» y «sin marca»: los tres 409 con el motivo literal, la fila sigue
+// cancelada y sale en la hoja de la ruta. Volver a mandar «cancelado» (una hoja reenviada entera) SÍ pasa.
+func TestMotorReal_Cancelar_NoSeDeshaceDesdeLaHojaDeCierre(t *testing.T) {
+	e := nuevoEntornoDeConduces(t)
+	f := e.factura("47600", "Cliente", 2)
+	otra := e.factura("47601", "Otra", 2)
+	ruta := e.id(`INSERT INTO routes (branch_id, status, name, origin_lat, origin_lng) VALUES ($1, 'in_progress', 'hoy', 20, -75) RETURNING id`, e.stg)
+	e.exec(`UPDATE orders SET route_id = $2, ultima_ruta_id = $2, stop_order = 1 WHERE id = $1`, f, ruta)
+	e.exec(`UPDATE orders SET route_id = $2, ultima_ruta_id = $2, stop_order = 2 WHERE id = $1`, otra, ruta)
+	url := "/api/routes/" + ruta.String() + "/results"
+	marcar := func(id uuid.UUID, resultado string) (int, cierreDeRuta) {
+		t.Helper()
+		code, cuerpo := e.llamar(e.jwt, http.MethodPost, url, `{"resultados":[{"orderId":"`+id.String()+`","resultado":`+resultado+`}]}`)
+		var c cierreDeRuta
+		_ = json.Unmarshal([]byte(cuerpo), &c)
+		return code, c
+	}
+
+	if code, c := marcar(f, `"devuelto"`); code != http.StatusOK {
+		t.Fatalf("devolver la parada de la ruta en curso: %d %+v", code, c)
+	}
+	if code, cuerpo := e.llamar(e.jwt, http.MethodPost, "/api/orders/"+f.String()+"/cancelar", `{"nota":"se arrepintió"}`); code != http.StatusOK {
+		t.Fatalf("cancelar: %d %s", code, cuerpo)
+	}
+	for _, c := range []struct{ nombre, resultado string }{
+		{"devuelto", `"devuelto"`}, {"entregado", `"entregado"`}, {"sin marca (null)", `null`},
+	} {
+		code, cierre := marcar(f, c.resultado)
+		if code != http.StatusConflict || len(cierre.Rechazados) != 1 || cierre.Rechazados[0].Motivo != msgParadaCancelada || len(cierre.Aplicados) != 0 {
+			t.Fatalf("reenviar %s sobre una cancelada: %d %+v (tenía que ser 409 «%s»)", c.nombre, code, cierre, msgParadaCancelada)
+		}
+		if d := e.foto(f); d.Resultado == nil || *d.Resultado != "cancelado" || d.Ruta != nil || d.Nota == nil || *d.Nota != "se arrepintió" {
+			t.Fatalf("reenviar %s deshizo la cancelación: %+v", c.nombre, d)
+		}
+	}
+	// Una hoja con la cancelada Y otra parada buena: la buena se guarda, la cancelada se rechaza con su motivo.
+	code, cuerpo := e.llamar(e.jwt, http.MethodPost, url, `{"resultados":[{"orderId":"`+f.String()+`","resultado":"entregado"},{"orderId":"`+otra.String()+`","resultado":"entregado"}]}`)
+	if code != http.StatusConflict || !strings.Contains(cuerpo, otra.String()) {
+		t.Fatalf("hoja mixta: %d %s", code, cuerpo)
+	}
+	if d := e.foto(otra); d.Resultado == nil || *d.Resultado != "entregado" {
+		t.Fatalf("la parada buena de la hoja mixta no se guardó: %+v", d)
+	}
+	// Repetir «cancelado» no se rechaza.
+	if code, c := marcar(f, `"cancelado"`); code != http.StatusOK {
+		t.Fatalf("repetir «cancelado»: %d %+v", code, c)
+	}
+	// LA PAREJA: una devuelta de la misma ruta sí se corrige y se desmarca.
+	d := e.factura("47602", "Devuelta", 1)
+	e.exec(`UPDATE orders SET route_id = $2, ultima_ruta_id = $2, stop_order = 3 WHERE id = $1`, d, ruta)
+	if code, c := marcar(d, `"devuelto"`); code != http.StatusOK {
+		t.Fatalf("devolver: %d %+v", code, c)
+	}
+	if code, c := marcar(d, `null`); code != http.StatusOK {
+		t.Fatalf("desmarcar una devuelta: %d %+v", code, c)
+	}
+}
+
+// M1 · UN NUL EN LA NOTA ES UN 400 (Postgres no lo guarda en un `text`; era un 500 y por la cola el apunte se reintentaba
+// para siempre). En la cancelación y en el cierre de ruta; nada se escribe.
+func TestMotorReal_Cancelar_UnaNotaConNULEsUn400(t *testing.T) {
+	e := nuevoEntornoDeConduces(t)
+	f := e.devuelta(e.factura("47610", "Uno", 1))
+	if code, cuerpo := e.llamar(e.jwt, http.MethodPost, "/api/orders/"+f.String()+"/cancelar", `{"nota":"a\u0000b"}`); code != http.StatusBadRequest || !strings.Contains(cuerpo, msgNotaConNUL) {
+		t.Fatalf("cancelar con NUL: %d %s", code, cuerpo)
+	}
+	if d := e.foto(f); *d.Resultado != "devuelto" {
+		t.Fatalf("un 400 cambió la factura: %+v", d)
+	}
+	ruta := e.id(`INSERT INTO routes (branch_id, status, name, origin_lat, origin_lng) VALUES ($1, 'in_progress', 'hoy', 20, -75) RETURNING id`, e.stg)
+	p := e.factura("47611", "Dos", 1)
+	e.exec(`UPDATE orders SET route_id = $2, ultima_ruta_id = $2 WHERE id = $1`, p, ruta)
+	url := "/api/routes/" + ruta.String() + "/results"
+	if code, cuerpo := e.llamar(e.jwt, http.MethodPost, url, `{"resultados":[{"orderId":"`+p.String()+`","resultado":"devuelto","nota":"a\u0000b"}]}`); code != http.StatusBadRequest || !strings.Contains(cuerpo, msgNotaConNUL) {
+		t.Fatalf("cierre con NUL: %d %s", code, cuerpo)
+	}
+	// LA PAREJA: la misma hoja sin NUL se guarda.
+	if code, cuerpo := e.llamar(e.jwt, http.MethodPost, url, `{"resultados":[{"orderId":"`+p.String()+`","resultado":"devuelto","nota":"ab"}]}`); code != http.StatusOK {
+		t.Fatalf("cierre sin NUL: %d %s", code, cuerpo)
+	}
+}
+
+// S2 · EL `if len(ids) == 0` DEL MANEJADOR: la lectura previa dice que se puede, pero entre ella y la escritura la factura
+// entró en una ruta (la carrera). La escritura no toca nada y contesta 409 «cambió mientras se cancelaba», sin avisar a PEDIDO.
+func TestMotorReal_Cancelar_LaCarreraEntreLaLecturaYLaEscritura(t *testing.T) {
+	e := nuevoEntornoDeConduces(t)
+	f := e.devuelta(e.factura("47620", "Uno", 1))
+	ruta := e.id(`INSERT INTO routes (branch_id, status, name) VALUES ($1, 'planned', 'hoy') RETURNING id`, e.stg)
+	e.trasLeerPedido = func(id uuid.UUID) { e.exec(`UPDATE orders SET route_id = $2 WHERE id = $1`, id, ruta) }
+	code, cuerpo := e.llamar(e.jwt, http.MethodPost, "/api/orders/"+f.String()+"/cancelar", "")
+	if code != http.StatusConflict || !strings.Contains(cuerpo, msgCancelarCambio) {
+		t.Fatalf("la carrera: %d %s (tenía que ser 409 «%s»)", code, cuerpo, msgCancelarCambio)
+	}
+	if d := e.foto(f); *d.Resultado != "devuelto" || d.Ruta == nil {
+		t.Fatalf("la carrera canceló la factura: %+v", d)
+	}
+	if len(e.avisados) != 0 || e.avisosEnElBuzon("cancelado") != 0 {
+		t.Fatalf("la carrera avisó a PEDIDO: %+v", e.avisados)
+	}
+}
+
+// S3 · LOS TRES MOTIVOS DE «ESTÁ CANCELADA»: colocar en una zona, la tarjeta ya puesta (candidata) y armar una ruta.
+func TestMotorReal_Cancelar_LosMotivosDeLaCancelada(t *testing.T) {
+	e := nuevoEntornoDeConduces(t)
+	tipo := e.id(`INSERT INTO vehicle_types (nombre) VALUES ('Camión de prueba') RETURNING id`)
+	camion := e.id(`INSERT INTO vehicles (name, vehicle_type_id, capacity, branch_id) VALUES ('C1', $1, 1000, $2) RETURNING id`, tipo, e.stg)
+	zona := e.id(`INSERT INTO board_columns (branch_id, nombre, posicion, vehicle_id) VALUES ($1, 'Centro', 1, $2) RETURNING id`, e.stg, camion)
+	cancelada := func(numero string) uuid.UUID {
+		f := e.devuelta(e.factura(numero, "Cliente "+numero, 1))
+		e.exec(`UPDATE orders SET resultado = 'cancelado' WHERE id = $1`, f)
+		return f
+	}
+
+	// 1 · COLOCAR: 409 «Esa factura está cancelada» (y no el 404 de la zona ni «ya va en una ruta»).
+	c1 := cancelada("47630")
+	code, cuerpo := e.llamar(e.jwt, http.MethodPut, "/api/board/placements/"+c1.String(), fmt.Sprintf(`{"columnaId":%q}`, zona))
+	if code != http.StatusConflict || !strings.Contains(cuerpo, msgYaSeCancelo) {
+		t.Fatalf("colocar una cancelada: %d %s", code, cuerpo)
+	}
+	var puestas int
+	if err := e.tx.QueryRow(e.ctx, `SELECT count(*) FROM board_placements WHERE order_id = $1`, c1).Scan(&puestas); err != nil || puestas != 0 {
+		t.Fatalf("la cancelada quedó colocada: %d (%v)", puestas, err)
+	}
+
+	// 2 · LA TARJETA YA PUESTA (cancelada después de colocarse), con punto: no se arma y se nombra («está cancelada»).
+	c2 := cancelada("47631")
+	e.exec(`INSERT INTO board_placements (order_id, column_id, posicion) VALUES ($1, $2, 0)`, c2, zona)
+	code, cuerpo = e.llamar(e.jwt, http.MethodPost, "/api/board/columns/"+zona.String()+"/route", `{"nombre":"r"}`)
+	if code != http.StatusConflict || !strings.Contains(cuerpo, `"motivo":"está cancelada"`) {
+		t.Fatalf("armar la zona con una cancelada: %d %s", code, cuerpo)
+	}
+	// 3 · ARMAR UNA RUTA con ella: el literal del plural/singular, y el detalle de «no se pudo armar» (sin punto).
+	c3 := cancelada("47632")
+	code, cuerpo = e.llamar(e.jwt, http.MethodPost, "/api/routes", fmt.Sprintf(`{"vehicleId":%q,"orderIds":[%q],"originLat":20,"originLng":-75}`, camion, c3))
+	if code != http.StatusConflict || !strings.Contains(cuerpo, "1 de las facturas elegidas ESTÁ CANCELADA y no puede volver a un camión: 47632.") {
+		t.Fatalf("armar con una cancelada: %d %s", code, cuerpo)
+	}
+	e.exec(`UPDATE orders SET end_lat = NULL, end_lng = NULL WHERE id = $1`, c3)
+	code, cuerpo = e.llamar(e.jwt, http.MethodPost, "/api/routes", fmt.Sprintf(`{"vehicleId":%q,"orderIds":[%q],"originLat":20,"originLng":-75}`, camion, c3))
+	if code != http.StatusBadRequest || !strings.Contains(cuerpo, "47632 (está cancelada y no puede volver a un camión)") {
+		t.Fatalf("armar con una cancelada sin punto: %d %s", code, cuerpo)
+	}
+}
+
+// S3 · LOS DOS TRADUCTORES DE «POR QUÉ NO», sin pasar por el HTTP (la tarjeta sin punto de una zona rompe `ListarPedidosColocados`
+// con un NULL en `km_al_almacen`, hallazgo previo y ajeno a este cambio: ver el informe): la cancelada se nombra «está cancelada»
+// y, EN PAREJA, la misma fila con ruta o sin resultado cae en su motivo de siempre.
+func TestElPorQueNoDeLaCanceladaSeNombra(t *testing.T) {
+	cancelado, devuelto := sqlc.StopResultCancelado, sqlc.StopResultDevuelto
+	if m, q := porQueNoEsCandidato(sqlc.ListarPedidosColocadosRow{Resultado: &cancelado}); m != "está cancelada" || q == "" {
+		t.Fatalf("porQueNoEsCandidato(cancelada) = %q / %q", m, q)
+	}
+	if m, _ := porQueNoEsCandidato(sqlc.ListarPedidosColocadosRow{Resultado: &devuelto}); m == "está cancelada" {
+		t.Fatalf("una devuelta no está cancelada: %q", m)
+	}
+	if got := porQueNoSeArma(sqlc.PorQueNoSePuedeArmarRow{Resultado: &cancelado}); got != "está cancelada y no puede volver a un camión" {
+		t.Fatalf("porQueNoSeArma(cancelada) = %q", got)
+	}
+	if got := porQueNoSeArma(sqlc.PorQueNoSePuedeArmarRow{Resultado: &devuelto}); got == "está cancelada y no puede volver a un camión" {
+		t.Fatalf("una devuelta no está cancelada: %q", got)
 	}
 }

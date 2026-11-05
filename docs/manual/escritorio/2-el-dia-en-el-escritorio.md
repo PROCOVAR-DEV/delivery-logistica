@@ -319,6 +319,9 @@ cuanto suba**. Es normal y no hay que hacer nada.
 1. Baja hasta **«Enviar a distribuidor»**: ahí dice si la ruta ya tiene teléfono.
    <!-- señala: rutas-enviar-a-distribuidor -->
 2. **Clic en «WhatsApp»** para mandarle su enlace al distribuidor. <!-- señala: rutas-whatsapp -->
+   **Mientras no tenga la app**, sigue el bloque **«Recorrido»**: **clic en «Abrir en Google Maps»**
+   para verlo tú, o mándaselo por WhatsApp, Compartir o Copiar desde ahí.
+   <!-- señala: rutas-abrir-en-google-maps -->
 3. **«Compartir»**, si lo quieres por otro sitio. <!-- señala: rutas-compartir -->
 4. O **«Copiar»**, y lo pegas tú. <!-- señala: rutas-copiar -->
 

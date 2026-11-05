@@ -1,14 +1,23 @@
-// EL BLOQUE DEL MAPA: lo que se ve y lo que DICE que se esta viendo. (Los gestos de
-// mandar la ruta al distribuidor se prueban en `test/pantallas/distribucion/`.)
+// EL BLOQUE DEL MAPA: lo que se ve, lo que DICE que se esta viendo, y lo que
+// sale del aparato cuando se pulsa.
 //
-// Las dos cosas que se vigilan aqui:
+// Jose, 17/09/2026: «El mapa, ¿por qué no me sale el mapa con la ruta, si
+// teníamos hasta para compartir la ruta por WhatsApp?».
+//
+// Las tres cosas que se vigilan aqui son las tres que fallan lejos de esta
+// oficina:
 //
 //  1. **Que la pantalla diga lo que ensena.** El croquis no lleva calles; quien
 //     lo mire tiene que enterarse ahi, no comparandolo con Google Maps.
 //  2. **Que la web y el aparato no digan lo mismo** (regla 1): la promesa de
 //     «se ve igual sin señal» es de la APK; en un navegador cuenta algo que no
 //     pasa nunca.
-// Nada de esto toca la red.
+//  3. **Que los botones manden lo que toca.** Un enlace mal armado no falla
+//     aqui: falla en el telefono del chofer.
+//
+// Nada de esto toca la red. El aparato va inyectado: es la razon de que
+// `AbrirYCompartir` sea una interfaz y no un `launchUrl` suelto dentro del
+// boton.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,7 +26,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/plataforma.dart';
 import 'package:reparto/nucleo/proveedores.dart';
-import 'package:reparto/pantallas/distribucion/vista/enviar_a_distribuidor.dart';
+import 'package:reparto/pantallas/rutas/datos/abrir_y_compartir.dart';
 import 'package:reparto/pantallas/rutas/datos/mapa_en_vivo.dart';
 import 'package:reparto/pantallas/rutas/datos/repositorio_rutas.dart';
 import 'package:reparto/pantallas/rutas/vista/croquis_de_ruta.dart';
@@ -28,6 +37,37 @@ import 'package:reparto/pantallas/rutas/vista/mapa_de_la_ruta.dart';
 import '../../apoyo/base_de_prueba.dart';
 import '../pedidos/sembrar.dart';
 import 'rutas_a_mano.dart';
+
+/// El aparato de mentira: apunta lo que se le pide y contesta lo que le digan.
+class AparatoEspia implements AbrirYCompartir {
+  AparatoEspia({this.abre = true, this.comparte = true, this.copia = true});
+
+  bool abre;
+  bool comparte;
+  bool copia;
+
+  final abiertos = <Uri>[];
+  final compartidos = <({String texto, String? asunto})>[];
+  final copiados = <String>[];
+
+  @override
+  Future<bool> abrir(Uri destino) async {
+    abiertos.add(destino);
+    return abre;
+  }
+
+  @override
+  Future<bool> compartir({required String texto, String? asunto}) async {
+    compartidos.add((texto: texto, asunto: asunto));
+    return comparte;
+  }
+
+  @override
+  Future<bool> copiar(String texto) async {
+    copiados.add(texto);
+    return copia;
+  }
+}
 
 RutaConTodo laRutaDeSiempre({int cuantas = 3}) => rutaAMano(
   vehiculo: camionAMano(),
@@ -43,6 +83,10 @@ RutaConTodo laRutaDeSiempre({int cuantas = 3}) => rutaAMano(
 );
 
 void main() {
+  late AparatoEspia aparato;
+
+  setUp(() => aparato = AparatoEspia());
+
   Future<void> pintar(
     WidgetTester tester,
     RutaConTodo ruta, {
@@ -63,6 +107,7 @@ void main() {
           // El destino se pone por provider y no compilando para web: es lo que
           // deja ejercitar las dos mitades de la regla 1 en la misma suite.
           trabajaSinConexionProvider.overrideWithValue(enElAparato),
+          abrirYCompartirProvider.overrideWithValue(aparato),
           // EL PATIO DEL ALMACEN, por defecto: ni teselas ni OSRM. Ademas de ser
           // el caso que mas importa, es lo que garantiza que **de esta maquina
           // no sale una peticion**.
@@ -263,7 +308,7 @@ void main() {
       expect(find.textContaining('todavía no tiene paradas'), findsOneWidget);
     });
 
-    testWidgets('sin almacen pero con paradas, se dibuja igual', (
+    testWidgets('sin almacen pero con paradas, se dibuja igual y se avisa', (
       tester,
     ) async {
       final ruta = rutaAMano(
@@ -273,8 +318,193 @@ void main() {
       );
       await pintar(tester, ruta, enElAparato: true);
 
-      // El dibujo sale —es lo que hay— aunque la ruta no tenga almacén.
+      // El dibujo sale —es lo que hay— y el motivo de que no haya enlace
+      // tambien: son dos cosas distintas y fallan por separado.
       expect(find.byKey(CroquisDeRuta.clave), findsOneWidget);
+      expect(find.textContaining('almacén de salida'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(claveDeAbrirEnGoogleMaps))
+            .onPressed,
+        isNull,
+      );
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  group('lo que sale del aparato al pulsar', () {
+    testWidgets('«Abrir en Google Maps» manda las paradas EN ORDEN', (
+      tester,
+    ) async {
+      await pintar(tester, laRutaDeSiempre(), enElAparato: true);
+      await tester.tap(find.byKey(claveDeAbrirEnGoogleMaps));
+      await tester.pump();
+
+      expect(aparato.abiertos, hasLength(1));
+      final partes = aparato.abiertos.single.queryParameters;
+      expect(partes['waypoints'], '21.01,-77.01|21.02,-77.02|21.03,-77.03');
+      expect(partes['origin'], '21.38,-77.91');
+      expect(partes['destination'], '21.38,-77.91');
+    });
+
+    testWidgets('WhatsApp recibe el mensaje, y acaba en el enlace', (
+      tester,
+    ) async {
+      await pintar(tester, laRutaDeSiempre(), enElAparato: true);
+      await tester.tap(find.byKey(claveDeWhatsApp));
+      await tester.pump();
+
+      final destino = aparato.abiertos.single;
+      expect(destino.host, 'wa.me');
+      final mensaje = destino.queryParameters['text']!;
+      expect(mensaje, startsWith('Ruta RT-001'));
+      expect(mensaje, contains('3 paradas'));
+      expect(mensaje, contains('Camión 1 (P-001)'));
+      expect(
+        mensaje.split('\n').last,
+        startsWith('https://www.google.com/maps'),
+      );
+    });
+
+    testWidgets('el mensaje de WhatsApp lleva, por parada, la factura y lo que se baja (producto y cantidad)', (
+      tester,
+    ) async {
+      // 04/11/2026, Jose: «no tengo nada que identifique qué factura y qué productos o cantidad se pueden quedar en cada punto».
+      // Google Maps no admite notas por parada, así que va en el mensaje, en el mismo orden en que Maps lleva las paradas.
+      final base = baseDePrueba();
+      addTearDown(base.close);
+      await sembrarCatalogo(base);
+      await base
+          .into(base.routes)
+          .insert(RoutesCompanion.insert(id: 'R1', branchId: const Value('B1')));
+      for (var i = 1; i <= 3; i++) {
+        await sembrarPedido(
+          base,
+          id: 'p$i',
+          cliente: 'Cliente $i',
+          facturaNumero: 'F-$i',
+          ultimaRutaId: 'R1',
+          orden: i,
+          endLat: 21 + i / 100,
+          endLng: -77 - i / 100,
+        );
+        await sembrarRenglon(
+          base,
+          id: 'r$i',
+          pedidoId: 'p$i',
+          producto: 'Arroz $i',
+          unidades: 10,
+          empaques: 2.0 * i,
+        );
+      }
+
+      await pintar(tester, laRutaDeSiempre(), enElAparato: true, conBase: base);
+      await tester.tap(find.byKey(claveDeCopiar));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+      await tester.pump();
+
+      final texto = aparato.copiados.single;
+      expect(texto, contains('Qué se entrega en cada parada'));
+      expect(texto, contains('1. '));
+      expect(texto, contains('   · 2 × Arroz 1'));
+      expect(texto, contains('   · 6 × Arroz 3'));
+      expect(
+        texto.indexOf('Arroz 1'),
+        lessThan(texto.indexOf('Arroz 3')),
+        reason: 'en el orden de las paradas',
+      );
+      expect(texto.split('\n').last, startsWith('https://www.google.com/maps'));
+    });
+
+    testWidgets('«Compartir» saca el cajon del sistema con texto y asunto', (
+      tester,
+    ) async {
+      await pintar(tester, laRutaDeSiempre(), enElAparato: true);
+      await tester.tap(find.byKey(claveDeCompartir));
+      await tester.pump();
+
+      expect(aparato.compartidos, hasLength(1));
+      expect(aparato.compartidos.single.asunto, 'Ruta RT-001');
+      expect(
+        aparato.compartidos.single.texto,
+        contains('https://www.google.com/maps'),
+      );
+      // Y no se abre nada por su cuenta: compartir es compartir.
+      expect(aparato.abiertos, isEmpty);
+    });
+
+    testWidgets('«Copiar» deja el mensaje entero, no solo el enlace', (
+      tester,
+    ) async {
+      await pintar(tester, laRutaDeSiempre(), enElAparato: true);
+      await tester.tap(find.byKey(claveDeCopiar));
+      await tester.pump();
+
+      expect(aparato.copiados.single, startsWith('Ruta RT-001'));
+      expect(aparato.copiados.single, contains('https://www.google.com/maps'));
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  group('si falla, la pantalla NO se queda verde', () {
+    testWidgets('no se pudo abrir Google Maps: se dice, y con el motivo', (
+      tester,
+    ) async {
+      aparato.abre = false;
+      await pintar(tester, laRutaDeSiempre(), enElAparato: true);
+      await tester.tap(find.byKey(claveDeAbrirEnGoogleMaps));
+      await tester.pump();
+
+      expect(find.text(TextosDelMapa.noSeAbrio), findsOneWidget);
+    });
+
+    testWidgets('no se pudo compartir: se dice y se ofrece copiar', (
+      tester,
+    ) async {
+      aparato.comparte = false;
+      await pintar(tester, laRutaDeSiempre(), enElAparato: true);
+      await tester.tap(find.byKey(claveDeCompartir));
+      await tester.pump();
+
+      expect(find.text(TextosDelMapa.noSeCompartio), findsOneWidget);
+    });
+
+    testWidgets('cuando SI se abre, no sale ningun aviso', (tester) async {
+      // La pareja de la de arriba: un aviso que sale siempre deja de leerse, y
+      // entonces tampoco se lee el dia que importa (`CLAUDE.md` §3-quinquies).
+      await pintar(tester, laRutaDeSiempre(), enElAparato: true);
+      await tester.tap(find.byKey(claveDeAbrirEnGoogleMaps));
+      await tester.pump();
+
+      expect(find.text(TextosDelMapa.noSeAbrio), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  group('lo que no cabe en el enlace se dice en la pantalla', () {
+    testWidgets('con 30 paradas, el aviso esta a la vista', (tester) async {
+      await pintar(tester, laRutaDeSiempre(cuantas: 30), enElAparato: true);
+
+      expect(find.byKey(claveDeLoQueQuedaFuera), findsOneWidget);
+      expect(find.textContaining('5 paradas quedan fuera'), findsOneWidget);
+    });
+
+    testWidgets('con 3 paradas no hay aviso que estorbe', (tester) async {
+      await pintar(tester, laRutaDeSiempre(), enElAparato: true);
+
+      expect(find.byKey(claveDeLoQueQuedaFuera), findsNothing);
+    });
+
+    testWidgets('y el chofer se entera tambien por WhatsApp', (tester) async {
+      await pintar(tester, laRutaDeSiempre(cuantas: 30), enElAparato: true);
+      await tester.tap(find.byKey(claveDeWhatsApp));
+      await tester.pump();
+
+      expect(
+        aparato.abiertos.single.queryParameters['text'],
+        contains('5 paradas quedan fuera'),
+      );
     });
   });
 
@@ -312,7 +542,8 @@ void main() {
           overrides: [
             baseProvider.overrideWithValue(base),
             trabajaSinConexionProvider.overrideWithValue(true),
-              fondoDeCallesProvider.overrideWithValue(const SinCalles()),
+            abrirYCompartirProvider.overrideWithValue(aparato),
+            fondoDeCallesProvider.overrideWithValue(const SinCalles()),
             recorridoPorCallesProvider.overrideWithValue(
               const SinCallesQueSeguir(),
             ),
@@ -612,6 +843,26 @@ void main() {
         expect(caja.top, greaterThanOrEqualTo(0));
       },
     );
+
+    testWidgets('y también se llega a los cuatro botones', (tester) async {
+      await comoElDetalle(tester);
+
+      await tester.scrollUntilVisible(
+        find.byKey(claveDeCopiar),
+        200,
+        scrollable: find.byType(Scrollable),
+      );
+      await tester.pump();
+
+      final caja = tester.getRect(find.byKey(claveDeCopiar));
+      expect(caja.bottom, lessThanOrEqualTo(telefono.height));
+      // Y se puede pulsar de verdad, que es lo que no se podia en el original.
+      await tester.tap(find.byKey(claveDeCopiar));
+      // El mensaje lee de la base los productos de cada parada (Drift responde en tiempo real, fuera del reloj falso).
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+      await tester.pump();
+      expect(aparato.copiados, hasLength(1));
+    });
   });
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -705,10 +956,7 @@ void main() {
       await abrirElDetalle(tester);
 
       expect(find.byKey(CroquisDeRuta.clave), findsOneWidget);
-      // Y debajo del mapa, el envío al distribuidor (la lista es perezosa: hay que bajar hasta él).
-      await tester.drag(find.byType(ListView).first, const Offset(0, -400));
-      await tester.pump();
-      expect(find.byKey(claveDeEnviarWhatsApp, skipOffstage: false), findsOneWidget);
+      expect(find.byKey(claveDeAbrirEnGoogleMaps), findsOneWidget);
 
       await desmontar(tester);
     });

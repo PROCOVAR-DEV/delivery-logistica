@@ -437,6 +437,10 @@ almacén.
    ya tiene teléfono. <!-- señala: rutas-enviar-a-distribuidor -->
 2. **Toca «WhatsApp»** para mandarle su enlace al distribuidor.
    <!-- señala: rutas-whatsapp -->
+3. **Mientras el distribuidor no tenga la app**, sigue estando el recorrido con
+   Google Maps: **baja hasta el bloque «Recorrido»** y **toca «Abrir en Google Maps»**
+   para verlo tú, o mándaselo por WhatsApp, Compartir o Copiar desde ahí.
+   <!-- señala: rutas-abrir-en-google-maps -->
 3. O **«Compartir»**, si lo quieres por otro sitio.
    <!-- señala: rutas-compartir -->
 4. O **«Copiar»**, si prefieres pegarlo tú.

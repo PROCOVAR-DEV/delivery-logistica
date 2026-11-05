@@ -24,8 +24,10 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../diseno/marca_devuelta.dart';
 import '../../../diseno/tema.dart';
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/cancelada.dart' show esDevuelta;
 import '../../../nucleo/conduce.dart' show ConduceDe;
 import '../../../nucleo/fecha_de_la_factura.dart' show diaDeLaFacturaEnCuba;
 import '../../../nucleo/numero_de_factura.dart';
@@ -456,10 +458,12 @@ class _Fila extends StatelessWidget {
               if (columnas.entrega)
                 _celda(
                   flex: 2,
-                  hijo: Insignia(
-                    reparto.etiqueta,
-                    color: _colorDeReparto(reparto),
-                  ),
+                  hijo: esDevuelta(pedido)
+                      ? const MarcaDevuelta()
+                      : Insignia(
+                          reparto.etiqueta,
+                          color: _colorDeReparto(reparto),
+                        ),
                 ),
               SizedBox(
                 width: 32,
@@ -490,7 +494,9 @@ Color _colorDeReparto(EstadoReparto reparto) => switch (reparto) {
   EstadoReparto.entregado => Colores.verde,
   EstadoReparto.enRuta => Colores.enCurso,
   EstadoReparto.enDespacho => Colores.primario,
-  EstadoReparto.devuelto || EstadoReparto.cancelado => Colores.ambar,
+  EstadoReparto.devuelto => Colores.ambar,
+  // La cancelada ya no vuelve a un camión: rojo, no ámbar como la devuelta (issue 25 de Amado).
+  EstadoReparto.cancelado => Colores.rojo,
   EstadoReparto.sinEntregar => Colores.tintaSuave,
 };
 
@@ -730,10 +736,13 @@ class _Tarjeta extends StatelessWidget {
                               ? 'Archivado en PEDIDO'
                               : null,
                         ),
-                        Insignia(
-                          reparto.etiqueta,
-                          color: _colorDeReparto(reparto),
-                        ),
+                        if (esDevuelta(pedido))
+                          const MarcaDevuelta()
+                        else
+                          Insignia(
+                            reparto.etiqueta,
+                            color: _colorDeReparto(reparto),
+                          ),
                         if (codigoDeRuta != null)
                           Insignia(codigoDeRuta!, color: Colores.enCurso),
                         // Sin el número: ya está arriba, con su rótulo. La insignia

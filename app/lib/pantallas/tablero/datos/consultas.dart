@@ -22,6 +22,7 @@ class FiltrosSinColocar {
     this.vendedores = const [],
     this.kmMax,
     this.conCobroDeDomicilio,
+    this.soloDevueltas,
     this.limite = 200,
   });
 
@@ -60,6 +61,11 @@ class FiltrosSinColocar {
   /// los pedidos con cobro de domicilio».
   final bool? conCobroDeDomicilio;
 
+  /// DEVUELTAS O NUEVAS (issue 25 de Amado, 05/11/2026). `true` = sólo las que volvieron del camión y siguen
+  /// sin ruta (`resultado = devuelto`); `false` = sólo las que entraron y nadie ha tocado (sin resultado);
+  /// `null` = las dos. Las canceladas no están en esta lista (`nucleo/cancelada.dart`).
+  final bool? soloDevueltas;
+
   /// El tope de lo que se pinta. `total` dice cuantos hay de verdad.
   ///
   /// No es un limite de lo que se puede ver: es cuanto se pinta de una vez, para
@@ -82,12 +88,14 @@ class FiltrosSinColocar {
     List<String>? vendedores,
     double? kmMax,
     bool? conCobroDeDomicilio,
+    bool? soloDevueltas,
     int? limite,
     bool quitarDesde = false,
     bool quitarHasta = false,
     bool quitarMunicipio = false,
     bool quitarKmMax = false,
     bool quitarCobroDeDomicilio = false,
+    bool quitarSoloDevueltas = false,
   }) => FiltrosSinColocar(
     desde: quitarDesde ? null : (desde ?? this.desde),
     hasta: quitarHasta ? null : (hasta ?? this.hasta),
@@ -98,6 +106,9 @@ class FiltrosSinColocar {
     conCobroDeDomicilio: quitarCobroDeDomicilio
         ? null
         : (conCobroDeDomicilio ?? this.conCobroDeDomicilio),
+    soloDevueltas: quitarSoloDevueltas
+        ? null
+        : (soloDevueltas ?? this.soloDevueltas),
     limite: limite ?? this.limite,
   );
 
@@ -108,7 +119,8 @@ class FiltrosSinColocar {
       municipio != null ||
       vendedores.isNotEmpty ||
       kmMax != null ||
-      conCobroDeDomicilio != null;
+      conCobroDeDomicilio != null ||
+      soloDevueltas != null;
 }
 
 /// LAS LECTURAS DEL TABLERO, todas contra la base local.
@@ -748,6 +760,15 @@ WHERE c.branch_id = ?1 AND $noEsMiembroSql''',
                 .isBiggerThanValue(0);
         return conCobro ? cobrado : cobrado.not();
       });
+    }
+    // DEVUELTAS O NUEVAS (issue 25 de Amado): `resultado = devuelto` o sin resultado.
+    final devueltas = filtros.soloDevueltas;
+    if (devueltas != null) {
+      consulta.where(
+        (t) => devueltas
+            ? t.resultado.equals(ResultadoParada.devuelto)
+            : t.resultado.isNull(),
+      );
     }
     // Con `created_at` de repuesto: un pedido sin fecha de PEDIDO no puede
     // desaparecer del rango en que entro. La regla vive en un sitio.

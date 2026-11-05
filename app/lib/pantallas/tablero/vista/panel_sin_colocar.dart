@@ -608,6 +608,34 @@ class _Filtros extends ConsumerWidget {
             _ => filtros.copiaCon(quitarCobroDeDomicilio: true),
           }),
         ),
+        const SizedBox(height: 12),
+        // DEVUELTAS O NUEVAS (issue 25 de Amado, 05/11/2026): las que volvieron del camión, distintas de
+        // las que acaban de entrar.
+        Text(
+          'Devueltas o nuevas',
+          style: Tipos.texto(tamano: 12, color: Colores.tintaSuave),
+        ),
+        const SizedBox(height: 6),
+        SegmentedButton<int>(
+          key: const ValueKey('filtro-devueltas-o-nuevas'),
+          segments: const [
+            ButtonSegment<int>(value: 0, label: Text('Todas')),
+            ButtonSegment<int>(value: 1, label: Text('Devueltas')),
+            ButtonSegment<int>(value: 2, label: Text('Nuevas')),
+          ],
+          selected: {
+            switch (filtros.soloDevueltas) {
+              null => 0,
+              true => 1,
+              false => 2,
+            },
+          },
+          onSelectionChanged: (cual) => poner(switch (cual.first) {
+            1 => filtros.copiaCon(soloDevueltas: true),
+            2 => filtros.copiaCon(soloDevueltas: false),
+            _ => filtros.copiaCon(quitarSoloDevueltas: true),
+          }),
+        ),
         const SizedBox(height: 16),
         OutlinedButton(
           onPressed: () => poner(const FiltrosSinColocar()),

@@ -506,18 +506,29 @@ void main() {
       expect(find.text('Domicilio sin precio puesto'), findsOneWidget);
     });
 
-    for (final resultado in const ['devuelto', 'cancelado']) {
-      testWidgets('un $resultado, que se puede reasignar, SÍ lo lleva', (
+    testWidgets('un devuelto, que se puede reasignar, SÍ lo lleva', (
+      tester,
+    ) async {
+      await pintar(
         tester,
-      ) async {
-        await pintar(
-          tester,
-          ancho: anchoTarjeta,
-          pedidos: [pedido(resultado: resultado)],
-        );
-        expect(find.text('Domicilio sin precio puesto'), findsOneWidget);
-      });
-    }
+        ancho: anchoTarjeta,
+        pedidos: [pedido(resultado: 'devuelto')],
+      );
+      expect(find.text('Domicilio sin precio puesto'), findsOneWidget);
+    });
+
+    // Issue 25 de Amado (05/11/2026): un cancelado sin ruta ya NO se reasigna, así que el aviso de
+    // «sin precio» (lo que frena a un pedido que SÍ podría ir) no tiene nada que decir. EN PAREJA con el de arriba.
+    testWidgets('un cancelado, que ya no se reparte, NO lo lleva', (
+      tester,
+    ) async {
+      await pintar(
+        tester,
+        ancho: anchoTarjeta,
+        pedidos: [pedido(resultado: 'cancelado')],
+      );
+      expect(find.text('Domicilio sin precio puesto'), findsNothing);
+    });
 
     testWidgets('sin cotizar pero con el domicilio cobrado: verde, no aviso '
         '(lo que le falta es la cotización, no la factura)', (tester) async {

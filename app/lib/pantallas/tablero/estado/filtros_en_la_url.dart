@@ -77,6 +77,9 @@ abstract final class FiltrosEnLaUrl {
   static const claveKmMax = 'kmMax';
   static const claveCobro = 'cobro';
 
+  /// `origen=devueltas` / `origen=nuevas` (issue 25 de Amado, 05/11/2026). Sin él, las dos.
+  static const claveOrigen = 'origen';
+
   /// El aviso de la franja, sin la lista. Literal aqui para que la prueba busque
   /// lo que se lee en pantalla.
   static const noSePudieronAplicar =
@@ -148,6 +151,16 @@ abstract final class FiltrosEnLaUrl {
       return null;
     }
 
+    // Como `cobro`: sin el parametro son las dos, y un valor raro se DICE.
+    bool? devueltas() {
+      if (!parametros.containsKey(claveOrigen)) return null;
+      final crudo = parametros[claveOrigen] ?? '';
+      if (crudo == 'devueltas') return true;
+      if (crudo == 'nuevas') return false;
+      fuera.add('$claveOrigen=$crudo');
+      return null;
+    }
+
     return LecturaDeLaUrl(
       FiltrosSinColocar(
         q: parametros[claveQ],
@@ -157,6 +170,7 @@ abstract final class FiltrosEnLaUrl {
         hasta: fecha(claveHasta) ?? diaViejo,
         kmMax: kmMax(),
         conCobroDeDomicilio: cobro(),
+        soloDevueltas: devueltas(),
       ),
       fuera,
     );
@@ -182,6 +196,8 @@ abstract final class FiltrosEnLaUrl {
       if (km != null) claveKmMax: '$km',
       if (f.conCobroDeDomicilio != null)
         claveCobro: f.conCobroDeDomicilio! ? 'si' : 'no',
+      if (f.soloDevueltas != null)
+        claveOrigen: f.soloDevueltas! ? 'devueltas' : 'nuevas',
     };
   }
 

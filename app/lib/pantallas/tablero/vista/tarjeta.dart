@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../datos/modelos.dart';
+import '../../../diseno/marca_devuelta.dart';
 import '../../../diseno/tema.dart';
 import '../../pedidos/vista/kit.dart' show FacturaYCliente;
 import 'kit.dart';
@@ -213,12 +214,14 @@ class TarjetaDePedido extends ConsumerWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (marcas.isNotEmpty) ...[
+              if (marcas.isNotEmpty || pedido.devuelta) ...[
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 4,
                   runSpacing: 4,
                   children: [
+                    // Devuelta del camión: distinta de las nuevas (issue 25 de Amado, 05/11/2026).
+                    if (pedido.devuelta) const MarcaDevuelta(),
                     for (final marca in marcas) insigniaDeMarca(marca),
                   ],
                 ),

@@ -997,6 +997,16 @@ factura devuelta puede acabar en otra ruta otro día (se reasigna, como siempre)
   buzón `avisos_a_pedido` DENTRO de la misma transacción y luego intentado en el acto, como el cierre de ruta. Una factura sin
   folio no tiene a quién avisar y no es un error. Es el mismo aviso que ya mandaba el cierre cuando se marcaba una parada
   `cancelado`.
+- **UNA CANCELADA ES TERMINAL: la hoja de cierre no la deshace** (auditoría G1). `POST /api/routes/{id}/results` sobre una factura
+  cancelada —con «devuelto», «entregado» o `null` (quitar la marca), mientras la ruta de origen no esté completada— la
+  rechaza en `rechazados[]` con `«Esa factura ya está cancelada y no se puede marcar.»` (409, las demás paradas de la hoja se
+  guardan como siempre) y la fila no cambia; `MarcarResultadoDeParada` y `LimpiarResultadoDeParada` tampoco la tocan
+  aunque llegara por otra puerta. Volver a mandar `cancelado` (una hoja reenviada entera) se admite. Un apunte de la cola del
+  aparato con una marca vieja sobre una cancelada queda `rechazado` en la bandeja con ese motivo (el 409 se lee entero:
+  «Se guardaron N de las M paradas… (<conduce> (Esa factura ya está cancelada…))»). **Consecuencia**: un `cancelado` puesto en
+  la hoja con un dedazo tampoco se corrige ya desde la hoja.
+- **`nota` con un NUL (`\u0000`) es `400 «La nota lleva un carácter no válido (NUL)»`**, aquí y en `nota` de `/results`
+  (antes 500, y por la cola el apunte se reintentaba para siempre).
 - **También se saca del tablero**: borra su `board_placements` y su `board_route_origins` (una cancelada no reaparece en
   ninguna zona).
 - **Quién la canceló NO se guarda en la fila** (no hay columna): queda en el registro del servidor

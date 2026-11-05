@@ -165,6 +165,10 @@ func leerLaNotaDeCancelar(w http.ResponseWriter, r *http.Request) (*string, bool
 		return nil, true
 	}
 	n := strings.TrimSpace(*c.Nota)
+	if strings.ContainsRune(n, 0) {
+		httpx.Error(w, r, http.StatusBadRequest, msgNotaConNUL)
+		return nil, false
+	}
 	if utf8.RuneCountInString(n) > TopeDeLaNotaDeCancelacion {
 		httpx.Error(w, r, http.StatusBadRequest, msgNotaLarga)
 		return nil, false

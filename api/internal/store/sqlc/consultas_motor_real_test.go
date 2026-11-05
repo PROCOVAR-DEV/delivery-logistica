@@ -1127,9 +1127,10 @@ func TestMotorReal_ParadasQueViajaronYSuResultado(t *testing.T) {
 		}
 		igualesTxt(t, "lista tras devolver", listar(t, e, e.ruta, alcance(e.suc)), []string{"o1", "o2", "o5"})
 
-		// marcarlo OTRA VEZ ya con route_id NULL (corregir un devuelto): sigue valiendo
+		// marcarlo OTRA VEZ ya con route_id NULL (corregir un devuelto): sigue valiendo. (Antes se corregía a
+		// `cancelado`; desde el issue 25 un cancelado es terminal y eso lo cubre `TestMotorReal_UnCanceladoNoSeDeshaceDesdeLaHoja`.)
 		n, err = e.q.MarcarResultadoDeParada(e.ctx, MarcarResultadoDeParadaParams{
-			Resultado: StopResultCancelado, RutaID: alcance(e.ruta), PedidoID: e.o2, Sucursal: sinAlcance})
+			Resultado: StopResultDevuelto, Nota: str("otra vez"), RutaID: alcance(e.ruta), PedidoID: e.o2, Sucursal: sinAlcance})
 		if err != nil || n != 1 {
 			t.Fatalf("re-marcar un devuelto: n=%d err=%v", n, err)
 		}

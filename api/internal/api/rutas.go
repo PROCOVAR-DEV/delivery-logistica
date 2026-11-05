@@ -57,6 +57,10 @@ const (
 	msgRutaNoEncontrada = "No encontrada"
 	msgSinResultados    = "No vino ningún resultado"
 	msgParadaAjena      = "esa factura no va en esta ruta"
+	// UNA CANCELADA NO SE MARCA OTRA VEZ (issue 25, auditoría G1): ni otro resultado ni quitarle la marca.
+	msgParadaCancelada = "Esa factura ya está cancelada y no se puede marcar."
+	// msgNotaConNUL: Postgres no guarda un NUL en un `text` (500), y por la cola el apunte se reintentaría para siempre.
+	msgNotaConNUL = "La nota lleva un carácter no válido (NUL)"
 	// UN CAMIÓN INACTIVO NO SE ASIGNA A UNA RUTA (incidencia 4 de Amado, 07/10/2026). Es el
 	// mismo literal en los cuatro sitios que asignan camión —armar una ruta, cambiarle el
 	// camión, armar una zona y fijar el camión previsto de una zona—, para que quien lo lea
@@ -1994,6 +1998,12 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusBadRequest, msgSinResultados)
 		return
 	}
+	for _, e := range c.Resultados {
+		if e.Nota != nil && strings.ContainsRune(*e.Nota, 0) {
+			httpx.Error(w, r, http.StatusBadRequest, msgNotaConNUL)
+			return
+		}
+	}
 
 	salida := salidaDeCierre{Aplicados: []aplicadoDeCierre{}, Rechazados: []rechazadoDeCierre{}}
 	var avisos []AvisoDeParada
@@ -2062,7 +2072,14 @@ func (s *Servidor) cerrarRuta(w http.ResponseWriter, r *http.Request) {
 				rechazar(e, msgParadaAjena)
 				continue
 			}
-			_, iba := universo[pedidoID]
+			parada, iba := universo[pedidoID]
+			if iba && parada.Resultado != nil && *parada.Resultado == sqlc.StopResultCancelado &&
+				!(e.Resultado.Presente && e.Resultado.Valor != nil && *e.Resultado.Valor == string(sqlc.StopResultCancelado)) {
+				// Sale en la hoja como cancelada (no se pierde) pero no se deshace: `MarcarResultadoDeParada` y
+				// `LimpiarResultadoDeParada` tampoco la tocan, y aquí se dice por qué en vez de un «no es de esta ruta».
+				rechazar(e, msgParadaCancelada)
+				continue
+			}
 			if !iba {
 				// Un MIEMBRO de conduce no se marca solo (00029, regla 5): el resultado se marca sobre la principal
 				// y se aplica a sus miembros. El motivo lo dice con el número de la principal.

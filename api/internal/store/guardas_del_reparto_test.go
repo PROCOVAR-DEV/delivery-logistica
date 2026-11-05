@@ -172,7 +172,7 @@ var guardasDelReparto = []guarda{
 		consulta: "MarcarResultadoDeParada",
 		// Con alias `o.` desde la 00029 (conduces): el UPDATE va en un CTE y sin alias `id` era ambiguo.
 		enElWhere:  []string{"(o.route_id = sqlc.arg('ruta_id')", "o.conduce_principal_id IS NULL"},
-		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL)", "WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')"},
+		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL", "AND (o.resultado <> 'cancelado' OR sqlc.arg('resultado')::stop_result = 'cancelado'))", "WHEN sqlc.arg('resultado')::stop_result = 'entregado' THEN sqlc.arg('ruta_id')"},
 		porQue: "Las dos mitades del cierre.\n" +
 			"  · El `WHERE` acepta la parada que sigue en `route_id` y la ya soltada cuya\n" +
 			"    `ultima_ruta_id` apunta a esta ruta; cualquier otra ruta queda excluida.\n" +
@@ -208,8 +208,9 @@ var guardasDelReparto = []guarda{
 	{
 		fichero:    "routes.sql",
 		consulta:   "LimpiarResultadoDeParada",
-		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL)"},
-		porQue:     "Desmarcar una parada que no viajó le pondría `route_id` a un pedido quitado de la ruta.",
+		enElCuerpo: []string{"OR (o.route_id IS NULL AND o.ultima_ruta_id = sqlc.arg('ruta_id') AND o.resultado IS NOT NULL", "AND o.resultado <> 'cancelado'))"},
+		porQue: "Desmarcar una parada que no viajó le pondría `route_id` a un pedido quitado de la ruta. Y sin\n" +
+			"`<> 'cancelado'` (issue 25, G1) quitarle la marca a una cancelada la reabriría en silencio.",
 	},
 	{
 		fichero:    "routes.sql",

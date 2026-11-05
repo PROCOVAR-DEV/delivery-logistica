@@ -339,7 +339,9 @@ anteriores en silencio**. Si no hay ninguna condición → `{}`.
    - `en_despacho` → `routeId != null` AND `route.status = 'planned'`.
    - `en_ruta` → `routeId != null` AND `route.status = 'in_progress'`.
    - `entregado` → `OR[ resultado = 'entregado', deliveredAt != null ]`.
-   - `devuelto` → `resultado IN ('devuelto','cancelado')`.
+   - `devuelto` → `resultado IN ('devuelto','cancelado')` (sigue así a propósito, issue 25: la vista «Canceladas» de la app
+     filtra su base local por `resultado = 'cancelado'`; y `sin_entregar` sigue incluyendo los cancelados sin ruta aunque ya
+     no se repartan).
    - **`devuelto` no es un estado sino el RESULTADO de la parada**: el pedido baja del camión y
      vuelve a `sin_entregar`, listo para la ruta de mañana.
    - **REGLA CRÍTICA — manda el RESULTADO de la parada, no el estado de la ruta.** «Entregado» era
@@ -1321,10 +1323,14 @@ avisa cuando no) y la guarda de SQL, su prueba de motor real.
 4. **Un camión compartido sólo lo cambia, desactiva o borra quien ve todas las sucursales**
    (`SUPER ADMIN`, `DESARROLLADOR`): `403` en `PATCH`/`DELETE`. Ver y usarlo sigue siendo de todas;
    quién crea o edita un camión propio no cambia.
-5. **Reasignar un devuelto o cancelado es un intento nuevo**: al asignarlo a una ruta se limpian
-   `resultado`, `resultado_at`, `resultado_nota` y `delivered_at` (sólo hay una consulta que asigna
-   pedidos a rutas, `EngancharPedidoARuta`, y la usan el armado y el tablero). Un entregado no se
-   reasigna nunca. La app lo replica en su armado local.
+5. **Reasignar un DEVUELTO es un intento nuevo; un CANCELADO sin ruta ya no se reasigna** (issue 25 de
+   Amado, 05/11/2026; Jose: «la cancelada es el cancelado ese»): al asignar un devuelto a una ruta se
+   limpian `resultado`, `resultado_at`, `resultado_nota` y `delivered_at` (sólo hay una consulta que
+   asigna pedidos a rutas, `EngancharPedidoARuta`, y la usan el armado y el tablero). Un entregado no se
+   reasigna nunca, y un cancelado tampoco: es terminal para el reparto (no vuelve a disponibles, «Sin
+   colocar», tablero, armado ni Panel). Se cancela una devuelta con `POST /api/orders/{id}/cancelar`
+   (`docs/contratos-api.md`). Antes de esta regla el cancelado se reasignaba igual que el devuelto. La
+   app lo replica en su armado local.
 6. **Los rechazos del cierre nombran la parada por su número de operación** (el conduce), no por su
    UUID: `rechazados[].numeroOperacion` y el `error`. Se lee con el alcance de quien cierra.
 

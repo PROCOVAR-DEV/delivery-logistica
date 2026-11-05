@@ -347,13 +347,19 @@ una frase que dice qué hacer:
 
 | Límite | Valor |
 |---|---|
-| Método y ruta | `POST/PUT/PATCH/DELETE` sobre las diecinueve rutas de escritura que la API tiene de rutas, tablero, flota, punto de entrega de un pedido y conduces, **por forma** (`/routes`, `/routes/{id}`, `…/stops` (reordenar), `…/stops/{pedido}`, `…/results`, `/board/columns`, `/board/columns/{id}`, `…/route`, `/board/placements/{pedido}`, y desde el 16/10/2026 `/vehicles`, `/vehicle-types`, `/distribuidores` y sus `/{id}`, y desde el 20/10/2026 `/orders/{id}/punto` (issue 19; sólo esa forma de `/orders`, no `/orders/{id}`, que borra el pedido); y desde el 27/10/2026 los conduces: `POST /conduces`, `DELETE /conduces/{id}` y `DELETE /conduces/{id}/miembros/{id}` (crear, deshacer y sacar un miembro; `docs/conduces.md`); `{id}` sin puntos; `POST /board` suelto da 422; ni `..` ni `//` ni `%`; ≤300 caracteres). **Es la defensa contra la autoridad prestada** y se vuelve a pasar al aplicar |
+| Método y ruta | `POST/PUT/PATCH/DELETE` sobre las veinte rutas de escritura que la API tiene de rutas, tablero, flota, punto de entrega de un pedido, cancelar una factura devuelta (`POST /orders/{id}/cancelar`, 05/11/2026, issue 25) y conduces, **por forma** (`/routes`, `/routes/{id}`, `…/stops` (reordenar), `…/stops/{pedido}`, `…/results`, `/board/columns`, `/board/columns/{id}`, `…/route`, `/board/placements/{pedido}`, y desde el 16/10/2026 `/vehicles`, `/vehicle-types`, `/distribuidores` y sus `/{id}`, y desde el 20/10/2026 `/orders/{id}/punto` (issue 19; sólo esa forma de `/orders`, no `/orders/{id}`, que borra el pedido); y desde el 27/10/2026 los conduces: `POST /conduces`, `DELETE /conduces/{id}` y `DELETE /conduces/{id}/miembros/{id}` (crear, deshacer y sacar un miembro; `docs/conduces.md`); `{id}` sin puntos; `POST /board` suelto da 422; ni `..` ni `//` ni `%`; ≤300 caracteres). **Es la defensa contra la autoridad prestada** y se vuelve a pasar al aplicar |
 | Un apunte | `cuerpo` ≤128 KiB y JSON válido; petición ≤512 KiB; ≤25 apuntes por petición (la app manda 1) |
 | Hora del aparato | `hecho` ≤ ahora+24 h y ≥ ahora−60 días |
 | `provisional` | Opcional: `local-` y de 1 a 94 letras o números, o un UUID (el id definitivo que pone el aparato al crear una zona del Tablero). La subida normal no valida su forma, solo traduce los `local-…` |
 | Lo vivo | ≤500 apuntes y ≤8 MiB de cuerpos **por persona**; ≤3.000 **por sucursal** (`429 cupo_de_revision`) |
 | La bandeja | 500 entregas por lista del revisor y 1.000 apuntes en `mias`, con `truncado` si se alcanzó |
 | Nombre del aparato | `POST /sync/aparato` lo limpia y lo recorta a **80** letras; `00004_nombre_de_aparato_acotado.sql` recorta a 200 los nombres que ya hubiera y pone `CHECK (char_length(nombre) <= 200) NOT VALID` debajo; la bandeja del revisor lo recorta a 200 al leerlo |
+
+**El 409 «ya está cancelada» es un apunte hecho (issue 25, 05/11/2026).** `POST /orders/{id}/cancelar` sobre una factura que ya
+está cancelada —un reintento de la cola, o que otra persona la canceló antes— contesta `409` con `"codigo":"ya_cancelada"`; el
+sincronizador (`sync/internal/reparto`, `esYaCancelada`) lo trata como **aplicado**, no como rechazo: el estado que el apunte
+quería es el que hay. Sólo ese código y sólo en `POST …/cancelar`; cualquier otro 4xx (va en una ruta, no está devuelta, nota
+larga…) deja el apunte `rechazado` con el motivo literal, como siempre. El distribuidor no sube este apunte (la API lo cierra).
 
 Contar el cupo y escribir son una sola cosa: la sucursal se bloquea (`pg_advisory_xact_lock`) hasta el fin de la transacción.
 

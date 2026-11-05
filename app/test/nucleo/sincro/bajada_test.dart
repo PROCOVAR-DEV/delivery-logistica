@@ -242,6 +242,7 @@ void main() {
         await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
         await frescura.rebajarLasFacturasAnuladas();
         await frescura.rebajarLosPedidosPorSuConduce();
+        await frescura.rebajarLosPedidosPorSuResultadoAt();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -265,6 +266,7 @@ void main() {
         await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
         await frescura.rebajarLasFacturasAnuladas();
         await frescura.rebajarLosPedidosPorSuConduce();
+        await frescura.rebajarLosPedidosPorSuResultadoAt();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -362,6 +364,7 @@ void main() {
         await frescura.rebajarLosPedidosPorSuFolio();
         await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
         await frescura.rebajarLasFacturasAnuladas();
+        await frescura.rebajarLosPedidosPorSuResultadoAt();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -378,6 +381,41 @@ void main() {
           reason:
               'sin la carga entera, los miembros de un conduce ya hecho salen como facturas '
               'sueltas PARA SIEMPRE y la principal sin su «Conduce a + b»',
+        );
+        expect(
+          peticiones.last.parametros['desde'],
+          '2026-10-15T01:00:00.000Z',
+          reason: 'una sola vez: luego, por diferencias',
+        );
+      });
+
+      // 05/11/2026 (issue 25 de Amado, SIN subir el esquema): `resultadoAt` ya era columna pero la bajada
+      // no la leía; las canceladas de antes no traen su fecha por diferencias. EN PAREJA: quien ya hizo
+      // todas las demás hace ESTA una vez, y luego no.
+      test('los pedidos se rebajan enteros una vez por su fecha de resultado aunque ya se hicieran las demás', () async {
+        await frescura.rebajarLosPedidosUnaVez();
+        await frescura.rebajarLasRutasUnaVez();
+        await frescura.rebajarLosPedidosPorSuAlmacen();
+        await frescura.rebajarLosPedidosPorSuFolio();
+        await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
+        await frescura.rebajarLasFacturasAnuladas();
+        await frescura.rebajarLosPedidosPorSuConduce();
+        await frescura.marcar(
+          Colecciones.pedidos,
+          hasta: '2026-10-14T00:00:00.000Z',
+        );
+        final peticiones = <PeticionVista>[];
+        final bajada = contando(peticiones);
+
+        await bajada.ciclo();
+        await bajada.ciclo();
+
+        expect(
+          peticiones.first.parametros['desde'],
+          isNull,
+          reason:
+              'sin la carga entera, las canceladas de antes salen SIN fecha para siempre y fuera de '
+              'cualquier Desde/Hasta de la vista «Canceladas»',
         );
         expect(
           peticiones.last.parametros['desde'],

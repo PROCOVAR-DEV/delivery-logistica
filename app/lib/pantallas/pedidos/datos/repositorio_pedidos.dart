@@ -15,6 +15,7 @@ import 'package:drift/drift.dart';
 import '../../../nucleo/regla_de_entrada.dart' show costoDeLaParadaSql;
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/cancelada.dart' show noEstaCancelada;
 import '../../../nucleo/conduce.dart';
 import '../../../nucleo/fecha_de_la_factura.dart';
 import '../../../nucleo/numero_de_factura.dart';
@@ -452,11 +453,13 @@ class ConsultasPedidos {
       case RepartoFiltro.cualquiera:
         break;
       case RepartoFiltro.sinEntregar:
+        // Sin las canceladas: ya no se reparten (`nucleo/cancelada.dart`, issue 25 de Amado).
         anadir(
           o.routeId.isNull() &
               o.deliveredAt.isNull() &
               (o.resultado.isNull() |
-                  o.resultado.equals(ResultadoParada.entregado).not()),
+                  o.resultado.equals(ResultadoParada.entregado).not()) &
+              noEstaCancelada(o),
         );
       case RepartoFiltro.enDespacho:
         anadir(_enRutaCon(EstadoRuta.planificada));
@@ -471,10 +474,11 @@ class ConsultasPedidos {
         );
       case RepartoFiltro.devuelto:
         anadir(
-          o.resultado.isIn([
-            ResultadoParada.devuelto,
-            ResultadoParada.cancelado,
-          ]),
+          o.resultado.equals(ResultadoParada.devuelto) & o.routeId.isNull(),
+        );
+      case RepartoFiltro.nuevas:
+        anadir(
+          o.routeId.isNull() & o.deliveredAt.isNull() & o.resultado.isNull(),
         );
     }
 

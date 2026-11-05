@@ -107,6 +107,10 @@ List<String> descartadosDeLaRespuesta(
 const msgYaSeEntrego = 'Esa factura ya se entregó';
 const msgYaVaEnUnaRuta = 'Esa factura ya está en una ruta';
 
+/// Una cancelada no se coloca (issue 25 de Amado, 05/11/2026): el literal del servidor
+/// (`POST /api/board/colocar`, 409).
+const msgEstaCancelada = 'Esa factura está cancelada';
+
 /// POR QUE ESTE PEDIDO NO SE PUEDE PONER EN UNA ZONA, o `null` si se puede.
 ///
 /// Es el espejo de `porQueNoSePudoColocar` del servidor, **en su mismo orden**:
@@ -137,6 +141,7 @@ String? porQueNoSePuedeColocar(Pedido pedido) {
       pedido.resultado == ResultadoParada.entregado) {
     return msgYaSeEntrego;
   }
+  if (pedido.resultado == ResultadoParada.cancelado) return msgEstaCancelada;
   if (pedido.routeId != null) return msgYaVaEnUnaRuta;
   return null;
 }

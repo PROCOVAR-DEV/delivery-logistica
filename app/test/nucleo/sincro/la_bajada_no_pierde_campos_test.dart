@@ -330,6 +330,33 @@ void main() {
     );
   });
 
+  test('la factura cancelada llega con la fecha y la nota de la cancelación (05/11/2026)', () async {
+    await conEsto(<String, Object?>{
+      'orders': conjunto([
+        <String, Object?>{
+          'id': 'f-cancelada',
+          'customerName': 'Cliente',
+          'address': 'Calle 1',
+          'facturaNumero': '47500',
+          'resultado': 'cancelado',
+          'resultadoAt': '2026-11-05T03:30:00.000Z',
+          'resultadoNota': 'El cliente se arrepintió',
+        },
+      ]),
+    }).ciclo();
+
+    final f = (await base.select(base.orders).get()).single;
+    expect(f.resultado, 'cancelado');
+    expect(f.resultadoNota, 'El cliente se arrepintió');
+    expect(
+      f.resultadoAt!.isAtSameMomentAs(DateTime.utc(2026, 11, 5, 3, 30)),
+      isTrue,
+      reason:
+          'la columna existía y la bajada no la leía: sin ella la vista «Canceladas» no puede filtrar por '
+          'periodo ni decir cuándo se canceló',
+    );
+  });
+
   test('el almacén llega con su código, que no es el de la sucursal', () async {
     final bajada = Bajada(
       cliente: clienteFalso((PeticionVista p) async {

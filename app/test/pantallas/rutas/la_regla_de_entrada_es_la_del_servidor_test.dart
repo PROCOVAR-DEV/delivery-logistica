@@ -65,6 +65,13 @@ void main() {
     }
   });
 
+  test('el fichero trae la devuelta entrando y la cancelada sin entrar (issue 25 de Amado)', () {
+    final porNombre = {for (final c in casos) c['nombre']: c};
+    expect(porNombre['devuelto-sin-ruta']?['entra'], isTrue);
+    expect(porNombre['cancelado-sin-ruta']?['entra'], isFalse);
+    expect(porNombre['cancelado-sin-ruta']?['resultado'], 'cancelado');
+  });
+
   test('el fichero trae el caso real entrando y casos de los dos lados', () {
     expect(
       casos.where((c) => c['entra'] == true).map((c) => c['nombre']),
@@ -91,6 +98,8 @@ void main() {
     final domicilio = (c['facturaDomicilio'] as num?)?.toDouble();
     final costo = (c['pedidoCosto'] as num?)?.toDouble();
     final marcado = c['requiereDomicilio'] as bool?;
+    // Issue 25 de Amado (05/11/2026): `devuelto` vuelve, `cancelado` ya no. Ausente = nulo.
+    final resultado = c['resultado'] as String?;
 
     test('$nombre: ${entra ? 'ENTRA' : 'no entra'}', () async {
       final base = baseDePrueba();
@@ -106,6 +115,7 @@ void main() {
         facturaDomicilio: domicilio,
         costo: costo,
         domicilio: marcado,
+        resultado: resultado,
       );
       final pedido = await (base.select(
         base.orders,
@@ -124,6 +134,7 @@ void main() {
         facturaDomicilio: domicilio,
         pedidoCosto: costo,
         requiereDomicilio: marcado,
+        resultado: resultado,
       );
       expect(
         tarjeta.motivoDeNoSubir == null,

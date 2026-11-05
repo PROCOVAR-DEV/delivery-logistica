@@ -275,6 +275,29 @@
         "pedidoCosto": null,
         "requiereDomicilio": false,
         "entra": true
+      },
+      {
+        "nombre": "devuelto-sin-ruta",
+        "nota": "ISSUE 25 DE AMADO (05/11/2026): una factura DEVUELTA (resultado 'devuelto', sin ruta) SÍ vuelve: es un intento nuevo para otro día. Entra. Campo opcional `resultado`: null | 'devuelto' | 'cancelado'; ausente = null.",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": null,
+        "requiereDomicilio": true,
+        "resultado": "devuelto",
+        "entra": true
+      },
+      {
+        "nombre": "cancelado-sin-ruta",
+        "nota": "ISSUE 25 DE AMADO (05/11/2026; Jose: «la cancelada es el cancelado ese»): una factura CANCELADA (resultado 'cancelado', sin ruta) ya NO se reparte: el cliente no la quiere. No entra en ninguna lista, contador, tablero, Panel ni armado. `mensaje`: el 409 de POST /api/routes con esa factura sola, letra por letra (plural: «N de las facturas elegidas ESTÁN CANCELADAS y no pueden volver a un camión: a, b.»).",
+        "operationNumber": "PBF26-2610131268",
+        "facturaEstado": "igual",
+        "facturaDomicilio": 1.31,
+        "pedidoCosto": null,
+        "requiereDomicilio": true,
+        "resultado": "cancelado",
+        "entra": false,
+        "mensaje": "1 de las facturas elegidas ESTÁ CANCELADA y no puede volver a un camión: PBF26-2610131268."
       }
     ]
   },

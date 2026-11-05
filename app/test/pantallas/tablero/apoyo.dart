@@ -112,6 +112,9 @@ Future<void> sembrarPedido(
   String? facturaNumero,
   DateTime? facturaAt,
   bool conCoordenadas = true,
+
+  /// `devuelto` | `cancelado` | nulo (issue 25 de Amado, 05/11/2026): cómo acabó su última vuelta.
+  String? resultado,
 }) => base
     .into(base.orders)
     .insert(
@@ -133,6 +136,7 @@ Future<void> sembrarPedido(
         facturaAt: Value(facturaAt),
         archivado: Value(archivado),
         routeId: Value(rutaId),
+        resultado: Value(resultado),
         source: Value(fuente),
         requiereDomicilio: Value(domicilio),
         branchId: Value(sucursal),

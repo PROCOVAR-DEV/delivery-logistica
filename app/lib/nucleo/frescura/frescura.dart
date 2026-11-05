@@ -132,6 +132,14 @@ class RegistroDeFrescura {
   /// a la vista, la principal sin su «Conduce a + b»). En la web no cambia nada: su base nace vacia.
   static const yaRebajadosPorSuConduce = 'una-vez:pedidos-con-conduce';
 
+  /// LOS PEDIDOS SE VUELVEN A BAJAR ENTEROS UNA VEZ POR APARATO, por `resultadoAt` — 05/11/2026 (issue 25
+  /// de Amado, «Facturas devueltas»). SIN subir el esquema: la columna ya existía y la bajada no la leía.
+  ///
+  /// Es la fecha por la que se filtra y se enseña la vista «Canceladas». Por diferencias, las facturas ya
+  /// canceladas antes de actualizar la aplicación no vuelven a viajar y saldrían sin fecha PARA SIEMPRE
+  /// (y fuera de cualquier Desde/Hasta). En la web no cambia nada: su base nace vacía.
+  static const yaRebajadosPorSuResultadoAt = 'una-vez:pedidos-con-resultado-at';
+
   /// LOS CAMIONES CON SU FICHA ENTERA — 16/10/2026 (issue 14). Hasta la 1.0.38 la bajada
   /// guardaba de cada camion solo lo basico (sin tipo, costo por km, notas ni
   /// «para domicilio»). Se piden ENTEROS (`completas=vehicles`) una vez, no con una
@@ -181,6 +189,11 @@ class RegistroDeFrescura {
 
   Future<void> rebajarLosPedidosPorSuConduce() =>
       rebajarUnaVez(yaRebajadosPorSuConduce, const [Colecciones.pedidos]);
+
+  Future<void> rebajarLosPedidosPorSuResultadoAt() => rebajarUnaVez(
+    yaRebajadosPorSuResultadoAt,
+    const [Colecciones.pedidos],
+  );
 
   Future<void> rebajarLasFacturasAnuladas() => rebajarUnaVez(
     yaRebajadosPorLasFacturasAnuladas,

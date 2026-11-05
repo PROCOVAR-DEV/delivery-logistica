@@ -266,6 +266,10 @@ enum MarcaTarjeta {
   /// PEDIDO lo dio de baja con la tarjeta puesta.
   archivado('Archivado en PEDIDO', grave: true),
 
+  /// El cliente la canceló (resultado `cancelado`, issue 25 de Amado, 05/11/2026): ya no se reparte.
+  /// Es el «está cancelada» del servidor (`descartadosDelTablero`).
+  cancelada('Está cancelada', grave: true),
+
   /// Se lo llevo otra ruta: el Super Admin, o el armador de siempre desde otro
   /// aparato.
   enOtraRuta('Ya va en otra ruta', grave: true),
@@ -388,6 +392,7 @@ class TarjetaPedido {
   /// un pedido archivado y sin facturar es las dos cosas.
   List<MarcaTarjeta> get marcas => <MarcaTarjeta>[
     if (archivado) MarcaTarjeta.archivado,
+    if (resultado == ResultadoParada.cancelado) MarcaTarjeta.cancelada,
     if (rutaId != null) MarcaTarjeta.enOtraRuta,
     if (facturaEstado == null) MarcaTarjeta.sinCotejar,
     if (facturaEstado == EstadoFactura.sinFactura) MarcaTarjeta.sinFactura,
@@ -421,6 +426,9 @@ class TarjetaPedido {
     }
     return null;
   }
+
+  /// Volvió del camión y sigue sin ruta: lleva la marca «Devuelta» (`nucleo/cancelada.dart`).
+  bool get devuelta => resultado == ResultadoParada.devuelto && rutaId == null;
 
   /// ¿Se puede repartir hoy? Es la pregunta del armador (§5.2), no la de si se
   /// ensena: lo que no se puede repartir se ensena igual, marcado.

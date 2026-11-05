@@ -18,7 +18,14 @@ enum RepartoFiltro {
   enDespacho('en_despacho', 'En despacho'),
   enRuta('en_ruta', 'En ruta'),
   entregado('entregado', 'Entregado'),
-  devuelto('devuelto', 'Devuelto o cancelado');
+
+  /// Issue 25 de Amado (05/11/2026): las facturas que volvieron del camión y siguen sin ruta
+  /// (`nucleo/cancelada.dart`, `esDevuelta`). Antes era «Devuelto o cancelado»; las canceladas tienen
+  /// ahora su pestaña.
+  devuelto('devuelto', 'Devueltas'),
+
+  /// Sin ruta y sin resultado: las que han entrado y nadie ha tocado, para distinguirlas de las devueltas.
+  nuevas('nuevas', 'Nuevas');
 
   const RepartoFiltro(this.param, this.etiqueta);
 

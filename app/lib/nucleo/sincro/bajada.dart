@@ -207,6 +207,8 @@ class Bajada {
     await _frescura.rebajarLasFacturasAnuladas();
     // Y otra por el conduce de cada factura (frescura.dart, 27/10/2026, esquema 16).
     await _frescura.rebajarLosPedidosPorSuConduce();
+    // Y otra por la fecha en que se marcó el resultado de cada factura (frescura.dart, 05/11/2026).
+    await _frescura.rebajarLosPedidosPorSuResultadoAt();
 
     for (var vuelta = 0; vuelta < maximoDeTandas; vuelta++) {
       final desde = await _frescura.desde(Colecciones.pedidos);
@@ -1034,6 +1036,10 @@ class Bajada {
             stopOrder: Value(_entero(j['stopOrder'])),
             deliveredAt: Value(_fecha(j['deliveredAt'])),
             resultado: Value(_texto(j['resultado'])),
+            // CUÁNDO se marcó (issue 25 de Amado, 05/11/2026): la fecha de la cancelación. La columna
+            // existía y NADIE la bajaba; las canceladas de antes la reciben con la bajada entera de
+            // una vez (`rebajarLosPedidosPorSuResultadoAt`). Lo ata `la_bajada_no_pierde_campos_test.dart`.
+            resultadoAt: Value(_fecha(j['resultadoAt'])),
             resultadoNota: Value(_texto(j['resultadoNota'])),
             updatedAt: Value(_fecha(j['updatedAt'])),
           ),

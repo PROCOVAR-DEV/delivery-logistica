@@ -44,6 +44,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/cancelada.dart';
 import '../../../nucleo/codigo_de_ruta.dart';
 import '../../../nucleo/cola/cola_salida.dart';
 import '../../../nucleo/cola/provisionales.dart';
@@ -871,6 +872,8 @@ class AccionesDeRuta {
             o.deliveredAt.isNull() &
             // Un MIEMBRO de un conduce no se arma suelto: se elige su principal y ella lo lleva.
             noEsMiembro(o) &
+            // Una CANCELADA no vuelve a un camión; sólo la devuelta (`nucleo/cancelada.dart`).
+            noEstaCancelada(o) &
             o.endLat.isNotNull() &
             o.endLng.isNotNull() &
             (sucursalId == null || sucursalId.isEmpty
@@ -922,6 +925,13 @@ class AccionesDeRuta {
     )..where((o) => o.id.isIn(fuera))).get();
     final porId = {for (final f in filas) f.id: f};
 
+    // SI LO ÚNICO QUE SE CAE SON CANCELADAS (issue 25 de Amado), el «no» del servidor entero: «1 de las
+    // facturas elegidas ESTÁ CANCELADA y no puede volver a un camión: a, b.» (`POST /api/routes`, 409).
+    if (fuera.isNotEmpty &&
+        fuera.every((id) => porId[id]?.resultado == ResultadoParada.cancelado)) {
+      return mensajeDeCanceladas([for (final id in fuera) porId[id]!]);
+    }
+
     // El CÓDIGO de la ruta, para poder decir en cuál va. «Ya va en la ruta
     // RT-20260922-003» dice dónde mirar; «ya va en otra ruta» deja quince rutas
     // que abrir.
@@ -946,6 +956,10 @@ class AccionesDeRuta {
     String motivo(Pedido p) {
       if (p.deliveredAt != null || p.resultado == ResultadoParada.entregado) {
         return 'ya se entregó y no puede volver a un camión';
+      }
+      // La cancelada va ANTES que la ruta como en el servidor: no hay otra ruta a la que mirar.
+      if (p.resultado == ResultadoParada.cancelado && p.routeId == null) {
+        return 'está cancelada y no puede volver a un camión';
       }
       if (p.routeId != null) {
         final codigo = rutas[p.routeId];
@@ -1004,6 +1018,21 @@ class AccionesDeRuta {
     // la de Go—, no este comentario (`CLAUDE.md` §3-bis).
     return '${encabezadoDelArmado(fuera.length, pedidos.length)}'
         '${detalle.join(", ")}$cola';
+  }
+
+  /// El 409 de las canceladas, letra a letra como el servidor (igual que el de los entregados): cada
+  /// una por su número de operación (o su cliente), las cinco primeras y ` y N más.` si hay más.
+  String mensajeDeCanceladas(List<Pedido> canceladas) {
+    final n = canceladas.length;
+    final nombres = canceladas
+        .take(5)
+        .map((p) => (p.operationNumber ?? '').isNotEmpty ? p.operationNumber! : p.customerName)
+        .join(', ');
+    final (estan, pueden) = n == 1
+        ? ('ESTÁ CANCELADA', 'no puede')
+        : ('ESTÁN CANCELADAS', 'no pueden');
+    return '$n de las facturas elegidas $estan y $pueden volver a un camión: '
+        '$nombres${n > 5 ? ' y ${n - 5} más.' : '.'}';
   }
 
   /// El mensaje compuesto de los no facturados, letra a letra como el servidor:

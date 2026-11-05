@@ -67,14 +67,34 @@ Expression<bool>? fechaDeLaFacturaEntre(
   $OrdersTable o,
   DateTime? desde,
   DateTime? hasta,
+) => instanteEntreDiasDeCuba(
+  coalesce<DateTime>([o.facturaAt, o.orderDate, o.createdAt]),
+  desde,
+  hasta,
+);
+
+/// [cuando] entre [desde] y [hasta], **los dos días de Cuba incluidos**, cada extremo opcional (`null` sin
+/// ninguno). Es la cuenta de [fechaDeLaFacturaEntre] para cualquier otra fecha: la vista «Canceladas» la usa
+/// con la fecha de la cancelación (issue 25 de Amado, 05/11/2026). Un instante nulo queda fuera en cuanto
+/// hay un extremo.
+Expression<bool>? instanteEntreDiasDeCuba(
+  Expression<DateTime> cuando,
+  DateTime? desde,
+  DateTime? hasta,
 ) {
   if (desde == null && hasta == null) return null;
-  final cuando = coalesce<DateTime>([o.facturaAt, o.orderDate, o.createdAt]);
   final inicio = desde == null ? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true) : inicioDelDiaEnCuba(desde);
   final fin = hasta == null
       ? DateTime.utc(9999)
       : inicioDelDiaEnCuba(DateTime.utc(hasta.year, hasta.month, hasta.day + 1));
   return cuando.isBiggerOrEqualValue(inicio) & cuando.isSmallerThanValue(fin);
+}
+
+/// El instante pasado a la HORA DE CUBA, como un `DateTime` UTC cuya hora y minuto son los de allí (sólo
+/// vale para escribirlo: `d/M/y H:mm`). No depende del huso del aparato.
+DateTime horaDeCuba(DateTime instante) {
+  final u = instante.toUtc();
+  return u.add(_desfaseDeCuba(u));
 }
 
 /// El día de la factura como se enseña en una tarjeta, `15/10/2026` (el formato de

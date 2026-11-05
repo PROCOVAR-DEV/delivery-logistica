@@ -56,6 +56,7 @@ void main() {
     await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
     await frescura.rebajarLasFacturasAnuladas();
     await frescura.rebajarLosPedidosPorSuConduce();
+    await frescura.rebajarLosPedidosPorSuResultadoAt();
     await frescura.marcar(
       Colecciones.distribuidores,
       hasta: null,

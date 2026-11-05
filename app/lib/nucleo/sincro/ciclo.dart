@@ -446,6 +446,17 @@ class CicloDeSincronizacion {
               ),
             );
       bajada = await _bajada.ciclo(avisar: avisar);
+      // Una cancelación que el servidor rechazó porque la factura YA estaba cancelada se cierra sola, pero
+      // sólo con la copia entera puesta por el servidor (`cerrarLasCancelacionesYaHechas`).
+      if (bajada.completa && bajada.quedoPor == null) {
+        try {
+          await _cola.cerrarLasCancelacionesYaHechas();
+        } on Object catch (e) {
+          Registro.aviso(
+            'ciclo: no se pudieron cerrar las cancelaciones ya hechas: $e',
+          );
+        }
+      }
       // Los almacenes son la ULTIMA peticion del ciclo y van fuera de la
       // transaccion de las diferencias, asi que son justo las que se quedan sin
       // bajar cuando la senal se va a mitad de gesto. Que avisen tambien es lo

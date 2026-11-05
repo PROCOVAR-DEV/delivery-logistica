@@ -24,6 +24,7 @@ import '../datos/formato.dart';
 import '../datos/repositorio_pedidos.dart';
 import '../estado/proveedores_pedidos.dart';
 import 'cajon_ubicar_entrega.dart';
+import 'cancelar_devuelta.dart';
 import 'conduces.dart';
 import 'kit.dart';
 
@@ -181,6 +182,8 @@ class _Ficha extends StatelessWidget {
               ],
             ),
             SeccionConduceDeLaFicha(pedido: p),
+            // Devuelta: la marca y «Cancelar la factura»; cancelada: cuándo y con qué nota (issue 25 de Amado).
+            SeccionDeDevolucionDeLaFicha(pedido: p),
             _Seccion(
               titulo: 'Recorrido',
               hijos: [

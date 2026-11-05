@@ -39,6 +39,7 @@ import '../datos/repositorio_pedidos.dart';
 import '../estado/proveedores_pedidos.dart';
 import 'cajon_detalle_pedido.dart';
 import 'cajon_mandar_al_tablero.dart';
+import 'canceladas.dart';
 import 'conduces.dart';
 import 'kit.dart';
 import 'tabla_pedidos.dart';
@@ -79,7 +80,7 @@ class _PantallaPedidosState extends ConsumerState<PantallaPedidos> {
   late final List<String> _noSePudieron;
 
   /// La pestaña: 0 = Facturas (la lista de siempre, con sus filtros en la dirección), 1 = Conduces
-  /// (`docs/conduces.md`). Es de la pantalla y no de la dirección: los filtros de `/facturas` no cambian.
+  /// (`docs/conduces.md`), 2 = Canceladas (issue 25 de Amado, 05/11/2026). Es de la pantalla y no de la dirección: los filtros de `/facturas` no cambian.
   int _pestana = 0;
 
   @override
@@ -158,7 +159,11 @@ class _PantallaPedidosState extends ConsumerState<PantallaPedidos> {
               padding: const EdgeInsets.only(top: Aire.sm),
               child: PestanasQueCaben(
                 indice: _pestana,
-                etiquetas: const ['Facturas', TextosDeConduces.pestana],
+                etiquetas: const [
+                  'Facturas',
+                  TextosDeConduces.pestana,
+                  TextosDeCanceladas.pestana,
+                ],
                 alCambiar: (i) => setState(() => _pestana = i),
               ),
             ),
@@ -167,6 +172,11 @@ class _PantallaPedidosState extends ConsumerState<PantallaPedidos> {
             const Padding(
               padding: EdgeInsets.only(top: Aire.md),
               child: PestanaConduces(),
+            )
+          else if (_pestana == 2)
+            const Padding(
+              padding: EdgeInsets.only(top: Aire.md),
+              child: PestanaCanceladas(),
             )
           else ...[
             // LO QUE EL ENLACE TRAÍA Y NO SE PUDO APLICAR, ANTES QUE NADA.

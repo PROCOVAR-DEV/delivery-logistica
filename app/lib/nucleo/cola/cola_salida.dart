@@ -25,6 +25,19 @@ String? _zonaQueNombra(String ruta) {
   return id.isEmpty || id.contains('/') || id == 'orden' ? null : id;
 }
 
+/// La factura que cancela `POST /orders/{id}/cancelar` (issue 25 de Amado, 05/11/2026), o `null`.
+String? _facturaQueCancela(Apunte a) {
+  if (a.metodo != 'POST') return null;
+  final partes = a.ruta.split('?').first.split('/');
+  // ['', 'orders', '<id>', 'cancelar']
+  return partes.length == 4 &&
+          partes[1] == 'orders' &&
+          partes[3] == 'cancelar' &&
+          partes[2].isNotEmpty
+      ? partes[2]
+      : null;
+}
+
 /// LA COLA DE SALIDA. Es la pieza que hace verdad la regla 2: toda accion se
 /// guarda en el aparato y se pinta como hecha; la subida va por detras.
 ///
@@ -287,8 +300,44 @@ class ColaDeSalida {
             resueltoAt: Value(_reloj()),
           ),
         );
+        // UNA CANCELACIÓN RECHAZADA DEJA LA FILA CANCELADA SOLO EN ESTE APARATO (se escribió antes de subir).
+        // Se olvida la marca de los pedidos: la próxima bajada es entera y la fila vuelve a lo que diga el
+        // servidor (devuelta, en una ruta, o cancelada ya por otro). No se hardcodea a qué volver.
+        if (_facturaQueCancela(apunte) != null) {
+          await (_base.update(_base.frescura)
+                ..where((f) => f.coleccion.equals(Colecciones.pedidos)))
+              .write(const FrescuraCompanion(hasta: Value(null)));
+        }
       }
     });
+  }
+
+  /// Cierra los apuntes de CANCELAR que el servidor rechazó y cuya factura YA está cancelada en esta
+  /// copia (por si un 409 «ya está cancelada» llega como rechazo: otro aparato se adelantó). Se llama tras
+  /// una bajada ENTERA, con la fila ya puesta por el servidor; con la optimista de antes la pregunta no
+  /// valdría. No se borra: pasa a `descartado` con su motivo intacto (una decisión se ESCRIBE, CLAUDE.md
+  /// §4). Devuelve cuántos cerró.
+  Future<int> cerrarLasCancelacionesYaHechas() async {
+    final rechazados = await (_base.select(
+      _base.apuntes,
+    )..where((a) => a.estado.equalsValue(EstadoApunte.rechazado))).get();
+    var cerrados = 0;
+    for (final a in rechazados) {
+      final id = _facturaQueCancela(a);
+      if (id == null) continue;
+      final fila = await (_base.select(
+        _base.orders,
+      )..where((o) => o.id.equals(id))).getSingleOrNull();
+      if (fila?.resultado != ResultadoParada.cancelado) continue;
+      await descartar(a.clave);
+      cerrados++;
+    }
+    if (cerrados > 0) {
+      Registro.info(
+        'cancelaciones rechazadas cerradas, la factura ya estaba cancelada: $cerrados',
+      );
+    }
+    return cerrados;
   }
 
   /// El `local-…` de lo que este apunte creo pasa a ser el id de verdad.

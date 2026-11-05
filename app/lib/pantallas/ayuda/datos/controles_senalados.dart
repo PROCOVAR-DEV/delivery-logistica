@@ -125,6 +125,15 @@ abstract final class Senalado {
   /// «Deshacer conduce», en la pestaña «Conduces» y en la ficha de la principal.
   static const pedidosDeshacerConduce = 'pedidos-deshacer-conduce';
 
+  /// «Cancelar la factura», en la ficha de una factura devuelta (issue 25 de Amado).
+  static const pedidosCancelarDevuelta = 'pedidos-cancelar-devuelta';
+
+  /// «Cancelar la factura», en el cajón de confirmación.
+  static const pedidosConfirmarCancelar = 'pedidos-confirmar-cancelar';
+
+  /// «Exportar a Excel», en la pestaña «Canceladas».
+  static const pedidosExportarCanceladas = 'pedidos-exportar-canceladas';
+
   // ------------------------------------------------------------------- RUTAS
   static const rutasNuevaRuta = 'rutas-nueva-ruta';
   static const rutasAsistenteSucursal = 'rutas-asistente-sucursal';
@@ -370,6 +379,9 @@ abstract final class Senalado {
     pedidosCrearConduce,
     pedidosConfirmarConduce,
     pedidosDeshacerConduce,
+    pedidosCancelarDevuelta,
+    pedidosConfirmarCancelar,
+    pedidosExportarCanceladas,
     rutasNuevaRuta,
     rutasAsistenteSucursal,
     rutasAsistenteAlmacen,

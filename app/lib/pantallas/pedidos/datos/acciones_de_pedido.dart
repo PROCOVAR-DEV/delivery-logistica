@@ -30,6 +30,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../nucleo/base/base.dart';
+import '../../../nucleo/cancelada.dart';
 import '../../../nucleo/cola/cola_salida.dart';
 import '../../../nucleo/conduce.dart' show noEsMiembro;
 import '../../../nucleo/red/escritura_en_vivo.dart';
@@ -204,6 +205,85 @@ class AccionesDePedido {
           cuerpo: const <String, Object?>{},
         );
       });
+
+  /// CANCELA una factura DEVUELTA (issue 25 de Amado, 05/11/2026): el cliente se arrepintió y no va en otra
+  /// ruta. Es el resultado `cancelado` de siempre —sin columna nueva—, con [nota] opcional (≤ 500) en
+  /// `resultadoNota` y la hora en `resultadoAt`.
+  ///
+  /// Web: va al servidor y ESPERA; con un 4xx sale su motivo literal y no se escribe nada. APK y escritorio:
+  /// en UNA transacción se escribe la fila cancelada (local primero, ya fuera del pool) y se encola
+  /// `POST /orders/{id}/cancelar`. Si el servidor dice que no, el apunte queda rechazado con su motivo a la
+  /// vista y la fila vuelve a lo que diga el servidor (`ColaDeSalida.resolver` pide la copia entera).
+  Future<void> cancelar(String pedidoId, {String? nota}) => _unaSola(
+    'cancelar:$pedidoId',
+    () async {
+      final pedido = await (_base.select(
+        _base.orders,
+      )..where((o) => o.id.equals(pedidoId))).getSingleOrNull();
+      if (pedido == null) throw const RechazoLocal(MotivosDeCancelar.noExiste);
+      final no = porQueNoSePuedeCancelar(pedido);
+      if (no != null) throw RechazoLocal(no);
+      final dicha = nota?.trim();
+      if (dicha != null && dicha.length > MotivosDeCancelar.maxNota) {
+        throw const RechazoLocal(MotivosDeCancelar.notaLarga);
+      }
+      final conNota = dicha != null && dicha.isNotEmpty;
+      final cuerpo = <String, Object?>{if (conNota) 'nota': dicha};
+      final ruta = '/orders/$pedidoId/cancelar';
+
+      final enVivo = _enVivo;
+      if (enVivo != null) {
+        final respuesta = await _mandar(
+          enVivo,
+          metodo: 'POST',
+          ruta: ruta,
+          cuerpo: cuerpo,
+        );
+        // Lo que el servidor guardó; si la respuesta viene sin ello, lo mismo que se mandó.
+        final guardada = respuesta is Map<Object?, Object?> ? respuesta : null;
+        final cuando = guardada?['resultadoAt'];
+        final notaGuardada = guardada?['resultadoNota'];
+        await _escribirCancelada(
+          pedidoId,
+          cuando: cuando is String
+              ? DateTime.tryParse(cuando)?.toUtc() ?? _reloj()
+              : _reloj(),
+          nota: guardada == null
+              ? (conNota ? dicha : null)
+              : (notaGuardada is String ? notaGuardada : null),
+        );
+        return;
+      }
+
+      await _base.transaction(() async {
+        await _escribirCancelada(
+          pedidoId,
+          cuando: _reloj(),
+          nota: conNota ? dicha : null,
+        );
+        await _cola.encolar(metodo: 'POST', ruta: ruta, cuerpo: cuerpo);
+      });
+    },
+  );
+
+  /// Y los miembros de su conduce, si encabeza uno: el servidor cancela el conduce entero.
+  Future<void> _escribirCancelada(
+    String pedidoId, {
+    required DateTime cuando,
+    required String? nota,
+  }) =>
+      (_base.update(_base.orders)..where(
+            (o) =>
+                o.id.equals(pedidoId) | o.conducePrincipalId.equals(pedidoId),
+          ))
+          .write(
+            OrdersCompanion(
+              resultado: const Value(ResultadoParada.cancelado),
+              resultadoAt: Value(cuando),
+              resultadoNota: Value(nota),
+              updatedAt: Value(_reloj()),
+            ),
+          );
 
   /// El pedido y su ruta, o el «no» de siempre: no existe, ya se entregó, o su
   /// ruta es histórico. Las mismas comprobaciones y en el mismo orden que el

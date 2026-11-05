@@ -19,6 +19,7 @@ import '../../tablero/datos/modelos.dart';
 import '../../tablero/estado/proveedores.dart';
 import '../datos/acciones_de_conduce.dart';
 import '../datos/acciones_de_pedido.dart';
+import '../datos/canceladas.dart';
 import '../datos/filtros_pedidos.dart';
 import '../datos/mandar_al_tablero.dart';
 import '../datos/repositorio_pedidos.dart';
@@ -579,3 +580,52 @@ class EnvioAlTablero extends Notifier<void> {
 final envioAlTableroProvider = NotifierProvider<EnvioAlTablero, void>(
   EnvioAlTablero.new,
 );
+
+// ---------------------------------------------------------------------------
+// CANCELADAS (issue 25 de Amado, 05/11/2026)
+// ---------------------------------------------------------------------------
+
+final consultasCanceladasProvider = Provider<ConsultasCanceladas>(
+  (ref) => ConsultasCanceladas(ref.watch(baseProvider)),
+);
+
+/// El periodo de la vista «Canceladas»: días de Cuba, los dos incluidos, cada uno opcional. Es de la
+/// pantalla (como la pestaña), no de la dirección.
+typedef PeriodoDeCanceladas = ({DateTime? desde, DateTime? hasta});
+
+class PeriodoDeCanceladasNotifier extends Notifier<PeriodoDeCanceladas> {
+  @override
+  PeriodoDeCanceladas build() => (desde: null, hasta: null);
+
+  void poner(DateTime? desde, DateTime? hasta) =>
+      state = (desde: desde, hasta: hasta);
+}
+
+final periodoDeCanceladasProvider =
+    NotifierProvider<PeriodoDeCanceladasNotifier, PeriodoDeCanceladas>(
+      PeriodoDeCanceladasNotifier.new,
+    );
+
+/// STREAM sobre `orders` (§3-ter): en la web la base nace vacía y la bajada la llena después.
+final canceladasProvider = StreamProvider<List<Pedido>>((ref) {
+  final p = ref.watch(periodoDeCanceladasProvider);
+  return ref
+      .watch(consultasCanceladasProvider)
+      .lista(
+        desde: p.desde,
+        hasta: p.hasta,
+        sucursalId: ref.watch(sucursalMiradaProvider),
+      );
+});
+
+/// El contador de la vista, de la MISMA consulta que la lista (`ConsultasCanceladas.donde`).
+final totalDeCanceladasProvider = StreamProvider<int>((ref) {
+  final p = ref.watch(periodoDeCanceladasProvider);
+  return ref
+      .watch(consultasCanceladasProvider)
+      .contar(
+        desde: p.desde,
+        hasta: p.hasta,
+        sucursalId: ref.watch(sucursalMiradaProvider),
+      );
+});

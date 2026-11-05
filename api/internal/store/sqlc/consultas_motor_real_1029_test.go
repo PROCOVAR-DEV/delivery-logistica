@@ -114,6 +114,25 @@ func TestMotorReal_ReasignarUnDevueltoEsUnIntentoNuevo(t *testing.T) {
 		}
 	})
 
+	// Y un MIEMBRO de conduce cancelado no viaja con su principal devuelta (la misma guarda en la cláusula de los miembros):
+	// en la práctica la cancelación cae sobre todo el conduce a la vez, pero la consulta no se fía de eso.
+	t.Run("un_miembro_cancelado_no_viaja_con_su_principal", func(t *testing.T) {
+		b := nuevoBanco(t, pool)
+		suc := b.sucursal()
+		vieja, nueva := b.ruta(suc, RouteStatusCompleted), b.ruta(suc, RouteStatusPlanned)
+		principal := b.devueltoDeAyer(suc, vieja, "devuelto")
+		miembro := b.devueltoDeAyer(suc, vieja, "cancelado")
+		b.exec(`UPDATE orders SET conduce_principal_id = $1 WHERE id = $2`, principal, miembro)
+		n, err := b.q.EngancharPedidoARuta(b.ctx, EngancharPedidoARutaParams{
+			PedidoID: principal, RutaID: alcance(nueva), StopOrder: i32(1), Sucursal: alcance(suc)})
+		if err != nil || n != 1 {
+			t.Fatalf("la principal devuelta tenía que engancharse: n=%d err=%v", n, err)
+		}
+		if d := b.fotoDelIntento(miembro); d.Ruta != nil || d.Resultado == nil || *d.Resultado != "cancelado" {
+			t.Fatalf("el miembro cancelado viajó con su principal: %+v", d)
+		}
+	})
+
 	// LA PAREJA, en dos mitades.
 	t.Run("un_pedido_limpio_se_engancha_igual_y_no_inventa_resultado", func(t *testing.T) {
 		b := nuevoBanco(t, pool)

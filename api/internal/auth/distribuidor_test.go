@@ -43,6 +43,8 @@ func TestListaBlancaDelDistribuidor(t *testing.T) {
 		{"POST", "/api/routes/" + id + "/enlace"}, {"GET", "/api/routes/" + id + "/enlace"},
 		{"POST", "/api/routes/" + id + "/revision"}, {"POST", "/api/vehicles/" + id + "/desvincular"},
 		{"GET", "/api/vehicles/" + id + "/vinculos"}, {"GET", "/api/tracking/ahora"}, {"GET", "/api/vehicles/" + id + "/historial"},
+		// ISSUE 25 (05/11/2026): cancelar una factura devuelta es de la logística, no del teléfono.
+		{"POST", "/api/orders/" + id + "/cancelar"},
 	}
 	for _, p := range prohibidas {
 		if auth.PermitidoAlDistribuidor(p.metodo, p.ruta) {

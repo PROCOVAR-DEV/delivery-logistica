@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"procovar/reparto-api/internal/store/sqlc"
@@ -73,6 +74,13 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 		id: ped3, sucursal: sucStg, nombre: "Miembro", marca: time.Now().UTC().Add(-20 * time.Minute),
 		conducePrincipal: ped1,
 	})
+	// Y una factura CANCELADA (issue 25 de Amado): sin ruta, con `resultado = cancelado`, su hora y su nota.
+	ped4 := uuid.MustParse("0d000000-0000-0000-0000-000000000004")
+	canceladaEl := time.Date(2026, 11, 4, 16, 5, 0, 0, time.UTC)
+	q.sync = append(q.sync, pedidoSync{
+		id: ped4, sucursal: sucStg, nombre: "Cancelada", marca: time.Now().UTC().Add(-10 * time.Minute),
+		resultado: sqlc.StopResultCancelado, resultadoAt: &canceladaEl, resultadoNota: "el cliente se arrepintió",
+	})
 
 	cambios := bajadaDe(t, q, tokenTab(t, sucStg.String()),
 		"?desde="+desde.Format(time.RFC3339Nano))
@@ -111,6 +119,8 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 		"folio",
 		// Los conduces (00029): la principal de un miembro. Sin ella el aparato no puede ocultarlo ni juntarlo.
 		"conducePrincipalId",
+		// El resultado de la parada y CUÁNDO (issue 25): la vista «Canceladas» del aparato filtra por periodo con `resultadoAt`.
+		"resultado", "resultadoAt", "resultadoNota",
 	})
 	// Y no basta con la clave: `"facturaAt": nil` también la tiene. El valor tiene que ser
 	// el del pedido, en el formato de las demás fechas.
@@ -147,6 +157,11 @@ func TestLaBajadaNoPierdeCamposPorElCamino(t *testing.T) {
 	if normal["conducePrincipalId"] != nil || pedido["conducePrincipalId"] != nil {
 		t.Errorf("orders: una factura que no es miembro trae conducePrincipalId (%v / %v) y tenía que ser null",
 			normal["conducePrincipalId"], pedido["conducePrincipalId"])
+	}
+	cancelada := cambios["cambios"].(map[string]any)["orders"].(map[string]any)["puestos"].([]any)[3].(map[string]any)
+	if cancelada["resultado"] != "cancelado" || cancelada["resultadoNota"] != "el cliente se arrepintió" ||
+		cancelada["resultadoAt"] != canceladaEl.Format(time.RFC3339Nano) {
+		t.Errorf("orders: una cancelada sin ruta no baja con su resultado, su hora y su nota: %v", cancelada)
 	}
 	llego, _ := pedido["facturaAt"].(string)
 	esperada := facturadoEl.Format(time.RFC3339Nano)

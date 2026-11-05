@@ -169,6 +169,7 @@ type casoDeEntrada struct {
 	FacturaDomicilio  *float64 `json:"facturaDomicilio"`
 	PedidoCosto       *float64 `json:"pedidoCosto"`
 	RequiereDomicilio *bool    `json:"requiereDomicilio"`
+	Resultado         *string  `json:"resultado"` // null | devuelto | cancelado (issue 25)
 	Entra             bool     `json:"entra"`
 	Mensaje           string   `json:"mensaje"`
 }
@@ -222,11 +223,21 @@ func TestLaReglaDeEntradaEsLaDelFichero(t *testing.T) {
 				e := sqlc.FacturaEstado(*c.FacturaEstado)
 				estado = &e
 			}
+			var resultado *sqlc.StopResult
+			if c.Resultado != nil {
+				r := sqlc.StopResult(*c.Resultado)
+				resultado = &r
+			}
 			op := c.OperationNumber
-			asistente := rechazoDelArmado([]sqlc.PedidosParaArmarRutaRow{{
+			filas := []sqlc.PedidosParaArmarRutaRow{{
 				OperationNumber: &op, CustomerName: "Cliente", FacturaEstado: estado,
-				FacturaDomicilio: c.FacturaDomicilio, PedidoCosto: c.PedidoCosto,
-			}})
+				FacturaDomicilio: c.FacturaDomicilio, PedidoCosto: c.PedidoCosto, Resultado: resultado,
+			}}
+			// El mismo orden que `armarRuta`: las canceladas se nombran antes que el corte por factura.
+			asistente := mensajeCanceladas(filas)
+			if asistente == "" {
+				asistente = rechazoDelArmado(filas)
+			}
 			if c.Entra && asistente != "" {
 				t.Errorf("el asistente lo rechaza y tiene que entrar: %q\n%s", asistente, c.Nota)
 			}
@@ -235,7 +246,7 @@ func TestLaReglaDeEntradaEsLaDelFichero(t *testing.T) {
 			}
 			zona, _ := motivoDeCorteDelArmado(sqlc.PedidosDeColumnaParaArmarRutaRow{
 				OperationNumber: &op, CustomerName: "Cliente", FacturaEstado: estado,
-				FacturaDomicilio: c.FacturaDomicilio, PedidoCosto: c.PedidoCosto,
+				FacturaDomicilio: c.FacturaDomicilio, PedidoCosto: c.PedidoCosto, Resultado: resultado,
 			})
 			if c.Entra != (zona == "") {
 				t.Errorf("la zona del tablero dice %q y el fichero dice entra=%v\n%s", zona, c.Entra, c.Nota)

@@ -2079,6 +2079,7 @@ func TestMotorReal_LaReglaDeEntradaEsLaDelFichero(t *testing.T) {
 				FacturaDomicilio  *float64 `json:"facturaDomicilio"`
 				PedidoCosto       *float64 `json:"pedidoCosto"`
 				RequiereDomicilio *bool    `json:"requiereDomicilio"`
+				Resultado         *string  `json:"resultado"`
 				Entra             bool     `json:"entra"`
 			} `json:"casos"`
 		} `json:"reglaDeEntrada"`
@@ -2097,6 +2098,7 @@ func TestMotorReal_LaReglaDeEntradaEsLaDelFichero(t *testing.T) {
 			s := listo(c.OperationNumber, suc)
 			s.Factura, s.Domicilio, s.Costo = c.FacturaEstado, c.FacturaDomicilio, c.PedidoCosto
 			s.Requiere = c.RequiereDomicilio != nil && *c.RequiereDomicilio
+			s.Resultado = c.Resultado // devuelto/cancelado SIN ruta (issue 25): sólo el devuelto vuelve
 			p := b.pedido(s)
 			if c.RequiereDomicilio == nil {
 				b.exec(`UPDATE orders SET requiere_domicilio = NULL WHERE id = $1`, p)

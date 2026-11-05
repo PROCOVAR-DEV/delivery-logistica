@@ -15,6 +15,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,8 +24,8 @@ import (
 	"procovar/reparto-api/internal/store/sqlc"
 )
 
-func TestReasignarUnDevueltoOCanceladoLoDejaLimpioYSePuedeQuitar(t *testing.T) {
-	for _, resultado := range []sqlc.StopResult{sqlc.StopResultDevuelto, sqlc.StopResultCancelado} {
+func TestReasignarUnDevueltoLoDejaLimpioYSePuedeQuitar(t *testing.T) {
+	for _, resultado := range []sqlc.StopResult{sqlc.StopResultDevuelto} {
 		t.Run(string(resultado), func(t *testing.T) {
 			d, stg, _ := datosDeReparto()
 			rutaVieja := uuid.New()
@@ -54,6 +55,37 @@ func TestReasignarUnDevueltoOCanceladoLoDejaLimpioYSePuedeQuitar(t *testing.T) {
 				t.Fatalf("quitar la parada de la ruta nueva: %d %s", w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+// UNA CANCELADA SIN RUTA YA NO SE REASIGNA (issue 25 de Amado, 05/11/2026: «la cancelada es el cancelado ese»).
+// Antes de esta regla el cancelado volvía a disponibles igual que el devuelto (la prueba de arriba lo cubría
+// con los dos). Ahora sólo el DEVUELTO es un intento nuevo; el cancelado es terminal para el reparto: 409 con su
+// literal, nada se arma y la fila queda como estaba. EN PAREJA con la de arriba: el devuelto SÍ se reasigna.
+func TestUnCanceladoSinRutaNoSeReasignaYSuHojaQuedaIntacta(t *testing.T) {
+	d, stg, _ := datosDeReparto()
+	rutaVieja := uuid.New()
+	ayer := time.Now().Add(-24 * time.Hour)
+	nota := "el cliente se arrepintió"
+	cancelado := sqlc.StopResultCancelado
+	p := d.pedidos[stg[1]]
+	p.rutaID, p.ultimaRuta = nil, &rutaVieja
+	p.resultado, p.resultadoAt, p.nota = &cancelado, &ayer, &nota
+	h := montarRutas(t, d)
+
+	w := llamarRutas(t, h, http.MethodPost, "/api/routes", deSantiagoEnRutas(t),
+		cuerpoDeArmado(camionStg.String(), stg[1]))
+	if w.Code != http.StatusConflict {
+		t.Fatalf("una cancelada no vuelve a un camión: %d %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "ESTÁ CANCELADA y no puede volver a un camión: ") {
+		t.Fatalf("el 409 no dice que está cancelada: %s", w.Body.String())
+	}
+	if p.resultado == nil || *p.resultado != sqlc.StopResultCancelado || p.rutaID != nil || p.nota == nil || *p.nota != nota {
+		t.Fatalf("la cancelada cambió: resultado=%v ruta=%v nota=%v", p.resultado, p.rutaID, p.nota)
+	}
+	if len(d.rutas) != 0 {
+		t.Fatal("se armó una ruta con una factura cancelada")
 	}
 }
 

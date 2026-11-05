@@ -222,7 +222,7 @@ WITH puesta AS (
       -- clave ajena es ` + "`" + `ON DELETE SET NULL` + "`" + `, así que borrar la ruta de ayer deja sueltos a
       -- los entregados. Quien lo traduce a un 409 con su motivo es ` + "`" + `porQueNoSePudoColocar` + "`" + `.
       AND o.delivered_at IS NULL
-      AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+      AND (o.resultado IS NULL OR o.resultado = 'devuelto')
       -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
       -- restaurar ` + "`" + `factura_domicilio > 0` + "`" + ` (ver Notas/Pendiente/Delivery.md).
       AND ($5::uuid IS NULL OR c.branch_id = $5::uuid)
@@ -379,7 +379,7 @@ WHERE
     -- corrige a devuelto. Son las mismas dos con las que ` + "`" + `ListarPedidosDisponibles` + "`" + `
     -- define ` + "`" + `reparto = 'sin_entregar'` + "`" + `, y por eso se escriben igual aqui.
     AND o.delivered_at IS NULL
-    AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+    AND (o.resultado IS NULL OR o.resultado = 'devuelto')
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')
@@ -987,7 +987,7 @@ WHERE
     -- corrige a devuelto. Son las mismas dos con las que ` + "`" + `ListarPedidosDisponibles` + "`" + `
     -- define ` + "`" + `reparto = 'sin_entregar'` + "`" + `, y por eso se escriben igual aqui.
     AND o.delivered_at IS NULL
-    AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+    AND (o.resultado IS NULL OR o.resultado = 'devuelto')
     AND o.end_lat IS NOT NULL
     AND o.end_lng IS NOT NULL
     AND o.factura_estado IN ('igual', 'cambiado')

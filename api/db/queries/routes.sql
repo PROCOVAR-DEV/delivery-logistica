@@ -446,7 +446,7 @@ WITH parada AS (
     WHERE o.id = sqlc.arg('pedido_id')
       AND o.conduce_principal_id IS NULL
       AND o.route_id IS NULL
-      AND o.resultado IS DISTINCT FROM 'entregado'::stop_result
+      AND (o.resultado IS NULL OR o.resultado = 'devuelto')
       AND o.delivered_at IS NULL
       -- TEMPORAL 16/10/2026 (Jose): hasta que la factura mande sobre el pedido; para volver a exigir el cobro,
       -- restaurar `factura_domicilio > 0` (ver Notas/Pendiente/Delivery.md).
@@ -466,7 +466,7 @@ WITH parada AS (
         delivered_at   = NULL
     WHERE m.conduce_principal_id IN (SELECT parada.id FROM parada)
       AND m.route_id IS NULL
-      AND m.resultado IS DISTINCT FROM 'entregado'::stop_result
+      AND (m.resultado IS NULL OR m.resultado = 'devuelto')
       AND m.delivered_at IS NULL
       AND NOT m.archivado
     RETURNING m.id

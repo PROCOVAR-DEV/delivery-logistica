@@ -352,6 +352,17 @@ type Querier interface {
 	// Cambiar el camión. Va aparte del cambio de estado porque en el contrato tiene prioridad
 	// y retorna antes: liberar el camión viejo y ocupar el nuevo es lo único que hace.
 	CambiarVehiculoDeRuta(ctx context.Context, arg CambiarVehiculoDeRutaParams) (CambiarVehiculoDeRutaRow, error)
+	// CANCELAR UNA FACTURA DEVUELTA (issue 25 de Amado, «Facturas devueltas», Jose 05/11/2026: «la cancelada es el
+	// cancelado ese»). NO hay estado ni columna nueva: cancelar es `resultado = 'cancelado'`, el mismo valor que ya
+	// existía (el cierre de ruta ya lo escribía), con su hora y su nota. Lo nuevo es la REGLA: un `cancelado` sin ruta
+	// ya no vuelve al pool (ver `ListarPedidosDisponibles`); sólo el `devuelto` se reasigna.
+	//
+	// LAS GUARDAS ESTÁN AQUÍ Y EN NINGÚN OTRO SITIO (el manejador lee antes para dar el motivo, pero entre su lectura y
+	// esta orden la factura pudo entrar en una ruta): sólo un `devuelto` SIN ruta y sin entrega, y del alcance. La
+	// principal de un conduce arrastra a sus miembros (conduces.md regla 5: el resultado de la principal es el de todos);
+	// un miembro suelto no se cancela (cero filas). Devuelve los ids cancelados: la principal y sus miembros.
+	// `resultado_nota`: la de la cancelación y, si no hay, se conserva la de la devolución (no se pierde el porqué).
+	CancelarFacturaDevuelta(ctx context.Context, arg CancelarFacturaDevueltaParams) ([]uuid.UUID, error)
 	// Cerrar el hueco que dejó una tarjeta al salir. Se hace DESPUÉS de sacarla, y si no se
 	// hiciera tampoco se rompería nada —el orden se lee, no se cuenta—, pero las posiciones se
 	// irían separando hasta que un día alguien las lea como «la parada número 47» de una

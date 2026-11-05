@@ -933,6 +933,11 @@ func (s *Servidor) crearRuta(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, http.StatusConflict, mensaje)
 		return
 	}
+	// LAS CANCELADAS SIN RUTA TAMPOCO (issue 25 de Amado): sólo el devuelto se reasigna.
+	if mensaje := mensajeCanceladas(pedidos); mensaje != "" {
+		httpx.Error(w, r, http.StatusConflict, mensaje)
+		return
+	}
 
 	// --- Sólo entra lo facturado con domicilio cobrado ---------------------------
 	//
@@ -2695,6 +2700,8 @@ func porQueNoSeArma(f sqlc.PorQueNoSePuedeArmarRow) string {
 	switch {
 	case f.DeliveredAt.Valid || (f.Resultado != nil && *f.Resultado == sqlc.StopResultEntregado):
 		return "ya se entregó y no puede volver a un camión"
+	case f.Resultado != nil && *f.Resultado == sqlc.StopResultCancelado:
+		return "está cancelada y no puede volver a un camión"
 	case f.RouteID.Valid:
 		if f.RutaCodigo != nil && *f.RutaCodigo != "" {
 			return "ya va en la ruta " + *f.RutaCodigo
@@ -2771,6 +2778,34 @@ func mensajeYaEntregados(pedidos []sqlc.PedidosParaArmarRutaRow) string {
 	}
 	mensaje := fmt.Sprintf("%d de las facturas elegidas %s y %s volver "+
 		"a un camión: %s", len(malos), entregaron, pueden, strings.Join(detalle, ", "))
+	if len(malos) > 5 {
+		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
+	}
+	return mensaje + "."
+}
+
+// mensajeCanceladas arma el 409 de las facturas CANCELADAS (resultado `cancelado`, sin ruta), o "" si ninguna. Misma
+// forma que `mensajeYaEntregados`; el literal lo atan los casos de `docs/armado-rechazado.casos.json`.
+func mensajeCanceladas(pedidos []sqlc.PedidosParaArmarRutaRow) string {
+	var malos []string
+	for _, p := range pedidos {
+		if p.Resultado != nil && *p.Resultado == sqlc.StopResultCancelado {
+			malos = append(malos, quienEs(p.OperationNumber, p.CustomerName))
+		}
+	}
+	if len(malos) == 0 {
+		return ""
+	}
+	estan, pueden := "ESTÁN CANCELADAS", "no pueden"
+	if len(malos) == 1 {
+		estan, pueden = "ESTÁ CANCELADA", "no puede"
+	}
+	detalle := malos
+	if len(detalle) > 5 {
+		detalle = detalle[:5]
+	}
+	mensaje := fmt.Sprintf("%d de las facturas elegidas %s y %s volver a un camión: %s",
+		len(malos), estan, pueden, strings.Join(detalle, ", "))
 	if len(malos) > 5 {
 		return mensaje + fmt.Sprintf(" y %d más.", len(malos)-5)
 	}

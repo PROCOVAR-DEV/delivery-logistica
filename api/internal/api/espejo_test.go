@@ -114,6 +114,10 @@ type pedidoSync struct {
 	anuladaRuta uuid.UUID
 	// Es MIEMBRO de un conduce (00029): la principal. Cero = suelta o principal.
 	conducePrincipal uuid.UUID
+	// El resultado de la parada (`devuelto`, `cancelado`…), su hora y su nota. Vacío = sin resultado.
+	resultado     sqlc.StopResult
+	resultadoAt   *time.Time
+	resultadoNota string
 }
 
 // cambiadoAt es el `GREATEST(o.updated_at, max(oi.updated_at))` de la consulta.
@@ -217,6 +221,17 @@ func (q *espejoFalso) DiferenciasDePedidos(_ context.Context, arg sqlc.Diferenci
 		if p.clienteDir != "" {
 			dir := p.clienteDir
 			fila.PuntoClienteAddress = &dir
+		}
+		if p.resultado != "" {
+			r := p.resultado
+			fila.Resultado = &r
+		}
+		if p.resultadoAt != nil {
+			fila.ResultadoAt = pgtype.Timestamptz{Time: *p.resultadoAt, Valid: true}
+		}
+		if p.resultadoNota != "" {
+			n := p.resultadoNota
+			fila.ResultadoNota = &n
 		}
 		filas = append(filas, fila)
 	}

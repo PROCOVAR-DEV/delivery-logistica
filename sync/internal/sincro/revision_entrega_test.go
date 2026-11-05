@@ -529,6 +529,9 @@ func TestLaListaBlancaDeMetodoYRuta(t *testing.T) {
 			{"ruta": "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff"}, {"ruta": "/orders/a/b"}, {"ruta": "/orders/./punto"},
 			{"ruta": "/orders//punto"}, {"ruta": "/orders/x/punto/y"}, {"ruta": "/orders/x/punto/"}, {"ruta": "/orders/punto"},
 			{"ruta": "/orders/x/puntos"}, {"ruta": "/orders/a.b/punto"}, {"ruta": "/orders/x/punto?a=.."},
+			// CANCELAR UNA FACTURA DEVUELTA (issue 25): sólo `/orders/{id}/cancelar`, con la misma disciplina de forma.
+			{"ruta": "/orders/x/cancelar/y"}, {"ruta": "/orders/x/cancelar/"}, {"ruta": "/orders/cancelar"}, {"ruta": "/orders//cancelar"},
+			{"ruta": "/orders/./cancelar"}, {"ruta": "/orders/a.b/cancelar"}, {"ruta": "/orders/x/cancelars"}, {"ruta": "/orders/x/cancelar?a=.."},
 			// LOS CONDUCES (27/10/2026): las tres formas y nada más. Ni más profundidad, ni punto, ni un prefijo pegado,
 			// ni `/miembros` sin id ni sin principal.
 			{"ruta": "/conduces/a/b"}, {"ruta": "/conduces/."}, {"ruta": "/conduces/a.b"}, {"ruta": "/conducesx"},
@@ -577,6 +580,8 @@ func TestLaListaBlancaDeMetodoYRuta(t *testing.T) {
 			// EL PUNTO DE ENTREGA SIN SEÑAL (issue 19): poner el punto a mano y volver al del cliente.
 			{"PUT", "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff/punto"}, {"DELETE", "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff/punto"},
 			{"PUT", "/orders/local-9f3a/punto"},
+			// CANCELAR UNA FACTURA DEVUELTA SIN SEÑAL (issue 25, 05/11/2026), con id de verdad o `local-…`.
+			{"POST", "/orders/6f9619ff-8b86-d011-b42d-00c04fc964ff/cancelar"}, {"POST", "/orders/local-9f3a/cancelar"},
 			// LOS CONDUCES SIN SEÑAL (27/10/2026): crear, deshacer y sacar un miembro, con id de verdad o `local-…`.
 			{"POST", "/conduces"}, {"DELETE", "/conduces/6f9619ff-8b86-d011-b42d-00c04fc964ff"},
 			{"DELETE", "/conduces/6f9619ff-8b86-d011-b42d-00c04fc964ff/miembros/6f9619ff-8b86-d011-b42d-00c04fc964ff"},

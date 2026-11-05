@@ -56,10 +56,10 @@ func (b *banco) devueltoDeAyer(suc, rutaVieja uuid.UUID, resultado string) uuid.
 	return p
 }
 
-func TestMotorReal_ReasignarUnDevueltoOCanceladoEsUnIntentoNuevo(t *testing.T) {
+func TestMotorReal_ReasignarUnDevueltoEsUnIntentoNuevo(t *testing.T) {
 	pool := motorReal(t)
 
-	for _, resultado := range []string{"devuelto", "cancelado"} {
+	for _, resultado := range []string{"devuelto"} {
 		t.Run(resultado, func(t *testing.T) {
 			b := nuevoBanco(t, pool)
 			suc := b.sucursal()
@@ -95,6 +95,24 @@ func TestMotorReal_ReasignarUnDevueltoOCanceladoEsUnIntentoNuevo(t *testing.T) {
 			b.restricciones("SoltarParadaPlanificada tras reasignar")
 		})
 	}
+
+	// UN CANCELADO SIN RUTA YA NO SE REASIGNA (issue 25 de Amado, 05/11/2026): el cliente no la quiere. En pareja con el
+	// devuelto de arriba, que SÍ vuelve: la fila queda tal cual (cero filas) y no entra en ninguna ruta.
+	t.Run("un_cancelado_NO_se_reasigna_y_queda_intacto", func(t *testing.T) {
+		b := nuevoBanco(t, pool)
+		suc := b.sucursal()
+		vieja, nueva := b.ruta(suc, RouteStatusCompleted), b.ruta(suc, RouteStatusPlanned)
+		p := b.devueltoDeAyer(suc, vieja, "cancelado")
+		antes := b.fotoDelIntento(p)
+		n, err := b.q.EngancharPedidoARuta(b.ctx, EngancharPedidoARutaParams{
+			PedidoID: p, RutaID: alcance(nueva), StopOrder: i32(1), Sucursal: alcance(suc)})
+		if err != nil || n != 0 {
+			t.Fatalf("reasignar un cancelado: n=%d err=%v (tenía que ser 0)", n, err)
+		}
+		if d := b.fotoDelIntento(p); d.Ruta != nil || d.Resultado == nil || *d.Resultado != "cancelado" || d.Nota == nil || *d.Nota != *antes.Nota {
+			t.Fatalf("el cancelado cambió: %+v", d)
+		}
+	})
 
 	// LA PAREJA, en dos mitades.
 	t.Run("un_pedido_limpio_se_engancha_igual_y_no_inventa_resultado", func(t *testing.T) {

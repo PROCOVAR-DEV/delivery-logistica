@@ -432,3 +432,36 @@ func TestElPorQueNoDeLaCanceladaSeNombra(t *testing.T) {
 		t.Fatalf("una devuelta no está cancelada: %q", got)
 	}
 }
+
+// S1 (vocabulario) · GET /api/orders?reparto= acepta `cancelado` y `nuevas` y devuelve lo que dice (no «todo» por un valor desconocido).
+func TestMotorReal_LaListaAceptaRepartoCanceladoYNuevas(t *testing.T) {
+	e := nuevoEntornoDeConduces(t)
+	nueva := e.factura("47700", "Nueva", 1)
+	devuelta := e.devuelta(e.factura("47701", "Devuelta", 1))
+	cancelada := e.devuelta(e.factura("47702", "Cancelada", 1))
+	e.exec(`UPDATE orders SET resultado = 'cancelado' WHERE id = $1`, cancelada)
+	for _, c := range []struct {
+		reparto string
+		si, no  []uuid.UUID
+	}{
+		{"cancelado", []uuid.UUID{cancelada}, []uuid.UUID{nueva, devuelta}},
+		{"nuevas", []uuid.UUID{nueva}, []uuid.UUID{devuelta, cancelada}},
+		{"devuelto", []uuid.UUID{devuelta}, []uuid.UUID{nueva, cancelada}},
+		{"sin_entregar", []uuid.UUID{nueva, devuelta}, []uuid.UUID{cancelada}},
+	} {
+		code, cuerpo := e.llamar(e.jwt, http.MethodGet, "/api/orders?reparto="+c.reparto, "")
+		if code != http.StatusOK {
+			t.Fatalf("reparto=%s: %d %s", c.reparto, code, cuerpo)
+		}
+		for _, id := range c.si {
+			if !strings.Contains(cuerpo, id.String()) {
+				t.Fatalf("reparto=%s tenía que traer %s: %s", c.reparto, id, cuerpo)
+			}
+		}
+		for _, id := range c.no {
+			if strings.Contains(cuerpo, id.String()) {
+				t.Fatalf("reparto=%s NO tenía que traer %s", c.reparto, id)
+			}
+		}
+	}
+}

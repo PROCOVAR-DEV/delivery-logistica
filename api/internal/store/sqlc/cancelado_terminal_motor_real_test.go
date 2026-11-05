@@ -174,7 +174,8 @@ func TestMotorReal_CancelarFacturaDevuelta_CadaGuardaDelWhere(t *testing.T) {
 		enRuta := b.devueltoDeAyer(suc, vieja, "devuelto")
 		conHora := b.devueltoDeAyer(suc, vieja, "devuelto")
 		entregado := b.devueltoDeAyer(suc, vieja, "entregado")
-		for _, m := range []uuid.UUID{bueno, enRuta, conHora, entregado} {
+		sinMarcar := b.pedido(listo("miembro-sin-marcar", suc)) // sin resultado: no es «devuelto», no se cancela
+		for _, m := range []uuid.UUID{bueno, enRuta, conHora, entregado, sinMarcar} {
 			b.exec(`UPDATE orders SET conduce_principal_id = $1 WHERE id = $2`, principal, m)
 		}
 		b.exec(`UPDATE orders SET route_id = $2 WHERE id = $1`, enRuta, b.ruta(suc, RouteStatusPlanned))
@@ -183,8 +184,8 @@ func TestMotorReal_CancelarFacturaDevuelta_CadaGuardaDelWhere(t *testing.T) {
 		if len(ids) != 2 {
 			t.Fatalf("tenían que cancelarse la principal y el miembro bueno: %v", ids)
 		}
-		for _, m := range []uuid.UUID{enRuta, conHora, entregado} {
-			if d := b.fotoDelIntento(m); *d.Resultado == "cancelado" {
+		for _, m := range []uuid.UUID{enRuta, conHora, entregado, sinMarcar} {
+			if d := b.fotoDelIntento(m); d.Resultado != nil && *d.Resultado == "cancelado" {
 				t.Fatalf("la guarda de los miembros dejó pasar a %s: %+v", m, d)
 			}
 		}
@@ -267,6 +268,31 @@ func TestMotorReal_LosFiltrosDeRepartoSonLosDeLaApp(t *testing.T) {
 		}
 		return nombres
 	}
+	// Las listas de DISPONIBLES llevan el mismo filtro `reparto=`: `nuevas` no puede dejar pasar a una devuelta.
+	disp := func(reparto string) []string {
+		t.Helper()
+		filas, err := b.q.ListarPedidosDisponibles(b.ctx, ListarPedidosDisponiblesParams{BranchID: alcance(suc), Reparto: str(reparto), Limite: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := b.q.ContarPedidosDisponibles(b.ctx, ContarPedidosDisponiblesParams{BranchID: alcance(suc), Reparto: str(reparto)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var nombres []string
+		for _, f := range filas {
+			nombres = append(nombres, f.CustomerName)
+		}
+		sort.Strings(nombres)
+		if int(n) != len(nombres) {
+			t.Fatalf("disponibles reparto=%s: el contador dice %d y la lista trae %d", reparto, n, len(nombres))
+		}
+		return nombres
+	}
+	igualesTxt(t, "disponibles nuevas", disp("nuevas"), []string{"nueva"})
+	igualesTxt(t, "disponibles devuelto", disp("devuelto"), []string{"devuelta"})
+	igualesTxt(t, "disponibles cancelado", disp("cancelado"), nil)
+	igualesTxt(t, "disponibles sin_entregar", disp("sin_entregar"), []string{"devuelta", "nueva"})
 	igualesTxt(t, "sin_entregar", quienes("sin_entregar"), []string{"devuelta", "nueva"})
 	igualesTxt(t, "devuelto", quienes("devuelto"), []string{"devuelta"})
 	igualesTxt(t, "cancelado", quienes("cancelado"), []string{"cancelada"})

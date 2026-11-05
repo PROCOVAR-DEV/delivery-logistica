@@ -170,7 +170,9 @@ WHERE
         sqlc.narg('reparto')::text IS NULL
         OR (sqlc.narg('reparto')::text = 'sin_entregar'
             AND o.route_id IS NULL AND o.delivered_at IS NULL
-            AND (o.resultado IS NULL OR o.resultado <> 'entregado'))
+            AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+            -- Sin las canceladas (issue 25): ya no se reparten.
+            AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result)
         OR (sqlc.narg('reparto')::text = 'en_despacho'
             AND EXISTS (SELECT 1 FROM routes r WHERE r.id = o.route_id AND r.status = 'planned'))
         OR (sqlc.narg('reparto')::text = 'en_ruta'
@@ -178,7 +180,13 @@ WHERE
         OR (sqlc.narg('reparto')::text = 'entregado'
             AND (o.resultado = 'entregado' OR o.delivered_at IS NOT NULL))
         OR (sqlc.narg('reparto')::text = 'devuelto'
-            AND o.resultado IN ('devuelto', 'cancelado'))
+            -- SÓLO devueltas y sin ruta (issue 25, igual que la app: `RepartoFiltro.devuelto`); las canceladas tienen su filtro.
+            AND o.resultado = 'devuelto' AND o.route_id IS NULL)
+        OR (sqlc.narg('reparto')::text = 'cancelado'
+            AND o.resultado = 'cancelado')
+        -- NUEVAS: sin ruta y sin resultado, para distinguirlas de las devueltas (la app: `RepartoFiltro.nuevas`).
+        OR (sqlc.narg('reparto')::text = 'nuevas'
+            AND o.route_id IS NULL AND o.delivered_at IS NULL AND o.resultado IS NULL)
     )
     -- `sin_cotejar` tiene opción propia porque NULL NO es «cuadra»: quiere decir que no se
     -- sabe —VPN a Ventra caída, pedido fuera de los días que se repasan, sucursal sin base—.
@@ -287,7 +295,9 @@ WHERE
         sqlc.narg('reparto')::text IS NULL
         OR (sqlc.narg('reparto')::text = 'sin_entregar'
             AND o.route_id IS NULL AND o.delivered_at IS NULL
-            AND (o.resultado IS NULL OR o.resultado <> 'entregado'))
+            AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+            -- Sin las canceladas (issue 25): ya no se reparten.
+            AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result)
         OR (sqlc.narg('reparto')::text = 'en_despacho'
             AND EXISTS (SELECT 1 FROM routes r WHERE r.id = o.route_id AND r.status = 'planned'))
         OR (sqlc.narg('reparto')::text = 'en_ruta'
@@ -295,7 +305,13 @@ WHERE
         OR (sqlc.narg('reparto')::text = 'entregado'
             AND (o.resultado = 'entregado' OR o.delivered_at IS NOT NULL))
         OR (sqlc.narg('reparto')::text = 'devuelto'
-            AND o.resultado IN ('devuelto', 'cancelado'))
+            -- SÓLO devueltas y sin ruta (issue 25, igual que la app: `RepartoFiltro.devuelto`); las canceladas tienen su filtro.
+            AND o.resultado = 'devuelto' AND o.route_id IS NULL)
+        OR (sqlc.narg('reparto')::text = 'cancelado'
+            AND o.resultado = 'cancelado')
+        -- NUEVAS: sin ruta y sin resultado, para distinguirlas de las devueltas (la app: `RepartoFiltro.nuevas`).
+        OR (sqlc.narg('reparto')::text = 'nuevas'
+            AND o.route_id IS NULL AND o.delivered_at IS NULL AND o.resultado IS NULL)
     )
     AND (
         sqlc.narg('factura')::text IS NULL
@@ -405,13 +421,21 @@ WHERE
         sqlc.narg('reparto')::text IS NULL
         OR (sqlc.narg('reparto')::text = 'sin_entregar'
             AND o.route_id IS NULL AND o.delivered_at IS NULL
-            AND (o.resultado IS NULL OR o.resultado <> 'entregado'))
+            AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+            -- Sin las canceladas (issue 25): ya no se reparten.
+            AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result)
         OR (sqlc.narg('reparto')::text = 'en_despacho' AND r.status = 'planned')
         OR (sqlc.narg('reparto')::text = 'en_ruta'     AND r.status = 'in_progress')
         OR (sqlc.narg('reparto')::text = 'entregado'
             AND (o.resultado = 'entregado' OR o.delivered_at IS NOT NULL))
         OR (sqlc.narg('reparto')::text = 'devuelto'
-            AND o.resultado IN ('devuelto', 'cancelado'))
+            -- SÓLO devueltas y sin ruta (issue 25, igual que la app: `RepartoFiltro.devuelto`); las canceladas tienen su filtro.
+            AND o.resultado = 'devuelto' AND o.route_id IS NULL)
+        OR (sqlc.narg('reparto')::text = 'cancelado'
+            AND o.resultado = 'cancelado')
+        -- NUEVAS: sin ruta y sin resultado, para distinguirlas de las devueltas (la app: `RepartoFiltro.nuevas`).
+        OR (sqlc.narg('reparto')::text = 'nuevas'
+            AND o.route_id IS NULL AND o.delivered_at IS NULL AND o.resultado IS NULL)
     )
     AND (
         sqlc.narg('factura')::text IS NULL
@@ -492,13 +516,21 @@ WHERE
         sqlc.narg('reparto')::text IS NULL
         OR (sqlc.narg('reparto')::text = 'sin_entregar'
             AND o.route_id IS NULL AND o.delivered_at IS NULL
-            AND (o.resultado IS NULL OR o.resultado <> 'entregado'))
+            AND (o.resultado IS NULL OR o.resultado <> 'entregado')
+            -- Sin las canceladas (issue 25): ya no se reparten.
+            AND o.resultado IS DISTINCT FROM 'cancelado'::stop_result)
         OR (sqlc.narg('reparto')::text = 'en_despacho' AND r.status = 'planned')
         OR (sqlc.narg('reparto')::text = 'en_ruta'     AND r.status = 'in_progress')
         OR (sqlc.narg('reparto')::text = 'entregado'
             AND (o.resultado = 'entregado' OR o.delivered_at IS NOT NULL))
         OR (sqlc.narg('reparto')::text = 'devuelto'
-            AND o.resultado IN ('devuelto', 'cancelado'))
+            -- SÓLO devueltas y sin ruta (issue 25, igual que la app: `RepartoFiltro.devuelto`); las canceladas tienen su filtro.
+            AND o.resultado = 'devuelto' AND o.route_id IS NULL)
+        OR (sqlc.narg('reparto')::text = 'cancelado'
+            AND o.resultado = 'cancelado')
+        -- NUEVAS: sin ruta y sin resultado, para distinguirlas de las devueltas (la app: `RepartoFiltro.nuevas`).
+        OR (sqlc.narg('reparto')::text = 'nuevas'
+            AND o.route_id IS NULL AND o.delivered_at IS NULL AND o.resultado IS NULL)
     )
     AND (
         sqlc.narg('factura')::text IS NULL

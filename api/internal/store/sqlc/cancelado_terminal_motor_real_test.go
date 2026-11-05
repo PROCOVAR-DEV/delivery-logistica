@@ -9,6 +9,7 @@ package sqlc
 // (que lee antes y tapa el `WHERE`). M2: el Panel no cuenta lo cancelado en `peso_pendiente`.
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -214,4 +215,60 @@ func TestMotorReal_ElPanelNoPesaLoCancelado(t *testing.T) {
 	if r.SinRuta != 1 || r.PesoPendiente != 100 {
 		t.Fatalf("el panel cuenta lo cancelado: sin_ruta=%d peso_pendiente=%v (esperaba 1 y 100)", r.SinRuta, r.PesoPendiente)
 	}
+}
+
+// S1 · LOS FILTROS `reparto=` DE LAS LISTAS SON LOS DE LA APP (issue 25; `RepartoFiltro` en filtros_pedidos.dart):
+//
+//	sin_entregar → sin ruta, sin entrega, sin entregado y SIN cancelados · devuelto → SOLO devueltos sin ruta
+//	cancelado    → solo cancelados                                     · nuevas   → sin ruta y sin resultado
+//
+// Las cuatro consultas que llevan el filtro (las dos listas y sus dos contadores) tienen que contestar lo mismo.
+func TestMotorReal_LosFiltrosDeRepartoSonLosDeLaApp(t *testing.T) {
+	pool := motorReal(t)
+	b := nuevoBanco(t, pool)
+	suc := b.sucursal()
+	vieja := b.ruta(suc, RouteStatusCompleted)
+	siembra := func(nombre, resultado string, conRuta bool) {
+		s := listo(nombre, suc)
+		p := b.pedido(s)
+		if resultado != "" {
+			b.exec(`UPDATE orders SET resultado = $2::text::stop_result, ultima_ruta_id = $3, resultado_at = now() WHERE id = $1`, p, resultado, vieja)
+		}
+		if resultado == "entregado" {
+			b.exec(`UPDATE orders SET delivered_at = now() WHERE id = $1`, p)
+		}
+		if conRuta {
+			b.exec(`UPDATE orders SET route_id = $2 WHERE id = $1`, p, b.ruta(suc, RouteStatusPlanned))
+		}
+	}
+	siembra("nueva", "", false)
+	siembra("devuelta", "devuelto", false)
+	siembra("cancelada", "cancelado", false)
+	siembra("entregada", "entregado", false)
+	siembra("en-ruta", "", true)
+
+	quienes := func(reparto string) []string {
+		t.Helper()
+		filas, err := b.q.ListarPedidos(b.ctx, ListarPedidosParams{BranchID: alcance(suc), Reparto: str(reparto), Limite: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := b.q.ContarPedidos(b.ctx, ContarPedidosParams{BranchID: alcance(suc), Reparto: str(reparto)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var nombres []string
+		for _, f := range filas {
+			nombres = append(nombres, f.CustomerName)
+		}
+		sort.Strings(nombres)
+		if int(n) != len(nombres) {
+			t.Fatalf("reparto=%s: el contador dice %d y la lista trae %d", reparto, n, len(nombres))
+		}
+		return nombres
+	}
+	igualesTxt(t, "sin_entregar", quienes("sin_entregar"), []string{"devuelta", "nueva"})
+	igualesTxt(t, "devuelto", quienes("devuelto"), []string{"devuelta"})
+	igualesTxt(t, "cancelado", quienes("cancelado"), []string{"cancelada"})
+	igualesTxt(t, "nuevas", quienes("nuevas"), []string{"nueva"})
 }

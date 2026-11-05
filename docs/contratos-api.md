@@ -287,7 +287,7 @@ aplica `trim()`. `q` además se pasa a minúsculas. Los usan `/api/orders` y
 | `municipio` | texto | `municipio = valor` (exacto) |
 | `vendedor` / `vendedores` | texto, **uno o varios** | `vendedor = ANY(lista)` (exacto): salen los pedidos de CUALQUIERA de ellos (unión). Se pueden mandar `vendedor=Ana&vendedor=Luis` (repetido), `vendedores=Ana,Luis` (separado por comas) o `vendedor=Ana` (el de UN vendedor de siempre, que las APK instaladas siguen mandando); si vienen de las dos formas se unen, sin repetidos y sin vacíos. Un nombre con coma sólo viaja entero en la forma repetida. Ninguno = todos (nunca «ninguno»: la lista vacía es `NULL`, no `{}`). Desde el 16/10/2026 (issue 18 de Amado) |
 | `branchId` | id | `branchId = valor`, **AND** con el alcance (no lo amplía) |
-| `reparto` | `sin_entregar` \| `en_despacho` \| `en_ruta` \| `entregado` \| `devuelto` | ver abajo |
+| `reparto` | `sin_entregar` \| `en_despacho` \| `en_ruta` \| `entregado` \| `devuelto` \| `cancelado` \| `nuevas` | ver abajo |
 | `factura` | `con_factura` \| `cuadra` \| `sin_cotejar` \| otro | ver abajo |
 | `desde` | `YYYY-MM-DD` | ver abajo |
 | `hasta` | `YYYY-MM-DD` | ver abajo |
@@ -298,11 +298,12 @@ aplica `trim()`. `q` además se pasa a minúsculas. Los usan `/api/orders` y
   - `en_proceso` → `AND[noCompletada, OR[{fechaComprometida:null},{fechaComprometida:{gte:now}}]]`.
   - `expirada` → `AND[noCompletada, {fechaComprometida:{lt:now}}]`.
 - `reparto`:
-  - `sin_entregar` → `routeId:null, deliveredAt:null, OR[{resultado:null},{resultado:{not:'entregado'}}]`.
+  - `sin_entregar` → `routeId:null, deliveredAt:null, OR[{resultado:null},{resultado:{not:'entregado'}}]` **y sin cancelados** (`resultado IS DISTINCT FROM 'cancelado'`, issue 25).
   - `en_despacho` → `routeId != null AND route.status = 'planned'`.
   - `en_ruta` → `routeId != null AND route.status = 'in_progress'`.
   - `entregado` → `OR[{resultado:'entregado'},{deliveredAt:{not:null}}]`.
-  - `devuelto` → `resultado IN ('devuelto','cancelado')`.
+  - `devuelto` → `resultado = 'devuelto' AND routeId IS NULL` (issue 25; antes `IN ('devuelto','cancelado')`).
+  - `cancelado` → `resultado = 'cancelado'`. `nuevas` → `routeId IS NULL AND deliveredAt IS NULL AND resultado IS NULL`.
 - `factura`:
   - `con_factura` → `facturaEstado IN ('igual','cambiado')`.
   - `cuadra` → `facturaEstado = 'igual'`.
@@ -1013,9 +1014,10 @@ historial de la ruta donde se canceló se conserva). Cambian, todas con `resulta
 `ListarPedidosDisponibles` y `ContarPedidosDisponibles`, `ListarPedidosSinColocar` y `ContarPedidosSinColocar`, `ColocarPedido`
 (409 `«Esa factura está cancelada»`), `EngancharPedidoARuta` (principal y miembros; cero filas), y el armado (`POST /api/routes`:
 409 `«N de las facturas elegidas ESTÁ(N) CANCELADA(S) y no pued(e|en) volver a un camión: …»`; la zona del tablero: motivo
-`«está cancelada»`). `PanelResumen` (`sin_ruta`, `peso_pendiente`) y `PanelPorSucursal` no cuentan las canceladas. **NO cambian**
-los filtros `reparto=` de `GET /api/orders`: `devuelto` sigue siendo «devuelto o cancelado» y `sin_entregar` sigue incluyendo
-los cancelados sin ruta. Los casos compartidos (`docs/armado-rechazado.casos.json`, `reglaDeEntrada`: campo `resultado`,
+`«está cancelada»`). `PanelResumen` (`sin_ruta`, `peso_pendiente`) y `PanelPorSucursal` no cuentan las canceladas. **Los
+filtros `reparto=` de `GET /api/orders` son los de la app** (`RepartoFiltro`): `sin_entregar` EXCLUYE los cancelados, `devuelto`
+es SÓLO `resultado='devuelto'` sin ruta (antes «devuelto o cancelado»), `cancelado` es sólo `resultado='cancelado'` y
+`nuevas` es sin ruta, sin entrega y sin resultado. Los casos compartidos (`docs/armado-rechazado.casos.json`, `reglaDeEntrada`: campo `resultado`,
 casos `devuelto-sin-ruta` y `cancelado-sin-ruta`) los leen Go, Postgres y Dart.
 
 **La bajada** (`cambios.orders.puestos`) lleva ahora **`resultadoAt`** (ISO UTC o `null`), que antes sólo estaba en la ficha;

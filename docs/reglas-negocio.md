@@ -289,7 +289,7 @@ Campos: `q, estado, archivado, domicilio, cotizado, municipio, vendedor, branchI
 ### Vocabulario de valores
 - `estado`: `completada` | `en_proceso` | `expirada` | `''` (todos).
 - `archivado`/`domicilio`/`cotizado`: `'1'` | `'0'` | `''` (los dos).
-- `reparto`: `sin_entregar` | `en_despacho` | `en_ruta` | `entregado` | `devuelto`.
+- `reparto`: `sin_entregar` | `en_despacho` | `en_ruta` | `entregado` | `devuelto` | `cancelado` | `nuevas`.
 - `factura`: `igual` | `cambiado` | `sin_factura` | `sin_cotejar` | `cuadra` | `con_factura`.
 - `desde`/`hasta`: `YYYY-MM-DD`.
 
@@ -335,13 +335,15 @@ anteriores en silencio**. Si no hay ninguna condición → `{}`.
    pedido ni con el de la factura; las tres cosas se dicen por separado y ninguna manda sobre las
    otras**):
    - `sin_entregar` → `routeId IS NULL` **AND** `deliveredAt IS NULL` **AND**
-     `OR[ resultado IS NULL, resultado != 'entregado' ]`.
+     `OR[ resultado IS NULL, resultado != 'entregado' ]` **AND** `resultado IS DISTINCT FROM 'cancelado'` (issue 25: una
+     cancelada ya no se reparte).
    - `en_despacho` → `routeId != null` AND `route.status = 'planned'`.
    - `en_ruta` → `routeId != null` AND `route.status = 'in_progress'`.
    - `entregado` → `OR[ resultado = 'entregado', deliveredAt != null ]`.
-   - `devuelto` → `resultado IN ('devuelto','cancelado')` (sigue así a propósito, issue 25: la vista «Canceladas» de la app
-     filtra su base local por `resultado = 'cancelado'`; y `sin_entregar` sigue incluyendo los cancelados sin ruta aunque ya
-     no se repartan).
+   - `devuelto` → `resultado = 'devuelto'` **AND** `routeId IS NULL` (issue 25; antes `IN ('devuelto','cancelado')`).
+   - `cancelado` → `resultado = 'cancelado'` (issue 25). `nuevas` → `routeId IS NULL AND deliveredAt IS NULL AND resultado IS
+     NULL`: las que han entrado y nadie ha tocado, para distinguirlas de las devueltas. Los mismos valores que `RepartoFiltro`
+     de la app.
    - **`devuelto` no es un estado sino el RESULTADO de la parada**: el pedido baja del camión y
      vuelve a `sin_entregar`, listo para la ruta de mañana.
    - **REGLA CRÍTICA — manda el RESULTADO de la parada, no el estado de la ruta.** «Entregado» era

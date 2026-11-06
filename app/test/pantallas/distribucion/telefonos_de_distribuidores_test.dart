@@ -29,6 +29,8 @@ void main() {
     String? placa,
     String? distribuidor,
     int rutas = 0,
+    String? appVersion,
+    int? appCompilacion,
   }) => {
     'id': id,
     'nombre': nombre,
@@ -45,6 +47,8 @@ void main() {
         ? null
         : {'id': 'D-$id', 'nombre': distribuidor},
     'rutasAbiertas': rutas,
+    'appVersion': appVersion,
+    'appCompilacion': appCompilacion,
   };
 
   List<Map<String, Object?>> lista() => [
@@ -87,6 +91,102 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // `/version` con (o sin) el anuncio del distribuidor, junto a la lista.
+  RespuestaFalsa? contestaTodo(
+    PeticionVista p,
+    List<Object?> datos, {
+    Object? distribuidor,
+  }) => p.ruta == '/version'
+      ? RespuestaFalsa(200, {'ultima': null, 'distribuidor': distribuidor})
+      : contestaLista(p, datos);
+
+  Map<String, Object?> anuncio(int compilacion) => {
+    'version': '1.0.1',
+    'compilacion': compilacion,
+    'descargas': {'android': 'https://d.test/r.apk'},
+  };
+
+  group('la versión de cada teléfono', () {
+    final datos = [
+      telefono(
+        'T1',
+        nombre: 'Al día',
+        vehiculo: 'V1',
+        appVersion: '1.0.1',
+        appCompilacion: 58,
+      ),
+      telefono(
+        'T2',
+        nombre: 'Viejo',
+        vehiculo: 'V2',
+        appVersion: '1.0.0',
+        appCompilacion: 57,
+      ),
+      telefono('T3', nombre: 'Mudo', vehiculo: 'V3'),
+    ];
+
+    testWidgets(
+      'enseña «Versión 1.0.0 (57)», y «Desactualizada» (con texto) solo al menor que lo anunciado',
+      (tester) async {
+        final api = ApiDePrueba(
+          (p) async => contestaTodo(p, datos, distribuidor: anuncio(58)),
+        );
+        await montarLista(tester, api);
+
+        expect(find.text('Versión 1.0.1 (58)'), findsOneWidget);
+        expect(find.text('Versión 1.0.0 (57)'), findsOneWidget);
+        expect(find.text('Versión desconocida'), findsOneWidget);
+        expect(find.text('Desactualizada'), findsOneWidget);
+        expect(find.byKey(claveDeDesactualizado('T2')), findsOneWidget);
+        expect(find.byKey(claveDeDesactualizado('T1')), findsNothing);
+        // Sin versión declarada no se sabe: no se acusa en falso.
+        expect(find.byKey(claveDeDesactualizado('T3')), findsNothing);
+      },
+    );
+
+    testWidgets('sin anuncio del distribuidor no hay etiqueta', (tester) async {
+      final api = ApiDePrueba((p) async => contestaTodo(p, datos));
+      await montarLista(tester, api);
+      expect(find.text('Versión 1.0.0 (57)'), findsOneWidget);
+      expect(find.text('Desactualizada'), findsNothing);
+    });
+
+    testWidgets('si /version falla, la lista sale igual y sin etiqueta', (
+      tester,
+    ) async {
+      final api = ApiDePrueba(
+        (p) async => p.ruta == '/version' ? null : contestaLista(p, datos),
+      );
+      await montarLista(tester, api);
+      expect(find.text('Versión 1.0.0 (57)'), findsOneWidget);
+      expect(find.text('Desactualizada'), findsNothing);
+      expect(find.byKey(claveDelAvisoDeTelefonos), findsNothing);
+    });
+
+    testWidgets('en ancho de escritorio también (bajo el nombre)', (
+      tester,
+    ) async {
+      final api = ApiDePrueba(
+        (p) async => contestaTodo(p, datos, distribuidor: anuncio(58)),
+      );
+      await montarLista(tester, api, tamano: const Size(1440, 1400));
+      expect(find.byType(DataTable), findsOneWidget);
+      expect(find.text('Versión 1.0.0 (57)'), findsOneWidget);
+      expect(find.text('Desactualizada'), findsOneWidget);
+    });
+
+    testWidgets('el buscador encuentra por versión', (tester) async {
+      final api = ApiDePrueba(
+        (p) async => contestaTodo(p, datos, distribuidor: anuncio(58)),
+      );
+      await montarLista(tester, api);
+      await tester.enterText(find.byType(TextField).first, '1.0.1');
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byKey(claveDelTelefono('T1')), findsOneWidget);
+      expect(find.byKey(claveDelTelefono('T2')), findsNothing);
+    });
+  });
+
   group('la lista', () {
     testWidgets(
       'por defecto solo los vinculados, con vehículo, placa, desde cuándo, distribuidor, rutas y "visto hace"',
@@ -94,7 +194,10 @@ void main() {
         final api = ApiDePrueba((p) async => contestaLista(p));
         await montarLista(tester, api);
 
-        expect(api.servidor.vistas.single.ruta, '/dispositivos');
+        expect(
+          api.servidor.vistas.where((p) => p.ruta == '/dispositivos'),
+          hasLength(1),
+        );
         expect(find.byKey(claveDelTelefono('T1')), findsOneWidget);
         expect(find.byKey(claveDelTelefono('T2')), findsOneWidget);
         expect(find.byKey(claveDelTelefono('T3')), findsNothing);

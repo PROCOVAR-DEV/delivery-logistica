@@ -36,6 +36,11 @@ abstract final class TextosDeLosTelefonos {
       'Todavía no hay teléfonos de distribuidores. Aparecen aquí cuando uno abre el enlace de una ruta.';
   static const ningunoVinculado =
       'Ningún teléfono está vinculado ahora. Cambia a «Todos» para ver los que se desvincularon.';
+  static const versionDesconocida = 'Versión desconocida';
+  static const desactualizada = 'Desactualizada';
+  static const explicaDesactualizada =
+      'Este teléfono lleva una versión de Reparto Distribuidor anterior a la última publicada.';
+  static String version(String v) => 'Versión $v';
   static const nadaDeEsto = 'No hay teléfonos que cuadren con esto.';
   static String vinculadoDesde(DateTime? d) =>
       'Vinculado desde ${fechaYHora(d)}';
@@ -54,6 +59,7 @@ const claveDelAvisoDeTelefonos = ValueKey('telefonos-aviso');
 ValueKey<String> claveDelTelefono(String id) => ValueKey('telefono-$id');
 Key claveDeDesvincularTelefono(String id) =>
     ValueKey('telefono-desvincular-$id');
+Key claveDeDesactualizado(String id) => ValueKey('telefono-desactualizado-$id');
 Key claveDelAvisoSinSenalTelefono(String id) =>
     ValueKey('telefono-sin-senal-$id');
 
@@ -78,6 +84,7 @@ List<TelefonoDeDistribuidor> filtrarTelefonos(
                 x.vehiculo,
                 x.placa,
                 x.distribuidor,
+                x.versionDeLaApp,
               ].any((c) => c != null && c.toLowerCase().contains(t))))
         x,
   ];
@@ -108,16 +115,18 @@ class _TelefonosDeDistribuidoresState
   @override
   void initState() {
     super.initState();
-    _reloj = Timer.periodic(
-      widget.cada,
-      (_) => ref.invalidate(telefonosProvider),
-    );
+    _reloj = Timer.periodic(widget.cada, (_) => _recargar());
   }
 
   @override
   void dispose() {
     _reloj?.cancel();
     super.dispose();
+  }
+
+  void _recargar() {
+    ref.invalidate(telefonosProvider);
+    ref.invalidate(compilacionAnunciadaDelDistribuidorProvider);
   }
 
   Future<void> _desvincular(TelefonoDeDistribuidor t) async {
@@ -153,7 +162,7 @@ class _TelefonosDeDistribuidoresState
                 key: claveDeActualizarTelefonos,
                 icon: const Icon(Icons.refresh, size: 18),
                 label: const Text('Reintentar'),
-                onPressed: () => ref.invalidate(telefonosProvider),
+                onPressed: _recargar,
               ),
             )
           : const EstadoVacio('Cargando los teléfonos…');
@@ -162,6 +171,9 @@ class _TelefonosDeDistribuidoresState
     final vistos = filtrarTelefonos(datos, filtro: _filtro, q: _q);
     final variasSucursales = datos.map((t) => t.sucursalId).toSet().length > 1;
     final ahora = ref.watch(relojProvider)();
+    final anunciada = ref
+        .watch(compilacionAnunciadaDelDistribuidorProvider)
+        .value;
     final primero = vistos.where((t) => t.vinculado).firstOrNull?.id;
     return ListView(
       key: claveDeLosTelefonos,
@@ -192,7 +204,7 @@ class _TelefonosDeDistribuidoresState
               key: claveDeActualizarTelefonos,
               icon: const Icon(Icons.refresh, size: 18),
               label: const Text('Actualizar'),
-              onPressed: () => ref.invalidate(telefonosProvider),
+              onPressed: _recargar,
             ),
           ],
         ),
@@ -215,7 +227,14 @@ class _TelefonosDeDistribuidoresState
         else
           LayoutBuilder(
             builder: (context, medidas) => medidas.maxWidth >= Anchos.escritorio
-                ? _tabla(context, vistos, ahora, variasSucursales, primero)
+                ? _tabla(
+                    context,
+                    vistos,
+                    ahora,
+                    variasSucursales,
+                    primero,
+                    anunciada,
+                  )
                 : Column(
                     children: [
                       for (final t in vistos)
@@ -223,6 +242,7 @@ class _TelefonosDeDistribuidoresState
                           t,
                           tema: tema,
                           ahora: ahora,
+                          anunciada: anunciada,
                           conSucursal: variasSucursales,
                           boton: _boton(t, primero),
                         ),
@@ -253,6 +273,7 @@ class _TelefonosDeDistribuidoresState
     DateTime ahora,
     bool conSucursal,
     String? primero,
+    int? anunciada,
   ) {
     final tema = Theme.of(context);
     return TarjetaDeTabla(
@@ -280,7 +301,12 @@ class _TelefonosDeDistribuidoresState
                     DataCell(
                       KeyedSubtree(
                         key: claveDelTelefono(t.id),
-                        child: _Nombre(t),
+                        // La versión va bajo el nombre: una columna más no cabe a 1440 px.
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [_Nombre(t), _Version(t, anunciada)],
+                        ),
                       ),
                     ),
                     if (conSucursal) DataCell(Text(t.sucursal ?? '—')),
@@ -357,6 +383,66 @@ class _Nombre extends StatelessWidget {
   );
 }
 
+/// «Versión 1.0.0 (57)» y, si es menor que la anunciada, la etiqueta «Desactualizada» (color, borde, icono Y texto: nunca solo color).
+class _Version extends StatelessWidget {
+  const _Version(this.t, this.anunciada);
+
+  final TelefonoDeDistribuidor t;
+  final int? anunciada;
+
+  @override
+  Widget build(BuildContext context) {
+    final v = t.versionDeLaApp;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          v == null
+              ? TextosDeLosTelefonos.versionDesconocida
+              : TextosDeLosTelefonos.version(v),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        if (t.estaDesactualizado(anunciada))
+          Tooltip(
+            message: TextosDeLosTelefonos.explicaDesactualizada,
+            child: DecoratedBox(
+              key: claveDeDesactualizado(t.id),
+              decoration: BoxDecoration(
+                color: Colores.ambarFondo,
+                border: Border.all(color: Colores.ambar),
+                borderRadius: BorderRadius.circular(Radios.pastilla),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.system_update_alt,
+                      size: 14,
+                      color: Colores.ambar,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      TextosDeLosTelefonos.desactualizada,
+                      style: Tipos.texto(
+                        tamano: 11,
+                        peso: FontWeight.w700,
+                        color: Colores.ambar,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// «Visto hace X», con el aviso ámbar de «Dónde están» pasados [minutosSinSenalParaAvisar] (solo si el teléfono sigue en servicio).
 class _Visto extends StatelessWidget {
   const _Visto(this.t, this.ahora);
@@ -408,6 +494,7 @@ class _Tarjeta extends StatelessWidget {
     this.t, {
     required this.tema,
     required this.ahora,
+    required this.anunciada,
     required this.conSucursal,
     required this.boton,
   });
@@ -415,6 +502,7 @@ class _Tarjeta extends StatelessWidget {
   final TelefonoDeDistribuidor t;
   final ThemeData tema;
   final DateTime ahora;
+  final int? anunciada;
   final bool conSucursal;
   final Widget? boton;
 
@@ -442,6 +530,7 @@ class _Tarjeta extends StatelessWidget {
             TextosDeLosTelefonos.rutas(t.rutasAbiertas),
             style: tema.textTheme.bodySmall,
           ),
+          _Version(t, anunciada),
           _Visto(t, ahora),
           if (boton != null) ...[const SizedBox(height: 8), boton!],
         ],

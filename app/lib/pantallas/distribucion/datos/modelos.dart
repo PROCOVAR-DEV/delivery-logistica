@@ -582,6 +582,8 @@ class TelefonoDeDistribuidor {
     this.vinculadoAt,
     this.distribuidor,
     this.rutasAbiertas = 0,
+    this.appVersion,
+    this.appCompilacion,
   });
 
   factory TelefonoDeDistribuidor.deJson(Map<String, Object?> j) {
@@ -601,6 +603,8 @@ class TelefonoDeDistribuidor {
       vinculadoAt: _hora(j['vinculadoAt']),
       distribuidor: d == null ? null : _texto(d['nombre']),
       rutasAbiertas: (j['rutasAbiertas'] as num?)?.toInt() ?? 0,
+      appVersion: _texto(j['appVersion']),
+      appCompilacion: (j['appCompilacion'] as num?)?.toInt(),
     );
   }
 
@@ -620,7 +624,24 @@ class TelefonoDeDistribuidor {
   final String? distribuidor;
   final int rutasAbiertas;
 
+  /// La versión de «Reparto Distribuidor» que declara el teléfono (`X-App-Version: 1.0.0+57`). Nula = nunca la ha declarado.
+  final String? appVersion;
+  final int? appCompilacion;
+
   bool get vinculado => vehiculoId != null;
+
+  /// «1.0.0 (57)», o `null` si el teléfono no la ha declarado.
+  String? get versionDeLaApp => appVersion == null
+      ? null
+      : appCompilacion == null
+      ? appVersion
+      : '$appVersion ($appCompilacion)';
+
+  /// ¿Lleva una compilación menor que la anunciada? Sin una de las dos no se sabe, y no saber no es «desactualizada».
+  bool estaDesactualizado(int? anunciada) =>
+      anunciada != null &&
+      appCompilacion != null &&
+      appCompilacion! < anunciada;
 
   /// Cuánto hace que el servidor supo de él; `null` = nunca.
   Duration? vistoHace(DateTime ahora) {

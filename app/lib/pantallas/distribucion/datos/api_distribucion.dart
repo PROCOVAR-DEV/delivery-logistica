@@ -5,6 +5,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../nucleo/actualizacion/version_publicada.dart';
 import '../../../nucleo/cola/provisionales.dart';
 import '../../../nucleo/proveedores.dart';
 import '../../../nucleo/red/cliente_api.dart';
@@ -105,6 +106,17 @@ class ApiDistribucion {
     ];
   }
 
+  /// `GET /api/version` (sin sesión): la `compilacion` que anuncia la clave `distribuidor`, o `null` si no hay anuncio o no se pudo leer.
+  /// Un fallo aquí no tumba la pestaña: sin anuncio simplemente no se compara.
+  Future<int?> compilacionAnunciadaDelDistribuidor() async {
+    try {
+      final cuerpo = await _api.pedir<Map<String, Object?>>('/version');
+      return VersionPublicada.deJson(cuerpo['distribuidor'])?.compilacion;
+    } on Object {
+      return null;
+    }
+  }
+
   /// La segunda llave: `POST /api/routes/{id}/revision {"confirmar":true}`.
   Future<void> confirmarRevision(String rutaId) => _api.mandar<Object?>(
     'POST',
@@ -133,6 +145,14 @@ final historialDelVehiculoProvider = FutureProvider.autoDispose
 final dondeEstanAhoraProvider =
     FutureProvider.autoDispose<List<DistribuidorAhora>>(
       (ref) => ref.watch(apiDistribucionProvider).dondeEstanAhora(),
+    );
+
+/// La compilación que la oficina anuncia para «Reparto Distribuidor» (ver [ApiDistribucion.compilacionAnunciadaDelDistribuidor]).
+final compilacionAnunciadaDelDistribuidorProvider =
+    FutureProvider.autoDispose<int?>(
+      (ref) => ref
+          .watch(apiDistribucionProvider)
+          .compilacionAnunciadaDelDistribuidor(),
     );
 
 final telefonosProvider =

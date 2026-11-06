@@ -1166,6 +1166,8 @@ type Querier interface {
 	// todavía no se sabe, y pintar «cabe» cuando nadie ha dicho en qué va es peor que no
 	// pintar nada.
 	ListarColumnasDelTablero(ctx context.Context, arg ListarColumnasDelTableroParams) ([]ListarColumnasDelTableroRow, error)
+	// LOS TELÉFONOS DE LOS DISTRIBUIDORES para la oficina (pestaña «Teléfonos» de Distribución): primero los vinculados, luego por última vez visto. Acotado a la sucursal.
+	ListarDispositivos(ctx context.Context, sucursal pgtype.UUID) ([]ListarDispositivosRow, error)
 	// Los distribuidores: el nomenclador de QUIÉN REPARTE, POR SUCURSAL (issue 7 de Amado, 14/10/2026).
 	//
 	// Es la persona responsable de la entrega y de devolver las facturas entregadas: el chofer

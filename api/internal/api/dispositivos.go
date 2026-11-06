@@ -66,6 +66,7 @@ func (s *Servidor) rutasDeDispositivos(rt *httpx.Router, sesion []httpx.Medio) {
 	rt.ManejarFunc(http.MethodGet, "/api/routes/{id}/enlace", s.verEnlaceDeRuta, sesion...)
 	rt.ManejarFunc(http.MethodPost, "/api/vehicles/{id}/desvincular", s.desvincularVehiculo, sesion...)
 	rt.ManejarFunc(http.MethodGet, "/api/vehicles/{id}/vinculos", s.vinculosDeVehiculo, sesion...)
+	rt.ManejarFunc(http.MethodGet, "/api/dispositivos", s.listarDispositivos, sesion...)
 }
 
 func hashDelSecreto(secreto string) []byte {
@@ -539,6 +540,36 @@ func (s *Servidor) vinculosDeVehiculo(w http.ResponseWriter, r *http.Request) {
 			"id": f.ID, "dispositivoId": f.DispositivoID, "dispositivo": f.DispositivoNombre,
 			"desde": hora(f.Desde), "hasta": hora(f.Hasta), "vinculadoPor": f.VinculadoPor, "desvinculadoPor": f.DesvinculadoPor, "motivo": f.Motivo,
 		})
+	}
+	httpx.JSON(w, r, http.StatusOK, salida)
+}
+
+// GET /api/dispositivos — la oficina: los teléfonos de los distribuidores de su sucursal (vinculados primero), con su vehículo, su distribuidor y cuándo se vieron
+// por última vez. Desvincular se hace por el vehículo (POST /api/vehicles/{id}/desvincular).
+func (s *Servidor) listarDispositivos(w http.ResponseWriter, r *http.Request) {
+	a, ok := acotado(w, r)
+	if !ok {
+		return
+	}
+	filas, err := a.ListarDispositivos(r.Context())
+	if err != nil {
+		httpx.ErrorInterno(w, r, err)
+		return
+	}
+	salida := make([]map[string]any, 0, len(filas))
+	for _, f := range filas {
+		d := map[string]any{
+			"id": f.ID, "nombre": f.Nombre, "sucursalId": f.BranchID, "sucursal": f.SucursalNombre, "activo": f.Activo,
+			"creadoAt": hora(f.CreatedAt), "ultimaVezAt": hora(f.LastSeenAt), "vinculadoAt": hora(f.VinculadoAt),
+			"rutasAbiertas": f.RutasAbiertas, "vehiculo": nil, "distribuidor": nil,
+		}
+		if f.VehiculoID.Valid {
+			d["vehiculo"] = map[string]any{"id": uuid.UUID(f.VehiculoID.Bytes), "nombre": f.VehiculoNombre, "placa": f.VehiculoPlaca}
+		}
+		if f.DistribuidorID != uuid.Nil {
+			d["distribuidor"] = map[string]any{"id": f.DistribuidorID, "nombre": f.DistribuidorNombre}
+		}
+		salida = append(salida, d)
 	}
 	httpx.JSON(w, r, http.StatusOK, salida)
 }

@@ -107,3 +107,7 @@ func (a *Acotado) SoltarRutasAbiertasDeUnDispositivo(ctx context.Context, dispos
 func (a *Acotado) ListarVinculosDeVehiculo(ctx context.Context, vehiculo uuid.UUID) ([]sqlc.ListarVinculosDeVehiculoRow, error) {
 	return a.q.ListarVinculosDeVehiculo(ctx, sqlc.ListarVinculosDeVehiculoParams{Vehiculo: vehiculo, Sucursal: a.sucursalPg()})
 }
+
+func (a *Acotado) ListarDispositivos(ctx context.Context) ([]sqlc.ListarDispositivosRow, error) {
+	return a.q.ListarDispositivos(ctx, a.sucursalPg())
+}

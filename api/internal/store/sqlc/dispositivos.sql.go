@@ -254,6 +254,77 @@ func (q *Queries) EnlaceVivoDeUnaRuta(ctx context.Context, arg EnlaceVivoDeUnaRu
 	return i, err
 }
 
+const listarDispositivos = `-- name: ListarDispositivos :many
+SELECT d.id, d.nombre, d.branch_id, b.name AS sucursal_nombre, d.activo, d.created_at, d.last_seen_at,
+       vv.vehicle_id AS vehiculo_id, v.name AS vehiculo_nombre, v.plate AS vehiculo_placa, vv.desde AS vinculado_at,
+       (SELECT count(*) FROM routes r WHERE r.dispositivo_id = d.id AND r.status IN ('planned', 'in_progress')) AS rutas_abiertas,
+       coalesce(dr.id, '00000000-0000-0000-0000-000000000000'::uuid) AS distribuidor_id, coalesce(dr.nombre, '')::text AS distribuidor_nombre
+FROM dispositivos_distribuidor d
+JOIN branches b ON b.id = d.branch_id
+LEFT JOIN vinculos_vehiculo_dispositivo vv ON vv.dispositivo_id = d.id AND vv.hasta IS NULL
+LEFT JOIN vehicles v ON v.id = vv.vehicle_id
+LEFT JOIN LATERAL (
+    SELECT dis.id, dis.nombre FROM routes r JOIN distribuidores dis ON dis.id = r.distribuidor_id
+    WHERE r.dispositivo_id = d.id ORDER BY r.updated_at DESC LIMIT 1
+) dr ON true
+WHERE $1::uuid IS NULL OR d.branch_id = $1::uuid
+ORDER BY (vv.id IS NULL), d.last_seen_at DESC NULLS LAST, d.created_at DESC
+LIMIT 200
+`
+
+type ListarDispositivosRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	Nombre             *string            `json:"nombre"`
+	BranchID           uuid.UUID          `json:"branch_id"`
+	SucursalNombre     string             `json:"sucursal_nombre"`
+	Activo             bool               `json:"activo"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	LastSeenAt         pgtype.Timestamptz `json:"last_seen_at"`
+	VehiculoID         pgtype.UUID        `json:"vehiculo_id"`
+	VehiculoNombre     *string            `json:"vehiculo_nombre"`
+	VehiculoPlaca      *string            `json:"vehiculo_placa"`
+	VinculadoAt        pgtype.Timestamptz `json:"vinculado_at"`
+	RutasAbiertas      int64              `json:"rutas_abiertas"`
+	DistribuidorID     uuid.UUID          `json:"distribuidor_id"`
+	DistribuidorNombre string             `json:"distribuidor_nombre"`
+}
+
+// LOS TELÉFONOS DE LOS DISTRIBUIDORES para la oficina (pestaña «Teléfonos» de Distribución): primero los vinculados, luego por última vez visto. Acotado a la sucursal.
+func (q *Queries) ListarDispositivos(ctx context.Context, sucursal pgtype.UUID) ([]ListarDispositivosRow, error) {
+	rows, err := q.db.Query(ctx, listarDispositivos, sucursal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListarDispositivosRow
+	for rows.Next() {
+		var i ListarDispositivosRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Nombre,
+			&i.BranchID,
+			&i.SucursalNombre,
+			&i.Activo,
+			&i.CreatedAt,
+			&i.LastSeenAt,
+			&i.VehiculoID,
+			&i.VehiculoNombre,
+			&i.VehiculoPlaca,
+			&i.VinculadoAt,
+			&i.RutasAbiertas,
+			&i.DistribuidorID,
+			&i.DistribuidorNombre,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listarVinculosDeVehiculo = `-- name: ListarVinculosDeVehiculo :many
 SELECT vv.id, vv.dispositivo_id, d.nombre AS dispositivo_nombre, vv.desde, vv.hasta, vv.vinculado_por, vv.desvinculado_por, vv.motivo
 FROM vinculos_vehiculo_dispositivo vv

@@ -1195,3 +1195,69 @@ func TestLosHuecosDeLaAuditoriaQuedanTapados(t *testing.T) {
 		t.Errorf("teléfono de otra sucursal con un token de esta: %d, tenía que ser 403", code)
 	}
 }
+
+func TestLaOficinaVeLosTelefonosYLosDesvincula(t *testing.T) {
+	s := levantar(t)
+	d := s.distribuidor("Telefonos e2e")
+	camion := s.nuevoCamion()
+	ruta, _ := s.rutaConDistribuidorEnCamion(d, camion)
+	tel := s.nuevoTelefono()
+	if code, b := s.reclama(tel, s.enlace(ruta, false)); code != 200 {
+		t.Fatalf("reclamar: %d %s", code, b)
+	}
+	lista := func(c *stack) []map[string]any {
+		code, b := c.web("GET", "/dispositivos", nil)
+		if code != 200 {
+			t.Fatalf("listar teléfonos: %d %s", code, b)
+		}
+		var l []map[string]any
+		_ = json.Unmarshal(b, &l)
+		return l
+	}
+	buscar := func(l []map[string]any) map[string]any {
+		for _, x := range l {
+			if x["id"] == tel.id {
+				return x
+			}
+		}
+		return nil
+	}
+	x := buscar(lista(s))
+	if x == nil || x["vehiculo"] == nil || x["distribuidor"] == nil || x["rutasAbiertas"].(float64) != 1 || x["vinculadoAt"] == nil {
+		t.Fatalf("el teléfono vinculado con su vehículo, distribuidor y 1 ruta abierta: %v", x)
+	}
+	// un distribuidor no ve la lista de teléfonos
+	if code, b := s.como(tel.acceso).web("GET", "/dispositivos", nil); code != 403 {
+		t.Errorf("el distribuidor no lista teléfonos: %d %s", code, b)
+	}
+	// un teléfono de OTRA sucursal real no sale en mi lista
+	var sucB uuid.UUID
+	if err := s.db.QueryRow(context.Background(), `INSERT INTO branches (name, lat, lng) VALUES ($1, 20, -75) RETURNING id`, "e2e-b-"+uuid.NewString()).Scan(&sucB); err != nil {
+		t.Fatal(err)
+	}
+	ajeno := nuevo()
+	h := sha256.Sum256([]byte("x"))
+	if _, err := s.db.Exec(context.Background(), `INSERT INTO dispositivos_distribuidor (id, branch_id, secreto_hash) VALUES ($1, $2, $3)`, ajeno, sucB, h[:]); err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range lista(s) {
+		if x["id"] == ajeno {
+			t.Errorf("el teléfono de otra sucursal no tenía que salir en mi lista")
+		}
+	}
+	// otra sucursal no lo ve
+	otra := s.como(jwt(env("REPARTO_E2E_JWT_SECRET", "secreto-de-desarrollo-de-mas-de-32-caracteres"), map[string]any{
+		"sub": "e2e-otra", "role": "LOGISTICO", "branchId": uuid.NewString(), "entradas": []string{"delivery.entrar"}, "exp": time.Now().Add(time.Hour).Unix(),
+	}))
+	if code, _ := otra.web("GET", "/dispositivos", nil); code == 200 {
+		t.Errorf("una sucursal inexistente no tenía que listar teléfonos")
+	}
+	// desvincular desde la lista: el teléfono sigue en la lista, ya sin vehículo y al final
+	if code, b := s.web("POST", "/vehicles/"+camion+"/desvincular", map[string]any{"motivo": "prueba"}); code != 200 {
+		t.Fatalf("desvincular: %d %s", code, b)
+	}
+	x = buscar(lista(s))
+	if x == nil || x["vehiculo"] != nil || x["vinculadoAt"] != nil || x["rutasAbiertas"].(float64) != 0 {
+		t.Errorf("tras desvincular: sin vehículo, sin vínculo y sin rutas abiertas: %v", x)
+	}
+}

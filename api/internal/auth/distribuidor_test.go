@@ -42,7 +42,7 @@ func TestListaBlancaDelDistribuidor(t *testing.T) {
 		// AUDITORÍA 04/11/2026 (M03): un teléfono no genera ni roba enlaces, ni confirma la revisión, ni desvincula ni mira el vínculo.
 		{"POST", "/api/routes/" + id + "/enlace"}, {"GET", "/api/routes/" + id + "/enlace"},
 		{"POST", "/api/routes/" + id + "/revision"}, {"POST", "/api/vehicles/" + id + "/desvincular"},
-		{"GET", "/api/vehicles/" + id + "/vinculos"}, {"GET", "/api/tracking/ahora"}, {"GET", "/api/vehicles/" + id + "/historial"},
+		{"GET", "/api/vehicles/" + id + "/vinculos"}, {"GET", "/api/dispositivos"}, {"GET", "/api/tracking/ahora"}, {"GET", "/api/vehicles/" + id + "/historial"},
 		// ISSUE 25 (05/11/2026): cancelar una factura devuelta es de la logística, no del teléfono.
 		{"POST", "/api/orders/" + id + "/cancelar"},
 	}

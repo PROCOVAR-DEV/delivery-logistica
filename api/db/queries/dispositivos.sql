@@ -90,3 +90,21 @@ JOIN dispositivos_distribuidor d ON d.id = vv.dispositivo_id
 WHERE vv.vehicle_id = sqlc.arg('vehiculo')
   AND (sqlc.narg('sucursal')::uuid IS NULL OR v.branch_id = sqlc.narg('sucursal')::uuid OR v.branch_id IS NULL)
 ORDER BY vv.desde DESC;
+
+-- LOS TELÉFONOS DE LOS DISTRIBUIDORES para la oficina (pestaña «Teléfonos» de Distribución): primero los vinculados, luego por última vez visto. Acotado a la sucursal.
+-- name: ListarDispositivos :many
+SELECT d.id, d.nombre, d.branch_id, b.name AS sucursal_nombre, d.activo, d.created_at, d.last_seen_at,
+       vv.vehicle_id AS vehiculo_id, v.name AS vehiculo_nombre, v.plate AS vehiculo_placa, vv.desde AS vinculado_at,
+       (SELECT count(*) FROM routes r WHERE r.dispositivo_id = d.id AND r.status IN ('planned', 'in_progress')) AS rutas_abiertas,
+       coalesce(dr.id, '00000000-0000-0000-0000-000000000000'::uuid) AS distribuidor_id, coalesce(dr.nombre, '')::text AS distribuidor_nombre
+FROM dispositivos_distribuidor d
+JOIN branches b ON b.id = d.branch_id
+LEFT JOIN vinculos_vehiculo_dispositivo vv ON vv.dispositivo_id = d.id AND vv.hasta IS NULL
+LEFT JOIN vehicles v ON v.id = vv.vehicle_id
+LEFT JOIN LATERAL (
+    SELECT dis.id, dis.nombre FROM routes r JOIN distribuidores dis ON dis.id = r.distribuidor_id
+    WHERE r.dispositivo_id = d.id ORDER BY r.updated_at DESC LIMIT 1
+) dr ON true
+WHERE sqlc.narg('sucursal')::uuid IS NULL OR d.branch_id = sqlc.narg('sucursal')::uuid
+ORDER BY (vv.id IS NULL), d.last_seen_at DESC NULLS LAST, d.created_at DESC
+LIMIT 200;

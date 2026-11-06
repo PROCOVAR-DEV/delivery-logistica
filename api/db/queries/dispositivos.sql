@@ -4,8 +4,12 @@
 -- name: DispositivoDistribuidor :one
 SELECT id, nombre, branch_id, distribuidor_id, activo FROM dispositivos_distribuidor WHERE id = sqlc.arg('id');
 
+-- «Visto por última vez» y, si el teléfono manda su versión (`X-App-Version`), cuál tiene instalada.
 -- name: TocarDispositivoDistribuidor :exec
-UPDATE dispositivos_distribuidor SET last_seen_at = now() WHERE id = sqlc.arg('id');
+UPDATE dispositivos_distribuidor SET last_seen_at = now(),
+    app_version = coalesce(sqlc.narg('app_version')::text, app_version),
+    app_compilacion = coalesce(sqlc.narg('app_compilacion')::integer, app_compilacion)
+WHERE id = sqlc.arg('id');
 
 -- name: CrearDispositivoDistribuidor :one
 INSERT INTO dispositivos_distribuidor (id, nombre, branch_id, distribuidor_id, secreto_hash)
@@ -93,7 +97,7 @@ ORDER BY vv.desde DESC;
 
 -- LOS TELÉFONOS DE LOS DISTRIBUIDORES para la oficina (pestaña «Teléfonos» de Distribución): primero los vinculados, luego por última vez visto. Acotado a la sucursal.
 -- name: ListarDispositivos :many
-SELECT d.id, d.nombre, d.branch_id, b.name AS sucursal_nombre, d.activo, d.created_at, d.last_seen_at,
+SELECT d.id, d.nombre, d.branch_id, b.name AS sucursal_nombre, d.activo, d.created_at, d.last_seen_at, d.app_version, d.app_compilacion,
        vv.vehicle_id AS vehiculo_id, v.name AS vehiculo_nombre, v.plate AS vehiculo_placa, vv.desde AS vinculado_at,
        (SELECT count(*) FROM routes r WHERE r.dispositivo_id = d.id AND r.status IN ('planned', 'in_progress')) AS rutas_abiertas,
        coalesce(dr.id, '00000000-0000-0000-0000-000000000000'::uuid) AS distribuidor_id, coalesce(dr.nombre, '')::text AS distribuidor_nombre

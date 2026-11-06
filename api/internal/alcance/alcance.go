@@ -40,6 +40,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -232,8 +233,42 @@ func (p *Porteria) Resolver(ctx context.Context, u *auth.Usuario, cabecera strin
 		return nil, ErrDesvinculado
 	}
 	a.dispositivo = &id
-	_ = a.q.TocarDispositivoDistribuidor(ctx, id) // «visto por última vez»: un fallo aquí no tumba nada
+	v, c := VersionDeLaApp(ctx)
+	_ = a.q.TocarDispositivoDistribuidor(ctx, sqlc.TocarDispositivoDistribuidorParams{ID: id, AppVersion: v, AppCompilacion: c}) // «visto por última vez» y su versión: un fallo aquí no tumba nada
 	return a, nil
+}
+
+type claveVersionDeApp struct{}
+
+// ConVersionDeLaApp deja en el contexto la versión que declara la app del teléfono (`X-App-Version: 1.0.0+57`), para que el Resolver la apunte junto a «visto por
+// última vez». Una cabecera que no se entiende se ignora (no es un dato de confianza, solo de soporte).
+func ConVersionDeLaApp(ctx context.Context, cabecera string) context.Context {
+	cabecera = strings.TrimSpace(cabecera)
+	if cabecera == "" || len(cabecera) > 40 {
+		return ctx
+	}
+	version, compilacion, _ := strings.Cut(cabecera, "+")
+	v := strings.TrimSpace(version)
+	if v == "" {
+		return ctx
+	}
+	var c *int32
+	if n, err := strconv.Atoi(strings.TrimSpace(compilacion)); err == nil && n > 0 && n < 1<<30 {
+		x := int32(n)
+		c = &x
+	}
+	return context.WithValue(ctx, claveVersionDeApp{}, [2]any{&v, c})
+}
+
+// VersionDeLaApp devuelve lo que declaró la app, o nil, nil.
+func VersionDeLaApp(ctx context.Context) (*string, *int32) {
+	par, ok := ctx.Value(claveVersionDeApp{}).([2]any)
+	if !ok {
+		return nil, nil
+	}
+	v, _ := par[0].(*string)
+	c, _ := par[1].(*int32)
+	return v, c
 }
 
 // resolverSucursal es la regla de la sucursal (la de siempre); [Porteria.Resolver] le añade lo del distribuidor.
@@ -402,7 +437,11 @@ func (p *Porteria) Exigir(siguiente http.Handler) http.Handler {
 			httpx.NoAutorizado(w, r)
 			return
 		}
-		a, err := p.Resolver(r.Context(), u, r.Header.Get(CabeceraSucursal))
+		ctx := r.Context()
+		if u.EsDistribuidor() {
+			ctx = ConVersionDeLaApp(ctx, r.Header.Get("X-App-Version"))
+		}
+		a, err := p.Resolver(ctx, u, r.Header.Get(CabeceraSucursal))
 		switch {
 		case errors.Is(err, ErrDesvinculado):
 			httpx.ErrorConCodigo(w, r, http.StatusForbidden, err.Error(), CodigoDesvinculado)

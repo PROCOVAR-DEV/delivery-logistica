@@ -255,7 +255,7 @@ func (q *Queries) EnlaceVivoDeUnaRuta(ctx context.Context, arg EnlaceVivoDeUnaRu
 }
 
 const listarDispositivos = `-- name: ListarDispositivos :many
-SELECT d.id, d.nombre, d.branch_id, b.name AS sucursal_nombre, d.activo, d.created_at, d.last_seen_at,
+SELECT d.id, d.nombre, d.branch_id, b.name AS sucursal_nombre, d.activo, d.created_at, d.last_seen_at, d.app_version, d.app_compilacion,
        vv.vehicle_id AS vehiculo_id, v.name AS vehiculo_nombre, v.plate AS vehiculo_placa, vv.desde AS vinculado_at,
        (SELECT count(*) FROM routes r WHERE r.dispositivo_id = d.id AND r.status IN ('planned', 'in_progress')) AS rutas_abiertas,
        coalesce(dr.id, '00000000-0000-0000-0000-000000000000'::uuid) AS distribuidor_id, coalesce(dr.nombre, '')::text AS distribuidor_nombre
@@ -280,6 +280,8 @@ type ListarDispositivosRow struct {
 	Activo             bool               `json:"activo"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	LastSeenAt         pgtype.Timestamptz `json:"last_seen_at"`
+	AppVersion         *string            `json:"app_version"`
+	AppCompilacion     *int32             `json:"app_compilacion"`
 	VehiculoID         pgtype.UUID        `json:"vehiculo_id"`
 	VehiculoNombre     *string            `json:"vehiculo_nombre"`
 	VehiculoPlaca      *string            `json:"vehiculo_placa"`
@@ -307,6 +309,8 @@ func (q *Queries) ListarDispositivos(ctx context.Context, sucursal pgtype.UUID) 
 			&i.Activo,
 			&i.CreatedAt,
 			&i.LastSeenAt,
+			&i.AppVersion,
+			&i.AppCompilacion,
 			&i.VehiculoID,
 			&i.VehiculoNombre,
 			&i.VehiculoPlaca,
@@ -469,11 +473,21 @@ func (q *Queries) SoltarRutasAbiertasDeUnDispositivo(ctx context.Context, dispos
 }
 
 const tocarDispositivoDistribuidor = `-- name: TocarDispositivoDistribuidor :exec
-UPDATE dispositivos_distribuidor SET last_seen_at = now() WHERE id = $1
+UPDATE dispositivos_distribuidor SET last_seen_at = now(),
+    app_version = coalesce($1::text, app_version),
+    app_compilacion = coalesce($2::integer, app_compilacion)
+WHERE id = $3
 `
 
-func (q *Queries) TocarDispositivoDistribuidor(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, tocarDispositivoDistribuidor, id)
+type TocarDispositivoDistribuidorParams struct {
+	AppVersion     *string   `json:"app_version"`
+	AppCompilacion *int32    `json:"app_compilacion"`
+	ID             uuid.UUID `json:"id"`
+}
+
+// «Visto por última vez» y, si el teléfono manda su versión (`X-App-Version`), cuál tiene instalada.
+func (q *Queries) TocarDispositivoDistribuidor(ctx context.Context, arg TocarDispositivoDistribuidorParams) error {
+	_, err := q.db.Exec(ctx, tocarDispositivoDistribuidor, arg.AppVersion, arg.AppCompilacion, arg.ID)
 	return err
 }
 

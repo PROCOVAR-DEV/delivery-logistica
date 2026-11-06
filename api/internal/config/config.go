@@ -182,6 +182,8 @@ type Config struct {
 	// haya una descarga de verdad colgada: inventarse una versión haría que diez
 	// aparatos mandaran a diez personas a un enlace que no existe.
 	Publicada *Publicada
+	// Distribuidor es la última versión de la app «Reparto Distribuidor» (otra APK, otra cuenta de versiones): `distribuidor` en /api/version. Nil = nada anunciado.
+	Distribuidor *Publicada
 
 	// --- El PAQUETE DE MAPA que hay colgado ---------------------------------
 	//
@@ -481,6 +483,10 @@ func Cargar(version string) (*Config, error) {
 	if err := exigirAnuncio(c.Entorno, os.Getenv("APP_SIN_ANUNCIO"), pub); err != nil {
 		errs = append(errs, err)
 	}
+
+	dist, errsDist := leerPublicadaDistribuidor()
+	c.Distribuidor = dist
+	errs = append(errs, errsDist...)
 
 	mapa, errsMapa := leerMapa()
 	c.Mapa = mapa

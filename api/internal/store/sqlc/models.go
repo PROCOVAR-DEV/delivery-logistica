@@ -651,6 +651,8 @@ type DispositivosDistribuidor struct {
 	Activo         bool               `json:"activo"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	LastSeenAt     pgtype.Timestamptz `json:"last_seen_at"`
+	AppVersion     *string            `json:"app_version"`
+	AppCompilacion *int32             `json:"app_compilacion"`
 }
 
 type Distribuidore struct {

@@ -561,7 +561,7 @@ func (s *Servidor) listarDispositivos(w http.ResponseWriter, r *http.Request) {
 		d := map[string]any{
 			"id": f.ID, "nombre": f.Nombre, "sucursalId": f.BranchID, "sucursal": f.SucursalNombre, "activo": f.Activo,
 			"creadoAt": hora(f.CreatedAt), "ultimaVezAt": hora(f.LastSeenAt), "vinculadoAt": hora(f.VinculadoAt),
-			"rutasAbiertas": f.RutasAbiertas, "vehiculo": nil, "distribuidor": nil,
+			"rutasAbiertas": f.RutasAbiertas, "vehiculo": nil, "distribuidor": nil, "appVersion": f.AppVersion, "appCompilacion": f.AppCompilacion,
 		}
 		if f.VehiculoID.Valid {
 			d["vehiculo"] = map[string]any{"id": uuid.UUID(f.VehiculoID.Bytes), "nombre": f.VehiculoNombre, "placa": f.VehiculoPlaca}

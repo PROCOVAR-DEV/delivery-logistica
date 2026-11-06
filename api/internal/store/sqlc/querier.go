@@ -2080,7 +2080,8 @@ type Querier interface {
 	SoltarRutaDeSuDispositivo(ctx context.Context, ruta uuid.UUID) error
 	// Las rutas planificadas o en curso del teléfono se sueltan y sus enlaces se revocan (se mandan a otro con un enlace nuevo). Las cerradas se quedan de historia.
 	SoltarRutasAbiertasDeUnDispositivo(ctx context.Context, dispositivo pgtype.UUID) ([]uuid.UUID, error)
-	TocarDispositivoDistribuidor(ctx context.Context, id uuid.UUID) error
+	// «Visto por última vez» y, si el teléfono manda su versión (`X-App-Version`), cuál tiene instalada.
+	TocarDispositivoDistribuidor(ctx context.Context, arg TocarDispositivoDistribuidorParams) error
 	// Hasta cuándo se tiene facturación de una sucursal.
 	//
 	// Es lo que distingue «este pedido no está facturado» de «de ese día todavía no hemos

@@ -1226,6 +1226,20 @@ func TestLaOficinaVeLosTelefonosYLosDesvincula(t *testing.T) {
 	if x == nil || x["vehiculo"] == nil || x["distribuidor"] == nil || x["rutasAbiertas"].(float64) != 1 || x["vinculadoAt"] == nil {
 		t.Fatalf("el teléfono vinculado con su vehículo, distribuidor y 1 ruta abierta: %v", x)
 	}
+	// la versión que declara la app queda apuntada y la oficina la ve
+	fono := s.como(tel.acceso)
+	if code, b := fono.llamar(fono.api+"/api", "GET", "/routes", nil, map[string]string{"X-App-Version": "1.0.0+58"}); code != 200 {
+		t.Fatalf("llamada con versión: %d %s", code, b)
+	}
+	x = buscar(lista(s))
+	if x == nil || x["appVersion"] != "1.0.0" || x["appCompilacion"] != float64(58) {
+		t.Errorf("la lista tenía que decir la versión de la app (1.0.0+58): %v", x)
+	}
+	// una cabecera basura se ignora y no borra la versión
+	_, _ = fono.llamar(fono.api+"/api", "GET", "/routes", nil, map[string]string{"X-App-Version": "+++"})
+	if x = buscar(lista(s)); x["appVersion"] != "1.0.0" {
+		t.Errorf("una cabecera que no se entiende no borra la versión: %v", x["appVersion"])
+	}
 	// un distribuidor no ve la lista de teléfonos
 	if code, b := s.como(tel.acceso).web("GET", "/dispositivos", nil); code != 403 {
 		t.Errorf("el distribuidor no lista teléfonos: %d %s", code, b)

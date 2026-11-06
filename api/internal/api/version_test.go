@@ -237,3 +237,46 @@ func TestDescargasSigueSiendoLaURLPelada(t *testing.T) {
 			"están instaladas, y vino %T", crudo.Ultima.Descargas["android"])
 	}
 }
+
+// «Reparto Distribuidor» se anuncia en su propia clave, con su propia cuenta de versiones, y sin tocar la `ultima` de Reparto (y al revés).
+func TestElDistribuidorSeAnunciaAparteDeReparto(t *testing.T) {
+	t.Setenv("APP_ULTIMA_VERSION", "1.0.56")
+	t.Setenv("APP_ULTIMA_COMPILACION", "57")
+	t.Setenv("APP_DESCARGA_ANDROID", "https://descargas.procovar.cloud/reparto-1.0.56.apk")
+	t.Setenv("APP_DESCARGA_ANDROID_BYTES", "83000000")
+	t.Setenv("APP_DESCARGA_ANDROID_SHA256", huellaDeLaApk)
+	t.Setenv("APP_DISTRIBUIDOR_VERSION", "1.0.0")
+	t.Setenv("APP_DISTRIBUIDOR_COMPILACION", "58")
+	t.Setenv("APP_DESCARGA_ANDROID_DISTRIBUIDOR", "https://descargas.procovar.cloud/reparto-distribuidor-1.0.0.apk")
+	t.Setenv("APP_DESCARGA_ANDROID_DISTRIBUIDOR_BYTES", "180000000")
+	t.Setenv("APP_DESCARGA_ANDROID_DISTRIBUIDOR_SHA256", huellaDeLaApk)
+
+	w := pedir(t, servidor(t), http.MethodGet, "/api/version", "", nil)
+	var a struct {
+		Ultima       *struct{ Version string }
+		Distribuidor *struct {
+			Version     string
+			Compilacion *int
+			Descargas   map[string]string
+		}
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &a); err != nil {
+		t.Fatal(err)
+	}
+	if a.Ultima == nil || a.Ultima.Version != "1.0.56" {
+		t.Fatalf("la de Reparto no puede cambiar: %+v", a.Ultima)
+	}
+	if a.Distribuidor == nil || a.Distribuidor.Version != "1.0.0" || a.Distribuidor.Compilacion == nil || *a.Distribuidor.Compilacion != 58 ||
+		!strings.Contains(a.Distribuidor.Descargas["android"], "distribuidor") {
+		t.Fatalf("el distribuidor se anuncia con su propia versión, compilación y descarga: %+v", a.Distribuidor)
+	}
+}
+
+func TestSinDistribuidorPublicadoNoSeAnunciaSuClave(t *testing.T) {
+	var a struct{ Distribuidor *struct{} }
+	w := pedir(t, servidor(t), http.MethodGet, "/api/version", "", nil)
+	_ = json.Unmarshal(w.Body.Bytes(), &a)
+	if a.Distribuidor != nil {
+		t.Fatalf("nada colgado, nada anunciado: %+v", a.Distribuidor)
+	}
+}

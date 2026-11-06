@@ -30,6 +30,9 @@ import (
 type versionSalida struct {
 	Version *string       `json:"version"`
 	Ultima  *ultimaSalida `json:"ultima"`
+	// Distribuidor es lo mismo para la app «Reparto Distribuidor», que va aparte de Reparto (otra APK y otra cuenta de versiones). Las APK de Reparto ya
+	// instaladas no leen esta clave (es aditiva); la app del chofer lee ESTA y no `ultima`.
+	Distribuidor *ultimaSalida `json:"distribuidor"`
 }
 
 type ultimaSalida struct {
@@ -72,7 +75,7 @@ type ficheroSalida struct {
 // SÍNCRONO Y SIN BASE: los diez aparatos llaman aquí al arrancar, a la vez, la mañana que
 // vuelve la señal. Todo sale de la configuración, que se leyó una vez al arrancar.
 func (s *Servidor) version(w http.ResponseWriter, r *http.Request) {
-	salida := versionSalida{Ultima: ultimaDe(s.cfg.Publicada)}
+	salida := versionSalida{Ultima: ultimaDe(s.cfg.Publicada), Distribuidor: ultimaDe(s.cfg.Distribuidor)}
 	if s.cfg.Version != "" {
 		v := s.cfg.Version
 		salida.Version = &v

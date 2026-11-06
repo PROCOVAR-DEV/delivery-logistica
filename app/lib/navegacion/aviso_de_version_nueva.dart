@@ -107,6 +107,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../diseno/cajon.dart';
 import '../diseno/colores.dart';
 import '../diseno/tema.dart';
+import '../distribuidor/modo_distribuidor.dart';
 import '../nucleo/actualizacion/bajada_de_la_actualizacion.dart';
 import '../nucleo/actualizacion/comprobador.dart';
 import '../nucleo/actualizacion/version_publicada.dart';
@@ -402,6 +403,7 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
   /// EL APARATO: instalar, y solo cuando no queda trabajo sin subir.
   LoQueDiceElAviso? _enElAparato() {
     _volverAMirarAlTerminarUnaSubida();
+    _volverAMirarAlVolverLaRed();
 
     final estado = ref.watch(actualizacionProvider).value;
 
@@ -571,6 +573,18 @@ class _EstadoDelAviso extends ConsumerState<AvisoDeVersionNueva> {
       // la cola.
       if (ref.read(actualizacionProvider).value is! PrimeroSube) return;
 
+      ref.invalidate(actualizacionProvider);
+    });
+  }
+
+  /// «Reparto Distribuidor» mira también AL VOLVER LA RED (el chofer arranca sin señal más a menudo que nadie): si al arrancar no se
+  /// pudo saber (`NoSeSupo`) y la salud de la red pasa de mala a buena, se pregunta UNA vez. Sin reintentos ni sondeo: la misma
+  /// petición sin esperas, y solo mientras no se sepa. Reparto de siempre no cambia.
+  void _volverAMirarAlVolverLaRed() {
+    if (!ref.watch(modoDistribuidorProvider)) return;
+    ref.listen(saludDeLaRedProvider, (antes, ahora) {
+      if (antes == null || !antes.vaMal || ahora.vaMal) return;
+      if (ref.read(actualizacionProvider).value is! NoSeSupo) return;
       ref.invalidate(actualizacionProvider);
     });
   }

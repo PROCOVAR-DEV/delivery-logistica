@@ -1299,6 +1299,8 @@ final comprobadorProvider = Provider<ComprobadorDeActualizacion>(
   (ref) => ComprobadorDeActualizacion(
     cliente: ref.watch(clienteVersionProvider),
     base: ref.watch(baseProvider),
+    // «Reparto Distribuidor» tiene versión propia: mira SU anuncio, no el de Reparto.
+    clave: ref.watch(modoDistribuidorProvider) ? 'distribuidor' : 'ultima',
   ),
 );
 

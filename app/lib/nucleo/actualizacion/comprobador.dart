@@ -29,6 +29,7 @@ class ComprobadorDeActualizacion {
     required BaseLocal base,
     Plataforma? plataforma,
     Future<VersionInstalada> Function()? instalada,
+    this.clave = 'ultima',
   }) : _cliente = cliente,
        _base = base,
        _plataforma = plataforma ?? Plataforma.deEsteAparato(),
@@ -38,6 +39,10 @@ class ComprobadorDeActualizacion {
   final BaseLocal _base;
   final Plataforma _plataforma;
   final Future<VersionInstalada> Function() _instalada;
+
+  /// QUÉ anuncio de `GET /api/version` se mira: `ultima` (Reparto) o `distribuidor` («Reparto Distribuidor», que tiene versión
+  /// propia). Las tres reglas son las mismas; cada aplicación solo mira el suyo y nunca el de la otra.
+  final String clave;
 
   /// La ruta es relativa a `API_URL`, que ya trae el `/api`: sale
   /// `https://…/api/version`, la del contrato.
@@ -71,7 +76,7 @@ class ComprobadorDeActualizacion {
       return const NoSeSupo();
     }
 
-    final publicada = VersionPublicada.deJson(cuerpo['ultima']);
+    final publicada = VersionPublicada.deJson(cuerpo[clave]);
     if (publicada == null) {
       // El servidor no anuncia ninguna. Es lo normal mientras no haya nada
       // colgado; no es un fallo.

@@ -75,6 +75,7 @@ void main() {
     await frescura.rebajarLasFacturasAnuladas();
     await frescura.rebajarLosPedidosPorSuConduce();
     await frescura.rebajarLosPedidosPorSuResultadoAt();
+    await frescura.rebajarLosPedidosPorSuCobro();
   }
 
   Future<List<FacturaAnulada>> filas() =>

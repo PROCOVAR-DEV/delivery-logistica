@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../diseno/estado_de_parada.dart';
 import '../diseno/tema.dart';
 import '../nucleo/base/base.dart';
 import '../pantallas/pedidos/datos/formato.dart';
@@ -142,25 +143,29 @@ class DetalleDelHistorial extends ConsumerWidget {
             child: ListTile(
               key: ValueKey('historial-parada-${p.id}'),
               title: Text(p.customerName),
-              subtitle: Text(
-                '${_resultado(p, cobros)} · ${_hora(p.resultadoAt)}'
-                '${(p.resultadoNota ?? '').isEmpty ? '' : '\n${p.resultadoNota}'}',
+              // EL ESTADO con la etiqueta de la casa (issue 26) y debajo la hora y la nota.
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    EtiquetaDeEstadoDeParada(estadoDeLaParada(p, cobros)),
+                    if (p.resultadoAt != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3, left: 4),
+                        child: Text(_hora(p.resultadoAt)),
+                      ),
+                    if ((p.resultadoNota ?? '').isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Text(p.resultadoNota!),
+                      ),
+                  ],
+                ),
               ),
-              isThreeLine: (p.resultadoNota ?? '').isNotEmpty,
             ),
           ),
       ],
     );
-  }
-
-  static String _resultado(Pedido p, Map<String, bool> cobros) {
-    if (p.resultado == null) return 'Sin marcar';
-    if (p.resultado == ResultadoParada.entregado) {
-      final c = cobros[p.id];
-      return c == null
-          ? 'Entregada'
-          : (c ? 'Entregada · cobrada' : 'Entregada · sin cobrar');
-    }
-    return 'No entregada';
   }
 }

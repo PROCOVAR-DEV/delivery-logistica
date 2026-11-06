@@ -405,12 +405,17 @@ abstract final class Botones {
 
   /// LA ACCION PRINCIPAL de una pantalla: `+ Nueva Ruta`, `Armar la ruta de
   /// esta zona`, `Guardar`. Oro legible, contorno de 2 px del mismo oro.
-  static ButtonStyle principal() => _nivel(
-    tono: Colores.primario,
+  ///
+  /// [deCalle] es el del telefono del distribuidor, que se lee con sol (issue 26 de Amado,
+  /// 06/11/2026: «blanco sobre verde, no se leen»): el oro a 7 de contraste ([Colores.primarioMando]),
+  /// letra de 16 y 48 px de alto de verdad (no solo de zona de toque). Lo pone [temaDeLaCalle].
+  static ButtonStyle principal({bool deCalle = false}) => _nivel(
+    tono: deCalle ? Colores.primarioMando : Colores.primario,
     grosor: grosorFuerte,
     aire: aireDelPrincipal,
     peso: FontWeight.w600,
     radio: Radios.lg,
+    deCalle: deCalle,
   );
 
   /// LA ACCION SECUNDARIA: `Cierre`, `Ver e imprimir`, `Cancelar`. Tinta, con el
@@ -424,13 +429,16 @@ abstract final class Botones {
   /// 1,7 de contraste sobre el papel, o sea que al sol no esta; lo cazo
   /// `botones_sin_fondo_test.dart` el mismo dia que se escribio esto, midiendo,
   /// y de ahi salio el token nuevo.
-  static ButtonStyle secundario() => _nivel(
+  ///
+  /// [deCalle]: la raya sube a 7 de contraste ([Colores.grisMando], 2 px) y la letra a 16.
+  static ButtonStyle secundario({bool deCalle = false}) => _nivel(
     tono: Colores.tinta,
-    borde: Colores.lineaDeMando,
-    grosor: grosorFino,
+    borde: deCalle ? Colores.grisMando : Colores.lineaDeMando,
+    grosor: deCalle ? grosorFuerte : grosorFino,
     aire: aireDelSecundario,
-    peso: FontWeight.w500,
+    peso: deCalle ? FontWeight.w600 : FontWeight.w500,
     radio: Radios.lg,
+    deCalle: deCalle,
   );
 
   /// LA ACCION DESTRUCTIVA: `Eliminar`, `Borrar la columna`. Rojo de «impide»,
@@ -490,6 +498,7 @@ abstract final class Botones {
     required FontWeight peso,
     required double radio,
     Color? borde,
+    bool deCalle = false,
   }) {
     final tonoDelBorde = borde ?? tono;
     return ButtonStyle(
@@ -536,13 +545,18 @@ abstract final class Botones {
         return BorderSide(color: tonoDelBorde, width: grosor);
       }),
       padding: WidgetStatePropertyAll(aire),
-      textStyle: WidgetStatePropertyAll(Tipos.texto(tamano: 14, peso: peso)),
+      textStyle: WidgetStatePropertyAll(
+        Tipos.texto(tamano: deCalle ? 16 : 14, peso: peso),
+      ),
+      minimumSize: deCalle
+          ? const WidgetStatePropertyAll(Size(64, altoTactilMinimo))
+          : null,
       shape: WidgetStatePropertyAll(
         RoundedRectangleBorder(borderRadius: BorderRadius.circular(radio)),
       ),
       // 18 y no 20: el glifo va al lado de un texto de 14 y con 20 pesa mas que
       // la palabra que explica.
-      iconSize: const WidgetStatePropertyAll(18),
+      iconSize: WidgetStatePropertyAll(deCalle ? 20 : 18),
       // LOS 48 PX. Es lo unico que los garantiza cuando el boton se dibuja mas
       // bajo que eso, y por eso esta escrito aqui y no se hereda: quitar el
       // relleno no puede quitar sitio donde poner el dedo.
@@ -664,6 +678,51 @@ class BotonDestructivo extends StatelessWidget {
     label: Text(texto),
   );
 }
+
+/// EL TEMA DE LO QUE SE TOCA EN LA CALLE, con sol — issue 26 de Amado, 06/11/2026: «los botones para
+/// accionar sobre la parada no tienen contraste, son blanco sobre verde y no se leen apenas. En un
+/// lugar con sol no se van a ver». Se pone sobre la parada del distribuidor (`ruta_guiada.dart`) y
+/// cambia TRES cosas, todas desde aqui y ninguna en la pantalla:
+///
+///  · los botones suben a 7 de contraste (AAA), letra de 16 y 48 px de alto de verdad ([Botones]);
+///  · los chips («Entregado» / «No entregada») llevan letra de 16 y 48 px de alto;
+///  · la fila del «Cobrado» lleva letra de 16 y 56 px.
+///
+/// Parte del tema que ya hay ([base]): los chips y el interruptor ya van bien desde `temaDeReparto`.
+ThemeData temaDeLaCalle(ThemeData base) => base.copyWith(
+  filledButtonTheme: FilledButtonThemeData(
+    style: Botones.principal(deCalle: true),
+  ),
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: Botones.principal(deCalle: true),
+  ),
+  outlinedButtonTheme: OutlinedButtonThemeData(
+    style: Botones.secundario(deCalle: true),
+  ),
+  chipTheme: base.chipTheme.copyWith(
+    labelStyle: Tipos.texto(
+      tamano: 16,
+      peso: FontWeight.w600,
+      color: Colores.tinta,
+    ),
+    secondaryLabelStyle: Tipos.texto(
+      tamano: 16,
+      peso: FontWeight.w700,
+      color: Colores.tinta,
+    ),
+    labelPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+  ),
+  listTileTheme: base.listTileTheme.copyWith(
+    titleTextStyle: Tipos.texto(
+      tamano: 16,
+      peso: FontWeight.w600,
+      color: Colores.tinta,
+    ),
+    subtitleTextStyle: Tipos.texto(tamano: 16, color: Colores.tinta),
+    minTileHeight: 56,
+  ),
+);
 
 ThemeData temaDeReparto() {
   // Nada de bajar tipografias por red: estan en `assets/google_fonts/`.
@@ -902,21 +961,86 @@ ThemeData temaDeReparto() {
         borderSide: BorderSide(color: Colores.rojo, width: 1.6),
       ),
     ),
+    // LOS CHIPS, sin blanco sobre claro — issue 26 de Amado, 06/11/2026. El `labelStyle` iba SIN
+    // color y Material le ponia la letra BLANCA: «Entregado» salia en blanco sobre el verde claro del
+    // elegido (1,1 de contraste) y «No entregada» en blanco sobre gris. Ahora, como los botones, sin
+    // relleno que importe: la letra va en tinta, el contorno en un tono de 7 de contraste, y el elegido
+    // se marca por TRES cosas a la vez (contorno de 2 px en tinta, visto delante, un tinte claro del oro
+    // debajo) y no solo por el color. `chips_y_mandos_de_la_parada_test.dart` lo mide.
     chipTheme: ChipThemeData(
-      backgroundColor: Colores.grisFondo,
-      side: BorderSide(color: Colores.linea),
-      labelStyle: Tipos.texto(tamano: 12, peso: FontWeight.w600),
+      backgroundColor: Colors.transparent,
+      selectedColor: Colores.primarioTenue,
+      checkmarkColor: Colores.tinta,
+      side: WidgetStateBorderSide.resolveWith(
+        (e) => e.contains(WidgetState.selected)
+            ? const BorderSide(color: Colores.tinta, width: 2)
+            : BorderSide(color: Colores.grisMando, width: 1.4),
+      ),
+      labelStyle: Tipos.texto(
+        tamano: 12,
+        peso: FontWeight.w600,
+        color: Colores.tinta,
+      ),
+      secondaryLabelStyle: Tipos.texto(
+        tamano: 12,
+        peso: FontWeight.w700,
+        color: Colores.tinta,
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(Radios.pastilla),
+      ),
+    ),
+    // El segmentado (Tablero), con la misma regla que el chip: letra de tinta, contorno de 7 y el
+    // elegido con 2 px de tinta y un tinte claro, nunca letra clara sobre fondo claro.
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (e) => e.contains(WidgetState.selected)
+              ? Colores.primarioTenue
+              : Colors.transparent,
+        ),
+        foregroundColor: const WidgetStatePropertyAll(Colores.tinta),
+        iconColor: const WidgetStatePropertyAll(Colores.tinta),
+        side: WidgetStateProperty.resolveWith(
+          (e) => e.contains(WidgetState.selected)
+              ? const BorderSide(color: Colores.tinta, width: 2)
+              : BorderSide(color: Colores.grisMando, width: 1.4),
+        ),
       ),
     ),
     checkboxTheme: CheckboxThemeData(
       side: BorderSide(color: Colores.lineaFuerte, width: 1.4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
     ),
+    // EL INTERRUPTOR, lo mismo — issue 26 (el «Cobrado» de la parada). Antes: bola BLANCA sobre el
+    // oro (2,2 de contraste) y apagado casi invisible. Ahora la bola y el contorno van en un tono de
+    // 7 de contraste (verde si esta puesto, gris si no), la pista lleva un tinte claro o ninguno y
+    // la bola lleva un visto o una cruz: se lee tambien sin distinguir colores.
     switchTheme: SwitchThemeData(
-      trackOutlineColor: WidgetStatePropertyAll(Colores.linea),
-      thumbColor: const WidgetStatePropertyAll(Colores.blanco),
+      trackColor: WidgetStateProperty.resolveWith(
+        (e) => e.contains(WidgetState.selected)
+            ? Color.alphaBlend(
+                Colores.verdeFondo.withValues(alpha: 0.5),
+                Colores.blanco,
+              )
+            : Colors.transparent,
+      ),
+      trackOutlineColor: WidgetStateProperty.resolveWith(
+        (e) => e.contains(WidgetState.selected)
+            ? Colores.verdeMando
+            : Colores.grisMando,
+      ),
+      trackOutlineWidth: const WidgetStatePropertyAll(2),
+      thumbColor: WidgetStateProperty.resolveWith(
+        (e) => e.contains(WidgetState.selected)
+            ? Colores.verdeMando
+            : Colores.grisMando,
+      ),
+      thumbIcon: WidgetStateProperty.resolveWith(
+        (e) => e.contains(WidgetState.selected)
+            ? Icon(Icons.check, color: Colores.verdeFondo)
+            : Icon(Icons.close, color: Colores.papel),
+      ),
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
       color: Colores.primario,

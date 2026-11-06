@@ -5329,6 +5329,17 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _cobroEntregaMeta = const VerificationMeta(
+    'cobroEntrega',
+  );
+  @override
+  late final GeneratedColumn<String> cobroEntrega = GeneratedColumn<String>(
+    'cobro_entrega',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -5406,6 +5417,7 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
     resultado,
     resultadoAt,
     resultadoNota,
+    cobroEntrega,
     createdAt,
     updatedAt,
   ];
@@ -5823,6 +5835,15 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
         ),
       );
     }
+    if (data.containsKey('cobro_entrega')) {
+      context.handle(
+        _cobroEntregaMeta,
+        cobroEntrega.isAcceptableOrUnknown(
+          data['cobro_entrega']!,
+          _cobroEntregaMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -6056,6 +6077,10 @@ class $OrdersTable extends Orders with TableInfo<$OrdersTable, Pedido> {
         DriftSqlType.string,
         data['${effectivePrefix}resultado_nota'],
       ),
+      cobroEntrega: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cobro_entrega'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -6180,6 +6205,12 @@ class Pedido extends DataClass implements Insertable<Pedido> {
   final String? resultado;
   final DateTime? resultadoAt;
   final String? resultadoNota;
+
+  /// LO QUE DIJO EL DISTRIBUIDOR DEL COBRO al marcar la parada (`orders.cobro_entrega`, 00033):
+  /// `cobrado` | `no_cobrado` | nulo. Es lo que baja del servidor; en el telefono del
+  /// distribuidor lo que marco AQUI antes de subir esta en `cobros_de_entrega` y manda sobre
+  /// esto (`cobroDeLaParada`). Esquema 18, issue 26 de Amado.
+  final String? cobroEntrega;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   const Pedido({
@@ -6236,6 +6267,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     this.resultado,
     this.resultadoAt,
     this.resultadoNota,
+    this.cobroEntrega,
     this.createdAt,
     this.updatedAt,
   });
@@ -6384,6 +6416,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     }
     if (!nullToAbsent || resultadoNota != null) {
       map['resultado_nota'] = Variable<String>(resultadoNota);
+    }
+    if (!nullToAbsent || cobroEntrega != null) {
+      map['cobro_entrega'] = Variable<String>(cobroEntrega);
     }
     if (!nullToAbsent || createdAt != null) {
       map['created_at'] = Variable<DateTime>(createdAt);
@@ -6535,6 +6570,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       resultadoNota: resultadoNota == null && nullToAbsent
           ? const Value.absent()
           : Value(resultadoNota),
+      cobroEntrega: cobroEntrega == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cobroEntrega),
       createdAt: createdAt == null && nullToAbsent
           ? const Value.absent()
           : Value(createdAt),
@@ -6615,6 +6653,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       resultado: serializer.fromJson<String?>(json['resultado']),
       resultadoAt: serializer.fromJson<DateTime?>(json['resultadoAt']),
       resultadoNota: serializer.fromJson<String?>(json['resultadoNota']),
+      cobroEntrega: serializer.fromJson<String?>(json['cobroEntrega']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
     );
@@ -6676,6 +6715,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       'resultado': serializer.toJson<String?>(resultado),
       'resultadoAt': serializer.toJson<DateTime?>(resultadoAt),
       'resultadoNota': serializer.toJson<String?>(resultadoNota),
+      'cobroEntrega': serializer.toJson<String?>(cobroEntrega),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'updatedAt': serializer.toJson<DateTime?>(updatedAt),
     };
@@ -6735,6 +6775,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     Value<String?> resultado = const Value.absent(),
     Value<DateTime?> resultadoAt = const Value.absent(),
     Value<String?> resultadoNota = const Value.absent(),
+    Value<String?> cobroEntrega = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
     Value<DateTime?> updatedAt = const Value.absent(),
   }) => Pedido(
@@ -6831,6 +6872,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     resultadoNota: resultadoNota.present
         ? resultadoNota.value
         : this.resultadoNota,
+    cobroEntrega: cobroEntrega.present ? cobroEntrega.value : this.cobroEntrega,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
     updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
   );
@@ -6947,6 +6989,9 @@ class Pedido extends DataClass implements Insertable<Pedido> {
       resultadoNota: data.resultadoNota.present
           ? data.resultadoNota.value
           : this.resultadoNota,
+      cobroEntrega: data.cobroEntrega.present
+          ? data.cobroEntrega.value
+          : this.cobroEntrega,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -7008,6 +7053,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           ..write('resultado: $resultado, ')
           ..write('resultadoAt: $resultadoAt, ')
           ..write('resultadoNota: $resultadoNota, ')
+          ..write('cobroEntrega: $cobroEntrega, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -7069,6 +7115,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
     resultado,
     resultadoAt,
     resultadoNota,
+    cobroEntrega,
     createdAt,
     updatedAt,
   ]);
@@ -7129,6 +7176,7 @@ class Pedido extends DataClass implements Insertable<Pedido> {
           other.resultado == this.resultado &&
           other.resultadoAt == this.resultadoAt &&
           other.resultadoNota == this.resultadoNota &&
+          other.cobroEntrega == this.cobroEntrega &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -7187,6 +7235,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
   final Value<String?> resultado;
   final Value<DateTime?> resultadoAt;
   final Value<String?> resultadoNota;
+  final Value<String?> cobroEntrega;
   final Value<DateTime?> createdAt;
   final Value<DateTime?> updatedAt;
   final Value<int> rowid;
@@ -7244,6 +7293,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     this.resultado = const Value.absent(),
     this.resultadoAt = const Value.absent(),
     this.resultadoNota = const Value.absent(),
+    this.cobroEntrega = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7302,6 +7352,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     this.resultado = const Value.absent(),
     this.resultadoAt = const Value.absent(),
     this.resultadoNota = const Value.absent(),
+    this.cobroEntrega = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7362,6 +7413,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     Expression<String>? resultado,
     Expression<DateTime>? resultadoAt,
     Expression<String>? resultadoNota,
+    Expression<String>? cobroEntrega,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -7425,6 +7477,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
       if (resultado != null) 'resultado': resultado,
       if (resultadoAt != null) 'resultado_at': resultadoAt,
       if (resultadoNota != null) 'resultado_nota': resultadoNota,
+      if (cobroEntrega != null) 'cobro_entrega': cobroEntrega,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -7485,6 +7538,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     Value<String?>? resultado,
     Value<DateTime?>? resultadoAt,
     Value<String?>? resultadoNota,
+    Value<String?>? cobroEntrega,
     Value<DateTime?>? createdAt,
     Value<DateTime?>? updatedAt,
     Value<int>? rowid,
@@ -7543,6 +7597,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
       resultado: resultado ?? this.resultado,
       resultadoAt: resultadoAt ?? this.resultadoAt,
       resultadoNota: resultadoNota ?? this.resultadoNota,
+      cobroEntrega: cobroEntrega ?? this.cobroEntrega,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -7717,6 +7772,9 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
     if (resultadoNota.present) {
       map['resultado_nota'] = Variable<String>(resultadoNota.value);
     }
+    if (cobroEntrega.present) {
+      map['cobro_entrega'] = Variable<String>(cobroEntrega.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -7785,6 +7843,7 @@ class OrdersCompanion extends UpdateCompanion<Pedido> {
           ..write('resultado: $resultado, ')
           ..write('resultadoAt: $resultadoAt, ')
           ..write('resultadoNota: $resultadoNota, ')
+          ..write('cobroEntrega: $cobroEntrega, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -15816,6 +15875,7 @@ typedef $$OrdersTableCreateCompanionBuilder =
       Value<String?> resultado,
       Value<DateTime?> resultadoAt,
       Value<String?> resultadoNota,
+      Value<String?> cobroEntrega,
       Value<DateTime?> createdAt,
       Value<DateTime?> updatedAt,
       Value<int> rowid,
@@ -15875,6 +15935,7 @@ typedef $$OrdersTableUpdateCompanionBuilder =
       Value<String?> resultado,
       Value<DateTime?> resultadoAt,
       Value<String?> resultadoNota,
+      Value<String?> cobroEntrega,
       Value<DateTime?> createdAt,
       Value<DateTime?> updatedAt,
       Value<int> rowid,
@@ -16150,6 +16211,11 @@ class $$OrdersTableFilterComposer extends Composer<_$BaseLocal, $OrdersTable> {
 
   ColumnFilters<String> get resultadoNota => $composableBuilder(
     column: $table.resultadoNota,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cobroEntrega => $composableBuilder(
+    column: $table.cobroEntrega,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -16438,6 +16504,11 @@ class $$OrdersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get cobroEntrega => $composableBuilder(
+    column: $table.cobroEntrega,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -16675,6 +16746,11 @@ class $$OrdersTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get cobroEntrega => $composableBuilder(
+    column: $table.cobroEntrega,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -16763,6 +16839,7 @@ class $$OrdersTableTableManager
                 Value<String?> resultado = const Value.absent(),
                 Value<DateTime?> resultadoAt = const Value.absent(),
                 Value<String?> resultadoNota = const Value.absent(),
+                Value<String?> cobroEntrega = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -16820,6 +16897,7 @@ class $$OrdersTableTableManager
                 resultado: resultado,
                 resultadoAt: resultadoAt,
                 resultadoNota: resultadoNota,
+                cobroEntrega: cobroEntrega,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -16879,6 +16957,7 @@ class $$OrdersTableTableManager
                 Value<String?> resultado = const Value.absent(),
                 Value<DateTime?> resultadoAt = const Value.absent(),
                 Value<String?> resultadoNota = const Value.absent(),
+                Value<String?> cobroEntrega = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -16936,6 +17015,7 @@ class $$OrdersTableTableManager
                 resultado: resultado,
                 resultadoAt: resultadoAt,
                 resultadoNota: resultadoNota,
+                cobroEntrega: cobroEntrega,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,

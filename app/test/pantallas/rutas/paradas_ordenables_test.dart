@@ -92,8 +92,9 @@ void main() {
   ) async {
     final desde = tester.getCenter(find.byKey(claveDelAsa(id)));
     // Una tarjeta hacia abajo: lo que mide la de detrás, y un poco más.
+    // (Con la etiqueta de estado la tarjeta mide mas, y «un poco mas» ya la pasaba de largo: 0,6.)
     final hasta =
-        desde.dy + tester.getSize(find.byKey(ValueKey(detras))).height + 5;
+        desde.dy + tester.getSize(find.byKey(ValueKey(detras))).height * 0.6;
     final gesto = await tester.startGesture(desde, kind: tipo);
     await tester.pump(kLongPressTimeout ~/ 10);
     for (var y = desde.dy; y < hasta; y += 20) {

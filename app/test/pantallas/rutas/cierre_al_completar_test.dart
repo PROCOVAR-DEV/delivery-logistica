@@ -345,8 +345,10 @@ void main() {
     expect(find.text('Guardar y completar'), findsNothing);
 
     // Lo que SI se ve: como acabo cada una, con su nombre.
-    expect(find.text('Entregado'), findsOneWidget);
-    expect(find.text('Devuelto'), findsOneWidget);
+    // (con la etiqueta de estado de la casa, issue 26: «Entregada», «No entregada»)
+    expect(find.text('Entregada'), findsOneWidget);
+    expect(find.text('No entregada'), findsOneWidget);
+    expect(find.text('Pendiente'), findsOneWidget);
     // La tercera no se marco: eso no es «nada», es que volvio en el camion.
     expect(find.text('Sin marcar · siguió en el camión'), findsOneWidget);
     // Y el porque de la devolucion, que en una ruta cerrada es la unica

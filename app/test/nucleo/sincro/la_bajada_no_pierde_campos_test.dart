@@ -357,6 +357,27 @@ void main() {
     );
   });
 
+  test('el cobro de la entrega llega: cobrado, no_cobrado o nada (06/11/2026, issue 26)', () async {
+    await conEsto(<String, Object?>{
+      'orders': conjunto([
+        <String, Object?>{
+          'id': 'f-cobrada', 'customerName': 'A', 'address': 'Calle 1', 'resultado': 'entregado',
+          'cobroEntrega': 'cobrado',
+        },
+        <String, Object?>{
+          'id': 'f-sin-cobrar', 'customerName': 'B', 'address': 'Calle 2', 'resultado': 'entregado',
+          'cobroEntrega': 'no_cobrado',
+        },
+        <String, Object?>{'id': 'f-nada', 'customerName': 'C', 'address': 'Calle 3'},
+      ]),
+    }).ciclo();
+
+    final filas = {for (final p in await base.select(base.orders).get()) p.id: p.cobroEntrega};
+    expect(filas['f-cobrada'], 'cobrado', reason: 'sin esto la oficina no puede decir «Entregada · cobrada»');
+    expect(filas['f-sin-cobrar'], 'no_cobrado');
+    expect(filas['f-nada'], isNull);
+  });
+
   test('el almacén llega con su código, que no es el de la sucursal', () async {
     final bajada = Bajada(
       cliente: clienteFalso((PeticionVista p) async {

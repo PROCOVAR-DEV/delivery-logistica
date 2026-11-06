@@ -239,13 +239,20 @@ class BaseLocal extends _$BaseLocal {
   /// Tablas NUEVAS `puntos_gps` y `cobros_de_entrega` (solo del aparato) y `routes.revisada_at`, nula.
   /// ADITIVAS: la cola de `apuntes` no se toca. Nacen vacias. Ver el `desde < 17`.
   ///
+  /// ## 18 — el cobro de cada parada (06/11/2026, issue 26 de Amado)
+  ///
+  /// `orders` gana `cobro_entrega`, nula (`cobrado` | `no_cobrado`): es lo que el servidor ya mandaba en
+  /// la bajada y la base no guardaba, y con ello la oficina ve «Entregada · cobrada» en cada parada.
+  /// ADITIVA: la cola de `apuntes` no se toca. Los aparatos ya instalados lo reciben con una bajada
+  /// entera de los pedidos, una vez (`RegistroDeFrescura.rebajarLosPedidosPorSuCobro`). Ver el `desde < 18`.
+  ///
   /// ## 16 — los conduces (27/10/2026, `docs/conduces.md`)
   ///
   /// `orders` gana `conduce_principal_id`, nula. ADITIVA: la cola de `apuntes` no se toca. Los aparatos
   /// ya instalados lo reciben con una bajada entera de los pedidos, una vez
   /// (`RegistroDeFrescura.rebajarLosPedidosPorSuConduce`). Ver el `desde < 16`.
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -466,6 +473,15 @@ class BaseLocal extends _$BaseLocal {
         ).get()).map((f) => f.read<String>('name')).toSet();
         if (!deRutas.contains(routes.revisadaAt.name)) {
           await m.addColumn(routes, routes.revisadaAt);
+        }
+      }
+      if (desde < 18) {
+        // EL COBRO DE LA PARADA. Solo si falta, como las demas.
+        final hay = (await customSelect(
+          'PRAGMA table_info(orders)',
+        ).get()).map((f) => f.read<String>('name')).toSet();
+        if (!hay.contains(orders.cobroEntrega.name)) {
+          await m.addColumn(orders, orders.cobroEntrega);
         }
       }
     },

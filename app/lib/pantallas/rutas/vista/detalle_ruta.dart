@@ -24,7 +24,9 @@ import '../../../nucleo/regla_de_entrada.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../diseno/estado_de_parada.dart';
 import '../../../diseno/tema.dart';
+import '../../../distribuidor/historial.dart' show cobrosDeEntregaProvider;
 import '../../../distribuidor/modo_distribuidor.dart';
 import '../../../distribuidor/proveedores_distribuidor.dart';
 import '../../../distribuidor/ruta_guiada.dart';
@@ -575,6 +577,7 @@ class _Acciones extends ConsumerWidget {
           final conduces =
               ref.watch(conducesDeRutaProvider(ruta.ruta.id)).value ??
               const <String, ConduceDe>{};
+          final cobros = ref.watch(cobrosDeEntregaProvider).value ?? const {};
           return Cajon(
             titulo: 'Paradas y precio por cliente (${paradas.length})',
             subtitulo: ruta.ruta.routeCode ?? ruta.ruta.id,
@@ -603,6 +606,7 @@ class _Acciones extends ConsumerWidget {
                   lineas: renglones[parada.id] ?? const <RenglonConPeso>[],
                   conduce: conduces[parada.id],
                   conImporte: !ref.read(modoDistribuidorProvider),
+                  cobros: cobros,
                   alQuitar:
                       viva.status == EstadoRuta.planificada &&
                           !ref.read(modoDistribuidorProvider)
@@ -1061,8 +1065,13 @@ class TarjetaDeParada extends StatelessWidget {
     this.asa,
     this.conduce,
     this.conImporte = true,
+    this.cobros = const {},
     super.key,
   });
+
+  /// Lo que el distribuidor marco como cobrado EN ESTE APARATO (`cobros_de_entrega`), por parada:
+  /// manda sobre `orders.cobro_entrega` mientras no haya subido (`cobroDeLaParada`).
+  final Map<String, bool> cobros;
 
   /// `false` para el distribuidor (decision A: nada de importes).
   final bool conImporte;
@@ -1150,6 +1159,15 @@ class TarjetaDeParada extends StatelessWidget {
                 Text(
                   parada.endAddress ?? parada.address,
                   style: TextStyle(color: Colores.gris, fontSize: 12),
+                ),
+                // EL ESTADO DE LA PARADA (issue 26 de Amado): pendiente, entregada (cobrada o
+                // no), no entregada con su motivo, cancelada. Una sola etiqueta para todo el proyecto.
+                const SizedBox(height: 6),
+                EtiquetaDeEstadoDeParada(
+                  estadoDeLaParada(parada, cobros),
+                  motivo: parada.resultado == ResultadoParada.entregado
+                      ? null
+                      : parada.resultadoNota,
                 ),
                 if (lineas.isNotEmpty) ...[
                   const SizedBox(height: 8),

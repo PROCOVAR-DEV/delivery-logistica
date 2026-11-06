@@ -511,12 +511,27 @@ void main() {
           find.byKey(const ValueKey('historial-parada-h1')),
           findsOneWidget,
         );
+        // La etiqueta de estado de la casa (issue 26) y, debajo, la hora y la nota.
+        final h1 = find.byKey(const ValueKey('historial-parada-h1'));
+        final h2 = find.byKey(const ValueKey('historial-parada-h2'));
         expect(
-          find.textContaining('Entregada · cobrada · 3/11/2026, 9:15'),
+          find.descendant(of: h1, matching: find.text('Entregada · cobrada')),
           findsOneWidget,
         );
         expect(
-          find.textContaining('No entregada · 3/11/2026, 10:00'),
+          find.descendant(of: h1, matching: find.text('3/11/2026, 9:15')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: h2, matching: find.text('No entregada')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: h2, matching: find.text('3/11/2026, 10:00')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: h2, matching: find.text('cerrado')),
           findsOneWidget,
         );
         expect(find.textContaining('cerrado'), findsOneWidget);

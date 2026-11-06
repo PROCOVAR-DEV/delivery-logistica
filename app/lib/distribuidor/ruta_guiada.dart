@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../diseno/estado_de_parada.dart';
 import '../diseno/tema.dart';
 import '../nucleo/base/base.dart';
 import '../nucleo/proveedores.dart';
@@ -23,7 +24,9 @@ import '../pantallas/rutas/datos/repositorio_rutas.dart' show PestanaRutas;
 import '../pantallas/rutas/estado/proveedores_rutas.dart';
 import 'enlaces.dart';
 import 'guia_de_ruta.dart';
+import 'historial.dart' show cobrosDeEntregaProvider;
 import 'parada_actual.dart';
+import 'paradas_de_la_ruta.dart';
 import 'proveedores_distribuidor.dart';
 
 class RutaGuiada extends ConsumerWidget {
@@ -40,44 +43,61 @@ class RutaGuiada extends ConsumerWidget {
     final permiso = ref.watch(permisoDeUbicacionProvider);
     final aviso = permiso?.aviso;
     final siguiente = siguienteParada(paradas);
+    final cobros = ref.watch(cobrosDeEntregaProvider).value ?? const {};
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (aviso != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              aviso,
-              key: const ValueKey('guia-aviso-ubicacion'),
-              style: TextStyle(color: Colores.ambar),
+    // EL TEMA DE LA CALLE (`temaDeLaCalle`): botones, chips e interruptor a 7 de contraste, 16 de letra
+    // y 48 px de alto. Issue 26 de Amado: «blanco sobre verde, al sol no se ven».
+    return Theme(
+      data: temaDeLaCalle(Theme.of(context)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (aviso != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                aviso,
+                key: const ValueKey('guia-aviso-ubicacion'),
+                style: TextStyle(color: Colores.ambar),
+              ),
             ),
+          _Cronometros(
+            salida: ruta.startedAt,
+            inicioDeLaParada: inicioDeLaParada(paradas, ruta.startedAt),
+            conParada: siguiente != null,
           ),
-        _Cronometros(
-          salida: ruta.startedAt,
-          inicioDeLaParada: inicioDeLaParada(paradas, ruta.startedAt),
-          conParada: siguiente != null,
-        ),
-        const SizedBox(height: 8),
-        if (paradas.isEmpty)
-          const Text('Esta ruta no tiene paradas.')
-        else if (siguiente == null)
-          _TodoMarcado(rutaId: rutaId)
-        else
-          _ParadaDeAhora(
-            // Otra parada = formulario nuevo (nota y cobrado vuelven a vacio).
-            key: ValueKey('parada-de-ahora-${siguiente.id}'),
-            rutaId: rutaId,
-            parada: siguiente,
-            numero: paradasHechas(paradas) + 1,
-            total: paradas.length,
-          ),
-        // No se cancela una ruta con entregas hechas (el servidor tampoco deja).
-        if (!paradas.any((p) => p.resultado == ResultadoParada.entregado)) ...[
           const SizedBox(height: 8),
-          _CancelarLaRuta(rutaId: rutaId),
+          if (paradas.isEmpty)
+            const Text('Esta ruta no tiene paradas.')
+          else if (siguiente == null)
+            _TodoMarcado(rutaId: rutaId)
+          else
+            _ParadaDeAhora(
+              // Otra parada = formulario nuevo (nota y cobrado vuelven a vacio).
+              key: ValueKey('parada-de-ahora-${siguiente.id}'),
+              rutaId: rutaId,
+              parada: siguiente,
+              numero: paradasHechas(paradas) + 1,
+              total: paradas.length,
+            ),
+          // No se cancela una ruta con entregas hechas (el servidor tampoco deja).
+          if (!paradas.any(
+            (p) => p.resultado == ResultadoParada.entregado,
+          )) ...[
+            const SizedBox(height: 8),
+            _CancelarLaRuta(rutaId: rutaId),
+          ],
+          // TODAS las paradas con su estado, no solo la de ahora.
+          if (paradas.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            ParadasDeLaRuta(
+              paradas: paradas,
+              cobros: cobros,
+              actualId: siguiente?.id,
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -366,10 +386,18 @@ class _ParadaDeAhoraState extends ConsumerState<_ParadaDeAhora> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Parada ${widget.numero} de ${widget.total}',
-              key: const ValueKey('guia-numero-de-parada'),
-              style: Theme.of(context).textTheme.labelLarge,
+            Wrap(
+              spacing: 10,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'Parada ${widget.numero} de ${widget.total}',
+                  key: const ValueKey('guia-numero-de-parada'),
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const EtiquetaDeEstadoDeParada(EstadoDeParada.pendiente),
+              ],
             ),
             const SizedBox(height: 6),
             FacturaYCliente(

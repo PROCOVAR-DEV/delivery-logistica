@@ -200,6 +200,11 @@ final class Senal {
   /// El tono vivo para cifras grandes, puntos y barras sobre blanco, donde basta
   /// con el 3 que pide el texto grande.
   final Color vivo;
+
+  /// EL TONO DE MANDO: texto, icono y contorno de lo que se toca EN LA CALLE, con sol
+  /// (issue 26 de Amado, 06/11/2026). Garantizado 7 de contraste (AAA) sobre el papel,
+  /// que es el peor fondo posible: sobre el blanco de una tarjeta sube solo.
+  late final Color mando = _legibleSobre(base, Paleta.papel, minimo: 7);
 }
 
 /// Los colores con nombre y con motivo. **Todo sale de [Paleta].**
@@ -329,6 +334,20 @@ abstract final class Colores {
   /// IMPIDE = rechazado o pasado de capacidad.
   static final rojo = _impide.fuerte;
   static final rojoFondo = _impide.fondo;
+
+  /// LOS TONOS DE MANDO (7 de contraste sobre papel): los de las etiquetas de estado de
+  /// la parada y los mandos que se tocan en la calle. Salen de la misma [Senal], asi que
+  /// siguen a la paleta; no son un segundo verde.
+  static final verdeMando = _hecho.mando;
+  static final ambarMando = _aviso.mando;
+  static final rojoMando = _impide.mando;
+
+  /// El gris de «pendiente», subido a 7 de contraste. La tinta ya pasa de sobra.
+  static final grisMando = _legibleSobre(tintaSuave, Paleta.papel, minimo: 7);
+
+  /// El oro oscurecido a 7 de contraste: el texto y el contorno del boton principal de la
+  /// calle. [primario] se queda en el 4,5 de siempre para el resto de la aplicacion.
+  static final primarioMando = _legibleSobre(Paleta.oro, Paleta.papel, minimo: 7);
 
   /// GRIS = lo normal, lo que no hay que mirar. Gris CALIDO, porque sale de la
   /// tinta: un gris azulado sobre papel crema se ve sucio.

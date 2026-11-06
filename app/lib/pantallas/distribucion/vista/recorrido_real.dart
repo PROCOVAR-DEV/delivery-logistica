@@ -11,8 +11,8 @@ import 'package:intl/intl.dart';
 
 import '../../../diseno/cajon.dart';
 import '../../../diseno/colores.dart';
+import '../../../diseno/estado_de_parada.dart';
 import '../../pedidos/datos/formato.dart';
-import '../../pedidos/vista/kit.dart' show Insignia;
 import '../../rutas/datos/mapa_en_vivo.dart';
 import '../../rutas/datos/recorrido.dart';
 import '../../rutas/vista/croquis_de_ruta.dart';
@@ -31,20 +31,6 @@ String cuantoDura(Duration? d) {
   if (h == 0) return '$m min';
   return m == 0 ? '$h h' : '$h h $m min';
 }
-
-String resultadoEnPalabras(String? r) => switch (r) {
-  null => 'Sin marcar',
-  'entregado' => 'Entregada',
-  'devuelto' => 'Devuelta',
-  'no_entregada' => 'No entregada',
-  _ => '${r[0].toUpperCase()}${r.substring(1).replaceAll('_', ' ')}',
-};
-
-String? cobroEnPalabras(String? c) => switch (c) {
-  'cobrado' => 'Cobrada',
-  'no_cobrado' => 'No cobrada',
-  _ => null,
-};
 
 abstract final class TextosDelRecorridoReal {
   static const cargando = 'Cargando el recorrido…';
@@ -176,13 +162,12 @@ class _Contenido extends ConsumerWidget {
           entregada: p.parada.resultado == 'entregado',
           esRegreso:
               p.parada.resultado != null && p.parada.resultado != 'entregado',
-          detalle: [
-            resultadoEnPalabras(p.parada.resultado) +
-                (p.parada.resultadoAt == null
-                    ? ''
-                    : ' a las ${horaDe(p.parada.resultadoAt)}'),
-            ?cobroEnPalabras(p.parada.cobroEntrega),
-          ].join('\n'),
+          // El estado es el de la casa (`estadoDeParada`): «Entregada · cobrada», «No entregada»...
+          detalle:
+              estadoDeParada(p.parada.resultado, p.parada.cobroEntrega).texto +
+              (p.parada.resultadoAt == null
+                  ? ''
+                  : '\na las ${horaDe(p.parada.resultadoAt)}'),
         ),
     ],
   );
@@ -298,7 +283,6 @@ class _FilaDeParada extends StatelessWidget {
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
     final x = p.parada;
-    final cobro = cobroEnPalabras(x.cobroEntrega);
     final tiempos = [
       if (p.desdeLaAnterior != null)
         'Desde la anterior: ${cuantoDura(p.desdeLaAnterior)}',
@@ -326,20 +310,12 @@ class _FilaDeParada extends StatelessWidget {
             spacing: 8,
             runSpacing: 4,
             children: [
-              Insignia(
-                '${resultadoEnPalabras(x.resultado)}${x.resultadoAt == null ? '' : ' · ${horaDe(x.resultadoAt)}'}',
-                color: switch (x.resultado) {
-                  'entregado' => ColoresDelMapa.salida,
-                  null => Colores.tintaSuave,
-                  _ => ColoresDelMapa.regreso,
-                },
-              ),
-              if (cobro != null)
-                Insignia(
-                  cobro,
-                  color: x.cobroEntrega == 'cobrado'
-                      ? ColoresDelMapa.salida
-                      : ColoresDelMapa.puntoManual,
+              EtiquetaDeEstadoDeParada(estadoDeParada(x.resultado, x.cobroEntrega)),
+              if (x.resultadoAt != null)
+                Text(
+                  horaDe(x.resultadoAt),
+                  key: ValueKey('recorrido-real-hora-${p.numero}'),
+                  style: tema.textTheme.titleSmall,
                 ),
             ],
           ),

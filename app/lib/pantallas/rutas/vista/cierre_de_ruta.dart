@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../diseno/estado_de_parada.dart';
 import '../../../diseno/tema.dart';
 import '../../../impresion/armar_post_despacho.dart' as papel;
 import '../../../impresion/post_despacho.dart' show pdfPostDespacho;
@@ -702,6 +703,8 @@ class _CierreDeRutaState extends ConsumerState<CierreDeRuta> {
                   pedido: parada,
                   conduce: conduces[parada.id],
                   resultado: _resultados[parada.id],
+                  // Solo lo que bajo del servidor: la oficina no marca cobros aqui (`cobros_de_entrega` es del telefono).
+                  cobroEntrega: parada.cobroEntrega,
                   nota: _nota(parada.id),
                   soloLectura: _soloLectura,
                   alMarcar: (cual) => _marcar(parada.id, cual),
@@ -807,6 +810,7 @@ class _Parada extends StatelessWidget {
     required this.pedido,
     required this.conduce,
     required this.resultado,
+    required this.cobroEntrega,
     required this.nota,
     required this.soloLectura,
     required this.alMarcar,
@@ -820,6 +824,10 @@ class _Parada extends StatelessWidget {
   /// Lo que se marque aquí se aplica a todas (`AccionesDeRuta.cerrar`).
   final ConduceDe? conduce;
   final String? resultado;
+
+  /// El cobro que se anoto de esta parada (`cobrado` | `no_cobrado` | nulo): solo cuenta si es
+  /// entregada (`estadoDeParada`).
+  final String? cobroEntrega;
   final TextEditingController nota;
 
   /// La ruta ya esta completada: como acabo esta parada se mira, no se toca.
@@ -906,14 +914,19 @@ class _Parada extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            if (soloLectura)
-              // SIN BOTONES, NI SIQUIERA APAGADOS. En una ruta completada el
+            // EL ESTADO DE LA PARADA, el mismo de todas las pantallas (issue 26 de Amado): en una ruta
+            // cerrada ES el resultado (con «siguio en el camion» si nadie la marco); en una abierta dice
+            // lo que quedaria con lo marcado ahora, y el cobro de las entregadas.
+            EtiquetaDeEstadoDeParada(
+              estadoDeParada(resultado, cobroEntrega),
+              motivo: soloLectura && resultado == null
+                  ? sinMarcarEnCerrada
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            if (!soloLectura)
+              // SIN BOTONES EN UNA RUTA COMPLETADA, ni siquiera apagados: el
               // resultado es un dato, no una eleccion.
-              Insignia(
-                nombres[resultado]?.$1 ?? sinMarcarEnCerrada,
-                color: nombres[resultado]?.$2 ?? Colores.ambar,
-              )
-            else
               Wrap(
                 spacing: 8,
                 children: [

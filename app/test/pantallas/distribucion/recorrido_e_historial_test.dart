@@ -41,16 +41,16 @@ void main() {
         // Parada 1: la hora REAL (la del aparato), entregada y cobrada, con sus tiempos y su nota.
         final p1 = find.byKey(claveDeLaParadaReal(1));
         expect(
-          find.descendant(
-            of: p1,
-            matching: find.textContaining(
-              'Entregada · ${horaDe(DateTime.utc(2026, 11, 4, 13, 40).toLocal())}',
-            ),
-          ),
+          find.descendant(of: p1, matching: find.text('Entregada · cobrada')),
           findsOneWidget,
         );
         expect(
-          find.descendant(of: p1, matching: find.text('Cobrada')),
+          find.descendant(
+            of: p1,
+            matching: find.text(
+              horaDe(DateTime.utc(2026, 11, 4, 13, 40).toLocal()),
+            ),
+          ),
           findsOneWidget,
         );
         expect(
@@ -74,15 +74,16 @@ void main() {
           ),
           findsOneWidget,
         );
-        // Parada 2: devuelta, no cobrada, y marcada lejos de su punto.
+        // Parada 2: no entregada (aunque el servidor traiga un `no_cobrado`: un devuelto no muestra
+        // cobro) y marcada lejos de su punto.
         final p2 = find.byKey(claveDeLaParadaReal(2));
         expect(
-          find.descendant(of: p2, matching: find.textContaining('Devuelta')),
+          find.descendant(of: p2, matching: find.text('No entregada')),
           findsOneWidget,
         );
         expect(
-          find.descendant(of: p2, matching: find.text('No cobrada')),
-          findsOneWidget,
+          find.descendant(of: p2, matching: find.textContaining('cobr')),
+          findsNothing,
         );
         expect(
           find.descendant(
@@ -96,7 +97,7 @@ void main() {
         // Parada 3: sin marcar, y sin aviso inventado.
         final p3 = find.byKey(claveDeLaParadaReal(3));
         expect(
-          find.descendant(of: p3, matching: find.textContaining('Sin marcar')),
+          find.descendant(of: p3, matching: find.text('Pendiente')),
           findsOneWidget,
         );
         expect(

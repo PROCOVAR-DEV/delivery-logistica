@@ -6,7 +6,7 @@ import 'package:reparto/pantallas/distribucion/datos/modelos.dart';
 import 'package:reparto/pantallas/distribucion/vista/revision_de_rutas.dart';
 import 'package:reparto/pantallas/rutas/datos/geo.dart';
 import 'package:reparto/pantallas/distribucion/vista/recorrido_real.dart'
-    show cuantoDura, resultadoEnPalabras, cobroEnPalabras;
+    show cuantoDura;
 import 'package:reparto/nucleo/red/fallos.dart';
 import 'package:reparto/pantallas/distribucion/datos/api_distribucion.dart';
 
@@ -82,11 +82,7 @@ void main() {
       );
     });
 
-    test('las palabras: resultado, cobro y duración', () {
-      expect(resultadoEnPalabras(null), 'Sin marcar');
-      expect(resultadoEnPalabras('no_entregada'), 'No entregada');
-      expect(cobroEnPalabras('cobrado'), 'Cobrada');
-      expect(cobroEnPalabras(null), isNull);
+    test('las palabras de la duración', () {
       expect(cuantoDura(const Duration(minutes: 65)), '1 h 5 min');
       expect(cuantoDura(const Duration(hours: 2)), '2 h');
       expect(cuantoDura(const Duration(seconds: 20)), 'menos de 1 min');

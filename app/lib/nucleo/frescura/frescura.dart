@@ -140,6 +140,10 @@ class RegistroDeFrescura {
   /// (y fuera de cualquier Desde/Hasta). En la web no cambia nada: su base nace vacía.
   static const yaRebajadosPorSuResultadoAt = 'una-vez:pedidos-con-resultado-at';
 
+  /// EL COBRO DE CADA PARADA (`orders.cobro_entrega`, esquema 18, issue 26 de Amado, 06/11/2026). Por
+  /// diferencias solo baja lo que cambia: las entregadas de antes saldrian sin su cobro PARA SIEMPRE.
+  static const yaRebajadosPorSuCobro = 'una-vez:pedidos-con-cobro-entrega';
+
   /// LOS CAMIONES CON SU FICHA ENTERA — 16/10/2026 (issue 14). Hasta la 1.0.38 la bajada
   /// guardaba de cada camion solo lo basico (sin tipo, costo por km, notas ni
   /// «para domicilio»). Se piden ENTEROS (`completas=vehicles`) una vez, no con una
@@ -194,6 +198,9 @@ class RegistroDeFrescura {
     yaRebajadosPorSuResultadoAt,
     const [Colecciones.pedidos],
   );
+
+  Future<void> rebajarLosPedidosPorSuCobro() =>
+      rebajarUnaVez(yaRebajadosPorSuCobro, const [Colecciones.pedidos]);
 
   Future<void> rebajarLasFacturasAnuladas() => rebajarUnaVez(
     yaRebajadosPorLasFacturasAnuladas,

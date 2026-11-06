@@ -69,6 +69,8 @@ void main() {
       "VALUES ('ped-1', 'Bodega La Esquina', 'Calle 4', 120.5, 0)",
     );
     await ayer.customStatement('ALTER TABLE orders DROP COLUMN items_origen');
+    // La 18 (cobro de la parada, issue 26): la base de ayer no la tenia.
+    await ayer.customStatement('ALTER TABLE orders DROP COLUMN cobro_entrega');
     // Y las del esquema 4, o la migracion intenta anadirlas sobre las que ya
     // estan: la base se monta con el esquema DE VERDAD y despues se le quitan
     // las columnas nuevas, que es lo que la deja como la de un aparato que
@@ -118,6 +120,13 @@ void main() {
       contains('items_origen'),
       reason: 'la migración no añadió la columna y nadie se enteró',
     );
+
+    expect(
+      columnas.map((f) => f.read<String>('name')),
+      contains('cobro_entrega'),
+      reason: 'la 18 no añadió el cobro de la parada: la oficina no puede decir «cobrada»',
+    );
+    expect(pedidos.single.cobroEntrega, isNull);
 
     // Y llega VACÍA, que es «no se sabe».
     expect(
@@ -501,7 +510,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 17);
+        expect(nueva.schemaVersion, 18);
       },
     );
   }
@@ -665,7 +674,7 @@ void main() {
               .read<int>('user_version'),
           nueva.schemaVersion,
         );
-        expect(nueva.schemaVersion, 17);
+        expect(nueva.schemaVersion, 18);
       },
     );
   }
@@ -759,7 +768,7 @@ void main() {
         (await nueva.customSelect('PRAGMA user_version').getSingle()).read<int>(
           'user_version',
         ),
-        17,
+        18,
       );
 
       // LA COLUMNA EXISTE, preguntándoselo a SQLite, ANTES de que el Tablero
@@ -884,7 +893,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          17,
+          18,
         );
 
         // Y SE PUEDE ESCRIBIR: es lo que hará la bajada.
@@ -971,7 +980,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          17,
+          18,
         );
 
         // CADA UNA de las seis columnas está en la tabla, por su nombre en SQL (una
@@ -1095,7 +1104,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          17,
+          18,
         );
         // Y SE PUEDE ESCRIBIR Y LEER.
         await (nueva.update(nueva.orderItems)..where((r) => r.id.equals('r-1')))
@@ -1180,7 +1189,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          17,
+          18,
         );
       },
     );
@@ -1250,7 +1259,7 @@ void main() {
         expect(
           (await nueva.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          17,
+          18,
         );
       },
     );

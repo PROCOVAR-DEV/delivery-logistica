@@ -36,6 +36,7 @@ void main() {
     await frescura.rebajarLasFacturasAnuladas();
     await frescura.rebajarLosPedidosPorSuConduce();
     await frescura.rebajarLosPedidosPorSuResultadoAt();
+    await frescura.rebajarLosPedidosPorSuCobro();
     await base.customStatement(
       'INSERT INTO orders (id, customer_name, address, weight, archivado, factura_numero) '
       "VALUES ('viva', 'A', 'x', 1, 0, '1'), ('fantasma', 'B', 'x', 1, 0, '2')",

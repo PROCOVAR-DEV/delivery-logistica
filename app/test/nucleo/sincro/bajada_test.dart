@@ -243,6 +243,7 @@ void main() {
         await frescura.rebajarLasFacturasAnuladas();
         await frescura.rebajarLosPedidosPorSuConduce();
         await frescura.rebajarLosPedidosPorSuResultadoAt();
+        await frescura.rebajarLosPedidosPorSuCobro();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -267,6 +268,7 @@ void main() {
         await frescura.rebajarLasFacturasAnuladas();
         await frescura.rebajarLosPedidosPorSuConduce();
         await frescura.rebajarLosPedidosPorSuResultadoAt();
+        await frescura.rebajarLosPedidosPorSuCobro();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',
@@ -365,6 +367,7 @@ void main() {
         await frescura.rebajarLosPedidosPorLaFacturaDeSusRenglones();
         await frescura.rebajarLasFacturasAnuladas();
         await frescura.rebajarLosPedidosPorSuResultadoAt();
+        await frescura.rebajarLosPedidosPorSuCobro();
         await frescura.marcar(
           Colecciones.pedidos,
           hasta: '2026-10-14T00:00:00.000Z',

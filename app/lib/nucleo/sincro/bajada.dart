@@ -209,6 +209,8 @@ class Bajada {
     await _frescura.rebajarLosPedidosPorSuConduce();
     // Y otra por la fecha en que se marcó el resultado de cada factura (frescura.dart, 05/11/2026).
     await _frescura.rebajarLosPedidosPorSuResultadoAt();
+    // Y otra por el cobro de cada entrega (frescura.dart, 06/11/2026, esquema 18).
+    await _frescura.rebajarLosPedidosPorSuCobro();
 
     for (var vuelta = 0; vuelta < maximoDeTandas; vuelta++) {
       final desde = await _frescura.desde(Colecciones.pedidos);
@@ -1041,6 +1043,9 @@ class Bajada {
             // una vez (`rebajarLosPedidosPorSuResultadoAt`). Lo ata `la_bajada_no_pierde_campos_test.dart`.
             resultadoAt: Value(_fecha(j['resultadoAt'])),
             resultadoNota: Value(_texto(j['resultadoNota'])),
+            // EL COBRO que dijo el distribuidor (issue 26, 06/11/2026): `cobrado` | `no_cobrado` | nulo.
+            // Lo ata `la_bajada_no_pierde_campos_test.dart`.
+            cobroEntrega: Value(_texto(j['cobroEntrega'])),
             updatedAt: Value(_fecha(j['updatedAt'])),
           ),
         );

@@ -290,6 +290,12 @@ class Orders extends Table {
   DateTimeColumn get resultadoAt => dateTime().nullable()();
   TextColumn get resultadoNota => text().nullable()();
 
+  /// LO QUE DIJO EL DISTRIBUIDOR DEL COBRO al marcar la parada (`orders.cobro_entrega`, 00033):
+  /// `cobrado` | `no_cobrado` | nulo. Es lo que baja del servidor; en el telefono del
+  /// distribuidor lo que marco AQUI antes de subir esta en `cobros_de_entrega` y manda sobre
+  /// esto (`cobroDeLaParada`). Esquema 18, issue 26 de Amado.
+  TextColumn get cobroEntrega => text().nullable()();
+
   DateTimeColumn get createdAt => dateTime().nullable()();
   DateTimeColumn get updatedAt => dateTime().nullable()();
 

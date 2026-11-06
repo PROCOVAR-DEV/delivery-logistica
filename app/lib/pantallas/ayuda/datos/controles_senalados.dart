@@ -322,6 +322,9 @@ abstract final class Senalado {
   static const canalSinTerminar = 'canal-sin-terminar';
 
   // ------------------------------------------------------------ DISTRIBUCION
+  /// Las pestañas de Distribución («Dónde están», «Por revisar», «Teléfonos»).
+  static const distribucionPestanas = 'distribucion-pestanas';
+
   /// El «Desvincular» del primer teléfono vinculado de la pestaña «Teléfonos».
   static const distribucionDesvincularTelefono =
       'distribucion-desvincular-telefono';
@@ -465,6 +468,7 @@ abstract final class Senalado {
     canalSaliendo,
     canalEntrando,
     canalSinTerminar,
+    distribucionPestanas,
     distribucionDesvincularTelefono,
     guiaGuiarme,
     guiaPrimeraTarea,

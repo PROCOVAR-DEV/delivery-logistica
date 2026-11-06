@@ -195,6 +195,38 @@ nada**, y la aplicación lo dice:
 
 ---
 
+## Desvincular un teléfono de un distribuidor
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Distribución»**. **Necesita conexión.**
+
+Cada teléfono de un distribuidor queda vinculado al vehículo cuyo enlace abrió. Si se
+rompe, se pierde o va a llevar el vehículo otra persona, hay que **desvincularlo**: el
+teléfono se vacía y las rutas abiertas quedan libres. El servidor conserva todo el
+histórico.
+
+1. **Clic en la pestaña «Teléfonos»**. Entre paréntesis pone cuántos hay vinculados.
+   <!-- señala: distribucion-pestanas -->
+   - Cada teléfono dice su vehículo y placa, **«Vinculado desde»**, su distribuidor,
+     cuántas rutas abiertas tiene y **«Visto hace…»** (en ámbar pasados 10 minutos).
+   - Por defecto sólo salen los vinculados: en el filtro **«Mostrar»** elige **«Todos»**
+     para ver también los que ya se desvincularon o están dados de baja.
+   - La caja de buscar encuentra por teléfono, vehículo, placa o distribuidor.
+2. **Clic en «Desvincular»** en el teléfono. <!-- señala: distribucion-desvincular-telefono -->
+   - Se abre el cajón **«Desvincular el teléfono»**: «El teléfono se vaciará y las rutas
+     abiertas quedarán libres; lo que no haya enviado se perderá. El servidor conserva
+     todo el histórico.»
+3. Si quieres, escribe el **«Motivo (opcional)»** y **clic en «Sí, desvincular el teléfono»**.
+   Para dejarlo como estaba, **«No, dejarlo vinculado»**.
+4. Si el teléfono tenía rutas abiertas, sale el cajón **«Rutas sin teléfono»**: **«Enviar
+   enlace nuevo»** en cada una para mandarla por WhatsApp a quien la vaya a llevar. El
+   enlace anterior ya no sirve.
+
+**Si dice que ese vehículo no estaba vinculado**, alguien lo desvinculó antes: la lista
+se actualiza sola y el teléfono ya no sale como vinculado.
+
+---
+
 ## Lo que el escritorio NO tiene y la web sí
 
 **La pantalla «Canal con PEDIDO».** No es que esté escondida: en el escritorio y en

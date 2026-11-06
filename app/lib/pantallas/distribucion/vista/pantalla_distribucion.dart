@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../diseno/pestanas.dart';
+import '../../ayuda/datos/controles_senalados.dart';
+import '../../ayuda/vista/control_senalado.dart';
 import '../datos/api_distribucion.dart';
 import 'donde_estan_ahora.dart';
 import 'revision_de_rutas.dart';
@@ -38,18 +40,21 @@ class _PantallaDistribucionState extends ConsumerState<PantallaDistribucion> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: PestanasQueCaben(
-              indice: _pestana,
-              etiquetas: [
-                'Dónde están',
-                'Por revisar ($pendientes)',
-                // Sin número hasta que el servidor conteste: un (0) de mentira diría que no hay ninguno vinculado.
-                telefonos == null
-                    ? 'Teléfonos'
-                    : 'Teléfonos (${cuantosVinculados(telefonos)})',
-              ],
-              anchoParaTodas: 300,
-              alCambiar: (i) => setState(() => _pestana = i),
+            child: ControlSenalado(
+              nombre: Senalado.distribucionPestanas,
+              child: PestanasQueCaben(
+                indice: _pestana,
+                etiquetas: [
+                  'Dónde están',
+                  'Por revisar ($pendientes)',
+                  // Sin número hasta que el servidor conteste: un (0) de mentira diría que no hay ninguno vinculado.
+                  telefonos == null
+                      ? 'Teléfonos'
+                      : 'Teléfonos (${cuantosVinculados(telefonos)})',
+                ],
+                anchoParaTodas: 300,
+                alCambiar: (i) => setState(() => _pestana = i),
+              ),
             ),
           ),
           Expanded(

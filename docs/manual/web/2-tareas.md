@@ -754,7 +754,11 @@ histórico.
      cuántas rutas abiertas tiene y **«Visto hace…»** (en ámbar pasados 10 minutos).
    - Por defecto sólo salen los vinculados: en el filtro **«Mostrar»** elige **«Todos»**
      para ver también los que ya se desvincularon o están dados de baja.
-   - La caja de buscar encuentra por teléfono, vehículo, placa o distribuidor.
+   - La caja de buscar encuentra por teléfono, vehículo, placa, distribuidor o versión.
+   - **«Versión 1.0.0 (57)»** es la de «Reparto Distribuidor» que lleva ese teléfono (la
+     aplicación del distribuidor tiene su versión propia, distinta de la de Reparto). Si es
+     menor que la última publicada sale la etiqueta **«Desactualizada»**; **«Versión
+     desconocida»** quiere decir que el teléfono todavía no la ha declarado.
 2. **Clic en «Desvincular»** en el teléfono. <!-- señala: distribucion-desvincular-telefono -->
    - Se abre el cajón **«Desvincular el teléfono»**: «El teléfono se vaciará y las rutas
      abiertas quedarán libres; lo que no haya enviado se perderá. El servidor conserva

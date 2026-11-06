@@ -86,6 +86,116 @@ void main() {
         ),
       );
 
+  group('filtros de factura y de ruta (issue 27)', () {
+    Future<void> conFactura(
+      String id,
+      String? factura, {
+      String? rutaId,
+    }) async {
+      await pedido(id, rutaId: rutaId);
+      await (base.update(base.orders)..where((o) => o.id.equals(id))).write(
+        OrdersCompanion(facturaNumero: Value(factura)),
+      );
+    }
+
+    Future<List<String>> ids(FiltroDeInforme f) async =>
+        ((await informes.mirar(f).first).filas.map((x) => x.id).toList()
+          ..sort());
+
+    test('rango de factura: numérico, los dos extremos incluidos', () async {
+      await conFactura('a', '999');
+      await conFactura('b', '1000');
+      await conFactura('c', '1250');
+      await conFactura('d', '1300');
+      await conFactura('e', '1301');
+      expect(
+        await ids(
+          const FiltroDeInforme(facturaDesde: '1000', facturaHasta: '1300'),
+        ),
+        ['b', 'c', 'd'],
+      );
+      // «999» va antes que «1000»: es número, no texto.
+      expect(await ids(const FiltroDeInforme(facturaDesde: '999')), [
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+      ]);
+      expect(await ids(const FiltroDeInforme(facturaHasta: '999')), ['a']);
+    });
+
+    test(
+      'un pedido con varias facturas entra si UNA cae en el rango',
+      () async {
+        await conFactura('a', '1024237, 1024240');
+        await conFactura('b', '1030000');
+        expect(
+          await ids(
+            const FiltroDeInforme(
+              facturaDesde: '1024240',
+              facturaHasta: '1024250',
+            ),
+          ),
+          ['a'],
+        );
+      },
+    );
+
+    test('sin factura NO entra en cuanto hay un límite de factura', () async {
+      await conFactura('a', null);
+      await conFactura('b', '5');
+      expect(await ids(const FiltroDeInforme(facturaDesde: '1')), ['b']);
+      expect(await ids(const FiltroDeInforme()), ['a', 'b']);
+    });
+
+    test('con prefijo se compara como texto, sin mirar mayúsculas', () async {
+      await conFactura('a', 'F-001');
+      await conFactura('b', 'f-005');
+      await conFactura('c', 'F-009');
+      expect(
+        await ids(
+          const FiltroDeInforme(facturaDesde: 'F-002', facturaHasta: 'F-006'),
+        ),
+        ['b'],
+      );
+    });
+
+    test('ruta: texto contenido en el código o el nombre, sin tildes ni mayúsculas', () async {
+      await conFactura('a', '1', rutaId: 'r1'); // STG-0912
+      await conFactura('b', '2', rutaId: 'r2'); // Vista Alegre
+      await conFactura('c', '3'); // sin ruta
+      expect(await ids(const FiltroDeInforme(ruta: 'stg-09')), ['a']);
+      expect(await ids(const FiltroDeInforme(ruta: 'vísta')), ['b']);
+      expect(await ids(const FiltroDeInforme(ruta: 'zzz')), isEmpty);
+    });
+
+    test('se combinan con el vehículo y entre sí', () async {
+      await conFactura('a', '10', rutaId: 'r1');
+      await conFactura('b', '20', rutaId: 'r1');
+      await conFactura('c', '20', rutaId: 'r2');
+      expect(
+        await ids(
+          const FiltroDeInforme(
+            ruta: 'stg',
+            facturaDesde: '15',
+            vehiculoId: 'v1',
+          ),
+        ),
+        ['b'],
+      );
+    });
+
+    test('copiar: un texto en blanco quita el límite', () {
+      const f = FiltroDeInforme(facturaDesde: '5', ruta: 'x');
+      final g = f.copiar(facturaDesde: '  ', ruta: '');
+      expect(g.facturaDesde, isNull);
+      expect(g.ruta, isNull);
+      expect(g.hayAlgoPuesto, isFalse);
+      expect(f.copiar(facturaHasta: ' 9 ').facturaHasta, '9');
+    });
+  });
+
   group('el ingreso de un pedido', () {
     test('es `price` cuando lo tiene', () async {
       await pedido('a', precio: 25, costo: 9);

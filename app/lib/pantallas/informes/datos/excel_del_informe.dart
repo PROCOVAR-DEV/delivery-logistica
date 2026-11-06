@@ -176,6 +176,12 @@ abstract final class ExcelDelInforme {
         [titulo],
         ['Generado', _fechaYHora(generado)],
         ['Filtro fecha', '${_dia(filtro.desde)} - ${_dia(filtro.hasta)}'],
+        if (filtro.facturaDesde != null || filtro.facturaHasta != null)
+          [
+            'Filtro factura',
+            '${filtro.facturaDesde ?? '—'} - ${filtro.facturaHasta ?? '—'}',
+          ],
+        if (filtro.ruta != null) ['Filtro ruta', filtro.ruta],
         ['Moneda', c.moneda],
         [],
         ['Total Órdenes', r.totalOrdenes],

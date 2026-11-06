@@ -4509,10 +4509,18 @@ Tarjeta **«Filtros»**:
 - **«Desde»** y **«Hasta»** (fechas). Con una puesta sale una equis de quitar («Quitar Desde»).
 - **«Vehículo»** — por defecto **«Todos los vehículos»**. Sólo los de la sucursal
   que estás mirando.
+- **«Factura desde»** y **«Factura hasta»** — un rango de números de factura, con los
+  dos extremos incluidos y cada uno opcional. Con solo cifras se compara como número
+  (la 999 va antes que la 1000); con letras o prefijo, como texto sin mirar mayúsculas.
+  Si una entrega lleva varias facturas (`1024237, 1024240`), entra cuando UNA cae en el
+  rango. Una entrega sin factura no entra en cuanto hay un límite de factura.
+- **«Ruta»** — escribe un trozo del código o del nombre de la ruta (sin mirar mayúsculas
+  ni tildes) y salen solo las facturas que entraron en ella.
 - **«Limpiar»** — sólo si hay algo puesto.
 - **«Exportar a Excel»** al final de la fila.
 
-Arranca **sin rango y sin vehículo**.
+Arranca **sin rango, sin vehículo y sin filtro de factura ni de ruta**. Todos se pueden
+combinar, y lo que muestran las tres pestañas y lo que sale en el Excel responde a ellos.
 
 ---
 
@@ -4625,7 +4633,7 @@ Un fichero llamado `reporte-procovar-2026-09-28.xlsx` con **tres hojas**:
 **«Resumen»**, **«Por Vehículo»** y **«Detalle de Órdenes»**.
 
 La hoja «Resumen» lleva arriba: «Reporte de transportación — ProCovar», cuándo se
-generó, el filtro de fechas y la moneda. Y si falta cotizar algo, una fila más:
+generó, el filtro de fechas (y, si los hay, el de factura y el de ruta) y la moneda. Y si falta cotizar algo, una fila más:
 
 > **Órdenes sin cotizar** · 3 · «Ingresos Totales y Precio Promedio van vacíos a
 > propósito: no se suma lo que falta.»

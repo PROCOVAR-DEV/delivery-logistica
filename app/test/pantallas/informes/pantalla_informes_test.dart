@@ -8,6 +8,7 @@ import 'package:reparto/diseno/estado_vacio.dart';
 import 'package:reparto/navegacion/rutas.dart';
 import 'package:reparto/nucleo/base/base.dart';
 import 'package:reparto/nucleo/proveedores.dart';
+import 'package:reparto/pantallas/informes/estado/informes_estado.dart';
 import 'package:reparto/pantallas/informes/registro.dart';
 import 'package:reparto/pantallas/informes/vista/pantalla_informes.dart';
 
@@ -363,4 +364,53 @@ void main() {
 
     await desmontar(tester);
   });
+
+  // Issue 27: los tres campos nuevos llegan al filtro, y «Limpiar» los vacía.
+  testWidgets(
+    'escribir factura y ruta las aplica, y Limpiar vacía los campos',
+    (tester) async {
+      await bajadaEntera(ahora);
+      await pedido('a');
+      await montar(tester);
+
+      final contenedor = ProviderScope.containerOf(
+        tester.element(find.byType(PantallaInformes)),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Factura desde'),
+        ' 1000 ',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Factura hasta'),
+        '1300',
+      );
+      await tester.enterText(find.widgetWithText(TextField, 'Ruta'), 'stg');
+      await tester.pumpAndSettle();
+
+      final f = contenedor.read(filtroDeInformesProvider);
+      expect(
+        f.facturaDesde,
+        '1000',
+        reason: 'el campo «Factura desde» no llega al filtro',
+      );
+      expect(f.facturaHasta, '1300');
+      expect(f.ruta, 'stg');
+
+      await tester.tap(find.text('Limpiar'));
+      await tester.pumpAndSettle();
+
+      expect(contenedor.read(filtroDeInformesProvider).hayAlgoPuesto, isFalse);
+      expect(
+        tester
+            .widget<TextField>(find.widgetWithText(TextField, 'Factura desde'))
+            .controller!
+            .text,
+        isEmpty,
+        reason: '«Limpiar» vació el filtro pero el campo sigue con el texto',
+      );
+
+      await desmontar(tester);
+    },
+  );
 }

@@ -375,6 +375,26 @@ class _Filtros extends ConsumerWidget {
                   : filtro.copiar(vehiculoId: v),
             ),
           ),
+          // Issue 27: rango de facturas y texto de la ruta.
+          _CampoDeTexto(
+            etiqueta: 'Factura desde',
+            icono: Icons.receipt_long_outlined,
+            valor: filtro.facturaDesde,
+            alCambiar: (t) => notas.poner(filtro.copiar(facturaDesde: t)),
+          ),
+          _CampoDeTexto(
+            etiqueta: 'Factura hasta',
+            icono: Icons.receipt_long_outlined,
+            valor: filtro.facturaHasta,
+            alCambiar: (t) => notas.poner(filtro.copiar(facturaHasta: t)),
+          ),
+          _CampoDeTexto(
+            etiqueta: 'Ruta',
+            icono: Icons.alt_route,
+            valor: filtro.ruta,
+            ancho: 200,
+            alCambiar: (t) => notas.poner(filtro.copiar(ruta: t)),
+          ),
           // `Limpiar` solo si hay algo puesto: un boton que no hace nada ensena
           // a no leer los botones.
           if (filtro.hayAlgoPuesto)
@@ -398,6 +418,69 @@ class _Filtros extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Un campo de texto del filtro. Con estado propio para que el cursor no salte
+/// al reconstruirse la pantalla en cada letra, pero siguiendo al filtro: cuando
+/// «Limpiar» lo vacía, el campo se vacía.
+class _CampoDeTexto extends StatefulWidget {
+  const _CampoDeTexto({
+    required this.etiqueta,
+    required this.icono,
+    required this.valor,
+    required this.alCambiar,
+    this.ancho = 150,
+  });
+
+  final String etiqueta;
+  final IconData icono;
+  final String? valor;
+  final ValueChanged<String> alCambiar;
+  final double ancho;
+
+  @override
+  State<_CampoDeTexto> createState() => _CampoDeTextoState();
+}
+
+class _CampoDeTextoState extends State<_CampoDeTexto> {
+  late final TextEditingController _controlador = TextEditingController(
+    text: widget.valor ?? '',
+  );
+
+  @override
+  void didUpdateWidget(_CampoDeTexto anterior) {
+    super.didUpdateWidget(anterior);
+    // El filtro guarda el texto SIN los blancos de los extremos: no se pisa lo
+    // que se está escribiendo si solo difiere en eso.
+    if ((widget.valor ?? '') != _controlador.text.trim()) {
+      _controlador.text = widget.valor ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: widget.ancho,
+    child: Semantics(
+      label: widget.etiqueta,
+      child: TextField(
+        controller: _controlador,
+        style: Tipos.texto(tamano: 14),
+        decoration: InputDecoration(
+          isDense: true,
+          labelText: widget.etiqueta,
+          prefixIcon: Icon(widget.icono, size: 18),
+          prefixIconConstraints: const BoxConstraints(minWidth: 34),
+        ),
+        onChanged: widget.alCambiar,
+      ),
+    ),
+  );
 }
 
 /// EL «HOY» SALE DEL RELOJ DE LA APLICACION, NO DE `DateTime.now()` — 01/10/2026.

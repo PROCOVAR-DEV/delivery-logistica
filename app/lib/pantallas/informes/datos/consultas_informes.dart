@@ -6,19 +6,44 @@ import '../../../nucleo/numero_de_factura.dart';
 /// Lo que se le pide al informe. Sin valores por defecto: arranca sin rango y
 /// sin vehiculo (pliego §7).
 class FiltroDeInforme {
-  const FiltroDeInforme({this.desde, this.hasta, this.vehiculoId});
+  const FiltroDeInforme({
+    this.desde,
+    this.hasta,
+    this.vehiculoId,
+    this.facturaDesde,
+    this.facturaHasta,
+    this.ruta,
+  });
 
   final DateTime? desde;
   final DateTime? hasta;
   final String? vehiculoId;
 
+  /// Issue 27: rango de facturas, los dos extremos incluidos y cada uno opcional.
+  /// Texto tal como se escribe; vacío o en blanco es «sin límite» (lo normaliza
+  /// [copiar]).
+  final String? facturaDesde;
+  final String? facturaHasta;
+
+  /// Issue 27: texto que debe llevar el código o el nombre de la ruta, sin mirar
+  /// mayúsculas ni tildes.
+  final String? ruta;
+
   bool get hayAlgoPuesto =>
-      desde != null || hasta != null || vehiculoId != null;
+      desde != null ||
+      hasta != null ||
+      vehiculoId != null ||
+      facturaDesde != null ||
+      facturaHasta != null ||
+      ruta != null;
 
   FiltroDeInforme copiar({
     DateTime? desde,
     DateTime? hasta,
     String? vehiculoId,
+    String? facturaDesde,
+    String? facturaHasta,
+    String? ruta,
     bool quitarDesde = false,
     bool quitarHasta = false,
     bool quitarVehiculo = false,
@@ -26,17 +51,79 @@ class FiltroDeInforme {
     desde: quitarDesde ? null : (desde ?? this.desde),
     hasta: quitarHasta ? null : (hasta ?? this.hasta),
     vehiculoId: quitarVehiculo ? null : (vehiculoId ?? this.vehiculoId),
+    // Un texto en blanco QUITA el límite: es lo que pasa al borrar el campo.
+    facturaDesde: _texto(facturaDesde, this.facturaDesde),
+    facturaHasta: _texto(facturaHasta, this.facturaHasta),
+    ruta: _texto(ruta, this.ruta),
   );
+
+  static String? _texto(String? nuevo, String? actual) {
+    if (nuevo == null) return actual;
+    final limpio = nuevo.trim();
+    return limpio.isEmpty ? null : limpio;
+  }
 
   @override
   bool operator ==(Object other) =>
       other is FiltroDeInforme &&
       other.desde == desde &&
       other.hasta == hasta &&
-      other.vehiculoId == vehiculoId;
+      other.vehiculoId == vehiculoId &&
+      other.facturaDesde == facturaDesde &&
+      other.facturaHasta == facturaHasta &&
+      other.ruta == ruta;
 
   @override
-  int get hashCode => Object.hash(desde, hasta, vehiculoId);
+  int get hashCode =>
+      Object.hash(desde, hasta, vehiculoId, facturaDesde, facturaHasta, ruta);
+
+  /// ¿Esta fila cumple los filtros de factura y de ruta? (Los de fecha y vehículo
+  /// ya los aplicó el SQL.) [factura] es el `factura_numero` crudo del pedido y
+  /// [ruta] su código o nombre de ruta.
+  ///
+  /// **Factura:** un pedido puede llevar varias (`1024237, 1024240`); entra si
+  /// CUALQUIERA cae en el rango. Si todo lo comparado es un número (solo cifras)
+  /// se compara como número —`999` va antes que `1000`—; si no, como texto sin
+  /// mirar mayúsculas. Un pedido SIN factura no entra en cuanto hay un límite de
+  /// factura: no se puede decir que esté dentro de un rango.
+  ///
+  /// **Ruta:** el texto buscado está contenido en el código o nombre de la ruta.
+  /// Un pedido sin ruta no entra si se filtra por ruta.
+  bool admite({required String? factura, required String? ruta}) {
+    final buscada = this.ruta;
+    if (buscada != null) {
+      if (ruta == null || !_sinTildes(ruta).contains(_sinTildes(buscada))) {
+        return false;
+      }
+    }
+    final d = facturaDesde, h = facturaHasta;
+    if (d == null && h == null) return true;
+    return NumeroDeFactura.separar(factura).any(
+      (f) =>
+          (d == null || _comparar(f, d) >= 0) &&
+          (h == null || _comparar(f, h) <= 0),
+    );
+  }
+
+  static final _soloCifras = RegExp(r'^\d+$');
+
+  static int _comparar(String a, String b) {
+    if (_soloCifras.hasMatch(a) && _soloCifras.hasMatch(b)) {
+      return BigInt.parse(a).compareTo(BigInt.parse(b));
+    }
+    return a.toLowerCase().compareTo(b.toLowerCase());
+  }
+
+  static String _sinTildes(String t) {
+    const de = 'áàäâéèëêíìïîóòöôúùüûñÁÀÄÂÉÈËÊÍÌÏÎÓÒÖÔÚÙÜÛÑ';
+    const a = 'aaaaeeeeiiiioooouuuunAAAAEEEEIIIIOOOOUUUUN';
+    final b = StringBuffer();
+    for (final c in t.runes) {
+      final i = de.indexOf(String.fromCharCode(c));
+      b.write(i < 0 ? String.fromCharCode(c) : a[i]);
+    }
+    return b.toString().toLowerCase();
+  }
 }
 
 /// Una fila de «Detalle de Órdenes».
@@ -238,7 +325,22 @@ SELECT o.id, o.customer_name, o.address, o.end_address, o.weight,
           readsFrom: {_base.orders, _base.routes, _base.vehicles},
         )
         .watch()
-        .map(armar);
+        .map(
+          (crudas) => armar(
+            filtro.facturaDesde == null &&
+                    filtro.facturaHasta == null &&
+                    filtro.ruta == null
+                ? crudas
+                : [
+                    for (final f in crudas)
+                      if (filtro.admite(
+                        factura: f.read<String?>('factura_numero'),
+                        ruta: f.read<String?>('ruta_nombre'),
+                      ))
+                        f,
+                  ],
+          ),
+        );
   }
 
   /// Las 00:00:00.000 del dia de [dia], **EN UTC**. Publica porque se prueba

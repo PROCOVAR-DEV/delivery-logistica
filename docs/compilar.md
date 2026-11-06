@@ -53,6 +53,11 @@ el único que Android compara al instalar encima: si no sube, el aparato se nieg
 y no dice por qué. Los dos números son los que después se anuncian en `APP_ULTIMA_VERSION`
 y `APP_ULTIMA_COMPILACION` (`docs/actualizaciones.md`).
 
+**«Reparto Distribuidor» tiene su versión APARTE** (Jose, 06/11/2026): sale de `app/android/distribuidor.version`
+(`name=1.0.0`, `code=57`), no del pubspec, y solo se usa al compilar con `ORG_GRADLE_PROJECT_distribuidor=true`. **Subir una
+aplicación no obliga a subir la otra.** Su `code` es su propia cuenta, siempre creciente (arrancó en 57 porque el chofer ya
+publicado llegó al 56). Comprobación con `aapt2 dump badging` y órdenes en `docs/app-distribuidor.md` §1.
+
 Las tres URL que se hornean al compilar son siempre las mismas y ya son los valores por
 defecto de `app/lib/nucleo/red/entorno.dart`, así que **sólo hay que escribirlas si apuntas
 a otro sitio**:

@@ -37,6 +37,42 @@ se llama a ningún dominio de Procovar) y aborta si el sha256 no coincide con el
 La firma es la de siempre (`android/key.properties`). La huella SHA-256 del certificado, para
 `assetlinks.json`: `apksigner verify --print-certs app-release.apk` o `keytool -list -v -keystore … -alias …`.
 
+### Versión propia (Jose, 06/11/2026)
+
+«Reparto» y «Reparto Distribuidor» son aplicaciones DISTINTAS y llevan **cada una su versión**, «para poder darle mejor
+soporte y mejor control». **Subir una NO obliga a subir la otra.**
+
+| | Reparto | Reparto Distribuidor |
+|---|---|---|
+| de dónde sale | `app/pubspec.yaml` (`version: 1.0.56+57`) | `app/android/distribuidor.version` (`name=1.0.0`, `code=57`) |
+| medido con `aapt2 dump badging` (06/11/2026) | `versionName 1.0.56`, `versionCode 57` | `versionName 1.0.0`, `versionCode 57` |
+| qué anuncia `GET /api/version` | `ultima` (`APP_ULTIMA_*`) | `distribuidor` (`APP_DISTRIBUIDOR_*` y `APP_DESCARGA_ANDROID_DISTRIBUIDOR[_BYTES|_SHA256]`) |
+
+* Con `ORG_GRADLE_PROJECT_distribuidor=true`, `build.gradle.kts` toma `versionName`/`versionCode` de `distribuidor.version`
+  y NO de `flutter.versionName/Code`; sin la propiedad, Reparto sigue con el pubspec. `code` es **su propia cuenta,
+  siempre creciente** (Android solo deja instalar encima un `code` mayor): el chofer ya publicado llegó al 56, así que
+  arranca en 57. Se sube +1 en cada APK del distribuidor que se publique.
+* Comprobar antes de repartir (el SDK sale de `sdk.dir` en `app/android/local.properties`):
+
+  ```bash
+  AAPT2=~/Android/sdk/build-tools/36.0.0/aapt2
+  cd app
+  ORG_GRADLE_PROJECT_distribuidor=true flutter build apk --release -t lib/main_distribuidor.dart
+  $AAPT2 dump badging build/app/outputs/flutter-apk/app-release.apk | head -1   # …distribuidor versionCode='57' versionName='1.0.0'
+  flutter build apk --release                                                     # el de Reparto, con el pubspec
+  $AAPT2 dump badging build/app/outputs/flutter-apk/app-release.apk | head -1   # …reparto versionCode='57' versionName='1.0.56'
+  ```
+* **Lo que se ve:** cada llamada de la app del distribuidor lleva `X-App-Version: 1.0.0+57` (`nucleo/red/version_de_la_app.dart`,
+  solo en su modo; Reparto no la manda); el servidor la apunta por teléfono y la pestaña «Teléfonos» la enseña como
+  «Versión 1.0.0 (57)», con la etiqueta «Desactualizada» si es menor que la `compilacion` anunciada en `distribuidor`
+  («Versión desconocida» si el teléfono aún no la declaró).
+* **El aviso de versión nueva del chofer** es el mismo del armazón de Reparto (`navegacion/aviso_de_version_nueva.dart`) leyendo
+  la clave `distribuidor` (`ComprobadorDeActualizacion(clave:)`, elegida por `modoDistribuidorProvider`) y comparando con SU
+  `versionCode`; mismas tres reglas (no se actualiza con trabajo sin subir, nunca se fuerza, web no aplica), sin reintentos,
+  y además se vuelve a mirar UNA vez cuando la red pasa de mala a buena si al arrancar no se pudo saber. No sale en la puerta
+  («Añadir ruta», sin armazón): sale en cuanto hay rutas.
+* Cuando se publique: subir `code`, compilar, y anunciar la misma `compilacion` en `APP_DISTRIBUIDOR_COMPILACION`.
+
 ### Lo que SÍ cambia en el APK normal
 
 `geolocator` y los permisos de ubicación están en el manifiesto de `main`, así que **el APK de siempre también

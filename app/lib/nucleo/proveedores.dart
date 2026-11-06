@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../distribuidor/modo_distribuidor.dart';
 import '../navegacion/estado_navegacion.dart';
 import '../navegacion/portero.dart';
 import 'registro/registro.dart';
@@ -330,6 +331,7 @@ ClienteApi _cliente(Ref ref, String baseUrl) => ClienteApi.montar(
   // sin cerrar la sesion ni tocar la cola (`docs/sin-permiso.md`).
   alFaltarPermiso: () => ref.read(porteroProvider).sinPermiso(),
   alDesvincular: () => ref.read(alDesvincularseProvider)?.call(),
+  conVersionDeLaApp: ref.watch(modoDistribuidorProvider),
 );
 
 /// Que hacer cuando el servidor dice «este telefono fue desvinculado». Nulo salvo en
@@ -1289,6 +1291,7 @@ final clienteVersionProvider = Provider<ClienteApi>(
     almacen: ref.watch(almacenSesionProvider),
     renovador: ref.watch(renovadorProvider),
     esperas: ComprobadorDeActualizacion.sinEsperas,
+    conVersionDeLaApp: ref.watch(modoDistribuidorProvider),
   ),
 );
 

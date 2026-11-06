@@ -1,5 +1,3 @@
-import 'package:package_info_plus/package_info_plus.dart';
-
 import '../base/base.dart';
 import '../red/cliente_api.dart';
 import '../red/fallos.dart';
@@ -34,7 +32,7 @@ class ComprobadorDeActualizacion {
   }) : _cliente = cliente,
        _base = base,
        _plataforma = plataforma ?? Plataforma.deEsteAparato(),
-       _instalada = instalada ?? _delPaquete;
+       _instalada = instalada ?? VersionInstalada.delPaquete;
 
   final ClienteApi _cliente;
   final BaseLocal _base;
@@ -116,14 +114,6 @@ class ComprobadorDeActualizacion {
     }
 
     return SePuedeActualizar(publicada: publicada, enlace: enlace);
-  }
-
-  static Future<VersionInstalada> _delPaquete() async {
-    final info = await PackageInfo.fromPlatform();
-    return VersionInstalada(
-      version: info.version,
-      compilacion: int.tryParse(info.buildNumber) ?? 0,
-    );
   }
 }
 

@@ -11,6 +11,7 @@ import 'fallos.dart';
 import 'instalacion.dart';
 import 'interceptor_fallos.dart';
 import 'interceptor_sesion.dart';
+import 'version_de_la_app.dart';
 
 /// Cuanto se espera entre reintentos, y sólo para `FalloDeRed`.
 ///
@@ -80,6 +81,7 @@ class ClienteApi {
     void Function()? alFaltarPermiso,
     void Function()? alDesvincular,
     Future<String?> Function()? bearerExplicito,
+    bool conVersionDeLaApp = false,
     bool esWeb = kIsWeb,
     List<Duration> esperas = esperasPorDefecto,
     Future<void> Function(Duration)? esperar,
@@ -116,6 +118,8 @@ class ClienteApi {
       const InterceptorFallos(),
       // Su `X-Aparato-Id`: une al aparato con «Dispositivos» de Accesos (`red/instalacion.dart`).
       InterceptorDeInstalacion(),
+      // Solo «Reparto Distribuidor»: su versión propia (`red/version_de_la_app.dart`).
+      if (conVersionDeLaApp) InterceptorDeVersion(),
     ]);
     return ClienteApi(
       dio: dio,

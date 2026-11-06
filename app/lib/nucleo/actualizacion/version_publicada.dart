@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 /// Las plataformas en las que corre esto, para elegir QUÉ fichero se baja.
 ///
@@ -51,6 +52,15 @@ class VersionInstalada {
 
   @override
   String toString() => '$version+$compilacion';
+
+  /// Lo que el compilador puso en ESTE aparato (`package_info_plus`). Puede lanzar.
+  static Future<VersionInstalada> delPaquete() async {
+    final info = await PackageInfo.fromPlatform();
+    return VersionInstalada(
+      version: info.version,
+      compilacion: int.tryParse(info.buildNumber) ?? 0,
+    );
+  }
 }
 
 /// La última versión que el servidor dice que está colgada.

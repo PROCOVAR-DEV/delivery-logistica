@@ -4904,6 +4904,40 @@ pone a mano el punto de entrega a esa factura —el cliente pidió entregar en o
 ver [Poner el punto de entrega a mano](pedidos.md#ubicar-la-entrega--el-punto-de-entrega-puesto-a-mano).
 Una parada con el punto puesto a mano lleva la etiqueta **«Punto puesto a mano»**.
 
+### El estado de cada parada — cómo se lee
+
+Cada parada lleva **una etiqueta de estado** con un dibujo, un borde del mismo color y **la palabra
+escrita**: no hace falta distinguir los colores para leerla. Es la misma en todos los sitios donde se
+ven las paradas: la ruta del distribuidor, **«Ver paradas»**, el **cierre de ruta**, el historial y el
+**recorrido real**.
+
+| Etiqueta | Qué quiere decir |
+|---|---|
+| **Pendiente** (reloj) | Todavía no se marcó. |
+| **Entregada · cobrada** (billete) | Se entregó y el distribuidor marcó que **cobró**. |
+| **Entregada · sin cobrar** (billete tachado) | Se entregó y el distribuidor marcó que **no cobró**. |
+| **Entregada** (visto) | Se entregó y nadie anotó el cobro. Pasa cuando la parada la cerró la oficina en el cierre de ruta, que no pregunta por el cobro. No es «sin cobrar». |
+| **No entregada** (flecha de vuelta) | Volvió en el camión. Debajo sale **el motivo** que escribió el distribuidor. Una no entregada **no muestra cobro**. |
+| **Cancelada** (círculo tachado) | La factura se canceló. |
+
+- **En el teléfono del distribuidor**, la ruta en curso enseña arriba la parada de ahora y **debajo la
+  lista de TODAS las paradas** («Paradas de la ruta (3)»), cada una con su etiqueta; la de ahora lleva
+  además **«Ahora»**. Al marcar una parada, su etiqueta cambia **al instante**, también sin señal:
+  no espera a que suba al servidor.
+- **En la oficina**, **«Ver paradas»** pone la etiqueta en cada tarjeta, bajo la dirección. El estado
+  «cobrada / sin cobrar» llega del servidor cuando el teléfono sube la parada, así que una entregada que
+  aún no ha subido sale como **«Entregada»**.
+- **En el cierre de ruta** la etiqueta va entre el cliente y los botones **«Entregado» / «Devuelto» /
+  «Cancelado»** y se actualiza según lo que marques; en una ruta completada es el resultado y no se puede
+  cambiar.
+
+<!-- señala: rutas-ver-paradas -->
+
+**Los mandos de la parada en el teléfono** (**«Entregado»**, **«No entregada»**, **«Cobrado»**, los
+botones de navegar, llamar y guardar) van con **letra de 16 puntos, 48 de alto y colores oscuros** para
+que se lean al sol. El que está elegido lleva un **visto**, un contorno grueso y un fondo claro; el
+**«Cobrado»** lleva un visto cuando está puesto y una cruz cuando no.
+
 ### Reordenar las paradas — arrastrando o «Ordenar por cercanía»
 
 En una ruta **planificada o en curso**, «Ver paradas» deja cambiar el orden de visita:

@@ -120,6 +120,13 @@ JWT, el acceso de meses y el alcance de `/sync/cambios` por dispositivo; y la p�
   obligatorio**). Cada marca guarda la **hora del aparato**; en el cuerpo de `POST /routes/{id}/results` viajan
   `cobrado` (boolean) y `hora` (ISO UTC) por parada. La app no sabe importes de factura: lo único de dinero es ese
   «cobrado» (decisión A). Se guarda en `cobros_de_entrega` (tabla aparte: la bajada reescribe la fila del pedido).
+* **Estado visible de cada parada (issue 26 de Amado, 06/11/2026).** Una sola función, `estadoDeParada(resultado,
+  cobroEntrega)` (`app/lib/diseno/estado_de_parada.dart`), y una sola etiqueta, `EtiquetaDeEstadoDeParada` (color +
+  borde + icono + texto, sin relleno): Pendiente · Entregada · cobrada · Entregada · sin cobrar · Entregada (cobro sin
+  anotar) · No entregada (con el motivo) · Cancelada. El cobro es `cobros_de_entrega` (lo marcado aquí, antes de
+  subir) y, si no hay, `orders.cobro_entrega` (esquema local 18, baja del servidor). La ruta guiada enseña TODAS las
+  paradas con su etiqueta (`distribuidor/paradas_de_la_ruta.dart`). Los mandos de la parada van con `temaDeLaCalle`
+  (7:1 de contraste, letra 16, 48 px).
 * **La ruta se completa SOLA** al marcar la última (`GuiaDeRuta.marcar` → `completar`); offline queda en la cola
   *detrás* de los resultados. Con una sola parada sin marcar, no.
 * **Cancelar la ruta** (cajón con motivo obligatorio): `PATCH /routes/{id}` `{"status":"cancelled","motivo":…}`.

@@ -42,6 +42,60 @@ Key claveDeEnviarEnlaceNuevo(String rutaId) =>
     ValueKey('vinculo-enlace-nuevo-$rutaId');
 Key claveDelVinculoDeLaHistoria(String id) => ValueKey('vinculo-historia-$id');
 
+/// DESVINCULAR, con su cajón de confirmación y motivo opcional; lo comparten la tarjeta del vehículo y la pestaña «Teléfonos».
+///
+/// [alConfirmar] se llama justo antes de mandar. Tras el «sí» refresca lo que depende del vínculo y, si quedaron rutas sueltas,
+/// abre el cajón con «Enviar enlace nuevo». Devuelve `false` si se dijo que no; el fallo del servidor (el 409 de «no estaba
+/// vinculado», por ejemplo) se LANZA para que quien llama lo enseñe, y las listas se refrescan igual.
+Future<bool> desvincularConConfirmacion(
+  BuildContext context,
+  WidgetRef ref, {
+  required String vehiculoId,
+  required String nombre,
+  String? telefono,
+  VoidCallback? alConfirmar,
+}) async {
+  final motivo = await abrirCajon<String>(
+    context,
+    titulo: 'Desvincular el teléfono',
+    subtitulo: '$nombre${telefono == null ? '' : ' · $telefono'}',
+    cuerpo: (_) => const _ConfirmarDesvinculo(),
+  );
+  if (motivo == null || !context.mounted) return false;
+  alConfirmar?.call();
+  void refrescar() {
+    ref.invalidate(vehiculosEnVivoProvider);
+    ref.invalidate(vinculosDelVehiculoProvider(vehiculoId));
+    ref.invalidate(revisionesProvider);
+    ref.invalidate(telefonosProvider);
+  }
+
+  final List<String> sueltas;
+  try {
+    sueltas = await ref
+        .read(apiDistribucionProvider)
+        .desvincular(vehiculoId, motivo: motivo);
+  } on Object {
+    if (context.mounted) refrescar();
+    rethrow;
+  }
+  if (!context.mounted) return true;
+  refrescar();
+  if (sueltas.isEmpty) {
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(content: Text(TextosDelVinculo.desvinculado)),
+    );
+  } else {
+    await abrirCajon<void>(
+      context,
+      titulo: 'Rutas sin teléfono',
+      subtitulo: nombre,
+      cuerpo: (_) => RutasSueltas(rutaIds: sueltas),
+    );
+  }
+  return true;
+}
+
 class VinculoDelVehiculo extends ConsumerStatefulWidget {
   const VinculoDelVehiculo({
     required this.vehiculoId,
@@ -65,37 +119,18 @@ class _VinculoDelVehiculoState extends ConsumerState<VinculoDelVehiculo> {
   String? _fallo;
 
   Future<void> _desvincular(String? telefono) async {
-    final motivo = await abrirCajon<String>(
-      context,
-      titulo: 'Desvincular el teléfono',
-      subtitulo: '${widget.nombre}${telefono == null ? '' : ' · $telefono'}',
-      cuerpo: (_) => const _ConfirmarDesvinculo(),
-    );
-    if (motivo == null || !mounted) return;
-    setState(() {
-      _ocupado = true;
-      _fallo = null;
-    });
     try {
-      final sueltas = await ref
-          .read(apiDistribucionProvider)
-          .desvincular(widget.vehiculoId, motivo: motivo);
-      ref.invalidate(vehiculosEnVivoProvider);
-      ref.invalidate(vinculosDelVehiculoProvider(widget.vehiculoId));
-      ref.invalidate(revisionesProvider);
-      if (!mounted) return;
-      if (sueltas.isEmpty) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          const SnackBar(content: Text(TextosDelVinculo.desvinculado)),
-        );
-      } else {
-        await abrirCajon<void>(
-          context,
-          titulo: 'Rutas sin teléfono',
-          subtitulo: widget.nombre,
-          cuerpo: (_) => RutasSueltas(rutaIds: sueltas),
-        );
-      }
+      await desvincularConConfirmacion(
+        context,
+        ref,
+        vehiculoId: widget.vehiculoId,
+        nombre: widget.nombre,
+        telefono: telefono,
+        alConfirmar: () => setState(() {
+          _ocupado = true;
+          _fallo = null;
+        }),
+      );
     } on Object catch (e) {
       if (mounted) setState(() => _fallo = motivoDelFallo(e));
     } finally {

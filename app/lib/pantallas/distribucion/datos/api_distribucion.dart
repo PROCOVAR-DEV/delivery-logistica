@@ -96,6 +96,15 @@ class ApiDistribucion {
     );
   }
 
+  /// `GET /api/dispositivos`: los teléfonos de los distribuidores (ya acotados a la sucursal de quien pregunta), vinculados primero.
+  Future<List<TelefonoDeDistribuidor>> telefonos() async {
+    final lista = await _api.pedir<Object?>('/dispositivos');
+    return [
+      for (final t in (lista as List?) ?? const [])
+        TelefonoDeDistribuidor.deJson(_mapa(t)),
+    ];
+  }
+
   /// La segunda llave: `POST /api/routes/{id}/revision {"confirmar":true}`.
   Future<void> confirmarRevision(String rutaId) => _api.mandar<Object?>(
     'POST',
@@ -124,6 +133,11 @@ final historialDelVehiculoProvider = FutureProvider.autoDispose
 final dondeEstanAhoraProvider =
     FutureProvider.autoDispose<List<DistribuidorAhora>>(
       (ref) => ref.watch(apiDistribucionProvider).dondeEstanAhora(),
+    );
+
+final telefonosProvider =
+    FutureProvider.autoDispose<List<TelefonoDeDistribuidor>>(
+      (ref) => ref.watch(apiDistribucionProvider).telefonos(),
     );
 
 final revisionesProvider = FutureProvider.autoDispose<List<RevisionDeRuta>>(

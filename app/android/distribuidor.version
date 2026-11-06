@@ -1,0 +1,9 @@
+# La versión PROPIA de «Reparto Distribuidor» (docs/app-distribuidor.md). Solo la lee Gradle cuando se compila
+# con ORG_GRADLE_PROJECT_distribuidor=true; Reparto sigue con la del pubspec.yaml y NO se entera de este fichero.
+#
+# name = lo que se enseña a las personas (1.0.0).
+# code = su PROPIA cuenta de compilaciones, SIEMPRE creciente (Android solo deja instalar encima un code mayor).
+#        El chofer ya publicado (1.0.55/1.0.56 con el pubspec de Reparto) llegó al code 56, así que arranca en 57.
+#        Se sube +1 en cada APK del distribuidor que se publique, haya o no cambio en Reparto.
+name=1.0.0
+code=57

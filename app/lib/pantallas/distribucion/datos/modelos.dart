@@ -562,3 +562,71 @@ class VinculoDeVehiculo {
 
   bool get vigente => hasta == null;
 }
+
+// ------------------------------------------------------------------ TELEFONOS
+
+/// Un renglón de `GET /api/dispositivos`: el teléfono de un distribuidor, con el vehículo al que está vinculado (si lo está).
+/// [vehiculoId] nulo = no está vinculado a ningún vehículo (lo desvincularon, o nunca pasó de reclamar el enlace).
+class TelefonoDeDistribuidor {
+  const TelefonoDeDistribuidor({
+    required this.id,
+    required this.sucursalId,
+    this.nombre,
+    this.sucursal,
+    this.activo = true,
+    this.creadoAt,
+    this.ultimaVezAt,
+    this.vehiculoId,
+    this.vehiculo,
+    this.placa,
+    this.vinculadoAt,
+    this.distribuidor,
+    this.rutasAbiertas = 0,
+  });
+
+  factory TelefonoDeDistribuidor.deJson(Map<String, Object?> j) {
+    final v = (j['vehiculo'] as Map?)?.cast<String, Object?>();
+    final d = (j['distribuidor'] as Map?)?.cast<String, Object?>();
+    return TelefonoDeDistribuidor(
+      id: '${j['id'] ?? ''}',
+      sucursalId: '${j['sucursalId'] ?? ''}',
+      nombre: _texto(j['nombre']),
+      sucursal: _texto(j['sucursal']),
+      activo: j['activo'] != false,
+      creadoAt: _hora(j['creadoAt']),
+      ultimaVezAt: _hora(j['ultimaVezAt']),
+      vehiculoId: v == null ? null : _texto(v['id']),
+      vehiculo: v == null ? null : _texto(v['nombre']),
+      placa: v == null ? null : _texto(v['placa']),
+      vinculadoAt: _hora(j['vinculadoAt']),
+      distribuidor: d == null ? null : _texto(d['nombre']),
+      rutasAbiertas: (j['rutasAbiertas'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  final String id;
+  final String sucursalId;
+  final String? nombre;
+  final String? sucursal;
+
+  /// `false` = dado de baja.
+  final bool activo;
+  final DateTime? creadoAt;
+  final DateTime? ultimaVezAt;
+  final String? vehiculoId;
+  final String? vehiculo;
+  final String? placa;
+  final DateTime? vinculadoAt;
+  final String? distribuidor;
+  final int rutasAbiertas;
+
+  bool get vinculado => vehiculoId != null;
+
+  /// Cuánto hace que el servidor supo de él; `null` = nunca.
+  Duration? vistoHace(DateTime ahora) {
+    final u = ultimaVezAt;
+    if (u == null) return null;
+    final d = ahora.difference(u);
+    return d.isNegative ? Duration.zero : d;
+  }
+}

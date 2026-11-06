@@ -1395,6 +1395,38 @@ o «La factura no pertenece a una ruta planificada o ya fue retirada».
 
 ---
 
+## Desvincular un teléfono de un distribuidor
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Distribución»**. **Necesita señal.**
+
+Cada teléfono de un distribuidor queda vinculado al vehículo cuyo enlace abrió. Si se
+rompe, se pierde o va a llevar el vehículo otra persona, hay que **desvincularlo**: el
+teléfono se vacía y las rutas abiertas quedan libres. El servidor conserva todo el
+histórico.
+
+1. **Toca la pestaña «Teléfonos»**. Entre paréntesis pone cuántos hay vinculados.
+   <!-- señala: distribucion-pestanas -->
+   - Cada teléfono dice su vehículo y placa, **«Vinculado desde»**, su distribuidor,
+     cuántas rutas abiertas tiene y **«Visto hace…»** (en ámbar pasados 10 minutos).
+   - Por defecto sólo salen los vinculados: en el filtro **«Mostrar»** elige **«Todos»**
+     para ver también los que ya se desvincularon o están dados de baja.
+   - La caja de buscar encuentra por teléfono, vehículo, placa o distribuidor.
+2. **Toca «Desvincular»** en el teléfono. <!-- señala: distribucion-desvincular-telefono -->
+   - Se abre el cajón **«Desvincular el teléfono»**: «El teléfono se vaciará y las rutas
+     abiertas quedarán libres; lo que no haya enviado se perderá. El servidor conserva
+     todo el histórico.»
+3. Si quieres, escribe el **«Motivo (opcional)»** y **toca «Sí, desvincular el teléfono»**.
+   Para dejarlo como estaba, **«No, dejarlo vinculado»**.
+4. Si el teléfono tenía rutas abiertas, sale el cajón **«Rutas sin teléfono»**: **«Enviar
+   enlace nuevo»** en cada una para mandarla por WhatsApp a quien la vaya a llevar. El
+   enlace anterior ya no sirve.
+
+**Si dice que ese vehículo no estaba vinculado**, alguien lo desvinculó antes: la lista
+se actualiza sola y el teléfono ya no sale como vinculado.
+
+---
+
 ## Cambiar el camión de una ruta
 <!-- tarea -->
 
@@ -7329,6 +7361,12 @@ arrastra.
 | Dejar un camión inactivo (si ya tiene rutas) | **Vehículos** | [ir](../apk/3-tareas.md#dejar-un-camión-inactivo) | [ir](../web/2-tareas.md#dejar-un-camión-inactivo) |
 | Definir los tipos de camión y su costo por km | **Vehículos** | [ir](../apk/3-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km) | [ir](../web/2-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km) |
 
+### Distribución — **necesita conexión siempre**
+
+| Tarea | Empieza en | APK | Web |
+|---|---|---|---|
+| Desvincular un teléfono de un distribuidor | **Distribución** | [ir](../apk/3-tareas.md#desvincular-un-teléfono-de-un-distribuidor) | [ir](../web/2-tareas.md#desvincular-un-teléfono-de-un-distribuidor) |
+
 ### Almacenes — **solo lectura; necesita conexión y se editan en el CRM**
 
 | Tarea | Empieza en | APK | Web |
@@ -8183,6 +8221,38 @@ nada**, y la aplicación lo dice:
    <!-- señala: cajon-descargar-al-navegador -->
 6. Instálalo encima cuando puedas: «No hace falta que sea ahora: la versión de ahora
    sigue funcionando.»
+
+---
+
+## Desvincular un teléfono de un distribuidor
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Distribución»**. **Necesita conexión.**
+
+Cada teléfono de un distribuidor queda vinculado al vehículo cuyo enlace abrió. Si se
+rompe, se pierde o va a llevar el vehículo otra persona, hay que **desvincularlo**: el
+teléfono se vacía y las rutas abiertas quedan libres. El servidor conserva todo el
+histórico.
+
+1. **Clic en la pestaña «Teléfonos»**. Entre paréntesis pone cuántos hay vinculados.
+   <!-- señala: distribucion-pestanas -->
+   - Cada teléfono dice su vehículo y placa, **«Vinculado desde»**, su distribuidor,
+     cuántas rutas abiertas tiene y **«Visto hace…»** (en ámbar pasados 10 minutos).
+   - Por defecto sólo salen los vinculados: en el filtro **«Mostrar»** elige **«Todos»**
+     para ver también los que ya se desvincularon o están dados de baja.
+   - La caja de buscar encuentra por teléfono, vehículo, placa o distribuidor.
+2. **Clic en «Desvincular»** en el teléfono. <!-- señala: distribucion-desvincular-telefono -->
+   - Se abre el cajón **«Desvincular el teléfono»**: «El teléfono se vaciará y las rutas
+     abiertas quedarán libres; lo que no haya enviado se perderá. El servidor conserva
+     todo el histórico.»
+3. Si quieres, escribe el **«Motivo (opcional)»** y **clic en «Sí, desvincular el teléfono»**.
+   Para dejarlo como estaba, **«No, dejarlo vinculado»**.
+4. Si el teléfono tenía rutas abiertas, sale el cajón **«Rutas sin teléfono»**: **«Enviar
+   enlace nuevo»** en cada una para mandarla por WhatsApp a quien la vaya a llevar. El
+   enlace anterior ya no sirve.
+
+**Si dice que ese vehículo no estaba vinculado**, alguien lo desvinculó antes: la lista
+se actualiza sola y el teléfono ya no sale como vinculado.
 
 ---
 
@@ -9861,6 +9931,38 @@ No hace falta salir a este cajón: en la ficha de un vehículo, **el desplegable
 «Tipo» tiene como última opción «+ Crear tipo nuevo…»**. Ábrela, escribe **«Nombre
 del tipo»** y su **«Costo/km (USD)»**, y **clic en «Crear tipo»**. El tipo queda
 elegido y su costo se copia al campo del camión.
+
+---
+
+## Desvincular un teléfono de un distribuidor
+<!-- tarea -->
+
+**Empieza en:** **Menú → «Distribución»**.
+
+Cada teléfono de un distribuidor queda vinculado al vehículo cuyo enlace abrió. Si se
+rompe, se pierde o va a llevar el vehículo otra persona, hay que **desvincularlo**: el
+teléfono se vacía y las rutas abiertas quedan libres. El servidor conserva todo el
+histórico.
+
+1. **Clic en la pestaña «Teléfonos»**. Entre paréntesis pone cuántos hay vinculados.
+   <!-- señala: distribucion-pestanas -->
+   - Cada teléfono dice su vehículo y placa, **«Vinculado desde»**, su distribuidor,
+     cuántas rutas abiertas tiene y **«Visto hace…»** (en ámbar pasados 10 minutos).
+   - Por defecto sólo salen los vinculados: en el filtro **«Mostrar»** elige **«Todos»**
+     para ver también los que ya se desvincularon o están dados de baja.
+   - La caja de buscar encuentra por teléfono, vehículo, placa o distribuidor.
+2. **Clic en «Desvincular»** en el teléfono. <!-- señala: distribucion-desvincular-telefono -->
+   - Se abre el cajón **«Desvincular el teléfono»**: «El teléfono se vaciará y las rutas
+     abiertas quedarán libres; lo que no haya enviado se perderá. El servidor conserva
+     todo el histórico.»
+3. Si quieres, escribe el **«Motivo (opcional)»** y **clic en «Sí, desvincular el teléfono»**.
+   Para dejarlo como estaba, **«No, dejarlo vinculado»**.
+4. Si el teléfono tenía rutas abiertas, sale el cajón **«Rutas sin teléfono»**: **«Enviar
+   enlace nuevo»** en cada una para mandarla por WhatsApp a quien la vaya a llevar. El
+   enlace anterior ya no sirve.
+
+**Si dice que ese vehículo no estaba vinculado**, alguien lo desvinculó antes: la lista
+se actualiza sola y el teléfono ya no sale como vinculado.
 
 ---
 

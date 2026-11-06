@@ -321,6 +321,14 @@ abstract final class Senalado {
   static const canalEntrando = 'canal-entrando';
   static const canalSinTerminar = 'canal-sin-terminar';
 
+  // ------------------------------------------------------------ DISTRIBUCION
+  /// Las pestañas de Distribución («Dónde están», «Por revisar», «Teléfonos»).
+  static const distribucionPestanas = 'distribucion-pestanas';
+
+  /// El «Desvincular» del primer teléfono vinculado de la pestaña «Teléfonos».
+  static const distribucionDesvincularTelefono =
+      'distribucion-desvincular-telefono';
+
   // -------------------------------------------------------------------- GUIA
   /// El propio boton de «Guiarme paso a paso», para el recorrido que ensena a
   /// usar la Guia.
@@ -460,6 +468,8 @@ abstract final class Senalado {
     canalSaliendo,
     canalEntrando,
     canalSinTerminar,
+    distribucionPestanas,
+    distribucionDesvincularTelefono,
     guiaGuiarme,
     guiaPrimeraTarea,
     guiaDocumento,

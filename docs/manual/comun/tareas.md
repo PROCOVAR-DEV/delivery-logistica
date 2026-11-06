@@ -136,6 +136,12 @@ arrastra.
 | Dejar un camión inactivo (si ya tiene rutas) | **Vehículos** | [ir](../apk/3-tareas.md#dejar-un-camión-inactivo) | [ir](../web/2-tareas.md#dejar-un-camión-inactivo) |
 | Definir los tipos de camión y su costo por km | **Vehículos** | [ir](../apk/3-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km) | [ir](../web/2-tareas.md#definir-los-tipos-de-camión-y-su-costo-por-km) |
 
+### Distribución — **necesita conexión siempre**
+
+| Tarea | Empieza en | APK | Web |
+|---|---|---|---|
+| Desvincular un teléfono de un distribuidor | **Distribución** | [ir](../apk/3-tareas.md#desvincular-un-teléfono-de-un-distribuidor) | [ir](../web/2-tareas.md#desvincular-un-teléfono-de-un-distribuidor) |
+
 ### Almacenes — **solo lectura; necesita conexión y se editan en el CRM**
 
 | Tarea | Empieza en | APK | Web |
